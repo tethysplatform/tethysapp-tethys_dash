@@ -14,6 +14,7 @@
 //     the user's request references a filter.
 
 import { LLM_EDITABLE_PATHS } from "../../config/editableSchemas";
+import { baseMapLayers } from "../visualizations/utilities";
 
 /**
  * Best-effort title extraction across viz types. Prefers top-level args.title
@@ -88,6 +89,59 @@ export function buildEditablePathsBySource(items) {
 }
 
 /**
+ * Flatten the grouped ``baseMapLayers`` constant into a flat
+ * ``[{label, value}, ...]`` list the LLM can scan directly.
+ *
+ * ``baseMapLayers`` is shaped as react-select option groups
+ * (``[{label: "...", options: [{label, value}]}]``); the LLM doesn't need
+ * the group headers.
+ */
+function flattenBaseMapOptions() {
+  const out = [];
+  for (const group of baseMapLayers) {
+    if (Array.isArray(group?.options)) {
+      for (const opt of group.options) {
+        if (opt?.label && opt?.value) {
+          out.push({ label: opt.label, value: opt.value });
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Return per-source value-hint maps for whitelisted paths whose values are
+ * drawn from a fixed catalog the LLM can't reliably guess.
+ *
+ * Today only ``/args/baseMap`` on ``Map`` qualifies: the persisted value is
+ * a full ArcGIS MapServer URL, but users ask for "satellite" or "imagery".
+ * Without this, the LLM emits a human-readable label, the reducer writes
+ * it, and the renderer silently fails at ``Map.js`` because
+ * ``getBaseMapLayer`` rejects anything without a ``/``.
+ *
+ * @param {Array<{source?: string}>} items - dashboard_state entries
+ * @returns {Object} source -> path -> {description, options: [{label, value}]}
+ */
+export function buildValueHintsBySource(items) {
+  if (!Array.isArray(items)) return {};
+  const out = {};
+  const sources = new Set(items.map((i) => i?.source).filter(Boolean));
+  if (sources.has("Map")) {
+    out.Map = {
+      "/args/baseMap": {
+        description:
+          "Basemap URL from the ArcGIS catalog. Use `value` verbatim; " +
+          "users refer to these by `label` (e.g., 'satellite' or " +
+          "'imagery' means World Imagery).",
+        options: flattenBaseMapOptions(),
+      },
+    };
+  }
+  return out;
+}
+
+/**
  * Build the full system-message payload for the chatbox beforeFirstMessage
  * injection. Returns null if there is nothing useful to inject — either
  * the dashboard has no grid items, or every item's source is outside the
@@ -95,7 +149,7 @@ export function buildEditablePathsBySource(items) {
  *
  * @param {Array} tabs - TabContext tabs array
  * @param {Object} variableInputValues - current variable input values
- * @returns {Object|null} {dashboard_state, editable_paths_by_source, variable_input_values}
+ * @returns {Object|null} {dashboard_state, editable_paths_by_source, value_hints_by_source, variable_input_values}
  */
 export function buildPatchContext(tabs, variableInputValues) {
   const dashboardState = buildDashboardState(tabs);
@@ -107,6 +161,7 @@ export function buildPatchContext(tabs, variableInputValues) {
   return {
     dashboard_state: dashboardState,
     editable_paths_by_source: editablePathsBySource,
+    value_hints_by_source: buildValueHintsBySource(dashboardState),
     variable_input_values: variableInputValues || {},
   };
 }

@@ -34,6 +34,23 @@ function initAndRender(props) {
   };
 }
 
+// Crash-hardening: DataTable receives data from multiple sources — MCP
+// create tool, patch protocol, legacy dashboards, migrations. Anything
+// other than an array must render the "No Data Available" placeholder,
+// not crash with "data.length is undefined".
+describe.each([
+  ["null", null],
+  ["undefined", undefined],
+  ["scalar number", 42],
+  ["scalar string", "rows"],
+  ["plain object", { station: "Main" }],
+])("renders empty placeholder when data is %s", (_label, badData) => {
+  it("does not crash", () => {
+    initAndRender({ title: "Graceful", data: badData, subtitle: "" });
+    expect(screen.getByText("No Data Available")).toBeInTheDocument();
+  });
+});
+
 it("Creates a Data Table with the provided data", () => {
   initAndRender(mockedTableData);
 

@@ -188,7 +188,7 @@ def _convert_plugin_args_to_schema(args: Dict) -> Dict[str, Any]:
     tags=["visualization", "chart"],
 )
 def create_plotly_chart(
-    data: Annotated[List[Dict[str, Any]], Field(description="Plotly trace objects. Each dict should have 'x', 'y', and optionally 'type', 'name', 'mode', etc.")],
+    data: Annotated[Union[List[Dict[str, Any]], str], Field(description="Plotly trace objects. Each dict should have 'x', 'y', and optionally 'type', 'name', 'mode', etc. May be passed as a JSON-string array too.")],
     layout: Annotated[Optional[Dict[str, Any]], Field(description="Plotly layout object with title, axis labels, etc.")] = None,
     config: Annotated[Optional[Dict[str, Any]], Field(description="Plotly config object (responsive, displaylogo, etc.)")] = None,
     title: Annotated[Optional[str], Field(description="Chart title (shorthand - added to layout.title)")] = None,
@@ -200,6 +200,13 @@ def create_plotly_chart(
     Returns a visualization spec that the chatbox dispatches as a grid item.
     The chart renders using TethysDash's native BasePlot component.
     """
+    # Dict-coercion pattern (see docs/solutions/best-practices/mcp-tool-dict-parameter-coercion)
+    if isinstance(data, str):
+        try:
+            data = json.loads(data)
+        except json.JSONDecodeError as e:
+            return {"error": f"invalid_args: `data` is not valid JSON: {e}"}
+
     final_layout = layout or {}
     if title and "title" not in final_layout:
         final_layout["title"] = title
@@ -228,7 +235,7 @@ def create_plotly_chart(
     tags=["visualization", "table"],
 )
 def create_data_table(
-    data: Annotated[List[Dict[str, Any]], Field(description="Array of row objects, e.g. [{'col1': 'val1', 'col2': 'val2'}, ...]")],
+    data: Annotated[Union[List[Dict[str, Any]], str], Field(description="Array of row objects. Each dict maps column names to cell values; all rows must share the same keys. May be passed as a JSON-string array too.")],
     title: Annotated[Optional[str], Field(description="Table title")] = None,
     subtitle: Annotated[Optional[str], Field(description="Table subtitle")] = None,
     w: Annotated[int, Field(description="Grid width in columns (out of 100)")] = 50,
@@ -238,6 +245,13 @@ def create_data_table(
 
     Returns a visualization spec that renders using TethysDash's native DataTable component.
     """
+    # Dict-coercion pattern (see docs/solutions/best-practices/mcp-tool-dict-parameter-coercion)
+    if isinstance(data, str):
+        try:
+            data = json.loads(data)
+        except json.JSONDecodeError as e:
+            return {"error": f"invalid_args: `data` is not valid JSON: {e}"}
+
     return {
         "visualization": {
             "source": "Inline Table",
@@ -254,21 +268,66 @@ def create_data_table(
     }
 
 
+def _coerce_card_data(data: Any) -> List[Dict[str, Any]]:
+    """Coerce LLM-provided card data into the shape the Card renderer expects.
+
+    Card.js iterates `data` and reads `{label, value, color, icon}` per entry,
+    so the renderer requires a list of dicts. But LLMs naturally pass scalars
+    when the user says "card with value 42". This helper coerces at the tool
+    boundary — matches the project's liberal dict-coercion convention (see
+    ``docs/solutions/best-practices/mcp-tool-dict-parameter-coercion``).
+
+    - None                  -> []                         (empty placeholder)
+    - JSON string           -> parsed, then recursed      (LLM serialization)
+    - scalar (int/str/etc.) -> [{"value": str(x)}]
+    - dict                  -> [dict]
+    - list of dicts         -> unchanged
+    - list with scalars     -> each scalar wrapped in {"value": str(x)}
+    """
+    if data is None:
+        return []
+    if isinstance(data, str):
+        stripped = data.strip()
+        if stripped.startswith("[") or stripped.startswith("{"):
+            try:
+                return _coerce_card_data(json.loads(stripped))
+            except json.JSONDecodeError:
+                pass  # Fall through to scalar handling.
+        return [{"value": data}]
+    if isinstance(data, dict):
+        return [data]
+    if isinstance(data, list):
+        return [
+            item if isinstance(item, dict) else {"value": str(item)}
+            for item in data
+        ]
+    return [{"value": str(data)}]
+
+
 @mcp.tool(
     name="create_card",
-    description="Create a card with title, description, and value on the dashboard",
+    description=(
+        "Create a card visualization showing one or more key-value stats. "
+        "Each data entry carries optional `label`, `value`, `color`, and "
+        "`icon` fields. A bare scalar or single dict is auto-wrapped into a "
+        "single-entry list; None renders an empty placeholder."
+    ),
     tags=["visualization", "card"],
 )
 def create_card(
     title: Annotated[str, Field(description="Card title")],
     description: Annotated[Optional[str], Field(description="Card description text")] = None,
-    data: Annotated[Optional[Any], Field(description="Card data (value, metric, etc.)")] = None,
+    data: Annotated[Optional[Any], Field(description=(
+        "List of stat entries; each entry is a dict with optional `label`, "
+        "`value`, `color`, and `icon`. Scalars, single dicts, and JSON-string "
+        "payloads are coerced into list-of-dict form."
+    ))] = None,
     w: Annotated[int, Field(description="Grid width in columns (out of 100)")] = 25,
     h: Annotated[int, Field(description="Grid height in row units")] = 15,
 ) -> Dict[str, Any]:
     """Create a card visualization on the dashboard.
 
-    Cards display a title, description, and optional data value.
+    Cards display a title, description, and a list of stat entries.
     Renders using TethysDash's native Card component.
     """
     return {
@@ -279,7 +338,7 @@ def create_card(
             "inlineData": {
                 "title": title,
                 "description": description or "",
-                "data": data,
+                "data": _coerce_card_data(data),
             },
             "w": w,
             "h": h,
@@ -829,6 +888,62 @@ def add_map_service_layer(
 _ALLOWED_OPS = {"add", "replace", "remove", "move", "test"}
 _BARE_LAYER_INDEX = re.compile(r"^/args/layers/\d+$")
 
+# Paths where the persisted value must be a specific Python shape. Enforced
+# at the MCP boundary so the LLM gets a clear structured error rather than
+# crashing the renderer (e.g., Card.js / DataTable.js both assume
+# ``data.length`` works, which blows up for non-array payloads). Keep the
+# list tight — each entry is a CONTRACT with a specific renderer.
+_VALUE_SHAPE_RULES: Dict[tuple, tuple] = {
+    # (source, path) -> (expected_type_tuple, type_label)
+    ("Inline Plotly", "/args/inlineData/data"): ((list,), "list"),
+    ("Inline Plotly", "/args/inlineData/layout"): ((dict,), "object"),
+    ("Inline Plotly", "/args/inlineData/config"): ((dict,), "object"),
+    ("Inline Table", "/args/inlineData/data"): ((list,), "list"),
+    ("Inline Card", "/args/inlineData/data"): ((list,), "list"),
+}
+
+
+def _validate_value_shapes(source: str, patches: List[Dict[str, Any]]) -> Optional[str]:
+    """Reject ops whose value type would later crash the renderer.
+
+    Only runs on ``add`` / ``replace`` / ``test`` (ops that carry a value).
+    ``remove`` and ``move`` are skipped. Matches paths exactly — deeper
+    ops inside a constrained subtree are left to RFC 6902 semantics.
+    """
+    for i, op in enumerate(patches):
+        if op.get("op") not in ("add", "replace", "test"):
+            continue
+        rule = _VALUE_SHAPE_RULES.get((source, op.get("path")))
+        if not rule:
+            continue
+        expected, label = rule
+        if not isinstance(op.get("value"), expected):
+            return (
+                f"op {i} at {op['path']!r} requires value type {label}, "
+                f"got {type(op.get('value')).__name__}. The renderer for "
+                f"{source!r} depends on this shape."
+            )
+    return None
+
+
+def _coerce_known_values(source: str, patches: List[Dict[str, Any]]) -> None:
+    """Mirror create-tool value coercions on matching patch ops.
+
+    Keeps patch-vs-create behavior symmetric: anything the LLM can pass to a
+    create tool should land the same way via patch. Mutates ``patches``
+    in-place (the envelope is about to be returned verbatim to the client).
+    """
+    for op in patches:
+        if op.get("op") not in ("add", "replace", "test"):
+            continue
+        # Mirror create_map_visualization's BASE_MAPS shorthand resolution
+        # so ``{"op":"replace","path":"/args/baseMap","value":"imagery"}``
+        # becomes the full ArcGIS MapServer URL before the reducer sees it.
+        if source == "Map" and op.get("path") == "/args/baseMap":
+            value = op.get("value")
+            if isinstance(value, str):
+                op["value"] = BASE_MAPS.get(value, value)
+
 
 def _validate_patch_envelope_shape(patches):
     """R1/R2: structural validation.
@@ -1035,6 +1150,17 @@ def patch_visualization(
     layer_error = _check_layer_construction_boundary(source, patches)
     if layer_error:
         return {"error": f"whitelist_rejected: {layer_error}"}
+
+    # Value-shape validation: enforce renderer contracts that create tools
+    # already enforce via Pydantic. Prevents a valid-envelope patch from
+    # silently crashing Card.js / DataTable.js with a non-array payload.
+    shape_error = _validate_value_shapes(source, patches)
+    if shape_error:
+        return {"error": f"invalid_envelope: {shape_error}"}
+
+    # Value coercions that mirror the create tools (e.g., baseMap shorthand).
+    # Run AFTER validation so shape rules apply to the pre-coercion value.
+    _coerce_known_values(source, patches)
 
     LOGGER.info(
         "patch_visualization: target_uuid=%s source=%s ops=%d description=%s",

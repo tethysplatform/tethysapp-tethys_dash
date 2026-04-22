@@ -93,7 +93,7 @@ const Card = ({ title, description, data, visualizationRef }) => {
         <h3>{title}</h3>
         <p>{description}</p>
       </Header>
-      {data.length === 0 ? (
+      {!Array.isArray(data) || data.length === 0 ? (
         <StatItemGroup />
       ) : (
         <StatsContainer>

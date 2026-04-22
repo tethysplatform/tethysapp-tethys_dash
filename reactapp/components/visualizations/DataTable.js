@@ -10,7 +10,7 @@ const StyledDiv = styled.div`
 `;
 
 const DataTable = ({ data, title, subtitle, visualizationRef }) => {
-  if (data.length === 0) {
+  if (!Array.isArray(data) || data.length === 0) {
     return (
       <StyledDiv>
         <h2>No Data Available</h2>

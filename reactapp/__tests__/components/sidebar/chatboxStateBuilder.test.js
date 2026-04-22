@@ -9,6 +9,7 @@
 import {
   buildDashboardState,
   buildEditablePathsBySource,
+  buildValueHintsBySource,
   buildPatchContext,
 } from "../../../components/sidebar/chatboxStateBuilder";
 import { LLM_EDITABLE_PATHS } from "../../../config/editableSchemas";
@@ -119,6 +120,46 @@ describe("buildEditablePathsBySource", () => {
   });
 });
 
+describe("buildValueHintsBySource", () => {
+  test("returns empty object for empty items", () => {
+    expect(buildValueHintsBySource([])).toEqual({});
+  });
+
+  test("Map items get /args/baseMap options with label+value entries", () => {
+    const items = [{ source: "Map" }];
+    const hints = buildValueHintsBySource(items);
+    expect(hints.Map).toBeDefined();
+    expect(hints.Map["/args/baseMap"]).toBeDefined();
+    const basemap = hints.Map["/args/baseMap"];
+    expect(Array.isArray(basemap.options)).toBe(true);
+    expect(basemap.options.length).toBeGreaterThan(5);
+    // Every option carries label+value, values are ArcGIS URLs
+    for (const opt of basemap.options) {
+      expect(typeof opt.label).toBe("string");
+      expect(typeof opt.value).toBe("string");
+      expect(opt.value.startsWith("https://")).toBe(true);
+    }
+    // "World Imagery" must be in the options so the LLM can pick it
+    // when the user says "satellite" / "imagery" / "aerial".
+    const worldImagery = basemap.options.find((o) => o.label === "World Imagery");
+    expect(worldImagery).toBeDefined();
+    expect(worldImagery.value).toMatch(/World_Imagery\/MapServer$/);
+  });
+
+  test("non-Map viz types get no entry (Map is the only enum-URL field today)", () => {
+    const items = [{ source: "Inline Plotly" }, { source: "Inline Card" }];
+    const hints = buildValueHintsBySource(items);
+    expect(hints.Map).toBeUndefined();
+    expect(hints["Inline Plotly"]).toBeUndefined();
+  });
+
+  test("mixed dashboard: Map hints emitted once even with multiple maps", () => {
+    const items = [{ source: "Map" }, { source: "Map" }, { source: "Inline Plotly" }];
+    const hints = buildValueHintsBySource(items);
+    expect(Object.keys(hints)).toEqual(["Map"]);
+  });
+});
+
 describe("buildPatchContext", () => {
   test("returns null when no patchable items are in the dashboard", () => {
     // Empty dashboard, no variable inputs set — nothing useful to say.
@@ -136,6 +177,9 @@ describe("buildPatchContext", () => {
       "Variable Input",
     ]);
     expect(ctx.variable_input_values).toEqual({ year: 2026 });
+    // Map basemap hints must flow into the full patch context so the LLM
+    // can pick a correct URL instead of guessing a label like "imagery".
+    expect(ctx.value_hints_by_source.Map["/args/baseMap"]).toBeDefined();
   });
 
   test("includes the plot's /args/inlineData prefix so the LLM can infer /args/inlineData/layout/title", () => {

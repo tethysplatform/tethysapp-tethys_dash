@@ -56,6 +56,21 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
       });
     }
 
+    // Persist the given tab's updated grid items. Silently swallows save
+    // errors so a transient network blip doesn't interrupt the user —
+    // manual save still works. Callers must update `gridItemsUpdated.current`
+    // synchronously BEFORE calling this so subsequent event handlers see
+    // the new state (per the stale-ref solution doc).
+    function persistTabGridItems(updatedGridItems) {
+      if (!saveLayoutContext) return;
+      const updatedTabs = tabs.map((tab) =>
+        tab.id === tabId ? { ...tab, gridItems: updatedGridItems } : tab,
+      );
+      saveLayoutContext({ tabs: updatedTabs }).catch(() => {
+        // Save failed silently — user can manually save later.
+      });
+    }
+
     function handleAddVisualization(e) {
       const detail = e.detail || {};
       const current = gridItemsUpdated.current;
@@ -122,16 +137,7 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
       // grid items without waiting for React to re-render.
       gridItemsUpdated.current = updatedGridItems;
       updateTab(tabId, { gridItems: updatedGridItems });
-
-      // Auto-save: persist dynamically created panels to the backend
-      if (saveLayoutContext) {
-        const updatedTabs = tabs.map((tab) =>
-          tab.id === tabId ? { ...tab, gridItems: updatedGridItems } : tab,
-        );
-        saveLayoutContext({ tabs: updatedTabs }).catch(() => {
-          // Save failed silently — user can manually save later
-        });
-      }
+      persistTabGridItems(updatedGridItems);
     }
 
     // Apply an RFC 6902 patch envelope to a single grid item. Returns the
@@ -221,15 +227,7 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
         ];
         gridItemsUpdated.current = updatedGridItems;
         updateTab(tabId, { gridItems: updatedGridItems });
-
-        if (saveLayoutContext) {
-          const updatedTabs = tabs.map((tab) =>
-            tab.id === tabId ? { ...tab, gridItems: updatedGridItems } : tab,
-          );
-          saveLayoutContext({ tabs: updatedTabs }).catch(() => {
-            // Save failed silently — user can manually save later
-          });
-        }
+        persistTabGridItems(updatedGridItems);
         return;
       }
 
@@ -282,15 +280,7 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
         // docs/solutions/logic-errors/raf-timing-race-layer-dispatch-*).
         gridItemsUpdated.current = updated;
         updateTab(tabId, { gridItems: updated });
-
-        if (saveLayoutContext) {
-          const updatedTabs = tabs.map((tab) =>
-            tab.id === tabId ? { ...tab, gridItems: updated } : tab,
-          );
-          saveLayoutContext({ tabs: updatedTabs }).catch(() => {
-            // Save failed silently — user can manually save later
-          });
-        }
+        persistTabGridItems(updated);
         return;
       }
 

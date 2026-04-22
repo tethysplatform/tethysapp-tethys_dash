@@ -7,12 +7,24 @@
  * (Unit 6 of the plan).
  */
 
+import { useContext } from "react";
 import { act, render, screen } from "@testing-library/react";
 import DashboardLayout from "components/dashboard/DashboardLayout";
 import createLoadedComponent, {
   TabsPComponent,
 } from "__tests__/utilities/customRender";
 import LayoutAlertContextProvider from "components/contexts/LayoutAlertContext";
+import { TabContext } from "components/contexts/Contexts";
+
+// Wraps DashboardLayout so `gridItems` flows from TabContext on every render,
+// mirroring production. Without this, handleAddVisualization mutates
+// gridItemsUpdated.current but the parent's re-render overwrites it with
+// the stale static prop — breaking any multi-dispatch test.
+const LiveDashboardLayout = ({ tabId }) => {
+  const { tabs } = useContext(TabContext);
+  const tab = (tabs || []).find((t) => t.id === tabId);
+  return <DashboardLayout tabId={tabId} gridItems={tab?.gridItems || []} />;
+};
 
 // eslint-disable-next-line
 jest.mock("components/dashboard/DashboardItem", () => (props) => (
@@ -41,10 +53,7 @@ async function renderWithDashboard(dashboard) {
       children: (
         <>
           <LayoutAlertContextProvider>
-            <DashboardLayout
-              tabId={dashboard.tabs[0].id}
-              gridItems={dashboard.tabs[0].gridItems}
-            />
+            <LiveDashboardLayout tabId={dashboard.tabs[0].id} />
           </LayoutAlertContextProvider>
           <TabsPComponent />
         </>
@@ -68,6 +77,14 @@ async function dispatchUpdate(detail) {
   await act(async () => {
     window.dispatchEvent(
       new CustomEvent("tethysdash:update-visualization", { detail }),
+    );
+  });
+}
+
+async function dispatchAdd(detail) {
+  await act(async () => {
+    window.dispatchEvent(
+      new CustomEvent("tethysdash:add-visualization", { detail }),
     );
   });
 }
@@ -378,6 +395,145 @@ describe("handleUpdateVisualization — apply_patch", () => {
     const items = getTabGridItems();
     const updated = JSON.parse(items[0].args_string);
     expect(updated["variable_options_source.metadata"].max).toBe(200);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Same-turn ordering invariant
+// ---------------------------------------------------------------------------
+//
+// Chatbox.jsx dispatches `tethysdash:add-visualization` synchronously, then
+// schedules `tethysdash:update-visualization` via requestAnimationFrame.
+// That ordering is what makes it safe to patch a UUID the LLM just created
+// in the same turn: the add handler runs to completion (updating
+// gridItemsUpdated.current) before the rAF-scheduled patch dispatches.
+// This test pins that invariant at the reducer level so a regression of
+// the silent-drop "target_not_yet_persisted" behavior can't sneak back in.
+
+describe("handleUpdateVisualization — same-turn add + patch ordering", () => {
+  // A placeholder grid item so renderWithDashboard's findAllByText wait
+  // can resolve. The add-visualization dispatch appends new items alongside.
+  const placeholder = {
+    id: 999,
+    uuid: "placeholder",
+    i: "999",
+    x: 0,
+    y: 0,
+    w: 50,
+    h: 30,
+    source: "Text",
+    args_string: JSON.stringify({ text: "placeholder" }),
+    metadata_string: '{"refreshRate":0}',
+  };
+
+  test("a patch against a UUID added in the same batch lands on the new item", async () => {
+    // Simulate Chatbox.jsx's dispatch order: synchronous add-visualization,
+    // then update-visualization (as if rAF already fired — the reducer
+    // doesn't care how it was scheduled).
+    await renderWithDashboard(makeDashboard([placeholder]));
+
+    // add-visualization event carries panels with raw `args` (not args_string);
+    // handleAddVisualization stringifies internally at DashboardLayout.js:111.
+    const newPanel = {
+      source: "Inline Plotly",
+      uuid: "plot-new",
+      w: 50,
+      h: 40,
+      args: {
+        vizType: "plotly",
+        inlineData: {
+          data: [{ x: [1, 2, 3], y: [4, 5, 6] }],
+          layout: { title: "Rainfall (downstream)" },
+        },
+      },
+    };
+
+    await dispatchAdd({ batch: true, panels: [newPanel] });
+
+    // At this point the reducer has appended the plot. Chatbox would now
+    // fire the rAF-scheduled patch — we simulate it directly.
+    await dispatchUpdate({
+      batch: true,
+      operation: "apply_patch",
+      patches: [
+        {
+          uuid: "plot-new",
+          source: "Inline Plotly",
+          ops: [
+            {
+              op: "replace",
+              path: "/args/inlineData/layout/title",
+              value: "Tailwater",
+            },
+          ],
+        },
+      ],
+    });
+
+    const items = getTabGridItems();
+    const plot = items.find((i) => i.uuid === "plot-new");
+    expect(plot).toBeDefined();
+    const args = JSON.parse(plot.args_string);
+    // Patch landed: title is the new value, original data preserved
+    expect(args.inlineData.layout.title).toBe("Tailwater");
+    expect(args.inlineData.data).toEqual([{ x: [1, 2, 3], y: [4, 5, 6] }]);
+  });
+
+  test("two same-turn plots, patch targets only one of them", async () => {
+    // Mirrors the user's reported prompt: create two plots, rename one.
+    await renderWithDashboard(makeDashboard([placeholder]));
+
+    const mkPanel = (uuid, title) => ({
+      source: "Inline Plotly",
+      uuid,
+      w: 50,
+      h: 40,
+      args: {
+        vizType: "plotly",
+        inlineData: {
+          data: [{ x: [1], y: [1] }],
+          layout: { title },
+        },
+      },
+    });
+
+    await dispatchAdd({
+      batch: true,
+      panels: [
+        mkPanel("plot-upstream", "Rainfall (upstream)"),
+        mkPanel("plot-downstream", "Rainfall (downstream)"),
+      ],
+    });
+
+    await dispatchUpdate({
+      batch: true,
+      operation: "apply_patch",
+      patches: [
+        {
+          uuid: "plot-downstream",
+          source: "Inline Plotly",
+          ops: [
+            {
+              op: "replace",
+              path: "/args/inlineData/layout/title",
+              value: "Tailwater",
+            },
+          ],
+        },
+      ],
+    });
+
+    const items = getTabGridItems();
+    const upstream = JSON.parse(
+      items.find((i) => i.uuid === "plot-upstream").args_string,
+    );
+    const downstream = JSON.parse(
+      items.find((i) => i.uuid === "plot-downstream").args_string,
+    );
+    // Upstream untouched
+    expect(upstream.inlineData.layout.title).toBe("Rainfall (upstream)");
+    // Downstream renamed
+    expect(downstream.inlineData.layout.title).toBe("Tailwater");
   });
 });
 

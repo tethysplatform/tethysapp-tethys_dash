@@ -182,6 +182,22 @@ class TestCreatePlotlyChart:
         with pytest.raises(AssertionError, match="inlineData found"):
             assert_flat_args_viz(result, "Inline Plotly")
 
+    def test_json_string_data_is_coerced(self):
+        """Some LLMs serialize list args as JSON strings. Parity with
+        patch_visualization, add_map_service_layer, create_variable_input,
+        and create_card — all of which already coerce.
+        """
+        result = create_plotly_chart(
+            data='[{"x": [1, 2, 3], "y": [4, 5, 6]}]'
+        )
+        inline = result["visualization"]["inlineData"]
+        assert inline["data"] == [{"x": [1, 2, 3], "y": [4, 5, 6]}]
+
+    def test_malformed_json_string_data_returns_error(self):
+        result = create_plotly_chart(data="not json at all")
+        assert "error" in result
+        assert "invalid_args" in result["error"]
+
 
 # ---------------------------------------------------------------------------
 # create_data_table contract tests
@@ -229,6 +245,22 @@ class TestCreateDataTable:
         assert inline["title"] == ""
         assert inline["subtitle"] == ""
 
+    def test_json_string_data_is_coerced(self):
+        """Parity with create_card, create_variable_input, and the patch
+        protocol — LLMs sometimes serialize the row array as a JSON string.
+        """
+        result = create_data_table(
+            data='[{"station":"Main","flow":120}]',
+            title="Stations",
+        )
+        inline = result["visualization"]["inlineData"]
+        assert inline["data"] == [{"station": "Main", "flow": 120}]
+
+    def test_malformed_json_string_data_returns_error(self):
+        result = create_data_table(data="definitely not json")
+        assert "error" in result
+        assert "invalid_args" in result["error"]
+
 
 # ---------------------------------------------------------------------------
 # create_card contract tests
@@ -247,9 +279,51 @@ class TestCreateCard:
         assert inline["title"] == "Users"
         assert inline["description"] == "Total active users"
 
-    def test_inline_data_contains_data_value(self):
+    def test_scalar_data_is_coerced_to_list_of_dicts(self):
+        # Card renderer (Card.js:100) calls `data.map(...)`; it requires a
+        # list of {label?, value?, color?, icon?} dicts. LLMs naturally pass
+        # a scalar when the user says "card with value 42" — coerce at the
+        # tool boundary (see docs/solutions/best-practices/mcp-tool-dict-parameter-coercion).
         result = create_card(title="Count", data=42)
-        assert result["visualization"]["inlineData"]["data"] == 42
+        assert result["visualization"]["inlineData"]["data"] == [{"value": "42"}]
+
+    def test_string_scalar_data_is_coerced(self):
+        result = create_card(title="Status", data="Operational")
+        assert result["visualization"]["inlineData"]["data"] == [
+            {"value": "Operational"}
+        ]
+
+    def test_missing_data_defaults_to_empty_list(self):
+        # Card.js:96 checks `data.length === 0` to render the empty placeholder;
+        # None must become [] so the renderer's guard works.
+        result = create_card(title="Empty")
+        assert result["visualization"]["inlineData"]["data"] == []
+
+    def test_single_dict_data_is_wrapped_in_list(self):
+        result = create_card(title="One", data={"label": "Flow", "value": 120})
+        assert result["visualization"]["inlineData"]["data"] == [
+            {"label": "Flow", "value": 120}
+        ]
+
+    def test_list_of_dicts_passes_through_unchanged(self):
+        data = [{"label": "A", "value": 1}, {"label": "B", "value": 2}]
+        result = create_card(title="Multi", data=data)
+        assert result["visualization"]["inlineData"]["data"] == data
+
+    def test_list_of_scalars_wraps_each_item(self):
+        result = create_card(title="Values", data=[10, "twenty"])
+        assert result["visualization"]["inlineData"]["data"] == [
+            {"value": "10"},
+            {"value": "twenty"},
+        ]
+
+    def test_json_string_data_is_coerced(self):
+        # Project dict-coercion pattern: some LLMs serialize complex args as
+        # JSON strings. The tool accepts that too.
+        result = create_card(title="Stringy", data='[{"label": "A", "value": 1}]')
+        assert result["visualization"]["inlineData"]["data"] == [
+            {"label": "A", "value": 1}
+        ]
 
     def test_default_dimensions(self):
         result = create_card(title="Test")

@@ -40,8 +40,23 @@ _JSON_PATH = (
     / "editableSchemas.json"
 )
 
-with open(_JSON_PATH, encoding="utf-8") as _f:
-    LLM_EDITABLE_PATHS: Dict[str, List[str]] = json.load(_f)
+try:
+    with open(_JSON_PATH, encoding="utf-8") as _f:
+        LLM_EDITABLE_PATHS: Dict[str, List[str]] = json.load(_f)
+except FileNotFoundError as _exc:
+    # The JSON lives under ``reactapp/config/`` and is the canonical source
+    # shared with the frontend. A clean checkout that skipped the npm build,
+    # or a packaged deploy missing the React assets, will land here. Surface
+    # an actionable message instead of letting the bare FileNotFoundError
+    # propagate through the MCP server startup.
+    raise RuntimeError(
+        f"Missing LLM-editable-path whitelist at {_JSON_PATH!s}. "
+        f"This file is the single source of truth for both the JS and "
+        f"Python sides of the patch_visualization whitelist. It is "
+        f"maintained under reactapp/config/editableSchemas.json in the "
+        f"TethysDash source tree. Make sure the React assets ship alongside "
+        f"the Python package, or restore the file from git."
+    ) from _exc
 
 
 def is_path_allowed(source: str, json_pointer: str) -> bool:

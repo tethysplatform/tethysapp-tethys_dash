@@ -73,7 +73,7 @@ function ChatSidebar() {
   // component tests that don't set up the full context tree) should get a
   // no-op rather than crash during destructuring.
   const { isOpen, setIsOpen } = useContext(ChatSidebarContext) ?? {};
-  const { tethysApp, csrf } = useContext(AppContext) ?? {};
+  const { csrf } = useContext(AppContext) ?? {};
   const { variableInputValues, setVariableInputValues } =
     useContext(VariableInputsContext) ?? {};
   // TabContext provides live tabs + gridItems. Subscribed here (not deeper)
@@ -124,8 +124,11 @@ function ChatSidebar() {
             "extend (e.g., `/args/inlineData` permits " +
             "`/args/inlineData/layout/title`, `/args/inlineData/data/0/x`, " +
             "etc.). RFC 6901 JSON Pointer: literal `.` in segment names is " +
-            "preserved (do not escape). Variable input values are listed " +
-            "below so you can reason over current filters.\n" +
+            "preserved (do not escape). When a path appears in " +
+            "`value_hints_by_source`, the persisted value must be chosen " +
+            "verbatim from the listed `options` — do not invent or " +
+            "abbreviate the value. Variable input values are listed below " +
+            "so you can reason over current filters.\n" +
             JSON.stringify(patchContext),
         };
       },

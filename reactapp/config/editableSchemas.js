@@ -35,4 +35,3 @@ export function isPathAllowed(source, jsonPointer) {
 }
 
 export { LLM_EDITABLE_PATHS };
-export default LLM_EDITABLE_PATHS;

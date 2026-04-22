@@ -119,6 +119,172 @@ class TestHappyPath:
 
 
 # ---------------------------------------------------------------------------
+# Value coercion — keep patch vs create behavior symmetric
+# ---------------------------------------------------------------------------
+
+
+class TestValueCoercion:
+    """Value-level transformations that mirror what create tools do.
+
+    LLMs naturally reuse shorthand they learned from create tools (e.g.,
+    `baseMap: "imagery"` accepted by ``create_map_visualization``). Without
+    mirroring the coercion here, patches written in that shorthand silently
+    break the renderer.
+    """
+
+    def test_basemap_shorthand_resolved_to_full_url(self):
+        """Mirror create_map_visualization's BASE_MAPS resolution."""
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="Map",
+            patches=[{"op": "replace", "path": "/args/baseMap", "value": "imagery"}],
+        )
+        assert "patch_update" in result
+        resolved = result["patch_update"]["ops"][0]["value"]
+        assert resolved.startswith("https://server.arcgisonline.com/")
+        assert "World_Imagery" in resolved
+
+    def test_basemap_full_url_passes_through_unchanged(self):
+        """Full URLs (the value the frontend persists) must not be mangled."""
+        full_url = (
+            "https://server.arcgisonline.com/arcgis/rest/services/"
+            "World_Topo_Map/MapServer"
+        )
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="Map",
+            patches=[{"op": "replace", "path": "/args/baseMap", "value": full_url}],
+        )
+        assert "patch_update" in result
+        assert result["patch_update"]["ops"][0]["value"] == full_url
+
+    def test_basemap_unknown_value_passes_through_unchanged(self):
+        """Don't clobber arbitrary URLs the user might paste in directly."""
+        custom_url = "https://custom-tile-server.example.com/MapServer"
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="Map",
+            patches=[{"op": "replace", "path": "/args/baseMap", "value": custom_url}],
+        )
+        assert result["patch_update"]["ops"][0]["value"] == custom_url
+
+    def test_coercion_does_not_touch_non_basemap_paths(self):
+        """The shorthand map must not accidentally rewrite unrelated values."""
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="Map",
+            patches=[{"op": "replace", "path": "/args/layerControl", "value": True}],
+        )
+        assert result["patch_update"]["ops"][0]["value"] is True
+
+
+# ---------------------------------------------------------------------------
+# Value-shape validation — contract parity between create and patch paths
+# ---------------------------------------------------------------------------
+
+
+class TestValueShapeValidation:
+    """Some paths require a specific value shape the renderer depends on.
+
+    Create tools enforce these via Pydantic; the patch tool must reject
+    them too so a well-formed envelope can't crash the renderer with
+    TypeErrors like ``data.length is undefined``.
+    """
+
+    def test_plotly_inline_data_must_be_a_list(self):
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="Inline Plotly",
+            patches=[{"op": "replace", "path": "/args/inlineData/data", "value": 42}],
+        )
+        assert "error" in result
+        assert "invalid_envelope" in result["error"]
+
+    def test_table_inline_data_must_be_a_list(self):
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="Inline Table",
+            patches=[{"op": "replace", "path": "/args/inlineData/data", "value": "rows"}],
+        )
+        assert "error" in result
+        assert "invalid_envelope" in result["error"]
+
+    def test_card_inline_data_must_be_a_list(self):
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="Inline Card",
+            patches=[{"op": "replace", "path": "/args/inlineData/data", "value": {"value": 1}}],
+        )
+        assert "error" in result
+        assert "invalid_envelope" in result["error"]
+
+    def test_plotly_inline_layout_must_be_a_dict(self):
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="Inline Plotly",
+            patches=[{"op": "replace", "path": "/args/inlineData/layout", "value": "bad"}],
+        )
+        assert "error" in result
+        assert "invalid_envelope" in result["error"]
+        # Pin the source name in the error so future whitelist-clear regressions
+        # are caught (review finding KP-08: assertions that only check the class
+        # prefix pass even when the rules dict is empty).
+        assert "Inline Plotly" in result["error"]
+        assert "/args/inlineData/layout" in result["error"]
+
+    def test_plotly_inline_config_must_be_a_dict(self):
+        # _VALUE_SHAPE_RULES includes ("Inline Plotly", "/args/inlineData/config").
+        # Missing negative coverage would mean a non-dict config passes the
+        # server and crashes the Plotly renderer (review finding T-03).
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="Inline Plotly",
+            patches=[{"op": "replace", "path": "/args/inlineData/config", "value": "bad"}],
+        )
+        assert "error" in result
+        assert "invalid_envelope" in result["error"]
+        assert "/args/inlineData/config" in result["error"]
+
+    def test_valid_list_value_still_accepted(self):
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="Inline Plotly",
+            patches=[{
+                "op": "replace",
+                "path": "/args/inlineData/data",
+                "value": [{"x": [1, 2], "y": [3, 4]}],
+            }],
+        )
+        assert "patch_update" in result
+
+    def test_deep_path_below_a_rule_is_not_validated(self):
+        """Only the exact path triggers validation; deeper ops inside the
+        same subtree use whatever value type RFC 6902 says is valid.
+        """
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="Inline Plotly",
+            # Writing a scalar at .../layout/title is fine — the title itself
+            # IS a string. The rule is on /args/inlineData/layout as a whole.
+            patches=[{
+                "op": "replace",
+                "path": "/args/inlineData/layout/title",
+                "value": "Rainfall",
+            }],
+        )
+        assert "patch_update" in result
+
+    def test_remove_op_skips_value_shape_check(self):
+        """`remove` has no value — shape check must not spuriously fire."""
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="Inline Plotly",
+            patches=[{"op": "remove", "path": "/args/inlineData/data"}],
+        )
+        assert "patch_update" in result
+
+
+# ---------------------------------------------------------------------------
 # Dict-coercion — LLMs that serialize lists as JSON strings
 # ---------------------------------------------------------------------------
 
