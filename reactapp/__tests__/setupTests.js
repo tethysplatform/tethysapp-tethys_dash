@@ -83,3 +83,7 @@ HTMLCanvasElement.prototype.getContext = function () {
     createPattern: global.createPatternMock,
   };
 };
+
+jest.mock("uuid", () => ({
+  v4: () => 12345678,
+}));

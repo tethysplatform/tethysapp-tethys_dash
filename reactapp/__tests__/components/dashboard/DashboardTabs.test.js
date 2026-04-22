@@ -6,11 +6,6 @@ import DashboardTabs from "components/dashboard/DashboardTabs";
 import { userDashboard } from "__tests__/utilities/constants";
 import userEvent from "@testing-library/user-event";
 import { confirm } from "components/inputs/DeleteConfirmation";
-
-jest.mock("uuid", () => ({
-  v4: () => 12345678,
-}));
-
 jest.mock("components/inputs/DeleteConfirmation", () => {
   return {
     confirm: jest.fn(),
@@ -27,7 +22,7 @@ test("Dashboard Tabs, single tab and not editing", async () => {
           <TabsPComponent />
         </>
       ),
-    })
+    }),
   );
 
   expect(await screen.findByLabelText("gridItemDiv")).toBeInTheDocument();
@@ -87,7 +82,7 @@ test("Dashboard Tabs, multiple tab and not editing", async () => {
         </>
       ),
       options: { dashboards: { dashboards: [expectedDashboard] } },
-    })
+    }),
   );
 
   const tablist = await screen.findByRole("tablist");
@@ -113,7 +108,7 @@ test("Dashboard Tabs, single tab and editing", async () => {
       options: {
         inEditing: true,
       },
-    })
+    }),
   );
 
   expect(await screen.findByLabelText("gridItemDiv")).toBeInTheDocument();
@@ -179,7 +174,7 @@ test("Dashboard Tabs, multiple tab and editing", async () => {
         dashboards: { dashboards: [expectedDashboard] },
         inEditing: true,
       },
-    })
+    }),
   );
 
   const tablist = await screen.findByRole("tablist");
@@ -244,13 +239,13 @@ test("Dashboard Tabs, select tab", async () => {
         dashboards: { dashboards: [expectedDashboard] },
         inEditing: true,
       },
-    })
+    }),
   );
 
   const tabName = expectedDashboard.tabs[1].name;
   const tabButtons = await screen.findAllByRole("tab");
   const tab2Button = tabButtons.find((btn) =>
-    btn.textContent.includes("Tab 2")
+    btn.textContent.includes("Tab 2"),
   );
   expect(tab2Button).toBeInTheDocument();
   expect(tab2Button).toHaveTextContent(tabName);
@@ -310,7 +305,7 @@ test("Dashboard Tabs, rename tab", async () => {
         dashboards: { dashboards: [expectedDashboard] },
         inEditing: true,
       },
-    })
+    }),
   );
 
   const tabID = expectedDashboard.tabs[0].id;
@@ -341,7 +336,7 @@ test("Dashboard Tabs, add tab", async () => {
       options: {
         inEditing: true,
       },
-    })
+    }),
   );
 
   let addTabTab = await screen.findByRole("tab", {
@@ -360,10 +355,10 @@ test("Dashboard Tabs, add tab", async () => {
 
   const tabButtons = await screen.findAllByRole("tab");
   const tab1Button = tabButtons.find((btn) =>
-    btn.textContent.includes("Tab 1")
+    btn.textContent.includes("Tab 1"),
   );
   const tab2Button = tabButtons.find((btn) =>
-    btn.textContent.includes("Tab 2")
+    btn.textContent.includes("Tab 2"),
   );
   expect(tab2Button).toBeInTheDocument();
   expect(tab2Button).toHaveTextContent("Tab 2");
@@ -395,7 +390,7 @@ test("handleTabNameKeyDown: Enter renames tab and exits edit mode", async () => 
         dashboards: { dashboards: [expectedDashboard] },
         inEditing: true,
       },
-    })
+    }),
   );
   // Enter edit mode
   const tabTitle = await screen.findByLabelText("tab-title-1");
@@ -406,7 +401,7 @@ test("handleTabNameKeyDown: Enter renames tab and exits edit mode", async () => 
   // Should exit edit mode and update tab name
   await waitFor(() => {
     expect(screen.getByLabelText("tab-title-1")).toHaveTextContent(
-      "Renamed Tab"
+      "Renamed Tab",
     );
   });
 });
@@ -426,7 +421,7 @@ test("handleTabNameKeyDown: other key does not exit edit mode or change tab name
         dashboards: { dashboards: [expectedDashboard] },
         inEditing: true,
       },
-    })
+    }),
   );
   // Enter edit mode
   const tabTitle = await screen.findByLabelText("tab-title-1");
@@ -440,7 +435,7 @@ test("handleTabNameKeyDown: other key does not exit edit mode or change tab name
   fireEvent.blur(input);
   await waitFor(() => {
     expect(screen.getByLabelText("tab-title-1")).toHaveTextContent(
-      "Should Not Save"
+      "Should Not Save",
     );
   });
 });
@@ -460,7 +455,7 @@ test("handleTabNameKeyDown: Escape cancels edit mode", async () => {
         dashboards: { dashboards: [expectedDashboard] },
         inEditing: true,
       },
-    })
+    }),
   );
   // Enter edit mode
   const tabTitle = await screen.findByLabelText("tab-title-1");
@@ -493,7 +488,7 @@ test("deletes tab when confirmed", async () => {
         dashboards: { dashboards: [expectedDashboard] },
         inEditing: true,
       },
-    })
+    }),
   );
   // Find delete button for Tab 2
   const tabTitles = await screen.findAllByLabelText(/tab-title-/);
@@ -528,7 +523,7 @@ test("does not delete tab when cancelled", async () => {
         dashboards: { dashboards: [expectedDashboard] },
         inEditing: true,
       },
-    })
+    }),
   );
   // Find delete button for Tab 2
   const tabTitles = await screen.findAllByLabelText(/tab-title-/);
@@ -564,7 +559,7 @@ test("deletes correct tab when multiple exist", async () => {
         dashboards: { dashboards: [expectedDashboard] },
         inEditing: true,
       },
-    })
+    }),
   );
   // Find delete button for Tab 3
   const tabTitles = await screen.findAllByLabelText(/tab-title-/);
@@ -600,7 +595,7 @@ test("Dashboard Tabs, drag and change tab order", async () => {
         dashboards: { dashboards: [expectedDashboard] },
         inEditing: true,
       },
-    })
+    }),
   );
   // Find tab titles
   const tabTitles = await screen.findAllByLabelText(/tab-title-/);
@@ -645,7 +640,7 @@ test("Dashboard Tabs, handleDragLeave clears drop target", async () => {
         dashboards: { dashboards: [expectedDashboard] },
         inEditing: true,
       },
-    })
+    }),
   );
   // Find tab titles
   const tabTitles = await screen.findAllByLabelText(/tab-title-/);
@@ -697,7 +692,7 @@ test("Dashboard Tabs, handleDragLeave does NOT clear drop target when contains r
         dashboards: { dashboards: [expectedDashboard] },
         inEditing: true,
       },
-    })
+    }),
   );
   // Find tab titles
   const tabTitles = await screen.findAllByLabelText(/tab-title-/);
@@ -759,7 +754,7 @@ test("handleDragOver does not set drop target when draggedTabId equals tabId", a
         dashboards: { dashboards: [expectedDashboard] },
         inEditing: true,
       },
-    })
+    }),
   );
   // Find tab title for Tab 1
   const tabTitles = await screen.findAllByLabelText(/tab-title-/);
@@ -800,7 +795,7 @@ test("TabTitleInput onClick and onDragStart stop propagation and preserve edit m
         dashboards: { dashboards: [expectedDashboard] },
         inEditing: true,
       },
-    })
+    }),
   );
   // Enter edit mode
   const tabTitle = await screen.findByLabelText("tab-title-1");
@@ -838,7 +833,7 @@ test("handleTabNameClick does not enter edit mode when tabId is not activeTabId"
         dashboards: { dashboards: [expectedDashboard] },
         inEditing: true,
       },
-    })
+    }),
   );
   // Tab 1 is active by default, click Tab 2 title
   const tab2Title = await screen.findByLabelText("tab-title-2");
@@ -863,7 +858,7 @@ test("handleTabNameChange does not call updateTab when newName is only spaces", 
         dashboards: { dashboards: [expectedDashboard] },
         inEditing: true,
       },
-    })
+    }),
   );
   // Enter edit mode
   const tabTitle = await screen.findByLabelText("tab-title-1");
@@ -895,7 +890,7 @@ test("Dashboard Tabs, handleDrop does nothing when draggedTabId equals targetTab
         dashboards: { dashboards: [expectedDashboard] },
         inEditing: true,
       },
-    })
+    }),
   );
   // Find tab title for Tab 1
   const tabTitles = await screen.findAllByLabelText(/tab-title-/);

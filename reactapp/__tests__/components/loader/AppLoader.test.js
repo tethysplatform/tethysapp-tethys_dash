@@ -14,6 +14,10 @@ import ErrorBoundary from "components/error/ErrorBoundary";
 import { nonDropDownVariableInputTypes } from "components/visualizations/utilities";
 import { ModalPriorityProvider } from "components/contexts/ModalPriorityContext";
 
+jest.mock("uuid", () => ({
+  v4: () => "12345678",
+}));
+
 const TestingComponent = () => {
   const {
     tethysApp,

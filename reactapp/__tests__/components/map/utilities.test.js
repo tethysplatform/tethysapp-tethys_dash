@@ -26,10 +26,6 @@ import {
 import appAPI from "services/api/app";
 import { PMTiles } from "pmtiles";
 
-jest.mock("uuid", () => ({
-  v4: () => 12345678,
-}));
-
 test("getStyleFields GeoJSON", async () => {
   const sourceProps = layerConfigGeoJSON.configuration.props.source;
   const layerName = layerConfigGeoJSON.configuration.props.name;
@@ -1527,7 +1523,7 @@ test("getLayerAttributes ImageArcGISRest", async () => {
 
   const sourceProps = layerConfigImageArcGISRest.configuration.props.source;
   const layerName = layerConfigImageArcGISRest.configuration.props.name;
-  const attributes = await getLayerAttributes(sourceProps, layerName);
+  const attributes = await getLayerAttributes({ sourceProps, layerName });
 
   expect(attributes).toStrictEqual({
     "Max Status - Forecast Trend": [
@@ -1620,7 +1616,7 @@ test("getLayerAttributes ImageArcGISRest, param layers show", async () => {
     LAYERS: "show:0,2",
   };
 
-  const attributes = await getLayerAttributes(sourceProps, layerName);
+  const attributes = await getLayerAttributes({ sourceProps, layerName });
 
   expect(attributes).toStrictEqual({
     "Max Status - Forecast Trend": [{ name: "nws_name", alias: "Name" }],
@@ -1698,7 +1694,7 @@ test("getLayerAttributes ImageArcGISRest, param layers hide", async () => {
     LAYERS: "hide:0,2",
   };
 
-  const attributes = await getLayerAttributes(sourceProps, layerName);
+  const attributes = await getLayerAttributes({ sourceProps, layerName });
 
   expect(attributes).toStrictEqual({
     "Max Status - Forecast Trend (1)": [{ name: "nws_name2", alias: "Name2" }],
@@ -1788,7 +1784,7 @@ test("getLayerAttributes ImageArcGISRest, param layers include", async () => {
     LAYERS: "include:2",
   };
 
-  const attributes = await getLayerAttributes(sourceProps, layerName);
+  const attributes = await getLayerAttributes({ sourceProps, layerName });
 
   expect(attributes).toStrictEqual({
     "Max Status - Forecast Trend": [{ name: "nws_name", alias: "Name" }],
@@ -1879,7 +1875,7 @@ test("getLayerAttributes ImageArcGISRest, param layers exclude", async () => {
     LAYERS: "exclude:1",
   };
 
-  const attributes = await getLayerAttributes(sourceProps, layerName);
+  const attributes = await getLayerAttributes({ sourceProps, layerName });
 
   expect(attributes).toStrictEqual({
     "Max Status - Forecast Trend": [{ name: "nws_name", alias: "Name" }],
@@ -1960,7 +1956,7 @@ test("getLayerAttributes ImageArcGISRest, param layers nonsense, missing fields"
     LAYERS: "nonsense:1",
   };
 
-  const attributes = await getLayerAttributes(sourceProps, layerName);
+  const attributes = await getLayerAttributes({ sourceProps, layerName });
 
   expect(attributes).toStrictEqual({
     "Max Status - Forecast Trend": [],
@@ -2009,7 +2005,7 @@ test("getLayerAttributes ArcGISFeatureService", async () => {
   const sourceProps =
     layerConfigArcGISFeatureService.configuration.props.source;
   const layerName = layerConfigArcGISFeatureService.configuration.props.name;
-  const attributes = await getLayerAttributes(sourceProps, layerName);
+  const attributes = await getLayerAttributes({ sourceProps, layerName });
 
   expect(attributes).toStrictEqual({
     "Some ArcGISFeatureService Layer": [
@@ -2073,7 +2069,7 @@ test("getLayerAttributes ArcGISFeatureService with slash", async () => {
   const sourceProps =
     layerConfigArcGISFeatureService.configuration.props.source;
   const layerName = layerConfigArcGISFeatureService.configuration.props.name;
-  const attributes = await getLayerAttributes(sourceProps, layerName);
+  const attributes = await getLayerAttributes({ sourceProps, layerName });
 
   expect(attributes).toStrictEqual({
     "Some ArcGISFeatureService Layer": [
@@ -2108,7 +2104,7 @@ test("getLayerAttributes ImageWMS", async () => {
 
   const sourceProps = layerConfigImageWMS.configuration.props.source;
   const layerName = layerConfigImageWMS.configuration.props.name;
-  const attributes = await getLayerAttributes(sourceProps, layerName);
+  const attributes = await getLayerAttributes({ sourceProps, layerName });
 
   expect(attributes).toStrictEqual({
     states: [
@@ -2124,7 +2120,7 @@ test("getLayerAttributes ImageWMS Bad Fetch", async () => {
   const sourceProps = layerConfigImageWMS.configuration.props.source;
   const layerName = layerConfigImageWMS.configuration.props.name;
 
-  await expect(getLayerAttributes(sourceProps, layerName)).rejects.toThrow(
+  await expect(getLayerAttributes({ sourceProps, layerName })).rejects.toThrow(
     "Failed to fetch attribute data for layer 'topp:states'. Check if the layer exists.",
   );
 });
@@ -2144,7 +2140,7 @@ test("getLayerAttributes ImageWMS XML Error", async () => {
   const sourceProps = layerConfigImageWMS.configuration.props.source;
   const layerName = layerConfigImageWMS.configuration.props.name;
 
-  await expect(getLayerAttributes(sourceProps, layerName)).rejects.toThrow(
+  await expect(getLayerAttributes({ sourceProps, layerName })).rejects.toThrow(
     "WFS DescribeFeatureType request failed for layer 'topp:states'. Ensure WFS is enabled and the layer name is correct.",
   );
 });
@@ -2164,7 +2160,7 @@ test("getLayerAttributes ImageWMS XML Schema Error", async () => {
   const sourceProps = layerConfigImageWMS.configuration.props.source;
   const layerName = layerConfigImageWMS.configuration.props.name;
 
-  await expect(getLayerAttributes(sourceProps, layerName)).rejects.toThrow(
+  await expect(getLayerAttributes({ sourceProps, layerName })).rejects.toThrow(
     "Unexpected DescribeFeatureType format for layer 'topp:states'.",
   );
 });
@@ -2183,7 +2179,7 @@ test("getLayerAttributes ImageWMS XML Bad Fields", async () => {
 
   const sourceProps = layerConfigImageWMS.configuration.props.source;
   const layerName = layerConfigImageWMS.configuration.props.name;
-  const attributes = await getLayerAttributes(sourceProps, layerName);
+  const attributes = await getLayerAttributes({ sourceProps, layerName });
 
   expect(attributes).toStrictEqual({});
 });
@@ -2202,7 +2198,7 @@ test("getLayerAttributes ImageWMS No complexType Type and No element Name", asyn
 
   const sourceProps = layerConfigImageWMS.configuration.props.source;
   const layerName = layerConfigImageWMS.configuration.props.name;
-  const attributes = await getLayerAttributes(sourceProps, layerName);
+  const attributes = await getLayerAttributes({ sourceProps, layerName });
 
   expect(attributes).toStrictEqual({
     "topp:states": [{ name: "the_geom", alias: "the_geom" }],
@@ -2214,7 +2210,7 @@ test("getLayerAttributes ImageWMS no layers", async () => {
   sourceProps.props.params.LAYERS = undefined;
   const layerName = layerConfigImageWMS.configuration.props.name;
 
-  await expect(getLayerAttributes(sourceProps, layerName)).rejects.toThrow(
+  await expect(getLayerAttributes({ sourceProps, layerName })).rejects.toThrow(
     "No layers specified in source parameters.",
   );
 });
@@ -2222,7 +2218,7 @@ test("getLayerAttributes ImageWMS no layers", async () => {
 test("getLayerAttributes GEOJSON", async () => {
   const sourceProps = layerConfigGeoJSON.configuration.props.source;
   const layerName = layerConfigGeoJSON.configuration.props.name;
-  const attributes = await getLayerAttributes(sourceProps, layerName);
+  const attributes = await getLayerAttributes({ sourceProps, layerName });
 
   expect(attributes).toStrictEqual({
     "GeoJSON Layer": [{ name: "Some Field", alias: "Some Field" }],
@@ -2236,7 +2232,7 @@ test("getLayerAttributes GEOJSON 2", async () => {
   const sourceProps = updatedlayerConfigGeoJSON.configuration.props.source;
   sourceProps.geojson = JSON.stringify(sourceProps.geojson);
   const layerName = updatedlayerConfigGeoJSON.configuration.props.name;
-  const attributes = await getLayerAttributes(sourceProps, layerName);
+  const attributes = await getLayerAttributes({ sourceProps, layerName });
 
   expect(attributes).toStrictEqual({
     "GeoJSON Layer": [{ name: "Some Field", alias: "Some Field" }],
@@ -2288,7 +2284,7 @@ test("getLayerAttributes GEOJSON URL", async () => {
   const sourceProps = updatedlayerConfigGeoJSON.configuration.props.source;
   sourceProps.geojson = "some/url.json";
   const layerName = updatedlayerConfigGeoJSON.configuration.props.name;
-  const attributes = await getLayerAttributes(sourceProps, layerName);
+  const attributes = await getLayerAttributes({ sourceProps, layerName });
 
   expect(attributes).toStrictEqual({
     "GeoJSON Layer": [
@@ -2313,7 +2309,7 @@ test("getLayerAttributes GEOJSON Missing URL", async () => {
   sourceProps.geojson = "some/url.json";
   const layerName = updatedlayerConfigGeoJSON.configuration.props.name;
 
-  await expect(getLayerAttributes(sourceProps, layerName)).rejects.toThrow(
+  await expect(getLayerAttributes({ sourceProps, layerName })).rejects.toThrow(
     "Failed to fetch: missing",
   );
 });
@@ -2325,7 +2321,7 @@ test("getLayerAttributes GEOJSON no features", async () => {
   const sourceProps = updatedlayerConfigGeoJSON.configuration.props.source;
   delete sourceProps.geojson.features;
   const layerName = updatedlayerConfigGeoJSON.configuration.props.name;
-  const attributes = await getLayerAttributes(sourceProps, layerName);
+  const attributes = await getLayerAttributes({ sourceProps, layerName });
 
   expect(attributes).toStrictEqual({ "GeoJSON Layer": [] });
 });
@@ -2345,7 +2341,7 @@ test("getLayerAttributes GEOJSON no feature properties", async () => {
     },
   ];
   const layerName = updatedlayerConfigGeoJSON.configuration.props.name;
-  const attributes = await getLayerAttributes(sourceProps, layerName);
+  const attributes = await getLayerAttributes({ sourceProps, layerName });
 
   expect(attributes).toStrictEqual({ "GeoJSON Layer": [] });
 });
@@ -2375,7 +2371,7 @@ test("getLayerAttributes KML", async () => {
     }),
   );
 
-  const attributes = await getLayerAttributes(sourceProps, layerName);
+  const attributes = await getLayerAttributes({ sourceProps, layerName });
 
   expect(attributes).toStrictEqual({
     "KML Layer": [{ name: "name", alias: "name" }],
@@ -2410,7 +2406,7 @@ test("getLayerAttributes PM Tiles Vector", async () => {
   const layerName = layerConfigPMTilesVector.configuration.props.name;
   sourceProps.props.url = "some/url.pmtiles";
 
-  const attributes = await getLayerAttributes(sourceProps, layerName);
+  const attributes = await getLayerAttributes({ sourceProps, layerName });
 
   expect(attributes).toStrictEqual({
     "PMTiles Vector Layer": [
@@ -2423,7 +2419,7 @@ test("getLayerAttributes PM Tiles Vector", async () => {
 test("getLayerAttributes Error", async () => {
   const sourceProps = { type: "bad type", props: {} };
   const layerName = "test";
-  await expect(getLayerAttributes(sourceProps, layerName)).rejects.toThrow(
+  await expect(getLayerAttributes({ sourceProps, layerName })).rejects.toThrow(
     "bad type is not currently configured to be queried",
   );
 });
@@ -3026,12 +3022,8 @@ test("swapVectorLayerFeatures treats null as empty (empty-success state)", () =>
 });
 
 test("swapVectorLayerFeatures is a no-op when olLayer has no source", () => {
-  expect(() =>
-    swapVectorLayerFeatures(null, null, "EPSG:3857"),
-  ).not.toThrow();
-  expect(() =>
-    swapVectorLayerFeatures({}, null, "EPSG:3857"),
-  ).not.toThrow();
+  expect(() => swapVectorLayerFeatures(null, null, "EPSG:3857")).not.toThrow();
+  expect(() => swapVectorLayerFeatures({}, null, "EPSG:3857")).not.toThrow();
 });
 
 test("swapVectorLayerFeatures defaults dataProjection to EPSG:4326 when CRS absent", () => {

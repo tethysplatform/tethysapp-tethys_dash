@@ -27,10 +27,6 @@ import {
   AppTourContext,
 } from "components/contexts/Contexts";
 
-jest.mock("uuid", () => ({
-  v4: () => 12345678,
-}));
-
 const { ResizeObserver } = window;
 
 beforeEach(() => {

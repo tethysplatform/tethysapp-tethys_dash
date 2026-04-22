@@ -19,10 +19,6 @@ import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
 import { fullMapLayer } from "__tests__/utilities/constants";
 
-jest.mock("uuid", () => ({
-  v4: () => 12345678,
-}));
-
 jest.mock("components/map/utilities", () => {
   const originalModule = jest.requireActual("components/map/utilities");
   return {
@@ -59,6 +55,7 @@ const TestingComponent = ({
   const appContext = {
     csrf,
     mapLayerTemplates,
+    dynamicMapLayers: [],
   };
 
   return (
@@ -1427,8 +1424,7 @@ const ExtentTestComponent = ({ layerInfo, visualizationRefOverride }) => {
     dynamicMapLayers: [],
     sessionNonce: "test-nonce",
   };
-  const { setExtentDrawMode, setDrawnExtent, extentDrawMode } =
-    useMapContext();
+  const { setExtentDrawMode, setDrawnExtent, extentDrawMode } = useMapContext();
   const defaultRef = useRef({
     getView: () => ({
       getProjection: () => ({
@@ -1466,9 +1462,7 @@ const ExtentTestComponent = ({ layerInfo, visualizationRefOverride }) => {
       >
         Clear Extent Draw Mode
       </button>
-      <p data-testid="extent-draw-mode">
-        {extentDrawMode ? "active" : "null"}
-      </p>
+      <p data-testid="extent-draw-mode">{extentDrawMode ? "active" : "null"}</p>
     </>
   );
 };
@@ -1619,9 +1613,7 @@ test("MapLayerModal falls back to EPSG:3857 when visualizationRef is null", asyn
   fireEvent.click(screen.getByText("Source"));
   await waitFor(() => {
     const inputs = screen.getAllByRole("textbox");
-    const projectionInput = inputs.find(
-      (input) => input.value === "EPSG:3857",
-    );
+    const projectionInput = inputs.find((input) => input.value === "EPSG:3857");
     expect(projectionInput).toBeDefined();
   });
 });

@@ -3,6 +3,10 @@ import VisualizationSelector from "components/modals/DataViewer/VisualizationSel
 import createLoadedComponent from "__tests__/utilities/customRender";
 import userEvent from "@testing-library/user-event";
 
+jest.mock("uuid", () => ({
+  v4: () => "12345678",
+}));
+
 it("VisualizationSelector", async () => {
   const mockHandleModalClose = jest.fn();
   const mockSetSelectVizTypeOption = jest.fn();
@@ -17,14 +21,14 @@ it("VisualizationSelector", async () => {
         />
       ),
       options: {},
-    })
+    }),
   );
 
   expect(
-    await screen.findByText("Available Visualizations")
+    await screen.findByText("Available Visualizations"),
   ).toBeInTheDocument();
   expect(
-    (await screen.findByLabelText("Visualization Search Input")).placeholder
+    (await screen.findByLabelText("Visualization Search Input")).placeholder,
   ).toBe("Search by Name or Tags");
 
   const defaultSectionTitle = screen.getByText("Default");
@@ -63,14 +67,14 @@ it("VisualizationSelector search", async () => {
         />
       ),
       options: {},
-    })
+    }),
   );
 
   expect(
-    await screen.findByText("Available Visualizations")
+    await screen.findByText("Available Visualizations"),
   ).toBeInTheDocument();
   expect(
-    (await screen.findByLabelText("Visualization Search Input")).placeholder
+    (await screen.findByLabelText("Visualization Search Input")).placeholder,
   ).toBe("Search by Name or Tags");
 
   const defaultSectionTitle = screen.getByText("Default");

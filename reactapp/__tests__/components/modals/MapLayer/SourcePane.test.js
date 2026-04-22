@@ -7,7 +7,7 @@ import selectEvent from "react-select-event";
 import appAPI from "services/api/app";
 import PropTypes from "prop-types";
 import userEvent from "@testing-library/user-event";
-import { LayoutContext } from "components/contexts/Contexts";
+import { AppContext, LayoutContext } from "components/contexts/Contexts";
 import MapContextProvider from "components/contexts/MapContext";
 import { sourcePropertiesOptions } from "components/map/utilities";
 
@@ -46,24 +46,26 @@ const TestingComponent = ({
   });
 
   return (
-    <MapContextProvider>
-      <LayoutContext.Provider value={{ uuid: "123" }}>
-        <SourcePane
-          sourceProps={sourceProps}
-          setSourceProps={setSourceProps}
-          setAttributeProps={setAttributeProps}
-          setErrorMessage={setErrorMessage}
-          onRequestHideModal={onRequestHideModal}
-        />
-        <p data-testid="sourceProps">{JSON.stringify(sourceProps)}</p>
-        <p data-testid="attributeVariables">
-          {JSON.stringify(attributeProps.variables)}
-        </p>
-        <p data-testid="omittedPopupAttributes">
-          {JSON.stringify(attributeProps.omitted)}
-        </p>
-      </LayoutContext.Provider>
-    </MapContextProvider>
+    <AppContext.Provider value={{ dynamicMapLayers: [] }}>
+      <MapContextProvider>
+        <LayoutContext.Provider value={{ uuid: "123" }}>
+          <SourcePane
+            sourceProps={sourceProps}
+            setSourceProps={setSourceProps}
+            setAttributeProps={setAttributeProps}
+            setErrorMessage={setErrorMessage}
+            onRequestHideModal={onRequestHideModal}
+          />
+          <p data-testid="sourceProps">{JSON.stringify(sourceProps)}</p>
+          <p data-testid="attributeVariables">
+            {JSON.stringify(attributeProps.variables)}
+          </p>
+          <p data-testid="omittedPopupAttributes">
+            {JSON.stringify(attributeProps.omitted)}
+          </p>
+        </LayoutContext.Provider>
+      </MapContextProvider>
+    </AppContext.Provider>
   );
 };
 
@@ -672,9 +674,7 @@ test("SourcePane Static Image fields", async () => {
 
 test("SourcePane Static Image Draw Extent button calls onRequestHideModal", async () => {
   const mockOnRequestHideModal = jest.fn();
-  render(
-    <TestingComponent onRequestHideModal={mockOnRequestHideModal} />,
-  );
+  render(<TestingComponent onRequestHideModal={mockOnRequestHideModal} />);
 
   const sourceDropdown = screen.getByRole("combobox");
   selectEvent.openMenu(sourceDropdown);
@@ -688,9 +688,7 @@ test("SourcePane Static Image Draw Extent button calls onRequestHideModal", asyn
     target: { value: "https://example.com/image.png" },
   });
 
-  const drawButton = await screen.findByLabelText(
-    "Draw Extent on Map Button",
-  );
+  const drawButton = await screen.findByLabelText("Draw Extent on Map Button");
   expect(drawButton).toBeInTheDocument();
   fireEvent.click(drawButton);
 
@@ -711,9 +709,7 @@ test("SourcePane Static Image Draw Extent requires URL", async () => {
   const sourceOption = await screen.findByText("Static Image");
   fireEvent.click(sourceOption);
 
-  const drawButton = await screen.findByLabelText(
-    "Draw Extent on Map Button",
-  );
+  const drawButton = await screen.findByLabelText("Draw Extent on Map Button");
   fireEvent.click(drawButton);
 
   expect(mockSetErrorMessage).toHaveBeenCalledWith(
@@ -771,9 +767,7 @@ test("SourcePane Static Image Draw Extent parses existing imageExtent", async ()
     expect(screen.getByText("*imageExtent")).toBeInTheDocument();
   });
 
-  const drawButton = await screen.findByLabelText(
-    "Draw Extent on Map Button",
-  );
+  const drawButton = await screen.findByLabelText("Draw Extent on Map Button");
   fireEvent.click(drawButton);
 
   expect(mockOnRequestHideModal).toHaveBeenCalledTimes(1);
@@ -799,9 +793,7 @@ test("SourcePane Static Image Draw Extent handles invalid imageExtent gracefully
     expect(screen.getByText("*imageExtent")).toBeInTheDocument();
   });
 
-  const drawButton = await screen.findByLabelText(
-    "Draw Extent on Map Button",
-  );
+  const drawButton = await screen.findByLabelText("Draw Extent on Map Button");
   fireEvent.click(drawButton);
 
   // Should still proceed (initialExtent stays null) without error

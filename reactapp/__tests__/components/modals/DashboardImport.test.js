@@ -9,10 +9,6 @@ import { LayoutSuccessAlertContext } from "components/contexts/LayoutAlertContex
 import * as dashboardUtils from "components/dashboard/DashboardItem";
 import appAPI from "services/api/app";
 
-jest.mock("uuid", () => ({
-  v4: () => 12345678,
-}));
-
 const TestingComponent = ({ onImportGridItem }) => {
   const [showModal, setShowModal] = useState(true);
 
@@ -54,7 +50,7 @@ test("DashboardImportModal Landing Page no griditems", async () => {
           </AvailableDashboardsContext.Provider>
         </LayoutSuccessAlertContext.Provider>
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("Import Dashboard")).toBeInTheDocument();
@@ -75,7 +71,7 @@ test("DashboardImportModal Landing Page no griditems", async () => {
   });
   expect(mockSetShowSuccessMessage).toHaveBeenCalledWith(true);
   expect(mockSetSuccessMessage).toHaveBeenCalledWith(
-    `Successfully imported the dashboard as ${importedDashboard.name}`
+    `Successfully imported the dashboard as ${importedDashboard.name}`,
   );
 });
 
@@ -105,7 +101,7 @@ test("DashboardImportModal Landing Page with bad griditems", async () => {
           <TestingComponent />
         </LayoutSuccessAlertContext.Provider>
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("Import Dashboard")).toBeInTheDocument();
@@ -122,8 +118,8 @@ test("DashboardImportModal Landing Page with bad griditems", async () => {
 
   expect(
     await screen.findByText(
-      "Grid Items must include i, x, y, w, h, source, args_string, metadata_string keys"
-    )
+      "Grid Items must include i, x, y, w, h, source, args_string, metadata_string keys",
+    ),
   ).toBeInTheDocument();
 });
 
@@ -171,7 +167,7 @@ test("DashboardImportModal Landing Page with griditems", async () => {
           <TestingComponent />
         </LayoutSuccessAlertContext.Provider>
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("Import Dashboard")).toBeInTheDocument();
@@ -192,12 +188,12 @@ test("DashboardImportModal Landing Page with griditems", async () => {
       gridItems: [
         {
           args_string: JSON.stringify(
-            importedDashboard.gridItems[0].args_string
+            importedDashboard.gridItems[0].args_string,
           ),
           h: 20,
           i: "1",
           metadata_string: JSON.stringify(
-            importedDashboard.gridItems[0].metadata_string
+            importedDashboard.gridItems[0].metadata_string,
           ),
           source: "Variable Input",
           w: 20,
@@ -208,7 +204,7 @@ test("DashboardImportModal Landing Page with griditems", async () => {
       name: "Test",
       uuid: 12345678,
     },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
   );
 });
 
@@ -244,7 +240,7 @@ test("DashboardImportModal Landing Page with bad tabs", async () => {
           <TestingComponent />
         </LayoutSuccessAlertContext.Provider>
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("Import Dashboard")).toBeInTheDocument();
@@ -261,8 +257,8 @@ test("DashboardImportModal Landing Page with bad tabs", async () => {
 
   expect(
     await screen.findByText(
-      "Grid Items must include i, x, y, w, h, source, args_string, metadata_string keys"
-    )
+      "Grid Items must include i, x, y, w, h, source, args_string, metadata_string keys",
+    ),
   ).toBeInTheDocument();
 });
 
@@ -316,7 +312,7 @@ test("DashboardImportModal Landing Page with tabs", async () => {
           <TestingComponent />
         </LayoutSuccessAlertContext.Provider>
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("Import Dashboard")).toBeInTheDocument();
@@ -342,12 +338,12 @@ test("DashboardImportModal Landing Page with tabs", async () => {
           gridItems: [
             {
               args_string: JSON.stringify(
-                importedDashboard.tabs[0].gridItems[0].args_string
+                importedDashboard.tabs[0].gridItems[0].args_string,
               ),
               h: 20,
               i: "1",
               metadata_string: JSON.stringify(
-                importedDashboard.tabs[0].gridItems[0].metadata_string
+                importedDashboard.tabs[0].gridItems[0].metadata_string,
               ),
               source: "Variable Input",
               w: 20,
@@ -360,7 +356,7 @@ test("DashboardImportModal Landing Page with tabs", async () => {
       uuid: 12345678,
       name: "Test",
     },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
   );
 });
 
@@ -392,7 +388,7 @@ test("DashboardImportModal Landing Page Error", async () => {
           </AvailableDashboardsContext.Provider>
         </LayoutSuccessAlertContext.Provider>
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("Import Dashboard")).toBeInTheDocument();
@@ -415,7 +411,7 @@ test("DashboardImportModal Landing Page Error", async () => {
   expect(mockSetSuccessMessage).toHaveBeenCalledTimes(0);
 
   expect(
-    await screen.findByText("Failed to import the dashboard")
+    await screen.findByText("Failed to import the dashboard"),
   ).toBeInTheDocument();
 });
 
@@ -438,7 +434,7 @@ test("DashboardImportModal Landing Page Error with message", async () => {
           <TestingComponent />
         </LayoutSuccessAlertContext.Provider>
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("Import Dashboard")).toBeInTheDocument();
@@ -454,7 +450,7 @@ test("DashboardImportModal Landing Page Error with message", async () => {
   await userEvent.click(importButton);
 
   expect(
-    await screen.findByText("Dashboards must include a name")
+    await screen.findByText("Dashboards must include a name"),
   ).toBeInTheDocument();
 });
 
@@ -506,7 +502,7 @@ test("DashboardImportModal Dashboard View", async () => {
           <TestingComponent onImportGridItem={mockOnImportGridItem} />
         </LayoutSuccessAlertContext.Provider>
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("Import Dashboard Item")).toBeInTheDocument();
@@ -524,7 +520,7 @@ test("DashboardImportModal Dashboard View", async () => {
   expect(spyHandleGridItemImport).toHaveBeenCalledWith(
     importedGridItem,
     "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
-    "user-uuid"
+    "user-uuid",
   );
   expect(mockOnImportGridItem).toHaveBeenCalledWith({
     type: "single",
@@ -533,7 +529,7 @@ test("DashboardImportModal Dashboard View", async () => {
   });
   expect(mockSetShowSuccessMessage).toHaveBeenCalledWith(true);
   expect(mockSetSuccessMessage).toHaveBeenCalledWith(
-    "Successfully imported dashboard item"
+    "Successfully imported dashboard item",
   );
 });
 
@@ -554,7 +550,7 @@ test("DashboardImportModal Dashboard View bad json", async () => {
           <TestingComponent onImportGridItem={mockOnImportGridItem} />
         </LayoutSuccessAlertContext.Provider>
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("Import Dashboard Item")).toBeInTheDocument();
@@ -565,14 +561,16 @@ test("DashboardImportModal Dashboard View bad json", async () => {
   const fileInput = screen.getByTestId("file-input");
   fireEvent.change(fileInput, { target: { files: [file] } });
 
-  expect(await screen.findByText("Invalid JSON in test-file.json")).toBeInTheDocument();
+  expect(
+    await screen.findByText("Invalid JSON in test-file.json"),
+  ).toBeInTheDocument();
 
   const closeAlert = await screen.findByLabelText("Close alert");
   await userEvent.click(closeAlert);
 
   await waitFor(() => {
     expect(
-      screen.queryByText("Invalid JSON in test-file.json")
+      screen.queryByText("Invalid JSON in test-file.json"),
     ).not.toBeInTheDocument();
   });
 });
@@ -594,7 +592,7 @@ test("DashboardImportModal Dashboard View close header", async () => {
           <TestingComponent onImportGridItem={mockOnImportGridItem} />
         </LayoutSuccessAlertContext.Provider>
       ),
-    })
+    }),
   );
   expect(await screen.findByText("Import Dashboard Item")).toBeInTheDocument();
 
@@ -623,7 +621,7 @@ test("DashboardImportModal Dashboard View close footer", async () => {
           <TestingComponent onImportGridItem={mockOnImportGridItem} />
         </LayoutSuccessAlertContext.Provider>
       ),
-    })
+    }),
   );
   expect(await screen.findByText("Import Dashboard Item")).toBeInTheDocument();
 
@@ -684,7 +682,7 @@ test("DashboardImportModal Dashboard View array import", async () => {
           <TestingComponent onImportGridItem={mockOnImportGridItem} />
         </LayoutSuccessAlertContext.Provider>
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("Import Dashboard Item")).toBeInTheDocument();
@@ -697,7 +695,7 @@ test("DashboardImportModal Dashboard View array import", async () => {
 
   await waitFor(() => {
     expect(screen.getByTestId("import-preview")).toHaveTextContent(
-      "2 grid items to add to current tab"
+      "2 grid items to add to current tab",
     );
   });
 
@@ -707,10 +705,10 @@ test("DashboardImportModal Dashboard View array import", async () => {
 
   expect(mockHandleGridItemImport).toHaveBeenCalledTimes(2);
   expect(mockOnImportGridItem).toHaveBeenCalledWith(
-    expect.objectContaining({ type: "array" })
+    expect.objectContaining({ type: "array" }),
   );
   expect(mockSetSuccessMessage).toHaveBeenCalledWith(
-    "Successfully imported 2 dashboard items"
+    "Successfully imported 2 dashboard items",
   );
 });
 
@@ -731,7 +729,11 @@ test("DashboardImportModal Dashboard View tab import", async () => {
     ],
   };
 
-  const processedItem = { ...tab.gridItems[0], args_string: "{}", metadata_string: '{"refreshRate":0}' };
+  const processedItem = {
+    ...tab.gridItems[0],
+    args_string: "{}",
+    metadata_string: '{"refreshRate":0}',
+  };
   const mockHandleGridItemImport = jest.fn();
   jest
     .spyOn(dashboardUtils, "handleGridItemImport")
@@ -757,7 +759,7 @@ test("DashboardImportModal Dashboard View tab import", async () => {
           <TestingComponent onImportGridItem={mockOnImportGridItem} />
         </LayoutSuccessAlertContext.Provider>
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("Import Dashboard Item")).toBeInTheDocument();
@@ -770,7 +772,7 @@ test("DashboardImportModal Dashboard View tab import", async () => {
 
   await waitFor(() => {
     expect(screen.getByTestId("import-preview")).toHaveTextContent(
-      "Tab: MyTab with 1 item"
+      "Tab: MyTab with 1 item",
     );
   });
 
@@ -784,10 +786,10 @@ test("DashboardImportModal Dashboard View tab import", async () => {
       tabs: expect.arrayContaining([
         expect.objectContaining({ name: "MyTab" }),
       ]),
-    })
+    }),
   );
   expect(mockSetSuccessMessage).toHaveBeenCalledWith(
-    "Successfully imported 1 tab"
+    "Successfully imported 1 tab",
   );
 });
 
@@ -852,7 +854,7 @@ test("DashboardImportModal Dashboard View dashboard import with tab checkboxes",
           <TestingComponent onImportGridItem={mockOnImportGridItem} />
         </LayoutSuccessAlertContext.Provider>
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("Import Dashboard Item")).toBeInTheDocument();
@@ -887,7 +889,7 @@ test("DashboardImportModal Dashboard View dashboard import with tab checkboxes",
       tabs: expect.arrayContaining([
         expect.objectContaining({ name: "Tab A" }),
       ]),
-    })
+    }),
   );
   // Tab B should not be in the imported tabs
   const callArgs = mockOnImportGridItem.mock.calls[0][0];
@@ -930,7 +932,7 @@ test("DashboardImportModal Dashboard View batch validation error", async () => {
           <TestingComponent onImportGridItem={mockOnImportGridItem} />
         </LayoutSuccessAlertContext.Provider>
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("Import Dashboard Item")).toBeInTheDocument();
@@ -968,7 +970,7 @@ test("DashboardImportModal unrecognized format shows error", async () => {
           <TestingComponent onImportGridItem={mockOnImportGridItem} />
         </LayoutSuccessAlertContext.Provider>
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("Import Dashboard Item")).toBeInTheDocument();
@@ -980,7 +982,9 @@ test("DashboardImportModal unrecognized format shows error", async () => {
   fireEvent.change(fileInput, { target: { files: [file] } });
 
   await waitFor(() => {
-    expect(screen.getByText("Unrecognized JSON format in one or more files")).toBeInTheDocument();
+    expect(
+      screen.getByText("Unrecognized JSON format in one or more files"),
+    ).toBeInTheDocument();
   });
 
   // Import button should still be disabled
@@ -1016,7 +1020,7 @@ test("DashboardImportModal Landing Page still calls importDashboard unchanged", 
           </AvailableDashboardsContext.Provider>
         </LayoutSuccessAlertContext.Provider>
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("Import Dashboard")).toBeInTheDocument();
@@ -1076,7 +1080,7 @@ test("DashboardImportModal Dashboard View handleGridItemImport failure", async (
           <TestingComponent onImportGridItem={mockOnImportGridItem} />
         </LayoutSuccessAlertContext.Provider>
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("Import Dashboard Item")).toBeInTheDocument();
@@ -1091,9 +1095,7 @@ test("DashboardImportModal Dashboard View handleGridItemImport failure", async (
   await waitFor(() => expect(importButton).not.toBeDisabled());
   await userEvent.click(importButton);
 
-  expect(
-    await screen.findByText("GeoJSON upload failed")
-  ).toBeInTheDocument();
+  expect(await screen.findByText("GeoJSON upload failed")).toBeInTheDocument();
   expect(mockOnImportGridItem).not.toHaveBeenCalled();
 });
 
@@ -1133,7 +1135,7 @@ test("DashboardImportModal Dashboard View handleGridItemImport failure no messag
           <TestingComponent onImportGridItem={mockOnImportGridItem} />
         </LayoutSuccessAlertContext.Provider>
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("Import Dashboard Item")).toBeInTheDocument();
@@ -1149,7 +1151,7 @@ test("DashboardImportModal Dashboard View handleGridItemImport failure no messag
   await userEvent.click(importButton);
 
   expect(
-    await screen.findByText("Failed to import grid item")
+    await screen.findByText("Failed to import grid item"),
   ).toBeInTheDocument();
   expect(mockOnImportGridItem).not.toHaveBeenCalled();
 });
@@ -1170,7 +1172,7 @@ test("DashboardImportModal Landing Page bad json", async () => {
           <TestingComponent />
         </LayoutSuccessAlertContext.Provider>
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("Import Dashboard")).toBeInTheDocument();
@@ -1181,9 +1183,7 @@ test("DashboardImportModal Landing Page bad json", async () => {
   const fileInput = screen.getByTestId("file-input");
   fireEvent.change(fileInput, { target: { files: [file] } });
 
-  expect(
-    await screen.findByText("Invalid JSON structure")
-  ).toBeInTheDocument();
+  expect(await screen.findByText("Invalid JSON structure")).toBeInTheDocument();
 });
 
 test("DashboardImportModal mixed import with items and tabs", async () => {
@@ -1239,7 +1239,7 @@ test("DashboardImportModal mixed import with items and tabs", async () => {
           <TestingComponent onImportGridItem={mockOnImportGridItem} />
         </LayoutSuccessAlertContext.Provider>
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("Import Dashboard Item")).toBeInTheDocument();
@@ -1256,7 +1256,7 @@ test("DashboardImportModal mixed import with items and tabs", async () => {
 
   await waitFor(() => {
     expect(screen.getByTestId("import-preview")).toHaveTextContent(
-      /1 grid item.*to active tab.*1 tab/
+      /1 grid item.*to active tab.*1 tab/,
     );
   });
 
@@ -1275,10 +1275,10 @@ test("DashboardImportModal mixed import with items and tabs", async () => {
       tabs: expect.arrayContaining([
         expect.objectContaining({ name: "MyTab" }),
       ]),
-    })
+    }),
   );
   expect(mockSetSuccessMessage).toHaveBeenCalledWith(
-    "Successfully imported 1 item to active tab and 1 tab"
+    "Successfully imported 1 item to active tab and 1 tab",
   );
 });
 
@@ -1323,7 +1323,7 @@ test("DashboardImportModal dashboard with all tabs unchecked disables import", a
           <TestingComponent onImportGridItem={mockOnImportGridItem} />
         </LayoutSuccessAlertContext.Provider>
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("Import Dashboard Item")).toBeInTheDocument();
@@ -1366,7 +1366,7 @@ test("DashboardImportModal empty file list does nothing", async () => {
           <TestingComponent onImportGridItem={mockOnImportGridItem} />
         </LayoutSuccessAlertContext.Provider>
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("Import Dashboard Item")).toBeInTheDocument();
@@ -1452,7 +1452,7 @@ test("DashboardImportModal mixed import plural items and tabs with unnamed tab",
           <TestingComponent onImportGridItem={mockOnImportGridItem} />
         </LayoutSuccessAlertContext.Provider>
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("Import Dashboard Item")).toBeInTheDocument();
@@ -1469,7 +1469,7 @@ test("DashboardImportModal mixed import plural items and tabs with unnamed tab",
 
   await waitFor(() => {
     expect(screen.getByTestId("import-preview")).toHaveTextContent(
-      /2 grid items.*to active tab.*2 tabs/
+      /2 grid items.*to active tab.*2 tabs/,
     );
   });
 
@@ -1483,10 +1483,10 @@ test("DashboardImportModal mixed import plural items and tabs with unnamed tab",
   await userEvent.click(importButton);
 
   expect(mockOnImportGridItem).toHaveBeenCalledWith(
-    expect.objectContaining({ type: "mixed" })
+    expect.objectContaining({ type: "mixed" }),
   );
   expect(mockSetSuccessMessage).toHaveBeenCalledWith(
-    "Successfully imported 2 items to active tab and 2 tabs"
+    "Successfully imported 2 items to active tab and 2 tabs",
   );
 });
 
@@ -1547,7 +1547,7 @@ test("DashboardImportModal multiple tab files merge as dashboard", async () => {
           <TestingComponent onImportGridItem={mockOnImportGridItem} />
         </LayoutSuccessAlertContext.Provider>
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("Import Dashboard Item")).toBeInTheDocument();
@@ -1564,7 +1564,7 @@ test("DashboardImportModal multiple tab files merge as dashboard", async () => {
 
   await waitFor(() => {
     expect(screen.getByTestId("import-preview")).toHaveTextContent(
-      "2 tabs: Tab One (1 items), Tab Two (1 items)"
+      "2 tabs: Tab One (1 items), Tab Two (1 items)",
     );
   });
 
@@ -1623,7 +1623,7 @@ test("DashboardImportModal re-check a previously unchecked tab", async () => {
           <TestingComponent onImportGridItem={mockOnImportGridItem} />
         </LayoutSuccessAlertContext.Provider>
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("Import Dashboard Item")).toBeInTheDocument();
@@ -1689,7 +1689,7 @@ test("DashboardImportModal tabs-only from two files with one tab uses dashboard 
           <TestingComponent onImportGridItem={mockOnImportGridItem} />
         </LayoutSuccessAlertContext.Provider>
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("Import Dashboard Item")).toBeInTheDocument();
@@ -1707,7 +1707,7 @@ test("DashboardImportModal tabs-only from two files with one tab uses dashboard 
   // allTabs.length === 1, parsedFiles.length === 2 → hits line 235 with singular "1 tab"
   await waitFor(() => {
     expect(screen.getByTestId("import-preview")).toHaveTextContent(
-      "1 tab: Solo Tab (1 items)"
+      "1 tab: Solo Tab (1 items)",
     );
   });
 });
@@ -1755,7 +1755,7 @@ test("DashboardImportModal two files with one tab total uses singular summary", 
           <TestingComponent onImportGridItem={mockOnImportGridItem} />
         </LayoutSuccessAlertContext.Provider>
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("Import Dashboard Item")).toBeInTheDocument();
@@ -1772,7 +1772,7 @@ test("DashboardImportModal two files with one tab total uses singular summary", 
 
   await waitFor(() => {
     expect(screen.getByTestId("import-preview")).toHaveTextContent(
-      /1 grid item.*to active tab.*1 tab.*Only Tab/
+      /1 grid item.*to active tab.*1 tab.*Only Tab/,
     );
   });
 });

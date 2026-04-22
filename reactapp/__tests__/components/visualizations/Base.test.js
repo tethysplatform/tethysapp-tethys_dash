@@ -39,10 +39,6 @@ import {
 } from "components/contexts/Contexts";
 import { WebsocketContext } from "components/contexts/WebSocketContext";
 
-jest.mock("uuid", () => ({
-  v4: () => 12345678,
-}));
-
 jest.mock("components/visualizations/ModuleLoader", () => {
   const MockModuleLoader = () => <div>ModuleLoader Mock</div>;
   MockModuleLoader.displayName = "ModuleLoader"; // Set the display name to resolve the linting warning

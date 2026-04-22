@@ -15,10 +15,6 @@ import createLoadedComponent from "__tests__/utilities/customRender";
 import selectEvent from "react-select-event";
 import appAPI from "services/api/app";
 
-jest.mock("uuid", () => ({
-  v4: () => 12345678,
-}));
-
 it("AddMapLayer update existing", async () => {
   const mockDownloadJSON = jest.fn();
   mockDownloadJSON.mockResolvedValueOnce({
@@ -35,7 +31,7 @@ it("AddMapLayer update existing", async () => {
   jest.spyOn(appAPI, "uploadJSON").mockImplementation(mockUploadJSON);
 
   const layerConfiguration = JSON.parse(
-    JSON.stringify(layerConfigImageArcGISRest)
+    JSON.stringify(layerConfigImageArcGISRest),
   );
   layerConfiguration.configuration.style = "some_json.json";
   layerConfiguration.legend = {
@@ -63,7 +59,7 @@ it("AddMapLayer update existing", async () => {
           gridItemIndex={gridItemIndex}
         />
       ),
-    })
+    }),
   );
 
   const addLayerButton = await screen.findByText("Add Layer");
@@ -156,7 +152,7 @@ it("AddMapLayer add new", async () => {
           gridItemIndex={gridItemIndex}
         />
       ),
-    })
+    }),
   );
 
   const addLayerButton = await screen.findByText("Add Layer");
@@ -267,7 +263,7 @@ it("AddMapLayer reorder", async () => {
           gridItemIndex={gridItemIndex}
         />
       ),
-    })
+    }),
   );
 
   const wmsLayer = await screen.findByText("WMS");
