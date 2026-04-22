@@ -33,6 +33,10 @@ from tethysapp.tethysdash.editable_schemas import (
     LLM_EDITABLE_PATHS,
     is_path_allowed,
 )
+from tethysapp.tethysdash.editable_schemas_plugin import (
+    is_path_allowed_plugin,
+    resolve_editable_paths,
+)
 from tethysapp.tethysdash.plugin_registry_loader import (
     load_client_plugin_registry,
     load_runtime_plugin_registry,
@@ -1109,6 +1113,40 @@ def _check_layer_construction_boundary(source, patches):
     return None
 
 
+def _emit_rejection_telemetry(
+    *,
+    reason: str,
+    source: str,
+    path: str,
+    op_index: Optional[int] = None,
+    **extra: Any,
+) -> None:
+    """Emit a structured INFO log record for a patch_visualization rejection.
+
+    Feeds a downstream dataset that informs future R10 pattern-deny-list
+    extensions. Kept intentionally minimal: no arg values, no external
+    sink. The log-aggregation side is out of scope for this iteration.
+
+    Keys are stable for log-parser consumers:
+      * event: "whitelist_rejected"
+      * source: the viz source name
+      * path: the rejected JSON Pointer
+      * op_index: zero-based op index when applicable
+      * reason: machine-readable cause category
+    """
+    payload = {
+        "event": "whitelist_rejected",
+        "source": source,
+        "path": path,
+        "reason": reason,
+    }
+    if op_index is not None:
+        payload["op_index"] = op_index
+    if extra:
+        payload.update(extra)
+    LOGGER.info("patch_rejection %s", payload)
+
+
 @mcp.tool(
     name="patch_visualization",
     description=(
@@ -1189,12 +1227,31 @@ def patch_visualization(
     if r5c_error:
         return {"error": f"invalid_envelope: {r5c_error}"}
 
-    # R7: per-source path whitelist (fail-closed). Include the allowed
+    # R7 / R9: per-source path whitelist (fail-closed). Dispatch by source:
+    # static built-in viz types use the JSON-backed whitelist; plugin-backed
+    # viz types (Intake + client_custom) resolve at patch-time via
+    # editable_schemas_plugin.resolve_editable_paths. Include the allowed
     # prefixes in the error so the LLM can recover in one round even if
     # the initial dashboard_state injection was dropped or truncated.
-    allowed_prefixes = LLM_EDITABLE_PATHS.get(source, [])
+    if source in LLM_EDITABLE_PATHS:
+        allowed_prefixes = LLM_EDITABLE_PATHS[source]
+        def _path_allowed(path: str) -> bool:
+            return is_path_allowed(source, path)
+    else:
+        allowed_prefixes = resolve_editable_paths(source)
+        def _path_allowed(path: str) -> bool:
+            return is_path_allowed_plugin(source, path)
     for i, op in enumerate(patches):
-        if not is_path_allowed(source, op["path"]):
+        if not _path_allowed(op["path"]):
+            _emit_rejection_telemetry(
+                reason=(
+                    "pattern_or_author_denied" if allowed_prefixes
+                    else "resolution_failure_or_unknown_source"
+                ),
+                source=source,
+                path=op["path"],
+                op_index=i,
+            )
             return {"error": (
                 f"whitelist_rejected: op {i} path {op['path']!r} is not editable "
                 f"for viz source {source!r}. Every path must start with `/args/...` "
@@ -1206,7 +1263,17 @@ def patch_visualization(
         # `move` reads from a second pointer and removes the node there.
         # The `from` path must also be in the whitelist, otherwise a
         # whitelisted `path` would surface arbitrary internal fields.
-        if op["op"] == "move" and not is_path_allowed(source, op["from"]):
+        if op["op"] == "move" and not _path_allowed(op["from"]):
+            _emit_rejection_telemetry(
+                reason=(
+                    "pattern_or_author_denied" if allowed_prefixes
+                    else "resolution_failure_or_unknown_source"
+                ),
+                source=source,
+                path=op["from"],
+                op_index=i,
+                op="move.from",
+            )
             return {"error": (
                 f"whitelist_rejected: op {i} `from` {op['from']!r} is not "
                 f"editable for viz source {source!r}. A `move` op is a read "

@@ -24,6 +24,18 @@ def _fresh_uuid() -> str:
     return str(uuid_mod.uuid4())
 
 
+def _spy_rejection_telemetry(mocker):
+    """Return a MagicMock that records every _emit_rejection_telemetry call.
+
+    Tests the contract that the telemetry helper is invoked with the
+    expected payload on rejection, without coupling to logging-framework
+    configuration (which other tests in the suite may reconfigure).
+    """
+    return mocker.patch(
+        "tethysapp.tethysdash.mcp.tethysdash_mcp_server._emit_rejection_telemetry"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Happy paths — envelope passes validation + returns patch_update
 # ---------------------------------------------------------------------------
@@ -786,3 +798,233 @@ class TestReturnEnvelope:
         )
         assert "patch_update" not in result
         assert "error" in result
+
+
+# ---------------------------------------------------------------------------
+# Plugin-source dispatch (C1)
+# ---------------------------------------------------------------------------
+
+
+class TestPluginSourceDispatch:
+    """patch_visualization routes plugin-backed sources through the runtime resolver.
+
+    Uses the same fixtures as test_editable_schemas_plugin: patches the
+    intake registry and the client_custom registry loader that
+    editable_schemas_plugin imports.
+    """
+
+    def test_intake_plugin_happy_path(self, mocker):
+        """A patch on a registered Intake plugin's arg returns an envelope."""
+        from types import SimpleNamespace
+
+        fake_plugin = SimpleNamespace(args={"start_date": "text", "end_date": "text"})
+        mocker.patch(
+            "tethysapp.tethysdash.editable_schemas_plugin.intake.source.registry",
+            {"my_streamflow": fake_plugin},
+        )
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="my_streamflow",
+            patches=[
+                {"op": "replace", "path": "/args/start_date", "value": "2026-01-01"}
+            ],
+        )
+        assert "error" not in result, result
+        assert result["patch_update"]["source"] == "my_streamflow"
+        assert result["patch_update"]["ops"][0]["value"] == "2026-01-01"
+
+    def test_intake_plugin_non_whitelisted_path_rejected(self, mocker):
+        from types import SimpleNamespace
+
+        fake_plugin = SimpleNamespace(args={"start_date": "text"})
+        mocker.patch(
+            "tethysapp.tethysdash.editable_schemas_plugin.intake.source.registry",
+            {"my_streamflow": fake_plugin},
+        )
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="my_streamflow",
+            patches=[{"op": "replace", "path": "/args/other_field", "value": "x"}],
+        )
+        assert "error" in result
+        assert "whitelist_rejected" in result["error"]
+        # The error includes the allowed-prefixes list so the LLM can recover.
+        assert "/args/start_date" in result["error"]
+
+    def test_intake_plugin_pattern_denied_arg_rejected(self, mocker):
+        """A pattern-denied arg is never editable, even without author declarations."""
+        from types import SimpleNamespace
+
+        fake_plugin = SimpleNamespace(
+            args={"api_key": "text", "start_date": "text"},
+        )
+        mocker.patch(
+            "tethysapp.tethysdash.editable_schemas_plugin.intake.source.registry",
+            {"my_streamflow": fake_plugin},
+        )
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="my_streamflow",
+            patches=[{"op": "replace", "path": "/args/api_key", "value": "bad"}],
+        )
+        assert "error" in result
+        assert "whitelist_rejected" in result["error"]
+
+    def test_intake_plugin_pattern_denied_overrides_author_allow_list(self, mocker):
+        from types import SimpleNamespace
+
+        fake_plugin = SimpleNamespace(
+            args={"api_key": "text", "username": "text"},
+            llm_editable_args=["api_key", "username"],
+        )
+        mocker.patch(
+            "tethysapp.tethysdash.editable_schemas_plugin.intake.source.registry",
+            {"my_streamflow": fake_plugin},
+        )
+        # username is still allowed.
+        ok = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="my_streamflow",
+            patches=[{"op": "replace", "path": "/args/username", "value": "alice"}],
+        )
+        assert "error" not in ok
+        # api_key is still denied even though it's in llm_editable_args.
+        rejected = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="my_streamflow",
+            patches=[{"op": "replace", "path": "/args/api_key", "value": "x"}],
+        )
+        assert "error" in rejected
+        assert "whitelist_rejected" in rejected["error"]
+
+    def test_client_custom_plugin_happy_path(self, mocker):
+        mocker.patch(
+            "tethysapp.tethysdash.editable_schemas_plugin._load_client_plugin_registry_cached",
+            return_value=[
+                {
+                    "source": "nwm-flood-map",
+                    "args": {"title": "text", "dataUrl": "text"},
+                }
+            ],
+        )
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="nwm-flood-map",
+            patches=[{"op": "replace", "path": "/args/title", "value": "Flood"}],
+        )
+        assert "error" not in result, result
+        assert result["patch_update"]["source"] == "nwm-flood-map"
+
+    def test_client_custom_author_deny_list_is_respected(self, mocker):
+        mocker.patch(
+            "tethysapp.tethysdash.editable_schemas_plugin._load_client_plugin_registry_cached",
+            return_value=[
+                {
+                    "source": "nwm-flood-map",
+                    "args": {"title": "text", "authToken": "text"},
+                    "llmNonEditableArgs": ["authToken"],
+                }
+            ],
+        )
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="nwm-flood-map",
+            patches=[{"op": "replace", "path": "/args/authToken", "value": "bad"}],
+        )
+        assert "error" in result
+        assert "whitelist_rejected" in result["error"]
+
+    def test_unknown_source_fails_closed(self, mocker):
+        """Neither in static nor any runtime registry -> empty allowed_prefixes."""
+        mocker.patch(
+            "tethysapp.tethysdash.editable_schemas_plugin.intake.source.registry",
+            {},
+        )
+        mocker.patch(
+            "tethysapp.tethysdash.editable_schemas_plugin._load_client_plugin_registry_cached",
+            return_value=[],
+        )
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="phantom_plugin",
+            patches=[{"op": "replace", "path": "/args/anything", "value": "x"}],
+        )
+        assert "error" in result
+        assert "whitelist_rejected" in result["error"]
+        # Empty allowed_prefixes signals a resolution failure — D1 copy-bucket
+        # discriminator.
+        assert "[]" in result["error"]
+
+    def test_move_op_source_path_is_whitelist_checked_for_plugin(self, mocker):
+        from types import SimpleNamespace
+
+        fake_plugin = SimpleNamespace(args={"allowed_target": "text"})
+        mocker.patch(
+            "tethysapp.tethysdash.editable_schemas_plugin.intake.source.registry",
+            {"my_plugin": fake_plugin},
+        )
+        # The `from` path is NOT in the whitelist (api_key is pattern-denied
+        # and wouldn't be in args anyway). This is a regression on the
+        # move-op symmetry the shipped protocol's P1/P2 fixes established.
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="my_plugin",
+            patches=[{
+                "op": "move",
+                "from": "/args/api_key",
+                "path": "/args/allowed_target",
+            }],
+        )
+        assert "error" in result
+        assert "whitelist_rejected" in result["error"]
+
+
+class TestRejectionTelemetry:
+    """Every rejection path emits a structured INFO log record."""
+
+    def test_pattern_deny_emits_rejection_record(self, mocker):
+        """Pattern-denied path on a plugin with other allowed args calls the
+        telemetry helper with reason=pattern_or_author_denied.
+        """
+        from types import SimpleNamespace
+
+        fake_plugin = SimpleNamespace(
+            args={"start_date": "text", "api_key": "text"},
+        )
+        mocker.patch(
+            "tethysapp.tethysdash.editable_schemas_plugin.intake.source.registry",
+            {"my_plugin": fake_plugin},
+        )
+        spy = _spy_rejection_telemetry(mocker)
+        patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="my_plugin",
+            patches=[{"op": "replace", "path": "/args/api_key", "value": "x"}],
+        )
+        assert spy.call_count == 1
+        call_kwargs = spy.call_args.kwargs
+        assert call_kwargs["source"] == "my_plugin"
+        assert call_kwargs["path"] == "/args/api_key"
+        assert call_kwargs["reason"] == "pattern_or_author_denied"
+        assert call_kwargs["op_index"] == 0
+
+    def test_unknown_source_emits_resolution_failure_reason(self, mocker):
+        """No registry entry -> empty allowed_prefixes -> resolution_failure reason."""
+        mocker.patch(
+            "tethysapp.tethysdash.editable_schemas_plugin.intake.source.registry",
+            {},
+        )
+        mocker.patch(
+            "tethysapp.tethysdash.editable_schemas_plugin._load_client_plugin_registry_cached",
+            return_value=[],
+        )
+        spy = _spy_rejection_telemetry(mocker)
+        patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="phantom",
+            patches=[{"op": "replace", "path": "/args/x", "value": 1}],
+        )
+        assert spy.call_count == 1
+        assert (
+            spy.call_args.kwargs["reason"] == "resolution_failure_or_unknown_source"
+        )
