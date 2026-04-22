@@ -178,6 +178,19 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
         );
         return null;
       }
+      // Defense-in-depth: an op like {op:"remove", path:"/args"} would leave
+      // draft.args === undefined. JSON.stringify(undefined) returns the JS
+      // undefined value, which assigned to args_string would poison later
+      // JSON.parse. The whitelist currently blocks such paths but a future
+      // broader entry would silently corrupt state. Skip the patch instead.
+      if (draft.args === undefined || draft.args === null) {
+        console.warn(
+          "[DashboardLayout] apply_patch: ops removed the `args` root for uuid",
+          uuid,
+          "— refusing to persist `undefined`",
+        );
+        return null;
+      }
       return { ...target, args_string: JSON.stringify(draft.args) };
     }
 

@@ -8,12 +8,18 @@ import {
 import { ChatSidebarContext } from "components/contexts/ChatSidebarContext";
 import { Chatbox } from "@chatbox/core/components";
 import { BsXLg } from "react-icons/bs";
-import { buildPatchContext } from "./chatboxStateBuilder";
+import { buildDeltaSummary, buildPatchContext } from "./chatboxStateBuilder";
 
 // R6 delta truncation policy (from the origin requirements doc): the
 // afterToolExecution decoration shows at most the last N rounds OR the
 // last M UUID-field pairs worth of mutations, whichever is smaller.
 const DELTA_MAX_UUIDS = 30;
+
+// Pattern used to strip a previously-appended delta block before writing
+// the next one. Without this, each afterToolExecution invocation would
+// append a new `[in-turn delta]` block to the same message — linearly
+// growing the context across a multi-round turn (review ADV-005).
+const DELTA_BLOCK_RE = /\n\n\[in-turn delta\]\n[\s\S]*$/;
 
 const SIDEBAR_WIDTH = 360;
 
@@ -148,43 +154,48 @@ function ChatSidebar() {
           .map((l) => l?.map_uuid)
           .filter(Boolean);
 
-        const total =
-          createdUuids.length + patchedUuids.length + layerUpdateUuids.length;
-        if (total === 0) return;
-
-        // Truncation: cap decoration at DELTA_MAX_UUIDS distinct UUIDs
-        // across all three categories. Rollover sentinel for the rest.
-        const summary = {};
-        if (createdUuids.length > 0) {
-          summary.created_this_turn = createdUuids.slice(0, DELTA_MAX_UUIDS);
-        }
-        if (patchedUuids.length > 0) {
-          summary.patched_this_turn = patchedUuids.slice(0, DELTA_MAX_UUIDS);
-        }
-        if (layerUpdateUuids.length > 0) {
-          summary.layer_updates_this_turn = layerUpdateUuids.slice(
-            0,
-            DELTA_MAX_UUIDS,
-          );
-        }
-        if (total > DELTA_MAX_UUIDS) {
-          summary._note =
-            `${total - DELTA_MAX_UUIDS} earlier in-turn mutations omitted; ` +
-            `full dashboard_state re-injects on the next user turn.`;
+        if (
+          createdUuids.length === 0 &&
+          patchedUuids.length === 0 &&
+          layerUpdateUuids.length === 0
+        ) {
+          return;
         }
 
-        // Append the delta to the most-recent tool-result message so the
-        // LLM sees it in the next inference round.
+        const summary = buildDeltaSummary(
+          createdUuids,
+          patchedUuids,
+          layerUpdateUuids,
+          DELTA_MAX_UUIDS,
+        );
+
+        // Rewrite the delta on the most-recent tool-result message. Strip
+        // any prior [in-turn delta] block first so we don't accumulate one
+        // block per hook invocation across a multi-round turn (review
+        // ADV-005 — quadratic context growth).
         const lastIdx = messages.length - 1;
         if (lastIdx < 0 || messages[lastIdx]?.role !== "tool") return;
-        try {
-          messages[lastIdx].content =
-            messages[lastIdx].content +
-            `\n\n[in-turn delta]\n${JSON.stringify(summary)}`;
-        } catch {
-          // If content isn't a string for some reason, skip decoration
-          // rather than throwing — the engine's try/catch also guards this.
+        const currentContent = messages[lastIdx].content;
+        if (typeof currentContent !== "string") return;
+        const base = currentContent.replace(DELTA_BLOCK_RE, "");
+        messages[lastIdx].content =
+          base + `\n\n[in-turn delta]\n${JSON.stringify(summary)}`;
+      },
+      // toolErrorCheck: tells the engine which tool results are errors so
+      // the structured repair loop can fire. patch_visualization +
+      // create_card return `{error: "..."}` envelopes for invalid_envelope,
+      // whitelist_rejected, patch_apply_failed, invalid_args (review
+      // REL-001). Without this wiring, the LLM only sees the error as raw
+      // tool-result content with no engine-level retry scaffolding.
+      toolErrorCheck: (toolResult) => {
+        if (
+          toolResult &&
+          typeof toolResult === "object" &&
+          typeof toolResult.error === "string"
+        ) {
+          return { error: toolResult.error };
         }
+        return null;
       },
     }),
     [patchContext],

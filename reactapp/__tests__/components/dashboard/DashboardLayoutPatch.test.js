@@ -535,6 +535,46 @@ describe("handleUpdateVisualization — same-turn add + patch ordering", () => {
     // Downstream renamed
     expect(downstream.inlineData.layout.title).toBe("Tailwater");
   });
+
+  test("patch that removes the entire /args root is refused — db cannot be poisoned", async () => {
+    // Review ADV-004 (latent P2): JSON.stringify(undefined) returns the
+    // JS value undefined (NOT the string "undefined"), which assigned to
+    // args_string poisons later JSON.parse. The whitelist currently
+    // blocks /args as a bare path, but a future broader entry would
+    // silently corrupt state. Defense-in-depth: reducer refuses to
+    // persist when draft.args ends up undefined.
+    const plot = {
+      id: 1,
+      uuid: "plot-1",
+      i: "1",
+      x: 0, y: 0, w: 50, h: 40,
+      source: "Inline Plotly",
+      args_string: JSON.stringify({
+        vizType: "plotly",
+        inlineData: { data: [], layout: { title: "Original" } },
+      }),
+      metadata_string: '{"refreshRate":0}',
+    };
+    await renderWithDashboard(makeDashboard([plot]));
+    await dispatchUpdate({
+      batch: true,
+      operation: "apply_patch",
+      patches: [
+        {
+          uuid: "plot-1",
+          source: "Inline Plotly",
+          // Removing /args leaves the draft's args key undefined.
+          ops: [{ op: "remove", path: "/args" }],
+        },
+      ],
+    });
+    const items = getTabGridItems();
+    const result = JSON.parse(items[0].args_string);
+    // Original state preserved — the guard refused the destructive op.
+    expect(result.inlineData.layout.title).toBe("Original");
+    // args_string never becomes the literal string "undefined".
+    expect(items[0].args_string).not.toBe("undefined");
+  });
 });
 
 describe("handleUpdateVisualization — unknown operation", () => {

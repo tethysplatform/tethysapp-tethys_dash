@@ -10,6 +10,7 @@ import {
   buildDashboardState,
   buildEditablePathsBySource,
   buildValueHintsBySource,
+  buildDeltaSummary,
   buildPatchContext,
 } from "../../../components/sidebar/chatboxStateBuilder";
 import { LLM_EDITABLE_PATHS } from "../../../config/editableSchemas";
@@ -199,5 +200,87 @@ describe("buildPatchContext", () => {
       { year: 2026 },
     );
     expect(result).toBeNull();
+  });
+});
+
+describe("buildDeltaSummary", () => {
+  test("returns empty object when all categories are empty", () => {
+    expect(buildDeltaSummary([], [], [], 30)).toEqual({});
+  });
+
+  test("includes only categories that have entries", () => {
+    const summary = buildDeltaSummary(["u1"], [], [], 30);
+    expect(summary).toEqual({ created_this_turn: ["u1"] });
+  });
+
+  test("no _note when everything fits under budget", () => {
+    // Review finding COR-02: the OLD logic fired the sentinel whenever
+    // total > budget even if each category's slice took everything. This
+    // test pins that no _note appears when the round-robin allocation
+    // actually includes every entry.
+    const summary = buildDeltaSummary(
+      new Array(20).fill(0).map((_, i) => `c${i}`),
+      new Array(15).fill(0).map((_, i) => `p${i}`),
+      [],
+      30, // total=35 > budget, BUT round-robin pulls all 20 + all 15 = 35 ≤ rounds*queues
+    );
+    // Each queue is drained; budget exhausted at 30; 5 omitted
+    const totalIn = 20 + 15;
+    const totalTaken =
+      (summary.created_this_turn?.length || 0) +
+      (summary.patched_this_turn?.length || 0);
+    expect(totalTaken).toBe(Math.min(30, totalIn));
+    if (totalTaken < totalIn) {
+      expect(summary._note).toMatch(
+        /\d+ earlier in-turn mutations omitted/,
+      );
+    } else {
+      expect(summary._note).toBeUndefined();
+    }
+  });
+
+  test("sentinel count equals actual total omitted across all categories", () => {
+    // 3 created + 3 patched + 3 layer updates, budget 4. Round-robin
+    // gives c0, p0, l0, c1 → 4 taken, 5 omitted.
+    const summary = buildDeltaSummary(
+      ["c0", "c1", "c2"],
+      ["p0", "p1", "p2"],
+      ["l0", "l1", "l2"],
+      4,
+    );
+    const taken =
+      (summary.created_this_turn?.length || 0) +
+      (summary.patched_this_turn?.length || 0) +
+      (summary.layer_updates_this_turn?.length || 0);
+    expect(taken).toBe(4);
+    // 9 total - 4 taken = 5 omitted
+    expect(summary._note).toMatch(/^5 earlier in-turn mutations omitted/);
+  });
+
+  test("round-robin ensures each non-empty category gets some entries", () => {
+    // Before this fix, per-category slice(0, budget) meant a hot category
+    // could take the whole budget. Round-robin guarantees fair sharing.
+    const summary = buildDeltaSummary(
+      new Array(30).fill(0).map((_, i) => `c${i}`), // 30 created
+      ["p0"], // 1 patched
+      ["l0"], // 1 layer_update
+      3, // tiny budget
+    );
+    expect(summary.created_this_turn).toEqual(["c0"]);
+    expect(summary.patched_this_turn).toEqual(["p0"]);
+    expect(summary.layer_updates_this_turn).toEqual(["l0"]);
+  });
+
+  test("handles null/undefined category inputs gracefully", () => {
+    expect(buildDeltaSummary(null, undefined, ["l0"], 5)).toEqual({
+      layer_updates_this_turn: ["l0"],
+    });
+  });
+
+  test("budget of 0 produces an empty summary", () => {
+    const summary = buildDeltaSummary(["c0"], ["p0"], [], 0);
+    expect(summary).toEqual({
+      _note: expect.stringMatching(/2 earlier in-turn mutations omitted/),
+    });
   });
 });

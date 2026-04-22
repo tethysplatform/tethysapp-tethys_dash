@@ -165,3 +165,63 @@ export function buildPatchContext(tabs, variableInputValues) {
     variable_input_values: variableInputValues || {},
   };
 }
+
+/**
+ * Build a per-turn in-turn-delta summary from the engine's pending state.
+ *
+ * Round-robin allocates ``budget`` slots across three categories so the LLM
+ * always sees some entries from each bucket it touched (rather than e.g.
+ * 30 created UUIDs and zero patched UUIDs when the budget is tight).
+ * Includes an accurate ``_note`` with the total omitted count — NOT the
+ * difference between total-and-budget, which was wrong when one bucket
+ * alone fit under the budget (review COR-02).
+ *
+ * @param {string[]} createdUuids
+ * @param {string[]} patchedUuids
+ * @param {string[]} layerUpdateUuids
+ * @param {number} budget - max distinct UUIDs to include across all categories
+ * @returns {Object} {created_this_turn?, patched_this_turn?, layer_updates_this_turn?, _note?}
+ */
+export function buildDeltaSummary(
+  createdUuids,
+  patchedUuids,
+  layerUpdateUuids,
+  budget,
+) {
+  const take = { created: [], patched: [], layer: [] };
+  const queues = [
+    [createdUuids || [], take.created],
+    [patchedUuids || [], take.patched],
+    [layerUpdateUuids || [], take.layer],
+  ];
+  let remaining = budget;
+  // Round-robin pull one from each non-empty queue until budget exhausted
+  // or all queues are drained.
+  // Bounded by max-rounds = budget to avoid pathological loop cases.
+  for (let round = 0; round < budget && remaining > 0; round++) {
+    let progressed = false;
+    for (const [src, dest] of queues) {
+      if (remaining <= 0) break;
+      if (dest.length < src.length) {
+        dest.push(src[dest.length]);
+        remaining--;
+        progressed = true;
+      }
+    }
+    if (!progressed) break;
+  }
+  const summary = {};
+  if (take.created.length > 0) summary.created_this_turn = take.created;
+  if (take.patched.length > 0) summary.patched_this_turn = take.patched;
+  if (take.layer.length > 0) summary.layer_updates_this_turn = take.layer;
+  const omitted =
+    (createdUuids?.length || 0) - take.created.length +
+    ((patchedUuids?.length || 0) - take.patched.length) +
+    ((layerUpdateUuids?.length || 0) - take.layer.length);
+  if (omitted > 0) {
+    summary._note =
+      `${omitted} earlier in-turn mutations omitted; ` +
+      `full dashboard_state re-injects on the next user turn.`;
+  }
+  return summary;
+}
