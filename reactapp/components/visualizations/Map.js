@@ -216,6 +216,7 @@ const MapVisualization = ({
   baseMap,
   layerControl,
   dataviewerViz,
+  refreshCount,
 }) => {
   const [mapLegend, setMapLegend] = useState();
   const [mapLayers, setMapLayers] = useState();
@@ -267,6 +268,7 @@ const MapVisualization = ({
     variableInputValues,
     variableInputDateFormats,
     onBeforeSwap: dismissPopupBeforeSwap,
+    refreshTick: refreshCount,
   });
 
   // Per-layer state bundle for LayersControl — includes the requestId
@@ -673,6 +675,11 @@ MapVisualization.propTypes = {
   layerControl: PropTypes.bool, // deterimines if a layer control menu should be present
   dataviewerViz: PropTypes.bool, // determines if the map is in the dataviewer so that it doesnt affect the main map
   mapDrawing: mapDrawingPropType, // contains draw interaction metadata like options and limits
+  // Ticks on each refreshRate interval from Base.js. Used to force
+  // dynamic_map_layer re-fetches on schedule even when args are unchanged
+  // (getVisualization short-circuits Map to same-args vizData, so the
+  // orchestrator wouldn't otherwise see anything to re-run).
+  refreshCount: PropTypes.number,
 };
 
 Popup.propTypes = {

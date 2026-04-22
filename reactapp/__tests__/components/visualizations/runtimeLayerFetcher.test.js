@@ -537,6 +537,50 @@ describe("useRuntimeLayerFetcher", () => {
     expect(getFeaturesMock).not.toHaveBeenCalled();
   });
 
+  test("refreshTick increment forces a re-fetch even when args are unchanged", async () => {
+    const olLayer = fakeOlLayer("layer-1");
+    const mapRef = { current: fakeOlMap([olLayer]) };
+    const layers = [runtimeLayerConfig({ args: { x: 1 } })];
+
+    const { rerender } = renderHook(
+      ({ refreshTick }) =>
+        useRuntimeLayerFetcher({
+          layers,
+          gridItemUuid: "g",
+          sessionNonce: "n",
+          mapRef,
+          variableInputValues: {},
+          variableInputDateFormats: {},
+          refreshTick,
+        }),
+      { initialProps: { refreshTick: 0 } },
+    );
+
+    // Initial mount fetch.
+    await act(async () => {
+      jest.advanceTimersByTime(250);
+      await Promise.resolve();
+    });
+    expect(getFeaturesMock).toHaveBeenCalledTimes(1);
+
+    // Same args, same layers — normally the diff gate would suppress the
+    // fetch. But refreshTick incrementing forces it through.
+    rerender({ refreshTick: 1 });
+    await act(async () => {
+      jest.advanceTimersByTime(250);
+      await Promise.resolve();
+    });
+    expect(getFeaturesMock).toHaveBeenCalledTimes(2);
+
+    // Another tick — another fetch.
+    rerender({ refreshTick: 2 });
+    await act(async () => {
+      jest.advanceTimersByTime(250);
+      await Promise.resolve();
+    });
+    expect(getFeaturesMock).toHaveBeenCalledTimes(3);
+  });
+
   test("orchestrator state cleared when a layer is removed from the map", async () => {
     const olA = fakeOlLayer("layer-a");
     const mapRef = { current: fakeOlMap([olA]) };

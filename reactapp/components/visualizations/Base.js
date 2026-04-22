@@ -159,6 +159,13 @@ export const Visualization = memo(
             mapConfig={vizData.mapConfig}
             mapDrawing={vizData.mapDrawing}
             dataviewerViz={dataviewerViz}
+            // Threaded so dynamic_map_layer plugins can honor the grid
+            // item's refreshRate metadata. getVisualization short-circuits
+            // the Map source to a viz-data-only update (same layers
+            // reference, so React skips re-render); refreshCount gives the
+            // runtimeLayerFetcher a distinct tick to force a re-fetch
+            // every interval regardless of args changes.
+            refreshCount={refreshCount}
           />
         );
       case "plotly":

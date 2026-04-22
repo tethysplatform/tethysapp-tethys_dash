@@ -70,6 +70,11 @@ import appAPI from "services/api/app";
  *   popups anchored to features about to be removed.
  * @param {number} [params.debounceMs=250] — debounce window for re-fetch
  *   supersession.
+ * @param {number} [params.refreshTick] — monotonically-incrementing signal
+ *   from Base.js's refreshRate interval. Every change forces a re-fetch
+ *   for every runtime layer, bypassing the args-unchanged diff gate. Lets
+ *   authors set a refreshRate on a Map grid item and have
+ *   dynamic_map_layer plugins honor it on schedule.
  *
  * @returns {Object} { errorsByLayerId, retry }
  *   - errorsByLayerId: { [layerId]: { message, kind: "error" | "unavailable" } }
@@ -85,6 +90,7 @@ export default function useRuntimeLayerFetcher({
   variableInputDateFormats,
   onBeforeSwap,
   debounceMs = 250,
+  refreshTick = 0,
 }) {
   // Per-layer orchestrator state. Refs (not state) because updates inside
   // fetch handlers must be synchronous and must not trigger re-renders.
@@ -264,11 +270,20 @@ export default function useRuntimeLayerFetcher({
     [layers, resolveLayerArgs, performFetch],
   );
 
+  // Track whether refreshTick changed between effect runs. React's useEffect
+  // can't distinguish "first run" from "refreshTick tick" on its own — we
+  // need the previous value to decide whether to bypass the diff gate.
+  const prevRefreshTickRef = useRef(refreshTick);
+
   // Main reactivity effect. Iterates runtime layers, diffs against the
   // prior resolved args for each, and schedules a debounced fetch when the
   // diff indicates a re-fetch is needed (or when it's the layer's first
-  // appearance).
+  // appearance). When refreshTick ticks (from Base.js's refreshRate
+  // interval), every runtime layer is force-fetched regardless of diff.
   useEffect(() => {
+    const refreshTickChanged = prevRefreshTickRef.current !== refreshTick;
+    prevRefreshTickRef.current = refreshTick;
+
     const runtimeLayers = (layers ?? []).filter(
       (l) =>
         l?.configuration?.props?.pluginSource &&
@@ -304,6 +319,13 @@ export default function useRuntimeLayerFetcher({
         return;
       }
 
+      // refreshTick tick overrides the args-unchanged gate: a scheduled
+      // refresh should fire every interval regardless of arg changes.
+      if (refreshTickChanged) {
+        scheduleFetch(layerId, pluginSource, resolvedArgs);
+        return;
+      }
+
       const state = perLayerStateRef.current.get(layerId);
       const argsUnchanged = compareFilteredArgs(
         state.lastResolvedArgs,
@@ -315,7 +337,7 @@ export default function useRuntimeLayerFetcher({
       scheduleFetch(layerId, pluginSource, resolvedArgs);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [layers, variableInputValues, variableInputDateFormats]);
+  }, [layers, variableInputValues, variableInputDateFormats, refreshTick]);
 
   return { errorsByLayerId, retry };
 }
