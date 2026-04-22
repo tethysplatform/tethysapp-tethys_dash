@@ -27,6 +27,15 @@ class ErrorBoundary extends React.Component {
   render() {
     const DEBUG_MODE = process.env.TETHYS_DEBUG_MODE === "true";
     if (this.state.hasError) {
+      // Caller-supplied fallback takes precedence so the same boundary class
+      // can serve both app-level (default GenericError/DebugError) and
+      // per-tile (compact in-frame fallback) mount sites.
+      const { fallback } = this.props;
+      if (fallback !== undefined && fallback !== null) {
+        return typeof fallback === "function"
+          ? fallback(this.state.error, this.state.errorInfo)
+          : fallback;
+      }
       return !DEBUG_MODE ? (
         <GenericError />
       ) : (
@@ -43,6 +52,7 @@ ErrorBoundary.propTypes = {
     PropTypes.element,
     PropTypes.object,
   ]),
+  fallback: PropTypes.oneOfType([PropTypes.node, PropTypes.func]),
 };
 
 export default ErrorBoundary;
