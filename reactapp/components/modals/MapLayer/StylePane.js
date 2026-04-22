@@ -155,7 +155,10 @@ const StylePane = ({
   }
 
   const supportedTypes = ["GeoJSON", "ESRI Feature Service", "PMTiles Vector"];
-  if (!supportedTypes.includes(sourceProps.type)) {
+  if (
+    !supportedTypes.includes(sourceProps.type) &&
+    sourceProps.type === "map_layer"
+  ) {
     return (
       <CenteredDiv>
         Custom Styling is only available for {supportedTypes.join(", ")} layers.

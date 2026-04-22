@@ -369,6 +369,77 @@ const MapLayerModal = ({
     setLegend(apiResponse.data.legend);
   };
 
+  // Fetch scaffold for a dynamic_map_layer plugin and apply it to the
+  // Style / Legend / Attributes / LayerProps panes. Unlike onLayoutChange
+  // (which handles static Layer Templates), this preserves the runtime
+  // sourceProps (plugin source name + args) — we only want the scaffold
+  // to pre-fill the pane state, not reshape the source.
+  //
+  // Called from SourcePane in two contexts:
+  //   - Automatically on initial plugin selection (via handleLayerTypeChange).
+  //   - Explicitly via the "Fetch defaults" button the author clicks after
+  //     editing plugin args. (Arg edits do NOT auto-fire to avoid spamming
+  //     slow / side-effecting plugins.)
+  //
+  // Returns { success: bool, error?: string } so SourcePane can display
+  // inline feedback. Throws nothing.
+  const fetchPluginDefaults = useCallback(
+    async (source, args) => {
+      try {
+        const apiResponse = await appAPI.getVisualizationData({
+          source,
+          args: args ?? {},
+        });
+        if (!apiResponse.success) {
+          return {
+            success: false,
+            error:
+              apiResponse.data?.error ??
+              "Failed to fetch plugin defaults. Check logs.",
+          };
+        }
+        const scaffold = apiResponse.data ?? {};
+        const config = scaffold.configuration ?? {};
+        const attributeVariables = scaffold.attributeVariables ?? {};
+        const attributeAliases = scaffold.attributeAliases ?? {};
+        const omittedPopupAttributes = scaffold.omittedPopupAttributes ?? {};
+        const queryableLayer = scaffold.queryable === false ? false : true;
+
+        const updatedLayerProps = Object.fromEntries(
+          Object.entries(config.props ?? {}).filter(
+            ([key]) => key !== "source" && key !== "pluginSource",
+          ),
+        );
+        if (config.layerVisibility !== undefined) {
+          updatedLayerProps.layerVisibility = config.layerVisibility;
+        }
+        // Preserve the current layer name (author may have renamed the
+        // layer in the Layer pane) — only fall back to the scaffold's
+        // name when the current name is empty.
+        setLayerProps((prev) => ({
+          ...updatedLayerProps,
+          name: prev?.name || updatedLayerProps.name,
+          layerId: prev?.layerId,
+        }));
+        setAttributeProps({
+          variables: attributeVariables,
+          omitted: omittedPopupAttributes,
+          aliases: attributeAliases,
+          queryable: queryableLayer,
+        });
+        setStyle(config.style);
+        setLegend(scaffold.legend);
+        return { success: true };
+      } catch (err) {
+        return {
+          success: false,
+          error: err?.message ?? "Failed to fetch plugin defaults.",
+        };
+      }
+    },
+    [setLayerProps, setAttributeProps, setStyle, setLegend],
+  );
+
   return (
     <>
       <Modal
@@ -414,6 +485,7 @@ const MapLayerModal = ({
                 setAttributeProps={setAttributeProps}
                 setErrorMessage={setErrorMessage}
                 onRequestHideModal={onRequestHideModal}
+                onFetchPluginDefaults={fetchPluginDefaults}
               />
             </Tab>
             <Tab

@@ -1209,9 +1209,6 @@ class LayerConfigurationBuilder:
         if not isinstance(style, dict):
             raise ValueError("style must be a valid dictionary.")
 
-        if "version" not in style or "sources" not in style or "layers" not in style:
-            raise ValueError("style must have a version, sources and layers keys")
-
         self.config["configuration"]["style"] = style
         return self
 

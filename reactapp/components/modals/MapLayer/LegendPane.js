@@ -196,7 +196,12 @@ const LegendPane = ({ legend, setLegend, containerRef, sourceProps }) => {
     { label: "Custom Legend", value: "custom" },
   ];
 
-  // Keep legendMode in sync with incoming legend or sourceProps changes
+  // Keep legendMode in sync with incoming legend or sourceProps changes.
+  // Watches `legend` too because dynamic_map_layer plugins update legend
+  // asynchronously after the Fetch defaults scaffold call resolves —
+  // without the dep, legendMode would latch on whatever the legend was
+  // when sourceProps.type changed (typically empty / "off") and the
+  // plugin's legend would never render.
   useEffect(() => {
     if (limitedLegendTypes.includes(sourceProps?.type)) {
       if (
@@ -219,7 +224,7 @@ const LegendPane = ({ legend, setLegend, containerRef, sourceProps }) => {
       setLegendMode(nextMode);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sourceProps.type]);
+  }, [sourceProps.type, legend]);
 
   const handleModeChange = (mode) => {
     if (legendMode === "custom") {
