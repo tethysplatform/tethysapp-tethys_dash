@@ -113,6 +113,55 @@ CORS_MIDDLEWARE = [
 CLIENT_PLUGIN_REGISTRY = load_client_plugin_registry()
 
 
+def _log_client_plugin_editability_audit() -> None:
+    """Log each registered client_custom plugin's resolved editable paths.
+
+    Runs once at module import. Gives operators a visible, log-grep-able
+    audit of which args every installed client_custom plugin allows the
+    LLM to edit — the trust boundary for npm supply-chain packages that
+    ship ``llmEditableArgs`` / ``llmNonEditableArgs`` declarations.
+
+    Resolved paths reflect the full composition: package.json declarations
+    filtered by the mandatory project-wide sensitive-name pattern deny-list.
+    """
+    try:
+        from tethysapp.tethysdash.editable_schemas_plugin import (
+            resolve_editable_paths,
+        )
+    except ImportError:
+        # During isolated MCP-only startup (e.g., early migrations) the
+        # resolver may not import cleanly; skip the audit rather than fail.
+        LOGGER.warning(
+            "client_custom editability audit skipped: resolver not importable."
+        )
+        return
+
+    client_custom_entries = [
+        entry
+        for entry in CLIENT_PLUGIN_REGISTRY
+        if entry.get("type") == "client_custom"
+    ]
+    if not client_custom_entries:
+        return
+    LOGGER.info(
+        "client_custom plugin editability audit (%d plugin(s)):",
+        len(client_custom_entries),
+    )
+    for entry in client_custom_entries:
+        source = entry.get("source", "<unknown>")
+        package = entry.get("packageName", "<unknown>")
+        paths = resolve_editable_paths(source)
+        LOGGER.info(
+            "  client_custom plugin %r (package: %s): editable paths = %s",
+            source,
+            package,
+            paths,
+        )
+
+
+_log_client_plugin_editability_audit()
+
+
 def _get_all_plugins() -> List[Dict[str, Any]]:
     """Return combined static + runtime registries, re-reading runtime from disk."""
     runtime = load_runtime_plugin_registry()

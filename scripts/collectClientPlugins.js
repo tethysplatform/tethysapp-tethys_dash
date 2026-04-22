@@ -13,6 +13,47 @@
 const fs = require("fs");
 const path = require("path");
 
+/**
+ * Build a registry entry from a single `tethysdash.clientPlugins[]` declaration.
+ *
+ * Pure function — exported so the Jest test can assert on propagated fields
+ * (including llmEditableArgs / llmNonEditableArgs) without running the full
+ * filesystem-driven discovery pipeline.
+ *
+ * Returns `null` when the declaration is missing required fields (caller
+ * logs a warning and skips).
+ *
+ * @param {object} plugin - The plugin declaration from the dependency's package.json.
+ * @param {string} depName - The package name providing the declaration.
+ * @returns {object | null}
+ */
+function buildPluginEntry(plugin, depName) {
+  if (!plugin || !plugin.source || !plugin.module) return null;
+  const entry = {
+    source: plugin.source,
+    label: plugin.label || plugin.source,
+    group: plugin.group || "Client Plugins",
+    type: plugin.type || "client_custom",
+    module: plugin.module,
+    tags: plugin.tags || [],
+    description: plugin.description || "",
+    args: plugin.args || {},
+    packageName: depName,
+  };
+  // Module Federation fields for client_custom_remote plugins
+  if (plugin.scope) entry.scope = plugin.scope;
+  if (plugin.remoteType) entry.remoteType = plugin.remoteType;
+  // LLM-editability declarations for the chatbox patch protocol.
+  // Only emit when the plugin opted in; absence means fall through to the
+  // default-permissive behavior (all args editable minus the project-wide
+  // pattern deny-list) in editable_schemas_plugin.py.
+  if (Array.isArray(plugin.llmEditableArgs))
+    entry.llmEditableArgs = plugin.llmEditableArgs;
+  if (Array.isArray(plugin.llmNonEditableArgs))
+    entry.llmNonEditableArgs = plugin.llmNonEditableArgs;
+  return entry;
+}
+
 function discoverClientPlugins() {
   const pkgJsonPath = path.resolve(__dirname, "../package.json");
   const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, "utf-8"));
@@ -26,26 +67,13 @@ function discoverClientPlugins() {
 
       if (depPkg.tethysdash && Array.isArray(depPkg.tethysdash.clientPlugins)) {
         for (const plugin of depPkg.tethysdash.clientPlugins) {
-          if (!plugin.source || !plugin.module) {
+          const entry = buildPluginEntry(plugin, depName);
+          if (!entry) {
             console.warn(
               `  Skipping invalid client plugin in ${depName}: missing source or module`
             );
             continue;
           }
-          const entry = {
-            source: plugin.source,
-            label: plugin.label || plugin.source,
-            group: plugin.group || "Client Plugins",
-            type: plugin.type || "client_custom",
-            module: plugin.module,
-            tags: plugin.tags || [],
-            description: plugin.description || "",
-            args: plugin.args || {},
-            packageName: depName,
-          };
-          // Module Federation fields for client_custom_remote plugins
-          if (plugin.scope) entry.scope = plugin.scope;
-          if (plugin.remoteType) entry.remoteType = plugin.remoteType;
           registry.push(entry);
         }
       }
@@ -93,4 +121,11 @@ function discoverClientPlugins() {
   );
 }
 
-discoverClientPlugins();
+// Expose the pure helper for unit tests without triggering fs discovery.
+module.exports = { buildPluginEntry, discoverClientPlugins };
+
+// Run discovery when invoked directly (webpack build hook), not when
+// required by a test.
+if (require.main === module) {
+  discoverClientPlugins();
+}
