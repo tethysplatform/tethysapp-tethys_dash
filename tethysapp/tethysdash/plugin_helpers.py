@@ -1181,6 +1181,8 @@ class LayerConfigurationBuilder:
                 missing = required_keys - item.keys()
                 raise ValueError(f"Item at index {i} is missing keys: {missing}")
 
+        self.config["legend"] = legend
+
         return self
 
     def set_style(self, style):
