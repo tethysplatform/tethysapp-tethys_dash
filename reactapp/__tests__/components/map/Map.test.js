@@ -1141,3 +1141,170 @@ TestingComponent.propTypes = {
     layers: PropTypes.array,
   }),
 };
+
+// --- Runtime dynamic_map_layer identity keep-branch tests -------------------
+
+// A minimal runtime-capable VectorLayer config. Uses an empty FeatureCollection
+// placeholder with a valid crs so moduleLoader's GeoJSON branch can instantiate
+// the OL VectorLayer even before the runtime fetcher has painted features.
+const runtimeLayerConfig = (overrides = {}) => ({
+  type: "VectorLayer",
+  props: {
+    name: overrides.name ?? "Runtime Layer",
+    layerId: overrides.layerId ?? "layer-1",
+    pluginSource: overrides.pluginSource ?? {
+      source: "my_runtime_plugin",
+      args: { bbox: "x" },
+    },
+    source: {
+      type: "GeoJSON",
+      props: {},
+      geojson: {
+        type: "FeatureCollection",
+        features: [],
+        crs: { type: "name", properties: { name: "EPSG:4326" } },
+      },
+    },
+    opacity: overrides.opacity ?? 1,
+    zIndex: overrides.zIndex ?? 0,
+  },
+});
+
+test("runtime layer preserved on cosmetic re-render (opacity change)", async () => {
+  const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+  const removeLayerSpy = jest.spyOn(Map.prototype, "removeLayer");
+  addLayerSpy.mockClear();
+  removeLayerSpy.mockClear();
+
+  const layers = [runtimeLayerConfig({ opacity: 0.8 })];
+
+  const { rerender } = render(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
+      <MapContextProvider>
+        <TestingComponent mapProps={{ layers }} />
+      </MapContextProvider>
+    </VariableInputsContext.Provider>,
+  );
+
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  await waitFor(() => {
+    expect(addLayerSpy.mock.calls.length).toBe(1);
+  });
+  const initialOlLayer = addLayerSpy.mock.calls[0][0];
+  expect(initialOlLayer.get("layerId")).toBe("layer-1");
+  expect(initialOlLayer.get("pluginSource").source).toBe("my_runtime_plugin");
+
+  // Rerender with opacity changed; identity (layerId + pluginSource.source)
+  // unchanged — layer should be preserved, not rebuilt.
+  const updatedLayers = [
+    runtimeLayerConfig({ opacity: 0.3, name: "Runtime Layer" }),
+  ];
+  rerender(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
+      <MapContextProvider>
+        <TestingComponent mapProps={{ layers: updatedLayers }} />
+      </MapContextProvider>
+    </VariableInputsContext.Provider>,
+  );
+
+  await waitFor(() => {
+    // Opacity setter applied in place — OL instance still the same.
+    expect(initialOlLayer.getOpacity()).toBe(0.3);
+  });
+  // No new addLayer call, no removeLayer call — identity branch kept it.
+  expect(addLayerSpy.mock.calls.length).toBe(1);
+  expect(removeLayerSpy.mock.calls.length).toBe(0);
+});
+
+test("runtime layer rebuilt when pluginSource.source changes", async () => {
+  const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+  const removeLayerSpy = jest.spyOn(Map.prototype, "removeLayer");
+  addLayerSpy.mockClear();
+  removeLayerSpy.mockClear();
+
+  const layers = [runtimeLayerConfig()];
+  const { rerender } = render(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
+      <MapContextProvider>
+        <TestingComponent mapProps={{ layers }} />
+      </MapContextProvider>
+    </VariableInputsContext.Provider>,
+  );
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  await waitFor(() => {
+    expect(addLayerSpy.mock.calls.length).toBe(1);
+  });
+
+  // Same layerId but different plugin — identity broken; rebuild is required
+  // so the new plugin's fetch flow takes over.
+  const updatedLayers = [
+    runtimeLayerConfig({
+      pluginSource: { source: "different_plugin", args: {} },
+    }),
+  ];
+  rerender(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
+      <MapContextProvider>
+        <TestingComponent mapProps={{ layers: updatedLayers }} />
+      </MapContextProvider>
+    </VariableInputsContext.Provider>,
+  );
+
+  await waitFor(() => {
+    expect(addLayerSpy.mock.calls.length).toBe(2);
+  });
+  expect(removeLayerSpy.mock.calls.length).toBe(1);
+});
+
+test("duplicate layerId triggers rebuild of both + console warning", async () => {
+  const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+  const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+  addLayerSpy.mockClear();
+
+  // Initial render with one runtime layer.
+  const layers = [runtimeLayerConfig({ name: "A", layerId: "shared" })];
+  const { rerender } = render(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
+      <MapContextProvider>
+        <TestingComponent mapProps={{ layers }} />
+      </MapContextProvider>
+    </VariableInputsContext.Provider>,
+  );
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  await waitFor(() => {
+    expect(addLayerSpy.mock.calls.length).toBe(1);
+  });
+
+  // Rerender with two layers sharing the same layerId (a simulated copy/paste
+  // or bulk-import bug). The identity branch bails out for both and falls
+  // through to rebuild + logs a warning so the author can diagnose.
+  const updatedLayers = [
+    runtimeLayerConfig({ name: "A", layerId: "shared" }),
+    runtimeLayerConfig({ name: "B", layerId: "shared" }),
+  ];
+  rerender(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
+      <MapContextProvider>
+        <TestingComponent mapProps={{ layers: updatedLayers }} />
+      </MapContextProvider>
+    </VariableInputsContext.Provider>,
+  );
+
+  await waitFor(() => {
+    expect(warnSpy).toHaveBeenCalled();
+  });
+  expect(warnSpy.mock.calls[0][0]).toMatch(/share layerId "shared"/);
+  warnSpy.mockRestore();
+});

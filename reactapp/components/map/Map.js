@@ -11,6 +11,7 @@ import {
   legendPropType,
   configurationPropType,
   mapDrawingPropType,
+  updateOlLayerProps,
 } from "components/map/utilities";
 import Alert from "react-bootstrap/Alert";
 import styled from "styled-components";
@@ -189,9 +190,70 @@ const MapComponent = ({
       // Clean up layers: determine which to keep and which to remove
       const layersToKeep = [];
       const layersToRemove = [];
+      // Runtime-VectorLayers kept via the identity branch may have their
+      // cosmetic props updated (opacity, name, zoom bounds) after the keep
+      // decision. Collect those here and apply after the loop so the in-place
+      // update doesn't interfere with layersToKeep membership checks.
+      const runtimeLayerUpdates = [];
+
       if (currentLayers.current.length) {
         const newLayerProps = (layers ?? []).map((l) => l.props);
+
+        // Build a map of incoming runtime-layer ids → {props, count} so we
+        // can detect duplicate-layerId collisions (e.g., from layer-paste).
+        // When duplicates exist, both are rebuilt and a console warning is
+        // logged so authors notice the identity breakage.
+        const incomingRuntimeIds = new Map();
+        (layers ?? []).forEach((l) => {
+          const id = l?.props?.layerId;
+          const plug = l?.props?.pluginSource;
+          if (id && plug) {
+            const existing = incomingRuntimeIds.get(id);
+            if (existing) {
+              existing.count += 1;
+            } else {
+              incomingRuntimeIds.set(id, { props: l.props, count: 1 });
+            }
+          }
+        });
+
         currentLayers.current.forEach((currentLayer) => {
+          const isRuntime =
+            currentLayer?.props?.pluginSource &&
+            currentLayer?.props?.layerId &&
+            currentLayer.type === "VectorLayer";
+
+          if (isRuntime) {
+            const incoming = incomingRuntimeIds.get(currentLayer.props.layerId);
+            if (
+              incoming &&
+              incoming.count === 1 &&
+              incoming.props.pluginSource?.source ===
+                currentLayer.props.pluginSource?.source
+            ) {
+              // Identity match: preserve the OL layer. Track cosmetic props
+              // to propagate after the loop. Use the INCOMING name for the
+              // layersToKeep tracker so the add/update loop's
+              // `if (layersToKeep.includes(name))` guard skips the new config.
+              layersToKeep.push(incoming.props.name);
+              runtimeLayerUpdates.push({
+                layerId: currentLayer.props.layerId,
+                oldName: currentLayer.props.name,
+                newProps: incoming.props,
+              });
+              return;
+            }
+            if (incoming && incoming.count > 1) {
+              console.warn(
+                `Multiple runtime layers share layerId "${currentLayer.props.layerId}"; ` +
+                  "rebuilding all of them to avoid identity collision. " +
+                  "Ensure layerId is regenerated on duplicate/import.",
+              );
+            }
+            // Otherwise (no incoming match, pluginSource changed, duplicate
+            // layerId) fall through and let the layer be torn down + rebuilt.
+          }
+
           const shouldKeep =
             newLayerProps.some((newProps) =>
               valuesEqual(newProps, currentLayer.props),
@@ -201,11 +263,31 @@ const MapComponent = ({
           }
         });
 
-        // Remove layers from the map that are not in layersToKeep
+        // Remove layers from the map that are not in layersToKeep.
+        // Runtime layers kept by identity may have had their name changed in
+        // this render; match against the OL layer's layerId when present so
+        // a renamed layer isn't mistakenly queued for removal.
+        const keptRuntimeLayerIds = new Set(
+          runtimeLayerUpdates.map((u) => u.layerId),
+        );
         currentMapLayers.forEach((layer) => {
           const layerName = layer.get("name");
+          const layerId = layer.get("layerId");
+          if (layerId && keptRuntimeLayerIds.has(layerId)) {
+            return;
+          }
           if (!layersToKeep.includes(layerName)) {
             layersToRemove.push(layer);
+          }
+        });
+
+        // Apply cosmetic prop changes to preserved runtime OL instances.
+        runtimeLayerUpdates.forEach(({ layerId, newProps }) => {
+          const olLayer = currentMapLayers.find(
+            (l) => l.get("layerId") === layerId,
+          );
+          if (olLayer) {
+            updateOlLayerProps(olLayer, newProps);
           }
         });
       }
@@ -229,6 +311,17 @@ const MapComponent = ({
               map.getView().getProjection().getCode(),
             );
             newLayer.set("name", name);
+
+            // Tag runtime-layer identity on the OL instance so the
+            // identity-based shouldKeep branch can find this layer on the
+            // next reconciliation (and so updateOlLayerProps can re-sync the
+            // tags if the author renames the layer).
+            if (layerConfig.props?.layerId) {
+              newLayer.set("layerId", layerConfig.props.layerId);
+            }
+            if (layerConfig.props?.pluginSource) {
+              newLayer.set("pluginSource", layerConfig.props.pluginSource);
+            }
 
             if (
               layerConfig.layerVisibility === false &&

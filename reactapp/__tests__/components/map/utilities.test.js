@@ -9,7 +9,10 @@ import {
   saveLayerJSON,
   checkForCRS,
   getStyleFields,
+  swapVectorLayerFeatures,
+  updateOlLayerProps,
 } from "components/map/utilities";
+import VectorSource from "ol/source/Vector.js";
 import { LineString, Point, MultiPolygon, Polygon } from "ol/geom";
 import VectorLayer from "ol/layer/Vector.js";
 import {
@@ -2965,4 +2968,148 @@ test("saveLayerJSON geojson", async () => {
 
   expect(response.success).toBe(true);
   expect(response.filename).toBe("some_file.json");
+});
+
+// --- swapVectorLayerFeatures ------------------------------------------------
+
+function makeVectorLayerWithFeatures(initialFeatureCount = 0) {
+  // eslint-disable-next-line global-require
+  const OLFeature = require("ol/Feature").default;
+  const source = new VectorSource();
+  for (let i = 0; i < initialFeatureCount; i++) {
+    source.addFeature(new OLFeature({}));
+  }
+  return new VectorLayer({ source });
+}
+
+test("swapVectorLayerFeatures clears source and adds parsed features", () => {
+  const olLayer = makeVectorLayerWithFeatures(3);
+  const fc = {
+    type: "FeatureCollection",
+    features: [
+      {
+        type: "Feature",
+        properties: { id: 1 },
+        geometry: { type: "Point", coordinates: [0, 0] },
+      },
+      {
+        type: "Feature",
+        properties: { id: 2 },
+        geometry: { type: "Point", coordinates: [1, 1] },
+      },
+    ],
+    crs: { type: "name", properties: { name: "EPSG:4326" } },
+  };
+
+  swapVectorLayerFeatures(olLayer, fc, "EPSG:3857");
+
+  const newFeatures = olLayer.getSource().getFeatures();
+  expect(newFeatures).toHaveLength(2);
+});
+
+test("swapVectorLayerFeatures clears source when FeatureCollection is empty", () => {
+  const olLayer = makeVectorLayerWithFeatures(5);
+  const emptyFc = {
+    type: "FeatureCollection",
+    features: [],
+    crs: { type: "name", properties: { name: "EPSG:4326" } },
+  };
+
+  swapVectorLayerFeatures(olLayer, emptyFc, "EPSG:3857");
+  expect(olLayer.getSource().getFeatures()).toHaveLength(0);
+});
+
+test("swapVectorLayerFeatures treats null as empty (empty-success state)", () => {
+  const olLayer = makeVectorLayerWithFeatures(3);
+  swapVectorLayerFeatures(olLayer, null, "EPSG:3857");
+  expect(olLayer.getSource().getFeatures()).toHaveLength(0);
+});
+
+test("swapVectorLayerFeatures is a no-op when olLayer has no source", () => {
+  expect(() =>
+    swapVectorLayerFeatures(null, null, "EPSG:3857"),
+  ).not.toThrow();
+  expect(() =>
+    swapVectorLayerFeatures({}, null, "EPSG:3857"),
+  ).not.toThrow();
+});
+
+test("swapVectorLayerFeatures defaults dataProjection to EPSG:4326 when CRS absent", () => {
+  const olLayer = makeVectorLayerWithFeatures(0);
+  const fcNoCrs = {
+    type: "FeatureCollection",
+    features: [
+      {
+        type: "Feature",
+        properties: {},
+        geometry: { type: "Point", coordinates: [0, 0] },
+      },
+    ],
+  };
+  expect(() =>
+    swapVectorLayerFeatures(olLayer, fcNoCrs, "EPSG:3857"),
+  ).not.toThrow();
+  expect(olLayer.getSource().getFeatures()).toHaveLength(1);
+});
+
+// --- updateOlLayerProps -----------------------------------------------------
+
+test("updateOlLayerProps applies cosmetic props in place", () => {
+  const olLayer = new VectorLayer({ source: new VectorSource() });
+  olLayer.set("name", "old name");
+  olLayer.setOpacity(1);
+
+  updateOlLayerProps(olLayer, {
+    name: "new name",
+    opacity: 0.5,
+    minZoom: 3,
+    maxZoom: 18,
+    minResolution: 0.1,
+    maxResolution: 100,
+  });
+
+  expect(olLayer.get("name")).toBe("new name");
+  expect(olLayer.getOpacity()).toBe(0.5);
+  expect(olLayer.getMinZoom()).toBe(3);
+  expect(olLayer.getMaxZoom()).toBe(18);
+  expect(olLayer.getMinResolution()).toBe(0.1);
+  expect(olLayer.getMaxResolution()).toBe(100);
+});
+
+test("updateOlLayerProps keeps layerId / pluginSource tags in sync", () => {
+  const olLayer = new VectorLayer({ source: new VectorSource() });
+  olLayer.set("layerId", "old-id");
+  olLayer.set("pluginSource", { source: "old_plugin", args: {} });
+
+  updateOlLayerProps(olLayer, {
+    layerId: "new-id",
+    pluginSource: { source: "new_plugin", args: { bbox: "x" } },
+  });
+
+  expect(olLayer.get("layerId")).toBe("new-id");
+  expect(olLayer.get("pluginSource")).toEqual({
+    source: "new_plugin",
+    args: { bbox: "x" },
+  });
+});
+
+test("updateOlLayerProps ignores undefined or wrong-typed fields", () => {
+  const olLayer = new VectorLayer({ source: new VectorSource() });
+  olLayer.setOpacity(0.7);
+  olLayer.set("name", "keep me");
+
+  updateOlLayerProps(olLayer, {
+    // opacity as string — wrong type, ignored
+    opacity: "0.3",
+    // name absent — preserved
+  });
+
+  expect(olLayer.getOpacity()).toBe(0.7);
+  expect(olLayer.get("name")).toBe("keep me");
+});
+
+test("updateOlLayerProps is a no-op when olLayer or newProps is null", () => {
+  expect(() => updateOlLayerProps(null, { name: "x" })).not.toThrow();
+  const olLayer = new VectorLayer({ source: new VectorSource() });
+  expect(() => updateOlLayerProps(olLayer, null)).not.toThrow();
 });

@@ -8,6 +8,7 @@ import { LineString, MultiPolygon, Polygon, Point } from "ol/geom";
 import { Stroke, Style, Circle } from "ol/style";
 import Icon from "ol/style/Icon";
 import { toGeometry } from "ol/render/Feature";
+import GeoJSONFormat from "ol/format/GeoJSON";
 import appAPI from "services/api/app";
 import { v4 as uuidv4 } from "uuid";
 import JSON5 from "json5";
@@ -212,6 +213,96 @@ export const layerPropertiesOptions = {
       "The minimum view zoom level (inclusive) at which this layer can be queried. If the mp is clicked beyond the zoom level, then the map will zoom into the minZoomQuery value",
   },
 };
+
+/**
+ * Swap the features on a preserved OpenLayers VectorLayer in place.
+ *
+ * Used by the runtimeLayerFetcher (Unit 5) when a dynamic_map_layer plugin
+ * returns new features: clear the existing VectorSource and add the parsed
+ * FeatureCollection, keeping the same OL layer instance so popup/highlight
+ * state survives the refresh.
+ *
+ * Accepts:
+ *   olLayer: the preserved ol/layer/Vector instance
+ *   featureCollection: a GeoJSON FeatureCollection dict (or null/empty for
+ *     the empty-success state — source is cleared, no features added)
+ *   mapProjection: the map's projection code (e.g., "EPSG:3857") used as
+ *     featureProjection when parsing. dataProjection is read from the
+ *     FeatureCollection's crs (defaulting to EPSG:4326 when absent).
+ *
+ * The caller is responsible for dismissing any popup anchored to the
+ * outgoing features before invoking this helper (see Unit 7).
+ */
+export function swapVectorLayerFeatures(
+  olLayer,
+  featureCollection,
+  mapProjection,
+) {
+  const source = olLayer?.getSource?.();
+  if (!source || typeof source.clear !== "function") {
+    return;
+  }
+  source.clear();
+
+  if (
+    !featureCollection ||
+    !Array.isArray(featureCollection.features) ||
+    featureCollection.features.length === 0
+  ) {
+    return;
+  }
+
+  const crsName = featureCollection?.crs?.properties?.name;
+  const dataProjection = crsName || "EPSG:4326";
+  const features = new GeoJSONFormat().readFeatures(featureCollection, {
+    dataProjection,
+    featureProjection: mapProjection,
+  });
+  source.addFeatures(features);
+}
+
+/**
+ * Apply cosmetic prop changes to a preserved OpenLayers layer instance.
+ *
+ * Used by the shouldKeep identity branch when a dynamic_map_layer's config
+ * changes in non-feature ways (opacity, name, zoom bounds, visibility).
+ * Avoids tearing down the layer just for a cosmetic edit, which would
+ * discard the features painted by the runtime fetcher.
+ *
+ * Only applies the props OL has first-class setters for; other props
+ * (e.g., source config) trigger a rebuild via the normal reconciliation
+ * path since they can't be safely mutated in place.
+ */
+export function updateOlLayerProps(olLayer, newProps) {
+  if (!olLayer || !newProps) return;
+
+  if (typeof newProps.name === "string") {
+    olLayer.set("name", newProps.name);
+  }
+  if (typeof newProps.opacity === "number") {
+    olLayer.setOpacity(newProps.opacity);
+  }
+  if (typeof newProps.minResolution === "number") {
+    olLayer.setMinResolution(newProps.minResolution);
+  }
+  if (typeof newProps.maxResolution === "number") {
+    olLayer.setMaxResolution(newProps.maxResolution);
+  }
+  if (typeof newProps.minZoom === "number") {
+    olLayer.setMinZoom(newProps.minZoom);
+  }
+  if (typeof newProps.maxZoom === "number") {
+    olLayer.setMaxZoom(newProps.maxZoom);
+  }
+  // Keep the pluginSource / layerId tags in sync so identity lookups work
+  // after an edit that preserved identity but touched other fields.
+  if (newProps.layerId) {
+    olLayer.set("layerId", newProps.layerId);
+  }
+  if (newProps.pluginSource) {
+    olLayer.set("pluginSource", newProps.pluginSource);
+  }
+}
 
 export function createMarkerLayer(coordinate) {
   const markPath = `

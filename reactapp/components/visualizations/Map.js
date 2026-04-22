@@ -331,6 +331,11 @@ const MapVisualization = ({
         const newMapLayers = [];
 
         for (const layer of layers) {
+          // Dynamic_map_layer layers own their features at viewer time via
+          // plugin.fetch_features() and are saved with an inline empty
+          // FeatureCollection placeholder; loadLayerJSONs treats that as a
+          // no-op (loadGeoJSON early-returns for object geojson) and still
+          // resolves style file references, so the call is harmless.
           await loadLayerJSONs(layer, uuid);
           if (layer.legend) {
             if (layer.legend === "default") {
