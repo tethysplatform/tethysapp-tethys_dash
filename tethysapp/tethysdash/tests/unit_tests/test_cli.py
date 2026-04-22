@@ -82,3 +82,121 @@ class TestCLI(unittest.TestCase):
         mock_parse_args.return_value = args
         cli.main()
         mock_start.assert_called_once_with(args)
+
+
+class TestInspectEditablePathsCommand(unittest.TestCase):
+    """Unit tests for the inspect_editable_paths subcommand (R13)."""
+
+    def _invoke(self, source, capsys=None, **patches):
+        """Run the command via subprocess to avoid logger pollution."""
+        import argparse as _argparse
+        from io import StringIO
+        from contextlib import redirect_stdout
+
+        cli = importlib.import_module("tethysapp.tethysdash.cli")
+        buf = StringIO()
+        args = _argparse.Namespace(source=source)
+        exit_code = 0
+        try:
+            with redirect_stdout(buf):
+                cli.inspect_editable_paths_command(args)
+        except SystemExit as e:
+            exit_code = e.code if isinstance(e.code, int) else 1
+        return exit_code, buf.getvalue()
+
+    @mock.patch(
+        "tethysapp.tethysdash.plugin_registry_loader.load_client_plugin_registry"
+    )
+    def test_unknown_source_exits_nonzero(self, mock_registry_loader):
+        """When a specific source isn't in any registry, exit code is 1."""
+        import tethysapp.tethysdash.editable_schemas_plugin as esp
+
+        mock_registry_loader.return_value = []
+        with mock.patch.object(esp.intake.source, "registry", {}):
+            exit_code, out = self._invoke(source="phantom_plugin")
+        self.assertEqual(exit_code, 1)
+        self.assertIn("phantom_plugin", out)
+        self.assertIn("unresolved", out.lower())
+
+    @mock.patch(
+        "tethysapp.tethysdash.plugin_registry_loader.load_client_plugin_registry"
+    )
+    def test_known_intake_plugin_shows_editable_paths(self, mock_registry_loader):
+        from types import SimpleNamespace
+        import tethysapp.tethysdash.editable_schemas_plugin as esp
+
+        mock_registry_loader.return_value = []
+        fake_plugin = SimpleNamespace(
+            args={"start_date": "text", "api_key": "text"},
+        )
+        with mock.patch.object(
+            esp.intake.source, "registry", {"my_streamflow": fake_plugin}
+        ):
+            exit_code, out = self._invoke(source="my_streamflow")
+        self.assertEqual(exit_code, 0)
+        self.assertIn("my_streamflow", out)
+        self.assertIn("Intake plugin", out)
+        # start_date is editable; api_key is pattern-denied.
+        self.assertIn("[editable] start_date", out)
+        self.assertIn("[denied: pattern] api_key", out)
+        self.assertIn("/args/start_date", out)
+        # Sensitive arg value must NEVER appear — the annotation lists only
+        # the name. (This test exercises only arg names, but pins the rule.)
+        self.assertNotIn("some_secret_value", out)
+
+    @mock.patch(
+        "tethysapp.tethysdash.plugin_registry_loader.load_client_plugin_registry"
+    )
+    def test_client_custom_source_shows_registry_entry(self, mock_registry_loader):
+        import tethysapp.tethysdash.editable_schemas_plugin as esp
+
+        mock_registry_loader.return_value = [
+            {
+                "source": "nwm-flood-map",
+                "args": {"title": "text", "dataUrl": "text", "authToken": "text"},
+                "llmNonEditableArgs": ["authToken"],
+            }
+        ]
+        # editable_schemas_plugin caches via its own indirection;
+        # patch that symbol so the resolver sees the test registry.
+        with mock.patch.object(esp.intake.source, "registry", {}), \
+             mock.patch.object(
+                 esp,
+                 "_load_client_plugin_registry_cached",
+                 return_value=[
+                     {
+                         "source": "nwm-flood-map",
+                         "args": {
+                             "title": "text",
+                             "dataUrl": "text",
+                             "authToken": "text",
+                         },
+                         "llmNonEditableArgs": ["authToken"],
+                     }
+                 ],
+             ):
+            exit_code, out = self._invoke(source="nwm-flood-map")
+        self.assertEqual(exit_code, 0)
+        self.assertIn("client_custom plugin", out)
+        self.assertIn("[editable] title", out)
+        self.assertIn("[editable] dataUrl", out)
+        self.assertIn("[denied: author] authToken", out)
+
+    @mock.patch(
+        "tethysapp.tethysdash.plugin_registry_loader.load_client_plugin_registry"
+    )
+    def test_no_source_lists_all_plugins(self, mock_registry_loader):
+        from types import SimpleNamespace
+        import tethysapp.tethysdash.editable_schemas_plugin as esp
+
+        mock_registry_loader.return_value = []
+        fake_plugin = SimpleNamespace(args={"station": "text"})
+        with mock.patch.object(
+            esp.intake.source, "registry", {"my_plugin": fake_plugin}
+        ), mock.patch.object(
+            esp, "_load_client_plugin_registry_cached", return_value=[]
+        ):
+            exit_code, out = self._invoke(source=None)
+        self.assertEqual(exit_code, 0)
+        self.assertIn("my_plugin", out)
+        self.assertIn("Intake", out)
