@@ -12,7 +12,8 @@ import DataRadioSelect from "components/inputs/DataRadioSelect";
 import NormalInput from "components/inputs/NormalInput";
 import appAPI from "services/api/app";
 import { removeEmptyValues } from "components/modals/utilities";
-import { LayoutContext } from "components/contexts/Contexts";
+import { findSelectOptionByValue } from "components/visualizations/utilities";
+import { AppContext, LayoutContext } from "components/contexts/Contexts";
 import { useMapContext } from "components/contexts/MapContext";
 import Button from "react-bootstrap/Button";
 import "components/modals/wideModal.css";
@@ -96,6 +97,7 @@ function parsePropertiesArray(properties) {
 const SourcePane = ({
   sourceProps,
   setSourceProps,
+  setStyle,
   setAttributeProps,
   setErrorMessage,
   onRequestHideModal,
@@ -108,19 +110,26 @@ const SourcePane = ({
   const [geoJSONSource, setGeoJSONSource] = useState("custom"); // track the geojson value
   const { uuid } = useContext(LayoutContext);
   const mapContext = useMapContext();
+  const { dynamicMapLayers } = useContext(AppContext);
 
   useEffect(() => {
     // if loading existing layer, then set states appropriately
     if (sourceProps.type) {
-      const { properties, placeholders, types } =
-        generatePropertiesArrayWithValues(
-          sourcePropertiesOptions[sourceProps.type],
-          sourceProps.props,
-        );
-      setSourceProperties(properties);
-      SetPropertyPlaceholders(placeholders);
-      SetPropertyTypes(types);
-      setSourceType({ value: sourceProps.type, label: sourceProps.type });
+      const isDynamicMapLayer = findSelectOptionByValue(
+        dynamicMapLayers,
+        sourceProps.type,
+      );
+      if (!isDynamicMapLayer) {
+        const { properties, placeholders, types } =
+          generatePropertiesArrayWithValues(
+            sourcePropertiesOptions[sourceProps.type],
+            sourceProps.props,
+          );
+        setSourceProperties(properties);
+        SetPropertyPlaceholders(placeholders);
+        SetPropertyTypes(types);
+        setSourceType({ value: sourceProps.type, label: sourceProps.type });
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceProps.type, sourceProps.props?.imageExtent]);
@@ -174,6 +183,14 @@ const SourcePane = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceProps.geojson]);
 
+  const potentialMapLayers = Object.keys(sourcePropertiesOptions).map(
+    (option) => ({
+      value: option,
+      label: option,
+    }),
+  );
+  potentialMapLayers.push(...dynamicMapLayers);
+
   function handlePropertyChange({ newValue, rowIndex, field }) {
     // update table values
     const updatedSourceProperties = JSON.parse(
@@ -195,12 +212,16 @@ const SourcePane = ({
   function handleLayerTypeChange(e) {
     setSourceType(e);
 
-    // update table values and placeholders from new source type
-    const { properties, placeholders, types } =
-      generatePropertiesArrayWithValues(
+    let properties = [];
+    let placeholders = [];
+    let types = [];
+    if (e.type !== "map_layer") {
+      // update table values and placeholders from new source type
+      ({ properties, placeholders, types } = generatePropertiesArrayWithValues(
         sourcePropertiesOptions[e.value],
         sourceProps.props,
-      );
+      ));
+    }
     setSourceProperties(properties);
     SetPropertyPlaceholders(placeholders);
     SetPropertyTypes(types);
@@ -215,6 +236,7 @@ const SourcePane = ({
       return {
         ...previousSourceProps,
         ...{
+          ...e,
           type: e.value,
           props: removeEmptyValues(parsedSourceProps),
         },
@@ -293,10 +315,7 @@ const SourcePane = ({
         aria-label={"Source Type Input"}
         selectedOption={sourceType}
         onChange={handleLayerTypeChange}
-        options={Object.keys(sourcePropertiesOptions).map((option) => ({
-          value: option,
-          label: option,
-        }))}
+        options={potentialMapLayers}
       />
 
       {sourceType.value && (
@@ -336,18 +355,22 @@ const SourcePane = ({
             </>
           ) : (
             <>
-              <InputTable
-                label="Source Properties"
-                onChange={handlePropertyChange}
-                values={sourceProperties}
-                disabledFields={["required", "property"]}
-                placeholders={propertyPlaceholders}
-                show_placeholder_on_hover={true}
-                types={propertyTypes}
-              />
-              <p>
-                <em>* indicates a required property</em>
-              </p>
+              {sourceProperties.length > 0 && (
+                <>
+                  <InputTable
+                    label="Source Properties"
+                    onChange={handlePropertyChange}
+                    values={sourceProperties}
+                    disabledFields={["required", "property"]}
+                    placeholders={propertyPlaceholders}
+                    show_placeholder_on_hover={true}
+                    types={propertyTypes}
+                  />
+                  <p>
+                    <em>* indicates a required property</em>
+                  </p>
+                </>
+              )}
               {sourceType.value === "Static Image" &&
                 mapContext &&
                 onRequestHideModal && (

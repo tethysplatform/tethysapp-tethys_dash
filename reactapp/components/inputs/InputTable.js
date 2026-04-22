@@ -51,7 +51,7 @@ const InputTable = ({
 
   useEffect(() => {
     setTableRows(values);
-    if (!headers) {
+    if (!headers && values.length > 0) {
       setTableHeaders(Object.keys(values[0]));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -60,7 +60,7 @@ const InputTable = ({
   // check to see if all the field in a row are either a boolean or have empty strings as values
   const isRowEmpty = (row) =>
     Object.keys(tableRows[0]).every(
-      (field) => typeof row[field] === "boolean" || row[field] === ""
+      (field) => typeof row[field] === "boolean" || row[field] === "",
     );
 
   const handleKeyDown = (e, rowIndex, fieldIndex) => {
@@ -220,8 +220,8 @@ InputTable.propTypes = {
           value: PropTypes.string.isRequired,
           placeholder: PropTypes.string.isRequired,
         }),
-      ])
-    )
+      ]),
+    ),
   ).isRequired, // array of objects (rows) that contain colum keys and values
   disabledFields: PropTypes.arrayOf(PropTypes.string), // array of fields to not have an input
   hiddenFields: PropTypes.arrayOf(PropTypes.string), // array of fields to hide

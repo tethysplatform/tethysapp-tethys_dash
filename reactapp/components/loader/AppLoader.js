@@ -98,6 +98,7 @@ function Loader({ children }) {
       let visualizations;
       let allVisualizations = [];
       let mapLayerTemplates = [];
+      let dynamicMapLayers = [];
       let visualizationArgs = [];
       let userAppPermissions = [];
 
@@ -139,16 +140,22 @@ function Loader({ children }) {
         return;
       }
 
+      const mapLayerDynamicItems = [];
       for (const visualizationGroup of visualizations.visualizations) {
         const nonMapLayerItems = visualizationGroup.options.filter(
           (opt) => opt.type !== "map_layer",
         );
-        const mapLayerItems = visualizationGroup.options.filter(
-          (opt) => opt.type === "map_layer",
+        const mapLayerTemplateItems = visualizationGroup.options.filter(
+          (opt) => opt.type === "map_layer" && opt.dynamic_map_layer === false,
+        );
+        mapLayerDynamicItems.push(
+          ...visualizationGroup.options.filter(
+            (opt) => opt.type === "map_layer" && opt.dynamic_map_layer === true,
+          ),
         );
 
         // Collect map_layer items into flat array
-        mapLayerTemplates.push(...mapLayerItems);
+        mapLayerTemplates.push(...mapLayerTemplateItems);
 
         // If non-map_layer items exist, preserve the group
         if (nonMapLayerItems.length > 0) {
@@ -158,6 +165,11 @@ function Loader({ children }) {
           });
         }
       }
+
+      dynamicMapLayers.push({
+        label: "Dynamic Map Layers",
+        options: mapLayerDynamicItems,
+      });
 
       visualizationArgs = [
         {
@@ -276,6 +288,7 @@ function Loader({ children }) {
         routes: setupRoutes(dashboards.dashboards),
         visualizations: allVisualizations,
         mapLayerTemplates,
+        dynamicMapLayers,
         visualizationArgs,
         userAppPermissions: userAppPermissions.permissions,
       });

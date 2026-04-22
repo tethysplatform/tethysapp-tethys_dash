@@ -102,10 +102,8 @@ const MapLayerModal = ({
 
     const extent = mapContext.drawnExtent;
     const projection =
-      visualizationRef?.current
-        ?.getView()
-        ?.getProjection()
-        ?.getCode() || "EPSG:3857";
+      visualizationRef?.current?.getView()?.getProjection()?.getCode() ||
+      "EPSG:3857";
 
     setSourceProps((prev) => ({
       ...prev,
@@ -118,7 +116,12 @@ const MapLayerModal = ({
 
     setHiddenForExtentDraw(false);
     mapContext.setDrawnExtent(null);
-  }, [mapContext?.drawnExtent, hiddenForExtentDraw, mapContext, visualizationRef]);
+  }, [
+    mapContext?.drawnExtent,
+    hiddenForExtentDraw,
+    mapContext,
+    visualizationRef,
+  ]);
 
   // When extentDrawMode becomes null while hidden (user cancelled), re-show modal
   useEffect(() => {
@@ -140,7 +143,7 @@ const MapLayerModal = ({
     const validSourceProps = removeEmptyValues(sourceProps.props);
     const validLayerProps = removeEmptyValues(layerProperties);
     const missingRequiredProps = checkRequiredKeys(
-      sourcePropertiesOptions[sourceProps.type].required,
+      sourcePropertiesOptions[sourceProps.type]?.required,
       validSourceProps,
     );
     if (missingRequiredProps.length > 0) {
@@ -161,7 +164,7 @@ const MapLayerModal = ({
       if (sourceType.includes("Image") || sourceType.includes("WMS"))
         return "ImageLayer";
       return "VectorLayer";
-    }
+    };
 
     const mapConfiguration = {
       configuration: {
@@ -347,6 +350,7 @@ const MapLayerModal = ({
               <SourcePane
                 sourceProps={sourceProps}
                 setSourceProps={setSourceProps}
+                setStyle={setStyle}
                 setAttributeProps={setAttributeProps}
                 setErrorMessage={setErrorMessage}
                 onRequestHideModal={onRequestHideModal}

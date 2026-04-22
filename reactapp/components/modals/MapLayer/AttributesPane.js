@@ -1,5 +1,5 @@
 import PropTypes from "prop-types";
-import { useState, useRef, useEffect, memo } from "react";
+import { useState, useRef, useEffect, memo, useContext } from "react";
 import Table from "react-bootstrap/Table";
 import styled from "styled-components";
 import Alert from "react-bootstrap/Alert";
@@ -18,6 +18,8 @@ import {
 import InputTable from "components/inputs/InputTable";
 import "components/modals/wideModal.css";
 import JSON5 from "json5";
+import { AppContext } from "components/contexts/Contexts";
+import { findSelectOptionByValue } from "components/visualizations/utilities";
 
 const StyledSpinner = styled(Spinner)`
   margin: auto;
@@ -64,6 +66,7 @@ const AttributesPane = ({
   const [allowLayerQuery, setAllowLayerQuery] = useState(
     attributeProps.queryable ?? true,
   );
+  const { dynamicMapLayers } = useContext(AppContext);
 
   useEffect(() => {
     if (tabKey === "attributes") {
@@ -87,7 +90,7 @@ const AttributesPane = ({
       // make sure all the required source properties are being supplied
       const validSourceProps = removeEmptyValues(sourceProps.props);
       const missingRequiredProps = checkRequiredKeys(
-        sourcePropertiesOptions[sourceProps.type].required,
+        sourcePropertiesOptions[sourceProps.type]?.required,
         validSourceProps,
       );
       if (missingRequiredProps.length > 0) {
@@ -260,9 +263,17 @@ const AttributesPane = ({
   }
 
   async function queryLayerAttributes() {
+    const isDynamicMapLayer = findSelectOptionByValue(
+      dynamicMapLayers,
+      sourceProps.type,
+    );
     // query source endpoints for attributes
     try {
-      return await getLayerAttributes(sourceProps, layerProps.name);
+      return await getLayerAttributes({
+        sourceProps,
+        layerName: layerProps.name,
+        isDynamicMapLayer,
+      });
     } catch (error) {
       setWarningMessage(
         <>
