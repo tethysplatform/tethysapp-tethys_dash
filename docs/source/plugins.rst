@@ -1169,3 +1169,181 @@ In your plugin class, simply call `self.send_update` from within a class method.
 The `percentage_complete` argument is optional and can be used to indicate progress as a percentage (0–100). You can call `send_update` as many times as needed during your process.
 
 This approach is recommended for all new plugins. If you are maintaining legacy plugins that do not subclass `TethysDashPlugin`, you may still use `send_websocket_message` directly, but new development should use `send_update` for clarity and maintainability.
+
+
+.. _plugin_llm_editability:
+
+===================================
+LLM-editability (chatbox patch)
+===================================
+
+TethysDash ships a chatbox that lets users edit their dashboard via natural
+language. The chatbox is only available to users with **editor** or **admin**
+permission on the active dashboard — viewers never see the chatbox at all,
+matching the edit modal's visibility.
+
+When an editor-role user asks the chatbox to modify a tile ("change the
+station to 01638500", "use a 30-day window"), the LLM emits a JSON Patch
+envelope against your plugin's args. Each op is validated server-side
+against a per-plugin whitelist before it is accepted.
+
+How the whitelist is built
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For every registered Intake plugin, the effective LLM-editable set is:
+
+1. **All arg names** in your ``args`` class attribute, **minus**
+2. Anything caught by the **mandatory project-wide sensitive-name pattern
+   deny-list** (applied last; overrides your own declarations), **minus**
+3. Anything you exclude via an optional ``llm_non_editable_args`` class
+   attribute, or narrowed to only what you enumerate in an optional
+   ``llm_editable_args`` class attribute.
+
+The default (no declarations) is **permissive**: every registered arg is
+LLM-editable, unless its name matches the pattern deny-list.
+
+Project-wide pattern deny-list
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Args whose names match these suffix patterns are **always** excluded,
+regardless of what you declare:
+
+- **Credentials:** ``*_key``, ``*_token``, ``*_secret``, ``*_password``,
+  ``*_credential``
+- **Network targets (SSRF surface):** ``*_url``, ``*_service``,
+  ``*_endpoint``, ``*_host``, ``*_hostname``, ``*_server``, ``*_target``,
+  ``*_proxy``, ``*_base_url``, ``*_api_base``, ``*_remote``, ``*_callback``,
+  ``*_webhook``, ``*_origin``, ``*_redirect``, ``*_destination``
+- **Filesystem targets (path-traversal surface):** ``*_path``, ``*_dir``,
+  ``*_file``, ``*_filepath``, ``*_filename``, ``*_root``, ``*_base_dir``,
+  ``*_data_dir``
+- **Injection-prone values:** ``*_query``, ``*_sql``, ``*_template``,
+  ``*_expression``, ``*_filter``
+
+Matching is case-insensitive. A name like ``my_api_key`` is denied; a name
+like ``key_store`` is kept (the suffix ``store`` is not sensitive).
+
+Author declarations (``llm_editable_args`` / ``llm_non_editable_args``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Two optional class attributes let you narrow or carve out the default::
+
+    class MyPlugin(TethysDashPlugin):
+        name = "my_plugin"
+        args = {"start_date": "text", "station_id": "text", "secret_salt": "text"}
+        # ...
+
+        # Optional ALLOW-LIST. When present, ONLY these args are LLM-editable.
+        llm_editable_args = ["start_date"]
+
+        # Optional DENY-LIST. Applied ON TOP of the default (or allow-list).
+        llm_non_editable_args = ["station_id"]
+
+Precedence matrix:
+
+===================== ========================= ========================================================
+``llm_editable_args`` ``llm_non_editable_args`` Effective whitelist
+===================== ========================= ========================================================
+absent                absent                    all registered args, minus pattern deny-list
+present               absent                    ``llm_editable_args``, minus pattern deny-list
+absent                present                   all registered args, minus ``llm_non_editable_args``,
+                                                minus pattern deny-list
+present               present                   ``llm_editable_args`` minus ``llm_non_editable_args``,
+                                                minus pattern deny-list
+===================== ========================= ========================================================
+
+**Important:** the pattern deny-list is applied LAST and cannot be
+overridden. This is defense-in-depth for when the declarations drift over
+time (new args added, author forgets to update ``llm_non_editable_args``).
+
+Worked example A — allow-list does NOT override the pattern deny-list
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+::
+
+    class MyPlugin(TethysDashPlugin):
+        args = {"api_key": "text", "start_date": "text"}
+        llm_editable_args = ["api_key", "start_date"]  # author attempts to opt in
+
+Effective whitelist: ``["start_date"]``. The ``api_key`` arg is still
+denied because its name matches the credentials pattern. If you want
+``api_key`` to be editable, **rename the arg** (the pattern list reflects
+the security posture; it's not configurable per-plugin).
+
+Worked example B — renaming an arg to escape a coincidental pattern match
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+::
+
+    # BEFORE: matches pattern deny-list (ends in _url), so not editable
+    class MyPlugin(TethysDashPlugin):
+        args = {"service_url": "text"}
+
+If ``service_url`` is a legitimate per-tile choice in your multi-tenant
+Tethys instance, rename it::
+
+    # AFTER: renamed to escape the pattern
+    class MyPlugin(TethysDashPlugin):
+        args = {"service_path_segment": "text"}
+
+The arg is no longer pattern-denied and becomes editable by default.
+
+Verification — inspecting the resolved whitelist
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use the ``inspect_editable_paths`` CLI to see exactly what the chatbox
+will allow for your plugin, without invoking a live LLM::
+
+    # List every registered plugin with a summary count
+    tethysdash inspect_editable_paths
+
+    # Detailed view for one source, with per-arg annotations
+    tethysdash inspect_editable_paths my_plugin
+
+The detailed output annotates each registered arg as ``[editable]``,
+``[denied: pattern]``, or ``[denied: author]`` so you can tell whether a
+denied arg was caught by the pattern deny-list or by your own
+declarations.
+
+Silent-enrollment advisory
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When TethysDash adopts this feature, **existing plugins are enrolled
+automatically** under the default-permissive posture. The pattern
+deny-list backstops the obviously-sensitive cases, but you should audit
+your plugins' args after upgrading and add ``llm_non_editable_args`` for
+anything sensitive that isn't caught by a pattern.
+
+Example audit::
+
+    # After upgrading TethysDash, inspect your plugin:
+    $ tethysdash inspect_editable_paths my_plugin
+    Source: my_plugin
+    Kind: Intake plugin
+    Registered args:
+      [editable] customer_id       # <- is this really editable by any dashboard editor?
+      [denied: pattern] api_key
+      [editable] start_date
+    ...
+
+If a listed ``[editable]`` arg should not be LLM-editable, add it to
+``llm_non_editable_args``.
+
+Naming note — Intake vs client_custom plugins
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This section covers Intake (Python) plugins. ``client_custom`` plugins
+(build-time npm packages) use a matching convention with
+``llmEditableArgs`` / ``llmNonEditableArgs`` in their ``package.json``'s
+``tethysdash.clientPlugins[]`` entry. The casing difference is
+intentional — each follows its host-language convention.
+
+MCP deployment requirement
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The chatbox sends patch requests to the TethysDash MCP server. The MCP
+server must run either bound to ``localhost`` or behind an authenticated
+reverse proxy — it does not enforce per-request authorization on its own.
+The chatbox mount gate (editor/admin permission on the current dashboard)
+is the authorization boundary; network exposure of port 9001 without a
+proxy would route around that gate.
