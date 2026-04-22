@@ -6,6 +6,7 @@ import { useState, useRef, useContext, useEffect, useCallback } from "react";
 import Alert from "react-bootstrap/Alert";
 import Tab from "react-bootstrap/Tab";
 import Tabs from "react-bootstrap/Tabs";
+import { v4 as uuidv4 } from "uuid";
 import LayerPane from "components/modals/MapLayer/LayerPane";
 import SourcePane from "components/modals/MapLayer/SourcePane";
 import LegendPane from "components/modals/MapLayer/LegendPane";
@@ -24,10 +25,22 @@ import {
   removeEmptyValues,
   checkRequiredKeys,
 } from "components/modals/utilities";
+import { findSelectOptionByValue } from "components/visualizations/utilities";
 import { useMapContext } from "components/contexts/MapContext";
 import Select from "react-select";
 import appAPI from "services/api/app";
 import "components/modals/wideModal.css";
+
+// Empty-but-valid GeoJSON FeatureCollection used as the scaffold snapshot
+// for runtime dynamic_map_layer plugins. Satisfies validate_geojson's CRS
+// requirement and ModuleLoader's direct config.geojson.crs.properties.name
+// read so the OL VectorLayer can be instantiated before the first runtime
+// fetch completes.
+const DYNAMIC_LAYER_PLACEHOLDER_GEOJSON = {
+  type: "FeatureCollection",
+  features: [],
+  crs: { type: "name", properties: { name: "EPSG:4326" } },
+};
 
 const StyledModalHeader = styled(Modal.Header)`
   height: 7%;
@@ -88,7 +101,7 @@ const MapLayerModal = ({
   const [hiddenForExtentDraw, setHiddenForExtentDraw] = useState(false);
   const legendContainerRef = useRef(null);
   const styleContainerRef = useRef(null);
-  const { csrf, mapLayerTemplates } = useContext(AppContext);
+  const { csrf, mapLayerTemplates, dynamicMapLayers } = useContext(AppContext);
   const { uuid } = useContext(LayoutContext);
   const mapContext = useMapContext();
 
@@ -139,22 +152,36 @@ const MapLayerModal = ({
       return;
     }
 
+    // Detect runtime dynamic_map_layer via AppContext lookup. sourceProps.type
+    // for a runtime layer is the plugin's intake source name, which appears
+    // in dynamicMapLayers (grouped by the "Dynamic Map Layers" label).
+    const isRuntime = !!findSelectOptionByValue(
+      dynamicMapLayers,
+      sourceProps.type,
+    );
+
     const { layerVisibility, ...layerProperties } = layerProps;
     const validSourceProps = removeEmptyValues(sourceProps.props);
     const validLayerProps = removeEmptyValues(layerProperties);
-    const missingRequiredProps = checkRequiredKeys(
-      sourcePropertiesOptions[sourceProps.type]?.required,
-      validSourceProps,
-    );
-    if (missingRequiredProps.length > 0) {
-      setErrorMessage(
-        `Missing required ${missingRequiredProps} arguments. Please check the configuration and try again.`,
-      );
-      return;
-    }
 
-    if (sourceProps.type === "Vector Tile") {
-      validSourceProps.urls = validSourceProps.urls.split(",");
+    // Static sources enforce their required-field schema (url, LAYERS, etc.).
+    // Runtime plugins skip this — features come from the plugin at viewer
+    // time, not from a URL the author typed in.
+    if (!isRuntime) {
+      const missingRequiredProps = checkRequiredKeys(
+        sourcePropertiesOptions[sourceProps.type]?.required,
+        validSourceProps,
+      );
+      if (missingRequiredProps.length > 0) {
+        setErrorMessage(
+          `Missing required ${missingRequiredProps} arguments. Please check the configuration and try again.`,
+        );
+        return;
+      }
+
+      if (sourceProps.type === "Vector Tile") {
+        validSourceProps.urls = validSourceProps.urls.split(",");
+      }
     }
 
     const getLayerType = (sourceType) => {
@@ -166,18 +193,49 @@ const MapLayerModal = ({
       return "VectorLayer";
     };
 
-    const mapConfiguration = {
-      configuration: {
-        type: getLayerType(sourceProps.type),
-        props: {
-          ...validLayerProps,
-          source: {
-            type: sourceProps.type,
-            props: validSourceProps,
+    let mapConfiguration;
+    if (isRuntime) {
+      // Runtime layers persist as VectorLayer with a GeoJSON source holding
+      // an empty placeholder FC (valid crs) plus a sibling pluginSource
+      // reference block. At viewer time, runtimeLayerFetcher (Unit 5) fetches
+      // real features and swaps them into the preserved OL layer (Unit 4).
+      // layerId is a stable UUID assigned at save time; used by Unit 4's
+      // identity keep-branch and the per-layer WebSocket correlation id.
+      const existingLayerId =
+        layerInfo?.layerProps?.layerId ?? layerProps?.layerId;
+      const layerId = existingLayerId || uuidv4();
+      mapConfiguration = {
+        configuration: {
+          type: "VectorLayer",
+          props: {
+            ...validLayerProps,
+            layerId,
+            source: {
+              type: "GeoJSON",
+              props: {},
+              geojson: DYNAMIC_LAYER_PLACEHOLDER_GEOJSON,
+            },
+            pluginSource: {
+              source: sourceProps.source ?? sourceProps.type,
+              args: sourceProps.args ?? {},
+            },
           },
         },
-      },
-    };
+      };
+    } else {
+      mapConfiguration = {
+        configuration: {
+          type: getLayerType(sourceProps.type),
+          props: {
+            ...validLayerProps,
+            source: {
+              type: sourceProps.type,
+              props: validSourceProps,
+            },
+          },
+        },
+      };
+    }
 
     const minAttributeVariables = removeEmptyValues(
       attributeProps.variables ?? {},
@@ -231,7 +289,9 @@ const MapLayerModal = ({
       mapConfiguration.legend = legend;
     }
 
-    if (sourceProps.type === "GeoJSON") {
+    // Runtime layers persist their placeholder FC inline (set above); skip
+    // the save-time upload so source.geojson stays an object, not a filename.
+    if (!isRuntime && sourceProps.type === "GeoJSON") {
       const apiResponse = await saveLayerJSON({
         stringJSON: sourceProps.geojson,
         csrf,
@@ -471,6 +531,9 @@ MapLayerModal.propTypes = {
     sourceProps: sourcePropType,
     layerProps: PropTypes.shape({
       name: PropTypes.string,
+      // Stable UUID for runtime dynamic_map_layer reconciliation identity.
+      // Populated when reopening a saved runtime layer; absent for static.
+      layerId: PropTypes.string,
     }), // an object of layer properties like opacity, zoom, etc. see components/map/utilities.js (layerPropertiesOptions) for examples
     legend: legendPropType,
     style: PropTypes.string, // name of .json file that is save with the application that contain the actual style json

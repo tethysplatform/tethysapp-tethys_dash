@@ -16,6 +16,7 @@ import { findSelectOptionByValue } from "components/visualizations/utilities";
 import { AppContext, LayoutContext } from "components/contexts/Contexts";
 import { useMapContext } from "components/contexts/MapContext";
 import Button from "react-bootstrap/Button";
+import Alert from "react-bootstrap/Alert";
 import "components/modals/wideModal.css";
 
 const StyledTextInput = styled.textarea`
@@ -112,14 +113,33 @@ const SourcePane = ({
   const mapContext = useMapContext();
   const { dynamicMapLayers } = useContext(AppContext);
 
+  // "Plugin not available" signal: the saved layer references a
+  // dynamic_map_layer plugin that's no longer installed (or the user lacks
+  // access). AddMapLayer.editMapLayer sets sourceProps.source for runtime
+  // layers on reopen; if that's set but the plugin isn't in dynamicMapLayers,
+  // the source block is stale.
+  const savedAsDynamicPlugin = !!sourceProps.source;
+  const isDynamicMapLayer = !!findSelectOptionByValue(
+    dynamicMapLayers,
+    sourceProps.type,
+  );
+  const pluginUnavailable = savedAsDynamicPlugin && !isDynamicMapLayer;
+
   useEffect(() => {
     // if loading existing layer, then set states appropriately
     if (sourceProps.type) {
-      const isDynamicMapLayer = findSelectOptionByValue(
-        dynamicMapLayers,
-        sourceProps.type,
-      );
-      if (!isDynamicMapLayer) {
+      if (isDynamicMapLayer) {
+        // Runtime dynamic_map_layer plugin: render the plugin as the source
+        // type in the dropdown. Arg-form embedding is deferred to a later
+        // Unit 6 pass; for now, args persisted at save time round-trip
+        // through sourceProps.args and get saved back as-is.
+        setSourceType({ value: sourceProps.type, label: sourceProps.type });
+      } else if (pluginUnavailable) {
+        // Plugin referenced by the saved layer no longer exists. Don't try
+        // to generate source-properties (sourcePropertiesOptions[type] is
+        // undefined); show the banner rendered below.
+        setSourceType({ value: sourceProps.type, label: sourceProps.type });
+      } else {
         const { properties, placeholders, types } =
           generatePropertiesArrayWithValues(
             sourcePropertiesOptions[sourceProps.type],
@@ -318,7 +338,21 @@ const SourcePane = ({
         options={potentialMapLayers}
       />
 
-      {sourceType.value && (
+      {pluginUnavailable && (
+        <Alert variant="warning" role="alert">
+          <Alert.Heading>Plugin not available</Alert.Heading>
+          <p>
+            This layer was configured with the dynamic map-layer plugin
+            <strong> {sourceProps.source}</strong>, but it is no longer
+            installed on this server (or your account does not have access to
+            it). The layer&apos;s saved style, legend, and attribute settings
+            are preserved, but no features will load at viewer time. Remove
+            the layer or replace its source to restore rendering.
+          </p>
+        </Alert>
+      )}
+
+      {sourceType.value && !pluginUnavailable && (
         <>
           {sourceType.value === "GeoJSON" ? (
             <>
@@ -394,6 +428,7 @@ const SourcePane = ({
 SourcePane.propTypes = {
   sourceProps: sourcePropType,
   setSourceProps: PropTypes.func, // setter for sourceProps state
+  setStyle: PropTypes.func, // setter for style state (used by future Fetch defaults button)
   setAttributeProps: PropTypes.func, // setter for attributeProps state
   setErrorMessage: PropTypes.func,
   onRequestHideModal: PropTypes.func, // callback to hide the modal for extent drawing

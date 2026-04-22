@@ -83,8 +83,24 @@ const MapLayerTemplate = ({
     );
     layerProps.layerVisibility = existingMapLayer.configuration.layerVisibility;
 
+    // Reopen flow for runtime dynamic_map_layer layers: the saved schema has
+    // source.type = "GeoJSON" (scaffold snapshot) with a sibling pluginSource
+    // block. SourcePane detects runtime by looking up sourceProps.type in
+    // dynamicMapLayers, so re-synthesize sourceProps with the plugin intake
+    // name and args when pluginSource is present. Static layers are passed
+    // through unchanged.
+    const pluginSource = existingMapLayer.configuration.props?.pluginSource;
+    const sourceProps = pluginSource
+      ? {
+          type: pluginSource.source,
+          source: pluginSource.source,
+          args: pluginSource.args ?? {},
+          props: {},
+        }
+      : existingMapLayer.configuration.props.source;
+
     const updatedLayerInfo = {
-      sourceProps: existingMapLayer.configuration.props.source,
+      sourceProps,
       layerProps,
       legend: existingMapLayer.legend,
       style: existingMapLayer.configuration.style,
