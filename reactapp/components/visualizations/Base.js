@@ -261,7 +261,12 @@ export const compareFilteredArgs = (
 // Filter function to exclude args where ALL dependent variable inputs are
 // relative dates or date-formatted. If any non-date input is referenced,
 // keep the arg so changes to those inputs still trigger a re-fetch.
-const filterNonRelativeDateArgs = (
+// Exported so the runtime map-layer orchestrator (runtimeLayerFetcher.js)
+// can reuse the same date-relative suppression policy for per-layer diffs.
+// MUST be called on RAW (template-bearing) args — applying it to already-
+// resolved args short-circuits because getDependentVariableInputs returns
+// empty for non-template values.
+export const filterNonRelativeDateArgs = (
   args,
   variableInputs,
   variableInputDateFormats,

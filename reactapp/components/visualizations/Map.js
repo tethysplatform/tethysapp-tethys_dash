@@ -12,10 +12,13 @@ import {
 } from "components/map/utilities";
 import PropTypes from "prop-types";
 import { getBaseMapLayer } from "components/visualizations/utilities";
+import useRuntimeLayerFetcher from "components/visualizations/runtimeLayerFetcher";
 import {
+  AppContext,
   DataViewerModeContext,
   VariableInputsContext,
   LayoutContext,
+  GridItemContext,
 } from "components/contexts/Contexts";
 import Table from "react-bootstrap/Table";
 import styled from "styled-components";
@@ -217,9 +220,32 @@ const MapVisualization = ({
   const mapAttributeVariablesRef = useRef({});
   const mapOmittedPopupAttributesRef = useRef({});
   const mapAttributeAliasesRef = useRef({});
-  const { setVariableInputValues } = useContext(VariableInputsContext);
+  const {
+    variableInputValues,
+    variableInputDateFormats,
+    setVariableInputValues,
+  } = useContext(VariableInputsContext);
   const { inDataViewerMode } = useContext(DataViewerModeContext);
   const { uuid } = useContext(LayoutContext);
+  const appContext = useContext(AppContext) ?? {};
+  const gridItemContext = useContext(GridItemContext) ?? {};
+  const sessionNonce = appContext.sessionNonce;
+  const gridItemUuid = gridItemContext.gridItemUUID;
+
+  // Unit 5: orchestrate runtime dynamic_map_layer fetches. Fires on mount,
+  // on layers change, and on variableInputValues change; swaps features
+  // into preserved OL VectorLayers via Unit 4's swap helper. Returns
+  // per-layer error state + a retry action that Unit 7's LayersControl
+  // will consume (plumbed through separately when Unit 7 lands).
+  // eslint-disable-next-line no-unused-vars
+  const { errorsByLayerId, retry: retryRuntimeLayer } = useRuntimeLayerFetcher({
+    layers,
+    gridItemUuid,
+    sessionNonce,
+    mapRef: visualizationRef,
+    variableInputValues,
+    variableInputDateFormats,
+  });
 
   const spinnerOverlayRef = useRef(null);
   // Create a spinner element for the overlay
