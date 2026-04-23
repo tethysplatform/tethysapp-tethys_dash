@@ -42,6 +42,12 @@ function getDb() {
  * @param {Object} [opts] - Dashboard options.
  * @param {string} [opts.name] - Dashboard name.
  * @param {boolean} [opts.public] - Whether the dashboard is public (default true).
+ * @param {string|null} [opts.grantAdminTo] - If set, insert a DashboardPermission
+ *   row giving the named user admin on this dashboard. Pass `""` to grant the
+ *   permission to the AnonymousUser (which is what the Tethys dev server uses
+ *   when no login session is active — matches `request.user.username === ""`).
+ *   Needed for tests that exercise the chatbox: `ChatSidebar` mounts only when
+ *   `LayoutContext.editable === true`, which requires admin/editor permission.
  * @returns {string} The dashboard UUID.
  */
 function createDashboard(gridItems, opts = {}) {
@@ -56,6 +62,17 @@ function createDashboard(gridItems, opts = {}) {
   ).run(dashUuid, name, isPublic);
 
   const dashboard = db.prepare("SELECT id FROM dashboards WHERE uuid = ?").get(dashUuid);
+
+  // Optional: grant admin permission so the frontend's LayoutContext.editable
+  // becomes true for this dashboard. `get_dashboard_user_permission()` in
+  // model.py matches rows by `username == request.user.username`, so on the
+  // Tethys dev server (no login) we pass `""` to match AnonymousUser.
+  if (opts.grantAdminTo !== undefined && opts.grantAdminTo !== null) {
+    db.prepare(
+      `INSERT INTO dashboard_permissions (dashboard_id, username, group_id, permission)
+       VALUES (?, ?, NULL, 'admin')`
+    ).run(dashboard.id, opts.grantAdminTo);
+  }
 
   db.prepare(
     `INSERT INTO dashboard_tabs (dashboard_id, name, tab_order)
