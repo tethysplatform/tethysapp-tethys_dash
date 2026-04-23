@@ -100,6 +100,7 @@ const MapLayerModal = ({
   const [legend, setLegend] = useState(layerInfo.legend);
   const [selectedOption, setSelectedOption] = useState(null);
   const [hiddenForExtentDraw, setHiddenForExtentDraw] = useState(false);
+  const [showingSubModal, setShowingSubModal] = useState(false);
   const legendContainerRef = useRef(null);
   const styleContainerRef = useRef(null);
   const { csrf, mapLayerTemplates } = useContext(AppContext);
@@ -319,7 +320,13 @@ const MapLayerModal = ({
         className="map-layer"
         dialogClassName="fiftyWideModalDialog"
         contentClassName="mapLayerContent"
-        style={hiddenForExtentDraw ? { visibility: "hidden" } : undefined}
+        style={
+          hiddenForExtentDraw
+            ? { visibility: "hidden" }
+            : showingSubModal
+              ? { zIndex: 1050 }
+              : undefined
+        }
         backdrop={hiddenForExtentDraw ? false : true}
       >
         <StyledModalHeader closeButton>
@@ -355,6 +362,7 @@ const MapLayerModal = ({
                 setAttributeProps={setAttributeProps}
                 setErrorMessage={setErrorMessage}
                 onRequestHideModal={onRequestHideModal}
+                onSubModalToggle={setShowingSubModal}
               />
             </Tab>
             <Tab

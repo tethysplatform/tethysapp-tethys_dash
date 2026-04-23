@@ -1,6 +1,6 @@
 import PropTypes from "prop-types";
 import DataSelect from "components/inputs/DataSelect";
-import { useState, useEffect, memo, useContext } from "react";
+import { useState, useEffect, useRef, memo, useContext } from "react";
 import FileUpload from "components/inputs/FileUpload";
 import styled from "styled-components";
 import {
@@ -15,6 +15,7 @@ import { removeEmptyValues } from "components/modals/utilities";
 import { LayoutContext } from "components/contexts/Contexts";
 import { useMapContext } from "components/contexts/MapContext";
 import Button from "react-bootstrap/Button";
+import GeoTIFFSourceModal from "components/modals/MapLayer/GeoTIFFSourceModal";
 import "components/modals/wideModal.css";
 
 const StyledTextInput = styled.textarea`
@@ -34,6 +35,97 @@ const GeoTIFFEmptyState = styled.div`
   text-align: center;
   color: #6c757d;
 `;
+
+const GeoTIFFSourcesList = styled.ul`
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.75rem 0;
+`;
+
+const GeoTIFFSourceRow = styled.li`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #dee2e6;
+  border-radius: 0.375rem;
+  margin-bottom: 0.5rem;
+  background: #fff;
+`;
+
+const GeoTIFFSourceRowBody = styled.div`
+  flex: 1;
+  min-width: 0;
+`;
+
+const GeoTIFFSourceUrl = styled.div`
+  font-family: monospace;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
+const GeoTIFFSourceSummary = styled.div`
+  font-size: 0.8rem;
+  color: #6c757d;
+  margin-top: 0.15rem;
+`;
+
+const GeoTIFFChannelLabel = styled.span`
+  display: inline-block;
+  font-weight: bold;
+  margin-right: 0.5rem;
+  min-width: 1.25rem;
+  color: ${(props) =>
+    props.$channel === "R"
+      ? "#d32f2f"
+      : props.$channel === "G"
+        ? "#2e7d32"
+        : "#1565c0"};
+`;
+
+const GeoTIFFRowControls = styled.div`
+  display: flex;
+  gap: 0.25rem;
+`;
+
+// Returns the 0-based single-band number for a bands string (trim+split on
+// comma, filter blank cells). If it doesn't resolve to exactly one band,
+// returns null. Used for the 3-single-band RGB labeling case.
+const singleBandIndex = (bandsStr) => {
+  if (typeof bandsStr !== "string") return null;
+  const parts = bandsStr
+    .trim()
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s !== "");
+  if (parts.length !== 1) return null;
+  return parts[0];
+};
+
+// Compact summary renderer: "bands: [X] · min: 0 · max: 255".
+// Missing/empty fields display as em-dash to keep row visual density stable.
+const formatSummary = (source) => {
+  const bandsDisplay = (() => {
+    const s = typeof source.bands === "string" ? source.bands.trim() : "";
+    if (s === "") return "—";
+    const parts = s
+      .split(",")
+      .map((p) => p.trim())
+      .filter((p) => p !== "");
+    if (parts.length === 0) return "—";
+    return `[${parts.join(",")}]`;
+  })();
+  const fieldDisplay = (v) => {
+    if (v === undefined || v === null) return "—";
+    const s = String(v).trim();
+    return s === "" ? "—" : s;
+  };
+  return `bands: ${bandsDisplay} · min: ${fieldDisplay(
+    source.min,
+  )} · max: ${fieldDisplay(source.max)}`;
+};
 
 // loop through the properties of a source type and extract potential settings and placeholders, setting new values from existing values if applicable
 export const generatePropertiesArrayWithValues = (
@@ -112,6 +204,7 @@ const SourcePane = ({
   setAttributeProps,
   setErrorMessage,
   onRequestHideModal,
+  onSubModalToggle,
 }) => {
   const [sourceProperties, setSourceProperties] = useState([]); // array of objects that represent properties that will be rendered in the table
   const [propertyPlaceholders, SetPropertyPlaceholders] = useState([]); // array of objects that represent placeholders for the table inputs
@@ -119,10 +212,43 @@ const SourcePane = ({
   const [sourceType, setSourceType] = useState({}); // source type dropdown selection {value: ..., label: ...}
   const [geoJSON, setGeoJSON] = useState("{}"); // track the geojson value
   const [geoJSONSource, setGeoJSONSource] = useState("custom"); // track the geojson value
-  // eslint-disable-next-line no-unused-vars
-  const [geoTIFFSubModalOpen, setGeoTIFFSubModalOpen] = useState(false); // tracks GeoTIFF SourceInfo sub-modal open state (wired in Unit 4)
+
+  // GeoTIFF sources-array state. `sources` is seeded from sourceProps on
+  // mount/source-type-change and synced back via setSourceProps on every
+  // mutation. subModalOpen/editingIndex drive the nested sub-modal.
+  const [sources, setSources] = useState(() =>
+    Array.isArray(sourceProps?.props?.sources) ? sourceProps.props.sources : [],
+  );
+  const [subModalOpen, setSubModalOpen] = useState(false);
+  const [editingIndex, setEditingIndex] = useState(null); // null → Add; number → Edit
+  const addButtonRef = useRef(null);
+  const editButtonRefs = useRef(new Map());
+  const pendingReturnFocusRef = useRef({ current: null });
+
   const { uuid } = useContext(LayoutContext);
   const mapContext = useMapContext();
+
+  // Notify parent MapLayer whenever sub-modal open state flips so it can
+  // raise its zIndex above the backdrop. Mirrors DataViewer.js:202,323.
+  useEffect(() => {
+    if (typeof onSubModalToggle === "function") {
+      onSubModalToggle(subModalOpen);
+    }
+  }, [subModalOpen, onSubModalToggle]);
+
+  // Reseed local sources from sourceProps whenever the GeoTIFF source
+  // type becomes active or sourceProps.props.sources changes from
+  // outside (e.g., switching layer templates, reopening an existing
+  // layer for edit).
+  useEffect(() => {
+    if (sourceProps?.type === "GeoTIFF") {
+      const incoming = Array.isArray(sourceProps?.props?.sources)
+        ? sourceProps.props.sources
+        : [];
+      setSources(incoming);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sourceProps?.type, sourceProps?.props?.sources]);
 
   useEffect(() => {
     // if loading existing layer, then set states appropriately
@@ -301,6 +427,145 @@ const SourcePane = ({
     }));
   }
 
+  // Propagate the updated sources array into sourceProps so the parent
+  // modal's save path sees the current value. Mirrors handlePropertyChange's
+  // setSourceProps shape (preserves other keys on sourceProps).
+  function syncSourcesToProps(updatedSources) {
+    setSourceProps((previousSourceProps) => ({
+      ...previousSourceProps,
+      props: {
+        ...(previousSourceProps?.props ?? {}),
+        sources: updatedSources,
+      },
+    }));
+  }
+
+  function handleOpenAddGeoTIFFSource() {
+    pendingReturnFocusRef.current = { current: addButtonRef.current };
+    setEditingIndex(null);
+    setSubModalOpen(true);
+  }
+
+  function handleOpenEditGeoTIFFSource(index) {
+    const triggerEl = editButtonRefs.current.get(index) ?? null;
+    pendingReturnFocusRef.current = { current: triggerEl };
+    setEditingIndex(index);
+    setSubModalOpen(true);
+  }
+
+  function handleGeoTIFFSubModalHide() {
+    setSubModalOpen(false);
+  }
+
+  function handleGeoTIFFSubModalSave(sourceInfo) {
+    setSources((prevSources) => {
+      let updated;
+      if (editingIndex === null) {
+        updated = [...prevSources, sourceInfo];
+      } else {
+        updated = prevSources.map((row, idx) =>
+          idx === editingIndex ? sourceInfo : row,
+        );
+      }
+      syncSourcesToProps(updated);
+      return updated;
+    });
+  }
+
+  function handleRemoveGeoTIFFSource(index) {
+    // v1: native confirm — simplest, matches plan scope.
+    // eslint-disable-next-line no-alert
+    const confirmed = window.confirm("Remove this source?");
+    if (!confirmed) return;
+    setSources((prevSources) => {
+      const updated = prevSources.filter((_, idx) => idx !== index);
+      syncSourcesToProps(updated);
+      return updated;
+    });
+  }
+
+  // Render helper for the GeoTIFF branch — keeps the main JSX readable.
+  function renderGeoTIFFPane() {
+    const allSingleBand =
+      sources.length === 3 &&
+      sources.every((s) => singleBandIndex(s.bands) !== null);
+    const channelLabels = ["R", "G", "B"];
+    const editingInitialValue =
+      editingIndex === null ? null : (sources[editingIndex] ?? null);
+
+    return (
+      <GeoTIFFSourcesSection>
+        <h5>Sources</h5>
+        {sources.length === 0 ? (
+          <GeoTIFFEmptyState>
+            Add at least one source to render this layer
+          </GeoTIFFEmptyState>
+        ) : (
+          <GeoTIFFSourcesList role="list">
+            {sources.map((source, index) => {
+              const oneBased = index + 1;
+              const url = source?.url ?? "";
+              return (
+                <GeoTIFFSourceRow key={index}>
+                  <GeoTIFFSourceRowBody>
+                    <GeoTIFFSourceUrl title={url}>
+                      {allSingleBand && (
+                        <GeoTIFFChannelLabel $channel={channelLabels[index]}>
+                          {channelLabels[index]}:
+                        </GeoTIFFChannelLabel>
+                      )}
+                      {url}
+                    </GeoTIFFSourceUrl>
+                    <GeoTIFFSourceSummary>
+                      {formatSummary(source)}
+                    </GeoTIFFSourceSummary>
+                  </GeoTIFFSourceRowBody>
+                  <GeoTIFFRowControls>
+                    <Button
+                      variant="outline-secondary"
+                      size="sm"
+                      aria-label={`Edit source ${oneBased}`}
+                      ref={(el) => {
+                        if (el) editButtonRefs.current.set(index, el);
+                        else editButtonRefs.current.delete(index);
+                      }}
+                      onClick={() => handleOpenEditGeoTIFFSource(index)}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      variant="outline-danger"
+                      size="sm"
+                      aria-label={`Remove source ${oneBased}`}
+                      onClick={() => handleRemoveGeoTIFFSource(index)}
+                    >
+                      Remove
+                    </Button>
+                  </GeoTIFFRowControls>
+                </GeoTIFFSourceRow>
+              );
+            })}
+          </GeoTIFFSourcesList>
+        )}
+        <Button
+          variant="primary"
+          size="sm"
+          ref={addButtonRef}
+          onClick={handleOpenAddGeoTIFFSource}
+        >
+          Add source
+        </Button>
+        <GeoTIFFSourceModal
+          show={subModalOpen}
+          onHide={handleGeoTIFFSubModalHide}
+          onSave={handleGeoTIFFSubModalSave}
+          initialValue={editingInitialValue}
+          returnFocusRef={pendingReturnFocusRef.current}
+        />
+      </GeoTIFFSourcesSection>
+    );
+  }
+
   return (
     <>
       <DataSelect
@@ -350,19 +615,7 @@ const SourcePane = ({
               )}
             </>
           ) : sourceType.value === "GeoTIFF" ? (
-            <GeoTIFFSourcesSection>
-              <h5>Sources</h5>
-              <GeoTIFFEmptyState>
-                Add at least one source to render this layer
-              </GeoTIFFEmptyState>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => setGeoTIFFSubModalOpen(true)}
-              >
-                Add source
-              </Button>
-            </GeoTIFFSourcesSection>
+            renderGeoTIFFPane()
           ) : (
             <>
               <InputTable
@@ -403,6 +656,7 @@ SourcePane.propTypes = {
   setAttributeProps: PropTypes.func, // setter for attributeProps state
   setErrorMessage: PropTypes.func,
   onRequestHideModal: PropTypes.func, // callback to hide the modal for extent drawing
+  onSubModalToggle: PropTypes.func, // (open: boolean) => void — parent raises zIndex while GeoTIFF sub-modal is open
 };
 
 export default memo(SourcePane);
