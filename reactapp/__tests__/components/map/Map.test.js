@@ -1189,6 +1189,163 @@ test("GeoTIFF with empty sources is silently skipped (not a failed layer)", asyn
   ).not.toBeInTheDocument();
 });
 
+describe("WebGLTile ramp-style render path (Unit 7)", () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  test("WebGLTile layer with style.color uses setStyle directly, bypassing applyStyle", async () => {
+    const applyStyleSpy = jest.spyOn(olMapboxStyle, "applyStyle");
+    const setStyleSpy = jest.spyOn(WebGLTileLayer.prototype, "setStyle");
+
+    const rampStyle = {
+      color: [
+        "interpolate",
+        ["linear"],
+        ["band", 1],
+        0,
+        "#000000",
+        100,
+        "#ffffff",
+      ],
+    };
+
+    const layers = [
+      {
+        type: "WebGLTile",
+        props: {
+          source: {
+            type: "Image Tile",
+            props: {
+              url: "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+            },
+          },
+          name: "Ramp Styled Layer",
+          zIndex: 0,
+        },
+        style: rampStyle,
+      },
+    ];
+
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent mapProps={{ layers }} />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(setStyleSpy).toHaveBeenCalled();
+    });
+
+    // setStyle received the raw style object (not a style function).
+    const callArgs = setStyleSpy.mock.calls.map((c) => c[0]);
+    expect(callArgs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          color: expect.arrayContaining(["interpolate"]),
+        }),
+      ]),
+    );
+
+    // applyStyle must NOT have been invoked for this layer.
+    expect(applyStyleSpy).not.toHaveBeenCalled();
+  });
+
+  test("non-WebGLTile layer with a style still goes through applyStyle", async () => {
+    const applyStyleSpy = jest
+      .spyOn(olMapboxStyle, "applyStyle")
+      .mockResolvedValue(undefined);
+
+    const layers = [
+      {
+        type: "VectorLayer",
+        props: {
+          name: "Vector Layer",
+          source: {
+            type: "GeoJSON",
+            props: {},
+            geojson: {
+              type: "FeatureCollection",
+              crs: {
+                type: "name",
+                properties: { name: "EPSG:3857" },
+              },
+              features: [],
+            },
+          },
+          zIndex: 1,
+        },
+        style: exampleStyle,
+      },
+    ];
+
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent mapProps={{ layers }} />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(applyStyleSpy).toHaveBeenCalled();
+    });
+  });
+
+  test("WebGLTile layer without a style does not apply a ramp expression or call applyStyle", async () => {
+    const applyStyleSpy = jest.spyOn(olMapboxStyle, "applyStyle");
+    const setStyleSpy = jest.spyOn(WebGLTileLayer.prototype, "setStyle");
+
+    const layers = [
+      {
+        type: "WebGLTile",
+        props: {
+          source: {
+            type: "Image Tile",
+            props: {
+              url: "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+            },
+          },
+          name: "Default Shader Layer",
+          zIndex: 0,
+        },
+        // No style key: WebGLTile default shader handles rendering.
+      },
+    ];
+
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent mapProps={{ layers }} />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+    // OL's WebGLTile constructor internally calls setStyle({}) during layer
+    // construction — that's not our Unit 7 branch firing. The invariant is
+    // that our code path does NOT push a ramp expression (object with `color`)
+    // and does NOT route through ol-mapbox-style's applyStyle.
+    expect(setStyleSpy).not.toHaveBeenCalledWith(
+      expect.objectContaining({ color: expect.anything() }),
+    );
+    expect(applyStyleSpy).not.toHaveBeenCalled();
+  });
+});
+
 TestingComponent.propTypes = {
   mapProps: PropTypes.shape({
     onMapClick: PropTypes.bool,

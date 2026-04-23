@@ -282,18 +282,35 @@ const MapComponent = ({
             map.addLayer(newLayer);
 
             if (layerConfig.style) {
-              try {
-                await applyStyle(newLayer, layerConfig.style);
-              } catch (err) {
-                if (
-                  err.message !==
-                  "Cannot read properties of undefined (reading 'crs')"
-                ) {
-                  const styleFunction = createJsonStyleFunction(
-                    layerConfig.style,
-                  );
-                  if (typeof newLayer.setStyle === "function") {
-                    newLayer.setStyle(styleFunction);
+              // WebGLTile layers (GeoTIFF + ramp) carry a `style.color`
+              // shader expression object that ol-mapbox-style's applyStyle
+              // cannot consume. Apply via setStyle directly and skip the
+              // applyStyle pipeline entirely.
+              const isWebGLTileRampStyle =
+                layerConfig.type === "WebGLTile" &&
+                layerConfig.style &&
+                typeof layerConfig.style === "object" &&
+                !Array.isArray(layerConfig.style) &&
+                "color" in layerConfig.style;
+
+              if (isWebGLTileRampStyle) {
+                if (typeof newLayer.setStyle === "function") {
+                  newLayer.setStyle(layerConfig.style);
+                }
+              } else {
+                try {
+                  await applyStyle(newLayer, layerConfig.style);
+                } catch (err) {
+                  if (
+                    err.message !==
+                    "Cannot read properties of undefined (reading 'crs')"
+                  ) {
+                    const styleFunction = createJsonStyleFunction(
+                      layerConfig.style,
+                    );
+                    if (typeof newLayer.setStyle === "function") {
+                      newLayer.setStyle(styleFunction);
+                    }
                   }
                 }
               }

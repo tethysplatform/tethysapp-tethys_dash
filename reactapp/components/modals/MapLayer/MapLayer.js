@@ -20,6 +20,7 @@ import {
   attributePropsPropType,
   saveLayerJSON,
 } from "components/map/utilities";
+import { buildGeoTIFFStyleColor } from "components/map/geoTIFFStyle";
 import {
   removeEmptyValues,
   checkRequiredKeys,
@@ -270,7 +271,29 @@ const MapLayerModal = ({
         apiResponse.filename;
     }
 
-    if (style && style !== "{}") {
+    // GeoTIFF ramp-styling: when a color ramp is selected on sourceProps,
+    // generate the WebGLTile `style.color` interpolate expression and assign
+    // it directly to `configuration.style` as an object literal. Bypass the
+    // upload branch below — `saveLayerJSON` expects a string and the
+    // downstream loadStyle() already passes object-literal styles through
+    // unchanged. If no ramp is selected, no `style` key is set and the layer
+    // renders with the WebGLTile default shader (R10 default-shader path).
+    if (sourceProps.type === "GeoTIFF") {
+      const { rampName, rampMin, rampMax } = sourceProps;
+      const hasRamp =
+        typeof rampName === "string" &&
+        rampName.trim() !== "" &&
+        typeof rampMin === "string" &&
+        rampMin.trim() !== "" &&
+        typeof rampMax === "string" &&
+        rampMax.trim() !== "" &&
+        Number.isFinite(Number(rampMin)) &&
+        Number.isFinite(Number(rampMax));
+      if (hasRamp) {
+        const color = buildGeoTIFFStyleColor({ rampName, rampMin, rampMax });
+        mapConfiguration.configuration.style = { color };
+      }
+    } else if (style && style !== "{}") {
       const apiResponse = await saveLayerJSON({
         stringJSON: style,
         csrf,

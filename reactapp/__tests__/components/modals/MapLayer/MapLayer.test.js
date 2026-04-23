@@ -1859,6 +1859,304 @@ describe("MapLayerModal GeoTIFF save path", () => {
   });
 });
 
+describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
+  beforeEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  test("saves a ramp-styled GeoTIFF as an object-literal style (bypasses saveLayerJSON)", async () => {
+    // Spy on appAPI.uploadJSON — the backend call made by saveLayerJSON.
+    // For GeoTIFF ramp styling, it must NOT be invoked.
+    const uploadSpy = jest
+      .spyOn(appAPI, "uploadJSON")
+      .mockResolvedValue({ success: true, filename: "should-not-be-used.json" });
+
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "Viridis Raster" },
+      sourceProps: {
+        type: "GeoTIFF",
+        rampName: "viridis",
+        rampMin: "0",
+        rampMax: "100",
+        props: {
+          sources: [{ url: "a.tif" }],
+        },
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+
+    const createLayerButton =
+      await screen.findByLabelText("Create Layer Button");
+    fireEvent.click(createLayerButton);
+
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalledTimes(1);
+    });
+
+    const savedConfig = addMapLayer.mock.calls[0][0];
+    const savedStyle = savedConfig.configuration.style;
+
+    // Style is an object literal, not a filename string.
+    expect(typeof savedStyle).toBe("object");
+    expect(savedStyle).not.toBeNull();
+    expect(Array.isArray(savedStyle)).toBe(false);
+    expect(savedStyle).toHaveProperty("color");
+    expect(Array.isArray(savedStyle.color)).toBe(true);
+
+    // The expression header confirms it's a WebGLTile interpolate expression.
+    expect(savedStyle.color[0]).toBe("interpolate");
+    expect(savedStyle.color[1]).toEqual(["linear"]);
+    expect(savedStyle.color[2]).toEqual(["band", 1]);
+    expect(savedStyle.color[3]).toBe(0);
+    // Last stop pair ends at rampMax.
+    expect(savedStyle.color[savedStyle.color.length - 2]).toBe(100);
+
+    // Most important regression guard: the backend upload was NOT called.
+    expect(uploadSpy).not.toHaveBeenCalled();
+  });
+
+  test("GeoTIFF without a ramp name saves with no style key", async () => {
+    const uploadSpy = jest
+      .spyOn(appAPI, "uploadJSON")
+      .mockResolvedValue({ success: true, filename: "x.json" });
+
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "Default-shader GeoTIFF" },
+      sourceProps: {
+        type: "GeoTIFF",
+        props: {
+          sources: [{ url: "a.tif" }],
+        },
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+
+    const createLayerButton =
+      await screen.findByLabelText("Create Layer Button");
+    fireEvent.click(createLayerButton);
+
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalledTimes(1);
+    });
+
+    const savedConfig = addMapLayer.mock.calls[0][0];
+    expect(savedConfig.configuration.style).toBeUndefined();
+    expect(uploadSpy).not.toHaveBeenCalled();
+  });
+
+  test("GeoTIFF with rampName but empty rampMin/rampMax does not generate a style", async () => {
+    const uploadSpy = jest
+      .spyOn(appAPI, "uploadJSON")
+      .mockResolvedValue({ success: true, filename: "x.json" });
+
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "Incomplete Ramp GeoTIFF" },
+      sourceProps: {
+        type: "GeoTIFF",
+        rampName: "viridis",
+        rampMin: "",
+        rampMax: "",
+        props: {
+          sources: [{ url: "a.tif" }],
+        },
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+
+    const createLayerButton =
+      await screen.findByLabelText("Create Layer Button");
+    fireEvent.click(createLayerButton);
+
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalledTimes(1);
+    });
+
+    const savedConfig = addMapLayer.mock.calls[0][0];
+    expect(savedConfig.configuration.style).toBeUndefined();
+    expect(uploadSpy).not.toHaveBeenCalled();
+  });
+
+  test("switching ramps on resave regenerates the color expression", async () => {
+    jest
+      .spyOn(appAPI, "uploadJSON")
+      .mockResolvedValue({ success: true, filename: "x.json" });
+
+    // First render: viridis.
+    const addMapLayerA = jest.fn();
+    const layerInfoA = {
+      layerProps: { name: "Ramp Layer A" },
+      sourceProps: {
+        type: "GeoTIFF",
+        rampName: "viridis",
+        rampMin: "0",
+        rampMax: "100",
+        props: { sources: [{ url: "a.tif" }] },
+      },
+    };
+
+    const { unmount } = render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={jest.fn()}
+        addMapLayer={addMapLayerA}
+        layerInfo={layerInfoA}
+      />,
+    );
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+    await waitFor(() => {
+      expect(addMapLayerA).toHaveBeenCalledTimes(1);
+    });
+    const viridisColor =
+      addMapLayerA.mock.calls[0][0].configuration.style.color;
+    unmount();
+
+    // Second render: turbo.
+    const addMapLayerB = jest.fn();
+    const layerInfoB = {
+      layerProps: { name: "Ramp Layer B" },
+      sourceProps: {
+        type: "GeoTIFF",
+        rampName: "turbo",
+        rampMin: "0",
+        rampMax: "100",
+        props: { sources: [{ url: "a.tif" }] },
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={jest.fn()}
+        addMapLayer={addMapLayerB}
+        layerInfo={layerInfoB}
+      />,
+    );
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+    await waitFor(() => {
+      expect(addMapLayerB).toHaveBeenCalledTimes(1);
+    });
+    const turboColor = addMapLayerB.mock.calls[0][0].configuration.style.color;
+
+    // Same structure, but the color hex strings differ between the ramps.
+    expect(viridisColor).toHaveLength(turboColor.length);
+    // Compare the first color stop (index 4 = first color after the header +
+    // first value). Viridis starts near dark-purple; turbo starts near dark-red
+    // — they should not match.
+    expect(viridisColor[4]).not.toBe(turboColor[4]);
+  });
+
+  test("non-GeoTIFF vector layer with a style still uploads via saveLayerJSON", async () => {
+    const uploadSpy = jest.spyOn(appAPI, "uploadJSON").mockResolvedValue({
+      success: true,
+      filename: "vector-style.json",
+    });
+
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    // Style on the layer — simulates what happens when a vector style is
+    // entered in StylePane.
+    const layerInfo = {
+      layerProps: { name: "Vector Layer" },
+      sourceProps: {
+        type: "ESRI Feature Service",
+        props: { url: "https://example.com", layer: "0" },
+      },
+      style: JSON.stringify({ version: 8, sources: {}, layers: [] }),
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+
+    const createLayerButton =
+      await screen.findByLabelText("Create Layer Button");
+    fireEvent.click(createLayerButton);
+
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalledTimes(1);
+    });
+
+    // Non-GeoTIFF still goes through the upload path.
+    expect(uploadSpy).toHaveBeenCalledTimes(1);
+    const savedStyle = addMapLayer.mock.calls[0][0].configuration.style;
+    expect(savedStyle).toBe("vector-style.json");
+  });
+
+  test("GeoTIFF ramp save with rampMin === rampMax does not crash", async () => {
+    jest
+      .spyOn(appAPI, "uploadJSON")
+      .mockResolvedValue({ success: true, filename: "x.json" });
+
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "Degenerate Ramp" },
+      sourceProps: {
+        type: "GeoTIFF",
+        rampName: "viridis",
+        rampMin: "50",
+        rampMax: "50",
+        props: { sources: [{ url: "a.tif" }] },
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={jest.fn()}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalledTimes(1);
+    });
+
+    const savedStyle =
+      addMapLayer.mock.calls[0][0].configuration.style;
+    expect(savedStyle).toHaveProperty("color");
+    // All stop values collapse to 50, colors still vary.
+    expect(savedStyle.color[3]).toBe(50);
+    expect(savedStyle.color[savedStyle.color.length - 2]).toBe(50);
+  });
+});
+
 describe("MapLayerModal save path regression for non-GeoTIFF sources", () => {
   test("Vector Tile save still splits comma-separated urls", async () => {
     const handleModalClose = jest.fn();
