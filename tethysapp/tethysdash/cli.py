@@ -147,9 +147,18 @@ def _inspect_all_sources(intake_module, client_registry_loader, resolver):
 
 
 def _get_registered_args(intake_plugin, client_entry):
-    """Return a list of registered arg names for annotation."""
+    """Return a list of registered arg names for annotation.
+
+    Uses get_plugin_prop for Intake plugins so plugins declaring
+    `visualization_args` (the legacy naming used throughout ciroh_plugins
+    / nwmp_plugins) surface their args in the CLI output. The resolver
+    already uses get_plugin_prop; the CLI must match so its annotations
+    stay consistent with what the resolver produced.
+    """
+    from tethysapp.tethysdash.plugin_helpers import get_plugin_prop
+
     if intake_plugin is not None:
-        args = getattr(intake_plugin, "args", {}) or {}
+        args = get_plugin_prop(intake_plugin, "args", {}) or {}
         if isinstance(args, dict):
             return list(args.keys())
     if client_entry is not None:

@@ -185,6 +185,45 @@ class TestInspectEditablePathsCommand(unittest.TestCase):
     @mock.patch(
         "tethysapp.tethysdash.plugin_registry_loader.load_client_plugin_registry"
     )
+    def test_intake_plugin_with_legacy_visualization_args_naming(
+        self, mock_registry_loader
+    ):
+        """Regression: ciroh_plugins use `visualization_args` (legacy naming).
+
+        The CLI must honor the same get_plugin_prop lookup the resolver uses
+        so authors see their declared args annotated in the inspect output.
+        Raw getattr(plugin, "args") would miss these — the class has
+        `visualization_args` set and no bare `args` attribute.
+        """
+        from types import SimpleNamespace
+        import tethysapp.tethysdash.editable_schemas_plugin as esp
+
+        mock_registry_loader.return_value = []
+        # Plugin declares args via the legacy visualization_* naming.
+        # No bare `args` attribute — this is how ciroh_plugins work.
+        fake_plugin = SimpleNamespace(
+            visualization_args={
+                "id": "text",
+                "api_key": "text",  # should be pattern-denied
+            }
+        )
+        with mock.patch.object(
+            esp.intake.source, "registry", {"nwmp_api_reaches": fake_plugin}
+        ), mock.patch.object(
+            esp, "_load_client_plugin_registry_cached", return_value=[]
+        ):
+            exit_code, out = self._invoke(source="nwmp_api_reaches")
+        self.assertEqual(exit_code, 0)
+        # Both args surface in the registered-args listing despite using
+        # the legacy `visualization_args` attribute name.
+        self.assertIn("[editable] id", out)
+        self.assertIn("[denied: pattern] api_key", out)
+        # And the resolver emits the right path.
+        self.assertIn("/args/id", out)
+
+    @mock.patch(
+        "tethysapp.tethysdash.plugin_registry_loader.load_client_plugin_registry"
+    )
     def test_no_source_lists_all_plugins(self, mock_registry_loader):
         from types import SimpleNamespace
         import tethysapp.tethysdash.editable_schemas_plugin as esp
