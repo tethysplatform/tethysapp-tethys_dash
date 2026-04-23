@@ -396,6 +396,7 @@ const MapLayerModal = ({
                   containerRef={styleContainerRef}
                   layerProps={layerProps}
                   sourceProps={sourceProps}
+                  setSourceProps={setSourceProps}
                 />
               </div>
             </Tab>
