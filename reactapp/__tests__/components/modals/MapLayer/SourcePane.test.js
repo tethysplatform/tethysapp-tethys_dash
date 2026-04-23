@@ -779,6 +779,115 @@ test("SourcePane Static Image Draw Extent parses existing imageExtent", async ()
   expect(mockOnRequestHideModal).toHaveBeenCalledTimes(1);
 });
 
+test("SourcePane GeoTIFF option appears in source-type dropdown", async () => {
+  render(<TestingComponent />);
+
+  expect(await screen.findByText("Source Type")).toBeInTheDocument();
+  const sourceDropdown = screen.getByRole("combobox");
+
+  selectEvent.openMenu(sourceDropdown);
+  expect(await screen.findByText("GeoTIFF")).toBeInTheDocument();
+});
+
+test("SourcePane GeoTIFF renders placeholder UI and not InputTable", async () => {
+  render(<TestingComponent />);
+
+  const sourceDropdown = screen.getByRole("combobox");
+  selectEvent.openMenu(sourceDropdown);
+  const sourceOption = await screen.findByText("GeoTIFF");
+  fireEvent.click(sourceOption);
+
+  // Empty-state copy + Add button appear
+  expect(
+    await screen.findByText("Add at least one source to render this layer"),
+  ).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Add source" })).toBeInTheDocument();
+  expect(screen.getByText("Sources")).toBeInTheDocument();
+
+  // InputTable markers do NOT appear (no "Source Properties" heading, no required * marker)
+  expect(screen.queryByText("Source Properties")).not.toBeInTheDocument();
+  expect(
+    screen.queryByText(/indicates a required property/),
+  ).not.toBeInTheDocument();
+});
+
+test("SourcePane GeoTIFF Add source button is keyboard-reachable with accessible name", async () => {
+  render(<TestingComponent />);
+
+  const sourceDropdown = screen.getByRole("combobox");
+  selectEvent.openMenu(sourceDropdown);
+  const sourceOption = await screen.findByText("GeoTIFF");
+  fireEvent.click(sourceOption);
+
+  const addButton = await screen.findByRole("button", { name: "Add source" });
+  // Button text itself provides the accessible name (no aria-label needed)
+  expect(addButton).toHaveAccessibleName("Add source");
+  // Default button tabIndex is 0 (keyboard-reachable) unless explicitly disabled
+  expect(addButton).not.toBeDisabled();
+  expect(addButton.tabIndex).not.toBe(-1);
+  // Clickable (no-op placeholder behavior for Unit 2)
+  fireEvent.click(addButton);
+  expect(addButton).toBeInTheDocument();
+});
+
+test("SourcePane switching from GeoTIFF to WMS renders InputTable", async () => {
+  render(<TestingComponent />);
+
+  const sourceDropdown = screen.getByRole("combobox");
+
+  // Select GeoTIFF first
+  selectEvent.openMenu(sourceDropdown);
+  const geoTIFFOption = await screen.findByText("GeoTIFF");
+  fireEvent.click(geoTIFFOption);
+  expect(
+    await screen.findByText("Add at least one source to render this layer"),
+  ).toBeInTheDocument();
+
+  // Switch to WMS
+  selectEvent.openMenu(sourceDropdown);
+  const wmsOption = await screen.findByText("WMS");
+  fireEvent.click(wmsOption);
+
+  // InputTable rendered
+  expect(await screen.findByText("Source Properties")).toBeInTheDocument();
+  // Stale GeoTIFF UI is gone
+  expect(
+    screen.queryByText("Add at least one source to render this layer"),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Add source" }),
+  ).not.toBeInTheDocument();
+});
+
+test("SourcePane GeoTIFF regression: KML still renders InputTable", async () => {
+  render(<TestingComponent />);
+
+  const sourceDropdown = screen.getByRole("combobox");
+  selectEvent.openMenu(sourceDropdown);
+  const sourceOption = await screen.findByText("KML");
+  fireEvent.click(sourceOption);
+
+  expect(await screen.findByText("Source Properties")).toBeInTheDocument();
+  expect(
+    screen.queryByText("Add at least one source to render this layer"),
+  ).not.toBeInTheDocument();
+});
+
+test("SourcePane GeoTIFF regression: Vector Tile still renders InputTable", async () => {
+  render(<TestingComponent />);
+
+  const sourceDropdown = screen.getByRole("combobox");
+  selectEvent.openMenu(sourceDropdown);
+  const sourceOption = await screen.findByText("Vector Tile");
+  fireEvent.click(sourceOption);
+
+  expect(await screen.findByText("Source Properties")).toBeInTheDocument();
+  expect(screen.getByText("*urls")).toBeInTheDocument();
+  expect(
+    screen.queryByText("Add at least one source to render this layer"),
+  ).not.toBeInTheDocument();
+});
+
 test("SourcePane Static Image Draw Extent handles invalid imageExtent gracefully", async () => {
   const mockOnRequestHideModal = jest.fn();
   render(

@@ -107,6 +107,10 @@ export const sourcePropertiesOptions = {
     required: {},
     optional: {},
   },
+  GeoTIFF: {
+    required: {},
+    optional: {},
+  },
   "Vector Tile": {
     required: {
       urls: {

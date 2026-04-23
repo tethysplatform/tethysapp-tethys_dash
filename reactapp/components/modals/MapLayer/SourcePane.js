@@ -22,6 +22,19 @@ const StyledTextInput = styled.textarea`
   height: 30vh;
 `;
 
+const GeoTIFFSourcesSection = styled.div`
+  margin-top: 1rem;
+`;
+
+const GeoTIFFEmptyState = styled.div`
+  padding: 1.5rem;
+  margin-bottom: 0.75rem;
+  border: 1px dashed #adb5bd;
+  border-radius: 0.375rem;
+  text-align: center;
+  color: #6c757d;
+`;
+
 // loop through the properties of a source type and extract potential settings and placeholders, setting new values from existing values if applicable
 export const generatePropertiesArrayWithValues = (
   sourceProperties,
@@ -106,6 +119,8 @@ const SourcePane = ({
   const [sourceType, setSourceType] = useState({}); // source type dropdown selection {value: ..., label: ...}
   const [geoJSON, setGeoJSON] = useState("{}"); // track the geojson value
   const [geoJSONSource, setGeoJSONSource] = useState("custom"); // track the geojson value
+  // eslint-disable-next-line no-unused-vars
+  const [geoTIFFSubModalOpen, setGeoTIFFSubModalOpen] = useState(false); // tracks GeoTIFF SourceInfo sub-modal open state (wired in Unit 4)
   const { uuid } = useContext(LayoutContext);
   const mapContext = useMapContext();
 
@@ -334,6 +349,20 @@ const SourcePane = ({
                 />
               )}
             </>
+          ) : sourceType.value === "GeoTIFF" ? (
+            <GeoTIFFSourcesSection>
+              <h5>Sources</h5>
+              <GeoTIFFEmptyState>
+                Add at least one source to render this layer
+              </GeoTIFFEmptyState>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => setGeoTIFFSubModalOpen(true)}
+              >
+                Add source
+              </Button>
+            </GeoTIFFSourcesSection>
           ) : (
             <>
               <InputTable
