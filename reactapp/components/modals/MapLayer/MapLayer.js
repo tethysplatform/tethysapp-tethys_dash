@@ -68,6 +68,20 @@ const RightGroup = styled.div`
   align-items: center;
 `;
 
+// Derive the ol layer type for a given source type. Exported for unit testing.
+// Explicit cases must precede the substring checks so a precedent like
+// "Vector" / "Tile" / "Image" never shadows a source with a more specific
+// layer-type mapping (e.g. GeoTIFF → WebGLTile).
+export const getLayerType = (sourceType) => {
+  if (sourceType === "GeoTIFF") return "WebGLTile";
+  if (sourceType.includes("Vector")) return "VectorTileLayer";
+  if (sourceType.includes("Raster")) return "WebGLTile";
+  if (sourceType.includes("Tile")) return "TileLayer";
+  if (sourceType.includes("Image") || sourceType.includes("WMS"))
+    return "ImageLayer";
+  return "VectorLayer";
+};
+
 const MapLayerModal = ({
   showModal,
   handleModalClose,
@@ -152,15 +166,6 @@ const MapLayerModal = ({
 
     if (sourceProps.type === "Vector Tile") {
       validSourceProps.urls = validSourceProps.urls.split(",");
-    }
-
-    const getLayerType = (sourceType) => {
-      if (sourceType.includes("Vector")) return "VectorTileLayer";
-      if (sourceType.includes("Raster")) return "WebGLTile";
-      if (sourceType.includes("Tile")) return "TileLayer";
-      if (sourceType.includes("Image") || sourceType.includes("WMS"))
-        return "ImageLayer";
-      return "VectorLayer";
     }
 
     const mapConfiguration = {

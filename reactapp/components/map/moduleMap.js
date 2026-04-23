@@ -18,6 +18,7 @@ export const moduleMap = {
   "ol/format/EsriJSON.js": () => import("ol/format/EsriJSON.js"),
   "ol-pmtiles": () => import("ol-pmtiles"),
   "ol/source/ImageStatic.js": () => import("ol/source/ImageStatic.js"),
+  "ol/source/GeoTIFF.js": () => import("ol/source/GeoTIFF.js"),
   "bad-module": () =>
     "This is not a valid module and should cause an error when imported.",
 };

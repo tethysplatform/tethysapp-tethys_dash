@@ -8,7 +8,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import selectEvent from "react-select-event";
-import MapLayerModal from "components/modals/MapLayer/MapLayer";
+import MapLayerModal, { getLayerType } from "components/modals/MapLayer/MapLayer";
 import { AppContext, LayoutContext } from "components/contexts/Contexts";
 import MapContextProvider, {
   useMapContext,
@@ -1629,3 +1629,34 @@ TestingComponent.propTypes = {
   mapLayers: PropTypes.array,
   existingLayerOriginalName: PropTypes.object,
 };
+
+describe("getLayerType", () => {
+  test("GeoTIFF short-circuits to WebGLTile before substring checks", () => {
+    expect(getLayerType("GeoTIFF")).toBe("WebGLTile");
+  });
+
+  test("Vector source types map to VectorTileLayer", () => {
+    expect(getLayerType("Vector Tile")).toBe("VectorTileLayer");
+    expect(getLayerType("Vector")).toBe("VectorTileLayer");
+  });
+
+  test("Raster source types map to WebGLTile", () => {
+    expect(getLayerType("PMTiles Raster")).toBe("WebGLTile");
+    expect(getLayerType("Raster")).toBe("WebGLTile");
+  });
+
+  test("Tile source types map to TileLayer", () => {
+    expect(getLayerType("Image Tile")).toBe("TileLayer");
+  });
+
+  test("Image / WMS source types map to ImageLayer", () => {
+    expect(getLayerType("WMS")).toBe("ImageLayer");
+    expect(getLayerType("Static Image")).toBe("ImageLayer");
+    expect(getLayerType("ESRI Image and Map Service")).toBe("ImageLayer");
+  });
+
+  test("Unknown source types fall back to VectorLayer", () => {
+    expect(getLayerType("GeoJSON")).toBe("VectorLayer");
+    expect(getLayerType("KML")).toBe("VectorLayer");
+  });
+});

@@ -1,3 +1,28 @@
+// Mock GeoTIFF source constructor so we can spy on the exact options passed
+// through ModuleLoader (and so the real geotiff fetch machinery doesn't run
+// in jsdom). jest.mock is hoisted; all tests in this file share the mock.
+// The mock subclasses ol's real Source so WebGLTile's handleSourceUpdate_
+// can safely call .getState() and related event methods.
+jest.mock("ol/source/GeoTIFF.js", () => {
+  const ActualSource = jest.requireActual("ol/source/Source.js").default;
+  const spy = jest.fn();
+  class MockGeoTIFFSource extends ActualSource {
+    constructor(options) {
+      super({ projection: null });
+      this.options = options;
+      spy(options);
+    }
+  }
+  // Hang the jest.fn() off the class so tests can inspect calls via
+  // `GeoTIFF.constructorSpy.mock.calls`. Jest's resetMocks clears the
+  // spy's call history before each test, keeping tests isolated.
+  MockGeoTIFFSource.constructorSpy = spy;
+  return {
+    __esModule: true,
+    default: MockGeoTIFFSource,
+  };
+});
+
 import moduleLoader, {
   createJsonStyleFunction,
   matchesCondition,
@@ -12,6 +37,7 @@ import ImageLayer from "ol/layer/Image.js";
 import VectorTileLayer from "ol/layer/VectorTile.js";
 import VectorLayer from "ol/layer/Vector.js";
 import KML from "ol/format/KML.js";
+import GeoTIFF from "ol/source/GeoTIFF.js";
 import { Vector as VectorSource } from "ol/source.js";
 import {
   layerConfigGeoJSON,
@@ -152,6 +178,88 @@ test("KML Layer Instance", async () => {
   expect(layerInstance.getSource().format_ instanceof KML).toBe(true);
   const cachedLayerInstance = await moduleLoader(layerConfigKML.configuration);
   expect(cachedLayerInstance instanceof VectorLayer).toBe(true);
+});
+
+describe("GeoTIFF source", () => {
+  const geoTIFFLayerConfig = () => ({
+    type: "WebGLTile",
+    props: {
+      name: "GeoTIFF Layer",
+      source: {
+        type: "GeoTIFF",
+        props: {
+          sources: [
+            {
+              url: "https://example.com/cog.tif",
+              bands: "1,2,3",
+              min: "0",
+              max: "255",
+              nodata: "0",
+            },
+          ],
+        },
+      },
+      zIndex: 0,
+    },
+  });
+
+  test("GeoTIFF type resolves to the ol/source/GeoTIFF module", async () => {
+    const config = geoTIFFLayerConfig();
+    const layerInstance = await moduleLoader(config);
+    expect(layerInstance instanceof WebGLTile).toBe(true);
+    expect(GeoTIFF.constructorSpy).toHaveBeenCalled();
+  });
+
+  test("GeoTIFF sources array passes through to constructor", async () => {
+    const config = geoTIFFLayerConfig();
+    // Drop bands so this test focuses on plain URL + numeric string pass-through.
+    config.props.source.props.sources = [
+      { url: "https://example.com/a.tif", min: "0", max: "255" },
+    ];
+    await moduleLoader(config);
+    const calls = GeoTIFF.constructorSpy.mock.calls;
+    const callArgs = calls[calls.length - 1][0];
+    expect(Array.isArray(callArgs.sources)).toBe(true);
+    expect(callArgs.sources).toHaveLength(1);
+    expect(callArgs.sources[0].url).toBe("https://example.com/a.tif");
+    // numeric strings should be cast by convertType before hitting the ctor
+    expect(callArgs.sources[0].min).toBe(0);
+    expect(callArgs.sources[0].max).toBe(255);
+  });
+
+  test("GeoTIFF bands CSV string is parsed to a number array", async () => {
+    const config = geoTIFFLayerConfig();
+    config.props.source.props.sources = [
+      { url: "https://example.com/b.tif", bands: "1,2,3" },
+    ];
+    await moduleLoader(config);
+    const calls = GeoTIFF.constructorSpy.mock.calls;
+    const callArgs = calls[calls.length - 1][0];
+    expect(callArgs.sources[0].bands).toEqual([1, 2, 3]);
+  });
+
+  test("GeoTIFF empty sources throws GeoTIFFEmptySources", async () => {
+    const config = geoTIFFLayerConfig();
+    config.props.source.props.sources = [];
+    const callCountBefore = GeoTIFF.constructorSpy.mock.calls.length;
+    await expect(moduleLoader(config)).rejects.toThrow("GeoTIFFEmptySources");
+    // The GeoTIFF constructor must not have been invoked for this call.
+    expect(GeoTIFF.constructorSpy.mock.calls.length).toBe(callCountBefore);
+  });
+
+  test("GeoTIFF minimum config (url only) instantiates", async () => {
+    const config = geoTIFFLayerConfig();
+    config.props.source.props.sources = [
+      { url: "https://example.com/minimal.tif" },
+    ];
+    const layerInstance = await moduleLoader(config);
+    expect(layerInstance instanceof WebGLTile).toBe(true);
+    const calls = GeoTIFF.constructorSpy.mock.calls;
+    const callArgs = calls[calls.length - 1][0];
+    expect(callArgs.sources).toEqual([
+      { url: "https://example.com/minimal.tif" },
+    ]);
+  });
 });
 
 test("Non Constructor Error", async () => {

@@ -37,6 +37,17 @@ const moduleLoader = async (config, mapProjection) => {
       .map((v) => parseFloat(v.trim()));
   }
 
+  if (
+    config.type === "GeoTIFF" &&
+    Array.isArray(config.props?.sources) &&
+    config.props.sources.length === 0
+  ) {
+    // Soft render guard: an in-progress authoring state (sources[] still
+    // empty) must not crash ol. Map.js filters this specific error out of
+    // failedLayers so the layer is silently skipped.
+    throw new Error("GeoTIFFEmptySources");
+  }
+
   if (config.type.includes("ESRI")) {
     if (config.props?.params?.TIME) {
       config.props.params.TIME = config.props.params.TIME.split(",")
@@ -134,6 +145,15 @@ const resolveProps = async (props, mapProjection) => {
         // It's a regular object; recursively resolve its properties
         resolvedProps[key] = await resolveProps(value, mapProjection);
       }
+    } else if (key === "bands" && typeof value === "string") {
+      // GeoTIFF SourceInfo `bands`: authoring UI stores the value as a CSV
+      // string (e.g. "1,2,3"); parse to a number array before it reaches
+      // the ol/source/GeoTIFF constructor. convertType can't express an
+      // array result, so the CSV pre-pass lives here.
+      resolvedProps[key] = value
+        .split(",")
+        .map((b) => Number(b.trim()))
+        .filter((n) => !Number.isNaN(n));
     } else {
       // It's a primitive value; assign as is
       resolvedProps[key] = convertType(value);
@@ -192,6 +212,7 @@ const getModuleImporter = (type) => {
     "PMTiles Vector": "ol-pmtiles",
     "PMTiles Raster": "ol-pmtiles",
     "Static Image": "ol/source/ImageStatic.js",
+    GeoTIFF: "ol/source/GeoTIFF.js",
     "bad-module": "bad-module",
     // Add other mappings as needed
   };

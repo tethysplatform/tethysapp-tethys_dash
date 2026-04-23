@@ -1134,6 +1134,61 @@ test("Double-buffering done() is idempotent when called twice", async () => {
   jest.useRealTimers();
 });
 
+test("GeoTIFF with empty sources is silently skipped (not a failed layer)", async () => {
+  const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+  const layers = [
+    {
+      type: "WebGLTile",
+      props: {
+        name: "In-progress GeoTIFF",
+        source: {
+          type: "GeoTIFF",
+          props: {
+            sources: [],
+          },
+        },
+        zIndex: 0,
+      },
+    },
+    {
+      type: "WebGLTile",
+      props: {
+        source: {
+          type: "Image Tile",
+          props: {
+            url: "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+          },
+        },
+        name: "Other Layer",
+        zIndex: 0,
+      },
+    },
+  ];
+
+  render(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
+      <MapContextProvider>
+        <TestingComponent mapProps={{ layers }} />
+      </MapContextProvider>
+    </VariableInputsContext.Provider>,
+  );
+
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+  // The valid layer still loads.
+  await waitFor(() => {
+    expect(addLayerSpy.mock.calls.length).toBe(1);
+  });
+  expect(addLayerSpy.mock.calls[0][0].values_.name).toBe("Other Layer");
+
+  // The empty-sources GeoTIFF is NOT surfaced in the failedLayers warning.
+  expect(
+    screen.queryByText(/Failed to load the "In-progress GeoTIFF"/),
+  ).not.toBeInTheDocument();
+});
+
 TestingComponent.propTypes = {
   mapProps: PropTypes.shape({
     onMapClick: PropTypes.bool,

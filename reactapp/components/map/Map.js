@@ -299,6 +299,12 @@ const MapComponent = ({
               }
             }
           } catch (err) {
+            // Soft render guard: a GeoTIFF layer with an empty sources[]
+            // array is an in-progress authoring state, not an error. Silently
+            // skip so "failedLayers" doesn't surface a misleading warning.
+            if (err && err.message === "GeoTIFFEmptySources") {
+              return;
+            }
             console.log(err);
             failedLayers.push(name);
           }
