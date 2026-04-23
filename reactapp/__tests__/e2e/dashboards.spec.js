@@ -63,7 +63,9 @@ test.describe("Multi-component dashboards", () => {
       }),
     ]);
     await expect(page.locator(".js-plotly-plot")).toBeVisible(TIMEOUT);
-    await expect(page.locator("select").first()).toBeVisible(TIMEOUT);
+    // DataSelect.js wraps react-select; the control exposes ARIA
+    // role="combobox" on the inner input, not a native <select>.
+    await expect(page.getByRole("combobox").first()).toBeVisible(TIMEOUT);
   });
 
   test("All 8 variable input subtypes render on one dashboard", async ({ page }) => {

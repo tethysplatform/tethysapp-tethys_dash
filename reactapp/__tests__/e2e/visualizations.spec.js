@@ -137,7 +137,9 @@ test.describe("Variable inputs", () => {
         options: ["Option A", "Option B", "Option C"],
       }),
     ]);
-    await expect(page.locator("select").first()).toBeVisible(TIMEOUT);
+    // DataSelect.js wraps react-select; the control exposes ARIA
+    // role="combobox" on the inner input, not a native <select>.
+    await expect(page.getByRole("combobox").first()).toBeVisible(TIMEOUT);
   });
 
   test("slider renders without crash", async ({ page }) => {
