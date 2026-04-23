@@ -99,6 +99,18 @@ module.exports = (env, argv) => {
         },
       ],
     },
+    ignoreWarnings: [
+      // @huggingface/transformers v4.1.0–4.2.0 (latest) emits
+      // `Object(import.meta).url` at transformers.web.js:89, which webpack's
+      // ESM parser rejects — only property access or destructuring of
+      // `import.meta` is statically analyzable. The offending line is guarded
+      // by `if (RUNNING_LOCALLY)` (Node-only), so it is unreachable in the
+      // browser bundle. Remove this entry if upstream fixes the pattern.
+      {
+        module: /@huggingface\/transformers\/dist\/transformers\.web\.js/,
+        message: /Critical dependency: Accessing import\.meta directly/,
+      },
+    ],
     optimization: {
       minimize: true,
     },
