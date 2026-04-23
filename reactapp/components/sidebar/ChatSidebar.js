@@ -230,6 +230,13 @@ function ChatSidebar() {
           variableInputValues={memoizedVariableInputValues}
           updateVariableInputValues={updateVariableInputValues}
           engineExtensions={engineExtensions}
+          welcomeHeading="Ask me about your dashboard"
+          welcomeSubtitle="I can create visualizations, edit tiles, add map layers, and analyze data — just ask."
+          suggestedPrompts={[
+            "Create a bar chart",
+            "Add a map layer",
+            "Summarize this dashboard",
+          ]}
         />
       </Content>
     </Wrapper>
