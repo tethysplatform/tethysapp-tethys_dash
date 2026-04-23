@@ -16,8 +16,6 @@ from unittest.mock import patch
 import pytest
 
 from tethysapp.tethysdash.editable_schemas_plugin import (
-    SENSITIVE_NAME_PATTERNS,
-    apply_pattern_deny_list,
     is_path_allowed_plugin,
     resolve_editable_paths,
 )
@@ -77,88 +75,6 @@ def client_registry():
 
 
 # ---------------------------------------------------------------------------
-# R10 pattern deny-list
-# ---------------------------------------------------------------------------
-
-
-class TestPatternDenyList:
-    """R10 — project-wide sensitive-name pattern deny-list."""
-
-    def test_empty_list_returns_empty(self):
-        assert apply_pattern_deny_list([]) == []
-
-    def test_benign_names_survive(self):
-        assert apply_pattern_deny_list(
-            ["start_date", "end_date", "station_id", "limit"]
-        ) == ["start_date", "end_date", "station_id", "limit"]
-
-    @pytest.mark.parametrize(
-        "category,denied_names",
-        [
-            (
-                "credentials",
-                ["api_key", "auth_token", "client_secret", "user_password",
-                 "service_credential"],
-            ),
-            (
-                "network-targets",
-                ["service_url", "api_endpoint", "map_service", "target_host",
-                 "server_hostname", "dest_server", "request_target",
-                 "http_proxy", "service_base_url", "weather_api_base",
-                 "client_remote"],
-            ),
-            (
-                "ssrf-adjacent",
-                ["webhook_callback", "auth_webhook", "request_origin",
-                 "login_redirect", "event_destination"],
-            ),
-            (
-                "filesystem",
-                ["data_path", "cache_dir", "source_file", "config_filepath",
-                 "output_filename", "workspace_root", "plugin_base_dir",
-                 "extract_data_dir"],
-            ),
-            (
-                "injection-prone",
-                ["custom_query", "filter_sql", "layout_template",
-                 "where_expression", "row_filter"],
-            ),
-        ],
-    )
-    def test_pattern_categories_are_denied(self, category, denied_names):
-        """Every listed name matches at least one pattern in SENSITIVE_NAME_PATTERNS."""
-        result = apply_pattern_deny_list(denied_names)
-        assert result == [], (
-            f"Category {category!r}: expected all denied, got survivors: {result}"
-        )
-
-    def test_case_insensitive(self):
-        # API_KEY (uppercase), Token (mixed case) should still be denied.
-        assert apply_pattern_deny_list(
-            ["API_KEY", "Auth_Token", "Service_URL"]
-        ) == []
-
-    def test_name_without_pattern_suffix_is_kept(self):
-        # "key_store" — doesn't end in _key; should be kept.
-        # "urlbuilder" — doesn't end in _url; should be kept.
-        # "pathmaker" — doesn't end in _path; should be kept.
-        assert apply_pattern_deny_list(
-            ["key_store", "urlbuilder", "pathmaker"]
-        ) == ["key_store", "urlbuilder", "pathmaker"]
-
-    def test_sensitive_patterns_are_compiled_regexes(self):
-        """Pins that SENSITIVE_NAME_PATTERNS is a collection of compiled patterns.
-
-        Protects against accidental conversion to plain strings.
-        """
-        assert len(SENSITIVE_NAME_PATTERNS) > 0
-        for pat in SENSITIVE_NAME_PATTERNS:
-            # ``re.Pattern.pattern`` attribute exists on compiled patterns.
-            assert hasattr(pat, "pattern")
-            assert hasattr(pat, "search")
-
-
-# ---------------------------------------------------------------------------
 # Intake resolver
 # ---------------------------------------------------------------------------
 
@@ -199,24 +115,44 @@ class TestIntakeResolver:
         )
         assert resolve_editable_paths("my_plugin") == ["/args/start_date"]
 
-    def test_pattern_deny_overrides_allow_list(self, intake_registry):
-        """Even if author allow-lists a pattern-denied arg, it stays denied.
+    def test_no_project_wide_deny_list(self, intake_registry):
+        """URL/credential/filesystem-named args are editable by default.
 
-        This is R10's defense-in-depth property and the footgun plugin authors
-        are warned about in the author docs.
+        Editors are trusted with the chatbox (R11 mount gate) and can set
+        any arg via the edit modal today. No project-wide name-pattern
+        deny-list — authors opt out per-arg via llm_non_editable_args
+        when a specific arg should not be chat-editable.
+        """
+        intake_registry["my_plugin"] = _fake_intake_plugin(
+            args={
+                "service_url": "text",
+                "api_key": "text",
+                "data_dir": "text",
+                "sql_query": "text",
+                "callback_endpoint": "text",
+                "start_date": "text",
+            },
+        )
+        assert sorted(resolve_editable_paths("my_plugin")) == sorted(
+            [
+                "/args/service_url",
+                "/args/api_key",
+                "/args/data_dir",
+                "/args/sql_query",
+                "/args/callback_endpoint",
+                "/args/start_date",
+            ]
+        )
+
+    def test_author_can_still_opt_out_of_sensitive_name_args(self, intake_registry):
+        """With the pattern deny-list removed, llm_non_editable_args is the only
+        mechanism to block a specific arg (e.g., a hardcoded credential).
         """
         intake_registry["my_plugin"] = _fake_intake_plugin(
             args={"api_key": "text", "username": "text"},
-            llm_editable_args=["api_key", "username"],
+            llm_non_editable_args=["api_key"],
         )
         assert resolve_editable_paths("my_plugin") == ["/args/username"]
-
-    def test_pattern_deny_applies_without_any_author_attrs(self, intake_registry):
-        intake_registry["my_plugin"] = _fake_intake_plugin(
-            args={"service_url": "text", "data_dir": "text", "sql_query": "text",
-                  "callback_endpoint": "text", "start_date": "text"},
-        )
-        assert resolve_editable_paths("my_plugin") == ["/args/start_date"]
 
     def test_unknown_source_fails_closed(self, intake_registry):
         assert resolve_editable_paths("does_not_exist") == []
@@ -283,14 +219,20 @@ class TestClientCustomResolver:
         )
         assert resolve_editable_paths("nwm-flood-map") == ["/args/title"]
 
-    def test_pattern_deny_applies_to_client_custom(self, client_registry):
+    def test_client_custom_no_project_wide_deny_list(self, client_registry):
+        """Sensitive-named args are editable by default for client_custom too.
+
+        Same trust model: authors opt out per-arg via llmNonEditableArgs.
+        """
         client_registry.append(
             _fake_client_entry(
                 "nwm-flood-map",
                 args={"title": "text", "auth_token": "text", "data_dir": "text"},
             )
         )
-        assert resolve_editable_paths("nwm-flood-map") == ["/args/title"]
+        assert sorted(resolve_editable_paths("nwm-flood-map")) == sorted(
+            ["/args/title", "/args/auth_token", "/args/data_dir"]
+        )
 
     def test_unknown_source_fails_closed(self, client_registry):
         # Empty registry.

@@ -10,10 +10,12 @@ static 5-built-in-type whitelist) with runtime-derived whitelists for:
   ``reactapp/generated/clientPluginRegistry.json`` and filtered by optional
   ``llmEditableArgs`` / ``llmNonEditableArgs`` entry fields in the JSON.
 
-On top of both, a mandatory, project-wide sensitive-name pattern deny-list
-(``SENSITIVE_NAME_PATTERNS``) is applied LAST and overrides author
-declarations. This is defense-in-depth against plugin authors who forget to
-carve out a credential arg or who accidentally allow-list a sensitive arg.
+Default-permissive: when no author declarations are present, every
+registered arg is editable. Plugin authors use ``llm_non_editable_args``
+to carve out specific args (e.g., a hardcoded credential in the plugin
+package). Matches TethysDash's existing trust model — editors can set
+any arg via the edit modal today; the chatbox exposes the same surface
+via natural language and is itself gated to editor/admin users.
 
 Any lookup failure — unknown source, malformed declaration, registry miss —
 fails closed (returns an empty list). Callers surface
@@ -26,7 +28,6 @@ Unit A3 for the full approach rationale.
 from __future__ import annotations
 
 import logging
-import re
 from typing import Any, Dict, Iterable, List, Optional
 
 import intake  # noqa: F401 — imported so tests can patch intake.source.registry
@@ -37,88 +38,6 @@ from tethysapp.tethysdash.plugin_registry_loader import (
 )
 
 LOGGER = logging.getLogger(__name__)
-
-
-# ---------------------------------------------------------------------------
-# R10 — project-wide pattern deny-list
-# ---------------------------------------------------------------------------
-
-# Each group is documented for operator / author reference. The patterns are
-# flattened into one compiled-regex tuple for matching. All are anchored with
-# ``(?:^|_)<suffix>$`` so ``api_key`` and a bare ``key`` match, but
-# ``key_store`` (where the suffix is not the terminal segment) does not.
-_CREDENTIAL_SUFFIXES: tuple[str, ...] = (
-    "key",
-    "token",
-    "secret",
-    "password",
-    "credential",
-)
-
-_NETWORK_TARGET_SUFFIXES: tuple[str, ...] = (
-    # URL-flavored
-    "url",
-    "service",
-    "endpoint",
-    # Host-flavored
-    "host",
-    "hostname",
-    "server",
-    "target",
-    "proxy",
-    "base_url",
-    "api_base",
-    "remote",
-    # SSRF-adjacent
-    "callback",
-    "webhook",
-    "origin",
-    "redirect",
-    "destination",
-)
-
-_FILESYSTEM_SUFFIXES: tuple[str, ...] = (
-    "path",
-    "dir",
-    "file",
-    "filepath",
-    "filename",
-    "root",
-    "base_dir",
-    "data_dir",
-)
-
-_INJECTION_PRONE_SUFFIXES: tuple[str, ...] = (
-    "query",
-    "sql",
-    "template",
-    "expression",
-    "filter",
-)
-
-_ALL_SENSITIVE_SUFFIXES: tuple[str, ...] = (
-    _CREDENTIAL_SUFFIXES
-    + _NETWORK_TARGET_SUFFIXES
-    + _FILESYSTEM_SUFFIXES
-    + _INJECTION_PRONE_SUFFIXES
-)
-
-SENSITIVE_NAME_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
-    re.compile(rf"(?:^|_){re.escape(suffix)}$", re.IGNORECASE)
-    for suffix in _ALL_SENSITIVE_SUFFIXES
-)
-
-
-def apply_pattern_deny_list(names: Iterable[str]) -> List[str]:
-    """Return ``names`` with any pattern-denied entry removed.
-
-    The deny-list overrides author declarations — R10 defense-in-depth.
-    """
-    return [n for n in names if not _matches_any_sensitive_pattern(n)]
-
-
-def _matches_any_sensitive_pattern(name: str) -> bool:
-    return any(pat.search(name) for pat in SENSITIVE_NAME_PATTERNS)
 
 
 # ---------------------------------------------------------------------------
@@ -161,7 +80,7 @@ def _compose_author_filter(
 
 
 def _resolve_intake(source: str) -> Optional[List[str]]:
-    """Return pattern-denied editable paths for an Intake plugin, or None."""
+    """Return editable paths for an Intake plugin, or None if not registered."""
     # intake.source.registry is a DriverRegistry in production (not a plain
     # dict). Both DriverRegistry and dict support __contains__ and __getitem__,
     # so use those rather than .get() which DriverRegistry doesn't expose.
@@ -191,7 +110,6 @@ def _resolve_intake(source: str) -> Optional[List[str]]:
             exc,
         )
         return []
-    effective = apply_pattern_deny_list(effective)
     return [f"/args/{name}" for name in effective]
 
 
@@ -212,7 +130,7 @@ def _load_client_plugin_registry_cached() -> List[Dict[str, Any]]:
 
 
 def _resolve_client_custom(source: str) -> Optional[List[str]]:
-    """Return pattern-denied editable paths for a client_custom source, or None."""
+    """Return editable paths for a client_custom source, or None if not registered."""
     registry = _load_client_plugin_registry_cached()
     entry = next((e for e in registry if e.get("source") == source), None)
     if entry is None:
@@ -235,7 +153,6 @@ def _resolve_client_custom(source: str) -> Optional[List[str]]:
             exc,
         )
         return []
-    effective = apply_pattern_deny_list(effective)
     return [f"/args/{name}" for name in effective]
 
 

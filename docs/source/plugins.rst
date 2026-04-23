@@ -1192,36 +1192,19 @@ How the whitelist is built
 
 For every registered Intake plugin, the effective LLM-editable set is:
 
-1. **All arg names** in your ``args`` class attribute, **minus**
-2. Anything caught by the **mandatory project-wide sensitive-name pattern
-   deny-list** (applied last; overrides your own declarations), **minus**
-3. Anything you exclude via an optional ``llm_non_editable_args`` class
-   attribute, or narrowed to only what you enumerate in an optional
-   ``llm_editable_args`` class attribute.
+1. **All arg names** in your ``args`` class attribute,
+2. Narrowed to what you enumerate in an optional ``llm_editable_args``
+   class attribute (when present),
+3. Minus anything you exclude via an optional ``llm_non_editable_args``
+   class attribute.
 
-The default (no declarations) is **permissive**: every registered arg is
-LLM-editable, unless its name matches the pattern deny-list.
+**Default (no declarations): every registered arg is LLM-editable.** The
+chatbox is already gated to editor/admin users on the current dashboard —
+those users can set any arg via the edit modal today, so exposing the
+same surface via natural language doesn't add new attack surface.
 
-Project-wide pattern deny-list
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Args whose names match these suffix patterns are **always** excluded,
-regardless of what you declare:
-
-- **Credentials:** ``*_key``, ``*_token``, ``*_secret``, ``*_password``,
-  ``*_credential``
-- **Network targets (SSRF surface):** ``*_url``, ``*_service``,
-  ``*_endpoint``, ``*_host``, ``*_hostname``, ``*_server``, ``*_target``,
-  ``*_proxy``, ``*_base_url``, ``*_api_base``, ``*_remote``, ``*_callback``,
-  ``*_webhook``, ``*_origin``, ``*_redirect``, ``*_destination``
-- **Filesystem targets (path-traversal surface):** ``*_path``, ``*_dir``,
-  ``*_file``, ``*_filepath``, ``*_filename``, ``*_root``, ``*_base_dir``,
-  ``*_data_dir``
-- **Injection-prone values:** ``*_query``, ``*_sql``, ``*_template``,
-  ``*_expression``, ``*_filter``
-
-Matching is case-insensitive. A name like ``my_api_key`` is denied; a name
-like ``key_store`` is kept (the suffix ``store`` is not sensitive).
+If you need to protect a specific arg (e.g., a hardcoded credential your
+plugin ships with), use ``llm_non_editable_args``.
 
 Author declarations (``llm_editable_args`` / ``llm_non_editable_args``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1244,49 +1227,25 @@ Precedence matrix:
 ===================== ========================= ========================================================
 ``llm_editable_args`` ``llm_non_editable_args`` Effective whitelist
 ===================== ========================= ========================================================
-absent                absent                    all registered args, minus pattern deny-list
-present               absent                    ``llm_editable_args``, minus pattern deny-list
-absent                present                   all registered args, minus ``llm_non_editable_args``,
-                                                minus pattern deny-list
-present               present                   ``llm_editable_args`` minus ``llm_non_editable_args``,
-                                                minus pattern deny-list
+absent                absent                    all registered args
+present               absent                    ``llm_editable_args``
+absent                present                   all registered args, minus ``llm_non_editable_args``
+present               present                   ``llm_editable_args`` minus ``llm_non_editable_args``
 ===================== ========================= ========================================================
 
-**Important:** the pattern deny-list is applied LAST and cannot be
-overridden. This is defense-in-depth for when the declarations drift over
-time (new args added, author forgets to update ``llm_non_editable_args``).
+Worked example — protecting a credential arg
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Worked example A — allow-list does NOT override the pattern deny-list
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-::
+If your plugin ships with a hardcoded credential arg that should not be
+LLM-editable::
 
     class MyPlugin(TethysDashPlugin):
-        args = {"api_key": "text", "start_date": "text"}
-        llm_editable_args = ["api_key", "start_date"]  # author attempts to opt in
+        args = {"api_key": "text", "start_date": "text", "station_id": "text"}
+        llm_non_editable_args = ["api_key"]
 
-Effective whitelist: ``["start_date"]``. The ``api_key`` arg is still
-denied because its name matches the credentials pattern. If you want
-``api_key`` to be editable, **rename the arg** (the pattern list reflects
-the security posture; it's not configurable per-plugin).
-
-Worked example B — renaming an arg to escape a coincidental pattern match
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-::
-
-    # BEFORE: matches pattern deny-list (ends in _url), so not editable
-    class MyPlugin(TethysDashPlugin):
-        args = {"service_url": "text"}
-
-If ``service_url`` is a legitimate per-tile choice in your multi-tenant
-Tethys instance, rename it::
-
-    # AFTER: renamed to escape the pattern
-    class MyPlugin(TethysDashPlugin):
-        args = {"service_path_segment": "text"}
-
-The arg is no longer pattern-denied and becomes editable by default.
+Effective whitelist: ``["start_date", "station_id"]``. The ``api_key``
+arg stays read-only from the chatbox (but editors can still change it
+via the edit modal, same as today).
 
 Verification — inspecting the resolved whitelist
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1309,10 +1268,10 @@ Silent-enrollment advisory
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 When TethysDash adopts this feature, **existing plugins are enrolled
-automatically** under the default-permissive posture. The pattern
-deny-list backstops the obviously-sensitive cases, but you should audit
-your plugins' args after upgrading and add ``llm_non_editable_args`` for
-anything sensitive that isn't caught by a pattern.
+automatically** — every registered arg becomes LLM-editable by default.
+This matches the edit-modal permission model (editors can already set
+any arg via the modal), but it's worth auditing your plugin's args
+after upgrading.
 
 Example audit::
 
@@ -1321,13 +1280,13 @@ Example audit::
     Source: my_plugin
     Kind: Intake plugin
     Registered args:
-      [editable] customer_id       # <- is this really editable by any dashboard editor?
-      [denied: pattern] api_key
+      [editable] customer_id       # <- is this really something any editor should change from chat?
+      [editable] api_key
       [editable] start_date
     ...
 
-If a listed ``[editable]`` arg should not be LLM-editable, add it to
-``llm_non_editable_args``.
+If a listed ``[editable]`` arg should not be LLM-editable from chat,
+add it to ``llm_non_editable_args``.
 
 Naming note — Intake vs client_custom plugins
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

@@ -851,8 +851,11 @@ class TestPluginSourceDispatch:
         # The error includes the allowed-prefixes list so the LLM can recover.
         assert "/args/start_date" in result["error"]
 
-    def test_intake_plugin_pattern_denied_arg_rejected(self, mocker):
-        """A pattern-denied arg is never editable, even without author declarations."""
+    def test_intake_plugin_sensitive_name_args_editable_by_default(self, mocker):
+        """Sensitive-named args (api_key, service_url, etc.) are editable by
+        default. No project-wide pattern deny-list — authors opt out per-arg
+        via llm_non_editable_args.
+        """
         from types import SimpleNamespace
 
         fake_plugin = SimpleNamespace(
@@ -865,30 +868,33 @@ class TestPluginSourceDispatch:
         result = patch_visualization(
             target_uuid=_fresh_uuid(),
             source="my_streamflow",
-            patches=[{"op": "replace", "path": "/args/api_key", "value": "bad"}],
+            patches=[{"op": "replace", "path": "/args/api_key", "value": "new"}],
         )
-        assert "error" in result
-        assert "whitelist_rejected" in result["error"]
+        assert "error" not in result, result
+        assert result["patch_update"]["source"] == "my_streamflow"
 
-    def test_intake_plugin_pattern_denied_overrides_author_allow_list(self, mocker):
+    def test_intake_plugin_author_deny_list_is_respected(self, mocker):
+        """llm_non_editable_args still blocks specific args — the only
+        mechanism available for authors who want to protect a specific arg.
+        """
         from types import SimpleNamespace
 
         fake_plugin = SimpleNamespace(
             args={"api_key": "text", "username": "text"},
-            llm_editable_args=["api_key", "username"],
+            llm_non_editable_args=["api_key"],
         )
         mocker.patch(
             "tethysapp.tethysdash.editable_schemas_plugin.intake.source.registry",
             {"my_streamflow": fake_plugin},
         )
-        # username is still allowed.
+        # username is allowed.
         ok = patch_visualization(
             target_uuid=_fresh_uuid(),
             source="my_streamflow",
             patches=[{"op": "replace", "path": "/args/username", "value": "alice"}],
         )
         assert "error" not in ok
-        # api_key is still denied even though it's in llm_editable_args.
+        # api_key is denied by the author declaration.
         rejected = patch_visualization(
             target_uuid=_fresh_uuid(),
             source="my_streamflow",
@@ -958,20 +964,21 @@ class TestPluginSourceDispatch:
     def test_move_op_source_path_is_whitelist_checked_for_plugin(self, mocker):
         from types import SimpleNamespace
 
+        # Plugin has only `allowed_target` in its args; `unknown_field`
+        # isn't declared and therefore isn't whitelisted.
         fake_plugin = SimpleNamespace(args={"allowed_target": "text"})
         mocker.patch(
             "tethysapp.tethysdash.editable_schemas_plugin.intake.source.registry",
             {"my_plugin": fake_plugin},
         )
-        # The `from` path is NOT in the whitelist (api_key is pattern-denied
-        # and wouldn't be in args anyway). This is a regression on the
-        # move-op symmetry the shipped protocol's P1/P2 fixes established.
+        # Regression on the move-op symmetry the shipped protocol's P1/P2
+        # fixes established: the `from` path must also be whitelisted.
         result = patch_visualization(
             target_uuid=_fresh_uuid(),
             source="my_plugin",
             patches=[{
                 "op": "move",
-                "from": "/args/api_key",
+                "from": "/args/unknown_field",
                 "path": "/args/allowed_target",
             }],
         )
@@ -982,14 +989,15 @@ class TestPluginSourceDispatch:
 class TestRejectionTelemetry:
     """Every rejection path emits a structured INFO log record."""
 
-    def test_pattern_deny_emits_rejection_record(self, mocker):
-        """Pattern-denied path on a plugin with other allowed args calls the
+    def test_author_deny_emits_rejection_record(self, mocker):
+        """Author-denied path on a plugin with other allowed args calls the
         telemetry helper with reason=pattern_or_author_denied.
         """
         from types import SimpleNamespace
 
         fake_plugin = SimpleNamespace(
             args={"start_date": "text", "api_key": "text"},
+            llm_non_editable_args=["api_key"],
         )
         mocker.patch(
             "tethysapp.tethysdash.editable_schemas_plugin.intake.source.registry",

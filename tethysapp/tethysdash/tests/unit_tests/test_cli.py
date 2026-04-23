@@ -126,8 +126,11 @@ class TestInspectEditablePathsCommand(unittest.TestCase):
         import tethysapp.tethysdash.editable_schemas_plugin as esp
 
         mock_registry_loader.return_value = []
+        # Author declares an explicit deny-list entry so we get a mix of
+        # [editable] and [denied: author] in the output.
         fake_plugin = SimpleNamespace(
             args={"start_date": "text", "api_key": "text"},
+            llm_non_editable_args=["api_key"],
         )
         with mock.patch.object(
             esp.intake.source, "registry", {"my_streamflow": fake_plugin}
@@ -136,9 +139,9 @@ class TestInspectEditablePathsCommand(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         self.assertIn("my_streamflow", out)
         self.assertIn("Intake plugin", out)
-        # start_date is editable; api_key is pattern-denied.
+        # start_date is editable; api_key is author-denied.
         self.assertIn("[editable] start_date", out)
-        self.assertIn("[denied: pattern] api_key", out)
+        self.assertIn("[denied: author] api_key", out)
         self.assertIn("/args/start_date", out)
         # Sensitive arg value must NEVER appear — the annotation lists only
         # the name. (This test exercises only arg names, but pins the rule.)
@@ -201,11 +204,14 @@ class TestInspectEditablePathsCommand(unittest.TestCase):
         mock_registry_loader.return_value = []
         # Plugin declares args via the legacy visualization_* naming.
         # No bare `args` attribute — this is how ciroh_plugins work.
+        # Author denies one arg explicitly to exercise the [denied: author]
+        # annotation alongside [editable].
         fake_plugin = SimpleNamespace(
             visualization_args={
                 "id": "text",
-                "api_key": "text",  # should be pattern-denied
-            }
+                "api_key": "text",
+            },
+            llm_non_editable_args=["api_key"],
         )
         with mock.patch.object(
             esp.intake.source, "registry", {"nwmp_api_reaches": fake_plugin}
@@ -217,7 +223,7 @@ class TestInspectEditablePathsCommand(unittest.TestCase):
         # Both args surface in the registered-args listing despite using
         # the legacy `visualization_args` attribute name.
         self.assertIn("[editable] id", out)
-        self.assertIn("[denied: pattern] api_key", out)
+        self.assertIn("[denied: author] api_key", out)
         # And the resolver emits the right path.
         self.assertIn("/args/id", out)
 

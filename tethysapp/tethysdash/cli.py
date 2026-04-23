@@ -21,7 +21,6 @@ def inspect_editable_paths_command(args):
     1 when a specific source is requested but not found in any registry.
     """
     from tethysapp.tethysdash.editable_schemas_plugin import (
-        _matches_any_sensitive_pattern,
         resolve_editable_paths,
     )
     from tethysapp.tethysdash.plugin_registry_loader import (
@@ -38,7 +37,6 @@ def inspect_editable_paths_command(args):
             intake,
             load_client_plugin_registry,
             resolve_editable_paths,
-            _matches_any_sensitive_pattern,
         )
         sys.exit(exit_code)
 
@@ -54,7 +52,6 @@ def _inspect_single_source(
     intake_module,
     client_registry_loader,
     resolver,
-    is_sensitive_pattern,
 ):
     """Detailed single-source inspection. Returns a shell exit code."""
     # Locate the source in either registry.
@@ -89,19 +86,16 @@ def _inspect_single_source(
     # the registry entry's `args` dict.
     registered_args = _get_registered_args(intake_plugin, client_entry)
 
-    # Classify each registered arg so the author sees what's denied and why.
+    # Classify each registered arg so the author sees what's denied.
+    # With the project-wide pattern deny-list removed, every denial is
+    # author-declared (llm_editable_args / llm_non_editable_args).
     allowed_names = {p.replace("/args/", "", 1) for p in paths}
     print("Registered args:")
     if not registered_args:
         print("  (none)")
     else:
         for name in sorted(registered_args):
-            if name in allowed_names:
-                marker = "[editable]"
-            elif is_sensitive_pattern(name):
-                marker = "[denied: pattern]"
-            else:
-                marker = "[denied: author]"
+            marker = "[editable]" if name in allowed_names else "[denied: author]"
             print(f"  {marker} {name}")
 
     print("Resolved editable paths:")
@@ -109,8 +103,8 @@ def _inspect_single_source(
         print("  (none)")
         status = "resolved-empty"
         reason = (
-            "author declared an empty allow-list, or every registered arg "
-            "was caught by the project-wide sensitive-name pattern deny-list."
+            "author declared an empty llm_editable_args allow-list, or "
+            "llm_non_editable_args excluded every registered arg."
         )
     else:
         for p in paths:

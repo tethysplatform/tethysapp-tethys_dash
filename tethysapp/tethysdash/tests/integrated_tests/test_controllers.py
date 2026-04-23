@@ -231,15 +231,20 @@ def test_plugin_editable_paths_empty_registries_returns_empty_map(
 def test_plugin_editable_paths_omits_empty_whitelists(
     client, admin_user, mock_app, mocker
 ):
-    """A plugin whose every arg is pattern-denied is omitted (not emitted empty)."""
+    """A plugin whose author declared all args non-editable is omitted."""
     from types import SimpleNamespace
 
     mock_app("tethysapp.tethysdash.controllers.App")
     url = reverse("tethysdash:plugin_editable_paths")
     client.force_login(admin_user)
 
-    # Every arg on this plugin hits the R10 pattern deny-list.
-    fake_plugin = SimpleNamespace(args={"api_key": "text", "service_url": "text"})
+    # Author declared every registered arg in llm_non_editable_args — the
+    # resolver returns [] and the controller omits the entry so the client
+    # can treat presence as "patchable" without a length check.
+    fake_plugin = SimpleNamespace(
+        args={"api_key": "text", "service_url": "text"},
+        llm_non_editable_args=["api_key", "service_url"],
+    )
     mocker.patch(
         "tethysapp.tethysdash.editable_schemas_plugin.intake.source.registry",
         {"locked_down_plugin": fake_plugin},
