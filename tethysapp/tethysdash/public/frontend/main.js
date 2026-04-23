@@ -112,6 +112,7 @@
   padding: 0 ${({theme:e})=>e.spacing.xs};
 `,ETe=ia.div`
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: ${({theme:e})=>e.spacing.sm};
   min-width: 0;
