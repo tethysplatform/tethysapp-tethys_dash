@@ -1621,6 +1621,322 @@ test("MapLayerModal falls back to EPSG:3857 when visualizationRef is null", asyn
   });
 });
 
+describe("MapLayerModal GeoTIFF save path", () => {
+  test("preserves string '0' min/max on a single GeoTIFF source", async () => {
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "GeoTIFF Layer" },
+      sourceProps: {
+        type: "GeoTIFF",
+        props: {
+          sources: [{ url: "a.tif", min: "0", max: "100" }],
+        },
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+
+    const createLayerButton =
+      await screen.findByLabelText("Create Layer Button");
+    fireEvent.click(createLayerButton);
+
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalledTimes(1);
+    });
+
+    const savedConfig = addMapLayer.mock.calls[0][0];
+    const savedSources = savedConfig.configuration.props.source.props.sources;
+    expect(savedSources).toHaveLength(1);
+    expect(savedSources[0].url).toBe("a.tif");
+    expect(savedSources[0].min).toBe("0");
+    expect(savedSources[0].max).toBe("100");
+    // Regression guard: min must not be coerced to number or dropped.
+    expect(savedSources[0].min).not.toBe(0);
+    expect(savedSources[0].min).not.toBeUndefined();
+    expect(savedSources[0].min).not.toBe("");
+    expect(savedConfig.configuration.type).toBe("WebGLTile");
+  });
+
+  test("preserves multiple sources in original order", async () => {
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "RGB GeoTIFF" },
+      sourceProps: {
+        type: "GeoTIFF",
+        props: {
+          sources: [
+            { url: "red.tif", bands: "[1]" },
+            { url: "green.tif", bands: "[1]" },
+            { url: "blue.tif", bands: "[1]" },
+          ],
+        },
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+
+    const createLayerButton =
+      await screen.findByLabelText("Create Layer Button");
+    fireEvent.click(createLayerButton);
+
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalledTimes(1);
+    });
+
+    const savedSources =
+      addMapLayer.mock.calls[0][0].configuration.props.source.props.sources;
+    expect(savedSources).toHaveLength(3);
+    expect(savedSources.map((s) => s.url)).toEqual([
+      "red.tif",
+      "green.tif",
+      "blue.tif",
+    ]);
+  });
+
+  test("preserves string '0' across all numeric SourceInfo fields", async () => {
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "Zero Fields Layer" },
+      sourceProps: {
+        type: "GeoTIFF",
+        props: {
+          sources: [{ url: "zero.tif", min: "0", max: "0", nodata: "0" }],
+        },
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+
+    const createLayerButton =
+      await screen.findByLabelText("Create Layer Button");
+    fireEvent.click(createLayerButton);
+
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalledTimes(1);
+    });
+
+    const savedSource =
+      addMapLayer.mock.calls[0][0].configuration.props.source.props.sources[0];
+    expect(savedSource.min).toBe("0");
+    expect(savedSource.max).toBe("0");
+    expect(savedSource.nodata).toBe("0");
+  });
+
+  test("blocks save and surfaces error when sources array is empty", async () => {
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "Empty Sources Layer" },
+      sourceProps: {
+        type: "GeoTIFF",
+        props: {
+          sources: [],
+        },
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+
+    const createLayerButton =
+      await screen.findByLabelText("Create Layer Button");
+    fireEvent.click(createLayerButton);
+
+    expect(
+      await screen.findByText(
+        "Add at least one source with a URL before saving.",
+      ),
+    ).toBeInTheDocument();
+    expect(addMapLayer).not.toHaveBeenCalled();
+  });
+
+  test("blocks save when every source row has an empty or whitespace URL", async () => {
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "Whitespace Layer" },
+      sourceProps: {
+        type: "GeoTIFF",
+        props: {
+          sources: [
+            { url: "", min: "0" },
+            { url: "   ", max: "100" },
+          ],
+        },
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+
+    const createLayerButton =
+      await screen.findByLabelText("Create Layer Button");
+    fireEvent.click(createLayerButton);
+
+    expect(
+      await screen.findByText(
+        "Add at least one source with a URL before saving.",
+      ),
+    ).toBeInTheDocument();
+    expect(addMapLayer).not.toHaveBeenCalled();
+  });
+
+  test("drops empty-URL rows but keeps valid rows when mixed", async () => {
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "Mixed Layer" },
+      sourceProps: {
+        type: "GeoTIFF",
+        props: {
+          sources: [
+            { url: "a.tif", min: "0", max: "100" },
+            { url: "", min: "5", max: "10" },
+          ],
+        },
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+
+    const createLayerButton =
+      await screen.findByLabelText("Create Layer Button");
+    fireEvent.click(createLayerButton);
+
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalledTimes(1);
+    });
+
+    const savedSources =
+      addMapLayer.mock.calls[0][0].configuration.props.source.props.sources;
+    expect(savedSources).toHaveLength(1);
+    expect(savedSources[0].url).toBe("a.tif");
+    expect(savedSources[0].min).toBe("0");
+    expect(savedSources[0].max).toBe("100");
+  });
+});
+
+describe("MapLayerModal save path regression for non-GeoTIFF sources", () => {
+  test("Vector Tile save still splits comma-separated urls", async () => {
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "Vector Tile Layer" },
+      sourceProps: {
+        type: "Vector Tile",
+        props: {
+          urls: "a_url,b_url",
+        },
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+
+    const createLayerButton =
+      await screen.findByLabelText("Create Layer Button");
+    fireEvent.click(createLayerButton);
+
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalledTimes(1);
+    });
+
+    const savedProps =
+      addMapLayer.mock.calls[0][0].configuration.props.source.props;
+    expect(savedProps.urls).toEqual(["a_url", "b_url"]);
+    expect(savedProps.sources).toBeUndefined();
+  });
+
+  test("Static Image save preserves imageExtent string", async () => {
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "Static Image Layer" },
+      sourceProps: {
+        type: "Static Image",
+        props: {
+          url: "https://example.com/image.png",
+          projection: "EPSG:4326",
+          imageExtent: "10, 20, 30, 40",
+        },
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+
+    const createLayerButton =
+      await screen.findByLabelText("Create Layer Button");
+    fireEvent.click(createLayerButton);
+
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalledTimes(1);
+    });
+
+    const savedProps =
+      addMapLayer.mock.calls[0][0].configuration.props.source.props;
+    expect(savedProps.url).toBe("https://example.com/image.png");
+    expect(savedProps.projection).toBe("EPSG:4326");
+    expect(savedProps.imageExtent).toBe("10, 20, 30, 40");
+    expect(savedProps.sources).toBeUndefined();
+  });
+});
+
 TestingComponent.propTypes = {
   showModal: PropTypes.bool,
   handleModalClose: PropTypes.func,

@@ -169,6 +169,23 @@ const MapLayerModal = ({
       validSourceProps.urls = validSourceProps.urls.split(",");
     }
 
+    // GeoTIFF: restore sources[] from the pre-filter props because
+    // removeEmptyValues' truthiness filter would silently drop numeric-zero
+    // string fields (min: "0" / max: "0" / nodata: "0") when they live in
+    // nested objects. Filter by URL presence only; keep every other field
+    // unchanged so numeric-zero strings survive for render-time coercion.
+    if (sourceProps.type === "GeoTIFF") {
+      const rawSources = sourceProps.props?.sources ?? [];
+      const restoredSources = rawSources.filter(
+        (s) => typeof s?.url === "string" && s.url.trim() !== "",
+      );
+      if (restoredSources.length === 0) {
+        setErrorMessage("Add at least one source with a URL before saving.");
+        return;
+      }
+      validSourceProps.sources = restoredSources;
+    }
+
     const mapConfiguration = {
       configuration: {
         type: getLayerType(sourceProps.type),
