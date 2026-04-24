@@ -196,10 +196,13 @@ async function mockMcpServer(page, url, tools = []) {
         return route.fulfill({ status: 400, contentType: "text/plain", body: "bad json" });
       }
 
-      // Notifications (no `id` field) get a bare 202 — no response body.
-      // The initialized notification the client sends after successful
-      // initialize lands here.
-      if (msg && msg.method && msg.id === undefined) {
+      // Notifications (no `id` field) get a bare 202 with no body. The
+      // Streamable-HTTP MCP transport spec requires servers to ack
+      // notifications with `202 Accepted` — anything else (including 200)
+      // makes the SDK warn or treat the response as a malformed reply.
+      // We use `!('id' in msg)` rather than `msg.id === undefined` so a
+      // future SDK that emits `{id: null}` notifications still routes here.
+      if (msg && msg.method && !("id" in msg)) {
         return route.fulfill({
           status: 202,
           headers: { "mcp-session-id": "mock-session" },
@@ -255,6 +258,12 @@ async function mockMcpServer(page, url, tools = []) {
 /**
  * Install a mock MCP server whose handshake succeeds but that exposes zero
  * tools. Result: the probe settles to the `no-tools` (orange) state.
+ *
+ * Kept as a named alias even though the body is `mockMcpServer(page, url, [])`
+ * — call sites read more clearly when the no-tools intent is explicit, and
+ * a future divergence (e.g., a no-tools fixture that also stubs a `prompts/list`
+ * RPC to assert resources-only servers still go orange) can land here without
+ * touching every caller.
  */
 async function mockZeroToolsMcpServer(page, url) {
   return mockMcpServer(page, url, []);

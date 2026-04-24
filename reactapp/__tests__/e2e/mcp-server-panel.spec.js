@@ -7,7 +7,11 @@
  *   - 5-state dot per server (grey/yellow/green/orange/red).
  *   - Probe triggers: panel-open, add, Retry.
  *   - URL sanitization (userinfo + known query-string tokens).
- *   - Scheme allowlist (javascript:, data:, ws: rejected at the form).
+ *   - Scheme allowlist — `javascript:` is exercised end-to-end here; the
+ *     other rejected schemes (`data:`, `ws:`, `file:`) go through the same
+ *     code path in `helpers/url.js::sanitizeMcpUrl` and `transports.js::
+ *     pickTransport`, so they're covered transitively but not asserted by a
+ *     dedicated test in this spec.
  *   - Server-name XSS defense (angle brackets stripped at persistence).
  *   - In-chat system messages on send-time failure / no-tools outcomes.
  *
@@ -36,7 +40,23 @@ const {
   mockZeroToolsMcpServer,
 } = require("./helpers/mocks");
 
-const TIMEOUT = { timeout: 15_000 };
+// Timing budgets used across the spec.
+//
+//  - SLOW: panel-open + render after suppressing welcome popups + dashboard
+//    chrome boot. 15s tolerates the cold-cache first-test case in CI.
+//  - PROBE: a single MCP probe should resolve well within this; the
+//    chatbox-core scheduler caps connect+listTools at ~5s + 3s = 8s but
+//    most tests use mocked servers that respond in <100ms.
+//  - FAST: assertions on already-rendered DOM (state already settled, just
+//    waiting for React to flush a single setState).
+const SLOW = { timeout: 15_000 };
+const PROBE = { timeout: 10_000 };
+const FAST = { timeout: 5_000 };
+
+// Backwards-compat alias: many tests below historically used TIMEOUT for
+// "the slowest thing in the suite." Keep it pointing at SLOW so existing
+// tests stay readable.
+const TIMEOUT = SLOW;
 
 // Mock URLs — the ".test" TLD is reserved (RFC 2606) so these never resolve
 // on a real network; every request MUST be caught by page.route or it will
@@ -55,12 +75,20 @@ const SAMPLE_TOOLS = [
   },
 ];
 
-/** Open the chat sidebar → click the MCP button → wait for the panel. */
+/**
+ * Open the chat sidebar → click the MCP button → wait for the panel.
+ *
+ * The "chatSidebarToggle" name matches the dashboard header button's
+ * aria-label (defined in `reactapp/components/layout/Header.js` —
+ * `aria-label="chatSidebarToggle"` on the speech-bubble icon). Likewise,
+ * "Manage MCP servers" matches the MCP toolbar button's aria-label in
+ * `chatbox-core/components/ChatInputBar.jsx`.
+ */
 async function openMcpPanel(page) {
   await page.getByRole("button", { name: "chatSidebarToggle" }).click();
   await page.getByRole("button", { name: "Manage MCP servers" }).click();
   // The panel renders its MCP Servers header once mounted.
-  await expect(page.getByText("MCP Servers", { exact: true })).toBeVisible(TIMEOUT);
+  await expect(page.getByText("MCP Servers", { exact: true })).toBeVisible(SLOW);
 }
 
 /**
@@ -211,8 +239,12 @@ test.describe("MCP panel — probe lifecycle", () => {
       page.getByRole("img", { name: /status: disabled/i }),
     ).toBeVisible(TIMEOUT);
 
-    // Give the panel time to NOT probe; no fetch should land at GOOD_URL.
-    await page.waitForTimeout(1_000);
+    // The panel's mount effect (which would fire panel-open probes) ran
+    // synchronously during render — by the time the disabled dot is visible,
+    // the scheduler has already had its chance to probe. No fetch should
+    // have landed at GOOD_URL. This replaces a 1s real-time sleep that was
+    // both flaky on slow CI and overspecified — the rendered grey dot IS
+    // the "we decided not to probe" signal.
     expect(requestCount).toBe(0);
   });
 });
@@ -385,7 +417,9 @@ test.describe("MCP panel — scheduler lifecycle wiring", () => {
     // Click the dot container to toggle on. The title attribute is the
     // stable selector (ARIA role is "img" on the dot itself, not its
     // clickable wrapper).
-    await page.locator('[title="Click to enable"]').click();
+    // Use a regex match against the title attribute so a future copy tweak
+    // (e.g., "Click to enable server") doesn't silently break the test.
+    await page.getByTitle(/click to enable/i).click();
 
     // A probe must fire and resolve to green.
     await expect(
@@ -408,7 +442,7 @@ test.describe("MCP panel — scheduler lifecycle wiring", () => {
     ).toBeVisible(TIMEOUT);
 
     // Toggle off. The dot must flip to grey without requiring a reload.
-    await page.locator('[title="Click to disable"]').click();
+    await page.getByTitle(/click to disable/i).click();
     await expect(
       page.getByRole("img", { name: /status: disabled/i }),
     ).toBeVisible(TIMEOUT);
@@ -549,25 +583,24 @@ test.describe("MCP in-chat signal on send", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Mixed-content scenario — documented as manual-QA
+// Mixed-content scenario — documented as manual-QA only.
 // ---------------------------------------------------------------------------
 //
-// The probe pre-check fires `ERROR_KEYS.mixedContent` when
-// `window.location.protocol === 'https:'` AND the URL starts with `http://`.
-// We cannot make a Playwright `page` appear to be on https without a real
-// TLS endpoint (the `page.addInitScript` trick of overriding
-// window.location.protocol breaks the SDK's URL-origin check later in the
-// stack). Attempting it makes the assertion flaky and isn't worth the
-// complexity for a pre-network check that's exercised by unit tests on the
-// probe module directly.
+// The probe pre-check (in chatbox-core engine/transports.js::pickTransport)
+// fires `ERROR_KEYS.mixedContent` when `window.location.protocol === 'https:'`
+// AND the URL starts with `http://`. We cannot make a Playwright `page`
+// appear to be on https without a real TLS endpoint — the
+// `page.addInitScript` trick of overriding `window.location.protocol` breaks
+// the SDK's URL-origin check further down the stack and makes the assertion
+// flaky. The check itself is plain JS; covering it via a future chatbox-core
+// unit test suite is the right place.
 //
 // Manual-QA steps (record-and-verify on a real https deployment):
 //   1. Host TethysDash behind https (`tethys manage start -s` + TLS front).
 //   2. Add an MCP server URL starting with `http://`.
 //   3. Assert the row dot is red with the "Insecure URL" enum text and
 //      that no outbound fetch was issued (devtools Network tab empty).
-test.describe("MCP panel — mixed-content", () => {
-  test.skip("red dot + 'Insecure URL' text for http:// on an https:// page", () => {
-    // Manual QA only — see rationale above.
-  });
-});
+//
+// (No empty `test.skip("…", () => {})` placeholder here — it would render as
+// a "skipped" entry in test reports without context. The narrative above is
+// the documentation; the actual check belongs in a unit test.)

@@ -81,10 +81,11 @@ test.describe("Multi-component dashboards", () => {
       variableInputItem("daterange_var", "date-range"),
       variableInputItem("csv_var", "csv-uploader"),
     ]);
-    // Assert common input types render — numbers render as input[type="text"]
+    // Assert common input types render — numbers render as input[type="text"];
+    // dropdowns are react-select combobox divs, not native <select>.
     await expect(page.locator("input").first()).toBeVisible(TIMEOUT);
     await expect(page.locator('input[type="checkbox"]').first()).toBeVisible(TIMEOUT);
-    await expect(page.locator("select").first()).toBeVisible(TIMEOUT);
+    await expect(page.getByRole("combobox").first()).toBeVisible(TIMEOUT);
     // Verify label text proving each var renders
     await expect(page.getByText("text_var:", { exact: false })).toBeVisible(TIMEOUT);
     await expect(page.getByText("check_var:", { exact: false })).toBeVisible(TIMEOUT);

@@ -115,11 +115,15 @@ function createDashboard(gridItems, opts = {}) {
  * Delete all data rows from test tables. Preserves alembic_version.
  */
 // Tables where "missing table" is an expected outcome in some schema versions.
+// `dashboard_permissions` is included because dev environments set up before
+// the permission-system migration landed don't have the table — truncating
+// it would otherwise throw and leave subsequent tests with dirty state.
 const OPTIONAL_TABLES = new Set([
   "messages",
   "permission_group_user",
   "permission_groups",
   "visualization_permissions",
+  "dashboard_permissions",
 ]);
 
 function truncateAll() {
