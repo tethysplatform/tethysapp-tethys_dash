@@ -1,3 +1,30 @@
+// Mock GeoTIFF source so auto-fit tests don't trigger real network fetches.
+// Exposes a `getView()` that resolves to a stub view — Map.js awaits this.
+jest.mock("ol/source/GeoTIFF.js", () => {
+  const ActualSource = jest.requireActual("ol/source/Source.js").default;
+  const getViewSpy = jest.fn(() =>
+    Promise.resolve({
+      projection: "EPSG:2193",
+      center: [1700000, 5400000],
+      zoom: 6,
+    }),
+  );
+  class MockGeoTIFFSource extends ActualSource {
+    constructor(options) {
+      super({ projection: null });
+      this.options = options;
+    }
+    getView() {
+      return getViewSpy();
+    }
+  }
+  MockGeoTIFFSource.getViewSpy = getViewSpy;
+  return {
+    __esModule: true,
+    default: MockGeoTIFFSource,
+  };
+});
+
 import { useRef, useState, useEffect } from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import MapComponent from "components/map/Map";
@@ -10,6 +37,7 @@ import { exampleStyle } from "__tests__/utilities/constants";
 import { VariableInputsContext } from "components/contexts/Contexts";
 import * as olMapboxStyle from "ol-mapbox-style";
 import WebGLTileLayer from "ol/layer/WebGLTile";
+import GeoTIFFSource from "ol/source/GeoTIFF.js";
 
 global.ResizeObserver = require("resize-observer-polyfill");
 
@@ -1299,6 +1327,51 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
 
     await waitFor(() => {
       expect(applyStyleSpy).toHaveBeenCalled();
+    });
+  });
+
+  test("GeoTIFF layer triggers auto-fit: map.setView is called with a view derived from the source", async () => {
+    // Spy on the Map.prototype.setView so we can assert it fires after a
+    // GeoTIFF layer is added. The mock GeoTIFF's getView() resolves to a
+    // stub view (EPSG:2193 New Zealand).
+    const setViewSpy = jest.spyOn(Map.prototype, "setView");
+
+    const layers = [
+      {
+        type: "WebGLTile",
+        props: {
+          source: {
+            type: "GeoTIFF",
+            props: {
+              sources: [{ url: "https://example.com/test.tif" }],
+            },
+          },
+          name: "Auto-fit GeoTIFF Layer",
+          zIndex: 0,
+        },
+      },
+    ];
+
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent mapProps={{ layers }} />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+    // Auto-fit branch fires and calls map.setView with a new View built from
+    // the mock GeoTIFF's getView() output. Fire-and-forget (not awaited in
+    // Map.js), so setView happens on a microtask after the initial render.
+    await waitFor(() => {
+      expect(GeoTIFFSource.getViewSpy).toHaveBeenCalled();
+    });
+    await waitFor(() => {
+      expect(setViewSpy).toHaveBeenCalled();
     });
   });
 

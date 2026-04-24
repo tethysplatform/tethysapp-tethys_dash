@@ -1857,6 +1857,109 @@ describe("MapLayerModal GeoTIFF save path", () => {
     expect(savedSources[0].min).toBe("0");
     expect(savedSources[0].max).toBe("100");
   });
+
+  test("drops empty bands/projection/overviews from saved SourceInfo", async () => {
+    // Regression: empty UI fields (bands="", projection="", overviews=[])
+    // used to persist in the saved config and cause ol/source/GeoTIFF to
+    // throw "Unsupported data format/bitsPerSample" at tile-decode time.
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "Clean GeoTIFF" },
+      sourceProps: {
+        type: "GeoTIFF",
+        props: {
+          sources: [
+            {
+              url: "clean.tif",
+              bands: "",
+              min: "277",
+              max: "300",
+              nodata: "-32768",
+              projection: "",
+              overviews: [],
+            },
+          ],
+        },
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+
+    const createLayerButton =
+      await screen.findByLabelText("Create Layer Button");
+    fireEvent.click(createLayerButton);
+
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalledTimes(1);
+    });
+
+    const savedSources =
+      addMapLayer.mock.calls[0][0].configuration.props.source.props.sources;
+    expect(savedSources).toHaveLength(1);
+    const saved = savedSources[0];
+    // Kept: url + non-empty numeric strings
+    expect(saved.url).toBe("clean.tif");
+    expect(saved.min).toBe("277");
+    expect(saved.max).toBe("300");
+    expect(saved.nodata).toBe("-32768");
+    // Dropped: empty fields
+    expect(saved).not.toHaveProperty("bands");
+    expect(saved).not.toHaveProperty("projection");
+    expect(saved).not.toHaveProperty("overviews");
+  });
+});
+
+describe("MapLayerModal GeoTIFF ramp round-trip persistence", () => {
+  test("persists rampName/rampMin/rampMax on configuration.props.source", async () => {
+    // Regression: without this, re-opening a ramp-styled GeoTIFF layer in the
+    // modal shows empty ramp inputs because sourceProps doesn't carry them
+    // back. StylePane reads sourceProps.rampName/rampMin/rampMax directly.
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "Ramped Round-Trip" },
+      sourceProps: {
+        type: "GeoTIFF",
+        props: {
+          sources: [{ url: "rt.tif", min: "277", max: "300" }],
+        },
+        rampName: "RdYlBu",
+        rampMin: "277",
+        rampMax: "300",
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalledTimes(1);
+    });
+
+    const savedSource =
+      addMapLayer.mock.calls[0][0].configuration.props.source;
+    expect(savedSource.rampName).toBe("RdYlBu");
+    expect(savedSource.rampMin).toBe("277");
+    expect(savedSource.rampMax).toBe("300");
+    // The generated color expression still lands on configuration.style.
+    expect(
+      addMapLayer.mock.calls[0][0].configuration.style.color[0],
+    ).toBe("interpolate");
+  });
 });
 
 describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {

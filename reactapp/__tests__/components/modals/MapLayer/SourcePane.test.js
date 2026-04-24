@@ -1356,3 +1356,55 @@ test("SourcePane GeoTIFF R4: sub-modal Save preserves ${var} template string in 
     await screen.findByText("${base}/imagery.tif"),
   ).toBeInTheDocument();
 });
+
+test("SourcePane GeoTIFF hints at color ramp when a single-band source is present", async () => {
+  render(<TestingComponent />);
+  await selectGeoTIFF();
+
+  // Empty state: projection hint is visible but the single-band nudge is not.
+  expect(
+    await screen.findByText(/render in the source's native projection/i),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByText(/Single-band source detected/i),
+  ).not.toBeInTheDocument();
+
+  // Add one single-band source → single-band hint appears.
+  const addButton = screen.getByRole("button", { name: "Add source" });
+  fireEvent.click(addButton);
+  const urlInput = await screen.findByLabelText("URL Input");
+  fireEvent.change(urlInput, {
+    target: { value: "https://example.com/scientific.tif" },
+  });
+  const bandsInput = await screen.findByLabelText("Bands Input");
+  fireEvent.change(bandsInput, { target: { value: "1" } });
+  const saveBtn = screen.getByRole("button", {
+    name: "Save GeoTIFF Source Button",
+  });
+  fireEvent.click(saveBtn);
+
+  expect(
+    await screen.findByText(/Single-band source detected/i),
+  ).toBeInTheDocument();
+
+  // Add a second source → the hint goes away (no longer a single-source layer).
+  fireEvent.click(screen.getByRole("button", { name: "Add source" }));
+  const urlInput2 = await screen.findByLabelText("URL Input");
+  fireEvent.change(urlInput2, {
+    target: { value: "https://example.com/scientific2.tif" },
+  });
+  const bandsInput2 = await screen.findByLabelText("Bands Input");
+  fireEvent.change(bandsInput2, { target: { value: "1" } });
+  fireEvent.click(
+    screen.getByRole("button", { name: "Save GeoTIFF Source Button" }),
+  );
+
+  await waitFor(() => {
+    expect(
+      screen.getByText("https://example.com/scientific2.tif"),
+    ).toBeInTheDocument();
+  });
+  expect(
+    screen.queryByText(/Single-band source detected/i),
+  ).not.toBeInTheDocument();
+});

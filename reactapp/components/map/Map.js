@@ -18,6 +18,7 @@ import { applyStyle } from "ol-mapbox-style";
 import PropTypes from "prop-types";
 import { useMapContext } from "components/contexts/MapContext";
 import { fromExtent } from "ol/geom/Polygon";
+import { transformExtent } from "ol/proj";
 import { VariableInputsContext } from "components/contexts/Contexts";
 import GeoJSON from "ol/format/GeoJSON";
 import { valuesEqual } from "components/modals/utilities";
@@ -280,6 +281,96 @@ const MapComponent = ({
             }
 
             map.addLayer(newLayer);
+
+            // GeoTIFF auto-fit: ol/source/GeoTIFF returns raw data tiles, not
+            // pre-rendered image tiles — client-side reprojection across
+            // projections isn't supported. When a COG is not in EPSG:3857 (or
+            // whatever the current view uses), the only way to see it is to
+            // set the map view to one derived from the source. Last-added
+            // GeoTIFF wins if multiple are present in different projections.
+            if (
+              layerConfig.type === "WebGLTile" &&
+              layerConfig.props?.source?.type === "GeoTIFF"
+            ) {
+              const geoTIFFSource = newLayer.getSource?.();
+
+              // Surface tile-load failures in the UI. geotiff.js can throw on
+              // unsupported compression, unusual bit depths, BigTIFF variants,
+              // or tile-fetch failures (CORS, 404). Without this listener,
+              // failures are silent (console only) and users conclude the
+              // feature is broken when the COG's format is the actual issue.
+              // Throttle to one alert per layer to avoid N-tile spam.
+              if (geoTIFFSource && typeof geoTIFFSource.on === "function") {
+                let tileErrorSurfaced = false;
+                geoTIFFSource.on("tileloaderror", () => {
+                  if (tileErrorSurfaced) return;
+                  tileErrorSurfaced = true;
+                  setErrorMessage(
+                    `GeoTIFF layer "${name}" failed to load tiles. ` +
+                      `The COG format may be unsupported, or the URL may be ` +
+                      `unreachable. Check the browser console for details.`,
+                  );
+                });
+              }
+
+              if (
+                geoTIFFSource &&
+                typeof geoTIFFSource.getView === "function"
+              ) {
+                try {
+                  const viewOptions = await geoTIFFSource.getView();
+                  // Switch the map view to the TIF's projection (so tiles
+                  // can render), but preserve the user's current visible
+                  // window instead of zooming out to the TIF's full extent.
+                  //
+                  // Capture the current extent BEFORE setView, transform it
+                  // into the TIF's projection, then create a new view using
+                  // ONLY the TIF's projection and fit it to the transformed
+                  // extent. We intentionally ignore the TIF's center/zoom/
+                  // resolutions — those would zoom to the whole TIF, which
+                  // is usually too far out and loses the user's context.
+                  const mapSize = map.getSize();
+                  const prevView = map.getView();
+                  const prevProjection = prevView.getProjection();
+                  const prevExtent = prevView.calculateExtent(mapSize);
+                  const newProjection = viewOptions.projection;
+
+                  const newView = new View({ projection: newProjection });
+                  map.setView(newView);
+
+                  if (prevExtent && mapSize && newProjection) {
+                    const transformedExtent = transformExtent(
+                      prevExtent,
+                      prevProjection,
+                      newProjection,
+                    );
+                    // transformExtent can produce NaN/Infinity when the
+                    // source extent falls outside the target projection's
+                    // valid area. Fall back to the TIF's native view in
+                    // that case so something sensible still shows.
+                    const finite = transformedExtent.every(Number.isFinite);
+                    if (finite) {
+                      newView.fit(transformedExtent, { size: mapSize });
+                    } else if (viewOptions.center && viewOptions.zoom) {
+                      newView.setCenter(viewOptions.center);
+                      newView.setZoom(viewOptions.zoom);
+                    }
+                  } else if (viewOptions.center && viewOptions.zoom) {
+                    newView.setCenter(viewOptions.center);
+                    newView.setZoom(viewOptions.zoom);
+                  }
+                } catch (err) {
+                  // A failure here (e.g., the COG header couldn't be read
+                  // before view derivation) leaves the existing view in place.
+                  // The layer simply won't render until the user corrects the
+                  // source or the view.
+                  console.warn(
+                    `GeoTIFF auto-fit failed for layer "${name}":`,
+                    err,
+                  );
+                }
+              }
+            }
 
             if (layerConfig.style) {
               // WebGLTile layers (GeoTIFF + ramp) carry a `style.color`

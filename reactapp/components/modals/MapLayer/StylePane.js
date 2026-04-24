@@ -72,6 +72,20 @@ const StylePane = ({
   const [availableFields, setAvailableFields] = useState([]);
 
   useEffect(() => {
+    // For URL-based GeoJSON the file could be many MB; skip the auto-fetch
+    // that would otherwise download + fully parse it via loadGeoJSON just
+    // to populate the RuleStyleEditor field-name dropdown. The user can
+    // still type field names manually into the rule editor.
+    const isUrlGeoJSON =
+      sourceProps?.type === "GeoJSON" &&
+      typeof sourceProps?.geojson === "string" &&
+      sourceProps.geojson.trim() !== "" &&
+      !sourceProps.geojson.trim().startsWith("{");
+    if (isUrlGeoJSON) {
+      setAvailableFields([]);
+      return;
+    }
+
     const fetchAvailableFields = async () => {
       try {
         const fields = await getStyleFields({
@@ -215,6 +229,7 @@ const StylePane = ({
               type="number"
               onChange={handleMinChange}
               ariaLabel="Ramp Min"
+              allowEmpty
             />
           </RangeCell>
           <RangeCell>
@@ -224,6 +239,7 @@ const StylePane = ({
               type="number"
               onChange={handleMaxChange}
               ariaLabel="Ramp Max"
+              allowEmpty
             />
           </RangeCell>
         </RangeRow>

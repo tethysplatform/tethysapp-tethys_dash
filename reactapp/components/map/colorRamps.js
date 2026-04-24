@@ -1,12 +1,18 @@
 // Color ramps for GeoTIFF single-band scientific raster styling.
 //
-// Each ramp is a 256-entry array of 6-digit hex strings (no alpha). The arrays
-// are generated at module-load time by linearly interpolating between a small
-// set of published keystops (matplotlib viridis/turbo, ColorBrewer RdYlBu, and
-// a trivial black-to-white grayscale). Linear RGB interpolation between 10-12
-// keystops is not a pixel-perfect reproduction of the source tables, but it is
-// visually indistinguishable at swatch resolution and more than smooth enough
-// for 256-stop WebGLTile interpolate expressions.
+// Each ramp is a RAMP_STOPS-entry array of 6-digit hex strings (no alpha). The
+// arrays are generated at module-load time by linearly interpolating between a
+// small set of published keystops (matplotlib viridis/turbo, ColorBrewer
+// RdYlBu, and a trivial black-to-white grayscale). Linear RGB interpolation
+// between 10-12 keystops is not a pixel-perfect reproduction of the source
+// tables, but it is visually indistinguishable at swatch resolution and smooth
+// enough for WebGLTile interpolate expressions.
+//
+// RAMP_STOPS is constrained by WebGL fragment-shader instruction limits: each
+// stop pair in an `interpolate` expression compiles to a handful of GLSL
+// branches. 256 stops exceeds common GPU limits ("Expression too complex"
+// compile error). 32 stops is well under every WebGL-capable GPU's budget and
+// visually clean (~human discrimination threshold for a gradient).
 //
 // The module is pure data + a tiny helper; no React, no side effects beyond
 // module-level array construction.
@@ -120,11 +126,15 @@ const GRAYSCALE_KEYSTOPS = toKeystops([
   [1.0, [1.0, 1.0, 1.0]],
 ]);
 
+// Shader-friendly stop count — see file-level comment for the WebGL
+// fragment-shader instruction-limit constraint.
+export const RAMP_STOPS = 32;
+
 export const COLOR_RAMPS = {
-  viridis: interpolateRamp(VIRIDIS_KEYSTOPS, 256),
-  turbo: interpolateRamp(TURBO_KEYSTOPS, 256),
-  RdYlBu: interpolateRamp(RD_YL_BU_KEYSTOPS, 256),
-  grayscale: interpolateRamp(GRAYSCALE_KEYSTOPS, 256),
+  viridis: interpolateRamp(VIRIDIS_KEYSTOPS, RAMP_STOPS),
+  turbo: interpolateRamp(TURBO_KEYSTOPS, RAMP_STOPS),
+  RdYlBu: interpolateRamp(RD_YL_BU_KEYSTOPS, RAMP_STOPS),
+  grayscale: interpolateRamp(GRAYSCALE_KEYSTOPS, RAMP_STOPS),
 };
 
 // Canonical display order in the picker UI.

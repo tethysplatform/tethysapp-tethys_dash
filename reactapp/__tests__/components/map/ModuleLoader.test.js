@@ -238,6 +238,38 @@ describe("GeoTIFF source", () => {
     expect(callArgs.sources[0].bands).toEqual([1, 2, 3]);
   });
 
+  test("GeoTIFF empty bands string is dropped (not passed as [])", async () => {
+    // Regression: `bands: ""` from the UI used to parse to `[]`, which tells
+    // ol/source/GeoTIFF to read ZERO bands and throws
+    // "Unsupported data format/bitsPerSample" at tile-decode time. Empty
+    // bands must be dropped so OL falls back to reading all bands.
+    const config = geoTIFFLayerConfig();
+    config.props.source.props.sources = [
+      { url: "https://example.com/c.tif", bands: "" },
+    ];
+    await moduleLoader(config);
+    const calls = GeoTIFF.constructorSpy.mock.calls;
+    const callArgs = calls[calls.length - 1][0];
+    expect(callArgs.sources[0]).not.toHaveProperty("bands");
+    expect(callArgs.sources[0].url).toBe("https://example.com/c.tif");
+  });
+
+  test("GeoTIFF empty projection and empty overviews are dropped", async () => {
+    const config = geoTIFFLayerConfig();
+    config.props.source.props.sources = [
+      {
+        url: "https://example.com/d.tif",
+        projection: "",
+        overviews: [],
+      },
+    ];
+    await moduleLoader(config);
+    const calls = GeoTIFF.constructorSpy.mock.calls;
+    const callArgs = calls[calls.length - 1][0];
+    expect(callArgs.sources[0]).not.toHaveProperty("projection");
+    expect(callArgs.sources[0]).not.toHaveProperty("overviews");
+  });
+
   test("GeoTIFF empty sources throws GeoTIFFEmptySources", async () => {
     const config = geoTIFFLayerConfig();
     config.props.source.props.sources = [];

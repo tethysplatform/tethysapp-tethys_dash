@@ -118,10 +118,8 @@ const MapLayerModal = ({
 
     const extent = mapContext.drawnExtent;
     const projection =
-      visualizationRef?.current
-        ?.getView()
-        ?.getProjection()
-        ?.getCode() || "EPSG:3857";
+      visualizationRef?.current?.getView()?.getProjection()?.getCode() ||
+      "EPSG:3857";
 
     setSourceProps((prev) => ({
       ...prev,
@@ -134,7 +132,12 @@ const MapLayerModal = ({
 
     setHiddenForExtentDraw(false);
     mapContext.setDrawnExtent(null);
-  }, [mapContext?.drawnExtent, hiddenForExtentDraw, mapContext, visualizationRef]);
+  }, [
+    mapContext?.drawnExtent,
+    hiddenForExtentDraw,
+    mapContext,
+    visualizationRef,
+  ]);
 
   // When extentDrawMode becomes null while hidden (user cancelled), re-show modal
   useEffect(() => {
@@ -177,9 +180,32 @@ const MapLayerModal = ({
     // unchanged so numeric-zero strings survive for render-time coercion.
     if (sourceProps.type === "GeoTIFF") {
       const rawSources = sourceProps.props?.sources ?? [];
-      const restoredSources = rawSources.filter(
-        (s) => typeof s?.url === "string" && s.url.trim() !== "",
-      );
+      // Filter by URL presence AND clean each SourceInfo: drop empty-string
+      // and empty-array fields so they don't reach ol/source/GeoTIFF. Empty
+      // `bands` would be parsed to `[]` at render (tells OL to read zero
+      // bands → "Unsupported data format/bitsPerSample" at tile-decode time).
+      // Empty `projection` and `overviews` are noise. Numeric fields stored
+      // as the string "0" MUST survive (truthy as strings) for the ramp
+      // expression's domain bounds.
+      const cleanSourceInfo = (s) => {
+        const out = { url: s.url };
+        if (typeof s.bands === "string" && s.bands.trim() !== "") {
+          out.bands = s.bands;
+        }
+        if (s.min !== undefined && s.min !== "") out.min = s.min;
+        if (s.max !== undefined && s.max !== "") out.max = s.max;
+        if (s.nodata !== undefined && s.nodata !== "") out.nodata = s.nodata;
+        if (typeof s.projection === "string" && s.projection.trim() !== "") {
+          out.projection = s.projection;
+        }
+        if (Array.isArray(s.overviews) && s.overviews.length > 0) {
+          out.overviews = s.overviews;
+        }
+        return out;
+      };
+      const restoredSources = rawSources
+        .filter((s) => typeof s?.url === "string" && s.url.trim() !== "")
+        .map(cleanSourceInfo);
       if (restoredSources.length === 0) {
         setErrorMessage("Add at least one source with a URL before saving.");
         return;
@@ -253,22 +279,32 @@ const MapLayerModal = ({
     }
 
     if (sourceProps.type === "GeoJSON") {
-      const apiResponse = await saveLayerJSON({
-        stringJSON: sourceProps.geojson,
-        csrf,
-        check_crs: true,
-        dashboard_uuid: uuid,
-      });
-      if (!apiResponse.success) {
-        setErrorMessage(
-          apiResponse.message ??
-            "Failed to upload the json data. Check logs for more information.",
-        );
-        return;
-      }
+      const geoStr = (sourceProps.geojson ?? "").trim();
+      const isJsonBody = geoStr.startsWith("{") || geoStr.startsWith("[");
       mapConfiguration.configuration.props.source.props = {};
-      mapConfiguration.configuration.props.source.geojson =
-        apiResponse.filename;
+      if (isJsonBody) {
+        const apiResponse = await saveLayerJSON({
+          stringJSON: sourceProps.geojson,
+          csrf,
+          check_crs: true,
+          dashboard_uuid: uuid,
+        });
+        if (!apiResponse.success) {
+          setErrorMessage(
+            apiResponse.message ??
+              "Failed to upload the json data. Check logs for more information.",
+          );
+          return;
+        }
+        mapConfiguration.configuration.props.source.geojson =
+          apiResponse.filename;
+      } else {
+        // URL/filename path: store directly. Render-time loadGeoJSON will
+        // fetch + CRS-check once; skipping the save-time re-fetch keeps
+        // large remote files (e.g., multi-MB .geojson) from downloading
+        // twice during a single save.
+        mapConfiguration.configuration.props.source.geojson = geoStr;
+      }
     }
 
     // GeoTIFF ramp-styling: when a color ramp is selected on sourceProps,
@@ -290,8 +326,28 @@ const MapLayerModal = ({
         Number.isFinite(Number(rampMin)) &&
         Number.isFinite(Number(rampMax));
       if (hasRamp) {
-        const color = buildGeoTIFFStyleColor({ rampName, rampMin, rampMax });
+        // When any SourceInfo declares nodata, OL adds an alpha band and
+        // substitutes 0 for the nodata sentinel in the data band. The shader
+        // has to read that alpha band to know which pixels are nodata,
+        // otherwise substituted-0 pixels get colorized by the ramp.
+        const hasNodata = (validSourceProps.sources ?? []).some(
+          (s) => s?.nodata !== undefined && s.nodata !== "",
+        );
+        const color = buildGeoTIFFStyleColor({
+          rampName,
+          rampMin,
+          rampMax,
+          hasNodata,
+        });
         mapConfiguration.configuration.style = { color };
+        // Persist the ramp-intent fields alongside the generated expression so
+        // re-opening the layer in the modal can pre-populate the StylePane
+        // picker and min/max inputs. Without these, the expression renders
+        // correctly but the UI loses round-trip fidelity (user sees empty
+        // ramp inputs even though the layer is ramp-styled).
+        mapConfiguration.configuration.props.source.rampName = rampName;
+        mapConfiguration.configuration.props.source.rampMin = rampMin;
+        mapConfiguration.configuration.props.source.rampMax = rampMax;
       }
     } else if (style && style !== "{}") {
       const apiResponse = await saveLayerJSON({

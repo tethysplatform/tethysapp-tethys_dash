@@ -21,12 +21,25 @@ import { COLOR_RAMPS } from "./colorRamps";
  * Build the `style.color` interpolate expression array for a ramp-styled
  * GeoTIFF layer.
  *
- * @param {{ rampName: string, rampMin: number|string, rampMax: number|string }} args
- * @returns {Array} The OL expression: `['interpolate', ['linear'], ['band', 1], v0, c0, ..., vN, cN]`.
+ * When `hasNodata` is true, the returned expression is wrapped in a `case`
+ * check against the alpha band (band 2). OpenLayers appends one alpha band
+ * per SourceInfo that declares `nodata`, and substitutes 0 for the nodata
+ * sentinel in the data band itself — so the shader MUST read the alpha band
+ * to know which pixels are really nodata, otherwise those pixels would be
+ * colorized as if they were valid 0s. `case`-wrapped expression returns a
+ * transparent color for nodata pixels.
+ *
+ * @param {{ rampName: string, rampMin: number|string, rampMax: number|string, hasNodata?: boolean }} args
+ * @returns {Array} The OL expression.
  * @throws {Error} When `rampName` is not a key of `COLOR_RAMPS`, or when
  *   `rampMin`/`rampMax` cannot be coerced to finite numbers.
  */
-export function buildGeoTIFFStyleColor({ rampName, rampMin, rampMax }) {
+export function buildGeoTIFFStyleColor({
+  rampName,
+  rampMin,
+  rampMax,
+  hasNodata = false,
+}) {
   const colors = COLOR_RAMPS[rampName];
   if (!colors) {
     throw new Error(`Unknown color ramp: ${rampName}`);
@@ -46,16 +59,27 @@ export function buildGeoTIFFStyleColor({ rampName, rampMin, rampMax }) {
     );
   }
 
-  const steps = colors.length; // 256
-  const expression = ["interpolate", ["linear"], ["band", 1]];
+  const steps = colors.length;
+  const interpolateExpr = ["interpolate", ["linear"], ["band", 1]];
 
   // Spread stops evenly across [min, max]. When min === max the expression
   // degenerates but remains a valid array — OL handles the clamp gracefully.
   for (let i = 0; i < steps; i++) {
     const t = steps === 1 ? 0 : i / (steps - 1);
     const value = min + (max - min) * t;
-    expression.push(value, colors[i]);
+    interpolateExpr.push(value, colors[i]);
   }
 
-  return expression;
+  if (!hasNodata) return interpolateExpr;
+
+  // Nodata wrapper: when the alpha band (band 2 for a single-band source with
+  // nodata) is 0, return fully-transparent. Otherwise apply the ramp. The
+  // `case` operator short-circuits, so the nodata branch doesn't incur the
+  // interpolate shader cost for those pixels.
+  return [
+    "case",
+    ["==", ["band", 2], 0],
+    [0, 0, 0, 0],
+    interpolateExpr,
+  ];
 }

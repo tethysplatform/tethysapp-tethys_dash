@@ -167,6 +167,7 @@ const GeoTIFFSourceModal = ({
             type="number"
             value={fields.min}
             onChange={updateField("min")}
+            allowEmpty
           />
         </FieldGroup>
 
@@ -179,6 +180,7 @@ const GeoTIFFSourceModal = ({
             type="number"
             value={fields.max}
             onChange={updateField("max")}
+            allowEmpty
           />
         </FieldGroup>
 
@@ -191,6 +193,7 @@ const GeoTIFFSourceModal = ({
             type="number"
             value={fields.nodata}
             onChange={updateField("nodata")}
+            allowEmpty
           />
         </FieldGroup>
 

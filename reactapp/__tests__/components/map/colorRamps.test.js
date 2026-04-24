@@ -1,6 +1,7 @@
 import {
   COLOR_RAMPS,
   RAMP_NAMES,
+  RAMP_STOPS,
   _internal,
 } from "components/map/colorRamps";
 
@@ -9,11 +10,16 @@ const RAMP_KEYS = ["viridis", "turbo", "RdYlBu", "grayscale"];
 
 describe("COLOR_RAMPS", () => {
   test.each(RAMP_KEYS)(
-    "%s has exactly 256 entries",
+    `%s has exactly RAMP_STOPS (${RAMP_STOPS}) entries`,
     (rampName) => {
-      expect(COLOR_RAMPS[rampName]).toHaveLength(256);
+      expect(COLOR_RAMPS[rampName]).toHaveLength(RAMP_STOPS);
     },
   );
+
+  test("RAMP_STOPS is shader-friendly (<= 64, the practical WebGL limit)", () => {
+    expect(RAMP_STOPS).toBeGreaterThan(0);
+    expect(RAMP_STOPS).toBeLessThanOrEqual(64);
+  });
 
   test.each(RAMP_KEYS)(
     "every %s entry is a 6-digit hex string",

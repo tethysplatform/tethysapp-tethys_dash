@@ -272,6 +272,11 @@ export function createHighlightLayer() {
 }
 
 export function addHighlightFeatures(highlightLayer, geometries) {
+  // No geometry means nothing to highlight (e.g., GeoTIFF pixel-value
+  // features without an explicit click-point geometry). Silently no-op
+  // instead of throwing on `"paths" in undefined`.
+  if (!geometries || typeof geometries !== "object") return;
+
   let features;
   if ("paths" in geometries || geometries?.type === "MultiLineString") {
     const paths = geometries.paths || geometries.coordinates;
@@ -385,6 +390,14 @@ export async function queryLayerFeatures(layerInfo, map, coordinate, pixel) {
       features = getVectorTileLayerFeatures(map, pixel);
     } else if (sourceType === "KML") {
       features = getKMLLayerFeatures(map, pixel, coordinate, LayerName);
+    } else if (sourceType === "GeoTIFF") {
+      features = getGeoTIFFPixelValues(
+        map,
+        pixel,
+        LayerName,
+        layerInfo,
+        coordinate,
+      );
     } else {
       throw Error(`${sourceType} is not currently configured to be queried`);
     }
@@ -413,6 +426,83 @@ async function getKMLLayerFeatures(map, pixel, coordinate, LayerName) {
   });
 
   return features;
+}
+
+// Extract raw band values at a pixel for a GeoTIFF WebGLTile layer. Returns
+// the underlying source data (before shader colorization) via OL's
+// `layer.getData(pixel)` API — for scientific rasters this is the actual
+// data value (temperature, elevation, NDVI, etc.), not the rendered color.
+//
+// Returns an array of feature-like objects matching the shape expected by the
+// popup pipeline: `[{ layerName, attributes: { "Band N": value } }]`. An
+// empty array means no data (click outside the raster's footprint or on a
+// nodata pixel).
+function getGeoTIFFPixelValues(map, pixel, LayerName, layerInfo, coordinate) {
+  // Find the WebGLTile layer on the map matching this layerInfo's name.
+  // Layer name is set via `newLayer.set("name", name)` at instantiation.
+  const targetLayer = map
+    .getLayers()
+    .getArray()
+    .find((layer) => layer.get("name") === LayerName);
+
+  if (!targetLayer || typeof targetLayer.getData !== "function") return [];
+
+  // getData returns a typed array (one entry per output band) OR null when
+  // the pixel is outside the tile's coverage / the tile hasn't loaded yet.
+  const data = targetLayer.getData(pixel);
+  if (!data || data.length === 0) return [];
+
+  // OL's nodata handling: when a SourceInfo declares `nodata`, OL adds an
+  // alpha band to the output AND substitutes 0 for the nodata sentinel in
+  // the data band. So we can't compare data values to the configured nodata
+  // number — we have to read the alpha band (the last band in the output
+  // when any source declared nodata) to detect nodata pixels.
+  const configuredSources =
+    layerInfo?.configuration?.props?.source?.props?.sources ?? [];
+  const anySourceHasNodata = configuredSources.some(
+    (s) => s?.nodata !== undefined && s.nodata !== null && s.nodata !== "",
+  );
+
+  // Common single-source-with-nodata case: data = [value, alpha]. When
+  // alpha is 0, the pixel is nodata; the value (0) is a substitution, not
+  // a real reading.
+  if (
+    anySourceHasNodata &&
+    data.length >= 2 &&
+    data[data.length - 1] === 0
+  ) {
+    return [
+      {
+        layerName: LayerName,
+        attributes: { "Band 1": "No data" },
+        geometry: { type: "Point", coordinates: coordinate },
+      },
+    ];
+  }
+
+  const attributes = {};
+  // If nodata is declared, the last entry in `data` is the alpha band —
+  // exclude it from the reported band values (it's plumbing, not data).
+  const bandCount = anySourceHasNodata ? data.length - 1 : data.length;
+  for (let i = 0; i < bandCount; i++) {
+    attributes[`Band ${i + 1}`] = data[i];
+  }
+
+  return [
+    {
+      layerName: LayerName,
+      attributes,
+      // A click-point geometry so the shared addHighlightFeatures pipeline
+      // can drop a marker at the clicked spot, matching the UX of
+      // vector-feature clicks. The GeoJSON-like `{type, coordinates}` shape
+      // is handled by the `else` branch in addHighlightFeatures (treats it
+      // as a Point).
+      geometry: {
+        type: "Point",
+        coordinates: coordinate,
+      },
+    },
+  ];
 }
 
 function getVectorTileLayerFeatures(map, pixel) {
@@ -1031,17 +1121,32 @@ export async function loadLayerJSONs(
   // Load GeoJSON if needed
   const source = mapLayer?.configuration?.props?.source;
   if (source?.type === "GeoJSON" && source?.geojson) {
-    let geojson;
-    try {
-      geojson = await loadGeoJSON(source.geojson, dashboard_uuid, keep_urls);
-    } catch (e) {
-      delete mapLayer.configuration.props.source.geojson;
-      return {
-        success: false,
-        message: `Failed to fetch: ${e.message}`,
-      };
+    const geo = source.geojson;
+    const isUrlGeoJSON =
+      typeof geo === "string" &&
+      geo.trim() !== "" &&
+      geo.includes("/") &&
+      !geo.trim().startsWith("{");
+
+    // URL-based GeoJSON: leave the URL on source.geojson. ModuleLoader's
+    // VectorSource will pass it to OL's GeoJSON format via `url:` so OL
+    // fetches + parses directly into features — no intermediate JS object
+    // tree, and layer fetches parallelize instead of serializing through
+    // this await loop. For inline JSON bodies and saved workspace
+    // filenames, keep the existing fetch/parse path.
+    if (!isUrlGeoJSON) {
+      let geojson;
+      try {
+        geojson = await loadGeoJSON(geo, dashboard_uuid, keep_urls);
+      } catch (e) {
+        delete mapLayer.configuration.props.source.geojson;
+        return {
+          success: false,
+          message: `Failed to fetch: ${e.message}`,
+        };
+      }
+      mapLayer.configuration.props.source.geojson = geojson;
     }
-    mapLayer.configuration.props.source.geojson = geojson;
   }
 
   return { success: true };
@@ -1198,6 +1303,15 @@ export const legendPropType = PropTypes.oneOfType([
   PropTypes.shape({
     title: PropTypes.string, // title for the layer in the map legend
     items: PropTypes.arrayOf(legendItemPropType), // array of legend items
+  }),
+  // Auto-generated colorbar legend for GeoTIFF ramp-styled layers.
+  PropTypes.shape({
+    rampColors: PropTypes.arrayOf(PropTypes.string).isRequired,
+    rampMin: PropTypes.oneOfType([PropTypes.number, PropTypes.string])
+      .isRequired,
+    rampMax: PropTypes.oneOfType([PropTypes.number, PropTypes.string])
+      .isRequired,
+    title: PropTypes.string,
   }),
 ]);
 

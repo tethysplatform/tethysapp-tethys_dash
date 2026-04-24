@@ -20,6 +20,7 @@ const NormalInput = ({
   labelProps,
   min,
   max,
+  allowEmpty = false,
 }) => {
   const isNumber = type === "number";
   const [rawValue, setRawValue] = useState(String(value ?? ""));
@@ -54,8 +55,15 @@ const NormalInput = ({
 
     setRawValue(val);
 
-    // Don't propagate incomplete values to parent — keeps last valid value
-    if (val === "" || val === "-" || hasUnclosedVariable(val) || val === "$")
+    // Incomplete-value guard: by default, don't propagate empty / "-" /
+    // "$" / open-variable mid-edit so the parent keeps the last valid
+    // value. `allowEmpty` opts out — empty string propagates, which is
+    // required when the caller needs to distinguish "user cleared this
+    // field" from "user is mid-edit".
+    if (
+      !allowEmpty &&
+      (val === "" || val === "-" || hasUnclosedVariable(val) || val === "$")
+    )
       return;
 
     onChange(e);
@@ -109,6 +117,7 @@ NormalInput.propTypes = {
   labelProps: PropTypes.object, // additional props to pass to the label
   min: PropTypes.number, // minimum value for the input
   max: PropTypes.number, // maximum value for the input
+  allowEmpty: PropTypes.bool, // propagate empty-string / "-" / "$" values to the parent. Off by default to preserve last-valid-value during mid-edit typing
 };
 
 export default NormalInput;

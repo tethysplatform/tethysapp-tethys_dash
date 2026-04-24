@@ -90,6 +90,15 @@ const GeoTIFFRowControls = styled.div`
   gap: 0.25rem;
 `;
 
+const GeoTIFFHint = styled.div`
+  padding: 0.5rem 0.75rem;
+  margin: 0.5rem 0 0.75rem;
+  border-left: 3px solid #0d6efd;
+  background: #e7f1ff;
+  font-size: 0.85rem;
+  color: #0a4b8c;
+`;
+
 // Returns the 0-based single-band number for a bands string (trim+split on
 // comma, filter blank cells). If it doesn't resolve to exactly one band,
 // returns null. Used for the 3-single-band RGB labeling case.
@@ -269,15 +278,10 @@ const SourcePane = ({
   useEffect(() => {
     const fetchGeoJSON = async () => {
       if (sourceProps.geojson.includes("/")) {
-        const response = await fetch(sourceProps.geojson);
-        if (!response.ok) {
-          setErrorMessage("Failed to retrieve JSON");
-        }
+        // URL input: do not fetch here. The file could be many MB and the
+        // body isn't used — reachability is validated at render time via
+        // loadGeoJSON (components/map/utilities.js).
         setGeoJSON(sourceProps.geojson);
-        setSourceProps((previousSourceProps) => ({
-          ...previousSourceProps,
-          ...{ geojson: sourceProps.geojson },
-        }));
         setGeoJSONSource("url");
       } else {
         const apiResponse = await appAPI.downloadJSON({
@@ -493,9 +497,23 @@ const SourcePane = ({
     const editingInitialValue =
       editingIndex === null ? null : (sources[editingIndex] ?? null);
 
+    // Single-source scientific data (1 source, empty or single-band bands)
+    // renders near-black with the default WebGLTile shader. Nudge the user
+    // toward the Style tab's ramp picker.
+    const isLikelyScientificSingleBand =
+      sources.length === 1 &&
+      (typeof sources[0]?.bands !== "string" ||
+        sources[0].bands.trim() === "" ||
+        singleBandIndex(sources[0].bands) !== null);
+
     return (
       <GeoTIFFSourcesSection>
         <h5>Sources</h5>
+        <GeoTIFFHint role="note">
+          GeoTIFF layers render in the source's native projection; the dashboard
+          map view will be reprojected to match the data on load. Basemaps in
+          EPSG:3857 may look distorted if your COG uses a different projection.
+        </GeoTIFFHint>
         {sources.length === 0 ? (
           <GeoTIFFEmptyState>
             Add at least one source to render this layer
@@ -555,6 +573,12 @@ const SourcePane = ({
         >
           Add source
         </Button>
+        {isLikelyScientificSingleBand && (
+          <GeoTIFFHint role="note">
+            Single-band source detected — scientific rasters render near-black
+            without a color ramp. Pick one in the Style tab.
+          </GeoTIFFHint>
+        )}
         <GeoTIFFSourceModal
           show={subModalOpen}
           onHide={handleGeoTIFFSubModalHide}
