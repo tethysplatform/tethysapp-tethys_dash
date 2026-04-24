@@ -317,6 +317,136 @@ test.describe("MCP panel — add form sanitization", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Scheduler lifecycle wiring (add / toggle / remove)
+// ---------------------------------------------------------------------------
+//
+// Regression guard for the class of bugs where panel lifecycle events
+// (add/toggle-on/toggle-off/remove) do not drive the probe scheduler.
+// Before commit be72f01 the add-path specifically failed this contract —
+// newly-added servers stayed grey until the user reloaded the page and
+// the mount-effect's onPanelOpen iteration finally probed them.
+//
+// Per Unit 4 of the MCP health-probe plan:
+//   - add         → scheduler.schedule(url)
+//   - toggle-on   → scheduler.schedule(url)
+//   - toggle-off  → scheduler.cancel(url) + status = grey
+//   - remove      → scheduler.cancel(url) + status cleared
+//
+// If any of these break, the user sees the wrong dot state without the
+// "reload fixes it" workaround.
+
+test.describe("MCP panel — scheduler lifecycle wiring", () => {
+  test("add triggers a probe immediately (no reload needed)", async ({ page }) => {
+    // This is the direct regression test for the bug report: adding
+    // https://subwayinfo.nyc/mcp showed grey until reload. The fix in
+    // Chatbox.jsx handleAddMcpServer must call scheduler.schedule against
+    // the newly-persisted URL so the row flips through yellow → green
+    // within a few seconds of the add click.
+    const NEW_URL = "http://add-probe.test/mcp";
+    await loadEditableDashboard(page);
+    await mockMcpServer(page, NEW_URL, SAMPLE_TOOLS);
+    await openMcpPanel(page);
+
+    // Starting state — no servers, no status entries.
+    await expect(page.getByText(/no mcp servers configured/i)).toBeVisible(TIMEOUT);
+
+    // Submit the add form with a reachable mocked URL.
+    await page.getByPlaceholder(/server url/i).fill(NEW_URL);
+    await page.getByRole("button", { name: /add server/i }).click();
+
+    // Assertion: the freshly-added row settles to green WITHOUT any page
+    // reload. Pre-fix behavior was grey until reload.
+    await expect(
+      page.getByRole("img", { name: /status: connected/i }),
+    ).toBeVisible(TIMEOUT);
+
+    // Sanity: the URL actually persisted (rules out an invalid-scheme
+    // form-error path that would mask the probe-wiring question).
+    const stored = await readStoredMcpServers(page);
+    expect(stored).toHaveLength(1);
+    expect(stored[0].url).toBe(NEW_URL);
+  });
+
+  test("toggle-on a disabled server fires a probe and flips to green", async ({ page }) => {
+    // Seeds a disabled server so the panel-open effect does NOT probe it
+    // (disabled servers are filtered out of the probe iteration), then
+    // clicks the dot to enable. The enable path must itself schedule.
+    await loadEditableDashboard(page, {
+      seedServers: [{ url: GOOD_URL, name: "Toggle-me", enabled: false }],
+    });
+    await mockMcpServer(page, GOOD_URL, SAMPLE_TOOLS);
+    await openMcpPanel(page);
+
+    // Starting state: disabled → grey, no probe fires.
+    await expect(
+      page.getByRole("img", { name: /status: disabled/i }),
+    ).toBeVisible(TIMEOUT);
+
+    // Click the dot container to toggle on. The title attribute is the
+    // stable selector (ARIA role is "img" on the dot itself, not its
+    // clickable wrapper).
+    await page.locator('[title="Click to enable"]').click();
+
+    // A probe must fire and resolve to green.
+    await expect(
+      page.getByRole("img", { name: /status: connected/i }),
+    ).toBeVisible(TIMEOUT);
+  });
+
+  test("toggle-off flips an enabled server to grey immediately", async ({ page }) => {
+    // Seeded enabled server → panel-open probe → green. Then toggle off →
+    // the dot must return to grey (scheduler.cancel + explicit grey write).
+    await loadEditableDashboard(page, {
+      seedServers: [{ url: GOOD_URL, name: "Toggle-off-me", enabled: true }],
+    });
+    await mockMcpServer(page, GOOD_URL, SAMPLE_TOOLS);
+    await openMcpPanel(page);
+
+    // Initial probe resolves to green.
+    await expect(
+      page.getByRole("img", { name: /status: connected/i }),
+    ).toBeVisible(TIMEOUT);
+
+    // Toggle off. The dot must flip to grey without requiring a reload.
+    await page.locator('[title="Click to disable"]').click();
+    await expect(
+      page.getByRole("img", { name: /status: disabled/i }),
+    ).toBeVisible(TIMEOUT);
+  });
+
+  test("remove drops the row and clears its status entry", async ({ page }) => {
+    // Seeded enabled server → probe green → click Remove → the row is
+    // gone from the panel and from localStorage. Implicitly verifies
+    // handleRemoveMcpServer runs scheduler.cancel + mcpStatus delete +
+    // userMcpServers mutation in one coordinated handler — before
+    // commit be72f01 the cancel piece was missing.
+    await loadEditableDashboard(page, {
+      seedServers: [{ url: GOOD_URL, name: "Remove-me", enabled: true }],
+    });
+    await mockMcpServer(page, GOOD_URL, SAMPLE_TOOLS);
+    await openMcpPanel(page);
+
+    // Wait for initial probe to resolve so the row is fully mounted.
+    await expect(
+      page.getByRole("img", { name: /status: connected/i }),
+    ).toBeVisible(TIMEOUT);
+
+    // Click Remove.
+    await page
+      .getByRole("button", { name: /remove remove-me/i })
+      .click();
+
+    // Row gone from the UI.
+    await expect(page.getByText("Remove-me", { exact: true })).toHaveCount(0);
+    // Persisted server list is empty.
+    const stored = await readStoredMcpServers(page);
+    expect(stored).toHaveLength(0);
+    // Panel falls back to empty-state copy.
+    await expect(page.getByText(/no mcp servers configured/i)).toBeVisible(TIMEOUT);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Retry double-click guard
 // ---------------------------------------------------------------------------
 
