@@ -527,24 +527,42 @@ test.describe("MCP panel — Retry interaction during probe", () => {
 // Send-time in-chat signal + dot flip (Unit 6 / C1/C2)
 // ---------------------------------------------------------------------------
 //
-// These scenarios require the LLM provider to be configured in localStorage
-// so `runChatSession` actually fires. Configuring a fake provider lets the
-// engine reach `connectMcpServers`, which hits our mocked MCP endpoints and
-// produces the `perServer` outcomes that drive the in-chat messages.
+// `runChatSession` (chatbox-core/engine/index.js:464) calls
+// `connectMcpServers` first, then proceeds to the LLM streaming call,
+// then returns `perServer` outcomes. The Chatbox.jsx send handler reads
+// those outcomes (see Chatbox.jsx:483-503) and appends system messages
+// to the chat log for any non-connected server. So both tests below
+// require the FULL chat session to complete — including the LLM call —
+// before the in-chat message is observable in the DOM.
 //
-// If the engine bails out before reaching the MCP connect stage (e.g. the
-// LLM request itself fails), the in-chat C1/C2 text won't render — these
-// tests are marked `.fixme` so they stay committed and visible but don't
-// block the suite. Follow-up: stub the LLM stream at the fetch layer too.
+// What's needed to fill these tests
+// ---------------------------------
+// Stubbing the LLM at the page.route layer: each provider (Anthropic,
+// OpenAI, Ollama) has a different streaming endpoint shape. The fixture
+// must match the SDK's expected event-stream format and produce a
+// terminal "stop" event so runChatSession resolves. For a single
+// provider this is ~50 lines of fixture code; for all three it's more.
+//
+// Lower-cost alternative
+// ----------------------
+// Extract the in-chat-message-generation logic from Chatbox.jsx:493-498
+// into a pure helper, unit-test it in chatbox-core's vitest layer (the
+// helpers/url.test.js + engine/probe.test.js patterns already work).
+// Tracked as a follow-up; not addressed here because it requires a
+// source change in chatbox-core (out of scope for the test-infra plan).
+//
+// Until either path lands, these specs stay `.fixme` so they remain
+// visible to anyone reading the spec while not blocking the suite.
 test.describe("MCP in-chat signal on send", () => {
   test.fixme(
     "failing server produces in-chat 'Couldn't reach' message and red dot",
     async ({ page }) => {
-      // Deferred: stubbing the full Ollama/OpenAI/Anthropic streaming chat
-      // fetch + matching the engine's provider config shape is a substantial
-      // additional fixture. Tracked for a follow-up E2E pass. In the meantime,
-      // the Chatbox.jsx sendMessage path is covered by unit tests in
-      // chatbox-core.
+      // See the describe block comment above for what's needed to
+      // fill this test. The Chatbox.jsx sendMessage path's outcome
+      // handling is covered indirectly by chatbox-core's
+      // engine/probe.test.js (which proves the per-server outcome
+      // shape) and engine/transports.test.js (which proves
+      // pickTransport's failure mapping).
       await loadEditableDashboard(page, {
         seedServers: [{ url: BAD_URL, name: "Bad", enabled: true }],
       });
@@ -565,6 +583,8 @@ test.describe("MCP in-chat signal on send", () => {
   test.fixme(
     "zero-tools server produces in-chat 'reports no tools' message and orange dot",
     async ({ page }) => {
+      // See the describe block comment above. Same fixture-work
+      // requirement as the failing-server case.
       await loadEditableDashboard(page, {
         seedServers: [{ url: ZERO_TOOLS_URL, name: "Empty", enabled: true }],
       });
@@ -671,18 +691,19 @@ test.describe("MCP panel — SSRF guard (validateServerUrl)", () => {
     expect(stored).toHaveLength(0);
   });
 
-  test.fixme(
-    "prop-supplied default servers are filtered through the same predicate (parity)",
-    async () => {
-      // Deferred: TethysDash's ChatSidebar does not pass `mcpServers` /
-      // `defaultMcpServers` props to <Chatbox> today, so the prop-init path
-      // can't be exercised end-to-end without either (a) a test-only
-      // consumer fixture that injects props, or (b) wiring real prop
-      // pass-through in ChatSidebar.js. The unified predicate
-      // (validateServerUrl) is exercised by the user-typed cases above —
-      // any URL that fails one path fails the other.
-    },
-  );
+  // Note: the prop-supplied parity test that previously lived here was
+  // removed in favor of unit-level coverage. The validateServerUrl
+  // predicate is the shared contract: it's unit-tested in
+  // plugins/nextgen_plugins/packages/chatbox-core/engine/transports.test.js
+  // (35+ scenarios across happy paths, scheme rejection, mixed-content,
+  // 12 literal-IP variants, and the allowLocal/NODE_ENV toggle matrix).
+  // Both Chatbox.jsx's prop-init filter and MCPServerPanel.handleAdd's
+  // user-typed path import the same function — parity is structural, not
+  // a Playwright concern. End-to-end exercise of the prop-init path
+  // would require either a test-only consumer fixture in TethysDash
+  // (ChatSidebar.js does not currently pass mcpServers/defaultMcpServers
+  // to <Chatbox>) or wiring real prop pass-through in ChatSidebar — both
+  // out of scope for this spec.
 });
 
 // ---------------------------------------------------------------------------
