@@ -3,6 +3,21 @@
 // expect(element).toHaveTextContent(/react/i)
 // learn more: https://github.com/testing-library/jest-dom
 import "@testing-library/jest-dom";
+
+// Web Streams polyfill — jsdom does not expose Node's TransformStream /
+// ReadableStream / WritableStream globals, but msw v2 (imported below) and
+// the @chatbox/core SDK bundle (StreamableHTTPClientTransport from
+// @modelcontextprotocol/sdk) reference them at module-load time. Without
+// this block, ~33 suites that import App.js → Dashboard.js → ChatSidebar.js
+// fail before any assertion runs with `ReferenceError: TransformStream is
+// not defined`. Conditional assignment keeps the polyfill a no-op when a
+// future jsdom version exposes these natively. MUST run before any other
+// import that may evaluate TransformStream at top level.
+import { TransformStream, ReadableStream, WritableStream } from "node:stream/web";
+if (typeof globalThis.TransformStream === "undefined") globalThis.TransformStream = TransformStream;
+if (typeof globalThis.ReadableStream === "undefined") globalThis.ReadableStream = ReadableStream;
+if (typeof globalThis.WritableStream === "undefined") globalThis.WritableStream = WritableStream;
+
 import { cleanup } from "@testing-library/react";
 import { server } from "./utilities/server.js";
 
