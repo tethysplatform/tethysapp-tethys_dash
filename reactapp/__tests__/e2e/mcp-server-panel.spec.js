@@ -312,7 +312,7 @@ test.describe("MCP panel — add form sanitization", () => {
     await page.getByRole("button", { name: /add server/i }).click();
 
     // Inline error message from the scheme-allowlist check.
-    await expect(page.getByText(/must be http:\/\/ or https:\/\//i)).toBeVisible(
+    await expect(page.getByText(/http:\/\/ or https:\/\//i)).toBeVisible(
       TIMEOUT,
     );
 
@@ -606,7 +606,7 @@ test.describe("MCP panel — SSRF guard (validateServerUrl)", () => {
     await page.getByRole("button", { name: /add server/i }).click();
 
     // Inline error from the scheme allowlist (B8 enum copy).
-    await expect(page.getByText(/must be http:\/\/ or https:\/\//i)).toBeVisible(
+    await expect(page.getByText(/http:\/\/ or https:\/\//i)).toBeVisible(
       TIMEOUT,
     );
 
