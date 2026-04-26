@@ -39,6 +39,7 @@ const {
   mockFailedMcpServer,
   mockZeroToolsMcpServer,
 } = require("./helpers/mocks");
+const { createConsoleCapture } = require("./helpers/consoleCapture");
 
 // Timing budgets used across the spec.
 //
@@ -580,6 +581,309 @@ test.describe("MCP in-chat signal on send", () => {
       ).toBeVisible({ timeout: 15_000 });
     },
   );
+});
+
+// ---------------------------------------------------------------------------
+// SSRF guard — validateServerUrl literal-IP rejection in production builds
+// ---------------------------------------------------------------------------
+//
+// Per the 2026-04-26 fix plan (Unit 1): user-typed and prop-supplied URLs
+// share the validateServerUrl predicate. The chatbox-core bundle is built
+// with NODE_ENV=production (vite build default), so the literal-IP rejection
+// path is active in the bundle these tests run against. The exercise is via
+// the user-typed add path; the prop-init parity (Chatbox.jsx defaultMcpServers
+// filter) is exercised by the same predicate. A future test-only consumer
+// could prove the prop-init path end-to-end — left as `.fixme` below.
+
+test.describe("MCP panel — SSRF guard (validateServerUrl)", () => {
+  test("file:// URL is rejected via the user-typed path", async ({ page }) => {
+    await loadEditableDashboard(page);
+    await openMcpPanel(page);
+
+    await page
+      .getByPlaceholder(/server url/i)
+      .fill("file:///etc/passwd");
+    await page.getByRole("button", { name: /add server/i }).click();
+
+    // Inline error from the scheme allowlist (B8 enum copy).
+    await expect(page.getByText(/must be http:\/\/ or https:\/\//i)).toBeVisible(
+      TIMEOUT,
+    );
+
+    // Nothing persisted.
+    const stored = await readStoredMcpServers(page);
+    expect(stored).toHaveLength(0);
+  });
+
+  test("AWS instance metadata URL is rejected with private-ip error", async ({ page }) => {
+    // 169.254.169.254 is the canonical SSRF target on AWS — instance metadata
+    // returning IAM credentials. Production builds must reject it via the
+    // literal-IP guard regardless of the scheme allowlist.
+    await loadEditableDashboard(page);
+    await openMcpPanel(page);
+
+    await page
+      .getByPlaceholder(/server url/i)
+      .fill("http://169.254.169.254/latest/meta-data/iam/security-credentials/");
+    await page.getByRole("button", { name: /add server/i }).click();
+
+    // Inline error from the privateIp ERROR_COPY entry.
+    await expect(page.getByText(/private or loopback addresses/i)).toBeVisible(
+      TIMEOUT,
+    );
+
+    // Nothing persisted.
+    const stored = await readStoredMcpServers(page);
+    expect(stored).toHaveLength(0);
+  });
+
+  test("RFC1918 private IP (192.168.x) is rejected", async ({ page }) => {
+    await loadEditableDashboard(page);
+    await openMcpPanel(page);
+
+    await page
+      .getByPlaceholder(/server url/i)
+      .fill("http://192.168.1.1/mcp");
+    await page.getByRole("button", { name: /add server/i }).click();
+
+    await expect(page.getByText(/private or loopback addresses/i)).toBeVisible(
+      TIMEOUT,
+    );
+
+    const stored = await readStoredMcpServers(page);
+    expect(stored).toHaveLength(0);
+  });
+
+  test("loopback hostname 'localhost' is rejected in production builds", async ({ page }) => {
+    await loadEditableDashboard(page);
+    await openMcpPanel(page);
+
+    await page
+      .getByPlaceholder(/server url/i)
+      .fill("http://localhost:9001/mcp");
+    await page.getByRole("button", { name: /add server/i }).click();
+
+    await expect(page.getByText(/private or loopback addresses/i)).toBeVisible(
+      TIMEOUT,
+    );
+
+    const stored = await readStoredMcpServers(page);
+    expect(stored).toHaveLength(0);
+  });
+
+  test.fixme(
+    "prop-supplied default servers are filtered through the same predicate (parity)",
+    async () => {
+      // Deferred: TethysDash's ChatSidebar does not pass `mcpServers` /
+      // `defaultMcpServers` props to <Chatbox> today, so the prop-init path
+      // can't be exercised end-to-end without either (a) a test-only
+      // consumer fixture that injects props, or (b) wiring real prop
+      // pass-through in ChatSidebar.js. The unified predicate
+      // (validateServerUrl) is exercised by the user-typed cases above —
+      // any URL that fails one path fails the other.
+    },
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Server-name entity decoding — sanitizeServerName decode-then-strip loop
+// ---------------------------------------------------------------------------
+//
+// Per Unit 2 of the 2026-04-26 fix plan: HTML entities decode-then-strip in
+// a bounded loop (max 3 iterations), case-insensitive, covering named-five +
+// numeric `&#NN;` + hex `&#xHH;`. React text-node escape is the second layer
+// for the currently shipped render path; the loop is defense-in-depth for
+// any future non-React HTML render.
+
+test.describe("MCP panel — server name entity decoding", () => {
+  test("single-encoded entities decode then strip — no <script> reaches DOM", async ({ page }) => {
+    await loadEditableDashboard(page);
+    await openMcpPanel(page);
+
+    await page
+      .getByPlaceholder(/server name/i)
+      .fill("&lt;script&gt;alert(1)&lt;/script&gt;");
+    await page
+      .getByPlaceholder(/server url/i)
+      .fill("http://entity-decode.test/mcp");
+    await page.getByRole("button", { name: /add server/i }).click();
+
+    // Persisted name has angle brackets gone (post-decode strip).
+    const stored = await readStoredMcpServers(page);
+    expect(stored).toHaveLength(1);
+    expect(stored[0].name).not.toContain("<");
+    expect(stored[0].name).not.toContain(">");
+
+    // Literal `<script>` must not appear anywhere in the rendered DOM.
+    const html = await page.content();
+    expect(html).not.toContain("<script>alert(1)");
+    // The persisted name should contain the textual content stripped of brackets.
+    expect(stored[0].name).toMatch(/scriptalert\(1\)/i);
+  });
+
+  test("double-encoded entities decode through the loop and strip", async ({ page }) => {
+    // `&amp;lt;script&amp;gt;` → iter 1: `&lt;script&gt;` → iter 2: `script`.
+    // Stops at iter 3 max; output is safe even if a future render path
+    // performs its own HTML decode pass.
+    await loadEditableDashboard(page);
+    await openMcpPanel(page);
+
+    await page
+      .getByPlaceholder(/server name/i)
+      .fill("&amp;lt;script&amp;gt;");
+    await page
+      .getByPlaceholder(/server url/i)
+      .fill("http://double-encoded.test/mcp");
+    await page.getByRole("button", { name: /add server/i }).click();
+
+    const stored = await readStoredMcpServers(page);
+    expect(stored).toHaveLength(1);
+    // After the loop, no `<` or `>` characters remain — even though the
+    // original input was double-encoded.
+    expect(stored[0].name).not.toContain("<");
+    expect(stored[0].name).not.toContain(">");
+    expect(stored[0].name).toMatch(/script/i);
+  });
+
+  test("mixed-case named entities are decoded case-insensitively", async ({ page }) => {
+    await loadEditableDashboard(page);
+    await openMcpPanel(page);
+
+    await page
+      .getByPlaceholder(/server name/i)
+      .fill("&LT;script&GT;alert(1)&LT;/script&GT;");
+    await page
+      .getByPlaceholder(/server url/i)
+      .fill("http://mixed-case.test/mcp");
+    await page.getByRole("button", { name: /add server/i }).click();
+
+    const stored = await readStoredMcpServers(page);
+    expect(stored).toHaveLength(1);
+    expect(stored[0].name).not.toContain("<");
+    expect(stored[0].name).not.toContain(">");
+  });
+
+  test("numeric (decimal) entities decode and strip", async ({ page }) => {
+    await loadEditableDashboard(page);
+    await openMcpPanel(page);
+
+    // &#60; = '<', &#62; = '>'
+    await page.getByPlaceholder(/server name/i).fill("&#60;img&#62;");
+    await page
+      .getByPlaceholder(/server url/i)
+      .fill("http://numeric-entities.test/mcp");
+    await page.getByRole("button", { name: /add server/i }).click();
+
+    const stored = await readStoredMcpServers(page);
+    expect(stored).toHaveLength(1);
+    expect(stored[0].name).toBe("img");
+  });
+
+  test("hex numeric entities decode and strip", async ({ page }) => {
+    await loadEditableDashboard(page);
+    await openMcpPanel(page);
+
+    // &#x3c; = '<', &#x3E; = '>'
+    await page.getByPlaceholder(/server name/i).fill("&#x3c;img&#x3E;");
+    await page
+      .getByPlaceholder(/server url/i)
+      .fill("http://hex-entities.test/mcp");
+    await page.getByRole("button", { name: /add server/i }).click();
+
+    const stored = await readStoredMcpServers(page);
+    expect(stored).toHaveLength(1);
+    expect(stored[0].name).toBe("img");
+  });
+
+  test("malformed entity (no semicolon) does not crash and passes through", async ({ page }) => {
+    await loadEditableDashboard(page);
+    await openMcpPanel(page);
+
+    await page.getByPlaceholder(/server name/i).fill("Foo&ampBar");
+    await page
+      .getByPlaceholder(/server url/i)
+      .fill("http://malformed-entity.test/mcp");
+    await page.getByRole("button", { name: /add server/i }).click();
+
+    // No crash — server persists with the raw input. React text-node escape
+    // handles the literal `&` at render time.
+    const stored = await readStoredMcpServers(page);
+    expect(stored).toHaveLength(1);
+    expect(stored[0].name).toBe("Foo&ampBar");
+  });
+
+  test("legitimate ampersand in name is preserved (no false positives)", async ({ page }) => {
+    await loadEditableDashboard(page);
+    await openMcpPanel(page);
+
+    await page.getByPlaceholder(/server name/i).fill("Foo & Bar");
+    await page
+      .getByPlaceholder(/server url/i)
+      .fill("http://legit-amp.test/mcp");
+    await page.getByRole("button", { name: /add server/i }).click();
+
+    const stored = await readStoredMcpServers(page);
+    expect(stored).toHaveLength(1);
+    expect(stored[0].name).toBe("Foo & Bar");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Post-unmount race — destroyed flag in createProbeScheduler
+// ---------------------------------------------------------------------------
+//
+// Per Unit 3 of the 2026-04-26 fix plan: the scheduler's destroyed flag is
+// set synchronously inside cancelAll() (which the React unmount effect
+// calls). Every onUpdate call site short-circuits when destroyed is true,
+// so a probe that completes after the consuming component unmounts cannot
+// produce the "Can't perform a state update on an unmounted component"
+// React warning.
+
+test.describe("MCP panel — post-unmount race", () => {
+  test("navigating away mid-probe produces no React unmounted-component warning", async ({ page }) => {
+    const SLOW_URL = "http://post-unmount.test/mcp";
+
+    await loadEditableDashboard(page, {
+      seedServers: [{ url: SLOW_URL, name: "Slow", enabled: true }],
+    });
+
+    // Slow mock — handshake takes 5s. We navigate away within ~200ms of
+    // panel-open so the probe is in-flight when the component unmounts.
+    await page.route(SLOW_URL, async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 5_000));
+      return route.fulfill({ status: 500, contentType: "text/plain", body: "" });
+    });
+
+    const capture = createConsoleCapture(page);
+    await openMcpPanel(page);
+
+    // Confirm the probe announced yellow before we navigate away (the
+    // schedule() call site is one of the three onUpdate paths the
+    // destroyed flag must guard).
+    await expect(
+      page.getByRole("img", { name: /checking connection/i }),
+    ).toBeVisible({ timeout: 5_000 });
+
+    // Navigate away to a different page so the Chatbox component unmounts.
+    // The cleanup effect calls schedulerRef.current?.cancelAll(), which
+    // sets destroyed=true synchronously. Any in-flight probe completion or
+    // pending-write timer that fires AFTER this point must short-circuit.
+    await page.goto("about:blank");
+
+    // Wait long enough for the in-flight probe to complete or time out
+    // against the slow mock. If destroyed isn't honored, React would
+    // surface a console warning about setState on an unmounted component.
+    await page.waitForTimeout(6_000);
+
+    const unmountWarnings = capture.messages.filter((m) =>
+      /unmounted component|memory leak|setState/i.test(m.text),
+    );
+    const unmountErrors = capture.errors.filter((e) =>
+      /unmounted component|memory leak|setState/i.test(e.message ?? ""),
+    );
+    expect(unmountWarnings).toHaveLength(0);
+    expect(unmountErrors).toHaveLength(0);
+  });
 });
 
 // ---------------------------------------------------------------------------
