@@ -41,12 +41,17 @@ const NormalInput = ({
     }
 
     // Inside an unclosed ${...}, allow anything (building variable name)
-    // Otherwise, only allow numeric characters, ".", "-", and "$" (to start a variable)
+    // Otherwise, only allow numeric characters, ".", "-", "-.", and "$"
+    // (to start a variable). "." and "-." are valid mid-edit states for
+    // typing decimals like ".5" or "-.25" — without them, the leading
+    // dot gets blocked because Number(".") is NaN.
     if (!hasUnclosedVariable(val)) {
       const nonVarParts = val.replace(/\$\{[^}]*\}/g, "");
       if (
         nonVarParts !== "" &&
         nonVarParts !== "-" &&
+        nonVarParts !== "." &&
+        nonVarParts !== "-." &&
         isNaN(Number(nonVarParts)) &&
         !nonVarParts.endsWith("$")
       )
@@ -56,13 +61,18 @@ const NormalInput = ({
     setRawValue(val);
 
     // Incomplete-value guard: by default, don't propagate empty / "-" /
-    // "$" / open-variable mid-edit so the parent keeps the last valid
-    // value. `allowEmpty` opts out — empty string propagates, which is
-    // required when the caller needs to distinguish "user cleared this
-    // field" from "user is mid-edit".
+    // "." / "-." / "$" / open-variable mid-edit so the parent keeps the
+    // last valid value. `allowEmpty` opts out — empty string propagates,
+    // which is required when the caller needs to distinguish "user
+    // cleared this field" from "user is mid-edit".
     if (
       !allowEmpty &&
-      (val === "" || val === "-" || hasUnclosedVariable(val) || val === "$")
+      (val === "" ||
+        val === "-" ||
+        val === "." ||
+        val === "-." ||
+        hasUnclosedVariable(val) ||
+        val === "$")
     )
       return;
 

@@ -129,6 +129,39 @@ const resolveProps = async (props, mapProjection) => {
   for (const key of Object.keys(props)) {
     const value = props[key];
 
+    // GeoTIFF SourceInfo cleanup — handled BEFORE the generic object/array
+    // branch because empty arrays are still typeof "object" and would
+    // otherwise be passed through as `[]`, and the empty-bands case needs
+    // to drop empty CSV pieces before Number() coerces "" to 0.
+    if (key === "bands" && typeof value === "string") {
+      // Parse a CSV bands string ("1,2,3") to a number array. Empty/
+      // whitespace pieces are dropped BEFORE Number() because Number("")
+      // is 0 (not NaN), so "" alone would otherwise produce [0] which
+      // tells OL to read band index 0 — wrong, and not what the empty
+      // input meant. Also drop the key entirely when the result is
+      // empty (UI's "no band filter" → OL default of reading all bands).
+      const parsed = value
+        .split(",")
+        .map((b) => b.trim())
+        .filter((s) => s !== "")
+        .map(Number)
+        .filter((n) => Number.isFinite(n));
+      if (parsed.length > 0) {
+        resolvedProps[key] = parsed;
+      }
+      continue;
+    }
+    if (key === "projection" && value === "") {
+      // Empty-string projection on a SourceInfo is UI noise — OL expects
+      // either a valid projection code or undefined. Drop it.
+      continue;
+    }
+    if (key === "overviews" && Array.isArray(value) && value.length === 0) {
+      // Empty overviews array is UI noise — drop it before the generic
+      // array branch swallows it as a passed-through empty array.
+      continue;
+    }
+
     if (value && typeof value === "object") {
       if ("type" in value && "props" in value) {
         // It's a module configuration; process with moduleLoader
@@ -148,30 +181,6 @@ const resolveProps = async (props, mapProjection) => {
         // It's a regular object; recursively resolve its properties
         resolvedProps[key] = await resolveProps(value, mapProjection);
       }
-    } else if (key === "bands" && typeof value === "string") {
-      // GeoTIFF SourceInfo `bands`: authoring UI stores the value as a CSV
-      // string (e.g. "1,2,3"); parse to a number array before it reaches
-      // the ol/source/GeoTIFF constructor. convertType can't express an
-      // array result, so the CSV pre-pass lives here.
-      //
-      // An empty/whitespace string is the UI's way of saying "no band
-      // filter" — OL's default is to read all bands. Producing `bands: []`
-      // instead tells OL to read ZERO bands, which throws at tile-decode
-      // time with "Unsupported data format/bitsPerSample". Drop the key
-      // entirely when the parsed array is empty so OL falls back to its
-      // default.
-      const parsed = value
-        .split(",")
-        .map((b) => Number(b.trim()))
-        .filter((n) => !Number.isNaN(n));
-      if (parsed.length > 0) {
-        resolvedProps[key] = parsed;
-      }
-    } else if (key === "projection" && value === "") {
-      // Empty-string projection on a SourceInfo is UI noise — OL expects
-      // either a valid projection code or undefined. Drop it.
-    } else if (key === "overviews" && Array.isArray(value) && value.length === 0) {
-      // Empty overviews array is UI noise. Drop it.
     } else {
       // It's a primitive value; assign as is
       resolvedProps[key] = convertType(value);

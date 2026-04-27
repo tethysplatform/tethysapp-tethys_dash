@@ -1,21 +1,37 @@
 // Mock GeoTIFF source so auto-fit tests don't trigger real network fetches.
 // Exposes a `getView()` that resolves to a stub view — Map.js awaits this.
+//
+// Projection MUST be one of OL's built-in projections (EPSG:3857 or
+// EPSG:4326). Custom projections like EPSG:2193 require proj4js
+// registration that isn't set up in jsdom; using one would silently throw
+// inside the auto-fit's transformExtent/new View calls and the test would
+// hit the catch block (no setView call) instead of the success path.
+//
+// The `extent` field is what Map.js's auto-fit fits the new view to —
+// without it, no fit() call happens and the view's center/zoom default to
+// the projection origin.
+//
+// IMPORTANT: this jest project has `resetMocks: true`, which clears
+// jest.fn() implementations between tests. The actual `getView()` body
+// must therefore live on the class method itself (not behind a jest.fn
+// implementation that would be wiped). The exposed `getViewSpy` is a
+// pure call-tracker — its implementation is irrelevant.
 jest.mock("ol/source/GeoTIFF.js", () => {
   const ActualSource = jest.requireActual("ol/source/Source.js").default;
-  const getViewSpy = jest.fn(() =>
-    Promise.resolve({
-      projection: "EPSG:2193",
-      center: [1700000, 5400000],
-      zoom: 6,
-    }),
-  );
+  const getViewSpy = jest.fn();
   class MockGeoTIFFSource extends ActualSource {
     constructor(options) {
       super({ projection: null });
       this.options = options;
     }
     getView() {
-      return getViewSpy();
+      getViewSpy();
+      return Promise.resolve({
+        projection: "EPSG:4326",
+        extent: [-180, -90, 180, 90],
+        center: [0, 0],
+        zoom: 2,
+      });
     }
   }
   MockGeoTIFFSource.getViewSpy = getViewSpy;
@@ -1330,11 +1346,27 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
     });
   });
 
-  test("GeoTIFF layer triggers auto-fit: map.setView is called with a view derived from the source", async () => {
-    // Spy on the Map.prototype.setView so we can assert it fires after a
-    // GeoTIFF layer is added. The mock GeoTIFF's getView() resolves to a
-    // stub view (EPSG:2193 New Zealand).
-    const setViewSpy = jest.spyOn(Map.prototype, "setView");
+  test("GeoTIFF layer triggers auto-fit: map view's projection switches to the TIF's", async () => {
+    // The auto-fit's contract is: when a GeoTIFF layer is added, the map's
+    // view projection switches to the TIF's so tiles can render. The mock
+    // returns EPSG:4326 — different from the default EPSG:3857 — so we can
+    // observe the projection change directly. Asserting on the resulting
+    // view (rather than spying on setView) avoids fragile prototype-spy
+    // wiring and tests the actual behavior.
+    let capturedRef;
+    const RefCapture = ({ mapProps }) => {
+      const ref = useRef();
+      capturedRef = ref;
+      return (
+        <div>
+          <MapComponent visualizationRef={ref} {...mapProps} />
+          <p>{useMapContext()?.mapReady ? "Map Ready" : "Map Not Ready"}</p>
+        </div>
+      );
+    };
+    RefCapture.propTypes = {
+      mapProps: PropTypes.object,
+    };
 
     const layers = [
       {
@@ -1357,21 +1389,26 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
         value={{ setVariableInputValues: jest.fn() }}
       >
         <MapContextProvider>
-          <TestingComponent mapProps={{ layers }} />
+          <RefCapture mapProps={{ layers }} />
         </MapContextProvider>
       </VariableInputsContext.Provider>,
     );
 
     expect(await screen.findByText("Map Ready")).toBeInTheDocument();
 
-    // Auto-fit branch fires and calls map.setView with a new View built from
-    // the mock GeoTIFF's getView() output. Fire-and-forget (not awaited in
-    // Map.js), so setView happens on a microtask after the initial render.
+    // The mock GeoTIFF's getView() must have been called.
     await waitFor(() => {
       expect(GeoTIFFSource.getViewSpy).toHaveBeenCalled();
     });
+
+    // The map's view projection must have switched from default EPSG:3857
+    // to the TIF's EPSG:4326. This proves auto-fit ran end-to-end.
     await waitFor(() => {
-      expect(setViewSpy).toHaveBeenCalled();
+      const projCode = capturedRef.current
+        ?.getView()
+        ?.getProjection()
+        ?.getCode();
+      expect(projCode).toBe("EPSG:4326");
     });
   });
 

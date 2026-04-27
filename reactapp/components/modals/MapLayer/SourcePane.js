@@ -513,6 +513,14 @@ const SourcePane = ({
           GeoTIFF layers render in the source's native projection; the dashboard
           map view will be reprojected to match the data on load. Basemaps in
           EPSG:3857 may look distorted if your COG uses a different projection.
+          {" "}
+          <strong>Files must be Cloud Optimized GeoTIFFs</strong> — plain
+          strip-based TIFFs and some compression/predictor combinations may fail
+          silently. Convert with{" "}
+          <code style={{ fontSize: "0.85em" }}>
+            gdal_translate -of COG -co COMPRESS=DEFLATE -co PREDICTOR=YES input.tif output.tif
+          </code>
+          .
         </GeoTIFFHint>
         {sources.length === 0 ? (
           <GeoTIFFEmptyState>

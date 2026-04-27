@@ -294,23 +294,51 @@ const MapComponent = ({
             ) {
               const geoTIFFSource = newLayer.getSource?.();
 
-              // Surface tile-load failures in the UI. geotiff.js can throw on
-              // unsupported compression, unusual bit depths, BigTIFF variants,
-              // or tile-fetch failures (CORS, 404). Without this listener,
-              // failures are silent (console only) and users conclude the
-              // feature is broken when the COG's format is the actual issue.
+              // Surface failures in the UI. geotiff.js can throw on unsupported
+              // compression, unusual bit depths, BigTIFF variants, or tile-fetch
+              // failures (CORS, 404). There are TWO failure phases we need to
+              // listen for:
+              //   1. `error` — metadata/header parse fails, or the initial
+              //      source setup throws. Fires BEFORE tile requests start.
+              //   2. `tileloaderror` — a specific tile fails to decode or
+              //      fetch. Fires during rendering.
+              // Without both listeners, failures in phase 1 are silent (no
+              // tile requests happen, so phase 2 never fires either).
               // Throttle to one alert per layer to avoid N-tile spam.
               if (geoTIFFSource && typeof geoTIFFSource.on === "function") {
-                let tileErrorSurfaced = false;
-                geoTIFFSource.on("tileloaderror", () => {
-                  if (tileErrorSurfaced) return;
-                  tileErrorSurfaced = true;
-                  setErrorMessage(
-                    `GeoTIFF layer "${name}" failed to load tiles. ` +
-                      `The COG format may be unsupported, or the URL may be ` +
-                      `unreachable. Check the browser console for details.`,
+                let errorSurfaced = false;
+                const surface = (phase) => (evt) => {
+                  if (errorSurfaced) return;
+                  errorSurfaced = true;
+                  const detail = evt?.error?.message || evt?.message || "";
+                  // Distinguish fetch/network failures from file-format
+                  // failures. geotiff.js's BlockedSource bubbles up "Request
+                  // failed" or "AggregateError" when byte-range requests
+                  // fail (CORS, no Range support, 404, etc.). Different
+                  // remediation than a format issue.
+                  const looksLikeFetchFailure =
+                    /request failed|AggregateError|CORS|blocked|Failed to fetch/i.test(
+                      detail,
+                    );
+                  const message = looksLikeFetchFailure
+                    ? `GeoTIFF layer "${name}" failed to fetch the file. ` +
+                      `Check the Network tab — likely causes: CORS headers ` +
+                      `missing on the hosting server, no HTTP Range support, ` +
+                      `or the URL is unreachable.` +
+                      (detail ? ` Detail: ${detail}.` : "")
+                    : `GeoTIFF layer "${name}" failed (${phase}). ` +
+                      (detail ? `Detail: ${detail}. ` : "") +
+                      `The file may not be a Cloud Optimized GeoTIFF. ` +
+                      `Try converting with ` +
+                      `\`gdal_translate -of COG -co COMPRESS=DEFLATE -co PREDICTOR=YES input.tif output.tif\`.`;
+                  setErrorMessage(message);
+                  console.warn(
+                    `GeoTIFF layer "${name}" (${phase}):`,
+                    evt?.error ?? evt,
                   );
-                });
+                };
+                geoTIFFSource.on("error", surface("source error"));
+                geoTIFFSource.on("tileloaderror", surface("tile load error"));
               }
 
               if (
@@ -319,46 +347,132 @@ const MapComponent = ({
               ) {
                 try {
                   const viewOptions = await geoTIFFSource.getView();
-                  // Switch the map view to the TIF's projection (so tiles
-                  // can render), but preserve the user's current visible
-                  // window instead of zooming out to the TIF's full extent.
+                  // Goal: switch the view's projection to the TIF's (so
+                  // tiles can render), but show the same geographic area
+                  // the user was already viewing. Falls back to the TIF's
+                  // own extent only when the previous view doesn't overlap
+                  // the TIF's footprint (otherwise user would stare at
+                  // empty space outside the data).
                   //
-                  // Capture the current extent BEFORE setView, transform it
-                  // into the TIF's projection, then create a new view using
-                  // ONLY the TIF's projection and fit it to the transformed
-                  // extent. We intentionally ignore the TIF's center/zoom/
-                  // resolutions — those would zoom to the whole TIF, which
-                  // is usually too far out and loses the user's context.
+                  // Why clamp the previous extent: if the user is zoomed
+                  // out, calculateExtent can return values beyond the
+                  // source projection's valid range (e.g., longitudes
+                  // > 180° in EPSG:3857 world copies). Transforming those
+                  // produces non-primary world-copy coordinates in the
+                  // target projection, where the TIF's tiles don't exist —
+                  // user only sees pixels after panning around the world.
+                  // Clamping to the source projection's valid extent keeps
+                  // the transform in the primary world copy.
                   const mapSize = map.getSize();
                   const prevView = map.getView();
                   const prevProjection = prevView.getProjection();
-                  const prevExtent = prevView.calculateExtent(mapSize);
                   const newProjection = viewOptions.projection;
+                  const tifExtent = viewOptions.extent;
 
-                  const newView = new View({ projection: newProjection });
-                  map.setView(newView);
+                  // mapSize is undefined / [0, 0] before layout (jsdom,
+                  // pre-render). Skip the cross-projection extent
+                  // transform in that case — anything we'd compute would
+                  // be NaN-laden. Without a valid mapSize, fit() also
+                  // can't run.
+                  const haveMapSize =
+                    Array.isArray(mapSize) &&
+                    mapSize.length === 2 &&
+                    mapSize[0] > 0 &&
+                    mapSize[1] > 0;
 
-                  if (prevExtent && mapSize && newProjection) {
-                    const transformedExtent = transformExtent(
-                      prevExtent,
-                      prevProjection,
-                      newProjection,
+                  // Helper: extents [minX, minY, maxX, maxY] overlap?
+                  const intersects = (a, b) =>
+                    !(
+                      a[2] < b[0] ||
+                      a[0] > b[2] ||
+                      a[3] < b[1] ||
+                      a[1] > b[3]
                     );
-                    // transformExtent can produce NaN/Infinity when the
-                    // source extent falls outside the target projection's
-                    // valid area. Fall back to the TIF's native view in
-                    // that case so something sensible still shows.
-                    const finite = transformedExtent.every(Number.isFinite);
-                    if (finite) {
-                      newView.fit(transformedExtent, { size: mapSize });
-                    } else if (viewOptions.center && viewOptions.zoom) {
-                      newView.setCenter(viewOptions.center);
-                      newView.setZoom(viewOptions.zoom);
+
+                  // Initialize the new View with the TIF's center/zoom if
+                  // provided in viewOptions — without them, an uninitialized
+                  // View can cause OL's render pipeline to short-circuit
+                  // (no tiles request, no setView event handlers complete).
+                  // fit() (when invoked below) will override the initial
+                  // values to fit the targetExtent precisely; the defaults
+                  // here just ensure the View is in a renderable state for
+                  // the case where fit() is skipped (no mapSize).
+                  const newView = new View({
+                    projection: newProjection,
+                    center: viewOptions.center ?? [0, 0],
+                    zoom: viewOptions.zoom ?? 0,
+                  });
+
+                  let targetExtent = null;
+                  if (haveMapSize) {
+                    const prevExtent = prevView.calculateExtent(mapSize);
+                    // Clamp prev extent to source projection's valid range —
+                    // when the user is zoomed out, calculateExtent can
+                    // return values beyond the source projection's valid
+                    // range (e.g., longitudes > 180° in EPSG:3857 world
+                    // copies). Transforming those produces non-primary
+                    // world-copy coordinates in the target projection.
+                    const sourceValid = prevProjection.getExtent?.();
+                    const clampedPrev =
+                      Array.isArray(sourceValid) && sourceValid.length === 4
+                        ? [
+                            Math.max(prevExtent[0], sourceValid[0]),
+                            Math.max(prevExtent[1], sourceValid[1]),
+                            Math.min(prevExtent[2], sourceValid[2]),
+                            Math.min(prevExtent[3], sourceValid[3]),
+                          ]
+                        : prevExtent;
+
+                    if (
+                      clampedPrev.every(Number.isFinite) &&
+                      clampedPrev[0] < clampedPrev[2] &&
+                      clampedPrev[1] < clampedPrev[3]
+                    ) {
+                      const transformed = transformExtent(
+                        clampedPrev,
+                        prevProjection,
+                        newProjection,
+                      );
+                      if (transformed.every(Number.isFinite)) {
+                        // Use the transformed previous extent if it overlaps
+                        // the TIF's data extent. If not (TIF is far from
+                        // where the user was looking), fall back to the
+                        // TIF's footprint so user sees something instead of
+                        // empty space.
+                        const overlaps =
+                          Array.isArray(tifExtent) &&
+                          tifExtent.length === 4 &&
+                          intersects(transformed, tifExtent);
+                        targetExtent = overlaps
+                          ? transformed
+                          : Array.isArray(tifExtent) &&
+                              tifExtent.every(Number.isFinite)
+                            ? tifExtent
+                            : transformed;
+                      }
                     }
-                  } else if (viewOptions.center && viewOptions.zoom) {
-                    newView.setCenter(viewOptions.center);
-                    newView.setZoom(viewOptions.zoom);
                   }
+
+                  // Fall through to the TIF's own extent if the prev
+                  // extent was unusable.
+                  if (
+                    !targetExtent &&
+                    Array.isArray(tifExtent) &&
+                    tifExtent.length === 4 &&
+                    tifExtent.every(Number.isFinite)
+                  ) {
+                    targetExtent = tifExtent;
+                  }
+
+                  // fit() requires a valid mapSize. If we don't have one
+                  // (jsdom, pre-layout), set the view without fitting —
+                  // OL will use the View's default center/zoom, and fit
+                  // will happen naturally on the first real render once
+                  // the map has dimensions.
+                  if (targetExtent && haveMapSize) {
+                    newView.fit(targetExtent, { size: mapSize });
+                  }
+                  map.setView(newView);
                 } catch (err) {
                   // A failure here (e.g., the COG header couldn't be read
                   // before view derivation) leaves the existing view in place.

@@ -45,12 +45,14 @@ describe("COLOR_RAMPS", () => {
 
   test("grayscale starts black and ends white", () => {
     expect(COLOR_RAMPS.grayscale[0]).toBe("#000000");
-    expect(COLOR_RAMPS.grayscale[255]).toBe("#ffffff");
+    expect(COLOR_RAMPS.grayscale[RAMP_STOPS - 1]).toBe("#ffffff");
   });
 
-  test("grayscale midpoint is ~mid-gray (r == g == b)", () => {
-    // entry 127 interpolates to ~0.498 channel value → #7f7f7f
-    const mid = COLOR_RAMPS.grayscale[127];
+  test("grayscale midpoint is mid-gray (r == g == b)", () => {
+    // The midpoint of any RAMP_STOPS-length grayscale ramp interpolates to
+    // an equal-channel hex (e.g., #80808080 or thereabouts depending on
+    // RAMP_STOPS). Assertion is on channel equality, not a specific value.
+    const mid = COLOR_RAMPS.grayscale[Math.floor(RAMP_STOPS / 2)];
     const match = mid.match(/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
     expect(match).not.toBeNull();
     expect(match[1]).toBe(match[2]);
@@ -72,7 +74,7 @@ describe("COLOR_RAMPS", () => {
   });
 
   test("viridis ends with a bright yellow", () => {
-    const last = COLOR_RAMPS.viridis[255];
+    const last = COLOR_RAMPS.viridis[RAMP_STOPS - 1];
     const [, r, g, b] = last.match(/^#(..)(..)(..)$/);
     const rI = parseInt(r, 16);
     const gI = parseInt(g, 16);
@@ -95,7 +97,7 @@ describe("COLOR_RAMPS", () => {
 
   test("RdYlBu starts red-ish and ends blue-ish", () => {
     const first = COLOR_RAMPS.RdYlBu[0];
-    const last = COLOR_RAMPS.RdYlBu[255];
+    const last = COLOR_RAMPS.RdYlBu[RAMP_STOPS - 1];
     const [, r1, g1, b1] = first.match(/^#(..)(..)(..)$/);
     const [, r2, g2, b2] = last.match(/^#(..)(..)(..)$/);
     expect(parseInt(r1, 16)).toBeGreaterThan(parseInt(b1, 16));

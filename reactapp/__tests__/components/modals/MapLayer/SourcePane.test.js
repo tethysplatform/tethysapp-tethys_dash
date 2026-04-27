@@ -243,10 +243,14 @@ test("SourcePane GeoJson URL", async () => {
   );
 });
 
-test("SourcePane GeoJson bad URL", async () => {
-  global.fetch = jest.fn().mockResolvedValueOnce({
-    ok: false,
-  });
+test("SourcePane GeoJson bad stored filename surfaces error", async () => {
+  // SourcePane only fetches when geojson is a stored-filename (no slash).
+  // URL-shaped strings are pass-through — no fetch, no error to surface.
+  // This test exercises the filename branch via appAPI.downloadJSON
+  // returning success: false.
+  jest
+    .spyOn(appAPI, "downloadJSON")
+    .mockResolvedValueOnce({ success: false });
   const mockSetErrorMessage = jest.fn();
 
   render(<TestingComponent setErrorMessage={mockSetErrorMessage} />);
@@ -262,24 +266,60 @@ test("SourcePane GeoJson bad URL", async () => {
   fireEvent.click(sourceOption);
 
   expect(await screen.findByText("GeoJSON Source")).toBeInTheDocument();
+  // Switch to URL mode so we can type a value into the field. The field's
+  // value is a stored-filename here (no slash → triggers the fetch branch),
+  // not an actual URL — the URL-mode radio is just the input shape.
   const UrlRadio = await screen.findByLabelText("URL");
   await userEvent.click(UrlRadio);
-  expect(UrlRadio).toBeInTheDocument();
 
   const UrlInput = await screen.findByLabelText("URL Input");
   fireEvent.change(UrlInput, {
-    target: { value: "some/url/file.json" },
+    target: { value: "stored_geojson_file.json" },
   });
   expect(await screen.findByTestId("sourceProps")).toHaveTextContent(
     JSON.stringify({
       type: "GeoJSON",
       props: {},
-      geojson: "some/url/file.json",
+      geojson: "stored_geojson_file.json",
     }),
   );
   await waitFor(() => {
     expect(mockSetErrorMessage).toHaveBeenCalledWith("Failed to retrieve JSON");
   });
+});
+
+test("SourcePane GeoJson URL is pass-through (no fetch, no error)", async () => {
+  // URL-shaped geojson (contains "/") skips the fetch path entirely so
+  // OL's VectorSource can resolve the URL directly. No setErrorMessage
+  // call should ever fire for URL inputs.
+  const downloadSpy = jest.spyOn(appAPI, "downloadJSON");
+  const mockSetErrorMessage = jest.fn();
+
+  render(<TestingComponent setErrorMessage={mockSetErrorMessage} />);
+
+  expect(await screen.findByText("Source Type")).toBeInTheDocument();
+  const sourceDropdown = screen.getByRole("combobox");
+  selectEvent.openMenu(sourceDropdown);
+  fireEvent.click(await screen.findByText("GeoJSON"));
+
+  const UrlRadio = await screen.findByLabelText("URL");
+  await userEvent.click(UrlRadio);
+
+  const UrlInput = await screen.findByLabelText("URL Input");
+  fireEvent.change(UrlInput, {
+    target: { value: "https://some/url/file.json" },
+  });
+
+  expect(await screen.findByTestId("sourceProps")).toHaveTextContent(
+    JSON.stringify({
+      type: "GeoJSON",
+      props: {},
+      geojson: "https://some/url/file.json",
+    }),
+  );
+  // No fetch attempted on URL path.
+  expect(downloadSpy).not.toHaveBeenCalled();
+  expect(mockSetErrorMessage).not.toHaveBeenCalled();
 });
 
 test("SourcePane GeoJson File Upload", async () => {

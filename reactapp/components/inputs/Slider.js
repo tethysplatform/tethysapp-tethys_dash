@@ -558,6 +558,12 @@ const Slider = ({
     rawMaxDateFormat,
     alignOffset,
     alignSteps,
+    // stepEpoch advances each time a step boundary is crossed (alignSteps
+    // mode) — must be a dep here so calculateSliderValues re-runs against
+    // the new anchored "now"; otherwise the timeout-driven epoch bump is
+    // observable to the rescheduling effect but invisible to rendered
+    // values.
+    stepEpoch,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   ]);
 
