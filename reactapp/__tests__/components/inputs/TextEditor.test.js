@@ -446,7 +446,14 @@ describe("TextEditor", () => {
     });
     fireEvent.click(formatButton);
 
-    await userEvent.keyboard("{Enter}n");
+    editorInstance
+      .chain()
+      .focus()
+      .setTextSelection(editorInstance.state.doc.content.size - 1)
+      .run();
+
+    const editorEl = screen.getByLabelText("textEditor");
+    await userEvent.type(editorEl, "{Enter}n");
 
     // Should have triggered the onChange callback
     await waitFor(() => {
