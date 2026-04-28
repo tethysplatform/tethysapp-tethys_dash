@@ -72,10 +72,6 @@ const StylePane = ({
   const [availableFields, setAvailableFields] = useState([]);
 
   useEffect(() => {
-    // For URL-based GeoJSON the file could be many MB; skip the auto-fetch
-    // that would otherwise download + fully parse it via loadGeoJSON just
-    // to populate the RuleStyleEditor field-name dropdown. The user can
-    // still type field names manually into the rule editor.
     const isUrlGeoJSON =
       sourceProps?.type === "GeoJSON" &&
       typeof sourceProps?.geojson === "string" &&
@@ -190,10 +186,6 @@ const StylePane = ({
     }
   }
 
-  // GeoTIFF layers use a curated color-ramp picker instead of the JSON/rules
-  // vector-style editor. Ramp selection is stored on sourceProps (NOT on
-  // `style`) because the `style` ingress effect above stringifies any
-  // object-valued `style` and would corrupt structured fields.
   if (sourceProps.type === "GeoTIFF") {
     const selectedRamp = sourceProps.rampName ?? null;
     const rampMin = sourceProps.rampMin ?? "";
@@ -217,10 +209,7 @@ const StylePane = ({
     return (
       <GeoTIFFSection>
         <SectionHeading>Color Ramp</SectionHeading>
-        <RampPicker
-          selectedRamp={selectedRamp}
-          onChange={handleRampSelect}
-        />
+        <RampPicker selectedRamp={selectedRamp} onChange={handleRampSelect} />
         <RangeRow>
           <RangeCell>
             <NormalInput
@@ -346,6 +335,7 @@ StylePane.propTypes = {
     rampName: PropTypes.string,
     rampMin: PropTypes.string,
     rampMax: PropTypes.string,
+    geojson: PropTypes.oneOfType([PropTypes.string, PropTypes.object]),
   }),
   setSourceProps: PropTypes.func,
   layerProps: PropTypes.shape({

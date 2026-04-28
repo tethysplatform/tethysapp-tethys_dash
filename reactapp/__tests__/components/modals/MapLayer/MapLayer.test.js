@@ -8,7 +8,9 @@ import {
   waitFor,
 } from "@testing-library/react";
 import selectEvent from "react-select-event";
-import MapLayerModal, { getLayerType } from "components/modals/MapLayer/MapLayer";
+import MapLayerModal, {
+  getLayerType,
+} from "components/modals/MapLayer/MapLayer";
 import { AppContext, LayoutContext } from "components/contexts/Contexts";
 import MapContextProvider, {
   useMapContext,
@@ -1422,8 +1424,7 @@ test("MapLayerModal update ImageArcGISRest layer", async () => {
 const ExtentTestComponent = ({ layerInfo, visualizationRefOverride }) => {
   const csrf = "asdasdasdasd";
   const appContext = { csrf, mapLayerTemplates: [] };
-  const { setExtentDrawMode, setDrawnExtent, extentDrawMode } =
-    useMapContext();
+  const { setExtentDrawMode, setDrawnExtent, extentDrawMode } = useMapContext();
   const defaultRef = useRef({
     getView: () => ({
       getProjection: () => ({
@@ -1461,9 +1462,7 @@ const ExtentTestComponent = ({ layerInfo, visualizationRefOverride }) => {
       >
         Clear Extent Draw Mode
       </button>
-      <p data-testid="extent-draw-mode">
-        {extentDrawMode ? "active" : "null"}
-      </p>
+      <p data-testid="extent-draw-mode">{extentDrawMode ? "active" : "null"}</p>
     </>
   );
 };
@@ -1614,9 +1613,7 @@ test("MapLayerModal falls back to EPSG:3857 when visualizationRef is null", asyn
   fireEvent.click(screen.getByText("Source"));
   await waitFor(() => {
     const inputs = screen.getAllByRole("textbox");
-    const projectionInput = inputs.find(
-      (input) => input.value === "EPSG:3857",
-    );
+    const projectionInput = inputs.find((input) => input.value === "EPSG:3857");
     expect(projectionInput).toBeDefined();
   });
 });
@@ -1644,8 +1641,9 @@ describe("MapLayerModal GeoTIFF save path", () => {
       />,
     );
 
-    const createLayerButton =
-      await screen.findByLabelText("Create Layer Button");
+    const createLayerButton = await screen.findByLabelText(
+      "Create Layer Button",
+    );
     fireEvent.click(createLayerButton);
 
     await waitFor(() => {
@@ -1691,8 +1689,9 @@ describe("MapLayerModal GeoTIFF save path", () => {
       />,
     );
 
-    const createLayerButton =
-      await screen.findByLabelText("Create Layer Button");
+    const createLayerButton = await screen.findByLabelText(
+      "Create Layer Button",
+    );
     fireEvent.click(createLayerButton);
 
     await waitFor(() => {
@@ -1731,8 +1730,9 @@ describe("MapLayerModal GeoTIFF save path", () => {
       />,
     );
 
-    const createLayerButton =
-      await screen.findByLabelText("Create Layer Button");
+    const createLayerButton = await screen.findByLabelText(
+      "Create Layer Button",
+    );
     fireEvent.click(createLayerButton);
 
     await waitFor(() => {
@@ -1768,8 +1768,9 @@ describe("MapLayerModal GeoTIFF save path", () => {
       />,
     );
 
-    const createLayerButton =
-      await screen.findByLabelText("Create Layer Button");
+    const createLayerButton = await screen.findByLabelText(
+      "Create Layer Button",
+    );
     fireEvent.click(createLayerButton);
 
     expect(
@@ -1805,8 +1806,9 @@ describe("MapLayerModal GeoTIFF save path", () => {
       />,
     );
 
-    const createLayerButton =
-      await screen.findByLabelText("Create Layer Button");
+    const createLayerButton = await screen.findByLabelText(
+      "Create Layer Button",
+    );
     fireEvent.click(createLayerButton);
 
     expect(
@@ -1842,8 +1844,9 @@ describe("MapLayerModal GeoTIFF save path", () => {
       />,
     );
 
-    const createLayerButton =
-      await screen.findByLabelText("Create Layer Button");
+    const createLayerButton = await screen.findByLabelText(
+      "Create Layer Button",
+    );
     fireEvent.click(createLayerButton);
 
     await waitFor(() => {
@@ -1893,8 +1896,9 @@ describe("MapLayerModal GeoTIFF save path", () => {
       />,
     );
 
-    const createLayerButton =
-      await screen.findByLabelText("Create Layer Button");
+    const createLayerButton = await screen.findByLabelText(
+      "Create Layer Button",
+    );
     fireEvent.click(createLayerButton);
 
     await waitFor(() => {
@@ -1914,6 +1918,241 @@ describe("MapLayerModal GeoTIFF save path", () => {
     expect(saved).not.toHaveProperty("bands");
     expect(saved).not.toHaveProperty("projection");
     expect(saved).not.toHaveProperty("overviews");
+  });
+
+  test("preserves non-empty projection and overviews on the cleaned SourceInfo", async () => {
+    // Companion to the empty-fields test above. Covers the truthy branches
+    // of the projection (line 199) and overviews (line 202) cleanup checks
+    // — the existing tests only exercised their false branches.
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "Reprojected GeoTIFF" },
+      sourceProps: {
+        type: "GeoTIFF",
+        props: {
+          sources: [
+            {
+              url: "main.tif",
+              projection: "EPSG:4326",
+              overviews: [
+                "https://example.com/main.ovr",
+                "https://example.com/main2.ovr",
+              ],
+            },
+          ],
+        },
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalledTimes(1);
+    });
+
+    const saved =
+      addMapLayer.mock.calls[0][0].configuration.props.source.props.sources[0];
+    expect(saved.url).toBe("main.tif");
+    expect(saved.projection).toBe("EPSG:4326");
+    expect(saved.overviews).toEqual([
+      "https://example.com/main.ovr",
+      "https://example.com/main2.ovr",
+    ]);
+  });
+});
+
+describe("MapLayerModal save-path nullish fallbacks and sub-modal zIndex", () => {
+  test("GeoTIFF save with no `sources` key at all uses the [] fallback and blocks save", async () => {
+    // Covers the right side of `sourceProps.props?.sources ?? []` at line
+    // 182. The existing empty-array test passes `sources: []` (truthy, the
+    // ?? falls through); this one omits the key entirely so the optional
+    // chain returns undefined and the [] fallback fires.
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "Sourceless GeoTIFF" },
+      sourceProps: {
+        type: "GeoTIFF",
+        props: {}, // no `sources` key
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+    expect(
+      await screen.findByText(
+        "Add at least one source with a URL before saving.",
+      ),
+    ).toBeInTheDocument();
+    expect(addMapLayer).not.toHaveBeenCalled();
+  });
+
+  test("GeoJSON save with no `geojson` key falls back to '' and stores empty string", async () => {
+    // Covers the right side of `(sourceProps.geojson ?? "").trim()` at
+    // line 282. With geojson undefined, geoStr is "", isJsonBody is false,
+    // so the URL/filename branch stores the empty string verbatim.
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "GeoJSON No Geojson" },
+      sourceProps: {
+        type: "GeoJSON",
+        props: {},
+        // No geojson key.
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalledTimes(1);
+    });
+    expect(
+      addMapLayer.mock.calls[0][0].configuration.props.source.geojson,
+    ).toBe("");
+  });
+
+  test("ramp-styled GeoTIFF with nodata flips hasNodata true (covers && right side)", async () => {
+    // Covers the right side of `s?.nodata !== undefined && s.nodata !== ""`
+    // at line 334. Existing ramp tests don't set nodata, so the left
+    // operand is always false and the right operand never evaluates.
+    // Pairing a ramp config with a nodata-bearing source forces it.
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "Nodata Ramp GeoTIFF" },
+      sourceProps: {
+        type: "GeoTIFF",
+        props: {
+          sources: [{ url: "x.tif", min: "0", max: "100", nodata: "-9999" }],
+        },
+        rampName: "viridis",
+        rampMin: "0",
+        rampMax: "100",
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalledTimes(1);
+    });
+
+    // hasNodata=true wraps the interpolate in a `case` against band 2.
+    const color = addMapLayer.mock.calls[0][0].configuration.style.color;
+    expect(color[0]).toBe("case");
+    expect(color[1]).toEqual(["==", ["band", 2], 0]);
+  });
+
+  test("Modal style uses zIndex 1050 while a GeoTIFF sub-modal is open", async () => {
+    // Covers the `: showingSubModal ? { zIndex: 1050 } : undefined` ternary
+    // at line 422. Default state has showingSubModal=false (ternary takes
+    // undefined). Clicking "Add source" inside the GeoTIFF SourcePane
+    // toggles it true via onSubModalToggle, raising the modal's zIndex.
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "Sub-modal GeoTIFF" },
+      sourceProps: {
+        type: "GeoTIFF",
+        props: { sources: [] },
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+
+    // Switch to the Source tab so the GeoTIFF SourcePane (with the "Add
+    // source" button) is rendered.
+    fireEvent.click(screen.getByText("Source"));
+    fireEvent.click(await screen.findByText("Add source"));
+
+    // The outer modal's role=dialog node now carries zIndex:1050 inline.
+    const dialogs = screen.getAllByRole("dialog");
+    const outer = dialogs.find((d) => d.className.includes("map-layer"));
+    await waitFor(() => {
+      expect(outer).toBeTruthy();
+    });
+    expect(outer.style.zIndex).toBe("1050");
+  });
+});
+
+describe("MapLayerModal GeoJSON URL/filename path", () => {
+  test("save with a GeoJSON URL string stores it directly without uploading", async () => {
+    // Covers line 306: when sourceProps.geojson is a non-empty string that
+    // doesn't start with `{` or `[`, save bypasses the saveLayerJSON upload
+    // and stores the URL/filename directly on source.geojson.
+    const uploadSpy = jest
+      .spyOn(appAPI, "uploadJSON")
+      .mockResolvedValue({ success: true, filename: "should-not-upload.json" });
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "Remote GeoJSON" },
+      sourceProps: {
+        type: "GeoJSON",
+        props: {},
+        geojson: "https://example.com/data.geojson",
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalledTimes(1);
+    });
+
+    const savedSource = addMapLayer.mock.calls[0][0].configuration.props.source;
+    // URL was stored verbatim — no upload roundtrip.
+    expect(savedSource.geojson).toBe("https://example.com/data.geojson");
+    expect(uploadSpy).not.toHaveBeenCalled();
   });
 });
 
@@ -1950,15 +2189,14 @@ describe("MapLayerModal GeoTIFF ramp round-trip persistence", () => {
       expect(addMapLayer).toHaveBeenCalledTimes(1);
     });
 
-    const savedSource =
-      addMapLayer.mock.calls[0][0].configuration.props.source;
+    const savedSource = addMapLayer.mock.calls[0][0].configuration.props.source;
     expect(savedSource.rampName).toBe("RdYlBu");
     expect(savedSource.rampMin).toBe("277");
     expect(savedSource.rampMax).toBe("300");
     // The generated color expression still lands on configuration.style.
-    expect(
-      addMapLayer.mock.calls[0][0].configuration.style.color[0],
-    ).toBe("interpolate");
+    expect(addMapLayer.mock.calls[0][0].configuration.style.color[0]).toBe(
+      "interpolate",
+    );
   });
 });
 
@@ -1970,9 +2208,10 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
   test("saves a ramp-styled GeoTIFF as an object-literal style (bypasses saveLayerJSON)", async () => {
     // Spy on appAPI.uploadJSON — the backend call made by saveLayerJSON.
     // For GeoTIFF ramp styling, it must NOT be invoked.
-    const uploadSpy = jest
-      .spyOn(appAPI, "uploadJSON")
-      .mockResolvedValue({ success: true, filename: "should-not-be-used.json" });
+    const uploadSpy = jest.spyOn(appAPI, "uploadJSON").mockResolvedValue({
+      success: true,
+      filename: "should-not-be-used.json",
+    });
 
     const handleModalClose = jest.fn();
     const addMapLayer = jest.fn();
@@ -1998,8 +2237,9 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
       />,
     );
 
-    const createLayerButton =
-      await screen.findByLabelText("Create Layer Button");
+    const createLayerButton = await screen.findByLabelText(
+      "Create Layer Button",
+    );
     fireEvent.click(createLayerButton);
 
     await waitFor(() => {
@@ -2054,8 +2294,9 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
       />,
     );
 
-    const createLayerButton =
-      await screen.findByLabelText("Create Layer Button");
+    const createLayerButton = await screen.findByLabelText(
+      "Create Layer Button",
+    );
     fireEvent.click(createLayerButton);
 
     await waitFor(() => {
@@ -2096,8 +2337,9 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
       />,
     );
 
-    const createLayerButton =
-      await screen.findByLabelText("Create Layer Button");
+    const createLayerButton = await screen.findByLabelText(
+      "Create Layer Button",
+    );
     fireEvent.click(createLayerButton);
 
     await waitFor(() => {
@@ -2206,8 +2448,9 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
       />,
     );
 
-    const createLayerButton =
-      await screen.findByLabelText("Create Layer Button");
+    const createLayerButton = await screen.findByLabelText(
+      "Create Layer Button",
+    );
     fireEvent.click(createLayerButton);
 
     await waitFor(() => {
@@ -2251,8 +2494,7 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
       expect(addMapLayer).toHaveBeenCalledTimes(1);
     });
 
-    const savedStyle =
-      addMapLayer.mock.calls[0][0].configuration.style;
+    const savedStyle = addMapLayer.mock.calls[0][0].configuration.style;
     expect(savedStyle).toHaveProperty("color");
     // All stop values collapse to 50, colors still vary.
     expect(savedStyle.color[3]).toBe(50);
@@ -2283,8 +2525,9 @@ describe("MapLayerModal save path regression for non-GeoTIFF sources", () => {
       />,
     );
 
-    const createLayerButton =
-      await screen.findByLabelText("Create Layer Button");
+    const createLayerButton = await screen.findByLabelText(
+      "Create Layer Button",
+    );
     fireEvent.click(createLayerButton);
 
     await waitFor(() => {
@@ -2321,8 +2564,9 @@ describe("MapLayerModal save path regression for non-GeoTIFF sources", () => {
       />,
     );
 
-    const createLayerButton =
-      await screen.findByLabelText("Create Layer Button");
+    const createLayerButton = await screen.findByLabelText(
+      "Create Layer Button",
+    );
     fireEvent.click(createLayerButton);
 
     await waitFor(() => {

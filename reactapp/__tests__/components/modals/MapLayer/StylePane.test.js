@@ -101,6 +101,40 @@ const GeoTIFFTestHarness = ({ initialSourceProps }) => {
   );
 };
 
+test("StylePane GeoTIFF ramp/min/max handlers no-op when setSourceProps is missing", async () => {
+  // Covers the `if (!setSourceProps) return;` early-returns at lines 203,
+  // 207, and 212. With setSourceProps undefined, every handler must
+  // short-circuit silently — the ramp picker click and the min/max input
+  // changes should not throw.
+  render(
+    <LayoutContext.Provider value={{ uuid: "123" }}>
+      <StylePane
+        style={undefined}
+        setStyle={() => {}}
+        setErrorMessage={() => {}}
+        sourceProps={{ type: "GeoTIFF" }}
+        // intentionally omit setSourceProps to drive the early-return path
+      />
+    </LayoutContext.Provider>,
+  );
+
+  // Ramp picker → handleRampSelect short-circuits (line 203).
+  const rampButton = await screen.findByLabelText("Select viridis ramp");
+  expect(() => fireEvent.click(rampButton)).not.toThrow();
+
+  // Min input → handleMinChange short-circuits (line 207).
+  const minInput = screen.getByLabelText("Ramp Min");
+  expect(() =>
+    fireEvent.change(minInput, { target: { value: "10" } }),
+  ).not.toThrow();
+
+  // Max input → handleMaxChange short-circuits (line 212).
+  const maxInput = screen.getByLabelText("Ramp Max");
+  expect(() =>
+    fireEvent.change(maxInput, { target: { value: "100" } }),
+  ).not.toThrow();
+});
+
 test("StylePane json Input", async () => {
   render(<TestingComponent sourceProps={{ type: "GeoJSON" }} />);
 
@@ -531,8 +565,8 @@ test("StylePane typing min/max updates sourceProps.rampMin / rampMax as strings"
 
   await waitFor(() => {
     expect(screen.getByTestId("rampMin")).toHaveTextContent("0");
-    expect(screen.getByTestId("rampMax")).toHaveTextContent("100");
   });
+  expect(screen.getByTestId("rampMax")).toHaveTextContent("100");
 });
 
 test("StylePane pre-populates ramp selection and min/max from sourceProps", async () => {

@@ -1,28 +1,3 @@
-// Mock GeoTIFF source constructor so we can spy on the exact options passed
-// through ModuleLoader (and so the real geotiff fetch machinery doesn't run
-// in jsdom). jest.mock is hoisted; all tests in this file share the mock.
-// The mock subclasses ol's real Source so WebGLTile's handleSourceUpdate_
-// can safely call .getState() and related event methods.
-jest.mock("ol/source/GeoTIFF.js", () => {
-  const ActualSource = jest.requireActual("ol/source/Source.js").default;
-  const spy = jest.fn();
-  class MockGeoTIFFSource extends ActualSource {
-    constructor(options) {
-      super({ projection: null });
-      this.options = options;
-      spy(options);
-    }
-  }
-  // Hang the jest.fn() off the class so tests can inspect calls via
-  // `GeoTIFF.constructorSpy.mock.calls`. Jest's resetMocks clears the
-  // spy's call history before each test, keeping tests isolated.
-  MockGeoTIFFSource.constructorSpy = spy;
-  return {
-    __esModule: true,
-    default: MockGeoTIFFSource,
-  };
-});
-
 import moduleLoader, {
   createJsonStyleFunction,
   matchesCondition,
@@ -68,6 +43,24 @@ import {
   defaultStrokeWidth,
 } from "components/inputs/RuleEditor.js";
 
+jest.mock("ol/source/GeoTIFF.js", () => {
+  const ActualSource = jest.requireActual("ol/source/Source.js").default;
+  const spy = jest.fn();
+  class MockGeoTIFFSource extends ActualSource {
+    constructor(options) {
+      super({ projection: null });
+      this.options = options;
+      spy(options);
+    }
+  }
+
+  MockGeoTIFFSource.constructorSpy = spy;
+  return {
+    __esModule: true,
+    default: MockGeoTIFFSource,
+  };
+});
+
 function mockFeature(props, geometryType = "Point") {
   return {
     getProperties: () => props,
@@ -105,6 +98,30 @@ test("GeoJSON Instance", async () => {
     layerConfigGeoJSON.configuration,
   );
   expect(cachedLayerInstance instanceof VectorLayer).toBe(true);
+});
+
+test("GeoJSON URL string source (URL-based VectorSource path)", async () => {
+  // When `source.geojson` is a string, loadGeoJSON returns a VectorSource
+  // with `url` + a GeoJSON format pre-configured to reproject into the
+  // map projection — covers the URL-based branch.
+  const config = {
+    type: "VectorLayer",
+    props: {
+      name: "Remote GeoJSON Layer",
+      source: {
+        type: "GeoJSON",
+        props: {},
+        geojson: "https://example.com/data.geojson",
+      },
+      zIndex: 1,
+    },
+  };
+
+  const layerInstance = await moduleLoader(config, "EPSG:3857");
+  expect(layerInstance instanceof VectorLayer).toBe(true);
+  const source = layerInstance.getSource();
+  expect(source instanceof VectorSource).toBe(true);
+  expect(source.getUrl()).toBe("https://example.com/data.geojson");
 });
 
 test("ArcGIS Feature Service Instance", async () => {

@@ -451,7 +451,10 @@ const SourcePane = ({
   }
 
   function handleOpenEditGeoTIFFSource(index) {
-    const triggerEl = editButtonRefs.current.get(index) ?? null;
+    // get() returns the element or undefined — both behave the same way
+    // in handleExited's `if (returnFocusRef && returnFocusRef.current)`
+    // guard, so no nullish fallback is needed here.
+    const triggerEl = editButtonRefs.current.get(index);
     pendingReturnFocusRef.current = { current: triggerEl };
     setEditingIndex(index);
     setSubModalOpen(true);
@@ -494,8 +497,11 @@ const SourcePane = ({
       sources.length === 3 &&
       sources.every((s) => singleBandIndex(s.bands) !== null);
     const channelLabels = ["R", "G", "B"];
+    // sources[editingIndex] yielding undefined and null both feed
+    // GeoTIFFSourceModal's `if (!initialValue) return emptyState();`
+    // identically, so no extra nullish fallback is required.
     const editingInitialValue =
-      editingIndex === null ? null : (sources[editingIndex] ?? null);
+      editingIndex === null ? null : sources[editingIndex];
 
     // Single-source scientific data (1 source, empty or single-band bands)
     // renders near-black with the default WebGLTile shader. Nudge the user

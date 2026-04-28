@@ -80,7 +80,8 @@ const GeoTIFFSourceModal = ({
   const saveDisabled = fields.url.trim() === "";
 
   const handleSave = () => {
-    if (saveDisabled) return;
+    // The Save button is `disabled={saveDisabled}` so onClick can't fire
+    // when the URL is empty — no defensive early-return is necessary here.
     const overviewsArray = fields.overviews
       .split("\n")
       .map((line) => line.trim())

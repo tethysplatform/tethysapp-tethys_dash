@@ -21,15 +21,12 @@ describe("COLOR_RAMPS", () => {
     expect(RAMP_STOPS).toBeLessThanOrEqual(64);
   });
 
-  test.each(RAMP_KEYS)(
-    "every %s entry is a 6-digit hex string",
-    (rampName) => {
-      const ramp = COLOR_RAMPS[rampName];
-      for (const entry of ramp) {
-        expect(entry).toMatch(HEX_RE);
-      }
-    },
-  );
+  test.each(RAMP_KEYS)("every %s entry is a 6-digit hex string", (rampName) => {
+    const ramp = COLOR_RAMPS[rampName];
+    for (const entry of ramp) {
+      expect(entry).toMatch(HEX_RE);
+    }
+  });
 
   test.each(RAMP_KEYS)(
     "%s starts and ends with distinct colors (not a flat ramp)",
@@ -98,10 +95,14 @@ describe("COLOR_RAMPS", () => {
   test("RdYlBu starts red-ish and ends blue-ish", () => {
     const first = COLOR_RAMPS.RdYlBu[0];
     const last = COLOR_RAMPS.RdYlBu[RAMP_STOPS - 1];
-    const [, r1, g1, b1] = first.match(/^#(..)(..)(..)$/);
-    const [, r2, g2, b2] = last.match(/^#(..)(..)(..)$/);
-    expect(parseInt(r1, 16)).toBeGreaterThan(parseInt(b1, 16));
-    expect(parseInt(b2, 16)).toBeGreaterThan(parseInt(r2, 16));
+    const firstMatch = first.match(/^#(..)(..)(..)$/);
+    const lastMatch = last.match(/^#(..)(..)(..)$/);
+    expect(parseInt(firstMatch[1], 16)).toBeGreaterThan(
+      parseInt(firstMatch[3], 16),
+    );
+    expect(parseInt(lastMatch[3], 16)).toBeGreaterThan(
+      parseInt(lastMatch[1], 16),
+    );
   });
 });
 
@@ -139,6 +140,48 @@ describe("interpolateRamp helper", () => {
     );
     // middle entry is half-red
     expect(out[1]).toBe("#800000");
+  });
+
+  test("uses the 256 default when steps is omitted", () => {
+    // Covers the `steps = 256` default-parameter branch.
+    const out = _internal.interpolateRamp([
+      { t: 0, color: [0, 0, 0] },
+      { t: 1, color: [1, 1, 1] },
+    ]);
+    expect(out).toHaveLength(256);
+    expect(out[0]).toBe("#000000");
+    expect(out[255]).toBe("#ffffff");
+  });
+
+  test("returns a single low-end color when steps === 1 (avoids divide-by-zero)", () => {
+    // Covers the `steps === 1 ? 0 : ...` branch where the loop's `t` is
+    // forced to 0 instead of computing `i / (steps - 1)`.
+    const out = _internal.interpolateRamp(
+      [
+        { t: 0, color: [0, 0, 0] },
+        { t: 1, color: [1, 1, 1] },
+      ],
+      1,
+    );
+    expect(out).toEqual(["#000000"]);
+  });
+
+  test("handles zero-span between adjacent keystops without dividing by zero", () => {
+    // Two keystops share t=0. The bracket-finder loop matches the first
+    // pair where `t >= sorted[k].t && t <= sorted[k+1].t`; for the i=0
+    // sample (t=0) that's sorted[0]/sorted[1] — both at t=0, so span=0,
+    // covering the `span === 0 ? 0 : ...` branch. localT=0 picks `lo`'s
+    // color (#000000). Other samples bracket the [0, 1] pair as normal.
+    const out = _internal.interpolateRamp(
+      [
+        { t: 0, color: [0, 0, 0] },
+        { t: 0, color: [1, 0, 0] },
+        { t: 1, color: [0, 0, 1] },
+      ],
+      3,
+    );
+    expect(out[0]).toBe("#000000");
+    expect(out[2]).toBe("#0000ff");
   });
 });
 

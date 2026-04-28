@@ -1,6 +1,10 @@
 import { buildGeoTIFFStyleColor } from "components/map/geoTIFFStyle";
 import { COLOR_RAMPS, RAMP_STOPS } from "components/map/colorRamps";
 
+afterEach(() => {
+  jest.restoreAllMocks();
+});
+
 describe("buildGeoTIFFStyleColor", () => {
   test("returns an interpolate expression with correct header + value/color pairs", () => {
     const expr = buildGeoTIFFStyleColor({
@@ -124,6 +128,28 @@ describe("buildGeoTIFFStyleColor", () => {
     ).toThrow(/finite numbers/);
   });
 
+  test("hasNodata wraps the interpolate in a `case` against band 2 with a transparent fallback", () => {
+    // Covers the nodata branch: instead of returning the bare interpolate
+    // expression, the function returns a `case` expression that returns a
+    // transparent color when alpha (band 2) is 0.
+    const expr = buildGeoTIFFStyleColor({
+      rampName: "viridis",
+      rampMin: 0,
+      rampMax: 100,
+      hasNodata: true,
+    });
+
+    expect(expr[0]).toBe("case");
+    expect(expr[1]).toEqual(["==", ["band", 2], 0]);
+    expect(expr[2]).toEqual([0, 0, 0, 0]);
+    // Last element is the wrapped interpolate expression.
+    const inner = expr[3];
+    expect(inner[0]).toBe("interpolate");
+    expect(inner[1]).toEqual(["linear"]);
+    expect(inner[2]).toEqual(["band", 1]);
+    expect(inner).toHaveLength(3 + RAMP_STOPS * 2);
+  });
+
   test("throws when rampMax is not parseable as a finite number", () => {
     expect(() =>
       buildGeoTIFFStyleColor({
@@ -132,5 +158,41 @@ describe("buildGeoTIFFStyleColor", () => {
         rampMax: "",
       }),
     ).toThrow(/finite numbers/);
+  });
+
+  test("treats an empty-string rampMin as NaN (covers the minIsEmpty true branch)", () => {
+    // The existing rampMin failure test uses "not-a-number" which has
+    // minIsEmpty=false; this case forces minIsEmpty=true so the ternary's
+    // NaN branch is taken before Number("") would otherwise coerce to 0.
+    expect(() =>
+      buildGeoTIFFStyleColor({
+        rampName: "viridis",
+        rampMin: "",
+        rampMax: 100,
+      }),
+    ).toThrow(/finite numbers/);
+  });
+
+  test("steps === 1 short-circuits to t=0 (single-entry ramp covers the steps===1 branch)", () => {
+    // Temporarily stub a length-1 ramp into COLOR_RAMPS. The const binding
+    // can't be reassigned, but the object's properties can be mutated —
+    // and that's the same `COLOR_RAMPS` object the implementation reads.
+    const original = COLOR_RAMPS.viridis;
+    COLOR_RAMPS.viridis = ["#abcdef"];
+    try {
+      const expr = buildGeoTIFFStyleColor({
+        rampName: "viridis",
+        rampMin: 10,
+        rampMax: 20,
+      });
+
+      // Header + a single (value, color) pair = 5 elements.
+      expect(expr).toHaveLength(5);
+      // With steps === 1 the loop emits one stop at t=0, so value === rampMin.
+      expect(expr[3]).toBe(10);
+      expect(expr[4]).toBe("#abcdef");
+    } finally {
+      COLOR_RAMPS.viridis = original;
+    }
   });
 });

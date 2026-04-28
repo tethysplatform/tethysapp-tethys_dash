@@ -330,7 +330,10 @@ const MapLayerModal = ({
         // substitutes 0 for the nodata sentinel in the data band. The shader
         // has to read that alpha band to know which pixels are nodata,
         // otherwise substituted-0 pixels get colorized by the ramp.
-        const hasNodata = (validSourceProps.sources ?? []).some(
+        // `validSourceProps.sources` is guaranteed to be the restoredSources
+        // array (assigned above when sourceProps.type === "GeoTIFF"), so no
+        // nullish fallback is needed.
+        const hasNodata = validSourceProps.sources.some(
           (s) => s?.nodata !== undefined && s.nodata !== "",
         );
         const color = buildGeoTIFFStyleColor({

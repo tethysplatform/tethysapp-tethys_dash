@@ -590,6 +590,72 @@ test("Map GeoJSON with legend and bad format", async () => {
   expect(screen.queryByLabelText("Legend Control")).not.toBeInTheDocument();
 });
 
+test("Map GeoTIFF with default legend emits a ramp colorbar from sourceProps metadata", async () => {
+  // Covers lines 353-360: when a GeoTIFF layer carries persisted
+  // rampName/rampMin/rampMax on its source, `legend: "default"` should
+  // bypass the style/url legend paths and produce a colorbar legend
+  // straight from COLOR_RAMPS[rampName] + the persisted bounds.
+  const layer = {
+    configuration: {
+      type: "WebGLTile",
+      props: {
+        name: "Ramp Raster Layer",
+        source: {
+          type: "GeoTIFF",
+          props: {
+            sources: [{ url: "https://example.com/ramp.tif" }],
+          },
+          rampName: "viridis",
+          rampMin: "0",
+          rampMax: "100",
+        },
+      },
+      style: {
+        color: [
+          "interpolate",
+          ["linear"],
+          ["band", 1],
+          0,
+          "#000000",
+          100,
+          "#ffffff",
+        ],
+      },
+    },
+    legend: "default",
+  };
+
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent
+          mapProps={{
+            mapConfig: {},
+            viewConfig: {},
+            layers: [layer],
+            baseMap: null,
+            layerControl: false,
+          }}
+        />
+      </MapContextProvider>
+    ),
+  });
+  render(LoadedComponent);
+
+  // LegendControl is collapsed by default; clicking expand reveals the
+  // colorbar produced by the auto-legend path.
+  fireEvent.click(await screen.findByLabelText("Show Legend Control"));
+
+  // LegendRenderer renders rampColors as a CSS linear-gradient strip
+  // with aria-label `Color ramp from <min> to <max>`.
+  expect(
+    await screen.findByLabelText("Color ramp from 0 to 100"),
+  ).toBeInTheDocument();
+  // Layer name is used as the legend title for the colorbar entry
+  // (line 357: `title: layer.configuration?.props?.name`).
+  expect(screen.getByText("Ramp Raster Layer")).toBeInTheDocument();
+});
+
 test("Map ESRI with default legend", async () => {
   const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
   const layer = layerConfigImageArcGISRest;

@@ -4,12 +4,6 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import GeoTIFFSourceModal from "components/modals/MapLayer/GeoTIFFSourceModal";
 
-// Disable Bootstrap Modal animations in tests so onExited fires
-// synchronously / near-synchronously (we still use waitFor for safety).
-const defaultRenderProps = {
-  show: true,
-};
-
 const Harness = ({
   initialShow = true,
   initialValue = null,
@@ -64,9 +58,7 @@ test("GeoTIFFSourceModal renders all 7 fields with labels and placeholders", asy
   render(<Harness />);
 
   // Title for Add flow
-  expect(
-    await screen.findByText("Add GeoTIFF Source"),
-  ).toBeInTheDocument();
+  expect(await screen.findByText("Add GeoTIFF Source")).toBeInTheDocument();
 
   // Labels render inside <b> tags; the <b> text node matches exactly.
   expect(screen.getByText("URL")).toBeInTheDocument();
@@ -112,9 +104,7 @@ test("GeoTIFFSourceModal title is 'Edit GeoTIFF Source' when initialValue is pro
     />,
   );
 
-  expect(
-    await screen.findByText("Edit GeoTIFF Source"),
-  ).toBeInTheDocument();
+  expect(await screen.findByText("Edit GeoTIFF Source")).toBeInTheDocument();
 });
 
 test("GeoTIFFSourceModal auto-focuses the url input when opened", async () => {
@@ -232,10 +222,7 @@ test("GeoTIFFSourceModal filters blank lines from overviews on save", async () =
 
   const overviewsInput = screen.getByLabelText("Overviews Input");
   // userEvent type treats {Enter} as newline for textarea
-  await user.type(
-    overviewsInput,
-    "https://a{Enter}{Enter}https://b{Enter}",
-  );
+  await user.type(overviewsInput, "https://a{Enter}{Enter}https://b{Enter}");
 
   await user.click(
     screen.getByRole("button", { name: "Save GeoTIFF Source Button" }),
@@ -309,6 +296,79 @@ test("GeoTIFFSourceModal pressing Escape closes the modal without firing onSave"
     expect(onHideSpy).toHaveBeenCalled();
   });
   expect(onSaveSpy).not.toHaveBeenCalled();
+});
+
+test("seedFromInitial fills missing fields with defaults when initialValue is a partial object", async () => {
+  // Covers the `?? ""` fallbacks at lines 34-39 and the `Array.isArray`
+  // else branch at line 30. An empty (but truthy) object skips the
+  // `!initialValue` early-return, then each ?? falls through to "" and
+  // overviews falls through to [] (rendered as empty string).
+  render(<Harness initialValue={{}} />);
+
+  // Edit-mode title — proves the truthy-but-empty initialValue path was
+  // taken (not the null/falsy emptyState() branch).
+  expect(await screen.findByText("Edit GeoTIFF Source")).toBeInTheDocument();
+
+  // Every field defaulted to empty string.
+  expect(screen.getByLabelText("URL Input")).toHaveValue("");
+  expect(screen.getByLabelText("Bands Input")).toHaveValue("");
+  expect(screen.getByLabelText("Min Input")).toHaveValue("");
+  expect(screen.getByLabelText("Max Input")).toHaveValue("");
+  expect(screen.getByLabelText("Nodata Input")).toHaveValue("");
+  expect(screen.getByLabelText("Projection Input")).toHaveValue("");
+  expect(screen.getByLabelText("Overviews Input")).toHaveValue("");
+});
+
+test("auto-focus rAF callback is a no-op when the url input ref is null at fire time", async () => {
+  // Covers the `if (urlInputRef.current)` else branch (line 68). We
+  // intercept requestAnimationFrame, capture the callback, then close
+  // the modal so the urlInputRef detaches before invoking the callback
+  // by hand. The callback should run without throwing.
+  let capturedCb;
+  const rafSpy = jest
+    .spyOn(global, "requestAnimationFrame")
+    .mockImplementation((cb) => {
+      capturedCb = cb;
+      return 1;
+    });
+  // Don't actually cancel — we want to fire the captured callback below.
+  const cancelSpy = jest
+    .spyOn(global, "cancelAnimationFrame")
+    .mockImplementation(() => {});
+
+  const Closer = () => {
+    const [show, setShow] = useState(true);
+    return (
+      <>
+        <GeoTIFFSourceModal
+          show={show}
+          onHide={() => setShow(false)}
+          onSave={jest.fn()}
+          initialValue={null}
+        />
+        <button data-testid="hide" onClick={() => setShow(false)}>
+          hide
+        </button>
+      </>
+    );
+  };
+
+  render(<Closer />);
+  // Effect ran, RAF was scheduled, callback captured.
+  expect(typeof capturedCb).toBe("function");
+
+  // Close the modal so its body unmounts and urlInputRef.current goes null.
+  await userEvent.click(screen.getByTestId("hide"));
+  await waitFor(() => {
+    expect(screen.queryByLabelText("URL Input")).not.toBeInTheDocument();
+  });
+
+  // Now fire the captured RAF callback. The else branch runs — no throw,
+  // no focus call (the input is gone).
+  expect(() => capturedCb()).not.toThrow();
+
+  rafSpy.mockRestore();
+  cancelSpy.mockRestore();
 });
 
 test("GeoTIFFSourceModal returns focus to returnFocusRef element on close", async () => {

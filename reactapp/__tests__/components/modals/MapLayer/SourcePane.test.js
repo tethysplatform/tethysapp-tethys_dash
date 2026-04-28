@@ -248,9 +248,7 @@ test("SourcePane GeoJson bad stored filename surfaces error", async () => {
   // URL-shaped strings are pass-through — no fetch, no error to surface.
   // This test exercises the filename branch via appAPI.downloadJSON
   // returning success: false.
-  jest
-    .spyOn(appAPI, "downloadJSON")
-    .mockResolvedValueOnce({ success: false });
+  jest.spyOn(appAPI, "downloadJSON").mockResolvedValueOnce({ success: false });
   const mockSetErrorMessage = jest.fn();
 
   render(<TestingComponent setErrorMessage={mockSetErrorMessage} />);
@@ -700,6 +698,91 @@ describe("generatePropertiesArrayWithValues", () => {
   });
 });
 
+describe("SourcePane GeoTIFF row rendering edge cases", () => {
+  test("multi-band/blank-band/missing-url sources hit the row formatters' fallback paths", async () => {
+    // Three sources cover three different formatter branches at once:
+    //   - bands "1,2,3" → singleBandIndex's `parts.length !== 1` early
+    //     return at line 112 (3 sources triggers `sources.every(...)`,
+    //     so the multi-band entry forces the null branch).
+    //   - bands ",,," → formatSummary's `parts.length === 0` early
+    //     return at line 126.
+    //   - missing url → JSX `source?.url ?? ""` fallback at line 533.
+    //   - non-empty min/max → fieldDisplay's `s !== ""` branch at line 132.
+    render(
+      <TestingComponent
+        initialSourceProps={{
+          type: "GeoTIFF",
+          props: {
+            sources: [
+              {
+                url: "https://example.com/multi.tif",
+                bands: "1,2,3",
+                min: "10",
+                max: "100",
+              },
+              { url: "https://example.com/blank.tif", bands: ",,," },
+              { bands: "1" },
+            ],
+          },
+        }}
+      />,
+    );
+
+    // Row 0: non-empty min/max land in the row summary verbatim (line 132
+    // false branch — the existing tests only stamped em-dashes).
+    expect(await screen.findByText(/min: 10 · max: 100/)).toBeInTheDocument();
+
+    // Row 1: blank-only bands string collapses to em-dash for bands.
+    expect(screen.getByText(/bands: — · min: — · max: —/)).toBeInTheDocument();
+
+    // Row 2: missing url renders as empty (the `?? ""` ran). Edit/Remove
+    // buttons still appear so the row is reachable.
+    expect(screen.getByLabelText("Edit source 3")).toBeInTheDocument();
+    expect(screen.getByLabelText("Remove source 3")).toBeInTheDocument();
+
+    // 3-source allSingleBand check called singleBandIndex on the multi-
+    // band entry; this `every(...)` call must have short-circuited false
+    // so no R/G/B channel labels were rendered.
+    expect(screen.queryByText(/^R:$/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^G:$/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^B:$/)).not.toBeInTheDocument();
+  });
+
+  test("Add source on a GeoTIFF sourceProps with no `props` key uses the {} fallback", async () => {
+    // Covers the right side of `previousSourceProps?.props ?? {}` at
+    // line 441. With initialSourceProps = { type: "GeoTIFF" } (no
+    // `props` key), the first sub-modal save's syncSourcesToProps spread
+    // must fall back to an empty object before adding `sources`.
+    let lastSetProps;
+    render(
+      <TestingComponent
+        initialSourceProps={{ type: "GeoTIFF" }}
+        sourcePropsSpy={(next) => {
+          lastSetProps = next;
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Add source" }));
+    const urlInput = await screen.findByLabelText("URL Input");
+    fireEvent.change(urlInput, {
+      target: { value: "https://example.com/new.tif" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save GeoTIFF Source Button" }),
+    );
+
+    await waitFor(() => {
+      expect(lastSetProps?.props?.sources).toBeDefined();
+    });
+    expect(lastSetProps.props.sources).toEqual([
+      expect.objectContaining({ url: "https://example.com/new.tif" }),
+    ]);
+    // Type was preserved alongside the newly-built `props` object.
+    expect(lastSetProps.type).toBe("GeoTIFF");
+  });
+});
+
 TestingComponent.propTypes = {
   initialSourceProps: PropTypes.object,
   setErrorMessage: PropTypes.func,
@@ -729,9 +812,7 @@ test("SourcePane Static Image fields", async () => {
 
 test("SourcePane Static Image Draw Extent button calls onRequestHideModal", async () => {
   const mockOnRequestHideModal = jest.fn();
-  render(
-    <TestingComponent onRequestHideModal={mockOnRequestHideModal} />,
-  );
+  render(<TestingComponent onRequestHideModal={mockOnRequestHideModal} />);
 
   const sourceDropdown = screen.getByRole("combobox");
   selectEvent.openMenu(sourceDropdown);
@@ -745,9 +826,7 @@ test("SourcePane Static Image Draw Extent button calls onRequestHideModal", asyn
     target: { value: "https://example.com/image.png" },
   });
 
-  const drawButton = await screen.findByLabelText(
-    "Draw Extent on Map Button",
-  );
+  const drawButton = await screen.findByLabelText("Draw Extent on Map Button");
   expect(drawButton).toBeInTheDocument();
   fireEvent.click(drawButton);
 
@@ -768,9 +847,7 @@ test("SourcePane Static Image Draw Extent requires URL", async () => {
   const sourceOption = await screen.findByText("Static Image");
   fireEvent.click(sourceOption);
 
-  const drawButton = await screen.findByLabelText(
-    "Draw Extent on Map Button",
-  );
+  const drawButton = await screen.findByLabelText("Draw Extent on Map Button");
   fireEvent.click(drawButton);
 
   expect(mockSetErrorMessage).toHaveBeenCalledWith(
@@ -828,9 +905,7 @@ test("SourcePane Static Image Draw Extent parses existing imageExtent", async ()
     expect(screen.getByText("*imageExtent")).toBeInTheDocument();
   });
 
-  const drawButton = await screen.findByLabelText(
-    "Draw Extent on Map Button",
-  );
+  const drawButton = await screen.findByLabelText("Draw Extent on Map Button");
   fireEvent.click(drawButton);
 
   expect(mockOnRequestHideModal).toHaveBeenCalledTimes(1);
@@ -858,7 +933,9 @@ test("SourcePane GeoTIFF renders placeholder UI and not InputTable", async () =>
   expect(
     await screen.findByText("Add at least one source to render this layer"),
   ).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Add source" })).toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "Add source" }),
+  ).toBeInTheDocument();
   expect(screen.getByText("Sources")).toBeInTheDocument();
 
   // InputTable markers do NOT appear (no "Source Properties" heading, no required * marker)
@@ -965,9 +1042,7 @@ test("SourcePane Static Image Draw Extent handles invalid imageExtent gracefully
     expect(screen.getByText("*imageExtent")).toBeInTheDocument();
   });
 
-  const drawButton = await screen.findByLabelText(
-    "Draw Extent on Map Button",
-  );
+  const drawButton = await screen.findByLabelText("Draw Extent on Map Button");
   fireEvent.click(drawButton);
 
   // Should still proceed (initialExtent stays null) without error
@@ -1015,9 +1090,7 @@ test("SourcePane GeoTIFF Add source opens sub-modal and Save appends a row", asy
     screen.queryByText("Add at least one source to render this layer"),
   ).not.toBeInTheDocument();
   // Summary placeholder shows em-dashes (no bands/min/max filled)
-  expect(
-    screen.getByText(/bands: — · min: — · max: —/),
-  ).toBeInTheDocument();
+  expect(screen.getByText(/bands: — · min: — · max: —/)).toBeInTheDocument();
 });
 
 test("SourcePane GeoTIFF reopening a layer with existing sources shows all rows", async () => {
@@ -1103,9 +1176,7 @@ test("SourcePane GeoTIFF Edit row 2 updates only that row and returns focus", as
   // Edit button. We wait for focus rather than relying on exact transition
   // timing.
   await waitFor(() => {
-    expect(
-      screen.getByRole("button", { name: "Edit source 2" }),
-    ).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Edit source 2" })).toHaveFocus();
   });
 });
 
@@ -1285,9 +1356,7 @@ test("SourcePane GeoTIFF sub-modal Save calls setSourceProps with updated source
       ([next]) =>
         next?.type === "GeoTIFF" &&
         Array.isArray(next?.props?.sources) &&
-        next.props.sources.some(
-          (s) => s.url === "https://example.com/spy.tif",
-        ),
+        next.props.sources.some((s) => s.url === "https://example.com/spy.tif"),
     );
     expect(matching).toBeDefined();
   });
@@ -1364,7 +1433,7 @@ test("SourcePane GeoTIFF sub-modal open/close toggles onSubModalToggle", async (
   });
 });
 
-test("SourcePane GeoTIFF R4: sub-modal Save preserves ${var} template string in URL", async () => {
+test("SourcePane GeoTIFF R4: sub-modal Save preserves var template string in URL", async () => {
   const spy = jest.fn();
   render(<TestingComponent sourcePropsSpy={spy} />);
   await selectGeoTIFF();
@@ -1374,6 +1443,7 @@ test("SourcePane GeoTIFF R4: sub-modal Save preserves ${var} template string in 
 
   const urlInput = await screen.findByLabelText("URL Input");
   fireEvent.change(urlInput, {
+    // eslint-disable-next-line no-template-curly-in-string
     target: { value: "${base}/imagery.tif" },
   });
   fireEvent.click(
@@ -1384,15 +1454,14 @@ test("SourcePane GeoTIFF R4: sub-modal Save preserves ${var} template string in 
   // path does not corrupt the template). Production-time variable
   // interpolation is covered by utilities tests and is out of scope here.
   await waitFor(() => {
-    const matching = spy.mock.calls.find(
-      ([next]) =>
-        next?.props?.sources?.some(
-          (s) => s.url === "${base}/imagery.tif",
-        ),
+    const matching = spy.mock.calls.find(([next]) =>
+      // eslint-disable-next-line no-template-curly-in-string
+      next?.props?.sources?.some((s) => s.url === "${base}/imagery.tif"),
     );
     expect(matching).toBeDefined();
   });
   expect(
+    // eslint-disable-next-line no-template-curly-in-string
     await screen.findByText("${base}/imagery.tif"),
   ).toBeInTheDocument();
 });

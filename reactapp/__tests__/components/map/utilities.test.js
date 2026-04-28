@@ -6,6 +6,7 @@ import {
   queryLayerFeatures,
   getLayerAttributes,
   loadLayerJSONs,
+  loadGeoJSON,
   saveLayerJSON,
   checkForCRS,
   getStyleFields,
@@ -3111,4 +3112,61 @@ test("saveLayerJSON geojson", async () => {
 
   expect(response.success).toBe(true);
   expect(response.filename).toBe("some_file.json");
+});
+
+test("queryLayerFeatures GeoTIFF tolerates missing source.props.sources (covers `?? []` fallback)", async () => {
+  // The configuredSources expression in getGeoTIFFPixelValues uses
+  // `layerInfo?.configuration?.props?.source?.props?.sources ?? []` —
+  // when the optional chain returns undefined (e.g. an in-progress
+  // authoring state where `sources` hasn't been written yet), the
+  // fallback `[]` should kick in instead of throwing.
+  const layerName = "Sourceless GeoTIFF";
+  const targetLayer = {
+    get: jest.fn((key) => (key === "name" ? layerName : undefined)),
+    getData: jest.fn(() => new Float32Array([42])),
+  };
+  const map = {
+    getView: jest.fn(() => ({
+      getResolution: jest.fn(),
+      getZoom: jest.fn(() => 10),
+    })),
+    getLayers: jest.fn(() => ({ getArray: jest.fn(() => [targetLayer]) })),
+  };
+
+  const layerInfo = {
+    configuration: {
+      type: "WebGLTile",
+      props: {
+        name: layerName,
+        source: {
+          type: "GeoTIFF",
+          props: {
+            // No `sources` key — the optional chain resolves to undefined
+            // and the `?? []` branch fires.
+          },
+        },
+      },
+    },
+  };
+
+  const features = await queryLayerFeatures(layerInfo, map, [0, 0], [10, 10]);
+  expect(features).toHaveLength(1);
+  expect(features[0].layerName).toBe(layerName);
+  expect(features[0].attributes["Band 1"]).toBeCloseTo(42, 4);
+});
+
+test("loadGeoJSON returns the URL untouched when keep_urls is true", async () => {
+  // Covers the `if (keep_urls) return geojson;` short-circuit. Without
+  // keep_urls=true, the function would fetch the URL — but with it, the
+  // string is returned as-is so the caller can defer fetching.
+  const url = "https://example.com/data.geojson";
+  const fetchSpy = jest.spyOn(global, "fetch");
+
+  const result = await loadGeoJSON(url, undefined, true);
+
+  expect(result).toBe(url);
+  // No network round-trip — the early return must skip fetch entirely.
+  expect(fetchSpy).not.toHaveBeenCalled();
+
+  fetchSpy.mockRestore();
 });

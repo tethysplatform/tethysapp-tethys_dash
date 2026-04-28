@@ -685,6 +685,77 @@ test("AttributesPane allow layer query", async () => {
   );
 });
 
+test("URL-based GeoJSON skips auto-extract on tab switch and exposes the 'Load attributes from URL' button", async () => {
+  // Covers the early-return at lines 157-158: when sourceProps describes a
+  // URL-based GeoJSON, the tab-switch effect must NOT call
+  // queryLayerAttributes (which would fetch + parse the entire file). It
+  // calls applyLayerAttributes(null) instead, putting the pane into the
+  // manual-entry InputTable layout with the load-from-URL button visible.
+  const sourceProps = {
+    type: "GeoJSON",
+    props: {},
+    geojson: "https://example.com/big.geojson",
+  };
+
+  render(
+    <TestingComponent
+      sourceProps={sourceProps}
+      layerProps={{ name: "remote-geojson" }}
+      tabKey="attributes"
+    />
+  );
+
+  // Manual-entry path: load button is rendered.
+  const loadButton = await screen.findByLabelText("Load attributes from URL");
+  expect(loadButton).toBeInTheDocument();
+  // And queryLayerAttributes was NOT called for URL GeoJSON.
+  expect(mockedGetLayerAttributes).not.toHaveBeenCalled();
+});
+
+test("'Load attributes from URL' button triggers a query and renders the extracted attributes", async () => {
+  // Covers handleLoadAttributesFromUrl (lines 321-324). After clicking the
+  // button, queryLayerAttributes must run with the configured sourceProps
+  // and the result is fed through applyLayerAttributes — switching the
+  // pane out of the manual-entry InputTable into the extracted-attributes
+  // FixedTable.
+  mockedGetLayerAttributes.mockResolvedValue({
+    "remote-geojson": [
+      { name: "field_a", alias: "Field A" },
+      { name: "field_b", alias: "Field B" },
+    ],
+  });
+
+  const sourceProps = {
+    type: "GeoJSON",
+    props: {},
+    geojson: "https://example.com/big.geojson",
+  };
+
+  render(
+    <TestingComponent
+      sourceProps={sourceProps}
+      layerProps={{ name: "remote-geojson" }}
+      tabKey="attributes"
+    />
+  );
+
+  const loadButton = await screen.findByLabelText("Load attributes from URL");
+  await userEvent.click(loadButton);
+
+  // queryLayerAttributes ran exactly once for the configured sourceProps
+  // and layer name.
+  await waitFor(() => {
+    expect(mockedGetLayerAttributes).toHaveBeenCalledWith(
+      sourceProps,
+      "remote-geojson",
+    );
+  });
+
+  // Extracted attribute names appear in the rendered FixedTable.
+  expect(await screen.findByText("field_a")).toBeInTheDocument();
+  expect(await screen.findByText("field_b")).toBeInTheDocument();
+});
+
 TestingComponent.propTypes = {
   initialAttributeProps: PropTypes.object,
   sourceProps: PropTypes.object,
