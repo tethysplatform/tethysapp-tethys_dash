@@ -69,10 +69,6 @@ const RightGroup = styled.div`
   align-items: center;
 `;
 
-// Derive the ol layer type for a given source type. Exported for unit testing.
-// Explicit cases must precede the substring checks so a precedent like
-// "Vector" / "Tile" / "Image" never shadows a source with a more specific
-// layer-type mapping (e.g. GeoTIFF → WebGLTile).
 export const getLayerType = (sourceType) => {
   if (sourceType === "GeoTIFF") return "WebGLTile";
   if (sourceType.includes("Vector")) return "VectorTileLayer";
@@ -173,20 +169,8 @@ const MapLayerModal = ({
       validSourceProps.urls = validSourceProps.urls.split(",");
     }
 
-    // GeoTIFF: restore sources[] from the pre-filter props because
-    // removeEmptyValues' truthiness filter would silently drop numeric-zero
-    // string fields (min: "0" / max: "0" / nodata: "0") when they live in
-    // nested objects. Filter by URL presence only; keep every other field
-    // unchanged so numeric-zero strings survive for render-time coercion.
     if (sourceProps.type === "GeoTIFF") {
       const rawSources = sourceProps.props?.sources ?? [];
-      // Filter by URL presence AND clean each SourceInfo: drop empty-string
-      // and empty-array fields so they don't reach ol/source/GeoTIFF. Empty
-      // `bands` would be parsed to `[]` at render (tells OL to read zero
-      // bands → "Unsupported data format/bitsPerSample" at tile-decode time).
-      // Empty `projection` and `overviews` are noise. Numeric fields stored
-      // as the string "0" MUST survive (truthy as strings) for the ramp
-      // expression's domain bounds.
       const cleanSourceInfo = (s) => {
         const out = { url: s.url };
         if (typeof s.bands === "string" && s.bands.trim() !== "") {
@@ -299,21 +283,10 @@ const MapLayerModal = ({
         mapConfiguration.configuration.props.source.geojson =
           apiResponse.filename;
       } else {
-        // URL/filename path: store directly. Render-time loadGeoJSON will
-        // fetch + CRS-check once; skipping the save-time re-fetch keeps
-        // large remote files (e.g., multi-MB .geojson) from downloading
-        // twice during a single save.
         mapConfiguration.configuration.props.source.geojson = geoStr;
       }
     }
 
-    // GeoTIFF ramp-styling: when a color ramp is selected on sourceProps,
-    // generate the WebGLTile `style.color` interpolate expression and assign
-    // it directly to `configuration.style` as an object literal. Bypass the
-    // upload branch below — `saveLayerJSON` expects a string and the
-    // downstream loadStyle() already passes object-literal styles through
-    // unchanged. If no ramp is selected, no `style` key is set and the layer
-    // renders with the WebGLTile default shader (R10 default-shader path).
     if (sourceProps.type === "GeoTIFF") {
       const { rampName, rampMin, rampMax } = sourceProps;
       const hasRamp =
@@ -326,13 +299,6 @@ const MapLayerModal = ({
         Number.isFinite(Number(rampMin)) &&
         Number.isFinite(Number(rampMax));
       if (hasRamp) {
-        // When any SourceInfo declares nodata, OL adds an alpha band and
-        // substitutes 0 for the nodata sentinel in the data band. The shader
-        // has to read that alpha band to know which pixels are nodata,
-        // otherwise substituted-0 pixels get colorized by the ramp.
-        // `validSourceProps.sources` is guaranteed to be the restoredSources
-        // array (assigned above when sourceProps.type === "GeoTIFF"), so no
-        // nullish fallback is needed.
         const hasNodata = validSourceProps.sources.some(
           (s) => s?.nodata !== undefined && s.nodata !== "",
         );
@@ -343,11 +309,6 @@ const MapLayerModal = ({
           hasNodata,
         });
         mapConfiguration.configuration.style = { color };
-        // Persist the ramp-intent fields alongside the generated expression so
-        // re-opening the layer in the modal can pre-populate the StylePane
-        // picker and min/max inputs. Without these, the expression renders
-        // correctly but the UI loses round-trip fidelity (user sees empty
-        // ramp inputs even though the layer is ramp-styled).
         mapConfiguration.configuration.props.source.rampName = rampName;
         mapConfiguration.configuration.props.source.rampMin = rampMin;
         mapConfiguration.configuration.props.source.rampMax = rampMax;

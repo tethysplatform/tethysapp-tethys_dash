@@ -51,17 +51,12 @@ const GeoTIFFSourceModal = ({
   const [fields, setFields] = useState(() => seedFromInitial(initialValue));
   const urlInputRef = useRef(null);
 
-  // Reseed fields every time the modal transitions to open. Reopen for
-  // add (initialValue == null) clears; reopen for edit seeds from the
-  // provided SourceInfo.
   useEffect(() => {
     if (show) {
       setFields(seedFromInitial(initialValue));
     }
   }, [show, initialValue]);
 
-  // Auto-focus the url input when the modal opens. rAF lets Bootstrap's
-  // portal/transition mount the input into the DOM before we focus.
   useEffect(() => {
     if (!show) return undefined;
     const rafId = requestAnimationFrame(() => {
@@ -80,18 +75,11 @@ const GeoTIFFSourceModal = ({
   const saveDisabled = fields.url.trim() === "";
 
   const handleSave = () => {
-    // The Save button is `disabled={saveDisabled}` so onClick can't fire
-    // when the URL is empty — no defensive early-return is necessary here.
     const overviewsArray = fields.overviews
       .split("\n")
       .map((line) => line.trim())
       .filter((line) => line !== "");
 
-    // IMPORTANT: All numeric-valued fields (min, max, nodata) are passed
-    // as strings. NormalInput with type="number" emits strings via
-    // onChange, and that is exactly what we want — string "0" survives
-    // the truthiness-based removeEmptyValues filter on the save path.
-    // Numeric casting happens at render time in ModuleLoader.
     const payload = {
       url: fields.url,
       bands: fields.bands,

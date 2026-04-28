@@ -99,9 +99,6 @@ const GeoTIFFHint = styled.div`
   color: #0a4b8c;
 `;
 
-// Returns the 0-based single-band number for a bands string (trim+split on
-// comma, filter blank cells). If it doesn't resolve to exactly one band,
-// returns null. Used for the 3-single-band RGB labeling case.
 const singleBandIndex = (bandsStr) => {
   if (typeof bandsStr !== "string") return null;
   const parts = bandsStr
@@ -113,8 +110,6 @@ const singleBandIndex = (bandsStr) => {
   return parts[0];
 };
 
-// Compact summary renderer: "bands: [X] · min: 0 · max: 255".
-// Missing/empty fields display as em-dash to keep row visual density stable.
 const formatSummary = (source) => {
   const bandsDisplay = (() => {
     const s = typeof source.bands === "string" ? source.bands.trim() : "";
@@ -222,9 +217,6 @@ const SourcePane = ({
   const [geoJSON, setGeoJSON] = useState("{}"); // track the geojson value
   const [geoJSONSource, setGeoJSONSource] = useState("custom"); // track the geojson value
 
-  // GeoTIFF sources-array state. `sources` is seeded from sourceProps on
-  // mount/source-type-change and synced back via setSourceProps on every
-  // mutation. subModalOpen/editingIndex drive the nested sub-modal.
   const [sources, setSources] = useState(() =>
     Array.isArray(sourceProps?.props?.sources) ? sourceProps.props.sources : [],
   );
@@ -237,18 +229,12 @@ const SourcePane = ({
   const { uuid } = useContext(LayoutContext);
   const mapContext = useMapContext();
 
-  // Notify parent MapLayer whenever sub-modal open state flips so it can
-  // raise its zIndex above the backdrop. Mirrors DataViewer.js:202,323.
   useEffect(() => {
     if (typeof onSubModalToggle === "function") {
       onSubModalToggle(subModalOpen);
     }
   }, [subModalOpen, onSubModalToggle]);
 
-  // Reseed local sources from sourceProps whenever the GeoTIFF source
-  // type becomes active or sourceProps.props.sources changes from
-  // outside (e.g., switching layer templates, reopening an existing
-  // layer for edit).
   useEffect(() => {
     if (sourceProps?.type === "GeoTIFF") {
       const incoming = Array.isArray(sourceProps?.props?.sources)
@@ -278,9 +264,6 @@ const SourcePane = ({
   useEffect(() => {
     const fetchGeoJSON = async () => {
       if (sourceProps.geojson.includes("/")) {
-        // URL input: do not fetch here. The file could be many MB and the
-        // body isn't used — reachability is validated at render time via
-        // loadGeoJSON (components/map/utilities.js).
         setGeoJSON(sourceProps.geojson);
         setGeoJSONSource("url");
       } else {
@@ -431,9 +414,6 @@ const SourcePane = ({
     }));
   }
 
-  // Propagate the updated sources array into sourceProps so the parent
-  // modal's save path sees the current value. Mirrors handlePropertyChange's
-  // setSourceProps shape (preserves other keys on sourceProps).
   function syncSourcesToProps(updatedSources) {
     setSourceProps((previousSourceProps) => ({
       ...previousSourceProps,
@@ -451,9 +431,6 @@ const SourcePane = ({
   }
 
   function handleOpenEditGeoTIFFSource(index) {
-    // get() returns the element or undefined — both behave the same way
-    // in handleExited's `if (returnFocusRef && returnFocusRef.current)`
-    // guard, so no nullish fallback is needed here.
     const triggerEl = editButtonRefs.current.get(index);
     pendingReturnFocusRef.current = { current: triggerEl };
     setEditingIndex(index);
@@ -480,8 +457,6 @@ const SourcePane = ({
   }
 
   function handleRemoveGeoTIFFSource(index) {
-    // v1: native confirm — simplest, matches plan scope.
-    // eslint-disable-next-line no-alert
     const confirmed = window.confirm("Remove this source?");
     if (!confirmed) return;
     setSources((prevSources) => {
@@ -497,15 +472,9 @@ const SourcePane = ({
       sources.length === 3 &&
       sources.every((s) => singleBandIndex(s.bands) !== null);
     const channelLabels = ["R", "G", "B"];
-    // sources[editingIndex] yielding undefined and null both feed
-    // GeoTIFFSourceModal's `if (!initialValue) return emptyState();`
-    // identically, so no extra nullish fallback is required.
     const editingInitialValue =
       editingIndex === null ? null : sources[editingIndex];
 
-    // Single-source scientific data (1 source, empty or single-band bands)
-    // renders near-black with the default WebGLTile shader. Nudge the user
-    // toward the Style tab's ramp picker.
     const isLikelyScientificSingleBand =
       sources.length === 1 &&
       (typeof sources[0]?.bands !== "string" ||
@@ -518,13 +487,13 @@ const SourcePane = ({
         <GeoTIFFHint role="note">
           GeoTIFF layers render in the source's native projection; the dashboard
           map view will be reprojected to match the data on load. Basemaps in
-          EPSG:3857 may look distorted if your COG uses a different projection.
-          {" "}
+          EPSG:3857 may look distorted if your COG uses a different projection.{" "}
           <strong>Files must be Cloud Optimized GeoTIFFs</strong> — plain
           strip-based TIFFs and some compression/predictor combinations may fail
           silently. Convert with{" "}
           <code style={{ fontSize: "0.85em" }}>
-            gdal_translate -of COG -co COMPRESS=DEFLATE -co PREDICTOR=YES input.tif output.tif
+            gdal_translate -of COG -co COMPRESS=DEFLATE -co PREDICTOR=YES
+            input.tif output.tif
           </code>
           .
         </GeoTIFFHint>

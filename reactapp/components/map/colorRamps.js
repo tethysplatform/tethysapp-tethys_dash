@@ -1,26 +1,3 @@
-// Color ramps for GeoTIFF single-band scientific raster styling.
-//
-// Each ramp is a RAMP_STOPS-entry array of 6-digit hex strings (no alpha). The
-// arrays are generated at module-load time by linearly interpolating between a
-// small set of published keystops (matplotlib viridis/turbo, ColorBrewer
-// RdYlBu, and a trivial black-to-white grayscale). Linear RGB interpolation
-// between 10-12 keystops is not a pixel-perfect reproduction of the source
-// tables, but it is visually indistinguishable at swatch resolution and smooth
-// enough for WebGLTile interpolate expressions.
-//
-// RAMP_STOPS is constrained by WebGL fragment-shader instruction limits: each
-// stop pair in an `interpolate` expression compiles to a handful of GLSL
-// branches. 256 stops exceeds common GPU limits ("Expression too complex"
-// compile error). 32 stops is well under every WebGL-capable GPU's budget and
-// visually clean (~human discrimination threshold for a gradient).
-//
-// The module is pure data + a tiny helper; no React, no side effects beyond
-// module-level array construction.
-//
-// Exports:
-//   COLOR_RAMPS: { viridis, turbo, RdYlBu, grayscale }
-//   RAMP_NAMES:  string[] (canonical order for UI)
-
 const clamp01 = (t) => (t < 0 ? 0 : t > 1 ? 1 : t);
 
 const toHex = (channel) => {
@@ -58,8 +35,7 @@ const interpolateRamp = (keystops, steps = 256) => {
 };
 
 // Keystops expressed as [t, [r, g, b]] with all values in [0, 1].
-const toKeystops = (raw) =>
-  raw.map(([t, color]) => ({ t, color }));
+const toKeystops = (raw) => raw.map(([t, color]) => ({ t, color }));
 
 // Viridis keystops (matplotlib), 12 evenly-spaced samples from the canonical 256-entry table.
 // Source: matplotlib._cm_listed.viridis — sampled at indices 0, 23, 46, ..., 253, 255.

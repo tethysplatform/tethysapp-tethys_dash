@@ -78,11 +78,6 @@ const AttributesPane = ({
     attributeProps.queryable ?? true,
   );
 
-  // URL-based GeoJSON: the geojson field is a path/URL rather than an
-  // inline FeatureCollection. Auto-extracting attributes would fetch +
-  // fully parse the entire file in the browser, which hangs the tab for
-  // multi-MB sources. For this case we default to manual entry and let
-  // the user opt in via the "Load attributes from URL" button.
   const isUrlGeoJSON =
     sourceProps?.type === "GeoJSON" &&
     typeof sourceProps?.geojson === "string" &&
@@ -149,10 +144,6 @@ const AttributesPane = ({
         setCustomAttributes(null);
         previousSourceProps.current = JSON.parse(JSON.stringify(sourceProps));
 
-        // For URL-based GeoJSON, skip the auto-extract (which would fetch +
-        // fully parse the file on every tab switch — crashes the tab for
-        // multi-MB files). Default to manual entry; user opts in via the
-        // "Load attributes from URL" button below.
         if (isUrlGeoJSON) {
           applyLayerAttributes(null);
           return;
@@ -219,10 +210,6 @@ const AttributesPane = ({
     }
   }
 
-  // Shared post-query step: either populate the extracted-attributes table
-  // (queried truthy) or fall back to the manual-entry table seeded from any
-  // existing attribute config (queried null/undefined). Invoked from the
-  // tab-switch effect and from the "Load attributes from URL" button.
   function applyLayerAttributes(queriedLayerAttributes) {
     let layerAttributes = {};
 
@@ -253,8 +240,7 @@ const AttributesPane = ({
       );
 
       // Check params for potential layers, otherwise just use the layer name
-      const potentialLayers =
-        lowercaseLayerParams?.layers ?? layerProps.name;
+      const potentialLayers = lowercaseLayerParams?.layers ?? layerProps.name;
 
       // split layers based on a comma delimited list. For WMS, extract the layer name from the namespace (topp:states for example)
       const layers = potentialLayers
@@ -304,9 +290,7 @@ const AttributesPane = ({
 
     parseAttributes(layerAttributes);
 
-    previousAttributeProps.current = JSON.parse(
-      JSON.stringify(attributeProps),
-    );
+    previousAttributeProps.current = JSON.parse(JSON.stringify(attributeProps));
     setAttributeProps((previousAttributeProps) => ({
       ...previousAttributeProps,
       ...{

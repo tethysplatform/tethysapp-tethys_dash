@@ -238,12 +238,6 @@ const MapComponent = ({
               newLayer.setVisible(false);
             }
 
-            // Wait for the new layer to finish loading before removing
-            // the old layer it replaces. This prevents flickering during
-            // animated layer transitions (e.g., Array slider cycling
-            // through image URLs). Only applies when replacing a layer
-            // with an updated version of itself (same name), not when
-            // swapping structurally different layers.
             const replacesExisting = layersToRemove.some(
               (old) => old.get("name") === name,
             );
@@ -282,51 +276,21 @@ const MapComponent = ({
 
             map.addLayer(newLayer);
 
-            // GeoTIFF auto-fit: ol/source/GeoTIFF returns raw data tiles, not
-            // pre-rendered image tiles — client-side reprojection across
-            // projections isn't supported. When a COG is not in EPSG:3857 (or
-            // whatever the current view uses), the only way to see it is to
-            // set the map view to one derived from the source. Last-added
-            // GeoTIFF wins if multiple are present in different projections.
             if (
               layerConfig.type === "WebGLTile" &&
               layerConfig.props?.source?.type === "GeoTIFF"
             ) {
-              // newLayer is a WebGLTileLayer whose source was constructed by
-              // moduleLoader (and would have thrown earlier if construction
-              // failed), so `getSource()` and the source's Observable
-              // methods (`on`, `getView`) are guaranteed present here.
               const geoTIFFSource = newLayer.getSource();
 
-              // Surface failures in the UI. geotiff.js can throw on unsupported
-              // compression, unusual bit depths, BigTIFF variants, or tile-fetch
-              // failures (CORS, 404). There are TWO failure phases we need to
-              // listen for:
-              //   1. `error` — metadata/header parse fails, or the initial
-              //      source setup throws. Fires BEFORE tile requests start.
-              //   2. `tileloaderror` — a specific tile fails to decode or
-              //      fetch. Fires during rendering.
-              // Without both listeners, failures in phase 1 are silent (no
-              // tile requests happen, so phase 2 never fires either).
-              // Throttle to one alert per layer to avoid N-tile spam.
               let errorSurfaced = false;
               const surface = (phase) => (evt) => {
                 if (errorSurfaced) return;
                 errorSurfaced = true;
                 const detail = evt?.error?.message || evt?.message || "";
-                // Distinguish fetch/network failures from file-format
-                // failures. geotiff.js's BlockedSource bubbles up "Request
-                // failed" or "AggregateError" when byte-range requests
-                // fail (CORS, no Range support, 404, etc.). Different
-                // remediation than a format issue.
                 const looksLikeFetchFailure =
                   /request failed|AggregateError|CORS|blocked|Failed to fetch/i.test(
                     detail,
                   );
-                // Fetch path always has a non-empty `detail` because
-                // looksLikeFetchFailure only matches against a non-empty
-                // regex hit, so the conditional " Detail:" segment is
-                // safe to inline directly.
                 const message = looksLikeFetchFailure
                   ? `GeoTIFF layer "${name}" failed to fetch the file. ` +
                     `Check the Network tab — likely causes: CORS headers ` +
@@ -348,33 +312,12 @@ const MapComponent = ({
 
               try {
                 const viewOptions = await geoTIFFSource.getView();
-                // Goal: switch the view's projection to the TIF's (so
-                // tiles can render), but show the same geographic area
-                // the user was already viewing. Falls back to the TIF's
-                // own extent only when the previous view doesn't overlap
-                // the TIF's footprint (otherwise user would stare at
-                // empty space outside the data).
-                //
-                // Why clamp the previous extent: if the user is zoomed
-                // out, calculateExtent can return values beyond the
-                // source projection's valid range (e.g., longitudes
-                // > 180° in EPSG:3857 world copies). Transforming those
-                // produces non-primary world-copy coordinates in the
-                // target projection, where the TIF's tiles don't exist —
-                // user only sees pixels after panning around the world.
-                // Clamping to the source projection's valid extent keeps
-                // the transform in the primary world copy.
                 const mapSize = map.getSize();
                 const prevView = map.getView();
                 const prevProjection = prevView.getProjection();
                 const newProjection = viewOptions.projection;
                 const tifExtent = viewOptions.extent;
 
-                // mapSize is undefined / [0, 0] before layout (jsdom,
-                // pre-render). Skip the cross-projection extent
-                // transform in that case — anything we'd compute would
-                // be NaN-laden. Without a valid mapSize, fit() also
-                // can't run.
                 const haveMapSize =
                   Array.isArray(mapSize) &&
                   mapSize.length === 2 &&
@@ -383,21 +326,8 @@ const MapComponent = ({
 
                 // Helper: extents [minX, minY, maxX, maxY] overlap?
                 const intersects = (a, b) =>
-                  !(
-                    a[2] < b[0] ||
-                    a[0] > b[2] ||
-                    a[3] < b[1] ||
-                    a[1] > b[3]
-                  );
+                  !(a[2] < b[0] || a[0] > b[2] || a[3] < b[1] || a[1] > b[3]);
 
-                // Initialize the new View with the TIF's center/zoom if
-                // provided in viewOptions — without them, an uninitialized
-                // View can cause OL's render pipeline to short-circuit
-                // (no tiles request, no setView event handlers complete).
-                // fit() (when invoked below) will override the initial
-                // values to fit the targetExtent precisely; the defaults
-                // here just ensure the View is in a renderable state for
-                // the case where fit() is skipped (no mapSize).
                 const newView = new View({
                   projection: newProjection,
                   center: viewOptions.center ?? [0, 0],
@@ -407,12 +337,6 @@ const MapComponent = ({
                 let targetExtent = null;
                 if (haveMapSize) {
                   const prevExtent = prevView.calculateExtent(mapSize);
-                  // Clamp prev extent to source projection's valid range —
-                  // when the user is zoomed out, calculateExtent can
-                  // return values beyond the source projection's valid
-                  // range (e.g., longitudes > 180° in EPSG:3857 world
-                  // copies). Transforming those produces non-primary
-                  // world-copy coordinates in the target projection.
                   const sourceValid = prevProjection.getExtent?.();
                   const clampedPrev =
                     Array.isArray(sourceValid) && sourceValid.length === 4
@@ -435,11 +359,6 @@ const MapComponent = ({
                       newProjection,
                     );
                     if (transformed.every(Number.isFinite)) {
-                      // Use the transformed previous extent if it overlaps
-                      // the TIF's data extent. If not (TIF is far from
-                      // where the user was looking), fall back to the
-                      // TIF's footprint so user sees something instead of
-                      // empty space.
                       const overlaps =
                         Array.isArray(tifExtent) &&
                         tifExtent.length === 4 &&
@@ -454,8 +373,6 @@ const MapComponent = ({
                   }
                 }
 
-                // Fall through to the TIF's own extent if the prev
-                // extent was unusable.
                 if (
                   !targetExtent &&
                   Array.isArray(tifExtent) &&
@@ -465,20 +382,11 @@ const MapComponent = ({
                   targetExtent = tifExtent;
                 }
 
-                // fit() requires a valid mapSize. If we don't have one
-                // (jsdom, pre-layout), set the view without fitting —
-                // OL will use the View's default center/zoom, and fit
-                // will happen naturally on the first real render once
-                // the map has dimensions.
                 if (targetExtent && haveMapSize) {
                   newView.fit(targetExtent, { size: mapSize });
                 }
                 map.setView(newView);
               } catch (err) {
-                // A failure here (e.g., the COG header couldn't be read
-                // before view derivation) leaves the existing view in place.
-                // The layer simply won't render until the user corrects the
-                // source or the view.
                 console.warn(
                   `GeoTIFF auto-fit failed for layer "${name}":`,
                   err,
@@ -487,10 +395,6 @@ const MapComponent = ({
             }
 
             if (layerConfig.style) {
-              // WebGLTile layers (GeoTIFF + ramp) carry a `style.color`
-              // shader expression object that ol-mapbox-style's applyStyle
-              // cannot consume. Apply via setStyle directly and skip the
-              // applyStyle pipeline entirely.
               const isWebGLTileRampStyle =
                 layerConfig.type === "WebGLTile" &&
                 layerConfig.style &&
@@ -499,9 +403,6 @@ const MapComponent = ({
                 "color" in layerConfig.style;
 
               if (isWebGLTileRampStyle) {
-                // newLayer is always a WebGLTileLayer here (the
-                // isWebGLTileRampStyle predicate requires layerConfig.type
-                // === "WebGLTile"), so setStyle is always present.
                 newLayer.setStyle(layerConfig.style);
               } else {
                 try {
@@ -522,9 +423,6 @@ const MapComponent = ({
               }
             }
           } catch (err) {
-            // Soft render guard: a GeoTIFF layer with an empty sources[]
-            // array is an in-progress authoring state, not an error. Silently
-            // skip so "failedLayers" doesn't surface a misleading warning.
             if (err && err.message === "GeoTIFFEmptySources") {
               return;
             }
@@ -534,8 +432,6 @@ const MapComponent = ({
         }),
       );
 
-      // Wait for new layers to load before removing old ones to prevent
-      // flickering. Falls through immediately if no load promises exist.
       if (layerLoadPromises.length > 0) {
         await Promise.all(layerLoadPromises);
       }

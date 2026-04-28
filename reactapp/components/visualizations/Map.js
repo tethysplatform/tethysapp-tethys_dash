@@ -335,13 +335,6 @@ const MapVisualization = ({
           await loadLayerJSONs(layer, uuid);
           if (layer.legend) {
             if (layer.legend === "default") {
-              // GeoTIFF ramp-styled layers: when the layer persisted ramp
-              // metadata (rampName/rampMin/rampMax) alongside the style.color
-              // expression at save time, emit a colorbar legend directly from
-              // the ramp. This is the auto-legend path for scientific raster
-              // layers — the generated interpolate expression's discrete
-              // stops aren't a good legend source; the named ramp's full
-              // color array is.
               const rampSource = layer.configuration?.props?.source;
               if (
                 rampSource?.type === "GeoTIFF" &&

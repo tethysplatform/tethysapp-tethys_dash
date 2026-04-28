@@ -1,39 +1,6 @@
-// Builds the WebGLTile `style.color` interpolate expression for a GeoTIFF
-// layer that has a curated color ramp applied.
-//
-// Expression form (per OpenLayers' WebGLTile style documentation):
-//
-//   ['interpolate', ['linear'], ['band', 1],
-//     rampMin, stop0,
-//     rampMin + (rampMax-rampMin)/255, stop1,
-//     ...,
-//     rampMax, stop255]
-//
-// where `stop0..stop255` are the 256 hex strings from COLOR_RAMPS[rampName].
-// The result is a bare array — callers wrap it as `{ color: [...] }` before
-// assigning to `configuration.style` at save time.
-//
-// This is a pure function: no React, no side effects, no IO.
-
 import { COLOR_RAMPS } from "./colorRamps";
+import PropTypes from "prop-types";
 
-/**
- * Build the `style.color` interpolate expression array for a ramp-styled
- * GeoTIFF layer.
- *
- * When `hasNodata` is true, the returned expression is wrapped in a `case`
- * check against the alpha band (band 2). OpenLayers appends one alpha band
- * per SourceInfo that declares `nodata`, and substitutes 0 for the nodata
- * sentinel in the data band itself — so the shader MUST read the alpha band
- * to know which pixels are really nodata, otherwise those pixels would be
- * colorized as if they were valid 0s. `case`-wrapped expression returns a
- * transparent color for nodata pixels.
- *
- * @param {{ rampName: string, rampMin: number|string, rampMax: number|string, hasNodata?: boolean }} args
- * @returns {Array} The OL expression.
- * @throws {Error} When `rampName` is not a key of `COLOR_RAMPS`, or when
- *   `rampMin`/`rampMax` cannot be coerced to finite numbers.
- */
 export function buildGeoTIFFStyleColor({
   rampName,
   rampMin,
@@ -72,14 +39,12 @@ export function buildGeoTIFFStyleColor({
 
   if (!hasNodata) return interpolateExpr;
 
-  // Nodata wrapper: when the alpha band (band 2 for a single-band source with
-  // nodata) is 0, return fully-transparent. Otherwise apply the ramp. The
-  // `case` operator short-circuits, so the nodata branch doesn't incur the
-  // interpolate shader cost for those pixels.
-  return [
-    "case",
-    ["==", ["band", 2], 0],
-    [0, 0, 0, 0],
-    interpolateExpr,
-  ];
+  return ["case", ["==", ["band", 2], 0], [0, 0, 0, 0], interpolateExpr];
 }
+
+buildGeoTIFFStyleColor.propTypes = {
+  rampName: PropTypes.string.isRequired,
+  rampMin: PropTypes.oneOfType([PropTypes.number, PropTypes.string]).isRequired,
+  rampMax: PropTypes.oneOfType([PropTypes.number, PropTypes.string]).isRequired,
+  hasNodata: PropTypes.bool,
+};

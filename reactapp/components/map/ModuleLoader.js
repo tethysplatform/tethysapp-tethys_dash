@@ -45,9 +45,6 @@ const moduleLoader = async (config, mapProjection) => {
     Array.isArray(config.props?.sources) &&
     config.props.sources.length === 0
   ) {
-    // Soft render guard: an in-progress authoring state (sources[] still
-    // empty) must not crash ol. Map.js filters this specific error out of
-    // failedLayers so the layer is silently skipped.
     throw new Error("GeoTIFFEmptySources");
   }
 
@@ -129,17 +126,7 @@ const resolveProps = async (props, mapProjection) => {
   for (const key of Object.keys(props)) {
     const value = props[key];
 
-    // GeoTIFF SourceInfo cleanup — handled BEFORE the generic object/array
-    // branch because empty arrays are still typeof "object" and would
-    // otherwise be passed through as `[]`, and the empty-bands case needs
-    // to drop empty CSV pieces before Number() coerces "" to 0.
     if (key === "bands" && typeof value === "string") {
-      // Parse a CSV bands string ("1,2,3") to a number array. Empty/
-      // whitespace pieces are dropped BEFORE Number() because Number("")
-      // is 0 (not NaN), so "" alone would otherwise produce [0] which
-      // tells OL to read band index 0 — wrong, and not what the empty
-      // input meant. Also drop the key entirely when the result is
-      // empty (UI's "no band filter" → OL default of reading all bands).
       const parsed = value
         .split(",")
         .map((b) => b.trim())
@@ -152,13 +139,9 @@ const resolveProps = async (props, mapProjection) => {
       continue;
     }
     if (key === "projection" && value === "") {
-      // Empty-string projection on a SourceInfo is UI noise — OL expects
-      // either a valid projection code or undefined. Drop it.
       continue;
     }
     if (key === "overviews" && Array.isArray(value) && value.length === 0) {
-      // Empty overviews array is UI noise — drop it before the generic
-      // array branch swallows it as a passed-through empty array.
       continue;
     }
 
@@ -266,12 +249,6 @@ const getModuleImporter = (type) => {
 const loadGeoJSON = (config, mapProjection) => {
   const geojson = config.geojson;
 
-  // URL-based GeoJSON: let OL own the fetch + parse. Data projection comes
-  // from the file's `crs` member if present, otherwise defaults to
-  // EPSG:4326 per RFC 7946. The coord-magnitude sniffing done by
-  // checkForCRS() in utilities.js does not run on this path — files with
-  // EPSG:3857 coordinates and no `crs` member must declare their CRS
-  // explicitly or render inline instead.
   if (typeof geojson === "string") {
     return new VectorSource({
       url: geojson,
@@ -279,8 +256,6 @@ const loadGeoJSON = (config, mapProjection) => {
     });
   }
 
-  // Inline JSON body or workspace filename path: geojson was pre-parsed by
-  // loadGeoJSON in utilities.js, which also injected a `crs` member.
   return new VectorSource({
     features: new GeoJSON().readFeatures(geojson, {
       dataProjection: geojson.crs?.properties?.name,

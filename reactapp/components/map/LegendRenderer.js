@@ -454,11 +454,6 @@ function LegendRenderer({ legend }) {
 
   if (!legend) return null;
 
-  // 🟢 Custom legend (array of items)
-  // Ramp legend (auto-generated from GeoTIFF ramp-styled layers). The shape
-  // is { rampColors: string[], rampMin: number|string, rampMax: number|string,
-  // title?: string }. Rendered as a CSS linear-gradient strip with min/max
-  // labels at the ends.
   if (Array.isArray(legend.rampColors) && legend.rampColors.length > 0) {
     return (
       <LegendWrapper>
