@@ -814,7 +814,7 @@ export async function getLayerAttributes({
     });
     if (!apiResponse?.success) {
       throw new Error(
-        apiResponse?.data?.message ?? "Failed to fetch plugin attributes.",
+        apiResponse?.data?.error ?? "Failed to fetch plugin attributes.",
       );
     }
     const scaffold = apiResponse.data ?? {};

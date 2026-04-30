@@ -32,23 +32,13 @@ import Select from "react-select";
 import appAPI from "services/api/app";
 import "components/modals/wideModal.css";
 
-// Empty-but-valid GeoJSON FeatureCollection used as the scaffold snapshot
-// for runtime dynamic_map_layer plugins. Satisfies validate_geojson's CRS
-// requirement and ModuleLoader's direct config.geojson.crs.properties.name
-// read so the OL VectorLayer can be instantiated before the first runtime
-// fetch completes.
 const DYNAMIC_LAYER_PLACEHOLDER_GEOJSON = {
   type: "FeatureCollection",
   features: [],
   crs: { type: "name", properties: { name: "EPSG:4326" } },
 };
 
-// Rekey a layer-keyed attribute map (variables/omitted/aliases) to a new
-// layer name. Only acts on single-key maps — multi-layer sources like WMS
-// or ESRI Image Services intentionally carry multiple layer keys and must
-// not be collapsed. Returns the input unchanged when the map is empty,
-// already correctly keyed, or has more than one entry.
-function rekeyAttributeMapToLayer(map, targetLayerName) {
+export function rekeyAttributeMapToLayer(map, targetLayerName) {
   if (!map || typeof map !== "object" || !targetLayerName) return map;
   const keys = Object.keys(map);
   if (keys.length !== 1 || keys[0] === targetLayerName) return map;
@@ -69,10 +59,7 @@ function normalizeAttributePropsForLayer(attributeProps, targetLayerName) {
   };
 }
 
-// Rename a specific layer key across attributeProps. Used when the author
-// renames the layer in LayerPane — the previous-name key must be moved to
-// the new name or click/popup lookups by layer.name would miss.
-function renameLayerInAttributeProps(attributeProps, oldName, newName) {
+export function renameLayerInAttributeProps(attributeProps, oldName, newName) {
   if (!oldName || !newName || oldName === newName) return attributeProps;
   const renameKey = (map) => {
     if (!map || typeof map !== "object" || !(oldName in map)) return map;
@@ -165,14 +152,6 @@ const MapLayerModal = ({
     setHiddenForExtentDraw(true);
   }, []);
 
-  // Intercept layerProps updates to preserve the invariant that attribute-map
-  // keys (variables/omitted/aliases) match the current layer name. Without
-  // this, a plugin scaffolds attribute maps keyed by the builder's layer name
-  // (e.g. "Stream Gauges"); if the author renames the layer in LayerPane, the
-  // maps are left keyed by the stale name and click/popup lookups miss. Only
-  // rewrites entries already keyed by the previous name (untouched when the
-  // map is empty), so static multi-layer sources (WMS, ESRI Image) are
-  // unaffected.
   const handleLayerPropsChange = useCallback((updater) => {
     setLayerProps((prev) => {
       const next = typeof updater === "function" ? updater(prev) : updater;
@@ -228,9 +207,6 @@ const MapLayerModal = ({
       return;
     }
 
-    // Detect runtime dynamic_map_layer via AppContext lookup. sourceProps.type
-    // for a runtime layer is the plugin's intake source name, which appears
-    // in dynamicMapLayers (grouped by the "Dynamic Map Layers" label).
     const isRuntime = !!findSelectOptionByValue(
       dynamicMapLayers,
       sourceProps.type,
@@ -240,9 +216,6 @@ const MapLayerModal = ({
     const validSourceProps = removeEmptyValues(sourceProps.props);
     const validLayerProps = removeEmptyValues(layerProperties);
 
-    // Static sources enforce their required-field schema (url, LAYERS, etc.).
-    // Runtime plugins skip this — features come from the plugin at viewer
-    // time, not from a URL the author typed in.
     if (!isRuntime) {
       const missingRequiredProps = checkRequiredKeys(
         sourcePropertiesOptions[sourceProps.type]?.required,
@@ -290,12 +263,6 @@ const MapLayerModal = ({
 
     let mapConfiguration;
     if (isRuntime) {
-      // Runtime layers persist as VectorLayer with a GeoJSON source holding
-      // an empty placeholder FC (valid crs) plus a sibling pluginSource
-      // reference block. At viewer time, runtimeLayerFetcher (Unit 5) fetches
-      // real features and swaps them into the preserved OL layer (Unit 4).
-      // layerId is a stable UUID assigned at save time; used by Unit 4's
-      // identity keep-branch and the per-layer WebSocket correlation id.
       const existingLayerId =
         layerInfo?.layerProps?.layerId ?? layerProps?.layerId;
       const layerId = existingLayerId || uuidv4();
@@ -484,9 +451,7 @@ const MapLayerModal = ({
 
     setSourceProps(apiResponse.data.configuration.props.source);
     setLayerProps(updatedLayerProps);
-    // Scaffolds emit attribute maps keyed by the template's layer name.
-    // Rekey to the effective layer name (preserving the author's earlier
-    // rename in LayerPane) so click/popup lookups stay in sync.
+
     const effectiveName = layerProps?.name || updatedLayerProps.name;
     setAttributeProps(
       normalizeAttributePropsForLayer(
@@ -503,20 +468,6 @@ const MapLayerModal = ({
     setLegend(apiResponse.data.legend);
   };
 
-  // Fetch scaffold for a dynamic_map_layer plugin and apply it to the
-  // Style / Legend / Attributes / LayerProps panes. Unlike onLayoutChange
-  // (which handles static Layer Templates), this preserves the runtime
-  // sourceProps (plugin source name + args) — we only want the scaffold
-  // to pre-fill the pane state, not reshape the source.
-  //
-  // Called from SourcePane in two contexts:
-  //   - Automatically on initial plugin selection (via handleLayerTypeChange).
-  //   - Explicitly via the "Fetch defaults" button the author clicks after
-  //     editing plugin args. (Arg edits do NOT auto-fire to avoid spamming
-  //     slow / side-effecting plugins.)
-  //
-  // Returns { success: bool, error?: string } so SourcePane can display
-  // inline feedback. Throws nothing.
   const fetchPluginDefaults = useCallback(
     async (source, args) => {
       try {
@@ -547,18 +498,14 @@ const MapLayerModal = ({
         if (config.layerVisibility !== undefined) {
           updatedLayerProps.layerVisibility = config.layerVisibility;
         }
-        // Preserve the current layer name (author may have renamed the
-        // layer in the Layer pane) — only fall back to the scaffold's
-        // name when the current name is empty.
+
         const effectiveName = layerProps?.name || updatedLayerProps.name;
         setLayerProps((prev) => ({
           ...updatedLayerProps,
           name: prev?.name || updatedLayerProps.name,
           layerId: prev?.layerId,
         }));
-        // The scaffold keys attribute maps by the plugin builder's layer
-        // name (e.g. "Stream Gauges"); rekey to the effective (user-set)
-        // layer name so click/popup lookups find the expected variables.
+
         setAttributeProps(
           normalizeAttributePropsForLayer(
             {
@@ -576,7 +523,7 @@ const MapLayerModal = ({
       } catch (err) {
         return {
           success: false,
-          error: err?.message ?? "Failed to fetch plugin defaults.",
+          error: err?.message || "Failed to fetch plugin defaults.",
         };
       }
     },

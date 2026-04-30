@@ -2675,7 +2675,7 @@ test("getLayerAttributes Dynamic Layer, plugin error with message", async () => 
           ctx.status(200),
           ctx.json({
             success: false,
-            data: { message: "Plugin error message" },
+            data: { error: "Plugin error message" },
           }),
           ctx.set("Content-Type", "application/json"),
         );

@@ -186,8 +186,8 @@ export const generatePropertiesArrayWithValues = (
   };
 
   // Process required and optional parts with existingValues
-  processKeys(sourceProperties.required, true, "", existingValues);
-  processKeys(sourceProperties.optional, false, "", existingValues);
+  processKeys(sourceProperties?.required, true, "", existingValues);
+  processKeys(sourceProperties?.optional, false, "", existingValues);
 
   return { properties, placeholders, types };
 };
@@ -245,14 +245,6 @@ const SourcePane = ({
   const mapContext = useMapContext();
   const { dynamicMapLayers } = useContext(AppContext);
 
-  // Look up the plugin option by EITHER source (the intake name, always
-  // set for runtime layers both on fresh selection and on reopen) or by
-  // value (the display label, matches the dropdown option shape for
-  // freshly-selected plugins). Static sources set sourceProps.type to
-  // the source-type string (e.g., "WMS") and never have sourceProps.source
-  // set, so the `source` lookup misses and the `value` lookup is against
-  // a non-plugin type string — both return null. pluginUnavailable then
-  // correctly evaluates false for static sources.
   const selectedPluginOption =
     (sourceProps.source &&
       findSelectOptionByValue(
@@ -266,20 +258,11 @@ const SourcePane = ({
   const savedAsDynamicPlugin = !!sourceProps.source;
   const pluginUnavailable = savedAsDynamicPlugin && !isDynamicMapLayer;
 
-  // Build the [{name, label, type}, ...] vizArguments shape expected by
-  // VisualizationArguments from the plugin's args schema. Plugin metadata
-  // carries args as {argName: argType} (e.g., {"bbox": "text"}); the form
-  // component expects a flat array.
   const pluginArgSchema = selectedPluginOption?.args ?? {};
   const pluginVizArguments = Object.entries(pluginArgSchema).map(
     ([argName, argType]) => ({ name: argName, label: argName, type: argType }),
   );
 
-  // Handle arg form input changes. VisualizationArguments gives us a
-  // (key) => (newValue) => void factory; each invocation updates a single
-  // arg value in sourceProps.args. We intentionally store raw values
-  // (including ${VarName} template strings) — the runtime orchestrator
-  // resolves templates at fetch time via updateObjectWithVariableInputs.
   const handlePluginArgChange = useCallback(
     (key) => (newValue) => {
       setSourceProps((prev) => ({
@@ -293,9 +276,6 @@ const SourcePane = ({
     [setSourceProps],
   );
 
-  // Run the scaffold fetch and surface feedback inline. Called explicitly
-  // by the Fetch defaults button and once automatically when the author
-  // first selects a plugin from the dropdown (see handleLayerTypeChange).
   const runFetchPluginDefaults = useCallback(
     async (source, args) => {
       if (!onFetchPluginDefaults) return;
@@ -331,18 +311,11 @@ const SourcePane = ({
   useEffect(() => {
     // if loading existing layer, then set states appropriately
     if (isDynamicMapLayer) {
-      // Runtime dynamic_map_layer plugin: use the plugin option's value/
-      // label for the dropdown display. Works for both fresh selection
-      // (sourceProps.type == label) and reopen (sourceProps.type may be
-      // undefined; resolved via source-key lookup above).
       setSourceType({
         value: selectedPluginOption.value,
         label: selectedPluginOption.label,
       });
     } else if (pluginUnavailable) {
-      // Plugin referenced by the saved layer no longer exists. Don't try
-      // to generate source-properties (sourcePropertiesOptions[type] is
-      // undefined); show the banner rendered below.
       setSourceType({
         value: sourceProps.type ?? sourceProps.source,
         label: sourceProps.type ?? sourceProps.source,
@@ -447,19 +420,9 @@ const SourcePane = ({
     SetPropertyPlaceholders(placeholders);
     SetPropertyTypes(types);
 
-    // Build the new sourceProps fresh per branch so leftover fields from a
-    // prior selection don't bleed into the new one. Previously we did
-    // `{...previousSourceProps, ...e, type, props}` — when switching from
-    // a dynamic plugin (whose `e` carries source / dynamic_map_layer /
-    // tags / etc.) to a static source like WMS (whose `e` is only
-    // {value, label}), the runtime-plugin fields persisted and tripped
-    // the pluginUnavailable check.
     const parsedSourceProps = parsePropertiesArray(properties);
     setSourceProps(() => {
       if (isRuntime) {
-        // Runtime plugin selection: keep the plugin-option metadata
-        // (source, label, etc.) but reset `args` to an empty-values dict
-        // — e.args is the type SCHEMA, not values we want to persist.
         return {
           ...e,
           type: e.value,
@@ -467,10 +430,6 @@ const SourcePane = ({
           args: {},
         };
       }
-      // Static source selection: drop any leftover runtime-plugin fields
-      // (source, dynamic_map_layer, tags, description, args, ...) by
-      // building a minimal shape. This is the handleLayerTypeChange event;
-      // the author just chose a new static source type.
       return {
         type: e.value,
         props: removeEmptyValues(parsedSourceProps),
@@ -480,11 +439,6 @@ const SourcePane = ({
     // reset attribute variable and omitted popup attributes since the source has changed
     setAttributeProps({});
 
-    // For dynamic_map_layer plugins, auto-fire Fetch defaults once on
-    // initial selection so Style/Legend/Attributes panes pre-fill with
-    // plugin defaults. Subsequent arg edits do NOT auto-trigger — the
-    // author uses the Fetch defaults button explicitly. This avoids
-    // spamming slow or side-effecting plugins on every keystroke.
     if (isRuntime) {
       runFetchPluginDefaults(e.source, {});
     }

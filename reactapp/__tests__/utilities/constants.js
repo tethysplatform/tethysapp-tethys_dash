@@ -1512,6 +1512,28 @@ export const layerConfigStaticImage = {
   },
 };
 
+export const ruleBasedStyle = {
+  rules: [
+    {
+      conditionField: "flow_cfs",
+      conditionType: "<",
+      conditionValue: "100",
+      geometryType: "point",
+      name: "flow&lt;100",
+      fill: "#ffcc00",
+    },
+    {
+      conditionField: "flow_cfs",
+      conditionType: ">=",
+      conditionValue: "100",
+      geometryType: "point",
+      name: "flow=&gt;100",
+      fill: "#0077ff",
+    },
+  ],
+  default: {},
+};
+
 export const exampleStyle = {
   version: 8,
   sprite:
