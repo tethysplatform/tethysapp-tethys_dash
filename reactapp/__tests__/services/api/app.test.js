@@ -24,10 +24,10 @@ describe("appAPI", () => {
                 },
               },
             }),
-            ctx.set("Content-Type", "application/json")
+            ctx.set("Content-Type", "application/json"),
           );
-        }
-      )
+        },
+      ),
     );
 
     const response = await appAPI.downloadJSON({
@@ -63,10 +63,10 @@ describe("appAPI", () => {
                 test: "&gt;",
               },
             }),
-            ctx.set("Content-Type", "application/json")
+            ctx.set("Content-Type", "application/json"),
           );
-        }
-      )
+        },
+      ),
     );
 
     const response = await appAPI.downloadJSON({
@@ -137,10 +137,10 @@ describe("appAPI", () => {
           return res(
             ctx.status(200),
             ctx.json({ success: true }),
-            ctx.set("Content-Type", "application/json")
+            ctx.set("Content-Type", "application/json"),
           );
-        }
-      )
+        },
+      ),
     );
 
     const data = { permissions: [] };
@@ -161,10 +161,10 @@ describe("appAPI", () => {
           return res(
             ctx.status(200),
             ctx.json({ success: true, id: 123 }),
-            ctx.set("Content-Type", "application/json")
+            ctx.set("Content-Type", "application/json"),
           );
-        }
-      )
+        },
+      ),
     );
 
     const data = { name: "Test Dashboard", layout: [] };
@@ -184,10 +184,10 @@ describe("appAPI", () => {
           return res(
             ctx.status(200),
             ctx.json({ success: true, new_id: 456 }),
-            ctx.set("Content-Type", "application/json")
+            ctx.set("Content-Type", "application/json"),
           );
-        }
-      )
+        },
+      ),
     );
 
     const data = { id: 123, new_name: "Copied Dashboard" };
@@ -206,10 +206,10 @@ describe("appAPI", () => {
           return res(
             ctx.status(200),
             ctx.json({ success: true }),
-            ctx.set("Content-Type", "application/json")
+            ctx.set("Content-Type", "application/json"),
           );
-        }
-      )
+        },
+      ),
     );
 
     const data = { id: 123 };
@@ -227,10 +227,10 @@ describe("appAPI", () => {
           return res(
             ctx.status(200),
             ctx.json({ success: true }),
-            ctx.set("Content-Type", "application/json")
+            ctx.set("Content-Type", "application/json"),
           );
-        }
-      )
+        },
+      ),
     );
 
     const data = { id: 123, name: "Updated Dashboard" };
@@ -248,10 +248,10 @@ describe("appAPI", () => {
           return res(
             ctx.status(200),
             ctx.json({ success: true }),
-            ctx.set("Content-Type", "application/json")
+            ctx.set("Content-Type", "application/json"),
           );
-        }
-      )
+        },
+      ),
     );
 
     const data = { group_id: 1, permissions: [] };
@@ -269,10 +269,10 @@ describe("appAPI", () => {
           return res(
             ctx.status(200),
             ctx.json({ success: true }),
-            ctx.set("Content-Type", "application/json")
+            ctx.set("Content-Type", "application/json"),
           );
-        }
-      )
+        },
+      ),
     );
 
     const data = { group_id: 1 };
@@ -285,7 +285,7 @@ describe("appAPI", () => {
   test("uploadJSON makes POST request correctly", async () => {
     const response = await appAPI.uploadJSON(
       { file: "test-file" },
-      "test-csrf-token"
+      "test-csrf-token",
     );
     expect(response.success).toBe(true);
     expect(response.filename).toBe("12345.json");
@@ -314,10 +314,10 @@ describe("appAPI", () => {
                 crs: { type: "name", properties: { name: "EPSG:4326" } },
               },
             }),
-            ctx.set("Content-Type", "application/json")
+            ctx.set("Content-Type", "application/json"),
           );
-        }
-      )
+        },
+      ),
     );
 
     const response = await appAPI.getVisualizationFeatures({
@@ -345,8 +345,8 @@ describe("appAPI", () => {
         (req, res, ctx) => {
           capturedArgs = req.url.searchParams.get("args");
           return res(ctx.status(200), ctx.json({ success: true, data: null }));
-        }
-      )
+        },
+      ),
     );
 
     await appAPI.getVisualizationFeatures({
@@ -367,8 +367,8 @@ describe("appAPI", () => {
         (req, res, ctx) => {
           capturedArgs = req.url.searchParams.get("args");
           return res(ctx.status(200), ctx.json({ success: true, data: null }));
-        }
-      )
+        },
+      ),
     );
 
     await appAPI.getVisualizationFeatures({
@@ -386,14 +386,16 @@ describe("appAPI", () => {
     const axios = require("axios");
     const source = axios.CancelToken.source();
 
-    // Never-resolving handler so we can exercise cancellation deterministically.
+    // Long-but-finite delay: the cancel below fires synchronously, so it
+    // wins the race, but the timer still settles before Jest's teardown
+    // (avoids "Jest did not exit" from infinite-delay open handles).
     server.use(
       rest.get(
         "http://api.test/apps/tethysdash/visualizations/get/",
         (req, res, ctx) => {
-          return res(ctx.delay("infinite"), ctx.status(200), ctx.json({}));
-        }
-      )
+          return res(ctx.delay(50), ctx.status(200), ctx.json({}));
+        },
+      ),
     );
 
     const promise = appAPI.getVisualizationFeatures({
@@ -402,10 +404,15 @@ describe("appAPI", () => {
       requestId: "r",
       cancelToken: source.token,
     });
+    // Attach a rejection handler synchronously so Node's strict
+    // unhandled-rejection detection doesn't fire when source.cancel()
+    // rejects the promise before await would attach one.
+    const captured = promise.catch((err) => err);
 
     source.cancel("superseded by newer fetch");
 
-    await expect(promise).rejects.toSatisfy((err) => axios.isCancel(err));
+    const err = await captured;
+    expect(axios.isCancel(err)).toBe(true);
   });
 
   test("getVisualizationFeatures returns full response envelope on plugin error", async () => {
@@ -419,10 +426,10 @@ describe("appAPI", () => {
               success: false,
               viz_type: null,
               data: { error: "Plugin echo_runtime is not available" },
-            })
+            }),
           );
-        }
-      )
+        },
+      ),
     );
 
     const response = await appAPI.getVisualizationFeatures({

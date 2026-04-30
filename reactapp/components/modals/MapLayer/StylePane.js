@@ -8,8 +8,9 @@ import NormalInput from "components/inputs/NormalInput";
 import RuleStyleEditor from "components/inputs/RuleStyleEditor";
 import RampPicker from "components/modals/MapLayer/RampPicker";
 import Button from "react-bootstrap/Button";
-import { LayoutContext } from "components/contexts/Contexts";
+import { LayoutContext, AppContext } from "components/contexts/Contexts";
 import { getStyleFields } from "components/map/utilities";
+import { findSelectOptionByValue } from "components/visualizations/utilities";
 
 const EditorModeRow = styled.div`
   display: flex;
@@ -70,6 +71,7 @@ const StylePane = ({
   const [defaultStyle, setDefaultStyle] = useState({});
   const { uuid } = useContext(LayoutContext);
   const [availableFields, setAvailableFields] = useState([]);
+  const { dynamicMapLayers } = useContext(AppContext);
 
   useEffect(() => {
     const isUrlGeoJSON =
@@ -237,10 +239,11 @@ const StylePane = ({
   }
 
   const supportedTypes = ["GeoJSON", "ESRI Feature Service", "PMTiles Vector"];
-  if (
-    !supportedTypes.includes(sourceProps.type) &&
-    sourceProps.type === "map_layer"
-  ) {
+  const isDynamicMapLayer = findSelectOptionByValue(
+    dynamicMapLayers,
+    sourceProps.type,
+  );
+  if (!supportedTypes.includes(sourceProps.type) && !isDynamicMapLayer) {
     return (
       <CenteredDiv>
         Custom Styling is only available for {supportedTypes.join(", ")} layers.

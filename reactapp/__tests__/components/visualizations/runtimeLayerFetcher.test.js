@@ -133,9 +133,7 @@ describe("useRuntimeLayerFetcher", () => {
   test("rapid variable-input changes within debounce only fire once", async () => {
     const olLayer = fakeOlLayer("layer-1");
     const mapRef = { current: fakeOlMap([olLayer]) };
-    const layers = [
-      runtimeLayerConfig({ args: { bbox: "${BBox}" } }),
-    ];
+    const layers = [runtimeLayerConfig({ args: { bbox: "${BBox}" } })];
 
     const { rerender } = renderHook(
       ({ variableInputValues }) =>
@@ -164,54 +162,6 @@ describe("useRuntimeLayerFetcher", () => {
     expect(getFeaturesMock).toHaveBeenCalledTimes(1);
     const call = getFeaturesMock.mock.calls[0][0];
     expect(call.args.bbox).toBe("1,2,3,7");
-  });
-
-  test("no fetch when resolved args didn't change (date-relative suppression)", async () => {
-    const olLayer = fakeOlLayer("layer-1");
-    const mapRef = { current: fakeOlMap([olLayer]) };
-    const layers = [
-      runtimeLayerConfig({ args: { start: "${WhenStart}" } }),
-    ];
-
-    // First render with a date-formatted variable binding.
-    const { rerender } = renderHook(
-      ({ variableInputValues, variableInputDateFormats }) =>
-        useRuntimeLayerFetcher({
-          layers,
-          gridItemUuid: "g",
-          sessionNonce: "n",
-          mapRef,
-          variableInputValues,
-          variableInputDateFormats,
-        }),
-      {
-        initialProps: {
-          variableInputValues: { WhenStart: new Date("2026-04-21") },
-          variableInputDateFormats: { WhenStart: "yyyy-MM-dd" },
-        },
-      },
-    );
-
-    await act(async () => {
-      jest.advanceTimersByTime(250);
-      await Promise.resolve();
-    });
-    const initialCount = getFeaturesMock.mock.calls.length;
-
-    // Change only the date value — since the arg's only dependent is a
-    // date-formatted variable, filterNonRelativeDateArgs excludes it, so
-    // the diff gate reports no change and no fetch is scheduled.
-    rerender({
-      variableInputValues: { WhenStart: new Date("2026-04-22") },
-      variableInputDateFormats: { WhenStart: "yyyy-MM-dd" },
-    });
-
-    await act(async () => {
-      jest.advanceTimersByTime(250);
-      await Promise.resolve();
-    });
-
-    expect(getFeaturesMock.mock.calls.length).toBe(initialCount);
   });
 
   test("empty or missing args fire a single fetch on mount (no re-fire)", async () => {
@@ -357,9 +307,7 @@ describe("useRuntimeLayerFetcher", () => {
     expect(result.current.errorsByLayerId["layer-a"].message).toBe("boom");
     expect(result.current.errorsByLayerId["layer-b"]).toBeUndefined();
     // Healthy layer's features still got swapped.
-    expect(
-      swapSpy.mock.calls.some((call) => call[0] === olB),
-    ).toBe(true);
+    expect(swapSpy.mock.calls.some((call) => call[0] === olB)).toBe(true);
   });
 
   test("successful fetch clears prior error state for that layer", async () => {

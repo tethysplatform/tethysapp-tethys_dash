@@ -377,6 +377,13 @@ function LegendRenderer({ legend }) {
     if (isWms) {
       setIsLoading(true);
       setError(null);
+
+      if (!legend.url || !legend.layers) {
+        setError("WMS legend requires both URL and layers.");
+        setIsLoading(false);
+        return;
+      }
+
       const layerNames = legend.layers.split(",").map((l) => l.trim());
 
       const urls = layerNames.map((layerName) => {

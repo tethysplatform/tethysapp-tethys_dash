@@ -4,7 +4,7 @@ import StylePane from "components/modals/MapLayer/StylePane";
 import appAPI from "services/api/app";
 import PropTypes from "prop-types";
 import userEvent from "@testing-library/user-event";
-import { LayoutContext } from "components/contexts/Contexts";
+import { LayoutContext, AppContext } from "components/contexts/Contexts";
 
 const exampleStyle = {
   version: 8,
@@ -69,16 +69,18 @@ const TestingComponent = ({
   const [style, setStyle] = useState(initialStyle);
 
   return (
-    <LayoutContext.Provider value={{ uuid: "123" }}>
-      <StylePane
-        style={style}
-        setStyle={setStyle}
-        setErrorMessage={setErrorMessage}
-        sourceProps={sourceProps}
-        setSourceProps={setSourceProps}
-      />
-      <p data-testid="style">{style}</p>
-    </LayoutContext.Provider>
+    <AppContext.Provider value={{ dynamicMapLayers: [] }}>
+      <LayoutContext.Provider value={{ uuid: "123" }}>
+        <StylePane
+          style={style}
+          setStyle={setStyle}
+          setErrorMessage={setErrorMessage}
+          sourceProps={sourceProps}
+          setSourceProps={setSourceProps}
+        />
+        <p data-testid="style">{style}</p>
+      </LayoutContext.Provider>
+    </AppContext.Provider>
   );
 };
 
@@ -86,18 +88,20 @@ const GeoTIFFTestHarness = ({ initialSourceProps }) => {
   const [sourceProps, setSourceProps] = useState(initialSourceProps);
 
   return (
-    <LayoutContext.Provider value={{ uuid: "123" }}>
-      <StylePane
-        style={undefined}
-        setStyle={() => {}}
-        setErrorMessage={() => {}}
-        sourceProps={sourceProps}
-        setSourceProps={setSourceProps}
-      />
-      <p data-testid="rampName">{sourceProps.rampName ?? ""}</p>
-      <p data-testid="rampMin">{sourceProps.rampMin ?? ""}</p>
-      <p data-testid="rampMax">{sourceProps.rampMax ?? ""}</p>
-    </LayoutContext.Provider>
+    <AppContext.Provider value={{ dynamicMapLayers: [] }}>
+      <LayoutContext.Provider value={{ uuid: "123" }}>
+        <StylePane
+          style={undefined}
+          setStyle={() => {}}
+          setErrorMessage={() => {}}
+          sourceProps={sourceProps}
+          setSourceProps={setSourceProps}
+        />
+        <p data-testid="rampName">{sourceProps.rampName ?? ""}</p>
+        <p data-testid="rampMin">{sourceProps.rampMin ?? ""}</p>
+        <p data-testid="rampMax">{sourceProps.rampMax ?? ""}</p>
+      </LayoutContext.Provider>
+    </AppContext.Provider>
   );
 };
 
@@ -107,15 +111,17 @@ test("StylePane GeoTIFF ramp/min/max handlers no-op when setSourceProps is missi
   // short-circuit silently — the ramp picker click and the min/max input
   // changes should not throw.
   render(
-    <LayoutContext.Provider value={{ uuid: "123" }}>
-      <StylePane
-        style={undefined}
-        setStyle={() => {}}
-        setErrorMessage={() => {}}
-        sourceProps={{ type: "GeoTIFF" }}
-        // intentionally omit setSourceProps to drive the early-return path
-      />
-    </LayoutContext.Provider>,
+    <AppContext.Provider value={{ dynamicMapLayers: [] }}>
+      <LayoutContext.Provider value={{ uuid: "123" }}>
+        <StylePane
+          style={undefined}
+          setStyle={() => {}}
+          setErrorMessage={() => {}}
+          sourceProps={{ type: "GeoTIFF" }}
+          // intentionally omit setSourceProps to drive the early-return path
+        />
+      </LayoutContext.Provider>
+    </AppContext.Provider>,
   );
 
   // Ramp picker → handleRampSelect short-circuits (line 203).

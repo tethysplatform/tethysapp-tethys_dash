@@ -25,6 +25,8 @@ import { format } from "date-fns";
 const Plotly = require("plotly.js-strict-dist-min");
 const Plot = createPlotlyComponent(Plotly);
 
+const EMPTY_VERTICAL_LINE = Object.freeze({});
+
 const StyledPlot = styled(Plot)`
   width: 100%;
   height: 100%;
@@ -359,7 +361,7 @@ const BasePlot = ({
     VariableInputsContext,
   );
   const { inDataViewerMode } = useContext(DataViewerModeContext);
-  const { plotlyVerticalLine = {} } = metadata;
+  const plotlyVerticalLine = metadata.plotlyVerticalLine || EMPTY_VERTICAL_LINE;
   const {
     step: verticalLineStep,
     mode: verticalLineMode,

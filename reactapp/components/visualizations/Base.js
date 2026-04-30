@@ -235,63 +235,6 @@ export const Visualization = memo(
   },
 );
 
-/**
- * Compares `currentArgs` and `updatedArgs`, but only for the keys present in
- * `keysToCompare`. Returns true if all overlapping key values are equal
- * (deep equality via `valuesEqual`), false otherwise.
- */
-export const compareFilteredArgs = (
-  currentArgs,
-  updatedArgs,
-  keysToCompare,
-) => {
-  const filteredCurrent = {};
-  const filteredUpdated = {};
-
-  for (const key of Object.keys(keysToCompare)) {
-    if (currentArgs && currentArgs[key] !== undefined) {
-      filteredCurrent[key] = currentArgs[key];
-    }
-    if (updatedArgs && updatedArgs[key] !== undefined) {
-      filteredUpdated[key] = updatedArgs[key];
-    }
-  }
-
-  return valuesEqual(filteredCurrent, filteredUpdated);
-};
-
-// Filter function to exclude args where ALL dependent variable inputs are
-// relative dates or date-formatted. If any non-date input is referenced,
-// keep the arg so changes to those inputs still trigger a re-fetch.
-// Exported so the runtime map-layer orchestrator (runtimeLayerFetcher.js)
-// can reuse the same date-relative suppression policy for per-layer diffs.
-// MUST be called on RAW (template-bearing) args — applying it to already-
-// resolved args short-circuits because getDependentVariableInputs returns
-// empty for non-template values.
-export const filterNonRelativeDateArgs = (
-  args,
-  variableInputs,
-  variableInputDateFormats,
-) => {
-  const filtered = {};
-  for (const [key, value] of Object.entries(args)) {
-    const dateFormat = variableInputDateFormats?.[key];
-    const dependentVariableInputs = getDependentVariableInputs(value);
-
-    const allDependentsAreDates =
-      dependentVariableInputs.length > 0 &&
-      dependentVariableInputs.every((input) => {
-        const variableInput = variableInputs?.[input];
-        return dateFormat || isRelativeInput(variableInput);
-      });
-
-    if (!allDependentsAreDates) {
-      filtered[key] = value;
-    }
-  }
-  return filtered;
-};
-
 const BaseVisualization = () => {
   const {
     gridItemSource,
@@ -369,7 +312,6 @@ const BaseVisualization = () => {
   }, [gridItemMetadataString, isEditing, shouldLoad]);
 
   async function setVariableDependentVisualizations({ refresh }) {
-    const originalArgs = JSON.parse(gridItemArgsString);
     const args = JSON.parse(gridItemArgsString);
     const gridMetadata = JSON.parse(gridItemMetadataString);
     const visualization = findSelectOptionByValue(
@@ -393,12 +335,6 @@ const BaseVisualization = () => {
       variableInputDateFormats,
     });
     const customMessaging = gridMetadata.customMessaging;
-
-    const filteredOriginalArgs = filterNonRelativeDateArgs(
-      originalArgs,
-      variableInputValues,
-      variableInputDateFormats,
-    );
 
     // Only allow the empty args load to run once per source unless refresh is true
     const isEmptyArgs = gridItemSource && Object.keys(args).length === 0;
@@ -430,10 +366,9 @@ const BaseVisualization = () => {
       (refresh ||
         (isEmptyArgs && !alreadyLoadedEmptyArgs) ||
         (!isEmptyArgs &&
-          (!compareFilteredArgs(
+          (!valuesEqual(
             gridItemArgsWithVariableInputs.current,
             updatedGridItemArgs,
-            filteredOriginalArgs,
           ) ||
             !valuesEqual(customMessages.current, customMessaging)))) &&
       shouldLoad

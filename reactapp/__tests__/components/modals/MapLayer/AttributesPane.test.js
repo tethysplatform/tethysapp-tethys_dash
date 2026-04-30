@@ -703,7 +703,7 @@ test("URL-based GeoJSON skips auto-extract on tab switch and exposes the 'Load a
       sourceProps={sourceProps}
       layerProps={{ name: "remote-geojson" }}
       tabKey="attributes"
-    />
+    />,
   );
 
   // Manual-entry path: load button is rendered.
@@ -737,7 +737,7 @@ test("'Load attributes from URL' button triggers a query and renders the extract
       sourceProps={sourceProps}
       layerProps={{ name: "remote-geojson" }}
       tabKey="attributes"
-    />
+    />,
   );
 
   const loadButton = await screen.findByLabelText("Load attributes from URL");
@@ -746,10 +746,11 @@ test("'Load attributes from URL' button triggers a query and renders the extract
   // queryLayerAttributes ran exactly once for the configured sourceProps
   // and layer name.
   await waitFor(() => {
-    expect(mockedGetLayerAttributes).toHaveBeenCalledWith(
+    expect(mockedGetLayerAttributes).toHaveBeenCalledWith({
+      isDynamicMapLayer: null,
+      layerName: "remote-geojson",
       sourceProps,
-      "remote-geojson",
-    );
+    });
   });
 
   // Extracted attribute names appear in the rendered FixedTable.

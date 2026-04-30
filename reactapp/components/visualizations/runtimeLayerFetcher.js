@@ -1,86 +1,10 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import axios from "axios";
-import {
-  compareFilteredArgs,
-  filterNonRelativeDateArgs,
-} from "components/visualizations/Base";
 import { updateObjectWithVariableInputs } from "components/visualizations/utilities";
 import { swapVectorLayerFeatures } from "components/map/utilities";
 import appAPI from "services/api/app";
+import { valuesEqual } from "components/modals/utilities";
 
-/**
- * Runtime map-layer fetch orchestrator.
- *
- * Orchestrates per-layer feature fetches for dynamic_map_layer plugins:
- *
- * - On mount, on `layers` change, and on `variableInputValues` change, scans
- *   the current layer list for entries with `pluginSource` and determines
- *   which layers have a resolved-args delta that warrants a fetch.
- * - For each layer that needs to fetch, applies a 250ms debounce, cancels
- *   any in-flight fetch for that layer via `axios.CancelToken`, then calls
- *   `appAPI.getVisualizationFeatures({source, args, requestId, cancelToken})`.
- * - On success, locates the OL layer on the map by its `layerId` tag and
- *   swaps in the returned FeatureCollection via `swapVectorLayerFeatures`.
- *   Invokes the optional `onBeforeSwap(layerId)` callback first so Unit 7's
- *   UI can dismiss any open popup before the features are swapped.
- * - On error (other than axios-cancel), records the error in per-layer state.
- * - Caller's `useRuntimeLayerFetcher` gets back `{ errorsByLayerId, retry }`
- *   so Unit 7's LayersControl can render per-layer error indicators and a
- *   Retry action.
- *
- * Dependent-layer cycle handling: no publisher attribution. If layer A's
- * feature click publishes to a variable input that layer A also consumes,
- * A re-fetches itself exactly once (idempotent, debounced, cancellable on
- * supersession). No infinite loop because the second fetch's resolved args
- * match the first and the diff gate suppresses further iterations.
- *
- * Cancellation is transport-layer only — axios-cancel rejects the promise
- * but the backend plugin run continues to completion. Plugin authors must
- * design fetch_features to be idempotent (documented in plugins.rst).
- *
- * The hook guards all state updates behind `isMountedRef` because
- * CancelToken-cancellation still fires the `.catch` handler. Without the
- * guard, late rejections after unmount would trigger React warnings.
- *
- * Reactivity diff ordering (MUST be in this order):
- *   1. raw template args (pluginSource.args)
- *   2. filterNonRelativeDateArgs on raw args → keysToCompare
- *   3. updateObjectWithVariableInputs on raw args → resolvedArgs
- *   4. compareFilteredArgs(lastResolvedArgs, resolvedArgs, keysToCompare)
- *
- * Applying filterNonRelativeDateArgs to resolved args would short-circuit
- * its date-relative suppression (no template tokens to inspect). See
- * Key Technical Decisions in the plan for the rationale.
- *
- * @param {Object} params
- * @param {Array} params.layers — current layer configs (as produced by
- *   visualizations/Map.js). Runtime layers are those with
- *   `configuration.props.pluginSource`.
- * @param {string} params.gridItemUuid — the hosting grid item's UUID,
- *   used to build the composite requestId.
- * @param {string} params.sessionNonce — per-tab nonce from AppContext,
- *   used to prevent cross-tab WebSocket collisions.
- * @param {React.RefObject} params.mapRef — ref to the OL Map instance
- *   so we can locate layers by `layerId`.
- * @param {Object} params.variableInputValues — current VariableInputsContext.
- * @param {Object} params.variableInputDateFormats — date formats from
- *   VariableInputsContext (for filterNonRelativeDateArgs).
- * @param {Function} [params.onBeforeSwap] — optional callback invoked with
- *   (layerId) before the feature swap lands. Unit 7 uses this to dismiss
- *   popups anchored to features about to be removed.
- * @param {number} [params.debounceMs=250] — debounce window for re-fetch
- *   supersession.
- * @param {number} [params.refreshTick] — monotonically-incrementing signal
- *   from Base.js's refreshRate interval. Every change forces a re-fetch
- *   for every runtime layer, bypassing the args-unchanged diff gate. Lets
- *   authors set a refreshRate on a Map grid item and have
- *   dynamic_map_layer plugins honor it on schedule.
- *
- * @returns {Object} { errorsByLayerId, retry }
- *   - errorsByLayerId: { [layerId]: { message, kind: "error" | "unavailable" } }
- *   - retry: (layerId) => void — bypasses debounce; cancels any in-flight
- *     fetch for the layer; fires a fresh request with current args.
- */
 export default function useRuntimeLayerFetcher({
   layers,
   gridItemUuid,
@@ -139,17 +63,12 @@ export default function useRuntimeLayerFetcher({
   const resolveLayerArgs = useCallback(
     (pluginArgs) => {
       const rawArgs = pluginArgs ?? {};
-      const keysToCompare = filterNonRelativeDateArgs(
-        rawArgs,
-        variableInputValues,
-        variableInputDateFormats,
-      );
       const resolvedArgs = updateObjectWithVariableInputs({
         args: rawArgs,
         variableInputs: variableInputValues ?? {},
         variableInputDateFormats,
       });
-      return { keysToCompare, resolvedArgs };
+      return { resolvedArgs };
     },
     [variableInputValues, variableInputDateFormats],
   );
@@ -304,9 +223,7 @@ export default function useRuntimeLayerFetcher({
 
     runtimeLayers.forEach((layer) => {
       const { layerId, pluginSource } = layer.configuration.props;
-      const { keysToCompare, resolvedArgs } = resolveLayerArgs(
-        pluginSource.args,
-      );
+      const { resolvedArgs } = resolveLayerArgs(pluginSource.args);
 
       if (!perLayerStateRef.current.has(layerId)) {
         perLayerStateRef.current.set(layerId, {
@@ -327,11 +244,7 @@ export default function useRuntimeLayerFetcher({
       }
 
       const state = perLayerStateRef.current.get(layerId);
-      const argsUnchanged = compareFilteredArgs(
-        state.lastResolvedArgs,
-        resolvedArgs,
-        keysToCompare,
-      );
+      const argsUnchanged = valuesEqual(state.lastResolvedArgs, resolvedArgs);
       if (argsUnchanged) return;
 
       scheduleFetch(layerId, pluginSource, resolvedArgs);

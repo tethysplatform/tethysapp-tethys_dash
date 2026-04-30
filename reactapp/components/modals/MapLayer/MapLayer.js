@@ -260,15 +260,6 @@ const MapLayerModal = ({
       }
     }
 
-    const getLayerType = (sourceType) => {
-      if (sourceType.includes("Vector")) return "VectorTileLayer";
-      if (sourceType.includes("Raster")) return "WebGLTile";
-      if (sourceType.includes("Tile")) return "TileLayer";
-      if (sourceType.includes("Image") || sourceType.includes("WMS"))
-        return "ImageLayer";
-      return "VectorLayer";
-    };
-
     if (sourceProps.type === "GeoTIFF") {
       const rawSources = sourceProps.props?.sources ?? [];
       const cleanSourceInfo = (s) => {
