@@ -807,20 +807,14 @@ export async function getLayerAttributes({
   const sourceGeoJSON = sourceProps?.geojson ?? {};
   const layerNumber = sourceProperties?.layer;
 
-  // make the appropriate request based on the source type
   if (isDynamicMapLayer) {
-    // Runtime dynamic_map_layer plugins declare their popup fields through the
-    // scaffold's attributeAliases / attributeVariables / omittedPopupAttributes
-    // blocks (all keyed by layer name). AttributesPane expects
-    // { layerName: [{ name, alias }, ...] }, so translate the scaffold here
-    // rather than returning the full envelope and tripping the fallback path.
     const apiResponse = await appAPI.getVisualizationData({
       source: sourceProps.source,
       args: sourceProps.args ?? {},
     });
     if (!apiResponse?.success) {
       throw new Error(
-        apiResponse?.data?.error ?? "Failed to fetch plugin attributes.",
+        apiResponse?.data?.message ?? "Failed to fetch plugin attributes.",
       );
     }
     const scaffold = apiResponse.data ?? {};
@@ -832,9 +826,6 @@ export async function getLayerAttributes({
       ...Object.keys(scaffoldVariables),
       ...Object.keys(scaffoldOmitted),
     ]);
-    // If the scaffold didn't declare any layer-scoped attributes, fall back to
-    // the current layer name so the pane still renders an (empty) row set and
-    // the author can add fields manually via the customAttributes path.
     if (scaffoldLayerNames.size === 0) {
       scaffoldLayerNames.add(layerName);
     }

@@ -2293,3 +2293,85 @@ test("duplicate layerId triggers rebuild of both + console warning", async () =>
   expect(warnSpy.mock.calls[0][0]).toMatch(/share layerId "shared"/);
   warnSpy.mockRestore();
 });
+
+test("Runtime identity branch tolerates a missing OL layer (line 291 falsy)", async () => {
+  const layerId = "missing-ol-layer-id";
+  const cfg = (extra = {}) => ({
+    type: "VectorLayer",
+    props: {
+      name: "Runtime Layer",
+      layerId,
+      pluginSource: { source: "stream_gauges", args: {} },
+      source: {
+        type: "GeoJSON",
+        props: {},
+        geojson: {
+          type: "FeatureCollection",
+          crs: { type: "name", properties: { name: "EPSG:3857" } },
+          features: [],
+        },
+      },
+      ...extra,
+    },
+  });
+
+  let capturedRef;
+  const RefCapture = ({ mapProps }) => {
+    const ref = useRef();
+    capturedRef = ref;
+    return (
+      <>
+        <MapComponent visualizationRef={ref} {...mapProps} />
+        <p>{useMapContext()?.mapReady ? "Map Ready" : "Map Not Ready"}</p>
+      </>
+    );
+  };
+  RefCapture.propTypes = { mapProps: PropTypes.object };
+
+  const { rerender } = render(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
+      <MapContextProvider>
+        <RefCapture mapProps={{ layers: [cfg()] }} />
+      </MapContextProvider>
+    </VariableInputsContext.Provider>,
+  );
+
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  await waitFor(() => {
+    const olLayers = capturedRef.current.getLayers().getArray();
+    expect(olLayers.find((l) => l.get("layerId") === layerId)).toBeDefined();
+  });
+
+  // Externally remove the OL layer so currentLayers.current still records
+  // the runtime config but the OL map no longer has it. The next render's
+  // identity-keep branch will queue a runtimeLayerUpdate for a layerId
+  // that currentMapLayers.find(...) cannot resolve.
+  const map = capturedRef.current;
+  const stale = map
+    .getLayers()
+    .getArray()
+    .find((l) => l.get("layerId") === layerId);
+  map.removeLayer(stale);
+
+  // Cosmetic change keeps the identity match (same layerId + pluginSource.source),
+  // so runtimeLayerUpdates gets a push — but the falsy branch of `if (olLayer)`
+  // at Map.js:291 fires because the OL layer is gone.
+  rerender(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
+      <MapContextProvider>
+        <RefCapture mapProps={{ layers: [cfg({ opacity: 0.5 })] }} />
+      </MapContextProvider>
+    </VariableInputsContext.Provider>,
+  );
+
+  // No throw, and the missing layer is not resurrected — proving the
+  // identity branch quietly skipped the absent OL instance.
+  await waitFor(() => {
+    const olLayers = capturedRef.current.getLayers().getArray();
+    expect(olLayers.find((l) => l.get("layerId") === layerId)).toBeUndefined();
+  });
+});

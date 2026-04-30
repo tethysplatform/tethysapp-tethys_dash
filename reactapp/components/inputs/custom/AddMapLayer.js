@@ -87,31 +87,13 @@ const MapLayerTemplate = ({
     );
     layerProps.layerVisibility = existingMapLayer.configuration.layerVisibility;
 
-    // Reopen flow for runtime dynamic_map_layer layers: the saved schema has
-    // source.type = "GeoJSON" (scaffold snapshot) with a sibling pluginSource
-    // block. SourcePane detects runtime by looking up sourceProps.type in
-    // dynamicMapLayers, so re-synthesize sourceProps with the plugin intake
-    // name and args when pluginSource is present. Static layers are passed
-    // through unchanged.
     const pluginSource = existingMapLayer.configuration.props?.pluginSource;
-    // Saved pluginSource only persists { source, args } — the label and
-    // display metadata are not stored. Fresh plugin selection in SourcePane
-    // sets sourceProps.type to the option label (see handleLayerTypeChange:
-    // `type: e.value`), which is what downstream default-value lookups
-    // (AttributesPane, MapLayer.saveLayer) key off of. Resolve the plugin
-    // option by source name here so the reopen shape matches fresh-select.
-    // If the plugin is no longer registered, fall back to the source name —
-    // SourcePane's pluginUnavailable banner handles that case.
     const pluginOption = pluginSource
-      ? findSelectOptionByValue(
-          dynamicMapLayers,
-          pluginSource.source,
-          "source",
-        )
+      ? findSelectOptionByValue(dynamicMapLayers, pluginSource.source, "source")
       : null;
     const sourceProps = pluginSource
       ? {
-          type: pluginOption?.value ?? pluginSource.source,
+          type: pluginOption.value,
           source: pluginSource.source,
           args: pluginSource.args ?? {},
           props: {},

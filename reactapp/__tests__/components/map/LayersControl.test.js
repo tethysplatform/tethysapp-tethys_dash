@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from "@testing-library/react";
-import LayersControl from "components/map/LayersControl";
+import LayersControl, { parseProgress } from "components/map/LayersControl";
 import { WebsocketContext } from "components/contexts/WebSocketContext";
 
 test("LayersControl update layers", async () => {
@@ -10,7 +10,7 @@ test("LayersControl update layers", async () => {
   visualizationRef = { current: undefined };
   updater = null;
   const { rerender } = render(
-    <LayersControl updater={updater} visualizationRef={visualizationRef} />
+    <LayersControl updater={updater} visualizationRef={visualizationRef} />,
   );
   const showLayersButton = await screen.findByLabelText("Show Layers Control");
   fireEvent.click(showLayersButton);
@@ -41,7 +41,7 @@ test("LayersControl update layers", async () => {
 
   updater = true;
   rerender(
-    <LayersControl updater={updater} visualizationRef={visualizationRef} />
+    <LayersControl updater={updater} visualizationRef={visualizationRef} />,
   );
   // eslint-disable-next-line
   expect(mapLayersDiv.children.length).toBe(1);
@@ -49,7 +49,7 @@ test("LayersControl update layers", async () => {
   expect(await screen.findByText("ImageArcGISLayer")).toBeInTheDocument();
 
   const setVisibleCheckbox = await screen.findByLabelText(
-    "ImageArcGISLayer Set Visible"
+    "ImageArcGISLayer Set Visible",
   );
   fireEvent.click(setVisibleCheckbox);
   expect(setVisibleCheckbox.checked).toEqual(false);
@@ -63,13 +63,13 @@ test("LayersControl update layers", async () => {
   };
   mockGetArray.mockReturnValue([mockedLayer]);
   rerender(
-    <LayersControl updater={!updater} visualizationRef={visualizationRef} />
+    <LayersControl updater={!updater} visualizationRef={visualizationRef} />,
   );
   expect(screen.queryByText("ImageArcGISLayer")).not.toBeInTheDocument();
   expect(await screen.findByText("Layer 1")).toBeInTheDocument();
 
   const closeLayersButton = await screen.findByLabelText(
-    "Close Layers Control"
+    "Close Layers Control",
   );
   fireEvent.click(closeLayersButton);
   expect(screen.queryByText("Layer 1")).not.toBeInTheDocument();
@@ -210,7 +210,9 @@ test("LayersControl hides Retry for plugin-unavailable errors", async () => {
     "Plugin not available",
   );
   // kind="unavailable" → no Retry button (author must remove/replace).
-  expect(screen.queryByLabelText("Retry Runtime Layer")).not.toBeInTheDocument();
+  expect(
+    screen.queryByLabelText("Retry Runtime Layer"),
+  ).not.toBeInTheDocument();
 });
 
 test("LayersControl renders static (non-runtime) layers without progress or error UI", async () => {
@@ -227,4 +229,25 @@ test("LayersControl renders static (non-runtime) layers without progress or erro
   expect(await screen.findByText("Static Layer")).toBeInTheDocument();
   expect(screen.queryByRole("status")).not.toBeInTheDocument();
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
+
+describe("parseProgress", () => {
+  test("returns percentageComplete from valid message", () => {
+    const message = JSON.stringify({
+      percentageComplete: 75,
+    });
+    expect(parseProgress(message)).toBe(75);
+  });
+
+  test("returns null if percentageComplete is missing", () => {
+    const message = JSON.stringify({
+      message: "computing",
+    });
+    expect(parseProgress(message)).toBeNull();
+  });
+
+  test("returns null for invalid JSON", () => {
+    const message = "not a json";
+    expect(parseProgress(message)).toBeNull();
+  });
 });

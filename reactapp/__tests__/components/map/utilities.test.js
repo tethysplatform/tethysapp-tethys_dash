@@ -26,6 +26,9 @@ import {
 } from "__tests__/utilities/constants";
 import appAPI from "services/api/app";
 import { PMTiles } from "pmtiles";
+import { server } from "__tests__/utilities/server";
+import { rest } from "msw";
+import { data } from "browserslist";
 
 test("getStyleFields GeoJSON", async () => {
   const sourceProps = layerConfigGeoJSON.configuration.props.source;
@@ -2581,6 +2584,144 @@ test("getLayerAttributes Error", async () => {
   await expect(getLayerAttributes({ sourceProps, layerName })).rejects.toThrow(
     "bad type is not currently configured to be queried",
   );
+});
+
+test("getLayerAttributes Dynamic Layer", async () => {
+  const sourceProps = {
+    source: "DynamicLayerPlugin",
+  };
+  const layerName = "test";
+
+  server.use(
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.delay(500),
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            data: {
+              attributeAliases: { test: { name: "Name Alias", id: "ID" } },
+              attributeVariables: { test: { name: "Name Variable" } },
+              omittedPopupAttributes: { test: ["omitted"] },
+            },
+          }),
+          ctx.set("Content-Type", "application/json"),
+        );
+      },
+    ),
+  );
+
+  const attributes = await getLayerAttributes({
+    sourceProps,
+    layerName,
+    isDynamicMapLayer: true,
+  });
+
+  expect(attributes).toStrictEqual({
+    test: [
+      { name: "name", alias: "Name Alias" },
+      { name: "id", alias: "ID" },
+      { name: "omitted", alias: "omitted" },
+    ],
+  });
+});
+
+test("getLayerAttributes Dynamic Layer, plugin error", async () => {
+  const sourceProps = {
+    source: "DynamicLayerPlugin",
+  };
+  const layerName = "test";
+
+  server.use(
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.delay(500),
+          ctx.status(200),
+          ctx.json({
+            success: false,
+          }),
+          ctx.set("Content-Type", "application/json"),
+        );
+      },
+    ),
+  );
+
+  await expect(
+    async () =>
+      await getLayerAttributes({
+        sourceProps,
+        layerName,
+        isDynamicMapLayer: true,
+      }),
+  ).rejects.toThrow("Failed to fetch plugin attributes.");
+});
+
+test("getLayerAttributes Dynamic Layer, plugin error with message", async () => {
+  const sourceProps = {
+    source: "DynamicLayerPlugin",
+  };
+  const layerName = "test";
+
+  server.use(
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.delay(500),
+          ctx.status(200),
+          ctx.json({
+            success: false,
+            data: { message: "Plugin error message" },
+          }),
+          ctx.set("Content-Type", "application/json"),
+        );
+      },
+    ),
+  );
+
+  await expect(
+    async () =>
+      await getLayerAttributes({
+        sourceProps,
+        layerName,
+        isDynamicMapLayer: true,
+      }),
+  ).rejects.toThrow("Plugin error message");
+});
+
+test("getLayerAttributes Dynamic Layer, no data", async () => {
+  const sourceProps = {
+    source: "DynamicLayerPlugin",
+  };
+  const layerName = "test";
+
+  server.use(
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.delay(500),
+          ctx.status(200),
+          ctx.json({
+            success: true,
+          }),
+          ctx.set("Content-Type", "application/json"),
+        );
+      },
+    ),
+  );
+
+  const attributes = await getLayerAttributes({
+    sourceProps,
+    layerName,
+    isDynamicMapLayer: true,
+  });
+
+  expect(attributes).toStrictEqual({ test: [] });
 });
 
 test("loadLayerJSONs Object", async () => {

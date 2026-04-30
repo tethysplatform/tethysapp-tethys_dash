@@ -58,7 +58,7 @@ const RetryBtn = styled.button`
 
 // Parse a WebSocket message's percentageComplete. Messages are JSON strings
 // keyed by requestId. Returns null when no parseable progress is present.
-function parseProgress(rawMessage) {
+export function parseProgress(rawMessage) {
   if (!rawMessage) return null;
   try {
     const parsed = JSON.parse(rawMessage);
@@ -208,9 +208,7 @@ const LayersControl = ({ updater, visualizationRef, runtimeLayerState }) => {
                       marginBottom: "5px",
                     }}
                   >
-                    <label
-                      style={{ display: "flex", alignItems: "center" }}
-                    >
+                    <label style={{ display: "flex", alignItems: "center" }}>
                       <input
                         type="checkbox"
                         checked={layerVisibility[layerName]}
@@ -229,7 +227,9 @@ const LayersControl = ({ updater, visualizationRef, runtimeLayerState }) => {
                         aria-label={`${layerName} loading ${Math.round(progressPct)}%`}
                       >
                         <ProgressBar>
-                          <ProgressFill $pct={Math.max(0, Math.min(100, progressPct))} />
+                          <ProgressFill
+                            $pct={Math.max(0, Math.min(100, progressPct))}
+                          />
                         </ProgressBar>
                       </div>
                     )}

@@ -265,10 +265,6 @@ const MapComponent = ({
           }
         });
 
-        // Remove layers from the map that are not in layersToKeep.
-        // Runtime layers kept by identity may have had their name changed in
-        // this render; match against the OL layer's layerId when present so
-        // a renamed layer isn't mistakenly queued for removal.
         const keptRuntimeLayerIds = new Set(
           runtimeLayerUpdates.map((u) => u.layerId),
         );

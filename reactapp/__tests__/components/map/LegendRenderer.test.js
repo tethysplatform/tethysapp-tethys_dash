@@ -957,6 +957,38 @@ test("LegendRenderer; styleJSON legend bad geom", async () => {
   );
 });
 
+test("LegendRenderer; WMS without url", async () => {
+  render(
+    <LegendRenderer
+      legend={{
+        sourceType: "WMS",
+        layers: "layer1",
+      }}
+    />,
+  );
+
+  expect(
+    screen.getByText("WMS legend requires both URL and layers."),
+  ).toBeInTheDocument();
+  expect(screen.queryByText("Loading legend...")).not.toBeInTheDocument();
+});
+
+test("LegendRenderer; WMS without layers", async () => {
+  render(
+    <LegendRenderer
+      legend={{
+        sourceType: "WMS",
+        url: "some/url",
+      }}
+    />,
+  );
+
+  expect(
+    screen.getByText("WMS legend requires both URL and layers."),
+  ).toBeInTheDocument();
+  expect(screen.queryByText("Loading legend...")).not.toBeInTheDocument();
+});
+
 test("shows error when ESRI fetch fails", async () => {
   const legend = {
     sourceType: "ESRI Feature Service",
