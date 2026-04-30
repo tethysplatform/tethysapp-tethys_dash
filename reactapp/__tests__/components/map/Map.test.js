@@ -5,13 +5,40 @@ import PropTypes from "prop-types";
 import MapContextProvider, {
   useMapContext,
 } from "components/contexts/MapContext";
-import { Map } from "ol";
+import { Map, View } from "ol";
 import { exampleStyle } from "__tests__/utilities/constants";
 import { VariableInputsContext } from "components/contexts/Contexts";
 import * as olMapboxStyle from "ol-mapbox-style";
 import WebGLTileLayer from "ol/layer/WebGLTile";
+import GeoTIFFSource from "ol/source/GeoTIFF.js";
+import * as olProj from "ol/proj";
 
-global.ResizeObserver = require("resize-observer-polyfill");
+global.ResizeObserver = require("resize-observer-polyfill"); // Mock GeoTIFF source so auto-fit tests don't trigger real network fetches.
+
+jest.mock("ol/source/GeoTIFF.js", () => {
+  const ActualSource = jest.requireActual("ol/source/Source.js").default;
+  const getViewSpy = jest.fn();
+  class MockGeoTIFFSource extends ActualSource {
+    constructor(options) {
+      super({ projection: null });
+      this.options = options;
+    }
+    getView() {
+      getViewSpy();
+      return Promise.resolve({
+        projection: "EPSG:4326",
+        extent: [-180, -90, 180, 90],
+        center: [0, 0],
+        zoom: 2,
+      });
+    }
+  }
+  MockGeoTIFFSource.getViewSpy = getViewSpy;
+  return {
+    __esModule: true,
+    default: MockGeoTIFFSource,
+  };
+});
 
 const TestingComponent = ({ mapProps }) => {
   const visualizationRef = useRef();
@@ -1132,6 +1159,964 @@ test("Double-buffering done() is idempotent when called twice", async () => {
   );
 
   jest.useRealTimers();
+});
+
+test("GeoTIFF with empty sources is silently skipped (not a failed layer)", async () => {
+  const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+  const layers = [
+    {
+      type: "WebGLTile",
+      props: {
+        name: "In-progress GeoTIFF",
+        source: {
+          type: "GeoTIFF",
+          props: {
+            sources: [],
+          },
+        },
+        zIndex: 0,
+      },
+    },
+    {
+      type: "WebGLTile",
+      props: {
+        source: {
+          type: "Image Tile",
+          props: {
+            url: "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+          },
+        },
+        name: "Other Layer",
+        zIndex: 0,
+      },
+    },
+  ];
+
+  render(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
+      <MapContextProvider>
+        <TestingComponent mapProps={{ layers }} />
+      </MapContextProvider>
+    </VariableInputsContext.Provider>,
+  );
+
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+  // The valid layer still loads.
+  await waitFor(() => {
+    expect(addLayerSpy.mock.calls.length).toBe(1);
+  });
+  expect(addLayerSpy.mock.calls[0][0].values_.name).toBe("Other Layer");
+
+  // The empty-sources GeoTIFF is NOT surfaced in the failedLayers warning.
+  expect(
+    screen.queryByText(/Failed to load the "In-progress GeoTIFF"/),
+  ).not.toBeInTheDocument();
+});
+
+describe("WebGLTile ramp-style render path (Unit 7)", () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  test("WebGLTile layer with style.color uses setStyle directly, bypassing applyStyle", async () => {
+    const applyStyleSpy = jest.spyOn(olMapboxStyle, "applyStyle");
+    const setStyleSpy = jest.spyOn(WebGLTileLayer.prototype, "setStyle");
+
+    const rampStyle = {
+      color: [
+        "interpolate",
+        ["linear"],
+        ["band", 1],
+        0,
+        "#000000",
+        100,
+        "#ffffff",
+      ],
+    };
+
+    const layers = [
+      {
+        type: "WebGLTile",
+        props: {
+          source: {
+            type: "Image Tile",
+            props: {
+              url: "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+            },
+          },
+          name: "Ramp Styled Layer",
+          zIndex: 0,
+        },
+        style: rampStyle,
+      },
+    ];
+
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent mapProps={{ layers }} />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(setStyleSpy).toHaveBeenCalled();
+    });
+
+    // setStyle received the raw style object (not a style function).
+    const callArgs = setStyleSpy.mock.calls.map((c) => c[0]);
+    expect(callArgs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          color: expect.arrayContaining(["interpolate"]),
+        }),
+      ]),
+    );
+
+    // applyStyle must NOT have been invoked for this layer.
+    expect(applyStyleSpy).not.toHaveBeenCalled();
+  });
+
+  test("non-WebGLTile layer with a style still goes through applyStyle", async () => {
+    const applyStyleSpy = jest
+      .spyOn(olMapboxStyle, "applyStyle")
+      .mockResolvedValue(undefined);
+
+    const layers = [
+      {
+        type: "VectorLayer",
+        props: {
+          name: "Vector Layer",
+          source: {
+            type: "GeoJSON",
+            props: {},
+            geojson: {
+              type: "FeatureCollection",
+              crs: {
+                type: "name",
+                properties: { name: "EPSG:3857" },
+              },
+              features: [],
+            },
+          },
+          zIndex: 1,
+        },
+        style: exampleStyle,
+      },
+    ];
+
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent mapProps={{ layers }} />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(applyStyleSpy).toHaveBeenCalled();
+    });
+  });
+
+  test("GeoTIFF layer triggers auto-fit: map view's projection switches to the TIF's", async () => {
+    // The auto-fit's contract is: when a GeoTIFF layer is added, the map's
+    // view projection switches to the TIF's so tiles can render. The mock
+    // returns EPSG:4326 — different from the default EPSG:3857 — so we can
+    // observe the projection change directly. Asserting on the resulting
+    // view (rather than spying on setView) avoids fragile prototype-spy
+    // wiring and tests the actual behavior.
+    let capturedRef;
+    const RefCapture = ({ mapProps }) => {
+      const ref = useRef();
+      capturedRef = ref;
+      return (
+        <div>
+          <MapComponent visualizationRef={ref} {...mapProps} />
+          <p>{useMapContext()?.mapReady ? "Map Ready" : "Map Not Ready"}</p>
+        </div>
+      );
+    };
+    RefCapture.propTypes = {
+      mapProps: PropTypes.object,
+    };
+
+    const layers = [
+      {
+        type: "WebGLTile",
+        props: {
+          source: {
+            type: "GeoTIFF",
+            props: {
+              sources: [{ url: "https://example.com/test.tif" }],
+            },
+          },
+          name: "Auto-fit GeoTIFF Layer",
+          zIndex: 0,
+        },
+      },
+    ];
+
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <RefCapture mapProps={{ layers }} />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+    // The mock GeoTIFF's getView() must have been called.
+    await waitFor(() => {
+      expect(GeoTIFFSource.getViewSpy).toHaveBeenCalled();
+    });
+
+    // The map's view projection must have switched from default EPSG:3857
+    // to the TIF's EPSG:4326. This proves auto-fit ran end-to-end.
+    await waitFor(() => {
+      const projCode = capturedRef.current
+        ?.getView()
+        ?.getProjection()
+        ?.getCode();
+      expect(projCode).toBe("EPSG:4326");
+    });
+  });
+
+  test("WebGLTile layer without a style does not apply a ramp expression or call applyStyle", async () => {
+    const applyStyleSpy = jest.spyOn(olMapboxStyle, "applyStyle");
+    const setStyleSpy = jest.spyOn(WebGLTileLayer.prototype, "setStyle");
+
+    const layers = [
+      {
+        type: "WebGLTile",
+        props: {
+          source: {
+            type: "Image Tile",
+            props: {
+              url: "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+            },
+          },
+          name: "Default Shader Layer",
+          zIndex: 0,
+        },
+        // No style key: WebGLTile default shader handles rendering.
+      },
+    ];
+
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent mapProps={{ layers }} />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+    // OL's WebGLTile constructor internally calls setStyle({}) during layer
+    // construction — that's not our Unit 7 branch firing. The invariant is
+    // that our code path does NOT push a ramp expression (object with `color`)
+    // and does NOT route through ol-mapbox-style's applyStyle.
+    expect(setStyleSpy).not.toHaveBeenCalledWith(
+      expect.objectContaining({ color: expect.anything() }),
+    );
+    expect(applyStyleSpy).not.toHaveBeenCalled();
+  });
+
+  test("GeoTIFF source 'error' event surfaces fetch-failure message", async () => {
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+
+    const layers = [
+      {
+        type: "WebGLTile",
+        props: {
+          source: {
+            type: "GeoTIFF",
+            props: { sources: [{ url: "https://example.com/test.tif" }] },
+          },
+          name: "Failing GeoTIFF",
+          zIndex: 0,
+        },
+      },
+    ];
+
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent mapProps={{ layers }} />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    await waitFor(() => {
+      expect(addLayerSpy.mock.calls.length).toBe(1);
+    });
+
+    // Listeners are wired synchronously after addLayer in updateLayers, so by
+    // the time the spy records the call the source already has handlers.
+    const source = addLayerSpy.mock.calls[0][0].getSource();
+    source.dispatchEvent({
+      type: "error",
+      error: { message: "Request failed: AggregateError on byte range" },
+    });
+
+    expect(
+      await screen.findByText(/failed to fetch the file/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/CORS headers/)).toBeInTheDocument();
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('GeoTIFF layer "Failing GeoTIFF" (source error)'),
+      expect.anything(),
+    );
+  });
+
+  test("GeoTIFF 'tileloaderror' surfaces format-failure message and throttles after first event", async () => {
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+
+    const layers = [
+      {
+        type: "WebGLTile",
+        props: {
+          source: {
+            type: "GeoTIFF",
+            props: { sources: [{ url: "https://example.com/test.tif" }] },
+          },
+          name: "Format-Bad GeoTIFF",
+          zIndex: 0,
+        },
+      },
+    ];
+
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent mapProps={{ layers }} />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    await waitFor(() => {
+      expect(addLayerSpy.mock.calls.length).toBe(1);
+    });
+
+    const source = addLayerSpy.mock.calls[0][0].getSource();
+    // Fire twice to verify the errorSurfaced throttle — the second event
+    // must not produce another warn or another alert.
+    source.dispatchEvent({
+      type: "tileloaderror",
+      error: { message: "unsupported compression scheme" },
+    });
+    source.dispatchEvent({
+      type: "tileloaderror",
+      error: { message: "another tile failed" },
+    });
+
+    const alert = await screen.findByText(
+      /may not be a Cloud Optimized GeoTIFF/i,
+    );
+    expect(alert).toBeInTheDocument();
+    // Format-failure branch carries the gdal_translate hint.
+    expect(alert.textContent).toMatch(/gdal_translate -of COG/);
+    // The phase string proves which listener fired.
+    expect(alert.textContent).toMatch(/failed \(tile load error\)/);
+    // Throttle: only one warn despite two events.
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test("Auto-fit with valid map size fits new view to transformed previous extent (overlap branch)", async () => {
+    // The default View (EPSG:3857, center near continental US) projected to
+    // EPSG:4326 lands inside the mock TIF's extent [-180,-90,180,90], so the
+    // overlap branch wins and targetExtent === transformed.
+    jest.spyOn(Map.prototype, "getSize").mockReturnValue([256, 256]);
+    // With a real size, OL's renderSync invokes the WebGL renderer, which
+    // has no GL context in jsdom. Stub it — the auto-fit code doesn't
+    // depend on actual rendering happening.
+    jest.spyOn(Map.prototype, "renderSync").mockImplementation(() => {});
+    const fitSpy = jest.spyOn(View.prototype, "fit");
+    const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+
+    const layers = [
+      {
+        type: "WebGLTile",
+        props: {
+          source: {
+            type: "GeoTIFF",
+            props: { sources: [{ url: "https://example.com/test.tif" }] },
+          },
+          name: "Auto-fit Sized",
+          zIndex: 0,
+        },
+      },
+    ];
+
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent mapProps={{ layers }} />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    await waitFor(() => {
+      expect(addLayerSpy.mock.calls.length).toBe(1);
+    });
+    await waitFor(() => {
+      expect(fitSpy).toHaveBeenCalled();
+    });
+
+    // Last fit call is the auto-fit one (no mapExtent prop set, so no other
+    // fit path can fire). Assert it received a finite 4-elem extent and the
+    // mocked map size.
+    const [extent, options] = fitSpy.mock.calls[fitSpy.mock.calls.length - 1];
+    expect(Array.isArray(extent)).toBe(true);
+    expect(extent).toHaveLength(4);
+    expect(extent.every(Number.isFinite)).toBe(true);
+    // Overlap branch: transformed extent is in EPSG:4326 lon/lat (the new
+    // view's projection), so values are well inside [-180, 180] x [-90, 90]
+    // — distinguishing this from the no-haveMapSize path where fit isn't
+    // called at all, AND from the fallback branch where extent equals the
+    // mock's full TIF extent [-180,-90,180,90].
+    expect(extent[0]).toBeGreaterThan(-180);
+    expect(extent[2]).toBeLessThan(180);
+    expect(extent[0]).not.toBe(-180);
+    expect(extent[2]).not.toBe(180);
+    expect(options).toEqual({ size: [256, 256] });
+  });
+
+  test("Auto-fit falls back to TIF extent when previous view does not overlap", async () => {
+    // Override getView to return a tiny TIF extent in the Pacific. The
+    // default view (continental US) does not overlap, so intersects() is
+    // false and targetExtent falls through to the TIF's own extent.
+    const tinyTifExtent = [170, -10, 175, -5];
+    jest.spyOn(GeoTIFFSource.prototype, "getView").mockResolvedValue({
+      projection: "EPSG:4326",
+      extent: tinyTifExtent,
+      center: [172.5, -7.5],
+      zoom: 8,
+    });
+    jest.spyOn(Map.prototype, "getSize").mockReturnValue([256, 256]);
+    jest.spyOn(Map.prototype, "renderSync").mockImplementation(() => {});
+    const fitSpy = jest.spyOn(View.prototype, "fit");
+    const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+
+    const layers = [
+      {
+        type: "WebGLTile",
+        props: {
+          source: {
+            type: "GeoTIFF",
+            props: { sources: [{ url: "https://example.com/test.tif" }] },
+          },
+          name: "Pacific GeoTIFF",
+          zIndex: 0,
+        },
+      },
+    ];
+
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent mapProps={{ layers }} />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    await waitFor(() => {
+      expect(addLayerSpy.mock.calls.length).toBe(1);
+    });
+    await waitFor(() => {
+      expect(fitSpy).toHaveBeenCalled();
+    });
+
+    const [extent] = fitSpy.mock.calls[fitSpy.mock.calls.length - 1];
+    expect(extent).toEqual(tinyTifExtent);
+  });
+
+  test("GeoTIFF 'error' event with only top-level message uses fetch path; warn logs evt itself", async () => {
+    // detail comes from evt.message (the second branch of the
+    // `evt?.error?.message || evt?.message || ""` chain), and console.warn
+    // falls back to evt itself in `evt?.error ?? evt`.
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+
+    const layers = [
+      {
+        type: "WebGLTile",
+        props: {
+          source: {
+            type: "GeoTIFF",
+            props: { sources: [{ url: "https://example.com/test.tif" }] },
+          },
+          name: "Top-level Message GeoTIFF",
+          zIndex: 0,
+        },
+      },
+    ];
+
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent mapProps={{ layers }} />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    await waitFor(() => {
+      expect(addLayerSpy.mock.calls.length).toBe(1);
+    });
+
+    const source = addLayerSpy.mock.calls[0][0].getSource();
+    const evt = { type: "error", message: "Failed to fetch the resource" };
+    source.dispatchEvent(evt);
+
+    expect(
+      await screen.findByText(/failed to fetch the file/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Failed to fetch the resource/),
+    ).toBeInTheDocument();
+    // evt.error is undefined, so warn receives the event itself.
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("source error"),
+      evt,
+    );
+  });
+
+  test("GeoTIFF 'tileloaderror' empty event uses format path with empty detail", async () => {
+    // No evt.error and no evt.message — `detail` falls back to "" (the
+    // third branch of the chain), looksLikeFetchFailure is false (regex
+    // doesn't match empty string), so format-failure path runs with the
+    // empty-detail branch of `(detail ? "Detail: ..." : "")`.
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+
+    const layers = [
+      {
+        type: "WebGLTile",
+        props: {
+          source: {
+            type: "GeoTIFF",
+            props: { sources: [{ url: "https://example.com/test.tif" }] },
+          },
+          name: "Empty-event GeoTIFF",
+          zIndex: 0,
+        },
+      },
+    ];
+
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent mapProps={{ layers }} />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    await waitFor(() => {
+      expect(addLayerSpy.mock.calls.length).toBe(1);
+    });
+
+    const source = addLayerSpy.mock.calls[0][0].getSource();
+    const evt = { type: "tileloaderror" };
+    source.dispatchEvent(evt);
+
+    const alert = await screen.findByText(
+      /may not be a Cloud Optimized GeoTIFF/i,
+    );
+    expect(alert).toBeInTheDocument();
+    // Empty-detail branch: no "Detail:" segment between "(tile load error)."
+    // and "The file...".
+    expect(alert.textContent).not.toMatch(/Detail:/);
+    expect(alert.textContent).toMatch(/failed \(tile load error\)\. The file/);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("tile load error"),
+      evt,
+    );
+  });
+
+  test("Auto-fit defaults center=[0,0] and zoom=0 when getView omits them, falls back to transformed when tifExtent missing", async () => {
+    // Single test that hits three branches: viewOptions.center default,
+    // viewOptions.zoom default, and the `: transformed` fallback inside
+    // the overlap ternary (because tifExtent is undefined → overlaps=false
+    // → tifExtent invalid → fall to transformed).
+    jest.spyOn(GeoTIFFSource.prototype, "getView").mockResolvedValue({
+      projection: "EPSG:4326",
+      // No center, no zoom, no extent — exercises all three defaults.
+    });
+    jest.spyOn(Map.prototype, "getSize").mockReturnValue([256, 256]);
+    jest.spyOn(Map.prototype, "renderSync").mockImplementation(() => {});
+    const fitSpy = jest.spyOn(View.prototype, "fit");
+    const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+
+    const layers = [
+      {
+        type: "WebGLTile",
+        props: {
+          source: {
+            type: "GeoTIFF",
+            props: { sources: [{ url: "https://example.com/test.tif" }] },
+          },
+          name: "Bare-projection GeoTIFF",
+          zIndex: 0,
+        },
+      },
+    ];
+
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent mapProps={{ layers }} />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    await waitFor(() => {
+      expect(addLayerSpy.mock.calls.length).toBe(1);
+    });
+    await waitFor(() => {
+      expect(fitSpy).toHaveBeenCalled();
+    });
+
+    // The fit extent is the transformed prev extent, not [-180,-90,180,90]
+    // (the mock TIF's full extent is missing in this test).
+    const [extent] = fitSpy.mock.calls[fitSpy.mock.calls.length - 1];
+    expect(extent.every(Number.isFinite)).toBe(true);
+    expect(extent).not.toEqual([-180, -90, 180, 90]);
+  });
+
+  test("Auto-fit takes the unclamped-prev branch when the source projection's getExtent returns a non-array", async () => {
+    // Render without layers first so the initial Map and View are
+    // constructed normally. Only after mount do we make EPSG:3857's
+    // getExtent return a non-array — that way the auto-fit's
+    // `prevProjection.getExtent?.()` yields a non-array sourceValid and
+    // takes the `: prevExtent` branch of the clampedPrev ternary, while
+    // OL's own internal usage at mount stays untouched.
+    jest.spyOn(Map.prototype, "getSize").mockReturnValue([256, 256]);
+    jest.spyOn(Map.prototype, "renderSync").mockImplementation(() => {});
+    // The async renderFrame_ would normally fire after addLayer and try
+    // to use WebGL (no GL context in jsdom). Stub it too.
+    jest.spyOn(Map.prototype, "renderFrame_").mockImplementation(() => {});
+    const fitSpy = jest.spyOn(View.prototype, "fit");
+    const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+
+    const layer = {
+      type: "WebGLTile",
+      props: {
+        source: {
+          type: "GeoTIFF",
+          props: { sources: [{ url: "https://example.com/test.tif" }] },
+        },
+        name: "Non-array-getExtent GeoTIFF",
+        zIndex: 0,
+      },
+    };
+
+    const { rerender } = render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent mapProps={{}} />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+    // Now break getExtent and add the GeoTIFF layer. The spy stays a
+    // function (so any further OL internals that grab it don't throw on
+    // typeof checks); it simply returns a non-array.
+    const proj = olProj.get("EPSG:3857");
+    jest.spyOn(proj, "getExtent").mockReturnValue(undefined);
+
+    rerender(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent mapProps={{ layers: [layer] }} />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    await waitFor(() => {
+      expect(addLayerSpy).toHaveBeenCalled();
+    });
+    await waitFor(() => {
+      expect(fitSpy).toHaveBeenCalled();
+    });
+  });
+
+  test("Auto-fit handles non-finite transformExtent result (skips inner block, falls back to TIF extent)", async () => {
+    // Force transformExtent to return non-finite values so
+    // `transformed.every(Number.isFinite)` is false, exercising that
+    // guard's else branch. Auto-fit then falls through to the second
+    // `if (!targetExtent && Array.isArray(tifExtent) && ...)` block and
+    // uses the mock's full extent.
+    jest
+      .spyOn(olProj, "transformExtent")
+      .mockReturnValueOnce([NaN, NaN, NaN, NaN]);
+    jest.spyOn(Map.prototype, "getSize").mockReturnValue([256, 256]);
+    jest.spyOn(Map.prototype, "renderSync").mockImplementation(() => {});
+    const fitSpy = jest.spyOn(View.prototype, "fit");
+    const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+
+    const layers = [
+      {
+        type: "WebGLTile",
+        props: {
+          source: {
+            type: "GeoTIFF",
+            props: { sources: [{ url: "https://example.com/test.tif" }] },
+          },
+          name: "NaN-Transform GeoTIFF",
+          zIndex: 0,
+        },
+      },
+    ];
+
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent mapProps={{ layers }} />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    await waitFor(() => {
+      expect(addLayerSpy.mock.calls.length).toBe(1);
+    });
+    await waitFor(() => {
+      expect(fitSpy).toHaveBeenCalled();
+    });
+
+    // Fell through to the TIF's full extent.
+    expect(fitSpy.mock.calls[fitSpy.mock.calls.length - 1][0]).toEqual([
+      -180, -90, 180, 90,
+    ]);
+  });
+
+  test("dataviewerViz: InfoDiv is rendered and pointermove updates the displayed coordinates", async () => {
+    // Two coverage targets: the JSX `<InfoDiv>` branch (only evaluated
+    // when dataviewerViz is truthy) and the pointermove callback that
+    // setLonLat's from evt.coordinate.
+    let capturedRef;
+    const RefCapture = ({ mapProps }) => {
+      const ref = useRef();
+      capturedRef = ref;
+      return (
+        <>
+          <MapComponent visualizationRef={ref} {...mapProps} />
+          <p>{useMapContext()?.mapReady ? "Map Ready" : "Map Not Ready"}</p>
+        </>
+      );
+    };
+    RefCapture.propTypes = {
+      mapProps: PropTypes.object,
+    };
+
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <RefCapture mapProps={{ dataviewerViz: true }} />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+    const infoDiv = await screen.findByLabelText("Info Div");
+    expect(infoDiv).toBeInTheDocument();
+
+    // Trigger the pointermove handler that sets lonLat.
+    capturedRef.current.dispatchEvent({
+      type: "pointermove",
+      coordinate: [123.456, 789.012],
+    });
+
+    await waitFor(() => {
+      expect(infoDiv.textContent).toMatch(/Lon: 123\.46, Lat: 789\.01/);
+    });
+  });
+
+  test("mapDrawing prop renders DrawInteractions (covers JSX truthy branch)", async () => {
+    // mapDrawingPropType: { options: string[], limit: number }
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent
+            mapProps={{
+              mapDrawing: { options: ["Point"], limit: 1 },
+              drawing: { current: false },
+            }}
+          />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+    // DrawInteractions writes its own UI under the map div; merely
+    // rendering without throwing is enough to take the JSX `&&` branch.
+    expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+  });
+
+  test("legend with at least one item renders LegendControl (covers JSX truthy branch)", async () => {
+    // `legend && legend.length > 0 && <LegendControl />` — the existing
+    // empty-array test only covers the falsy short-circuit on length.
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent
+            mapProps={{
+              legend: [
+                {
+                  title: "Test Legend",
+                  items: [{ color: "red", label: "Red" }],
+                },
+              ],
+            }}
+          />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+    expect(await screen.findByLabelText("Map Legend")).toBeInTheDocument();
+  });
+
+  test("Auto-fit skips inner extent block when clampedPrev is non-finite", async () => {
+    // Force prevView.calculateExtent to return non-finite values so
+    // `clampedPrev.every(Number.isFinite)` is false and the if condition
+    // at the top of the haveMapSize block goes false. targetExtent stays
+    // null inside the inner block, then the fallback `if (!targetExtent
+    // && Array.isArray(tifExtent) ...)` uses the mock TIF's extent.
+    jest
+      .spyOn(View.prototype, "calculateExtent")
+      .mockReturnValue([NaN, NaN, NaN, NaN]);
+    jest.spyOn(Map.prototype, "getSize").mockReturnValue([256, 256]);
+    jest.spyOn(Map.prototype, "renderSync").mockImplementation(() => {});
+    jest.spyOn(Map.prototype, "renderFrame_").mockImplementation(() => {});
+    const fitSpy = jest.spyOn(View.prototype, "fit");
+    const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+
+    const layers = [
+      {
+        type: "WebGLTile",
+        props: {
+          source: {
+            type: "GeoTIFF",
+            props: { sources: [{ url: "https://example.com/test.tif" }] },
+          },
+          name: "Non-finite Prev GeoTIFF",
+          zIndex: 0,
+        },
+      },
+    ];
+
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent mapProps={{ layers }} />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    await waitFor(() => {
+      expect(addLayerSpy.mock.calls.length).toBe(1);
+    });
+    await waitFor(() => {
+      expect(fitSpy).toHaveBeenCalled();
+    });
+
+    // Inner block was skipped (transformed never computed); fallback
+    // to TIF's full extent kicked in.
+    expect(fitSpy.mock.calls[fitSpy.mock.calls.length - 1][0]).toEqual([
+      -180, -90, 180, 90,
+    ]);
+  });
+
+  test("Auto-fit catch logs warning when getView rejects", async () => {
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    jest
+      .spyOn(GeoTIFFSource.prototype, "getView")
+      .mockRejectedValue(new Error("kaboom"));
+    const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+
+    const layers = [
+      {
+        type: "WebGLTile",
+        props: {
+          source: {
+            type: "GeoTIFF",
+            props: { sources: [{ url: "https://example.com/test.tif" }] },
+          },
+          name: "Bomber",
+          zIndex: 0,
+        },
+      },
+    ];
+
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent mapProps={{ layers }} />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    await waitFor(() => {
+      expect(addLayerSpy.mock.calls.length).toBe(1);
+    });
+    await waitFor(() => {
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('GeoTIFF auto-fit failed for layer "Bomber"'),
+        expect.any(Error),
+      );
+    });
+  });
 });
 
 TestingComponent.propTypes = {

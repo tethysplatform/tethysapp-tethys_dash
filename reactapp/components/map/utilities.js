@@ -108,6 +108,10 @@ export const sourcePropertiesOptions = {
     required: {},
     optional: {},
   },
+  GeoTIFF: {
+    required: {},
+    optional: {},
+  },
   "Vector Tile": {
     required: {
       urls: {
@@ -359,6 +363,8 @@ export function createHighlightLayer() {
 }
 
 export function addHighlightFeatures(highlightLayer, geometries) {
+  if (!geometries || typeof geometries !== "object") return;
+
   let features;
   if ("paths" in geometries || geometries?.type === "MultiLineString") {
     const paths = geometries.paths || geometries.coordinates;
@@ -472,6 +478,14 @@ export async function queryLayerFeatures(layerInfo, map, coordinate, pixel) {
       features = getVectorTileLayerFeatures(map, pixel);
     } else if (sourceType === "KML") {
       features = getKMLLayerFeatures(map, pixel, coordinate, LayerName);
+    } else if (sourceType === "GeoTIFF") {
+      features = getGeoTIFFPixelValues(
+        map,
+        pixel,
+        LayerName,
+        layerInfo,
+        coordinate,
+      );
     } else {
       throw Error(`${sourceType} is not currently configured to be queried`);
     }
@@ -500,6 +514,51 @@ async function getKMLLayerFeatures(map, pixel, coordinate, LayerName) {
   });
 
   return features;
+}
+
+function getGeoTIFFPixelValues(map, pixel, LayerName, layerInfo, coordinate) {
+  const targetLayer = map
+    .getLayers()
+    .getArray()
+    .find((layer) => layer.get("name") === LayerName);
+
+  if (!targetLayer || typeof targetLayer.getData !== "function") return [];
+
+  const data = targetLayer.getData(pixel);
+  if (!data || data.length === 0) return [];
+
+  const configuredSources =
+    layerInfo?.configuration?.props?.source?.props?.sources ?? [];
+  const anySourceHasNodata = configuredSources.some(
+    (s) => s?.nodata !== undefined && s.nodata !== null && s.nodata !== "",
+  );
+
+  if (anySourceHasNodata && data.length >= 2 && data[data.length - 1] === 0) {
+    return [
+      {
+        layerName: LayerName,
+        attributes: { "Band 1": "No data" },
+        geometry: { type: "Point", coordinates: coordinate },
+      },
+    ];
+  }
+
+  const attributes = {};
+  const bandCount = anySourceHasNodata ? data.length - 1 : data.length;
+  for (let i = 0; i < bandCount; i++) {
+    attributes[`Band ${i + 1}`] = data[i];
+  }
+
+  return [
+    {
+      layerName: LayerName,
+      attributes,
+      geometry: {
+        type: "Point",
+        coordinates: coordinate,
+      },
+    },
+  ];
 }
 
 function getVectorTileLayerFeatures(map, pixel) {
@@ -1161,17 +1220,32 @@ export async function loadLayerJSONs(
   // Load GeoJSON if needed
   const source = mapLayer?.configuration?.props?.source;
   if (source?.type === "GeoJSON" && source?.geojson) {
-    let geojson;
-    try {
-      geojson = await loadGeoJSON(source.geojson, dashboard_uuid, keep_urls);
-    } catch (e) {
-      delete mapLayer.configuration.props.source.geojson;
-      return {
-        success: false,
-        message: `Failed to fetch: ${e.message}`,
-      };
+    const geo = source.geojson;
+    const isUrlGeoJSON =
+      typeof geo === "string" &&
+      geo.trim() !== "" &&
+      geo.includes("/") &&
+      !geo.trim().startsWith("{");
+
+    // URL-based GeoJSON: leave the URL on source.geojson. ModuleLoader's
+    // VectorSource will pass it to OL's GeoJSON format via `url:` so OL
+    // fetches + parses directly into features — no intermediate JS object
+    // tree, and layer fetches parallelize instead of serializing through
+    // this await loop. For inline JSON bodies and saved workspace
+    // filenames, keep the existing fetch/parse path.
+    if (!isUrlGeoJSON) {
+      let geojson;
+      try {
+        geojson = await loadGeoJSON(geo, dashboard_uuid, keep_urls);
+      } catch (e) {
+        delete mapLayer.configuration.props.source.geojson;
+        return {
+          success: false,
+          message: `Failed to fetch: ${e.message}`,
+        };
+      }
+      mapLayer.configuration.props.source.geojson = geojson;
     }
-    mapLayer.configuration.props.source.geojson = geojson;
   }
 
   return { success: true };
@@ -1343,6 +1417,15 @@ export const legendPropType = PropTypes.oneOfType([
   PropTypes.shape({
     title: PropTypes.string, // title for the layer in the map legend
     items: PropTypes.arrayOf(legendItemPropType), // array of legend items
+  }),
+  // Auto-generated colorbar legend for GeoTIFF ramp-styled layers.
+  PropTypes.shape({
+    rampColors: PropTypes.arrayOf(PropTypes.string).isRequired,
+    rampMin: PropTypes.oneOfType([PropTypes.number, PropTypes.string])
+      .isRequired,
+    rampMax: PropTypes.oneOfType([PropTypes.number, PropTypes.string])
+      .isRequired,
+    title: PropTypes.string,
   }),
 ]);
 

@@ -19,6 +19,7 @@ import { applyStyle } from "ol-mapbox-style";
 import PropTypes from "prop-types";
 import { useMapContext } from "components/contexts/MapContext";
 import { fromExtent } from "ol/geom/Polygon";
+import { transformExtent } from "ol/proj";
 import { VariableInputsContext } from "components/contexts/Contexts";
 import GeoJSON from "ol/format/GeoJSON";
 import { valuesEqual } from "components/modals/utilities";
@@ -331,12 +332,6 @@ const MapComponent = ({
               newLayer.setVisible(false);
             }
 
-            // Wait for the new layer to finish loading before removing
-            // the old layer it replaces. This prevents flickering during
-            // animated layer transitions (e.g., Array slider cycling
-            // through image URLs). Only applies when replacing a layer
-            // with an updated version of itself (same name), not when
-            // swapping structurally different layers.
             const replacesExisting = layersToRemove.some(
               (old) => old.get("name") === name,
             );
@@ -375,32 +370,162 @@ const MapComponent = ({
 
             map.addLayer(newLayer);
 
-            if (layerConfig.style) {
-              try {
-                await applyStyle(newLayer, layerConfig.style);
-              } catch (err) {
-                if (
-                  err.message !==
-                  "Cannot read properties of undefined (reading 'crs')"
-                ) {
-                  const styleFunction = createJsonStyleFunction(
-                    layerConfig.style,
+            if (
+              layerConfig.type === "WebGLTile" &&
+              layerConfig.props?.source?.type === "GeoTIFF"
+            ) {
+              const geoTIFFSource = newLayer.getSource();
+
+              let errorSurfaced = false;
+              const surface = (phase) => (evt) => {
+                if (errorSurfaced) return;
+                errorSurfaced = true;
+                const detail = evt?.error?.message || evt?.message || "";
+                const looksLikeFetchFailure =
+                  /request failed|AggregateError|CORS|blocked|Failed to fetch/i.test(
+                    detail,
                   );
-                  if (typeof newLayer.setStyle === "function") {
-                    newLayer.setStyle(styleFunction);
+                const message = looksLikeFetchFailure
+                  ? `GeoTIFF layer "${name}" failed to fetch the file. ` +
+                    `Check the Network tab — likely causes: CORS headers ` +
+                    `missing on the hosting server, no HTTP Range support, ` +
+                    `or the URL is unreachable. Detail: ${detail}.`
+                  : `GeoTIFF layer "${name}" failed (${phase}). ` +
+                    (detail ? `Detail: ${detail}. ` : "") +
+                    `The file may not be a Cloud Optimized GeoTIFF. ` +
+                    `Try converting with ` +
+                    `\`gdal_translate -of COG -co COMPRESS=DEFLATE -co PREDICTOR=YES input.tif output.tif\`.`;
+                setErrorMessage(message);
+                console.warn(
+                  `GeoTIFF layer "${name}" (${phase}):`,
+                  evt?.error ?? evt,
+                );
+              };
+              geoTIFFSource.on("error", surface("source error"));
+              geoTIFFSource.on("tileloaderror", surface("tile load error"));
+
+              try {
+                const viewOptions = await geoTIFFSource.getView();
+                const mapSize = map.getSize();
+                const prevView = map.getView();
+                const prevProjection = prevView.getProjection();
+                const newProjection = viewOptions.projection;
+                const tifExtent = viewOptions.extent;
+
+                const haveMapSize =
+                  Array.isArray(mapSize) &&
+                  mapSize.length === 2 &&
+                  mapSize[0] > 0 &&
+                  mapSize[1] > 0;
+
+                // Helper: extents [minX, minY, maxX, maxY] overlap?
+                const intersects = (a, b) =>
+                  !(a[2] < b[0] || a[0] > b[2] || a[3] < b[1] || a[1] > b[3]);
+
+                const newView = new View({
+                  projection: newProjection,
+                  center: viewOptions.center ?? [0, 0],
+                  zoom: viewOptions.zoom ?? 0,
+                });
+
+                let targetExtent = null;
+                if (haveMapSize) {
+                  const prevExtent = prevView.calculateExtent(mapSize);
+                  const sourceValid = prevProjection.getExtent?.();
+                  const clampedPrev =
+                    Array.isArray(sourceValid) && sourceValid.length === 4
+                      ? [
+                          Math.max(prevExtent[0], sourceValid[0]),
+                          Math.max(prevExtent[1], sourceValid[1]),
+                          Math.min(prevExtent[2], sourceValid[2]),
+                          Math.min(prevExtent[3], sourceValid[3]),
+                        ]
+                      : prevExtent;
+
+                  if (
+                    clampedPrev.every(Number.isFinite) &&
+                    clampedPrev[0] < clampedPrev[2] &&
+                    clampedPrev[1] < clampedPrev[3]
+                  ) {
+                    const transformed = transformExtent(
+                      clampedPrev,
+                      prevProjection,
+                      newProjection,
+                    );
+                    if (transformed.every(Number.isFinite)) {
+                      const overlaps =
+                        Array.isArray(tifExtent) &&
+                        tifExtent.length === 4 &&
+                        intersects(transformed, tifExtent);
+                      targetExtent = overlaps
+                        ? transformed
+                        : Array.isArray(tifExtent) &&
+                            tifExtent.every(Number.isFinite)
+                          ? tifExtent
+                          : transformed;
+                    }
+                  }
+                }
+
+                if (
+                  !targetExtent &&
+                  Array.isArray(tifExtent) &&
+                  tifExtent.length === 4 &&
+                  tifExtent.every(Number.isFinite)
+                ) {
+                  targetExtent = tifExtent;
+                }
+
+                if (targetExtent && haveMapSize) {
+                  newView.fit(targetExtent, { size: mapSize });
+                }
+                map.setView(newView);
+              } catch (err) {
+                console.warn(
+                  `GeoTIFF auto-fit failed for layer "${name}":`,
+                  err,
+                );
+              }
+            }
+
+            if (layerConfig.style) {
+              const isWebGLTileRampStyle =
+                layerConfig.type === "WebGLTile" &&
+                layerConfig.style &&
+                typeof layerConfig.style === "object" &&
+                !Array.isArray(layerConfig.style) &&
+                "color" in layerConfig.style;
+
+              if (isWebGLTileRampStyle) {
+                newLayer.setStyle(layerConfig.style);
+              } else {
+                try {
+                  await applyStyle(newLayer, layerConfig.style);
+                } catch (err) {
+                  if (
+                    err.message !==
+                    "Cannot read properties of undefined (reading 'crs')"
+                  ) {
+                    const styleFunction = createJsonStyleFunction(
+                      layerConfig.style,
+                    );
+                    if (typeof newLayer.setStyle === "function") {
+                      newLayer.setStyle(styleFunction);
+                    }
                   }
                 }
               }
             }
           } catch (err) {
+            if (err && err.message === "GeoTIFFEmptySources") {
+              return;
+            }
             console.log(err);
             failedLayers.push(name);
           }
         }),
       );
 
-      // Wait for new layers to load before removing old ones to prevent
-      // flickering. Falls through immediately if no load promises exist.
       if (layerLoadPromises.length > 0) {
         await Promise.all(layerLoadPromises);
       }

@@ -64,6 +64,7 @@ const TestingComponent = ({
   initialStyle,
   setErrorMessage,
   sourceProps = {},
+  setSourceProps,
 }) => {
   const [style, setStyle] = useState(initialStyle);
 
@@ -74,11 +75,65 @@ const TestingComponent = ({
         setStyle={setStyle}
         setErrorMessage={setErrorMessage}
         sourceProps={sourceProps}
+        setSourceProps={setSourceProps}
       />
       <p data-testid="style">{style}</p>
     </LayoutContext.Provider>
   );
 };
+
+const GeoTIFFTestHarness = ({ initialSourceProps }) => {
+  const [sourceProps, setSourceProps] = useState(initialSourceProps);
+
+  return (
+    <LayoutContext.Provider value={{ uuid: "123" }}>
+      <StylePane
+        style={undefined}
+        setStyle={() => {}}
+        setErrorMessage={() => {}}
+        sourceProps={sourceProps}
+        setSourceProps={setSourceProps}
+      />
+      <p data-testid="rampName">{sourceProps.rampName ?? ""}</p>
+      <p data-testid="rampMin">{sourceProps.rampMin ?? ""}</p>
+      <p data-testid="rampMax">{sourceProps.rampMax ?? ""}</p>
+    </LayoutContext.Provider>
+  );
+};
+
+test("StylePane GeoTIFF ramp/min/max handlers no-op when setSourceProps is missing", async () => {
+  // Covers the `if (!setSourceProps) return;` early-returns at lines 203,
+  // 207, and 212. With setSourceProps undefined, every handler must
+  // short-circuit silently — the ramp picker click and the min/max input
+  // changes should not throw.
+  render(
+    <LayoutContext.Provider value={{ uuid: "123" }}>
+      <StylePane
+        style={undefined}
+        setStyle={() => {}}
+        setErrorMessage={() => {}}
+        sourceProps={{ type: "GeoTIFF" }}
+        // intentionally omit setSourceProps to drive the early-return path
+      />
+    </LayoutContext.Provider>,
+  );
+
+  // Ramp picker → handleRampSelect short-circuits (line 203).
+  const rampButton = await screen.findByLabelText("Select viridis ramp");
+  expect(() => fireEvent.click(rampButton)).not.toThrow();
+
+  // Min input → handleMinChange short-circuits (line 207).
+  const minInput = screen.getByLabelText("Ramp Min");
+  expect(() =>
+    fireEvent.change(minInput, { target: { value: "10" } }),
+  ).not.toThrow();
+
+  // Max input → handleMaxChange short-circuits (line 212).
+  const maxInput = screen.getByLabelText("Ramp Max");
+  expect(() =>
+    fireEvent.change(maxInput, { target: { value: "100" } }),
+  ).not.toThrow();
+});
 
 test("StylePane json Input", async () => {
   render(<TestingComponent sourceProps={{ type: "GeoJSON" }} />);
@@ -440,4 +495,106 @@ TestingComponent.propTypes = {
   initialStyle: PropTypes.string,
   setErrorMessage: PropTypes.func,
   sourceProps: PropTypes.object,
+  setSourceProps: PropTypes.func,
 };
+
+GeoTIFFTestHarness.propTypes = {
+  initialSourceProps: PropTypes.object,
+};
+
+test("StylePane renders Color Ramp section for GeoTIFF source type", async () => {
+  render(<GeoTIFFTestHarness initialSourceProps={{ type: "GeoTIFF" }} />);
+
+  expect(await screen.findByText("Color Ramp")).toBeInTheDocument();
+  // All four ramp options render.
+  expect(
+    screen.getByRole("radio", { name: "Select viridis ramp" }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole("radio", { name: "Select turbo ramp" }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole("radio", { name: "Select RdYlBu ramp" }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole("radio", { name: "Select grayscale ramp" }),
+  ).toBeInTheDocument();
+  // Min and Max inputs render.
+  expect(screen.getByLabelText("Ramp Min")).toBeInTheDocument();
+  expect(screen.getByLabelText("Ramp Max")).toBeInTheDocument();
+});
+
+test("StylePane does NOT render Color Ramp section for non-GeoTIFF sources", async () => {
+  render(<TestingComponent sourceProps={{ type: "GeoJSON" }} />);
+  // Vector editor renders instead.
+  expect(await screen.findByText("Upload style file")).toBeInTheDocument();
+  expect(screen.queryByText("Color Ramp")).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("radio", { name: "Select viridis ramp" }),
+  ).not.toBeInTheDocument();
+});
+
+test("StylePane Color Ramp section hidden for WMS source type", async () => {
+  render(<TestingComponent sourceProps={{ type: "WMS" }} />);
+  // WMS shows the "not available" message and NOT the ramp picker.
+  expect(
+    await screen.findByText(/Custom Styling is only available/),
+  ).toBeInTheDocument();
+  expect(screen.queryByText("Color Ramp")).not.toBeInTheDocument();
+});
+
+test("StylePane selecting a ramp updates sourceProps.rampName", async () => {
+  render(<GeoTIFFTestHarness initialSourceProps={{ type: "GeoTIFF" }} />);
+
+  const viridisOption = await screen.findByRole("radio", {
+    name: "Select viridis ramp",
+  });
+  await userEvent.click(viridisOption);
+
+  expect(screen.getByTestId("rampName")).toHaveTextContent("viridis");
+});
+
+test("StylePane typing min/max updates sourceProps.rampMin / rampMax as strings", async () => {
+  render(<GeoTIFFTestHarness initialSourceProps={{ type: "GeoTIFF" }} />);
+
+  const minInput = screen.getByLabelText("Ramp Min");
+  const maxInput = screen.getByLabelText("Ramp Max");
+
+  fireEvent.change(minInput, { target: { value: "0" } });
+  fireEvent.change(maxInput, { target: { value: "100" } });
+
+  await waitFor(() => {
+    expect(screen.getByTestId("rampMin")).toHaveTextContent("0");
+  });
+  expect(screen.getByTestId("rampMax")).toHaveTextContent("100");
+});
+
+test("StylePane pre-populates ramp selection and min/max from sourceProps", async () => {
+  render(
+    <GeoTIFFTestHarness
+      initialSourceProps={{
+        type: "GeoTIFF",
+        rampName: "viridis",
+        rampMin: "0",
+        rampMax: "100",
+      }}
+    />,
+  );
+
+  const viridisOption = await screen.findByRole("radio", {
+    name: "Select viridis ramp",
+  });
+  expect(viridisOption).toHaveAttribute("aria-checked", "true");
+
+  expect(screen.getByLabelText("Ramp Min")).toHaveValue("0");
+  expect(screen.getByLabelText("Ramp Max")).toHaveValue("100");
+});
+
+test("StylePane json/rules editor still works for non-GeoTIFF layers (regression)", async () => {
+  render(<TestingComponent sourceProps={{ type: "GeoJSON" }} />);
+  // Regression: mode selector works unchanged for GeoJSON.
+  const rulesRadio = await screen.findByLabelText("Rule-based Editor");
+  await userEvent.click(rulesRadio);
+  const addRuleBtn = await screen.findByLabelText("Add Rule Button");
+  expect(addRuleBtn).toBeInTheDocument();
+});

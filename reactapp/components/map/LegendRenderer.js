@@ -72,6 +72,24 @@ const LegendItem = styled.li`
   gap: 0.5rem;
 `;
 
+const RampGradient = styled.div`
+  width: 100%;
+  min-width: 180px;
+  height: 12px;
+  border-radius: 2px;
+  border: 1px solid #dee2e6;
+`;
+
+const RampScale = styled.div`
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: #495057;
+  margin-top: 2px;
+  width: 100%;
+  min-width: 180px;
+`;
+
 const LegendImage = styled.img`
   && {
     width: 56.67% !important; /* 2/3 of 85% */
@@ -436,7 +454,25 @@ function LegendRenderer({ legend }) {
 
   if (!legend) return null;
 
-  // 🟢 Custom legend (array of items)
+  if (Array.isArray(legend.rampColors) && legend.rampColors.length > 0) {
+    return (
+      <LegendWrapper>
+        {legend.title && <LegendTitle>{legend.title}</LegendTitle>}
+        <RampGradient
+          role="img"
+          aria-label={`Color ramp from ${legend.rampMin} to ${legend.rampMax}`}
+          style={{
+            background: `linear-gradient(to right, ${legend.rampColors.join(",")})`,
+          }}
+        />
+        <RampScale>
+          <span>{legend.rampMin}</span>
+          <span>{legend.rampMax}</span>
+        </RampScale>
+      </LegendWrapper>
+    );
+  }
+
   if (legend.items) {
     // If only one item, show symbol next to title, no label
     if (legend.items.length === 1) {

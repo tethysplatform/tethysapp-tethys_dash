@@ -9,3 +9,5 @@ End-to-end walkthroughs that combine multiple TethysDash features to build real 
    :maxdepth: 1
 
    rfc_max_stage_analysis
+   geoglows_demo
+   geoglows_demo_part2
