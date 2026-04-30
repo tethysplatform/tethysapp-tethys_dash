@@ -146,7 +146,7 @@ function Loader({ children }) {
           (opt) => opt.type !== "map_layer",
         );
         const mapLayerTemplateItems = visualizationGroup.options.filter(
-          (opt) => opt.type === "map_layer" && opt.dynamic_map_layer === false,
+          (opt) => opt.type === "map_layer" && opt.dynamic_map_layer !== true,
         );
         mapLayerDynamicItems.push(
           ...visualizationGroup.options.filter(
