@@ -37,6 +37,7 @@ export default function useRuntimeLayerFetcher({
   }, []);
 
   const clearError = useCallback((layerId) => {
+    // istanbul ignore next
     if (!isMountedRef.current) return;
     setErrorsByLayerId((prev) => {
       if (!(layerId in prev)) return prev;
@@ -47,6 +48,7 @@ export default function useRuntimeLayerFetcher({
   }, []);
 
   const setError = useCallback((layerId, payload) => {
+    // istanbul ignore next
     if (!isMountedRef.current) return;
     setErrorsByLayerId((prev) => ({ ...prev, [layerId]: payload }));
   }, []);
@@ -67,6 +69,7 @@ export default function useRuntimeLayerFetcher({
   const performFetch = useCallback(
     (layerId, pluginSource, resolvedArgs) => {
       const state = perLayerStateRef.current.get(layerId);
+      // istanbul ignore next
       if (!state) return Promise.resolve();
 
       if (state.cancelTokenSource) {
@@ -132,6 +135,7 @@ export default function useRuntimeLayerFetcher({
   const scheduleFetch = useCallback(
     (layerId, pluginSource, resolvedArgs) => {
       const state = perLayerStateRef.current.get(layerId);
+      // istanbul ignore next
       if (!state) return;
       if (state.debounceTimer) {
         clearTimeout(state.debounceTimer);

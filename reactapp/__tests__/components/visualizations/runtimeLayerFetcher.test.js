@@ -741,4 +741,443 @@ describe("useRuntimeLayerFetcher", () => {
     });
     expect(getFeaturesMock).toHaveBeenCalledTimes(1);
   });
+
+  test("mapRef is nullish — no swap, no error, no crash", async () => {
+    const layers = [runtimeLayerConfig({ layerId: "layer-1" })];
+
+    const { result } = renderHook(() =>
+      useRuntimeLayerFetcher({
+        layers,
+        gridItemUuid: "g",
+        sessionNonce: "n",
+        mapRef: null,
+        variableInputValues: {},
+        variableInputDateFormats: {},
+      }),
+    );
+
+    await act(async () => {
+      jest.advanceTimersByTime(250);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(getFeaturesMock).toHaveBeenCalledTimes(1);
+    expect(swapSpy).not.toHaveBeenCalled();
+    expect(result.current.errorsByLayerId).toEqual({});
+  });
+
+  test("OL map without a matching layerId skips the swap", async () => {
+    const otherLayer = fakeOlLayer("other-layer");
+    const mapRef = { current: fakeOlMap([otherLayer]) };
+    const layers = [runtimeLayerConfig({ layerId: "layer-1" })];
+
+    renderHook(() =>
+      useRuntimeLayerFetcher({
+        layers,
+        gridItemUuid: "g",
+        sessionNonce: "n",
+        mapRef,
+        variableInputValues: {},
+        variableInputDateFormats: {},
+      }),
+    );
+
+    await act(async () => {
+      jest.advanceTimersByTime(250);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(getFeaturesMock).toHaveBeenCalledTimes(1);
+    expect(swapSpy).not.toHaveBeenCalled();
+  });
+
+  test("success: false with empty data falls back to 'Unknown error'", async () => {
+    getFeaturesMock.mockResolvedValueOnce({ success: false, data: {} });
+
+    const olLayer = fakeOlLayer("layer-1");
+    const mapRef = { current: fakeOlMap([olLayer]) };
+    const layers = [runtimeLayerConfig({ layerId: "layer-1" })];
+
+    const { result } = renderHook(() =>
+      useRuntimeLayerFetcher({
+        layers,
+        gridItemUuid: "g",
+        sessionNonce: "n",
+        mapRef,
+        variableInputValues: {},
+        variableInputDateFormats: {},
+      }),
+    );
+
+    await act(async () => {
+      jest.advanceTimersByTime(250);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(result.current.errorsByLayerId["layer-1"]).toBeDefined();
+    });
+    expect(result.current.errorsByLayerId["layer-1"]).toEqual({
+      message: "Unknown error",
+      kind: "error",
+    });
+  });
+
+  test("error containing 'does not support' surfaces as kind=unavailable", async () => {
+    getFeaturesMock.mockResolvedValueOnce({
+      success: false,
+      data: { error: "Plugin does not support that argument" },
+    });
+
+    const olLayer = fakeOlLayer("layer-1");
+    const mapRef = { current: fakeOlMap([olLayer]) };
+    const layers = [runtimeLayerConfig({ layerId: "layer-1" })];
+
+    const { result } = renderHook(() =>
+      useRuntimeLayerFetcher({
+        layers,
+        gridItemUuid: "g",
+        sessionNonce: "n",
+        mapRef,
+        variableInputValues: {},
+        variableInputDateFormats: {},
+      }),
+    );
+
+    await act(async () => {
+      jest.advanceTimersByTime(250);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(result.current.errorsByLayerId["layer-1"]).toBeDefined();
+    });
+    expect(result.current.errorsByLayerId["layer-1"].kind).toBe("unavailable");
+  });
+
+  test("rejection without a message defaults to 'Fetch failed'", async () => {
+    getFeaturesMock.mockRejectedValueOnce({});
+
+    const olLayer = fakeOlLayer("layer-1");
+    const mapRef = { current: fakeOlMap([olLayer]) };
+    const layers = [runtimeLayerConfig({ layerId: "layer-1" })];
+
+    const { result } = renderHook(() =>
+      useRuntimeLayerFetcher({
+        layers,
+        gridItemUuid: "g",
+        sessionNonce: "n",
+        mapRef,
+        variableInputValues: {},
+        variableInputDateFormats: {},
+      }),
+    );
+
+    await act(async () => {
+      jest.advanceTimersByTime(250);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(result.current.errorsByLayerId["layer-1"]).toBeDefined();
+    });
+    expect(result.current.errorsByLayerId["layer-1"]).toEqual({
+      message: "Fetch failed",
+      kind: "error",
+    });
+  });
+
+  test("late success resolution after unmount returns early without swapping", async () => {
+    let capturedResolve;
+    getFeaturesMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          capturedResolve = resolve;
+        }),
+    );
+
+    const olLayer = fakeOlLayer("layer-1");
+    const mapRef = { current: fakeOlMap([olLayer]) };
+    const layers = [runtimeLayerConfig({ layerId: "layer-1" })];
+
+    const warnSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+
+    const { unmount } = renderHook(() =>
+      useRuntimeLayerFetcher({
+        layers,
+        gridItemUuid: "g",
+        sessionNonce: "n",
+        mapRef,
+        variableInputValues: {},
+        variableInputDateFormats: {},
+      }),
+    );
+
+    await act(async () => {
+      jest.advanceTimersByTime(250);
+      await Promise.resolve();
+    });
+    expect(getFeaturesMock).toHaveBeenCalledTimes(1);
+
+    unmount();
+
+    await act(async () => {
+      capturedResolve({ success: true, data: validFc });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(swapSpy).not.toHaveBeenCalled();
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  test("late non-cancel rejection after unmount returns early without setError", async () => {
+    let capturedReject;
+    getFeaturesMock.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          capturedReject = reject;
+        }),
+    );
+
+    const olLayer = fakeOlLayer("layer-1");
+    const mapRef = { current: fakeOlMap([olLayer]) };
+    const layers = [runtimeLayerConfig({ layerId: "layer-1" })];
+
+    const warnSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+
+    const { unmount } = renderHook(() =>
+      useRuntimeLayerFetcher({
+        layers,
+        gridItemUuid: "g",
+        sessionNonce: "n",
+        mapRef,
+        variableInputValues: {},
+        variableInputDateFormats: {},
+      }),
+    );
+
+    await act(async () => {
+      jest.advanceTimersByTime(250);
+      await Promise.resolve();
+    });
+
+    unmount();
+
+    await act(async () => {
+      capturedReject(new Error("late"));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(swapSpy).not.toHaveBeenCalled();
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  test("retry on an unknown layerId is a no-op", async () => {
+    const olLayer = fakeOlLayer("layer-1");
+    const mapRef = { current: fakeOlMap([olLayer]) };
+    const layers = [runtimeLayerConfig({ layerId: "layer-1" })];
+
+    const { result } = renderHook(() =>
+      useRuntimeLayerFetcher({
+        layers,
+        gridItemUuid: "g",
+        sessionNonce: "n",
+        mapRef,
+        variableInputValues: {},
+        variableInputDateFormats: {},
+      }),
+    );
+
+    await act(async () => {
+      jest.advanceTimersByTime(250);
+      await Promise.resolve();
+    });
+    expect(getFeaturesMock).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      result.current.retry("nonexistent-layer");
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(getFeaturesMock).toHaveBeenCalledTimes(1);
+  });
+
+  test("retry on a layer without pluginSource is a no-op", async () => {
+    const layers = [
+      {
+        configuration: {
+          type: "VectorLayer",
+          props: {
+            name: "static",
+            layerId: "static-layer",
+            source: { type: "GeoJSON", props: {} },
+          },
+        },
+      },
+    ];
+
+    const { result } = renderHook(() =>
+      useRuntimeLayerFetcher({
+        layers,
+        gridItemUuid: "g",
+        sessionNonce: "n",
+        mapRef: { current: fakeOlMap([]) },
+        variableInputValues: {},
+        variableInputDateFormats: {},
+      }),
+    );
+
+    await act(async () => {
+      jest.advanceTimersByTime(250);
+      await Promise.resolve();
+    });
+    expect(getFeaturesMock).not.toHaveBeenCalled();
+
+    act(() => {
+      result.current.retry("static-layer");
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(getFeaturesMock).not.toHaveBeenCalled();
+  });
+
+  test("undefined layers prop is treated as empty (no fetch, retry safe)", async () => {
+    const { result } = renderHook(() =>
+      useRuntimeLayerFetcher({
+        layers: undefined,
+        gridItemUuid: "g",
+        sessionNonce: "n",
+        mapRef: { current: fakeOlMap([]) },
+        variableInputValues: {},
+        variableInputDateFormats: {},
+      }),
+    );
+
+    await act(async () => {
+      jest.advanceTimersByTime(250);
+      await Promise.resolve();
+    });
+    expect(getFeaturesMock).not.toHaveBeenCalled();
+
+    act(() => {
+      result.current.retry("anything");
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(getFeaturesMock).not.toHaveBeenCalled();
+  });
+
+  test("layer without args and undefined variableInputValues fetches with empty args", async () => {
+    const olLayer = fakeOlLayer("layer-1");
+    const mapRef = { current: fakeOlMap([olLayer]) };
+    const layers = [
+      {
+        configuration: {
+          type: "VectorLayer",
+          props: {
+            name: "Runtime A",
+            layerId: "layer-1",
+            // pluginSource has no `args` field — exercises `pluginArgs ?? {}`.
+            pluginSource: { source: "my_plugin" },
+            source: { type: "GeoJSON", props: {} },
+          },
+        },
+      },
+    ];
+
+    renderHook(() =>
+      useRuntimeLayerFetcher({
+        layers,
+        gridItemUuid: "g",
+        sessionNonce: "n",
+        mapRef,
+        // exercises `variableInputValues ?? {}`.
+        variableInputValues: undefined,
+        variableInputDateFormats: {},
+      }),
+    );
+
+    await act(async () => {
+      jest.advanceTimersByTime(250);
+      await Promise.resolve();
+    });
+
+    expect(getFeaturesMock).toHaveBeenCalledTimes(1);
+    expect(getFeaturesMock.mock.calls[0][0].args).toEqual({});
+  });
+
+  test("successful response without a data field swaps with null features", async () => {
+    getFeaturesMock.mockResolvedValueOnce({ success: true });
+
+    const olLayer = fakeOlLayer("layer-1");
+    const mapRef = { current: fakeOlMap([olLayer]) };
+    const layers = [runtimeLayerConfig({ layerId: "layer-1" })];
+
+    renderHook(() =>
+      useRuntimeLayerFetcher({
+        layers,
+        gridItemUuid: "g",
+        sessionNonce: "n",
+        mapRef,
+        variableInputValues: {},
+        variableInputDateFormats: {},
+      }),
+    );
+
+    await act(async () => {
+      jest.advanceTimersByTime(250);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(swapSpy).toHaveBeenCalledTimes(1);
+    });
+    // response.data is undefined → `?? null` → swap called with null.
+    expect(swapSpy.mock.calls[0][1]).toBeNull();
+  });
+
+  test("layer removed mid-debounce clears the timer with no cancel token to cancel", async () => {
+    const olLayer = fakeOlLayer("layer-1");
+    const mapRef = { current: fakeOlMap([olLayer]) };
+    const initialLayers = [runtimeLayerConfig({ layerId: "layer-1" })];
+
+    const { rerender } = renderHook(
+      ({ layers }) =>
+        useRuntimeLayerFetcher({
+          layers,
+          gridItemUuid: "g",
+          sessionNonce: "n",
+          mapRef,
+          variableInputValues: {},
+          variableInputDateFormats: {},
+        }),
+      { initialProps: { layers: initialLayers } },
+    );
+
+    // Mount queued debounce; cancelTokenSource is still null because the
+    // fetch hasn't fired yet.
+    expect(getFeaturesMock).not.toHaveBeenCalled();
+
+    // Remove the layer before the debounce fires — cleanup branch sees
+    // debounceTimer truthy AND cancelTokenSource null.
+    rerender({ layers: [] });
+
+    await act(async () => {
+      jest.advanceTimersByTime(250);
+      await Promise.resolve();
+    });
+
+    expect(getFeaturesMock).not.toHaveBeenCalled();
+  });
 });
