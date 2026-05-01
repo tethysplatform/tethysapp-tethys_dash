@@ -14,7 +14,6 @@ import {
   getVisualization,
   updateObjectWithVariableInputs,
   findSelectOptionByValue,
-  getDependentVariableInputs,
 } from "components/visualizations/utilities";
 import {
   AppContext,
@@ -28,7 +27,6 @@ import Spinner from "react-bootstrap/Spinner";
 import { WebsocketContext } from "components/contexts/WebSocketContext";
 import ProgressBar from "react-bootstrap/ProgressBar";
 import LiveChat from "components/visualizations/LiveChat";
-import { isRelativeInput } from "components/inputs/dateUtils";
 
 const StyledSpinner = styled(Spinner)`
   margin: auto;

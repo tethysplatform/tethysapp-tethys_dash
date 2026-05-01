@@ -28,7 +28,6 @@ import appAPI from "services/api/app";
 import { PMTiles } from "pmtiles";
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
-import { data } from "browserslist";
 
 test("getStyleFields GeoJSON", async () => {
   const sourceProps = layerConfigGeoJSON.configuration.props.source;

@@ -1929,4 +1929,6 @@ TestingComponent.propTypes = {
   onRequestHideModal: PropTypes.func,
   onSubModalToggle: PropTypes.func,
   sourcePropsSpy: PropTypes.func,
+  dynamicMapLayers: PropTypes.array,
+  onFetchPluginDefaults: PropTypes.func,
 };

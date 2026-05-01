@@ -22,9 +22,10 @@ export default function useRuntimeLayerFetcher({
 
   useEffect(() => {
     isMountedRef.current = true;
+    const stateMap = perLayerStateRef.current;
     return () => {
       isMountedRef.current = false;
-      perLayerStateRef.current.forEach((state) => {
+      stateMap.forEach((state) => {
         if (state.debounceTimer) {
           clearTimeout(state.debounceTimer);
         }
@@ -32,7 +33,7 @@ export default function useRuntimeLayerFetcher({
           state.cancelTokenSource.cancel("unmount");
         }
       });
-      perLayerStateRef.current.clear();
+      stateMap.clear();
     };
   }, []);
 

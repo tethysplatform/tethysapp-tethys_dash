@@ -3507,15 +3507,6 @@ describe("normalizeAttributePropsForLayer", () => {
   });
 });
 
-TestingComponent.propTypes = {
-  showModal: PropTypes.bool,
-  handleModalClose: PropTypes.func,
-  addMapLayer: PropTypes.func,
-  layerInfo: PropTypes.object,
-  mapLayers: PropTypes.array,
-  existingLayerOriginalName: PropTypes.object,
-};
-
 describe("getLayerType", () => {
   test("GeoTIFF short-circuits to WebGLTile before substring checks", () => {
     expect(getLayerType("GeoTIFF")).toBe("WebGLTile");
@@ -3546,3 +3537,13 @@ describe("getLayerType", () => {
     expect(getLayerType("KML")).toBe("VectorLayer");
   });
 });
+
+TestingComponent.propTypes = {
+  showModal: PropTypes.bool,
+  handleModalClose: PropTypes.func,
+  addMapLayer: PropTypes.func,
+  layerInfo: PropTypes.object,
+  mapLayers: PropTypes.array,
+  existingLayerOriginalName: PropTypes.object,
+  dynamicMapLayers: PropTypes.array,
+};

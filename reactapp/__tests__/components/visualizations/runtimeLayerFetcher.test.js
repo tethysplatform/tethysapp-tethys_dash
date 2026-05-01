@@ -133,6 +133,7 @@ describe("useRuntimeLayerFetcher", () => {
   test("rapid variable-input changes within debounce only fire once", async () => {
     const olLayer = fakeOlLayer("layer-1");
     const mapRef = { current: fakeOlMap([olLayer]) };
+    // eslint-disable-next-line no-template-curly-in-string
     const layers = [runtimeLayerConfig({ args: { bbox: "${BBox}" } })];
 
     const { rerender } = renderHook(
@@ -202,7 +203,9 @@ describe("useRuntimeLayerFetcher", () => {
     const olB = fakeOlLayer("layer-b");
     const mapRef = { current: fakeOlMap([olA, olB]) };
     const layers = [
+      // eslint-disable-next-line no-template-curly-in-string
       runtimeLayerConfig({ layerId: "layer-a", args: { v: "${X}" } }),
+      // eslint-disable-next-line no-template-curly-in-string
       runtimeLayerConfig({ layerId: "layer-b", args: { v: "${X}" } }),
     ];
 
