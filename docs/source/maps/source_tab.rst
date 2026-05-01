@@ -191,5 +191,82 @@ Instead of manually entering the ``imageExtent`` coordinates, you can use the **
         }
     }
 
+------------------------------------------------------------------------------------------------------------------------
+
++++++++
+GeoTIFF
++++++++
+
+**Openlayers Class:** `WebGLTile <https://openlayers.org/en/latest/apidoc/module-ol_layer_WebGLTile-WebGLTileLayer.html>`_
+
+The GeoTIFF source overlays a Cloud-Optimized GeoTIFF (COG) on the map at its native projection; the dashboard view re-projects on the fly. Files **must** be Cloud-Optimized GeoTIFFs — plain GeoTIFFs will not render. A single GeoTIFF layer accepts one or more sources (one per band channel) which are combined in the Style tab.
+
+**Per-source Properties:**
+    - **url:** (required) URL to the COG file. Must be publicly accessible.
+    - **bands:** (optional) Comma-separated 1-based band indices to read from this source. Defaults to all bands.
+    - **min:** (optional) Minimum sample value used for normalization.
+    - **max:** (optional) Maximum sample value used for normalization.
+    - **nodata:** (optional) Sample value to treat as transparent.
+    - **projection:** (optional) Source projection (e.g. ``EPSG:4326``). Defaults to the file's embedded metadata.
+    - **overviews:** (optional) One overview URL per line, used for lower-zoom rendering.
+
+**Adding GeoTIFF sources:**
+
+1. Choose ``GeoTIFF`` as the source type. The Source tab will show an empty sources list and an **Add GeoTIFF Source** button.
+2. Click **Add GeoTIFF Source** to open the entry modal, fill in the URL (and any optional fields), and click **Save**.
+3. Repeat to add additional sources (for example one per R/G/B band). Each row in the sources list can be edited or removed independently.
+4. Configure per-band color (R/G/B/Alpha or single-band ramp) on the :ref:`style_tab`.
+
+**Example JSON Configuration:**
+
+::
+
+    {
+        "type": "WebGLTile",
+        "props": {
+            "name": "Elevation",
+            "source": {
+                "type": "GeoTIFF",
+                "props": {
+                    "sources": [
+                        {
+                            "url": "https://example.com/elevation.tif",
+                            "bands": "1",
+                            "min": 0,
+                            "max": 4000,
+                            "nodata": -9999,
+                            "projection": "EPSG:4326",
+                            "overviews": []
+                        }
+                    ]
+                }
+            }
+        }
+    }
+
+------------------------------------------------------------------------------------------------------------------------
+
++++++++++++++
+Custom Layers
++++++++++++++
+
+Custom Layers are GeoJSON layers backed by a Python plugin that opts into runtime behavior by setting ``dynamic_map_layer = True``. The plugin's ``run()`` method produces the configure-time scaffold (source, style, legend, attribute metadata) and its ``fetch_features()`` method returns a GeoJSON ``FeatureCollection`` at view time — including each time a bound variable input changes.
+
+**Where it appears:**
+
+When adding a layer, dynamic plugins are listed under the **Custom Layers** group in the source-type dropdown.
+
+**Configure-time behavior:**
+    - **Required arguments:** rendered automatically from the plugin's ``args`` schema. Variable inputs may be bound to args using the same syntax as other visualizations.
+    - **Style, legend, and attributes:** snapshot at save time so author edits are never silently overwritten by plugin updates. Click **Reset to plugin defaults** to pick up updated defaults on demand.
+
+**Render-time behavior:**
+    - Features refresh in place — the underlying OpenLayers ``VectorLayer`` is preserved across updates, so popups and highlight selections survive re-fetches.
+    - Re-fetches on variable-input change are debounced and the older in-flight request is cancelled when a new one starts.
+    - Per-layer progress messages from ``self.send_update(...)`` are routed to the layer's progress indicator.
+    - If the backing plugin is missing on the server (e.g. uninstalled), the layer renders with a "Plugin not available" banner rather than failing the whole map.
+
+For the plugin-author contract — ``dynamic_map_layer``, ``fetch_features``, ``LayerConfigurationBuilder.set_plugin_source``, the return-shape validator, and progress streaming — see :ref:`visualizationplugins`.
+
 
 

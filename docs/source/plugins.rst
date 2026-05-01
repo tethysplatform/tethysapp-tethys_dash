@@ -873,6 +873,7 @@ from the plugin
     - ``set_min_resolution(int)`` / ``set_max_resolution(int)`` — Set resolution visibility bounds.
     - ``set_min_zoom_query(int)`` — Minimum zoom level required to query the layer.
     - ``set_geojson(dict)`` — Attach a GeoJSON object (for GeoJSON source type only).
+    - ``set_plugin_source(source, args)`` — Mark the layer as a dynamic ``map_layer`` and bind it to a plugin that will be invoked at render time via ``fetch_features()``. GeoJSON source only. See `Dynamic map_layer plugins`_.
     - ``set_legend(dict | "default" | None)`` — Set the legend configuration.
     - ``set_style(dict | str)`` — Set the layer style.
     - ``add_attribute_alias(key, alias, layer_name)`` — Add a display alias for a layer attribute.
@@ -957,6 +958,7 @@ override, and warns if ``fetch_features`` is overridden without the flag
         TethysDashPlugin,
         LayerConfigurationBuilder,
     )
+    from your_package import compute_hotspots
 
 
     class HotspotLayer(TethysDashPlugin):
@@ -966,6 +968,8 @@ override, and warns if ``fetch_features`` is overridden without the flag
         type = "map_layer"
         dynamic_map_layer = True
         args = {"bbox": "text", "threshold": "number"}
+        tags = ["example", "map_layer", "dynamic"]
+        description = "Re-fetches hotspot features when bound variable inputs change."
 
         def run(self):
             """Configure-time scaffold: style, legend, attribute metadata."""
@@ -986,6 +990,7 @@ override, and warns if ``fetch_features`` is overridden without the flag
             """Runtime features: invoked on load and on variable-input change."""
             self.send_update("Computing hotspots...", percentage_complete=10)
             features = compute_hotspots(self.bbox, self.threshold)
+            self.send_update("Done", percentage_complete=100)
             return {
                 "type": "FeatureCollection",
                 "features": features,
