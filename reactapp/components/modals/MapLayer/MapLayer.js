@@ -32,48 +32,6 @@ import Select from "react-select";
 import appAPI from "services/api/app";
 import "components/modals/wideModal.css";
 
-const DYNAMIC_LAYER_PLACEHOLDER_GEOJSON = {
-  type: "FeatureCollection",
-  features: [],
-  crs: { type: "name", properties: { name: "EPSG:4326" } },
-};
-
-export function rekeyAttributeMapToLayer(map, targetLayerName) {
-  if (!map || typeof map !== "object" || !targetLayerName) return map;
-  const keys = Object.keys(map);
-  if (keys.length !== 1 || keys[0] === targetLayerName) return map;
-  return { [targetLayerName]: map[keys[0]] };
-}
-
-// Rekey all attribute-map entries under attributeProps to targetLayerName.
-function normalizeAttributePropsForLayer(attributeProps, targetLayerName) {
-  if (!targetLayerName) return attributeProps;
-  return {
-    ...attributeProps,
-    variables: rekeyAttributeMapToLayer(
-      attributeProps?.variables,
-      targetLayerName,
-    ),
-    omitted: rekeyAttributeMapToLayer(attributeProps?.omitted, targetLayerName),
-    aliases: rekeyAttributeMapToLayer(attributeProps?.aliases, targetLayerName),
-  };
-}
-
-export function renameLayerInAttributeProps(attributeProps, oldName, newName) {
-  if (!oldName || !newName || oldName === newName) return attributeProps;
-  const renameKey = (map) => {
-    if (!map || typeof map !== "object" || !(oldName in map)) return map;
-    const { [oldName]: value, ...rest } = map;
-    return { ...rest, [newName]: value };
-  };
-  return {
-    ...attributeProps,
-    variables: renameKey(attributeProps?.variables),
-    omitted: renameKey(attributeProps?.omitted),
-    aliases: renameKey(attributeProps?.aliases),
-  };
-}
-
 const StyledModalHeader = styled(Modal.Header)`
   height: 7%;
 `;
@@ -112,6 +70,51 @@ const RightGroup = styled.div`
   gap: 0.5rem;
   align-items: center;
 `;
+
+const DYNAMIC_LAYER_PLACEHOLDER_GEOJSON = {
+  type: "FeatureCollection",
+  features: [],
+  crs: { type: "name", properties: { name: "EPSG:4326" } },
+};
+
+export function rekeyAttributeMapToLayer(map, targetLayerName) {
+  if (!map || typeof map !== "object" || !targetLayerName) return map;
+  const keys = Object.keys(map);
+  if (keys.length !== 1 || keys[0] === targetLayerName) return map;
+  return { [targetLayerName]: map[keys[0]] };
+}
+
+// Rekey all attribute-map entries under attributeProps to targetLayerName.
+export function normalizeAttributePropsForLayer(
+  attributeProps,
+  targetLayerName,
+) {
+  if (!targetLayerName) return attributeProps;
+  return {
+    ...attributeProps,
+    variables: rekeyAttributeMapToLayer(
+      attributeProps?.variables,
+      targetLayerName,
+    ),
+    omitted: rekeyAttributeMapToLayer(attributeProps?.omitted, targetLayerName),
+    aliases: rekeyAttributeMapToLayer(attributeProps?.aliases, targetLayerName),
+  };
+}
+
+export function renameLayerInAttributeProps(attributeProps, oldName, newName) {
+  if (!oldName || !newName || oldName === newName) return attributeProps;
+  const renameKey = (map) => {
+    if (!map || typeof map !== "object" || !(oldName in map)) return map;
+    const { [oldName]: value, ...rest } = map;
+    return { ...rest, [newName]: value };
+  };
+  return {
+    ...attributeProps,
+    variables: renameKey(attributeProps?.variables),
+    omitted: renameKey(attributeProps?.omitted),
+    aliases: renameKey(attributeProps?.aliases),
+  };
+}
 
 export const getLayerType = (sourceType) => {
   if (sourceType === "GeoTIFF") return "WebGLTile";
@@ -278,8 +281,8 @@ const MapLayerModal = ({
               geojson: DYNAMIC_LAYER_PLACEHOLDER_GEOJSON,
             },
             pluginSource: {
-              source: sourceProps.source ?? sourceProps.type,
-              args: sourceProps.args ?? {},
+              source: sourceProps.source,
+              args: sourceProps.args,
             },
           },
         },
@@ -473,7 +476,7 @@ const MapLayerModal = ({
       try {
         const apiResponse = await appAPI.getVisualizationData({
           source,
-          args: args ?? {},
+          args: args,
         });
         if (!apiResponse.success) {
           return {
@@ -502,7 +505,7 @@ const MapLayerModal = ({
         const effectiveName = layerProps?.name || updatedLayerProps.name;
         setLayerProps((prev) => ({
           ...updatedLayerProps,
-          name: prev?.name || updatedLayerProps.name,
+          name: effectiveName,
           layerId: prev?.layerId,
         }));
 

@@ -16,7 +16,7 @@ const PaddedDiv = styled.div`
 
 const LayerPane = ({ layerProps, setLayerProps }) => {
   const [layerProperties, setLayerProperties] = useState(
-    filterLayerProps(layerProps)
+    filterLayerProps(layerProps),
   );
 
   useEffect(() => {
@@ -28,9 +28,9 @@ const LayerPane = ({ layerProps, setLayerProps }) => {
     return loadExistingArgs(
       Object.fromEntries(
         Object.entries(props).filter(
-          ([key]) => !["name", "layerVisibility"].includes(key)
-        )
-      )
+          ([key]) => !["name", "layerVisibility"].includes(key),
+        ),
+      ),
     );
   }
 
@@ -38,11 +38,11 @@ const LayerPane = ({ layerProps, setLayerProps }) => {
   const propertyPlaceholders = Object.keys(layerPropertiesOptions).map(
     (key) => ({
       value: layerPropertiesOptions[key].placeholder,
-    })
+    }),
   );
   // setup placeholders for the input table
   const propertyTypes = Object.keys(layerPropertiesOptions).map(
-    (key) => layerPropertiesOptions[key].type
+    (key) => layerPropertiesOptions[key].type,
   );
 
   function loadExistingArgs(existingProps) {
@@ -112,11 +112,11 @@ const LayerPane = ({ layerProps, setLayerProps }) => {
 LayerPane.propTypes = {
   layerProps: PropTypes.shape({
     name: PropTypes.string, // name of the layer
-    opacity: PropTypes.string,
-    minResolution: PropTypes.string,
-    maxResolution: PropTypes.string,
-    minZoom: PropTypes.string,
-    maxZoom: PropTypes.string,
+    opacity: PropTypes.oneOfType([PropTypes.number, PropTypes.string]), // opacity of the layer (0-1)
+    minResolution: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    maxResolution: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    minZoom: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    maxZoom: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
     layerVisibility: PropTypes.bool,
   }),
   setLayerProps: PropTypes.func,

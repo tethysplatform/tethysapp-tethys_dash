@@ -281,7 +281,7 @@ const SourcePane = ({
       if (!onFetchPluginDefaults) return;
       setPluginFetchError(null);
       setPluginFetching(true);
-      const result = await onFetchPluginDefaults(source, args ?? {});
+      const result = await onFetchPluginDefaults(source, args);
       setPluginFetching(false);
       if (!result?.success) {
         setPluginFetchError(
@@ -731,7 +731,6 @@ const SourcePane = ({
                   vizArguments={pluginVizArguments}
                   vizInputsValues={sourceProps.args ?? {}}
                   handleInputChange={handlePluginArgChange}
-                  setShowingSubModal={() => {}}
                 />
               ) : (
                 <p>

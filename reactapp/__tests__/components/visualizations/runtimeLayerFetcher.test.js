@@ -529,6 +529,185 @@ describe("useRuntimeLayerFetcher", () => {
     expect(getFeaturesMock).toHaveBeenCalledTimes(3);
   });
 
+  test("unmount during pending debounce clears the queued timer", async () => {
+    const olLayer = fakeOlLayer("layer-1");
+    const mapRef = { current: fakeOlMap([olLayer]) };
+    const layers = [runtimeLayerConfig({ layerId: "layer-1" })];
+
+    const { unmount } = renderHook(() =>
+      useRuntimeLayerFetcher({
+        layers,
+        gridItemUuid: "g",
+        sessionNonce: "n",
+        mapRef,
+        variableInputValues: {},
+        variableInputDateFormats: {},
+      }),
+    );
+
+    // Debounce is queued but has not fired yet.
+    expect(getFeaturesMock).not.toHaveBeenCalled();
+
+    unmount();
+
+    // Advance past the debounce window — if cleanup didn't clear the timer,
+    // performFetch would fire here.
+    await act(async () => {
+      jest.advanceTimersByTime(250);
+      await Promise.resolve();
+    });
+
+    expect(getFeaturesMock).not.toHaveBeenCalled();
+  });
+
+  test("onBeforeSwap is invoked with the layerId before swapping features", async () => {
+    const onBeforeSwap = jest.fn();
+    const olLayer = fakeOlLayer("layer-1");
+    const mapRef = { current: fakeOlMap([olLayer]) };
+    const layers = [runtimeLayerConfig({ layerId: "layer-1" })];
+
+    renderHook(() =>
+      useRuntimeLayerFetcher({
+        layers,
+        gridItemUuid: "g",
+        sessionNonce: "n",
+        mapRef,
+        variableInputValues: {},
+        variableInputDateFormats: {},
+        onBeforeSwap,
+      }),
+    );
+
+    await act(async () => {
+      jest.advanceTimersByTime(250);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(swapSpy).toHaveBeenCalledTimes(1);
+    });
+    expect(onBeforeSwap).toHaveBeenCalledTimes(1);
+    expect(onBeforeSwap).toHaveBeenCalledWith("layer-1");
+    // onBeforeSwap fires before the actual swap.
+    expect(onBeforeSwap.mock.invocationCallOrder[0]).toBeLessThan(
+      swapSpy.mock.invocationCallOrder[0],
+    );
+  });
+
+  test("rejected (non-cancel) fetch surfaces as kind=error with the thrown message", async () => {
+    getFeaturesMock.mockRejectedValueOnce(new Error("network down"));
+
+    const olLayer = fakeOlLayer("layer-1");
+    const mapRef = { current: fakeOlMap([olLayer]) };
+    const layers = [runtimeLayerConfig({ layerId: "layer-1" })];
+
+    const { result } = renderHook(() =>
+      useRuntimeLayerFetcher({
+        layers,
+        gridItemUuid: "g",
+        sessionNonce: "n",
+        mapRef,
+        variableInputValues: {},
+        variableInputDateFormats: {},
+      }),
+    );
+
+    await act(async () => {
+      jest.advanceTimersByTime(250);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(result.current.errorsByLayerId["layer-1"]).toBeDefined();
+    });
+    expect(result.current.errorsByLayerId["layer-1"]).toEqual({
+      message: "network down",
+      kind: "error",
+    });
+    expect(swapSpy).not.toHaveBeenCalled();
+  });
+
+  test("retry clears a pending debounce timer so only the immediate fetch fires", async () => {
+    const olLayer = fakeOlLayer("layer-1");
+    const mapRef = { current: fakeOlMap([olLayer]) };
+    const layers = [runtimeLayerConfig({ layerId: "layer-1" })];
+
+    const { result } = renderHook(() =>
+      useRuntimeLayerFetcher({
+        layers,
+        gridItemUuid: "g",
+        sessionNonce: "n",
+        mapRef,
+        variableInputValues: {},
+        variableInputDateFormats: {},
+      }),
+    );
+
+    // Mount queued a debounce timer; nothing has fetched yet.
+    expect(getFeaturesMock).not.toHaveBeenCalled();
+
+    act(() => {
+      result.current.retry("layer-1");
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    // Immediate retry fired exactly once.
+    expect(getFeaturesMock).toHaveBeenCalledTimes(1);
+
+    // The originally-queued debounce timer should have been cleared by retry.
+    await act(async () => {
+      jest.advanceTimersByTime(250);
+      await Promise.resolve();
+    });
+    expect(getFeaturesMock).toHaveBeenCalledTimes(1);
+  });
+
+  test("retry re-creates orchestrator state when prior state was cleared", async () => {
+    const olLayer = fakeOlLayer("layer-a");
+    const mapRef = { current: fakeOlMap([olLayer]) };
+    const initialLayers = [runtimeLayerConfig({ layerId: "layer-a" })];
+
+    const { result, rerender } = renderHook(
+      ({ layers }) =>
+        useRuntimeLayerFetcher({
+          layers,
+          gridItemUuid: "g",
+          sessionNonce: "n",
+          mapRef,
+          variableInputValues: {},
+          variableInputDateFormats: {},
+        }),
+      { initialProps: { layers: initialLayers } },
+    );
+
+    await act(async () => {
+      jest.advanceTimersByTime(250);
+      await Promise.resolve();
+    });
+    expect(getFeaturesMock).toHaveBeenCalledTimes(1);
+
+    // Capture the retry callback whose closure still references the original
+    // layers array — before the rerender swaps it out.
+    const staleRetry = result.current.retry;
+
+    // Rerender with no layers — orchestrator state for "layer-a" is deleted
+    // by the cleanup branch.
+    rerender({ layers: [] });
+
+    // Stale-closure retry: layer is still findable in its captured `layers`,
+    // but perLayerStateRef has no entry → forces the state.set branch.
+    act(() => {
+      staleRetry("layer-a");
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(getFeaturesMock).toHaveBeenCalledTimes(2);
+  });
+
   test("orchestrator state cleared when a layer is removed from the map", async () => {
     const olA = fakeOlLayer("layer-a");
     const mapRef = { current: fakeOlMap([olA]) };

@@ -346,11 +346,11 @@ StylePane.propTypes = {
   setSourceProps: PropTypes.func,
   layerProps: PropTypes.shape({
     name: PropTypes.string, // name of the layer
-    opacity: PropTypes.string,
-    minResolution: PropTypes.string,
-    maxResolution: PropTypes.string,
-    minZoom: PropTypes.string,
-    maxZoom: PropTypes.string,
+    opacity: PropTypes.oneOfType([PropTypes.number, PropTypes.string]), // opacity of the layer (0-1)
+    minResolution: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    maxResolution: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    minZoom: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    maxZoom: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
     layerVisibility: PropTypes.bool,
   }),
   containerRef: PropTypes.object,

@@ -7,7 +7,12 @@ import selectEvent from "react-select-event";
 import appAPI from "services/api/app";
 import PropTypes from "prop-types";
 import userEvent from "@testing-library/user-event";
-import { AppContext, LayoutContext } from "components/contexts/Contexts";
+import {
+  AppContext,
+  LayoutContext,
+  VariableInputsContext,
+  DataViewerModeContext,
+} from "components/contexts/Contexts";
 import MapContextProvider from "components/contexts/MapContext";
 import { sourcePropertiesOptions } from "components/map/utilities";
 
@@ -36,6 +41,8 @@ const TestingComponent = ({
   onRequestHideModal,
   onSubModalToggle,
   sourcePropsSpy,
+  dynamicMapLayers = [],
+  onFetchPluginDefaults,
 }) => {
   const [sourceProps, setSourceProps] = useState(initialSourceProps ?? {});
   const [attributeProps, setAttributeProps] = useState({
@@ -60,7 +67,7 @@ const TestingComponent = ({
   };
 
   return (
-    <AppContext.Provider value={{ dynamicMapLayers: [] }}>
+    <AppContext.Provider value={{ dynamicMapLayers: dynamicMapLayers }}>
       <MapContextProvider>
         <LayoutContext.Provider value={{ uuid: "123" }}>
           <SourcePane
@@ -70,6 +77,7 @@ const TestingComponent = ({
             setErrorMessage={setErrorMessage}
             onRequestHideModal={onRequestHideModal}
             onSubModalToggle={onSubModalToggle}
+            onFetchPluginDefaults={onFetchPluginDefaults}
           />
           <p data-testid="sourceProps">{JSON.stringify(sourceProps)}</p>
           <p data-testid="attributeVariables">
@@ -785,13 +793,408 @@ describe("SourcePane GeoTIFF row rendering edge cases", () => {
   });
 });
 
-TestingComponent.propTypes = {
-  initialSourceProps: PropTypes.object,
-  setErrorMessage: PropTypes.func,
-  onRequestHideModal: PropTypes.func,
-  onSubModalToggle: PropTypes.func,
-  sourcePropsSpy: PropTypes.func,
-};
+describe("SourcePane Dynamic Map Layer", () => {
+  test("Dynamic Map Layer option appears in source-type dropdown", async () => {
+    const sourcePropsSpy = jest.fn();
+
+    render(
+      <TestingComponent
+        sourcePropsSpy={sourcePropsSpy}
+        dynamicMapLayers={[
+          {
+            label: "Dynamic Map Layers",
+            options: [
+              {
+                source: "custom_layer_test",
+                value: "Stream Gauges (Dynamic)",
+                label: "Stream Gauges (Dynamic)",
+                args: {},
+                type: "map_layer",
+                tags: ["hydrology", "gauges", "live"],
+                attribution: "",
+                description:
+                  "Live stream gauge locations, color-coded by current flow.",
+                loading_icon: true,
+                restricted: false,
+                dynamic_map_layer: true,
+              },
+            ],
+          },
+        ]}
+      />,
+    );
+
+    expect(await screen.findByText("Source Type")).toBeInTheDocument();
+    expect(await screen.findByTestId("sourceProps")).toHaveTextContent(
+      JSON.stringify({}),
+    );
+    const sourceDropdown = screen.getByRole("combobox");
+
+    selectEvent.openMenu(sourceDropdown);
+    const sourceOption = await screen.findByText("Stream Gauges (Dynamic)");
+    fireEvent.click(sourceOption);
+
+    expect(
+      await screen.findByText("This plugin takes no arguments."),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Fetch plugin defaults")).toBeInTheDocument();
+
+    expect(sourcePropsSpy).toHaveBeenCalledWith({
+      source: "custom_layer_test",
+      value: "Stream Gauges (Dynamic)",
+      label: "Stream Gauges (Dynamic)",
+      args: {},
+      type: "Stream Gauges (Dynamic)",
+      tags: ["hydrology", "gauges", "live"],
+      attribution: "",
+      description: "Live stream gauge locations, color-coded by current flow.",
+      loading_icon: true,
+      restricted: false,
+      dynamic_map_layer: true,
+      props: {},
+    });
+  });
+
+  test("Dynamic Map Layer initial and existing", async () => {
+    const sourcePropsSpy = jest.fn();
+    render(
+      <VariableInputsContext.Provider value={{ variableInputValues: {} }}>
+        <DataViewerModeContext.Provider value={{ inDataViewerMode: true }}>
+          <TestingComponent
+            sourcePropsSpy={sourcePropsSpy}
+            initialSourceProps={{
+              type: "Stream Gauges (Dynamic)",
+              source: "custom_layer_test",
+              props: {},
+            }}
+            dynamicMapLayers={[
+              {
+                label: "Dynamic Map Layers",
+                options: [
+                  {
+                    source: "custom_layer_test",
+                    value: "Stream Gauges (Dynamic)",
+                    label: "Stream Gauges (Dynamic)",
+                    args: { test: "text" },
+                    type: "map_layer",
+                    tags: ["hydrology", "gauges", "live"],
+                    attribution: "",
+                    description:
+                      "Live stream gauge locations, color-coded by current flow.",
+                    loading_icon: true,
+                    restricted: false,
+                    dynamic_map_layer: true,
+                  },
+                ],
+              },
+            ]}
+          />
+        </DataViewerModeContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+
+    expect(await screen.findByText("Source Type")).toBeInTheDocument();
+    expect(await screen.findByTestId("sourceProps")).toHaveTextContent(
+      JSON.stringify({}),
+    );
+    const sourceDropdown = screen.getByRole("combobox");
+
+    selectEvent.openMenu(sourceDropdown);
+    const sourceOption = await screen.findByText("Stream Gauges (Dynamic)");
+    fireEvent.click(sourceOption);
+
+    const argInput = await screen.findByLabelText("Test Input");
+    expect(argInput).toBeInTheDocument();
+    expect(screen.getByLabelText("Fetch plugin defaults")).toBeInTheDocument();
+
+    fireEvent.change(argInput, { target: { value: "updated text" } });
+
+    expect(sourcePropsSpy).toHaveBeenCalledWith({
+      source: "custom_layer_test",
+      args: { test: "updated text" },
+      type: "Stream Gauges (Dynamic)",
+      props: {},
+    });
+
+    fireEvent.change(argInput, { target: { value: "another updated text" } });
+
+    expect(sourcePropsSpy).toHaveBeenCalledWith({
+      source: "custom_layer_test",
+      args: { test: "another updated text" },
+      type: "Stream Gauges (Dynamic)",
+      props: {},
+    });
+  });
+
+  test("Dynamic Map Layer initial and nonexisting", async () => {
+    const sourcePropsSpy = jest.fn();
+    render(
+      <VariableInputsContext.Provider value={{ variableInputValues: {} }}>
+        <DataViewerModeContext.Provider value={{ inDataViewerMode: true }}>
+          <TestingComponent
+            sourcePropsSpy={sourcePropsSpy}
+            initialSourceProps={{
+              type: "Stream Gauges (Dynamic)",
+              source: "custom_layer_test",
+              args: { test: "some text" },
+              props: {},
+            }}
+          />
+        </DataViewerModeContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+
+    expect(await screen.findByText("Source Type")).toBeInTheDocument();
+    expect(await screen.findByTestId("sourceProps")).toHaveTextContent(
+      JSON.stringify({}),
+    );
+
+    const sourceDropdown = screen.getByRole("combobox");
+    await selectEvent.select(sourceDropdown, "Stream Gauges (Dynamic)");
+
+    expect(
+      await screen.findByText(
+        /This layer was configured with the dynamic map-layer plugin/,
+      ),
+    ).toBeInTheDocument();
+
+    expect(
+      await screen.findByText(/but it is no longer installed on this server/),
+    ).toBeInTheDocument();
+
+    expect(sourcePropsSpy).toHaveBeenCalledTimes(0);
+  });
+
+  test("Dynamic Map Layer initial and nonexisting 2", async () => {
+    const sourcePropsSpy = jest.fn();
+    render(
+      <VariableInputsContext.Provider value={{ variableInputValues: {} }}>
+        <DataViewerModeContext.Provider value={{ inDataViewerMode: true }}>
+          <TestingComponent
+            sourcePropsSpy={sourcePropsSpy}
+            initialSourceProps={{
+              source: "custom_layer_test",
+              args: { test: "some text" },
+              props: {},
+            }}
+          />
+        </DataViewerModeContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+
+    expect(await screen.findByText("Source Type")).toBeInTheDocument();
+    expect(await screen.findByTestId("sourceProps")).toHaveTextContent(
+      JSON.stringify({}),
+    );
+    const sourceDropdown = screen.getByRole("combobox");
+    await selectEvent.select(sourceDropdown, "custom_layer_test");
+
+    expect(
+      await screen.findByText(
+        /This layer was configured with the dynamic map-layer plugin/,
+      ),
+    ).toBeInTheDocument();
+
+    expect(
+      await screen.findByText(/but it is no longer installed on this server/),
+    ).toBeInTheDocument();
+
+    expect(sourcePropsSpy).toHaveBeenCalledTimes(0);
+  });
+
+  test("Dynamic Map Layer initial and success fetch defaults", async () => {
+    const sourcePropsSpy = jest.fn();
+    const onFetchPluginDefaults = jest.fn().mockResolvedValue({
+      success: true,
+    });
+
+    render(
+      <VariableInputsContext.Provider value={{ variableInputValues: {} }}>
+        <DataViewerModeContext.Provider value={{ inDataViewerMode: true }}>
+          <TestingComponent
+            sourcePropsSpy={sourcePropsSpy}
+            onFetchPluginDefaults={onFetchPluginDefaults}
+            initialSourceProps={{
+              type: "Stream Gauges (Dynamic)",
+              source: "custom_layer_test",
+              props: {},
+            }}
+            dynamicMapLayers={[
+              {
+                label: "Dynamic Map Layers",
+                options: [
+                  {
+                    source: "custom_layer_test",
+                    value: "Stream Gauges (Dynamic)",
+                    label: "Stream Gauges (Dynamic)",
+                    args: {},
+                    type: "map_layer",
+                    tags: ["hydrology", "gauges", "live"],
+                    attribution: "",
+                    description:
+                      "Live stream gauge locations, color-coded by current flow.",
+                    loading_icon: true,
+                    restricted: false,
+                    dynamic_map_layer: true,
+                  },
+                ],
+              },
+            ]}
+          />
+        </DataViewerModeContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+
+    expect(await screen.findByText("Source Type")).toBeInTheDocument();
+    expect(await screen.findByTestId("sourceProps")).toHaveTextContent(
+      JSON.stringify({}),
+    );
+    const sourceDropdown = screen.getByRole("combobox");
+
+    selectEvent.openMenu(sourceDropdown);
+    const sourceOption = await screen.findByText("Stream Gauges (Dynamic)");
+    fireEvent.click(sourceOption);
+
+    const fetchDefaultsButton = await screen.findByLabelText(
+      "Fetch plugin defaults",
+    );
+    expect(fetchDefaultsButton).toBeInTheDocument();
+    fireEvent.click(fetchDefaultsButton);
+
+    expect(sourcePropsSpy).toHaveBeenCalledTimes(0);
+  });
+
+  test("Dynamic Map Layer initial and failed fetch defaults", async () => {
+    const sourcePropsSpy = jest.fn();
+    const onFetchPluginDefaults = jest.fn().mockResolvedValue({
+      success: false,
+    });
+
+    render(
+      <VariableInputsContext.Provider value={{ variableInputValues: {} }}>
+        <DataViewerModeContext.Provider value={{ inDataViewerMode: true }}>
+          <TestingComponent
+            sourcePropsSpy={sourcePropsSpy}
+            onFetchPluginDefaults={onFetchPluginDefaults}
+            initialSourceProps={{
+              type: "Stream Gauges (Dynamic)",
+              source: "custom_layer_test",
+              props: {},
+            }}
+            dynamicMapLayers={[
+              {
+                label: "Dynamic Map Layers",
+                options: [
+                  {
+                    source: "custom_layer_test",
+                    value: "Stream Gauges (Dynamic)",
+                    label: "Stream Gauges (Dynamic)",
+                    args: {},
+                    type: "map_layer",
+                    tags: ["hydrology", "gauges", "live"],
+                    attribution: "",
+                    description:
+                      "Live stream gauge locations, color-coded by current flow.",
+                    loading_icon: true,
+                    restricted: false,
+                    dynamic_map_layer: true,
+                  },
+                ],
+              },
+            ]}
+          />
+        </DataViewerModeContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+
+    expect(await screen.findByText("Source Type")).toBeInTheDocument();
+    expect(await screen.findByTestId("sourceProps")).toHaveTextContent(
+      JSON.stringify({}),
+    );
+    const sourceDropdown = screen.getByRole("combobox");
+
+    selectEvent.openMenu(sourceDropdown);
+    const sourceOption = await screen.findByText("Stream Gauges (Dynamic)");
+    fireEvent.click(sourceOption);
+
+    const fetchDefaultsButton = await screen.findByLabelText(
+      "Fetch plugin defaults",
+    );
+    expect(fetchDefaultsButton).toBeInTheDocument();
+    fireEvent.click(fetchDefaultsButton);
+
+    expect(
+      await screen.findByText(/Failed to fetch plugin defaults/),
+    ).toBeInTheDocument();
+
+    expect(sourcePropsSpy).toHaveBeenCalledTimes(0);
+  });
+
+  test("Dynamic Map Layer initial and failed fetch defaults with message", async () => {
+    const sourcePropsSpy = jest.fn();
+    const onFetchPluginDefaults = jest.fn().mockResolvedValue({
+      success: false,
+      error: "Custom error message",
+    });
+
+    render(
+      <VariableInputsContext.Provider value={{ variableInputValues: {} }}>
+        <DataViewerModeContext.Provider value={{ inDataViewerMode: true }}>
+          <TestingComponent
+            sourcePropsSpy={sourcePropsSpy}
+            onFetchPluginDefaults={onFetchPluginDefaults}
+            initialSourceProps={{
+              type: "Stream Gauges (Dynamic)",
+              value: "custom_layer_test",
+              props: {},
+            }}
+            dynamicMapLayers={[
+              {
+                label: "Dynamic Map Layers",
+                options: [
+                  {
+                    source: "custom_layer_test",
+                    value: "Stream Gauges (Dynamic)",
+                    label: "Stream Gauges (Dynamic)",
+                    args: {},
+                    type: "map_layer",
+                    tags: ["hydrology", "gauges", "live"],
+                    attribution: "",
+                    description:
+                      "Live stream gauge locations, color-coded by current flow.",
+                    loading_icon: true,
+                    restricted: false,
+                    dynamic_map_layer: true,
+                  },
+                ],
+              },
+            ]}
+          />
+        </DataViewerModeContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+
+    expect(await screen.findByText("Source Type")).toBeInTheDocument();
+    expect(await screen.findByTestId("sourceProps")).toHaveTextContent(
+      JSON.stringify({}),
+    );
+    const sourceDropdown = screen.getByRole("combobox");
+
+    selectEvent.openMenu(sourceDropdown);
+    const sourceOption = await screen.findByText("Stream Gauges (Dynamic)");
+    fireEvent.click(sourceOption);
+
+    const fetchDefaultsButton = await screen.findByLabelText(
+      "Fetch plugin defaults",
+    );
+    expect(fetchDefaultsButton).toBeInTheDocument();
+    fireEvent.click(fetchDefaultsButton);
+
+    expect(await screen.findByText(/Custom error message/)).toBeInTheDocument();
+
+    expect(sourcePropsSpy).toHaveBeenCalledTimes(0);
+  });
+});
 
 test("SourcePane Static Image fields", async () => {
   render(<TestingComponent onRequestHideModal={jest.fn()} />);
@@ -1519,3 +1922,11 @@ test("SourcePane GeoTIFF hints at color ramp when a single-band source is presen
     screen.queryByText(/Single-band source detected/i),
   ).not.toBeInTheDocument();
 });
+
+TestingComponent.propTypes = {
+  initialSourceProps: PropTypes.object,
+  setErrorMessage: PropTypes.func,
+  onRequestHideModal: PropTypes.func,
+  onSubModalToggle: PropTypes.func,
+  sourcePropsSpy: PropTypes.func,
+};

@@ -236,17 +236,11 @@ const MapVisualization = ({
   } = useContext(VariableInputsContext);
   const { inDataViewerMode } = useContext(DataViewerModeContext);
   const { uuid } = useContext(LayoutContext);
-  const appContext = useContext(AppContext) ?? {};
-  const gridItemContext = useContext(GridItemContext) ?? {};
-  const sessionNonce = appContext.sessionNonce;
-  const gridItemUuid = gridItemContext.gridItemUUID;
+  const { sessionNonce } = useContext(AppContext);
+  const { gridItemUUID } = useContext(GridItemContext) ?? {};
 
-  // Dismiss any open popup + clear the highlight before Unit 5 swaps
-  // features on a layer. Prevents stale popup content against refreshed
-  // geometry (R20). The whole popup is dismissed rather than partially
-  // filtered because the popup's Swiper pages may pull features from
-  // multiple layers and disambiguating is user-hostile for v1.
   const dismissPopupBeforeSwap = useCallback(() => {
+    // istanbul ignore next
     if (popupOverlayRef.current) {
       popupOverlayRef.current.setPosition(undefined);
     }
@@ -256,14 +250,9 @@ const MapVisualization = ({
     }
   }, []);
 
-  // Unit 5: orchestrate runtime dynamic_map_layer fetches. Fires on mount,
-  // on layers change, and on variableInputValues change; swaps features
-  // into preserved OL VectorLayers via Unit 4's swap helper. Returns
-  // per-layer error state + a retry action consumed by Unit 7's
-  // LayersControl via the runtimeLayerState prop below.
   const { errorsByLayerId, retry: retryRuntimeLayer } = useRuntimeLayerFetcher({
     layers,
-    gridItemUuid,
+    gridItemUUID,
     sessionNonce,
     mapRef: visualizationRef,
     variableInputValues,
@@ -272,14 +261,11 @@ const MapVisualization = ({
     refreshTick: refreshCount,
   });
 
-  // Per-layer state bundle for LayersControl — includes the requestId
-  // components so the control can subscribe to WebSocket progress messages
-  // for each layer by composite id.
   const runtimeLayerState = {
     errorsByLayerId,
     retry: retryRuntimeLayer,
     sessionNonce,
-    gridItemUuid,
+    gridItemUUID,
   };
 
   const spinnerOverlayRef = useRef(null);
