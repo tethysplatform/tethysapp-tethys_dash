@@ -132,8 +132,10 @@ TethysDash includes an MCP (Model Context Protocol) server that allows LLMs to c
 ### MCP Server Architecture
 
 - **`tethysdash_mcp_server.py`** — FastMCP server with SSE transport (port 9001). Uses `BM25SearchTransform` for tool discovery with an `always_visible` set of core tools.
-- **Engine** (`plugins/nextgen_plugins/packages/chatbox-core/engine/index.js`) — Generic tool-use conversation loop that connects to MCP servers, streams LLM responses, and accumulates tool results.
-- **Chatbox** (`plugins/nextgen_plugins/packages/chatbox-core/components/Chatbox.jsx`) — Dispatches visualization specs as DOM events that `DashboardLayout.js` handles.
+- **Engine** (`lib/chatbox-core/engine/index.js`) — Generic tool-use conversation loop that connects to MCP servers, streams LLM responses, and accumulates tool results.
+- **Chatbox** (`lib/chatbox-core/components/Chatbox.jsx`) — Dispatches visualization specs as DOM events that `DashboardLayout.js` handles.
+
+> **Note (2026-05-02):** chatbox-core moved from `plugins/nextgen_plugins/packages/chatbox-core/` to `lib/chatbox-core/` and is published as `@aquaveo/chatbox-core` on npm. The `package.json` `"@chatbox/core"` file: link is the dev-mode consumption path and lets tethysdash co-evolve with chatbox-core. For stable consumption (e.g., a downstream consumer who isn't editing chatbox-core), use `npm install @aquaveo/chatbox-core@^0.2.0` and update import paths from `@chatbox/core/...` to `@aquaveo/chatbox-core/...`.
 
 ### MCP Tools
 
