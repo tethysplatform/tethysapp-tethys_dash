@@ -20,7 +20,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@chatbox/core": "file:../plugins/nextgen_plugins/packages/chatbox-core",
+    "@chatbox/core": "file:../lib/chatbox-core",
     "@huggingface/transformers": "^4.0.1",
     "@mapbox/vector-tile": "^1.3.1",
     "@tiptap/extension-color": "^2.12.0",
