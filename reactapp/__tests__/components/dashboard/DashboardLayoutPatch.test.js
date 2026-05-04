@@ -603,3 +603,141 @@ describe("handleUpdateVisualization — unknown operation", () => {
     expect(unchanged.title).toBe("Untouched");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Same-UUID-twice apply ordering (Plan 20 #15 — per-envelope atomicity)
+// ---------------------------------------------------------------------------
+//
+// Post-#15, Chatbox.jsx emits one patches[] entry per engine envelope rather
+// than merging by UUID. So `patches[]` may contain two entries with the
+// same UUID. The handler's existing per-entry `updated`-array threading
+// (`updated = [...updated.slice(...), newItem, ...]` plus the next iteration's
+// `updated.findIndex(...)`) is what makes entry-B see entry-A's output.
+//
+// These tests prove the threading works and that per-envelope failure
+// isolation holds — entry-B failing no longer poisons entry-A.
+
+describe("handleUpdateVisualization — apply_patch same-UUID-twice (Plan 20 #15)", () => {
+  const plotItem = {
+    id: 1,
+    uuid: "plot-1",
+    i: "1",
+    x: 0,
+    y: 0,
+    w: 50,
+    h: 40,
+    source: "Inline Plotly",
+    args_string: JSON.stringify({
+      vizType: "plotly",
+      inlineData: {
+        data: [{ x: [1, 2, 3], y: [4, 5, 6] }],
+        layout: { title: "Original" },
+      },
+    }),
+    metadata_string: '{"refreshRate":0}',
+  };
+
+  test("two same-UUID entries, both valid: both apply (second reads first's output)", async () => {
+    await renderWithDashboard(makeDashboard([plotItem]));
+    await dispatchUpdate({
+      batch: true,
+      operation: "apply_patch",
+      patches: [
+        {
+          uuid: "plot-1",
+          source: "Inline Plotly",
+          ops: [
+            { op: "replace", path: "/args/inlineData/layout/title", value: "After A" },
+          ],
+        },
+        {
+          uuid: "plot-1",
+          source: "Inline Plotly",
+          ops: [
+            // Threading check: this `test` op only succeeds if it sees the
+            // value entry-A wrote. RFC 6902 `test` fails the whole entry
+            // if the value differs.
+            { op: "test", path: "/args/inlineData/layout/title", value: "After A" },
+            { op: "replace", path: "/args/inlineData/layout/title", value: "After B" },
+          ],
+        },
+      ],
+    });
+    const items = getTabGridItems();
+    const updated = JSON.parse(items[0].args_string);
+    // Entry-B saw entry-A's output and applied on top — final state is "After B".
+    expect(updated.inlineData.layout.title).toBe("After B");
+  });
+
+  test("two same-UUID entries, second invalid: first applies, second skipped (failure isolation)", async () => {
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await renderWithDashboard(makeDashboard([plotItem]));
+      await dispatchUpdate({
+        batch: true,
+        operation: "apply_patch",
+        patches: [
+          {
+            uuid: "plot-1",
+            source: "Inline Plotly",
+            ops: [
+              { op: "replace", path: "/args/inlineData/layout/title", value: "First Wins" },
+            ],
+          },
+          {
+            uuid: "plot-1",
+            source: "Inline Plotly",
+            ops: [
+              // Replace on a missing parent path → rfc6902 apply error.
+              // Pre-#15 this would have rolled back the merged transaction
+              // and discarded entry-A. Post-#15 entry-A still lands.
+              { op: "replace", path: "/args/inlineData/nonexistent/foo", value: "X" },
+            ],
+          },
+        ],
+      });
+      const items = getTabGridItems();
+      const updated = JSON.parse(items[0].args_string);
+      expect(updated.inlineData.layout.title).toBe("First Wins");
+      expect(warnSpy).toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  test("two same-UUID entries, first invalid: first skipped, second applies on original state", async () => {
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await renderWithDashboard(makeDashboard([plotItem]));
+      await dispatchUpdate({
+        batch: true,
+        operation: "apply_patch",
+        patches: [
+          {
+            uuid: "plot-1",
+            source: "Inline Plotly",
+            ops: [
+              // First entry fails — entry-B should still see the *original*
+              // state (not whatever partial mutation entry-A might have
+              // attempted before failing).
+              { op: "replace", path: "/args/inlineData/nonexistent/foo", value: "X" },
+            ],
+          },
+          {
+            uuid: "plot-1",
+            source: "Inline Plotly",
+            ops: [
+              { op: "replace", path: "/args/inlineData/layout/title", value: "Second Wins" },
+            ],
+          },
+        ],
+      });
+      const items = getTabGridItems();
+      const updated = JSON.parse(items[0].args_string);
+      expect(updated.inlineData.layout.title).toBe("Second Wins");
+      expect(warnSpy).toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+});
