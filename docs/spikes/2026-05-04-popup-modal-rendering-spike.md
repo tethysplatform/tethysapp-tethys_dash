@@ -53,23 +53,27 @@ To use react-grid-layout's responsive cols collapse, the component would need to
 
 ### Conclusion (Q2)
 
-**Switching `DashboardLayout` to `Responsive` is rejected for v1.** Adopt the **CSS flexbox stack fallback** for R23 instead:
+Iterated through three positions during this spike before landing on the final decision:
 
-- Below 768px viewport, the `PopupModalCarousel` (Unit 8) wraps its `<DashboardLayout>` in a className branch that overrides the grid's positioning with a vertical flexbox stack (e.g., a CSS rule like `.popup-modal--narrow .react-grid-layout > div { position: static !important; transform: none !important; width: 100% !important; }` paired with a flex-column parent).
-- Each tile's `h` (height in grid rows) is preserved as a `min-height` in the stacked layout so authored vertical proportions roughly carry over.
-- Gives editors predictable behavior at small viewports without committing to a global `Responsive` migration.
+1. **Initial conclusion**: CSS flexbox stack fallback in the popup; no host change.
+2. **First redirect (user)**: switch host `DashboardLayout` to `Responsive` so the host benefits from narrow-viewport collapse too.
+3. **Second redirect (user)**: discovered that for `unrestrictedPlacement=true` dashboards (which use overlap as a layout primitive — e.g., a basemap dropdown intentionally on top of a map), the responsive collapse pile-up at narrow breakpoints is unsolvable without per-tile anchor metadata that doesn't exist today. The host's responsive problem is real but needs its own dedicated feature work.
 
-**Plan adjustment required**: Unit 9's R23 approach should commit to CSS flexbox fallback as the primary strategy rather than naming RGL responsive cols as the candidate with CSS as the fallback. I'll fold this into Unit 9 when we get there.
+**Final decision (Option A): host `DashboardLayout` is byte-identical to today's behavior. Add a `responsive` prop (default `false`) that opts into `Responsive`; only popup grids pass `responsive={true}`.** Popup grids in v1 are non-overlap by design, so they don't hit the `unrestrictedPlacement` collapse problem. The host responsive feature is deferred — see project memory `project_dashboard_responsive_followup.md`.
+
+Key implementation details:
+- Per-breakpoint `cols`: `lg/md=100` (preserves fine-grained placement), `sm=12`, `xs=4`, `xxs=1`.
+- Layouts pre-generated explicitly for all five breakpoints rather than relying on `Responsive`'s auto-derivation. Reason: `findOrGenerateResponsiveLayout` in react-grid-layout always runs `compact()` on auto-derived layouts and does **not** pass `allowOverlap` through. Supplying every layout makes the library return them cached, skipping that compaction; the subsequent `synchronizeLayoutWithChildren` step does honor `allowOverlap`.
+- Drag/resize disabled below `sm` (narrow viewports are view-only).
 
 ---
 
-## Plan Adjustments Required Before Continuing
+## Plan Adjustments Already Made
 
-1. **Unit 2 (DashboardLayout parameterization)** — confirmed minimum-viable scope: `rowHeight` and `colCount` props with current defaults. The responsive `cols` object pass-through can be cut entirely (was being kept "in case" for R23; CSS fallback obviates it).
-2. **Unit 9 (Failure modes)** — R23 small-viewport branch primary approach is now CSS flexbox stack via a className branch on `<DashboardLayout>`, not RGL responsive cols.
-
-Both are simplifications relative to the plan as written. No new work surfaced.
+1. **Unit 2** — adds `rowHeight` and `responsive` props (default false) on `DashboardLayout`. Host call sites pass nothing → today's behavior. Popup call sites (Units 7, 8) pass `responsive={true}` to opt in.
+2. **Unit 9** — R23 small-viewport branch: the popup's `<DashboardLayout responsive>` already degrades through breakpoints; the modal only overrides its own `size` to fullscreen below 768px.
+3. **Project memory** — `project_dashboard_responsive_followup.md` captures the per-tile anchor metadata + dashboard responsive follow-up that should kick off after this PR merges.
 
 ## Decision
 
-Proceed to Phase 1 Units 2, 3, 4 (parallel) per the plan. Unit 1 spike code: **none was created** — static analysis was sufficient. No teardown required.
+Proceed to Phase 1 Unit 3 (PopupModal primitive) and Unit 4 (backend) in parallel, then Unit 5 (Map.js bypass). Unit 1 spike code: **none was created** — static analysis was sufficient. No teardown required.
