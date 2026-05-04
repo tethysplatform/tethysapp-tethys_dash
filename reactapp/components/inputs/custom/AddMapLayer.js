@@ -9,7 +9,7 @@ import { valuesEqual } from "components/modals/utilities";
 import { BsPencilSquare, BsTrash } from "react-icons/bs";
 import { RxDragHandleHorizontal } from "react-icons/rx";
 import { layerPropType } from "components/map/utilities";
-import { AppContext } from "components/contexts/Contexts";
+import { AppContext, GridItemContext } from "components/contexts/Contexts";
 import { findSelectOptionByValue } from "components/visualizations/utilities";
 
 const FixedTable = styled(Table)`
@@ -111,6 +111,7 @@ const MapLayerTemplate = ({
         aliases: attributeAliases,
         queryable: queryableLayer,
       },
+      popupConfig: existingMapLayer.popupConfig ?? null,
     };
 
     // Set the layerInfo and existingLayerOriginalName to the specified mapLayer
@@ -172,6 +173,8 @@ export const AddMapLayer = ({
   const [layerInfo, setLayerInfo] = useState({});
   const [mapLayers, setMapLayers] = useState(values);
   let existingLayerOriginalName = useRef();
+  const gridItemContext = useContext(GridItemContext);
+  const gridItemId = gridItemContext?.gridItemId ?? null;
 
   useEffect(() => {
     if (!valuesEqual(mapLayers, values)) {
@@ -289,6 +292,7 @@ export const AddMapLayer = ({
           mapLayers={mapLayers}
           existingLayerOriginalName={existingLayerOriginalName}
           gridItemIndex={gridItemIndex}
+          gridItemId={gridItemId}
           visualizationRef={visualizationRef}
         />
       )}
