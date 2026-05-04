@@ -524,86 +524,6 @@ test.describe("MCP panel — Retry interaction during probe", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Send-time in-chat signal + dot flip (Unit 6 / C1/C2)
-// ---------------------------------------------------------------------------
-//
-// `runChatSession` (chatbox-core/engine/index.js:464) calls
-// `connectMcpServers` first, then proceeds to the LLM streaming call,
-// then returns `perServer` outcomes. The Chatbox.jsx send handler reads
-// those outcomes (see Chatbox.jsx:483-503) and appends system messages
-// to the chat log for any non-connected server. So both tests below
-// require the FULL chat session to complete — including the LLM call —
-// before the in-chat message is observable in the DOM.
-//
-// What's needed to fill these tests
-// ---------------------------------
-// Stubbing the LLM at the page.route layer: each provider (Anthropic,
-// OpenAI, Ollama) has a different streaming endpoint shape. The fixture
-// must match the SDK's expected event-stream format and produce a
-// terminal "stop" event so runChatSession resolves. For a single
-// provider this is ~50 lines of fixture code; for all three it's more.
-//
-// Lower-cost alternative
-// ----------------------
-// Extract the in-chat-message-generation logic from Chatbox.jsx:493-498
-// into a pure helper, unit-test it in chatbox-core's vitest layer (the
-// helpers/url.test.js + engine/probe.test.js patterns already work).
-// Tracked as a follow-up; not addressed here because it requires a
-// source change in chatbox-core (out of scope for the test-infra plan).
-//
-// Until either path lands, these specs stay `.fixme` so they remain
-// visible to anyone reading the spec while not blocking the suite.
-test.describe("MCP in-chat signal on send", () => {
-  test.fixme(
-    "failing server produces in-chat 'Couldn't reach' message and red dot",
-    async ({ page }) => {
-      // See the describe block comment above for what's needed to
-      // fill this test. The Chatbox.jsx sendMessage path's outcome
-      // handling is covered indirectly by chatbox-core's
-      // engine/probe.test.js (which proves the per-server outcome
-      // shape) and engine/transports.test.js (which proves
-      // pickTransport's failure mapping).
-      await loadEditableDashboard(page, {
-        seedServers: [{ url: BAD_URL, name: "Bad", enabled: true }],
-      });
-      await mockFailedMcpServer(page, BAD_URL, { statusCode: 500 });
-
-      await page.getByRole("button", { name: "chatSidebarToggle" }).click();
-      await page
-        .getByRole("textbox", { name: "Chat message input" })
-        .fill("hello");
-      await page.getByRole("button", { name: "Send message" }).click();
-
-      await expect(
-        page.getByText(/couldn't reach mcp server.*bad/i),
-      ).toBeVisible({ timeout: 15_000 });
-    },
-  );
-
-  test.fixme(
-    "zero-tools server produces in-chat 'reports no tools' message and orange dot",
-    async ({ page }) => {
-      // See the describe block comment above. Same fixture-work
-      // requirement as the failing-server case.
-      await loadEditableDashboard(page, {
-        seedServers: [{ url: ZERO_TOOLS_URL, name: "Empty", enabled: true }],
-      });
-      await mockZeroToolsMcpServer(page, ZERO_TOOLS_URL);
-
-      await page.getByRole("button", { name: "chatSidebarToggle" }).click();
-      await page
-        .getByRole("textbox", { name: "Chat message input" })
-        .fill("hello");
-      await page.getByRole("button", { name: "Send message" }).click();
-
-      await expect(
-        page.getByText(/reports no tools/i),
-      ).toBeVisible({ timeout: 15_000 });
-    },
-  );
-});
-
-// ---------------------------------------------------------------------------
 // SSRF guard — validateServerUrl literal-IP rejection in production builds
 // ---------------------------------------------------------------------------
 //
@@ -612,8 +532,7 @@ test.describe("MCP in-chat signal on send", () => {
 // with NODE_ENV=production (vite build default), so the literal-IP rejection
 // path is active in the bundle these tests run against. The exercise is via
 // the user-typed add path; the prop-init parity (Chatbox.jsx defaultMcpServers
-// filter) is exercised by the same predicate. A future test-only consumer
-// could prove the prop-init path end-to-end — left as `.fixme` below.
+// filter) is exercised by the same predicate.
 
 test.describe("MCP panel — SSRF guard (validateServerUrl)", () => {
   test("file:// URL is rejected via the user-typed path", async ({ page }) => {
