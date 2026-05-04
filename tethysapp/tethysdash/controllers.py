@@ -160,8 +160,8 @@ def ping(request):
         # Useful for resetting a website that used to have the session security.
         try:
             del request.session
-        except AttributeError:
-            pass
+        except AttributeError:  # pragma: no cover
+            pass  # pragma: no cover
         print(
             "Deleting session information due to django-session-security being uninstalled."  # noqa: E501
         )

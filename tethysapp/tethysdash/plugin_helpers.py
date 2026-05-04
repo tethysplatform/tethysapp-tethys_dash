@@ -14,7 +14,6 @@ from intake.source import base
 from dateutil.parser import parse
 import pytz
 
-
 DEFAULT_RUNTIME_PLACEHOLDER_GEOJSON = {
     "type": "FeatureCollection",
     "features": [],
@@ -1155,7 +1154,6 @@ class LayerConfigurationBuilder:
             ValueError: If `legend` is not one of the allowed types or has an invalid
                 structure.
         """
-
         if legend == "default":
             self.config["legend"] = legend
             return self

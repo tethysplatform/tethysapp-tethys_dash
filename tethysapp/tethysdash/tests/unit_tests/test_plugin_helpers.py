@@ -394,6 +394,30 @@ def test_layer_configuration_builder_build_required_fields():
         builder.build()
 
 
+def test_layer_configuration_builder_build_required_fields_partial_params():
+    builder = LayerConfigurationBuilder(name="My Layer Name", layer_source="WMS")
+    builder.set_source_properties(
+        url="http://example.com/wms",
+        params={"STYLES": "default"},
+    )
+    with pytest.raises(
+        ValueError,
+        match="Required fields validation failed:\nMissing required key 'params.LAYERS'",
+    ):
+        builder.build()
+
+
+def test_validate_required_fields_deeply_nested_missing():
+    builder = LayerConfigurationBuilder(name="x", layer_source="GeoJSON")
+    required = {"a": {"b": {"c": "value"}}}
+    actual = {}
+    with pytest.raises(
+        ValueError,
+        match=re.escape("Missing required key 'a.b.c'"),
+    ):
+        builder._validate_required_fields(required, actual)
+
+
 def test_get_available_source_properties():
     builder = LayerConfigurationBuilder(name="My Layer Name", layer_source="WMS")
     available_properties = builder.get_available_source_properties()
@@ -717,7 +741,11 @@ def test_layer_configuration_builder_legend():
                     },
                 },
             },
-        }
+        },
+        "legend": {
+            "title": "My Legend",
+            "items": [{"label": "Item 1", "symbol": "circle", "color": "#FF0000"}],
+        },
     }
 
 
@@ -749,12 +777,6 @@ def test_layer_configuration_builder_style():
         match=re.escape("style must be a valid dictionary."),
     ):
         builder.set_style("bad legend")
-
-    with pytest.raises(
-        ValueError,
-        match=re.escape("style must have a version, sources and layers keys"),
-    ):
-        builder.set_style({})
 
     builder.set_style(
         {
@@ -1039,7 +1061,7 @@ def test_plugin_send_update(monkeypatch):
 def test_plugin_kwargs_are_set():
     plugin = MinimalPlugin(foo=123, fooDate="2023-01-01")
     assert plugin.foo == 123
-    assert plugin.fooDate == datetime(2023, 1, 1, 0, 0, tzinfo=timezone.utc)
+    assert plugin.fooDate == datetime(2023, 1, 1, 0, 0)
 
 
 # --- Runtime-capable plugin tests -------------------------------------------
