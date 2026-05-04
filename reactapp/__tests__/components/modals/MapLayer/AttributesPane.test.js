@@ -20,6 +20,7 @@ const TestingComponent = ({
   sourceProps,
   layerProps,
   tabKey,
+  popupConfig,
 }) => {
   const [attributeProps, setAttributeProps] = useState(
     initialAttributeProps ?? {},
@@ -33,6 +34,7 @@ const TestingComponent = ({
         sourceProps={sourceProps}
         layerProps={layerProps}
         tabKey={tabKey}
+        popupConfig={popupConfig}
       />
       <p data-testid="attributeVariables">
         {JSON.stringify(attributeProps.variables)}
@@ -763,4 +765,106 @@ TestingComponent.propTypes = {
   sourceProps: PropTypes.object,
   layerProps: PropTypes.object,
   tabKey: PropTypes.string,
+  popupConfig: PropTypes.object,
 };
+
+describe("AttributesPane modal-mode visibility gating", () => {
+  test("hides aliases/omitted/variables sections and shows note when popupConfig.mode === 'modal'", async () => {
+    mockedGetLayerAttributes.mockResolvedValue({
+      states: [
+        { name: "the_geom", alias: "the_geom" },
+        { name: "STATE_NAME", alias: "STATE" },
+      ],
+    });
+    const sourceProps = {
+      type: "ESRI Image and Map Service",
+      props: {
+        url: "https://maps.water.noaa.gov/server/rest/services/x/MapServer",
+      },
+    };
+    render(
+      <TestingComponent
+        sourceProps={sourceProps}
+        layerProps={{ name: "esri" }}
+        tabKey={"attributes"}
+        popupConfig={{ mode: "modal" }}
+      />,
+    );
+
+    // The note appears.
+    expect(
+      await screen.findByTestId("modal-mode-attribute-note"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /These apply only to table-mode popups\. Configure modal contents in the Popup pane\./i,
+      ),
+    ).toBeInTheDocument();
+
+    // Allow Layer Query is still visible.
+    expect(screen.getByLabelText("Allow Layer Query")).toBeInTheDocument();
+
+    // Table-mode-only fields are hidden.
+    expect(screen.queryAllByLabelText("alias row").length).toBe(0);
+    expect(screen.queryAllByLabelText("variable row").length).toBe(0);
+    expect(screen.queryAllByLabelText("Show in popup row").length).toBe(0);
+    expect(
+      screen.queryByLabelText("Show in popup header"),
+    ).not.toBeInTheDocument();
+  });
+
+  test("renders normal table-mode UI when popupConfig is undefined (regression)", async () => {
+    mockedGetLayerAttributes.mockResolvedValue({
+      states: [
+        { name: "the_geom", alias: "the_geom" },
+        { name: "STATE_NAME", alias: "STATE" },
+      ],
+    });
+    const sourceProps = {
+      type: "ESRI Image and Map Service",
+      props: {
+        url: "https://maps.water.noaa.gov/server/rest/services/x/MapServer",
+      },
+    };
+    render(
+      <TestingComponent
+        sourceProps={sourceProps}
+        layerProps={{ name: "esri" }}
+        tabKey={"attributes"}
+      />,
+    );
+
+    expect(await screen.findByText("states")).toBeInTheDocument();
+    // table-mode-only fields are present
+    expect(screen.getAllByLabelText("alias row").length).toBeGreaterThan(0);
+    expect(screen.getAllByLabelText("variable row").length).toBeGreaterThan(0);
+    // No modal-mode note
+    expect(
+      screen.queryByTestId("modal-mode-attribute-note"),
+    ).not.toBeInTheDocument();
+  });
+
+  test("renders normal table-mode UI when popupConfig.mode === 'table' (regression)", async () => {
+    mockedGetLayerAttributes.mockResolvedValue({
+      states: [{ name: "the_geom", alias: "the_geom" }],
+    });
+    const sourceProps = {
+      type: "ESRI Image and Map Service",
+      props: { url: "https://example.com/MapServer" },
+    };
+    render(
+      <TestingComponent
+        sourceProps={sourceProps}
+        layerProps={{ name: "esri" }}
+        tabKey={"attributes"}
+        popupConfig={{ mode: "table" }}
+      />,
+    );
+
+    expect(await screen.findByText("states")).toBeInTheDocument();
+    expect(screen.getAllByLabelText("alias row").length).toBeGreaterThan(0);
+    expect(
+      screen.queryByTestId("modal-mode-attribute-note"),
+    ).not.toBeInTheDocument();
+  });
+});

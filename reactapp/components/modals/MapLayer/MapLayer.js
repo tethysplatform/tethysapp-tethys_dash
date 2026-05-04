@@ -12,6 +12,8 @@ import SourcePane from "components/modals/MapLayer/SourcePane";
 import LegendPane from "components/modals/MapLayer/LegendPane";
 import AttributesPane from "components/modals/MapLayer/AttributesPane";
 import StylePane from "components/modals/MapLayer/StylePane";
+import PopupConfigPane from "components/modals/MapLayer/PopupConfigPane";
+import PopupLayoutEditor from "components/modals/MapLayer/PopupLayoutEditor";
 import { AppContext, LayoutContext } from "components/contexts/Contexts";
 import {
   sourcePropertiesOptions,
@@ -132,6 +134,7 @@ const MapLayerModal = ({
   addMapLayer,
   layerInfo,
   visualizationRef,
+  gridItemId,
 }) => {
   const [tabKey, setTabKey] = useState("layer");
   const [errorMessage, setErrorMessage] = useState(null);
@@ -142,13 +145,17 @@ const MapLayerModal = ({
   );
   const [style, setStyle] = useState(layerInfo.style);
   const [legend, setLegend] = useState(layerInfo.legend);
+  const [popupConfig, setPopupConfig] = useState(layerInfo.popupConfig ?? null);
   const [selectedOption, setSelectedOption] = useState(null);
   const [hiddenForExtentDraw, setHiddenForExtentDraw] = useState(false);
   const [showingSubModal, setShowingSubModal] = useState(false);
+  const [showLayoutEditor, setShowLayoutEditor] = useState(false);
+  const [savingPopup, setSavingPopup] = useState(false);
   const legendContainerRef = useRef(null);
   const styleContainerRef = useRef(null);
   const { csrf, mapLayerTemplates, dynamicMapLayers } = useContext(AppContext);
-  const { uuid } = useContext(LayoutContext);
+  const layoutContext = useContext(LayoutContext) ?? {};
+  const { uuid, editable: hostDashboardEditable } = layoutContext;
   const mapContext = useMapContext();
 
   const onRequestHideModal = useCallback(() => {
@@ -421,8 +428,114 @@ const MapLayerModal = ({
       mapConfiguration.configuration.style = apiResponse.filename;
     }
 
+    // Persist popup metadata (R1, R4–R7). Lazy-create the popup row the first
+    // time the editor flips a layer into modal mode; otherwise update the
+    // existing row. Flipping back to table mode preserves the row and its
+    // child grid items per R6. Skip the network call entirely (and stay
+    // synchronous) when there's no popup state to persist.
+    if (popupRequiresPersist()) {
+      const popupSaveResult = await persistPopupConfig(layerProps.name);
+      if (!popupSaveResult.success) {
+        setErrorMessage(popupSaveResult.message);
+        return;
+      }
+      if (popupSaveResult.popupConfig) {
+        mapConfiguration.popupConfig = popupSaveResult.popupConfig;
+      }
+    }
+
     addMapLayer(mapConfiguration);
     handleModalClose();
+  }
+
+  /**
+   * Returns true when `popupConfig` represents state that needs to be saved
+   * via the `/popups/update/` endpoint. This is the same predicate used
+   * inside `persistPopupConfig`, exposed so the synchronous fast path of
+   * `saveLayer` can avoid an unnecessary microtask boundary when no popup
+   * persistence is required (preserves test ergonomics for non-popup tests).
+   */
+  function popupRequiresPersist() {
+    const existingId = popupConfig?.id ?? null;
+    const wantsModal = popupConfig?.mode === "modal";
+    return wantsModal || !!existingId;
+  }
+
+  /**
+   * Persist `popupConfig` to the new `/popups/update/` endpoint. Returns one
+   * of:
+   *   { success: true, popupConfig: <serialized> | null }
+   *   { success: false, message: <string> }
+   *
+   * Skips the network call when there's nothing to persist (no popupConfig
+   * in state and no existing row id) or when the parent grid item id is
+   * unknown (e.g., creating a brand-new Map GridItem before its first save).
+   */
+  async function persistPopupConfig(targetLayerName) {
+    const existingId = popupConfig?.id ?? null;
+    const wantsModal = popupConfig?.mode === "modal";
+
+    // Nothing to save if the layer never opted into modal mode and there's
+    // no existing popup row to update.
+    if (!wantsModal && !existingId) {
+      return { success: true, popupConfig: null };
+    }
+
+    // Without a popup_id and a known parent gridItemId, the backend can't
+    // resolve the popup row. Surface a soft warning rather than blocking the
+    // layer save — popup config can be configured after the parent Map
+    // GridItem is first saved.
+    if (!existingId && !gridItemId) {
+      console.warn(
+        "[TethysDash] Cannot persist popupConfig: parent Map GridItem id is" +
+          " not yet known. Save the layer first, then reopen this modal to" +
+          " configure popup metadata.",
+      );
+      return { success: true, popupConfig: null };
+    }
+
+    const payload = {
+      mode: popupConfig?.mode ?? "table",
+      size: popupConfig?.size ?? null,
+      anchor: popupConfig?.anchor ?? null,
+      title_template: popupConfig?.titleTemplate ?? null,
+      gridItems: popupConfig?.gridItems ?? [],
+    };
+    if (existingId) {
+      payload.popup_id = existingId;
+    } else {
+      payload.grid_item_id = gridItemId;
+      payload.layer_name = targetLayerName;
+    }
+
+    setSavingPopup(true);
+    try {
+      const apiResponse = await appAPI.updatePopup(
+        existingId,
+        payload,
+        csrf,
+      );
+      if (!apiResponse?.success) {
+        return {
+          success: false,
+          message:
+            apiResponse?.message ??
+            "Failed to save popup configuration. Check logs.",
+        };
+      }
+      return { success: true, popupConfig: apiResponse.popup ?? popupConfig };
+    } catch (err) {
+      const status = err?.response?.status;
+      const message =
+        status === 403
+          ? "You do not have permission to update this popup."
+          : err?.response?.data?.message ??
+            err?.message ??
+            "Failed to save popup configuration. Check logs.";
+      return { success: false, message };
+    } finally {
+      setSavingPopup(false);
+    }
   }
 
   const onLayoutChange = async (e) => {
@@ -633,6 +746,22 @@ const MapLayerModal = ({
                 sourceProps={sourceProps}
                 layerProps={layerProps}
                 tabKey={tabKey}
+                popupConfig={popupConfig}
+              />
+            </Tab>
+            <Tab
+              eventKey="popup"
+              title="Popup"
+              aria-label="layer-popup-tab"
+              className="layer-popup-tab"
+            >
+              <PopupConfigPane
+                layerName={layerProps?.name}
+                popupConfig={popupConfig}
+                onChange={setPopupConfig}
+                onOpenLayoutEditor={() => setShowLayoutEditor(true)}
+                hostDashboardEditable={hostDashboardEditable !== false}
+                isSaving={savingPopup}
               />
             </Tab>
           </Tabs>
@@ -691,6 +820,23 @@ const MapLayerModal = ({
           </FooterContent>
         </Modal.Footer>
       </Modal>
+      {showLayoutEditor && (
+        <PopupLayoutEditor
+          show={showLayoutEditor}
+          onClose={() => setShowLayoutEditor(false)}
+          popupConfig={popupConfig}
+          onSave={(nextGridItems) => {
+            setPopupConfig((prev) => ({
+              ...(prev ?? { mode: "modal" }),
+              gridItems: nextGridItems,
+            }));
+            setShowLayoutEditor(false);
+          }}
+          popupId={popupConfig?.id ?? null}
+          gridItemId={gridItemId}
+          layerName={layerProps?.name}
+        />
+      )}
     </>
   );
 };
@@ -711,6 +857,14 @@ MapLayerModal.propTypes = {
     legend: legendPropType,
     style: PropTypes.string, // name of .json file that is save with the application that contain the actual style json
     attributeProps: attributePropsPropType,
+    popupConfig: PropTypes.shape({
+      id: PropTypes.number,
+      mode: PropTypes.oneOf(["table", "modal"]),
+      size: PropTypes.object,
+      anchor: PropTypes.object,
+      titleTemplate: PropTypes.string,
+      gridItems: PropTypes.array,
+    }),
   }),
   mapLayers: PropTypes.arrayOf(layerPropType),
   existingLayerOriginalName: PropTypes.shape({
@@ -720,6 +874,11 @@ MapLayerModal.propTypes = {
     PropTypes.func,
     PropTypes.shape({ current: PropTypes.any }),
   ]),
+  // Parent Map ``GridItem`` database id; required to lazy-create a popup row
+  // the first time a layer flips into modal mode. Optional for brand-new Map
+  // GridItems that haven't been persisted yet (in which case popup-config
+  // saves are skipped with a console warning).
+  gridItemId: PropTypes.number,
 };
 
 export default MapLayerModal;

@@ -3271,6 +3271,259 @@ describe("MapLayerModal plugin layer", () => {
   });
 });
 
+describe("MapLayerModal Popup pane", () => {
+  test("renders the Popup tab alongside the existing tabs", async () => {
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={{}}
+      />,
+    );
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    // Popup tab label appears.
+    expect(screen.getByText("Popup")).toBeInTheDocument();
+
+    // Click the popup tab; the pane mounts with mode=table selected.
+    fireEvent.click(screen.getByText("Popup"));
+    expect(await screen.findByLabelText("Popup Mode Table")).toBeChecked();
+    expect(screen.getByLabelText("Popup Mode Modal")).not.toBeChecked();
+  });
+
+  test("flipping mode to modal and saving lazy-creates the popup row via updatePopup", async () => {
+    const updatePopupSpy = jest
+      .spyOn(appAPI, "updatePopup")
+      .mockResolvedValue({
+        success: true,
+        popup: {
+          id: 42,
+          mode: "modal",
+          size: { widthPct: 60, heightPct: 60 },
+          anchor: { name: "center", offsetX: 0, offsetY: 0 },
+          titleTemplate: "",
+          gridItems: [],
+        },
+      });
+
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+
+    // The TestingComponent doesn't expose gridItemId — render MapLayerModal
+    // directly so we can supply it.
+    const csrf = "csrf-token";
+    const appContext = {
+      csrf,
+      mapLayerTemplates: [],
+      dynamicMapLayers: [],
+    };
+    const MapLayerModal =
+      require("components/modals/MapLayer/MapLayer").default;
+    render(
+      <AppContext.Provider value={appContext}>
+        <LayoutContext.Provider value={{ uuid: "abc", editable: true }}>
+          <MapLayerModal
+            showModal={true}
+            handleModalClose={handleModalClose}
+            addMapLayer={addMapLayer}
+            layerInfo={{
+              sourceProps: {
+                type: "ESRI Image and Map Service",
+                props: { url: "https://example.com" },
+              },
+              layerProps: { name: "Layer A" },
+            }}
+            gridItemId={101}
+          />
+        </LayoutContext.Provider>
+      </AppContext.Provider>,
+    );
+
+    // Switch to popup tab and turn on modal mode.
+    fireEvent.click(await screen.findByText("Popup"));
+    fireEvent.click(screen.getByLabelText("Popup Mode Modal"));
+
+    // Save the layer; should fire updatePopup with the create payload.
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+
+    await waitFor(() => {
+      expect(updatePopupSpy).toHaveBeenCalledTimes(1);
+    });
+    const [popupIdArg, payloadArg, csrfArg] = updatePopupSpy.mock.calls[0];
+    expect(popupIdArg).toBeNull();
+    expect(csrfArg).toBe(csrf);
+    expect(payloadArg.grid_item_id).toBe(101);
+    expect(payloadArg.layer_name).toBe("Layer A");
+    expect(payloadArg.mode).toBe("modal");
+    expect(payloadArg.gridItems).toEqual([]);
+
+    // The map layer was added — the layer save flow continues normally.
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalled();
+    });
+    updatePopupSpy.mockRestore();
+  });
+
+  test("flipping mode back to table preserves popup_id and existing gridItems", async () => {
+    const updatePopupSpy = jest
+      .spyOn(appAPI, "updatePopup")
+      .mockResolvedValue({
+        success: true,
+        popup: {
+          id: 7,
+          mode: "table",
+          size: { widthPct: 60, heightPct: 60 },
+          anchor: { name: "center", offsetX: 0, offsetY: 0 },
+          titleTemplate: "",
+          gridItems: [{ source: "Plot", args_string: "{}" }],
+        },
+      });
+
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const csrf = "csrf-token";
+    const appContext = {
+      csrf,
+      mapLayerTemplates: [],
+      dynamicMapLayers: [],
+    };
+    const MapLayerModal =
+      require("components/modals/MapLayer/MapLayer").default;
+
+    const existingPopupConfig = {
+      id: 7,
+      mode: "modal",
+      size: { widthPct: 60, heightPct: 60 },
+      anchor: { name: "center", offsetX: 0, offsetY: 0 },
+      titleTemplate: "Title",
+      gridItems: [{ source: "Plot", args_string: "{}" }],
+    };
+
+    render(
+      <AppContext.Provider value={appContext}>
+        <LayoutContext.Provider value={{ uuid: "abc", editable: true }}>
+          <MapLayerModal
+            showModal={true}
+            handleModalClose={handleModalClose}
+            addMapLayer={addMapLayer}
+            layerInfo={{
+              sourceProps: {
+                type: "ESRI Image and Map Service",
+                props: { url: "https://example.com" },
+              },
+              layerProps: { name: "Layer B" },
+              popupConfig: existingPopupConfig,
+            }}
+            gridItemId={202}
+          />
+        </LayoutContext.Provider>
+      </AppContext.Provider>,
+    );
+
+    // Switch to popup tab and flip back to table.
+    fireEvent.click(await screen.findByText("Popup"));
+    fireEvent.click(screen.getByLabelText("Popup Mode Table"));
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+
+    await waitFor(() => {
+      expect(updatePopupSpy).toHaveBeenCalledTimes(1);
+    });
+    const [popupIdArg, payloadArg] = updatePopupSpy.mock.calls[0];
+    expect(popupIdArg).toBe(7);
+    expect(payloadArg.popup_id).toBe(7);
+    expect(payloadArg.mode).toBe("table");
+    // gridItems preserved (R6).
+    expect(payloadArg.gridItems).toEqual([
+      { source: "Plot", args_string: "{}" },
+    ]);
+    updatePopupSpy.mockRestore();
+  });
+
+  test("updatePopup 403 response surfaces an error and blocks the save", async () => {
+    const updatePopupSpy = jest
+      .spyOn(appAPI, "updatePopup")
+      .mockRejectedValue({
+        response: {
+          status: 403,
+          data: { success: false, message: "forbidden" },
+        },
+      });
+
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const csrf = "csrf-token";
+    const appContext = {
+      csrf,
+      mapLayerTemplates: [],
+      dynamicMapLayers: [],
+    };
+    const MapLayerModal =
+      require("components/modals/MapLayer/MapLayer").default;
+
+    render(
+      <AppContext.Provider value={appContext}>
+        <LayoutContext.Provider value={{ uuid: "abc", editable: true }}>
+          <MapLayerModal
+            showModal={true}
+            handleModalClose={handleModalClose}
+            addMapLayer={addMapLayer}
+            layerInfo={{
+              sourceProps: {
+                type: "ESRI Image and Map Service",
+                props: { url: "https://example.com" },
+              },
+              layerProps: { name: "Layer C" },
+            }}
+            gridItemId={303}
+          />
+        </LayoutContext.Provider>
+      </AppContext.Provider>,
+    );
+
+    fireEvent.click(await screen.findByText("Popup"));
+    fireEvent.click(screen.getByLabelText("Popup Mode Modal"));
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+
+    expect(
+      await screen.findByText(
+        /You do not have permission to update this popup\./i,
+      ),
+    ).toBeInTheDocument();
+    expect(addMapLayer).not.toHaveBeenCalled();
+    updatePopupSpy.mockRestore();
+  });
+
+  test("does not call updatePopup when the layer never opted into modal mode", async () => {
+    const updatePopupSpy = jest.spyOn(appAPI, "updatePopup");
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={{
+          sourceProps: {
+            type: "ESRI Image and Map Service",
+            props: { url: "https://example.com" },
+          },
+          layerProps: { name: "Layer D" },
+        }}
+      />,
+    );
+
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalled();
+    });
+    expect(updatePopupSpy).not.toHaveBeenCalled();
+    updatePopupSpy.mockRestore();
+  });
+});
+
 describe("rekeyAttributeMapToLayer", () => {
   test("rekeys attribute map keys to match layer name", () => {
     const attributeMap = {
