@@ -7,7 +7,7 @@ from tethysapp.tethysdash.plugin_helpers import (
 import requests
 import pytest
 import re
-from datetime import datetime, timezone
+from datetime import datetime
 
 
 def test_layer_configuration_builder_ESRI_map(mocker):
@@ -402,7 +402,7 @@ def test_layer_configuration_builder_build_required_fields_partial_params():
     )
     with pytest.raises(
         ValueError,
-        match="Required fields validation failed:\nMissing required key 'params.LAYERS'",
+        match="Required fields validation failed:\nMissing required key 'params.LAYERS'",  # noqa: E501
     ):
         builder.build()
 

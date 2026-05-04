@@ -12,7 +12,6 @@ import copy
 from datetime import datetime
 from intake.source import base
 from dateutil.parser import parse
-import pytz
 
 DEFAULT_RUNTIME_PLACEHOLDER_GEOJSON = {
     "type": "FeatureCollection",
@@ -163,7 +162,8 @@ class TethysDashPlugin(base.DataSource):
         """
         Method to execute the plugin's main functionality.
 
-        Arguments that are passed to the plugin from the frontend will be available as class attributes after initialization.
+        Arguments that are passed to the plugin from the frontend will be available as
+        class attributes after initialization.
 
         Returns:
             The output of the plugin, which will be passed to the visualization
@@ -199,7 +199,8 @@ class TethysDashPlugin(base.DataSource):
         This method is managed by the TethysDashPlugin base class.
 
         Args:
-            request_id (str): The unique identifier for the plugin execution request, used for WebSocket messaging.
+            request_id (str): The unique identifier for the plugin execution request,
+            used for WebSocket messaging.
 
         Returns:
             The output of the plugin, which will be passed to the visualization
@@ -277,7 +278,9 @@ def send_websocket_message(
     Args:
         request_id (str): The request identifier for the message.
         message (str): The message content to send.
-        percentage_complete (float, optional): A number between 0 and 100 indicating the percentage of completion for a task. If provided, this will be included in the message to indicate progress.
+        percentage_complete (float, optional): A number between 0 and 100 indicating
+            the percentage of completion for a task. If provided, this will be included
+            in the message to indicate progress.
         sender (str, optional): Identifier for the message sender.
         sessionId (str, optional): Session identifier for the message.
         timestamp (str, optional): Timestamp of the message.

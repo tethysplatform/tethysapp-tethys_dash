@@ -104,9 +104,7 @@ def test_data(client, mock_app, mocker):
 
 
 @pytest.mark.django_db
-def test_data_features_mode_passes_through_exception_message(
-    client, mock_app, mocker
-):
+def test_data_features_mode_passes_through_exception_message(client, mock_app, mocker):
     """Unit 2: mode=features must pass the plugin's exception message through
     so authors can self-diagnose. mode=scaffold (default) keeps the existing
     sanitized 'Failed to retrieve data' message."""

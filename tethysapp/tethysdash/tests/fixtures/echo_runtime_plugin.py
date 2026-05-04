@@ -18,7 +18,6 @@ from tethysapp.tethysdash.plugin_helpers import (
     TethysDashPlugin,
 )
 
-
 _VALID_FC = {
     "type": "FeatureCollection",
     "features": [

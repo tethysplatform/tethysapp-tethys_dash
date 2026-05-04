@@ -402,7 +402,7 @@ def add_new_dashboard(
     """
     # Get connection/session to database
     from tethysapp.tethysdash.app import App
-    
+
     Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
     try:
@@ -647,7 +647,7 @@ def copy_named_dashboard(user, id, new_name, dashboard_uuid):
     """
     # Get connection/session to database
     from tethysapp.tethysdash.app import App
-    
+
     Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
 
@@ -743,7 +743,7 @@ def delete_named_dashboard(user, id):
     """
     # Get connection/session to database
     from tethysapp.tethysdash.app import App
-    
+
     Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
 
@@ -793,7 +793,7 @@ def update_named_dashboard(user, id, dashboard_updates):
     """
     # Get connection/session to database
     from tethysapp.tethysdash.app import App
-    
+
     Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
 
@@ -1075,7 +1075,7 @@ def get_visualization_permissions():
     """
 
     from tethysapp.tethysdash.app import App
-    
+
     Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
     visualization_permissions = {}
@@ -1126,7 +1126,7 @@ def update_visualization_permissions(updated_permissions):
         dict: Result with success status and message
     """
     from tethysapp.tethysdash.app import App
-    
+
     Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
 
@@ -1381,7 +1381,7 @@ def get_user_permission_groups(user):
               ]
     """
     from tethysapp.tethysdash.app import App
-    
+
     Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
     try:
@@ -1428,7 +1428,7 @@ def update_permission_groups(user, group_data):
         Exception: If group update fails for unexpected reasons
     """
     from tethysapp.tethysdash.app import App
-    
+
     Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
     try:
@@ -1581,7 +1581,7 @@ def delete_permission_groups(user, permission_group_id):
               - If error: {'status': 'error', 'message': error_description}
     """
     from tethysapp.tethysdash.app import App
-    
+
     Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
     try:
@@ -1677,7 +1677,7 @@ def parse_db_dashboard(session, dashboards, user, dashboard_view):
               permissions, and optionally grid items
     """
     from tethysapp.tethysdash.app import App
-    
+
     dashboard_list = []
     MEDIA_URL = settings.MEDIA_URL
     PREFIX_URL = settings.PREFIX_URL
@@ -1780,7 +1780,7 @@ def get_dashboards(user, dashboard_view=False, id=None):
     """
     # Get connection/session to database
     from tethysapp.tethysdash.app import App
-    
+
     Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
 
@@ -1846,7 +1846,7 @@ def clean_up_jsons(user):
 
     print("Checking to see if there are any unused json files to remove")
     from tethysapp.tethysdash.app import App
-    
+
     Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
     try:
@@ -1966,7 +1966,7 @@ def get_user_app_permissions(user):
         list: List of permission strings specific to this application
     """
     from tethysapp.tethysdash.app import App
-    
+
     user_permissions = [
         perm.split(":")[-1]
         for perm in user.get_all_permissions()
@@ -1986,7 +1986,7 @@ def check_for_liveChat(grid_item_uuid):
         bool: True if the grid item is a liveChat, False otherwise
     """
     from tethysapp.tethysdash.app import App
-    
+
     Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
 
@@ -2004,7 +2004,7 @@ def check_for_liveChat(grid_item_uuid):
 def cleanup_old_jsons():
     # for moving json and geojson files from old structure to new structure (https://github.com/tethysplatform/tethysapp-tethys_dash/pull/35)  # noqa: E501
     from tethysapp.tethysdash.app import App
-    
+
     app_workspace = get_app_workspace(App)
     json_root = os.path.join(app_workspace.path, "json")
     geojson_root = os.path.join(app_workspace.path, "geojson")
