@@ -741,7 +741,11 @@ const MapVisualization = ({
   const activeModalPopupConfig = activeModalLayer?.popupConfig ?? null;
 
   return (
-    <div ref={mapContainerRef} tabIndex={-1} style={{ outline: "none" }}>
+    <div
+      ref={mapContainerRef}
+      tabIndex={-1}
+      style={{ outline: "none", width: "100%", height: "100%" }}
+    >
       <MapComponent
         mapConfig={mapConfig}
         mapExtent={mapExtent}
