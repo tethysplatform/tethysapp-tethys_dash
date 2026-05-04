@@ -18,6 +18,7 @@ from tethysapp.tethysdash.model import (
     copy_named_dashboard,
     delete_named_dashboard,
     update_named_dashboard,
+    update_named_popup,
     clean_up_jsons,
     get_user_permission_groups,
     update_permission_groups,
@@ -814,6 +815,67 @@ def update_dashboard(request):
         print(e)
         message = _get_error_message(
             e, f"Failed to update the dashboard {dashboard_id}. Check server for logs."
+        )
+        return JsonResponse({"success": False, "message": message})
+
+
+@api_view(["POST"])
+@controller(url="tethysdash/popups/update", login_required=True)
+def update_popup(request):
+    """
+    API controller for creating/updating a Map layer popup configuration.
+
+    Accepts either an existing ``popup_id`` (update) or a ``grid_item_id`` +
+    ``layer_name`` pair (create). Updates the popup's metadata fields and
+    replaces its child grid items in a single transaction. Editor or admin
+    permission on the host dashboard is required.
+
+    Args:
+        request: Django HTTP request object with JSON body containing:
+            - popup_id (optional): ID of an existing popup row to update
+            - grid_item_id (optional): Parent Map ``GridItem`` id (required
+              when popup_id is omitted)
+            - layer_name (optional): Layer name within the parent Map
+              (required when popup_id is omitted)
+            - mode (optional): ``"table"`` | ``"modal"``
+            - size (optional): dict serialized to JSON in size_json
+            - anchor (optional): dict serialized to JSON in anchor_json
+            - title_template (optional): template string supporting
+              ``${feature.<key>}`` substitution
+            - gridItems (optional): list of grid item dicts to replace the
+              popup's child grid items
+
+    Returns:
+        JsonResponse: Dictionary containing:
+            - success: Boolean indicating if the request was successful
+            - popup: Updated popup config payload if successful
+            - message: Error message if unsuccessful
+    """
+    try:
+        popup_updates = json.loads(request.body)
+    except RequestDataTooBig:
+        return JsonResponse(
+            {
+                "success": False,
+                "message": f"File size too big. Total request must be less than {settings.DATA_UPLOAD_MAX_MEMORY_SIZE/1024} KB",  # noqa: E501
+            }
+        )
+
+    user = request.user
+
+    try:
+        updated_popup = update_named_popup(user, popup_updates)
+        return JsonResponse({"success": True, "popup": updated_popup})
+    except PermissionError as e:
+        message = _get_error_message(
+            e,
+            "User does not have admin or editor permissions to update the popup.",
+        )
+        return JsonResponse({"success": False, "message": message}, status=403)
+    except Exception as e:
+        print(e)
+        message = _get_error_message(
+            e, "Failed to update the popup. Check server for logs."
         )
         return JsonResponse({"success": False, "message": message})
 

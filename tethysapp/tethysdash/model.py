@@ -145,6 +145,13 @@ class GridItem(Base):
         args_string (str): JSON string containing visualization arguments
         metadata_string (str): JSON string containing component metadata
         order (int): Display order within the dashboard
+        tab_id (int): Foreign key to parent tab; mutually exclusive with popup_id
+        popup_id (int): Foreign key to parent map layer popup; mutually exclusive
+            with tab_id
+        popup (relationship): Parent MapLayerPopup if this grid item lives inside
+            a popup
+        map_layer_popups (relationship): MapLayerPopup rows owned by this Map
+            grid item (only relevant when source == "Map")
     """
 
     __tablename__ = "griditems"
@@ -169,6 +176,92 @@ class GridItem(Base):
         Integer, ForeignKey("dashboard_tabs.id"), nullable=True
     )  # Nullable for backward compatibility
     tab = relationship("DashboardTab", back_populates="grid_items")
+
+    # popup ownership: a grid item belongs to either a tab or a popup
+    popup_id = Column(
+        Integer,
+        ForeignKey("map_layer_popups.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    popup = relationship(
+        "MapLayerPopup",
+        foreign_keys=[popup_id],
+        back_populates="grid_items",
+    )
+    map_layer_popups = relationship(
+        "MapLayerPopup",
+        foreign_keys="MapLayerPopup.grid_item_id",
+        cascade="all, delete-orphan",
+        back_populates="grid_item",
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "(tab_id IS NULL) <> (popup_id IS NULL)",
+            name="ck_griditems_tab_xor_popup",
+        ),
+    )
+
+
+class MapLayerPopup(Base):
+    """
+    SQLAlchemy model for per-layer popup configuration on Map grid items.
+
+    Each row represents the popup configuration for a single layer within a Map
+    grid item (parent ``GridItem`` with ``source == "Map"``). The popup's mini
+    grid of visualizations is stored as regular ``GridItem`` rows linked back via
+    the ``GridItem.popup_id`` foreign key.
+
+    Attributes:
+        id (int): Primary key identifier
+        grid_item_id (int): Foreign key to the parent Map ``GridItem``
+        layer_name (str): Layer name within the parent Map's args; uniquely
+            identifies the popup within the Map (paired with ``grid_item_id``)
+        mode (str): ``"table"`` (default; existing inline OL Overlay popup) or
+            ``"modal"`` (custom positioned overlay with a configurable mini grid)
+        size_json (str): Optional JSON-encoded viewport-percent size config
+        anchor_json (str): Optional JSON-encoded anchor + offset config
+        title_template (str): Optional template string supporting
+            ``${feature.<key>}`` substitution
+        grid_item (relationship): Parent Map ``GridItem``
+        grid_items (relationship): Child ``GridItem`` rows that compose the
+            popup's mini grid
+    """
+
+    __tablename__ = "map_layer_popups"
+
+    id = Column(Integer, primary_key=True)
+    grid_item_id = Column(
+        Integer,
+        ForeignKey("griditems.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    layer_name = Column(String, nullable=False)
+    mode = Column(String, nullable=False, default="table")
+    size_json = Column(String, nullable=True)
+    anchor_json = Column(String, nullable=True)
+    title_template = Column(String, nullable=True)
+
+    grid_item = relationship(
+        "GridItem",
+        foreign_keys=[grid_item_id],
+        back_populates="map_layer_popups",
+    )
+    grid_items = relationship(
+        "GridItem",
+        foreign_keys="GridItem.popup_id",
+        cascade="all, delete-orphan",
+        back_populates="popup",
+        order_by="GridItem.order",
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "grid_item_id",
+            "layer_name",
+            name="uq_map_layer_popups_grid_item_layer",
+        ),
+    )
 
 
 class DashboardPermission(Base):
@@ -345,6 +438,102 @@ class Message(Base):
     sender = Column(String, nullable=False)
     message = Column(String, nullable=False)
     edited = Column(Boolean, nullable=False, default=False)
+
+
+def _serialize_grid_item(griditem):
+    """Serialize a ``GridItem`` row into a dictionary for API responses.
+
+    Args:
+        griditem (GridItem): SQLAlchemy ``GridItem`` row.
+
+    Returns:
+        dict: Public representation matching the shape used inside tab/grid
+        item payloads.
+    """
+    return {
+        "id": griditem.id,
+        "uuid": griditem.uuid,
+        "i": griditem.i,
+        "x": griditem.x,
+        "y": griditem.y,
+        "w": griditem.w,
+        "h": griditem.h,
+        "source": griditem.source,
+        "args_string": griditem.args_string,
+        "metadata_string": griditem.metadata_string,
+    }
+
+
+def _serialize_popup(popup):
+    """Serialize a ``MapLayerPopup`` row to the ``popupConfig`` shape consumed
+    by the frontend.
+
+    Decodes the JSON-blob columns (``size_json``, ``anchor_json``) when present
+    and embeds the popup's child grid items.
+
+    Args:
+        popup (MapLayerPopup): SQLAlchemy ``MapLayerPopup`` row.
+
+    Returns:
+        dict: ``popupConfig`` payload with ``id``, ``mode``, ``size``,
+        ``anchor``, ``titleTemplate``, and ``gridItems``.
+    """
+    size = json.loads(popup.size_json) if popup.size_json else None
+    anchor = json.loads(popup.anchor_json) if popup.anchor_json else None
+    return {
+        "id": popup.id,
+        "mode": popup.mode,
+        "size": size,
+        "anchor": anchor,
+        "titleTemplate": popup.title_template,
+        "gridItems": [_serialize_grid_item(g) for g in popup.grid_items],
+    }
+
+
+def _hydrate_map_args_string_with_popups(args_string, popups_by_layer):
+    """Embed popup configs into a Map ``GridItem``'s ``args_string`` JSON.
+
+    For each layer in the args' ``layers`` array whose name matches a key in
+    ``popups_by_layer``, sets ``layer["popupConfig"]`` to the serialized popup
+    payload. Layers without a matching popup row are unmodified.
+
+    Args:
+        args_string (str): JSON-encoded args from a Map ``GridItem``.
+        popups_by_layer (dict): Mapping of ``layer_name`` to serialized popup
+            payload (see :func:`_serialize_popup`).
+
+    Returns:
+        str: Either the original ``args_string`` (when no hydration was needed
+        or the args couldn't be parsed) or a re-serialized JSON string with
+        ``popupConfig`` injected onto the matching layer entries.
+    """
+    if not popups_by_layer or not args_string:
+        return args_string
+    try:
+        parsed = json.loads(args_string)
+    except (TypeError, ValueError):
+        return args_string
+
+    layers = parsed.get("layers") if isinstance(parsed, dict) else None
+    if not isinstance(layers, list):
+        return args_string
+
+    mutated = False
+    for layer in layers:
+        if not isinstance(layer, dict):
+            continue
+        layer_name = layer.get("name")
+        if not layer_name:
+            configuration = layer.get("configuration")
+            if isinstance(configuration, dict):
+                layer_name = configuration.get("name")
+        if layer_name and layer_name in popups_by_layer:
+            layer["popupConfig"] = popups_by_layer[layer_name]
+            mutated = True
+
+    if not mutated:
+        return args_string
+    return json.dumps(parsed)
 
 
 def _sanitize_text_args_string(args_string):
@@ -683,9 +872,18 @@ def copy_named_dashboard(user, id, new_name, dashboard_uuid):
             session.flush()  # Get new tab ID
             tab_id_mapping[tab.id] = new_tab.id
 
-        # Copy GridItems and link them to appropriate tabs
+        # Copy GridItems and link them to appropriate tabs.
+        # Popup-owned grid items (popup_id IS NOT NULL) are intentionally not
+        # carried across by copy at this time — the parent Map GridItem rides
+        # along, but its MapLayerPopup rows + popup-owned children are scoped
+        # to the original dashboard. This is a documented v1 limitation; see
+        # the plan's Risks & Dependencies table.
         new_grid_items = []
-        for index, grid_item in enumerate(original_dashboard.grid_items):
+        index = 0
+        for grid_item in original_dashboard.grid_items:
+            if grid_item.tab_id is None:
+                continue
+
             # Determine which tab this grid item should belong to
             new_tab_id = tab_id_mapping.get(grid_item.tab_id)
 
@@ -705,6 +903,7 @@ def copy_named_dashboard(user, id, new_name, dashboard_uuid):
             )
             session.add(new_item)
             new_grid_items.append(new_item)
+            index += 1
 
         new_dashboard.grid_items = new_grid_items
 
@@ -968,6 +1167,171 @@ def update_named_dashboard(user, id, dashboard_updates):
         session.close()
 
     return parsed_dashboard
+
+
+def update_named_popup(user, popup_updates):
+    """Create or update a ``MapLayerPopup`` row and replace its child grid items.
+
+    Supports two patterns in a single endpoint:
+
+    * **Update**: ``popup_updates`` includes ``popup_id`` — the existing popup
+      row's metadata is updated and its child grid items replaced.
+    * **Create**: ``popup_updates`` omits ``popup_id`` and instead provides
+      ``grid_item_id`` + ``layer_name`` — a new popup row is created (if one
+      does not already exist for the layer) before its metadata and child
+      grid items are written.
+
+    Permission is re-validated server-side: the user must have editor or
+    admin permission on the host dashboard.
+
+    Args:
+        user: Django user performing the update.
+        popup_updates (dict): Payload with optional ``popup_id``,
+            ``grid_item_id``, ``layer_name`` plus metadata fields (``mode``,
+            ``size``, ``anchor``, ``title_template``) and ``gridItems``.
+
+    Returns:
+        dict: Serialized popup config (see :func:`_serialize_popup`).
+
+    Raises:
+        Exception: If the popup or parent Map grid item is missing, or the
+            user lacks write permission on the host dashboard.
+    """
+    from tethysapp.tethysdash.app import App
+
+    Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
+    session = Session()
+    try:
+        popup_id = popup_updates.get("popup_id")
+        grid_item_id = popup_updates.get("grid_item_id")
+        layer_name = popup_updates.get("layer_name")
+
+        db_popup = None
+        if popup_id is not None:
+            db_popup = session.get(MapLayerPopup, popup_id)
+            if db_popup is None:
+                raise Exception(
+                    f"A map layer popup with the id {popup_id} does not exist."
+                )
+            parent_grid_item = db_popup.grid_item
+        else:
+            if grid_item_id is None or not layer_name:
+                raise Exception(
+                    "A popup_id or both grid_item_id and layer_name are required."
+                )
+            parent_grid_item = session.get(GridItem, grid_item_id)
+            if parent_grid_item is None:
+                raise Exception(
+                    f"A grid item with the id {grid_item_id} does not exist."
+                )
+
+        if parent_grid_item is None:
+            raise Exception("Unable to resolve parent grid item for popup.")
+
+        db_dashboard = parent_grid_item.dashboard
+        if db_dashboard is None:
+            raise Exception("Unable to resolve parent dashboard for popup.")
+
+        user_permission = get_dashboard_user_permission(session, db_dashboard, user)
+        if user_permission not in ("editor", "admin"):
+            raise PermissionError(
+                "User does not have admin or editor permissions to update the popup."
+            )
+
+        if db_popup is None:
+            # Lazy-create: avoid duplicate row when one exists for this layer.
+            db_popup = (
+                session.query(MapLayerPopup)
+                .filter(
+                    MapLayerPopup.grid_item_id == parent_grid_item.id,
+                    MapLayerPopup.layer_name == layer_name,
+                )
+                .first()
+            )
+            if db_popup is None:
+                db_popup = MapLayerPopup(
+                    grid_item_id=parent_grid_item.id,
+                    layer_name=layer_name,
+                )
+                session.add(db_popup)
+                session.flush()
+
+        if "mode" in popup_updates:
+            db_popup.mode = popup_updates["mode"] or "table"
+
+        if "size" in popup_updates:
+            size = popup_updates["size"]
+            db_popup.size_json = json.dumps(size) if size is not None else None
+
+        if "anchor" in popup_updates:
+            anchor = popup_updates["anchor"]
+            db_popup.anchor_json = json.dumps(anchor) if anchor is not None else None
+
+        if "title_template" in popup_updates:
+            db_popup.title_template = popup_updates["title_template"]
+
+        if "gridItems" in popup_updates:
+            updated_grid_items = popup_updates["gridItems"] or []
+            existing_by_id = {item.id: item for item in db_popup.grid_items}
+            updated_ids = {
+                item.get("id") for item in updated_grid_items if item.get("id")
+            }
+
+            # Delete grid items not present in the update.
+            for existing_id, existing_item in existing_by_id.items():
+                if existing_id not in updated_ids:
+                    session.delete(existing_item)
+
+            # Upsert remaining/new grid items.
+            for grid_item_order, grid_item in enumerate(updated_grid_items):
+                grid_item_source = grid_item.get("source", "")
+                grid_item_args_string = grid_item.get("args_string", "{}")
+                if grid_item_source == "Text":
+                    grid_item_args_string = _sanitize_text_args_string(
+                        grid_item_args_string
+                    )
+
+                existing_id = grid_item.get("id")
+                if existing_id and existing_id in existing_by_id:
+                    db_grid_item = existing_by_id[existing_id]
+                    db_grid_item.i = str(grid_item.get("i", db_grid_item.i))
+                    db_grid_item.x = int(grid_item["x"])
+                    db_grid_item.y = int(grid_item["y"])
+                    db_grid_item.w = int(grid_item["w"])
+                    db_grid_item.h = int(grid_item["h"])
+                    db_grid_item.source = grid_item_source
+                    db_grid_item.args_string = grid_item_args_string
+                    db_grid_item.metadata_string = grid_item.get(
+                        "metadata_string", db_grid_item.metadata_string
+                    )
+                    db_grid_item.order = grid_item_order
+                    db_grid_item.tab_id = None
+                    db_grid_item.popup_id = db_popup.id
+                else:
+                    new_grid_item = GridItem(
+                        dashboard_id=parent_grid_item.dashboard_id,
+                        tab_id=None,
+                        popup_id=db_popup.id,
+                        i=str(grid_item.get("i", grid_item_order + 1)),
+                        x=int(grid_item["x"]),
+                        y=int(grid_item["y"]),
+                        w=int(grid_item["w"]),
+                        h=int(grid_item["h"]),
+                        source=grid_item_source,
+                        args_string=grid_item_args_string,
+                        metadata_string=grid_item.get("metadata_string", "{}"),
+                        order=grid_item_order,
+                        uuid=grid_item.get("uuid") or str(uuid4()),
+                    )
+                    session.add(new_grid_item)
+
+        session.commit()
+        session.refresh(db_popup)
+        result = _serialize_popup(db_popup)
+    finally:
+        session.close()
+
+    return result
 
 
 def get_dashboard_user_permission(session, dashboard, user):
@@ -1733,18 +2097,26 @@ def parse_db_dashboard(session, dashboards, user, dashboard_view):
             for tab in dashboard.tabs:
                 griditems = []
                 for griditem in tab.grid_items:
-                    griditem_data = {
-                        "id": griditem.id,
-                        "uuid": griditem.uuid,
-                        "i": griditem.i,
-                        "x": griditem.x,
-                        "y": griditem.y,
-                        "w": griditem.w,
-                        "h": griditem.h,
-                        "source": griditem.source,
-                        "args_string": griditem.args_string,
-                        "metadata_string": griditem.metadata_string,
-                    }
+                    griditem_data = _serialize_grid_item(griditem)
+
+                    # For Map grid items, hydrate any per-layer popup configs
+                    # into the args_string so the frontend (Map.js) sees a
+                    # single, transparent layer.popupConfig key regardless of
+                    # whether storage is JSON-blob or relational.
+                    if (
+                        griditem.source == "Map"
+                        and griditem.map_layer_popups
+                    ):
+                        popups_by_layer = {
+                            popup.layer_name: _serialize_popup(popup)
+                            for popup in griditem.map_layer_popups
+                        }
+                        griditem_data["args_string"] = (
+                            _hydrate_map_args_string_with_popups(
+                                griditem.args_string, popups_by_layer
+                            )
+                        )
+
                     griditems.append(griditem_data)
 
                 tab_data = {
