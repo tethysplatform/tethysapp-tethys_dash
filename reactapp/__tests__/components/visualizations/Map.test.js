@@ -2129,6 +2129,405 @@ test("Map runtime layer swap dismisses popup and clears highlight after click", 
   expect(setPositionSpy).toHaveBeenCalledWith(undefined);
 });
 
+// Helper component that sets MapContext.extentDrawMode synchronously on
+// mount. Used by the draw-mode-suppression test.
+const ExtentDrawModeSetter = ({ mode }) => {
+  const { setExtentDrawMode } = useMapContext();
+  useEffect(() => {
+    setExtentDrawMode(mode);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return null;
+};
+ExtentDrawModeSetter.propTypes = { mode: PropTypes.string };
+
+describe("modal-mode popup integration", () => {
+  test("modal-mode layer click opens PopupModal and bypasses outer-context attribute write", async () => {
+    mockedQueryLayerFeatures.mockResolvedValue([
+      {
+        attributes: { station_id: "ABC", state_id: "WA" },
+        geometry: { x: 10, y: 10 },
+        layerName: "Stations",
+      },
+    ]);
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+    const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
+
+    const layers = [
+      {
+        name: "Stations",
+        configuration: {
+          type: "ImageLayer",
+          props: {
+            name: "Stations",
+            source: {
+              type: "ESRI Image and Map Service",
+              props: { url: "some_url" },
+            },
+          },
+        },
+        // attributeVariables would normally drive the outer write — present
+        // here to prove the bypass actually skips it.
+        attributeVariables: { Stations: { station_id: "Test Variable" } },
+        popupConfig: {
+          mode: "modal",
+          size: { widthPct: 50, heightPct: 40 },
+          anchor: { name: "center" },
+          titleTemplate: null,
+          gridItems: [],
+        },
+      },
+    ];
+    const clickCoordinates = [10, 20];
+    const LoadedComponent = createLoadedComponent({
+      children: (
+        <MapContextProvider>
+          <TestingComponent
+            onMapClick={jest.fn()}
+            clickCoordinates={clickCoordinates}
+            mapProps={{
+              mapConfig: {},
+              viewConfig: {},
+              layers,
+              baseMap: null,
+              layerControl: false,
+            }}
+          />
+        </MapContextProvider>
+      ),
+    });
+    render(LoadedComponent);
+
+    expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+    // Modal opens (PopupModal renders role=dialog into document.body via
+    // portal).
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+    expect(
+      screen.getByTestId("popup-modal-body-placeholder"),
+    ).toHaveTextContent("Popup body for Stations");
+
+    // Outer-context input-variables remain empty — the modal-mode bypass
+    // worked. (The plain attributeVariables wiring would otherwise have
+    // written station_id="ABC" → "Test Variable".)
+    expect(screen.getByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({}),
+    );
+
+    // OL Overlay popup did NOT render its swiper-attribute-table chrome
+    // (would surface a "Field"/"Value" header for the matched feature).
+    expect(screen.queryByText("Field")).not.toBeInTheDocument();
+    expect(screen.queryByText("Value")).not.toBeInTheDocument();
+    // Suppress the unused-variable lint (popSetPosition is reserved for
+    // future assertion flexibility).
+    expect(popSetPosition).toBeDefined();
+  });
+
+  test("table-mode (popupConfig absent) layer click still drives outer-context attribute write", async () => {
+    // Regression coverage for R2 — table mode unchanged.
+    mockedQueryLayerFeatures.mockResolvedValue([
+      {
+        attributes: { field1: "ABC" },
+        geometry: { x: 10, y: 10 },
+        layerName: "Stations",
+      },
+    ]);
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+    const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
+
+    const dashboard = JSON.parse(JSON.stringify(userDashboard));
+    dashboard.tabs[0].gridItems = [mockedTextVariable];
+    const layers = [
+      {
+        configuration: {
+          type: "ImageLayer",
+          props: {
+            name: "Stations",
+            source: {
+              type: "ESRI Image and Map Service",
+              props: { url: "some_url" },
+            },
+          },
+        },
+        attributeVariables: { Stations: { field1: "Test Variable" } },
+        // popupConfig is absent — table-mode default.
+      },
+    ];
+    const clickCoordinates = [10, 20];
+    const LoadedComponent = createLoadedComponent({
+      children: (
+        <MapContextProvider>
+          <TestingComponent
+            onMapClick={jest.fn()}
+            clickCoordinates={clickCoordinates}
+            mapProps={{
+              mapConfig: {},
+              viewConfig: {},
+              layers,
+              baseMap: null,
+              layerControl: false,
+            }}
+          />
+        </MapContextProvider>
+      ),
+      options: { dashboards: { dashboards: [dashboard] } },
+    });
+    render(LoadedComponent);
+
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+    // OL Overlay popup opens at the click coordinate.
+    await waitFor(() => {
+      expect(popSetPosition).toHaveBeenCalledWith(clickCoordinates);
+    });
+
+    // Outer-context attribute write fired (backward compat).
+    await waitFor(() => {
+      expect(screen.getByTestId("input-variables")).toHaveTextContent(
+        JSON.stringify({ "Test Variable": "ABC" }),
+      );
+    });
+
+    // Modal did NOT render.
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  test("MapContext.extentDrawMode active suppresses modal open on a modal-mode click", async () => {
+    mockedQueryLayerFeatures.mockResolvedValue([
+      {
+        attributes: { station_id: "ABC" },
+        geometry: { x: 10, y: 10 },
+        layerName: "Stations",
+      },
+    ]);
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+
+    const layers = [
+      {
+        name: "Stations",
+        configuration: {
+          type: "ImageLayer",
+          props: {
+            name: "Stations",
+            source: {
+              type: "ESRI Image and Map Service",
+              props: { url: "some_url" },
+            },
+          },
+        },
+        popupConfig: {
+          mode: "modal",
+          size: null,
+          anchor: null,
+          titleTemplate: null,
+          gridItems: [],
+        },
+      },
+    ];
+    const clickCoordinates = [10, 20];
+    const LoadedComponent = createLoadedComponent({
+      children: (
+        <MapContextProvider>
+          <ExtentDrawModeSetter mode="rectangle" />
+          <TestingComponent
+            onMapClick={jest.fn()}
+            clickCoordinates={clickCoordinates}
+            mapProps={{
+              mapConfig: {},
+              viewConfig: {},
+              layers,
+              baseMap: null,
+              layerControl: false,
+            }}
+          />
+        </MapContextProvider>
+      ),
+    });
+    render(LoadedComponent);
+
+    expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+    // Give async query a chance to resolve, then assert no dialog.
+    await waitFor(() => {
+      expect(mockedQueryLayerFeatures).toHaveBeenCalled();
+    });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  test("mixed-mode multi-layer click — modal-mode wins; OL Overlay does not open", async () => {
+    // Two queryable layers; one modal-mode, one table-mode. The OL Overlay
+    // popup must NOT open for the table-mode layer's features in this
+    // gesture.
+    mockedQueryLayerFeatures.mockImplementation(async (layer) => {
+      if (layer.name === "ModalLayer") {
+        return [
+          {
+            attributes: { station_id: "ABC" },
+            geometry: { x: 10, y: 10 },
+            layerName: "ModalLayer",
+          },
+        ];
+      }
+      return [
+        {
+          attributes: { field1: "table-value" },
+          geometry: { x: 10, y: 10 },
+          layerName: "TableLayer",
+        },
+      ];
+    });
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+    const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
+
+    const layers = [
+      {
+        name: "ModalLayer",
+        configuration: {
+          type: "ImageLayer",
+          props: {
+            name: "ModalLayer",
+            source: {
+              type: "ESRI Image and Map Service",
+              props: { url: "modal_url" },
+            },
+          },
+        },
+        popupConfig: {
+          mode: "modal",
+          size: null,
+          anchor: null,
+          titleTemplate: null,
+          gridItems: [],
+        },
+      },
+      {
+        name: "TableLayer",
+        configuration: {
+          type: "ImageLayer",
+          props: {
+            name: "TableLayer",
+            source: {
+              type: "ESRI Image and Map Service",
+              props: { url: "table_url" },
+            },
+          },
+        },
+        attributeVariables: { TableLayer: { field1: "Some Variable" } },
+      },
+    ];
+    const clickCoordinates = [10, 20];
+    const LoadedComponent = createLoadedComponent({
+      children: (
+        <MapContextProvider>
+          <TestingComponent
+            onMapClick={jest.fn()}
+            clickCoordinates={clickCoordinates}
+            mapProps={{
+              mapConfig: {},
+              viewConfig: {},
+              layers,
+              baseMap: null,
+              layerControl: false,
+            }}
+          />
+        </MapContextProvider>
+      ),
+    });
+    render(LoadedComponent);
+
+    expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+    // Modal opens with the modal-mode feature only.
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+    expect(
+      screen.getByTestId("popup-modal-body-placeholder"),
+    ).toHaveTextContent("Popup body for ModalLayer");
+
+    // OL Overlay popup did NOT render the swiper-attribute-table chrome
+    // for the table-mode feature (excluded from the gesture).
+    expect(screen.queryByText("Field")).not.toBeInTheDocument();
+    expect(screen.queryByText("table-value")).not.toBeInTheDocument();
+
+    // Table-mode layer's outer-context write was also skipped.
+    expect(screen.getByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({}),
+    );
+    expect(popSetPosition).toBeDefined();
+  });
+
+  test("closing the modal via the X button clears modal state and unmounts the dialog", async () => {
+    mockedQueryLayerFeatures.mockResolvedValue([
+      {
+        attributes: { station_id: "ABC" },
+        geometry: { x: 10, y: 10 },
+        layerName: "Stations",
+      },
+    ]);
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+
+    const layers = [
+      {
+        name: "Stations",
+        configuration: {
+          type: "ImageLayer",
+          props: {
+            name: "Stations",
+            source: {
+              type: "ESRI Image and Map Service",
+              props: { url: "some_url" },
+            },
+          },
+        },
+        popupConfig: {
+          mode: "modal",
+          size: null,
+          anchor: null,
+          titleTemplate: null,
+          gridItems: [],
+        },
+      },
+    ];
+    const clickCoordinates = [10, 20];
+    const LoadedComponent = createLoadedComponent({
+      children: (
+        <MapContextProvider>
+          <TestingComponent
+            onMapClick={jest.fn()}
+            clickCoordinates={clickCoordinates}
+            mapProps={{
+              mapConfig: {},
+              viewConfig: {},
+              layers,
+              baseMap: null,
+              layerControl: false,
+            }}
+          />
+        </MapContextProvider>
+      ),
+    });
+    render(LoadedComponent);
+
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByTestId("popup-modal-close"));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+  });
+});
+
 describe("Popup component", () => {
   const features = [
     {

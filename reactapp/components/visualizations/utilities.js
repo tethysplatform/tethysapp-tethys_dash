@@ -18,7 +18,14 @@ export function checkForEmptyVariableInputs({
   variableInputValues,
 }) {
   const metadata = JSON.parse(metadataString);
-  const dependentVariableInputs = getDependentVariableInputs(argsString);
+  const allDependentVariableInputs = getDependentVariableInputs(argsString);
+  // Skip feature-scoped keys: they're populated by the
+  // FeatureScopedVariableInputs provider on a per-feature basis and are
+  // unbinding-by-design when no feature is active. Warning on every render
+  // would spam the console.
+  const dependentVariableInputs = allDependentVariableInputs.filter(
+    (key) => !key.startsWith("feature."),
+  );
   let warnings = [];
 
   if (!dependentVariableInputs.every((key) => variableInputValues[key])) {

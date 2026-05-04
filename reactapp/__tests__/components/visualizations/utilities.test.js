@@ -988,6 +988,56 @@ test("checkForEmptyVariableInputs", async () => {
   expect(emptyVariableWarnings).toStrictEqual(null);
 });
 
+test("checkForEmptyVariableInputs skips feature.* keys", () => {
+  // feature.* keys are scoped/unbinding-by-design; they should never
+  // produce a warning regardless of whether the value is set.
+  // eslint-disable-next-line
+  let argsString = JSON.stringify({ source: "${feature.station_id}" });
+  let metadataString = JSON.stringify({});
+  let variableInputValues = {};
+
+  let emptyVariableWarnings = checkForEmptyVariableInputs({
+    metadataString,
+    argsString,
+    variableInputValues,
+  });
+
+  expect(emptyVariableWarnings).toStrictEqual(null);
+
+  // feature.* keys with spaces and dots in the suffix also skipped.
+  // eslint-disable-next-line
+  argsString = JSON.stringify({ source: "${feature.Site Name}" });
+  emptyVariableWarnings = checkForEmptyVariableInputs({
+    metadataString,
+    argsString,
+    variableInputValues,
+  });
+  expect(emptyVariableWarnings).toStrictEqual(null);
+});
+
+test("checkForEmptyVariableInputs warns for non-feature.* keys when feature.* is also present", () => {
+  // Regression: filtering out feature.* must not suppress warnings for
+  // sibling host variable keys.
+  const argsString = JSON.stringify({
+    // eslint-disable-next-line
+    a: "${feature.station_id}",
+    // eslint-disable-next-line
+    b: "${some_host_var}",
+  });
+  const metadataString = JSON.stringify({});
+  const variableInputValues = {};
+
+  const emptyVariableWarnings = checkForEmptyVariableInputs({
+    metadataString,
+    argsString,
+    variableInputValues,
+  });
+
+  expect(emptyVariableWarnings).toStrictEqual([
+    "some_host_var variable is empty",
+  ]);
+});
+
 test("getVisualization Custom Image with slider metadata returns imageSequence", async () => {
   const mockSetVizType = jest.fn();
   const mockSetVizData = jest.fn();

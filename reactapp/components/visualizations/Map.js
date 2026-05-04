@@ -28,6 +28,9 @@ import {
   LayoutContext,
   GridItemContext,
 } from "components/contexts/Contexts";
+import { useMapContext } from "components/contexts/MapContext";
+import FeatureScopedVariableInputs from "components/contexts/FeatureScopedVariableInputs";
+import PopupModal from "components/modals/PopupModal/PopupModal";
 import Table from "react-bootstrap/Table";
 import styled from "styled-components";
 import { valuesEqual } from "components/modals/utilities";
@@ -222,6 +225,8 @@ const MapVisualization = ({
   const [mapLegend, setMapLegend] = useState();
   const [mapLayers, setMapLayers] = useState();
   const [popupContent, setPopupContent] = useState(null);
+  const [modalFeatures, setModalFeatures] = useState([]);
+  const [modalOpen, setModalOpen] = useState(false);
   const markerLayer = useRef();
   const highlightLayer = useRef();
   const currentLayers = useRef([]);
@@ -229,6 +234,7 @@ const MapVisualization = ({
   const mapAttributeVariablesRef = useRef({});
   const mapOmittedPopupAttributesRef = useRef({});
   const mapAttributeAliasesRef = useRef({});
+  const mapContainerRef = useRef(null);
   const {
     variableInputValues,
     variableInputDateFormats,
@@ -238,6 +244,53 @@ const MapVisualization = ({
   const { uuid } = useContext(LayoutContext);
   const { sessionNonce } = useContext(AppContext);
   const { gridItemUUID } = useContext(GridItemContext) ?? {};
+  const mapContextValue = useMapContext();
+  const extentDrawMode = mapContextValue?.extentDrawMode ?? null;
+
+  /**
+   * Look up a layer's config by layer name, matching first against
+   * `layer.name` (the popup hydration's primary key on the backend) and then
+   * against `layer.configuration.name` (the fallback used during hydration
+   * when the top-level `name` is absent). Returns the matching layer or
+   * undefined.
+   */
+  const findLayerByName = useCallback(
+    (layerName) => {
+      if (!layers || !layerName) return undefined;
+      return layers.find(
+        (layer) =>
+          layer?.name === layerName ||
+          layer?.configuration?.name === layerName ||
+          layer?.configuration?.props?.name === layerName,
+      );
+    },
+    [layers],
+  );
+
+  /**
+   * Returns true when the given layerName resolves to a layer whose
+   * hydrated `popupConfig.mode === "modal"`.
+   */
+  const isModalModeLayer = useCallback(
+    (layerName) => {
+      const layer = findLayerByName(layerName);
+      return layer?.popupConfig?.mode === "modal";
+    },
+    [findLayerByName],
+  );
+
+  const closeModal = useCallback(() => {
+    setModalOpen(false);
+    setModalFeatures([]);
+    // Return focus to the map container (PopupModal's triggerRef supplies
+    // the same element, but we clear state explicitly in case a re-render
+    // detaches the modal before PopupModal's own focus-restore effect
+    // fires).
+    const container = mapContainerRef.current;
+    if (container && typeof container.focus === "function") {
+      container.focus();
+    }
+  }, []);
 
   const dismissPopupBeforeSwap = useCallback(() => {
     // istanbul ignore next
@@ -360,7 +413,12 @@ const MapVisualization = ({
         const selectedFeature = popupContent[0];
         addHighlightFeatures(highlightLayer.current, selectedFeature.geometry);
 
-        updateVariableInputsForFeature(selectedFeature);
+        // Skip the outer-context attribute write for modal-mode layers —
+        // their feature.* values are owned by the nested
+        // FeatureScopedVariableInputs provider that wraps the modal body.
+        if (!isModalModeLayer(selectedFeature.layerName)) {
+          updateVariableInputsForFeature(selectedFeature);
+        }
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -466,8 +524,11 @@ const MapVisualization = ({
     highlightLayer.current.getSource().clear();
     addHighlightFeatures(highlightLayer.current, selectedFeature.geometry);
 
-    // Use your variable mapping logic here
-    updateVariableInputsForFeature(selectedFeature);
+    // Use your variable mapping logic here — skip for modal-mode layers
+    // (the modal-scoped provider owns feature.* writes there).
+    if (!isModalModeLayer(selectedFeature.layerName)) {
+      updateVariableInputsForFeature(selectedFeature);
+    }
   };
 
   const updateVariableInputsForFeature = (selectedFeature) => {
@@ -619,6 +680,32 @@ const MapVisualization = ({
       const nonEmptyLayers = queryLayerFeaturesResults
         .filter((arr) => arr && Array.isArray(arr) && arr.length > 0)
         .flat();
+
+      // Multi-layer mixed-mode resolution: if ANY hit feature comes from a
+      // modal-mode layer, modal mode wins. Skip the OL Overlay popup (and
+      // its outer-context attribute writes) entirely; route only the
+      // modal-mode features into the modal.
+      const modalModeFeatures = nonEmptyLayers.filter((feature) =>
+        isModalModeLayer(feature.layerName),
+      );
+
+      if (modalModeFeatures.length > 0) {
+        // Suppress modal open if a draw operation is active. The existing
+        // draw flow is unaffected; table-mode behavior is unchanged.
+        if (extentDrawMode) {
+          setPopupContent(null);
+          popupOverlayRef.current?.setPosition(undefined);
+          return;
+        }
+        // Replace any previously-open modal contents with this gesture's
+        // modal-mode hit set, and re-fire opening logic.
+        setPopupContent(null);
+        popupOverlayRef.current?.setPosition(undefined);
+        setModalFeatures(modalModeFeatures);
+        setModalOpen(true);
+        return;
+      }
+
       const nonEmptyLayerAttributes = nonEmptyLayers.filter((item) => {
         if (!item.attributes || Object.keys(item.attributes).length === 0) {
           return false;
@@ -645,21 +732,51 @@ const MapVisualization = ({
     popupOverlayRef.current?.setPosition(popupCoordinate);
   };
 
+  // Resolve the active feature's hydrated layer config so we can pass the
+  // editor-configured anchor/size to the modal. Falls back to defaults.
+  const activeModalFeature = modalFeatures[0] ?? null;
+  const activeModalLayer = activeModalFeature
+    ? findLayerByName(activeModalFeature.layerName)
+    : null;
+  const activeModalPopupConfig = activeModalLayer?.popupConfig ?? null;
+
   return (
-    <MapComponent
-      mapConfig={mapConfig}
-      mapExtent={mapExtent}
-      layers={mapLayers}
-      legend={mapLegend}
-      layerControl={layerControl}
-      mapDrawing={mapDrawing}
-      drawing={drawing}
-      onMapClick={inDataViewerMode ? () => {} : onMapClick}
-      visualizationRef={visualizationRef}
-      data-testid="backlayer-map"
-      dataviewerViz={dataviewerViz}
-      runtimeLayerState={runtimeLayerState}
-    />
+    <div ref={mapContainerRef} tabIndex={-1} style={{ outline: "none" }}>
+      <MapComponent
+        mapConfig={mapConfig}
+        mapExtent={mapExtent}
+        layers={mapLayers}
+        legend={mapLegend}
+        layerControl={layerControl}
+        mapDrawing={mapDrawing}
+        drawing={drawing}
+        onMapClick={inDataViewerMode ? () => {} : onMapClick}
+        visualizationRef={visualizationRef}
+        data-testid="backlayer-map"
+        dataviewerViz={dataviewerViz}
+        runtimeLayerState={runtimeLayerState}
+      />
+      <PopupModal
+        show={modalOpen && !!activeModalFeature}
+        onClose={closeModal}
+        anchor={activeModalPopupConfig?.anchor || { name: "center" }}
+        size={
+          activeModalPopupConfig?.size || { widthPct: 60, heightPct: 60 }
+        }
+        title={<span id="popup-modal-title">Feature popup</span>}
+        ariaLabelledBy="popup-modal-title"
+        triggerRef={mapContainerRef}
+      >
+        {activeModalFeature ? (
+          <FeatureScopedVariableInputs feature={activeModalFeature}>
+            <div data-testid="popup-modal-body-placeholder">
+              {/* Unit 8 renders chrome + carousel + DashboardLayout here */}
+              Popup body for {activeModalFeature.layerName}
+            </div>
+          </FeatureScopedVariableInputs>
+        ) : null}
+      </PopupModal>
+    </div>
   );
 };
 
