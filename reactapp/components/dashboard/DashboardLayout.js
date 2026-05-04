@@ -1,5 +1,5 @@
-import { useCallback, useRef, useContext, memo, useMemo } from "react";
-import RGL, { WidthProvider } from "react-grid-layout";
+import { useCallback, useRef, useContext, memo, useMemo, useState } from "react";
+import RGL, { Responsive, WidthProvider } from "react-grid-layout";
 import {
   LayoutContext,
   EditingContext,
@@ -13,21 +13,72 @@ import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import { valuesEqual } from "components/modals/utilities";
 
-const ReactGridLayout = WidthProvider(RGL);
+const StaticGridLayout = WidthProvider(RGL);
+const ResponsiveGridLayout = WidthProvider(Responsive);
 
 // Grid is divided into 100 equal columns so widget widths are percentages of
 // the viewport (e.g. w=50 → half the screen). Row height is derived from
 // column width minus a 10px gutter so cells are approximately square by default.
 const colCount = 100;
-const rowHeight = window.innerWidth / colCount - 10;
+const defaultRowHeight = window.innerWidth / colCount - 10;
 
-const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
+// Responsive mode (popup grids only) breakpoints + per-breakpoint cols.
+// At lg/md the grid keeps 100 columns to match the static (host) grid's
+// fine-grained placement. Below sm, columns coarsen so tiles remain readable
+// on small viewports; at xxs every tile becomes a single column.
+const responsiveBreakpoints = { lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 };
+const responsiveCols = { lg: 100, md: 100, sm: 12, xs: 4, xxs: 1 };
+
+// Pre-generate explicit layouts for every breakpoint. react-grid-layout's
+// Responsive auto-derives missing layouts via findOrGenerateResponsiveLayout,
+// which always runs compact() and does NOT pass allowOverlap through — so
+// overlaps get silently stripped at breakpoint transitions even when
+// allowOverlap=true. Supplying every layout makes the library return them
+// cached and skip the auto-derivation compaction.
+function buildResponsiveLayouts(lgLayout) {
+  const lgCols = responsiveCols.lg;
+  const result = { lg: lgLayout };
+  for (const bp of ["md", "sm", "xs", "xxs"]) {
+    const targetCols = responsiveCols[bp];
+    if (targetCols === lgCols) {
+      result[bp] = lgLayout;
+    } else {
+      const ratio = targetCols / lgCols;
+      result[bp] = lgLayout.map((item) => ({
+        ...item,
+        x: Math.min(
+          Math.max(0, targetCols - 1),
+          Math.max(0, Math.round(item.x * ratio)),
+        ),
+        w: Math.max(1, Math.min(targetCols, Math.round(item.w * ratio))),
+      }));
+    }
+  }
+  return result;
+}
+
+const DashboardLayout = ({
+  tabId,
+  gridItems,
+  shouldLoad,
+  rowHeight = defaultRowHeight,
+  responsive = false,
+}) => {
   const { unrestrictedPlacement } = useContext(LayoutContext);
   const { updateTab } = useContext(TabContext);
   const { isEditing } = useContext(EditingContext);
   const { disabledEditingMovement } = useContext(
     DisabledEditingMovementContext,
   );
+
+  // Track the active breakpoint (responsive mode only). Drag/resize is
+  // disabled below sm so the viewer cannot edit auto-derived narrow layouts —
+  // those edits would not round-trip back to the persisted lg layout.
+  const [currentBreakpoint, setCurrentBreakpoint] = useState("lg");
+  const isWideBreakpoint =
+    !responsive ||
+    currentBreakpoint === "lg" ||
+    currentBreakpoint === "md";
 
   const gridItemsUpdated = useRef();
   gridItemsUpdated.current = gridItems;
@@ -41,10 +92,18 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
         w: griditem.w,
         x: griditem.x,
         y: griditem.y,
-        isDraggable: isEditing && !disabledEditingMovement,
-        isResizable: isEditing && !disabledEditingMovement,
+        isDraggable:
+          isWideBreakpoint && isEditing && !disabledEditingMovement,
+        isResizable:
+          isWideBreakpoint && isEditing && !disabledEditingMovement,
       })),
-    [gridItems, isEditing, disabledEditingMovement],
+    [gridItems, isEditing, disabledEditingMovement, isWideBreakpoint],
+  );
+
+  // Responsive layouts (only computed when responsive=true).
+  const responsiveLayouts = useMemo(
+    () => (responsive ? buildResponsiveLayouts(layout) : null),
+    [responsive, layout],
   );
 
   // Memoize parsed grid items array at the top level
@@ -57,6 +116,10 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
   );
 
   function updateLayout(newLayout) {
+    // Defense-in-depth: per-item isDraggable/isResizable already gates editing
+    // by breakpoint; this short-circuits in case a drag still fires.
+    if (!isWideBreakpoint) return;
+
     const updatedGridItems = [];
     for (let lay of newLayout) {
       const result = gridItems.find((obj) => {
@@ -105,44 +168,62 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
     [],
   );
 
+  const sharedGridProps = {
+    key: `layout-${unrestrictedPlacement}`,
+    className: "complex-interface-layout",
+    rowHeight: rowHeight,
+    onDragStop:
+      // istanbul ignore next
+      (newLayout) => updateLayout(newLayout),
+    onResizeStop: (newLayout) => updateLayout(newLayout),
+    isDraggable: false,
+    isResizable: false,
+    draggableCancel:
+      ".dropdown-toggle,.modal-dialog,.alert,.dropdown-item,.modebar-btn.modal-footer,.color-picker-popover",
+    onResize: handleResize,
+    allowOverlap: unrestrictedPlacement,
+    useCSSTransforms: false,
+  };
+
+  const children = parsedGridItems.map((item, index) => (
+    <div key={item.i}>
+      <GridItemContext.Provider
+        value={{
+          gridItemId: item.id,
+          gridItemSource: item.source,
+          gridItemI: item.i,
+          gridItemArgsString: item.args_string,
+          gridItemMetadataString: item.metadata_string,
+          gridItemIndex: index,
+          gridItemUUID: item.uuid,
+          shouldLoad: shouldLoad,
+        }}
+      >
+        <DashboardItem />
+      </GridItemContext.Provider>
+    </div>
+  ));
+
+  if (responsive) {
+    return (
+      <ResponsiveGridLayout
+        {...sharedGridProps}
+        layouts={responsiveLayouts}
+        breakpoints={responsiveBreakpoints}
+        cols={responsiveCols}
+        onBreakpointChange={(newBreakpoint) =>
+          setCurrentBreakpoint(newBreakpoint)
+        }
+      >
+        {children}
+      </ResponsiveGridLayout>
+    );
+  }
+
   return (
-    <ReactGridLayout
-      key={`layout-${unrestrictedPlacement}`}
-      className="complex-interface-layout"
-      layout={layout}
-      rowHeight={rowHeight}
-      cols={colCount}
-      onDragStop={
-        // istanbul ignore next
-        (newLayout) => updateLayout(newLayout)
-      }
-      onResizeStop={(newLayout) => updateLayout(newLayout)}
-      isDraggable={false}
-      isResizable={false}
-      draggableCancel=".dropdown-toggle,.modal-dialog,.alert,.dropdown-item,.modebar-btn.modal-footer,.color-picker-popover"
-      onResize={handleResize}
-      allowOverlap={unrestrictedPlacement}
-      useCSSTransforms={false}
-    >
-      {parsedGridItems.map((item, index) => (
-        <div key={item.i}>
-          <GridItemContext.Provider
-            value={{
-              gridItemId: item.id,
-              gridItemSource: item.source,
-              gridItemI: item.i,
-              gridItemArgsString: item.args_string,
-              gridItemMetadataString: item.metadata_string,
-              gridItemIndex: index,
-              gridItemUUID: item.uuid,
-              shouldLoad: shouldLoad,
-            }}
-          >
-            <DashboardItem />
-          </GridItemContext.Provider>
-        </div>
-      ))}
-    </ReactGridLayout>
+    <StaticGridLayout {...sharedGridProps} layout={layout} cols={colCount}>
+      {children}
+    </StaticGridLayout>
   );
 };
 DashboardLayout.propTypes = {
@@ -160,6 +241,8 @@ DashboardLayout.propTypes = {
     }),
   ).isRequired,
   shouldLoad: PropTypes.bool.isRequired,
+  rowHeight: PropTypes.number,
+  responsive: PropTypes.bool,
 };
 
 export default memo(DashboardLayout, valuesEqual);
