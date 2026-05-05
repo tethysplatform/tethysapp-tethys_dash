@@ -424,6 +424,15 @@ export function updateObjectWithVariableInputs({
 
 const FEATURE_TOKEN_RE = /\$\{(feature\.[^}]+)\}/g;
 
+// Object keys whose subtree is intentionally NOT scanned for unresolved
+// feature.* tokens. The Map widget's args carry per-layer `popupConfig`
+// (titleTemplate + nested popup gridItems' args_string) for round-tripping
+// — those tokens are meant to resolve later inside the popup's own
+// FeatureScopedVariableInputs scope, NOT against the Map widget's host
+// scope. Without this skip, opening any dashboard with a configured popup
+// modal gates the entire Map widget on the popup's deferred tokens.
+const FEATURE_SCAN_SKIP_KEYS = new Set(["popupConfig"]);
+
 /**
  * Recursively walk an args object/array and return the unique set of
  * unresolved `${feature.<key>}` tokens still embedded in any string value.
@@ -432,6 +441,9 @@ const FEATURE_TOKEN_RE = /\$\{(feature\.[^}]+)\}/g;
  * currently in scope so the visualization fetch can be skipped in favor
  * of a friendly "awaiting feature selection" placeholder, instead of
  * letting plugins error out on the unresolved literal.
+ *
+ * Subtrees under keys in `FEATURE_SCAN_SKIP_KEYS` are skipped — see the
+ * constant for why.
  *
  * Returns an array of feature.<key> strings (without the `${}` wrapper),
  * deduplicated and in encounter order. Empty/non-string/non-object inputs
@@ -452,7 +464,10 @@ export function findUnresolvedFeatureTokens(value) {
     } else if (Array.isArray(v)) {
       for (const item of v) visit(item);
     } else if (v && typeof v === "object") {
-      for (const key of Object.keys(v)) visit(v[key]);
+      for (const key of Object.keys(v)) {
+        if (FEATURE_SCAN_SKIP_KEYS.has(key)) continue;
+        visit(v[key]);
+      }
     }
   };
 

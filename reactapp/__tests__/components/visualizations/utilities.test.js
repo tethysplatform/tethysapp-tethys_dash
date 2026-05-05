@@ -1337,4 +1337,40 @@ describe("findUnresolvedFeatureTokens", () => {
       "feature.c",
     ]);
   });
+
+  test("skips subtrees under `popupConfig` (deferred to the popup scope)", () => {
+    // Map widget's args carry per-layer popupConfig. Those tokens belong
+    // to the popup's own scope and must NOT gate the parent Map.
+    const mapArgs = {
+      // Map's own args have no feature.* tokens.
+      baseMap: "https://example.com/basemap",
+      layers: [
+        {
+          configuration: { type: "ImageLayer", props: { name: "Stations" } },
+          popupConfig: {
+            titleTemplate: "Site: ${feature.station_name}",
+            gridItems: [
+              {
+                source: "geoglows_forecast_plot",
+                args_string: '{"river_id":"${feature.comid}"}',
+              },
+            ],
+          },
+        },
+      ],
+    };
+    expect(findUnresolvedFeatureTokens(mapArgs)).toEqual([]);
+  });
+
+  test("still finds tokens at non-skip keys when popupConfig is also present", () => {
+    // If a parent-widget arg legitimately references feature.* (which is
+    // the gate's whole point), the skip on popupConfig must NOT mask it.
+    const args = {
+      river_id: "${feature.comid}",
+      popupConfig: {
+        titleTemplate: "${feature.also_skipped}",
+      },
+    };
+    expect(findUnresolvedFeatureTokens(args)).toEqual(["feature.comid"]);
+  });
 });
