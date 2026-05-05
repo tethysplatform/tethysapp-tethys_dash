@@ -13,7 +13,6 @@ import sqlalchemy as sa
 from sqlalchemy.sql import table, column
 import json
 
-
 # revision identifiers, used by Alembic.
 revision: str = "add270eff36c"
 down_revision: Union[str, None] = "9d81090ceb84"
@@ -32,8 +31,7 @@ def upgrade() -> None:
 
     result = conn.execute(
         sa.text(
-            "SELECT id, args_string FROM griditems "
-            "WHERE source = 'Variable Input'"
+            "SELECT id, args_string FROM griditems " "WHERE source = 'Variable Input'"
         )
     )
     for row in result:
@@ -46,9 +44,7 @@ def upgrade() -> None:
         source = args.get("variable_options_source")
         if source == "date-hour":
             args["variable_options_source"] = "date"
-            args["variable_options_source.metadata"] = {
-                "format": "MM/dd/yyyy h:mm aa"
-            }
+            args["variable_options_source.metadata"] = {"format": "MM/dd/yyyy h:mm aa"}
             conn.execute(
                 griditems_table.update()
                 .where(griditems_table.c.id == row["id"])
@@ -67,8 +63,7 @@ def downgrade() -> None:
 
     result = conn.execute(
         sa.text(
-            "SELECT id, args_string FROM griditems "
-            "WHERE source = 'Variable Input'"
+            "SELECT id, args_string FROM griditems " "WHERE source = 'Variable Input'"
         )
     )
     for row in result:

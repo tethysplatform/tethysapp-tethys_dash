@@ -101,6 +101,93 @@ test("LegendRenderer; custom legend with multiple items", async () => {
   expect(symbol2).toBeInTheDocument();
 });
 
+describe("LegendRenderer; ramp legend (GeoTIFF)", () => {
+  const rampColors = ["#000000", "#808080", "#ffffff"];
+
+  test("renders gradient strip with min/max labels and title", () => {
+    render(
+      <LegendRenderer
+        legend={{
+          title: "Elevation",
+          rampColors,
+          rampMin: 0,
+          rampMax: 100,
+        }}
+      />,
+    );
+
+    // Title rendered
+    expect(screen.getByText("Elevation")).toBeInTheDocument();
+
+    // Gradient strip rendered with role="img" and proper aria-label
+    const gradient = screen.getByRole("img", {
+      name: "Color ramp from 0 to 100",
+    });
+    expect(gradient).toBeInTheDocument();
+    expect(gradient).toHaveStyle({
+      background: `linear-gradient(to right, ${rampColors.join(",")})`,
+    });
+
+    // Min/max scale labels
+    expect(screen.getByText("0")).toBeInTheDocument();
+    expect(screen.getByText("100")).toBeInTheDocument();
+  });
+
+  test("omits the title when not provided", () => {
+    render(
+      <LegendRenderer
+        legend={{
+          rampColors,
+          rampMin: -10,
+          rampMax: 10,
+        }}
+      />,
+    );
+
+    const gradient = screen.getByRole("img", {
+      name: "Color ramp from -10 to 10",
+    });
+    expect(gradient).toBeInTheDocument();
+    expect(screen.getByText("-10")).toBeInTheDocument();
+    expect(screen.getByText("10")).toBeInTheDocument();
+  });
+
+  test("does not render the ramp branch when rampColors is empty", () => {
+    const { container } = render(
+      <LegendRenderer
+        legend={{
+          rampColors: [],
+          rampMin: 0,
+          rampMax: 1,
+        }}
+      />,
+    );
+    // Empty rampColors should fall through; with no items/styleJSON/etc.,
+    // renderer returns null
+    // eslint-disable-next-line
+    expect(container.firstChild).toBeNull();
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+  });
+
+  test("renders string min/max values in the labels and aria-label", () => {
+    render(
+      <LegendRenderer
+        legend={{
+          title: "Temperature (°C)",
+          rampColors,
+          rampMin: "low",
+          rampMax: "high",
+        }}
+      />,
+    );
+    expect(
+      screen.getByRole("img", { name: "Color ramp from low to high" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("low")).toBeInTheDocument();
+    expect(screen.getByText("high")).toBeInTheDocument();
+  });
+});
+
 test("LegendRenderer; ESRI and no url", async () => {
   render(
     <LegendRenderer
@@ -868,6 +955,38 @@ test("LegendRenderer; styleJSON legend bad geom", async () => {
     "style",
     "color: rgba(255, 255, 255, 0.4); stroke: #f50000; stroke-width: 1.33;",
   );
+});
+
+test("LegendRenderer; WMS without url", async () => {
+  render(
+    <LegendRenderer
+      legend={{
+        sourceType: "WMS",
+        layers: "layer1",
+      }}
+    />,
+  );
+
+  expect(
+    screen.getByText("WMS legend requires both URL and layers."),
+  ).toBeInTheDocument();
+  expect(screen.queryByText("Loading legend...")).not.toBeInTheDocument();
+});
+
+test("LegendRenderer; WMS without layers", async () => {
+  render(
+    <LegendRenderer
+      legend={{
+        sourceType: "WMS",
+        url: "some/url",
+      }}
+    />,
+  );
+
+  expect(
+    screen.getByText("WMS legend requires both URL and layers."),
+  ).toBeInTheDocument();
+  expect(screen.queryByText("Loading legend...")).not.toBeInTheDocument();
 });
 
 test("shows error when ESRI fetch fails", async () => {

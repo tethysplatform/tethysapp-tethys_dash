@@ -8,6 +8,7 @@ import { LineString, MultiPolygon, Polygon, Point } from "ol/geom";
 import { Stroke, Style, Circle } from "ol/style";
 import Icon from "ol/style/Icon";
 import { toGeometry } from "ol/render/Feature";
+import GeoJSONFormat from "ol/format/GeoJSON";
 import appAPI from "services/api/app";
 import { v4 as uuidv4 } from "uuid";
 import JSON5 from "json5";
@@ -104,6 +105,10 @@ export const sourcePropertiesOptions = {
     },
   },
   GeoJSON: {
+    required: {},
+    optional: {},
+  },
+  GeoTIFF: {
     required: {},
     optional: {},
   },
@@ -213,6 +218,96 @@ export const layerPropertiesOptions = {
   },
 };
 
+/**
+ * Swap the features on a preserved OpenLayers VectorLayer in place.
+ *
+ * Used by the runtimeLayerFetcher (Unit 5) when a dynamic_map_layer plugin
+ * returns new features: clear the existing VectorSource and add the parsed
+ * FeatureCollection, keeping the same OL layer instance so popup/highlight
+ * state survives the refresh.
+ *
+ * Accepts:
+ *   olLayer: the preserved ol/layer/Vector instance
+ *   featureCollection: a GeoJSON FeatureCollection dict (or null/empty for
+ *     the empty-success state — source is cleared, no features added)
+ *   mapProjection: the map's projection code (e.g., "EPSG:3857") used as
+ *     featureProjection when parsing. dataProjection is read from the
+ *     FeatureCollection's crs (defaulting to EPSG:4326 when absent).
+ *
+ * The caller is responsible for dismissing any popup anchored to the
+ * outgoing features before invoking this helper (see Unit 7).
+ */
+export function swapVectorLayerFeatures(
+  olLayer,
+  featureCollection,
+  mapProjection,
+) {
+  const source = olLayer?.getSource?.();
+  if (!source || typeof source.clear !== "function") {
+    return;
+  }
+  source.clear();
+
+  if (
+    !featureCollection ||
+    !Array.isArray(featureCollection.features) ||
+    featureCollection.features.length === 0
+  ) {
+    return;
+  }
+
+  const crsName = featureCollection?.crs?.properties?.name;
+  const dataProjection = crsName || "EPSG:4326";
+  const features = new GeoJSONFormat().readFeatures(featureCollection, {
+    dataProjection,
+    featureProjection: mapProjection,
+  });
+  source.addFeatures(features);
+}
+
+/**
+ * Apply cosmetic prop changes to a preserved OpenLayers layer instance.
+ *
+ * Used by the shouldKeep identity branch when a dynamic_map_layer's config
+ * changes in non-feature ways (opacity, name, zoom bounds, visibility).
+ * Avoids tearing down the layer just for a cosmetic edit, which would
+ * discard the features painted by the runtime fetcher.
+ *
+ * Only applies the props OL has first-class setters for; other props
+ * (e.g., source config) trigger a rebuild via the normal reconciliation
+ * path since they can't be safely mutated in place.
+ */
+export function updateOlLayerProps(olLayer, newProps) {
+  if (!olLayer || !newProps) return;
+
+  if (typeof newProps.name === "string") {
+    olLayer.set("name", newProps.name);
+  }
+  if (typeof newProps.opacity === "number") {
+    olLayer.setOpacity(newProps.opacity);
+  }
+  if (typeof newProps.minResolution === "number") {
+    olLayer.setMinResolution(newProps.minResolution);
+  }
+  if (typeof newProps.maxResolution === "number") {
+    olLayer.setMaxResolution(newProps.maxResolution);
+  }
+  if (typeof newProps.minZoom === "number") {
+    olLayer.setMinZoom(newProps.minZoom);
+  }
+  if (typeof newProps.maxZoom === "number") {
+    olLayer.setMaxZoom(newProps.maxZoom);
+  }
+  // Keep the pluginSource / layerId tags in sync so identity lookups work
+  // after an edit that preserved identity but touched other fields.
+  if (newProps.layerId) {
+    olLayer.set("layerId", newProps.layerId);
+  }
+  if (newProps.pluginSource) {
+    olLayer.set("pluginSource", newProps.pluginSource);
+  }
+}
+
 export function createMarkerLayer(coordinate) {
   const markPath = `
       M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9
@@ -268,6 +363,8 @@ export function createHighlightLayer() {
 }
 
 export function addHighlightFeatures(highlightLayer, geometries) {
+  if (!geometries || typeof geometries !== "object") return;
+
   let features;
   if ("paths" in geometries || geometries?.type === "MultiLineString") {
     const paths = geometries.paths || geometries.coordinates;
@@ -381,6 +478,14 @@ export async function queryLayerFeatures(layerInfo, map, coordinate, pixel) {
       features = getVectorTileLayerFeatures(map, pixel);
     } else if (sourceType === "KML") {
       features = getKMLLayerFeatures(map, pixel, coordinate, LayerName);
+    } else if (sourceType === "GeoTIFF") {
+      features = getGeoTIFFPixelValues(
+        map,
+        pixel,
+        LayerName,
+        layerInfo,
+        coordinate,
+      );
     } else {
       throw Error(`${sourceType} is not currently configured to be queried`);
     }
@@ -409,6 +514,51 @@ async function getKMLLayerFeatures(map, pixel, coordinate, LayerName) {
   });
 
   return features;
+}
+
+function getGeoTIFFPixelValues(map, pixel, LayerName, layerInfo, coordinate) {
+  const targetLayer = map
+    .getLayers()
+    .getArray()
+    .find((layer) => layer.get("name") === LayerName);
+
+  if (!targetLayer || typeof targetLayer.getData !== "function") return [];
+
+  const data = targetLayer.getData(pixel);
+  if (!data || data.length === 0) return [];
+
+  const configuredSources =
+    layerInfo?.configuration?.props?.source?.props?.sources ?? [];
+  const anySourceHasNodata = configuredSources.some(
+    (s) => s?.nodata !== undefined && s.nodata !== null && s.nodata !== "",
+  );
+
+  if (anySourceHasNodata && data.length >= 2 && data[data.length - 1] === 0) {
+    return [
+      {
+        layerName: LayerName,
+        attributes: { "Band 1": "No data" },
+        geometry: { type: "Point", coordinates: coordinate },
+      },
+    ];
+  }
+
+  const attributes = {};
+  const bandCount = anySourceHasNodata ? data.length - 1 : data.length;
+  for (let i = 0; i < bandCount; i++) {
+    attributes[`Band ${i + 1}`] = data[i];
+  }
+
+  return [
+    {
+      layerName: LayerName,
+      attributes,
+      geometry: {
+        type: "Point",
+        coordinates: coordinate,
+      },
+    },
+  ];
 }
 
 function getVectorTileLayerFeatures(map, pixel) {
@@ -651,11 +801,12 @@ export async function getStyleFields({
   return fields;
 }
 
-export async function getLayerAttributes(
+export async function getLayerAttributes({
   sourceProps,
   layerName,
   dashboard_uuid,
-) {
+  isDynamicMapLayer,
+}) {
   // setup constants
   let attributes;
   const sourceProperties = sourceProps.props;
@@ -665,9 +816,42 @@ export async function getLayerAttributes(
   const sourceGeoJSON = sourceProps?.geojson ?? {};
   const layerNumber = sourceProperties?.layer;
 
-  // make the appropriate request based on the source type
-  // TODO: add PM Vector Tile and KML attribute retrieval
-  if (sourceType === "ESRI Image and Map Service") {
+  if (isDynamicMapLayer) {
+    const apiResponse = await appAPI.getVisualizationData({
+      source: sourceProps.source,
+      args: sourceProps.args ?? {},
+    });
+    if (!apiResponse?.success) {
+      throw new Error(
+        apiResponse?.data?.error ?? "Failed to fetch plugin attributes.",
+      );
+    }
+    const scaffold = apiResponse.data ?? {};
+    const scaffoldAliases = scaffold.attributeAliases ?? {};
+    const scaffoldVariables = scaffold.attributeVariables ?? {};
+    const scaffoldOmitted = scaffold.omittedPopupAttributes ?? {};
+    const scaffoldLayerNames = new Set([
+      ...Object.keys(scaffoldAliases),
+      ...Object.keys(scaffoldVariables),
+      ...Object.keys(scaffoldOmitted),
+    ]);
+    if (scaffoldLayerNames.size === 0) {
+      scaffoldLayerNames.add(layerName);
+    }
+    attributes = {};
+    for (const name of scaffoldLayerNames) {
+      const aliasesForLayer = scaffoldAliases[name] ?? {};
+      const fieldNames = new Set([
+        ...Object.keys(aliasesForLayer),
+        ...Object.keys(scaffoldVariables[name] ?? {}),
+        ...(scaffoldOmitted[name] ?? []),
+      ]);
+      attributes[name] = Array.from(fieldNames).map((field) => ({
+        name: field,
+        alias: aliasesForLayer[field] ?? field,
+      }));
+    }
+  } else if (sourceType === "ESRI Image and Map Service") {
     attributes = await getImageArcGISRestLayerAttributes(
       sourceUrl,
       sourceParams,
@@ -1111,17 +1295,32 @@ export async function loadLayerJSONs(
   // Load GeoJSON if needed
   const source = mapLayer?.configuration?.props?.source;
   if (source?.type === "GeoJSON" && source?.geojson) {
-    let geojson;
-    try {
-      geojson = await loadGeoJSON(source.geojson, dashboard_uuid, keep_urls);
-    } catch (e) {
-      delete mapLayer.configuration.props.source.geojson;
-      return {
-        success: false,
-        message: `Failed to fetch: ${e.message}`,
-      };
+    const geo = source.geojson;
+    const isUrlGeoJSON =
+      typeof geo === "string" &&
+      geo.trim() !== "" &&
+      geo.includes("/") &&
+      !geo.trim().startsWith("{");
+
+    // URL-based GeoJSON: leave the URL on source.geojson. ModuleLoader's
+    // VectorSource will pass it to OL's GeoJSON format via `url:` so OL
+    // fetches + parses directly into features — no intermediate JS object
+    // tree, and layer fetches parallelize instead of serializing through
+    // this await loop. For inline JSON bodies and saved workspace
+    // filenames, keep the existing fetch/parse path.
+    if (!isUrlGeoJSON) {
+      let geojson;
+      try {
+        geojson = await loadGeoJSON(geo, dashboard_uuid, keep_urls);
+      } catch (e) {
+        delete mapLayer.configuration.props.source.geojson;
+        return {
+          success: false,
+          message: `Failed to fetch: ${e.message}`,
+        };
+      }
+      mapLayer.configuration.props.source.geojson = geojson;
     }
-    mapLayer.configuration.props.source.geojson = geojson;
   }
 
   return { success: true };
@@ -1258,11 +1457,26 @@ export const sourcePropType = PropTypes.shape({
   type: PropTypes.string, // layer source type
 });
 
+// plugin-reference block for runtime-capable map_layer plugins.
+// Present as a sibling to `source` under `configuration.props` when the
+// layer's features are fetched at runtime via plugin.fetch_features().
+// `args` preserves raw template strings (e.g. "${VarName}") and is resolved
+// against VariableInputsContext at fetch time.
+export const pluginSourcePropType = PropTypes.shape({
+  source: PropTypes.string.isRequired,
+  args: PropTypes.object.isRequired,
+});
+
 export const configurationPropType = PropTypes.shape({
   // other layer properties are available like opacity, zoom, etc. see components/map/utilities.js (layerPropertiesOptions) for examples
   props: PropTypes.shape({
     name: PropTypes.string,
     source: sourcePropType,
+    // Stable UUID assigned at save time; used for runtime-layer
+    // reconciliation identity and for the per-layer WebSocket correlation id.
+    layerId: PropTypes.string,
+    // Optional; present on runtime-capable layers only.
+    pluginSource: pluginSourcePropType,
   }),
   type: PropTypes.string, // layer type
 });
@@ -1278,6 +1492,15 @@ export const legendPropType = PropTypes.oneOfType([
   PropTypes.shape({
     title: PropTypes.string, // title for the layer in the map legend
     items: PropTypes.arrayOf(legendItemPropType), // array of legend items
+  }),
+  // Auto-generated colorbar legend for GeoTIFF ramp-styled layers.
+  PropTypes.shape({
+    rampColors: PropTypes.arrayOf(PropTypes.string).isRequired,
+    rampMin: PropTypes.oneOfType([PropTypes.number, PropTypes.string])
+      .isRequired,
+    rampMax: PropTypes.oneOfType([PropTypes.number, PropTypes.string])
+      .isRequired,
+    title: PropTypes.string,
   }),
 ]);
 

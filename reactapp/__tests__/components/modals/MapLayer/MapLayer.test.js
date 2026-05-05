@@ -8,7 +8,12 @@ import {
   waitFor,
 } from "@testing-library/react";
 import selectEvent from "react-select-event";
-import MapLayerModal from "components/modals/MapLayer/MapLayer";
+import MapLayerModal, {
+  getLayerType,
+  rekeyAttributeMapToLayer,
+  renameLayerInAttributeProps,
+  normalizeAttributePropsForLayer,
+} from "components/modals/MapLayer/MapLayer";
 import { AppContext, LayoutContext } from "components/contexts/Contexts";
 import MapContextProvider, {
   useMapContext,
@@ -18,10 +23,6 @@ import { getLayerAttributes } from "components/map/utilities";
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
 import { fullMapLayer } from "__tests__/utilities/constants";
-
-jest.mock("uuid", () => ({
-  v4: () => 12345678,
-}));
 
 jest.mock("components/map/utilities", () => {
   const originalModule = jest.requireActual("components/map/utilities");
@@ -43,6 +44,7 @@ const TestingComponent = ({
   handleModalClose,
   addMapLayer,
   layerInfo,
+  dynamicMapLayers = [],
 }) => {
   const csrf = "asdasdasdasd";
   const mapLayerTemplates = [
@@ -59,6 +61,7 @@ const TestingComponent = ({
   const appContext = {
     csrf,
     mapLayerTemplates,
+    dynamicMapLayers,
   };
 
   return (
@@ -1371,9 +1374,7 @@ test("MapLayerModal update ImageArcGISRest layer", async () => {
   const sourceTabContent = screen.getByLabelText("layer-source-tab");
   const sourceDropdown = screen.getByLabelText("Source Type Input");
 
-  selectEvent.openMenu(sourceDropdown);
-  const sourceOption = await screen.findByText("ESRI Image and Map Service");
-  fireEvent.click(sourceOption);
+  await selectEvent.select(sourceDropdown, "ESRI Image and Map Service");
   expect(await screen.findByText("Source Properties")).toBeInTheDocument();
 
   const urlInput = within(sourceTabContent).getByLabelText("value Input 0");
@@ -1420,12 +1421,83 @@ test("MapLayerModal update ImageArcGISRest layer", async () => {
   });
 });
 
+test("MapLayerModal handleLayerPropsChange accepts a direct object updater", async () => {
+  const handleModalClose = jest.fn();
+  const addMapLayer = jest.fn();
+  const layerInfo = {
+    layerProps: {
+      name: "Existing Layer",
+    },
+    sourceProps: {
+      props: {
+        url: "Some Url",
+      },
+      type: "ESRI Image and Map Service",
+    },
+    attributeProps: {
+      aliases: {
+        "Existing Layer": {
+          STATE_NAME: "State",
+        },
+      },
+    },
+  };
+  render(
+    <TestingComponent
+      showModal={true}
+      handleModalClose={handleModalClose}
+      addMapLayer={addMapLayer}
+      layerInfo={layerInfo}
+    />,
+  );
+
+  expect(await screen.findByRole("dialog")).toBeInTheDocument();
+
+  // LayerPane.handlePropertyChange calls setLayerProps with a plain object
+  // (not a function), exercising the non-function branch of the
+  // `typeof updater === "function" ? updater(prev) : updater` ternary in
+  // handleLayerPropsChange.
+  const layerTabContent = screen.getByLabelText("layer-tab");
+  const opacityInput = within(layerTabContent).getByLabelText("value Input 0");
+  fireEvent.change(opacityInput, { target: { value: "0.5" } });
+
+  const createLayerButton = await screen.findByLabelText("Create Layer Button");
+  fireEvent.click(createLayerButton);
+
+  expect(addMapLayer).toHaveBeenCalledWith({
+    configuration: {
+      type: "ImageLayer",
+      props: {
+        name: "Existing Layer",
+        opacity: "0.5",
+        source: {
+          type: "ESRI Image and Map Service",
+          props: {
+            url: "Some Url",
+          },
+        },
+      },
+    },
+    // Name was unchanged, so attributeAliases keys must remain under
+    // "Existing Layer" — i.e., renameLayerInAttributeProps was NOT called.
+    attributeAliases: {
+      "Existing Layer": {
+        STATE_NAME: "State",
+      },
+    },
+  });
+});
+
 // Helper component for extent draw tests — wraps MapLayerModal with MapContext
 const ExtentTestComponent = ({ layerInfo, visualizationRefOverride }) => {
   const csrf = "asdasdasdasd";
-  const appContext = { csrf, mapLayerTemplates: [] };
-  const { setExtentDrawMode, setDrawnExtent, extentDrawMode } =
-    useMapContext();
+  const appContext = {
+    csrf,
+    mapLayerTemplates: [],
+    dynamicMapLayers: [],
+    sessionNonce: "test-nonce",
+  };
+  const { setExtentDrawMode, setDrawnExtent, extentDrawMode } = useMapContext();
   const defaultRef = useRef({
     getView: () => ({
       getProjection: () => ({
@@ -1463,9 +1535,7 @@ const ExtentTestComponent = ({ layerInfo, visualizationRefOverride }) => {
       >
         Clear Extent Draw Mode
       </button>
-      <p data-testid="extent-draw-mode">
-        {extentDrawMode ? "active" : "null"}
-      </p>
+      <p data-testid="extent-draw-mode">{extentDrawMode ? "active" : "null"}</p>
     </>
   );
 };
@@ -1616,10 +1686,1855 @@ test("MapLayerModal falls back to EPSG:3857 when visualizationRef is null", asyn
   fireEvent.click(screen.getByText("Source"));
   await waitFor(() => {
     const inputs = screen.getAllByRole("textbox");
-    const projectionInput = inputs.find(
-      (input) => input.value === "EPSG:3857",
-    );
+    const projectionInput = inputs.find((input) => input.value === "EPSG:3857");
     expect(projectionInput).toBeDefined();
+  });
+});
+
+describe("MapLayerModal GeoTIFF save path", () => {
+  test("preserves string '0' min/max on a single GeoTIFF source", async () => {
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "GeoTIFF Layer" },
+      sourceProps: {
+        type: "GeoTIFF",
+        props: {
+          sources: [{ url: "a.tif", min: "0", max: "100" }],
+        },
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+
+    const createLayerButton = await screen.findByLabelText(
+      "Create Layer Button",
+    );
+    fireEvent.click(createLayerButton);
+
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalledTimes(1);
+    });
+
+    const savedConfig = addMapLayer.mock.calls[0][0];
+    const savedSources = savedConfig.configuration.props.source.props.sources;
+    expect(savedSources).toHaveLength(1);
+    expect(savedSources[0].url).toBe("a.tif");
+    expect(savedSources[0].min).toBe("0");
+    expect(savedSources[0].max).toBe("100");
+    // Regression guard: min must not be coerced to number or dropped.
+    expect(savedSources[0].min).not.toBe(0);
+    expect(savedSources[0].min).not.toBeUndefined();
+    expect(savedSources[0].min).not.toBe("");
+    expect(savedConfig.configuration.type).toBe("WebGLTile");
+  });
+
+  test("preserves multiple sources in original order", async () => {
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "RGB GeoTIFF" },
+      sourceProps: {
+        type: "GeoTIFF",
+        props: {
+          sources: [
+            { url: "red.tif", bands: "[1]" },
+            { url: "green.tif", bands: "[1]" },
+            { url: "blue.tif", bands: "[1]" },
+          ],
+        },
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+
+    const createLayerButton = await screen.findByLabelText(
+      "Create Layer Button",
+    );
+    fireEvent.click(createLayerButton);
+
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalledTimes(1);
+    });
+
+    const savedSources =
+      addMapLayer.mock.calls[0][0].configuration.props.source.props.sources;
+    expect(savedSources).toHaveLength(3);
+    expect(savedSources.map((s) => s.url)).toEqual([
+      "red.tif",
+      "green.tif",
+      "blue.tif",
+    ]);
+  });
+
+  test("preserves string '0' across all numeric SourceInfo fields", async () => {
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "Zero Fields Layer" },
+      sourceProps: {
+        type: "GeoTIFF",
+        props: {
+          sources: [{ url: "zero.tif", min: "0", max: "0", nodata: "0" }],
+        },
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+
+    const createLayerButton = await screen.findByLabelText(
+      "Create Layer Button",
+    );
+    fireEvent.click(createLayerButton);
+
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalledTimes(1);
+    });
+
+    const savedSource =
+      addMapLayer.mock.calls[0][0].configuration.props.source.props.sources[0];
+    expect(savedSource.min).toBe("0");
+    expect(savedSource.max).toBe("0");
+    expect(savedSource.nodata).toBe("0");
+  });
+
+  test("blocks save and surfaces error when sources array is empty", async () => {
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "Empty Sources Layer" },
+      sourceProps: {
+        type: "GeoTIFF",
+        props: {
+          sources: [],
+        },
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+
+    const createLayerButton = await screen.findByLabelText(
+      "Create Layer Button",
+    );
+    fireEvent.click(createLayerButton);
+
+    expect(
+      await screen.findByText(
+        "Add at least one source with a URL before saving.",
+      ),
+    ).toBeInTheDocument();
+    expect(addMapLayer).not.toHaveBeenCalled();
+  });
+
+  test("blocks save when every source row has an empty or whitespace URL", async () => {
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "Whitespace Layer" },
+      sourceProps: {
+        type: "GeoTIFF",
+        props: {
+          sources: [
+            { url: "", min: "0" },
+            { url: "   ", max: "100" },
+          ],
+        },
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+
+    const createLayerButton = await screen.findByLabelText(
+      "Create Layer Button",
+    );
+    fireEvent.click(createLayerButton);
+
+    expect(
+      await screen.findByText(
+        "Add at least one source with a URL before saving.",
+      ),
+    ).toBeInTheDocument();
+    expect(addMapLayer).not.toHaveBeenCalled();
+  });
+
+  test("drops empty-URL rows but keeps valid rows when mixed", async () => {
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "Mixed Layer" },
+      sourceProps: {
+        type: "GeoTIFF",
+        props: {
+          sources: [
+            { url: "a.tif", min: "0", max: "100" },
+            { url: "", min: "5", max: "10" },
+          ],
+        },
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+
+    const createLayerButton = await screen.findByLabelText(
+      "Create Layer Button",
+    );
+    fireEvent.click(createLayerButton);
+
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalledTimes(1);
+    });
+
+    const savedSources =
+      addMapLayer.mock.calls[0][0].configuration.props.source.props.sources;
+    expect(savedSources).toHaveLength(1);
+    expect(savedSources[0].url).toBe("a.tif");
+    expect(savedSources[0].min).toBe("0");
+    expect(savedSources[0].max).toBe("100");
+  });
+
+  test("drops empty bands/projection/overviews from saved SourceInfo", async () => {
+    // Regression: empty UI fields (bands="", projection="", overviews=[])
+    // used to persist in the saved config and cause ol/source/GeoTIFF to
+    // throw "Unsupported data format/bitsPerSample" at tile-decode time.
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "Clean GeoTIFF" },
+      sourceProps: {
+        type: "GeoTIFF",
+        props: {
+          sources: [
+            {
+              url: "clean.tif",
+              bands: "",
+              min: "277",
+              max: "300",
+              nodata: "-32768",
+              projection: "",
+              overviews: [],
+            },
+          ],
+        },
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+
+    const createLayerButton = await screen.findByLabelText(
+      "Create Layer Button",
+    );
+    fireEvent.click(createLayerButton);
+
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalledTimes(1);
+    });
+
+    const savedSources =
+      addMapLayer.mock.calls[0][0].configuration.props.source.props.sources;
+    expect(savedSources).toHaveLength(1);
+    const saved = savedSources[0];
+    // Kept: url + non-empty numeric strings
+    expect(saved.url).toBe("clean.tif");
+    expect(saved.min).toBe("277");
+    expect(saved.max).toBe("300");
+    expect(saved.nodata).toBe("-32768");
+    // Dropped: empty fields
+    expect(saved).not.toHaveProperty("bands");
+    expect(saved).not.toHaveProperty("projection");
+    expect(saved).not.toHaveProperty("overviews");
+  });
+
+  test("preserves non-empty projection and overviews on the cleaned SourceInfo", async () => {
+    // Companion to the empty-fields test above. Covers the truthy branches
+    // of the projection (line 199) and overviews (line 202) cleanup checks
+    // — the existing tests only exercised their false branches.
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "Reprojected GeoTIFF" },
+      sourceProps: {
+        type: "GeoTIFF",
+        props: {
+          sources: [
+            {
+              url: "main.tif",
+              projection: "EPSG:4326",
+              overviews: [
+                "https://example.com/main.ovr",
+                "https://example.com/main2.ovr",
+              ],
+            },
+          ],
+        },
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalledTimes(1);
+    });
+
+    const saved =
+      addMapLayer.mock.calls[0][0].configuration.props.source.props.sources[0];
+    expect(saved.url).toBe("main.tif");
+    expect(saved.projection).toBe("EPSG:4326");
+    expect(saved.overviews).toEqual([
+      "https://example.com/main.ovr",
+      "https://example.com/main2.ovr",
+    ]);
+  });
+});
+
+describe("MapLayerModal save-path nullish fallbacks and sub-modal zIndex", () => {
+  test("GeoTIFF save with no `sources` key at all uses the [] fallback and blocks save", async () => {
+    // Covers the right side of `sourceProps.props?.sources ?? []` at line
+    // 182. The existing empty-array test passes `sources: []` (truthy, the
+    // ?? falls through); this one omits the key entirely so the optional
+    // chain returns undefined and the [] fallback fires.
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "Sourceless GeoTIFF" },
+      sourceProps: {
+        type: "GeoTIFF",
+        props: {}, // no `sources` key
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+    expect(
+      await screen.findByText(
+        "Add at least one source with a URL before saving.",
+      ),
+    ).toBeInTheDocument();
+    expect(addMapLayer).not.toHaveBeenCalled();
+  });
+
+  test("GeoJSON save with no `geojson` key falls back to '' and stores empty string", async () => {
+    // Covers the right side of `(sourceProps.geojson ?? "").trim()` at
+    // line 282. With geojson undefined, geoStr is "", isJsonBody is false,
+    // so the URL/filename branch stores the empty string verbatim.
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "GeoJSON No Geojson" },
+      sourceProps: {
+        type: "GeoJSON",
+        props: {},
+        // No geojson key.
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalledTimes(1);
+    });
+    expect(
+      addMapLayer.mock.calls[0][0].configuration.props.source.geojson,
+    ).toBe("");
+  });
+
+  test("ramp-styled GeoTIFF with nodata flips hasNodata true (covers && right side)", async () => {
+    // Covers the right side of `s?.nodata !== undefined && s.nodata !== ""`
+    // at line 334. Existing ramp tests don't set nodata, so the left
+    // operand is always false and the right operand never evaluates.
+    // Pairing a ramp config with a nodata-bearing source forces it.
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "Nodata Ramp GeoTIFF" },
+      sourceProps: {
+        type: "GeoTIFF",
+        props: {
+          sources: [{ url: "x.tif", min: "0", max: "100", nodata: "-9999" }],
+        },
+        rampName: "viridis",
+        rampMin: "0",
+        rampMax: "100",
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalledTimes(1);
+    });
+
+    // hasNodata=true wraps the interpolate in a `case` against band 2.
+    const color = addMapLayer.mock.calls[0][0].configuration.style.color;
+    expect(color[0]).toBe("case");
+    expect(color[1]).toEqual(["==", ["band", 2], 0]);
+  });
+
+  test("Modal style uses zIndex 1050 while a GeoTIFF sub-modal is open", async () => {
+    // Covers the `: showingSubModal ? { zIndex: 1050 } : undefined` ternary
+    // at line 422. Default state has showingSubModal=false (ternary takes
+    // undefined). Clicking "Add source" inside the GeoTIFF SourcePane
+    // toggles it true via onSubModalToggle, raising the modal's zIndex.
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "Sub-modal GeoTIFF" },
+      sourceProps: {
+        type: "GeoTIFF",
+        props: { sources: [] },
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+
+    // Switch to the Source tab so the GeoTIFF SourcePane (with the "Add
+    // source" button) is rendered.
+    fireEvent.click(screen.getByText("Source"));
+    fireEvent.click(await screen.findByText("Add source"));
+
+    // The outer modal's role=dialog node now carries zIndex:1050 inline.
+    const dialogs = screen.getAllByRole("dialog");
+    const outer = dialogs.find((d) => d.className.includes("map-layer"));
+    await waitFor(() => {
+      expect(outer).toBeTruthy();
+    });
+    expect(outer.style.zIndex).toBe("1050");
+  });
+});
+
+describe("MapLayerModal GeoJSON URL/filename path", () => {
+  test("save with a GeoJSON URL string stores it directly without uploading", async () => {
+    // Covers line 306: when sourceProps.geojson is a non-empty string that
+    // doesn't start with `{` or `[`, save bypasses the saveLayerJSON upload
+    // and stores the URL/filename directly on source.geojson.
+    const uploadSpy = jest
+      .spyOn(appAPI, "uploadJSON")
+      .mockResolvedValue({ success: true, filename: "should-not-upload.json" });
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "Remote GeoJSON" },
+      sourceProps: {
+        type: "GeoJSON",
+        props: {},
+        geojson: "https://example.com/data.geojson",
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalledTimes(1);
+    });
+
+    const savedSource = addMapLayer.mock.calls[0][0].configuration.props.source;
+    // URL was stored verbatim — no upload roundtrip.
+    expect(savedSource.geojson).toBe("https://example.com/data.geojson");
+    expect(uploadSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("MapLayerModal GeoTIFF ramp round-trip persistence", () => {
+  test("persists rampName/rampMin/rampMax on configuration.props.source", async () => {
+    // Regression: without this, re-opening a ramp-styled GeoTIFF layer in the
+    // modal shows empty ramp inputs because sourceProps doesn't carry them
+    // back. StylePane reads sourceProps.rampName/rampMin/rampMax directly.
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "Ramped Round-Trip" },
+      sourceProps: {
+        type: "GeoTIFF",
+        props: {
+          sources: [{ url: "rt.tif", min: "277", max: "300" }],
+        },
+        rampName: "RdYlBu",
+        rampMin: "277",
+        rampMax: "300",
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalledTimes(1);
+    });
+
+    const savedSource = addMapLayer.mock.calls[0][0].configuration.props.source;
+    expect(savedSource.rampName).toBe("RdYlBu");
+    expect(savedSource.rampMin).toBe("277");
+    expect(savedSource.rampMax).toBe("300");
+    // The generated color expression still lands on configuration.style.
+    expect(addMapLayer.mock.calls[0][0].configuration.style.color[0]).toBe(
+      "interpolate",
+    );
+  });
+});
+
+describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
+  beforeEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  test("saves a ramp-styled GeoTIFF as an object-literal style (bypasses saveLayerJSON)", async () => {
+    // Spy on appAPI.uploadJSON — the backend call made by saveLayerJSON.
+    // For GeoTIFF ramp styling, it must NOT be invoked.
+    const uploadSpy = jest.spyOn(appAPI, "uploadJSON").mockResolvedValue({
+      success: true,
+      filename: "should-not-be-used.json",
+    });
+
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "Viridis Raster" },
+      sourceProps: {
+        type: "GeoTIFF",
+        rampName: "viridis",
+        rampMin: "0",
+        rampMax: "100",
+        props: {
+          sources: [{ url: "a.tif" }],
+        },
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+
+    const createLayerButton = await screen.findByLabelText(
+      "Create Layer Button",
+    );
+    fireEvent.click(createLayerButton);
+
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalledTimes(1);
+    });
+
+    const savedConfig = addMapLayer.mock.calls[0][0];
+    const savedStyle = savedConfig.configuration.style;
+
+    // Style is an object literal, not a filename string.
+    expect(typeof savedStyle).toBe("object");
+    expect(savedStyle).not.toBeNull();
+    expect(Array.isArray(savedStyle)).toBe(false);
+    expect(savedStyle).toHaveProperty("color");
+    expect(Array.isArray(savedStyle.color)).toBe(true);
+
+    // The expression header confirms it's a WebGLTile interpolate expression.
+    expect(savedStyle.color[0]).toBe("interpolate");
+    expect(savedStyle.color[1]).toEqual(["linear"]);
+    expect(savedStyle.color[2]).toEqual(["band", 1]);
+    expect(savedStyle.color[3]).toBe(0);
+    // Last stop pair ends at rampMax.
+    expect(savedStyle.color[savedStyle.color.length - 2]).toBe(100);
+
+    // Most important regression guard: the backend upload was NOT called.
+    expect(uploadSpy).not.toHaveBeenCalled();
+  });
+
+  test("GeoTIFF without a ramp name saves with no style key", async () => {
+    const uploadSpy = jest
+      .spyOn(appAPI, "uploadJSON")
+      .mockResolvedValue({ success: true, filename: "x.json" });
+
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "Default-shader GeoTIFF" },
+      sourceProps: {
+        type: "GeoTIFF",
+        props: {
+          sources: [{ url: "a.tif" }],
+        },
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+
+    const createLayerButton = await screen.findByLabelText(
+      "Create Layer Button",
+    );
+    fireEvent.click(createLayerButton);
+
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalledTimes(1);
+    });
+
+    const savedConfig = addMapLayer.mock.calls[0][0];
+    expect(savedConfig.configuration.style).toBeUndefined();
+    expect(uploadSpy).not.toHaveBeenCalled();
+  });
+
+  test("GeoTIFF with rampName but empty rampMin/rampMax does not generate a style", async () => {
+    const uploadSpy = jest
+      .spyOn(appAPI, "uploadJSON")
+      .mockResolvedValue({ success: true, filename: "x.json" });
+
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "Incomplete Ramp GeoTIFF" },
+      sourceProps: {
+        type: "GeoTIFF",
+        rampName: "viridis",
+        rampMin: "",
+        rampMax: "",
+        props: {
+          sources: [{ url: "a.tif" }],
+        },
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+
+    const createLayerButton = await screen.findByLabelText(
+      "Create Layer Button",
+    );
+    fireEvent.click(createLayerButton);
+
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalledTimes(1);
+    });
+
+    const savedConfig = addMapLayer.mock.calls[0][0];
+    expect(savedConfig.configuration.style).toBeUndefined();
+    expect(uploadSpy).not.toHaveBeenCalled();
+  });
+
+  test("switching ramps on resave regenerates the color expression", async () => {
+    jest
+      .spyOn(appAPI, "uploadJSON")
+      .mockResolvedValue({ success: true, filename: "x.json" });
+
+    // First render: viridis.
+    const addMapLayerA = jest.fn();
+    const layerInfoA = {
+      layerProps: { name: "Ramp Layer A" },
+      sourceProps: {
+        type: "GeoTIFF",
+        rampName: "viridis",
+        rampMin: "0",
+        rampMax: "100",
+        props: { sources: [{ url: "a.tif" }] },
+      },
+    };
+
+    const { unmount } = render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={jest.fn()}
+        addMapLayer={addMapLayerA}
+        layerInfo={layerInfoA}
+      />,
+    );
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+    await waitFor(() => {
+      expect(addMapLayerA).toHaveBeenCalledTimes(1);
+    });
+    const viridisColor =
+      addMapLayerA.mock.calls[0][0].configuration.style.color;
+    unmount();
+
+    // Second render: turbo.
+    const addMapLayerB = jest.fn();
+    const layerInfoB = {
+      layerProps: { name: "Ramp Layer B" },
+      sourceProps: {
+        type: "GeoTIFF",
+        rampName: "turbo",
+        rampMin: "0",
+        rampMax: "100",
+        props: { sources: [{ url: "a.tif" }] },
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={jest.fn()}
+        addMapLayer={addMapLayerB}
+        layerInfo={layerInfoB}
+      />,
+    );
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+    await waitFor(() => {
+      expect(addMapLayerB).toHaveBeenCalledTimes(1);
+    });
+    const turboColor = addMapLayerB.mock.calls[0][0].configuration.style.color;
+
+    // Same structure, but the color hex strings differ between the ramps.
+    expect(viridisColor).toHaveLength(turboColor.length);
+    // Compare the first color stop (index 4 = first color after the header +
+    // first value). Viridis starts near dark-purple; turbo starts near dark-red
+    // — they should not match.
+    expect(viridisColor[4]).not.toBe(turboColor[4]);
+  });
+
+  test("non-GeoTIFF vector layer with a style still uploads via saveLayerJSON", async () => {
+    const uploadSpy = jest.spyOn(appAPI, "uploadJSON").mockResolvedValue({
+      success: true,
+      filename: "vector-style.json",
+    });
+
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    // Style on the layer — simulates what happens when a vector style is
+    // entered in StylePane.
+    const layerInfo = {
+      layerProps: { name: "Vector Layer" },
+      sourceProps: {
+        type: "ESRI Feature Service",
+        props: { url: "https://example.com", layer: "0" },
+      },
+      style: JSON.stringify({ version: 8, sources: {}, layers: [] }),
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+
+    const createLayerButton = await screen.findByLabelText(
+      "Create Layer Button",
+    );
+    fireEvent.click(createLayerButton);
+
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalledTimes(1);
+    });
+
+    // Non-GeoTIFF still goes through the upload path.
+    expect(uploadSpy).toHaveBeenCalledTimes(1);
+    const savedStyle = addMapLayer.mock.calls[0][0].configuration.style;
+    expect(savedStyle).toBe("vector-style.json");
+  });
+
+  test("GeoTIFF ramp save with rampMin === rampMax does not crash", async () => {
+    jest
+      .spyOn(appAPI, "uploadJSON")
+      .mockResolvedValue({ success: true, filename: "x.json" });
+
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "Degenerate Ramp" },
+      sourceProps: {
+        type: "GeoTIFF",
+        rampName: "viridis",
+        rampMin: "50",
+        rampMax: "50",
+        props: { sources: [{ url: "a.tif" }] },
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={jest.fn()}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalledTimes(1);
+    });
+
+    const savedStyle = addMapLayer.mock.calls[0][0].configuration.style;
+    expect(savedStyle).toHaveProperty("color");
+    // All stop values collapse to 50, colors still vary.
+    expect(savedStyle.color[3]).toBe(50);
+    expect(savedStyle.color[savedStyle.color.length - 2]).toBe(50);
+  });
+});
+
+describe("MapLayerModal save path regression for non-GeoTIFF sources", () => {
+  test("Vector Tile save still splits comma-separated urls", async () => {
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "Vector Tile Layer" },
+      sourceProps: {
+        type: "Vector Tile",
+        props: {
+          urls: "a_url,b_url",
+        },
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+
+    const createLayerButton = await screen.findByLabelText(
+      "Create Layer Button",
+    );
+    fireEvent.click(createLayerButton);
+
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalledTimes(1);
+    });
+
+    const savedProps =
+      addMapLayer.mock.calls[0][0].configuration.props.source.props;
+    expect(savedProps.urls).toEqual(["a_url", "b_url"]);
+    expect(savedProps.sources).toBeUndefined();
+  });
+
+  test("Static Image save preserves imageExtent string", async () => {
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "Static Image Layer" },
+      sourceProps: {
+        type: "Static Image",
+        props: {
+          url: "https://example.com/image.png",
+          projection: "EPSG:4326",
+          imageExtent: "10, 20, 30, 40",
+        },
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+
+    const createLayerButton = await screen.findByLabelText(
+      "Create Layer Button",
+    );
+    fireEvent.click(createLayerButton);
+
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalledTimes(1);
+    });
+
+    const savedProps =
+      addMapLayer.mock.calls[0][0].configuration.props.source.props;
+    expect(savedProps.url).toBe("https://example.com/image.png");
+    expect(savedProps.projection).toBe("EPSG:4326");
+    expect(savedProps.imageExtent).toBe("10, 20, 30, 40");
+    expect(savedProps.sources).toBeUndefined();
+  });
+});
+
+describe("MapLayerModal plugin layer", () => {
+  test("fetchPluginDefaults sets configuration", async () => {
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: {},
+      sourceProps: {
+        type: "Stream Gauges (Dynamic)",
+        source: "custom_layer_test",
+        args: {},
+        props: {},
+      },
+    };
+
+    server.use(
+      rest.get(
+        "http://api.test/apps/tethysdash/visualizations/get/",
+        (req, res, ctx) => {
+          return res(
+            ctx.status(200),
+            ctx.json({
+              success: true,
+              data: {
+                configuration: {
+                  layerVisibility: false,
+                  props: {
+                    name: "Some Plugin Layer",
+                  },
+                },
+                attributeAliases: { test: { name: "Name Alias", id: "ID" } },
+                attributeVariables: { test: { name: "Name Variable" } },
+                omittedPopupAttributes: { test: ["omitted"] },
+                queryable: false,
+                legend: "default",
+              },
+            }),
+            ctx.set("Content-Type", "application/json"),
+          );
+        },
+      ),
+    );
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+        dynamicMapLayers={[
+          {
+            label: "Dynamic Map Layers",
+            options: [
+              {
+                source: "custom_layer_test",
+                value: "Stream Gauges (Dynamic)",
+                label: "Stream Gauges (Dynamic)",
+                args: {},
+                type: "map_layer",
+                tags: ["hydrology", "gauges", "live"],
+                attribution: "",
+                description:
+                  "Live stream gauge locations, color-coded by current flow.",
+                loading_icon: true,
+                restricted: false,
+                dynamic_map_layer: true,
+              },
+            ],
+          },
+        ]}
+      />,
+    );
+
+    const fetchPluginDefaultsButton = await screen.findByLabelText(
+      "Fetch plugin defaults",
+    );
+    fireEvent.click(fetchPluginDefaultsButton);
+
+    expect(await screen.findByText(/Fetching/)).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Fetching/)).not.toBeInTheDocument();
+    });
+
+    const createLayerButton = await screen.findByLabelText(
+      "Create Layer Button",
+    );
+    fireEvent.click(createLayerButton);
+
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalledTimes(1);
+    });
+
+    expect(addMapLayer).toHaveBeenLastCalledWith({
+      attributeAliases: {
+        "Some Plugin Layer": {
+          id: "ID",
+          name: "Name Alias",
+        },
+      },
+      attributeVariables: {
+        "Some Plugin Layer": {
+          name: "Name Variable",
+        },
+      },
+      configuration: {
+        layerVisibility: false,
+        props: {
+          layerId: 12345678,
+          name: "Some Plugin Layer",
+          pluginSource: {
+            args: {},
+            source: "custom_layer_test",
+          },
+          source: {
+            geojson: {
+              crs: {
+                properties: {
+                  name: "EPSG:4326",
+                },
+                type: "name",
+              },
+              features: [],
+              type: "FeatureCollection",
+            },
+            props: {},
+            type: "GeoJSON",
+          },
+        },
+        type: "VectorLayer",
+      },
+      legend: "default",
+      omittedPopupAttributes: {
+        "Some Plugin Layer": ["omitted"],
+      },
+      queryable: false,
+    });
+  });
+
+  test("fetchPluginDefaults sets configuration without data returned", async () => {
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "Plugin Layer" },
+      sourceProps: {
+        type: "Stream Gauges (Dynamic)",
+        source: "custom_layer_test",
+        args: {},
+        props: {},
+      },
+    };
+
+    server.use(
+      rest.get(
+        "http://api.test/apps/tethysdash/visualizations/get/",
+        (req, res, ctx) => {
+          return res(
+            ctx.status(200),
+            ctx.json({
+              success: true,
+            }),
+            ctx.set("Content-Type", "application/json"),
+          );
+        },
+      ),
+    );
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+        dynamicMapLayers={[
+          {
+            label: "Dynamic Map Layers",
+            options: [
+              {
+                source: "custom_layer_test",
+                value: "Stream Gauges (Dynamic)",
+                label: "Stream Gauges (Dynamic)",
+                args: {},
+                type: "map_layer",
+                tags: ["hydrology", "gauges", "live"],
+                attribution: "",
+                description:
+                  "Live stream gauge locations, color-coded by current flow.",
+                loading_icon: true,
+                restricted: false,
+                dynamic_map_layer: true,
+              },
+            ],
+          },
+        ]}
+      />,
+    );
+
+    const fetchPluginDefaultsButton = await screen.findByLabelText(
+      "Fetch plugin defaults",
+    );
+    fireEvent.click(fetchPluginDefaultsButton);
+
+    expect(await screen.findByText(/Fetching/)).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Fetching/)).not.toBeInTheDocument();
+    });
+
+    const createLayerButton = await screen.findByLabelText(
+      "Create Layer Button",
+    );
+    fireEvent.click(createLayerButton);
+
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalledTimes(1);
+    });
+
+    expect(addMapLayer).toHaveBeenLastCalledWith({
+      configuration: {
+        props: {
+          layerId: 12345678,
+          name: "Plugin Layer",
+          pluginSource: {
+            args: {},
+            source: "custom_layer_test",
+          },
+          source: {
+            geojson: {
+              crs: {
+                properties: {
+                  name: "EPSG:4326",
+                },
+                type: "name",
+              },
+              features: [],
+              type: "FeatureCollection",
+            },
+            props: {},
+            type: "GeoJSON",
+          },
+        },
+        type: "VectorLayer",
+      },
+    });
+  });
+
+  test("fetchPluginDefaults; API call not successful", async () => {
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "Plugin Layer" },
+      sourceProps: {
+        type: "Stream Gauges (Dynamic)",
+        source: "custom_layer_test",
+        args: {},
+        props: {},
+      },
+    };
+
+    server.use(
+      rest.get(
+        "http://api.test/apps/tethysdash/visualizations/get/",
+        (req, res, ctx) => {
+          return res(
+            ctx.status(200),
+            ctx.json({
+              success: false,
+            }),
+            ctx.set("Content-Type", "application/json"),
+          );
+        },
+      ),
+    );
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+        dynamicMapLayers={[
+          {
+            label: "Dynamic Map Layers",
+            options: [
+              {
+                source: "custom_layer_test",
+                value: "Stream Gauges (Dynamic)",
+                label: "Stream Gauges (Dynamic)",
+                args: {},
+                type: "map_layer",
+                tags: ["hydrology", "gauges", "live"],
+                attribution: "",
+                description:
+                  "Live stream gauge locations, color-coded by current flow.",
+                loading_icon: true,
+                restricted: false,
+                dynamic_map_layer: true,
+              },
+            ],
+          },
+        ]}
+      />,
+    );
+
+    const fetchPluginDefaultsButton = await screen.findByLabelText(
+      "Fetch plugin defaults",
+    );
+    fireEvent.click(fetchPluginDefaultsButton);
+
+    expect(await screen.findByText(/Fetching/)).toBeInTheDocument();
+
+    expect(
+      await screen.findByText(/Failed to fetch plugin defaults. Check logs./),
+    ).toBeInTheDocument();
+  });
+
+  test("fetchPluginDefaults; API call not successful with message", async () => {
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "Plugin Layer" },
+      sourceProps: {
+        type: "Stream Gauges (Dynamic)",
+        source: "custom_layer_test",
+        args: {},
+        props: {},
+      },
+    };
+
+    server.use(
+      rest.get(
+        "http://api.test/apps/tethysdash/visualizations/get/",
+        (req, res, ctx) => {
+          return res(
+            ctx.status(200),
+            ctx.json({
+              success: false,
+              data: {
+                error: "Something went wrong",
+              },
+            }),
+            ctx.set("Content-Type", "application/json"),
+          );
+        },
+      ),
+    );
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+        dynamicMapLayers={[
+          {
+            label: "Dynamic Map Layers",
+            options: [
+              {
+                source: "custom_layer_test",
+                value: "Stream Gauges (Dynamic)",
+                label: "Stream Gauges (Dynamic)",
+                args: {},
+                type: "map_layer",
+                tags: ["hydrology", "gauges", "live"],
+                attribution: "",
+                description:
+                  "Live stream gauge locations, color-coded by current flow.",
+                loading_icon: true,
+                restricted: false,
+                dynamic_map_layer: true,
+              },
+            ],
+          },
+        ]}
+      />,
+    );
+
+    const fetchPluginDefaultsButton = await screen.findByLabelText(
+      "Fetch plugin defaults",
+    );
+    fireEvent.click(fetchPluginDefaultsButton);
+
+    expect(await screen.findByText(/Fetching/)).toBeInTheDocument();
+
+    expect(await screen.findByText(/Something went wrong/)).toBeInTheDocument();
+  });
+
+  test("fetchPluginDefaults; API call fails", async () => {
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "Plugin Layer" },
+      sourceProps: {
+        type: "Stream Gauges (Dynamic)",
+        source: "custom_layer_test",
+        args: {},
+        props: {},
+      },
+    };
+
+    const spy = jest
+      .spyOn(appAPI, "getVisualizationData")
+      .mockRejectedValueOnce(new Error());
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+        dynamicMapLayers={[
+          {
+            label: "Dynamic Map Layers",
+            options: [
+              {
+                source: "custom_layer_test",
+                value: "Stream Gauges (Dynamic)",
+                label: "Stream Gauges (Dynamic)",
+                args: {},
+                type: "map_layer",
+                tags: ["hydrology", "gauges", "live"],
+                attribution: "",
+                description:
+                  "Live stream gauge locations, color-coded by current flow.",
+                loading_icon: true,
+                restricted: false,
+                dynamic_map_layer: true,
+              },
+            ],
+          },
+        ]}
+      />,
+    );
+
+    const fetchPluginDefaultsButton = await screen.findByLabelText(
+      "Fetch plugin defaults",
+    );
+    fireEvent.click(fetchPluginDefaultsButton);
+
+    expect(await screen.findByText(/Fetching/)).toBeInTheDocument();
+
+    expect(
+      await screen.findByText(/Failed to fetch plugin defaults./),
+    ).toBeInTheDocument();
+
+    spy.mockRestore();
+  });
+
+  test("fetchPluginDefaults; API call fails with message", async () => {
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "Plugin Layer" },
+      sourceProps: {
+        type: "Stream Gauges (Dynamic)",
+        source: "custom_layer_test",
+        args: {},
+        props: {},
+      },
+    };
+
+    const spy = jest
+      .spyOn(appAPI, "getVisualizationData")
+      .mockRejectedValueOnce(new Error("Some error occurred"));
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+        dynamicMapLayers={[
+          {
+            label: "Dynamic Map Layers",
+            options: [
+              {
+                source: "custom_layer_test",
+                value: "Stream Gauges (Dynamic)",
+                label: "Stream Gauges (Dynamic)",
+                args: {},
+                type: "map_layer",
+                tags: ["hydrology", "gauges", "live"],
+                attribution: "",
+                description:
+                  "Live stream gauge locations, color-coded by current flow.",
+                loading_icon: true,
+                restricted: false,
+                dynamic_map_layer: true,
+              },
+            ],
+          },
+        ]}
+      />,
+    );
+
+    const fetchPluginDefaultsButton = await screen.findByLabelText(
+      "Fetch plugin defaults",
+    );
+    fireEvent.click(fetchPluginDefaultsButton);
+
+    expect(await screen.findByText(/Fetching/)).toBeInTheDocument();
+
+    expect(await screen.findByText(/Some error occurred/)).toBeInTheDocument();
+
+    spy.mockRestore();
+  });
+
+  test("fetchPluginDefaults filters source and pluginSource keys from scaffold layerProps", async () => {
+    // Covers MapLayer.js line 495 — the filter callback inside
+    // fetchPluginDefaults that strips `source` and `pluginSource` from the
+    // scaffold's configuration.props before they become layerProps. Other
+    // keys (opacity, name) pass through.
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "Plugin Layer" },
+      sourceProps: {
+        type: "Stream Gauges (Dynamic)",
+        source: "custom_layer_test",
+        args: {},
+        props: {},
+      },
+    };
+
+    server.use(
+      rest.get(
+        "http://api.test/apps/tethysdash/visualizations/get/",
+        (req, res, ctx) => {
+          return res(
+            ctx.status(200),
+            ctx.json({
+              success: true,
+              data: {
+                configuration: {
+                  props: {
+                    name: "Scaffold Name",
+                    opacity: 0.7,
+                    source: { type: "GeoJSON", props: {} },
+                    pluginSource: {
+                      source: "custom_layer_test",
+                      args: {},
+                    },
+                  },
+                },
+              },
+            }),
+            ctx.set("Content-Type", "application/json"),
+          );
+        },
+      ),
+    );
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+        dynamicMapLayers={[
+          {
+            label: "Dynamic Map Layers",
+            options: [
+              {
+                source: "custom_layer_test",
+                value: "Stream Gauges (Dynamic)",
+                label: "Stream Gauges (Dynamic)",
+                args: {},
+                type: "map_layer",
+                tags: ["hydrology", "gauges", "live"],
+                attribution: "",
+                description:
+                  "Live stream gauge locations, color-coded by current flow.",
+                loading_icon: true,
+                restricted: false,
+                dynamic_map_layer: true,
+              },
+            ],
+          },
+        ]}
+      />,
+    );
+
+    fireEvent.click(await screen.findByLabelText("Fetch plugin defaults"));
+
+    // Wait for the scaffold to be applied: opacity 0.7 propagates into
+    // layerProps and renders in the Layer pane's property table. This proves
+    // the filter at line 495 has run and setLayerProps has flushed before we
+    // click Save.
+    fireEvent.click(screen.getByText("Layer"));
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("0.7")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByLabelText("Create Layer Button"));
+
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalledTimes(1);
+    });
+
+    const saved = addMapLayer.mock.calls[0][0];
+    // Non-source/non-pluginSource scaffold prop survived the filter.
+    expect(saved.configuration.props.opacity).toBe(0.7);
+    // User-set name is preserved over the scaffold's "Scaffold Name".
+    expect(saved.configuration.props.name).toBe("Plugin Layer");
+    // saveLayer's runtime branch overwrites source with the placeholder
+    // GeoJSON FC — proving the scaffold's source object never bled into
+    // layerProps and then back out via the spread.
+    expect(saved.configuration.props.source.type).toBe("GeoJSON");
+    expect(saved.configuration.props.source.geojson.features).toEqual([]);
+    // pluginSource is rebuilt from sourceProps, not the scaffold's value.
+    expect(saved.configuration.props.pluginSource).toEqual({
+      source: "custom_layer_test",
+      args: {},
+    });
+  });
+});
+
+describe("rekeyAttributeMapToLayer", () => {
+  test("rekeys attribute map keys to match layer name", () => {
+    const attributeMap = {
+      "Old Layer Name": { attributes: ["attr1", "attr2"] },
+    };
+    const layerName = "New Layer Name";
+    const rekeyedMap = rekeyAttributeMapToLayer(attributeMap, layerName);
+    expect(rekeyedMap).toEqual({
+      "New Layer Name": { attributes: ["attr1", "attr2"] },
+    });
+  });
+
+  test("returns empty object if original map is empty", () => {
+    const attributeMap = {};
+    const layerName = "Any Layer Name";
+    const rekeyedMap = rekeyAttributeMapToLayer(attributeMap, layerName);
+    expect(rekeyedMap).toEqual({});
+  });
+
+  test("returns original map if no map is provided", () => {
+    const layerName = "Nonexistent Layer Name";
+    const rekeyedMap = rekeyAttributeMapToLayer(null, layerName);
+    expect(rekeyedMap).toEqual(null);
+  });
+
+  test("returns original map if map is string instead of object", () => {
+    const attributeMap = "This is not an object";
+    const layerName = "Any Layer Name";
+    const rekeyedMap = rekeyAttributeMapToLayer(attributeMap, layerName);
+    expect(rekeyedMap).toEqual("This is not an object");
+  });
+
+  test("returns original map if target layer name is not provided", () => {
+    const attributeMap = {
+      "Old Layer Name": { attributes: ["attr1", "attr2"] },
+    };
+    const rekeyedMap = rekeyAttributeMapToLayer(attributeMap, null);
+    expect(rekeyedMap).toEqual({
+      "Old Layer Name": { attributes: ["attr1", "attr2"] },
+    });
+  });
+});
+
+describe("renameLayerInAttributeProps", () => {
+  test("renames layer key in attributeProps", () => {
+    const attributeProps = {
+      variables: {
+        "Old Layer Name": {
+          gauge_id: "Selected Gauge",
+        },
+      },
+      omitted: {
+        "Old Layer Name": ["_internal_id"],
+      },
+      aliases: {
+        "Old Layer Name": {
+          flow_cfs: "Flow (cfs)",
+        },
+      },
+      queryable: true,
+    };
+    const oldName = "Old Layer Name";
+    const newName = "New Layer Name";
+    const renamedProps = renameLayerInAttributeProps(
+      attributeProps,
+      oldName,
+      newName,
+    );
+    expect(renamedProps).toEqual({
+      variables: {
+        "New Layer Name": {
+          gauge_id: "Selected Gauge",
+        },
+      },
+      omitted: {
+        "New Layer Name": ["_internal_id"],
+      },
+      aliases: {
+        "New Layer Name": {
+          flow_cfs: "Flow (cfs)",
+        },
+      },
+      queryable: true,
+    });
+  });
+
+  test("returns original props if old layer name is not found", () => {
+    const attributeProps = {
+      variables: {
+        "Old Layer Name": {
+          gauge_id: "Selected Gauge",
+        },
+      },
+      omitted: {
+        "Old Layer Name": ["_internal_id"],
+      },
+      aliases: {
+        "Old Layer Name": {
+          flow_cfs: "Flow (cfs)",
+        },
+      },
+      queryable: true,
+    };
+    const oldName = "Nonexistent Layer Name";
+    const newName = "New Layer Name";
+    const renamedProps = renameLayerInAttributeProps(
+      attributeProps,
+      oldName,
+      newName,
+    );
+    expect(renamedProps).toEqual(attributeProps);
+  });
+
+  test("returns original props if oldName or newName is not provided", () => {
+    const attributeProps = {
+      variables: {
+        "Old Layer Name": {
+          gauge_id: "Selected Gauge",
+        },
+      },
+      omitted: {
+        "Old Layer Name": ["_internal_id"],
+      },
+      aliases: {
+        "Old Layer Name": {
+          flow_cfs: "Flow (cfs)",
+        },
+      },
+      queryable: true,
+    };
+    const renamedProps1 = renameLayerInAttributeProps(
+      attributeProps,
+      null,
+      "New Layer Name",
+    );
+    const renamedProps2 = renameLayerInAttributeProps(
+      attributeProps,
+      "Old Layer Name",
+      null,
+    );
+    expect(renamedProps1).toEqual(attributeProps);
+    expect(renamedProps2).toEqual(attributeProps);
+  });
+
+  test("returns original props if the new name is the same as the old name", () => {
+    const attributeProps = {
+      variables: {
+        "Layer Name": {
+          gauge_id: "Selected Gauge",
+        },
+      },
+      omitted: {
+        "Layer Name": ["_internal_id"],
+      },
+      aliases: {
+        "Layer Name": {
+          flow_cfs: "Flow (cfs)",
+        },
+      },
+      queryable: true,
+    };
+    const renamedProps = renameLayerInAttributeProps(
+      attributeProps,
+      "Layer Name",
+      "Layer Name",
+    );
+    expect(renamedProps).toEqual(attributeProps);
+  });
+});
+
+describe("normalizeAttributePropsForLayer", () => {
+  test("returns normalized attributeProps for a given layer", () => {
+    const attributeProps = {
+      variables: {
+        "Layer Name": {
+          gauge_id: "Selected Gauge",
+        },
+      },
+      omitted: {
+        "Layer Name": ["_internal_id"],
+      },
+      aliases: {
+        "Layer Name": {
+          flow_cfs: "Flow (cfs)",
+        },
+      },
+      queryable: true,
+    };
+    const layerName = "New Layer Name";
+    const normalizedProps = normalizeAttributePropsForLayer(
+      attributeProps,
+      layerName,
+    );
+    expect(normalizedProps).toEqual({
+      variables: {
+        "New Layer Name": {
+          gauge_id: "Selected Gauge",
+        },
+      },
+      omitted: {
+        "New Layer Name": ["_internal_id"],
+      },
+      aliases: {
+        "New Layer Name": {
+          flow_cfs: "Flow (cfs)",
+        },
+      },
+      queryable: true,
+    });
+  });
+
+  test("returns original props if the target layer name is not provided", () => {
+    const attributeProps = {
+      variables: {
+        "Layer Name": {
+          gauge_id: "Selected Gauge",
+        },
+      },
+      omitted: {
+        "Layer Name": ["_internal_id"],
+      },
+      aliases: {
+        "Layer Name": {
+          flow_cfs: "Flow (cfs)",
+        },
+      },
+      queryable: true,
+    };
+    const normalizedProps = normalizeAttributePropsForLayer(
+      attributeProps,
+      null,
+    );
+    expect(normalizedProps).toEqual(attributeProps);
+  });
+});
+
+describe("getLayerType", () => {
+  test("GeoTIFF short-circuits to WebGLTile before substring checks", () => {
+    expect(getLayerType("GeoTIFF")).toBe("WebGLTile");
+  });
+
+  test("Vector source types map to VectorTileLayer", () => {
+    expect(getLayerType("Vector Tile")).toBe("VectorTileLayer");
+    expect(getLayerType("Vector")).toBe("VectorTileLayer");
+  });
+
+  test("Raster source types map to WebGLTile", () => {
+    expect(getLayerType("PMTiles Raster")).toBe("WebGLTile");
+    expect(getLayerType("Raster")).toBe("WebGLTile");
+  });
+
+  test("Tile source types map to TileLayer", () => {
+    expect(getLayerType("Image Tile")).toBe("TileLayer");
+  });
+
+  test("Image / WMS source types map to ImageLayer", () => {
+    expect(getLayerType("WMS")).toBe("ImageLayer");
+    expect(getLayerType("Static Image")).toBe("ImageLayer");
+    expect(getLayerType("ESRI Image and Map Service")).toBe("ImageLayer");
+  });
+
+  test("Unknown source types fall back to VectorLayer", () => {
+    expect(getLayerType("GeoJSON")).toBe("VectorLayer");
+    expect(getLayerType("KML")).toBe("VectorLayer");
   });
 });
 
@@ -1630,4 +3545,5 @@ TestingComponent.propTypes = {
   layerInfo: PropTypes.object,
   mapLayers: PropTypes.array,
   existingLayerOriginalName: PropTypes.object,
+  dynamicMapLayers: PropTypes.array,
 };

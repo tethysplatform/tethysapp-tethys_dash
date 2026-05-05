@@ -21,6 +21,8 @@ coverage
 data
 build
 dist
+docs/brainstorms/
+docs/plans/
 
 
 reactapp/generated/clientPluginRegistry.json

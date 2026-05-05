@@ -1511,9 +1511,6 @@ test("DashboardCard editable, delete and confirm", async () => {
   const mockedDashboard = JSON.parse(
     JSON.stringify(updatedMockedDashboards.dashboards[0])
   );
-  updatedMockedDashboards.dashboards.unshift(mockedDashboard);
-  updatedMockedDashboards.dashboards[1].name = `${mockedDashboard.name} - Copy`;
-  updatedMockedDashboards.dashboards[1].id = 2;
 
   const mockDeleteDashboard = jest.fn();
   mockedConfirm.mockResolvedValueOnce(true);
@@ -1528,7 +1525,7 @@ test("DashboardCard editable, delete and confirm", async () => {
       children: (
         <MemoryRouter initialEntries={["/"]}>
           <TestingComponent>
-            <DashboardCard {...updatedMockedDashboards.dashboards[1]} />
+            <DashboardCard {...mockedDashboard} />
           </TestingComponent>
         </MemoryRouter>
       ),
@@ -1550,15 +1547,18 @@ test("DashboardCard editable, delete and confirm", async () => {
   await waitFor(async () => {
     expect(mockDeleteDashboard).toHaveBeenCalledWith(
       {
-        id: publicDashboard.id,
+        id: mockedDashboard.id,
       },
       "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
     );
   });
 
-  expect(await screen.findByTestId("availableDashboards")).toHaveTextContent(
-    JSON.stringify([mockedDashboard])
-  );
+  const dashboards = await screen.findByTestId("availableDashboards")
+  await waitFor(() => {
+    expect(dashboards).toHaveTextContent(
+      JSON.stringify([publicDashboard])
+    );
+  });
 });
 
 test("DashboardCard editable, delete and not confirm", async () => {

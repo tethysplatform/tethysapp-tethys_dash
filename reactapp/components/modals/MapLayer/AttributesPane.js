@@ -1,5 +1,5 @@
 import PropTypes from "prop-types";
-import { useState, useRef, useEffect, memo } from "react";
+import { useState, useRef, useEffect, memo, useContext } from "react";
 import Table from "react-bootstrap/Table";
 import styled from "styled-components";
 import Alert from "react-bootstrap/Alert";
@@ -10,6 +10,7 @@ import {
   sourcePropType,
 } from "components/map/utilities";
 import Spinner from "react-bootstrap/Spinner";
+import Button from "react-bootstrap/Button";
 import {
   valuesEqual,
   checkRequiredKeys,
@@ -18,6 +19,8 @@ import {
 import InputTable from "components/inputs/InputTable";
 import "components/modals/wideModal.css";
 import JSON5 from "json5";
+import { AppContext } from "components/contexts/Contexts";
+import { findSelectOptionByValue } from "components/visualizations/utilities";
 
 const StyledSpinner = styled(Spinner)`
   margin: auto;
@@ -47,6 +50,18 @@ const QueryLabel = styled.label`
   font-weight: bold;
 `;
 
+const UrlLoadBar = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+`;
+
+const UrlLoadHint = styled.span`
+  font-size: 0.85rem;
+  color: #6c757d;
+`;
+
 const AttributesPane = ({
   attributeProps,
   setAttributeProps,
@@ -64,6 +79,13 @@ const AttributesPane = ({
   const [allowLayerQuery, setAllowLayerQuery] = useState(
     attributeProps.queryable ?? true,
   );
+  const { dynamicMapLayers } = useContext(AppContext);
+
+  const isUrlGeoJSON =
+    sourceProps?.type === "GeoJSON" &&
+    typeof sourceProps?.geojson === "string" &&
+    sourceProps.geojson.trim() !== "" &&
+    !sourceProps.geojson.trim().startsWith("{");
 
   useEffect(() => {
     if (tabKey === "attributes") {
@@ -87,7 +109,7 @@ const AttributesPane = ({
       // make sure all the required source properties are being supplied
       const validSourceProps = removeEmptyValues(sourceProps.props);
       const missingRequiredProps = checkRequiredKeys(
-        sourcePropertiesOptions[sourceProps.type].required,
+        sourcePropertiesOptions[sourceProps.type]?.required,
         validSourceProps,
       );
       if (missingRequiredProps.length > 0) {
@@ -125,100 +147,13 @@ const AttributesPane = ({
         setCustomAttributes(null);
         previousSourceProps.current = JSON.parse(JSON.stringify(sourceProps));
 
+        if (isUrlGeoJSON) {
+          applyLayerAttributes(null);
+          return;
+        }
+
         // query attributes from the source props url
-        queryLayerAttributes().then((queriedLayerAttributes) => {
-          let layerAttributes = {};
-
-          // if attributes were returned from the query, use them and move on
-          if (queriedLayerAttributes) {
-            setCustomAttributes(true);
-
-            // remove an layers where no attributes were found
-            layerAttributes = Object.fromEntries(
-              Object.entries(queriedLayerAttributes).filter(
-                ([_, value]) => !(Array.isArray(value) && value.length === 0),
-              ),
-            );
-
-            // if the query failed, allow the user to create their own fields for configuration
-          } else {
-            setCustomAttributes(false);
-
-            // lowercase layerParams to make sure a key isnt missed from capitalization
-            const validSourceProps = removeEmptyValues(sourceProps.props);
-            const layerParams = validSourceProps?.params ?? [];
-            const lowercaseLayerParams = Object.keys(layerParams).reduce(
-              (acc, key) => {
-                acc[key.toLowerCase()] = layerParams[key];
-                return acc;
-              },
-              {},
-            );
-
-            // Check params for potential layers, otherwise just use the layer name
-            const potentialLayers =
-              lowercaseLayerParams?.layers ?? layerProps.name;
-
-            // split layers based on a comma delimited list. For WMS, extract the layer name from the namespace (topp:states for example)
-            const layers = potentialLayers
-              .split(",")
-              .map((layer) => layer.replace(/^[^:]*:/, ""));
-
-            // loop through each potential layer and setup custom attributes
-            for (const layerName of layers) {
-              let newAttributes = [];
-
-              // check to see if there are any current attributes or ommitted popups setup for the layer
-              const existingLayerattributeVariableFields = Object.keys(
-                attributeProps?.variables?.[layerName] || {},
-              );
-              const existingLayerAttributeAliases = Object.keys(
-                attributeProps?.aliases?.[layerName] || {},
-              );
-              const existingOmittedPopupAttributesFields =
-                attributeProps?.omitted?.[layerName] || [];
-
-              // get a unique array of attributes already configured for either popups or attributes
-              const existingAttributes = [
-                ...new Set([
-                  ...existingLayerattributeVariableFields,
-                  ...existingOmittedPopupAttributesFields,
-                  ...existingLayerAttributeAliases,
-                ]),
-              ];
-
-              // if preexisting attributes, then create a new attribute for each one. otherwise just create a single new attribute
-              if (existingAttributes.length > 0) {
-                for (const existingAttribute of existingAttributes) {
-                  newAttributes.push({
-                    name: existingAttribute,
-                  });
-                }
-              } else {
-                newAttributes.push({
-                  name: "",
-                });
-              }
-
-              // add the set of attributes for the layerName
-              layerAttributes[layerName] = newAttributes;
-            }
-          }
-
-          parseAttributes(layerAttributes);
-
-          previousAttributeProps.current = JSON.parse(
-            JSON.stringify(attributeProps),
-          );
-          setAttributeProps((previousAttributeProps) => ({
-            ...previousAttributeProps,
-            ...{
-              variables: extractVariableInputs(layerAttributes),
-              omitted: extractFalsePopups(layerAttributes),
-              aliases: extractAliases(layerAttributes),
-            },
-          }));
-        });
+        queryLayerAttributes().then(applyLayerAttributes);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -260,9 +195,17 @@ const AttributesPane = ({
   }
 
   async function queryLayerAttributes() {
+    const isDynamicMapLayer = findSelectOptionByValue(
+      dynamicMapLayers,
+      sourceProps.type,
+    );
     // query source endpoints for attributes
     try {
-      return await getLayerAttributes(sourceProps, layerProps.name);
+      return await getLayerAttributes({
+        sourceProps,
+        layerName: layerProps.name,
+        isDynamicMapLayer,
+      });
     } catch (error) {
       setWarningMessage(
         <>
@@ -276,6 +219,104 @@ const AttributesPane = ({
       );
       return;
     }
+  }
+
+  function applyLayerAttributes(queriedLayerAttributes) {
+    let layerAttributes = {};
+
+    // if attributes were returned from the query, use them and move on
+    if (queriedLayerAttributes) {
+      setCustomAttributes(true);
+
+      // remove an layers where no attributes were found
+      layerAttributes = Object.fromEntries(
+        Object.entries(queriedLayerAttributes).filter(
+          ([_, value]) => !(Array.isArray(value) && value.length === 0),
+        ),
+      );
+
+      // if the query failed, allow the user to create their own fields for configuration
+    } else {
+      setCustomAttributes(false);
+
+      // lowercase layerParams to make sure a key isnt missed from capitalization
+      const validSourceProps = removeEmptyValues(sourceProps.props);
+      const layerParams = validSourceProps?.params ?? [];
+      const lowercaseLayerParams = Object.keys(layerParams).reduce(
+        (acc, key) => {
+          acc[key.toLowerCase()] = layerParams[key];
+          return acc;
+        },
+        {},
+      );
+
+      // Check params for potential layers, otherwise just use the layer name
+      const potentialLayers = lowercaseLayerParams?.layers ?? layerProps.name;
+
+      // split layers based on a comma delimited list. For WMS, extract the layer name from the namespace (topp:states for example)
+      const layers = potentialLayers
+        .split(",")
+        .map((layer) => layer.replace(/^[^:]*:/, ""));
+
+      // loop through each potential layer and setup custom attributes
+      for (const layerName of layers) {
+        let newAttributes = [];
+
+        // check to see if there are any current attributes or ommitted popups setup for the layer
+        const existingLayerattributeVariableFields = Object.keys(
+          attributeProps?.variables?.[layerName] || {},
+        );
+        const existingLayerAttributeAliases = Object.keys(
+          attributeProps?.aliases?.[layerName] || {},
+        );
+        const existingOmittedPopupAttributesFields =
+          attributeProps?.omitted?.[layerName] || [];
+
+        // get a unique array of attributes already configured for either popups or attributes
+        const existingAttributes = [
+          ...new Set([
+            ...existingLayerattributeVariableFields,
+            ...existingOmittedPopupAttributesFields,
+            ...existingLayerAttributeAliases,
+          ]),
+        ];
+
+        // if preexisting attributes, then create a new attribute for each one. otherwise just create a single new attribute
+        if (existingAttributes.length > 0) {
+          for (const existingAttribute of existingAttributes) {
+            newAttributes.push({
+              name: existingAttribute,
+            });
+          }
+        } else {
+          newAttributes.push({
+            name: "",
+          });
+        }
+
+        // add the set of attributes for the layerName
+        layerAttributes[layerName] = newAttributes;
+      }
+    }
+
+    parseAttributes(layerAttributes);
+
+    previousAttributeProps.current = JSON.parse(JSON.stringify(attributeProps));
+    setAttributeProps((previousAttributeProps) => ({
+      ...previousAttributeProps,
+      ...{
+        variables: extractVariableInputs(layerAttributes),
+        omitted: extractFalsePopups(layerAttributes),
+        aliases: extractAliases(layerAttributes),
+      },
+    }));
+  }
+
+  async function handleLoadAttributesFromUrl() {
+    setWarningMessage(null);
+    setCustomAttributes(null);
+    const queriedLayerAttributes = await queryLayerAttributes();
+    applyLayerAttributes(queriedLayerAttributes);
   }
 
   function appendExistingVariablesAliasesAndPopups(layerAttributes) {
@@ -572,29 +613,46 @@ const AttributesPane = ({
                   </div>
                 ))
               ) : (
-                Object.keys(attributes).map((layerName, index) => (
-                  <InputTable
-                    key={index}
-                    label={layerName}
-                    onChange={({ newValue, field, fullChange }) =>
-                      updateAttributes({
-                        index,
-                        layerName,
-                        field,
-                        fieldChange: newValue,
-                        fullChange: fullChange,
-                      })
-                    }
-                    values={attributes[layerName]}
-                    allowRowCreation={true}
-                    headers={[
-                      "Name",
-                      "Alias",
-                      "Show in popup",
-                      "Variable Input Name",
-                    ]}
-                  />
-                ))
+                <>
+                  {isUrlGeoJSON && (
+                    <UrlLoadBar>
+                      <Button
+                        variant="outline-primary"
+                        size="sm"
+                        onClick={handleLoadAttributesFromUrl}
+                        aria-label="Load attributes from URL"
+                      >
+                        Load attributes from URL
+                      </Button>
+                      <UrlLoadHint>
+                        Large remote GeoJSON files may take a while to load.
+                      </UrlLoadHint>
+                    </UrlLoadBar>
+                  )}
+                  {Object.keys(attributes).map((layerName, index) => (
+                    <InputTable
+                      key={index}
+                      label={layerName}
+                      onChange={({ newValue, field, fullChange }) =>
+                        updateAttributes({
+                          index,
+                          layerName,
+                          field,
+                          fieldChange: newValue,
+                          fullChange: fullChange,
+                        })
+                      }
+                      values={attributes[layerName]}
+                      allowRowCreation={true}
+                      headers={[
+                        "Name",
+                        "Alias",
+                        "Show in popup",
+                        "Variable Input Name",
+                      ]}
+                    />
+                  ))}
+                </>
               )}
             </>
           )}

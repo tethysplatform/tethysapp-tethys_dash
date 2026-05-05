@@ -11,6 +11,7 @@ import {
   legendPropType,
   configurationPropType,
   mapDrawingPropType,
+  updateOlLayerProps,
 } from "components/map/utilities";
 import Alert from "react-bootstrap/Alert";
 import styled from "styled-components";
@@ -53,6 +54,7 @@ const MapComponent = ({
   onMapClick,
   visualizationRef,
   dataviewerViz,
+  runtimeLayerState,
 }) => {
   const [errorMessage, setErrorMessage] = useState("");
   const [layerControlUpdate, setLayerControlUpdate] = useState();
@@ -201,9 +203,70 @@ const MapComponent = ({
       // Clean up layers: determine which to keep and which to remove
       const layersToKeep = [];
       const layersToRemove = [];
+      // Runtime-VectorLayers kept via the identity branch may have their
+      // cosmetic props updated (opacity, name, zoom bounds) after the keep
+      // decision. Collect those here and apply after the loop so the in-place
+      // update doesn't interfere with layersToKeep membership checks.
+      const runtimeLayerUpdates = [];
+
       if (currentLayers.current.length) {
         const newLayerProps = (layers ?? []).map((l) => l.props);
+
+        // Build a map of incoming runtime-layer ids → {props, count} so we
+        // can detect duplicate-layerId collisions (e.g., from layer-paste).
+        // When duplicates exist, both are rebuilt and a console warning is
+        // logged so authors notice the identity breakage.
+        const incomingRuntimeIds = new Map();
+        (layers ?? []).forEach((l) => {
+          const id = l?.props?.layerId;
+          const plug = l?.props?.pluginSource;
+          if (id && plug) {
+            const existing = incomingRuntimeIds.get(id);
+            if (existing) {
+              existing.count += 1;
+            } else {
+              incomingRuntimeIds.set(id, { props: l.props, count: 1 });
+            }
+          }
+        });
+
         currentLayers.current.forEach((currentLayer) => {
+          const isRuntime =
+            currentLayer?.props?.pluginSource &&
+            currentLayer?.props?.layerId &&
+            currentLayer.type === "VectorLayer";
+
+          if (isRuntime) {
+            const incoming = incomingRuntimeIds.get(currentLayer.props.layerId);
+            if (
+              incoming &&
+              incoming.count === 1 &&
+              incoming.props.pluginSource?.source ===
+                currentLayer.props.pluginSource?.source
+            ) {
+              // Identity match: preserve the OL layer. Track cosmetic props
+              // to propagate after the loop. Use the INCOMING name for the
+              // layersToKeep tracker so the add/update loop's
+              // `if (layersToKeep.includes(name))` guard skips the new config.
+              layersToKeep.push(incoming.props.name);
+              runtimeLayerUpdates.push({
+                layerId: currentLayer.props.layerId,
+                oldName: currentLayer.props.name,
+                newProps: incoming.props,
+              });
+              return;
+            }
+            if (incoming && incoming.count > 1) {
+              console.warn(
+                `Multiple runtime layers share layerId "${currentLayer.props.layerId}"; ` +
+                  "rebuilding all of them to avoid identity collision. " +
+                  "Ensure layerId is regenerated on duplicate/import.",
+              );
+            }
+            // Otherwise (no incoming match, pluginSource changed, duplicate
+            // layerId) fall through and let the layer be torn down + rebuilt.
+          }
+
           const shouldKeep =
             newLayerProps.some((newProps) =>
               valuesEqual(newProps, currentLayer.props),
@@ -213,11 +276,27 @@ const MapComponent = ({
           }
         });
 
-        // Remove layers from the map that are not in layersToKeep
+        const keptRuntimeLayerIds = new Set(
+          runtimeLayerUpdates.map((u) => u.layerId),
+        );
         currentMapLayers.forEach((layer) => {
           const layerName = layer.get("name");
+          const layerId = layer.get("layerId");
+          if (layerId && keptRuntimeLayerIds.has(layerId)) {
+            return;
+          }
           if (!layersToKeep.includes(layerName)) {
             layersToRemove.push(layer);
+          }
+        });
+
+        // Apply cosmetic prop changes to preserved runtime OL instances.
+        runtimeLayerUpdates.forEach(({ layerId, newProps }) => {
+          const olLayer = currentMapLayers.find(
+            (l) => l.get("layerId") === layerId,
+          );
+          if (olLayer) {
+            updateOlLayerProps(olLayer, newProps);
           }
         });
       }
@@ -242,6 +321,17 @@ const MapComponent = ({
             );
             newLayer.set("name", name);
 
+            // Tag runtime-layer identity on the OL instance so the
+            // identity-based shouldKeep branch can find this layer on the
+            // next reconciliation (and so updateOlLayerProps can re-sync the
+            // tags if the author renames the layer).
+            if (layerConfig.props?.layerId) {
+              newLayer.set("layerId", layerConfig.props.layerId);
+            }
+            if (layerConfig.props?.pluginSource) {
+              newLayer.set("pluginSource", layerConfig.props.pluginSource);
+            }
+
             if (
               layerConfig.layerVisibility === false &&
               isFirstRender.current
@@ -249,12 +339,6 @@ const MapComponent = ({
               newLayer.setVisible(false);
             }
 
-            // Wait for the new layer to finish loading before removing
-            // the old layer it replaces. This prevents flickering during
-            // animated layer transitions (e.g., Array slider cycling
-            // through image URLs). Only applies when replacing a layer
-            // with an updated version of itself (same name), not when
-            // swapping structurally different layers.
             const replacesExisting = layersToRemove.some(
               (old) => old.get("name") === name,
             );
@@ -293,32 +377,162 @@ const MapComponent = ({
 
             map.addLayer(newLayer);
 
-            if (layerConfig.style) {
-              try {
-                await applyStyle(newLayer, layerConfig.style);
-              } catch (err) {
-                if (
-                  err.message !==
-                  "Cannot read properties of undefined (reading 'crs')"
-                ) {
-                  const styleFunction = createJsonStyleFunction(
-                    layerConfig.style,
+            if (
+              layerConfig.type === "WebGLTile" &&
+              layerConfig.props?.source?.type === "GeoTIFF"
+            ) {
+              const geoTIFFSource = newLayer.getSource();
+
+              let errorSurfaced = false;
+              const surface = (phase) => (evt) => {
+                if (errorSurfaced) return;
+                errorSurfaced = true;
+                const detail = evt?.error?.message || evt?.message || "";
+                const looksLikeFetchFailure =
+                  /request failed|AggregateError|CORS|blocked|Failed to fetch/i.test(
+                    detail,
                   );
-                  if (typeof newLayer.setStyle === "function") {
-                    newLayer.setStyle(styleFunction);
+                const message = looksLikeFetchFailure
+                  ? `GeoTIFF layer "${name}" failed to fetch the file. ` +
+                    `Check the Network tab — likely causes: CORS headers ` +
+                    `missing on the hosting server, no HTTP Range support, ` +
+                    `or the URL is unreachable. Detail: ${detail}.`
+                  : `GeoTIFF layer "${name}" failed (${phase}). ` +
+                    (detail ? `Detail: ${detail}. ` : "") +
+                    `The file may not be a Cloud Optimized GeoTIFF. ` +
+                    `Try converting with ` +
+                    `\`gdal_translate -of COG -co COMPRESS=DEFLATE -co PREDICTOR=YES input.tif output.tif\`.`;
+                setErrorMessage(message);
+                console.warn(
+                  `GeoTIFF layer "${name}" (${phase}):`,
+                  evt?.error ?? evt,
+                );
+              };
+              geoTIFFSource.on("error", surface("source error"));
+              geoTIFFSource.on("tileloaderror", surface("tile load error"));
+
+              try {
+                const viewOptions = await geoTIFFSource.getView();
+                const mapSize = map.getSize();
+                const prevView = map.getView();
+                const prevProjection = prevView.getProjection();
+                const newProjection = viewOptions.projection;
+                const tifExtent = viewOptions.extent;
+
+                const haveMapSize =
+                  Array.isArray(mapSize) &&
+                  mapSize.length === 2 &&
+                  mapSize[0] > 0 &&
+                  mapSize[1] > 0;
+
+                // Helper: extents [minX, minY, maxX, maxY] overlap?
+                const intersects = (a, b) =>
+                  !(a[2] < b[0] || a[0] > b[2] || a[3] < b[1] || a[1] > b[3]);
+
+                const newView = new View({
+                  projection: newProjection,
+                  center: viewOptions.center ?? [0, 0],
+                  zoom: viewOptions.zoom ?? 0,
+                });
+
+                let targetExtent = null;
+                if (haveMapSize) {
+                  const prevExtent = prevView.calculateExtent(mapSize);
+                  const sourceValid = prevProjection.getExtent?.();
+                  const clampedPrev =
+                    Array.isArray(sourceValid) && sourceValid.length === 4
+                      ? [
+                          Math.max(prevExtent[0], sourceValid[0]),
+                          Math.max(prevExtent[1], sourceValid[1]),
+                          Math.min(prevExtent[2], sourceValid[2]),
+                          Math.min(prevExtent[3], sourceValid[3]),
+                        ]
+                      : prevExtent;
+
+                  if (
+                    clampedPrev.every(Number.isFinite) &&
+                    clampedPrev[0] < clampedPrev[2] &&
+                    clampedPrev[1] < clampedPrev[3]
+                  ) {
+                    const transformed = transformExtent(
+                      clampedPrev,
+                      prevProjection,
+                      newProjection,
+                    );
+                    if (transformed.every(Number.isFinite)) {
+                      const overlaps =
+                        Array.isArray(tifExtent) &&
+                        tifExtent.length === 4 &&
+                        intersects(transformed, tifExtent);
+                      targetExtent = overlaps
+                        ? transformed
+                        : Array.isArray(tifExtent) &&
+                            tifExtent.every(Number.isFinite)
+                          ? tifExtent
+                          : transformed;
+                    }
+                  }
+                }
+
+                if (
+                  !targetExtent &&
+                  Array.isArray(tifExtent) &&
+                  tifExtent.length === 4 &&
+                  tifExtent.every(Number.isFinite)
+                ) {
+                  targetExtent = tifExtent;
+                }
+
+                if (targetExtent && haveMapSize) {
+                  newView.fit(targetExtent, { size: mapSize });
+                }
+                map.setView(newView);
+              } catch (err) {
+                console.warn(
+                  `GeoTIFF auto-fit failed for layer "${name}":`,
+                  err,
+                );
+              }
+            }
+
+            if (layerConfig.style) {
+              const isWebGLTileRampStyle =
+                layerConfig.type === "WebGLTile" &&
+                layerConfig.style &&
+                typeof layerConfig.style === "object" &&
+                !Array.isArray(layerConfig.style) &&
+                "color" in layerConfig.style;
+
+              if (isWebGLTileRampStyle) {
+                newLayer.setStyle(layerConfig.style);
+              } else {
+                try {
+                  await applyStyle(newLayer, layerConfig.style);
+                } catch (err) {
+                  if (
+                    err.message !==
+                    "Cannot read properties of undefined (reading 'crs')"
+                  ) {
+                    const styleFunction = createJsonStyleFunction(
+                      layerConfig.style,
+                    );
+                    if (typeof newLayer.setStyle === "function") {
+                      newLayer.setStyle(styleFunction);
+                    }
                   }
                 }
               }
             }
           } catch (err) {
+            if (err && err.message === "GeoTIFFEmptySources") {
+              return;
+            }
             console.log(err);
             failedLayers.push(name);
           }
         }),
       );
 
-      // Wait for new layers to load before removing old ones to prevent
-      // flickering. Falls through immediately if no load promises exist.
       if (layerLoadPromises.length > 0) {
         await Promise.all(layerLoadPromises);
       }
@@ -425,6 +639,7 @@ const MapComponent = ({
           <LayersControl
             visualizationRef={visualizationRef}
             updater={layerControlUpdate}
+            runtimeLayerState={runtimeLayerState}
           />
         )}
         {legend && legend.length > 0 && <LegendControl legendItems={legend} />}
@@ -454,6 +669,16 @@ MapComponent.propTypes = {
   dataviewerViz: PropTypes.bool, // determines if the map is in the dataviewer so that it doesnt affect the main map
   mapDrawing: mapDrawingPropType,
   drawing: PropTypes.shape({ current: PropTypes.bool }),
+  // Runtime dynamic_map_layer state bundle: errors keyed by layerId, retry
+  // action, plus sessionNonce + gridItemUuid for building composite WebSocket
+  // requestIds (Unit 3/5). Undefined for dataviewer / legacy maps — LayersControl
+  // handles absence gracefully.
+  runtimeLayerState: PropTypes.shape({
+    errorsByLayerId: PropTypes.object,
+    retry: PropTypes.func,
+    sessionNonce: PropTypes.string,
+    gridItemUuid: PropTypes.string,
+  }),
 };
 
 export default memo(MapComponent);

@@ -1,7 +1,10 @@
 import intake
 from tethysapp.tethysdash.model import get_visualization_user_permission, Message
 from tethysapp.tethysdash.exceptions import VisualizationError
-from tethysapp.tethysdash.plugin_helpers import get_plugin_prop
+from tethysapp.tethysdash.plugin_helpers import (
+    get_plugin_prop,
+    validate_feature_collection,
+)
 
 
 def build_plugin_metadata(plugin, source):
@@ -36,6 +39,7 @@ def build_plugin_metadata(plugin, source):
         "llm_non_editable_args": get_plugin_prop(
             plugin, "llm_non_editable_args", None
         ),
+        "dynamic_map_layer": get_plugin_prop(plugin, "dynamic_map_layer", False),
     }
 
 
@@ -160,7 +164,7 @@ def get_available_visualizations(user):
     return {"visualizations": available_visualizations}
 
 
-def get_visualization(viz_source, viz_args, user, viz_request_id):
+def get_visualization(viz_source, viz_args, user, viz_request_id, mode="scaffold"):
     """
     Retrieve data from a specific visualization plugin.
 
@@ -171,16 +175,26 @@ def get_visualization(viz_source, viz_args, user, viz_request_id):
         viz_source (str): Source identifier for the visualization plugin
         viz_args (dict): Arguments to pass to the visualization plugin
         user: User object to check permissions for
-        viz_request_id: Unique identifier for the visualization request
+        viz_request_id: Unique identifier for the visualization request. For
+            runtime feature fetches, a composite id of the form
+            ``{sessionNonce}:{gridItemUUID}:{layerId}`` is expected; the final
+            suffix is parsed as ``layer_id`` and threaded into the plugin so
+            progress messages carry it.
+        mode (str): ``"scaffold"`` (default) invokes the configure-time
+            :py:meth:`TethysDashPlugin.run` method. ``"features"`` invokes
+            :py:meth:`TethysDashPlugin.fetch_features` via ``read_features``
+            and validates the return as a GeoJSON FeatureCollection.
     Returns:
         tuple: (visualization_type, data)
-            - visualization_type (str): Type of visualization
-            - data: The actual visualization data
+            - visualization_type (str): Type of visualization (``"features"``
+              for mode=features responses).
+            - data: The actual visualization data.
 
     Raises:
-        VisualizationError: If user lacks permission for restricted visualization
-        AttributeError: If visualization plugin doesn't exist
-        Exception: If data loading fails
+        VisualizationError: If user lacks permission, the plugin is not
+            installed, the plugin does not support runtime features (in
+            features-mode), or the returned payload fails validation.
+        Exception: If data loading fails.
     """
     from tethysapp.tethysdash.app import App
 
@@ -229,6 +243,28 @@ def get_visualization(viz_source, viz_args, user, viz_request_id):
             session.close()
 
     plugin_instance = plugin(**viz_args)
+
+    if mode == "features":
+        if not get_plugin_prop(plugin_instance, "dynamic_map_layer", False):
+            raise VisualizationError(
+                f"Visualization ({viz_source}) does not support dynamic features."
+            )
+
+        # Parse the composite requestId suffix as layer_id when present, so
+        # send_update calls within fetch_features automatically attach the id
+        # for per-layer progress routing. Gated on mode=features to avoid
+        # changing behavior for scaffold callers that may legitimately use `:`.
+        # Empty suffixes (e.g., "a:b:") are rejected to prevent layerId=""
+        # from polluting the WebSocket routing on the frontend.
+        if viz_request_id and ":" in viz_request_id:
+            layer_id_suffix = viz_request_id.rsplit(":", 1)[-1]
+            if layer_id_suffix:
+                plugin_instance._pending_layer_id = layer_id_suffix
+
+        data = plugin_instance.read_features(request_id=viz_request_id)
+        validate_feature_collection(data)
+        return "features", data
+
     try:
         data = plugin_instance.read(request_id=viz_request_id)
     except TypeError:

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useContext } from "react";
 import PropTypes from "prop-types";
 import Table from "react-bootstrap/Table";
 import styled from "styled-components";
@@ -9,6 +9,8 @@ import { valuesEqual } from "components/modals/utilities";
 import { BsPencilSquare, BsTrash } from "react-icons/bs";
 import { RxDragHandleHorizontal } from "react-icons/rx";
 import { layerPropType } from "components/map/utilities";
+import { AppContext } from "components/contexts/Contexts";
+import { findSelectOptionByValue } from "components/visualizations/utilities";
 
 const FixedTable = styled(Table)`
   table-layout: fixed;
@@ -53,6 +55,8 @@ const MapLayerTemplate = ({
   existingLayerOriginalName,
   setShowMapLayerModal,
 }) => {
+  const { dynamicMapLayers } = useContext(AppContext);
+
   const removeMapLayer = (mapLayerName) => {
     // Get all map layers except the given mapLayerName
     const updatedMapLayers = mapLayers.filter(
@@ -83,8 +87,21 @@ const MapLayerTemplate = ({
     );
     layerProps.layerVisibility = existingMapLayer.configuration.layerVisibility;
 
+    const pluginSource = existingMapLayer.configuration.props?.pluginSource;
+    const pluginOption = pluginSource
+      ? findSelectOptionByValue(dynamicMapLayers, pluginSource.source, "source")
+      : null;
+    const sourceProps = pluginSource
+      ? {
+          type: pluginOption.value,
+          source: pluginSource.source,
+          args: pluginSource.args ?? {},
+          props: {},
+        }
+      : existingMapLayer.configuration.props.source;
+
     const updatedLayerInfo = {
-      sourceProps: existingMapLayer.configuration.props.source,
+      sourceProps,
       layerProps,
       legend: existingMapLayer.legend,
       style: existingMapLayer.configuration.style,

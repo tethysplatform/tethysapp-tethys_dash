@@ -6,9 +6,11 @@ import appAPI from "services/api/app";
 import DataRadioSelect from "components/inputs/DataRadioSelect";
 import NormalInput from "components/inputs/NormalInput";
 import RuleStyleEditor from "components/inputs/RuleStyleEditor";
+import RampPicker from "components/modals/MapLayer/RampPicker";
 import Button from "react-bootstrap/Button";
-import { LayoutContext } from "components/contexts/Contexts";
+import { LayoutContext, AppContext } from "components/contexts/Contexts";
 import { getStyleFields } from "components/map/utilities";
+import { findSelectOptionByValue } from "components/visualizations/utilities";
 
 const EditorModeRow = styled.div`
   display: flex;
@@ -34,12 +36,33 @@ const CenteredDiv = styled.div`
   font-weight: bold;
 `;
 
+const GeoTIFFSection = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+`;
+
+const SectionHeading = styled.h5`
+  margin: 0 0 6px 0;
+`;
+
+const RangeRow = styled.div`
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+`;
+
+const RangeCell = styled.div`
+  flex: 1;
+`;
+
 const StylePane = ({
   style,
   setStyle,
   setErrorMessage,
   containerRef,
   sourceProps,
+  setSourceProps,
   layerProps,
 }) => {
   const [styleSource, setStyleSource] = useState("custom"); // track the geojson value
@@ -48,8 +71,19 @@ const StylePane = ({
   const [defaultStyle, setDefaultStyle] = useState({});
   const { uuid } = useContext(LayoutContext);
   const [availableFields, setAvailableFields] = useState([]);
+  const { dynamicMapLayers } = useContext(AppContext);
 
   useEffect(() => {
+    const isUrlGeoJSON =
+      sourceProps?.type === "GeoJSON" &&
+      typeof sourceProps?.geojson === "string" &&
+      sourceProps.geojson.trim() !== "" &&
+      !sourceProps.geojson.trim().startsWith("{");
+    if (isUrlGeoJSON) {
+      setAvailableFields([]);
+      return;
+    }
+
     const fetchAvailableFields = async () => {
       try {
         const fields = await getStyleFields({
@@ -154,8 +188,62 @@ const StylePane = ({
     }
   }
 
+  if (sourceProps.type === "GeoTIFF") {
+    const selectedRamp = sourceProps.rampName ?? null;
+    const rampMin = sourceProps.rampMin ?? "";
+    const rampMax = sourceProps.rampMax ?? "";
+
+    const handleRampSelect = (rampName) => {
+      if (!setSourceProps) return;
+      setSourceProps((prev) => ({ ...prev, rampName }));
+    };
+    const handleMinChange = (e) => {
+      if (!setSourceProps) return;
+      const value = e.target.value;
+      setSourceProps((prev) => ({ ...prev, rampMin: value }));
+    };
+    const handleMaxChange = (e) => {
+      if (!setSourceProps) return;
+      const value = e.target.value;
+      setSourceProps((prev) => ({ ...prev, rampMax: value }));
+    };
+
+    return (
+      <GeoTIFFSection>
+        <SectionHeading>Color Ramp</SectionHeading>
+        <RampPicker selectedRamp={selectedRamp} onChange={handleRampSelect} />
+        <RangeRow>
+          <RangeCell>
+            <NormalInput
+              label="Min"
+              value={rampMin}
+              type="number"
+              onChange={handleMinChange}
+              ariaLabel="Ramp Min"
+              allowEmpty
+            />
+          </RangeCell>
+          <RangeCell>
+            <NormalInput
+              label="Max"
+              value={rampMax}
+              type="number"
+              onChange={handleMaxChange}
+              ariaLabel="Ramp Max"
+              allowEmpty
+            />
+          </RangeCell>
+        </RangeRow>
+      </GeoTIFFSection>
+    );
+  }
+
   const supportedTypes = ["GeoJSON", "ESRI Feature Service", "PMTiles Vector"];
-  if (!supportedTypes.includes(sourceProps.type)) {
+  const isDynamicMapLayer = findSelectOptionByValue(
+    dynamicMapLayers,
+    sourceProps.type,
+  );
+  if (!supportedTypes.includes(sourceProps.type) && !isDynamicMapLayer) {
     return (
       <CenteredDiv>
         Custom Styling is only available for {supportedTypes.join(", ")} layers.
@@ -250,14 +338,19 @@ StylePane.propTypes = {
   setErrorMessage: PropTypes.func,
   sourceProps: PropTypes.shape({
     type: PropTypes.string,
+    rampName: PropTypes.string,
+    rampMin: PropTypes.string,
+    rampMax: PropTypes.string,
+    geojson: PropTypes.oneOfType([PropTypes.string, PropTypes.object]),
   }),
+  setSourceProps: PropTypes.func,
   layerProps: PropTypes.shape({
     name: PropTypes.string, // name of the layer
-    opacity: PropTypes.string,
-    minResolution: PropTypes.string,
-    maxResolution: PropTypes.string,
-    minZoom: PropTypes.string,
-    maxZoom: PropTypes.string,
+    opacity: PropTypes.oneOfType([PropTypes.number, PropTypes.string]), // opacity of the layer (0-1)
+    minResolution: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    maxResolution: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    minZoom: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    maxZoom: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
     layerVisibility: PropTypes.bool,
   }),
   containerRef: PropTypes.object,

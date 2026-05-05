@@ -31,10 +31,21 @@ const moduleCache = {};
 const styleCache = new Map();
 
 const moduleLoader = async (config, mapProjection) => {
-  if (config.type === "Static Image" && typeof config.props?.imageExtent === "string") {
+  if (
+    config.type === "Static Image" &&
+    typeof config.props?.imageExtent === "string"
+  ) {
     config.props.imageExtent = config.props.imageExtent
       .split(",")
       .map((v) => parseFloat(v.trim()));
+  }
+
+  if (
+    config.type === "GeoTIFF" &&
+    Array.isArray(config.props?.sources) &&
+    config.props.sources.length === 0
+  ) {
+    throw new Error("GeoTIFFEmptySources");
   }
 
   if (config.type.includes("ESRI")) {
@@ -115,6 +126,25 @@ const resolveProps = async (props, mapProjection) => {
   for (const key of Object.keys(props)) {
     const value = props[key];
 
+    if (key === "bands" && typeof value === "string") {
+      const parsed = value
+        .split(",")
+        .map((b) => b.trim())
+        .filter((s) => s !== "")
+        .map(Number)
+        .filter((n) => Number.isFinite(n));
+      if (parsed.length > 0) {
+        resolvedProps[key] = parsed;
+      }
+      continue;
+    }
+    if (key === "projection" && value === "") {
+      continue;
+    }
+    if (key === "overviews" && Array.isArray(value) && value.length === 0) {
+      continue;
+    }
+
     if (value && typeof value === "object") {
       if ("type" in value && "props" in value) {
         // It's a module configuration; process with moduleLoader
@@ -138,6 +168,10 @@ const resolveProps = async (props, mapProjection) => {
       // It's a primitive value; assign as is
       resolvedProps[key] = convertType(value);
     }
+  }
+
+  if (props.sources && Array.isArray(props.sources)) {
+    resolvedProps.normalize = false;
   }
 
   return resolvedProps;
@@ -192,6 +226,7 @@ const getModuleImporter = (type) => {
     "PMTiles Vector": "ol-pmtiles",
     "PMTiles Raster": "ol-pmtiles",
     "Static Image": "ol/source/ImageStatic.js",
+    GeoTIFF: "ol/source/GeoTIFF.js",
     "bad-module": "bad-module",
     // Add other mappings as needed
   };
@@ -212,13 +247,21 @@ const getModuleImporter = (type) => {
 };
 
 const loadGeoJSON = (config, mapProjection) => {
-  const vectorSource = new VectorSource({
-    features: new GeoJSON().readFeatures(config.geojson, {
-      dataProjection: config.geojson.crs.properties.name, // CRS of the GeoJSON data
-      featureProjection: mapProjection, // CRS of the map
+  const geojson = config.geojson;
+
+  if (typeof geojson === "string") {
+    return new VectorSource({
+      url: geojson,
+      format: new GeoJSON({ featureProjection: mapProjection }),
+    });
+  }
+
+  return new VectorSource({
+    features: new GeoJSON().readFeatures(geojson, {
+      dataProjection: geojson.crs?.properties?.name,
+      featureProjection: mapProjection,
     }),
   });
-  return vectorSource;
 };
 
 export const loadESRIJSON = (config) => {

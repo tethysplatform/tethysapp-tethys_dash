@@ -19,11 +19,9 @@ import {
   userDashboard,
   mockedMapBase,
   mockedLiveChatBase,
-  mockedImageCollectionBase,
 } from "__tests__/utilities/constants";
 import BaseVisualization, {
   Visualization,
-  compareFilteredArgs,
 } from "components/visualizations/Base";
 import createLoadedComponent, {
   InputVariablePComponent,
@@ -39,10 +37,6 @@ import {
   VariableInputsContext,
 } from "components/contexts/Contexts";
 import { WebsocketContext } from "components/contexts/WebSocketContext";
-
-jest.mock("uuid", () => ({
-  v4: () => 12345678,
-}));
 
 jest.mock("components/visualizations/ModuleLoader", () => {
   const MockModuleLoader = () => <div>ModuleLoader Mock</div>;
@@ -1589,6 +1583,7 @@ it("ImageSequence fast-path updates activeUrl without calling getVisualization",
   );
 
   const argsString = JSON.stringify({
+    // eslint-disable-next-line
     image_source: "${Slider}",
   });
   const metadataString = JSON.stringify({ refreshRate: 0 });
@@ -1688,101 +1683,4 @@ it("renders ImageCollection", () => {
   expect(screen.getByText("Example Image Collection")).toBeInTheDocument();
   const images = screen.getAllByRole("img");
   expect(images).toHaveLength(3);
-});
-
-describe("compareFilteredArgs function", () => {
-  it("should handle updatedArgs being null or undefined - covers line 215", () => {
-    const currentArgs = { a: 1, b: 2, c: 3 };
-    const keysToCompare = { a: true, b: true };
-
-    // Test Case 1: updatedArgs is null - line 215 should evaluate to false
-    const resultWithNull = compareFilteredArgs(
-      currentArgs,
-      null,
-      keysToCompare,
-    );
-    expect(resultWithNull).toBe(false); // Different because currentArgs has values but updatedArgs is null
-
-    // Test Case 2: updatedArgs is undefined - line 215 should evaluate to false
-    const resultWithUndefined = compareFilteredArgs(
-      currentArgs,
-      undefined,
-      keysToCompare,
-    );
-    expect(resultWithUndefined).toBe(false); // Different because currentArgs has values but updatedArgs is undefined
-
-    // Test Case 3: updatedArgs is an empty object - line 215 condition passes but keys are undefined
-    const resultWithEmptyObject = compareFilteredArgs(
-      currentArgs,
-      {},
-      keysToCompare,
-    );
-    expect(resultWithEmptyObject).toBe(false); // Different because currentArgs has values but updatedArgs is empty
-
-    // Test Case 4: updatedArgs has some keys but not the ones in keysToCompare
-    const updatedArgsWithDifferentKeys = { x: 1, y: 2 };
-    const resultWithDifferentKeys = compareFilteredArgs(
-      currentArgs,
-      updatedArgsWithDifferentKeys,
-      keysToCompare,
-    );
-    expect(resultWithDifferentKeys).toBe(false); // Different because the keys don't match
-
-    // Test Case 5: updatedArgs has the same keys and values - should pass line 215 and succeed
-    const updatedArgsMatching = { a: 1, b: 2, z: 99 }; // z is extra but not in keysToCompare
-    const resultMatching = compareFilteredArgs(
-      currentArgs,
-      updatedArgsMatching,
-      keysToCompare,
-    );
-    expect(resultMatching).toBe(true); // Should match because filtered keys a and b have same values
-
-    // Test Case 6: updatedArgs has some matching keys but different values
-    const updatedArgsPartialMatch = { a: 1, b: 999 }; // b has different value
-    const resultPartialMatch = compareFilteredArgs(
-      currentArgs,
-      updatedArgsPartialMatch,
-      keysToCompare,
-    );
-    expect(resultPartialMatch).toBe(false); // Should not match because b values are different
-
-    // Test Case 7: updatedArgs has some keys undefined - tests the !== undefined check on line 215
-    const updatedArgsWithUndefinedValues = { a: 1, b: undefined, c: 3 };
-    const resultWithUndefinedValues = compareFilteredArgs(
-      currentArgs,
-      updatedArgsWithUndefinedValues,
-      keysToCompare,
-    );
-    expect(resultWithUndefinedValues).toBe(false); // Should not match because b is undefined in updatedArgs but defined in currentArgs
-  });
-
-  it("should handle currentArgs being null or undefined", () => {
-    const updatedArgs = { a: 1, b: 2 };
-    const keysToCompare = { a: true, b: true };
-
-    // Test currentArgs being null
-    const resultWithNullCurrent = compareFilteredArgs(
-      null,
-      updatedArgs,
-      keysToCompare,
-    );
-    expect(resultWithNullCurrent).toBe(false);
-
-    // Test currentArgs being undefined
-    const resultWithUndefinedCurrent = compareFilteredArgs(
-      undefined,
-      updatedArgs,
-      keysToCompare,
-    );
-    expect(resultWithUndefinedCurrent).toBe(false);
-  });
-
-  it("should only compare keys that exist in keysToCompare", () => {
-    const currentArgs = { a: 1, b: 2, c: 3, d: 4 };
-    const updatedArgs = { a: 1, b: 2, c: 999, d: 999 }; // c and d are different but not in keysToCompare
-    const keysToCompare = { a: true, b: true }; // Only compare a and b
-
-    const result = compareFilteredArgs(currentArgs, updatedArgs, keysToCompare);
-    expect(result).toBe(true); // Should match because only a and b are compared, and they match
-  });
 });

@@ -66,6 +66,40 @@ describe("BasePlot", () => {
     const plotDiv = container.querySelector('div[style*="display: flex"]');
     expect(plotDiv).toBeInTheDocument();
   });
+
+  it("does not infinite-rerender when metadata.plotlyVerticalLine is absent", () => {
+    // Stub visualizationRef so the layout-syncing effect runs setPlotLayout
+    // instead of early-returning. If `plotlyVerticalLine` defaults to a fresh
+    // `{}` on each render, this would loop and React would throw
+    // "Maximum update depth exceeded".
+    const fakePlot = { el: { layout: { shapes: [] } } };
+    const visualizationRef = {};
+    Object.defineProperty(visualizationRef, "current", {
+      get: () => fakePlot,
+      set: () => {},
+      configurable: true,
+    });
+
+    expect(() =>
+      render(
+        <VariableInputsContext.Provider
+          value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+        >
+          <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+            <DataViewerModeContext.Provider value={{ mode: "default" }}>
+              <BasePlot
+                data={[{ x: [1, 2], y: [3, 4], type: "scatter" }]}
+                layout={{ title: "Test Plot" }}
+                config={{ responsive: true }}
+                visualizationRef={visualizationRef}
+                metadata={{}}
+              />
+            </DataViewerModeContext.Provider>
+          </GridItemContext.Provider>
+        </VariableInputsContext.Provider>,
+      ),
+    ).not.toThrow();
+  });
 });
 
 describe("BasePlot utility functions", () => {

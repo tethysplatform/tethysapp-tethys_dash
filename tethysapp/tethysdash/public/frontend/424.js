@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunktethysdash_frontend=self.webpackChunktethysdash_frontend||[]).push([[424],{50424:(e,s,t)=>{t.r(s),t.d(s,{default:()=>d});var n=t(3075),r=t(42132);class d extends r.A{decodeBlock(e){return(0,n.UD)(new Uint8Array(e)).buffer}}}}]);

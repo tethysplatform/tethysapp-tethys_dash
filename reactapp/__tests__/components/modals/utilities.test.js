@@ -151,4 +151,7 @@ test("checkRequiredKeys", async () => {
   };
   missingKeys = checkRequiredKeys(requiredKeysObj, checkingObj);
   expect(missingKeys).toStrictEqual(["test", "test2.test3"]);
+
+  missingKeys = checkRequiredKeys(null, checkingObj);
+  expect(missingKeys).toStrictEqual([]);
 });

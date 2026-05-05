@@ -4,10 +4,6 @@ import LiveChat, { ChatMessage } from "components/visualizations/LiveChat";
 import { AppContext } from "components/contexts/Contexts";
 import { WebsocketContext } from "components/contexts/WebSocketContext";
 
-jest.mock("uuid", () => ({
-  v4: () => 12345678,
-}));
-
 const mockSendMessage = jest.fn();
 const mockWebsocketContext = {
   websocketReady: true,
@@ -44,7 +40,7 @@ function renderWithContexts(props = {}) {
       <WebsocketContext.Provider value={mockWebsocketContext}>
         <LiveChat requestId="req-1" chatHistory={chatHistory} {...props} />
       </WebsocketContext.Provider>
-    </AppContext.Provider>
+    </AppContext.Provider>,
   );
 }
 
@@ -79,13 +75,13 @@ describe("LiveChat", () => {
             ]}
           />
         </WebsocketContext.Provider>
-      </AppContext.Provider>
+      </AppContext.Provider>,
     );
 
     const div = screen.getByText(
       (content, element) =>
         element.tagName.toLowerCase() === "div" &&
-        element.textContent === "Hello world!"
+        element.textContent === "Hello world!",
     );
     // eslint-disable-next-line
     expect(div.querySelector("br")).toBeInTheDocument();
@@ -98,7 +94,7 @@ describe("LiveChat", () => {
         <WebsocketContext.Provider value={mockWebsocketContext}>
           <LiveChat requestId="req-1" chatHistory={chatHistory} />
         </WebsocketContext.Provider>
-      </AppContext.Provider>
+      </AppContext.Provider>,
     );
 
     expect(await screen.findByLabelText("Set Username")).toBeInTheDocument();
@@ -108,7 +104,7 @@ describe("LiveChat", () => {
     fireEvent.change(input, { target: { value: "NewUser" } });
     fireEvent.click(screen.getByLabelText("Set Username"));
     expect(window.localStorage.getItem("livechat_username_req-1")).toBe(
-      "NewUser"
+      "NewUser",
     );
   });
 
@@ -124,7 +120,7 @@ describe("LiveChat", () => {
     fireEvent.change(input, { target: { value: "NewUser" } });
     fireEvent.click(screen.getByLabelText("Set Username"));
     expect(window.localStorage.getItem("livechat_username_req-1")).toBe(
-      "NewUser"
+      "NewUser",
     );
   });
 
@@ -140,7 +136,7 @@ describe("LiveChat", () => {
     fireEvent.change(input, { target: { value: "NewUser" } });
     fireEvent.click(screen.getByLabelText("Set Username"));
     expect(window.localStorage.getItem("livechat_username_req-1")).toBe(
-      "NewUser"
+      "NewUser",
     );
   });
 
@@ -186,8 +182,8 @@ describe("LiveChat", () => {
     expect(textarea.value).toBe("Test message");
     expect(
       screen.getByText(
-        "Duplicate message detected. Please send a different message."
-      )
+        "Duplicate message detected. Please send a different message.",
+      ),
     ).toBeInTheDocument();
   });
 
@@ -228,7 +224,7 @@ describe("LiveChat", () => {
         sender: "TestUser",
         sessionId: "12345678",
         messageId: 12345678,
-      })
+      }),
     );
   });
 
@@ -279,13 +275,13 @@ describe("LiveChat", () => {
     // eslint-disable-next-line
     function TestWrapper({ rerenderRef, ...props }) {
       const [errorMessagesByRequestId, setErrorMessagesByRequestId] = useState(
-        {}
+        {},
       );
 
       useImperativeHandle(
         rerenderRef,
         () => ({ setErrorMessagesByRequestId }),
-        [setErrorMessagesByRequestId]
+        [setErrorMessagesByRequestId],
       );
       const customWebsocketContext = {
         ...mockWebsocketContext,
@@ -330,7 +326,7 @@ describe("LiveChat", () => {
         >
           <LiveChat requestId="req-1" chatHistory={chatHistory} />
         </WebsocketContext.Provider>
-      </AppContext.Provider>
+      </AppContext.Provider>,
     );
     const textarea = screen.getByPlaceholderText(/connecting/i);
     expect(textarea).toBeDisabled();
@@ -378,13 +374,13 @@ describe("LiveChat", () => {
 
     // After the 6th send, do NOT rerender, so rateLimited state persists
     expect(
-      screen.getByText(/sending messages too quickly/i)
+      screen.getByText(/sending messages too quickly/i),
     ).toBeInTheDocument();
     let sendBtn = screen.getByLabelText("Send");
     expect(sendBtn).toBeDisabled();
 
     expect(
-      screen.getByText(/please wait 10 seconds before/i)
+      screen.getByText(/please wait 10 seconds before/i),
     ).toBeInTheDocument();
 
     // Fast-forward timer
@@ -393,7 +389,7 @@ describe("LiveChat", () => {
     });
 
     expect(
-      screen.getByText(/please wait 1 second before/i)
+      screen.getByText(/please wait 1 second before/i),
     ).toBeInTheDocument();
 
     // Fast-forward timer to trigger countdown reset
@@ -421,7 +417,7 @@ describe("LiveChat", () => {
 
     // After the 6th send, do NOT rerender, so rateLimited state persists
     expect(
-      screen.getByText(/sending messages too quickly/i)
+      screen.getByText(/sending messages too quickly/i),
     ).toBeInTheDocument();
     sendBtn = screen.getByLabelText("Send");
     expect(sendBtn).toBeDisabled();
@@ -439,7 +435,7 @@ describe("LiveChat", () => {
     fireEvent.click(screen.getByRole("button", { name: /send/i }));
 
     expect(
-      await screen.findByText(/failed to send message/i)
+      await screen.findByText(/failed to send message/i),
     ).toBeInTheDocument();
   });
 });
@@ -459,7 +455,7 @@ describe("ChatMessage", () => {
           setPendingMessageId={setPendingMessageId}
           pendingMessageId={null}
         />
-      </WebsocketContext.Provider>
+      </WebsocketContext.Provider>,
     );
     const editBtn = await screen.findByLabelText("Edit message");
     fireEvent.click(editBtn);
@@ -482,7 +478,7 @@ describe("ChatMessage", () => {
           setPendingMessageId={setPendingMessageId}
           pendingMessageId={ownMsg.messageId}
         />
-      </WebsocketContext.Provider>
+      </WebsocketContext.Provider>,
     );
 
     expect(await screen.findByText(/- Edited/i)).toBeInTheDocument();
@@ -506,7 +502,7 @@ describe("ChatMessage", () => {
           setPendingMessageId={setPendingMessageId}
           pendingMessageId={null}
         />
-      </WebsocketContext.Provider>
+      </WebsocketContext.Provider>,
     );
     const editBtn = await screen.findByLabelText("Edit message");
     fireEvent.click(editBtn);
@@ -517,7 +513,7 @@ describe("ChatMessage", () => {
     expect(mockSend).toHaveBeenCalled();
     // Error message should be shown
     expect(
-      await screen.findByText(/Failed to update message/i)
+      await screen.findByText(/Failed to update message/i),
     ).toBeInTheDocument();
   });
 
@@ -534,7 +530,7 @@ describe("ChatMessage", () => {
           setPendingMessageId={setPendingMessageId}
           pendingMessageId={null}
         />
-      </WebsocketContext.Provider>
+      </WebsocketContext.Provider>,
     );
     const editBtn = await screen.findByLabelText("Edit message");
     fireEvent.click(editBtn);
@@ -555,7 +551,7 @@ describe("ChatMessage", () => {
           setPendingMessageId={setPendingMessageId}
           pendingMessageId={null}
         />
-      </WebsocketContext.Provider>
+      </WebsocketContext.Provider>,
     );
     expect(await screen.findByText(/edited/i)).toBeInTheDocument();
   });

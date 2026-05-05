@@ -19,6 +19,7 @@ import {
   mockedDropdownVisualization,
   userDashboard,
   layerConfigImageArcGISRest,
+  dynamicMapLayer,
 } from "__tests__/utilities/constants";
 import MapContextProvider, {
   useMapContext,
@@ -50,6 +51,7 @@ jest.mock("components/map/utilities", () => {
   return {
     ...originalModule,
     queryLayerFeatures: jest.fn(),
+    swapVectorLayerFeatures: jest.fn(),
   };
 });
 const mockedQueryLayerFeatures = jest.mocked(queryLayerFeatures);
@@ -588,6 +590,72 @@ test("Map GeoJSON with legend and bad format", async () => {
   expect(mockedApplyStyle).toHaveBeenCalledTimes(1);
   expect(createJsonStyleFunction).toHaveBeenCalledTimes(1);
   expect(screen.queryByLabelText("Legend Control")).not.toBeInTheDocument();
+});
+
+test("Map GeoTIFF with default legend emits a ramp colorbar from sourceProps metadata", async () => {
+  // Covers lines 353-360: when a GeoTIFF layer carries persisted
+  // rampName/rampMin/rampMax on its source, `legend: "default"` should
+  // bypass the style/url legend paths and produce a colorbar legend
+  // straight from COLOR_RAMPS[rampName] + the persisted bounds.
+  const layer = {
+    configuration: {
+      type: "WebGLTile",
+      props: {
+        name: "Ramp Raster Layer",
+        source: {
+          type: "GeoTIFF",
+          props: {
+            sources: [{ url: "https://example.com/ramp.tif" }],
+          },
+          rampName: "viridis",
+          rampMin: "0",
+          rampMax: "100",
+        },
+      },
+      style: {
+        color: [
+          "interpolate",
+          ["linear"],
+          ["band", 1],
+          0,
+          "#000000",
+          100,
+          "#ffffff",
+        ],
+      },
+    },
+    legend: "default",
+  };
+
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent
+          mapProps={{
+            mapConfig: {},
+            viewConfig: {},
+            layers: [layer],
+            baseMap: null,
+            layerControl: false,
+          }}
+        />
+      </MapContextProvider>
+    ),
+  });
+  render(LoadedComponent);
+
+  // LegendControl is collapsed by default; clicking expand reveals the
+  // colorbar produced by the auto-legend path.
+  fireEvent.click(await screen.findByLabelText("Show Legend Control"));
+
+  // LegendRenderer renders rampColors as a CSS linear-gradient strip
+  // with aria-label `Color ramp from <min> to <max>`.
+  expect(
+    await screen.findByLabelText("Color ramp from 0 to 100"),
+  ).toBeInTheDocument();
+  // Layer name is used as the legend title for the colorbar entry
+  // (line 357: `title: layer.configuration?.props?.name`).
+  expect(screen.getByText("Ramp Raster Layer")).toBeInTheDocument();
 });
 
 test("Map ESRI with default legend", async () => {
@@ -1924,6 +1992,141 @@ test("Map bad style", async () => {
   expect(consoleErrorSpy).toHaveBeenCalledWith(
     "Failed to load the style for GeoJSON Layer layer",
   );
+});
+
+test("Map runtime layer swap dismisses popup overlay (no prior click)", async () => {
+  const mockGetVisualizationFeatures = jest
+    .spyOn(appAPI, "getVisualizationFeatures")
+    .mockResolvedValue({
+      success: true,
+      viz_type: "features",
+      data: {
+        type: "FeatureCollection",
+        features: [],
+        crs: { type: "name", properties: { name: "EPSG:4326" } },
+      },
+    });
+  const setPositionSpy = jest.spyOn(Overlay.prototype, "setPosition");
+  const vectorClearSpy = jest.spyOn(VectorSource.prototype, "clear");
+
+  const layers = [JSON.parse(JSON.stringify(dynamicMapLayer))];
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent
+          mapProps={{
+            mapConfig: {},
+            viewConfig: {},
+            layers,
+            baseMap: null,
+            layerControl: false,
+            refreshCount: 0,
+          }}
+        />
+      </MapContextProvider>
+    ),
+  });
+  render(LoadedComponent);
+
+  expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+  // Wait for the runtime layer fetch (debounced 250ms) to complete; that
+  // resolution path invokes onBeforeSwap → dismissPopupBeforeSwap.
+  await waitFor(() => {
+    expect(mockGetVisualizationFeatures).toHaveBeenCalledTimes(1);
+  });
+
+  // Popup overlay was hidden via setPosition(undefined). No popup was open
+  // yet, but the dismiss path runs unconditionally for the overlay branch.
+  await waitFor(() => {
+    expect(setPositionSpy).toHaveBeenCalledWith(undefined);
+  });
+
+  // No click happened, so highlightLayer.current is still undefined and the
+  // optional-chain guard short-circuits — VectorSource.clear must not run.
+  expect(vectorClearSpy).not.toHaveBeenCalled();
+});
+
+test("Map runtime layer swap dismisses popup and clears highlight after click", async () => {
+  jest.spyOn(appAPI, "getVisualizationFeatures").mockResolvedValue({
+    success: true,
+    viz_type: "features",
+    data: {
+      type: "FeatureCollection",
+      features: [],
+      crs: { type: "name", properties: { name: "EPSG:4326" } },
+    },
+  });
+  mockedQueryLayerFeatures.mockResolvedValue([
+    {
+      attributes: { field1: "some value" },
+      geometry: {
+        paths: [
+          [
+            [0, 0],
+            [0, 1],
+          ],
+        ],
+      },
+      layerName: "Some Layer",
+    },
+  ]);
+  jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+  const setPositionSpy = jest.spyOn(Overlay.prototype, "setPosition");
+  const vectorClearSpy = jest.spyOn(VectorSource.prototype, "clear");
+
+  const layers = [
+    {
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "NWC",
+          source: {
+            type: "ESRI Image and Map Service",
+            props: {
+              url: "some_url",
+            },
+          },
+        },
+      },
+    },
+    JSON.parse(JSON.stringify(dynamicMapLayer)),
+  ];
+  const clickCoordinates = [10, 20];
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent
+          onMapClick={jest.fn()}
+          clickCoordinates={clickCoordinates}
+          mapProps={{
+            mapConfig: {},
+            viewConfig: {},
+            layers,
+            baseMap: null,
+            layerControl: false,
+            refreshCount: 0,
+          }}
+        />
+      </MapContextProvider>
+    ),
+  });
+  render(LoadedComponent);
+
+  expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+  // Once the runtime fetcher resolves (~250ms after mount), onBeforeSwap →
+  // dismissPopupBeforeSwap fires. clear() can only happen here, since
+  // swapVectorLayerFeatures is mocked and onMapClick only calls clear() on a
+  // *second* click (this test dispatches one). So a single clear() call is
+  // proof the click ran first (creating the highlight) and the dismiss path
+  // then ran with both branches taken.
+  await waitFor(() => {
+    expect(vectorClearSpy).toHaveBeenCalled();
+  });
+  expect(setPositionSpy).toHaveBeenCalledWith(undefined);
 });
 
 describe("Popup component", () => {

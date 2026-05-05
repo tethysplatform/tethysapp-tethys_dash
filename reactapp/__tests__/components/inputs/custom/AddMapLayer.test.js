@@ -10,14 +10,11 @@ import {
   layerConfigImageArcGISRest,
   layerConfigImageWMS,
   exampleStyle,
+  dynamicMapLayer,
 } from "__tests__/utilities/constants";
 import createLoadedComponent from "__tests__/utilities/customRender";
 import selectEvent from "react-select-event";
 import appAPI from "services/api/app";
-
-jest.mock("uuid", () => ({
-  v4: () => 12345678,
-}));
 
 it("AddMapLayer update existing", async () => {
   const mockDownloadJSON = jest.fn();
@@ -35,7 +32,7 @@ it("AddMapLayer update existing", async () => {
   jest.spyOn(appAPI, "uploadJSON").mockImplementation(mockUploadJSON);
 
   const layerConfiguration = JSON.parse(
-    JSON.stringify(layerConfigImageArcGISRest)
+    JSON.stringify(layerConfigImageArcGISRest),
   );
   layerConfiguration.configuration.style = "some_json.json";
   layerConfiguration.legend = {
@@ -63,7 +60,7 @@ it("AddMapLayer update existing", async () => {
           gridItemIndex={gridItemIndex}
         />
       ),
-    })
+    }),
   );
 
   const addLayerButton = await screen.findByText("Add Layer");
@@ -92,16 +89,7 @@ it("AddMapLayer update existing", async () => {
   expect(await screen.findByText("New Layer Name")).toBeInTheDocument();
   expect(screen.queryByText("ImageArcGISRest Layer")).not.toBeInTheDocument();
 
-  const removeMapLayerButton = screen.getByTestId("removeMapLayer");
-  fireEvent.mouseOver(removeMapLayerButton);
-  expect(removeMapLayerButton).toHaveStyle("cursor: pointer");
-  fireEvent.mouseOut(removeMapLayerButton);
-  expect(removeMapLayerButton).toHaveStyle("cursor: default");
-  fireEvent.click(removeMapLayerButton);
-
-  expect(screen.queryByText("New Layer Name")).not.toBeInTheDocument();
-
-  expect(onChange).toHaveBeenCalledWith([
+  expect(onChange).toHaveBeenLastCalledWith([
     {
       attributeVariables: {
         states: {
@@ -138,6 +126,137 @@ it("AddMapLayer update existing", async () => {
       queryable: false,
     },
   ]);
+
+  const removeMapLayerButton = screen.getByTestId("removeMapLayer");
+  fireEvent.mouseOver(removeMapLayerButton);
+  expect(removeMapLayerButton).toHaveStyle("cursor: pointer");
+  fireEvent.mouseOut(removeMapLayerButton);
+  expect(removeMapLayerButton).toHaveStyle("cursor: default");
+  fireEvent.click(removeMapLayerButton);
+
+  expect(screen.queryByText("New Layer Name")).not.toBeInTheDocument();
+  expect(onChange).toHaveBeenLastCalledWith([]);
+});
+
+it("AddMapLayer update existing plugin source", async () => {
+  const mockDownloadJSON = jest.fn();
+  mockDownloadJSON.mockResolvedValueOnce({
+    success: true,
+    data: exampleStyle,
+  });
+  jest.spyOn(appAPI, "downloadJSON").mockImplementation(mockDownloadJSON);
+
+  const mockUploadJSON = jest.fn();
+  mockUploadJSON.mockResolvedValueOnce({
+    success: true,
+    filename: "geojson.json",
+  });
+  jest.spyOn(appAPI, "uploadJSON").mockImplementation(mockUploadJSON);
+
+  const layerConfiguration = JSON.parse(JSON.stringify(dynamicMapLayer));
+  delete layerConfiguration.configuration.props.pluginSource.args;
+
+  const onChange = jest.fn();
+  const setShowingSubModal = jest.fn();
+  const values = [layerConfiguration];
+  const gridItemIndex = 0;
+
+  const availableVisualizations = [
+    {
+      label: "Other",
+      options: [
+        {
+          source: "custom_layer_test",
+          value: "Stream Gauges (Dynamic)",
+          label: "Stream Gauges (Dynamic)",
+          args: {},
+          type: "map_layer",
+          tags: ["hydrology", "gauges", "live"],
+          attribution: "",
+          description:
+            "Live stream gauge locations, color-coded by current flow.",
+          loading_icon: true,
+          restricted: false,
+          dynamic_map_layer: true,
+        },
+      ],
+    },
+  ];
+
+  render(
+    createLoadedComponent({
+      children: (
+        <AddMapLayer
+          values={values}
+          onChange={onChange}
+          setShowingSubModal={setShowingSubModal}
+          gridItemIndex={gridItemIndex}
+        />
+      ),
+      options: {
+        visualizations: availableVisualizations,
+      },
+    }),
+  );
+
+  const addLayerButton = await screen.findByText("Add Layer");
+  expect(addLayerButton).toBeInTheDocument();
+  expect(screen.getByText("Layer Name")).toBeInTheDocument();
+  expect(screen.getByText("Legend")).toBeInTheDocument();
+
+  expect(screen.getAllByRole("row").length).toBe(2);
+  expect(screen.getByText("Stream Gauges")).toBeInTheDocument();
+  expect(screen.getByText("Off")).toBeInTheDocument();
+
+  const editMapLayerButton = screen.getByTestId("editMapLayer");
+  fireEvent.click(editMapLayerButton);
+
+  expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  const nameInput = await screen.findByLabelText("Name Input");
+  fireEvent.change(nameInput, { target: { value: "New Layer Name" } });
+
+  const createLayerButton = await screen.findByLabelText("Create Layer Button");
+  fireEvent.click(createLayerButton);
+
+  expect(onChange).toHaveBeenLastCalledWith([
+    {
+      configuration: {
+        props: {
+          layerId: "2873e38e-2797-4afb-95e8-9108550e2fd2",
+          name: "New Layer Name",
+          pluginSource: {
+            args: {},
+            source: "custom_layer_test",
+          },
+          source: {
+            geojson: {
+              crs: {
+                type: "name",
+                properties: {
+                  name: "EPSG:4326",
+                },
+              },
+              type: "FeatureCollection",
+              features: [],
+            },
+            props: {},
+            type: "GeoJSON",
+          },
+        },
+        type: "VectorLayer",
+      },
+    },
+  ]);
+
+  expect(await screen.findByText("New Layer Name")).toBeInTheDocument();
+  expect(screen.queryByText("Stream Gauges")).not.toBeInTheDocument();
+
+  const removeMapLayerButton = screen.getByTestId("removeMapLayer");
+  fireEvent.click(removeMapLayerButton);
+
+  expect(screen.queryByText("New Layer Name")).not.toBeInTheDocument();
+
+  expect(onChange).toHaveBeenLastCalledWith([]);
 });
 
 it("AddMapLayer add new", async () => {
@@ -156,7 +275,7 @@ it("AddMapLayer add new", async () => {
           gridItemIndex={gridItemIndex}
         />
       ),
-    })
+    }),
   );
 
   const addLayerButton = await screen.findByText("Add Layer");
@@ -204,6 +323,108 @@ it("AddMapLayer add new", async () => {
           },
         },
         type: "ImageLayer",
+      },
+    },
+  ]);
+});
+
+it("AddMapLayer add new plugin source", async () => {
+  const onChange = jest.fn();
+  const setShowingSubModal = jest.fn();
+  const values = [];
+  const gridItemIndex = 0;
+
+  const availableVisualizations = [
+    {
+      label: "Other",
+      options: [
+        {
+          source: "custom_layer_test",
+          value: "Stream Gauges (Dynamic)",
+          label: "Stream Gauges (Dynamic)",
+          args: {},
+          type: "map_layer",
+          tags: ["hydrology", "gauges", "live"],
+          attribution: "",
+          description:
+            "Live stream gauge locations, color-coded by current flow.",
+          loading_icon: true,
+          restricted: false,
+          dynamic_map_layer: true,
+        },
+      ],
+    },
+  ];
+
+  render(
+    createLoadedComponent({
+      children: (
+        <AddMapLayer
+          values={values}
+          onChange={onChange}
+          setShowingSubModal={setShowingSubModal}
+          gridItemIndex={gridItemIndex}
+        />
+      ),
+      options: {
+        visualizations: availableVisualizations,
+      },
+    }),
+  );
+
+  const addLayerButton = await screen.findByText("Add Layer");
+  expect(addLayerButton).toBeInTheDocument();
+  expect(screen.getByText("Layer Name")).toBeInTheDocument();
+  expect(screen.getByText("Legend")).toBeInTheDocument();
+
+  expect(screen.getAllByRole("row").length).toBe(1);
+
+  fireEvent.click(addLayerButton);
+  expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  const nameInput = await screen.findByLabelText("Name Input");
+  fireEvent.change(nameInput, { target: { value: "New Layer Name" } });
+
+  const sourceTab = screen.getByText("Source");
+  fireEvent.click(sourceTab);
+  const sourceDropdown = screen.getByLabelText("Source Type Input");
+
+  selectEvent.openMenu(sourceDropdown);
+  const sourceOption = await screen.findByText("Stream Gauges (Dynamic)");
+  fireEvent.click(sourceOption);
+
+  const createLayerButton = await screen.findByLabelText("Create Layer Button");
+  fireEvent.click(createLayerButton);
+
+  expect(await screen.findByText("New Layer Name")).toBeInTheDocument();
+  expect(screen.getByText("Off")).toBeInTheDocument();
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+  expect(onChange).toHaveBeenCalledWith([
+    {
+      configuration: {
+        props: {
+          layerId: 12345678,
+          name: "New Layer Name",
+          pluginSource: {
+            args: {},
+            source: "custom_layer_test",
+          },
+          source: {
+            geojson: {
+              crs: {
+                type: "name",
+                properties: {
+                  name: "EPSG:4326",
+                },
+              },
+              type: "FeatureCollection",
+              features: [],
+            },
+            props: {},
+            type: "GeoJSON",
+          },
+        },
+        type: "VectorLayer",
       },
     },
   ]);
@@ -267,7 +488,7 @@ it("AddMapLayer reorder", async () => {
           gridItemIndex={gridItemIndex}
         />
       ),
-    })
+    }),
   );
 
   const wmsLayer = await screen.findByText("WMS");

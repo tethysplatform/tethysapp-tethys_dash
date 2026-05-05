@@ -128,6 +128,9 @@ export const checkRequiredKeys = (
   parentKey = "",
 ) => {
   let missingKeys = [];
+  if (!requiredKeysObj) {
+    return missingKeys; // If there are no required keys, return empty array
+  }
 
   for (const [key, value] of Object.entries(requiredKeysObj)) {
     const fullKey = parentKey ? `${parentKey}.${key}` : key; // Build full key path

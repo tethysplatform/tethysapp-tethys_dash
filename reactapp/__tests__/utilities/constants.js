@@ -1512,6 +1512,28 @@ export const layerConfigStaticImage = {
   },
 };
 
+export const ruleBasedStyle = {
+  rules: [
+    {
+      conditionField: "flow_cfs",
+      conditionType: "<",
+      conditionValue: "100",
+      geometryType: "point",
+      name: "flow&lt;100",
+      fill: "#ffcc00",
+    },
+    {
+      conditionField: "flow_cfs",
+      conditionType: ">=",
+      conditionValue: "100",
+      geometryType: "point",
+      name: "flow=&gt;100",
+      fill: "#0077ff",
+    },
+  ],
+  default: {},
+};
+
 export const exampleStyle = {
   version: 8,
   sprite:
@@ -1541,6 +1563,34 @@ export const exampleStyle = {
       },
     },
   ],
+};
+
+export const dynamicMapLayer = {
+  configuration: {
+    type: "VectorLayer",
+    props: {
+      name: "Stream Gauges",
+      layerId: "2873e38e-2797-4afb-95e8-9108550e2fd2",
+      source: {
+        type: "GeoJSON",
+        props: {},
+        geojson: {
+          type: "FeatureCollection",
+          features: [],
+          crs: {
+            type: "name",
+            properties: {
+              name: "EPSG:4326",
+            },
+          },
+        },
+      },
+      pluginSource: {
+        source: "custom_layer_test",
+        args: {},
+      },
+    },
+  },
 };
 
 export const fullMapLayer = {

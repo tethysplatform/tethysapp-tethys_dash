@@ -180,6 +180,7 @@ def test_copy_plugin_static_with_visualization_types(
         "card": "default_card.png",
         "table": "default_table.png",
         "custom": "default_custom.png",
+        "live_chat": "default_live_chat.png",
     }
 
     for vis_type, expected_image in visualization_types_and_images.items():

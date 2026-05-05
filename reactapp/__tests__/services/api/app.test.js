@@ -24,10 +24,10 @@ describe("appAPI", () => {
                 },
               },
             }),
-            ctx.set("Content-Type", "application/json")
+            ctx.set("Content-Type", "application/json"),
           );
-        }
-      )
+        },
+      ),
     );
 
     const response = await appAPI.downloadJSON({
@@ -63,10 +63,10 @@ describe("appAPI", () => {
                 test: "&gt;",
               },
             }),
-            ctx.set("Content-Type", "application/json")
+            ctx.set("Content-Type", "application/json"),
           );
-        }
-      )
+        },
+      ),
     );
 
     const response = await appAPI.downloadJSON({
@@ -137,10 +137,10 @@ describe("appAPI", () => {
           return res(
             ctx.status(200),
             ctx.json({ success: true }),
-            ctx.set("Content-Type", "application/json")
+            ctx.set("Content-Type", "application/json"),
           );
-        }
-      )
+        },
+      ),
     );
 
     const data = { permissions: [] };
@@ -161,10 +161,10 @@ describe("appAPI", () => {
           return res(
             ctx.status(200),
             ctx.json({ success: true, id: 123 }),
-            ctx.set("Content-Type", "application/json")
+            ctx.set("Content-Type", "application/json"),
           );
-        }
-      )
+        },
+      ),
     );
 
     const data = { name: "Test Dashboard", layout: [] };
@@ -184,10 +184,10 @@ describe("appAPI", () => {
           return res(
             ctx.status(200),
             ctx.json({ success: true, new_id: 456 }),
-            ctx.set("Content-Type", "application/json")
+            ctx.set("Content-Type", "application/json"),
           );
-        }
-      )
+        },
+      ),
     );
 
     const data = { id: 123, new_name: "Copied Dashboard" };
@@ -206,10 +206,10 @@ describe("appAPI", () => {
           return res(
             ctx.status(200),
             ctx.json({ success: true }),
-            ctx.set("Content-Type", "application/json")
+            ctx.set("Content-Type", "application/json"),
           );
-        }
-      )
+        },
+      ),
     );
 
     const data = { id: 123 };
@@ -227,10 +227,10 @@ describe("appAPI", () => {
           return res(
             ctx.status(200),
             ctx.json({ success: true }),
-            ctx.set("Content-Type", "application/json")
+            ctx.set("Content-Type", "application/json"),
           );
-        }
-      )
+        },
+      ),
     );
 
     const data = { id: 123, name: "Updated Dashboard" };
@@ -248,10 +248,10 @@ describe("appAPI", () => {
           return res(
             ctx.status(200),
             ctx.json({ success: true }),
-            ctx.set("Content-Type", "application/json")
+            ctx.set("Content-Type", "application/json"),
           );
-        }
-      )
+        },
+      ),
     );
 
     const data = { group_id: 1, permissions: [] };
@@ -269,10 +269,10 @@ describe("appAPI", () => {
           return res(
             ctx.status(200),
             ctx.json({ success: true }),
-            ctx.set("Content-Type", "application/json")
+            ctx.set("Content-Type", "application/json"),
           );
-        }
-      )
+        },
+      ),
     );
 
     const data = { group_id: 1 };
@@ -285,9 +285,161 @@ describe("appAPI", () => {
   test("uploadJSON makes POST request correctly", async () => {
     const response = await appAPI.uploadJSON(
       { file: "test-file" },
-      "test-csrf-token"
+      "test-csrf-token",
     );
     expect(response.success).toBe(true);
     expect(response.filename).toBe("12345.json");
+  });
+
+  test("getVisualizationFeatures calls GET with mode=features and JSON-encoded args", async () => {
+    let capturedParams;
+    server.use(
+      rest.get(
+        "http://api.test/apps/tethysdash/visualizations/get/",
+        (req, res, ctx) => {
+          capturedParams = {
+            source: req.url.searchParams.get("source"),
+            args: req.url.searchParams.get("args"),
+            requestId: req.url.searchParams.get("requestId"),
+            mode: req.url.searchParams.get("mode"),
+          };
+          return res(
+            ctx.status(200),
+            ctx.json({
+              success: true,
+              viz_type: "features",
+              data: {
+                type: "FeatureCollection",
+                features: [],
+                crs: { type: "name", properties: { name: "EPSG:4326" } },
+              },
+            }),
+            ctx.set("Content-Type", "application/json"),
+          );
+        },
+      ),
+    );
+
+    const response = await appAPI.getVisualizationFeatures({
+      source: "echo_runtime",
+      args: { mode: "empty" },
+      requestId: "nonce:grid:layer-1",
+    });
+
+    expect(capturedParams).toEqual({
+      source: "echo_runtime",
+      args: JSON.stringify({ mode: "empty" }),
+      requestId: "nonce:grid:layer-1",
+      mode: "features",
+    });
+    expect(response.success).toBe(true);
+    expect(response.viz_type).toBe("features");
+    expect(response.data.type).toBe("FeatureCollection");
+  });
+
+  test("getVisualizationFeatures accepts pre-stringified args", async () => {
+    let capturedArgs;
+    server.use(
+      rest.get(
+        "http://api.test/apps/tethysdash/visualizations/get/",
+        (req, res, ctx) => {
+          capturedArgs = req.url.searchParams.get("args");
+          return res(ctx.status(200), ctx.json({ success: true, data: null }));
+        },
+      ),
+    );
+
+    await appAPI.getVisualizationFeatures({
+      source: "echo_runtime",
+      args: '{"mode":"happy"}',
+      requestId: "r",
+    });
+
+    // Caller passed a string; wrapper leaves it as-is (no double-encoding)
+    expect(capturedArgs).toBe('{"mode":"happy"}');
+  });
+
+  test("getVisualizationFeatures defaults args to {} when omitted", async () => {
+    let capturedArgs;
+    server.use(
+      rest.get(
+        "http://api.test/apps/tethysdash/visualizations/get/",
+        (req, res, ctx) => {
+          capturedArgs = req.url.searchParams.get("args");
+          return res(ctx.status(200), ctx.json({ success: true, data: null }));
+        },
+      ),
+    );
+
+    await appAPI.getVisualizationFeatures({
+      source: "echo_runtime",
+      requestId: "r",
+    });
+
+    expect(capturedArgs).toBe("{}");
+  });
+
+  test("getVisualizationFeatures forwards cancelToken for supersession", async () => {
+    // Axios 0.27 CancelToken pattern: create a source, pass its token to the
+    // wrapper, then cancel it. The returned promise must reject with
+    // axios.isCancel()-true.
+    const axios = require("axios");
+    const source = axios.CancelToken.source();
+
+    // Long-but-finite delay: the cancel below fires synchronously, so it
+    // wins the race, but the timer still settles before Jest's teardown
+    // (avoids "Jest did not exit" from infinite-delay open handles).
+    server.use(
+      rest.get(
+        "http://api.test/apps/tethysdash/visualizations/get/",
+        (req, res, ctx) => {
+          return res(ctx.delay(50), ctx.status(200), ctx.json({}));
+        },
+      ),
+    );
+
+    const promise = appAPI.getVisualizationFeatures({
+      source: "echo_runtime",
+      args: { mode: "happy" },
+      requestId: "r",
+      cancelToken: source.token,
+    });
+    // Attach a rejection handler synchronously so Node's strict
+    // unhandled-rejection detection doesn't fire when source.cancel()
+    // rejects the promise before await would attach one.
+    const captured = promise.catch((err) => err);
+
+    source.cancel("superseded by newer fetch");
+
+    const err = await captured;
+    expect(axios.isCancel(err)).toBe(true);
+  });
+
+  test("getVisualizationFeatures returns full response envelope on plugin error", async () => {
+    server.use(
+      rest.get(
+        "http://api.test/apps/tethysdash/visualizations/get/",
+        (req, res, ctx) => {
+          return res(
+            ctx.status(200),
+            ctx.json({
+              success: false,
+              viz_type: null,
+              data: { error: "Plugin echo_runtime is not available" },
+            }),
+          );
+        },
+      ),
+    );
+
+    const response = await appAPI.getVisualizationFeatures({
+      source: "missing_plugin",
+      args: {},
+      requestId: "r",
+    });
+
+    // Caller receives the envelope unchanged; orchestrator decides routing.
+    expect(response.success).toBe(false);
+    expect(response.data.error).toBe("Plugin echo_runtime is not available");
   });
 });

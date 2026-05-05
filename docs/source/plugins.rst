@@ -873,6 +873,7 @@ from the plugin
     - ``set_min_resolution(int)`` / ``set_max_resolution(int)`` — Set resolution visibility bounds.
     - ``set_min_zoom_query(int)`` — Minimum zoom level required to query the layer.
     - ``set_geojson(dict)`` — Attach a GeoJSON object (for GeoJSON source type only).
+    - ``set_plugin_source(source, args)`` — Mark the layer as a dynamic ``map_layer`` and bind it to a plugin that will be invoked at render time via ``fetch_features()``. GeoJSON source only. See `Dynamic map_layer plugins`_.
     - ``set_legend(dict | "default" | None)`` — Set the legend configuration.
     - ``set_style(dict | str)`` — Set the layer style.
     - ``add_attribute_alias(key, alias, layer_name)`` — Add a display alias for a layer attribute.
@@ -933,6 +934,133 @@ from the plugin
 
             return builder.build()
 
+
+|
+
+Dynamic map_layer plugins
+`````````````````````````
+
+By default, ``map_layer`` plugins run **once** at configure time (from the Add
+Layer modal): their ``run()`` output fills the Source/Style/Legend/Attributes
+tabs and is then frozen into the saved dashboard. A plugin may opt into
+**runtime behavior** so that its feature payload is also re-fetched when the
+map is viewed and when bound variable inputs change, without re-running any
+of the configure-time panes.
+
+To opt in, set ``dynamic_map_layer = True`` on the plugin class **and**
+implement a second method ``fetch_features()`` that returns a GeoJSON
+``FeatureCollection``. Both conditions are required — the framework raises at
+initialization if ``dynamic_map_layer = True`` without a ``fetch_features``
+override, and warns if ``fetch_features`` is overridden without the flag
+(the method would never be invoked)::
+
+    from tethysapp.tethysdash.plugin_helpers import (
+        TethysDashPlugin,
+        LayerConfigurationBuilder,
+    )
+    from your_package import compute_hotspots
+
+
+    class HotspotLayer(TethysDashPlugin):
+        name = "hotspots"
+        group = "Example"
+        label = "Dynamic Hotspots"
+        type = "map_layer"
+        dynamic_map_layer = True
+        args = {"bbox": "text", "threshold": "number"}
+        tags = ["example", "map_layer", "dynamic"]
+        description = "Re-fetches hotspot features when bound variable inputs change."
+
+        def run(self):
+            """Configure-time scaffold: style, legend, attribute metadata."""
+            builder = LayerConfigurationBuilder("Hotspots", "GeoJSON")
+            builder.set_plugin_source("hotspots", self.args)
+            builder.set_legend(
+                {
+                    "title": "Intensity",
+                    "items": [
+                        {"label": "High", "color": "#cc0000", "symbol": "circle"},
+                        {"label": "Low", "color": "#ffcc00", "symbol": "circle"},
+                    ],
+                }
+            )
+            return builder.build()
+
+        def fetch_features(self):
+            """Runtime features: invoked on load and on variable-input change."""
+            self.send_update("Computing hotspots...", percentage_complete=10)
+            features = compute_hotspots(self.bbox, self.threshold)
+            self.send_update("Done", percentage_complete=100)
+            return {
+                "type": "FeatureCollection",
+                "features": features,
+                "crs": {
+                    "type": "name",
+                    "properties": {"name": "EPSG:4326"},
+                },
+            }
+
+
+**Return contract for fetch_features**
+
+The method MUST return a dict with:
+
+- ``type``: must be ``"FeatureCollection"``
+- ``features``: a list (may be empty — zero features is a valid success state)
+- ``crs``: a CRS block with ``properties.name`` set to a valid EPSG identifier
+  (TethysDash convention; see :py:func:`validate_geojson`).
+
+The runtime validator (:py:func:`validate_feature_collection`) rejects:
+
+- ``None`` returns — treat "nothing to draw right now" by returning an empty
+  ``FeatureCollection`` instead.
+- Configure-time scaffold shapes — a return whose top-level dict contains any
+  of ``style``, ``legend``, ``source``, ``props``, or ``configuration``. This
+  catches the common mistake of returning the whole scaffold from
+  ``fetch_features`` instead of only the ``FeatureCollection``.
+
+**Interaction model**
+
+- Runtime plugins are GeoJSON-only in v1. ``LayerConfigurationBuilder.set_plugin_source``
+  requires ``layer_source="GeoJSON"``.
+- Style, legend, and attribute metadata are **snapshot at save time** — the
+  author's edits are never silently overwritten by plugin updates. Authors
+  can explicitly click "Reset to plugin defaults" in the Add Layer modal to
+  pick up new defaults on demand.
+- At render time, only features refresh. The backing OpenLayers ``VectorLayer``
+  is preserved in place (``source.clear() + addFeatures()``), so popup and
+  highlight state survive updates.
+- Re-fetches on variable-input change are debounced and the older in-flight
+  request is cancelled when a new one starts. **Cancellation is best-effort
+  at the transport layer**: the backend plugin execution may run to completion
+  even after the frontend has discarded the result. Design ``fetch_features``
+  to be idempotent and side-effect-safe, or defer side-effects until after a
+  successful return.
+- Progress streamed via ``self.send_update(message, percentage_complete=...)``
+  is automatically routed to the correct layer's per-layer indicator — no
+  extra argument needed; the framework attaches the layer id from the request
+  context.
+
+**Plugin subclasses that override send_update**
+
+If a plugin subclass wraps ``send_update`` (for logging, metrics, etc.),
+accept and forward keyword arguments so the new ``layer_id`` kwarg flows
+through::
+
+    class MyPlugin(TethysDashPlugin):
+        def send_update(self, message, percentage_complete=None, **kwargs):
+            logger.info(f"progress: {message}")
+            super().send_update(
+                message, percentage_complete=percentage_complete, **kwargs
+            )
+
+**Known limitation: plugin arg-schema drift**
+
+When a plugin's arg schema changes between save and viewer time (e.g., a
+renamed or removed arg), a plugin that absorbs unknown arguments via
+``**kwargs`` can silently succeed with stale args. TethysDash does not detect
+this automatically in v1. Treat plugin arg/default changes as breaking changes
+and communicate them to dashboard authors.
 
 |
 

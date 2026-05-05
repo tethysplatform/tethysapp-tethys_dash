@@ -471,6 +471,7 @@ def mock_plugin(mocker):
         # auto-generated value for these attributes.
         visualization_llm_editable_args=None,
         visualization_llm_non_editable_args=None,
+        visualization_dynamic_map_layer=False,
     )
     plugin.name = "package_name"
 
@@ -529,6 +530,7 @@ def mock_plugin2(mocker):
         # auto-generated value for these attributes.
         visualization_llm_editable_args=None,
         visualization_llm_non_editable_args=None,
+        visualization_dynamic_map_layer=False,
     )
     plugin.name = "package_name2"
 
@@ -553,6 +555,7 @@ def mock_plugin_visualization(mock_plugin):
                 "restricted": mock_plugin.visualization_restricted,
                 "llm_editable_args": None,
                 "llm_non_editable_args": None,
+                "dynamic_map_layer": False,
             }
         ],
     }
@@ -578,6 +581,7 @@ def mock_plugin_visualization2(mock_plugin, mock_plugin2):
                 "restricted": False,
                 "llm_editable_args": None,
                 "llm_non_editable_args": None,
+                "dynamic_map_layer": False,
             },
             {
                 "source": mock_plugin.name,
@@ -592,6 +596,7 @@ def mock_plugin_visualization2(mock_plugin, mock_plugin2):
                 "restricted": mock_plugin.visualization_restricted,
                 "llm_editable_args": None,
                 "llm_non_editable_args": None,
+                "dynamic_map_layer": False,
             },
         ],
     }

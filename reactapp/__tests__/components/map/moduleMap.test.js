@@ -15,6 +15,7 @@ import Style from "ol/style/Style.js";
 import Stroke from "ol/style/Stroke.js";
 import Fill from "ol/style/Fill.js";
 import KML from "ol/format/KML.js";
+import GeoTIFF from "ol/source/GeoTIFF.js";
 
 test("Module Map Imports", async () => {
   let modulePath, importModule, module;
@@ -98,4 +99,9 @@ test("Module Map Imports", async () => {
   importModule = moduleMap[modulePath];
   module = await importModule();
   expect(module.default).toBe(KML);
+
+  modulePath = "ol/source/GeoTIFF.js";
+  importModule = moduleMap[modulePath];
+  module = await importModule();
+  expect(module.default).toBe(GeoTIFF);
 });

@@ -43,14 +43,15 @@ it("BackgroundSettings", async () => {
   await userEvent.type(hexInput, "#0000ff");
   await userEvent.tab();
 
-  expect(mockOnChange).toHaveBeenCalledWith("#0000ff");
   await waitFor(() => {
-    // eslint-disable-next-line
-    expect(backgroundColorButton.querySelector("svg")).toHaveAttribute(
-      "color",
-      "#0000ff"
-    );
+    expect(mockOnChange).toHaveBeenCalledWith("#0000ff");
   });
+  
+  // eslint-disable-next-line
+  expect(backgroundColorButton.querySelector("svg")).toHaveAttribute(
+    "color",
+    "#0000ff"
+  );
 
   await userEvent.click(backgroundColorButton);
 

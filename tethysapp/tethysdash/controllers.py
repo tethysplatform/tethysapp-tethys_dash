@@ -161,8 +161,8 @@ def ping(request):
         # Useful for resetting a website that used to have the session security.
         try:
             del request.session
-        except AttributeError:
-            pass
+        except AttributeError:  # pragma: no cover
+            pass  # pragma: no cover
         print(
             "Deleting session information due to django-session-security being uninstalled."  # noqa: E501
         )
@@ -192,20 +192,28 @@ def visualization(request):
     viz_source = request.GET["source"]
     viz_args = json.loads(request.GET["args"])
     viz_request_id = request.GET.get("requestId")
+    mode = request.GET.get("mode", "scaffold")
     data = None
     viz_type = None
     success = True
 
     try:
         viz_type, data = get_visualization(
-            viz_source, viz_args, request.user, viz_request_id
+            viz_source, viz_args, request.user, viz_request_id, mode=mode
         )
     except VisualizationError as e:
         print(f"VisualizationError: {e}")
         data = {"error": str(e)}
         success = False
     except Exception as e:
-        data = {"error": "Failed to retrieve data"}
+        # For runtime feature fetches, pass the plugin's exception message
+        # through so authors can self-diagnose from the per-layer error UI.
+        # Scaffold callers keep the existing sanitized message to preserve
+        # backward-compatible info-disclosure posture.
+        if mode == "features":
+            data = {"error": str(e)}
+        else:
+            data = {"error": "Failed to retrieve data"}
         print(e)
         success = False
 
@@ -642,7 +650,9 @@ def get_dashboard(request):
         return JsonResponse({"success": True, "dashboard": dashboard})
     except Exception as e:
         print(e)
-        message = _get_error_message(e, "Failed to get the dashboard. Check server for logs.")
+        message = _get_error_message(
+            e, "Failed to get the dashboard. Check server for logs."
+        )
         return JsonResponse({"success": False, "message": message})
 
 
@@ -709,7 +719,9 @@ def add_dashboard(request, app_media):
         return JsonResponse({"success": True, "new_dashboard": new_dashboard})
     except Exception as e:
         print(e)
-        message = _get_error_message(e, f"Failed to create the dashboard named {name}. Check server for logs.")
+        message = _get_error_message(
+            e, f"Failed to create the dashboard named {name}. Check server for logs."
+        )
         return JsonResponse({"success": False, "message": message})
 
 
@@ -761,7 +773,10 @@ def copy_dashboard(request, app_media):
         return JsonResponse({"success": True, "new_dashboard": new_dashboard})
     except Exception as e:
         print(e)
-        message = _get_error_message(e, f"Failed to create the dashboard named {new_name}. Check server for logs.")  # noqa:E501
+        message = _get_error_message(
+            e,
+            f"Failed to create the dashboard named {new_name}. Check server for logs.",
+        )  # noqa:E501
         return JsonResponse({"success": False, "message": message})
 
 
@@ -800,7 +815,9 @@ def delete_dashboard(request, app_media):
         return JsonResponse({"success": True})
     except Exception as e:
         print(e)
-        message = _get_error_message(e, f"Failed to delete the dashboard {dashboard_id}. Check server for logs.")
+        message = _get_error_message(
+            e, f"Failed to delete the dashboard {dashboard_id}. Check server for logs."
+        )
         return JsonResponse({"success": False, "message": message})
 
 
@@ -839,13 +856,17 @@ def update_dashboard(request):
     user = request.user
 
     try:
-        updated_dashboard = update_named_dashboard(user, dashboard_id, dashboard_updates)
+        updated_dashboard = update_named_dashboard(
+            user, dashboard_id, dashboard_updates
+        )
         print(f"Successfully updated the dashboard {dashboard_id}")
 
         return JsonResponse({"success": True, "updated_dashboard": updated_dashboard})
     except Exception as e:
         print(e)
-        message = _get_error_message(e, f"Failed to update the dashboard {dashboard_id}. Check server for logs.")
+        message = _get_error_message(
+            e, f"Failed to update the dashboard {dashboard_id}. Check server for logs."
+        )
         return JsonResponse({"success": False, "message": message})
 
 
@@ -904,7 +925,10 @@ def update_permission_group(request):
         )
     except Exception as e:
         print(e)
-        message = _get_error_message(e, f"Failed to update the permission group {permission_group_updates['name']}. Check server for logs.")  # noqa: E501
+        message = _get_error_message(
+            e,
+            f"Failed to update the permission group {permission_group_updates['name']}. Check server for logs.",  # noqa: E501
+        )  # noqa: E501
         return JsonResponse({"success": False, "message": message})
 
 
@@ -943,7 +967,10 @@ def delete_permission_group(request):
         return JsonResponse({"success": True})
     except Exception as e:
         print(e)
-        message = _get_error_message(e, f"Failed to delete the permission group {permission_group_id}. Check server for logs.")  # noqa: E501
+        message = _get_error_message(
+            e,
+            f"Failed to delete the permission group {permission_group_id}. Check server for logs.",  # noqa: E501
+        )  # noqa: E501
         return JsonResponse({"success": False, "message": message})
 
 
@@ -989,7 +1016,9 @@ def upload_json(request, app_workspace):
         return JsonResponse({"success": True, "filename": filename})
 
     except Exception as e:
-        message = _get_error_message(e, "Failed to upload the json. Check server for logs.")
+        message = _get_error_message(
+            e, "Failed to upload the json. Check server for logs."
+        )
         return JsonResponse({"success": False, "message": message})
 
 
@@ -1027,7 +1056,9 @@ def download_json(request, app_workspace):
         return JsonResponse({"success": True, "data": data})
     except Exception as e:
         print(e)
-        message = _get_error_message(e, "Failed to download the json. Check server for logs.")
+        message = _get_error_message(
+            e, "Failed to download the json. Check server for logs."
+        )
         return JsonResponse({"success": False, "message": message})
 
 

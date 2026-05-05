@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { getLayerAttributes } from "components/map/utilities";
 import AttributesPane from "components/modals/MapLayer/AttributesPane";
 import PropTypes from "prop-types";
+import { AppContext } from "components/contexts/Contexts";
 
 jest.mock("components/map/utilities", () => {
   const originalModule = jest.requireActual("components/map/utilities");
@@ -21,11 +22,11 @@ const TestingComponent = ({
   tabKey,
 }) => {
   const [attributeProps, setAttributeProps] = useState(
-    initialAttributeProps ?? {}
+    initialAttributeProps ?? {},
   );
 
   return (
-    <>
+    <AppContext.Provider value={{ dynamicMapLayers: [] }}>
       <AttributesPane
         attributeProps={attributeProps}
         setAttributeProps={setAttributeProps}
@@ -43,7 +44,7 @@ const TestingComponent = ({
         {JSON.stringify(attributeProps.omitted)}
       </p>
       <p data-testid="queryable">{JSON.stringify(attributeProps.queryable)}</p>
-    </>
+    </AppContext.Provider>
   );
 };
 
@@ -66,7 +67,7 @@ test("AttributesPane successful query no attributes", async () => {
         name: "esri",
       }}
       tabKey={"attributes"}
-    />
+    />,
   );
 
   const spinner = screen.getByTestId("Loading...");
@@ -74,7 +75,7 @@ test("AttributesPane successful query no attributes", async () => {
 
   // Headers
   expect(
-    await screen.findByText("No field attributes were found.")
+    await screen.findByText("No field attributes were found."),
   ).toBeInTheDocument();
   expect(screen.queryAllByRole("table").length).toBe(0);
 });
@@ -100,7 +101,7 @@ test("AttributesPane successful query no initial variables or popups", async () 
         name: "esri",
       }}
       tabKey={"attributes"}
-    />
+    />,
   );
 
   const spinner = screen.getByTestId("Loading...");
@@ -166,7 +167,7 @@ test("AttributesPane successful query with initial variables or popups", async (
         omitted: { states: ["the_geom"] },
         aliases: { states: { the_geom: "Geometry" } },
       }}
-    />
+    />,
   );
 
   expect(screen.getByLabelText("Allow Layer Query").checked).toBe(true); // allow llayer query checkbox should be on
@@ -226,15 +227,15 @@ test("AttributesPane unsuccessful query no initial variables or popups", async (
         name: "esri",
       }}
       tabKey={"attributes"}
-    />
+    />,
   );
 
   expect(await screen.findByText("Something happened")).toBeInTheDocument();
 
   expect(
     await screen.findByText(
-      "Please provide the desired fields manually below or attempt to fix the issues and retry."
-    )
+      "Please provide the desired fields manually below or attempt to fix the issues and retry.",
+    ),
   ).toBeInTheDocument();
 
   expect(screen.getByLabelText("Allow Layer Query").checked).toBe(true); // allow llayer query checkbox should be on
@@ -256,25 +257,25 @@ test("AttributesPane unsuccessful query no initial variables or popups", async (
   const rowCheckbox = popCheckboxes[0];
   fireEvent.click(rowCheckbox);
   expect(screen.getByTestId("omittedPopupAttributes")).toHaveTextContent(
-    JSON.stringify({})
+    JSON.stringify({}),
   );
 
   const nameTextbox = screen.getByLabelText("name Input 0");
   fireEvent.change(nameTextbox, { target: { value: "test" } });
   expect(screen.getByTestId("omittedPopupAttributes")).toHaveTextContent(
-    JSON.stringify({ states: ["test"] })
+    JSON.stringify({ states: ["test"] }),
   );
 
   const aliasTextbox = screen.getByLabelText("alias Input 0");
   fireEvent.change(aliasTextbox, { target: { value: "New Alias" } });
   expect(screen.getByTestId("attributeAliases")).toHaveTextContent(
-    JSON.stringify({ states: { test: "New Alias" } })
+    JSON.stringify({ states: { test: "New Alias" } }),
   );
 
   const variableTextbox = screen.getByLabelText("variableInput Input 0");
   fireEvent.change(variableTextbox, { target: { value: "some variable" } });
   expect(screen.getByTestId("attributeVariables")).toHaveTextContent(
-    JSON.stringify({ states: { test: "some variable" } })
+    JSON.stringify({ states: { test: "some variable" } }),
   );
 
   variableTextbox.focus();
@@ -293,7 +294,7 @@ test("AttributesPane unsuccessful query no initial variables or popups", async (
         name: "esri",
       }}
       tabKey={"configuration"}
-    />
+    />,
   );
 
   rerender(
@@ -303,19 +304,19 @@ test("AttributesPane unsuccessful query no initial variables or popups", async (
         name: "esri",
       }}
       tabKey={"attributes"}
-    />
+    />,
   );
   expect(screen.getByTestId("omittedPopupAttributes")).toHaveTextContent(
-    JSON.stringify({ states: ["test"] })
+    JSON.stringify({ states: ["test"] }),
   );
   expect(screen.getByTestId("attributeVariables")).toHaveTextContent(
-    JSON.stringify({ states: { test: "some variable" } })
+    JSON.stringify({ states: { test: "some variable" } }),
   );
 
   expect(screen.getByLabelText("name Input 0").value).toBe("test");
   expect(screen.getByLabelText("alias Input 0").value).toBe("New Alias");
   expect(screen.getByLabelText("variableInput Input 0").value).toBe(
-    "some variable"
+    "some variable",
   );
 });
 
@@ -340,15 +341,15 @@ test("AttributesPane unsuccessful query with initial variables, fields, and popu
         aliases: { esri: { the_geom: "Geometry", STATE_NAME: "State" } },
         omitted: { esri: ["the_geom", "STATE_NAME"] },
       }}
-    />
+    />,
   );
 
   expect(await screen.findByText("Something happened")).toBeInTheDocument();
 
   expect(
     await screen.findByText(
-      "Please provide the desired fields manually below or attempt to fix the issues and retry."
-    )
+      "Please provide the desired fields manually below or attempt to fix the issues and retry.",
+    ),
   ).toBeInTheDocument();
 
   // Headers
@@ -366,7 +367,7 @@ test("AttributesPane unsuccessful query with initial variables, fields, and popu
   expect(screen.getByLabelText("name Input 0").value).toBe("the_geom");
   expect(screen.getByLabelText("alias Input 0").value).toBe("Geometry");
   expect(screen.getByLabelText("variableInput Input 0").value).toBe(
-    "some variable"
+    "some variable",
   );
   expect(screen.getByLabelText("name Input 1").value).toBe("STATE_NAME");
   expect(screen.getByLabelText("alias Input 1").value).toBe("State");
@@ -400,11 +401,11 @@ test("AttributesPane popups header and body change", async () => {
         name: "esri",
       }}
       tabKey={"attributes"}
-    />
+    />,
   );
 
   expect(await screen.findByTestId("omittedPopupAttributes")).toHaveTextContent(
-    ""
+    "",
   );
 
   // header popup controls all popups. unchecking means that all fields are omitted
@@ -418,7 +419,7 @@ test("AttributesPane popups header and body change", async () => {
     expect(headerCheckbox.checked).toBe(false);
   });
   expect(screen.getByTestId("omittedPopupAttributes")).toHaveTextContent(
-    JSON.stringify({ states: ["the_geom", "STATE_NAME"] })
+    JSON.stringify({ states: ["the_geom", "STATE_NAME"] }),
   );
 
   // turn field popup back on. header should come back as well
@@ -429,7 +430,7 @@ test("AttributesPane popups header and body change", async () => {
     expect(headerCheckbox.checked).toBe(true);
   });
   expect(screen.getByTestId("omittedPopupAttributes")).toHaveTextContent(
-    JSON.stringify({ states: ["STATE_NAME"] })
+    JSON.stringify({ states: ["STATE_NAME"] }),
   );
 
   // turn field popup back off. header should also turn off
@@ -438,7 +439,7 @@ test("AttributesPane popups header and body change", async () => {
     expect(headerCheckbox.checked).toBe(false);
   });
   expect(screen.getByTestId("omittedPopupAttributes")).toHaveTextContent(
-    JSON.stringify({ states: ["the_geom", "STATE_NAME"] })
+    JSON.stringify({ states: ["the_geom", "STATE_NAME"] }),
   );
 });
 
@@ -469,11 +470,11 @@ test("AttributesPane popups initial values", async () => {
       }}
       tabKey={"attributes"}
       initialAttributeProps={{ omitted: initialOmittedPopupAttributes }}
-    />
+    />,
   );
 
   expect(await screen.findByTestId("omittedPopupAttributes")).toHaveTextContent(
-    JSON.stringify({ states: ["the_geom", "STATE_NAME"] })
+    JSON.stringify({ states: ["the_geom", "STATE_NAME"] }),
   );
 
   expect(screen.getByLabelText("Allow Layer Query").checked).toBe(true); // allow llayer query checkbox should be on
@@ -515,7 +516,7 @@ test("AttributesPane attributes change", async () => {
         name: "esri",
       }}
       tabKey={"attributes"}
-    />
+    />,
   );
 
   expect(await screen.findByText("states")).toBeInTheDocument();
@@ -524,7 +525,7 @@ test("AttributesPane attributes change", async () => {
   fireEvent.change(geomTextbox, { target: { value: "some variable" } });
 
   expect(await screen.findByTestId("attributeVariables")).toHaveTextContent(
-    JSON.stringify({ states: { the_geom: "some variable" } })
+    JSON.stringify({ states: { the_geom: "some variable" } }),
   );
 
   const geomAliasTextbox = screen.getAllByLabelText("alias row")[0];
@@ -533,7 +534,7 @@ test("AttributesPane attributes change", async () => {
   expect(screen.getByTestId("attributeAliases")).toHaveTextContent(
     JSON.stringify({
       states: { the_geom: "Geometry", STATE_NAME: "STATE_NAME" },
-    })
+    }),
   );
 
   const stateTextbox = screen.getAllByLabelText("variable row")[1];
@@ -542,19 +543,19 @@ test("AttributesPane attributes change", async () => {
   expect(await screen.findByTestId("attributeVariables")).toHaveTextContent(
     JSON.stringify({
       states: { the_geom: "some variable", STATE_NAME: "some other variable" },
-    })
+    }),
   );
 });
 
 test("AttributesPane layer missing name", async () => {
   render(
-    <TestingComponent sourceProps={{}} layerProps={{}} tabKey={"attributes"} />
+    <TestingComponent sourceProps={{}} layerProps={{}} tabKey={"attributes"} />,
   );
 
   expect(
     await screen.findByText(
-      "The layer name must be configured to retrieve attributes"
-    )
+      "The layer name must be configured to retrieve attributes",
+    ),
   ).toBeInTheDocument();
 });
 
@@ -566,13 +567,13 @@ test("AttributesPane source missing type", async () => {
         name: "esri",
       }}
       tabKey={"attributes"}
-    />
+    />,
   );
 
   expect(
     await screen.findByText(
-      "The source type must be configured to retrieve attributes"
-    )
+      "The source type must be configured to retrieve attributes",
+    ),
   ).toBeInTheDocument();
 });
 
@@ -590,13 +591,13 @@ test("AttributesPane missin required params", async () => {
         name: "esri",
       }}
       tabKey={"attributes"}
-    />
+    />,
   );
 
   expect(
     await screen.findByText(
-      "Missing required params arguments. Please check the source and try again before getting attributes"
-    )
+      "Missing required params arguments. Please check the source and try again before getting attributes",
+    ),
   ).toBeInTheDocument();
 });
 
@@ -620,17 +621,17 @@ test("AttributesPane bad GeoJSON", async () => {
         name: "esri",
       }}
       tabKey={"attributes"}
-    />
+    />,
   );
 
   expect(
     await screen.findByText(
-      /Invalid json is being used. Please alter the json and try again./i
-    )
+      /Invalid json is being used. Please alter the json and try again./i,
+    ),
   ).toBeInTheDocument();
 
   expect(
-    await screen.findByText(/JSON5: invalid character '}' at 1/i)
+    await screen.findByText(/JSON5: invalid character '}' at 1/i),
   ).toBeInTheDocument();
 });
 
@@ -663,13 +664,13 @@ test("AttributesPane allow layer query", async () => {
         omitted: { states: ["the_geom"] },
         queryable: false,
       }}
-    />
+    />,
   );
 
   const layerQuery = screen.getByLabelText("Allow Layer Query");
   expect(layerQuery.checked).toBe(false);
   expect(screen.getByTestId("queryable")).toHaveTextContent(
-    JSON.stringify(false)
+    JSON.stringify(false),
   );
 
   fireEvent.click(layerQuery);
@@ -681,8 +682,80 @@ test("AttributesPane allow layer query", async () => {
 
   expect(layerQuery.checked).toBe(false);
   expect(screen.getByTestId("queryable")).toHaveTextContent(
-    JSON.stringify(false)
+    JSON.stringify(false),
   );
+});
+
+test("URL-based GeoJSON skips auto-extract on tab switch and exposes the 'Load attributes from URL' button", async () => {
+  // Covers the early-return at lines 157-158: when sourceProps describes a
+  // URL-based GeoJSON, the tab-switch effect must NOT call
+  // queryLayerAttributes (which would fetch + parse the entire file). It
+  // calls applyLayerAttributes(null) instead, putting the pane into the
+  // manual-entry InputTable layout with the load-from-URL button visible.
+  const sourceProps = {
+    type: "GeoJSON",
+    props: {},
+    geojson: "https://example.com/big.geojson",
+  };
+
+  render(
+    <TestingComponent
+      sourceProps={sourceProps}
+      layerProps={{ name: "remote-geojson" }}
+      tabKey="attributes"
+    />,
+  );
+
+  // Manual-entry path: load button is rendered.
+  const loadButton = await screen.findByLabelText("Load attributes from URL");
+  expect(loadButton).toBeInTheDocument();
+  // And queryLayerAttributes was NOT called for URL GeoJSON.
+  expect(mockedGetLayerAttributes).not.toHaveBeenCalled();
+});
+
+test("'Load attributes from URL' button triggers a query and renders the extracted attributes", async () => {
+  // Covers handleLoadAttributesFromUrl (lines 321-324). After clicking the
+  // button, queryLayerAttributes must run with the configured sourceProps
+  // and the result is fed through applyLayerAttributes — switching the
+  // pane out of the manual-entry InputTable into the extracted-attributes
+  // FixedTable.
+  mockedGetLayerAttributes.mockResolvedValue({
+    "remote-geojson": [
+      { name: "field_a", alias: "Field A" },
+      { name: "field_b", alias: "Field B" },
+    ],
+  });
+
+  const sourceProps = {
+    type: "GeoJSON",
+    props: {},
+    geojson: "https://example.com/big.geojson",
+  };
+
+  render(
+    <TestingComponent
+      sourceProps={sourceProps}
+      layerProps={{ name: "remote-geojson" }}
+      tabKey="attributes"
+    />,
+  );
+
+  const loadButton = await screen.findByLabelText("Load attributes from URL");
+  await userEvent.click(loadButton);
+
+  // queryLayerAttributes ran exactly once for the configured sourceProps
+  // and layer name.
+  await waitFor(() => {
+    expect(mockedGetLayerAttributes).toHaveBeenCalledWith({
+      isDynamicMapLayer: null,
+      layerName: "remote-geojson",
+      sourceProps,
+    });
+  });
+
+  // Extracted attribute names appear in the rendered FixedTable.
+  expect(await screen.findByText("field_a")).toBeInTheDocument();
+  expect(await screen.findByText("field_b")).toBeInTheDocument();
 });
 
 TestingComponent.propTypes = {

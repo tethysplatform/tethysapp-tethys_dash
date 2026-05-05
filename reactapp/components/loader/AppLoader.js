@@ -101,6 +101,7 @@ function Loader({ children }) {
       let visualizations;
       let allVisualizations = [];
       let mapLayerTemplates = [];
+      let dynamicMapLayers = [];
       let visualizationArgs = [];
       let userAppPermissions = [];
       let pluginEditablePaths = {};
@@ -153,16 +154,22 @@ function Loader({ children }) {
         return;
       }
 
+      const mapLayerDynamicItems = [];
       for (const visualizationGroup of visualizations.visualizations) {
         const nonMapLayerItems = visualizationGroup.options.filter(
           (opt) => opt.type !== "map_layer",
         );
-        const mapLayerItems = visualizationGroup.options.filter(
-          (opt) => opt.type === "map_layer",
+        const mapLayerTemplateItems = visualizationGroup.options.filter(
+          (opt) => opt.type === "map_layer" && opt.dynamic_map_layer !== true,
+        );
+        mapLayerDynamicItems.push(
+          ...visualizationGroup.options.filter(
+            (opt) => opt.type === "map_layer" && opt.dynamic_map_layer === true,
+          ),
         );
 
         // Collect map_layer items into flat array
-        mapLayerTemplates.push(...mapLayerItems);
+        mapLayerTemplates.push(...mapLayerTemplateItems);
 
         // If non-map_layer items exist, preserve the group
         if (nonMapLayerItems.length > 0) {
@@ -172,6 +179,11 @@ function Loader({ children }) {
           });
         }
       }
+
+      dynamicMapLayers.push({
+        label: "Dynamic Map Layers",
+        options: mapLayerDynamicItems,
+      });
 
       visualizationArgs = [
         {
@@ -363,9 +375,16 @@ function Loader({ children }) {
         tethysApp,
         user,
         csrf,
+        // Stable per-tab nonce used to scope composite WebSocket requestIds
+        // for runtime map_layer plugins (${sessionNonce}:${gridItemUUID}:${layerId}).
+        // Prevents progress/error messages from leaking between two tabs open
+        // to the same dashboard. Does not rotate on user-switch-without-reload
+        // (TethysDash's current auth flow requires a hard reload).
+        sessionNonce: uuidv4(),
         routes: setupRoutes(dashboards.dashboards),
         visualizations: allVisualizations,
         mapLayerTemplates,
+        dynamicMapLayers,
         visualizationArgs,
         userAppPermissions: userAppPermissions.permissions,
         // Server-authoritative LLM-editable-path whitelist for every

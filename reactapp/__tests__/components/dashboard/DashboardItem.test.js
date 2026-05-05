@@ -11,6 +11,8 @@ import DashboardItem, {
   handleGridItemImport,
   requiredGridItemKeys,
   minMapLayerStructure,
+  detectImportFormat,
+  validateGridItemBatch,
 } from "components/dashboard/DashboardItem";
 import { mockedDashboards, userDashboard } from "__tests__/utilities/constants";
 import { confirm } from "components/inputs/DeleteConfirmation";
@@ -2339,4 +2341,147 @@ test("handleGridItemImport bad style load", async () => {
   const response = await handleGridItemImport(gridItem, "123456789");
 
   expect(response).toStrictEqual(apiResponse);
+});
+
+describe("detectImportFormat", () => {
+  const validGridItem = {
+    i: "1",
+    x: 0,
+    y: 0,
+    w: 20,
+    h: 20,
+    source: "TestSource",
+    args_string: "{}",
+    metadata_string: "{}",
+  };
+
+  test("detects single grid item", () => {
+    const result = detectImportFormat(validGridItem);
+    expect(result.type).toBe("single");
+    expect(result.gridItems).toEqual([validGridItem]);
+    expect(result.tabs).toEqual([]);
+    expect(result.summary).toBe("1 grid item");
+  });
+
+  test("detects array of grid items", () => {
+    const items = [validGridItem, { ...validGridItem, i: "2" }, { ...validGridItem, i: "3" }];
+    const result = detectImportFormat(items);
+    expect(result.type).toBe("array");
+    expect(result.gridItems).toEqual(items);
+    expect(result.tabs).toEqual([]);
+    expect(result.summary).toBe("3 grid items to add to current tab");
+  });
+
+  test("detects single tab", () => {
+    const tab = { name: "MyTab", gridItems: [validGridItem, { ...validGridItem, i: "2" }] };
+    const result = detectImportFormat(tab);
+    expect(result.type).toBe("tab");
+    expect(result.gridItems).toEqual([]);
+    expect(result.tabs).toEqual([tab]);
+    expect(result.summary).toBe("Tab: MyTab with 2 items");
+  });
+
+  test("detects full dashboard export", () => {
+    const dashboard = {
+      tabs: [
+        { name: "Tab A", gridItems: [validGridItem, { ...validGridItem, i: "2" }] },
+        { name: "Tab B", gridItems: [validGridItem] },
+      ],
+    };
+    const result = detectImportFormat(dashboard);
+    expect(result.type).toBe("dashboard");
+    expect(result.gridItems).toEqual([]);
+    expect(result.tabs).toEqual(dashboard.tabs);
+    expect(result.summary).toBe("2 tabs: Tab A (2 items), Tab B (1 items)");
+  });
+
+  test("detects array with exactly 1 item uses singular", () => {
+    const result = detectImportFormat([validGridItem]);
+    expect(result.type).toBe("array");
+    expect(result.summary).toBe("1 grid item to add to current tab");
+  });
+
+  test("detects dashboard with unnamed tab and missing gridItems", () => {
+    const dashboard = {
+      tabs: [{ id: "1" }, { name: "Named", gridItems: [validGridItem] }],
+    };
+    const result = detectImportFormat(dashboard);
+    expect(result.type).toBe("dashboard");
+    expect(result.summary).toBe("2 tabs: Unnamed tab (0 items), Named (1 items)");
+  });
+
+  test("detects empty array", () => {
+    const result = detectImportFormat([]);
+    expect(result.type).toBe("array");
+    expect(result.gridItems).toEqual([]);
+    expect(result.summary).toBe("0 grid items to add to current tab");
+  });
+
+  test("detects dashboard with empty tabs array", () => {
+    const result = detectImportFormat({ tabs: [] });
+    expect(result.type).toBe("dashboard");
+    expect(result.tabs).toEqual([]);
+    expect(result.summary).toBe("0 tabs: ");
+  });
+
+  test("tabs property takes priority over grid item keys", () => {
+    const ambiguous = {
+      ...validGridItem,
+      tabs: [{ name: "Tab A", gridItems: [] }],
+    };
+    const result = detectImportFormat(ambiguous);
+    expect(result.type).toBe("dashboard");
+  });
+
+  test("returns null for unrecognized format", () => {
+    expect(detectImportFormat({ foo: "bar" })).toBeNull();
+    expect(detectImportFormat(null)).toBeNull();
+    expect(detectImportFormat("string")).toBeNull();
+  });
+});
+
+describe("validateGridItemBatch", () => {
+  const validGridItem = {
+    i: "1",
+    x: 0,
+    y: 0,
+    w: 20,
+    h: 20,
+    source: "TestSource",
+    args_string: "{}",
+    metadata_string: "{}",
+  };
+
+  test("passes for valid items", () => {
+    const result = validateGridItemBatch([validGridItem, { ...validGridItem, i: "2" }]);
+    expect(result.valid).toBe(true);
+    expect(result.errors).toEqual([]);
+  });
+
+  test("fails when one item is missing a required key", () => {
+    const { source, ...invalidItem } = validGridItem;
+    const result = validateGridItemBatch([validGridItem, invalidItem]);
+    expect(result.valid).toBe(false);
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]).toContain("Item 2");
+    expect(result.errors[0]).toContain("source");
+  });
+
+  test("reports errors for all invalid items", () => {
+    const { source, ...item1 } = validGridItem;
+    const { w, h, ...item2 } = validGridItem;
+    const result = validateGridItemBatch([item1, item2]);
+    expect(result.valid).toBe(false);
+    expect(result.errors).toHaveLength(2);
+    expect(result.errors[0]).toContain("Item 1");
+    expect(result.errors[1]).toContain("Item 2");
+    expect(result.errors[1]).toContain("w");
+    expect(result.errors[1]).toContain("h");
+  });
+
+  test("passes for empty array", () => {
+    const result = validateGridItemBatch([]);
+    expect(result.valid).toBe(true);
+    expect(result.errors).toEqual([]);
+  });
 });

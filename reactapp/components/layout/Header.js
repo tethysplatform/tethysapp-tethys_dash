@@ -287,7 +287,8 @@ export const DashboardHeader = () => {
     useContext(ChatSidebarContext) ?? {};
   const { name, editable, saveLayoutContext, unrestrictedPlacement } =
     useContext(LayoutContext);
-  const { tabs, updateTab, resetTabs, getActiveTab } = useContext(TabContext);
+  const { tabs, updateTab, importTabs, resetTabs, getActiveTab } =
+    useContext(TabContext);
   const { isEditing, setIsEditing } = useContext(EditingContext);
   const [isSaving, setIsSaving] = useState(false);
   const { disabledEditingMovement, setDisabledEditingMovement } = useContext(
@@ -362,31 +363,26 @@ export const DashboardHeader = () => {
     }, 100); // This ensures that the old overlay doesn't show after the new buttons appear
   }
 
-  function onAddGridItem({ importedGridItem }) {
+  function onAddGridItem() {
     const { gridItems, id: activeTabId } = getActiveTab();
     let maxGridItemI = gridItems.reduce((acc, value) => {
       return (acc = acc > parseInt(value.i) ? acc : parseInt(value.i));
     }, 0);
 
-    let newGridItem;
-    if (importedGridItem) {
-      newGridItem = importedGridItem;
-    } else {
-      newGridItem = {
-        x: 0,
-        y: 0,
-        w: 20,
-        h: 20,
-        source: "",
-        args_string: "{}",
-        metadata_string: JSON.stringify({
-          refreshRate: 0,
-        }),
-      };
-    }
-    newGridItem.uuid = uuidv4();
-    newGridItem.id = null;
-    newGridItem.i = `${parseInt(maxGridItemI) + 1}`;
+    const newGridItem = {
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "",
+      args_string: "{}",
+      metadata_string: JSON.stringify({
+        refreshRate: 0,
+      }),
+      uuid: uuidv4(),
+      id: null,
+      i: `${parseInt(maxGridItemI) + 1}`,
+    };
     let updatedGridItems;
     if (unrestrictedPlacement) {
       updatedGridItems = [...gridItems, newGridItem];
@@ -396,8 +392,48 @@ export const DashboardHeader = () => {
     updateTab(activeTabId, { gridItems: updatedGridItems });
   }
 
-  function onImportGridItem(importedGridItem) {
-    onAddGridItem({ importedGridItem });
+  function onImportGridItem(importResult) {
+    if (importResult.gridItems.length > 0) {
+      const { gridItems, id: activeTabId } = getActiveTab();
+      let maxGridItemI = gridItems.reduce((acc, value) => {
+        return (acc = acc > parseInt(value.i) ? acc : parseInt(value.i));
+      }, 0);
+
+      const newGridItems = importResult.gridItems.map((item) => {
+        maxGridItemI += 1;
+        return {
+          ...item,
+          uuid: uuidv4(),
+          id: null,
+          i: `${maxGridItemI}`,
+        };
+      });
+
+      let updatedGridItems;
+      if (unrestrictedPlacement) {
+        updatedGridItems = [...gridItems, ...newGridItems];
+      } else {
+        updatedGridItems = [...newGridItems, ...gridItems];
+      }
+      updateTab(activeTabId, { gridItems: updatedGridItems });
+    }
+
+    if (importResult.tabs.length > 0) {
+      const newTabs = importResult.tabs.map((tab) => {
+        const gridItems = tab.gridItems.map((item, index) => ({
+          ...item,
+          uuid: uuidv4(),
+          id: null,
+          i: `${index + 1}`,
+        }));
+        return {
+          id: `imported-${uuidv4()}`,
+          name: tab.name || "Imported Tab",
+          gridItems,
+        };
+      });
+      importTabs(newTabs);
+    }
   }
 
   function onEdit() {

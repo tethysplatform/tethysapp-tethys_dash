@@ -104,6 +104,97 @@ def test_data(client, mock_app, mocker):
 
 
 @pytest.mark.django_db
+def test_data_features_mode_passes_through_exception_message(client, mock_app, mocker):
+    """Unit 2: mode=features must pass the plugin's exception message through
+    so authors can self-diagnose. mode=scaffold (default) keeps the existing
+    sanitized 'Failed to retrieve data' message."""
+    mock_app("tethysapp.tethysdash.controllers.App")
+    url = reverse("tethysdash:visualization")
+    mock_gv = mocker.patch("tethysapp.tethysdash.controllers.get_visualization")
+    mock_gv.side_effect = RuntimeError("raw plugin traceback details")
+
+    # mode=features -> plugin exception message passes through
+    response = client.get(
+        url,
+        {
+            "source": "echo_runtime",
+            "args": json.dumps({"mode": "raise"}),
+            "requestId": "n:g:layer-1",
+            "mode": "features",
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["success"] is False
+    assert response.json()["data"] == {"error": "raw plugin traceback details"}
+
+    # mode=scaffold (default) -> sanitized message preserved
+    mock_gv.side_effect = RuntimeError("raw plugin traceback details")
+    response = client.get(
+        url,
+        {
+            "source": "echo_runtime",
+            "args": json.dumps({}),
+            "requestId": "req-1",
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["success"] is False
+    assert response.json()["data"] == {"error": "Failed to retrieve data"}
+
+
+@pytest.mark.django_db
+def test_data_features_mode_happy_path(client, mock_app, mocker):
+    """mode=features success returns viz_type=features with the FC payload."""
+    mock_app("tethysapp.tethysdash.controllers.App")
+    url = reverse("tethysdash:visualization")
+    mock_gv = mocker.patch("tethysapp.tethysdash.controllers.get_visualization")
+    fc = {
+        "type": "FeatureCollection",
+        "features": [],
+        "crs": {"type": "name", "properties": {"name": "EPSG:4326"}},
+    }
+    mock_gv.return_value = ["features", fc]
+
+    response = client.get(
+        url,
+        {
+            "source": "echo_runtime",
+            "args": json.dumps({"mode": "empty"}),
+            "requestId": "n:g:layer-1",
+            "mode": "features",
+        },
+    )
+    # Confirm the controller forwarded mode=features to get_visualization.
+    mock_gv.assert_called_once()
+    _, kwargs = mock_gv.call_args
+    assert kwargs.get("mode") == "features"
+    assert response.json()["success"] is True
+    assert response.json()["viz_type"] == "features"
+    assert response.json()["data"] == fc
+
+
+@pytest.mark.django_db
+def test_data_scaffold_mode_default(client, mock_app, mocker):
+    """Omitting mode defaults to scaffold (backward compat)."""
+    mock_app("tethysapp.tethysdash.controllers.App")
+    url = reverse("tethysdash:visualization")
+    mock_gv = mocker.patch("tethysapp.tethysdash.controllers.get_visualization")
+    mock_gv.return_value = ["plotly", {"data": []}]
+
+    response = client.get(
+        url,
+        {
+            "source": "some_plugin",
+            "args": json.dumps({}),
+            "requestId": "req-1",
+        },
+    )
+    assert response.status_code == 200
+    _, kwargs = mock_gv.call_args
+    assert kwargs.get("mode") == "scaffold"
+
+
+@pytest.mark.django_db
 def test_visualizations(
     client, admin_user, mock_app, mocker, mock_plugin_visualization
 ):

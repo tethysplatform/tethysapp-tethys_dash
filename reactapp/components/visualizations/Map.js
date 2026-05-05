@@ -1,4 +1,11 @@
-import { memo, useRef, useEffect, useState, useContext } from "react";
+import {
+  memo,
+  useRef,
+  useEffect,
+  useState,
+  useContext,
+  useCallback,
+} from "react";
 import { createRoot } from "react-dom/client";
 import MapComponent from "components/map/Map";
 import {
@@ -11,11 +18,15 @@ import {
   loadLayerJSONs,
 } from "components/map/utilities";
 import PropTypes from "prop-types";
+import { COLOR_RAMPS } from "components/map/colorRamps";
 import { getBaseMapLayer } from "components/visualizations/utilities";
+import useRuntimeLayerFetcher from "components/visualizations/runtimeLayerFetcher";
 import {
+  AppContext,
   DataViewerModeContext,
   VariableInputsContext,
   LayoutContext,
+  GridItemContext,
 } from "components/contexts/Contexts";
 import Table from "react-bootstrap/Table";
 import styled from "styled-components";
@@ -206,6 +217,7 @@ const MapVisualization = ({
   baseMap,
   layerControl,
   dataviewerViz,
+  refreshCount,
 }) => {
   const [mapLegend, setMapLegend] = useState();
   const [mapLayers, setMapLayers] = useState();
@@ -217,9 +229,44 @@ const MapVisualization = ({
   const mapAttributeVariablesRef = useRef({});
   const mapOmittedPopupAttributesRef = useRef({});
   const mapAttributeAliasesRef = useRef({});
-  const { setVariableInputValues } = useContext(VariableInputsContext);
+  const {
+    variableInputValues,
+    variableInputDateFormats,
+    setVariableInputValues,
+  } = useContext(VariableInputsContext);
   const { inDataViewerMode } = useContext(DataViewerModeContext);
   const { uuid } = useContext(LayoutContext);
+  const { sessionNonce } = useContext(AppContext);
+  const { gridItemUUID } = useContext(GridItemContext) ?? {};
+
+  const dismissPopupBeforeSwap = useCallback(() => {
+    // istanbul ignore next
+    if (popupOverlayRef.current) {
+      popupOverlayRef.current.setPosition(undefined);
+    }
+    setPopupContent(null);
+    if (highlightLayer.current?.getSource) {
+      highlightLayer.current.getSource().clear();
+    }
+  }, []);
+
+  const { errorsByLayerId, retry: retryRuntimeLayer } = useRuntimeLayerFetcher({
+    layers,
+    gridItemUUID,
+    sessionNonce,
+    mapRef: visualizationRef,
+    variableInputValues,
+    variableInputDateFormats,
+    onBeforeSwap: dismissPopupBeforeSwap,
+    refreshTick: refreshCount,
+  });
+
+  const runtimeLayerState = {
+    errorsByLayerId,
+    retry: retryRuntimeLayer,
+    sessionNonce,
+    gridItemUUID,
+  };
 
   const spinnerOverlayRef = useRef(null);
   // Create a spinner element for the overlay
@@ -331,9 +378,31 @@ const MapVisualization = ({
         const newMapLayers = [];
 
         for (const layer of layers) {
+          // Dynamic_map_layer layers own their features at viewer time via
+          // plugin.fetch_features() and are saved with an inline empty
+          // FeatureCollection placeholder; loadLayerJSONs treats that as a
+          // no-op (loadGeoJSON early-returns for object geojson) and still
+          // resolves style file references, so the call is harmless.
           await loadLayerJSONs(layer, uuid);
           if (layer.legend) {
             if (layer.legend === "default") {
+              const rampSource = layer.configuration?.props?.source;
+              if (
+                rampSource?.type === "GeoTIFF" &&
+                typeof rampSource.rampName === "string" &&
+                COLOR_RAMPS[rampSource.rampName] &&
+                rampSource.rampMin !== undefined &&
+                rampSource.rampMax !== undefined
+              ) {
+                newMapLegend.push({
+                  rampColors: COLOR_RAMPS[rampSource.rampName],
+                  rampMin: rampSource.rampMin,
+                  rampMax: rampSource.rampMax,
+                  title: layer.configuration?.props?.name,
+                });
+                newMapLayers.push(layer.configuration);
+                continue;
+              }
               // If the layer has a style JSON, pass it as legend metadata
               if (layer.configuration.style) {
                 let styleJSON = layer.configuration.style;
@@ -589,6 +658,7 @@ const MapVisualization = ({
       visualizationRef={visualizationRef}
       data-testid="backlayer-map"
       dataviewerViz={dataviewerViz}
+      runtimeLayerState={runtimeLayerState}
     />
   );
 };
@@ -609,6 +679,11 @@ MapVisualization.propTypes = {
   layerControl: PropTypes.bool, // deterimines if a layer control menu should be present
   dataviewerViz: PropTypes.bool, // determines if the map is in the dataviewer so that it doesnt affect the main map
   mapDrawing: mapDrawingPropType, // contains draw interaction metadata like options and limits
+  // Ticks on each refreshRate interval from Base.js. Used to force
+  // dynamic_map_layer re-fetches on schedule even when args are unchanged
+  // (getVisualization short-circuits Map to same-args vizData, so the
+  // orchestrator wouldn't otherwise see anything to re-run).
+  refreshCount: PropTypes.number,
 };
 
 Popup.propTypes = {
