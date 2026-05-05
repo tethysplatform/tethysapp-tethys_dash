@@ -2142,7 +2142,7 @@ const ExtentDrawModeSetter = ({ mode }) => {
 ExtentDrawModeSetter.propTypes = { mode: PropTypes.string };
 
 describe("modal-mode popup integration", () => {
-  test("modal-mode layer click opens PopupModal and bypasses outer-context attribute write", async () => {
+  test("modal-mode layer click opens PopupModal alongside the table popup; outer-context attribute write still fires", async () => {
     mockedQueryLayerFeatures.mockResolvedValue([
       {
         attributes: { station_id: "ABC", state_id: "WA" },
@@ -2166,8 +2166,10 @@ describe("modal-mode popup integration", () => {
             },
           },
         },
-        // attributeVariables would normally drive the outer write — present
-        // here to prove the bypass actually skips it.
+        // attributeVariables drives the outer-context write — both table
+        // and modal popups now render in parallel, so the host's
+        // attributeVariables → variableInputs flow continues for
+        // modal-mode features.
         attributeVariables: { Stations: { station_id: "Test Variable" } },
         popupConfig: {
           mode: "modal",
@@ -2215,20 +2217,19 @@ describe("modal-mode popup integration", () => {
       "Stations",
     );
 
-    // Outer-context input-variables remain empty — the modal-mode bypass
-    // worked. (The plain attributeVariables wiring would otherwise have
-    // written station_id="ABC" → "Test Variable".)
-    expect(screen.getByTestId("input-variables")).toHaveTextContent(
-      JSON.stringify({}),
-    );
+    // Outer-context attributeVariables write fires (modal-mode no longer
+    // suppresses it): station_id="ABC" → "Test Variable".
+    await waitFor(() => {
+      expect(screen.getByTestId("input-variables")).toHaveTextContent(
+        JSON.stringify({ "Test Variable": "ABC" }),
+      );
+    });
 
-    // OL Overlay popup did NOT render its swiper-attribute-table chrome
-    // (would surface a "Field"/"Value" header for the matched feature).
-    expect(screen.queryByText("Field")).not.toBeInTheDocument();
-    expect(screen.queryByText("Value")).not.toBeInTheDocument();
-    // Suppress the unused-variable lint (popSetPosition is reserved for
-    // future assertion flexibility).
-    expect(popSetPosition).toBeDefined();
+    // OL Overlay table popup also opens at the click coordinate — the
+    // modal-mode click no longer suppresses it.
+    await waitFor(() => {
+      expect(popSetPosition).toHaveBeenCalledWith(clickCoordinates);
+    });
   });
 
   // eslint-disable-next-line no-template-curly-in-string
@@ -2502,10 +2503,11 @@ describe("modal-mode popup integration", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  test("mixed-mode multi-layer click — modal-mode wins; OL Overlay does not open", async () => {
-    // Two queryable layers; one modal-mode, one table-mode. The OL Overlay
-    // popup must NOT open for the table-mode layer's features in this
-    // gesture.
+  test("mixed-mode multi-layer click — both modal AND table popup open in parallel", async () => {
+    // Two queryable layers; one modal-mode, one table-mode. Modal mode is
+    // additive: the OL Overlay table popup AND the PopupModal both open,
+    // and the table-mode layer's outer-context attributeVariables write
+    // continues to flow.
     mockedQueryLayerFeatures.mockImplementation(async (layer) => {
       if (layer.name === "ModalLayer") {
         return [
@@ -2585,7 +2587,7 @@ describe("modal-mode popup integration", () => {
     expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
     expect(await screen.findByText("Map Ready")).toBeInTheDocument();
 
-    // Modal opens with the modal-mode feature only.
+    // Modal opens for the modal-mode feature.
     await waitFor(() => {
       expect(screen.getByRole("dialog")).toBeInTheDocument();
     });
@@ -2594,16 +2596,17 @@ describe("modal-mode popup integration", () => {
       "ModalLayer",
     );
 
-    // OL Overlay popup did NOT render the swiper-attribute-table chrome
-    // for the table-mode feature (excluded from the gesture).
-    expect(screen.queryByText("Field")).not.toBeInTheDocument();
-    expect(screen.queryByText("table-value")).not.toBeInTheDocument();
-
-    // Table-mode layer's outer-context write was also skipped.
-    expect(screen.getByTestId("input-variables")).toHaveTextContent(
-      JSON.stringify({}),
-    );
-    expect(popSetPosition).toBeDefined();
+    // OL Overlay popup ALSO opens at the click coordinate (additive).
+    // Both views now render simultaneously — the modal in document.body
+    // via portal, the overlay anchored to the map.
+    await waitFor(() => {
+      expect(popSetPosition).toHaveBeenCalledWith(clickCoordinates);
+    });
+    // Note: outer-context variable writes go through popupContent[0], so
+    // whichever layer's features come back first in the click result owns
+    // the write. That ordering is exercised in the single-layer modal-mode
+    // test above; this test only asserts the additive both-popups-open
+    // behavior.
   });
 
   test("closing the modal via the X button clears modal state and unmounts the dialog", async () => {

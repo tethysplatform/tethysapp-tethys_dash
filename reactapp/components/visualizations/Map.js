@@ -430,12 +430,12 @@ const MapVisualization = ({
         const selectedFeature = popupContent[0];
         addHighlightFeatures(highlightLayer.current, selectedFeature.geometry);
 
-        // Skip the outer-context attribute write for modal-mode layers —
-        // their feature.* values are owned by the nested
-        // FeatureScopedVariableInputs provider that wraps the modal body.
-        if (!isModalModeLayer(selectedFeature.layerName)) {
-          updateVariableInputsForFeature(selectedFeature);
-        }
+        // Outer-context attribute write fires for ALL features including
+        // modal-mode ones — the table popup and the modal popup now show
+        // simultaneously, so host attributeVariables (e.g., comid →
+        // river_id) must keep populating downstream variable inputs in
+        // parallel with the modal's feature.* scope.
+        updateVariableInputsForFeature(selectedFeature);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -541,11 +541,10 @@ const MapVisualization = ({
     highlightLayer.current.getSource().clear();
     addHighlightFeatures(highlightLayer.current, selectedFeature.geometry);
 
-    // Use your variable mapping logic here — skip for modal-mode layers
-    // (the modal-scoped provider owns feature.* writes there).
-    if (!isModalModeLayer(selectedFeature.layerName)) {
-      updateVariableInputsForFeature(selectedFeature);
-    }
+    // Outer-context attribute write fires for all features (including
+    // modal-mode ones). The table popup and the modal popup display in
+    // parallel, so host attributeVariables must keep flowing.
+    updateVariableInputsForFeature(selectedFeature);
   };
 
   const updateVariableInputsForFeature = (selectedFeature) => {
@@ -698,29 +697,20 @@ const MapVisualization = ({
         .filter((arr) => arr && Array.isArray(arr) && arr.length > 0)
         .flat();
 
-      // Multi-layer mixed-mode resolution: if ANY hit feature comes from a
-      // modal-mode layer, modal mode wins. Skip the OL Overlay popup (and
-      // its outer-context attribute writes) entirely; route only the
-      // modal-mode features into the modal.
+      // Modal-mode is additive: when ANY hit feature has a configured
+      // popup modal, open the modal IN PARALLEL with the OL Overlay table
+      // popup. Both views render together (the modal is portaled to
+      // document.body, the overlay sits on the map), and host
+      // attributeVariables continue to flow via the table-popup path
+      // below. Modal feature.* values stay scoped inside the modal via
+      // FeatureScopedVariableInputs.
       const modalModeFeatures = nonEmptyLayers.filter((feature) =>
         isModalModeLayer(feature.layerName),
       );
 
-      if (modalModeFeatures.length > 0) {
-        // Suppress modal open if a draw operation is active. The existing
-        // draw flow is unaffected; table-mode behavior is unchanged.
-        if (extentDrawMode) {
-          setPopupContent(null);
-          popupOverlayRef.current?.setPosition(undefined);
-          return;
-        }
-        // Replace any previously-open modal contents with this gesture's
-        // modal-mode hit set, and re-fire opening logic.
-        setPopupContent(null);
-        popupOverlayRef.current?.setPosition(undefined);
+      if (modalModeFeatures.length > 0 && !extentDrawMode) {
         setModalFeatures(modalModeFeatures);
         setModalOpen(true);
-        return;
       }
 
       const nonEmptyLayerAttributes = nonEmptyLayers.filter((item) => {
