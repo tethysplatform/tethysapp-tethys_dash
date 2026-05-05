@@ -514,7 +514,7 @@ test("DashboardLayout receives responsive=true and tabId=popup", () => {
   expect(screen.getByTestId("mock-dl-tab-id").textContent).toBe("popup");
 });
 
-test("modal has zIndex 1050 to stack above the parent MapLayer modal", () => {
+test("modal does not set an inline zIndex (parent MapLayer modal drops below to stack correctly)", () => {
   render(
     <PopupLayoutEditor
       show={true}
@@ -525,8 +525,12 @@ test("modal has zIndex 1050 to stack above the parent MapLayer modal", () => {
     />,
   );
 
+  // Stacking convention in this codebase: the parent modal lowers its
+  // zIndex to 1050 while a sub-modal is open, so the sub-modal can use
+  // Bootstrap's default 1055 and render above. Asserting no inline zIndex
+  // here guards against regressing back to the equal-stack bug.
   const modalEl = screen.getByLabelText("Popup Layout Editor Modal");
-  expect(modalEl).toHaveStyle({ zIndex: "1050" });
+  expect(modalEl.style.zIndex).toBe("");
 });
 
 test("missing popupConfig is treated as empty gridItems", () => {

@@ -33,6 +33,17 @@ jest.mock("components/map/utilities", () => {
 });
 const mockedGetLayerAttributes = jest.mocked(getLayerAttributes);
 
+// DashboardLayout is rendered inside the popup layout sub-editor and reads
+// DisabledEditingMovementContext (and tab/editing contexts) that this file
+// does not provide. The popup-pane z-index test only cares about the parent
+// modal style flip, so stub DashboardLayout to a sentinel.
+jest.mock("components/dashboard/DashboardLayout", () => {
+  const MockDashboardLayout = () => (
+    <div data-testid="mock-popup-dashboard-layout" />
+  );
+  return MockDashboardLayout;
+});
+
 global.crypto = {
   getRandomValues: (arr) => {
     return arr.map(() => Math.floor(Math.random() * 256));
@@ -3521,6 +3532,39 @@ describe("MapLayerModal Popup pane", () => {
     });
     expect(updatePopupSpy).not.toHaveBeenCalled();
     updatePopupSpy.mockRestore();
+  });
+
+  test("parent modal drops zIndex to 1050 while the layout editor is open", async () => {
+    // Stacking convention in this codebase: the parent raises into the
+    // 1050 lane (its own backdrop level) so the sub-modal at Bootstrap's
+    // default 1055 can render above. Without this, the layout editor was
+    // hiding behind the MapLayer modal.
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={{
+          sourceProps: {
+            type: "ESRI Image and Map Service",
+            props: { url: "https://example.com" },
+          },
+          layerProps: { name: "Layer Z" },
+        }}
+      />,
+    );
+
+    fireEvent.click(await screen.findByText("Popup"));
+    fireEvent.click(screen.getByLabelText("Popup Mode Modal"));
+    fireEvent.click(await screen.findByLabelText("Edit Popup Layout Button"));
+
+    await waitFor(() => {
+      const dialogs = screen.getAllByRole("dialog");
+      const outer = dialogs.find((d) => d.className.includes("map-layer"));
+      expect(outer.style.zIndex).toBe("1050");
+    });
   });
 });
 

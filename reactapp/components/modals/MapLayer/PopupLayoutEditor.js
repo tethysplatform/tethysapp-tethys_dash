@@ -203,7 +203,6 @@ const PopupLayoutEditor = ({
     <Modal
       show={show}
       onHide={handleCancel}
-      style={{ zIndex: 1050 }}
       dialogClassName="wideModalDialog"
       aria-label="Popup Layout Editor Modal"
     >

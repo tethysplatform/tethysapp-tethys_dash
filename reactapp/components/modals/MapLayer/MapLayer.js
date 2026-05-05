@@ -657,7 +657,7 @@ const MapLayerModal = ({
         style={
           hiddenForExtentDraw
             ? { visibility: "hidden" }
-            : showingSubModal
+            : showingSubModal || showLayoutEditor
               ? { zIndex: 1050 }
               : undefined
         }
