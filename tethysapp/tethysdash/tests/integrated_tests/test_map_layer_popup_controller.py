@@ -51,8 +51,9 @@ def _make_map_grid_item_with_popup(
         grid_item_id=map_grid_item.id,
         layer_name=layer_name,
         mode=mode,
-        size_json=json.dumps({"widthPct": 60, "heightPct": 50}),
-        anchor_json=json.dumps({"name": "center"}),
+        position_json=json.dumps(
+            {"leftPct": 20, "topPct": 25, "widthPct": 60, "heightPct": 50}
+        ),
         title_template="Site: ${feature.station_name}",
     )
     db_session.add(popup)
@@ -121,8 +122,12 @@ def test_get_dashboard_hydrates_popup_config_into_map_layer(
     assert "popupConfig" in layer
     pc = layer["popupConfig"]
     assert pc["mode"] == "modal"
-    assert pc["size"] == {"widthPct": 60, "heightPct": 50}
-    assert pc["anchor"] == {"name": "center"}
+    assert pc["position"] == {
+        "leftPct": 20,
+        "topPct": 25,
+        "widthPct": 60,
+        "heightPct": 50,
+    }
     assert pc["titleTemplate"] == "Site: ${feature.station_name}"
     assert len(pc["gridItems"]) == 2
     child_uuids = {g["uuid"] for g in pc["gridItems"]}
@@ -267,8 +272,12 @@ def test_update_popup_creates_lazily_when_popup_id_omitted(
         "grid_item_id": map_grid_item.id,
         "layer_name": "Layer A",
         "mode": "modal",
-        "size": {"widthPct": 60, "heightPct": 50},
-        "anchor": {"name": "center"},
+        "position": {
+            "leftPct": 20,
+            "topPct": 25,
+            "widthPct": 60,
+            "heightPct": 50,
+        },
         "title_template": "Hi ${feature.station}",
         "gridItems": [],
     }

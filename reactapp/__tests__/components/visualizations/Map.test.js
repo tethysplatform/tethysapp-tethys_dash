@@ -2171,8 +2171,12 @@ describe("modal-mode popup integration", () => {
         attributeVariables: { Stations: { station_id: "Test Variable" } },
         popupConfig: {
           mode: "modal",
-          size: { widthPct: 50, heightPct: 40 },
-          anchor: { name: "center" },
+          position: {
+            leftPct: 25,
+            topPct: 30,
+            widthPct: 50,
+            heightPct: 40,
+          },
           titleTemplate: null,
           gridItems: [],
         },
@@ -2320,8 +2324,7 @@ describe("modal-mode popup integration", () => {
         },
         popupConfig: {
           mode: "modal",
-          size: null,
-          anchor: null,
+          position: null,
           titleTemplate: null,
           gridItems: [],
         },
@@ -2398,8 +2401,7 @@ describe("modal-mode popup integration", () => {
         },
         popupConfig: {
           mode: "modal",
-          size: null,
-          anchor: null,
+          position: null,
           titleTemplate: null,
           gridItems: [],
         },
@@ -2487,8 +2489,7 @@ describe("modal-mode popup integration", () => {
         },
         popupConfig: {
           mode: "modal",
-          size: null,
-          anchor: null,
+          position: null,
           titleTemplate: null,
           gridItems: [],
         },

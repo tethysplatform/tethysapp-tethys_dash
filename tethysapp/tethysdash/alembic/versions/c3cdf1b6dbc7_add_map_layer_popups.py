@@ -28,8 +28,7 @@ def upgrade() -> None:
         sa.Column(
             "mode", sa.String(), nullable=False, server_default="table"
         ),
-        sa.Column("size_json", sa.String(), nullable=True),
-        sa.Column("anchor_json", sa.String(), nullable=True),
+        sa.Column("position_json", sa.String(), nullable=True),
         sa.Column("title_template", sa.String(), nullable=True),
         sa.ForeignKeyConstraint(
             ["grid_item_id"],

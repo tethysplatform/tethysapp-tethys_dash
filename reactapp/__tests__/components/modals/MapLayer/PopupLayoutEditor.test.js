@@ -124,8 +124,7 @@ const baseGridItem = (overrides = {}) => ({
 const samplePopupConfig = (overrides = {}) => ({
   id: 1,
   mode: "modal",
-  size: { widthPct: 60, heightPct: 60 },
-  anchor: { name: "center", offsetX: 0, offsetY: 0 },
+  position: { leftPct: 20, topPct: 20, widthPct: 60, heightPct: 60 },
   titleTemplate: "",
   gridItems: [],
   ...overrides,

@@ -6,6 +6,13 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import PopupConfigPane from "components/modals/MapLayer/PopupConfigPane";
 
+const SAMPLE_POSITION = {
+  leftPct: 20,
+  topPct: 20,
+  widthPct: 60,
+  heightPct: 60,
+};
+
 const Harness = ({ initial = null, onChange, ...rest }) => {
   const [popupConfig, setPopupConfig] = useState(initial);
   return (
@@ -37,25 +44,27 @@ test("renders with popupConfig=null and shows table mode selected, no advanced c
   // Advanced controls hidden until modal mode is selected
   expect(screen.queryByLabelText("Popup Width Percent")).not.toBeInTheDocument();
   expect(screen.queryByLabelText("Popup Height Percent")).not.toBeInTheDocument();
-  expect(screen.queryByLabelText("Popup Anchor Name")).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("Popup Left Percent")).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("Popup Top Percent")).not.toBeInTheDocument();
+  expect(screen.queryByTestId("popup-preview-canvas")).not.toBeInTheDocument();
   expect(screen.queryByLabelText("Popup Title Template")).not.toBeInTheDocument();
   expect(
     screen.queryByLabelText("Edit Popup Layout Button"),
   ).not.toBeInTheDocument();
 });
 
-test("toggling mode to modal reveals size/anchor/title and the Edit popup layout button", async () => {
+test("toggling mode to modal reveals position canvas + numeric inputs + title + Edit popup layout button", async () => {
   const onChange = jest.fn();
   render(<Harness onChange={onChange} />);
 
   const modalRadio = screen.getByLabelText("Popup Mode Modal");
   await userEvent.click(modalRadio);
 
+  expect(screen.getByTestId("popup-preview-canvas")).toBeInTheDocument();
+  expect(screen.getByLabelText("Popup Left Percent")).toBeInTheDocument();
+  expect(screen.getByLabelText("Popup Top Percent")).toBeInTheDocument();
   expect(screen.getByLabelText("Popup Width Percent")).toBeInTheDocument();
   expect(screen.getByLabelText("Popup Height Percent")).toBeInTheDocument();
-  expect(screen.getByLabelText("Popup Anchor Name")).toBeInTheDocument();
-  expect(screen.getByLabelText("Popup Anchor Offset X")).toBeInTheDocument();
-  expect(screen.getByLabelText("Popup Anchor Offset Y")).toBeInTheDocument();
   expect(screen.getByLabelText("Popup Title Template")).toBeInTheDocument();
   expect(screen.getByLabelText("Edit Popup Layout Button")).toBeInTheDocument();
 
@@ -65,14 +74,13 @@ test("toggling mode to modal reveals size/anchor/title and the Edit popup layout
   expect(lastCall.mode).toBe("modal");
 });
 
-test("setting size, anchor, and title emits the full popupConfig via onChange", async () => {
+test("setting position fields and title emits the full popupConfig via onChange", () => {
   const onChange = jest.fn();
   render(
     <Harness
       initial={{
         mode: "modal",
-        size: { widthPct: 60, heightPct: 60 },
-        anchor: { name: "center", offsetX: 0, offsetY: 0 },
+        position: { ...SAMPLE_POSITION },
         titleTemplate: "",
         gridItems: [],
       }}
@@ -82,35 +90,33 @@ test("setting size, anchor, and title emits the full popupConfig via onChange", 
 
   const widthInput = screen.getByLabelText("Popup Width Percent");
   fireEvent.change(widthInput, { target: { value: "60" } });
-  // 60 -> 50 height
   const heightInput = screen.getByLabelText("Popup Height Percent");
   fireEvent.change(heightInput, { target: { value: "50" } });
-  // anchor (still center, but exercise the change handler)
-  const anchorSelect = screen.getByLabelText("Popup Anchor Name");
-  fireEvent.change(anchorSelect, { target: { value: "center" } });
-  // title
+  const leftInput = screen.getByLabelText("Popup Left Percent");
+  fireEvent.change(leftInput, { target: { value: "15" } });
+  const topInput = screen.getByLabelText("Popup Top Percent");
+  fireEvent.change(topInput, { target: { value: "25" } });
   const titleInput = screen.getByLabelText("Popup Title Template");
   fireEvent.change(titleInput, {
     target: { value: "Site: ${feature.station_name}" },
   });
 
-  // Verify the most recent emitted popupConfig has all fields
   const last = onChange.mock.calls[onChange.mock.calls.length - 1][0];
   expect(last.mode).toBe("modal");
-  expect(last.size.widthPct).toBe(60);
-  expect(last.size.heightPct).toBe(50);
-  expect(last.anchor.name).toBe("center");
+  expect(last.position.widthPct).toBe(60);
+  expect(last.position.heightPct).toBe(50);
+  expect(last.position.leftPct).toBe(15);
+  expect(last.position.topPct).toBe(25);
   expect(last.titleTemplate).toBe("Site: ${feature.station_name}");
 });
 
-test("invalid widthPct values are clamped to the 20–95 range before onChange", () => {
+test("invalid widthPct is clamped to the size range before onChange", () => {
   const onChange = jest.fn();
   render(
     <Harness
       initial={{
         mode: "modal",
-        size: { widthPct: 60, heightPct: 60 },
-        anchor: { name: "center", offsetX: 0, offsetY: 0 },
+        position: { ...SAMPLE_POSITION },
         titleTemplate: "",
         gridItems: [],
       }}
@@ -122,36 +128,49 @@ test("invalid widthPct values are clamped to the 20–95 range before onChange",
 
   fireEvent.change(widthInput, { target: { value: "150" } });
   let last = onChange.mock.calls[onChange.mock.calls.length - 1][0];
-  expect(last.size.widthPct).toBe(95);
+  expect(last.position.widthPct).toBe(100);
 
-  fireEvent.change(widthInput, { target: { value: "-10" } });
+  fireEvent.change(widthInput, { target: { value: "5" } });
   last = onChange.mock.calls[onChange.mock.calls.length - 1][0];
-  expect(last.size.widthPct).toBe(20);
-
-  // Empty string coerces to 0 via Number(""), which is below the min and is
-  // therefore clamped to SIZE_MIN.
-  fireEvent.change(widthInput, { target: { value: "" } });
-  last = onChange.mock.calls[onChange.mock.calls.length - 1][0];
-  expect(last.size.widthPct).toBe(20);
+  expect(last.position.widthPct).toBe(20);
 });
 
-test("toggling mode table → modal → table preserves size/anchor/title in form state", async () => {
+test("setting widthPct above remaining canvas space reconciles by shrinking leftPct", () => {
+  const onChange = jest.fn();
+  render(
+    <Harness
+      initial={{
+        mode: "modal",
+        position: { leftPct: 70, topPct: 0, widthPct: 30, heightPct: 30 },
+        titleTemplate: "",
+        gridItems: [],
+      }}
+      onChange={onChange}
+    />,
+  );
+
+  const widthInput = screen.getByLabelText("Popup Width Percent");
+  fireEvent.change(widthInput, { target: { value: "60" } });
+  const last = onChange.mock.calls[onChange.mock.calls.length - 1][0];
+  // 70 + 60 > 100, so left clamps to 100 - 60 = 40
+  expect(last.position.widthPct).toBe(60);
+  expect(last.position.leftPct).toBe(40);
+});
+
+test("toggling mode table → modal → table preserves position + title in form state", async () => {
   render(<Harness />);
 
-  // table -> modal
   await userEvent.click(screen.getByLabelText("Popup Mode Modal"));
   const widthInput = screen.getByLabelText("Popup Width Percent");
   fireEvent.change(widthInput, { target: { value: "75" } });
   const titleInput = screen.getByLabelText("Popup Title Template");
   fireEvent.change(titleInput, { target: { value: "T-${feature.id}" } });
 
-  // modal -> table (controls hidden)
   await userEvent.click(screen.getByLabelText("Popup Mode Table"));
   expect(
     screen.queryByLabelText("Popup Width Percent"),
   ).not.toBeInTheDocument();
 
-  // table -> modal again; previously typed width and title still present
   await userEvent.click(screen.getByLabelText("Popup Mode Modal"));
   expect(screen.getByLabelText("Popup Width Percent").value).toBe("75");
   expect(screen.getByLabelText("Popup Title Template").value).toBe(
@@ -164,8 +183,7 @@ test("hostDashboardEditable=false hides the Edit popup layout button", () => {
     <Harness
       initial={{
         mode: "modal",
-        size: { widthPct: 60, heightPct: 60 },
-        anchor: { name: "center", offsetX: 0, offsetY: 0 },
+        position: { ...SAMPLE_POSITION },
         titleTemplate: "",
         gridItems: [],
       }}
@@ -185,8 +203,7 @@ test("clicking Edit popup layout calls onOpenLayoutEditor", async () => {
     <Harness
       initial={{
         mode: "modal",
-        size: { widthPct: 60, heightPct: 60 },
-        anchor: { name: "center", offsetX: 0, offsetY: 0 },
+        position: { ...SAMPLE_POSITION },
         titleTemplate: "",
         gridItems: [],
       }}
@@ -206,8 +223,7 @@ test("title template input accepts ${feature.x} syntax verbatim", () => {
     <Harness
       initial={{
         mode: "modal",
-        size: { widthPct: 60, heightPct: 60 },
-        anchor: { name: "center", offsetX: 0, offsetY: 0 },
+        position: { ...SAMPLE_POSITION },
         titleTemplate: "",
         gridItems: [],
       }}
@@ -223,44 +239,22 @@ test("title template input accepts ${feature.x} syntax verbatim", () => {
   expect(last.titleTemplate).toBe(value);
 });
 
-test("anchor offsets accept negative values and persist them in the emitted config", () => {
-  const onChange = jest.fn();
+test("preview canvas reflects current position via inline percent style", () => {
   render(
     <Harness
       initial={{
         mode: "modal",
-        size: { widthPct: 60, heightPct: 60 },
-        anchor: { name: "center", offsetX: 0, offsetY: 0 },
+        position: { leftPct: 10, topPct: 5, widthPct: 80, heightPct: 70 },
         titleTemplate: "",
         gridItems: [],
       }}
-      onChange={onChange}
+      onChange={jest.fn()}
     />,
   );
 
-  const offsetX = screen.getByLabelText("Popup Anchor Offset X");
-  fireEvent.change(offsetX, { target: { value: "-50" } });
-  const last = onChange.mock.calls[onChange.mock.calls.length - 1][0];
-  expect(last.anchor.offsetX).toBe(-50);
-});
-
-test("anchor select updates anchor.name to a non-default option", () => {
-  const onChange = jest.fn();
-  render(
-    <Harness
-      initial={{
-        mode: "modal",
-        size: { widthPct: 60, heightPct: 60 },
-        anchor: { name: "center", offsetX: 0, offsetY: 0 },
-        titleTemplate: "",
-        gridItems: [],
-      }}
-      onChange={onChange}
-    />,
-  );
-
-  const anchorSelect = screen.getByLabelText("Popup Anchor Name");
-  fireEvent.change(anchorSelect, { target: { value: "top-right" } });
-  const last = onChange.mock.calls[onChange.mock.calls.length - 1][0];
-  expect(last.anchor.name).toBe("top-right");
+  const rect = screen.getByTestId("popup-preview-rect");
+  expect(rect).toHaveStyle("left: 10%");
+  expect(rect).toHaveStyle("top: 5%");
+  expect(rect).toHaveStyle("width: 80%");
+  expect(rect).toHaveStyle("height: 70%");
 });

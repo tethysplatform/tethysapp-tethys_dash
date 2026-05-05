@@ -8,9 +8,16 @@ import { FaTimes } from "react-icons/fa";
 // open react-bootstrap modal but stay below toasts (1080).
 const POPUP_Z_INDEX = 1055;
 
-// Below this viewport width we ignore anchor/size and render near-fullscreen
-// (R9 small-viewport fallback).
+// Below this viewport width we ignore the configured position and render
+// near-fullscreen (R9 small-viewport fallback).
 const SMALL_VIEWPORT_BREAKPOINT = 768;
+
+const DEFAULT_POSITION = {
+  leftPct: 20,
+  topPct: 20,
+  widthPct: 60,
+  heightPct: 60,
+};
 
 // Minimum hit target per WCAG 2.5.5.
 const MIN_TOUCH_TARGET_PX = 44;
@@ -74,11 +81,11 @@ const ModalBody = styled.div`
 `;
 
 /**
- * Compute the inline style (position + size) for the modal container based on
- * anchor + size + small-viewport state. Returns a style object suitable for
- * the `style` prop.
+ * Compute the inline style (position + size) for the modal container from the
+ * percent-based `position` config. Below the small-viewport breakpoint the
+ * configured position is ignored and the modal renders near-fullscreen.
  */
-function computePositionStyle({ anchor, size, isSmallViewport }) {
+function computePositionStyle({ position, isSmallViewport }) {
   if (isSmallViewport) {
     // Near-fullscreen with a small inset so the modal doesn't visually
     // bleed to viewport edges.
@@ -92,55 +99,17 @@ function computePositionStyle({ anchor, size, isSmallViewport }) {
     };
   }
 
-  const widthPct = size?.widthPct ?? 60;
-  const heightPct = size?.heightPct ?? 60;
-  const offsetX = anchor?.offsetX ?? 0;
-  const offsetY = anchor?.offsetY ?? 0;
-  const name = anchor?.name ?? "center";
+  const leftPct = position?.leftPct ?? DEFAULT_POSITION.leftPct;
+  const topPct = position?.topPct ?? DEFAULT_POSITION.topPct;
+  const widthPct = position?.widthPct ?? DEFAULT_POSITION.widthPct;
+  const heightPct = position?.heightPct ?? DEFAULT_POSITION.heightPct;
 
-  const width = `${widthPct}vw`;
-  const height = `${heightPct}vh`;
-
-  switch (name) {
-    case "top-left":
-      return {
-        top: `${offsetY}px`,
-        left: `${offsetX}px`,
-        width,
-        height,
-      };
-    case "top-right":
-      return {
-        top: `${offsetY}px`,
-        right: `${offsetX}px`,
-        width,
-        height,
-      };
-    case "bottom-left":
-      return {
-        bottom: `${offsetY}px`,
-        left: `${offsetX}px`,
-        width,
-        height,
-      };
-    case "bottom-right":
-      return {
-        bottom: `${offsetY}px`,
-        right: `${offsetX}px`,
-        width,
-        height,
-      };
-    case "center":
-    default:
-      // Translate to true center; offsets shift from center.
-      return {
-        top: `calc(50% + ${offsetY}px)`,
-        left: `calc(50% + ${offsetX}px)`,
-        width,
-        height,
-        transform: "translate(-50%, -50%)",
-      };
-  }
+  return {
+    left: `${leftPct}vw`,
+    top: `${topPct}vh`,
+    width: `${widthPct}vw`,
+    height: `${heightPct}vh`,
+  };
 }
 
 function isEditableTarget(el) {
@@ -166,16 +135,16 @@ function isEditableTarget(el) {
  * Differences from `react-bootstrap/Modal`:
  *   - No backdrop element (the underlying map stays interactive — R15).
  *   - `aria-modal="false"` and no focus trap (R27).
- *   - Anchored sizing via viewport percentages and named anchors (R7, R8).
+ *   - Free-position percent sizing via `position`
+ *     (`{leftPct, topPct, widthPct, heightPct}`) — R7, R8.
  *   - Esc-to-close, but no click-outside-to-close (R14).
- *   - Below 768px viewport width, ignores anchor/size and renders
+ *   - Below 768px viewport width, ignores `position` and renders
  *     near-fullscreen (R9).
  */
 function PopupModal({
   show,
   onClose,
-  anchor,
-  size,
+  position,
   title,
   ariaLabelledBy,
   triggerRef,
@@ -227,8 +196,7 @@ function PopupModal({
   if (!show) return null;
 
   const positionStyle = computePositionStyle({
-    anchor,
-    size,
+    position,
     isSmallViewport,
   });
 
@@ -279,18 +247,9 @@ function PopupModal({
 PopupModal.propTypes = {
   show: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired,
-  anchor: PropTypes.shape({
-    name: PropTypes.oneOf([
-      "center",
-      "top-left",
-      "top-right",
-      "bottom-left",
-      "bottom-right",
-    ]),
-    offsetX: PropTypes.number,
-    offsetY: PropTypes.number,
-  }),
-  size: PropTypes.shape({
+  position: PropTypes.shape({
+    leftPct: PropTypes.number,
+    topPct: PropTypes.number,
     widthPct: PropTypes.number,
     heightPct: PropTypes.number,
   }),
@@ -304,8 +263,7 @@ PopupModal.propTypes = {
 };
 
 PopupModal.defaultProps = {
-  anchor: { name: "center" },
-  size: { widthPct: 60, heightPct: 60 },
+  position: { ...DEFAULT_POSITION },
   title: null,
   ariaLabelledBy: undefined,
   triggerRef: null,

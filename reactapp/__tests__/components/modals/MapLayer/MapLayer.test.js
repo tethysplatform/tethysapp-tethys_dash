@@ -3313,8 +3313,12 @@ describe("MapLayerModal Popup pane", () => {
         popup: {
           id: 42,
           mode: "modal",
-          size: { widthPct: 60, heightPct: 60 },
-          anchor: { name: "center", offsetX: 0, offsetY: 0 },
+          position: {
+            leftPct: 20,
+            topPct: 20,
+            widthPct: 60,
+            heightPct: 60,
+          },
           titleTemplate: "",
           gridItems: [],
         },
@@ -3386,8 +3390,12 @@ describe("MapLayerModal Popup pane", () => {
         popup: {
           id: 7,
           mode: "table",
-          size: { widthPct: 60, heightPct: 60 },
-          anchor: { name: "center", offsetX: 0, offsetY: 0 },
+          position: {
+            leftPct: 20,
+            topPct: 20,
+            widthPct: 60,
+            heightPct: 60,
+          },
           titleTemplate: "",
           gridItems: [{ source: "Plot", args_string: "{}" }],
         },
@@ -3407,8 +3415,7 @@ describe("MapLayerModal Popup pane", () => {
     const existingPopupConfig = {
       id: 7,
       mode: "modal",
-      size: { widthPct: 60, heightPct: 60 },
-      anchor: { name: "center", offsetX: 0, offsetY: 0 },
+      position: { leftPct: 20, topPct: 20, widthPct: 60, heightPct: 60 },
       titleTemplate: "Title",
       gridItems: [{ source: "Plot", args_string: "{}" }],
     };

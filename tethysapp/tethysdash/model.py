@@ -219,8 +219,8 @@ class MapLayerPopup(Base):
             identifies the popup within the Map (paired with ``grid_item_id``)
         mode (str): ``"table"`` (default; existing inline OL Overlay popup) or
             ``"modal"`` (custom positioned overlay with a configurable mini grid)
-        size_json (str): Optional JSON-encoded viewport-percent size config
-        anchor_json (str): Optional JSON-encoded anchor + offset config
+        position_json (str): Optional JSON-encoded viewport-percent position
+            config with shape ``{leftPct, topPct, widthPct, heightPct}``
         title_template (str): Optional template string supporting
             ``${feature.<key>}`` substitution
         grid_item (relationship): Parent Map ``GridItem``
@@ -238,8 +238,7 @@ class MapLayerPopup(Base):
     )
     layer_name = Column(String, nullable=False)
     mode = Column(String, nullable=False, default="table")
-    size_json = Column(String, nullable=True)
-    anchor_json = Column(String, nullable=True)
+    position_json = Column(String, nullable=True)
     title_template = Column(String, nullable=True)
 
     grid_item = relationship(
@@ -468,23 +467,21 @@ def _serialize_popup(popup):
     """Serialize a ``MapLayerPopup`` row to the ``popupConfig`` shape consumed
     by the frontend.
 
-    Decodes the JSON-blob columns (``size_json``, ``anchor_json``) when present
-    and embeds the popup's child grid items.
+    Decodes the JSON-blob ``position_json`` column when present and embeds the
+    popup's child grid items.
 
     Args:
         popup (MapLayerPopup): SQLAlchemy ``MapLayerPopup`` row.
 
     Returns:
-        dict: ``popupConfig`` payload with ``id``, ``mode``, ``size``,
-        ``anchor``, ``titleTemplate``, and ``gridItems``.
+        dict: ``popupConfig`` payload with ``id``, ``mode``, ``position``,
+        ``titleTemplate``, and ``gridItems``.
     """
-    size = json.loads(popup.size_json) if popup.size_json else None
-    anchor = json.loads(popup.anchor_json) if popup.anchor_json else None
+    position = json.loads(popup.position_json) if popup.position_json else None
     return {
         "id": popup.id,
         "mode": popup.mode,
-        "size": size,
-        "anchor": anchor,
+        "position": position,
         "titleTemplate": popup.title_template,
         "gridItems": [_serialize_grid_item(g) for g in popup.grid_items],
     }
@@ -1188,7 +1185,7 @@ def update_named_popup(user, popup_updates):
         user: Django user performing the update.
         popup_updates (dict): Payload with optional ``popup_id``,
             ``grid_item_id``, ``layer_name`` plus metadata fields (``mode``,
-            ``size``, ``anchor``, ``title_template``) and ``gridItems``.
+            ``position``, ``title_template``) and ``gridItems``.
 
     Returns:
         dict: Serialized popup config (see :func:`_serialize_popup`).
@@ -1259,13 +1256,11 @@ def update_named_popup(user, popup_updates):
         if "mode" in popup_updates:
             db_popup.mode = popup_updates["mode"] or "table"
 
-        if "size" in popup_updates:
-            size = popup_updates["size"]
-            db_popup.size_json = json.dumps(size) if size is not None else None
-
-        if "anchor" in popup_updates:
-            anchor = popup_updates["anchor"]
-            db_popup.anchor_json = json.dumps(anchor) if anchor is not None else None
+        if "position" in popup_updates:
+            position = popup_updates["position"]
+            db_popup.position_json = (
+                json.dumps(position) if position is not None else None
+            )
 
         if "title_template" in popup_updates:
             db_popup.title_template = popup_updates["title_template"]

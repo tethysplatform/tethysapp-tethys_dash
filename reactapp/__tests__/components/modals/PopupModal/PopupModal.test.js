@@ -5,6 +5,8 @@ import PopupModal from "components/modals/PopupModal/PopupModal";
 
 const ORIGINAL_INNER_WIDTH = window.innerWidth;
 
+const CENTERED = { leftPct: 20, topPct: 20, widthPct: 60, heightPct: 60 };
+
 afterEach(() => {
   Object.defineProperty(window, "innerWidth", {
     configurable: true,
@@ -23,13 +25,12 @@ function setViewportWidth(width) {
 }
 
 describe("PopupModal — render", () => {
-  it("renders the dialog when show=true with viewport-percent size and centered anchor", () => {
+  it("renders the dialog when show=true with viewport-percent position", () => {
     render(
       <PopupModal
         show={true}
         onClose={() => {}}
-        anchor={{ name: "center" }}
-        size={{ widthPct: 60, heightPct: 50 }}
+        position={{ leftPct: 20, topPct: 25, widthPct: 60, heightPct: 50 }}
         title={<span id="popup-title">Title</span>}
         ariaLabelledBy="popup-title"
       >
@@ -42,11 +43,11 @@ describe("PopupModal — render", () => {
     expect(dialog).toHaveAttribute("aria-modal", "false");
     expect(dialog).toHaveAttribute("aria-labelledby", "popup-title");
 
-    // Width/height come through inline styles so jsdom can read them.
+    // Position + size come through inline styles so jsdom can read them.
+    expect(dialog).toHaveStyle("left: 20vw");
+    expect(dialog).toHaveStyle("top: 25vh");
     expect(dialog).toHaveStyle("width: 60vw");
     expect(dialog).toHaveStyle("height: 50vh");
-    // Centered uses transform translate.
-    expect(dialog).toHaveStyle("transform: translate(-50%, -50%)");
     expect(dialog).toHaveStyle("position: fixed");
   });
 
@@ -55,8 +56,7 @@ describe("PopupModal — render", () => {
       <PopupModal
         show={false}
         onClose={() => {}}
-        anchor={{ name: "center" }}
-        size={{ widthPct: 60, heightPct: 50 }}
+        position={CENTERED}
         title={<span id="popup-title">Title</span>}
         ariaLabelledBy="popup-title"
       >
@@ -73,8 +73,7 @@ describe("PopupModal — render", () => {
       <PopupModal
         show={true}
         onClose={() => {}}
-        anchor={{ name: "center" }}
-        size={{ widthPct: 50, heightPct: 50 }}
+        position={CENTERED}
         title={<span id="t">t</span>}
         ariaLabelledBy="t"
       />,
@@ -87,17 +86,16 @@ describe("PopupModal — render", () => {
   });
 
   it.each([
-    ["top-left", { top: "5px", left: "10px" }],
-    ["top-right", { top: "5px", right: "10px" }],
-    ["bottom-left", { bottom: "5px", left: "10px" }],
-    ["bottom-right", { bottom: "5px", right: "10px" }],
-  ])("positions correctly for anchor %s with offsets", (name, expected) => {
+    [{ leftPct: 0, topPct: 0, widthPct: 30, heightPct: 30 }, { left: "0vw", top: "0vh" }],
+    [{ leftPct: 70, topPct: 0, widthPct: 30, heightPct: 30 }, { left: "70vw", top: "0vh" }],
+    [{ leftPct: 0, topPct: 70, widthPct: 30, heightPct: 30 }, { left: "0vw", top: "70vh" }],
+    [{ leftPct: 70, topPct: 70, widthPct: 30, heightPct: 30 }, { left: "70vw", top: "70vh" }],
+  ])("positions correctly for free-position config %#", (position, expected) => {
     render(
       <PopupModal
         show={true}
         onClose={() => {}}
-        anchor={{ name, offsetX: 10, offsetY: 5 }}
-        size={{ widthPct: 40, heightPct: 30 }}
+        position={position}
         title={<span id="t">t</span>}
         ariaLabelledBy="t"
       />,
@@ -106,8 +104,8 @@ describe("PopupModal — render", () => {
     Object.entries(expected).forEach(([prop, value]) => {
       expect(dialog).toHaveStyle(`${prop}: ${value}`);
     });
-    expect(dialog).toHaveStyle("width: 40vw");
-    expect(dialog).toHaveStyle("height: 30vh");
+    expect(dialog).toHaveStyle(`width: ${position.widthPct}vw`);
+    expect(dialog).toHaveStyle(`height: ${position.heightPct}vh`);
   });
 });
 
@@ -118,8 +116,7 @@ describe("PopupModal — Esc to close", () => {
       <PopupModal
         show={true}
         onClose={onClose}
-        anchor={{ name: "center" }}
-        size={{ widthPct: 60, heightPct: 60 }}
+        position={CENTERED}
         title={<span id="t">t</span>}
         ariaLabelledBy="t"
       />,
@@ -137,8 +134,7 @@ describe("PopupModal — Esc to close", () => {
       <PopupModal
         show={true}
         onClose={onClose}
-        anchor={{ name: "center" }}
-        size={{ widthPct: 60, heightPct: 60 }}
+        position={CENTERED}
         title={<span id="t">t</span>}
         ariaLabelledBy="t"
       >
@@ -159,8 +155,7 @@ describe("PopupModal — Esc to close", () => {
       <PopupModal
         show={true}
         onClose={onClose}
-        anchor={{ name: "center" }}
-        size={{ widthPct: 60, heightPct: 60 }}
+        position={CENTERED}
         title={<span id="t">t</span>}
         ariaLabelledBy="t"
       >
@@ -181,8 +176,7 @@ describe("PopupModal — Esc to close", () => {
       <PopupModal
         show={true}
         onClose={onClose}
-        anchor={{ name: "center" }}
-        size={{ widthPct: 60, heightPct: 60 }}
+        position={CENTERED}
         title={<span id="t">t</span>}
         ariaLabelledBy="t"
       >
@@ -204,8 +198,7 @@ describe("PopupModal — Esc to close", () => {
       <PopupModal
         show={true}
         onClose={onClose}
-        anchor={{ name: "center" }}
-        size={{ widthPct: 60, heightPct: 60 }}
+        position={CENTERED}
         title={<span id="t">t</span>}
         ariaLabelledBy="t"
       />,
@@ -219,15 +212,14 @@ describe("PopupModal — Esc to close", () => {
 });
 
 describe("PopupModal — small-viewport fallback (R9)", () => {
-  it("ignores anchor/size at viewport widths below 768px", () => {
+  it("ignores position at viewport widths below 768px", () => {
     setViewportWidth(700);
 
     render(
       <PopupModal
         show={true}
         onClose={() => {}}
-        anchor={{ name: "top-left", offsetX: 100, offsetY: 100 }}
-        size={{ widthPct: 30, heightPct: 30 }}
+        position={{ leftPct: 0, topPct: 0, widthPct: 30, heightPct: 30 }}
         title={<span id="t">t</span>}
         ariaLabelledBy="t"
       />,
@@ -243,14 +235,13 @@ describe("PopupModal — small-viewport fallback (R9)", () => {
     expect(dialog).toHaveStyle("height: auto");
   });
 
-  it("switches between fullscreen and anchored layout on resize", () => {
+  it("switches between fullscreen and free-position layout on resize", () => {
     setViewportWidth(1200);
     render(
       <PopupModal
         show={true}
         onClose={() => {}}
-        anchor={{ name: "center" }}
-        size={{ widthPct: 50, heightPct: 50 }}
+        position={{ leftPct: 25, topPct: 25, widthPct: 50, heightPct: 50 }}
         title={<span id="t">t</span>}
         ariaLabelledBy="t"
       />,
@@ -281,8 +272,7 @@ describe("PopupModal — focus management (R28)", () => {
           <PopupModal
             show={show}
             onClose={() => setShow(false)}
-            anchor={{ name: "center" }}
-            size={{ widthPct: 60, heightPct: 60 }}
+            position={CENTERED}
             title={<span id="t">t</span>}
             ariaLabelledBy="t"
           />
@@ -312,8 +302,7 @@ describe("PopupModal — focus management (R28)", () => {
           <PopupModal
             show={show}
             onClose={() => setShow(false)}
-            anchor={{ name: "center" }}
-            size={{ widthPct: 60, heightPct: 60 }}
+            position={CENTERED}
             title={<span id="t">t</span>}
             ariaLabelledBy="t"
             triggerRef={triggerRef}
@@ -342,8 +331,7 @@ describe("PopupModal — focus management (R28)", () => {
           <PopupModal
             show={show}
             onClose={() => setShow(false)}
-            anchor={{ name: "center" }}
-            size={{ widthPct: 60, heightPct: 60 }}
+            position={CENTERED}
             title={<span id="t">t</span>}
             ariaLabelledBy="t"
           />
@@ -365,8 +353,7 @@ describe("PopupModal — chrome (X close button)", () => {
       <PopupModal
         show={true}
         onClose={onClose}
-        anchor={{ name: "center" }}
-        size={{ widthPct: 60, heightPct: 60 }}
+        position={CENTERED}
         title={<span id="t">t</span>}
         ariaLabelledBy="t"
       />,
@@ -381,8 +368,7 @@ describe("PopupModal — chrome (X close button)", () => {
       <PopupModal
         show={true}
         onClose={() => {}}
-        anchor={{ name: "center" }}
-        size={{ widthPct: 60, heightPct: 60 }}
+        position={CENTERED}
         title={<span id="t">t</span>}
         ariaLabelledBy="t"
       />,
@@ -400,8 +386,7 @@ describe("PopupModal — chrome (X close button)", () => {
       <PopupModal
         show={true}
         onClose={() => {}}
-        anchor={{ name: "center" }}
-        size={{ widthPct: 60, heightPct: 60 }}
+        position={CENTERED}
         title={<span id="my-title">Hello world</span>}
         ariaLabelledBy="my-title"
       />,
@@ -416,8 +401,7 @@ describe("PopupModal — accessibility wiring (R27)", () => {
       <PopupModal
         show={true}
         onClose={() => {}}
-        anchor={{ name: "center" }}
-        size={{ widthPct: 60, heightPct: 60 }}
+        position={CENTERED}
         title={<span id="t">t</span>}
         ariaLabelledBy="t"
       />,
@@ -432,8 +416,7 @@ describe("PopupModal — accessibility wiring (R27)", () => {
       <PopupModal
         show={true}
         onClose={() => {}}
-        anchor={{ name: "center" }}
-        size={{ widthPct: 60, heightPct: 60 }}
+        position={CENTERED}
         title={<span id="my-title-id">Hi</span>}
         ariaLabelledBy="my-title-id"
       />,
@@ -448,8 +431,7 @@ describe("PopupModal — accessibility wiring (R27)", () => {
       <PopupModal
         show={true}
         onClose={() => {}}
-        anchor={{ name: "center" }}
-        size={{ widthPct: 60, heightPct: 60 }}
+        position={CENTERED}
       />,
     );
     const dialog = screen.getByRole("dialog");
@@ -462,8 +444,7 @@ describe("PopupModal — accessibility wiring (R27)", () => {
       <PopupModal
         show={true}
         onClose={() => {}}
-        anchor={{ name: "center" }}
-        size={{ widthPct: 60, heightPct: 60 }}
+        position={CENTERED}
         title={<span id="t">t</span>}
         ariaLabelledBy="t"
       />,

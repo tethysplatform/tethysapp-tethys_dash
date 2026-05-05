@@ -496,8 +496,7 @@ const MapLayerModal = ({
 
     const payload = {
       mode: popupConfig?.mode ?? "table",
-      size: popupConfig?.size ?? null,
-      anchor: popupConfig?.anchor ?? null,
+      position: popupConfig?.position ?? null,
       title_template: popupConfig?.titleTemplate ?? null,
       gridItems: popupConfig?.gridItems ?? [],
     };
@@ -860,8 +859,12 @@ MapLayerModal.propTypes = {
     popupConfig: PropTypes.shape({
       id: PropTypes.number,
       mode: PropTypes.oneOf(["table", "modal"]),
-      size: PropTypes.object,
-      anchor: PropTypes.object,
+      position: PropTypes.shape({
+        leftPct: PropTypes.number,
+        topPct: PropTypes.number,
+        widthPct: PropTypes.number,
+        heightPct: PropTypes.number,
+      }),
       titleTemplate: PropTypes.string,
       gridItems: PropTypes.array,
     }),

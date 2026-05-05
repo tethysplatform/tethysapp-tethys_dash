@@ -58,8 +58,9 @@ def _make_popup(db_session, map_grid_item, layer_name="Layer A"):
         grid_item_id=map_grid_item.id,
         layer_name=layer_name,
         mode="modal",
-        size_json=json.dumps({"widthPct": 60, "heightPct": 50}),
-        anchor_json=json.dumps({"name": "center"}),
+        position_json=json.dumps(
+            {"leftPct": 20, "topPct": 25, "widthPct": 60, "heightPct": 50}
+        ),
         title_template="Site: ${feature.station_name}",
     )
     db_session.add(popup)
@@ -283,8 +284,12 @@ def test_update_named_popup_creates_when_missing(
         "grid_item_id": map_grid_item.id,
         "layer_name": "Layer A",
         "mode": "modal",
-        "size": {"widthPct": 60, "heightPct": 50},
-        "anchor": {"name": "center"},
+        "position": {
+            "leftPct": 20,
+            "topPct": 25,
+            "widthPct": 60,
+            "heightPct": 50,
+        },
         "title_template": "Site: ${feature.station_name}",
         "gridItems": [
             {
@@ -303,8 +308,12 @@ def test_update_named_popup_creates_when_missing(
     result = update_named_popup(test_owner_user, payload)
 
     assert result["mode"] == "modal"
-    assert result["size"] == {"widthPct": 60, "heightPct": 50}
-    assert result["anchor"] == {"name": "center"}
+    assert result["position"] == {
+        "leftPct": 20,
+        "topPct": 25,
+        "widthPct": 60,
+        "heightPct": 50,
+    }
     assert result["titleTemplate"] == "Site: ${feature.station_name}"
     assert len(result["gridItems"]) == 1
     assert result["gridItems"][0]["source"] == "Text"

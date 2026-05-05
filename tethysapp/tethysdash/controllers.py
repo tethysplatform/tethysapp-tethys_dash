@@ -838,8 +838,8 @@ def update_popup(request):
             - layer_name (optional): Layer name within the parent Map
               (required when popup_id is omitted)
             - mode (optional): ``"table"`` | ``"modal"``
-            - size (optional): dict serialized to JSON in size_json
-            - anchor (optional): dict serialized to JSON in anchor_json
+            - position (optional): dict ``{leftPct, topPct, widthPct,
+              heightPct}`` serialized to JSON in position_json
             - title_template (optional): template string supporting
               ``${feature.<key>}`` substitution
             - gridItems (optional): list of grid item dicts to replace the

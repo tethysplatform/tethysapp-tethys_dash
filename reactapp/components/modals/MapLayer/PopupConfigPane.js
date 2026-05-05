@@ -6,19 +6,22 @@ import OverlayTrigger from "react-bootstrap/OverlayTrigger";
 import Tooltip from "react-bootstrap/Tooltip";
 import styled from "styled-components";
 import { BsQuestionCircle } from "react-icons/bs";
+import PreviewCanvas from "components/modals/MapLayer/PreviewCanvas";
 
 const SECTION_PAD = "1.25rem";
-const ANCHOR_OPTIONS = [
-  { value: "center", label: "Center" },
-  { value: "top-left", label: "Top Left" },
-  { value: "top-right", label: "Top Right" },
-  { value: "bottom-left", label: "Bottom Left" },
-  { value: "bottom-right", label: "Bottom Right" },
-];
 
 const SIZE_MIN = 20;
-const SIZE_MAX = 95;
-const SIZE_DEFAULT = 60;
+const SIZE_MAX = 100;
+const POS_MIN = 0;
+const POS_MAX = 100;
+
+// Default position centers a 60×60 popup in the viewport.
+const DEFAULT_POSITION = {
+  leftPct: 20,
+  topPct: 20,
+  widthPct: 60,
+  heightPct: 60,
+};
 
 const Section = styled.div`
   margin-bottom: ${SECTION_PAD};
@@ -32,7 +35,7 @@ const Row = styled.div`
 
 const FieldCol = styled.div`
   flex: 1;
-  min-width: 8rem;
+  min-width: 6rem;
 `;
 
 const TooltipIcon = styled(BsQuestionCircle)`
@@ -63,32 +66,39 @@ const TITLE_TOOLTIP_TEXT =
 /* eslint-enable no-template-curly-in-string */
 
 /**
- * Clamp the supplied numeric percentage to the allowed range. Non-finite or
- * empty values fall back to the default so we never emit NaN to the parent.
+ * Coerce/clamp a single percent input. Empty values fall back to the supplied
+ * default so the form never emits NaN.
  */
-function clampSizePct(raw) {
+function clampPct(raw, fallback, min, max) {
+  if (raw === "" || raw === null || raw === undefined) return fallback;
   const num = Number(raw);
-  if (!Number.isFinite(num)) return SIZE_DEFAULT;
-  if (num < SIZE_MIN) return SIZE_MIN;
-  if (num > SIZE_MAX) return SIZE_MAX;
+  if (!Number.isFinite(num)) return fallback;
+  if (num < min) return min;
+  if (num > max) return max;
   return num;
 }
 
 /**
- * Coerce raw offset input. Empty strings preserve the editor's typing state by
- * becoming 0 in the persisted config (negatives are allowed).
+ * After applying a single-axis edit, ensure that left+width <= 100 and
+ * top+height <= 100. Width/height take precedence over left/top — if a width
+ * change overflows, shrink width to fit; if left grows past the bound, clamp
+ * left to keep width intact.
  */
-function coerceOffset(raw) {
-  if (raw === "" || raw === null || raw === undefined) return 0;
-  const num = Number(raw);
-  return Number.isFinite(num) ? num : 0;
+function reconcilePosition(next) {
+  const result = { ...next };
+  if (result.leftPct + result.widthPct > 100) {
+    result.leftPct = Math.max(0, 100 - result.widthPct);
+  }
+  if (result.topPct + result.heightPct > 100) {
+    result.topPct = Math.max(0, 100 - result.heightPct);
+  }
+  return result;
 }
 
 function buildDefaultConfig() {
   return {
     mode: "table",
-    size: { widthPct: SIZE_DEFAULT, heightPct: SIZE_DEFAULT },
-    anchor: { name: "center", offsetX: 0, offsetY: 0 },
+    position: { ...DEFAULT_POSITION },
     titleTemplate: "",
     gridItems: [],
   };
@@ -104,14 +114,11 @@ function withDefaults(popupConfig) {
   return {
     ...base,
     ...popupConfig,
-    size: {
-      widthPct: popupConfig.size?.widthPct ?? base.size.widthPct,
-      heightPct: popupConfig.size?.heightPct ?? base.size.heightPct,
-    },
-    anchor: {
-      name: popupConfig.anchor?.name ?? base.anchor.name,
-      offsetX: popupConfig.anchor?.offsetX ?? base.anchor.offsetX,
-      offsetY: popupConfig.anchor?.offsetY ?? base.anchor.offsetY,
+    position: {
+      leftPct: popupConfig.position?.leftPct ?? base.position.leftPct,
+      topPct: popupConfig.position?.topPct ?? base.position.topPct,
+      widthPct: popupConfig.position?.widthPct ?? base.position.widthPct,
+      heightPct: popupConfig.position?.heightPct ?? base.position.heightPct,
     },
     titleTemplate: popupConfig.titleTemplate ?? "",
   };
@@ -143,30 +150,23 @@ const PopupConfigPane = ({
     [emit, resolved],
   );
 
-  const handleSizeChange = useCallback(
-    (key, raw) => {
-      const next = { ...resolved.size, [key]: clampSizePct(raw) };
-      emit({ ...resolved, size: next });
+  const handleCanvasChange = useCallback(
+    (nextPosition) => {
+      emit({ ...resolved, position: reconcilePosition(nextPosition) });
     },
     [emit, resolved],
   );
 
-  const handleAnchorNameChange = useCallback(
-    (e) => {
-      emit({
-        ...resolved,
-        anchor: { ...resolved.anchor, name: e.target.value },
-      });
-    },
-    [emit, resolved],
-  );
-
-  const handleAnchorOffsetChange = useCallback(
+  const handlePctFieldChange = useCallback(
     (key, raw) => {
-      emit({
-        ...resolved,
-        anchor: { ...resolved.anchor, [key]: coerceOffset(raw) },
-      });
+      const isPos = key === "leftPct" || key === "topPct";
+      const min = isPos ? POS_MIN : SIZE_MIN;
+      const max = isPos ? POS_MAX : SIZE_MAX;
+      const next = {
+        ...resolved.position,
+        [key]: clampPct(raw, resolved.position[key], min, max),
+      };
+      emit({ ...resolved, position: reconcilePosition(next) });
     },
     [emit, resolved],
   );
@@ -226,84 +226,73 @@ const PopupConfigPane = ({
       {isModal && (
         <>
           <Section>
-            <Form.Label style={{ fontWeight: "bold" }}>Default Size</Form.Label>
+            <Form.Label style={{ fontWeight: "bold" }}>
+              Default Position
+            </Form.Label>
+            <Note>
+              Drag the rectangle to reposition the popup; drag a handle to
+              resize. Values are percentages of the runtime viewport.
+            </Note>
+            <PreviewCanvas
+              value={resolved.position}
+              onChange={handleCanvasChange}
+              minWidthPct={SIZE_MIN}
+              minHeightPct={SIZE_MIN}
+            />
             <Row>
               <FieldCol>
-                <Form.Label htmlFor="popup-size-width">Width (%)</Form.Label>
+                <Form.Label htmlFor="popup-pos-left">Left (%)</Form.Label>
                 <Form.Control
-                  id="popup-size-width"
+                  id="popup-pos-left"
                   type="number"
-                  min={SIZE_MIN}
-                  max={SIZE_MAX}
-                  value={resolved.size.widthPct}
-                  aria-label="Popup Width Percent"
-                  onChange={(e) => handleSizeChange("widthPct", e.target.value)}
-                  onBlur={(e) => handleSizeChange("widthPct", e.target.value)}
+                  min={POS_MIN}
+                  max={POS_MAX}
+                  value={resolved.position.leftPct}
+                  aria-label="Popup Left Percent"
+                  onChange={(e) =>
+                    handlePctFieldChange("leftPct", e.target.value)
+                  }
                 />
               </FieldCol>
               <FieldCol>
-                <Form.Label htmlFor="popup-size-height">Height (%)</Form.Label>
+                <Form.Label htmlFor="popup-pos-top">Top (%)</Form.Label>
                 <Form.Control
-                  id="popup-size-height"
+                  id="popup-pos-top"
+                  type="number"
+                  min={POS_MIN}
+                  max={POS_MAX}
+                  value={resolved.position.topPct}
+                  aria-label="Popup Top Percent"
+                  onChange={(e) =>
+                    handlePctFieldChange("topPct", e.target.value)
+                  }
+                />
+              </FieldCol>
+              <FieldCol>
+                <Form.Label htmlFor="popup-pos-width">Width (%)</Form.Label>
+                <Form.Control
+                  id="popup-pos-width"
                   type="number"
                   min={SIZE_MIN}
                   max={SIZE_MAX}
-                  value={resolved.size.heightPct}
+                  value={resolved.position.widthPct}
+                  aria-label="Popup Width Percent"
+                  onChange={(e) =>
+                    handlePctFieldChange("widthPct", e.target.value)
+                  }
+                />
+              </FieldCol>
+              <FieldCol>
+                <Form.Label htmlFor="popup-pos-height">Height (%)</Form.Label>
+                <Form.Control
+                  id="popup-pos-height"
+                  type="number"
+                  min={SIZE_MIN}
+                  max={SIZE_MAX}
+                  value={resolved.position.heightPct}
                   aria-label="Popup Height Percent"
                   onChange={(e) =>
-                    handleSizeChange("heightPct", e.target.value)
-                  }
-                  onBlur={(e) => handleSizeChange("heightPct", e.target.value)}
-                />
-              </FieldCol>
-            </Row>
-            <Note>
-              Sizes are percentages of the viewport. Allowed range:{" "}
-              {SIZE_MIN}–{SIZE_MAX}.
-            </Note>
-          </Section>
-
-          <Section>
-            <Form.Label style={{ fontWeight: "bold" }}>
-              Default Anchor
-            </Form.Label>
-            <Row>
-              <FieldCol>
-                <Form.Label htmlFor="popup-anchor-name">Anchor</Form.Label>
-                <Form.Select
-                  id="popup-anchor-name"
-                  value={resolved.anchor.name}
-                  aria-label="Popup Anchor Name"
-                  onChange={handleAnchorNameChange}
-                >
-                  {ANCHOR_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </Form.Select>
-              </FieldCol>
-              <FieldCol>
-                <Form.Label htmlFor="popup-offset-x">X offset (px)</Form.Label>
-                <Form.Control
-                  id="popup-offset-x"
-                  type="number"
-                  value={resolved.anchor.offsetX}
-                  aria-label="Popup Anchor Offset X"
-                  onChange={(e) =>
-                    handleAnchorOffsetChange("offsetX", e.target.value)
-                  }
-                />
-              </FieldCol>
-              <FieldCol>
-                <Form.Label htmlFor="popup-offset-y">Y offset (px)</Form.Label>
-                <Form.Control
-                  id="popup-offset-y"
-                  type="number"
-                  value={resolved.anchor.offsetY}
-                  aria-label="Popup Anchor Offset Y"
-                  onChange={(e) =>
-                    handleAnchorOffsetChange("offsetY", e.target.value)
+                    handlePctFieldChange("heightPct", e.target.value)
                   }
                 />
               </FieldCol>
@@ -375,14 +364,11 @@ PopupConfigPane.propTypes = {
   popupConfig: PropTypes.shape({
     id: PropTypes.number,
     mode: PropTypes.oneOf(["table", "modal"]),
-    size: PropTypes.shape({
+    position: PropTypes.shape({
+      leftPct: PropTypes.number,
+      topPct: PropTypes.number,
       widthPct: PropTypes.number,
       heightPct: PropTypes.number,
-    }),
-    anchor: PropTypes.shape({
-      name: PropTypes.string,
-      offsetX: PropTypes.number,
-      offsetY: PropTypes.number,
     }),
     titleTemplate: PropTypes.string,
     gridItems: PropTypes.array,

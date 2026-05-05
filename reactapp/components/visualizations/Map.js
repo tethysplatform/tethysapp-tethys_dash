@@ -733,7 +733,8 @@ const MapVisualization = ({
   };
 
   // Resolve the active feature's hydrated layer config so we can pass the
-  // editor-configured anchor/size to the modal. Falls back to defaults.
+  // editor-configured position to the modal. Falls back to defaults inside
+  // PopupModal when the layer has no configured position.
   const activeModalFeature = modalFeatures[0] ?? null;
   const activeModalLayer = activeModalFeature
     ? findLayerByName(activeModalFeature.layerName)
@@ -763,10 +764,7 @@ const MapVisualization = ({
       <PopupModal
         show={modalOpen && !!activeModalFeature}
         onClose={closeModal}
-        anchor={activeModalPopupConfig?.anchor || { name: "center" }}
-        size={
-          activeModalPopupConfig?.size || { widthPct: 60, heightPct: 60 }
-        }
+        position={activeModalPopupConfig?.position}
         title={<span id="popup-modal-title">Feature popup</span>}
         ariaLabelledBy="popup-modal-title"
         triggerRef={mapContainerRef}
