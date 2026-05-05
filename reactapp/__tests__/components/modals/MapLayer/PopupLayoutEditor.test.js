@@ -790,4 +790,64 @@ describe("PopupLayoutEditor — preview dimensions", () => {
     const label = screen.getByTestId("popup-layout-editor-dimensions");
     expect(label.textContent).toContain("60%");
   });
+
+  test("preview reserves the runtime modal header above the grid area", () => {
+    setViewport(1000, 800);
+    jest
+      .spyOn(Element.prototype, "getBoundingClientRect")
+      .mockImplementation(() => ({
+        width: 5000,
+        height: 5000,
+        top: 0,
+        left: 0,
+        right: 5000,
+        bottom: 5000,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      }));
+
+    render(
+      <PopupLayoutEditor
+        show={true}
+        onClose={jest.fn()}
+        onSave={jest.fn()}
+        popupConfig={samplePopupConfig({
+          position: {
+            leftPct: 10,
+            topPct: 10,
+            widthPct: 60,
+            heightPct: 50,
+          },
+        })}
+        layerName="Layer A"
+      />,
+    );
+
+    // Preview box is the full popup size: 600 × 400.
+    const box = screen.getByTestId("popup-layout-editor-preview-box");
+    expect(box.style.height).toBe("400px");
+
+    // A header band is rendered at the top of the box mirroring the runtime
+    // PopupModal header — visible to the user as a placeholder so they
+    // know the runtime will eat that space.
+    expect(
+      screen.getByTestId("popup-layout-editor-preview-header"),
+    ).toBeInTheDocument();
+
+    // The grid area exposes its computed height so we can assert it is
+    // popup height MINUS the header MINUS the body padding (60 + 16 = 76).
+    const body = screen.getByTestId("popup-layout-editor-preview-body");
+    const gridHeight = Number(body.getAttribute("data-grid-height"));
+    expect(gridHeight).toBe(400 - 60 - 2 * 8);
+
+    // rowHeight passed to DashboardLayout derives from the SHRUNK grid
+    // height, not the full popup height — so 20 tile rows fit the actual
+    // runtime grid budget rather than overflowing once the header lands.
+    const rh = parseInt(
+      screen.getByTestId("mock-dl-row-height").textContent,
+      10,
+    );
+    expect(rh).toBe(Math.max(20, Math.floor((400 - 60 - 2 * 8) / 20)));
+  });
 });

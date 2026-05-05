@@ -38,6 +38,20 @@ const DEFAULT_POSITION = {
 const MIN_PREVIEW_WIDTH = 240;
 const MIN_PREVIEW_HEIGHT = 160;
 
+// Approximate vertical chrome that the runtime popup adds on top of the
+// configured popup dimensions:
+//
+//   - PopupModal header — close-button WCAG min target 44px + 0.5rem
+//     vertical padding + 1px bottom border ≈ 60px
+//   - ModalBody + PopupModalChrome body padding ≈ 16px combined
+//
+// Subtracting these from the preview's display height gives the grid area
+// the same usable space the runtime DashboardLayout actually sees, so
+// charts sized to fill the editor's grid area don't silently overflow at
+// runtime once the header eats into the popup's vertical budget.
+const PREVIEW_HEADER_HEIGHT = 60;
+const PREVIEW_BODY_PADDING_Y = 8;
+
 const noop = () => {};
 
 const StyledModalBody = styled(Modal.Body)`
@@ -89,11 +103,52 @@ const PreviewSizedBox = styled.div`
   box-shadow: 0 0 0 4px rgba(13, 110, 253, 0.08);
   position: relative;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+`;
+
+// Visual stand-in for the runtime PopupModal header bar. Reserves the same
+// vertical space the real header takes (PREVIEW_HEADER_HEIGHT) so the grid
+// area below matches what the runtime DashboardLayout actually sees.
+const PreviewHeader = styled.div`
+  flex: 0 0 ${PREVIEW_HEADER_HEIGHT}px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.15);
+  background-color: #f8f9fa;
+  color: #6c757d;
+  font-size: 0.85rem;
+  font-style: italic;
+  user-select: none;
+`;
+
+const PreviewHeaderClose = styled.span`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  font-size: 1.1rem;
+  line-height: 1;
+  color: #adb5bd;
+  border: 1px dashed #ced4da;
+`;
+
+const PreviewBodyArea = styled.div`
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: ${PREVIEW_BODY_PADDING_Y}px 0;
+  display: flex;
+  flex-direction: column;
 `;
 
 const GridContainer = styled.div`
+  flex: 1 1 auto;
+  min-height: 0;
   width: 100%;
-  height: 100%;
   overflow: auto;
   position: relative;
 `;
@@ -290,9 +345,17 @@ const PopupLayoutEditor = ({
       [popupConfig, viewportSize, boundarySize],
     );
 
+  // Grid-area height = preview box height MINUS the visual header band MINUS
+  // the body padding above/below the grid. Matches the runtime budget the
+  // DashboardLayout actually sees inside the popup, so a tile sized to fill
+  // the editor's grid area also fits the runtime popup without overflow.
+  const gridAreaHeight = Math.max(
+    1,
+    displayHeight - PREVIEW_HEADER_HEIGHT - 2 * PREVIEW_BODY_PADDING_Y,
+  );
   const rowHeight = useMemo(
-    () => deriveRowHeight(displayHeight),
-    [displayHeight],
+    () => deriveRowHeight(gridAreaHeight),
+    [gridAreaHeight],
   );
 
   const widthPct = popupConfig?.position?.widthPct ?? DEFAULT_POSITION.widthPct;
@@ -416,24 +479,36 @@ const PopupLayoutEditor = ({
             data-testid="popup-layout-editor-preview-box"
             style={{ width: displayWidth, height: displayHeight }}
           >
-            <GridContainer aria-label="Popup Layout Grid Container">
-              <TabContext.Provider value={tabContextValue}>
-                <EditingContext.Provider value={editingContextValue}>
-                  <DisabledEditingMovementContext.Provider
-                    value={disabledEditingMovementContextValue}
-                  >
-                    <DashboardLayout
-                      tabId="popup"
-                      gridItems={localGridItems}
-                      shouldLoad={true}
-                      responsive
-                      rowHeight={rowHeight}
-                      allowOverlap={false}
-                    />
-                  </DisabledEditingMovementContext.Provider>
-                </EditingContext.Provider>
-              </TabContext.Provider>
-            </GridContainer>
+            <PreviewHeader
+              data-testid="popup-layout-editor-preview-header"
+              aria-hidden="true"
+            >
+              <span>Popup header (preview)</span>
+              <PreviewHeaderClose>×</PreviewHeaderClose>
+            </PreviewHeader>
+            <PreviewBodyArea
+              data-testid="popup-layout-editor-preview-body"
+              data-grid-height={gridAreaHeight}
+            >
+              <GridContainer aria-label="Popup Layout Grid Container">
+                <TabContext.Provider value={tabContextValue}>
+                  <EditingContext.Provider value={editingContextValue}>
+                    <DisabledEditingMovementContext.Provider
+                      value={disabledEditingMovementContextValue}
+                    >
+                      <DashboardLayout
+                        tabId="popup"
+                        gridItems={localGridItems}
+                        shouldLoad={true}
+                        responsive
+                        rowHeight={rowHeight}
+                        allowOverlap={false}
+                      />
+                    </DisabledEditingMovementContext.Provider>
+                  </EditingContext.Provider>
+                </TabContext.Provider>
+              </GridContainer>
+            </PreviewBodyArea>
           </PreviewSizedBox>
         </PreviewBoundary>
       </StyledModalBody>
