@@ -207,7 +207,11 @@ def _convert_plugin_args_to_schema(args: Dict) -> Dict[str, Any]:
 
 @mcp.tool(
     name="create_plotly_chart",
-    description="Create an interactive Plotly chart on the dashboard",
+    description=(
+        "Create an interactive Plotly chart on the dashboard. "
+        "Use this after fetching rows or series from a data-source tool — "
+        "pass them in via `data` to render a chart tile."
+    ),
     tags=["visualization", "chart"],
 )
 def create_plotly_chart(
@@ -254,7 +258,11 @@ def create_plotly_chart(
 
 @mcp.tool(
     name="create_data_table",
-    description="Create a data table on the dashboard",
+    description=(
+        "Create a data table on the dashboard. Use this after fetching "
+        "rows from a data-source tool — pass them in via `data` to "
+        "render a table tile."
+    ),
     tags=["visualization", "table"],
 )
 def create_data_table(
@@ -510,8 +518,10 @@ def _build_markers_layer(markers):
         "Create a geographic map visualization on the dashboard. "
         "Supports markers, drawing tools, and dashboard variable integration. "
         "Use 'center' for place names or 'map_extent' for explicit coordinates. "
-        "To add WMS, ESRI, GeoJSON, or other service layers, call add_map_service_layer "
-        "with the returned map UUID."
+        "When the user wants to focus on a specific feature, call a "
+        "data-source feature-lookup tool first to obtain the bounding box "
+        "and pass it via 'map_extent'. To add WMS, ESRI, GeoJSON, or other "
+        "service layers, call add_map_service_layer with the returned map UUID."
     ),
     tags=["visualization", "map", "geographic", "location", "marker", "layer"],
 )
@@ -692,7 +702,9 @@ def _resolve_esri_layer_name(url: str, layer_id: Optional[str]) -> Optional[str]
     name="add_map_service_layer",
     description=(
         "Add a WMS, ESRI, GeoJSON, KML, or tile service layer to an existing "
-        "map created by create_map_visualization"
+        "map created by create_map_visualization. When the layer comes from "
+        "a feature lookup, fetch the layer name and bounding box from a "
+        "data-source tool first, then pass them through to this call."
     ),
     tags=["map", "layer", "geographic"],
 )

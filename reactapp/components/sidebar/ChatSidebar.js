@@ -8,8 +8,28 @@ import {
 } from "components/contexts/Contexts";
 import { ChatSidebarContext } from "components/contexts/ChatSidebarContext";
 import { Chatbox } from "@chatbox/core/components";
+import { buildGenericSystemMessage } from "@chatbox/core/messages";
 import { BsXLg } from "react-icons/bs";
 import { buildDeltaSummary, buildPatchContext } from "./chatboxStateBuilder";
+
+// Plan 003 D3 — system-prompt instruction telling the LLM to use the
+// engine's `_engine_dispatched` field as ground truth for any claim
+// that a visualization, chart, map, or other tile was created or
+// updated. Without this, an LLM that gets data back from a tool call
+// can confidently tell the user a tile was rendered when nothing
+// reached the dashboard. The Unit C3 banner is the structural
+// fallback; this instruction is the in-band fix.
+const DISPATCH_FEEDBACK_RULE =
+  "Only claim a visualization was created or updated if its UUID " +
+  "appears in the `_engine_dispatched` field of the corresponding " +
+  "tool result. If `_engine_dispatched` is empty, that call returned " +
+  "data only — do not claim a tile was rendered.";
+
+function buildSystemPromptWithDispatchRule(opts = {}) {
+  const base = buildGenericSystemMessage(opts);
+  if (!base || typeof base.content !== "string") return base;
+  return { ...base, content: `${base.content}\n\n${DISPATCH_FEEDBACK_RULE}` };
+}
 
 // R6 delta truncation policy (from the origin requirements doc): the
 // afterToolExecution decoration shows at most the last N rounds OR the
@@ -125,6 +145,7 @@ function ChatSidebar() {
   // this turn (not just the turn-start snapshot).
   const engineExtensions = useMemo(
     () => ({
+      systemPromptBuilder: buildSystemPromptWithDispatchRule,
       beforeFirstMessage: () => {
         if (!patchContext) return null;
         return {
