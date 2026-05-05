@@ -189,6 +189,227 @@ class TestESRIImage:
         assert "attributeVariables" in layer
         assert "My Display Name" in layer["attributeVariables"]
 
+    # -----------------------------------------------------------------------
+    # LAYERS canonicalization (plan 2026-05-05-001 Unit 5).
+    # Bare `layer_id` and bare LLM-supplied `params={"LAYERS": ...}` both get
+    # normalized to `show:` form post-overlay so the persisted-shape invariant
+    # is uniform regardless of input path.
+    # -----------------------------------------------------------------------
+
+    def test_esri_image_canonicalizes_bare_layer_id(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="ESRI Image and Map Service",
+            name="ESRI Image Layer",
+            url="https://example.com/arcgis/rest/services/MyService/MapServer",
+            layer_id="0",
+        )
+        source = _get_source(result)
+        assert source["props"]["params"]["LAYERS"] == "show:0"
+
+    def test_esri_image_canonicalizes_bare_layer_id_comma_list(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="ESRI Image and Map Service",
+            name="ESRI Image Layer",
+            url="https://example.com/arcgis/rest/services/MyService/MapServer",
+            layer_id="0,1",
+        )
+        source = _get_source(result)
+        assert source["props"]["params"]["LAYERS"] == "show:0,1"
+
+    def test_esri_image_passes_through_show_layer_id(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="ESRI Image and Map Service",
+            name="ESRI Image Layer",
+            url="https://example.com/arcgis/rest/services/MyService/MapServer",
+            layer_id="show:0",
+        )
+        source = _get_source(result)
+        assert source["props"]["params"]["LAYERS"] == "show:0"
+
+    def test_esri_image_passes_through_hide_layer_id(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="ESRI Image and Map Service",
+            name="ESRI Image Layer",
+            url="https://example.com/arcgis/rest/services/MyService/MapServer",
+            layer_id="hide:1",
+        )
+        source = _get_source(result)
+        assert source["props"]["params"]["LAYERS"] == "hide:1"
+
+    def test_esri_image_passes_through_include_and_exclude_directives(self):
+        for directive in ("include:0", "exclude:1"):
+            result = add_map_service_layer(
+                map_uuid=MAP_UUID,
+                source_type="ESRI Image and Map Service",
+                name="ESRI Image Layer",
+                url="https://example.com/arcgis/rest/services/MyService/MapServer",
+                layer_id=directive,
+            )
+            source = _get_source(result)
+            assert source["props"]["params"]["LAYERS"] == directive
+
+    def test_esri_image_no_layer_id_no_layers_key(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="ESRI Image and Map Service",
+            name="ESRI Image Layer",
+            url="https://example.com/arcgis/rest/services/MyService/MapServer",
+        )
+        source = _get_source(result)
+        # No layer_id and no params supplied → no LAYERS key in resulting source props.
+        assert "params" not in source["props"] or "LAYERS" not in source["props"].get("params", {})
+
+    def test_esri_image_canonicalizes_bare_llm_supplied_params_layers(self):
+        """Closes the regression vector where the LLM uses params={'LAYERS': '0'}
+        instead of layer_id='0'. Post-overlay canonicalization catches both paths."""
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="ESRI Image and Map Service",
+            name="ESRI Image Layer",
+            url="https://example.com/arcgis/rest/services/MyService/MapServer",
+            params={"LAYERS": "0"},
+        )
+        source = _get_source(result)
+        assert source["props"]["params"]["LAYERS"] == "show:0"
+
+    def test_esri_image_canonicalizes_bare_llm_supplied_comma_list(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="ESRI Image and Map Service",
+            name="ESRI Image Layer",
+            url="https://example.com/arcgis/rest/services/MyService/MapServer",
+            params={"LAYERS": "0,1,2"},
+        )
+        source = _get_source(result)
+        assert source["props"]["params"]["LAYERS"] == "show:0,1,2"
+
+    def test_esri_image_passes_through_canonical_llm_supplied_params(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="ESRI Image and Map Service",
+            name="ESRI Image Layer",
+            url="https://example.com/arcgis/rest/services/MyService/MapServer",
+            params={"LAYERS": "hide:1"},
+        )
+        source = _get_source(result)
+        assert source["props"]["params"]["LAYERS"] == "hide:1"
+
+    def test_esri_image_llm_supplied_params_wins_then_canonicalized(self):
+        """Existing precedence: LLM-supplied params overrides layer_id-derived value.
+        New behavior: the winning value is then canonicalized post-overlay. Bare
+        LLM-supplied LAYERS gets `show:` prefix even when layer_id was also supplied."""
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="ESRI Image and Map Service",
+            name="ESRI Image Layer",
+            url="https://example.com/arcgis/rest/services/MyService/MapServer",
+            layer_id="0",
+            params={"LAYERS": "1,2"},
+        )
+        source = _get_source(result)
+        # LLM-supplied params={"LAYERS": "1,2"} won over layer_id="0", then got canonicalized.
+        assert source["props"]["params"]["LAYERS"] == "show:1,2"
+
+    def test_esri_image_other_params_keys_pass_through_unchanged(self):
+        """Canonicalization is narrowly scoped to LAYERS. Other LLM-supplied keys
+        continue to pass through verbatim per existing semantics."""
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="ESRI Image and Map Service",
+            name="ESRI Image Layer",
+            url="https://example.com/arcgis/rest/services/MyService/MapServer",
+            layer_id="0",
+            params={"TIME": "2026-01-01,2026-12-31", "LAYERDEFS": "raw_filter"},
+        )
+        source = _get_source(result)
+        assert source["props"]["params"]["LAYERS"] == "show:0"
+        assert source["props"]["params"]["TIME"] == "2026-01-01,2026-12-31"
+        assert source["props"]["params"]["LAYERDEFS"] == "raw_filter"
+
+    @patch(
+        "tethysapp.tethysdash.mcp.tethysdash_mcp_server._resolve_esri_layer_name",
+        return_value="River Gauges",
+    )
+    def test_esri_image_resolve_layer_name_works_post_canonicalization(self, mock_resolve):
+        """_resolve_esri_layer_name handles both '0' and 'show:0' via split(':')[-1].
+        Lock-in test: canonicalization runs before attributeVariables resolution and
+        the helper still returns the correct service layer name."""
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="ESRI Image and Map Service",
+            name="My Display Name",
+            url="https://example.com/arcgis/rest/services/MyService/MapServer",
+            layer_id="0",  # bare → canonicalized to "show:0"
+            attribute_variables={"STAGE": "stage_var"},
+        )
+        layer = _get_layer_config(result)
+        # Canonicalized LAYERS value persisted.
+        assert layer["configuration"]["props"]["source"]["props"]["params"]["LAYERS"] == "show:0"
+        # _resolve_esri_layer_name still resolved correctly (mock returned "River Gauges").
+        assert "River Gauges" in layer["attributeVariables"]
+        # The resolver is called with the post-canonicalization LAYERS value
+        # (`"show:0"`), not the raw `layer_id` argument. This catches both
+        # input paths (layer_id and params={"LAYERS": ...}) uniformly. The
+        # resolver itself handles "show:0" via split(":")[-1] (line 685).
+        mock_resolve.assert_called_once_with(
+            "https://example.com/arcgis/rest/services/MyService/MapServer", "show:0"
+        )
+
+    @patch(
+        "tethysapp.tethysdash.mcp.tethysdash_mcp_server._resolve_esri_layer_name",
+        return_value="River Gauges",
+    )
+    def test_esri_image_params_path_resolves_attribute_variables_correctly(self, mock_resolve):
+        """When the LLM uses `params={"LAYERS": "0"}` (no `layer_id`) together with
+        `attribute_variables`, the canonicalization writes `show:0` to params.LAYERS AND
+        the attributeVariables key resolves to the ESRI service layer name (not the
+        display name). Closes the params-path gap surfaced by ce:review (Finding 1):
+        before the fix, `_resolve_esri_layer_name` received the raw `layer_id=None` and
+        returned None, falling back to the display name. After the fix, the resolver is
+        called with the post-canonicalization LAYERS value, so both input paths produce
+        the same ESRI-service-name key."""
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="ESRI Image and Map Service",
+            name="My Display Name",
+            url="https://example.com/arcgis/rest/services/MyService/MapServer",
+            params={"LAYERS": "0"},  # params path — no `layer_id` argument
+            attribute_variables={"STAGE": "stage_var"},
+        )
+        layer = _get_layer_config(result)
+        # Canonicalization fired for params.LAYERS persistence.
+        assert layer["configuration"]["props"]["source"]["props"]["params"]["LAYERS"] == "show:0"
+        # Resolver was called with the canonicalized value (the same shape as the
+        # layer_id path). attributeVariables key is the ESRI service layer name.
+        mock_resolve.assert_called_once_with(
+            "https://example.com/arcgis/rest/services/MyService/MapServer", "show:0"
+        )
+        assert "River Gauges" in layer["attributeVariables"]
+        assert "My Display Name" not in layer["attributeVariables"]
+        assert layer["attributeVariables"]["River Gauges"] == {"STAGE": "stage_var"}
+
+    def test_esri_image_canonicalizes_integer_layers_value(self):
+        """Closes review Finding 3: a non-string LAYERS value (e.g. an LLM passing
+        `params={"LAYERS": 0}` as an integer) is coerced to string and canonicalized.
+        Before the fix, the `isinstance(..., str)` guard caused integer values to bypass
+        canonicalization entirely — persisting `params.LAYERS = 0` (integer), which the
+        frontend's `normalizeLayersParam` correctly rejects as non-string and falls back
+        to defaultVisibility. The silent semantic miss is closed by str() coercion."""
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="ESRI Image and Map Service",
+            name="ESRI Image Layer",
+            url="https://example.com/arcgis/rest/services/MyService/MapServer",
+            params={"LAYERS": 0},  # integer, not string
+        )
+        source = _get_source(result)
+        # Coerced to "0" then canonicalized to "show:0".
+        assert source["props"]["params"]["LAYERS"] == "show:0"
+
 
 # ---------------------------------------------------------------------------
 # ESRI Feature Service

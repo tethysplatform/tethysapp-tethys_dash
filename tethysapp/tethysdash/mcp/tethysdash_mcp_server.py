@@ -659,6 +659,13 @@ SOURCE_TYPE_TO_LAYER_TYPE = {
     "PMTiles Raster": "WebGLTile",
 }
 
+# Recognized directive prefixes for ESRI Image and Map Service `params.LAYERS`.
+# Kept in sync with the JS constant in
+# `reactapp/components/map/utilities.js` (the frontend `normalizeLayersParam`
+# helper). The two values are duplicated by language but should never diverge —
+# both name the ESRI directive vocabulary.
+_RECOGNIZED_LAYERS_DIRECTIVES = ("show:", "hide:", "include:", "exclude:")
+
 
 def _resolve_esri_layer_name(url: str, layer_id: Optional[str]) -> Optional[str]:
     """Fetch the ESRI service's actual layer name for the given layer index.
@@ -721,7 +728,13 @@ def add_map_service_layer(
     ))] = None,
     layer_id: Annotated[Optional[str], Field(description=(
         "Layer identifier within the service. "
-        "For ESRI Image and Map Service: visibility directive for params.LAYERS. "
+        "For ESRI Image and Map Service: a bare integer or "
+        "comma-separated integer list is canonicalized to show: form on "
+        "emit (regardless of whether the value comes from this parameter "
+        "or from params.LAYERS). To use a different directive, prefix the "
+        "integer list with the directive name and a colon (one of show, "
+        "hide, include, exclude). Values that already carry a recognized "
+        "directive prefix are passed through unchanged. "
         "For ESRI Feature Service: integer layer index as a string."
     ))] = None,
     wms_layers: Annotated[Optional[str], Field(description=(
@@ -826,6 +839,35 @@ def add_map_service_layer(
         if layer_id:
             esri_params["LAYERS"] = layer_id
         esri_params.update(extra_params)
+        # Canonicalize LAYERS post-overlay so values from either input path
+        # (layer_id parameter OR LLM-supplied params={"LAYERS": ...}) land
+        # consistently in the persisted `show:` form. Bare ID lists ("0",
+        # "0,1") get the implicit `show:` prefix; values that already begin
+        # with a recognized directive are left unchanged. Narrow scope:
+        # only `LAYERS` is canonicalized; other LLM-supplied params keys
+        # continue to pass through verbatim per existing semantics.
+        # See plan docs/plans/2026-05-05-001-fix-esri-layers-directive-parsing-plan.md.
+        if "LAYERS" in esri_params:
+            layers_value = esri_params["LAYERS"]
+            # Coerce non-string LAYERS values (e.g. an LLM passing
+            # `params={"LAYERS": 0}` as an integer) before the prefix check.
+            # Persisting a non-string value would bypass canonicalization and
+            # leave the frontend's `normalizeLayersParam` with a non-string
+            # input that it (correctly) rejects, falling back to
+            # defaultVisibility — the silent semantic miss this canonicalization
+            # is meant to prevent.
+            if not isinstance(layers_value, str):
+                layers_value = str(layers_value)
+            # Strip outer whitespace before canonicalization so the persisted
+            # value is clean (e.g. params={"LAYERS": "  0  "} becomes "show:0",
+            # not "show:  0  ").
+            layers_value = layers_value.strip()
+            if layers_value and not layers_value.startswith(
+                _RECOGNIZED_LAYERS_DIRECTIVES
+            ):
+                esri_params["LAYERS"] = "show:" + layers_value
+            else:
+                esri_params["LAYERS"] = layers_value
         source_props = {"url": url}
         if esri_params:
             source_props["params"] = esri_params
@@ -906,7 +948,15 @@ def add_map_service_layer(
     if attribute_variables:
         attr_key = name
         if source_type == "ESRI Image and Map Service":
-            resolved = _resolve_esri_layer_name(url, layer_id)
+            # Resolve via the canonicalized LAYERS value, not the raw
+            # `layer_id` argument. This catches both input paths uniformly:
+            # the LLM may have supplied `layer_id="0"` OR
+            # `params={"LAYERS": "0"}` (with no `layer_id`). The post-overlay
+            # canonicalization wrote the effective value into
+            # source_props["params"]["LAYERS"]; `_resolve_esri_layer_name`
+            # already handles "show:0" via split(":")[-1].
+            effective_layer_id = source_props.get("params", {}).get("LAYERS")
+            resolved = _resolve_esri_layer_name(url, effective_layer_id)
             if resolved:
                 attr_key = resolved
             else:
