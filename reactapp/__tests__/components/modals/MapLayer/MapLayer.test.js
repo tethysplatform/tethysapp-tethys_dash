@@ -3299,10 +3299,12 @@ describe("MapLayerModal Popup pane", () => {
     // Popup tab label appears.
     expect(screen.getByText("Popup")).toBeInTheDocument();
 
-    // Click the popup tab; the pane mounts with mode=table selected.
+    // Click the popup tab; the pane mounts with the custom popup modal
+    // disabled (i.e., default = table popup only).
     fireEvent.click(screen.getByText("Popup"));
-    expect(await screen.findByLabelText("Popup Mode Table")).toBeChecked();
-    expect(screen.getByLabelText("Popup Mode Modal")).not.toBeChecked();
+    expect(
+      await screen.findByLabelText("Enable Custom Popup Modal"),
+    ).not.toBeChecked();
   });
 
   test("flipping mode to modal and saving lazy-creates the popup row via updatePopup", async () => {
@@ -3359,7 +3361,7 @@ describe("MapLayerModal Popup pane", () => {
 
     // Switch to popup tab and turn on modal mode.
     fireEvent.click(await screen.findByText("Popup"));
-    fireEvent.click(screen.getByLabelText("Popup Mode Modal"));
+    fireEvent.click(screen.getByLabelText("Enable Custom Popup Modal"));
 
     // Save the layer; should fire updatePopup with the create payload.
     fireEvent.click(await screen.findByLabelText("Create Layer Button"));
@@ -3443,7 +3445,8 @@ describe("MapLayerModal Popup pane", () => {
 
     // Switch to popup tab and flip back to table.
     fireEvent.click(await screen.findByText("Popup"));
-    fireEvent.click(screen.getByLabelText("Popup Mode Table"));
+    // Uncheck the modal-enable toggle to flip mode back to "table".
+    fireEvent.click(screen.getByLabelText("Enable Custom Popup Modal"));
     fireEvent.click(await screen.findByLabelText("Create Layer Button"));
 
     await waitFor(() => {
@@ -3506,7 +3509,7 @@ describe("MapLayerModal Popup pane", () => {
     );
 
     fireEvent.click(await screen.findByText("Popup"));
-    fireEvent.click(screen.getByLabelText("Popup Mode Modal"));
+    fireEvent.click(screen.getByLabelText("Enable Custom Popup Modal"));
     fireEvent.click(await screen.findByLabelText("Create Layer Button"));
 
     expect(
@@ -3568,7 +3571,7 @@ describe("MapLayerModal Popup pane", () => {
     );
 
     fireEvent.click(await screen.findByText("Popup"));
-    fireEvent.click(screen.getByLabelText("Popup Mode Modal"));
+    fireEvent.click(screen.getByLabelText("Enable Custom Popup Modal"));
     fireEvent.click(await screen.findByLabelText("Edit Popup Layout Button"));
 
     await waitFor(() => {

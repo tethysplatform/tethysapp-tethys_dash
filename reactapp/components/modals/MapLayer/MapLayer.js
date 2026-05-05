@@ -749,7 +749,6 @@ const MapLayerModal = ({
                 sourceProps={sourceProps}
                 layerProps={layerProps}
                 tabKey={tabKey}
-                popupConfig={popupConfig}
               />
             </Tab>
             <Tab

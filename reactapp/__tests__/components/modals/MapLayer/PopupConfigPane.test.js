@@ -33,15 +33,13 @@ Harness.propTypes = {
   onChange: PropTypes.func,
 };
 
-test("renders with popupConfig=null and shows table mode selected, no advanced controls", () => {
+test("renders with popupConfig=null and shows the modal-enable checkbox unchecked, no advanced controls", () => {
   render(<Harness onChange={jest.fn()} />);
 
-  const tableRadio = screen.getByLabelText("Popup Mode Table");
-  const modalRadio = screen.getByLabelText("Popup Mode Modal");
-  expect(tableRadio).toBeChecked();
-  expect(modalRadio).not.toBeChecked();
+  const modalCheckbox = screen.getByLabelText("Enable Custom Popup Modal");
+  expect(modalCheckbox).not.toBeChecked();
 
-  // Advanced controls hidden until modal mode is selected
+  // Advanced controls hidden until the custom popup modal is enabled
   expect(screen.queryByLabelText("Popup Width Percent")).not.toBeInTheDocument();
   expect(screen.queryByLabelText("Popup Height Percent")).not.toBeInTheDocument();
   expect(screen.queryByLabelText("Popup Left Percent")).not.toBeInTheDocument();
@@ -53,12 +51,12 @@ test("renders with popupConfig=null and shows table mode selected, no advanced c
   ).not.toBeInTheDocument();
 });
 
-test("toggling mode to modal reveals position canvas + numeric inputs + title + Edit popup layout button", async () => {
+test("checking the modal-enable checkbox reveals position canvas + numeric inputs + title + Edit popup layout button", async () => {
   const onChange = jest.fn();
   render(<Harness onChange={onChange} />);
 
-  const modalRadio = screen.getByLabelText("Popup Mode Modal");
-  await userEvent.click(modalRadio);
+  const modalCheckbox = screen.getByLabelText("Enable Custom Popup Modal");
+  await userEvent.click(modalCheckbox);
 
   expect(screen.getByTestId("popup-preview-canvas")).toBeInTheDocument();
   expect(screen.getByLabelText("Popup Left Percent")).toBeInTheDocument();
@@ -157,21 +155,24 @@ test("setting widthPct above remaining canvas space reconciles by shrinking left
   expect(last.position.leftPct).toBe(40);
 });
 
-test("toggling mode table → modal → table preserves position + title in form state", async () => {
+test("toggling the modal-enable checkbox preserves position + title in form state across re-checks", async () => {
   render(<Harness />);
 
-  await userEvent.click(screen.getByLabelText("Popup Mode Modal"));
+  const modalCheckbox = screen.getByLabelText("Enable Custom Popup Modal");
+  await userEvent.click(modalCheckbox);
   const widthInput = screen.getByLabelText("Popup Width Percent");
   fireEvent.change(widthInput, { target: { value: "75" } });
   const titleInput = screen.getByLabelText("Popup Title Template");
   fireEvent.change(titleInput, { target: { value: "T-${feature.id}" } });
 
-  await userEvent.click(screen.getByLabelText("Popup Mode Table"));
+  // Uncheck → modal-only fields disappear.
+  await userEvent.click(screen.getByLabelText("Enable Custom Popup Modal"));
   expect(
     screen.queryByLabelText("Popup Width Percent"),
   ).not.toBeInTheDocument();
 
-  await userEvent.click(screen.getByLabelText("Popup Mode Modal"));
+  // Re-check → previously typed width and title still present in state.
+  await userEvent.click(screen.getByLabelText("Enable Custom Popup Modal"));
   expect(screen.getByLabelText("Popup Width Percent").value).toBe("75");
   expect(screen.getByLabelText("Popup Title Template").value).toBe(
     "T-${feature.id}",

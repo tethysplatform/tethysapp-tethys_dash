@@ -60,7 +60,7 @@ const Note = styled.p`
 // missing-backtick mistakes elsewhere; these strings are intentional.
 /* eslint-disable no-template-curly-in-string */
 const TITLE_TOOLTIP_TEXT =
-  'Use ${feature.<key>} to substitute the clicked feature\'s attributes ' +
+  "Use ${feature.<key>} to substitute the clicked feature's attributes " +
   '(e.g., "Site: ${feature.station_name}"). Missing attributes resolve to ' +
   "an empty string. See docs for the full feature.* syntax.";
 /* eslint-enable no-template-curly-in-string */
@@ -144,7 +144,7 @@ const PopupConfigPane = ({
 
   const handleModeChange = useCallback(
     (e) => {
-      const nextMode = e.target.value === "modal" ? "modal" : "table";
+      const nextMode = e.target.checked ? "modal" : "table";
       emit({ ...resolved, mode: nextMode });
     },
     [emit, resolved],
@@ -187,34 +187,21 @@ const PopupConfigPane = ({
     <div data-testid="popup-config-pane" data-layer-name={layerName ?? ""}>
       <Section>
         <Form.Label as="legend" style={{ fontWeight: "bold" }}>
-          Popup Mode
+          Custom Popup Modal
         </Form.Label>
         <Form.Check
-          inline
-          type="radio"
-          id="popup-mode-table"
-          label="Table (default attribute popup)"
-          name="popup-mode"
-          value="table"
-          aria-label="Popup Mode Table"
-          checked={!isModal}
-          onChange={handleModeChange}
-        />
-        <Form.Check
-          inline
-          type="radio"
-          id="popup-mode-modal"
-          label="Modal (custom dashboard popup)"
-          name="popup-mode"
-          value="modal"
-          aria-label="Popup Mode Modal"
+          type="checkbox"
+          id="popup-mode-modal-enable"
+          label="Enable a custom popup modal in addition to the table popup"
+          aria-label="Enable Custom Popup Modal"
           checked={isModal}
           onChange={handleModeChange}
         />
         <Note>
-          Table mode keeps today&apos;s inline attribute popup. Modal mode opens
-          a custom dashboard whose visualizations receive the clicked feature
-          via{" "}
+          The default attribute table popup always shows when a feature on this
+          layer is clicked. Enable a custom popup modal to also open a
+          configurable dashboard parameterized by the clicked feature&apos;s
+          attributes via{" "}
           <code>
             {/* eslint-disable-next-line no-template-curly-in-string */}
             {"${feature.<key>}"}
@@ -346,11 +333,6 @@ const PopupConfigPane = ({
               >
                 Edit popup layout
               </Button>
-              <Note>
-                Configure the visualizations that render inside the popup
-                modal. Edits save independently from the layer&apos;s other
-                settings.
-              </Note>
             </Section>
           )}
         </>

@@ -50,16 +50,6 @@ const QueryLabel = styled.label`
   font-weight: bold;
 `;
 
-const ModalModeNote = styled.p`
-  font-size: 0.9rem;
-  color: #6c757d;
-  background: #f8f9fa;
-  border: 1px solid #dee2e6;
-  border-radius: 4px;
-  padding: 0.75rem 1rem;
-  margin-top: 1rem;
-`;
-
 const UrlLoadBar = styled.div`
   display: flex;
   align-items: center;
@@ -78,9 +68,7 @@ const AttributesPane = ({
   sourceProps,
   layerProps,
   tabKey,
-  popupConfig,
 }) => {
-  const isModalMode = popupConfig?.mode === "modal";
   const [warningMessage, setWarningMessage] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
   const [attributes, setAttributes] = useState({});
@@ -520,13 +508,7 @@ const AttributesPane = ({
         ></input>{" "}
         Allow Layer Query
       </QueryLabel>
-      {allowLayerQuery && isModalMode && (
-        <ModalModeNote data-testid="modal-mode-attribute-note">
-          These apply only to table-mode popups. Configure modal contents in
-          the Popup pane.
-        </ModalModeNote>
-      )}
-      {allowLayerQuery && !isModalMode && (
+      {allowLayerQuery && (
         <>
           {errorMessage ? (
             <Alert key="danger" variant="danger" dismissible>
@@ -688,11 +670,6 @@ AttributesPane.propTypes = {
     name: PropTypes.string,
   }), // configuration and properties for openlayers layer
   tabKey: PropTypes.string.isRequired, // react state that tracks what tab is shown
-  // current popupConfig for the layer (when present, controls visibility of
-  // the table-mode-only attribute aliases / omitted / variable-input fields)
-  popupConfig: PropTypes.shape({
-    mode: PropTypes.oneOf(["table", "modal"]),
-  }),
 };
 
 export default memo(AttributesPane);
