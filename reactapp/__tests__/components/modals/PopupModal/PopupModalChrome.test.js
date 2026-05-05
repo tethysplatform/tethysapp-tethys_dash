@@ -1,5 +1,7 @@
 /* eslint-disable no-template-curly-in-string */
 // This file tests literal `${feature.<key>}` template syntax handling.
+import { useState } from "react";
+import PropTypes from "prop-types";
 import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import PopupModalChrome from "components/modals/PopupModal/PopupModalChrome";
@@ -55,83 +57,42 @@ const featureC = {
   attributes: { station_id: "QRS", station_name: "Animas River" },
 };
 
-describe("PopupModalChrome — title", () => {
-  test("substitutes ${feature.<key>} from the active feature's attributes", () => {
-    render(
+// Chrome is purely controlled — title substitution lives in PopupModal's
+// header, owned by Map.js. This harness pretends to be the parent: it owns
+// the activeIndex state and exposes it for assertions.
+const Harness = ({ features, popupConfig, initialActiveIndex = 0 }) => {
+  const [activeIndex, setActiveIndex] = useState(initialActiveIndex);
+  return (
+    <>
+      <span data-testid="harness-active-index">{activeIndex}</span>
       <PopupModalChrome
-        features={[featureA]}
-        popupConfig={samplePopupConfig({
-          titleTemplate: "Site: ${feature.station_name}",
-        })}
-      />,
-    );
-    expect(screen.getByTestId("popup-modal-chrome-title")).toHaveTextContent(
-      "Site: Boulder Creek",
-    );
-  });
-
-  test("falls back to the feature's layerName when titleTemplate is empty", () => {
-    render(
-      <PopupModalChrome
-        features={[featureA]}
-        popupConfig={samplePopupConfig({ titleTemplate: "" })}
-      />,
-    );
-    expect(screen.getByTestId("popup-modal-chrome-title")).toHaveTextContent(
-      "Stations",
-    );
-  });
-
-  test("falls back to layerName when substitution resolves to an empty string", () => {
-    // Template references an attribute that doesn't exist on the feature →
-    // substitution yields "" → fall through to layerName.
-    render(
-      <PopupModalChrome
-        features={[featureA]}
-        popupConfig={samplePopupConfig({
-          titleTemplate: "${feature.unknown}",
-        })}
-      />,
-    );
-    expect(screen.getByTestId("popup-modal-chrome-title")).toHaveTextContent(
-      "Stations",
-    );
-  });
-
-  test("title updates when the carousel slide changes", async () => {
-    const user = userEvent.setup();
-    render(
-      <PopupModalChrome
-        features={[featureA, featureB]}
-        popupConfig={samplePopupConfig({
-          titleTemplate: "${feature.station_name}",
-        })}
-      />,
-    );
-    expect(screen.getByTestId("popup-modal-chrome-title")).toHaveTextContent(
-      "Boulder Creek",
-    );
-    await user.click(screen.getByTestId("popup-modal-carousel-chip-1"));
-    expect(screen.getByTestId("popup-modal-chrome-title")).toHaveTextContent(
-      "Eagle River",
-    );
-  });
-});
+        features={features}
+        popupConfig={popupConfig}
+        activeIndex={activeIndex}
+        onActiveIndexChange={setActiveIndex}
+      />
+    </>
+  );
+};
+Harness.propTypes = {
+  // eslint-disable-next-line react/forbid-prop-types
+  features: PropTypes.array.isRequired,
+  // eslint-disable-next-line react/forbid-prop-types
+  popupConfig: PropTypes.object.isRequired,
+  initialActiveIndex: PropTypes.number,
+};
 
 describe("PopupModalChrome — carousel", () => {
   test("does not render the carousel for a single feature", () => {
     render(
-      <PopupModalChrome
-        features={[featureA]}
-        popupConfig={samplePopupConfig()}
-      />,
+      <Harness features={[featureA]} popupConfig={samplePopupConfig()} />,
     );
     expect(screen.queryByTestId("popup-modal-carousel")).toBeNull();
   });
 
   test("renders the carousel for multiple features with substituted labels", () => {
     render(
-      <PopupModalChrome
+      <Harness
         features={[featureA, featureB, featureC]}
         popupConfig={samplePopupConfig({
           titleTemplate: "${feature.station_name}",
@@ -139,9 +100,6 @@ describe("PopupModalChrome — carousel", () => {
       />,
     );
     expect(screen.getByTestId("popup-modal-carousel")).toBeInTheDocument();
-    // Read each chip's label by index — "Boulder Creek" also appears in the
-    // title bar (active feature is feature A), so a direct getByText would
-    // hit both.
     expect(screen.getByTestId("popup-modal-carousel-chip-0")).toHaveTextContent(
       "Boulder Creek",
     );
@@ -155,7 +113,7 @@ describe("PopupModalChrome — carousel", () => {
 
   test("falls back to 'Feature N' carousel label when the template is empty", () => {
     render(
-      <PopupModalChrome
+      <Harness
         features={[featureA, featureB]}
         popupConfig={samplePopupConfig({ titleTemplate: "" })}
       />,
@@ -163,13 +121,26 @@ describe("PopupModalChrome — carousel", () => {
     expect(screen.getByText("Feature 1")).toBeInTheDocument();
     expect(screen.getByText("Feature 2")).toBeInTheDocument();
   });
+
+  test("clicking a chip bubbles up via onActiveIndexChange", async () => {
+    const user = userEvent.setup();
+    render(
+      <Harness
+        features={[featureA, featureB, featureC]}
+        popupConfig={samplePopupConfig()}
+      />,
+    );
+    expect(screen.getByTestId("harness-active-index")).toHaveTextContent("0");
+    await user.click(screen.getByTestId("popup-modal-carousel-chip-2"));
+    expect(screen.getByTestId("harness-active-index")).toHaveTextContent("2");
+  });
 });
 
 describe("PopupModalChrome — DashboardLayout wiring", () => {
   test("renders a DashboardLayout with the popup's gridItems", () => {
     const items = [baseGridItem({ i: "1" }), baseGridItem({ i: "2" })];
     render(
-      <PopupModalChrome
+      <Harness
         features={[featureA]}
         popupConfig={samplePopupConfig({ gridItems: items })}
       />,
@@ -184,10 +155,7 @@ describe("PopupModalChrome — DashboardLayout wiring", () => {
 
   test("rowHeight is a positive integer derived from a measured body height", () => {
     render(
-      <PopupModalChrome
-        features={[featureA]}
-        popupConfig={samplePopupConfig()}
-      />,
+      <Harness features={[featureA]} popupConfig={samplePopupConfig()} />,
     );
     const rowHeightText = screen.getByTestId("mock-dl-row-height").textContent;
     const rowHeight = Number(rowHeightText);
@@ -197,7 +165,7 @@ describe("PopupModalChrome — DashboardLayout wiring", () => {
 
   test("empty gridItems shows the empty hint instead of DashboardLayout", () => {
     render(
-      <PopupModalChrome
+      <Harness
         features={[featureA]}
         popupConfig={samplePopupConfig({ gridItems: [] })}
       />,
@@ -212,27 +180,35 @@ describe("PopupModalChrome — DashboardLayout wiring", () => {
 
 describe("PopupModalChrome — re-render behavior", () => {
   test("switching the active carousel slide re-renders without remounting DashboardLayout twice", () => {
-    // Sanity: swap active feature, layout still renders exactly one time.
     render(
-      <PopupModalChrome
+      <Harness
         features={[featureA, featureB]}
-        popupConfig={samplePopupConfig({
-          titleTemplate: "${feature.station_name}",
-        })}
+        popupConfig={samplePopupConfig()}
       />,
     );
     expect(screen.getAllByTestId("mock-dashboard-layout")).toHaveLength(1);
     fireEvent.click(screen.getByTestId("popup-modal-carousel-chip-1"));
     expect(screen.getAllByTestId("mock-dashboard-layout")).toHaveLength(1);
-    expect(screen.getByTestId("popup-modal-chrome-title")).toHaveTextContent(
-      "Eagle River",
+    expect(screen.getByTestId("harness-active-index")).toHaveTextContent("1");
+  });
+
+  test("clamps an out-of-range activeIndex to the last available feature", () => {
+    // Defensive: if the parent's activeIndex drifts past the end of the
+    // features array (e.g., features shrink without an immediate sync),
+    // the chrome shows the last feature rather than crashing.
+    render(
+      <Harness
+        features={[featureA, featureB]}
+        popupConfig={samplePopupConfig()}
+        initialActiveIndex={5}
+      />,
     );
+    // No crash; carousel renders with the last chip selected.
+    const chips = screen.getAllByRole("tab");
+    expect(chips[1]).toHaveAttribute("aria-selected", "true");
   });
 });
 
-// Note: feature.* propagation through FeatureScopedVariableInputs is
-// covered in FeatureScopedVariableInputs.test.js. The chrome's responsibility
-// here is to pass the active feature through to that provider — which the
-// title-substitution and carousel-driven re-render tests above prove
-// indirectly (the substituted title only updates if feature is replaced
-// through the provider tree on slide change).
+// Note: title substitution and feature.* propagation are covered elsewhere —
+// title lives in PopupModal's header (see Map.test.js), and feature scoping
+// is verified in FeatureScopedVariableInputs.test.js.

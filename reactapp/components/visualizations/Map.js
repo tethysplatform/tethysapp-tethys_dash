@@ -31,6 +31,7 @@ import {
 import { useMapContext } from "components/contexts/MapContext";
 import PopupModal from "components/modals/PopupModal/PopupModal";
 import PopupModalChrome from "components/modals/PopupModal/PopupModalChrome";
+import { substituteTemplateString } from "components/modals/PopupModal/substituteTemplateString";
 import Table from "react-bootstrap/Table";
 import styled from "styled-components";
 import { valuesEqual } from "components/modals/utilities";
@@ -227,6 +228,7 @@ const MapVisualization = ({
   const [popupContent, setPopupContent] = useState(null);
   const [modalFeatures, setModalFeatures] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
+  const [activeFeatureIndex, setActiveFeatureIndex] = useState(0);
   const markerLayer = useRef();
   const highlightLayer = useRef();
   const currentLayers = useRef([]);
@@ -747,14 +749,37 @@ const MapVisualization = ({
     popupOverlayRef.current?.setPosition(popupCoordinate);
   };
 
-  // Resolve the active feature's hydrated layer config so we can pass the
-  // editor-configured position to the modal. Falls back to defaults inside
-  // PopupModal when the layer has no configured position.
-  const activeModalFeature = modalFeatures[0] ?? null;
+  // Lifted active-feature index so the title (rendered in PopupModal's
+  // header) and the carousel (inside PopupModalChrome) stay in sync. Reset
+  // to 0 whenever a new gesture replaces the modalFeatures array — keeps
+  // the modal opening on the first feature of each click.
+  useEffect(() => {
+    setActiveFeatureIndex(0);
+  }, [modalFeatures]);
+
+  const safeActiveFeatureIndex =
+    modalFeatures.length > 0
+      ? Math.min(activeFeatureIndex, modalFeatures.length - 1)
+      : 0;
+  const activeModalFeature = modalFeatures[safeActiveFeatureIndex] ?? null;
   const activeModalLayer = activeModalFeature
     ? findLayerByName(activeModalFeature.layerName)
     : null;
   const activeModalPopupConfig = activeModalLayer?.popupConfig ?? null;
+
+  // Substituted modal title: ${feature.<key>} resolved against the active
+  // feature's attributes, falling back to the layer name when the result
+  // is empty/missing. Rendered into PopupModal's header slot below.
+  let popupTitleText = activeModalFeature?.layerName ?? "";
+  if (activeModalFeature && activeModalPopupConfig?.titleTemplate) {
+    const substituted = substituteTemplateString(
+      activeModalPopupConfig.titleTemplate,
+      activeModalFeature.attributes ?? {},
+    );
+    if (substituted.trim().length > 0) {
+      popupTitleText = substituted;
+    }
+  }
 
   return (
     <div
@@ -780,13 +805,20 @@ const MapVisualization = ({
         show={modalOpen && !!activeModalFeature}
         onClose={closeModal}
         position={activeModalPopupConfig?.position}
-        title={null}
+        title={
+          <span id="popup-modal-title" data-testid="popup-modal-header-title">
+            {popupTitleText}
+          </span>
+        }
+        ariaLabelledBy="popup-modal-title"
         triggerRef={mapContainerRef}
       >
         {activeModalFeature ? (
           <PopupModalChrome
             features={modalFeatures}
             popupConfig={activeModalPopupConfig}
+            activeIndex={safeActiveFeatureIndex}
+            onActiveIndexChange={setActiveFeatureIndex}
           />
         ) : null}
       </PopupModal>

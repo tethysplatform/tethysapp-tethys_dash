@@ -2211,7 +2211,7 @@ describe("modal-mode popup integration", () => {
       expect(screen.getByRole("dialog")).toBeInTheDocument();
     });
     expect(screen.getByTestId("popup-modal-chrome")).toBeInTheDocument();
-    expect(screen.getByTestId("popup-modal-chrome-title")).toHaveTextContent(
+    expect(screen.getByTestId("popup-modal-header-title")).toHaveTextContent(
       "Stations",
     );
 
@@ -2229,6 +2229,69 @@ describe("modal-mode popup integration", () => {
     // Suppress the unused-variable lint (popSetPosition is reserved for
     // future assertion flexibility).
     expect(popSetPosition).toBeDefined();
+  });
+
+  // eslint-disable-next-line no-template-curly-in-string
+  test("modal header substitutes ${feature.<key>} from the active feature's attributes", async () => {
+    // Title template is configured by the user in the popup pane and lives
+    // on layer.popupConfig.titleTemplate. Map.js computes the substituted
+    // title (using FEATURE_SCOPE host-pass preservation + the popup's own
+    // substituteTemplateString) and renders it into PopupModal's header.
+    mockedQueryLayerFeatures.mockResolvedValue([
+      {
+        attributes: { station_id: "ABC", station_name: "Boulder Creek" },
+        geometry: { x: 10, y: 10 },
+        layerName: "Stations",
+      },
+    ]);
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+
+    const layers = [
+      {
+        configuration: {
+          type: "ImageLayer",
+          props: {
+            name: "Stations",
+            source: {
+              type: "ESRI Image and Map Service",
+              props: { url: "some_url" },
+            },
+          },
+        },
+        popupConfig: {
+          mode: "modal",
+          // eslint-disable-next-line no-template-curly-in-string
+          titleTemplate: "Site: ${feature.station_name}",
+          gridItems: [],
+        },
+      },
+    ];
+    const LoadedComponent = createLoadedComponent({
+      children: (
+        <MapContextProvider>
+          <TestingComponent
+            onMapClick={jest.fn()}
+            clickCoordinates={[10, 20]}
+            mapProps={{
+              mapConfig: {},
+              viewConfig: {},
+              layers,
+              baseMap: null,
+              layerControl: false,
+            }}
+          />
+        </MapContextProvider>
+      ),
+    });
+    render(LoadedComponent);
+
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("popup-modal-header-title")).toHaveTextContent(
+      "Site: Boulder Creek",
+    );
   });
 
   test("table-mode (popupConfig absent) layer click still drives outer-context attribute write", async () => {
@@ -2372,7 +2435,7 @@ describe("modal-mode popup integration", () => {
       expect(screen.getByRole("dialog")).toBeInTheDocument();
     });
     expect(screen.getByTestId("popup-modal-chrome")).toBeInTheDocument();
-    expect(screen.getByTestId("popup-modal-chrome-title")).toHaveTextContent(
+    expect(screen.getByTestId("popup-modal-header-title")).toHaveTextContent(
       "Flow Forecast (m³/sec)",
     );
   });
@@ -2527,7 +2590,7 @@ describe("modal-mode popup integration", () => {
       expect(screen.getByRole("dialog")).toBeInTheDocument();
     });
     expect(screen.getByTestId("popup-modal-chrome")).toBeInTheDocument();
-    expect(screen.getByTestId("popup-modal-chrome-title")).toHaveTextContent(
+    expect(screen.getByTestId("popup-modal-header-title")).toHaveTextContent(
       "ModalLayer",
     );
 

@@ -1,10 +1,4 @@
-import {
-  useState,
-  useMemo,
-  useRef,
-  useLayoutEffect,
-  useCallback,
-} from "react";
+import { useMemo, useRef, useLayoutEffect, useCallback, useState } from "react";
 import PropTypes from "prop-types";
 import styled from "styled-components";
 import FeatureScopedVariableInputs from "components/contexts/FeatureScopedVariableInputs";
@@ -20,14 +14,6 @@ const DEFAULT_ROW_HEIGHT = 30;
 const TARGET_ROWS = 20;
 
 const noop = () => {};
-
-const Title = styled.div`
-  font-weight: 600;
-  font-size: 0.95rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-`;
 
 const Body = styled.div`
   flex: 1 1 auto;
@@ -68,44 +54,37 @@ function deriveRowHeight(containerHeight) {
 /**
  * `PopupModalChrome` — runtime contents of the modal-mode popup.
  *
- * Owns the active-feature index for multi-feature clicks, renders the
- * substituted title, optional feature carousel, and a single
- * `<DashboardLayout>` of the popup's configured visualizations wrapped in
+ * Renders the optional feature carousel and a single `<DashboardLayout>`
+ * of the popup's configured visualizations wrapped in
  * `<FeatureScopedVariableInputs>` so each tile receives the active feature's
  * attributes via the `feature.*` namespace. Switching the carousel slide
  * remounts the FeatureScopedVariableInputs feature prop so dependent
  * visualizations re-fetch their data with the new `feature.*` values
  * (consistent with the rest of the variable-input pipeline).
  *
+ * Controlled component: the parent owns `activeIndex` and supplies
+ * `onActiveIndexChange`. The substituted title lives in `PopupModal`'s
+ * header (above the chrome) so the parent computes it from the same
+ * activeIndex; we don't render a title row here.
+ *
  * View-only at runtime — `EditingContext.isEditing` is forced false. Popup
  * tile editing happens in `PopupLayoutEditor`, not here.
  */
-const PopupModalChrome = ({ features, popupConfig }) => {
-  const [activeIndex, setActiveIndex] = useState(0);
-
+const PopupModalChrome = ({
+  features,
+  popupConfig,
+  activeIndex,
+  onActiveIndexChange,
+}) => {
   // Clamp activeIndex if the features array shrinks. (Defensive — the parent
   // typically remounts on each gesture, but we still don't want to render
-  // an out-of-range slide if it changes in place.)
+  // an out-of-range slide if the prop drifts.)
   const safeActiveIndex =
     features && features.length > 0
       ? Math.min(activeIndex, features.length - 1)
       : 0;
   const activeFeature =
     features && features.length > 0 ? features[safeActiveIndex] : null;
-
-  const titleText = useMemo(() => {
-    const template = popupConfig?.titleTemplate;
-    if (template) {
-      const substituted = substituteTemplateString(
-        template,
-        activeFeature?.attributes ?? {},
-      );
-      if (substituted.trim().length > 0) {
-        return substituted;
-      }
-    }
-    return activeFeature?.layerName ?? "";
-  }, [popupConfig, activeFeature]);
 
   const getCarouselLabel = useCallback(
     (feature, i) => {
@@ -186,11 +165,10 @@ const PopupModalChrome = ({ features, popupConfig }) => {
 
   return (
     <Body data-testid="popup-modal-chrome">
-      <Title data-testid="popup-modal-chrome-title">{titleText}</Title>
       <PopupModalCarousel
         features={features}
         activeIndex={safeActiveIndex}
-        onActiveIndexChange={setActiveIndex}
+        onActiveIndexChange={onActiveIndexChange}
         getLabel={getCarouselLabel}
       />
       <FeatureScopedVariableInputs feature={activeFeature}>
@@ -240,11 +218,15 @@ PopupModalChrome.propTypes = {
     // eslint-disable-next-line react/forbid-prop-types
     gridItems: PropTypes.array,
   }),
+  activeIndex: PropTypes.number,
+  onActiveIndexChange: PropTypes.func,
 };
 
 PopupModalChrome.defaultProps = {
   features: [],
   popupConfig: null,
+  activeIndex: 0,
+  onActiveIndexChange: () => {},
 };
 
 export default PopupModalChrome;
