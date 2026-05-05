@@ -3452,6 +3452,10 @@ describe("MapLayerModal Popup pane", () => {
     const [popupIdArg, payloadArg] = updatePopupSpy.mock.calls[0];
     expect(popupIdArg).toBe(7);
     expect(payloadArg.popup_id).toBe(7);
+    // grid_item_id + layer_name are now always sent alongside popup_id
+    // so the backend can lazy-create when the popup_id row is stale.
+    expect(payloadArg.grid_item_id).toBe(202);
+    expect(payloadArg.layer_name).toBe("Layer B");
     expect(payloadArg.mode).toBe("table");
     // gridItems preserved (R6).
     expect(payloadArg.gridItems).toEqual([

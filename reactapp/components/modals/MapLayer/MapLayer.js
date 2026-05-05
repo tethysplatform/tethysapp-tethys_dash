@@ -494,17 +494,21 @@ const MapLayerModal = ({
       return { success: true, popupConfig: null };
     }
 
+    // Always send grid_item_id + layer_name alongside popup_id (when
+    // known). The backend uses popup_id when its row still exists and
+    // falls back to lazy-create from (grid_item_id, layer_name) when it
+    // doesn't — this keeps saves resilient to stale popup ids without
+    // requiring the frontend to track DB state.
     const payload = {
       mode: popupConfig?.mode ?? "table",
       position: popupConfig?.position ?? null,
       title_template: popupConfig?.titleTemplate ?? null,
       gridItems: popupConfig?.gridItems ?? [],
+      grid_item_id: gridItemId,
+      layer_name: targetLayerName,
     };
     if (existingId) {
       payload.popup_id = existingId;
-    } else {
-      payload.grid_item_id = gridItemId;
-      payload.layer_name = targetLayerName;
     }
 
     setSavingPopup(true);
