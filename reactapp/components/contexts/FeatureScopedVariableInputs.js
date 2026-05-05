@@ -4,6 +4,13 @@ import { VariableInputsContext } from "components/contexts/Contexts";
 
 const FEATURE_PREFIX = "feature.";
 
+// Sentinel key on the merged variableInputs map that signals descendants are
+// inside a feature-scope (i.e., a popup). updateObjectWithVariableInputs
+// uses it to choose between "preserve unresolved ${feature.<key>}" (host
+// scope, leave for the popup to resolve later) and "resolve to empty
+// string" (popup scope — there is no further resolution layer below).
+export const FEATURE_SCOPE_MARKER = "__tethysdash_feature_scope__";
+
 /**
  * Flatten a feature object's `attributes` into the dotted-key namespace
  * (`feature.<key>`). Keys are passed through unchanged — the substitution
@@ -54,12 +61,15 @@ const FeatureScopedVariableInputs = ({ feature, children }) => {
   // Merged read view: parent → flattened feature attrs → scoped state.
   // The scoped state shadows the flattened attrs (so any in-modal mutation
   // wins). feature.* shadows host vars only when keys collide (host vars
-  // remain readable as their bare name).
+  // remain readable as their bare name). The FEATURE_SCOPE_MARKER tells
+  // descendants' substitution pass that we're inside the popup scope — see
+  // updateObjectWithVariableInputs for how it's consumed.
   const mergedValues = useMemo(
     () => ({
       ...parentValues,
       ...flattenedFeatureAttrs,
       ...scopedState,
+      [FEATURE_SCOPE_MARKER]: true,
     }),
     [parentValues, flattenedFeatureAttrs, scopedState],
   );

@@ -41,7 +41,14 @@ const GridContainer = styled.div`
   flex: 1 1 auto;
   min-height: 0;
   position: relative;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  /* Reserve the vertical scrollbar's width whether or not it's currently
+     visible. Without this the scrollbar flickers between visible/hidden as
+     embedded plots' resize observers re-measure on every appearance — the
+     classic ResizeObserver feedback loop. The reserved gutter keeps the
+     inner width stable and lets Plotly settle in one frame. */
+  scrollbar-gutter: stable;
 `;
 
 const EmptyHint = styled.p`

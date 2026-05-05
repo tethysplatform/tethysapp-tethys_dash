@@ -1,3 +1,7 @@
+/* eslint-disable no-template-curly-in-string */
+// This file tests ${variable} substitution (including the feature.* scope);
+// literal `${...}` strings appear throughout test names and assertions on
+// purpose, so disable the missing-backtick lint at the file level.
 import {
   getVisualization,
   getGridItem,
@@ -768,6 +772,67 @@ test("updateObjectWithVariableInputs", async () => {
     // Restore original Date
     global.Date = originalDate;
   }
+});
+
+test("updateObjectWithVariableInputs preserves unresolved ${feature.<key>} tokens", () => {
+  // The feature.* namespace is owned by FeatureScopedVariableInputs (the
+  // popup scope). At the host pass, those tokens must be preserved rather
+  // than stripped to "" — otherwise titleTemplate "River: ${feature.comid}"
+  // surfaces as "River: " by the time the popup chrome reads it.
+  const args = {
+    // eslint-disable-next-line no-template-curly-in-string
+    inline: "River: ${feature.comid}",
+    // eslint-disable-next-line no-template-curly-in-string
+    exact: "${feature.station_id}",
+    // eslint-disable-next-line no-template-curly-in-string
+    mixed: "Site ${Site Name} flow ${feature.flow}",
+  };
+
+  const result = updateObjectWithVariableInputs({
+    args: JSON.parse(JSON.stringify(args)),
+    variableInputs: { "Site Name": "Boulder" },
+  });
+
+  // Both branches (inline and exact-match) preserve feature.* tokens.
+  expect(result.inline).toBe("River: ${feature.comid}");
+  expect(result.exact).toBe("${feature.station_id}");
+  // Mixed: host-resolved variable substituted, feature.* preserved.
+  expect(result.mixed).toBe("Site Boulder flow ${feature.flow}");
+});
+
+test("updateObjectWithVariableInputs still resolves ${feature.<key>} when the value IS in scope", () => {
+  // Inside the FeatureScopedVariableInputs scope, feature.* keys are present
+  // in the merged variableInputs and should resolve normally.
+  const args = {
+    // eslint-disable-next-line no-template-curly-in-string
+    title: "River: ${feature.comid}",
+  };
+  const result = updateObjectWithVariableInputs({
+    args,
+    variableInputs: { "feature.comid": "12345" },
+  });
+  expect(result.title).toBe("River: 12345");
+});
+
+test("updateObjectWithVariableInputs resolves missing ${feature.<key>} to empty inside the popup scope", () => {
+  // FEATURE_SCOPE_MARKER signals that we are inside the popup scope and
+  // there is no further resolution layer below — unresolved feature.*
+  // tokens must fall back to "" like any other missing variable.
+  const args = {
+    // eslint-disable-next-line no-template-curly-in-string
+    title: "River: ${feature.unknown}",
+    // eslint-disable-next-line no-template-curly-in-string
+    exact: "${feature.also_missing}",
+  };
+  const result = updateObjectWithVariableInputs({
+    args,
+    variableInputs: {
+      __tethysdash_feature_scope__: true,
+      "feature.comid": "12345",
+    },
+  });
+  expect(result.title).toBe("River: ");
+  expect(result.exact).toBe("");
 });
 
 test("getBaseMapLayer", async () => {

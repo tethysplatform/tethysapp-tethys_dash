@@ -358,22 +358,48 @@ export function updateObjectWithVariableInputs({
       value = JSON.stringify(value);
     }
 
+    // FeatureScopedVariableInputs marks the merged context with this
+    // sentinel. When absent we're at host scope, so unresolved
+    // `${feature.<key>}` tokens must be PRESERVED for the popup to resolve
+    // later. When present we're inside the popup scope and there is no
+    // further resolution layer, so unresolved feature.* tokens fall back
+    // to "" like any other missing variable.
+    const inFeatureScope =
+      variableInputsCopy.__tethysdash_feature_scope__ === true;
+
     // If value is exactly a variable input, preserve its type.
     // Matches the full string "${variableName}" with no surrounding text.
     const exactVarMatch = value.match(/^\$\{([^}]+)\}$/);
     let updatedValuesWithVariableInputs;
     if (exactVarMatch) {
       const key = exactVarMatch[1];
-      updatedValuesWithVariableInputs = variableInputsCopy[key] || "";
+      if (
+        variableInputsCopy[key] === undefined &&
+        key.startsWith("feature.") &&
+        !inFeatureScope
+      ) {
+        updatedValuesWithVariableInputs = value;
+      } else {
+        updatedValuesWithVariableInputs = variableInputsCopy[key] || "";
+      }
     } else {
       // Value contains one or more inline ${variableName} placeholders mixed
       // with other text. Replaces each placeholder with its string equivalent.
       updatedValuesWithVariableInputs = value.replace(
         /\$\{([^}]+)\}/g,
-        (_, key) =>
-          typeof variableInputsCopy[key] === "object"
-            ? JSON.stringify(variableInputsCopy[key])
-            : (variableInputsCopy[key] ?? ""),
+        (_, key) => {
+          if (
+            variableInputsCopy[key] === undefined &&
+            key.startsWith("feature.") &&
+            !inFeatureScope
+          ) {
+            return "${" + key + "}";
+          }
+          if (typeof variableInputsCopy[key] === "object") {
+            return JSON.stringify(variableInputsCopy[key]);
+          }
+          return variableInputsCopy[key] ?? "";
+        },
       );
     }
 
