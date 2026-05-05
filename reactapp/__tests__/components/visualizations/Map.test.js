@@ -2210,9 +2210,10 @@ describe("modal-mode popup integration", () => {
     await waitFor(() => {
       expect(screen.getByRole("dialog")).toBeInTheDocument();
     });
-    expect(
-      screen.getByTestId("popup-modal-body-placeholder"),
-    ).toHaveTextContent("Popup body for Stations");
+    expect(screen.getByTestId("popup-modal-chrome")).toBeInTheDocument();
+    expect(screen.getByTestId("popup-modal-chrome-title")).toHaveTextContent(
+      "Stations",
+    );
 
     // Outer-context input-variables remain empty — the modal-mode bypass
     // worked. (The plain attributeVariables wiring would otherwise have
@@ -2370,9 +2371,10 @@ describe("modal-mode popup integration", () => {
     await waitFor(() => {
       expect(screen.getByRole("dialog")).toBeInTheDocument();
     });
-    expect(
-      screen.getByTestId("popup-modal-body-placeholder"),
-    ).toHaveTextContent("Popup body for Flow Forecast (m³/sec)");
+    expect(screen.getByTestId("popup-modal-chrome")).toBeInTheDocument();
+    expect(screen.getByTestId("popup-modal-chrome-title")).toHaveTextContent(
+      "Flow Forecast (m³/sec)",
+    );
   });
 
   test("MapContext.extentDrawMode active suppresses modal open on a modal-mode click", async () => {
@@ -2524,9 +2526,10 @@ describe("modal-mode popup integration", () => {
     await waitFor(() => {
       expect(screen.getByRole("dialog")).toBeInTheDocument();
     });
-    expect(
-      screen.getByTestId("popup-modal-body-placeholder"),
-    ).toHaveTextContent("Popup body for ModalLayer");
+    expect(screen.getByTestId("popup-modal-chrome")).toBeInTheDocument();
+    expect(screen.getByTestId("popup-modal-chrome-title")).toHaveTextContent(
+      "ModalLayer",
+    );
 
     // OL Overlay popup did NOT render the swiper-attribute-table chrome
     // for the table-mode feature (excluded from the gesture).

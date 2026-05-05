@@ -29,8 +29,8 @@ import {
   GridItemContext,
 } from "components/contexts/Contexts";
 import { useMapContext } from "components/contexts/MapContext";
-import FeatureScopedVariableInputs from "components/contexts/FeatureScopedVariableInputs";
 import PopupModal from "components/modals/PopupModal/PopupModal";
+import PopupModalChrome from "components/modals/PopupModal/PopupModalChrome";
 import Table from "react-bootstrap/Table";
 import styled from "styled-components";
 import { valuesEqual } from "components/modals/utilities";
@@ -780,17 +780,14 @@ const MapVisualization = ({
         show={modalOpen && !!activeModalFeature}
         onClose={closeModal}
         position={activeModalPopupConfig?.position}
-        title={<span id="popup-modal-title">Feature popup</span>}
-        ariaLabelledBy="popup-modal-title"
+        title={null}
         triggerRef={mapContainerRef}
       >
         {activeModalFeature ? (
-          <FeatureScopedVariableInputs feature={activeModalFeature}>
-            <div data-testid="popup-modal-body-placeholder">
-              {/* Unit 8 renders chrome + carousel + DashboardLayout here */}
-              Popup body for {activeModalFeature.layerName}
-            </div>
-          </FeatureScopedVariableInputs>
+          <PopupModalChrome
+            features={modalFeatures}
+            popupConfig={activeModalPopupConfig}
+          />
         ) : null}
       </PopupModal>
     </div>
