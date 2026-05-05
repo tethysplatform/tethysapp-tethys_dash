@@ -1317,7 +1317,7 @@ def patch_visualization(
 @mcp.tool(
     name="create_variable_input",
     description="Create an interactive variable input that other visualizations can reference with ${variable_name} syntax",
-    tags=["dashboard", "variable"],
+    tags=["visualization", "dashboard", "variable"],
 )
 def create_variable_input(
     variable_name: Annotated[str, Field(description="Variable name used in ${...} references by other visualizations")],
@@ -1469,7 +1469,7 @@ def list_intake_plugins() -> Dict[str, Any]:
         "To link to a dashboard variable input, use ${variable_name} syntax in arg values — "
         "the visualization auto-refreshes when the variable changes."
     ),
-    tags=["dashboard", "plugin"],
+    tags=["visualization", "dashboard", "plugin"],
 )
 def render_plugin(
     source: Annotated[str, Field(description="Intake driver name from the 'source' field in list_intake_plugins results. Always call list_intake_plugins first to get the exact source name. Do NOT guess or invent source names — using a wrong name causes a 'not installed' error.")],
