@@ -513,11 +513,7 @@ const MapLayerModal = ({
 
     setSavingPopup(true);
     try {
-      const apiResponse = await appAPI.updatePopup(
-        existingId,
-        payload,
-        csrf,
-      );
+      const apiResponse = await appAPI.updatePopup(existingId, payload, csrf);
       if (!apiResponse?.success) {
         return {
           success: false,
@@ -532,9 +528,9 @@ const MapLayerModal = ({
       const message =
         status === 403
           ? "You do not have permission to update this popup."
-          : err?.response?.data?.message ??
+          : (err?.response?.data?.message ??
             err?.message ??
-            "Failed to save popup configuration. Check logs.";
+            "Failed to save popup configuration. Check logs.");
       return { success: false, message };
     } finally {
       setSavingPopup(false);
@@ -739,7 +735,7 @@ const MapLayerModal = ({
             </Tab>
             <Tab
               eventKey="attributes"
-              title="Attributes/Popup"
+              title="Attributes/Table Popup"
               aria-label="layer-attributes-tab"
               className="layer-attributes-tab"
             >
@@ -753,7 +749,7 @@ const MapLayerModal = ({
             </Tab>
             <Tab
               eventKey="popup"
-              title="Popup"
+              title="Custom Modal Popup"
               aria-label="layer-popup-tab"
               className="layer-popup-tab"
             >

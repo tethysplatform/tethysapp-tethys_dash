@@ -8,6 +8,11 @@ import styled from "styled-components";
 import { BsQuestionCircle } from "react-icons/bs";
 import PreviewCanvas from "components/modals/MapLayer/PreviewCanvas";
 
+const QueryLabel = styled.label`
+  margin-bottom: 1rem;
+  font-weight: bold;
+`;
+
 const SECTION_PAD = "1.25rem";
 
 const SIZE_MIN = 20;
@@ -186,17 +191,14 @@ const PopupConfigPane = ({
   return (
     <div data-testid="popup-config-pane" data-layer-name={layerName ?? ""}>
       <Section>
-        <Form.Label as="legend" style={{ fontWeight: "bold" }}>
-          Custom Popup Modal
-        </Form.Label>
-        <Form.Check
-          type="checkbox"
-          id="popup-mode-modal-enable"
-          label="Enable a custom popup modal in addition to the table popup"
-          aria-label="Enable Custom Popup Modal"
-          checked={isModal}
-          onChange={handleModeChange}
-        />
+        <QueryLabel>
+          <input
+            type="checkbox"
+            onChange={handleModeChange}
+            checked={isModal}
+          ></input>{" "}
+          Enable Custom Popup Modal
+        </QueryLabel>
         <Note>
           The default attribute table popup always shows when a feature on this
           layer is clicked. Enable a custom popup modal to also open a
