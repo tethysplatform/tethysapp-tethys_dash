@@ -376,10 +376,14 @@ def test_update_popup_sanitizes_text_widget_args(
 
 
 @pytest.mark.django_db
-def test_update_popup_unknown_id_returns_error(
+def test_update_popup_unknown_id_without_fallback_returns_error(
     client, test_owner_user, mock_app, mock_app_get_ps_db
 ):
-    """Error path: an unknown ``popup_id`` returns ``success: false``."""
+    """Error path: an unknown ``popup_id`` with no grid_item_id/layer_name
+    fallback returns ``success: false``. (When the fallback fields are
+    present, ``update_named_popup`` lazy-creates instead — verified in
+    the model-level test suite.)
+    """
     mock_app("tethysapp.tethysdash.controllers.App")
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     url = reverse("tethysdash:update_popup")
@@ -390,4 +394,4 @@ def test_update_popup_unknown_id_returns_error(
     assert response.status_code == 200
     body = response.json()
     assert body["success"] is False
-    assert "does not exist" in body["message"]
+    assert "popup_id" in body["message"] or "required" in body["message"]

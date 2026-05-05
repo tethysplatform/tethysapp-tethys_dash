@@ -320,6 +320,65 @@ def test_update_named_popup_creates_when_missing(
 
 
 @pytest.mark.django_db
+def test_update_named_popup_falls_back_to_lazy_create_when_popup_id_is_stale(
+    db_session, mock_app_get_ps_db, dashboard, test_owner_user
+):
+    """Resilience: when ``popup_id`` is supplied but the row no longer
+    exists (e.g., DB reset, prior delete, or stale id baked into the
+    client-side layer config), fall through to the lazy-create path using
+    ``grid_item_id`` + ``layer_name`` instead of raising. Without this the
+    user hits "A map layer popup with the id N does not exist." every time
+    they save a layer that has a stale popup id in its frontend state.
+    """
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    tab = DashboardTab(dashboard_id=dashboard.id, name="Tab 1", tab_order=0)
+    db_session.add(tab)
+    db_session.commit()
+    db_session.refresh(tab)
+    map_grid_item = _make_map_grid_item(db_session, dashboard, tab)
+
+    payload = {
+        "popup_id": 99999,  # does not exist in DB
+        "grid_item_id": map_grid_item.id,
+        "layer_name": "Layer A",
+        "mode": "modal",
+        "position": {
+            "leftPct": 10,
+            "topPct": 10,
+            "widthPct": 50,
+            "heightPct": 50,
+        },
+        "gridItems": [],
+    }
+
+    result = update_named_popup(test_owner_user, payload)
+
+    # A real row is created (id assigned by the DB; not 99999).
+    assert isinstance(result["id"], int)
+    assert result["id"] != 99999
+    assert result["mode"] == "modal"
+    assert result["position"]["widthPct"] == 50
+
+
+@pytest.mark.django_db
+def test_update_named_popup_raises_when_stale_popup_id_lacks_fallback(
+    db_session, mock_app_get_ps_db, dashboard, test_owner_user
+):
+    """A stale popup_id with no grid_item_id/layer_name fallback still
+    raises — we don't silently swallow malformed payloads."""
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    tab = DashboardTab(dashboard_id=dashboard.id, name="Tab 1", tab_order=0)
+    db_session.add(tab)
+    db_session.commit()
+    db_session.refresh(tab)
+
+    payload = {"popup_id": 99999, "mode": "modal"}
+
+    with pytest.raises(Exception, match="popup_id"):
+        update_named_popup(test_owner_user, payload)
+
+
+@pytest.mark.django_db
 def test_update_named_popup_replaces_grid_items(
     db_session, mock_app_get_ps_db, dashboard, test_owner_user
 ):
@@ -451,14 +510,18 @@ def test_update_named_popup_rejects_non_editor(
 
 
 @pytest.mark.django_db
-def test_update_named_popup_missing_popup_raises(
+def test_update_named_popup_missing_popup_raises_when_no_fallback(
     db_session, mock_app_get_ps_db, test_owner_user
 ):
-    """Error path: an unknown ``popup_id`` raises an exception."""
+    """Error path: an unknown ``popup_id`` with no grid_item_id/layer_name
+    fallback raises. (Resilience for stale popup_ids only kicks in when
+    the create-fallback fields are also present — see
+    ``test_update_named_popup_falls_back_to_lazy_create_when_popup_id_is_stale``.)
+    """
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     with pytest.raises(Exception) as excinfo:
         update_named_popup(test_owner_user, {"popup_id": 99999})
-    assert "does not exist" in str(excinfo.value)
+    assert "popup_id" in str(excinfo.value) or "required" in str(excinfo.value)
 
 
 @pytest.mark.django_db

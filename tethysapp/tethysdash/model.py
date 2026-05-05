@@ -1206,15 +1206,19 @@ def update_named_popup(user, popup_updates):
         db_popup = None
         if popup_id is not None:
             db_popup = session.get(MapLayerPopup, popup_id)
-            if db_popup is None:
-                raise Exception(
-                    f"A map layer popup with the id {popup_id} does not exist."
-                )
+
+        if db_popup is not None:
             parent_grid_item = db_popup.grid_item
         else:
+            # popup_id was either omitted or pointed at a row that no longer
+            # exists (DB reset, prior delete, or stale id baked into the
+            # client-side layer config). Fall through to the lazy-create path
+            # using grid_item_id + layer_name, which the frontend always sends
+            # as a fallback when persisting a popup.
             if grid_item_id is None or not layer_name:
                 raise Exception(
-                    "A popup_id or both grid_item_id and layer_name are required."
+                    "A popup_id (matching an existing row) or both "
+                    "grid_item_id and layer_name are required."
                 )
             parent_grid_item = session.get(GridItem, grid_item_id)
             if parent_grid_item is None:
