@@ -11,11 +11,23 @@ import PopupModalChrome from "components/modals/PopupModal/PopupModalChrome";
 // chrome-level assertions.
 jest.mock("components/dashboard/DashboardLayout", () => {
   // eslint-disable-next-line react/prop-types
-  const MockDashboardLayout = ({ tabId, gridItems, responsive, rowHeight }) => (
+  const MockDashboardLayout = ({
+    // eslint-disable-next-line react/prop-types
+    tabId,
+    // eslint-disable-next-line react/prop-types
+    gridItems,
+    // eslint-disable-next-line react/prop-types
+    responsive,
+    // eslint-disable-next-line react/prop-types
+    rowHeight,
+    // eslint-disable-next-line react/prop-types
+    allowOverlap,
+  }) => (
     <div data-testid="mock-dashboard-layout">
       <span data-testid="mock-dl-tab-id">{tabId}</span>
       <span data-testid="mock-dl-responsive">{String(responsive)}</span>
       <span data-testid="mock-dl-row-height">{rowHeight}</span>
+      <span data-testid="mock-dl-allow-overlap">{String(allowOverlap)}</span>
       {/* eslint-disable-next-line react/prop-types */}
       <span data-testid="mock-dl-grid-items-count">{gridItems.length}</span>
     </div>
@@ -150,6 +162,18 @@ describe("PopupModalChrome — DashboardLayout wiring", () => {
     expect(screen.getByTestId("mock-dl-responsive").textContent).toBe("true");
     expect(screen.getByTestId("mock-dl-grid-items-count").textContent).toBe(
       "2",
+    );
+  });
+
+  test("forces allowOverlap=false (popup grids never stack tiles, regardless of host)", () => {
+    render(
+      <Harness
+        features={[featureA]}
+        popupConfig={samplePopupConfig({ gridItems: [baseGridItem()] })}
+      />,
+    );
+    expect(screen.getByTestId("mock-dl-allow-overlap").textContent).toBe(
+      "false",
     );
   });
 

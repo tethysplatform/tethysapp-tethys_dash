@@ -189,6 +189,7 @@ const PopupModalChrome = ({
                   shouldLoad={true}
                   responsive
                   rowHeight={rowHeight}
+                  allowOverlap={false}
                 />
               </EditingContext.Provider>
             </TabContext.Provider>

@@ -1,4 +1,11 @@
-import { useCallback, useRef, useContext, memo, useMemo, useState } from "react";
+import {
+  useCallback,
+  useRef,
+  useContext,
+  memo,
+  useMemo,
+  useState,
+} from "react";
 import RGL, { Responsive, WidthProvider } from "react-grid-layout";
 import {
   LayoutContext,
@@ -63,8 +70,11 @@ const DashboardLayout = ({
   shouldLoad,
   rowHeight = defaultRowHeight,
   responsive = false,
+  allowOverlap: allowOverlapProp,
 }) => {
   const { unrestrictedPlacement } = useContext(LayoutContext);
+  const allowOverlap =
+    allowOverlapProp !== undefined ? allowOverlapProp : unrestrictedPlacement;
   const { updateTab } = useContext(TabContext);
   const { isEditing } = useContext(EditingContext);
   const { disabledEditingMovement } = useContext(
@@ -76,9 +86,7 @@ const DashboardLayout = ({
   // those edits would not round-trip back to the persisted lg layout.
   const [currentBreakpoint, setCurrentBreakpoint] = useState("lg");
   const isWideBreakpoint =
-    !responsive ||
-    currentBreakpoint === "lg" ||
-    currentBreakpoint === "md";
+    !responsive || currentBreakpoint === "lg" || currentBreakpoint === "md";
 
   const gridItemsUpdated = useRef();
   gridItemsUpdated.current = gridItems;
@@ -92,10 +100,8 @@ const DashboardLayout = ({
         w: griditem.w,
         x: griditem.x,
         y: griditem.y,
-        isDraggable:
-          isWideBreakpoint && isEditing && !disabledEditingMovement,
-        isResizable:
-          isWideBreakpoint && isEditing && !disabledEditingMovement,
+        isDraggable: isWideBreakpoint && isEditing && !disabledEditingMovement,
+        isResizable: isWideBreakpoint && isEditing && !disabledEditingMovement,
       })),
     [gridItems, isEditing, disabledEditingMovement, isWideBreakpoint],
   );
@@ -169,7 +175,11 @@ const DashboardLayout = ({
   );
 
   const sharedGridProps = {
-    key: `layout-${unrestrictedPlacement}`,
+    // Re-key on the resolved allowOverlap so RGL's internal layout is rebuilt
+    // when the flag flips (e.g., popup-only forced false vs. host-default
+    // unrestrictedPlacement). Stale layouts from the prior mode would
+    // otherwise stick around and silently re-apply.
+    key: `layout-${allowOverlap}`,
     className: "complex-interface-layout",
     rowHeight: rowHeight,
     onDragStop:
@@ -181,7 +191,7 @@ const DashboardLayout = ({
     draggableCancel:
       ".dropdown-toggle,.modal-dialog,.alert,.dropdown-item,.modebar-btn.modal-footer,.color-picker-popover",
     onResize: handleResize,
-    allowOverlap: unrestrictedPlacement,
+    allowOverlap,
     useCSSTransforms: false,
   };
 
@@ -243,6 +253,10 @@ DashboardLayout.propTypes = {
   shouldLoad: PropTypes.bool.isRequired,
   rowHeight: PropTypes.number,
   responsive: PropTypes.bool,
+  // Optional override for the host dashboard's unrestrictedPlacement flag.
+  // Popup grids pass allowOverlap={false} so tiles never stack inside the
+  // modal, regardless of what the host dashboard allows.
+  allowOverlap: PropTypes.bool,
 };
 
 export default memo(DashboardLayout, valuesEqual);

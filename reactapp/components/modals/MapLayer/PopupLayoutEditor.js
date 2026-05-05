@@ -236,6 +236,7 @@ const PopupLayoutEditor = ({
                 shouldLoad={true}
                 responsive
                 rowHeight={rowHeight}
+                allowOverlap={false}
               />
             </EditingContext.Provider>
           </TabContext.Provider>
