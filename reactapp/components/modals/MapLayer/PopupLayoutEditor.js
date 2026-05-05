@@ -18,10 +18,25 @@ import "components/modals/wideModal.css";
 // modal. Subsequent updates flow through the ResizeObserver.
 const DEFAULT_ROW_HEIGHT = 30;
 
-// Target row count used to derive rowHeight from the measured modal body
-// height. Picking ~20 rows per visible body keeps tiles roughly square at the
+// Target row count used to derive rowHeight from the preview-area height.
+// Picking ~20 rows per visible body keeps tiles roughly square at the
 // 100-column grid width (matching DashboardLayout's static column count).
 const TARGET_ROWS = 20;
+
+// Default popup position — same shape PopupConfigPane uses when popupConfig
+// is null/missing. Keeps the editor preview faithful to what the runtime
+// modal will render in the absence of explicit user config.
+const DEFAULT_POSITION = {
+  leftPct: 20,
+  topPct: 20,
+  widthPct: 60,
+  heightPct: 60,
+};
+
+// Minimum preview-area pixel dims so the grid stays interactable even when
+// the user configures a tiny popup or a very small viewport.
+const MIN_PREVIEW_WIDTH = 240;
+const MIN_PREVIEW_HEIGHT = 160;
 
 const noop = () => {};
 
@@ -40,11 +55,45 @@ const ChromeBar = styled.div`
   gap: 0.5rem;
   padding: 0 0.25rem 0.5rem;
   flex: 0 0 auto;
+  flex-wrap: wrap;
+`;
+
+const DimensionsLabel = styled.span`
+  font-size: 0.85rem;
+  color: #495057;
+  margin-left: auto;
+  white-space: nowrap;
+`;
+
+const PreviewBoundary = styled.div`
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  background-color: #f1f3f5;
+  border-radius: 4px;
+  padding: 0.5rem;
+`;
+
+// The fixed-pixel-size box that mirrors the runtime popup's actual
+// dimensions. Tiles configured against this box scale 1:1 to the runtime
+// popup at the same viewport, so users can size visualizations relative to
+// the actual popup area instead of the editor's full body.
+const PreviewSizedBox = styled.div`
+  flex: 0 0 auto;
+  background-color: #ffffff;
+  border: 1px solid #adb5bd;
+  border-radius: 4px;
+  box-shadow: 0 0 0 4px rgba(13, 110, 253, 0.08);
+  position: relative;
+  overflow: hidden;
 `;
 
 const GridContainer = styled.div`
-  flex: 1 1 auto;
-  min-height: 0;
+  width: 100%;
+  height: 100%;
   overflow: auto;
   position: relative;
 `;
@@ -61,6 +110,66 @@ function deriveRowHeight(containerHeight) {
     return DEFAULT_ROW_HEIGHT;
   }
   return Math.max(20, Math.floor(containerHeight / TARGET_ROWS));
+}
+
+/**
+ * Compute the preview box dimensions in pixels.
+ *
+ * - True size = popup's configured % of viewport in pixels
+ * - If true size > available editor body, scale down proportionally so the
+ *   popup's aspect ratio is preserved
+ * - Clamp to MIN_PREVIEW_* so the box stays interactable even on tiny
+ *   configurations
+ *
+ * Returns `{ trueWidth, trueHeight, displayWidth, displayHeight, scaled }`
+ * — `true*` are the runtime pixel dimensions (for the dimensions label),
+ * `display*` are what the box actually renders at, and `scaled` flags
+ * whether the down-scale kicked in.
+ */
+function computePreviewDimensions({
+  position,
+  viewportWidth,
+  viewportHeight,
+  availableWidth,
+  availableHeight,
+}) {
+  const widthPct = position?.widthPct ?? DEFAULT_POSITION.widthPct;
+  const heightPct = position?.heightPct ?? DEFAULT_POSITION.heightPct;
+
+  const trueWidth = (viewportWidth * widthPct) / 100;
+  const trueHeight = (viewportHeight * heightPct) / 100;
+
+  // If we don't have a body measurement yet, fall back to the true size —
+  // the box will paint at full popup dimensions until the boundary
+  // measures and we re-render with a scale factor.
+  const fitsHorizontally =
+    !Number.isFinite(availableWidth) || trueWidth <= availableWidth;
+  const fitsVertically =
+    !Number.isFinite(availableHeight) || trueHeight <= availableHeight;
+
+  if (fitsHorizontally && fitsVertically) {
+    return {
+      trueWidth,
+      trueHeight,
+      displayWidth: Math.max(MIN_PREVIEW_WIDTH, trueWidth),
+      displayHeight: Math.max(MIN_PREVIEW_HEIGHT, trueHeight),
+      scaled: false,
+    };
+  }
+
+  const scaleX = availableWidth / trueWidth;
+  const scaleY = availableHeight / trueHeight;
+  const scale = Math.min(scaleX, scaleY);
+  return {
+    trueWidth,
+    trueHeight,
+    displayWidth: Math.max(MIN_PREVIEW_WIDTH, Math.floor(trueWidth * scale)),
+    displayHeight: Math.max(
+      MIN_PREVIEW_HEIGHT,
+      Math.floor(trueHeight * scale),
+    ),
+    scaled: true,
+  };
 }
 
 function buildNewGridItem(localGridItems) {
@@ -113,29 +222,32 @@ const PopupLayoutEditor = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [show]);
 
-  // Measure the modal body to pick a sensible per-row pixel height. Use
-  // useLayoutEffect for a synchronous first measurement — this avoids the
-  // first-paint reflow flash described in the plan's Key Decision section.
-  const bodyRef = useRef(null);
-  const [rowHeight, setRowHeight] = useState(DEFAULT_ROW_HEIGHT);
+  // Measure the preview boundary (where the sized popup-area box lives) so
+  // we know how much room is available for the box. Synchronous first
+  // measurement via useLayoutEffect — avoids a first-paint reflow flash.
+  const boundaryRef = useRef(null);
+  const [boundarySize, setBoundarySize] = useState({
+    width: NaN,
+    height: NaN,
+  });
 
   useLayoutEffect(() => {
     if (!show) return undefined;
-    const node = bodyRef.current;
+    const node = boundaryRef.current;
     if (!node) return undefined;
 
     const apply = () => {
       const rect = node.getBoundingClientRect();
-      const next = deriveRowHeight(rect.height);
-      setRowHeight((prev) => (prev === next ? prev : next));
+      setBoundarySize((prev) => {
+        if (prev.width === rect.width && prev.height === rect.height) {
+          return prev;
+        }
+        return { width: rect.width, height: rect.height };
+      });
     };
 
-    // Synchronous first measurement.
     apply();
 
-    // ResizeObserver picks up subsequent modal size changes (viewport resize,
-    // dev tools toggling, etc.). Falls back to a no-op when the environment
-    // doesn't expose ResizeObserver (some jsdom setups).
     if (typeof window === "undefined" || !window.ResizeObserver) {
       return undefined;
     }
@@ -143,6 +255,49 @@ const PopupLayoutEditor = ({
     observer.observe(node);
     return () => observer.disconnect();
   }, [show]);
+
+  // Track viewport size so the preview area's "true pixel size" stays
+  // accurate as the user resizes the browser. The runtime popup also uses
+  // viewport percentages, so the editor preview tracks alongside it.
+  const [viewportSize, setViewportSize] = useState(() => ({
+    width: typeof window !== "undefined" ? window.innerWidth : 1920,
+    height: typeof window !== "undefined" ? window.innerHeight : 1080,
+  }));
+
+  useEffect(() => {
+    if (!show || typeof window === "undefined") return undefined;
+    const onResize = () => {
+      setViewportSize({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      });
+    };
+    onResize();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [show]);
+
+  const { trueWidth, trueHeight, displayWidth, displayHeight, scaled } =
+    useMemo(
+      () =>
+        computePreviewDimensions({
+          position: popupConfig?.position,
+          viewportWidth: viewportSize.width,
+          viewportHeight: viewportSize.height,
+          availableWidth: boundarySize.width,
+          availableHeight: boundarySize.height,
+        }),
+      [popupConfig, viewportSize, boundarySize],
+    );
+
+  const rowHeight = useMemo(
+    () => deriveRowHeight(displayHeight),
+    [displayHeight],
+  );
+
+  const widthPct = popupConfig?.position?.widthPct ?? DEFAULT_POSITION.widthPct;
+  const heightPct =
+    popupConfig?.position?.heightPct ?? DEFAULT_POSITION.heightPct;
 
   // Synthetic TabContext value. The popup is modeled as a single "popup" tab —
   // the embedded DashboardLayout calls updateTab() on drag/resize, and
@@ -221,7 +376,7 @@ const PopupLayoutEditor = ({
       <Modal.Header closeButton>
         <Modal.Title>{titleText}</Modal.Title>
       </Modal.Header>
-      <StyledModalBody ref={bodyRef}>
+      <StyledModalBody>
         <ChromeBar>
           <Button
             variant="primary"
@@ -238,25 +393,49 @@ const PopupLayoutEditor = ({
               add the first tile.
             </EmptyHint>
           )}
+          <DimensionsLabel
+            data-testid="popup-layout-editor-dimensions"
+            title={
+              scaled
+                ? `Scaled down to fit; true popup size at this viewport is ${Math.round(trueWidth)}×${Math.round(trueHeight)} px`
+                : undefined
+            }
+          >
+            Popup area: {Math.round(trueWidth)}&nbsp;×&nbsp;
+            {Math.round(trueHeight)}&nbsp;px ({widthPct}% &times; {heightPct}%
+            of viewport)
+            {scaled ? " — scaled to fit" : ""}
+          </DimensionsLabel>
         </ChromeBar>
-        <GridContainer aria-label="Popup Layout Grid Container">
-          <TabContext.Provider value={tabContextValue}>
-            <EditingContext.Provider value={editingContextValue}>
-              <DisabledEditingMovementContext.Provider
-                value={disabledEditingMovementContextValue}
-              >
-                <DashboardLayout
-                  tabId="popup"
-                  gridItems={localGridItems}
-                  shouldLoad={true}
-                  responsive
-                  rowHeight={rowHeight}
-                  allowOverlap={false}
-                />
-              </DisabledEditingMovementContext.Provider>
-            </EditingContext.Provider>
-          </TabContext.Provider>
-        </GridContainer>
+        <PreviewBoundary
+          ref={boundaryRef}
+          aria-label="Popup Layout Preview Boundary"
+        >
+          <PreviewSizedBox
+            aria-label="Popup Layout Preview Box"
+            data-testid="popup-layout-editor-preview-box"
+            style={{ width: displayWidth, height: displayHeight }}
+          >
+            <GridContainer aria-label="Popup Layout Grid Container">
+              <TabContext.Provider value={tabContextValue}>
+                <EditingContext.Provider value={editingContextValue}>
+                  <DisabledEditingMovementContext.Provider
+                    value={disabledEditingMovementContextValue}
+                  >
+                    <DashboardLayout
+                      tabId="popup"
+                      gridItems={localGridItems}
+                      shouldLoad={true}
+                      responsive
+                      rowHeight={rowHeight}
+                      allowOverlap={false}
+                    />
+                  </DisabledEditingMovementContext.Provider>
+                </EditingContext.Provider>
+              </TabContext.Provider>
+            </GridContainer>
+          </PreviewSizedBox>
+        </PreviewBoundary>
       </StyledModalBody>
       <Modal.Footer>
         <Button
@@ -284,9 +463,14 @@ PopupLayoutEditor.propTypes = {
   popupConfig: PropTypes.shape({
     id: PropTypes.number,
     mode: PropTypes.string,
-    size: PropTypes.object,
-    anchor: PropTypes.object,
+    position: PropTypes.shape({
+      leftPct: PropTypes.number,
+      topPct: PropTypes.number,
+      widthPct: PropTypes.number,
+      heightPct: PropTypes.number,
+    }),
     titleTemplate: PropTypes.string,
+    // eslint-disable-next-line react/forbid-prop-types
     gridItems: PropTypes.array,
   }),
   onSave: PropTypes.func.isRequired,

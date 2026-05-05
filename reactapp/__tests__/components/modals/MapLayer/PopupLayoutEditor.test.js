@@ -512,7 +512,7 @@ test("synthetic TabContext.updateTab mutates local state and shows up on save", 
   expect(passed[1].source).toBe("probe-source");
 });
 
-test("rowHeight is derived from the modal body's bounding rect (positive integer)", () => {
+test("rowHeight is derived from the preview box's height (positive integer)", () => {
   render(
     <PopupLayoutEditor
       show={true}
@@ -528,8 +528,7 @@ test("rowHeight is derived from the modal body's bounding rect (positive integer
     10,
   );
   expect(rh).toBeGreaterThan(0);
-  // 600 / 20 = 30
-  expect(rh).toBe(30);
+  expect(Number.isInteger(rh)).toBe(true);
 });
 
 test("DashboardLayout receives responsive=true and tabId=popup", () => {
@@ -618,4 +617,177 @@ test("synthetic TabContext exposes addTab/deleteTab/etc. as no-ops that do not t
 
   // The synthetic context exposes a single "popup" tab.
   expect(screen.getByTestId("mock-dl-tabs-count").textContent).toBe("1");
+});
+
+describe("PopupLayoutEditor — preview dimensions", () => {
+  const ORIGINAL_WIDTH = window.innerWidth;
+  const ORIGINAL_HEIGHT = window.innerHeight;
+
+  function setViewport(width, height) {
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      writable: true,
+      value: width,
+    });
+    Object.defineProperty(window, "innerHeight", {
+      configurable: true,
+      writable: true,
+      value: height,
+    });
+  }
+
+  afterEach(() => {
+    setViewport(ORIGINAL_WIDTH, ORIGINAL_HEIGHT);
+    jest.restoreAllMocks();
+  });
+
+  test("dimensions label shows the popup's true pixel size and percentage", () => {
+    setViewport(1000, 800);
+    // Boundary measures larger than the popup so no scale-to-fit kicks in.
+    jest
+      .spyOn(Element.prototype, "getBoundingClientRect")
+      .mockImplementation(() => ({
+        width: 5000,
+        height: 5000,
+        top: 0,
+        left: 0,
+        right: 5000,
+        bottom: 5000,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      }));
+
+    render(
+      <PopupLayoutEditor
+        show={true}
+        onClose={jest.fn()}
+        onSave={jest.fn()}
+        popupConfig={samplePopupConfig({
+          position: {
+            leftPct: 10,
+            topPct: 10,
+            widthPct: 60,
+            heightPct: 50,
+          },
+        })}
+        layerName="Layer A"
+      />,
+    );
+
+    const label = screen.getByTestId("popup-layout-editor-dimensions");
+    // 1000 × 60% = 600, 800 × 50% = 400.
+    expect(label.textContent).toContain("600");
+    expect(label.textContent).toContain("400");
+    expect(label.textContent).toContain("60%");
+    expect(label.textContent).toContain("50%");
+    // Fits → no scaled-to-fit suffix.
+    expect(label.textContent).not.toMatch(/scaled to fit/i);
+  });
+
+  test("preview box renders at the popup's true size when it fits", () => {
+    setViewport(1000, 800);
+    jest
+      .spyOn(Element.prototype, "getBoundingClientRect")
+      .mockImplementation(() => ({
+        width: 5000,
+        height: 5000,
+        top: 0,
+        left: 0,
+        right: 5000,
+        bottom: 5000,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      }));
+
+    render(
+      <PopupLayoutEditor
+        show={true}
+        onClose={jest.fn()}
+        onSave={jest.fn()}
+        popupConfig={samplePopupConfig({
+          position: {
+            leftPct: 10,
+            topPct: 10,
+            widthPct: 60,
+            heightPct: 50,
+          },
+        })}
+        layerName="Layer A"
+      />,
+    );
+
+    const box = screen.getByTestId("popup-layout-editor-preview-box");
+    expect(box.style.width).toBe("600px");
+    expect(box.style.height).toBe("400px");
+  });
+
+  test("preview box scales down proportionally when the popup is larger than the body", () => {
+    setViewport(2000, 1500);
+    // Tight boundary forces scale-to-fit. Boundary is 800x400; popup at
+    // 95% × 95% would be 1900×1425 — both exceed the boundary, so scale
+    // is min(800/1900, 400/1425) ≈ 0.281. Resulting box ≈ 533×400.
+    jest
+      .spyOn(Element.prototype, "getBoundingClientRect")
+      .mockImplementation(() => ({
+        width: 800,
+        height: 400,
+        top: 0,
+        left: 0,
+        right: 800,
+        bottom: 400,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      }));
+
+    render(
+      <PopupLayoutEditor
+        show={true}
+        onClose={jest.fn()}
+        onSave={jest.fn()}
+        popupConfig={samplePopupConfig({
+          position: {
+            leftPct: 0,
+            topPct: 0,
+            widthPct: 95,
+            heightPct: 95,
+          },
+        })}
+        layerName="Layer A"
+      />,
+    );
+
+    const box = screen.getByTestId("popup-layout-editor-preview-box");
+    const w = parseInt(box.style.width, 10);
+    const h = parseInt(box.style.height, 10);
+    // Aspect ratio preserved (true is 1900:1425 = ~4:3, allow rounding slack).
+    const aspect = w / h;
+    expect(aspect).toBeGreaterThan(1.2);
+    expect(aspect).toBeLessThan(1.4);
+    // Scaled down — neither true dim should fit.
+    expect(w).toBeLessThan(1900);
+    expect(h).toBeLessThanOrEqual(400);
+    // Label flags the scale-to-fit so the user knows the box isn't 1:1.
+    const label = screen.getByTestId("popup-layout-editor-dimensions");
+    expect(label.textContent).toMatch(/scaled to fit/i);
+  });
+
+  test("falls back to default position when popupConfig has no position", () => {
+    setViewport(1000, 800);
+    render(
+      <PopupLayoutEditor
+        show={true}
+        onClose={jest.fn()}
+        onSave={jest.fn()}
+        popupConfig={samplePopupConfig({ position: undefined })}
+        layerName="Layer A"
+      />,
+    );
+
+    // Default DEFAULT_POSITION is 60% × 60% → 600 × 480 at 1000 × 800.
+    const label = screen.getByTestId("popup-layout-editor-dimensions");
+    expect(label.textContent).toContain("60%");
+  });
 });
