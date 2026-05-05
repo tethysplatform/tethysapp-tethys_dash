@@ -248,21 +248,36 @@ const MapVisualization = ({
   const extentDrawMode = mapContextValue?.extentDrawMode ?? null;
 
   /**
-   * Look up a layer's config by layer name, matching first against
-   * `layer.name` (the popup hydration's primary key on the backend) and then
-   * against `layer.configuration.name` (the fallback used during hydration
-   * when the top-level `name` is absent). Returns the matching layer or
-   * undefined.
+   * Look up a layer's config by layer name. Matches in three passes:
+   * 1. Direct match on the configured wrapper name (`layer.name`,
+   *    `layer.configuration.name`, or `layer.configuration.props.name`).
+   * 2. Sub-layer match: ESRI Image/Map Service queries return features
+   *    keyed by sub-layer name (e.g., "Flow Forecast (m³/sec)") rather
+   *    than the wrapper name. Sub-layer names are also the keys in the
+   *    layer's `attributeAliases` / `attributeVariables` /
+   *    `omittedPopupAttributes` maps, so we use those as the lookup
+   *    table for sub-layer → wrapper resolution.
+   *
+   * Returns the matching layer or undefined.
    */
   const findLayerByName = useCallback(
     (layerName) => {
       if (!layers || !layerName) return undefined;
-      return layers.find(
-        (layer) =>
+      return layers.find((layer) => {
+        if (
           layer?.name === layerName ||
           layer?.configuration?.name === layerName ||
-          layer?.configuration?.props?.name === layerName,
-      );
+          layer?.configuration?.props?.name === layerName
+        ) {
+          return true;
+        }
+        const subLayerKeys = [
+          ...Object.keys(layer?.attributeAliases ?? {}),
+          ...Object.keys(layer?.attributeVariables ?? {}),
+          ...Object.keys(layer?.omittedPopupAttributes ?? {}),
+        ];
+        return subLayerKeys.includes(layerName);
+      });
     },
     [layers],
   );

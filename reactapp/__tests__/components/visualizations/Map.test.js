@@ -2299,6 +2299,82 @@ describe("modal-mode popup integration", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
+  test("ESRI sub-layer click resolves to the wrapper layer's popupConfig (modal opens)", async () => {
+    // ESRI Image/Map Service queries return features keyed by the
+    // sub-layer name (e.g., "Flow Forecast (m³/sec)") rather than the
+    // wrapper layer's configured name ("China Flowlines"). Sub-layer
+    // names appear as keys in attributeAliases / attributeVariables /
+    // omittedPopupAttributes. findLayerByName uses those maps as the
+    // sub-layer → wrapper lookup so the popup mode can be resolved.
+    mockedQueryLayerFeatures.mockResolvedValue([
+      {
+        attributes: { comid: "55555" },
+        geometry: { x: 10, y: 10 },
+        layerName: "Flow Forecast (m³/sec)",
+      },
+    ]);
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+    jest.spyOn(Overlay.prototype, "setPosition");
+
+    const layers = [
+      {
+        configuration: {
+          type: "ImageLayer",
+          props: {
+            name: "China Flowlines",
+            source: {
+              type: "ESRI Image and Map Service",
+              props: { url: "some_url" },
+            },
+          },
+        },
+        attributeAliases: {
+          "Flow Forecast (m³/sec)": { comid: "TDX Hydro Link Number" },
+        },
+        attributeVariables: {
+          "Flow Forecast (m³/sec)": { comid: "river_id" },
+        },
+        popupConfig: {
+          mode: "modal",
+          position: { leftPct: 1, topPct: 3, widthPct: 95, heightPct: 55 },
+          titleTemplate: null,
+          gridItems: [],
+        },
+      },
+    ];
+    const clickCoordinates = [10, 20];
+    const LoadedComponent = createLoadedComponent({
+      children: (
+        <MapContextProvider>
+          <TestingComponent
+            onMapClick={jest.fn()}
+            clickCoordinates={clickCoordinates}
+            mapProps={{
+              mapConfig: {},
+              viewConfig: {},
+              layers,
+              baseMap: null,
+              layerControl: false,
+            }}
+          />
+        </MapContextProvider>
+      ),
+    });
+    render(LoadedComponent);
+
+    expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+    // Modal opens because the sub-layer feature resolved to the wrapper's
+    // popupConfig.
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+    expect(
+      screen.getByTestId("popup-modal-body-placeholder"),
+    ).toHaveTextContent("Popup body for Flow Forecast (m³/sec)");
+  });
+
   test("MapContext.extentDrawMode active suppresses modal open on a modal-mode click", async () => {
     mockedQueryLayerFeatures.mockResolvedValue([
       {
