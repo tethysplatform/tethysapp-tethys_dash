@@ -11,6 +11,7 @@ import {
   baseMapLayers,
   downloadJSONFile,
   checkForEmptyVariableInputs,
+  findUnresolvedFeatureTokens,
 } from "components/visualizations/utilities";
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
@@ -1262,5 +1263,78 @@ test("getVisualization Custom Image with empty slider values falls back to image
     source: "https://example.com/current.gif",
     alt: "custom_image",
     imageError: undefined,
+  });
+});
+
+describe("findUnresolvedFeatureTokens", () => {
+  test("returns empty array for non-string/non-object inputs", () => {
+    expect(findUnresolvedFeatureTokens(undefined)).toEqual([]);
+    expect(findUnresolvedFeatureTokens(null)).toEqual([]);
+    expect(findUnresolvedFeatureTokens(42)).toEqual([]);
+    expect(findUnresolvedFeatureTokens(true)).toEqual([]);
+  });
+
+  test("returns empty array when no feature.* tokens are present", () => {
+    expect(findUnresolvedFeatureTokens("plain text")).toEqual([]);
+    expect(findUnresolvedFeatureTokens({ x: "no tokens here" })).toEqual([]);
+    expect(findUnresolvedFeatureTokens({ x: "${other.var}" })).toEqual([]);
+  });
+
+  test("finds feature.* tokens in a top-level string", () => {
+    expect(findUnresolvedFeatureTokens("River: ${feature.comid}")).toEqual([
+      "feature.comid",
+    ]);
+  });
+
+  test("finds tokens nested inside an object", () => {
+    expect(
+      findUnresolvedFeatureTokens({
+        river_id: "${feature.comid}",
+        title: "Site ${feature.station_name}",
+      }),
+    ).toEqual(["feature.comid", "feature.station_name"]);
+  });
+
+  test("finds tokens nested inside an array", () => {
+    expect(
+      findUnresolvedFeatureTokens(["${feature.a}", { b: "${feature.b}" }]),
+    ).toEqual(["feature.a", "feature.b"]);
+  });
+
+  test("deduplicates repeated tokens", () => {
+    expect(
+      findUnresolvedFeatureTokens({
+        a: "${feature.x}",
+        b: "${feature.x}/${feature.x}",
+      }),
+    ).toEqual(["feature.x"]);
+  });
+
+  test("supports keys with dots, spaces, and parens", () => {
+    expect(
+      findUnresolvedFeatureTokens("${feature.Mean Flow (m³/sec)}"),
+    ).toEqual(["feature.Mean Flow (m³/sec)"]);
+  });
+
+  test("does NOT match non-feature ${...} tokens", () => {
+    expect(findUnresolvedFeatureTokens("${other}")).toEqual([]);
+    expect(
+      findUnresolvedFeatureTokens({ a: "${plain}", b: "${feature.kept}" }),
+    ).toEqual(["feature.kept"]);
+  });
+
+  test("safe to call repeatedly without leaking regex state", () => {
+    // Defends against the global-regex `lastIndex` pitfall — if the helper
+    // accidentally shared state across calls, the second call could miss
+    // tokens depending on where the previous call left lastIndex.
+    expect(findUnresolvedFeatureTokens("${feature.a}")).toEqual([
+      "feature.a",
+    ]);
+    expect(findUnresolvedFeatureTokens("${feature.b}")).toEqual([
+      "feature.b",
+    ]);
+    expect(findUnresolvedFeatureTokens("${feature.c}")).toEqual([
+      "feature.c",
+    ]);
   });
 });

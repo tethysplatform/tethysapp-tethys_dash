@@ -14,6 +14,7 @@ import {
   getVisualization,
   updateObjectWithVariableInputs,
   findSelectOptionByValue,
+  findUnresolvedFeatureTokens,
 } from "components/visualizations/utilities";
 import {
   AppContext,
@@ -61,6 +62,38 @@ const CenteredContainer = styled.div`
   align-items: center;
   min-height: 100%;
   width: 100%;
+`;
+
+const FeaturePendingShell = styled.div`
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  width: 100%;
+  padding: 1rem;
+  text-align: center;
+  color: #495057;
+  background: repeating-linear-gradient(
+    45deg,
+    #f8f9fa,
+    #f8f9fa 10px,
+    #f1f3f5 10px,
+    #f1f3f5 20px
+  );
+  border-radius: 4px;
+`;
+
+const FeaturePendingTitle = styled.div`
+  font-weight: 600;
+  font-size: 0.95rem;
+  margin-bottom: 0.25rem;
+`;
+
+const FeaturePendingHint = styled.div`
+  font-size: 0.8rem;
+  color: #6c757d;
+  word-break: break-word;
 `;
 
 export const Visualization = memo(
@@ -216,6 +249,21 @@ export const Visualization = memo(
               </Fragment>
             ))}
           </StyledH2>
+        );
+      case "featurePending":
+        return (
+          <FeaturePendingShell data-testid="feature-pending-tile">
+            <FeaturePendingTitle>
+              Awaiting feature selection
+            </FeaturePendingTitle>
+            <FeaturePendingHint>
+              {vizData.source ? `${vizData.source} renders ` : "Renders "}
+              when a feature is clicked on the map
+              {vizData.pendingTokens && vizData.pendingTokens.length > 0
+                ? ` (resolves \${${vizData.pendingTokens.join("}, ${")}}).`
+                : "."}
+            </FeaturePendingHint>
+          </FeaturePendingShell>
         );
       case "vizError":
         return <StyledH2>{vizData.error}</StyledH2>;
@@ -378,6 +426,27 @@ const BaseVisualization = () => {
       itemData.requestId = requestId.current;
       gridItemArgsWithVariableInputs.current = updatedGridItemArgs;
       customMessages.current = customMessaging;
+
+      // Edit-time gate: when args reference `${feature.<key>}` and no
+      // feature is in scope (e.g., the popup layout editor before a
+      // feature is clicked at runtime), the host substitution pass
+      // preserves the raw token. Calling the plugin with a literal
+      // "${feature.comid}" would error out and clutter the editor with
+      // failure messages, so render a friendly placeholder instead and
+      // skip the fetch. The next render that *does* have feature.* in
+      // scope will resolve the tokens, the args will differ from the
+      // ref above, and getVisualization will fire normally.
+      const pendingFeatureTokens = findUnresolvedFeatureTokens(
+        updatedGridItemArgs,
+      );
+      if (pendingFeatureTokens.length > 0) {
+        setVizType("featurePending");
+        setVizData({
+          source: gridItemSource,
+          pendingTokens: pendingFeatureTokens,
+        });
+        return;
+      }
 
       await getVisualization({
         setVizType,

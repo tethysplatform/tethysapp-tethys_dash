@@ -1684,3 +1684,81 @@ it("renders ImageCollection", () => {
   const images = screen.getAllByRole("img");
   expect(images).toHaveLength(3);
 });
+
+describe("featurePending placeholder", () => {
+  it("renders the placeholder shell when vizType=featurePending", () => {
+    render(
+      <Visualization
+        vizType="featurePending"
+        vizData={{
+          source: "geoglows_forecast_plot",
+          pendingTokens: ["feature.comid", "feature.return_period"],
+        }}
+        vizMetadata={{}}
+      />,
+    );
+
+    const tile = screen.getByTestId("feature-pending-tile");
+    expect(tile).toBeInTheDocument();
+    expect(tile).toHaveTextContent(/awaiting feature selection/i);
+    expect(tile).toHaveTextContent(/geoglows_forecast_plot/);
+    expect(tile).toHaveTextContent(/feature\.comid/);
+    expect(tile).toHaveTextContent(/feature\.return_period/);
+  });
+
+  it("renders the placeholder without source-name lead when source is missing", () => {
+    render(
+      <Visualization
+        vizType="featurePending"
+        vizData={{ pendingTokens: ["feature.x"] }}
+        vizMetadata={{}}
+      />,
+    );
+
+    const tile = screen.getByTestId("feature-pending-tile");
+    expect(tile).toHaveTextContent(/^Awaiting feature selection/);
+    expect(tile).toHaveTextContent(/feature\.x/);
+  });
+
+  it("BaseVisualization gates the fetch when args contain unresolved feature.* tokens", async () => {
+    const spyGetVisualization = jest.spyOn(utilities, "getVisualization");
+
+    // The plotBase fixture targets geoglows_forecast_plot; replace its
+    // args_string with an arg referencing a feature.* token. With no
+    // FeatureScopedVariableInputs in the surrounding tree, the host
+    // substitution preserves the token, the gate fires, and we should
+    // see the placeholder instead of an attempted plugin call.
+    const plotBase = JSON.parse(JSON.stringify(mockedPlotBase));
+    plotBase.args_string = JSON.stringify({
+      // eslint-disable-next-line no-template-curly-in-string
+      river_id: "${feature.comid}",
+    });
+
+    render(
+      createLoadedComponent({
+        children: (
+          <GridItemContext.Provider
+            value={{
+              gridItemSource: plotBase.source,
+              gridItemArgsString: plotBase.args_string,
+              gridItemMetadataString: plotBase.metadata_string,
+              gridItemUUID: "feature-pending-1",
+              shouldLoad: true,
+            }}
+          >
+            <BaseVisualization />
+          </GridItemContext.Provider>
+        ),
+      }),
+    );
+
+    // Placeholder mounts.
+    const tile = await screen.findByTestId("feature-pending-tile");
+    expect(tile).toHaveTextContent(/awaiting feature selection/i);
+    expect(tile).toHaveTextContent(/feature\.comid/);
+
+    // Plugin was NOT invoked — the gate skipped it.
+    expect(spyGetVisualization).not.toHaveBeenCalled();
+    spyGetVisualization.mockRestore();
+  });
+});

@@ -422,6 +422,44 @@ export function updateObjectWithVariableInputs({
   return argsCopy;
 }
 
+const FEATURE_TOKEN_RE = /\$\{(feature\.[^}]+)\}/g;
+
+/**
+ * Recursively walk an args object/array and return the unique set of
+ * unresolved `${feature.<key>}` tokens still embedded in any string value.
+ *
+ * Used at edit time (popup layout editor) to detect that no feature is
+ * currently in scope so the visualization fetch can be skipped in favor
+ * of a friendly "awaiting feature selection" placeholder, instead of
+ * letting plugins error out on the unresolved literal.
+ *
+ * Returns an array of feature.<key> strings (without the `${}` wrapper),
+ * deduplicated and in encounter order. Empty/non-string/non-object inputs
+ * yield an empty array.
+ */
+export function findUnresolvedFeatureTokens(value) {
+  const found = new Set();
+
+  const visit = (v) => {
+    if (typeof v === "string") {
+      // Reset regex state — global regexes preserve `lastIndex` across
+      // calls when they're shared at module scope.
+      FEATURE_TOKEN_RE.lastIndex = 0;
+      let match;
+      while ((match = FEATURE_TOKEN_RE.exec(v)) !== null) {
+        found.add(match[1]);
+      }
+    } else if (Array.isArray(v)) {
+      for (const item of v) visit(item);
+    } else if (v && typeof v === "object") {
+      for (const key of Object.keys(v)) visit(v[key]);
+    }
+  };
+
+  visit(value);
+  return Array.from(found);
+}
+
 export const nonDropDownVariableInputTypes = [
   "text",
   "number",
