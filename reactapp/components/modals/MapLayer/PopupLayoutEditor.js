@@ -5,7 +5,11 @@ import Button from "react-bootstrap/Button";
 import styled from "styled-components";
 import { v4 as uuidv4 } from "uuid";
 import { FaPlus } from "react-icons/fa";
-import { TabContext, EditingContext } from "components/contexts/Contexts";
+import {
+  TabContext,
+  EditingContext,
+  DisabledEditingMovementContext,
+} from "components/contexts/Contexts";
 import DashboardLayout from "components/dashboard/DashboardLayout";
 import "components/modals/wideModal.css";
 
@@ -181,6 +185,14 @@ const PopupLayoutEditor = ({
     [],
   );
 
+  // Force movement on inside the sub-editor regardless of the host
+  // dashboard's "lock movement" toggle. The popup editor needs drag/resize
+  // handles to be usable; the host's lock has no semantic meaning here.
+  const disabledEditingMovementContextValue = useMemo(
+    () => ({ disabledEditingMovement: false, setDisabledEditingMovement: noop }),
+    [],
+  );
+
   function handleAddGridItem() {
     setLocalGridItems((prev) => [...prev, buildNewGridItem(prev)]);
   }
@@ -230,14 +242,18 @@ const PopupLayoutEditor = ({
         <GridContainer aria-label="Popup Layout Grid Container">
           <TabContext.Provider value={tabContextValue}>
             <EditingContext.Provider value={editingContextValue}>
-              <DashboardLayout
-                tabId="popup"
-                gridItems={localGridItems}
-                shouldLoad={true}
-                responsive
-                rowHeight={rowHeight}
-                allowOverlap={false}
-              />
+              <DisabledEditingMovementContext.Provider
+                value={disabledEditingMovementContextValue}
+              >
+                <DashboardLayout
+                  tabId="popup"
+                  gridItems={localGridItems}
+                  shouldLoad={true}
+                  responsive
+                  rowHeight={rowHeight}
+                  allowOverlap={false}
+                />
+              </DisabledEditingMovementContext.Provider>
             </EditingContext.Provider>
           </TabContext.Provider>
         </GridContainer>

@@ -2,7 +2,10 @@ import { useState, useContext } from "react";
 import PropTypes from "prop-types";
 import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { EditingContext } from "components/contexts/Contexts";
+import {
+  EditingContext,
+  DisabledEditingMovementContext,
+} from "components/contexts/Contexts";
 
 // Mock DashboardLayout so the popup editor's wiring (TabContext / EditingContext
 // / rowHeight) can be asserted without standing up react-grid-layout. The mock
@@ -17,12 +20,14 @@ jest.mock("components/dashboard/DashboardLayout", () => {
   const {
     TabContext: TC,
     EditingContext: EC,
+    DisabledEditingMovementContext: DEMC,
     // eslint-disable-next-line @typescript-eslint/no-require-imports
   } = require("components/contexts/Contexts");
 
   const MockDashboardLayout = ({ tabId, gridItems, rowHeight, responsive }) => {
     const tabCtx = React.useContext(TC);
     const editingCtx = React.useContext(EC);
+    const disabledMovementCtx = React.useContext(DEMC);
 
     const callNoops = () => {
       let didThrow = false;
@@ -50,6 +55,9 @@ jest.mock("components/dashboard/DashboardLayout", () => {
         <span data-testid="mock-dl-grid-items">{JSON.stringify(gridItems)}</span>
         <span data-testid="mock-dl-editing">
           {editingCtx?.isEditing ? "editing" : "not-editing"}
+        </span>
+        <span data-testid="mock-dl-disabled-movement">
+          {String(disabledMovementCtx?.disabledEditingMovement)}
         </span>
         <span data-testid="mock-dl-active-tab">
           {JSON.stringify(tabCtx?.getActiveTab?.() ?? null)}
@@ -434,6 +442,32 @@ test("synthetic EditingContext exposes isEditing=true regardless of host edit st
   expect(screen.getByTestId("mock-dl-editing").textContent).toBe("editing");
   // The host EditingContext was NOT mutated.
   expect(screen.getByTestId("host-editing").textContent).toBe("not-editing");
+});
+
+test("synthetic DisabledEditingMovementContext forces movement on regardless of host lock", () => {
+  // The host dashboard's "lock movement" toggle (DisabledEditingMovementContext
+  // = { disabledEditingMovement: true }) must NOT bleed into the popup
+  // editor — drag/resize handles are part of how the editor is operated, so
+  // the synthetic provider always pins disabledEditingMovement=false.
+  render(
+    <DisabledEditingMovementContext.Provider
+      value={{ disabledEditingMovement: true, setDisabledEditingMovement: () => {} }}
+    >
+      <PopupLayoutEditor
+        show={true}
+        onClose={jest.fn()}
+        onSave={jest.fn()}
+        popupConfig={samplePopupConfig({ gridItems: [baseGridItem()] })}
+        layerName="Layer A"
+      />
+    </DisabledEditingMovementContext.Provider>,
+  );
+
+  // Inside the editor the synthetic provider reports false even though the
+  // host wraps with disabledEditingMovement=true.
+  expect(screen.getByTestId("mock-dl-disabled-movement").textContent).toBe(
+    "false",
+  );
 });
 
 test("synthetic TabContext.getActiveTab returns the popup tab with current gridItems", () => {
