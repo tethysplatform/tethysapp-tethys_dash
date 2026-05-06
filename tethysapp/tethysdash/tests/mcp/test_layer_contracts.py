@@ -1817,3 +1817,136 @@ class TestResolveDynamicMapLayerPluginJsonError:
             result = _resolve_dynamic_map_layer_plugin("anything")
         assert "error" in result
         assert "Failed to fetch plugin metadata" in result["error"]
+
+
+# /ce:review #3 (P1): source_props per-source-type allowlist enforcement.
+# The tool description promised it; this commit added it.
+class TestSourcePropsAllowlist:
+    def test_unknown_source_prop_key_rejected(self):
+        # 'badKey' is not in WMS's available_source_properties allowlist
+        # (which includes url, params, attributions, projection).
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="WMS",
+            name="WMS Bad Source Key",
+            url="https://example.com/wms",
+            wms_layers="ws:layer",
+            source_props={"badKey": "value"},
+        )
+        assert "error" in result
+        assert "badKey" in result["error"]
+        assert "WMS" in result["error"]
+
+    def test_known_source_prop_key_accepted(self):
+        # 'projection' IS in WMS's allowlist.
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="WMS",
+            name="WMS Good Source Key",
+            url="https://example.com/wms",
+            wms_layers="ws:layer",
+            source_props={"projection": "EPSG:4326"},
+        )
+        assert "layer_update" in result
+
+    def test_unknown_source_prop_on_image_tile_rejected(self):
+        # Image Tile only allows url, attributions, projection.
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="Image Tile",
+            name="Image Tile Bad Key",
+            url="https://example.com/{z}/{x}/{y}.png",
+            source_props={"tileSize": 512},  # PMTiles-only key
+        )
+        assert "error" in result
+        assert "tileSize" in result["error"]
+
+
+# /ce:review #4 (P1): set_legend now accepts URL strings (mirrors set_style).
+class TestLegendUrlString:
+    def test_legend_url_string_persists(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="WMS",
+            name="WMS URL Legend",
+            url="https://example.com/wms",
+            wms_layers="ws:layer",
+            legend="https://example.com/legend.png",
+        )
+        layer = result["layer_update"]["layer"]
+        assert layer["legend"] == "https://example.com/legend.png"
+
+    def test_legend_invalid_string_still_rejected(self):
+        # A bare word with no slash is neither 'default' nor a URL.
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="WMS",
+            name="WMS Bad Legend",
+            url="https://example.com/wms",
+            wms_layers="ws:layer",
+            legend="garbage",
+        )
+        assert "error" in result
+
+
+# /ce:review #7 (P2): NaN/Infinity in numeric layer_props rejected at boundary.
+class TestLayerPropsRejectsNonFinite:
+    def test_nan_min_zoom_rejected(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="WMS",
+            name="WMS NaN MinZoom",
+            url="https://example.com/wms",
+            wms_layers="ws:layer",
+            layer_props={"minZoom": float("nan")},
+        )
+        assert "error" in result
+        assert "finite" in result["error"]
+
+    def test_infinity_max_resolution_rejected(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="WMS",
+            name="WMS Infinity MaxResolution",
+            url="https://example.com/wms",
+            wms_layers="ws:layer",
+            layer_props={"maxResolution": float("inf")},
+        )
+        assert "error" in result
+        assert "finite" in result["error"]
+
+    def test_negative_infinity_rejected(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="WMS",
+            name="WMS NegInf MinResolution",
+            url="https://example.com/wms",
+            wms_layers="ws:layer",
+            layer_props={"minResolution": float("-inf")},
+        )
+        assert "error" in result
+
+
+# /ce:review #9 (P2): add_dynamic_map_layer registered in always_visible.
+def test_add_dynamic_map_layer_in_always_visible():
+    """Pin the BM25 visibility config so the new tool isn't accidentally
+    dropped from always_visible during a future tool list refactor.
+
+    FastMCP stores the configured `always_visible` list under the
+    transform's private `_always_visible` attribute. Reading the
+    private attribute is acceptable here because the public BM25
+    transform API doesn't expose this list and the alternative is
+    parsing source — this test exists specifically to guard the
+    config value, so source-reading would defeat the purpose.
+    """
+    from tethysapp.tethysdash.mcp.tethysdash_mcp_server import mcp
+    flat = []
+    for t in mcp.transforms:
+        always = getattr(t, "_always_visible", None)
+        if always is not None:
+            flat.extend(list(always))
+    assert "add_dynamic_map_layer" in flat, (
+        "add_dynamic_map_layer must be in BM25 always_visible so the LLM "
+        "can find it for runtime-plugin queries; otherwise it competes "
+        "for one of max_results=5 BM25 slots."
+    )

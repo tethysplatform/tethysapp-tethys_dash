@@ -15,6 +15,7 @@ Connects to chatbox via MCP SSE transport on port 9001.
 """
 
 import logging
+import math
 import os
 import json
 import re
@@ -32,6 +33,7 @@ import requests as http_requests
 from tethysapp.tethysdash.plugin_helpers import (
     LAYER_PROPERTIES_ALLOWLIST,
     LayerConfigurationBuilder,
+    get_allowed_source_prop_keys,
 )
 from tethysapp.tethysdash.editable_schemas import (
     LLM_EDITABLE_PATHS,
@@ -57,6 +59,7 @@ mcp = FastMCP(
                 "create_variable_input",
                 "create_map_visualization",
                 "add_map_service_layer",
+                "add_dynamic_map_layer",
                 "patch_visualization",
                 "render_plugin",
                 "render_custom_visualization",
@@ -1104,6 +1107,12 @@ def add_map_service_layer(
         # without it, layer_props={"opacity": True} passes the (int, float)
         # check and persists `true` as the JSON value, which OpenLayers
         # treats as the boolean rather than the integer 1.
+        # NaN/Infinity check: float('nan') and float('inf') pass isinstance
+        # but produce invalid JSON (json.dumps emits NaN/Infinity literals
+        # that fail RFC-compliant parsers). Persisting them breaks the
+        # renderer downstream. Only opacity has a range guard inside the
+        # builder (set_opacity); the other 5 props have no finite-value
+        # check, so reject non-finite values at the boundary.
         for key, val in layer_props.items():
             expected = LAYER_PROPERTIES_ALLOWLIST[key]
             numeric_only = expected == (int, float) or expected in (int, float)
@@ -1114,6 +1123,13 @@ def add_map_service_layer(
                     "error": (
                         f"layer_props[{key!r}] must be of type "
                         f"{expected!r}; got {type(val).__name__}."
+                    )
+                }
+            if numeric_only and isinstance(val, float) and not math.isfinite(val):
+                return {
+                    "error": (
+                        f"layer_props[{key!r}] must be a finite number; "
+                        f"got {val!r}."
                     )
                 }
         # Conflict check.
@@ -1138,6 +1154,21 @@ def add_map_service_layer(
 
     if source_props is not None and not isinstance(source_props, dict):
         return {"error": "source_props must be a dict (or JSON-string dict)."}
+    if source_props:
+        # Per-source-type key allowlist: rejects keys absent from
+        # available_source_properties[source_type]['required'|'optional'].
+        # The tool description promises this validation; this enforces it.
+        # Symmetric with layer_props's LAYER_PROPERTIES_ALLOWLIST guard.
+        allowed_source_keys = get_allowed_source_prop_keys(source_type)
+        unknown_source_keys = set(source_props) - allowed_source_keys
+        if unknown_source_keys:
+            return {
+                "error": (
+                    f"source_props contains keys not in the {source_type!r} "
+                    f"allowlist: {sorted(unknown_source_keys)}. "
+                    f"Allowed: {sorted(allowed_source_keys)}"
+                )
+            }
 
     # ------------------------------------------------------------------
     # Phase 3: Delegate to LayerConfigurationBuilder. Builder owns
