@@ -1371,3 +1371,201 @@ class TestAdvancedMetadata:
         assert result["layer_update"]["layer"]["omittedPopupAttributes"] == {
             "WMS JSON-String Dicts": ["x"]
         }
+
+
+# Plan-005 B3 — add_dynamic_map_layer (runtime plugin tool).
+# Mocks the plugin-metadata resolver rather than the HTTP layer because
+# the HTTP fetch belongs to a separate concern (covered by integration
+# tests against the running Django server).
+class TestAddDynamicMapLayer:
+    @staticmethod
+    def _stub_plugin_resolver(source, plugin_metadata):
+        """Build a patcher that returns the given plugin_metadata dict for
+        the matching source, or {"error": ...} otherwise."""
+        def _stub(s):
+            if s == source:
+                return {"plugin": plugin_metadata}
+            return {"error": f"Unknown plugin source: {s!r}"}
+        return _stub
+
+    def test_runtime_plugin_returns_pluginsource_layer(self):
+        from tethysapp.tethysdash.mcp.tethysdash_mcp_server import (
+            add_dynamic_map_layer,
+        )
+        plugin = {
+            "source": "streamflow_gauges",
+            "type": "map_layer",
+            "dynamic_map_layer": True,
+        }
+        with patch(
+            "tethysapp.tethysdash.mcp.tethysdash_mcp_server."
+            "_resolve_dynamic_map_layer_plugin",
+            side_effect=self._stub_plugin_resolver("streamflow_gauges", plugin),
+        ):
+            result = add_dynamic_map_layer(
+                map_uuid=MAP_UUID,
+                source="streamflow_gauges",
+                name="Gauges",
+                args={"bbox": "-100,30,-90,40"},
+            )
+        assert "layer_update" in result
+        layer = result["layer_update"]["layer"]
+        plugin_block = layer["configuration"]["props"]["pluginSource"]
+        assert plugin_block["source"] == "streamflow_gauges"
+        assert plugin_block["args"] == {"bbox": "-100,30,-90,40"}
+        # The scaffold is an empty FeatureCollection persisted at source.geojson.
+        source_obj = layer["configuration"]["props"]["source"]
+        assert source_obj["geojson"]["type"] == "FeatureCollection"
+        assert source_obj["geojson"]["features"] == []
+
+    def test_args_none_coerced_to_empty_dict(self):
+        from tethysapp.tethysdash.mcp.tethysdash_mcp_server import (
+            add_dynamic_map_layer,
+        )
+        plugin = {
+            "source": "no_args_plugin",
+            "type": "map_layer",
+            "dynamic_map_layer": True,
+        }
+        with patch(
+            "tethysapp.tethysdash.mcp.tethysdash_mcp_server."
+            "_resolve_dynamic_map_layer_plugin",
+            side_effect=self._stub_plugin_resolver("no_args_plugin", plugin),
+        ):
+            result = add_dynamic_map_layer(
+                map_uuid=MAP_UUID,
+                source="no_args_plugin",
+                name="No Args",
+                args=None,
+            )
+        layer = result["layer_update"]["layer"]
+        assert layer["configuration"]["props"]["pluginSource"]["args"] == {}
+
+    def test_args_json_string_coerced(self):
+        from tethysapp.tethysdash.mcp.tethysdash_mcp_server import (
+            add_dynamic_map_layer,
+        )
+        plugin = {
+            "source": "string_args_plugin",
+            "type": "map_layer",
+            "dynamic_map_layer": True,
+        }
+        with patch(
+            "tethysapp.tethysdash.mcp.tethysdash_mcp_server."
+            "_resolve_dynamic_map_layer_plugin",
+            side_effect=self._stub_plugin_resolver("string_args_plugin", plugin),
+        ):
+            result = add_dynamic_map_layer(
+                map_uuid=MAP_UUID,
+                source="string_args_plugin",
+                name="String Args",
+                args='{"bbox": "0,0,10,10"}',
+            )
+        layer = result["layer_update"]["layer"]
+        assert layer["configuration"]["props"]["pluginSource"]["args"] == {
+            "bbox": "0,0,10,10"
+        }
+
+    def test_variable_template_preserved_verbatim(self):
+        from tethysapp.tethysdash.mcp.tethysdash_mcp_server import (
+            add_dynamic_map_layer,
+        )
+        plugin = {
+            "source": "gauge_plugin",
+            "type": "map_layer",
+            "dynamic_map_layer": True,
+        }
+        with patch(
+            "tethysapp.tethysdash.mcp.tethysdash_mcp_server."
+            "_resolve_dynamic_map_layer_plugin",
+            side_effect=self._stub_plugin_resolver("gauge_plugin", plugin),
+        ):
+            result = add_dynamic_map_layer(
+                map_uuid=MAP_UUID,
+                source="gauge_plugin",
+                name="Gauges",
+                args={"gauge_id": "${GaugeID}"},
+            )
+        layer = result["layer_update"]["layer"]
+        # Verbatim — no interpolation at persist time.
+        assert (
+            layer["configuration"]["props"]["pluginSource"]["args"]["gauge_id"]
+            == "${GaugeID}"
+        )
+
+    def test_non_map_layer_plugin_rejected(self):
+        from tethysapp.tethysdash.mcp.tethysdash_mcp_server import (
+            add_dynamic_map_layer,
+            _resolve_dynamic_map_layer_plugin as _real,
+        )
+        # Use the real resolver wrapped to return a non-map-layer result.
+        with patch(
+            "tethysapp.tethysdash.mcp.tethysdash_mcp_server."
+            "_resolve_dynamic_map_layer_plugin",
+            return_value={
+                "error": (
+                    "Plugin 'plotly_chart' is type 'plotly'; "
+                    "add_dynamic_map_layer requires type=='map_layer'."
+                )
+            },
+        ):
+            result = add_dynamic_map_layer(
+                map_uuid=MAP_UUID,
+                source="plotly_chart",
+                name="Wrong Type",
+            )
+        assert "error" in result
+        assert "map_layer" in result["error"]
+
+    def test_static_map_layer_plugin_rejected(self):
+        from tethysapp.tethysdash.mcp.tethysdash_mcp_server import (
+            add_dynamic_map_layer,
+        )
+        with patch(
+            "tethysapp.tethysdash.mcp.tethysdash_mcp_server."
+            "_resolve_dynamic_map_layer_plugin",
+            return_value={
+                "error": (
+                    "Plugin 'static_overlay' is a static map_layer plugin "
+                    "(dynamic_map_layer=False)."
+                )
+            },
+        ):
+            result = add_dynamic_map_layer(
+                map_uuid=MAP_UUID,
+                source="static_overlay",
+                name="Static Overlay",
+            )
+        assert "error" in result
+        assert "static" in result["error"].lower()
+
+    def test_unknown_source_rejected(self):
+        from tethysapp.tethysdash.mcp.tethysdash_mcp_server import (
+            add_dynamic_map_layer,
+        )
+        with patch(
+            "tethysapp.tethysdash.mcp.tethysdash_mcp_server."
+            "_resolve_dynamic_map_layer_plugin",
+            return_value={"error": "Unknown plugin source: 'no_such_plugin'"},
+        ):
+            result = add_dynamic_map_layer(
+                map_uuid=MAP_UUID,
+                source="no_such_plugin",
+                name="No Such",
+            )
+        assert "error" in result
+        assert "Unknown" in result["error"]
+
+    def test_args_non_dict_after_coercion_rejected(self):
+        from tethysapp.tethysdash.mcp.tethysdash_mcp_server import (
+            add_dynamic_map_layer,
+        )
+        # JSON-string that decodes to a list, not a dict — boundary rejects.
+        result = add_dynamic_map_layer(
+            map_uuid=MAP_UUID,
+            source="anything",
+            name="Bad Args",
+            args="[1, 2, 3]",
+        )
+        assert "error" in result
+        assert "dict" in result["error"]

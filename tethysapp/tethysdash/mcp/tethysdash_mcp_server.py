@@ -1671,6 +1671,121 @@ def list_intake_plugins() -> Dict[str, Any]:
         return {"error": f"Failed to fetch intake plugins from TethysDash: {e}"}
 
 
+def _resolve_dynamic_map_layer_plugin(source: str) -> Dict[str, Any]:
+    """Look up a runtime map-layer plugin by source name.
+
+    Returns a dict with one of:
+      - {"plugin": <metadata_dict>}: the source resolved to a plugin
+        flagged as a runtime map-layer plugin.
+      - {"error": <message>}: source unknown OR resolved plugin is not
+        a runtime map-layer (wrong type, or dynamic_map_layer=False).
+    """
+    try:
+        response = http_requests.get(
+            f"{TETHYSDASH_BASE_URL}/visualizations/list/",
+            timeout=10,
+        )
+        response.raise_for_status()
+    except http_requests.RequestException as exc:
+        return {"error": f"Failed to fetch plugin metadata: {exc}"}
+
+    data = response.json()
+    groups = data.get("visualizations", []) if isinstance(data, dict) else []
+
+    for group in groups:
+        for opt in group.get("options", []) if isinstance(group, dict) else []:
+            if opt.get("source") == source:
+                if opt.get("type") != "map_layer":
+                    return {
+                        "error": (
+                            f"Plugin {source!r} is type {opt.get('type')!r}; "
+                            f"add_dynamic_map_layer requires type=='map_layer'."
+                        )
+                    }
+                if not opt.get("dynamic_map_layer"):
+                    return {
+                        "error": (
+                            f"Plugin {source!r} is a static map_layer plugin "
+                            f"(dynamic_map_layer=False). Use add_map_service_layer "
+                            f"with the plugin's pre-baked layer config instead."
+                        )
+                    }
+                return {"plugin": opt}
+
+    return {"error": f"Unknown plugin source: {source!r}"}
+
+
+@mcp.tool(
+    name="add_dynamic_map_layer",
+    description=(
+        "Add a runtime plugin-backed map layer to an existing map. The plugin "
+        "must be installed and flagged as a runtime map-layer plugin "
+        "(type='map_layer' AND dynamic_map_layer=True). The MCP tool persists "
+        "a GeoJSON scaffold layer with a pluginSource block; the plugin's "
+        "fetch_features method is invoked at render time. Use list_intake_plugins "
+        "to discover available plugin source names; only plugins with type "
+        "'map_layer' are accepted here."
+    ),
+    tags=["map", "layer", "plugin", "runtime"],
+)
+def add_dynamic_map_layer(
+    map_uuid: Annotated[str, Field(description="UUID returned by create_map_visualization")],
+    source: Annotated[str, Field(description=(
+        "Intake plugin source name (the 'source' field from list_intake_plugins). "
+        "Must resolve to a plugin with type=='map_layer' and "
+        "dynamic_map_layer=True; other plugins are rejected."
+    ))],
+    name: Annotated[str, Field(description="Display name for the layer in the layer control")],
+    args: Annotated[Optional[Union[Dict[str, Any], str]], Field(description=(
+        "Plugin args dict passed to fetch_features at render time. Supports "
+        "${variable_name} syntax for dashboard variable references — these "
+        "are preserved verbatim at persist time. Pass None or omit when the "
+        "plugin takes no args."
+    ))] = None,
+) -> Dict[str, Any]:
+    """Add a runtime plugin-backed map layer.
+
+    Builder constructs a GeoJSON scaffold (empty FeatureCollection if no
+    inline data) with configuration.props.pluginSource set, matching the
+    persisted shape the UI's runtime-plugin selector produces. Render-time
+    fetch failures surface through Map.js's existing visualization-error
+    path (no new error handling here).
+    """
+    LOGGER.info(
+        "add_dynamic_map_layer: map_uuid=%s, source=%s, name=%s",
+        map_uuid, source, name,
+    )
+
+    # Coerce JSON-string args (consistent with the existing dict-parameter
+    # coercion pattern used across these tools).
+    if isinstance(args, str):
+        args = json.loads(args)
+    # set_plugin_source raises on non-dict args; coerce None → {} at the
+    # boundary so callers don't need to know that detail.
+    if args is None:
+        args = {}
+    if not isinstance(args, dict):
+        return {"error": "args must be a dict (or JSON-string dict) or None."}
+
+    resolution = _resolve_dynamic_map_layer_plugin(source)
+    if "error" in resolution:
+        return resolution
+
+    try:
+        builder = LayerConfigurationBuilder(name, "GeoJSON")
+        builder.set_plugin_source(source, args)
+        layer_config = builder.build()
+    except ValueError as err:
+        return {"error": str(err)}
+
+    return {
+        "layer_update": {
+            "map_uuid": map_uuid,
+            "layer": layer_config,
+        }
+    }
+
+
 @mcp.tool(
     name="render_plugin",
     description=(
