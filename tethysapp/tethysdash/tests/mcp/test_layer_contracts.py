@@ -1819,6 +1819,193 @@ class TestResolveDynamicMapLayerPluginJsonError:
         assert "Failed to fetch plugin metadata" in result["error"]
 
 
+# Todo #006: direct unit tests for _resolve_dynamic_map_layer_plugin's
+# four internal branches. Previously every TestAddDynamicMapLayer test
+# mocked the resolver at its boundary; the helper's internal logic
+# (HTTP fetch, group → option iteration, type / dynamic-flag checks,
+# and the four distinct error message strings) had only the JSON-error
+# path directly covered. These tests pin the remaining branches.
+class TestResolveDynamicMapLayerPluginBranches:
+    @staticmethod
+    def _make_response(payload):
+        """Mock a successful 200 response that .json() returns `payload`."""
+        import unittest.mock as mock
+        resp = mock.MagicMock()
+        resp.raise_for_status.return_value = None
+        resp.json.return_value = payload
+        return resp
+
+    def test_request_exception_returns_clean_error(self):
+        """Branch 1: HTTP-level failure (network unreachable, DNS fail,
+        connection refused). RequestException must be caught and
+        surfaced as the standard MCP error envelope."""
+        from tethysapp.tethysdash.mcp.tethysdash_mcp_server import (
+            _resolve_dynamic_map_layer_plugin,
+        )
+        import requests as real_requests
+        with patch(
+            "tethysapp.tethysdash.mcp.tethysdash_mcp_server."
+            "http_requests.get",
+            side_effect=real_requests.exceptions.ConnectionError(
+                "Connection refused"
+            ),
+        ):
+            result = _resolve_dynamic_map_layer_plugin("any_plugin")
+        assert "error" in result
+        assert "Failed to fetch plugin metadata" in result["error"]
+        assert "Connection refused" in result["error"]
+
+    def test_source_absent_from_all_groups_returns_unknown_error(self):
+        """Branch 2: 200 response, well-formed payload, but the
+        requested source name doesn't appear in any group. Distinct
+        error string from the wrong-type / static-plugin cases so the
+        LLM can disambiguate."""
+        from tethysapp.tethysdash.mcp.tethysdash_mcp_server import (
+            _resolve_dynamic_map_layer_plugin,
+        )
+        payload = {
+            "visualizations": [
+                {
+                    "label": "Group A",
+                    "options": [
+                        {
+                            "source": "some_other_plugin",
+                            "type": "map_layer",
+                            "dynamic_map_layer": True,
+                        },
+                    ],
+                }
+            ]
+        }
+        with patch(
+            "tethysapp.tethysdash.mcp.tethysdash_mcp_server."
+            "http_requests.get",
+            return_value=self._make_response(payload),
+        ):
+            result = _resolve_dynamic_map_layer_plugin("missing_plugin")
+        assert "error" in result
+        assert "Unknown plugin source" in result["error"]
+        assert "missing_plugin" in result["error"]
+
+    def test_wrong_type_plugin_returns_type_specific_error(self):
+        """Branch 3: source resolves but plugin type != 'map_layer'.
+        Error must name the actual type so the LLM understands why
+        the call was rejected."""
+        from tethysapp.tethysdash.mcp.tethysdash_mcp_server import (
+            _resolve_dynamic_map_layer_plugin,
+        )
+        payload = {
+            "visualizations": [
+                {
+                    "label": "Group",
+                    "options": [
+                        {
+                            "source": "plotly_plugin",
+                            "type": "plotly",
+                            "dynamic_map_layer": False,
+                        },
+                    ],
+                }
+            ]
+        }
+        with patch(
+            "tethysapp.tethysdash.mcp.tethysdash_mcp_server."
+            "http_requests.get",
+            return_value=self._make_response(payload),
+        ):
+            result = _resolve_dynamic_map_layer_plugin("plotly_plugin")
+        assert "error" in result
+        assert "type 'plotly'" in result["error"]
+        assert "type=='map_layer'" in result["error"]
+
+    def test_static_map_layer_plugin_returns_static_specific_error(self):
+        """Branch 4: source resolves, type is 'map_layer', but
+        dynamic_map_layer flag is False — caller wanted a runtime
+        plugin, this is a static one. Error must clearly distinguish
+        from the wrong-type case."""
+        from tethysapp.tethysdash.mcp.tethysdash_mcp_server import (
+            _resolve_dynamic_map_layer_plugin,
+        )
+        payload = {
+            "visualizations": [
+                {
+                    "label": "Group",
+                    "options": [
+                        {
+                            "source": "static_overlay",
+                            "type": "map_layer",
+                            "dynamic_map_layer": False,
+                        },
+                    ],
+                }
+            ]
+        }
+        with patch(
+            "tethysapp.tethysdash.mcp.tethysdash_mcp_server."
+            "http_requests.get",
+            return_value=self._make_response(payload),
+        ):
+            result = _resolve_dynamic_map_layer_plugin("static_overlay")
+        assert "error" in result
+        assert "static map_layer plugin" in result["error"]
+        assert "add_map_service_layer" in result["error"]
+
+    def test_happy_path_returns_plugin_metadata(self):
+        """Sanity: when the plugin resolves AND has the right type +
+        flag, returns {'plugin': <metadata>}. Pins the success
+        envelope shape."""
+        from tethysapp.tethysdash.mcp.tethysdash_mcp_server import (
+            _resolve_dynamic_map_layer_plugin,
+        )
+        plugin_metadata = {
+            "source": "good_plugin",
+            "type": "map_layer",
+            "dynamic_map_layer": True,
+            "label": "Streamflow Gauges",
+        }
+        payload = {
+            "visualizations": [
+                {"label": "Group", "options": [plugin_metadata]}
+            ]
+        }
+        with patch(
+            "tethysapp.tethysdash.mcp.tethysdash_mcp_server."
+            "http_requests.get",
+            return_value=self._make_response(payload),
+        ):
+            result = _resolve_dynamic_map_layer_plugin("good_plugin")
+        assert "error" not in result
+        assert result["plugin"] is plugin_metadata
+
+    def test_iteration_traverses_multiple_groups(self):
+        """The Django response groups plugins; the resolver flattens.
+        Pin that a plugin in the second group is found just like one
+        in the first."""
+        from tethysapp.tethysdash.mcp.tethysdash_mcp_server import (
+            _resolve_dynamic_map_layer_plugin,
+        )
+        target = {
+            "source": "second_group_plugin",
+            "type": "map_layer",
+            "dynamic_map_layer": True,
+        }
+        payload = {
+            "visualizations": [
+                {"label": "First", "options": [
+                    {"source": "first_group_plugin", "type": "plotly"}
+                ]},
+                {"label": "Second", "options": [target]},
+            ]
+        }
+        with patch(
+            "tethysapp.tethysdash.mcp.tethysdash_mcp_server."
+            "http_requests.get",
+            return_value=self._make_response(payload),
+        ):
+            result = _resolve_dynamic_map_layer_plugin("second_group_plugin")
+        assert result.get("plugin") is target
+
+
 # /ce:review #3 (P1): source_props per-source-type allowlist enforcement.
 # The tool description promised it; this commit added it.
 class TestSourcePropsAllowlist:
