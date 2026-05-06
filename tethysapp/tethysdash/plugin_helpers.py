@@ -885,6 +885,31 @@ class LayerConfigurationBuilder:
                 f"{self.layer_source} is not currently configured to return attributes"
             )
 
+    @staticmethod
+    def _fetch_json(url: str, timeout: int = 10) -> dict:
+        """Fetch + parse JSON from a remote URL with a hard timeout.
+
+        Centralizes the get → raise_for_status → .json() pattern shared by
+        the four ArcGIS / map-service attribute fetchers below. Closes
+        three pre-existing gaps in one helper:
+
+          - Per-call timeout (a slow upstream service no longer pins a
+            Django/MCP worker thread indefinitely).
+          - raise_for_status() before .json() so 4xx/5xx HTTP responses
+            surface as HTTPError, not the downstream JSONDecodeError that
+            an HTML error body would produce.
+          - Single edit site for future hardening (retries, header
+            injection, etc.).
+
+        Raises whatever requests.get + .json() would raise — caller
+        decides how to wrap. Default timeout matches
+        _resolve_dynamic_map_layer_plugin's value in mcp/tethysdash_mcp_server.py
+        for consistency across server-side outbound fetches.
+        """
+        response = requests.get(url, timeout=timeout)
+        response.raise_for_status()
+        return response.json()
+
     def _get_arcgis_layer_names(self, url):
         """
         Fetch the list of layer names from an ArcGIS Map or Image Service.
@@ -898,15 +923,14 @@ class LayerConfigurationBuilder:
         Raises:
             ValueError: If `url` is not provided.
             requests.HTTPError: If the HTTP request to the ArcGIS service fails.
+            requests.Timeout: If the service does not respond within the timeout.
             requests.RequestException: For other network-related errors.
         """
         if not url:
             raise ValueError(
                 "url must be provided. Set using .set_source_properties(url='some_url')"
             )
-        response = requests.get(f"{url}?f=json")
-        response.raise_for_status()
-        data = response.json()
+        data = self._fetch_json(f"{url}?f=json")
         return [layer["name"] for layer in data.get("layers", [])]
 
     def _get_arcgis_image_attributes(self, url):
@@ -927,20 +951,25 @@ class LayerConfigurationBuilder:
         Raises:
             ValueError: If `url` is not provided.
             requests.HTTPError: If a request to the ArcGIS service or layer fails.
+            requests.Timeout: If a request does not complete within the timeout.
             requests.RequestException: For other network-related errors.
         """
         if not url:
             raise ValueError(
                 "url must be provided. Set using .set_source_properties(url='some_url')"
             )
-        response = requests.get(f"{url}?f=json")
-        response.raise_for_status()
-        data = response.json()
+        data = self._fetch_json(f"{url}?f=json")
         attributes = {}
         for index, layer in enumerate(data.get("layers", [])):
             name = layer["name"]
-            layer_url = f"{url}/{index}?f=json"
-            layer_data = requests.get(layer_url).json()
+            # Use the layer's own `id` field, not the loop position, so
+            # services with non-contiguous layer IDs (e.g., [0, 5, 10]
+            # after deletions) hit the right endpoints. Falls back to
+            # `index` if a layer object lacks `id` (defensive — ArcGIS
+            # metadata shape variation).
+            layer_id = layer.get("id", index)
+            layer_url = f"{url}/{layer_id}?f=json"
+            layer_data = self._fetch_json(layer_url)
             fields = [
                 {"name": f["name"], "alias": f["alias"]}
                 for f in layer_data.get("fields", [])
@@ -981,9 +1010,7 @@ class LayerConfigurationBuilder:
             )
 
         layer_url = f"{url.rstrip('/')}/{layer_number}?f=json"
-        response = requests.get(layer_url)
-        response.raise_for_status()
-        data = response.json()
+        data = self._fetch_json(layer_url)
         fields = [
             {"name": f["name"], "alias": f["alias"]} for f in data.get("fields", [])
         ]
@@ -1059,7 +1086,9 @@ class LayerConfigurationBuilder:
                 "typename": layer,
             }
 
-            response = requests.get(url, params=query_params)
+            # Timeout matches _fetch_json's default; WMS XML responses
+            # share the same risk profile as the ArcGIS JSON ones.
+            response = requests.get(url, params=query_params, timeout=10)
             try:
                 response.raise_for_status()
             except requests.HTTPError as e:

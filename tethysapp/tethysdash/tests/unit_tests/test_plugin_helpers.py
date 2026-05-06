@@ -27,7 +27,8 @@ def test_layer_configuration_builder_ESRI_map(mocker):
     layer_names = builder.get_layer_names()
 
     mock_requests_get.assert_called_once_with(
-        "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer?f=json"  # noqa: E501
+        "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer?f=json",  # noqa: E501
+        timeout=10,
     )
     assert layer_names == ["some layer"]
 
@@ -254,7 +255,8 @@ def test_layer_configuration_builder_ESRI_feature(mocker):
     layer_attributes = builder.get_layer_attributes()
 
     mock_requests_get.assert_called_once_with(
-        "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_based_5day_max_streamflow/FeatureServer/0?f=json"  # noqa: E501
+        "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_based_5day_max_streamflow/FeatureServer/0?f=json",  # noqa: E501
+        timeout=10,
     )
     assert layer_attributes == {layer_name: [{"alias": "Field", "name": "field"}]}
 
@@ -1621,3 +1623,100 @@ def test_set_geojson_accepts_url_string():
     assert source["geojson"] == url
     # And not nested inside source.props (rule 6).
     assert "geojson" not in source.get("props", {})
+
+
+# Todos #001/#002/#003: ArcGIS attribute-fetch hardening.
+# Pin the three new behaviors (correct layer ID, timeout, raise_for_status).
+
+
+def test_arcgis_image_attributes_uses_layer_id_not_enumerate_index(mocker):
+    """Todo #001: services with non-contiguous layer IDs (e.g. [0, 5, 10]
+    after deletions) must hit /0, /5, /10 — NOT /0, /1, /2 (the loop
+    position). Pre-PR code used enumerate(layers); now uses
+    layer.get('id', index)."""
+    mock_get = mocker.patch("tethysapp.tethysdash.plugin_helpers.requests.get")
+    response = mock_get.return_value
+    response.raise_for_status.return_value = None
+    response.json.side_effect = [
+        # Service-info response — non-contiguous IDs.
+        {"layers": [
+            {"id": 0, "name": "first"},
+            {"id": 5, "name": "skip-to-5"},
+        ]},
+        # Per-layer field-info responses (one per layer).
+        {"fields": [{"name": "f0", "alias": "F0"}]},
+        {"fields": [{"name": "f5", "alias": "F5"}]},
+    ]
+
+    builder = LayerConfigurationBuilder("test", "ESRI Image and Map Service")
+    builder.set_source_properties(url="https://example.com/MapServer")
+    builder.get_layer_attributes()
+
+    # Three calls: 1 service-info + 2 per-layer.
+    assert mock_get.call_count == 3
+    fetched_urls = [call.args[0] for call in mock_get.call_args_list]
+    assert fetched_urls[1].endswith("/0?f=json"), fetched_urls
+    # The critical one — would be /1 with the buggy code.
+    assert fetched_urls[2].endswith("/5?f=json"), fetched_urls
+
+
+def test_arcgis_layer_names_passes_timeout(mocker):
+    """Todo #002: every requests.get must include timeout=10."""
+    mock_get = mocker.patch("tethysapp.tethysdash.plugin_helpers.requests.get")
+    mock_get.return_value.raise_for_status.return_value = None
+    mock_get.return_value.json.return_value = {"layers": []}
+    builder = LayerConfigurationBuilder("t", "ESRI Image and Map Service")
+    builder.set_source_properties(url="https://example.com/MapServer")
+    builder.get_layer_names()
+    # Single call with timeout kwarg.
+    assert mock_get.call_args.kwargs.get("timeout") == 10
+
+
+def test_arcgis_per_layer_4xx_raises_httperror_not_jsondecode(mocker):
+    """Todo #003: per-layer fetch must call raise_for_status() so a
+    404/500 with HTML body surfaces as HTTPError, not the
+    downstream JSONDecodeError that .json() would produce on HTML."""
+    mock_get = mocker.patch("tethysapp.tethysdash.plugin_helpers.requests.get")
+    # First call (service info) succeeds; second call (per-layer) 404s.
+    service_resp = mocker.MagicMock()
+    service_resp.raise_for_status.return_value = None
+    service_resp.json.return_value = {"layers": [{"id": 0, "name": "x"}]}
+    per_layer_resp = mocker.MagicMock()
+    per_layer_resp.raise_for_status.side_effect = requests.HTTPError(
+        "404 Not Found"
+    )
+    mock_get.side_effect = [service_resp, per_layer_resp]
+    builder = LayerConfigurationBuilder("t", "ESRI Image and Map Service")
+    builder.set_source_properties(url="https://example.com/MapServer")
+    with pytest.raises(requests.HTTPError, match="404"):
+        builder.get_layer_attributes()
+
+
+def test_arcgis_feature_service_passes_timeout(mocker):
+    """Todo #002 (continued): ESRI Feature Service path also gets timeout."""
+    mock_get = mocker.patch("tethysapp.tethysdash.plugin_helpers.requests.get")
+    mock_get.return_value.raise_for_status.return_value = None
+    mock_get.return_value.json.return_value = {"fields": []}
+    builder = LayerConfigurationBuilder("t", "ESRI Feature Service")
+    builder.set_source_properties(
+        url="https://example.com/FeatureServer", layer=0
+    )
+    builder.get_layer_attributes()
+    assert mock_get.call_args.kwargs.get("timeout") == 10
+
+
+def test_wms_attributes_passes_timeout(mocker):
+    """Todo #002 (continued): WMS path also gets timeout (XML response,
+    not JSON, but the same risk profile). Uses the same XML schema
+    fixture as test_layer_configuration_builder_WMS to avoid
+    re-crafting the parser-compatible shape."""
+    mock_get = mocker.patch("tethysapp.tethysdash.plugin_helpers.requests.get")
+    mock_get.return_value.raise_for_status.return_value = None
+    mock_get.return_value.text = '<?xml version="1.0" encoding="UTF-8"?><xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:gml="http://www.opengis.net/gml/3.2" xmlns:topp="http://www.openplans.org/topp" xmlns:wfs="http://www.opengis.net/wfs/2.0" elementFormDefault="qualified" targetNamespace="http://www.openplans.org/topp"><xsd:import namespace="http://www.opengis.net/gml/3.2" schemaLocation="https://ahocevar.com/geoserver/schemas/gml/3.2.1/gml.xsd"/><xsd:complexType name="statesType"><xsd:complexContent><xsd:extension base="gml:AbstractFeatureType"><xsd:sequence><xsd:element maxOccurs="1" minOccurs="0" name="the_geom" nillable="true" type="gml:MultiSurfacePropertyType"/><xsd:element maxOccurs="1" minOccurs="0" name="STATE_NAME" nillable="true" type="xsd:string"/></xsd:sequence></xsd:extension></xsd:complexContent></xsd:complexType><xsd:element name="states" substitutionGroup="gml:AbstractFeature" type="topp:statesType"/></xsd:schema>'  # noqa: E501
+    builder = LayerConfigurationBuilder("t", "WMS")
+    builder.set_source_properties(
+        url="https://example.com/wms",
+        params={"LAYERS": "topp:states"},
+    )
+    builder.get_layer_attributes()
+    assert mock_get.call_args.kwargs.get("timeout") == 10
