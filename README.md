@@ -31,6 +31,8 @@ This app was created using an experimental Tethys + React app scaffold. It uses 
 
 ## Development Installation
 
+> **Tip:** If you only need to work on the Python / Django / Tethys backend (no React work), there is a self-contained devcontainer at [`.devcontainer/`](./.devcontainer/README.md) that handles the entire setup — pip-only, SQLite-only, single Dockerfile. Open the folder in VS Code or any devcontainer-aware editor and the rest is automatic.
+
 You need to install both the Tethys dependencies and the node dependencies:
 
 1. If creating a new python environment, create and activate it
