@@ -380,6 +380,45 @@ def validate_feature_collection(data):
     return True
 
 
+# Mirror of frontend `layerPropertiesOptions` (reactapp/components/map/utilities.js).
+# Maps each layer-prop key to its accepted Python value type(s). The MCP layer's
+# `layer_props` advanced dict is validated against this allowlist — keys not
+# present are rejected; values failing isinstance() are rejected.
+#
+# Drift guard: tests/mcp/test_source_metadata_drift.py asserts the keys here
+# are a superset of `Object.keys(layerPropertiesOptions)` (snapshotted via
+# the JS-side jest helper into tests/fixtures/source_properties_options.json).
+LAYER_PROPERTIES_ALLOWLIST = {
+    "opacity": (int, float),
+    "minResolution": (int, float),
+    "maxResolution": (int, float),
+    "minZoom": (int, float),
+    "maxZoom": (int, float),
+    "minZoomQuery": (int, float),
+}
+
+
+def get_allowed_source_prop_keys(source_type: str) -> set:
+    """Return the set of allowed top-level source-prop keys for the given
+    source type, derived from `available_source_properties`.
+
+    Combines `required` and `optional` keys. Used by the MCP layer's
+    `source_props` advanced-dict validation: keys outside this set are
+    rejected at the MCP boundary instead of being silently passed to
+    the builder.
+
+    Returns an empty set for unknown source types (caller is expected to
+    have already validated source_type via VALID_SOURCE_TYPES).
+    """
+    spec = available_source_properties.get(source_type)
+    if not spec:
+        return set()
+    keys = set()
+    keys.update((spec.get("required") or {}).keys())
+    keys.update((spec.get("optional") or {}).keys())
+    return keys
+
+
 available_source_properties = {
     "ESRI Image and Map Service": {
         "required": {"url": "ArcGIS Rest service URL"},
@@ -1164,6 +1203,9 @@ class LayerConfigurationBuilder:
 
         Accepts one of the following:
         - The string "default" to apply a default legend.
+        - A URL string (any string containing "/") for a hosted legend image.
+          The frontend renderer fetches the URL at render time. Mirrors
+          set_style's URL-string acceptance for symmetry.
         - `None` to remove the legend from the configuration.
         - A dictionary defining a custom legend structure.
 
@@ -1174,7 +1216,7 @@ class LayerConfigurationBuilder:
 
         Args:
             legend (str | dict | None): Legend configuration. Must be either "default",
-                None, or a dictionary with required keys and structure.
+                a URL string, None, or a dictionary with required keys and structure.
 
         Returns:
             self: Returns the current instance for method chaining.
@@ -1187,12 +1229,24 @@ class LayerConfigurationBuilder:
             self.config["legend"] = legend
             return self
 
+        # URL-string path: any string containing "/" is treated as a URL the
+        # frontend will fetch at render time. Same shape as set_style's
+        # string handling — keeps the two parameters symmetric.
+        if isinstance(legend, str) and "/" in legend:
+            self.config["legend"] = legend
+            return self
+
         if legend is None:
-            del self.config["legend"]
+            # pop() over del so calling set_legend(None) on a fresh builder
+            # (where 'legend' has never been set) is idempotent rather than
+            # raising KeyError.
+            self.config.pop("legend", None)
             return self
 
         if not isinstance(legend, dict):
-            raise ValueError("legend must be 'default', None, or a valid dictionary.")
+            raise ValueError(
+                "legend must be 'default', a URL string, None, or a valid dictionary."
+            )
 
         if "title" not in legend or "items" not in legend:
             raise ValueError("a dictionary legend must have a title and items key")

@@ -15,6 +15,7 @@ Connects to chatbox via MCP SSE transport on port 9001.
 """
 
 import logging
+import math
 import os
 import json
 import re
@@ -29,7 +30,11 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import Response as StarletteResponse
 import requests as http_requests
 
-from tethysapp.tethysdash.plugin_helpers import LayerConfigurationBuilder
+from tethysapp.tethysdash.plugin_helpers import (
+    LAYER_PROPERTIES_ALLOWLIST,
+    LayerConfigurationBuilder,
+    get_allowed_source_prop_keys,
+)
 from tethysapp.tethysdash.editable_schemas import (
     LLM_EDITABLE_PATHS,
     is_path_allowed,
@@ -54,6 +59,7 @@ mcp = FastMCP(
                 "create_variable_input",
                 "create_map_visualization",
                 "add_map_service_layer",
+                "add_dynamic_map_layer",
                 "patch_visualization",
                 "render_plugin",
                 "render_custom_visualization",
@@ -636,6 +642,32 @@ def create_map_visualization(
 # Map service layer tool
 # ---------------------------------------------------------------------------
 
+# Plan-005 S2 cap: cap inline GeoJSON payloads at the MCP boundary to
+# prevent an LLM or chatbox user from persisting a multi-MB feature
+# collection that gets re-served on every dashboard fetch. Operators
+# can raise the limits via env vars (e.g. for legitimate large
+# datasets); defaults are conservative.
+def _env_int(name: str, default: int) -> int:
+    """Parse an integer from env var; fall back to default with a warning
+    if the env value is missing or non-numeric. Avoids crashing module
+    import on operator misconfiguration (e.g. setting MAX_BYTES='5mb')."""
+    raw = os.environ.get(name)
+    if raw is None or raw == "":
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        LOGGER.warning(
+            "Env var %s=%r is not a valid integer; using default %d.",
+            name, raw, default,
+        )
+        return default
+
+
+GEOJSON_MAX_BYTES = _env_int("TETHYSDASH_MCP_GEOJSON_MAX_BYTES", 5 * 1024 * 1024)
+GEOJSON_MAX_FEATURES = _env_int("TETHYSDASH_MCP_GEOJSON_MAX_FEATURES", 10000)
+
+
 VALID_SOURCE_TYPES = [
     "WMS",
     "ESRI Image and Map Service",
@@ -698,10 +730,13 @@ def _resolve_esri_layer_name(url: str, layer_id: Optional[str]) -> Optional[str]
 @mcp.tool(
     name="add_map_service_layer",
     description=(
-        "Add a WMS, ESRI, GeoJSON, KML, or tile service layer to an existing "
-        "map created by create_map_visualization. When the layer comes from "
-        "a feature lookup, fetch the layer name and bounding box from a "
-        "data-source tool first, then pass them through to this call."
+        "Add a WMS, ESRI, GeoJSON, KML, Static Image, or tile service layer "
+        "to an existing map created by create_map_visualization. Supports "
+        "legend, style, popup configuration, attribute aliases, opacity, "
+        "and zoom limits via optional advanced parameters. When the layer "
+        "comes from a feature lookup, fetch the layer name and bounding "
+        "box from a data-source tool first, then pass them through to "
+        "this call."
     ),
     tags=["map", "layer", "geographic"],
 )
@@ -758,6 +793,35 @@ def add_map_service_layer(
     opacity: Annotated[Optional[float], Field(description="Layer opacity from 0 (transparent) to 1 (opaque)")] = None,
     min_zoom: Annotated[Optional[int], Field(description="Minimum zoom level at which the layer is visible")] = None,
     max_zoom: Annotated[Optional[int], Field(description="Maximum zoom level at which the layer is visible")] = None,
+    legend: Annotated[Optional[Union[str, Dict[str, Any]]], Field(description=(
+        "Layer legend. Pass 'default' to use the source's default legend, a "
+        "URL string for a hosted legend image, or a dict for a custom legend "
+        "definition (the dict shape mirrors the UI's Legend tab)."
+    ))] = None,
+    style: Annotated[Optional[Union[str, Dict[str, Any]]], Field(description=(
+        "Layer style. Pass a URL string (style JSON hosted externally) or "
+        "a dict for an inline style definition."
+    ))] = None,
+    source_props: Annotated[Optional[Union[Dict[str, Any], str]], Field(description=(
+        "Advanced source-side properties merged into source.props. Validated "
+        "against the source-type's available_source_properties allowlist; "
+        "unknown keys are rejected. Use this for source props beyond the "
+        "first-class flat parameters (e.g., projection on Image Tile, "
+        "tileSize on PMTiles)."
+    ))] = None,
+    layer_props: Annotated[Optional[Union[Dict[str, Any], str]], Field(description=(
+        "Advanced layer-level properties (opacity, minResolution, "
+        "maxResolution, minZoom, maxZoom, minZoomQuery). Validated against "
+        "the LAYER_PROPERTIES_ALLOWLIST. Per-key value-type validation is "
+        "applied. Conflicts with the corresponding flat parameter (e.g., "
+        "opacity, min_zoom, max_zoom) are rejected — pick one path per prop."
+    ))] = None,
+    popup_options: Annotated[Optional[Union[Dict[str, Any], str]], Field(description=(
+        "Click-popup options. Accepts {'aliases': {layer_name: {field: alias}}} "
+        "and {'omit': {layer_name: [field, ...]}} sub-dicts. The 'aliases' "
+        "shape mirrors the UI's attribute-aliases tab; 'omit' marks fields "
+        "to hide from popups."
+    ))] = None,
 ) -> Dict[str, Any]:
     """Add a service layer to an existing map.
 
@@ -771,13 +835,83 @@ def add_map_service_layer(
     )
 
     # Coerce JSON strings to dicts — some LLM providers serialize object
-    # arguments as strings instead of parsed objects.
-    if isinstance(geojson, str):
-        geojson = json.loads(geojson)
-    if isinstance(attribute_variables, str):
-        attribute_variables = json.loads(attribute_variables)
-    if isinstance(params, str):
-        params = json.loads(params)
+    # arguments as strings instead of parsed objects. Wrap each in a guard
+    # so a malformed string yields an MCP {"error": ...} rather than an
+    # opaque ToolError from FastMCP.
+    for _arg_name, _arg_value in (
+        ("geojson", geojson),
+        ("attribute_variables", attribute_variables),
+        ("params", params),
+        ("source_props", source_props),
+        ("layer_props", layer_props),
+        ("popup_options", popup_options),
+    ):
+        if isinstance(_arg_value, str):
+            try:
+                _decoded = json.loads(_arg_value)
+            except json.JSONDecodeError as exc:
+                return {
+                    "error": (
+                        f"{_arg_name} is not valid JSON: {exc.msg} "
+                        f"(line {exc.lineno}, col {exc.colno})."
+                    )
+                }
+            # Re-bind the local variable by name. locals()[name] = ... would
+            # be unreliable inside a function; explicit branches keep the
+            # rebind visible to static analysis.
+            if _arg_name == "geojson":
+                geojson = _decoded
+            elif _arg_name == "attribute_variables":
+                attribute_variables = _decoded
+            elif _arg_name == "params":
+                params = _decoded
+            elif _arg_name == "source_props":
+                source_props = _decoded
+            elif _arg_name == "layer_props":
+                layer_props = _decoded
+            elif _arg_name == "popup_options":
+                popup_options = _decoded
+
+    # Plan-005 S2 cap: reject oversized inline GeoJSON before any further
+    # processing. Cap is dynamically read from env vars at call time so
+    # tests and operators can override without re-importing the module.
+    # NB: only inline dict payloads are capped; geojson_url is unaffected
+    # (the cost is borne by the browser at render time, not the server).
+    if isinstance(geojson, dict):
+        max_features = _env_int(
+            "TETHYSDASH_MCP_GEOJSON_MAX_FEATURES", GEOJSON_MAX_FEATURES
+        )
+        max_bytes = _env_int(
+            "TETHYSDASH_MCP_GEOJSON_MAX_BYTES", GEOJSON_MAX_BYTES
+        )
+        # `or []` (not the `.get(..., [])` default) handles BOTH the
+        # missing-key case AND the explicit `features: None` case. The
+        # second is a real adversarial input — `len(None)` would otherwise
+        # raise unhandled TypeError before validate_geojson can produce
+        # a clean error.
+        feature_count = len(geojson.get("features") or [])
+        if feature_count > max_features:
+            return {
+                "error": (
+                    f"Inline GeoJSON has {feature_count} features; the "
+                    f"limit is {max_features}. Use geojson_url for hosted "
+                    f"large datasets, or raise "
+                    f"TETHYSDASH_MCP_GEOJSON_MAX_FEATURES on the server."
+                )
+            }
+        try:
+            payload_size = len(json.dumps(geojson))
+        except (TypeError, ValueError):
+            payload_size = 0
+        if payload_size > max_bytes:
+            return {
+                "error": (
+                    f"Inline GeoJSON serializes to {payload_size} bytes; "
+                    f"the limit is {max_bytes}. Use geojson_url for hosted "
+                    f"large datasets, or raise "
+                    f"TETHYSDASH_MCP_GEOJSON_MAX_BYTES on the server."
+                )
+            }
 
     # Validate source_type
     if source_type not in VALID_SOURCE_TYPES:
@@ -849,13 +983,17 @@ def add_map_service_layer(
     # resolution all stay MCP-side per plan 004 K3 — the builder receives
     # already-canonicalized inputs.
     # ------------------------------------------------------------------
-    source_props: Dict[str, Any] = {}
+    # Phase-1-local source props (assembled from flat params). Kept under a
+    # different name from the user-facing `source_props` parameter (the
+    # "advanced" dict) so the conflict check downstream can distinguish
+    # the two. Both are merged before delegation to the builder.
+    _flat_source_props: Dict[str, Any] = {}
     geojson_payload: Optional[Union[Dict[str, Any], str]] = None
 
     if source_type == "WMS":
         wms_params = {"LAYERS": wms_layers}
         wms_params.update(extra_params)
-        source_props = {"url": url, "params": wms_params}
+        _flat_source_props = {"url": url, "params": wms_params}
 
     elif source_type == "ESRI Image and Map Service":
         esri_params = {}
@@ -883,13 +1021,13 @@ def add_map_service_layer(
                 esri_params["LAYERS"] = "show:" + layers_value
             else:
                 esri_params["LAYERS"] = layers_value
-        source_props = {"url": url}
+        _flat_source_props = {"url": url}
         if esri_params:
-            source_props["params"] = esri_params
+            _flat_source_props["params"] = esri_params
 
     elif source_type == "ESRI Feature Service":
-        source_props = {"url": url, "layer": int(layer_id)}
-        source_props.update(extra_params)
+        _flat_source_props = {"url": url, "layer": int(layer_id)}
+        _flat_source_props.update(extra_params)
 
     elif source_type == "GeoJSON":
         # GeoJSON goes on the source object directly (not under props).
@@ -905,22 +1043,22 @@ def add_map_service_layer(
                 }
 
     elif source_type == "KML":
-        source_props = {"url": url}
+        _flat_source_props = {"url": url}
 
     elif source_type == "Image Tile":
-        source_props = {"url": url}
+        _flat_source_props = {"url": url}
 
     elif source_type == "Vector Tile":
-        source_props = {"urls": url}
+        _flat_source_props = {"urls": url}
 
     elif source_type in ("PMTiles Vector", "PMTiles Raster"):
-        source_props = {"url": url}
+        _flat_source_props = {"url": url}
 
     elif source_type == "Static Image":
-        source_props = {"url": url}
+        _flat_source_props = {"url": url}
         # projection + imageExtent come through `params`; merge them
         # alongside `url` so they all land in source.props.
-        source_props.update(extra_params)
+        _flat_source_props.update(extra_params)
 
     # ------------------------------------------------------------------
     # Phase 2: Resolve ESRI attribute-variable layer name BEFORE delegation,
@@ -929,7 +1067,7 @@ def add_map_service_layer(
     # ------------------------------------------------------------------
     attr_key = name
     if attribute_variables and source_type == "ESRI Image and Map Service":
-        effective_layer_id = source_props.get("params", {}).get("LAYERS")
+        effective_layer_id = _flat_source_props.get("params", {}).get("LAYERS")
         resolved = _resolve_esri_layer_name(url, effective_layer_id)
         if resolved:
             attr_key = resolved
@@ -940,6 +1078,99 @@ def add_map_service_layer(
             )
 
     # ------------------------------------------------------------------
+    # Phase 2.5: Validate the advanced dicts (source_props, layer_props,
+    # popup_options) before delegation. Conflict-rejects flat-vs-dict
+    # collisions per K1; rejects unknown layer-prop keys / wrong types.
+    # ------------------------------------------------------------------
+    # Conflict check: flat layer params vs layer_props dict. The same
+    # prop must not arrive through both paths — silent winner would be
+    # a quiet bug class. Surface the conflict to the LLM.
+    flat_to_dict_layer_props = {
+        "opacity": ("opacity", opacity),
+        "min_zoom": ("minZoom", min_zoom),
+        "max_zoom": ("maxZoom", max_zoom),
+    }
+    if layer_props:
+        if not isinstance(layer_props, dict):
+            return {"error": "layer_props must be a dict (or JSON-string dict)."}
+        # Allowlist: keys must be known.
+        unknown = set(layer_props) - set(LAYER_PROPERTIES_ALLOWLIST)
+        if unknown:
+            return {
+                "error": (
+                    f"layer_props contains unknown keys: {sorted(unknown)}. "
+                    f"Allowed: {sorted(LAYER_PROPERTIES_ALLOWLIST)}"
+                )
+            }
+        # Per-key value-type validation. The explicit `not isinstance(val, bool)`
+        # check is necessary because Python's bool is a subclass of int —
+        # without it, layer_props={"opacity": True} passes the (int, float)
+        # check and persists `true` as the JSON value, which OpenLayers
+        # treats as the boolean rather than the integer 1.
+        # NaN/Infinity check: float('nan') and float('inf') pass isinstance
+        # but produce invalid JSON (json.dumps emits NaN/Infinity literals
+        # that fail RFC-compliant parsers). Persisting them breaks the
+        # renderer downstream. Only opacity has a range guard inside the
+        # builder (set_opacity); the other 5 props have no finite-value
+        # check, so reject non-finite values at the boundary.
+        for key, val in layer_props.items():
+            expected = LAYER_PROPERTIES_ALLOWLIST[key]
+            numeric_only = expected == (int, float) or expected in (int, float)
+            if not isinstance(val, expected) or (
+                numeric_only and isinstance(val, bool)
+            ):
+                return {
+                    "error": (
+                        f"layer_props[{key!r}] must be of type "
+                        f"{expected!r}; got {type(val).__name__}."
+                    )
+                }
+            if numeric_only and isinstance(val, float) and not math.isfinite(val):
+                return {
+                    "error": (
+                        f"layer_props[{key!r}] must be a finite number; "
+                        f"got {val!r}."
+                    )
+                }
+        # Conflict check.
+        for flat_name, (dict_key, flat_value) in flat_to_dict_layer_props.items():
+            if flat_value is not None and dict_key in layer_props:
+                return {
+                    "error": (
+                        f"Conflicting inputs: {flat_name!r} (flat parameter) "
+                        f"and layer_props[{dict_key!r}] are both supplied. "
+                        f"Pick one path per layer prop."
+                    )
+                }
+
+    if popup_options is not None and not isinstance(popup_options, dict):
+        return {"error": "popup_options must be a dict (or JSON-string dict)."}
+    _popup_aliases = (popup_options or {}).get("aliases") or {}
+    _popup_omit = (popup_options or {}).get("omit") or {}
+    if not isinstance(_popup_aliases, dict):
+        return {"error": "popup_options.aliases must be a dict."}
+    if not isinstance(_popup_omit, dict):
+        return {"error": "popup_options.omit must be a dict (layer_name -> [field, ...])."}
+
+    if source_props is not None and not isinstance(source_props, dict):
+        return {"error": "source_props must be a dict (or JSON-string dict)."}
+    if source_props:
+        # Per-source-type key allowlist: rejects keys absent from
+        # available_source_properties[source_type]['required'|'optional'].
+        # The tool description promises this validation; this enforces it.
+        # Symmetric with layer_props's LAYER_PROPERTIES_ALLOWLIST guard.
+        allowed_source_keys = get_allowed_source_prop_keys(source_type)
+        unknown_source_keys = set(source_props) - allowed_source_keys
+        if unknown_source_keys:
+            return {
+                "error": (
+                    f"source_props contains keys not in the {source_type!r} "
+                    f"allowlist: {sorted(unknown_source_keys)}. "
+                    f"Allowed: {sorted(allowed_source_keys)}"
+                )
+            }
+
+    # ------------------------------------------------------------------
     # Phase 3: Delegate to LayerConfigurationBuilder. Builder owns
     # configuration.type, source.type, source.props placement, GeoJSON
     # placement at source.geojson, and required-field validation as a
@@ -947,6 +1178,14 @@ def add_map_service_layer(
     # ------------------------------------------------------------------
     try:
         builder = LayerConfigurationBuilder(name, source_type)
+        # Merge flat source props with advanced source_props dict. Advanced
+        # dict overrides flat where keys overlap — caller-supplied data
+        # wins over derived defaults. (Conflict on layer-level scalars is
+        # rejected above; source-level overlap is more often legitimate
+        # — e.g., advanced `projection` on top of a default URL-only
+        # source_props.)
+        if _flat_source_props:
+            builder.set_source_properties(**_flat_source_props)
         if source_props:
             builder.set_source_properties(**source_props)
         if geojson_payload is not None:
@@ -957,11 +1196,52 @@ def add_map_service_layer(
             builder.set_min_zoom(min_zoom)
         if max_zoom is not None:
             builder.set_max_zoom(max_zoom)
+        # Apply layer_props after the flat scalars so the conflict check
+        # above is the only path through which both can be present.
+        if layer_props:
+            for key, val in layer_props.items():
+                if key == "opacity":
+                    builder.set_opacity(val)
+                elif key == "minResolution":
+                    builder.set_min_resolution(val)
+                elif key == "maxResolution":
+                    builder.set_max_resolution(val)
+                elif key == "minZoom":
+                    builder.set_min_zoom(val)
+                elif key == "maxZoom":
+                    builder.set_max_zoom(val)
+                elif key == "minZoomQuery":
+                    builder.set_min_zoom_query(val)
         if queryable:
             builder.set_queryable(True)
+        if legend is not None:
+            builder.set_legend(legend)
+        if style is not None:
+            builder.set_style(style)
         if attribute_variables:
             for key, variable in attribute_variables.items():
                 builder.add_attribute_variable(key, variable, attr_key)
+        # Popup options: aliases + omitted fields.
+        for layer_name, alias_map in _popup_aliases.items():
+            if not isinstance(alias_map, dict):
+                return {
+                    "error": (
+                        f"popup_options.aliases[{layer_name!r}] must be a dict "
+                        f"of field-name -> alias."
+                    )
+                }
+            for field, alias in alias_map.items():
+                builder.add_attribute_alias(field, alias, layer_name)
+        for layer_name, fields in _popup_omit.items():
+            if not isinstance(fields, list):
+                return {
+                    "error": (
+                        f"popup_options.omit[{layer_name!r}] must be a list "
+                        f"of field names."
+                    )
+                }
+            for field in fields:
+                builder.omit_popup_attribute(field, layer_name)
         layer_config = builder.build()
     except ValueError as err:
         return {"error": str(err)}
@@ -1509,6 +1789,12 @@ def list_intake_plugins() -> Dict[str, Any]:
                     "source": opt.get("source", ""),
                     "label": opt.get("label", ""),
                     "type": opt.get("type", ""),
+                    # Surfaces eligibility for add_dynamic_map_layer.
+                    # A plugin is callable through that tool only when
+                    # type=='map_layer' AND dynamic_map_layer=True.
+                    "dynamic_map_layer": bool(
+                        opt.get("dynamic_map_layer", False)
+                    ),
                 }
                 # Extract just argument names from the args schema
                 args = opt.get("args", {})
@@ -1520,6 +1806,135 @@ def list_intake_plugins() -> Dict[str, Any]:
     except http_requests.RequestException as e:
         LOGGER.error("Failed to fetch intake plugins from Django: %s", e)
         return {"error": f"Failed to fetch intake plugins from TethysDash: {e}"}
+
+
+def _resolve_dynamic_map_layer_plugin(source: str) -> Dict[str, Any]:
+    """Look up a runtime map-layer plugin by source name.
+
+    Returns a dict with one of:
+      - {"plugin": <metadata_dict>}: the source resolved to a plugin
+        flagged as a runtime map-layer plugin.
+      - {"error": <message>}: source unknown OR resolved plugin is not
+        a runtime map-layer (wrong type, or dynamic_map_layer=False).
+    """
+    try:
+        response = http_requests.get(
+            f"{TETHYSDASH_BASE_URL}/visualizations/list/",
+            timeout=10,
+        )
+        response.raise_for_status()
+        # response.json() must stay inside the try: a 200 with non-JSON body
+        # (Tethys session-expired login redirect, reverse-proxy maintenance
+        # page) raises requests.exceptions.JSONDecodeError, which is NOT a
+        # RequestException subclass and would otherwise propagate uncaught.
+        data = response.json()
+    except (http_requests.RequestException, ValueError) as exc:
+        return {"error": f"Failed to fetch plugin metadata: {exc}"}
+
+    groups = data.get("visualizations", []) if isinstance(data, dict) else []
+
+    for group in groups:
+        for opt in group.get("options", []) if isinstance(group, dict) else []:
+            if opt.get("source") == source:
+                if opt.get("type") != "map_layer":
+                    return {
+                        "error": (
+                            f"Plugin {source!r} is type {opt.get('type')!r}; "
+                            f"add_dynamic_map_layer requires type=='map_layer'."
+                        )
+                    }
+                if not opt.get("dynamic_map_layer"):
+                    return {
+                        "error": (
+                            f"Plugin {source!r} is a static map_layer plugin "
+                            f"(dynamic_map_layer=False). Use add_map_service_layer "
+                            f"with the plugin's pre-baked layer config instead."
+                        )
+                    }
+                return {"plugin": opt}
+
+    return {"error": f"Unknown plugin source: {source!r}"}
+
+
+@mcp.tool(
+    name="add_dynamic_map_layer",
+    description=(
+        "Add a runtime plugin-backed map layer to an existing map. The plugin "
+        "must be installed and flagged as a runtime map-layer plugin "
+        "(type='map_layer' AND dynamic_map_layer=True). The MCP tool persists "
+        "a GeoJSON scaffold layer with a pluginSource block; the plugin's "
+        "fetch_features method is invoked at render time. Use list_intake_plugins "
+        "to discover available plugin source names; only plugins with type "
+        "'map_layer' are accepted here."
+    ),
+    tags=["map", "layer", "plugin", "runtime"],
+)
+def add_dynamic_map_layer(
+    map_uuid: Annotated[str, Field(description="UUID returned by create_map_visualization")],
+    source: Annotated[str, Field(description=(
+        "Intake plugin source name (the 'source' field from list_intake_plugins). "
+        "Must resolve to a plugin with type=='map_layer' and "
+        "dynamic_map_layer=True; other plugins are rejected."
+    ))],
+    name: Annotated[str, Field(description="Display name for the layer in the layer control")],
+    args: Annotated[Optional[Union[Dict[str, Any], str]], Field(description=(
+        "Plugin args dict passed to fetch_features at render time. Supports "
+        "${variable_name} syntax for dashboard variable references — these "
+        "are preserved verbatim at persist time. Pass None or omit when the "
+        "plugin takes no args."
+    ))] = None,
+) -> Dict[str, Any]:
+    """Add a runtime plugin-backed map layer.
+
+    Builder constructs a GeoJSON scaffold (empty FeatureCollection if no
+    inline data) with configuration.props.pluginSource set, matching the
+    persisted shape the UI's runtime-plugin selector produces. Render-time
+    fetch failures surface through Map.js's existing visualization-error
+    path (no new error handling here).
+    """
+    LOGGER.info(
+        "add_dynamic_map_layer: map_uuid=%s, source=%s, name=%s",
+        map_uuid, source, name,
+    )
+
+    # Coerce JSON-string args (consistent with the existing dict-parameter
+    # coercion pattern used across these tools). Wrap json.loads so a
+    # malformed string yields a clean MCP error rather than an opaque
+    # ToolError from FastMCP.
+    if isinstance(args, str):
+        try:
+            args = json.loads(args)
+        except json.JSONDecodeError as exc:
+            return {
+                "error": (
+                    f"args is not valid JSON: {exc.msg} "
+                    f"(line {exc.lineno}, col {exc.colno})."
+                )
+            }
+    # set_plugin_source raises on non-dict args; coerce None → {} at the
+    # boundary so callers don't need to know that detail.
+    if args is None:
+        args = {}
+    if not isinstance(args, dict):
+        return {"error": "args must be a dict (or JSON-string dict) or None."}
+
+    resolution = _resolve_dynamic_map_layer_plugin(source)
+    if "error" in resolution:
+        return resolution
+
+    try:
+        builder = LayerConfigurationBuilder(name, "GeoJSON")
+        builder.set_plugin_source(source, args)
+        layer_config = builder.build()
+    except ValueError as err:
+        return {"error": str(err)}
+
+    return {
+        "layer_update": {
+            "map_uuid": map_uuid,
+            "layer": layer_config,
+        }
+    }
 
 
 @mcp.tool(

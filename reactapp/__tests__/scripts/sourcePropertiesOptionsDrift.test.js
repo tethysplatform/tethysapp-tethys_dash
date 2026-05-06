@@ -1,4 +1,7 @@
-import { sourcePropertiesOptions } from "components/map/utilities";
+import {
+  sourcePropertiesOptions,
+  layerPropertiesOptions,
+} from "components/map/utilities";
 import fs from "fs";
 import path from "path";
 
@@ -25,10 +28,20 @@ const fixturePath = path.resolve(
 );
 
 describe("sourcePropertiesOptions cross-language drift guard", () => {
-  test("JS keys equal the committed fixture snapshot", () => {
+  test("JS source-type keys equal the committed fixture snapshot", () => {
     const fixture = JSON.parse(fs.readFileSync(fixturePath, "utf8"));
     const jsKeys = Object.keys(sourcePropertiesOptions).sort();
     expect(jsKeys).toEqual(fixture.source_types);
+  });
+
+  test("JS layer-property keys equal the committed fixture snapshot", () => {
+    // Plan-005 B2 extension: catches the same bug class as source-types
+    // for layer-level props (opacity, minZoomQuery, etc). When the JS side
+    // adds a new layerPropertiesOptions key, this fails until the fixture
+    // and Python LAYER_PROPERTIES_ALLOWLIST are updated.
+    const fixture = JSON.parse(fs.readFileSync(fixturePath, "utf8"));
+    const jsKeys = Object.keys(layerPropertiesOptions).sort();
+    expect(jsKeys).toEqual(fixture.layer_properties);
   });
 
   test("fixture deferred_in_backend entries are a subset of JS keys", () => {

@@ -692,7 +692,9 @@ def test_layer_configuration_builder_legend():
 
     with pytest.raises(
         ValueError,
-        match=re.escape("legend must be 'default', None, or a valid dictionary."),
+        match=re.escape(
+            "legend must be 'default', a URL string, None, or a valid dictionary."
+        ),
     ):
         builder.set_legend("bad legend")
 
