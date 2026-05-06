@@ -66,8 +66,8 @@ const appAPI = {
   },
   getPluginEditablePaths: () => {
     // Server-authoritative LLM-editable-path whitelist for every registered
-    // plugin source (Intake + client_custom). Chatbox calls this at
-    // dashboard load and threads the result into the LLM system prompt.
+    // Intake plugin source. Chatbox calls this at dashboard load and
+    // threads the result into the LLM system prompt.
     return apiClient.get(`${APP_ROOT_URL}plugins/editable-paths/`);
   },
   listVisualizationPermissions: () => {

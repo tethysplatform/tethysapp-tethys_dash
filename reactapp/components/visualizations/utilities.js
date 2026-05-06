@@ -184,13 +184,6 @@ export async function getVisualization({
     });
 
     return;
-  } else if (sourceType === "client_custom") {
-    setVizType("client_custom");
-    setVizData({
-      source: itemData.source,
-      props: itemData.args,
-    });
-    return;
   } else if (sourceType === "client_custom_remote") {
     setVizType("custom");
     setVizData({

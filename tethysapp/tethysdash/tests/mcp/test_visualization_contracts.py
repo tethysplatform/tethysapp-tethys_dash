@@ -624,14 +624,6 @@ class TestRenderPlugin:
 class TestRenderCustomVisualization:
     """Contract tests for render_custom_visualization."""
 
-    MOCK_BUILD_TIME_PLUGIN = {
-        "source": "TestCustomPanel",
-        "label": "Test Custom Panel",
-        "type": "client_custom",
-        "group": "Custom",
-        "args": {},
-    }
-
     MOCK_RUNTIME_PLUGIN = {
         "source": "RuntimePanel",
         "label": "Runtime Panel",
@@ -644,19 +636,6 @@ class TestRenderCustomVisualization:
         "dataKey": "",
         "args": {},
     }
-
-    @patch("tethysapp.tethysdash.mcp.tethysdash_mcp_server._get_all_plugins")
-    def test_build_time_plugin_returns_correct_source(self, mock_plugins):
-        mock_plugins.return_value = [self.MOCK_BUILD_TIME_PLUGIN]
-        result = render_custom_visualization(source="TestCustomPanel")
-        viz = result["visualization"]
-        assert viz["source"] == "TestCustomPanel"
-
-    @patch("tethysapp.tethysdash.mcp.tethysdash_mcp_server._get_all_plugins")
-    def test_build_time_plugin_viz_type(self, mock_plugins):
-        mock_plugins.return_value = [self.MOCK_BUILD_TIME_PLUGIN]
-        result = render_custom_visualization(source="TestCustomPanel")
-        assert result["visualization"]["vizType"] == "client_custom"
 
     @patch("tethysapp.tethysdash.mcp.tethysdash_mcp_server._get_all_plugins")
     def test_runtime_plugin_returns_client_custom_source(self, mock_plugins):
@@ -682,31 +661,54 @@ class TestRenderCustomVisualization:
 
     @patch("tethysapp.tethysdash.mcp.tethysdash_mcp_server._get_all_plugins")
     def test_props_passed_as_args(self, mock_plugins):
-        mock_plugins.return_value = [self.MOCK_BUILD_TIME_PLUGIN]
+        mock_plugins.return_value = [self.MOCK_RUNTIME_PLUGIN]
         result = render_custom_visualization(
-            source="TestCustomPanel", props={"color": "blue"}
+            source="RuntimePanel", props={"color": "blue"}
         )
         assert result["visualization"]["args"] == {"color": "blue"}
 
     @patch("tethysapp.tethysdash.mcp.tethysdash_mcp_server._get_all_plugins")
     def test_unknown_source_returns_error(self, mock_plugins):
-        mock_plugins.return_value = [self.MOCK_BUILD_TIME_PLUGIN]
+        mock_plugins.return_value = [self.MOCK_RUNTIME_PLUGIN]
         result = render_custom_visualization(source="NonexistentPlugin")
         assert "error" in result
 
     @patch("tethysapp.tethysdash.mcp.tethysdash_mcp_server._get_all_plugins")
+    def test_registered_plugin_with_unsupported_type_returns_error(self, mock_plugins):
+        """A plugin registered with a non-runtime-remote type fails closed.
+
+        The error message must distinguish wrong-type from not-found so the
+        LLM can recover correctly.
+        """
+        mock_plugins.return_value = [
+            {
+                "source": "LegacyPlugin",
+                "label": "Legacy Plugin",
+                "type": "unknown_type",
+                "args": {},
+            }
+        ]
+        result = render_custom_visualization(source="LegacyPlugin")
+        assert "error" in result
+        # Must NOT say "not found" — the source IS in the registry.
+        assert "not found" not in result["error"].lower()
+        # Must communicate the type problem.
+        assert "unsupported type" in result["error"]
+        assert "unknown_type" in result["error"]
+
+    @patch("tethysapp.tethysdash.mcp.tethysdash_mcp_server._get_all_plugins")
     def test_default_dimensions(self, mock_plugins):
-        mock_plugins.return_value = [self.MOCK_BUILD_TIME_PLUGIN]
-        result = render_custom_visualization(source="TestCustomPanel")
+        mock_plugins.return_value = [self.MOCK_RUNTIME_PLUGIN]
+        result = render_custom_visualization(source="RuntimePanel")
         viz = result["visualization"]
         assert viz["w"] == 50
         assert viz["h"] == 30
 
     @patch("tethysapp.tethysdash.mcp.tethysdash_mcp_server._get_all_plugins")
     def test_custom_dimensions(self, mock_plugins):
-        mock_plugins.return_value = [self.MOCK_BUILD_TIME_PLUGIN]
+        mock_plugins.return_value = [self.MOCK_RUNTIME_PLUGIN]
         result = render_custom_visualization(
-            source="TestCustomPanel", w=60, h=45
+            source="RuntimePanel", w=60, h=45
         )
         viz = result["visualization"]
         assert viz["w"] == 60
@@ -714,16 +716,9 @@ class TestRenderCustomVisualization:
 
     @patch("tethysapp.tethysdash.mcp.tethysdash_mcp_server._get_all_plugins")
     def test_no_props_defaults_to_empty_dict(self, mock_plugins):
-        mock_plugins.return_value = [self.MOCK_BUILD_TIME_PLUGIN]
-        result = render_custom_visualization(source="TestCustomPanel")
+        mock_plugins.return_value = [self.MOCK_RUNTIME_PLUGIN]
+        result = render_custom_visualization(source="RuntimePanel")
         assert result["visualization"]["args"] == {}
-
-    @patch("tethysapp.tethysdash.mcp.tethysdash_mcp_server._get_all_plugins")
-    def test_r3a_build_time_plugin_returns_server_uuid(self, mock_plugins):
-        """R3a: build-time plugin path returns a server uuid."""
-        mock_plugins.return_value = [self.MOCK_BUILD_TIME_PLUGIN]
-        result = render_custom_visualization(source="TestCustomPanel")
-        assert_server_uuid(result["visualization"])
 
     @patch("tethysapp.tethysdash.mcp.tethysdash_mcp_server._get_all_plugins")
     def test_r3a_runtime_plugin_returns_server_uuid(self, mock_plugins):
@@ -735,7 +730,7 @@ class TestRenderCustomVisualization:
     @patch("tethysapp.tethysdash.mcp.tethysdash_mcp_server._get_all_plugins")
     def test_r3a_uuids_are_unique(self, mock_plugins):
         """R3a: consecutive calls produce distinct UUIDs."""
-        mock_plugins.return_value = [self.MOCK_BUILD_TIME_PLUGIN]
-        r1 = render_custom_visualization(source="TestCustomPanel")
-        r2 = render_custom_visualization(source="TestCustomPanel")
+        mock_plugins.return_value = [self.MOCK_RUNTIME_PLUGIN]
+        r1 = render_custom_visualization(source="RuntimePanel")
+        r2 = render_custom_visualization(source="RuntimePanel")
         assert r1["visualization"]["uuid"] != r2["visualization"]["uuid"]

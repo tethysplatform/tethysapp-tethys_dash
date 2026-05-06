@@ -230,10 +230,6 @@ def test_plugin_editable_paths_includes_intake_plugin(
         "tethysapp.tethysdash.editable_schemas_plugin.intake.source.registry",
         {"my_streamflow": fake_plugin},
     )
-    mocker.patch(
-        "tethysapp.tethysdash.editable_schemas_plugin._load_client_plugin_registry_cached",
-        return_value=[],
-    )
 
     response = client.get(url)
 
@@ -247,10 +243,10 @@ def test_plugin_editable_paths_includes_intake_plugin(
 
 
 @pytest.mark.django_db
-def test_plugin_editable_paths_includes_client_custom(
+def test_plugin_editable_paths_empty_registry_returns_empty_map(
     client, admin_user, mock_app, mocker
 ):
-    """client_custom sources from the registry surface through the endpoint."""
+    """No Intake plugins -> empty map (not null, not missing)."""
     mock_app("tethysapp.tethysdash.controllers.App")
     url = reverse("tethysdash:plugin_editable_paths")
     client.force_login(admin_user)
@@ -258,58 +254,6 @@ def test_plugin_editable_paths_includes_client_custom(
     mocker.patch(
         "tethysapp.tethysdash.editable_schemas_plugin.intake.source.registry",
         {},
-    )
-    mocker.patch(
-        "tethysapp.tethysdash.editable_schemas_plugin._load_client_plugin_registry_cached",
-        return_value=[
-            {
-                "source": "nwm-flood-map",
-                "args": {"title": "text", "dataUrl": "text"},
-            }
-        ],
-    )
-    # The controller also invokes load_client_plugin_registry() directly for
-    # its iteration — patch that symbol on the controller side too.
-    mocker.patch(
-        "tethysapp.tethysdash.plugin_registry_loader.load_client_plugin_registry",
-        return_value=[
-            {
-                "source": "nwm-flood-map",
-                "args": {"title": "text", "dataUrl": "text"},
-            }
-        ],
-    )
-
-    response = client.get(url)
-
-    assert response.status_code == 200
-    body = response.json()
-    assert "nwm-flood-map" in body["editable_paths_by_source"]
-    assert sorted(body["editable_paths_by_source"]["nwm-flood-map"]) == sorted(
-        ["/args/title", "/args/dataUrl"]
-    )
-
-
-@pytest.mark.django_db
-def test_plugin_editable_paths_empty_registries_returns_empty_map(
-    client, admin_user, mock_app, mocker
-):
-    """No plugins -> empty map (not null, not missing)."""
-    mock_app("tethysapp.tethysdash.controllers.App")
-    url = reverse("tethysdash:plugin_editable_paths")
-    client.force_login(admin_user)
-
-    mocker.patch(
-        "tethysapp.tethysdash.editable_schemas_plugin.intake.source.registry",
-        {},
-    )
-    mocker.patch(
-        "tethysapp.tethysdash.editable_schemas_plugin._load_client_plugin_registry_cached",
-        return_value=[],
-    )
-    mocker.patch(
-        "tethysapp.tethysdash.plugin_registry_loader.load_client_plugin_registry",
-        return_value=[],
     )
 
     response = client.get(url)
@@ -339,14 +283,6 @@ def test_plugin_editable_paths_omits_empty_whitelists(
     mocker.patch(
         "tethysapp.tethysdash.editable_schemas_plugin.intake.source.registry",
         {"locked_down_plugin": fake_plugin},
-    )
-    mocker.patch(
-        "tethysapp.tethysdash.editable_schemas_plugin._load_client_plugin_registry_cached",
-        return_value=[],
-    )
-    mocker.patch(
-        "tethysapp.tethysdash.plugin_registry_loader.load_client_plugin_registry",
-        return_value=[],
     )
 
     response = client.get(url)

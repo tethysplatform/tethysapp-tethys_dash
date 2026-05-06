@@ -809,8 +809,7 @@ class TestPluginSourceDispatch:
     """patch_visualization routes plugin-backed sources through the runtime resolver.
 
     Uses the same fixtures as test_editable_schemas_plugin: patches the
-    intake registry and the client_custom registry loader that
-    editable_schemas_plugin imports.
+    intake registry that editable_schemas_plugin imports.
     """
 
     def test_intake_plugin_happy_path(self, mocker):
@@ -903,52 +902,11 @@ class TestPluginSourceDispatch:
         assert "error" in rejected
         assert "whitelist_rejected" in rejected["error"]
 
-    def test_client_custom_plugin_happy_path(self, mocker):
-        mocker.patch(
-            "tethysapp.tethysdash.editable_schemas_plugin._load_client_plugin_registry_cached",
-            return_value=[
-                {
-                    "source": "nwm-flood-map",
-                    "args": {"title": "text", "dataUrl": "text"},
-                }
-            ],
-        )
-        result = patch_visualization(
-            target_uuid=_fresh_uuid(),
-            source="nwm-flood-map",
-            patches=[{"op": "replace", "path": "/args/title", "value": "Flood"}],
-        )
-        assert "error" not in result, result
-        assert result["patch_update"]["source"] == "nwm-flood-map"
-
-    def test_client_custom_author_deny_list_is_respected(self, mocker):
-        mocker.patch(
-            "tethysapp.tethysdash.editable_schemas_plugin._load_client_plugin_registry_cached",
-            return_value=[
-                {
-                    "source": "nwm-flood-map",
-                    "args": {"title": "text", "authToken": "text"},
-                    "llmNonEditableArgs": ["authToken"],
-                }
-            ],
-        )
-        result = patch_visualization(
-            target_uuid=_fresh_uuid(),
-            source="nwm-flood-map",
-            patches=[{"op": "replace", "path": "/args/authToken", "value": "bad"}],
-        )
-        assert "error" in result
-        assert "whitelist_rejected" in result["error"]
-
     def test_unknown_source_fails_closed(self, mocker):
-        """Neither in static nor any runtime registry -> empty allowed_prefixes."""
+        """Neither in static nor the Intake registry -> empty allowed_prefixes."""
         mocker.patch(
             "tethysapp.tethysdash.editable_schemas_plugin.intake.source.registry",
             {},
-        )
-        mocker.patch(
-            "tethysapp.tethysdash.editable_schemas_plugin._load_client_plugin_registry_cached",
-            return_value=[],
         )
         result = patch_visualization(
             target_uuid=_fresh_uuid(),
@@ -1017,14 +975,10 @@ class TestRejectionTelemetry:
         assert call_kwargs["op_index"] == 0
 
     def test_unknown_source_emits_resolution_failure_reason(self, mocker):
-        """No registry entry -> empty allowed_prefixes -> resolution_failure reason."""
+        """No Intake registry entry -> empty allowed_prefixes -> resolution_failure reason."""
         mocker.patch(
             "tethysapp.tethysdash.editable_schemas_plugin.intake.source.registry",
             {},
-        )
-        mocker.patch(
-            "tethysapp.tethysdash.editable_schemas_plugin._load_client_plugin_registry_cached",
-            return_value=[],
         )
         spy = _spy_rejection_telemetry(mocker)
         patch_visualization(

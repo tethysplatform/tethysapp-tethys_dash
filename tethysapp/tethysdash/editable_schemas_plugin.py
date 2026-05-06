@@ -1,14 +1,10 @@
-"""Per-source editable-path resolver for plugin-backed viz types.
+"""Per-source editable-path resolver for Intake-backed viz types.
 
 Complements :mod:`tethysapp.tethysdash.editable_schemas` (which owns the
-static 5-built-in-type whitelist) with runtime-derived whitelists for:
-
-* **Intake backend plugins** — discovered via ``intake.source.registry``
-  and filtered by optional ``llm_editable_args`` / ``llm_non_editable_args``
-  class attributes on the plugin class (see the plugin_authors doc).
-* **client_custom plugins** — discovered via the webpack-built
-  ``reactapp/generated/clientPluginRegistry.json`` and filtered by optional
-  ``llmEditableArgs`` / ``llmNonEditableArgs`` entry fields in the JSON.
+static 5-built-in-type whitelist) with runtime-derived whitelists for
+**Intake backend plugins** — discovered via ``intake.source.registry``
+and filtered by optional ``llm_editable_args`` / ``llm_non_editable_args``
+class attributes on the plugin class (see the plugin_authors doc).
 
 Default-permissive: when no author declarations are present, every
 registered arg is editable. Plugin authors use ``llm_non_editable_args``
@@ -17,25 +13,19 @@ package). Matches TethysDash's existing trust model — editors can set
 any arg via the edit modal today; the chatbox exposes the same surface
 via natural language and is itself gated to editor/admin users.
 
-Any lookup failure — unknown source, malformed declaration, registry miss —
-fails closed (returns an empty list). Callers surface
-``whitelist_rejected`` with empty ``allowed_prefixes``.
-
-See ``docs/plans/2026-04-22-001-feat-update-protocol-intake-client-custom-plan.md``
-Unit A3 for the full approach rationale.
+Any lookup failure — unknown source, malformed declaration — fails
+closed (returns an empty list). Callers surface ``whitelist_rejected``
+with empty ``allowed_prefixes``.
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Iterable, List, Optional
 
 import intake  # noqa: F401 — imported so tests can patch intake.source.registry
 
 from tethysapp.tethysdash.plugin_helpers import get_plugin_prop
-from tethysapp.tethysdash.plugin_registry_loader import (
-    load_client_plugin_registry,
-)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -114,49 +104,6 @@ def _resolve_intake(source: str) -> Optional[List[str]]:
 
 
 # ---------------------------------------------------------------------------
-# client_custom resolver
-# ---------------------------------------------------------------------------
-
-
-def _load_client_plugin_registry_cached() -> List[Dict[str, Any]]:
-    """Return the client plugin registry.
-
-    Thin indirection over :func:`load_client_plugin_registry` so tests can
-    patch this symbol on ``editable_schemas_plugin`` without touching the
-    shared loader module. Not memoized — the JSON file read is cheap and the
-    resolver is called per patch, not per request turn.
-    """
-    return load_client_plugin_registry()
-
-
-def _resolve_client_custom(source: str) -> Optional[List[str]]:
-    """Return editable paths for a client_custom source, or None if not registered."""
-    registry = _load_client_plugin_registry_cached()
-    entry = next((e for e in registry if e.get("source") == source), None)
-    if entry is None:
-        return None
-    args = entry.get("args")
-    if not isinstance(args, dict):
-        LOGGER.warning(
-            "client_custom plugin %r has missing or non-dict args; resolver returns empty.",
-            source,
-        )
-        return []
-    try:
-        allow = entry.get("llmEditableArgs")
-        deny = entry.get("llmNonEditableArgs")
-        effective = _compose_author_filter(args.keys(), allow, deny)
-    except (TypeError, ValueError) as exc:
-        LOGGER.warning(
-            "client_custom plugin %r has malformed editability declarations: %s",
-            source,
-            exc,
-        )
-        return []
-    return [f"/args/{name}" for name in effective]
-
-
-# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -164,10 +111,9 @@ def _resolve_client_custom(source: str) -> Optional[List[str]]:
 def resolve_editable_paths(source: str) -> List[str]:
     """Resolve the LLM-editable JSON Pointer prefixes for ``source``.
 
-    Dispatches to the Intake resolver first, then the client_custom
-    resolver. The caller is responsible for routing static-built-in sources
-    to :mod:`tethysapp.tethysdash.editable_schemas` -- this module does not
-    handle the 5 built-in viz types.
+    Dispatches to the Intake resolver. The caller is responsible for
+    routing static-built-in sources to :mod:`tethysapp.tethysdash.editable_schemas`
+    -- this module does not handle the 5 built-in viz types.
 
     Returns an empty list on any lookup failure (unknown source, malformed
     declaration, registry miss). The ``patch_visualization`` tool surfaces
@@ -175,9 +121,6 @@ def resolve_editable_paths(source: str) -> List[str]:
     ``allowed_prefixes``.
     """
     paths = _resolve_intake(source)
-    if paths is not None:
-        return paths
-    paths = _resolve_client_custom(source)
     if paths is not None:
         return paths
     return []
