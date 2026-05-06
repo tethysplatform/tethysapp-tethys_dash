@@ -115,7 +115,7 @@ def test_layer_configuration_builder_WMS(mocker):
 
     builder = LayerConfigurationBuilder("test", "WMS")
     builder.set_source_properties(
-        url="https://example.com/geoserver/wms",
+        url="http://localhost:8181/geoserver/wms",
         params={"LAYERS": "tiger:poly_landmarks,topp:states"},
     )
     layer_names = builder.get_layer_names()
@@ -166,7 +166,7 @@ def test_layer_configuration_builder_WMS_errors(mocker):
         builder.get_layer_attributes()
 
     builder.set_source_properties(
-        url="https://example.com/geoserver/wms",
+        url="http://localhost:8181/geoserver/wms",
     )
 
     with pytest.raises(
@@ -184,7 +184,7 @@ def test_layer_configuration_builder_WMS_Exception_Report(mocker):
 
     builder = LayerConfigurationBuilder("test", "WMS")
     builder.set_source_properties(
-        url="https://example.com/geoserver/wms",
+        url="http://localhost:8181/geoserver/wms",
         params={"LAYERS": "tiger:poly_landmarks,topp:states"},
     )
 
@@ -205,7 +205,7 @@ def test_layer_configuration_builder_WMS_schema_error(mocker):
 
     builder = LayerConfigurationBuilder("test", "WMS")
     builder.set_source_properties(
-        url="https://example.com/geoserver/wms",
+        url="http://localhost:8181/geoserver/wms",
         params={"LAYERS": "tiger:poly_landmarks,topp:states"},
     )
 
@@ -224,7 +224,7 @@ def test_layer_configuration_builder_WMS_complexType_error(mocker):
 
     builder = LayerConfigurationBuilder("test", "WMS")
     builder.set_source_properties(
-        url="https://example.com/geoserver/wms",
+        url="http://localhost:8181/geoserver/wms",
         params={"LAYERS": "tiger:poly_landmarks,topp:states"},
     )
 

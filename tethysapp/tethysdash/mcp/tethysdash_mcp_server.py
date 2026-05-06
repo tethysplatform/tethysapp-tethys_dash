@@ -30,10 +30,6 @@ from starlette.responses import Response as StarletteResponse
 import requests as http_requests
 
 from tethysapp.tethysdash.plugin_helpers import LayerConfigurationBuilder
-from tethysapp.tethysdash.url_safety import (
-    UnsafeUrlError,
-    validate_outbound_url,
-)
 from tethysapp.tethysdash.editable_schemas import (
     LLM_EDITABLE_PATHS,
     is_path_allowed,
@@ -696,15 +692,6 @@ def _resolve_esri_layer_name(url: str, layer_id: Optional[str]) -> Optional[str]
     try:
         layer_index = int(index_str)
     except (ValueError, TypeError):
-        return None
-
-    try:
-        validate_outbound_url(url)
-    except UnsafeUrlError as exc:
-        LOGGER.warning(
-            "Refusing to resolve ESRI layer name from %s: %s",
-            url, exc,
-        )
         return None
 
     try:

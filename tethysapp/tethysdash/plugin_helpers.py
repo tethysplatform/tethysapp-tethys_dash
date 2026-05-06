@@ -12,11 +12,6 @@ import copy
 from datetime import datetime
 from intake.source import base
 from dateutil.parser import parse
-from tethysapp.tethysdash.url_safety import (
-    MAX_OUTBOUND_REQUESTS_PER_CALL,
-    UnsafeUrlError,
-    validate_outbound_url,
-)
 
 DEFAULT_RUNTIME_PLACEHOLDER_GEOJSON = {
     "type": "FeatureCollection",
@@ -865,7 +860,6 @@ class LayerConfigurationBuilder:
             raise ValueError(
                 "url must be provided. Set using .set_source_properties(url='some_url')"
             )
-        validate_outbound_url(url)
         response = requests.get(f"{url}?f=json")
         response.raise_for_status()
         data = response.json()
@@ -895,17 +889,11 @@ class LayerConfigurationBuilder:
             raise ValueError(
                 "url must be provided. Set using .set_source_properties(url='some_url')"
             )
-        validate_outbound_url(url)
         response = requests.get(f"{url}?f=json")
         response.raise_for_status()
         data = response.json()
         attributes = {}
-        # Cap the per-layer fetch loop. ArcGIS services occasionally
-        # advertise hundreds of layers; without a cap, a single MCP call
-        # can amplify into N+1 outbound requests. Layers beyond the cap
-        # fall back to default-visibility (renderer behavior elsewhere).
-        layers = data.get("layers", [])[:MAX_OUTBOUND_REQUESTS_PER_CALL]
-        for index, layer in enumerate(layers):
+        for index, layer in enumerate(data.get("layers", [])):
             name = layer["name"]
             layer_url = f"{url}/{index}?f=json"
             layer_data = requests.get(layer_url).json()
@@ -948,7 +936,6 @@ class LayerConfigurationBuilder:
                 "layer (index number) must be provided. Set using .set_source_properties(layer=0)"  # noqa: E501
             )
 
-        validate_outbound_url(url)
         layer_url = f"{url.rstrip('/')}/{layer_number}?f=json"
         response = requests.get(layer_url)
         response.raise_for_status()
@@ -1014,8 +1001,6 @@ class LayerConfigurationBuilder:
             raise ValueError(
                 "url must be provided. Set using .set_source_properties(url='some_url')"
             )
-
-        validate_outbound_url(url)
 
         layer_names = [
             layer.strip().lower() for layer in layers.split(",") if layer.strip()
