@@ -1276,7 +1276,11 @@ class LayerConfigurationBuilder:
                     else:
                         collect_missing(val, act[key], current_path)
                 else:
-                    if key not in act:
+                    # Treat None / empty-string as missing for required leaves —
+                    # an LLM passing {"imageExtent": None} would otherwise
+                    # persist a None into source.props and crash the renderer
+                    # at parse time.
+                    if key not in act or act[key] is None or act[key] == "":
                         missing.append(f"Missing required key '{current_path}'")
 
         collect_missing(required, actual, path)

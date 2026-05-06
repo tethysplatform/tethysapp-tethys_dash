@@ -842,11 +842,15 @@ def add_map_service_layer(
             return {
                 "error": "source_type 'Static Image' requires 'url' parameter"
             }
-        if "projection" not in _params_dict or "imageExtent" not in _params_dict:
+        # Truthy check, not just key presence: an LLM passing
+        # params={"projection": "EPSG:4326", "imageExtent": None} would otherwise
+        # pass this guard AND _validate_required_fields, persisting None to
+        # source.props.imageExtent and crashing the renderer at parse time.
+        if not _params_dict.get("projection") or not _params_dict.get("imageExtent"):
             return {
                 "error": (
-                    "source_type 'Static Image' requires 'projection' and "
-                    "'imageExtent' supplied via the 'params' parameter (e.g. "
+                    "source_type 'Static Image' requires non-empty 'projection' "
+                    "and 'imageExtent' supplied via the 'params' parameter (e.g. "
                     "params={'projection': 'EPSG:4326', "
                     "'imageExtent': 'minX,minY,maxX,maxY'})"
                 )

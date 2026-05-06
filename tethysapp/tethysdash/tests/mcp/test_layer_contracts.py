@@ -1074,3 +1074,92 @@ class TestStaticImage:
             params={"projection": "EPSG:4326"},
         )
         assert "error" in result
+
+    def test_static_image_without_required_projection_returns_error(self):
+        # Symmetric coverage: projection missing while imageExtent present.
+        # The original Static Image guard tests only exercised the missing-
+        # imageExtent half of the OR condition; this pins the other half.
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="Static Image",
+            name="Aerial No Projection",
+            url="https://example.com/aerial.png",
+            params={"imageExtent": "0,0,10,10"},
+        )
+        assert "error" in result
+
+    def test_static_image_with_none_extent_returns_error(self):
+        # Plan-004 review finding #6: an LLM passing imageExtent=None would
+        # otherwise pass the MCP guard (key present) AND _validate_required_fields
+        # (key in dict), persisting None to source.props.imageExtent and
+        # crashing the renderer. Both layers now treat None as missing.
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="Static Image",
+            name="Aerial None Extent",
+            url="https://example.com/aerial.png",
+            params={"projection": "EPSG:4326", "imageExtent": None},
+        )
+        assert "error" in result
+
+    def test_static_image_with_empty_string_extent_returns_error(self):
+        # Same defense as the None case for empty-string values.
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="Static Image",
+            name="Aerial Empty Extent",
+            url="https://example.com/aerial.png",
+            params={"projection": "EPSG:4326", "imageExtent": ""},
+        )
+        assert "error" in result
+
+
+# Plan-004 review finding #5: pin the persisted-shape contract for
+# multi-entry attribute_variables. The refactor changed
+# `attributeVariables = {attr_key: attribute_variables}` (single assignment)
+# into a per-(key, variable) loop calling `builder.add_attribute_variable`.
+# These tests verify the persisted shape is identical for the flat
+# {str: str} input that the type annotation declares.
+class TestAttributeVariablesShape:
+    def test_multi_entry_attribute_variables_persist_correctly(self):
+        # Two attribute fields mapped to two different dashboard variables;
+        # the persisted shape must place both under the same attr_key
+        # (the layer's display name for non-ESRI sources).
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="GeoJSON",
+            name="Cities",
+            geojson={
+                "type": "FeatureCollection",
+                "features": [],
+            },
+            attribute_variables={
+                "name": "city_var",
+                "population": "pop_var",
+            },
+        )
+        layer = result["layer_update"]["layer"]
+        assert layer["attributeVariables"] == {
+            "Cities": {
+                "name": "city_var",
+                "population": "pop_var",
+            }
+        }
+
+    def test_single_entry_attribute_variables_persist_correctly(self):
+        # The before-refactor case: one (field, variable) pair lands at
+        # the same persisted shape as the multi-entry case.
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="GeoJSON",
+            name="Cities",
+            geojson={
+                "type": "FeatureCollection",
+                "features": [],
+            },
+            attribute_variables={"name": "city_var"},
+        )
+        layer = result["layer_update"]["layer"]
+        assert layer["attributeVariables"] == {
+            "Cities": {"name": "city_var"}
+        }
