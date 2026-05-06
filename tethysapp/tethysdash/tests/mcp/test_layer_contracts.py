@@ -1950,3 +1950,86 @@ def test_add_dynamic_map_layer_in_always_visible():
         "can find it for runtime-plugin queries; otherwise it competes "
         "for one of max_results=5 BM25 slots."
     )
+
+
+# Todo #004: dispatch table is the SINGLE SOURCE of truth for which
+# allowlist key maps to which builder method. Drift between the two
+# was the original silent-no-op risk.
+def test_layer_props_dispatch_covers_allowlist():
+    """Pin: every LAYER_PROPERTIES_ALLOWLIST key has a corresponding
+    entry in _LAYER_PROP_BUILDER_METHODS, and every builder-method
+    name actually exists on LayerConfigurationBuilder. A future
+    allowlist addition without a dispatch entry fails CI immediately.
+    """
+    from tethysapp.tethysdash.mcp.tethysdash_mcp_server import (
+        _LAYER_PROP_BUILDER_METHODS,
+    )
+    from tethysapp.tethysdash.plugin_helpers import (
+        LAYER_PROPERTIES_ALLOWLIST,
+        LayerConfigurationBuilder,
+    )
+    assert set(_LAYER_PROP_BUILDER_METHODS) == set(LAYER_PROPERTIES_ALLOWLIST), (
+        f"LAYER_PROPERTIES_ALLOWLIST keys "
+        f"{sorted(LAYER_PROPERTIES_ALLOWLIST)} must match dispatch "
+        f"{sorted(_LAYER_PROP_BUILDER_METHODS)} exactly."
+    )
+    # And the names actually resolve on the builder class.
+    for key, method_name in _LAYER_PROP_BUILDER_METHODS.items():
+        assert hasattr(LayerConfigurationBuilder, method_name), (
+            f"LAYER_PROPERTIES_ALLOWLIST key {key!r} maps to method "
+            f"{method_name!r} but the method does not exist on "
+            f"LayerConfigurationBuilder."
+        )
+
+
+# Todo #005: direct unit tests for the extracted validation helper.
+# Demonstrates that the helper is testable in isolation — exercising
+# edge cases without building a full add_map_service_layer call.
+class TestValidateAdvancedLayerDicts:
+    @staticmethod
+    def _call(**overrides):
+        from tethysapp.tethysdash.mcp.tethysdash_mcp_server import (
+            _validate_advanced_layer_dicts,
+        )
+        defaults = dict(
+            source_type="WMS",
+            layer_props=None,
+            source_props=None,
+            popup_options=None,
+            opacity=None,
+            min_zoom=None,
+            max_zoom=None,
+        )
+        defaults.update(overrides)
+        return _validate_advanced_layer_dicts(**defaults)
+
+    def test_all_none_returns_none(self):
+        assert self._call() is None
+
+    def test_layer_props_unknown_key_returns_error(self):
+        result = self._call(layer_props={"badKey": 1})
+        assert result is not None
+        assert "badKey" in result["error"]
+
+    def test_conflict_returns_error(self):
+        result = self._call(opacity=0.5, layer_props={"opacity": 0.6})
+        assert result is not None
+        assert "Conflicting" in result["error"]
+
+    def test_source_props_unknown_key_returns_error(self):
+        result = self._call(
+            source_type="WMS",
+            source_props={"badKey": "value"},
+        )
+        assert result is not None
+        assert "badKey" in result["error"]
+
+    def test_popup_options_aliases_non_dict_returns_error(self):
+        result = self._call(popup_options={"aliases": "not a dict"})
+        assert result is not None
+        assert "aliases" in result["error"]
+
+    def test_popup_options_omit_non_dict_returns_error(self):
+        result = self._call(popup_options={"omit": ["bad shape"]})
+        assert result is not None
+        assert "omit" in result["error"]

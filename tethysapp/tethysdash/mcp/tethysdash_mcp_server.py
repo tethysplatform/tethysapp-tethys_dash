@@ -668,6 +668,136 @@ GEOJSON_MAX_BYTES = _env_int("TETHYSDASH_MCP_GEOJSON_MAX_BYTES", 5 * 1024 * 1024
 GEOJSON_MAX_FEATURES = _env_int("TETHYSDASH_MCP_GEOJSON_MAX_FEATURES", 10000)
 
 
+# Dispatch table for layer_props application: maps each LAYER_PROPERTIES_ALLOWLIST
+# key to the LayerConfigurationBuilder method that applies it. Coupled to the
+# allowlist by a CI drift test (test_layer_props_dispatch_covers_allowlist) so
+# adding a new allowlist key without a dispatch entry fails CI immediately —
+# closes the silent-no-op gap from the prior 6-branch elif chain.
+_LAYER_PROP_BUILDER_METHODS = {
+    "opacity": "set_opacity",
+    "minResolution": "set_min_resolution",
+    "maxResolution": "set_max_resolution",
+    "minZoom": "set_min_zoom",
+    "maxZoom": "set_max_zoom",
+    "minZoomQuery": "set_min_zoom_query",
+}
+
+
+def _validate_advanced_layer_dicts(
+    *,
+    source_type: str,
+    layer_props: Optional[Dict[str, Any]],
+    source_props: Optional[Dict[str, Any]],
+    popup_options: Optional[Dict[str, Any]],
+    opacity: Optional[float],
+    min_zoom: Optional[int],
+    max_zoom: Optional[int],
+) -> Optional[Dict[str, str]]:
+    """Validate the three advanced-dict params for add_map_service_layer.
+
+    Returns None on success (caller proceeds to delegation), or
+    {"error": <message>} on validation failure (caller short-circuits).
+
+    Checks performed:
+      - layer_props: dict shape, allowlist (LAYER_PROPERTIES_ALLOWLIST),
+        per-key value type (rejects bool for numeric keys; rejects
+        non-finite floats), flat-vs-dict conflict.
+      - popup_options: dict shape; aliases sub-dict shape; omit sub-dict
+        shape.
+      - source_props: dict shape, per-source-type allowlist via
+        get_allowed_source_prop_keys.
+
+    Self-contained: no side effects, no external state. Tested directly
+    via TestValidateAdvancedLayerDicts in test_layer_contracts.py.
+    """
+    flat_to_dict_layer_props = {
+        "opacity": ("opacity", opacity),
+        "min_zoom": ("minZoom", min_zoom),
+        "max_zoom": ("maxZoom", max_zoom),
+    }
+    if layer_props:
+        if not isinstance(layer_props, dict):
+            return {"error": "layer_props must be a dict (or JSON-string dict)."}
+        # Allowlist: keys must be known.
+        unknown = set(layer_props) - set(LAYER_PROPERTIES_ALLOWLIST)
+        if unknown:
+            return {
+                "error": (
+                    f"layer_props contains unknown keys: {sorted(unknown)}. "
+                    f"Allowed: {sorted(LAYER_PROPERTIES_ALLOWLIST)}"
+                )
+            }
+        # Per-key value-type validation. The explicit `not isinstance(val, bool)`
+        # check is necessary because Python's bool is a subclass of int —
+        # without it, layer_props={"opacity": True} passes the (int, float)
+        # check and persists `true` as the JSON value, which OpenLayers
+        # treats as the boolean rather than the integer 1.
+        # NaN/Infinity check: float('nan') and float('inf') pass isinstance
+        # but produce invalid JSON (json.dumps emits NaN/Infinity literals
+        # that fail RFC-compliant parsers). Persisting them breaks the
+        # renderer downstream. Only opacity has a range guard inside the
+        # builder (set_opacity); the other 5 props have no finite-value
+        # check, so reject non-finite values at the boundary.
+        for key, val in layer_props.items():
+            expected = LAYER_PROPERTIES_ALLOWLIST[key]
+            numeric_only = expected == (int, float) or expected in (int, float)
+            if not isinstance(val, expected) or (
+                numeric_only and isinstance(val, bool)
+            ):
+                return {
+                    "error": (
+                        f"layer_props[{key!r}] must be of type "
+                        f"{expected!r}; got {type(val).__name__}."
+                    )
+                }
+            if numeric_only and isinstance(val, float) and not math.isfinite(val):
+                return {
+                    "error": (
+                        f"layer_props[{key!r}] must be a finite number; "
+                        f"got {val!r}."
+                    )
+                }
+        # Conflict check.
+        for flat_name, (dict_key, flat_value) in flat_to_dict_layer_props.items():
+            if flat_value is not None and dict_key in layer_props:
+                return {
+                    "error": (
+                        f"Conflicting inputs: {flat_name!r} (flat parameter) "
+                        f"and layer_props[{dict_key!r}] are both supplied. "
+                        f"Pick one path per layer prop."
+                    )
+                }
+
+    if popup_options is not None and not isinstance(popup_options, dict):
+        return {"error": "popup_options must be a dict (or JSON-string dict)."}
+    _popup_aliases = (popup_options or {}).get("aliases") or {}
+    _popup_omit = (popup_options or {}).get("omit") or {}
+    if not isinstance(_popup_aliases, dict):
+        return {"error": "popup_options.aliases must be a dict."}
+    if not isinstance(_popup_omit, dict):
+        return {"error": "popup_options.omit must be a dict (layer_name -> [field, ...])."}
+
+    if source_props is not None and not isinstance(source_props, dict):
+        return {"error": "source_props must be a dict (or JSON-string dict)."}
+    if source_props:
+        # Per-source-type key allowlist: rejects keys absent from
+        # available_source_properties[source_type]['required'|'optional'].
+        # The tool description promises this validation; this enforces it.
+        # Symmetric with layer_props's LAYER_PROPERTIES_ALLOWLIST guard.
+        allowed_source_keys = get_allowed_source_prop_keys(source_type)
+        unknown_source_keys = set(source_props) - allowed_source_keys
+        if unknown_source_keys:
+            return {
+                "error": (
+                    f"source_props contains keys not in the {source_type!r} "
+                    f"allowlist: {sorted(unknown_source_keys)}. "
+                    f"Allowed: {sorted(allowed_source_keys)}"
+                )
+            }
+
+    return None
+
+
 VALID_SOURCE_TYPES = [
     "WMS",
     "ESRI Image and Map Service",
@@ -1078,97 +1208,26 @@ def add_map_service_layer(
             )
 
     # ------------------------------------------------------------------
-    # Phase 2.5: Validate the advanced dicts (source_props, layer_props,
-    # popup_options) before delegation. Conflict-rejects flat-vs-dict
-    # collisions per K1; rejects unknown layer-prop keys / wrong types.
+    # Phase 2.5: Validate the advanced dicts via the module-level helper.
+    # Returns None on success or {"error": ...} on validation failure.
+    # See _validate_advanced_layer_dicts for the full contract.
     # ------------------------------------------------------------------
-    # Conflict check: flat layer params vs layer_props dict. The same
-    # prop must not arrive through both paths — silent winner would be
-    # a quiet bug class. Surface the conflict to the LLM.
-    flat_to_dict_layer_props = {
-        "opacity": ("opacity", opacity),
-        "min_zoom": ("minZoom", min_zoom),
-        "max_zoom": ("maxZoom", max_zoom),
-    }
-    if layer_props:
-        if not isinstance(layer_props, dict):
-            return {"error": "layer_props must be a dict (or JSON-string dict)."}
-        # Allowlist: keys must be known.
-        unknown = set(layer_props) - set(LAYER_PROPERTIES_ALLOWLIST)
-        if unknown:
-            return {
-                "error": (
-                    f"layer_props contains unknown keys: {sorted(unknown)}. "
-                    f"Allowed: {sorted(LAYER_PROPERTIES_ALLOWLIST)}"
-                )
-            }
-        # Per-key value-type validation. The explicit `not isinstance(val, bool)`
-        # check is necessary because Python's bool is a subclass of int —
-        # without it, layer_props={"opacity": True} passes the (int, float)
-        # check and persists `true` as the JSON value, which OpenLayers
-        # treats as the boolean rather than the integer 1.
-        # NaN/Infinity check: float('nan') and float('inf') pass isinstance
-        # but produce invalid JSON (json.dumps emits NaN/Infinity literals
-        # that fail RFC-compliant parsers). Persisting them breaks the
-        # renderer downstream. Only opacity has a range guard inside the
-        # builder (set_opacity); the other 5 props have no finite-value
-        # check, so reject non-finite values at the boundary.
-        for key, val in layer_props.items():
-            expected = LAYER_PROPERTIES_ALLOWLIST[key]
-            numeric_only = expected == (int, float) or expected in (int, float)
-            if not isinstance(val, expected) or (
-                numeric_only and isinstance(val, bool)
-            ):
-                return {
-                    "error": (
-                        f"layer_props[{key!r}] must be of type "
-                        f"{expected!r}; got {type(val).__name__}."
-                    )
-                }
-            if numeric_only and isinstance(val, float) and not math.isfinite(val):
-                return {
-                    "error": (
-                        f"layer_props[{key!r}] must be a finite number; "
-                        f"got {val!r}."
-                    )
-                }
-        # Conflict check.
-        for flat_name, (dict_key, flat_value) in flat_to_dict_layer_props.items():
-            if flat_value is not None and dict_key in layer_props:
-                return {
-                    "error": (
-                        f"Conflicting inputs: {flat_name!r} (flat parameter) "
-                        f"and layer_props[{dict_key!r}] are both supplied. "
-                        f"Pick one path per layer prop."
-                    )
-                }
-
-    if popup_options is not None and not isinstance(popup_options, dict):
-        return {"error": "popup_options must be a dict (or JSON-string dict)."}
+    validation_error = _validate_advanced_layer_dicts(
+        source_type=source_type,
+        layer_props=layer_props,
+        source_props=source_props,
+        popup_options=popup_options,
+        opacity=opacity,
+        min_zoom=min_zoom,
+        max_zoom=max_zoom,
+    )
+    if validation_error is not None:
+        return validation_error
+    # Re-derive popup-options sub-dicts for Phase 3's builder loop.
+    # Cheap (two .get calls) and keeps the helper's API focused on
+    # the validation contract rather than threading derived values.
     _popup_aliases = (popup_options or {}).get("aliases") or {}
     _popup_omit = (popup_options or {}).get("omit") or {}
-    if not isinstance(_popup_aliases, dict):
-        return {"error": "popup_options.aliases must be a dict."}
-    if not isinstance(_popup_omit, dict):
-        return {"error": "popup_options.omit must be a dict (layer_name -> [field, ...])."}
-
-    if source_props is not None and not isinstance(source_props, dict):
-        return {"error": "source_props must be a dict (or JSON-string dict)."}
-    if source_props:
-        # Per-source-type key allowlist: rejects keys absent from
-        # available_source_properties[source_type]['required'|'optional'].
-        # The tool description promises this validation; this enforces it.
-        # Symmetric with layer_props's LAYER_PROPERTIES_ALLOWLIST guard.
-        allowed_source_keys = get_allowed_source_prop_keys(source_type)
-        unknown_source_keys = set(source_props) - allowed_source_keys
-        if unknown_source_keys:
-            return {
-                "error": (
-                    f"source_props contains keys not in the {source_type!r} "
-                    f"allowlist: {sorted(unknown_source_keys)}. "
-                    f"Allowed: {sorted(allowed_source_keys)}"
-                )
-            }
 
     # ------------------------------------------------------------------
     # Phase 3: Delegate to LayerConfigurationBuilder. Builder owns
@@ -1198,20 +1257,13 @@ def add_map_service_layer(
             builder.set_max_zoom(max_zoom)
         # Apply layer_props after the flat scalars so the conflict check
         # above is the only path through which both can be present.
+        # Dispatch via _LAYER_PROP_BUILDER_METHODS keeps the allowlist
+        # and the apply step coupled in one structure (see module-level
+        # comment); a future allowlist addition without a dispatch entry
+        # is caught by the drift test, not silently no-op'd.
         if layer_props:
             for key, val in layer_props.items():
-                if key == "opacity":
-                    builder.set_opacity(val)
-                elif key == "minResolution":
-                    builder.set_min_resolution(val)
-                elif key == "maxResolution":
-                    builder.set_max_resolution(val)
-                elif key == "minZoom":
-                    builder.set_min_zoom(val)
-                elif key == "maxZoom":
-                    builder.set_max_zoom(val)
-                elif key == "minZoomQuery":
-                    builder.set_min_zoom_query(val)
+                getattr(builder, _LAYER_PROP_BUILDER_METHODS[key])(val)
         if queryable:
             builder.set_queryable(True)
         if legend is not None:
