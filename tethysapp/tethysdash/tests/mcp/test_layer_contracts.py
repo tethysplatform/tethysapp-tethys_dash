@@ -1569,3 +1569,83 @@ class TestAddDynamicMapLayer:
         )
         assert "error" in result
         assert "dict" in result["error"]
+
+
+# Plan-005 S2 (cap only) — inline GeoJSON size cap.
+class TestGeoJSONInlineSizeCap:
+    @staticmethod
+    def _features(n):
+        return [
+            {
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": [0, 0]},
+                "properties": {"i": i},
+            }
+            for i in range(n)
+        ]
+
+    def test_within_cap_accepted(self):
+        # Comfortably under both default caps.
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="GeoJSON",
+            name="Small Cities",
+            geojson={"type": "FeatureCollection", "features": self._features(100)},
+        )
+        assert "layer_update" in result
+
+    def test_feature_count_over_cap_rejected(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="GeoJSON",
+            name="Too Many Cities",
+            geojson={
+                "type": "FeatureCollection",
+                "features": self._features(10_001),
+            },
+        )
+        assert "error" in result
+        assert "10001 features" in result["error"]
+
+    def test_byte_size_over_cap_rejected(self, monkeypatch):
+        # Lower the cap so the test stays fast; 1KB is plenty to trip with
+        # a few hundred bytes of feature data.
+        monkeypatch.setenv("TETHYSDASH_MCP_GEOJSON_MAX_BYTES", "1024")
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="GeoJSON",
+            name="Too Big",
+            geojson={
+                "type": "FeatureCollection",
+                "features": self._features(50),  # ~5KB serialized
+            },
+        )
+        assert "error" in result
+        assert "bytes" in result["error"]
+
+    def test_env_var_override_raises_feature_cap(self, monkeypatch):
+        # Operator override path — raise the feature cap so a previously-
+        # rejected payload now passes.
+        monkeypatch.setenv("TETHYSDASH_MCP_GEOJSON_MAX_FEATURES", "20000")
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="GeoJSON",
+            name="Big But Allowed",
+            geojson={
+                "type": "FeatureCollection",
+                "features": self._features(15_000),
+            },
+        )
+        assert "layer_update" in result
+
+    def test_geojson_url_path_unaffected_by_cap(self):
+        # The cap only inspects inline dict payloads; geojson_url goes
+        # through unchanged regardless of the eventual fetched size
+        # (which is the browser's concern, not the server's).
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="GeoJSON",
+            name="Hosted",
+            geojson_url="https://example.com/huge.geojson",
+        )
+        assert "layer_update" in result

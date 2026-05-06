@@ -639,6 +639,19 @@ def create_map_visualization(
 # Map service layer tool
 # ---------------------------------------------------------------------------
 
+# Plan-005 S2 cap: cap inline GeoJSON payloads at the MCP boundary to
+# prevent an LLM or chatbox user from persisting a multi-MB feature
+# collection that gets re-served on every dashboard fetch. Operators
+# can raise the limits via env vars (e.g. for legitimate large
+# datasets); defaults are conservative.
+GEOJSON_MAX_BYTES = int(
+    os.environ.get("TETHYSDASH_MCP_GEOJSON_MAX_BYTES", str(5 * 1024 * 1024))
+)
+GEOJSON_MAX_FEATURES = int(
+    os.environ.get("TETHYSDASH_MCP_GEOJSON_MAX_FEATURES", "10000")
+)
+
+
 VALID_SOURCE_TYPES = [
     "WMS",
     "ESRI Image and Map Service",
@@ -816,6 +829,42 @@ def add_map_service_layer(
         layer_props = json.loads(layer_props)
     if isinstance(popup_options, str):
         popup_options = json.loads(popup_options)
+
+    # Plan-005 S2 cap: reject oversized inline GeoJSON before any further
+    # processing. Cap is dynamically read from env vars at call time so
+    # tests and operators can override without re-importing the module.
+    # NB: only inline dict payloads are capped; geojson_url is unaffected
+    # (the cost is borne by the browser at render time, not the server).
+    if isinstance(geojson, dict):
+        max_features = int(os.environ.get(
+            "TETHYSDASH_MCP_GEOJSON_MAX_FEATURES", str(GEOJSON_MAX_FEATURES)
+        ))
+        max_bytes = int(os.environ.get(
+            "TETHYSDASH_MCP_GEOJSON_MAX_BYTES", str(GEOJSON_MAX_BYTES)
+        ))
+        feature_count = len(geojson.get("features", []))
+        if feature_count > max_features:
+            return {
+                "error": (
+                    f"Inline GeoJSON has {feature_count} features; the "
+                    f"limit is {max_features}. Use geojson_url for hosted "
+                    f"large datasets, or raise "
+                    f"TETHYSDASH_MCP_GEOJSON_MAX_FEATURES on the server."
+                )
+            }
+        try:
+            payload_size = len(json.dumps(geojson))
+        except (TypeError, ValueError):
+            payload_size = 0
+        if payload_size > max_bytes:
+            return {
+                "error": (
+                    f"Inline GeoJSON serializes to {payload_size} bytes; "
+                    f"the limit is {max_bytes}. Use geojson_url for hosted "
+                    f"large datasets, or raise "
+                    f"TETHYSDASH_MCP_GEOJSON_MAX_BYTES on the server."
+                )
+            }
 
     # Validate source_type
     if source_type not in VALID_SOURCE_TYPES:
