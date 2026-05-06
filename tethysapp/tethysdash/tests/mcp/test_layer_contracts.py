@@ -10,6 +10,7 @@ Layer 1 tests -- no browser, no server, milliseconds per test.
 from unittest.mock import patch
 
 from tethysapp.tethysdash.mcp.tethysdash_mcp_server import (
+    add_dynamic_map_layer,
     add_map_service_layer,
     VALID_SOURCE_TYPES,
 )
@@ -1305,6 +1306,21 @@ class TestAdvancedMetadata:
         assert "error" in result
         assert "Conflicting" in result["error"]
 
+    def test_max_zoom_conflict_with_layer_props_returns_error(self):
+        # Symmetric coverage to opacity + min_zoom; pins the third entry
+        # of the flat_to_dict_layer_props matrix.
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="WMS",
+            name="WMS Conflicting MaxZoom",
+            url="https://example.com/wms",
+            wms_layers="ws:layer",
+            max_zoom=15,
+            layer_props={"maxZoom": 10},
+        )
+        assert "error" in result
+        assert "Conflicting" in result["error"]
+
     def test_legend_string_persists_at_top_level(self):
         result = add_map_service_layer(
             map_uuid=MAP_UUID,
@@ -1389,9 +1405,6 @@ class TestAddDynamicMapLayer:
         return _stub
 
     def test_runtime_plugin_returns_pluginsource_layer(self):
-        from tethysapp.tethysdash.mcp.tethysdash_mcp_server import (
-            add_dynamic_map_layer,
-        )
         plugin = {
             "source": "streamflow_gauges",
             "type": "map_layer",
@@ -1419,9 +1432,6 @@ class TestAddDynamicMapLayer:
         assert source_obj["geojson"]["features"] == []
 
     def test_args_none_coerced_to_empty_dict(self):
-        from tethysapp.tethysdash.mcp.tethysdash_mcp_server import (
-            add_dynamic_map_layer,
-        )
         plugin = {
             "source": "no_args_plugin",
             "type": "map_layer",
@@ -1442,9 +1452,6 @@ class TestAddDynamicMapLayer:
         assert layer["configuration"]["props"]["pluginSource"]["args"] == {}
 
     def test_args_json_string_coerced(self):
-        from tethysapp.tethysdash.mcp.tethysdash_mcp_server import (
-            add_dynamic_map_layer,
-        )
         plugin = {
             "source": "string_args_plugin",
             "type": "map_layer",
@@ -1467,9 +1474,6 @@ class TestAddDynamicMapLayer:
         }
 
     def test_variable_template_preserved_verbatim(self):
-        from tethysapp.tethysdash.mcp.tethysdash_mcp_server import (
-            add_dynamic_map_layer,
-        )
         plugin = {
             "source": "gauge_plugin",
             "type": "map_layer",
@@ -1494,10 +1498,6 @@ class TestAddDynamicMapLayer:
         )
 
     def test_non_map_layer_plugin_rejected(self):
-        from tethysapp.tethysdash.mcp.tethysdash_mcp_server import (
-            add_dynamic_map_layer,
-            _resolve_dynamic_map_layer_plugin as _real,
-        )
         # Use the real resolver wrapped to return a non-map-layer result.
         with patch(
             "tethysapp.tethysdash.mcp.tethysdash_mcp_server."
@@ -1518,9 +1518,6 @@ class TestAddDynamicMapLayer:
         assert "map_layer" in result["error"]
 
     def test_static_map_layer_plugin_rejected(self):
-        from tethysapp.tethysdash.mcp.tethysdash_mcp_server import (
-            add_dynamic_map_layer,
-        )
         with patch(
             "tethysapp.tethysdash.mcp.tethysdash_mcp_server."
             "_resolve_dynamic_map_layer_plugin",
@@ -1540,9 +1537,6 @@ class TestAddDynamicMapLayer:
         assert "static" in result["error"].lower()
 
     def test_unknown_source_rejected(self):
-        from tethysapp.tethysdash.mcp.tethysdash_mcp_server import (
-            add_dynamic_map_layer,
-        )
         with patch(
             "tethysapp.tethysdash.mcp.tethysdash_mcp_server."
             "_resolve_dynamic_map_layer_plugin",
@@ -1557,9 +1551,6 @@ class TestAddDynamicMapLayer:
         assert "Unknown" in result["error"]
 
     def test_args_non_dict_after_coercion_rejected(self):
-        from tethysapp.tethysdash.mcp.tethysdash_mcp_server import (
-            add_dynamic_map_layer,
-        )
         # JSON-string that decodes to a list, not a dict — boundary rejects.
         result = add_dynamic_map_layer(
             map_uuid=MAP_UUID,
@@ -1649,3 +1640,180 @@ class TestGeoJSONInlineSizeCap:
             geojson_url="https://example.com/huge.geojson",
         )
         assert "layer_update" in result
+
+    def test_features_none_returns_validation_error_not_typeerror(self):
+        # /ce:review #2 (P1): without the `or []` guard, features=None
+        # caused len(None) → TypeError before validate_geojson could
+        # produce a clean error. The fix should let the call proceed
+        # past the cap (feature_count=0) and surface the actual error
+        # from validate_geojson on the down-the-line path.
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="GeoJSON",
+            name="Bad Features",
+            geojson={"type": "FeatureCollection", "features": None},
+        )
+        # Whichever validator catches it, the result must be a clean
+        # MCP error envelope, not an unhandled exception.
+        assert "error" in result
+
+
+# /ce:review #5 (P1): module-load env-var int() must not crash imports.
+class TestGeojsonCapEnvVarParsing:
+    def test_invalid_env_value_falls_back_to_module_default(self, monkeypatch):
+        # Simulate operator misconfig at call time. The fallback path
+        # should kick in and the call should still succeed.
+        monkeypatch.setenv("TETHYSDASH_MCP_GEOJSON_MAX_FEATURES", "ten thousand")
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="GeoJSON",
+            name="Resilient To Bad Env",
+            geojson={"type": "FeatureCollection", "features": []},
+        )
+        assert "layer_update" in result
+
+
+# /ce:review #18 (P3): bool is a subclass of int; layer_props={"opacity": True}
+# must be rejected (not silently persisted as a JSON boolean).
+class TestLayerPropsRejectsBoolean:
+    def test_opacity_true_rejected(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="WMS",
+            name="WMS Bool Opacity",
+            url="https://example.com/wms",
+            wms_layers="ws:layer",
+            layer_props={"opacity": True},
+        )
+        assert "error" in result
+        assert "opacity" in result["error"]
+
+    def test_min_zoom_false_rejected(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="WMS",
+            name="WMS Bool MinZoom",
+            url="https://example.com/wms",
+            wms_layers="ws:layer",
+            layer_props={"minZoom": False},
+        )
+        assert "error" in result
+        assert "minZoom" in result["error"]
+
+
+# /ce:review #6 (P2): bare json.loads() on string-coerced params raised
+# uncaught JSONDecodeError. Each new param must surface a clean MCP
+# error for malformed JSON instead.
+class TestMalformedJsonStringInputs:
+    def test_malformed_layer_props_returns_clean_error(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="WMS",
+            name="WMS Bad JSON",
+            url="https://example.com/wms",
+            wms_layers="ws:layer",
+            layer_props='{"minZoom": 5',  # missing closing brace
+        )
+        assert "error" in result
+        assert "layer_props" in result["error"]
+
+    def test_malformed_source_props_returns_clean_error(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="WMS",
+            name="WMS Bad source_props JSON",
+            url="https://example.com/wms",
+            wms_layers="ws:layer",
+            source_props="{not valid json}",
+        )
+        assert "error" in result
+        assert "source_props" in result["error"]
+
+    def test_malformed_dynamic_layer_args_returns_clean_error(self):
+        result = add_dynamic_map_layer(
+            map_uuid=MAP_UUID,
+            source="anything",
+            name="Bad Args JSON",
+            args='{"key": "value"',  # missing closing brace
+        )
+        assert "error" in result
+        assert "args" in result["error"]
+
+
+# /ce:review #10 (P2): list_intake_plugins compact output must surface
+# dynamic_map_layer flag so the LLM can identify add_dynamic_map_layer-
+# eligible plugins without speculative call.
+class TestListIntakePluginsExposesDynamicFlag:
+    def test_compact_entries_include_dynamic_map_layer_field(self):
+        from tethysapp.tethysdash.mcp.tethysdash_mcp_server import (
+            list_intake_plugins,
+        )
+        fake_response = type("R", (), {})()
+        fake_response.json = lambda: {
+            "visualizations": [
+                {
+                    "label": "Group A",
+                    "options": [
+                        {
+                            "source": "static_plug",
+                            "label": "Static Plug",
+                            "type": "map_layer",
+                            "args": {"x": "text"},
+                            "dynamic_map_layer": False,
+                        },
+                        {
+                            "source": "runtime_plug",
+                            "label": "Runtime Plug",
+                            "type": "map_layer",
+                            "args": {"y": "text"},
+                            "dynamic_map_layer": True,
+                        },
+                    ],
+                }
+            ]
+        }
+        fake_response.raise_for_status = lambda: None
+        with patch(
+            "tethysapp.tethysdash.mcp.tethysdash_mcp_server."
+            "http_requests.get",
+            return_value=fake_response,
+        ):
+            result = list_intake_plugins()
+        plugins = {p["source"]: p for p in result["intake_plugins"]}
+        assert plugins["static_plug"]["dynamic_map_layer"] is False
+        assert plugins["runtime_plug"]["dynamic_map_layer"] is True
+
+
+# /ce:review #11 (P2): set_legend(None) on a fresh builder must not raise
+# KeyError. Direct unit test of the builder method (not just the MCP path).
+class TestSetLegendNoneIdempotent:
+    def test_set_legend_none_on_fresh_builder_does_not_raise(self):
+        builder = LayerConfigurationBuilder("test", "GeoJSON")
+        # Must not raise — pop() over del.
+        builder.set_legend(None)
+        # Idempotent.
+        builder.set_legend(None)
+
+
+# /ce:review #1 (P1): _resolve_dynamic_map_layer_plugin must catch
+# JSONDecodeError from response.json() (Django returning HTML on a 200,
+# e.g. expired session redirect).
+class TestResolveDynamicMapLayerPluginJsonError:
+    def test_non_json_response_returns_clean_error(self):
+        from tethysapp.tethysdash.mcp.tethysdash_mcp_server import (
+            _resolve_dynamic_map_layer_plugin,
+        )
+        fake_response = type("R", (), {})()
+        fake_response.raise_for_status = lambda: None
+        # Real requests would raise JSONDecodeError (a ValueError subclass).
+        def _raise_json_error():
+            raise ValueError("Expecting value: line 1 column 1 (char 0)")
+        fake_response.json = _raise_json_error
+        with patch(
+            "tethysapp.tethysdash.mcp.tethysdash_mcp_server."
+            "http_requests.get",
+            return_value=fake_response,
+        ):
+            result = _resolve_dynamic_map_layer_plugin("anything")
+        assert "error" in result
+        assert "Failed to fetch plugin metadata" in result["error"]

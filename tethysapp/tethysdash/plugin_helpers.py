@@ -1206,7 +1206,10 @@ class LayerConfigurationBuilder:
             return self
 
         if legend is None:
-            del self.config["legend"]
+            # pop() over del so calling set_legend(None) on a fresh builder
+            # (where 'legend' has never been set) is idempotent rather than
+            # raising KeyError.
+            self.config.pop("legend", None)
             return self
 
         if not isinstance(legend, dict):
