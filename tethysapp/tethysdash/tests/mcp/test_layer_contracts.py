@@ -840,6 +840,10 @@ class TestAllSourceTypesReturnLayerUpdate:
         "Vector Tile": dict(url="https://x.com/tiles/{z}/{x}/{y}.pbf"),
         "PMTiles Vector": dict(url="https://x.com/data.pmtiles"),
         "PMTiles Raster": dict(url="https://x.com/data.pmtiles"),
+        "Static Image": dict(
+            url="https://x.com/image.png",
+            params={"projection": "EPSG:4326", "imageExtent": "0,0,10,10"},
+        ),
     }
 
     def test_all_valid_source_types_covered(self):
@@ -872,6 +876,9 @@ class TestAllSourceTypesReturnLayerUpdate:
 
     def test_pmtiles_raster_returns_layer_update(self):
         self._assert_source_type_returns_layer_update("PMTiles Raster")
+
+    def test_static_image_returns_layer_update(self):
+        self._assert_source_type_returns_layer_update("Static Image")
 
     def _assert_source_type_returns_layer_update(self, source_type):
         args = self._MINIMAL_ARGS[source_type]
@@ -1021,3 +1028,49 @@ class TestOptionalLayerProps:
         assert "opacity" not in props
         assert "minZoom" not in props
         assert "maxZoom" not in props
+
+
+# Plan 004 R2 — Static Image is the canonical "missing source type" the
+# refactor closes. These tests pin the persisted shape against the
+# renderer-side contract (ModuleLoader.js:35 special-cases imageExtent
+# string → numeric array, so a string is the right persisted form).
+class TestStaticImage:
+    def test_static_image_minimal(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="Static Image",
+            name="Aerial Photo",
+            url="https://example.com/aerial.png",
+            params={"projection": "EPSG:4326", "imageExtent": "-180,-90,180,90"},
+        )
+        config = _get_configuration(result)
+        assert config["type"] == "ImageLayer"
+        source = config["props"]["source"]
+        assert source["type"] == "Static Image"
+        assert source["props"]["url"] == "https://example.com/aerial.png"
+        assert source["props"]["projection"] == "EPSG:4326"
+        # imageExtent persists as a string — ModuleLoader.js:35-41 splits
+        # it to a numeric array at render time. Verifying the persisted
+        # form here would be too strict if the renderer's contract changes.
+        assert source["props"]["imageExtent"] == "-180,-90,180,90"
+
+    def test_static_image_without_url_returns_error(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="Static Image",
+            name="Aerial No URL",
+        )
+        assert "error" in result
+
+    def test_static_image_without_required_extent_returns_error(self):
+        # The builder validates required source props (url, projection,
+        # imageExtent) per available_source_properties. Missing
+        # imageExtent should surface as an MCP error, not a stack trace.
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="Static Image",
+            name="Aerial Partial",
+            url="https://example.com/aerial.png",
+            params={"projection": "EPSG:4326"},
+        )
+        assert "error" in result

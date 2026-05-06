@@ -12,6 +12,11 @@ import copy
 from datetime import datetime
 from intake.source import base
 from dateutil.parser import parse
+from tethysapp.tethysdash.url_safety import (
+    MAX_OUTBOUND_REQUESTS_PER_CALL,
+    UnsafeUrlError,
+    validate_outbound_url,
+)
 
 DEFAULT_RUNTIME_PLACEHOLDER_GEOJSON = {
     "type": "FeatureCollection",
@@ -471,6 +476,16 @@ available_source_properties = {
             "tileSize": "Tile Size (e.g., 256, 512)",
         },
     },
+    "Static Image": {
+        "required": {
+            "url": "Image URL",
+            "projection": "EPSG:<Code>",
+            "imageExtent": "minX,minY,maxX,maxY",
+        },
+        "optional": {
+            "attributions": "Attributions",
+        },
+    },
 }
 
 
@@ -501,12 +516,17 @@ class LayerConfigurationBuilder:
                 - 'Vector Tile'
                 - 'PMTiles Vector'
                 - 'PMTiles Raster'
+                - 'Static Image'
 
         Raises:
             ValueError: If layer_source is not one of the supported options.
         """
         self.name = name
 
+        # Layer-type mapping mirrors the renderer's getLayerType() in
+        # reactapp/components/modals/MapLayer/MapLayer.js. The renderer is
+        # the source of truth; any divergence here will silently produce
+        # un-renderable layers.
         valid_sources = {
             "Vector Tile": "VectorTileLayer",
             "Image Tile": "TileLayer",
@@ -516,7 +536,8 @@ class LayerConfigurationBuilder:
             "GeoJSON": "VectorLayer",
             "KML": "VectorLayer",
             "PMTiles Vector": "VectorTileLayer",
-            "PMTiles Raster": "TileLayer",
+            "PMTiles Raster": "WebGLTile",
+            "Static Image": "ImageLayer",
         }
 
         if layer_source not in valid_sources:
@@ -844,6 +865,7 @@ class LayerConfigurationBuilder:
             raise ValueError(
                 "url must be provided. Set using .set_source_properties(url='some_url')"
             )
+        validate_outbound_url(url)
         response = requests.get(f"{url}?f=json")
         response.raise_for_status()
         data = response.json()
@@ -873,11 +895,17 @@ class LayerConfigurationBuilder:
             raise ValueError(
                 "url must be provided. Set using .set_source_properties(url='some_url')"
             )
+        validate_outbound_url(url)
         response = requests.get(f"{url}?f=json")
         response.raise_for_status()
         data = response.json()
         attributes = {}
-        for index, layer in enumerate(data.get("layers", [])):
+        # Cap the per-layer fetch loop. ArcGIS services occasionally
+        # advertise hundreds of layers; without a cap, a single MCP call
+        # can amplify into N+1 outbound requests. Layers beyond the cap
+        # fall back to default-visibility (renderer behavior elsewhere).
+        layers = data.get("layers", [])[:MAX_OUTBOUND_REQUESTS_PER_CALL]
+        for index, layer in enumerate(layers):
             name = layer["name"]
             layer_url = f"{url}/{index}?f=json"
             layer_data = requests.get(layer_url).json()
@@ -920,6 +948,7 @@ class LayerConfigurationBuilder:
                 "layer (index number) must be provided. Set using .set_source_properties(layer=0)"  # noqa: E501
             )
 
+        validate_outbound_url(url)
         layer_url = f"{url.rstrip('/')}/{layer_number}?f=json"
         response = requests.get(layer_url)
         response.raise_for_status()
@@ -985,6 +1014,8 @@ class LayerConfigurationBuilder:
             raise ValueError(
                 "url must be provided. Set using .set_source_properties(url='some_url')"
             )
+
+        validate_outbound_url(url)
 
         layer_names = [
             layer.strip().lower() for layer in layers.split(",") if layer.strip()

@@ -115,7 +115,7 @@ def test_layer_configuration_builder_WMS(mocker):
 
     builder = LayerConfigurationBuilder("test", "WMS")
     builder.set_source_properties(
-        url="http://localhost:8181/geoserver/wms",
+        url="https://example.com/geoserver/wms",
         params={"LAYERS": "tiger:poly_landmarks,topp:states"},
     )
     layer_names = builder.get_layer_names()
@@ -166,7 +166,7 @@ def test_layer_configuration_builder_WMS_errors(mocker):
         builder.get_layer_attributes()
 
     builder.set_source_properties(
-        url="http://localhost:8181/geoserver/wms",
+        url="https://example.com/geoserver/wms",
     )
 
     with pytest.raises(
@@ -184,7 +184,7 @@ def test_layer_configuration_builder_WMS_Exception_Report(mocker):
 
     builder = LayerConfigurationBuilder("test", "WMS")
     builder.set_source_properties(
-        url="http://localhost:8181/geoserver/wms",
+        url="https://example.com/geoserver/wms",
         params={"LAYERS": "tiger:poly_landmarks,topp:states"},
     )
 
@@ -205,7 +205,7 @@ def test_layer_configuration_builder_WMS_schema_error(mocker):
 
     builder = LayerConfigurationBuilder("test", "WMS")
     builder.set_source_properties(
-        url="http://localhost:8181/geoserver/wms",
+        url="https://example.com/geoserver/wms",
         params={"LAYERS": "tiger:poly_landmarks,topp:states"},
     )
 
@@ -224,7 +224,7 @@ def test_layer_configuration_builder_WMS_complexType_error(mocker):
 
     builder = LayerConfigurationBuilder("test", "WMS")
     builder.set_source_properties(
-        url="http://localhost:8181/geoserver/wms",
+        url="https://example.com/geoserver/wms",
         params={"LAYERS": "tiger:poly_landmarks,topp:states"},
     )
 
@@ -1477,4 +1477,125 @@ def test_builder_runtime_geojson_override():
             "geometry"
         ]["type"]
         == "Point"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Renderer-fixture-anchored parity tests (plan 004 R6).
+#
+# Source of truth: reactapp/components/modals/MapLayer/MapLayer.js's
+# getLayerType() function and the saved-config fixtures used in
+# reactapp/__tests__/components/modals/MapLayer/MapLayer.test.js and
+# reactapp/__tests__/components/map/ModuleLoader.test.js. The expected
+# values below are derived from those files; if they change, this test
+# is the canary.
+# ---------------------------------------------------------------------------
+
+
+# Mirror of MapLayer.js:119 getLayerType() — keep in lockstep.
+# Each entry: (expected layer.type, minimal source-prop kwargs to satisfy
+# build()'s required-field validation).
+RENDERER_LAYER_TYPE_BY_SOURCE = {
+    "ESRI Image and Map Service": (
+        "ImageLayer",  # *Image* branch
+        {"url": "https://example.com/MapServer"},
+    ),
+    "ESRI Feature Service": (
+        "VectorLayer",  # else branch
+        {"url": "https://example.com/FeatureServer", "layer": 0},
+    ),
+    "GeoJSON": ("VectorLayer", {}),  # else branch; no required source props
+    "Image Tile": ("TileLayer", {"url": "https://example.com/{z}/{x}/{y}.png"}),
+    "KML": ("VectorLayer", {"url": "https://example.com/file.kml"}),
+    "PMTiles Raster": ("WebGLTile", {"url": "https://example.com/raster.pmtiles"}),
+    "PMTiles Vector": (
+        "VectorTileLayer",
+        {"url": "https://example.com/vector.pmtiles"},
+    ),
+    "Static Image": (
+        "ImageLayer",  # *Image* branch
+        {
+            "url": "https://example.com/image.png",
+            "projection": "EPSG:4326",
+            "imageExtent": "0,0,10,10",
+        },
+    ),
+    "Vector Tile": (
+        "VectorTileLayer",
+        {"urls": "https://example.com/{z}/{x}/{y}.pbf"},
+    ),
+    "WMS": (
+        "ImageLayer",
+        {"url": "https://example.com/wms", "params": {"LAYERS": "topp:states"}},
+    ),
+}
+
+
+@pytest.mark.parametrize(
+    "source_type,expected,kwargs",
+    [(k, v[0], v[1]) for k, v in RENDERER_LAYER_TYPE_BY_SOURCE.items()],
+)
+def test_builder_layer_type_matches_renderer(source_type, expected, kwargs):
+    """The builder's layer-type mapping must match the renderer's
+    getLayerType(). A drift here silently produces un-renderable layers.
+    """
+    builder = LayerConfigurationBuilder("test layer", source_type)
+    if kwargs:
+        builder.set_source_properties(**kwargs)
+    config = builder.build()
+    actual = config["configuration"]["type"]
+    assert actual == expected, (
+        f"Builder produces layer.type={actual!r} for source {source_type!r}, "
+        f"but the renderer's getLayerType() expects {expected!r}. Update "
+        f"plugin_helpers.py LayerConfigurationBuilder.valid_sources to match "
+        f"reactapp/components/modals/MapLayer/MapLayer.js getLayerType()."
+    )
+
+
+def test_static_image_source_props_shape():
+    """Static Image's required source props match the UI's saved shape
+    (reactapp/__tests__/components/modals/MapLayer/MapLayer.test.js
+    'Static Image save preserves imageExtent string')."""
+    builder = LayerConfigurationBuilder("static layer", "Static Image")
+    builder.set_source_properties(
+        url="https://example.com/image.png",
+        projection="EPSG:4326",
+        imageExtent="0,0,10,10",
+    )
+    config = builder.build()
+    source = config["configuration"]["props"]["source"]
+    assert source["type"] == "Static Image"
+    assert source["props"]["url"] == "https://example.com/image.png"
+    assert source["props"]["projection"] == "EPSG:4326"
+    assert source["props"]["imageExtent"] == "0,0,10,10"
+
+
+def test_pmtiles_raster_layer_type_is_webgl_tile():
+    """Regression guard for the plan-004 PMTiles Raster fix. Renderer
+    test ModuleLoader.test.js asserts WebGLTile for this source. Prior
+    to plan 004, the builder mapped this to TileLayer."""
+    builder = LayerConfigurationBuilder("raster", "PMTiles Raster")
+    builder.set_source_properties(url="https://example.com/raster.pmtiles")
+    config = builder.build()
+    assert config["configuration"]["type"] == "WebGLTile"
+
+
+def test_geojson_lives_at_source_geojson_not_props():
+    """GeoJSON inline data must live at configuration.props.source.geojson,
+    not at configuration.props.source.props.geojson — per
+    docs/solutions/best-practices/mcp-visualization-inline-data-vs-top-level-args-2026-04-14.md
+    rule 6."""
+    builder = LayerConfigurationBuilder("geojson layer", "GeoJSON")
+    builder.set_geojson(
+        {
+            "type": "FeatureCollection",
+            "features": [],
+            "crs": {"properties": {"name": "EPSG:4326"}},
+        }
+    )
+    config = builder.build()
+    source = config["configuration"]["props"]["source"]
+    assert "geojson" in source, "GeoJSON must be at source.geojson"
+    assert "geojson" not in source.get("props", {}), (
+        "GeoJSON must NOT be at source.props.geojson"
     )
