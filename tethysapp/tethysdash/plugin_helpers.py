@@ -10,6 +10,7 @@ import warnings
 import xmltodict
 import copy
 from datetime import datetime
+from typing import Union
 from intake.source import base
 from dateutil.parser import parse
 
@@ -606,12 +607,16 @@ class LayerConfigurationBuilder:
         self._plugin_source = {"source": source, "args": args}
         return self
 
-    def set_geojson(self, geojson: dict):
+    def set_geojson(self, geojson: Union[dict, str]):
         """
-        Attach a validated GeoJSON dictionary to the layer source.
+        Attach a validated GeoJSON FeatureCollection / Feature object OR a URL
+        string pointing at GeoJSON to the layer source.
 
         Args:
-            geojson (dict): A valid GeoJSON FeatureCollection or Feature object.
+            geojson: Either a dict (inline GeoJSON FeatureCollection or Feature
+                object), or a string URL the frontend will fetch at render time
+                (loadGeoJSON in reactapp/components/map/utilities.js handles the
+                URL form).
 
         Raises:
             ValueError: If the geojson is not valid.

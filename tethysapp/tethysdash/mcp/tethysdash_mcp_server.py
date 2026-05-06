@@ -649,22 +649,6 @@ VALID_SOURCE_TYPES = [
     "Static Image",
 ]
 
-# Kept for any external caller that imports this constant; the builder is
-# the source of truth for source_type → layer_type mapping post-plan-004.
-# See LayerConfigurationBuilder.valid_sources in plugin_helpers.py.
-SOURCE_TYPE_TO_LAYER_TYPE = {
-    "WMS": "ImageLayer",
-    "ESRI Image and Map Service": "ImageLayer",
-    "ESRI Feature Service": "VectorLayer",
-    "GeoJSON": "VectorLayer",
-    "KML": "VectorLayer",
-    "Image Tile": "TileLayer",
-    "Vector Tile": "VectorTileLayer",
-    "PMTiles Vector": "VectorTileLayer",
-    "PMTiles Raster": "WebGLTile",
-    "Static Image": "ImageLayer",
-}
-
 # Recognized directive prefixes for ESRI Image and Map Service `params.LAYERS`.
 # Kept in sync with the JS constant in
 # `reactapp/components/map/utilities.js` (the frontend `normalizeLayersParam`
@@ -766,7 +750,10 @@ def add_map_service_layer(
     ))] = None,
     params: Annotated[Optional[Union[Dict[str, Any], str]], Field(description=(
         "Additional source parameters merged into the source props. "
-        "Supports ${variable_name} syntax for dashboard variable references."
+        "Supports ${variable_name} syntax for dashboard variable references. "
+        "For Static Image source_type: must include both 'projection' and "
+        "'imageExtent' keys (an EPSG code and a comma-separated bounding-box "
+        "string, in that string form — not a numeric array)."
     ))] = None,
     opacity: Annotated[Optional[float], Field(description="Layer opacity from 0 (transparent) to 1 (opaque)")] = None,
     min_zoom: Annotated[Optional[int], Field(description="Minimum zoom level at which the layer is visible")] = None,
@@ -1887,7 +1874,7 @@ def list_available_visualizations() -> Dict[str, Any]:
                 "type": "map",
                 "name": "Map",
                 "tool": "create_map_visualization",
-                "description": "OpenLayers map. Supports WMS, GeoJSON, KML, ESRI services, Image/Vector tiles, PMTiles",
+                "description": "OpenLayers map. Supports WMS, GeoJSON, KML, ESRI services, Image/Vector tiles, PMTiles, Static Image",
                 "prefer_native": True,
             },
             {
