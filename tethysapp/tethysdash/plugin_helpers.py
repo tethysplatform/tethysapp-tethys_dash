@@ -380,6 +380,24 @@ def validate_feature_collection(data):
     return True
 
 
+# Mirror of frontend `layerPropertiesOptions` (reactapp/components/map/utilities.js).
+# Maps each layer-prop key to its accepted Python value type(s). The MCP layer's
+# `layer_props` advanced dict is validated against this allowlist — keys not
+# present are rejected; values failing isinstance() are rejected.
+#
+# Drift guard: tests/mcp/test_source_metadata_drift.py asserts the keys here
+# are a superset of `Object.keys(layerPropertiesOptions)` (snapshotted via
+# the JS-side jest helper into tests/fixtures/source_properties_options.json).
+LAYER_PROPERTIES_ALLOWLIST = {
+    "opacity": (int, float),
+    "minResolution": (int, float),
+    "maxResolution": (int, float),
+    "minZoom": (int, float),
+    "maxZoom": (int, float),
+    "minZoomQuery": (int, float),
+}
+
+
 available_source_properties = {
     "ESRI Image and Map Service": {
         "required": {"url": "ArcGIS Rest service URL"},

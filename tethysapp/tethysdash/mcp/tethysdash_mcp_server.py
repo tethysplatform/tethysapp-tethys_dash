@@ -29,7 +29,10 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import Response as StarletteResponse
 import requests as http_requests
 
-from tethysapp.tethysdash.plugin_helpers import LayerConfigurationBuilder
+from tethysapp.tethysdash.plugin_helpers import (
+    LAYER_PROPERTIES_ALLOWLIST,
+    LayerConfigurationBuilder,
+)
 from tethysapp.tethysdash.editable_schemas import (
     LLM_EDITABLE_PATHS,
     is_path_allowed,
@@ -758,6 +761,35 @@ def add_map_service_layer(
     opacity: Annotated[Optional[float], Field(description="Layer opacity from 0 (transparent) to 1 (opaque)")] = None,
     min_zoom: Annotated[Optional[int], Field(description="Minimum zoom level at which the layer is visible")] = None,
     max_zoom: Annotated[Optional[int], Field(description="Maximum zoom level at which the layer is visible")] = None,
+    legend: Annotated[Optional[Union[str, Dict[str, Any]]], Field(description=(
+        "Layer legend. Pass 'default' to use the source's default legend, a "
+        "URL string for a hosted legend image, or a dict for a custom legend "
+        "definition (the dict shape mirrors the UI's Legend tab)."
+    ))] = None,
+    style: Annotated[Optional[Union[str, Dict[str, Any]]], Field(description=(
+        "Layer style. Pass a URL string (style JSON hosted externally) or "
+        "a dict for an inline style definition."
+    ))] = None,
+    source_props: Annotated[Optional[Union[Dict[str, Any], str]], Field(description=(
+        "Advanced source-side properties merged into source.props. Validated "
+        "against the source-type's available_source_properties allowlist; "
+        "unknown keys are rejected. Use this for source props beyond the "
+        "first-class flat parameters (e.g., projection on Image Tile, "
+        "tileSize on PMTiles)."
+    ))] = None,
+    layer_props: Annotated[Optional[Union[Dict[str, Any], str]], Field(description=(
+        "Advanced layer-level properties (opacity, minResolution, "
+        "maxResolution, minZoom, maxZoom, minZoomQuery). Validated against "
+        "the LAYER_PROPERTIES_ALLOWLIST. Per-key value-type validation is "
+        "applied. Conflicts with the corresponding flat parameter (e.g., "
+        "opacity, min_zoom, max_zoom) are rejected — pick one path per prop."
+    ))] = None,
+    popup_options: Annotated[Optional[Union[Dict[str, Any], str]], Field(description=(
+        "Click-popup options. Accepts {'aliases': {layer_name: {field: alias}}} "
+        "and {'omit': {layer_name: [field, ...]}} sub-dicts. The 'aliases' "
+        "shape mirrors the UI's attribute-aliases tab; 'omit' marks fields "
+        "to hide from popups."
+    ))] = None,
 ) -> Dict[str, Any]:
     """Add a service layer to an existing map.
 
@@ -778,6 +810,12 @@ def add_map_service_layer(
         attribute_variables = json.loads(attribute_variables)
     if isinstance(params, str):
         params = json.loads(params)
+    if isinstance(source_props, str):
+        source_props = json.loads(source_props)
+    if isinstance(layer_props, str):
+        layer_props = json.loads(layer_props)
+    if isinstance(popup_options, str):
+        popup_options = json.loads(popup_options)
 
     # Validate source_type
     if source_type not in VALID_SOURCE_TYPES:
@@ -849,13 +887,17 @@ def add_map_service_layer(
     # resolution all stay MCP-side per plan 004 K3 — the builder receives
     # already-canonicalized inputs.
     # ------------------------------------------------------------------
-    source_props: Dict[str, Any] = {}
+    # Phase-1-local source props (assembled from flat params). Kept under a
+    # different name from the user-facing `source_props` parameter (the
+    # "advanced" dict) so the conflict check downstream can distinguish
+    # the two. Both are merged before delegation to the builder.
+    _flat_source_props: Dict[str, Any] = {}
     geojson_payload: Optional[Union[Dict[str, Any], str]] = None
 
     if source_type == "WMS":
         wms_params = {"LAYERS": wms_layers}
         wms_params.update(extra_params)
-        source_props = {"url": url, "params": wms_params}
+        _flat_source_props = {"url": url, "params": wms_params}
 
     elif source_type == "ESRI Image and Map Service":
         esri_params = {}
@@ -883,13 +925,13 @@ def add_map_service_layer(
                 esri_params["LAYERS"] = "show:" + layers_value
             else:
                 esri_params["LAYERS"] = layers_value
-        source_props = {"url": url}
+        _flat_source_props = {"url": url}
         if esri_params:
-            source_props["params"] = esri_params
+            _flat_source_props["params"] = esri_params
 
     elif source_type == "ESRI Feature Service":
-        source_props = {"url": url, "layer": int(layer_id)}
-        source_props.update(extra_params)
+        _flat_source_props = {"url": url, "layer": int(layer_id)}
+        _flat_source_props.update(extra_params)
 
     elif source_type == "GeoJSON":
         # GeoJSON goes on the source object directly (not under props).
@@ -905,22 +947,22 @@ def add_map_service_layer(
                 }
 
     elif source_type == "KML":
-        source_props = {"url": url}
+        _flat_source_props = {"url": url}
 
     elif source_type == "Image Tile":
-        source_props = {"url": url}
+        _flat_source_props = {"url": url}
 
     elif source_type == "Vector Tile":
-        source_props = {"urls": url}
+        _flat_source_props = {"urls": url}
 
     elif source_type in ("PMTiles Vector", "PMTiles Raster"):
-        source_props = {"url": url}
+        _flat_source_props = {"url": url}
 
     elif source_type == "Static Image":
-        source_props = {"url": url}
+        _flat_source_props = {"url": url}
         # projection + imageExtent come through `params`; merge them
         # alongside `url` so they all land in source.props.
-        source_props.update(extra_params)
+        _flat_source_props.update(extra_params)
 
     # ------------------------------------------------------------------
     # Phase 2: Resolve ESRI attribute-variable layer name BEFORE delegation,
@@ -929,7 +971,7 @@ def add_map_service_layer(
     # ------------------------------------------------------------------
     attr_key = name
     if attribute_variables and source_type == "ESRI Image and Map Service":
-        effective_layer_id = source_props.get("params", {}).get("LAYERS")
+        effective_layer_id = _flat_source_props.get("params", {}).get("LAYERS")
         resolved = _resolve_esri_layer_name(url, effective_layer_id)
         if resolved:
             attr_key = resolved
@@ -940,6 +982,64 @@ def add_map_service_layer(
             )
 
     # ------------------------------------------------------------------
+    # Phase 2.5: Validate the advanced dicts (source_props, layer_props,
+    # popup_options) before delegation. Conflict-rejects flat-vs-dict
+    # collisions per K1; rejects unknown layer-prop keys / wrong types.
+    # ------------------------------------------------------------------
+    # Conflict check: flat layer params vs layer_props dict. The same
+    # prop must not arrive through both paths — silent winner would be
+    # a quiet bug class. Surface the conflict to the LLM.
+    _LAYER_PROP_FLAT_TO_DICT = {
+        "opacity": ("opacity", opacity),
+        "min_zoom": ("minZoom", min_zoom),
+        "max_zoom": ("maxZoom", max_zoom),
+    }
+    if layer_props:
+        if not isinstance(layer_props, dict):
+            return {"error": "layer_props must be a dict (or JSON-string dict)."}
+        # Allowlist: keys must be known.
+        unknown = set(layer_props) - set(LAYER_PROPERTIES_ALLOWLIST)
+        if unknown:
+            return {
+                "error": (
+                    f"layer_props contains unknown keys: {sorted(unknown)}. "
+                    f"Allowed: {sorted(LAYER_PROPERTIES_ALLOWLIST)}"
+                )
+            }
+        # Per-key value-type validation.
+        for key, val in layer_props.items():
+            expected = LAYER_PROPERTIES_ALLOWLIST[key]
+            if not isinstance(val, expected):
+                return {
+                    "error": (
+                        f"layer_props[{key!r}] must be of type "
+                        f"{expected!r}; got {type(val).__name__}."
+                    )
+                }
+        # Conflict check.
+        for flat_name, (dict_key, flat_value) in _LAYER_PROP_FLAT_TO_DICT.items():
+            if flat_value is not None and dict_key in layer_props:
+                return {
+                    "error": (
+                        f"Conflicting inputs: {flat_name!r} (flat parameter) "
+                        f"and layer_props[{dict_key!r}] are both supplied. "
+                        f"Pick one path per layer prop."
+                    )
+                }
+
+    if popup_options is not None and not isinstance(popup_options, dict):
+        return {"error": "popup_options must be a dict (or JSON-string dict)."}
+    _popup_aliases = (popup_options or {}).get("aliases") or {}
+    _popup_omit = (popup_options or {}).get("omit") or {}
+    if not isinstance(_popup_aliases, dict):
+        return {"error": "popup_options.aliases must be a dict."}
+    if not isinstance(_popup_omit, dict):
+        return {"error": "popup_options.omit must be a dict (layer_name -> [field, ...])."}
+
+    if source_props is not None and not isinstance(source_props, dict):
+        return {"error": "source_props must be a dict (or JSON-string dict)."}
+
+    # ------------------------------------------------------------------
     # Phase 3: Delegate to LayerConfigurationBuilder. Builder owns
     # configuration.type, source.type, source.props placement, GeoJSON
     # placement at source.geojson, and required-field validation as a
@@ -947,6 +1047,14 @@ def add_map_service_layer(
     # ------------------------------------------------------------------
     try:
         builder = LayerConfigurationBuilder(name, source_type)
+        # Merge flat source props with advanced source_props dict. Advanced
+        # dict overrides flat where keys overlap — caller-supplied data
+        # wins over derived defaults. (Conflict on layer-level scalars is
+        # rejected above; source-level overlap is more often legitimate
+        # — e.g., advanced `projection` on top of a default URL-only
+        # source_props.)
+        if _flat_source_props:
+            builder.set_source_properties(**_flat_source_props)
         if source_props:
             builder.set_source_properties(**source_props)
         if geojson_payload is not None:
@@ -957,11 +1065,52 @@ def add_map_service_layer(
             builder.set_min_zoom(min_zoom)
         if max_zoom is not None:
             builder.set_max_zoom(max_zoom)
+        # Apply layer_props after the flat scalars so the conflict check
+        # above is the only path through which both can be present.
+        if layer_props:
+            for key, val in layer_props.items():
+                if key == "opacity":
+                    builder.set_opacity(val)
+                elif key == "minResolution":
+                    builder.set_min_resolution(val)
+                elif key == "maxResolution":
+                    builder.set_max_resolution(val)
+                elif key == "minZoom":
+                    builder.set_min_zoom(val)
+                elif key == "maxZoom":
+                    builder.set_max_zoom(val)
+                elif key == "minZoomQuery":
+                    builder.set_min_zoom_query(val)
         if queryable:
             builder.set_queryable(True)
+        if legend is not None:
+            builder.set_legend(legend)
+        if style is not None:
+            builder.set_style(style)
         if attribute_variables:
             for key, variable in attribute_variables.items():
                 builder.add_attribute_variable(key, variable, attr_key)
+        # Popup options: aliases + omitted fields.
+        for layer_name, alias_map in _popup_aliases.items():
+            if not isinstance(alias_map, dict):
+                return {
+                    "error": (
+                        f"popup_options.aliases[{layer_name!r}] must be a dict "
+                        f"of field-name -> alias."
+                    )
+                }
+            for field, alias in alias_map.items():
+                builder.add_attribute_alias(field, alias, layer_name)
+        for layer_name, fields in _popup_omit.items():
+            if not isinstance(fields, list):
+                return {
+                    "error": (
+                        f"popup_options.omit[{layer_name!r}] must be a list "
+                        f"of field names."
+                    )
+                }
+            for field in fields:
+                builder.omit_popup_attribute(field, layer_name)
         layer_config = builder.build()
     except ValueError as err:
         return {"error": str(err)}

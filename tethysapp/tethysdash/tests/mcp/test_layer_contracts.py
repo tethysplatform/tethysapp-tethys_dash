@@ -1200,3 +1200,174 @@ class TestAttributeVariablesShape:
         assert layer["attributeVariables"] == {
             "Cities": {"name": "city_var"}
         }
+
+
+# Plan-005 B2 — advanced metadata dicts (source_props / layer_props /
+# popup_options) + first-class legend / style + conflict policy.
+class TestAdvancedMetadata:
+    SAMPLE_GEOJSON = {
+        "type": "FeatureCollection",
+        "features": [],
+    }
+
+    def test_source_props_merge_into_source_props(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="Image Tile",
+            name="Tiles With Projection",
+            url="https://example.com/{z}/{x}/{y}.png",
+            source_props={"projection": "EPSG:3857"},
+        )
+        source = _get_source(result)
+        assert source["props"]["url"] == "https://example.com/{z}/{x}/{y}.png"
+        assert source["props"]["projection"] == "EPSG:3857"
+
+    def test_source_props_override_flat_for_overlapping_keys(self):
+        # Source-level overlap is resolved by advanced-dict-wins (intentional;
+        # caller-supplied data overrides derived defaults). Flat scalars
+        # (opacity, min_zoom, max_zoom) trigger the conflict-rejection path
+        # in TestLayerPropsConflict below — this test covers the source-prop
+        # axis where merge-with-override is the intended semantics.
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="Image Tile",
+            name="Override URL via source_props",
+            url="https://example.com/{z}/{x}/{y}.png",
+            source_props={"url": "https://override.example.com/{z}/{x}/{y}.png"},
+        )
+        source = _get_source(result)
+        assert source["props"]["url"] == "https://override.example.com/{z}/{x}/{y}.png"
+
+    def test_layer_props_persist_under_configuration_props(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="WMS",
+            name="Zoom-Bounded WMS",
+            url="https://example.com/wms",
+            wms_layers="ws:layer",
+            layer_props={"minResolution": 10, "maxResolution": 1000, "minZoomQuery": 8},
+        )
+        config = _get_configuration(result)
+        assert config["props"]["minResolution"] == 10
+        assert config["props"]["maxResolution"] == 1000
+        assert config["props"]["minZoomQuery"] == 8
+
+    def test_layer_props_unknown_key_returns_error(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="WMS",
+            name="WMS Bad Key",
+            url="https://example.com/wms",
+            wms_layers="ws:layer",
+            layer_props={"badKey": 1, "minZoom": 5},
+        )
+        assert "error" in result
+        assert "badKey" in result["error"]
+
+    def test_layer_props_wrong_type_returns_error(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="WMS",
+            name="WMS Bad Type",
+            url="https://example.com/wms",
+            wms_layers="ws:layer",
+            layer_props={"opacity": "not a number"},
+        )
+        assert "error" in result
+        assert "opacity" in result["error"]
+
+    def test_layer_props_conflicts_with_flat_param_returns_error(self):
+        # Plan-005 K1: silent winners are bugs. Both flat opacity and
+        # layer_props.opacity present → MCP returns a clear error.
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="WMS",
+            name="WMS Conflicting Opacity",
+            url="https://example.com/wms",
+            wms_layers="ws:layer",
+            opacity=0.5,
+            layer_props={"opacity": 0.6},
+        )
+        assert "error" in result
+        assert "Conflicting" in result["error"]
+        assert "opacity" in result["error"]
+
+    def test_min_zoom_conflict_with_layer_props_returns_error(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="WMS",
+            name="WMS Conflicting MinZoom",
+            url="https://example.com/wms",
+            wms_layers="ws:layer",
+            min_zoom=2,
+            layer_props={"minZoom": 5},
+        )
+        assert "error" in result
+        assert "Conflicting" in result["error"]
+
+    def test_legend_string_persists_at_top_level(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="WMS",
+            name="WMS With Legend",
+            url="https://example.com/wms",
+            wms_layers="ws:layer",
+            legend="default",
+        )
+        layer = result["layer_update"]["layer"]
+        assert layer["legend"] == "default"
+
+    def test_style_dict_persists_under_configuration_style(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="GeoJSON",
+            name="Styled Cities",
+            geojson=self.SAMPLE_GEOJSON,
+            style={"version": 8, "sources": {}, "layers": []},
+        )
+        config = _get_configuration(result)
+        assert config["style"]["version"] == 8
+
+    def test_popup_options_aliases_persist_at_attribute_aliases(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="GeoJSON",
+            name="Cities",
+            geojson=self.SAMPLE_GEOJSON,
+            popup_options={
+                "aliases": {"Cities": {"pop": "Population"}},
+            },
+        )
+        layer = result["layer_update"]["layer"]
+        assert layer["attributeAliases"] == {"Cities": {"pop": "Population"}}
+
+    def test_popup_options_omit_persist_at_omitted_popup_attributes(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="GeoJSON",
+            name="Cities",
+            geojson=self.SAMPLE_GEOJSON,
+            popup_options={"omit": {"Cities": ["sensitive_field"]}},
+        )
+        layer = result["layer_update"]["layer"]
+        assert layer["omittedPopupAttributes"] == {"Cities": ["sensitive_field"]}
+
+    def test_advanced_dicts_accepted_as_json_strings(self):
+        # Some LLM providers serialize dict args as JSON strings; the MCP
+        # boundary coerces them. This pins that contract for the new dicts.
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="WMS",
+            name="WMS JSON-String Dicts",
+            url="https://example.com/wms",
+            wms_layers="ws:layer",
+            layer_props='{"minZoom": 3}',
+            source_props='{"projection": "EPSG:4326"}',
+            popup_options='{"omit": {"WMS JSON-String Dicts": ["x"]}}',
+        )
+        config = _get_configuration(result)
+        assert config["props"]["minZoom"] == 3
+        assert config["props"]["source"]["props"]["projection"] == "EPSG:4326"
+        assert result["layer_update"]["layer"]["omittedPopupAttributes"] == {
+            "WMS JSON-String Dicts": ["x"]
+        }

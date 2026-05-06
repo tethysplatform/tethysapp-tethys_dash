@@ -14,6 +14,7 @@ import json
 from pathlib import Path
 
 from tethysapp.tethysdash.plugin_helpers import (
+    LAYER_PROPERTIES_ALLOWLIST,
     LayerConfigurationBuilder,
     available_source_properties,
 )
@@ -70,3 +71,33 @@ def test_static_image_specifically_present():
     assert "url" in static_image["required"]
     assert "projection" in static_image["required"]
     assert "imageExtent" in static_image["required"]
+
+
+# Plan-005 B2 extension: same drift discipline for layer-level props.
+def test_layer_properties_allowlist_covers_js_keys():
+    fixture = _load_fixture()
+    js_layer_keys = set(fixture["layer_properties"])
+    backend_keys = set(LAYER_PROPERTIES_ALLOWLIST.keys())
+    missing = js_layer_keys - backend_keys
+    assert missing == set(), (
+        f"LAYER_PROPERTIES_ALLOWLIST is missing layer-prop keys present "
+        f"in JS layerPropertiesOptions: {sorted(missing)}. Add the keys "
+        f"with their accepted Python value type(s) in plugin_helpers.py."
+    )
+
+
+def test_layer_properties_allowlist_value_types_are_sane():
+    # Every entry must declare an isinstance-compatible value type
+    # (a class or a tuple of classes), not None / ad-hoc strings.
+    for key, type_decl in LAYER_PROPERTIES_ALLOWLIST.items():
+        if isinstance(type_decl, tuple):
+            for t in type_decl:
+                assert isinstance(t, type), (
+                    f"LAYER_PROPERTIES_ALLOWLIST[{key!r}] tuple entry {t!r} "
+                    f"is not a type."
+                )
+        else:
+            assert isinstance(type_decl, type), (
+                f"LAYER_PROPERTIES_ALLOWLIST[{key!r}] declares {type_decl!r}; "
+                f"must be a type or tuple of types for isinstance()."
+            )

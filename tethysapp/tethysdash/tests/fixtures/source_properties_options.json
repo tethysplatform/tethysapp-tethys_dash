@@ -1,5 +1,5 @@
 {
-  "_comment": "Snapshot of reactapp/components/map/utilities.js sourcePropertiesOptions top-level keys. The JS-side guard at reactapp/__tests__/scripts/sourcePropertiesOptionsDrift.test.js asserts JS keys equal this list. The Python-side guard at tethysapp/tethysdash/tests/mcp/test_source_metadata_drift.py asserts plugin_helpers.available_source_properties keys are a superset of this list (excluding deferred entries). When adding a JS source type: update this file, then update plugin_helpers.available_source_properties + LayerConfigurationBuilder.valid_sources to match.",
+  "_comment": "Snapshots of reactapp/components/map/utilities.js's sourcePropertiesOptions and layerPropertiesOptions top-level keys. The JS-side guard at reactapp/__tests__/scripts/sourcePropertiesOptionsDrift.test.js asserts JS keys equal these lists. The Python-side guard at tethysapp/tethysdash/tests/mcp/test_source_metadata_drift.py asserts plugin_helpers.available_source_properties keys (and LAYER_PROPERTIES_ALLOWLIST keys) are a superset of these lists (excluding deferred entries). When adding a JS key: update this file, then update the corresponding Python structure to match.",
   "deferred_in_backend": ["GeoTIFF"],
   "source_types": [
     "ESRI Feature Service",
@@ -13,5 +13,13 @@
     "Static Image",
     "Vector Tile",
     "WMS"
+  ],
+  "layer_properties": [
+    "maxResolution",
+    "maxZoom",
+    "minResolution",
+    "minZoom",
+    "minZoomQuery",
+    "opacity"
   ]
 }
