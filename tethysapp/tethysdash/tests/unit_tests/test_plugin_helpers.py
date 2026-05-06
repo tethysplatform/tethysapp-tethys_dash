@@ -1599,3 +1599,23 @@ def test_geojson_lives_at_source_geojson_not_props():
     assert "geojson" not in source.get("props", {}), (
         "GeoJSON must NOT be at source.props.geojson"
     )
+
+
+# Plan-004 review finding #21: builder-side coverage of the URL-string
+# path through set_geojson. validate_geojson accepts any string
+# containing "/" as a URL; the MCP layer relies on this to route
+# geojson_url to set_geojson(string). The MCP-side path is covered by
+# test_geojson_url_at_source_top_level in test_layer_contracts.py;
+# this test pins the builder half so the contract is verified at both
+# layers.
+def test_set_geojson_accepts_url_string():
+    """set_geojson accepts a URL string and persists it at source.geojson
+    verbatim. The frontend's loadGeoJSON fetches the URL at render time."""
+    builder = LayerConfigurationBuilder("url-backed geojson", "GeoJSON")
+    url = "https://example.com/data.geojson"
+    builder.set_geojson(url)
+    config = builder.build()
+    source = config["configuration"]["props"]["source"]
+    assert source["geojson"] == url
+    # And not nested inside source.props (rule 6).
+    assert "geojson" not in source.get("props", {})

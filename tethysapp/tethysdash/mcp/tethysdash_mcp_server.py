@@ -850,7 +850,7 @@ def add_map_service_layer(
     # already-canonicalized inputs.
     # ------------------------------------------------------------------
     source_props: Dict[str, Any] = {}
-    geojson_value: Optional[Union[Dict[str, Any], str]] = None
+    geojson_payload: Optional[Union[Dict[str, Any], str]] = None
 
     if source_type == "WMS":
         wms_params = {"LAYERS": wms_layers}
@@ -895,11 +895,11 @@ def add_map_service_layer(
         # GeoJSON goes on the source object directly (not under props).
         # The builder's set_geojson method enforces this placement.
         if geojson_url:
-            geojson_value = geojson_url  # string URL; validate_geojson accepts strings with "/"
+            geojson_payload = geojson_url  # string URL; validate_geojson accepts strings with "/"
         else:
-            geojson_value = dict(geojson)
-            if "crs" not in geojson_value:
-                geojson_value["crs"] = {
+            geojson_payload = dict(geojson)
+            if "crs" not in geojson_payload:
+                geojson_payload["crs"] = {
                     "type": "name",
                     "properties": {"name": "EPSG:4326"},
                 }
@@ -949,8 +949,8 @@ def add_map_service_layer(
         builder = LayerConfigurationBuilder(name, source_type)
         if source_props:
             builder.set_source_properties(**source_props)
-        if geojson_value is not None:
-            builder.set_geojson(geojson_value)
+        if geojson_payload is not None:
+            builder.set_geojson(geojson_payload)
         if opacity is not None:
             builder.set_opacity(opacity)
         if min_zoom is not None:
