@@ -97,26 +97,18 @@ The Ollama npm SDK's `formatHost()` mangles relative paths (e.g., `/apps/...` �
 
 ## 4. Client Plugin System
 
-### Build-Time (`client_custom`)
-
-- npm packages declare plugins via `package.json` `tethysdash.clientPlugins` metadata
-- `scripts/collectClientPlugins.js` runs at prebuild, generates registry
-- `ClientModuleLoader.js` loads discovered plugins by source name
-- No runtime fetching, no Module Federation
-
 ### Runtime (`client_custom_remote`)
 
-- User selects "Client Custom" from visualization picker
-- Provides `url`, `scope`, `module`, `remoteType` via DataViewer args
-- Reuses existing `ModuleLoader` + `remoteLoader.js`
-- Dynamic panels use this path
+- User selects "Runtime Plugin" (catch-all manual-URL entry) or a registered runtime plugin from the visualization picker
+- Provides `url`, `scope`, `module`, `remoteType` via DataViewer args (or persisted via `register_runtime_plugin` MCP tool / chatbox UI)
+- Renders through `ModuleLoader` + `remoteLoader.js` (Module Federation)
+- This is the only client plugin architecture; build-time npm scanning was removed in plan `2026-05-05-007`
 
 ### Rendering Pipeline
 
 `utilities.js` → `getVisualization()`:
-- `client_custom` → `ClientModuleLoader` (build-time)
 - `client_custom_remote` → `ModuleLoader` (runtime, Module Federation)
-- Both short-circuit before the backend API call
+- Short-circuits before the backend API call
 
 ---
 
@@ -218,7 +210,6 @@ The map tool accepts the full OpenLayers layer structure:
 
 ## 8. Open Questions
 
-- **npm package for build-time plugins** — infrastructure exists, no published package yet
 - **Panel cleanup** — no `tethysdash:remove-visualization` event. Panels persist when chatbox is removed
 - **Mobile sidebar** — fixed 360px width may be too wide on narrow viewports
 
@@ -233,7 +224,7 @@ System prompt directs LLM to query data with NRDS, visualize with TethysDash MCP
 Translate MapLibre config → OpenLayers format in TethysDash MCP. Helpers: `_maplibre_to_openlayers_layer()`, `_maplibre_camera_to_extent()`. Currently uses MFE MapPanel (MapLibre + PMTiles).
 
 ### Custom MFE discovery for LLM (3 levels)
-- **Level 1 (Low)**: MCP reads `clientPluginRegistry.json`, exposes in `list_available_visualizations()`
+- **Level 1 (Low)**: MCP reads `runtimePluginRegistry.json`, exposes in `list_available_visualizations()`
 - **Level 2 (Medium)**: MCP calls `/visualizations/list/` API — includes user-imported MFEs dynamically
 - **Level 3 (High)**: MFEs export tool metadata — auto-registered as LLM-accessible tools
 
@@ -244,8 +235,8 @@ TethysDash sidebar renders `<Chatbox>` from core natively (no Module Federation)
 
 Phase 3 (planned): Refactor NRDS MFE to use `<Chatbox>` from core for UI as well, not just the engine. Add `MessageRenderer` extension point for domain-specific content rendering (charts, maps, queries).
 
-### Publish custom MFEs as npm packages
-Package chatbox panels (ChartPanel, MapPanel, QueryPanel, MarkdownPanel) as `@nextgen/chatbox-panels` with `tethysdash.clientPlugins` metadata in `package.json`. Enables build-time discovery via `collectClientPlugins.js` — panels appear in the visualization picker after `npm install`. Same pattern extensible to any custom MFE: package it, declare plugins, install into tethysdash.
+### Publish custom MFEs as runtime registry entries
+Package chatbox panels (ChartPanel, MapPanel, QueryPanel, MarkdownPanel) as standalone Module Federation remotes. Register via `MCP register_runtime_plugin` (or the chatbox UI) so they appear in the visualization picker without an `npm install` step. Same pattern extensible to any custom MFE: build it, host the `remoteEntry.js`, register the URL.
 
 ---
 
@@ -260,9 +251,7 @@ Package chatbox panels (ChartPanel, MapPanel, QueryPanel, MarkdownPanel) as `@ne
 | `reactapp/components/layout/Header.js` | Toggle button |
 | `tethysapp/tethysdash/app.py` | Custom settings (`chatbox_ollama_host`, `chatbox_ollama_key`) |
 | `tethysapp/tethysdash/controllers.py` | Ollama proxy endpoints + chatbox_config (proxy URL) |
-| `scripts/collectClientPlugins.js` | Build-time plugin discovery |
-| `reactapp/components/visualizations/ClientModuleLoader.js` | Build-time plugin renderer |
-| `reactapp/components/loader/AppLoader.js` | Registry merge, ChatSidebarProvider |
+| `reactapp/components/loader/AppLoader.js` | Runtime registry merge, ChatSidebarProvider |
 | `reactapp/components/visualizations/utilities.js` | Type routing |
 | `reactapp/components/visualizations/Base.js` | Base visualization rendering |
 | `reactapp/components/dashboard/DashboardLayout.js` | Event listener, panel creation |

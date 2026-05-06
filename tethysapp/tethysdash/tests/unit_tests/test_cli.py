@@ -104,28 +104,20 @@ class TestInspectEditablePathsCommand(unittest.TestCase):
             exit_code = e.code if isinstance(e.code, int) else 1
         return exit_code, buf.getvalue()
 
-    @mock.patch(
-        "tethysapp.tethysdash.plugin_registry_loader.load_client_plugin_registry"
-    )
-    def test_unknown_source_exits_nonzero(self, mock_registry_loader):
-        """When a specific source isn't in any registry, exit code is 1."""
+    def test_unknown_source_exits_nonzero(self):
+        """When a specific source isn't in the Intake registry, exit code is 1."""
         import tethysapp.tethysdash.editable_schemas_plugin as esp
 
-        mock_registry_loader.return_value = []
         with mock.patch.object(esp.intake.source, "registry", {}):
             exit_code, out = self._invoke(source="phantom_plugin")
         self.assertEqual(exit_code, 1)
         self.assertIn("phantom_plugin", out)
         self.assertIn("unresolved", out.lower())
 
-    @mock.patch(
-        "tethysapp.tethysdash.plugin_registry_loader.load_client_plugin_registry"
-    )
-    def test_known_intake_plugin_shows_editable_paths(self, mock_registry_loader):
+    def test_known_intake_plugin_shows_editable_paths(self):
         from types import SimpleNamespace
         import tethysapp.tethysdash.editable_schemas_plugin as esp
 
-        mock_registry_loader.return_value = []
         # Author declares an explicit deny-list entry so we get a mix of
         # [editable] and [denied: author] in the output.
         fake_plugin = SimpleNamespace(
@@ -147,50 +139,7 @@ class TestInspectEditablePathsCommand(unittest.TestCase):
         # the name. (This test exercises only arg names, but pins the rule.)
         self.assertNotIn("some_secret_value", out)
 
-    @mock.patch(
-        "tethysapp.tethysdash.plugin_registry_loader.load_client_plugin_registry"
-    )
-    def test_client_custom_source_shows_registry_entry(self, mock_registry_loader):
-        import tethysapp.tethysdash.editable_schemas_plugin as esp
-
-        mock_registry_loader.return_value = [
-            {
-                "source": "nwm-flood-map",
-                "args": {"title": "text", "dataUrl": "text", "authToken": "text"},
-                "llmNonEditableArgs": ["authToken"],
-            }
-        ]
-        # editable_schemas_plugin caches via its own indirection;
-        # patch that symbol so the resolver sees the test registry.
-        with mock.patch.object(esp.intake.source, "registry", {}), \
-             mock.patch.object(
-                 esp,
-                 "_load_client_plugin_registry_cached",
-                 return_value=[
-                     {
-                         "source": "nwm-flood-map",
-                         "args": {
-                             "title": "text",
-                             "dataUrl": "text",
-                             "authToken": "text",
-                         },
-                         "llmNonEditableArgs": ["authToken"],
-                     }
-                 ],
-             ):
-            exit_code, out = self._invoke(source="nwm-flood-map")
-        self.assertEqual(exit_code, 0)
-        self.assertIn("client_custom plugin", out)
-        self.assertIn("[editable] title", out)
-        self.assertIn("[editable] dataUrl", out)
-        self.assertIn("[denied: author] authToken", out)
-
-    @mock.patch(
-        "tethysapp.tethysdash.plugin_registry_loader.load_client_plugin_registry"
-    )
-    def test_intake_plugin_with_legacy_visualization_args_naming(
-        self, mock_registry_loader
-    ):
+    def test_intake_plugin_with_legacy_visualization_args_naming(self):
         """Regression: ciroh_plugins use `visualization_args` (legacy naming).
 
         The CLI must honor the same get_plugin_prop lookup the resolver uses
@@ -201,7 +150,6 @@ class TestInspectEditablePathsCommand(unittest.TestCase):
         from types import SimpleNamespace
         import tethysapp.tethysdash.editable_schemas_plugin as esp
 
-        mock_registry_loader.return_value = []
         # Plugin declares args via the legacy visualization_* naming.
         # No bare `args` attribute — this is how ciroh_plugins work.
         # Author denies one arg explicitly to exercise the [denied: author]
@@ -215,8 +163,6 @@ class TestInspectEditablePathsCommand(unittest.TestCase):
         )
         with mock.patch.object(
             esp.intake.source, "registry", {"nwmp_api_reaches": fake_plugin}
-        ), mock.patch.object(
-            esp, "_load_client_plugin_registry_cached", return_value=[]
         ):
             exit_code, out = self._invoke(source="nwmp_api_reaches")
         self.assertEqual(exit_code, 0)
@@ -227,19 +173,13 @@ class TestInspectEditablePathsCommand(unittest.TestCase):
         # And the resolver emits the right path.
         self.assertIn("/args/id", out)
 
-    @mock.patch(
-        "tethysapp.tethysdash.plugin_registry_loader.load_client_plugin_registry"
-    )
-    def test_no_source_lists_all_plugins(self, mock_registry_loader):
+    def test_no_source_lists_all_plugins(self):
         from types import SimpleNamespace
         import tethysapp.tethysdash.editable_schemas_plugin as esp
 
-        mock_registry_loader.return_value = []
         fake_plugin = SimpleNamespace(args={"station": "text"})
         with mock.patch.object(
             esp.intake.source, "registry", {"my_plugin": fake_plugin}
-        ), mock.patch.object(
-            esp, "_load_client_plugin_registry_cached", return_value=[]
         ):
             exit_code, out = self._invoke(source=None)
         self.assertEqual(exit_code, 0)

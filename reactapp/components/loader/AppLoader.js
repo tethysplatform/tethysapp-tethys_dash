@@ -27,7 +27,6 @@ import IdleTimerManager from "components/loader/IdleTimerManager";
 import WebsocketProvider from "components/contexts/WebSocketContext";
 import { ChatSidebarProvider } from "components/contexts/ChatSidebarContext";
 import { v4 as uuidv4 } from "uuid";
-import clientPluginRegistry from "generated/clientPluginRegistry.json";
 import { getPlugins } from "services/pluginRegistry";
 
 const APP_ID = process.env.TETHYS_APP_ID;
@@ -287,9 +286,13 @@ function Loader({ children }) {
               "A live chart box that allows users to send and receive messages with other users.",
           },
           {
+            // `source` and `value` keep the legacy "Client Custom" key so
+            // persisted GridItems and the utilities.js / VisualizationSelector
+            // routing continue to resolve. `label` is display-only and was
+            // renamed when the build-time client_custom path was removed.
             source: "Client Custom",
             value: "Client Custom",
-            label: "Client Custom",
+            label: "Runtime Plugin",
             type: "client_custom_remote",
             args: {
               url: "text",
@@ -303,33 +306,6 @@ function Loader({ children }) {
           },
         ],
       });
-
-      // Merge npm-installed client plugins into the visualization list
-      for (const plugin of clientPluginRegistry) {
-        const entry = {
-          source: plugin.source,
-          value: plugin.source,
-          label: plugin.label,
-          type: plugin.type,
-          tags: plugin.tags ?? [],
-          description: plugin.description ?? "",
-          args: plugin.args ?? {},
-          loading_icon: false,
-          packageName: plugin.packageName,
-          module: plugin.module,
-        };
-        const existingGroup = allVisualizations.find(
-          (g) => g.label === plugin.group,
-        );
-        if (existingGroup) {
-          existingGroup.options.push(entry);
-        } else {
-          allVisualizations.push({
-            label: plugin.group,
-            options: [entry],
-          });
-        }
-      }
 
       // Merge runtime-registered plugins (from localStorage)
       const runtimePlugins = getPlugins();

@@ -1416,15 +1416,6 @@ Example audit::
 If a listed ``[editable]`` arg should not be LLM-editable from chat,
 add it to ``llm_non_editable_args``.
 
-Naming note — Intake vs client_custom plugins
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-This section covers Intake (Python) plugins. ``client_custom`` plugins
-(build-time npm packages) use a matching convention with
-``llmEditableArgs`` / ``llmNonEditableArgs`` in their ``package.json``'s
-``tethysdash.clientPlugins[]`` entry. The casing difference is
-intentional — each follows its host-language convention.
-
 MCP deployment requirement
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 

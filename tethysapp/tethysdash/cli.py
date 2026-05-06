@@ -5,12 +5,11 @@ import sys
 
 
 def inspect_editable_paths_command(args):
-    """Print the resolved LLM-editable-path whitelist for installed plugins.
+    """Print the resolved LLM-editable-path whitelist for installed Intake plugins.
 
-    With no ``source`` argument: one row per registered plugin (Intake +
-    client_custom), each with its resolved path list. With a source
-    argument: detailed view for that source, including which args were
-    caught by the R10 sensitive-name pattern deny-list.
+    With no ``source`` argument: one row per registered Intake plugin, each
+    with its resolved path list. With a source argument: detailed view for
+    that source, including which args are author-denied.
 
     Output is text by default. Arg *values* are never printed — only arg
     *names* and deny-list annotations — because plugin args may carry
@@ -18,13 +17,11 @@ def inspect_editable_paths_command(args):
     and config, not on stdout.
 
     Exit codes: 0 when the requested source resolves (or listing succeeds),
-    1 when a specific source is requested but not found in any registry.
+    1 when a specific source is requested but not found in the Intake
+    registry.
     """
     from tethysapp.tethysdash.editable_schemas_plugin import (
         resolve_editable_paths,
-    )
-    from tethysapp.tethysdash.plugin_registry_loader import (
-        load_client_plugin_registry,
     )
     try:
         import intake
@@ -35,26 +32,19 @@ def inspect_editable_paths_command(args):
         exit_code = _inspect_single_source(
             args.source,
             intake,
-            load_client_plugin_registry,
             resolve_editable_paths,
         )
         sys.exit(exit_code)
 
     _inspect_all_sources(
         intake,
-        load_client_plugin_registry,
         resolve_editable_paths,
     )
 
 
-def _inspect_single_source(
-    source,
-    intake_module,
-    client_registry_loader,
-    resolver,
-):
+def _inspect_single_source(source, intake_module, resolver):
     """Detailed single-source inspection. Returns a shell exit code."""
-    # Locate the source in either registry.
+    # Locate the source in the Intake registry.
     intake_plugin = None
     if intake_module is not None:
         try:
@@ -62,33 +52,26 @@ def _inspect_single_source(
                 intake_plugin = intake_module.source.registry[source]
         except (KeyError, TypeError):
             pass
-    client_entry = next(
-        (e for e in client_registry_loader() if e.get("source") == source),
-        None,
-    )
 
-    if intake_plugin is None and client_entry is None:
+    if intake_plugin is None:
         print(f"Source: {source}")
         print("Status: unresolved")
-        print("Reason: plugin not found in the Intake registry or the "
-              "client plugin registry. Check installation + registration.")
+        print("Reason: plugin not found in the Intake registry. Check "
+              "installation + registration.")
         return 1
 
-    kind = "Intake plugin" if intake_plugin is not None else "client_custom plugin"
     print(f"Source: {source}")
-    print(f"Kind: {kind}")
+    print("Kind: Intake plugin")
 
     # Resolve the effective editable paths.
     paths = resolver(source)
 
-    # Enumerate registered args for the annotation. For Intake, this comes
-    # from the plugin class's `args` attribute; for client_custom, from
-    # the registry entry's `args` dict.
-    registered_args = _get_registered_args(intake_plugin, client_entry)
+    # Enumerate registered args for the annotation, from the plugin class's
+    # `args` attribute.
+    registered_args = _get_registered_args(intake_plugin)
 
     # Classify each registered arg so the author sees what's denied.
-    # With the project-wide pattern deny-list removed, every denial is
-    # author-declared (llm_editable_args / llm_non_editable_args).
+    # Every denial is author-declared (llm_editable_args / llm_non_editable_args).
     allowed_names = {p.replace("/args/", "", 1) for p in paths}
     print("Registered args:")
     if not registered_args:
@@ -118,47 +101,40 @@ def _inspect_single_source(
     return 0
 
 
-def _inspect_all_sources(intake_module, client_registry_loader, resolver):
-    """No-source listing: every Intake + client_custom plugin, compact."""
+def _inspect_all_sources(intake_module, resolver):
+    """No-source listing: every registered Intake plugin, compact."""
     print("Registered plugin sources:")
-    seen = []
-    if intake_module is not None:
-        try:
-            for source in sorted(intake_module.source.registry):
-                paths = resolver(source)
-                status = "empty" if not paths else f"{len(paths)} path(s)"
-                print(f"  Intake         {source:<40} {status}")
-                seen.append(source)
-        except TypeError:
-            pass
-    for entry in client_registry_loader():
-        source = entry.get("source", "<unknown>")
-        if source in seen:
-            continue
+    if intake_module is None:
+        print("  (intake module not importable)")
+        return
+    try:
+        sources = sorted(intake_module.source.registry)
+    except TypeError:
+        print("  (intake registry is not iterable)")
+        return
+    if not sources:
+        print("  (no plugins registered)")
+        return
+    for source in sources:
         paths = resolver(source)
         status = "empty" if not paths else f"{len(paths)} path(s)"
-        print(f"  client_custom  {source:<40} {status}")
+        print(f"  Intake  {source:<40} {status}")
 
 
-def _get_registered_args(intake_plugin, client_entry):
+def _get_registered_args(intake_plugin):
     """Return a list of registered arg names for annotation.
 
-    Uses get_plugin_prop for Intake plugins so plugins declaring
-    `visualization_args` (the legacy naming used throughout ciroh_plugins
-    / nwmp_plugins) surface their args in the CLI output. The resolver
-    already uses get_plugin_prop; the CLI must match so its annotations
-    stay consistent with what the resolver produced.
+    Uses get_plugin_prop so plugins declaring ``visualization_args``
+    (the legacy naming used throughout ciroh_plugins / nwmp_plugins)
+    surface their args in the CLI output. The resolver already uses
+    get_plugin_prop; the CLI must match so its annotations stay
+    consistent with what the resolver produced.
     """
     from tethysapp.tethysdash.plugin_helpers import get_plugin_prop
 
-    if intake_plugin is not None:
-        args = get_plugin_prop(intake_plugin, "args", {}) or {}
-        if isinstance(args, dict):
-            return list(args.keys())
-    if client_entry is not None:
-        args = client_entry.get("args") or {}
-        if isinstance(args, dict):
-            return list(args.keys())
+    args = get_plugin_prop(intake_plugin, "args", {}) or {}
+    if isinstance(args, dict):
+        return list(args.keys())
     return []
 
 

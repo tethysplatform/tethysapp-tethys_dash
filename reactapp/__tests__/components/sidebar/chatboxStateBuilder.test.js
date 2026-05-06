@@ -124,7 +124,7 @@ describe("buildEditablePathsBySource", () => {
     const items = [
       { source: "Inline Plotly" },
       { source: "my_streamflow" }, // Intake plugin
-      { source: "nwm-flood-map" }, // client_custom plugin
+      { source: "nwm-flood-map" }, // any plugin source resolved server-side
     ];
     const pluginEditablePaths = {
       my_streamflow: ["/args/start_date", "/args/end_date"],

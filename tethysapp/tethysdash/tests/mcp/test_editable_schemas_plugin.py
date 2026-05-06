@@ -1,9 +1,8 @@
 """Contract tests for the plugin-side editable-path resolver.
 
-Covers Intake backend plugins (via intake.source.registry) and client_custom
-plugins (via the webpack-built clientPluginRegistry.json). Built-in viz types
-stay out of scope here — they are pinned by test_editable_schema.py against
-the static JSON whitelist.
+Covers Intake backend plugins (via intake.source.registry). Built-in viz
+types stay out of scope here — they are pinned by test_editable_schema.py
+against the static JSON whitelist.
 
 Layer 1 tests — no server, milliseconds per test.
 """
@@ -22,7 +21,7 @@ from tethysapp.tethysdash.editable_schemas_plugin import (
 
 
 # ---------------------------------------------------------------------------
-# Fakes for Intake plugin classes and client_custom registry entries
+# Fakes for Intake plugin classes
 # ---------------------------------------------------------------------------
 
 
@@ -42,10 +41,6 @@ def _fake_intake_plugin(
     return SimpleNamespace(**plugin_attrs)
 
 
-def _fake_client_entry(source, args, **extra):
-    return {"source": source, "args": args, **extra}
-
-
 @pytest.fixture
 def intake_registry():
     """Patch intake.source.registry so tests can inject fake plugins.
@@ -58,20 +53,6 @@ def intake_registry():
         registry,
     ):
         yield registry
-
-
-@pytest.fixture
-def client_registry():
-    """Patch the client plugin registry loader to return a test list.
-
-    Yields a list the test populates with dict entries.
-    """
-    entries = []
-    with patch(
-        "tethysapp.tethysdash.editable_schemas_plugin._load_client_plugin_registry_cached",
-        return_value=entries,
-    ):
-        yield entries
 
 
 # ---------------------------------------------------------------------------
@@ -172,75 +153,6 @@ class TestIntakeResolver:
     def test_empty_args_dict(self, intake_registry):
         intake_registry["my_plugin"] = _fake_intake_plugin(args={})
         assert resolve_editable_paths("my_plugin") == []
-
-
-# ---------------------------------------------------------------------------
-# client_custom resolver
-# ---------------------------------------------------------------------------
-
-
-class TestClientCustomResolver:
-    """resolve_editable_paths for client_custom plugin sources.
-
-    Source store is the webpack-built clientPluginRegistry.json (List[Dict]).
-    Resolver iterates to find by source.
-    """
-
-    def test_no_author_attrs_returns_all_registered_args(self, client_registry):
-        client_registry.append(
-            _fake_client_entry(
-                "nwm-flood-map",
-                args={"title": "text", "dataUrl": "text"},
-            )
-        )
-        assert sorted(resolve_editable_paths("nwm-flood-map")) == sorted(
-            ["/args/title", "/args/dataUrl"]
-        )
-
-    def test_deny_list_from_registry_json(self, client_registry):
-        client_registry.append(
-            _fake_client_entry(
-                "nwm-flood-map",
-                args={"title": "text", "dataUrl": "text", "token": "text"},
-                llmNonEditableArgs=["token"],
-            )
-        )
-        assert sorted(resolve_editable_paths("nwm-flood-map")) == sorted(
-            ["/args/title", "/args/dataUrl"]
-        )
-
-    def test_allow_list_from_registry_json(self, client_registry):
-        client_registry.append(
-            _fake_client_entry(
-                "nwm-flood-map",
-                args={"title": "text", "dataUrl": "text", "theme": "text"},
-                llmEditableArgs=["title"],
-            )
-        )
-        assert resolve_editable_paths("nwm-flood-map") == ["/args/title"]
-
-    def test_client_custom_no_project_wide_deny_list(self, client_registry):
-        """Sensitive-named args are editable by default for client_custom too.
-
-        Same trust model: authors opt out per-arg via llmNonEditableArgs.
-        """
-        client_registry.append(
-            _fake_client_entry(
-                "nwm-flood-map",
-                args={"title": "text", "auth_token": "text", "data_dir": "text"},
-            )
-        )
-        assert sorted(resolve_editable_paths("nwm-flood-map")) == sorted(
-            ["/args/title", "/args/auth_token", "/args/data_dir"]
-        )
-
-    def test_unknown_source_fails_closed(self, client_registry):
-        # Empty registry.
-        assert resolve_editable_paths("nwm-flood-map") == []
-
-    def test_malformed_entry_missing_args(self, client_registry):
-        client_registry.append({"source": "broken_plugin"})
-        assert resolve_editable_paths("broken_plugin") == []
 
 
 # ---------------------------------------------------------------------------

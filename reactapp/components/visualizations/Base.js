@@ -10,7 +10,6 @@ import BasePlot from "components/visualizations/BasePlot";
 import Card from "components/visualizations/Card";
 import DataTable from "components/visualizations/DataTable";
 import ModuleLoader from "components/visualizations/ModuleLoader";
-import ClientModuleLoader from "components/visualizations/ClientModuleLoader";
 import {
   getVisualization,
   updateObjectWithVariableInputs,
@@ -197,14 +196,6 @@ export const Visualization = memo(
             chatHistory={vizData.chatHistory}
           />
         );
-      case "client_custom":
-        return (
-          <ClientModuleLoader
-            source={vizData.source}
-            props={vizData.props}
-            visualizationRef={vizRef}
-          />
-        );
       case "custom":
         return (
           <ModuleLoader
@@ -310,16 +301,10 @@ const BaseVisualization = () => {
   useEffect(() => {
     const gridMetadata = JSON.parse(gridItemMetadataString);
     const refreshRate = gridMetadata.refreshRate;
-    const vizMeta = findSelectOptionByValue(
-      visualizations,
-      gridItemSource,
-      "source",
-    );
     if (
       refreshRate &&
       refreshRate > 0 &&
-      !["", "Text", "Variable Input"].includes(gridItemSource) &&
-      vizMeta?.type !== "client_custom"
+      !["", "Text", "Variable Input"].includes(gridItemSource)
     ) {
       const interval = setInterval(
         () => {

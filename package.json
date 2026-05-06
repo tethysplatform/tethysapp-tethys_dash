@@ -4,9 +4,6 @@
   "description": "Frontend React project for tethysdash",
   "main": "index.js",
   "scripts": {
-    "precollect": "node scripts/collectClientPlugins.js",
-    "prestart": "node scripts/collectClientPlugins.js",
-    "prebuild": "node scripts/collectClientPlugins.js",
     "start": "webpack-dev-server --mode development --config ./reactapp/config/webpack.config.js",
     "build": "webpack --mode production --config ./reactapp/config/webpack.config.js",
     "lint": "npx eslint reactapp",
