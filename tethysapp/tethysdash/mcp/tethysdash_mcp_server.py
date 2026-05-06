@@ -29,6 +29,7 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import Response as StarletteResponse
 import requests as http_requests
 
+from tethysapp.tethysdash.plugin_helpers import LayerConfigurationBuilder
 from tethysapp.tethysdash.editable_schemas import (
     LLM_EDITABLE_PATHS,
     is_path_allowed,
@@ -645,19 +646,8 @@ VALID_SOURCE_TYPES = [
     "Vector Tile",
     "PMTiles Vector",
     "PMTiles Raster",
+    "Static Image",
 ]
-
-SOURCE_TYPE_TO_LAYER_TYPE = {
-    "WMS": "ImageLayer",
-    "ESRI Image and Map Service": "ImageLayer",
-    "ESRI Feature Service": "VectorLayer",
-    "GeoJSON": "VectorLayer",
-    "KML": "VectorLayer",
-    "Image Tile": "TileLayer",
-    "Vector Tile": "VectorTileLayer",
-    "PMTiles Vector": "VectorTileLayer",
-    "PMTiles Raster": "WebGLTile",
-}
 
 # Recognized directive prefixes for ESRI Image and Map Service `params.LAYERS`.
 # Kept in sync with the JS constant in
@@ -720,7 +710,7 @@ def add_map_service_layer(
     source_type: Annotated[str, Field(description=(
         "Layer source type. One of: WMS, ESRI Image and Map Service, "
         "ESRI Feature Service, GeoJSON, KML, Image Tile, Vector Tile, "
-        "PMTiles Vector, PMTiles Raster"
+        "PMTiles Vector, PMTiles Raster, Static Image"
     ))],
     name: Annotated[str, Field(description="Display name for the layer in the layer control")],
     url: Annotated[Optional[str], Field(description=(
@@ -760,7 +750,10 @@ def add_map_service_layer(
     ))] = None,
     params: Annotated[Optional[Union[Dict[str, Any], str]], Field(description=(
         "Additional source parameters merged into the source props. "
-        "Supports ${variable_name} syntax for dashboard variable references."
+        "Supports ${variable_name} syntax for dashboard variable references. "
+        "For Static Image source_type: must include both 'projection' and "
+        "'imageExtent' keys (an EPSG code and a comma-separated bounding-box "
+        "string, in that string form — not a numeric array)."
     ))] = None,
     opacity: Annotated[Optional[float], Field(description="Layer opacity from 0 (transparent) to 1 (opaque)")] = None,
     min_zoom: Annotated[Optional[int], Field(description="Minimum zoom level at which the layer is visible")] = None,
@@ -797,7 +790,9 @@ def add_map_service_layer(
 
     extra_params = params or {}
 
-    # Validate required fields per source type
+    # Validate required fields per source type. Friendlier error messages
+    # than the builder's generic "Missing required key 'X'" — the builder
+    # raises ValueError after delegation as a secondary safety net.
     if source_type == "WMS":
         if not url or not wms_layers:
             return {"error": "source_type 'WMS' requires 'url' and 'wms_layers' parameters"}
@@ -825,9 +820,37 @@ def add_map_service_layer(
     elif source_type == "PMTiles Raster":
         if not url:
             return {"error": "source_type 'PMTiles Raster' requires 'url' parameter"}
+    elif source_type == "Static Image":
+        # Static Image needs url + projection + imageExtent; the latter two
+        # come through the `params` kwarg today (no dedicated flat params yet
+        # — that surface lives in plan 005's source_props extension).
+        _params_dict = params if isinstance(params, dict) else {}
+        if not url:
+            return {
+                "error": "source_type 'Static Image' requires 'url' parameter"
+            }
+        # Truthy check, not just key presence: an LLM passing
+        # params={"projection": "EPSG:4326", "imageExtent": None} would otherwise
+        # pass this guard AND _validate_required_fields, persisting None to
+        # source.props.imageExtent and crashing the renderer at parse time.
+        if not _params_dict.get("projection") or not _params_dict.get("imageExtent"):
+            return {
+                "error": (
+                    "source_type 'Static Image' requires non-empty 'projection' "
+                    "and 'imageExtent' supplied via the 'params' parameter (e.g. "
+                    "params={'projection': 'EPSG:4326', "
+                    "'imageExtent': 'minX,minY,maxX,maxY'})"
+                )
+            }
 
-    # Build source props based on source_type
-    source_props = {}
+    # ------------------------------------------------------------------
+    # Phase 1: MCP-side coercion. ESRI LAYERS canonicalization, JSON-string
+    # dict coercion (above), and ESRI attribute-variable layer-name
+    # resolution all stay MCP-side per plan 004 K3 — the builder receives
+    # already-canonicalized inputs.
+    # ------------------------------------------------------------------
+    source_props: Dict[str, Any] = {}
+    geojson_payload: Optional[Union[Dict[str, Any], str]] = None
 
     if source_type == "WMS":
         wms_params = {"LAYERS": wms_layers}
@@ -851,16 +874,8 @@ def add_map_service_layer(
             layers_value = esri_params["LAYERS"]
             # Coerce non-string LAYERS values (e.g. an LLM passing
             # `params={"LAYERS": 0}` as an integer) before the prefix check.
-            # Persisting a non-string value would bypass canonicalization and
-            # leave the frontend's `normalizeLayersParam` with a non-string
-            # input that it (correctly) rejects, falling back to
-            # defaultVisibility — the silent semantic miss this canonicalization
-            # is meant to prevent.
             if not isinstance(layers_value, str):
                 layers_value = str(layers_value)
-            # Strip outer whitespace before canonicalization so the persisted
-            # value is clean (e.g. params={"LAYERS": "  0  "} becomes "show:0",
-            # not "show:  0  ").
             layers_value = layers_value.strip()
             if layers_value and not layers_value.startswith(
                 _RECOGNIZED_LAYERS_DIRECTIVES
@@ -878,22 +893,16 @@ def add_map_service_layer(
 
     elif source_type == "GeoJSON":
         # GeoJSON goes on the source object directly (not under props).
-        # This matches the manual UI format (MapLayer.js:246) and is what
-        # loadLayerJSONs (utilities.js:1029) and ModuleLoader.loadGeoJSON
-        # both expect: source.geojson, not source.props.geojson.
+        # The builder's set_geojson method enforces this placement.
         if geojson_url:
-            # URL string — the frontend fetches it at render time via
-            # loadGeoJSON in utilities.js (the geojson.includes("/") branch).
-            geojson_with_crs = geojson_url
+            geojson_payload = geojson_url  # string URL; validate_geojson accepts strings with "/"
         else:
-            # Inline data — auto-assign CRS if missing
-            geojson_with_crs = dict(geojson)
-            if "crs" not in geojson_with_crs:
-                geojson_with_crs["crs"] = {
+            geojson_payload = dict(geojson)
+            if "crs" not in geojson_payload:
+                geojson_payload["crs"] = {
                     "type": "name",
                     "properties": {"name": "EPSG:4326"},
                 }
-        source_props = {}
 
     elif source_type == "KML":
         source_props = {"url": url}
@@ -907,64 +916,55 @@ def add_map_service_layer(
     elif source_type in ("PMTiles Vector", "PMTiles Raster"):
         source_props = {"url": url}
 
-    # Build the layer configuration
-    layer_type = SOURCE_TYPE_TO_LAYER_TYPE[source_type]
-    source_config = {
-        "type": source_type,
-        "props": source_props,
-    }
-    # GeoJSON data lives at source.geojson (top-level), not source.props.geojson.
-    # loadLayerJSONs and ModuleLoader.loadGeoJSON both read it from this location.
-    if source_type == "GeoJSON" and geojson_with_crs:
-        source_config["geojson"] = geojson_with_crs
-    props_dict = {
-        "name": name,
-        "source": source_config,
-    }
+    elif source_type == "Static Image":
+        source_props = {"url": url}
+        # projection + imageExtent come through `params`; merge them
+        # alongside `url` so they all land in source.props.
+        source_props.update(extra_params)
 
-    # Add optional layer props
-    if opacity is not None:
-        props_dict["opacity"] = opacity
-    if min_zoom is not None:
-        props_dict["minZoom"] = min_zoom
-    if max_zoom is not None:
-        props_dict["maxZoom"] = max_zoom
+    # ------------------------------------------------------------------
+    # Phase 2: Resolve ESRI attribute-variable layer name BEFORE delegation,
+    # so the builder gets the final attr_key. Uses the canonicalized LAYERS
+    # value computed above (catches both input paths uniformly).
+    # ------------------------------------------------------------------
+    attr_key = name
+    if attribute_variables and source_type == "ESRI Image and Map Service":
+        effective_layer_id = source_props.get("params", {}).get("LAYERS")
+        resolved = _resolve_esri_layer_name(url, effective_layer_id)
+        if resolved:
+            attr_key = resolved
+        else:
+            LOGGER.warning(
+                "Could not resolve ESRI layer name; falling back to display name '%s'",
+                name,
+            )
 
-    layer_config = {
-        "configuration": {
-            "type": layer_type,
-            "props": props_dict,
-        }
-    }
-
-    # Add queryable flag
-    if queryable:
-        layer_config["queryable"] = True
-
-    # Add attribute variables.
-    # For ESRI Image and Map Service, the attributeVariables key must be the
-    # ESRI service's layer name (returned by /identify), not the client
-    # display name.  This matches how the manual map editor stores the key.
-    if attribute_variables:
-        attr_key = name
-        if source_type == "ESRI Image and Map Service":
-            # Resolve via the canonicalized LAYERS value, not the raw
-            # `layer_id` argument. This catches both input paths uniformly:
-            # the LLM may have supplied `layer_id="0"` OR
-            # `params={"LAYERS": "0"}` (with no `layer_id`). The post-overlay
-            # canonicalization wrote the effective value into
-            # source_props["params"]["LAYERS"]; `_resolve_esri_layer_name`
-            # already handles "show:0" via split(":")[-1].
-            effective_layer_id = source_props.get("params", {}).get("LAYERS")
-            resolved = _resolve_esri_layer_name(url, effective_layer_id)
-            if resolved:
-                attr_key = resolved
-            else:
-                LOGGER.warning(
-                    "Could not resolve ESRI layer name; falling back to display name '%s'",
-                    name,
-                )
-        layer_config["attributeVariables"] = {attr_key: attribute_variables}
+    # ------------------------------------------------------------------
+    # Phase 3: Delegate to LayerConfigurationBuilder. Builder owns
+    # configuration.type, source.type, source.props placement, GeoJSON
+    # placement at source.geojson, and required-field validation as a
+    # secondary safety net.
+    # ------------------------------------------------------------------
+    try:
+        builder = LayerConfigurationBuilder(name, source_type)
+        if source_props:
+            builder.set_source_properties(**source_props)
+        if geojson_payload is not None:
+            builder.set_geojson(geojson_payload)
+        if opacity is not None:
+            builder.set_opacity(opacity)
+        if min_zoom is not None:
+            builder.set_min_zoom(min_zoom)
+        if max_zoom is not None:
+            builder.set_max_zoom(max_zoom)
+        if queryable:
+            builder.set_queryable(True)
+        if attribute_variables:
+            for key, variable in attribute_variables.items():
+                builder.add_attribute_variable(key, variable, attr_key)
+        layer_config = builder.build()
+    except ValueError as err:
+        return {"error": str(err)}
 
     return {
         "layer_update": {
@@ -1874,7 +1874,7 @@ def list_available_visualizations() -> Dict[str, Any]:
                 "type": "map",
                 "name": "Map",
                 "tool": "create_map_visualization",
-                "description": "OpenLayers map. Supports WMS, GeoJSON, KML, ESRI services, Image/Vector tiles, PMTiles",
+                "description": "OpenLayers map. Supports WMS, GeoJSON, KML, ESRI services, Image/Vector tiles, PMTiles, Static Image",
                 "prefer_native": True,
             },
             {

@@ -10,6 +10,7 @@ import warnings
 import xmltodict
 import copy
 from datetime import datetime
+from typing import Union
 from intake.source import base
 from dateutil.parser import parse
 
@@ -471,6 +472,16 @@ available_source_properties = {
             "tileSize": "Tile Size (e.g., 256, 512)",
         },
     },
+    "Static Image": {
+        "required": {
+            "url": "Image URL",
+            "projection": "EPSG:<Code>",
+            "imageExtent": "minX,minY,maxX,maxY",
+        },
+        "optional": {
+            "attributions": "Attributions",
+        },
+    },
 }
 
 
@@ -501,12 +512,17 @@ class LayerConfigurationBuilder:
                 - 'Vector Tile'
                 - 'PMTiles Vector'
                 - 'PMTiles Raster'
+                - 'Static Image'
 
         Raises:
             ValueError: If layer_source is not one of the supported options.
         """
         self.name = name
 
+        # Layer-type mapping mirrors the renderer's getLayerType() in
+        # reactapp/components/modals/MapLayer/MapLayer.js. The renderer is
+        # the source of truth; any divergence here will silently produce
+        # un-renderable layers.
         valid_sources = {
             "Vector Tile": "VectorTileLayer",
             "Image Tile": "TileLayer",
@@ -516,7 +532,8 @@ class LayerConfigurationBuilder:
             "GeoJSON": "VectorLayer",
             "KML": "VectorLayer",
             "PMTiles Vector": "VectorTileLayer",
-            "PMTiles Raster": "TileLayer",
+            "PMTiles Raster": "WebGLTile",
+            "Static Image": "ImageLayer",
         }
 
         if layer_source not in valid_sources:
@@ -590,12 +607,16 @@ class LayerConfigurationBuilder:
         self._plugin_source = {"source": source, "args": args}
         return self
 
-    def set_geojson(self, geojson: dict):
+    def set_geojson(self, geojson: Union[dict, str]):
         """
-        Attach a validated GeoJSON dictionary to the layer source.
+        Attach a validated GeoJSON FeatureCollection / Feature object OR a URL
+        string pointing at GeoJSON to the layer source.
 
         Args:
-            geojson (dict): A valid GeoJSON FeatureCollection or Feature object.
+            geojson: Either a dict (inline GeoJSON FeatureCollection or Feature
+                object), or a string URL the frontend will fetch at render time
+                (loadGeoJSON in reactapp/components/map/utilities.js handles the
+                URL form).
 
         Raises:
             ValueError: If the geojson is not valid.
@@ -1260,7 +1281,11 @@ class LayerConfigurationBuilder:
                     else:
                         collect_missing(val, act[key], current_path)
                 else:
-                    if key not in act:
+                    # Treat None / empty-string as missing for required leaves —
+                    # an LLM passing {"imageExtent": None} would otherwise
+                    # persist a None into source.props and crash the renderer
+                    # at parse time.
+                    if key not in act or act[key] is None or act[key] == "":
                         missing.append(f"Missing required key '{current_path}'")
 
         collect_missing(required, actual, path)

@@ -12,8 +12,8 @@ from unittest.mock import patch
 from tethysapp.tethysdash.mcp.tethysdash_mcp_server import (
     add_map_service_layer,
     VALID_SOURCE_TYPES,
-    SOURCE_TYPE_TO_LAYER_TYPE,
 )
+from tethysapp.tethysdash.plugin_helpers import LayerConfigurationBuilder
 from tethysapp.tethysdash.tests.mcp.test_visualization_contracts import (
     assert_layer_update,
 )
@@ -840,6 +840,29 @@ class TestAllSourceTypesReturnLayerUpdate:
         "Vector Tile": dict(url="https://x.com/tiles/{z}/{x}/{y}.pbf"),
         "PMTiles Vector": dict(url="https://x.com/data.pmtiles"),
         "PMTiles Raster": dict(url="https://x.com/data.pmtiles"),
+        "Static Image": dict(
+            url="https://x.com/image.png",
+            params={"projection": "EPSG:4326", "imageExtent": "0,0,10,10"},
+        ),
+    }
+
+    # Minimal source-prop kwargs to satisfy the builder's required-field
+    # validation when probing the source_type → layer_type mapping.
+    # GeoJSON is handled separately via set_geojson.
+    _MINIMAL_BUILDER_PROPS = {
+        "WMS": dict(url="https://x.com/wms", params={"LAYERS": "ws:layer"}),
+        "ESRI Image and Map Service": dict(url="https://x.com/esri"),
+        "ESRI Feature Service": dict(url="https://x.com/esri", layer=0),
+        "KML": dict(url="https://x.com/data.kml"),
+        "Image Tile": dict(url="https://x.com/tiles/{z}/{x}/{y}.png"),
+        "Vector Tile": dict(urls="https://x.com/tiles/{z}/{x}/{y}.pbf"),
+        "PMTiles Vector": dict(url="https://x.com/data.pmtiles"),
+        "PMTiles Raster": dict(url="https://x.com/data.pmtiles"),
+        "Static Image": dict(
+            url="https://x.com/image.png",
+            projection="EPSG:4326",
+            imageExtent="0,0,10,10",
+        ),
     }
 
     def test_all_valid_source_types_covered(self):
@@ -873,6 +896,9 @@ class TestAllSourceTypesReturnLayerUpdate:
     def test_pmtiles_raster_returns_layer_update(self):
         self._assert_source_type_returns_layer_update("PMTiles Raster")
 
+    def test_static_image_returns_layer_update(self):
+        self._assert_source_type_returns_layer_update("Static Image")
+
     def _assert_source_type_returns_layer_update(self, source_type):
         args = self._MINIMAL_ARGS[source_type]
         result = add_map_service_layer(
@@ -882,9 +908,27 @@ class TestAllSourceTypesReturnLayerUpdate:
             **args,
         )
         assert_layer_update(result, expected_uuid=MAP_UUID)
-        # Also verify correct OL layer type
+        # Also verify correct OL layer type. The builder owns the
+        # source_type → layer_type mapping; deriving the expected value
+        # from the builder (rather than a duplicate Python constant)
+        # ensures this test never drifts from the actual mapping.
         config = _get_configuration(result)
-        assert config["type"] == SOURCE_TYPE_TO_LAYER_TYPE[source_type]
+        # LayerConfigurationBuilder.build() emits the layer type at
+        # configuration.type — same path the assertion checks. Construct
+        # a probe builder to read the mapping for this source_type.
+        # Use minimal source props that satisfy the builder's required-
+        # field validation; the layer type is independent of source props.
+        probe = LayerConfigurationBuilder(f"probe {source_type}", source_type)
+        if source_type == "GeoJSON":
+            probe.set_geojson({
+                "type": "FeatureCollection",
+                "features": [],
+                "crs": {"type": "name", "properties": {"name": "EPSG:4326"}},
+            })
+        else:
+            probe.set_source_properties(**self._MINIMAL_BUILDER_PROPS[source_type])
+        expected_layer_type = probe.build()["configuration"]["type"]
+        assert config["type"] == expected_layer_type
 
 
 # ---------------------------------------------------------------------------
@@ -1021,3 +1065,138 @@ class TestOptionalLayerProps:
         assert "opacity" not in props
         assert "minZoom" not in props
         assert "maxZoom" not in props
+
+
+# Plan 004 R2 — Static Image is the canonical "missing source type" the
+# refactor closes. These tests pin the persisted shape against the
+# renderer-side contract (ModuleLoader.js:35 special-cases imageExtent
+# string → numeric array, so a string is the right persisted form).
+class TestStaticImage:
+    def test_static_image_minimal(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="Static Image",
+            name="Aerial Photo",
+            url="https://example.com/aerial.png",
+            params={"projection": "EPSG:4326", "imageExtent": "-180,-90,180,90"},
+        )
+        config = _get_configuration(result)
+        assert config["type"] == "ImageLayer"
+        source = config["props"]["source"]
+        assert source["type"] == "Static Image"
+        assert source["props"]["url"] == "https://example.com/aerial.png"
+        assert source["props"]["projection"] == "EPSG:4326"
+        # imageExtent persists as a string — ModuleLoader.js:35-41 splits
+        # it to a numeric array at render time. Verifying the persisted
+        # form here would be too strict if the renderer's contract changes.
+        assert source["props"]["imageExtent"] == "-180,-90,180,90"
+
+    def test_static_image_without_url_returns_error(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="Static Image",
+            name="Aerial No URL",
+        )
+        assert "error" in result
+
+    def test_static_image_without_required_extent_returns_error(self):
+        # The builder validates required source props (url, projection,
+        # imageExtent) per available_source_properties. Missing
+        # imageExtent should surface as an MCP error, not a stack trace.
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="Static Image",
+            name="Aerial Partial",
+            url="https://example.com/aerial.png",
+            params={"projection": "EPSG:4326"},
+        )
+        assert "error" in result
+
+    def test_static_image_without_required_projection_returns_error(self):
+        # Symmetric coverage: projection missing while imageExtent present.
+        # The original Static Image guard tests only exercised the missing-
+        # imageExtent half of the OR condition; this pins the other half.
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="Static Image",
+            name="Aerial No Projection",
+            url="https://example.com/aerial.png",
+            params={"imageExtent": "0,0,10,10"},
+        )
+        assert "error" in result
+
+    def test_static_image_with_none_extent_returns_error(self):
+        # Plan-004 review finding #6: an LLM passing imageExtent=None would
+        # otherwise pass the MCP guard (key present) AND _validate_required_fields
+        # (key in dict), persisting None to source.props.imageExtent and
+        # crashing the renderer. Both layers now treat None as missing.
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="Static Image",
+            name="Aerial None Extent",
+            url="https://example.com/aerial.png",
+            params={"projection": "EPSG:4326", "imageExtent": None},
+        )
+        assert "error" in result
+
+    def test_static_image_with_empty_string_extent_returns_error(self):
+        # Same defense as the None case for empty-string values.
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="Static Image",
+            name="Aerial Empty Extent",
+            url="https://example.com/aerial.png",
+            params={"projection": "EPSG:4326", "imageExtent": ""},
+        )
+        assert "error" in result
+
+
+# Plan-004 review finding #5: pin the persisted-shape contract for
+# multi-entry attribute_variables. The refactor changed
+# `attributeVariables = {attr_key: attribute_variables}` (single assignment)
+# into a per-(key, variable) loop calling `builder.add_attribute_variable`.
+# These tests verify the persisted shape is identical for the flat
+# {str: str} input that the type annotation declares.
+class TestAttributeVariablesShape:
+    def test_multi_entry_attribute_variables_persist_correctly(self):
+        # Two attribute fields mapped to two different dashboard variables;
+        # the persisted shape must place both under the same attr_key
+        # (the layer's display name for non-ESRI sources).
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="GeoJSON",
+            name="Cities",
+            geojson={
+                "type": "FeatureCollection",
+                "features": [],
+            },
+            attribute_variables={
+                "name": "city_var",
+                "population": "pop_var",
+            },
+        )
+        layer = result["layer_update"]["layer"]
+        assert layer["attributeVariables"] == {
+            "Cities": {
+                "name": "city_var",
+                "population": "pop_var",
+            }
+        }
+
+    def test_single_entry_attribute_variables_persist_correctly(self):
+        # The before-refactor case: one (field, variable) pair lands at
+        # the same persisted shape as the multi-entry case.
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="GeoJSON",
+            name="Cities",
+            geojson={
+                "type": "FeatureCollection",
+                "features": [],
+            },
+            attribute_variables={"name": "city_var"},
+        )
+        layer = result["layer_update"]["layer"]
+        assert layer["attributeVariables"] == {
+            "Cities": {"name": "city_var"}
+        }
