@@ -1,5 +1,6 @@
 import pytest
 import json
+import requests as http_requests
 from django.urls import reverse
 from tethysapp.tethysdash.model import Dashboard, Message
 from unittest.mock import MagicMock
@@ -2567,4 +2568,99 @@ def test_update_visualization_permissions_error(client, admin_user, mock_app, mo
     assert (
         response.json()["message"]
         == "Failed to update visualization permissions: failed to update visualization permissions"  # noqa: E501
+    )
+
+
+# ---------------------------------------------------------------------------
+# Ollama proxy — diagnostic logging on unhandled exceptions.
+#
+# We're chasing intermittent 500s at /ollama-proxy/api/chat/ on long prompts
+# (tools + thinking history) with no traceback in the Django log because the
+# proxy previously caught only requests.ConnectionError and requests.Timeout.
+# The handler below logs the stack and re-raises so caller-visible behavior
+# (Django returns 500) is preserved while the next failure becomes
+# diagnosable from the log alone.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_ollama_proxy_logs_unexpected_exception(
+    client, admin_user, mock_app, mocker
+):
+    """ConnectionError/Timeout already had handlers. Other exceptions
+    used to vanish silently into Django's 500 path. After this change
+    the proxy logs a traceback at ERROR level before re-raising. We
+    patch the controller's logger directly because the project's
+    pytest setup has no LOGGING propagation contract pinned, and a
+    direct patch is the most robust way to assert the call was made.
+    """
+    mock_app("tethysapp.tethysdash.controllers.App")
+    client.force_login(admin_user)
+
+    # Simulate a non-Connection/Timeout failure. InvalidURL stands in
+    # for the whole class of "neither caught" exceptions
+    # (ChunkedEncodingError, RawPostDataException, etc.). NOTE: SSLError
+    # inherits from ConnectionError and would be swallowed by the
+    # existing handler, so it can't stand in for the unhandled case.
+    mock_post = mocker.patch(
+        "tethysapp.tethysdash.controllers.http_requests.post"
+    )
+    mock_post.side_effect = http_requests.exceptions.InvalidURL("bad url")
+
+    mock_logger = mocker.patch("tethysapp.tethysdash.controllers.logger")
+
+    url = "/apps/tethysdash/ollama-proxy/api/chat/"
+
+    # Django's test client surfaces unhandled view exceptions directly.
+    response = None
+    try:
+        response = client.post(url, data=json.dumps({"messages": []}),
+                               content_type="application/json")
+    except http_requests.exceptions.InvalidURL:
+        pass  # expected — the proxy re-raises after logging
+
+    # Diagnostic: confirm the view actually reached http_requests.post.
+    # If mock_post wasn't called, the test URL didn't resolve to our view
+    # (URL config or middleware short-circuit) and the test contract is
+    # broken before it can even check the logger.
+    assert mock_post.called, (
+        f"http_requests.post mock was never called — view didn't reach the "
+        f"proxy line. Response: {response!r} status={getattr(response, 'status_code', None)}"
+    )
+
+    # logger.exception(...) always attaches exc_info; that's what puts
+    # the traceback into the log. Guards against a regression to
+    # logger.error/info which would lose the stack.
+    assert mock_logger.exception.called, (
+        f"Expected logger.exception to be called; calls: {mock_logger.mock_calls}"
+    )
+    call_args = mock_logger.exception.call_args
+    assert "Ollama proxy unexpected error" in call_args[0][0]
+    assert "api/chat" in call_args[0][1]
+
+
+@pytest.mark.django_db
+def test_ollama_proxy_does_not_log_for_known_handled_exceptions(
+    client, admin_user, mock_app, mocker
+):
+    """ConnectionError and Timeout get user-friendly responses; they
+    are expected and must NOT trip the new diagnostic logger."""
+    mock_app("tethysapp.tethysdash.controllers.App")
+    client.force_login(admin_user)
+
+    mock_post = mocker.patch(
+        "tethysapp.tethysdash.controllers.http_requests.post"
+    )
+    mock_post.side_effect = http_requests.ConnectionError("refused")
+    mock_logger = mocker.patch("tethysapp.tethysdash.controllers.logger")
+
+    url = "/apps/tethysdash/ollama-proxy/api/chat/"
+
+    response = client.post(url, data=json.dumps({"messages": []}),
+                           content_type="application/json")
+
+    assert response.status_code == 502  # existing user-friendly handler
+    assert not mock_logger.exception.called, (
+        "ConnectionError must not trigger the unexpected-error logger; "
+        f"calls: {mock_logger.mock_calls}"
     )
