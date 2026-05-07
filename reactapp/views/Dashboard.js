@@ -14,7 +14,15 @@ function DashboardView(dashboardProps) {
           <DashboardHeader />
           <DashboardLayoutAlerts />
           <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-            <div style={{ flex: 1, minWidth: 0}}>
+            {/*
+              minHeight: 0 lets the flex child shrink below its content's
+              intrinsic size; without it the column grows to fit the
+              grid, the parent's overflow:hidden clips bottom-row tiles,
+              and their bottom-right resize handles become unreachable.
+              overflowY: auto then scrolls when the grid is taller than
+              the visible area.
+            */}
+            <div style={{ flex: 1, minWidth: 0, minHeight: 0, overflowY: "auto" }}>
               <DashboardTabs />
             </div>
             <ChatSidebar />
