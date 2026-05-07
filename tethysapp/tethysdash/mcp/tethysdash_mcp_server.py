@@ -630,6 +630,9 @@ _LAYER_PROP_BUILDER_METHODS = {
     "minZoom": "set_min_zoom",
     "maxZoom": "set_max_zoom",
     "minZoomQuery": "set_min_zoom_query",
+    # Plan 2026-05-07-004 Unit C — paired with LAYER_PROPERTIES_ALLOWLIST
+    # in plugin_helpers.py. Drift test enforces parity.
+    "visible": "set_layer_visibility",
 }
 
 
@@ -675,6 +678,44 @@ def _validate_uuid_arg(
             f"pass the literal UUID from the prior tool result."
         )
     return None
+
+
+def _validate_source_params(
+    source_type: str, params: Optional[Dict[str, Any]]
+) -> Optional[str]:
+    """Plan 2026-05-07-004 Unit A: reject `params` for source types that
+    don't consume it.
+
+    The producer's per-source-type ``_flat_source_props`` build (lines
+    ~1148-1231 of this file) only handles ``params`` for WMS, ESRI Image
+    and Map Service, ESRI Feature Service, and Static Image. The other
+    seven types silently drop the argument — the renderer never sees
+    the keys and the LLM has no indication.
+
+    Returns ``None`` on success or an ``invalid_source_params:`` error
+    string on rejection. Caller wraps in ``{"error": ...}``. Aligns with
+    the existing ``invalid_uuid`` / ``invalid_envelope`` /
+    ``whitelist_rejected`` error-class precedent.
+
+    Runs AFTER the existing ``Union[Dict, str]`` coercion so the check
+    operates on the parsed dict, not the raw string. See
+    ``docs/solutions/best-practices/mcp-tool-dict-parameter-coercion-2026-04-17.md``.
+    """
+    if source_type not in _TYPES_REJECTING_PARAMS:
+        return None
+    if not params:
+        # None and empty-dict are treated as "no params" — no rejection.
+        return None
+    return (
+        f"invalid_source_params: {source_type} does not accept a `params` "
+        f"argument. The renderer for {source_type} consumes only the "
+        f"required source properties (and `attributions`/`projection` "
+        f"via the `source_props` argument). Tool arguments not "
+        f"recognized for this source type are silently dropped if not "
+        f"explicitly rejected here. Pass `params=None` (the default) "
+        f"and use `source_props` for any allowlisted source-type-"
+        f"specific properties."
+    )
 
 
 def _validate_advanced_layer_dicts(
@@ -806,6 +847,24 @@ VALID_SOURCE_TYPES = [
     "Static Image",
 ]
 
+# Plan 2026-05-07-004 Unit A: source types that don't consume `params`
+# server-side. Pre-fix, calls supplying `params` for these types were
+# silently dropped — the renderer never saw the keys and the LLM had no
+# indication. Now `_validate_source_params` rejects with a structured
+# `invalid_source_params:` envelope so the LLM can correct on the next
+# round. If a future feature adds per-type `params` semantics for one of
+# these (e.g., GeoJSON style overrides, KML extractStyles), remove it
+# from this set in the same change that wires the consumption path.
+_TYPES_REJECTING_PARAMS = frozenset({
+    "GeoJSON",
+    "KML",
+    "Image Tile",
+    "Vector Tile",
+    "PMTiles Vector",
+    "PMTiles Raster",
+    "GeoTIFF",
+})
+
 # Recognized directive prefixes for ESRI Image and Map Service `params.LAYERS`.
 # Kept in sync with the JS constant in
 # `reactapp/components/map/utilities.js` (the frontend `normalizeLayersParam`
@@ -920,6 +979,11 @@ def add_map_service_layer(
     opacity: Annotated[Optional[float], Field(description="Layer opacity from 0 (transparent) to 1 (opaque)")] = None,
     min_zoom: Annotated[Optional[int], Field(description="Minimum zoom level at which the layer is visible")] = None,
     max_zoom: Annotated[Optional[int], Field(description="Maximum zoom level at which the layer is visible")] = None,
+    visible: Annotated[Optional[bool], Field(description=(
+        "Initial layer visibility. Default behavior renders the layer "
+        "visible. Set to False to start the layer hidden in the layer "
+        "control (the user can toggle it on at runtime)."
+    ))] = None,
     legend: Annotated[Optional[Union[str, Dict[str, Any]]], Field(description=(
         "Layer legend. Pass 'default' to use the source's default legend, a "
         "URL string for a hosted legend image, or a dict for a custom legend "
@@ -1058,6 +1122,15 @@ def add_map_service_layer(
         }
 
     extra_params = params or {}
+
+    # Plan 2026-05-07-004 Unit A: reject `params` for source types that
+    # don't consume it server-side (close the silent-drop class). Runs
+    # after dict coercion (above) and after source_type validation, so
+    # the check operates on the parsed dict and only when the source
+    # type is itself valid.
+    params_error = _validate_source_params(source_type, params)
+    if params_error:
+        return {"error": params_error}
 
     # Validate required fields per source type. Friendlier error messages
     # than the builder's generic "Missing required key 'X'" — the builder
@@ -1286,7 +1359,30 @@ def add_map_service_layer(
         if _flat_source_props:
             builder.set_source_properties(**_flat_source_props)
         if source_props:
-            builder.set_source_properties(**source_props)
+            # Plan 2026-05-07-004 Unit B: GeoTIFF auto-legend metadata
+            # (`rampName`, `rampMin`, `rampMax`) is read by Map.js
+            # (visualizations) at source.<key> directly — NOT under
+            # source.props. Lift those keys out before passing the rest
+            # through set_source_properties; route them via the
+            # set_source_top_level_props builder method.
+            if source_type == "GeoTIFF":
+                _top_level_keys = {"rampName", "rampMin", "rampMax"}
+                top_level = {
+                    k: source_props[k]
+                    for k in _top_level_keys
+                    if k in source_props
+                }
+                nested = {
+                    k: v
+                    for k, v in source_props.items()
+                    if k not in _top_level_keys
+                }
+                if nested:
+                    builder.set_source_properties(**nested)
+                if top_level:
+                    builder.set_source_top_level_props(**top_level)
+            else:
+                builder.set_source_properties(**source_props)
         if geojson_payload is not None:
             builder.set_geojson(geojson_payload)
         if opacity is not None:
@@ -1295,6 +1391,8 @@ def add_map_service_layer(
             builder.set_min_zoom(min_zoom)
         if max_zoom is not None:
             builder.set_max_zoom(max_zoom)
+        if visible is not None:
+            builder.set_layer_visibility(visible)
         # Apply layer_props after the flat scalars so the conflict check
         # above is the only path through which both can be present.
         # Dispatch via _LAYER_PROP_BUILDER_METHODS keeps the allowlist
