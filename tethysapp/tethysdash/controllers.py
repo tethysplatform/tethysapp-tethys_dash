@@ -1,9 +1,12 @@
 from django.http import JsonResponse, StreamingHttpResponse
 import json
+import logging
 import os
 import shutil
 import nh3
 import requests as http_requests
+
+logger = logging.getLogger(__name__)
 from rest_framework.decorators import api_view
 import uuid
 from datetime import datetime
@@ -1089,6 +1092,18 @@ def _proxy_to_ollama(request, api_path, timeout=(10, 300)):
         return JsonResponse({"error": "Cannot connect to Ollama"}, status=502)
     except http_requests.Timeout:
         return JsonResponse({"error": "Ollama request timed out"}, status=504)
+    except Exception:
+        # Diagnostic-only catch. We've been seeing intermittent 500s on long
+        # prompts at this endpoint with no traceback in the Django log because
+        # only ConnectionError / Timeout were named above. Log the stack and
+        # re-raise so caller-visible behavior is unchanged — Django still
+        # returns 500, but the log now identifies which exception class fired.
+        logger.exception(
+            "Ollama proxy unexpected error on %s (method=%s)",
+            api_path,
+            request.method,
+        )
+        raise
 
 
 @api_view(["GET"])
