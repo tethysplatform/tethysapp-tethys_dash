@@ -1362,6 +1362,58 @@ def _coerce_known_values(source: str, patches: List[Dict[str, Any]]) -> None:
                 op["value"] = BASE_MAPS.get(value, value)
 
 
+def _coerce_replace_to_add_on_layer_paths(
+    source: str, patches: List[Dict[str, Any]]
+) -> None:
+    """Op-level normalization: ``replace`` -> ``add`` for Map layer-internal
+    paths whose leaf segment is an object key (not an array index).
+
+    RFC 6902 ``replace`` requires the target to exist; ``add`` creates if
+    missing or replaces if present. For object-key paths these are
+    functionally identical when the target exists. LLMs frequently emit
+    ``replace`` for fields they want to "set" but that may be absent on
+    layers created without them (e.g., ``params`` on an ESRI Feature
+    Service layer created without filters).
+
+    Bounded to:
+      * ``Map`` source only — non-Map sources have their own internal
+        shapes and the missing-target failure mode hasn't surfaced there.
+      * Path under ``/args/layers/N/...`` (depth >= 4 segments) — the
+        layer-construction boundary already rejects bare-index and
+        whole-array forms before this runs, so any remaining ``replace``
+        on Map at this depth is targeting a field within an existing
+        layer.
+      * Leaf segment is not a numeric index or ``-`` — those are JSON
+        Pointer markers for arrays, where ``add`` and ``replace`` differ
+        materially (insert vs substitute). Coercing them would change the
+        semantics of legitimate array-element edits.
+
+    Mutates ``patches`` in-place. No I/O, no telemetry — silent
+    transformation that matches sibling value-coercion precedent.
+
+    Sibling to ``_coerce_known_values`` in this module; both are called
+    from ``patch_visualization`` after validation, before returning the
+    envelope.
+    """
+    if source != "Map":
+        return
+    for op in patches:
+        if op.get("op") != "replace":
+            continue
+        path = op.get("path", "")
+        if not path.startswith("/args/layers/"):
+            continue
+        segments = path.split("/")
+        # ``"/args/layers/0/x".split("/")`` -> ``["", "args", "layers", "0", "x"]``;
+        # length 5 means one segment past ``/args/layers/N``.
+        if len(segments) < 5:
+            continue
+        leaf = segments[-1]
+        if leaf == "-" or leaf.isdigit():
+            continue
+        op["op"] = "add"
+
+
 def _validate_patch_envelope_shape(patches):
     """R1/R2: structural validation.
 
@@ -1684,6 +1736,13 @@ def patch_visualization(
     # Value coercions that mirror the create tools (e.g., baseMap shorthand).
     # Run AFTER validation so shape rules apply to the pre-coercion value.
     _coerce_known_values(source, patches)
+
+    # Op-level coercion: replace -> add for Map layer-internal paths.
+    # Runs after the boundary check (so bare-index `replace` is already
+    # rejected and never reaches this point) and after value coercion (so
+    # the value rules apply to the pre-coercion shape if any field-specific
+    # rules ever target an op-coerced path in the future).
+    _coerce_replace_to_add_on_layer_paths(source, patches)
 
     LOGGER.info(
         "patch_visualization: target_uuid=%s source=%s ops=%d description=%s",

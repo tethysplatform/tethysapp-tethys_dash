@@ -153,6 +153,22 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
     // args in `{args: ...}` before rfc6902 apply, then unwrap on save. This
     // way the path the LLM emits, the path the server whitelist validates,
     // and the path rfc6902 resolves against are all identical.
+    // Surface a patch-failure to anyone listening (chat sidebar banner etc.).
+    // detail carries enough to identify the failed entry without leaking
+    // persisted values. Caps the number of dispatched ops to keep the
+    // payload small even when an envelope contained many ops.
+    function emitPatchRejected(uuid, errorClass, path, opIndex) {
+      try {
+        window.dispatchEvent(
+          new CustomEvent("tethysdash:patch-rejected", {
+            detail: { uuid, errorClass, path, opIndex },
+          }),
+        );
+      } catch {
+        // Best-effort: never let a failed event dispatch crash the reducer.
+      }
+    }
+
     function applyPatchToGridItem(target, ops, uuid) {
       let args;
       try {
@@ -162,6 +178,7 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
           "[DashboardLayout] apply_patch: failed to parse args_string for uuid",
           uuid,
         );
+        emitPatchRejected(uuid, "ParseError", null, null);
         return null;
       }
       // JSON deep-clone + atomic apply: all ops succeed or we discard the
@@ -176,6 +193,16 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
           uuid,
           errors,
         );
+        // Surface the FIRST error per UUID — covers the common case (single
+        // failing op) without spamming the chat with one banner per op.
+        const firstIdx = errors.findIndex((err) => err !== null);
+        const firstErr = errors[firstIdx];
+        emitPatchRejected(
+          uuid,
+          firstErr?.name || "ApplyError",
+          ops[firstIdx]?.path ?? null,
+          firstIdx,
+        );
         return null;
       }
       // Defense-in-depth: an op like {op:"remove", path:"/args"} would leave
@@ -189,6 +216,7 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
           uuid,
           "— refusing to persist `undefined`",
         );
+        emitPatchRejected(uuid, "ArgsRootRemoved", "/args", null);
         return null;
       }
       return { ...target, args_string: JSON.stringify(draft.args) };

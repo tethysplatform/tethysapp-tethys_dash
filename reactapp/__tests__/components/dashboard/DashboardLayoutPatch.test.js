@@ -305,6 +305,91 @@ describe("handleUpdateVisualization — apply_patch", () => {
     expect(map.layerControl).toBe(true);
   });
 
+  test("emits tethysdash:patch-rejected when rfc6902 fails", async () => {
+    // Plan 2026-05-07-001 Unit B: silent-failure UX gap — failed patches
+    // must surface a chat-visible event so the user sees the failure.
+    await renderWithDashboard(makeDashboard([plotItem]));
+    const events = [];
+    const onReject = (e) => events.push(e.detail);
+    window.addEventListener("tethysdash:patch-rejected", onReject);
+    try {
+      await dispatchUpdate({
+        batch: true,
+        operation: "apply_patch",
+        patches: [
+          {
+            uuid: "plot-1",
+            source: "Inline Plotly",
+            ops: [{ op: "replace", path: "/args/inlineData/nonexistent/foo", value: "x" }],
+          },
+        ],
+      });
+    } finally {
+      window.removeEventListener("tethysdash:patch-rejected", onReject);
+    }
+    expect(events.length).toBe(1);
+    expect(events[0].uuid).toBe("plot-1");
+    expect(events[0].path).toBe("/args/inlineData/nonexistent/foo");
+    // rfc6902 surfaces the error class as `name`; we forward it verbatim.
+    expect(events[0].errorClass).toBe("MissingError");
+  });
+
+  test("partial failure emits one event per failed UUID; successful UUIDs do not emit", async () => {
+    await renderWithDashboard(makeDashboard([plotItem, mapItem]));
+    const events = [];
+    const onReject = (e) => events.push(e.detail);
+    window.addEventListener("tethysdash:patch-rejected", onReject);
+    try {
+      await dispatchUpdate({
+        batch: true,
+        operation: "apply_patch",
+        patches: [
+          {
+            uuid: "plot-1",
+            source: "Inline Plotly",
+            ops: [{ op: "replace", path: "/args/inlineData/nonexistent/foo", value: "x" }],
+          },
+          {
+            uuid: "map-1",
+            source: "Map",
+            ops: [{ op: "replace", path: "/args/layerControl", value: true }],
+          },
+        ],
+      });
+    } finally {
+      window.removeEventListener("tethysdash:patch-rejected", onReject);
+    }
+    expect(events.length).toBe(1);
+    expect(events[0].uuid).toBe("plot-1");
+    // Sibling patch still applied (existing partial-batch tolerance).
+    const items = getTabGridItems();
+    const map = JSON.parse(items.find((i) => i.uuid === "map-1").args_string);
+    expect(map.layerControl).toBe(true);
+  });
+
+  test("clean apply does not emit tethysdash:patch-rejected", async () => {
+    await renderWithDashboard(makeDashboard([plotItem]));
+    const events = [];
+    const onReject = (e) => events.push(e.detail);
+    window.addEventListener("tethysdash:patch-rejected", onReject);
+    try {
+      await dispatchUpdate({
+        batch: true,
+        operation: "apply_patch",
+        patches: [
+          {
+            uuid: "plot-1",
+            source: "Inline Plotly",
+            ops: [{ op: "replace", path: "/args/inlineData/layout/title", value: "OK" }],
+          },
+        ],
+      });
+    } finally {
+      window.removeEventListener("tethysdash:patch-rejected", onReject);
+    }
+    expect(events.length).toBe(0);
+  });
+
   test("no patches field → no-op", async () => {
     await renderWithDashboard(makeDashboard([plotItem]));
     await dispatchUpdate({

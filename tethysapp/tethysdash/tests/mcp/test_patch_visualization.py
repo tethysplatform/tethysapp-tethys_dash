@@ -191,6 +191,191 @@ class TestValueCoercion:
 
 
 # ---------------------------------------------------------------------------
+# Op-level coercion — replace -> add for Map layer-internal paths
+# ---------------------------------------------------------------------------
+
+
+class TestOpCoercion:
+    """`replace` -> `add` on Map paths under /args/layers/N/... where the leaf
+    is an object key (not an array index).
+
+    RFC 6902 `replace` requires the target to exist; `add` creates if missing
+    or replaces if present. For object-key paths these are functionally
+    identical when the target exists. LLMs frequently emit `replace` for
+    fields they want to "set" but that may be absent on layers created
+    without them (e.g., `params` on an ESRI Feature Service layer). Coercing
+    at the patch-tool boundary closes that asymmetry without inspecting
+    values for shape correctness — same posture as TestValueCoercion above,
+    extended from value-level to op-level symmetry.
+    """
+
+    def test_replace_at_deep_object_key_path_is_coerced(self):
+        """Positive coerce: the prompt-from-the-bug case."""
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="Map",
+            patches=[{
+                "op": "replace",
+                "path": "/args/layers/0/configuration/props/source/props/params",
+                "value": {"WHERE": "rfc_name = 'Colorado Basin'"},
+            }],
+        )
+        assert "patch_update" in result, result
+        assert result["patch_update"]["ops"][0]["op"] == "add"
+        assert result["patch_update"]["ops"][0]["path"] == (
+            "/args/layers/0/configuration/props/source/props/params"
+        )
+        assert result["patch_update"]["ops"][0]["value"] == {
+            "WHERE": "rfc_name = 'Colorado Basin'"
+        }
+
+    def test_replace_at_deeper_nested_object_key_path_is_coerced(self):
+        """Deeper than one level past `/args/layers/N`."""
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="Map",
+            patches=[{
+                "op": "replace",
+                "path": "/args/layers/2/configuration/props/source/props/params/WHERE",
+                "value": "x = 1",
+            }],
+        )
+        assert "patch_update" in result, result
+        assert result["patch_update"]["ops"][0]["op"] == "add"
+
+    def test_add_op_passes_through_unchanged(self):
+        """Identity passthrough: existing `add` ops are not mangled."""
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="Map",
+            patches=[{
+                "op": "add",
+                "path": "/args/layers/0/configuration/props/opacity",
+                "value": 0.5,
+            }],
+        )
+        assert "patch_update" in result, result
+        assert result["patch_update"]["ops"][0]["op"] == "add"
+
+    def test_remove_op_passes_through_unchanged(self):
+        """Identity passthrough: `remove` is not coerced."""
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="Map",
+            patches=[{
+                "op": "remove",
+                "path": "/args/layers/0/configuration/props/opacity",
+            }],
+        )
+        assert "patch_update" in result, result
+        assert result["patch_update"]["ops"][0]["op"] == "remove"
+
+    def test_test_op_passes_through_unchanged(self):
+        """Identity passthrough: `test` is not coerced."""
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="Map",
+            patches=[{
+                "op": "test",
+                "path": "/args/layers/0/configuration/props/opacity",
+                "value": 0.5,
+            }],
+        )
+        assert "patch_update" in result, result
+        assert result["patch_update"]["ops"][0]["op"] == "test"
+
+    def test_non_map_source_replace_is_not_coerced(self):
+        """Scope guard: only Map source is coerced. Plotly etc. unaffected."""
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="Inline Plotly",
+            patches=[{
+                "op": "replace",
+                "path": "/args/inlineData/layout/title",
+                "value": "X",
+            }],
+        )
+        assert "patch_update" in result, result
+        assert result["patch_update"]["ops"][0]["op"] == "replace"
+
+    def test_replace_at_non_layer_map_path_is_not_coerced(self):
+        """Scope guard: paths under Map that aren't /args/layers/N/... pass through.
+        /args/baseMap, /args/layerControl, /args/map_extent, /args/mapDrawing
+        are layer-array-siblings, not layer-internals, and they always exist
+        on a created Map (no missing-target failure mode)."""
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="Map",
+            patches=[{"op": "replace", "path": "/args/layerControl", "value": False}],
+        )
+        assert "patch_update" in result, result
+        assert result["patch_update"]["ops"][0]["op"] == "replace"
+
+    def test_replace_with_numeric_leaf_segment_is_not_coerced(self):
+        """Scope guard: leaf is an array index (e.g., GeoTIFF sources/0).
+        `add /N` shifts; `replace /N` substitutes — different semantics.
+        Coercion would corrupt the patch, so it must not fire."""
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="Map",
+            patches=[{
+                "op": "replace",
+                "path": "/args/layers/0/configuration/props/source/props/sources/0",
+                "value": {"url": "https://example.com/cog.tif"},
+            }],
+        )
+        assert "patch_update" in result, result
+        assert result["patch_update"]["ops"][0]["op"] == "replace"
+
+    def test_replace_with_dash_leaf_segment_is_not_coerced(self):
+        """Scope guard: `-` is the JSON Pointer 'append' marker for arrays.
+        Coercion must not fire — same reasoning as numeric leaves."""
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="Map",
+            patches=[{
+                "op": "replace",
+                "path": "/args/layers/0/configuration/props/source/props/sources/-",
+                "value": {"url": "https://example.com/cog.tif"},
+            }],
+        )
+        # This particular path may also fail for other reasons (replace at `-`
+        # is unusual), but we only assert that coercion did NOT change `op`.
+        # If the result has patch_update, the op must still be `replace`;
+        # if there's an error, it's an unrelated rejection — coercion is
+        # silent transformation, not a rejection.
+        if "patch_update" in result:
+            assert result["patch_update"]["ops"][0]["op"] == "replace"
+
+    def test_multi_op_envelope_coerces_per_op(self):
+        """One coerce-eligible replace + one ineligible — each handled correctly."""
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="Map",
+            patches=[
+                {
+                    "op": "replace",
+                    "path": "/args/layers/0/configuration/props/opacity",
+                    "value": 0.5,
+                },
+                {
+                    "op": "replace",
+                    "path": "/args/baseMap",
+                    "value": (
+                        "https://server.arcgisonline.com/arcgis/rest/services/"
+                        "World_Imagery/MapServer"
+                    ),
+                },
+            ],
+        )
+        assert "patch_update" in result, result
+        # First op: under /args/layers/N/... → coerced to add.
+        assert result["patch_update"]["ops"][0]["op"] == "add"
+        # Second op: /args/baseMap → not under /args/layers/, untouched.
+        assert result["patch_update"]["ops"][1]["op"] == "replace"
+
+
+# ---------------------------------------------------------------------------
 # Value-shape validation — contract parity between create and patch paths
 # ---------------------------------------------------------------------------
 
@@ -872,6 +1057,24 @@ class TestLayerConstructionBoundary:
             patches=[{"op": "remove", "path": "/args/layers/1"}],
         )
         assert "patch_update" in result, result
+
+    def test_replace_at_bare_layer_index_still_rejected_after_op_coercion(self):
+        """Regression pin: the boundary check runs BEFORE op coercion, so
+        a `replace` at /args/layers/N (bare index) is still rejected even
+        though plan 2026-05-07-001 introduces a generic replace->add coercion
+        for Map paths. The boundary's bare-index rejection must not be
+        bypassed by treating the op as `add` after the fact."""
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="Map",
+            patches=[{
+                "op": "replace",
+                "path": "/args/layers/0",
+                "value": {"name": "smuggled new layer"},
+            }],
+        )
+        assert "error" in result
+        assert "whitelist_rejected" in result["error"]
 
     def test_single_op_move_within_layers_rejected_by_r5c(self):
         """Single-op `move` between layer indices is intentionally rejected
