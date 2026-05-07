@@ -468,6 +468,98 @@ class TestESRIFeature:
         assert "error" in result
         assert "layer_id" in result["error"]
 
+    # -- Plan 2026-05-07-003: producer/consumer shape asymmetry —
+    # `params` MUST nest under `source.props.params` so the renderer
+    # (`loadESRIJSON` in ModuleLoader.js) finds it. Pre-fix, the producer
+    # flattened `extra_params` onto top-level source.props and the
+    # WHERE / TIME clauses were silently ignored.
+
+    def test_esri_feature_params_where_nested_under_source_props_params(self):
+        """params={'WHERE': ...} must land at source.props.params.WHERE,
+        not at source.props.WHERE — the renderer reads from the nested
+        path."""
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="ESRI Feature Service",
+            name="Colorado RFC Boundary",
+            url="https://example.com/arcgis/rest/services/MyService/FeatureServer",
+            layer_id="11",
+            params={"WHERE": "rfc_name = 'Colorado Basin'"},
+        )
+        source = _get_source(result)
+        assert source["props"]["params"] == {
+            "WHERE": "rfc_name = 'Colorado Basin'"
+        }
+        # No top-level leakage — pre-fix, the value sat here.
+        assert "WHERE" not in source["props"]
+
+    def test_esri_feature_params_multiple_keys_all_nest(self):
+        """Multiple params keys (e.g., WHERE + TIME) all land under
+        source.props.params; none leak to top-level source.props."""
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="ESRI Feature Service",
+            name="ESRI Feature Layer",
+            url="https://example.com/arcgis/rest/services/MyService/FeatureServer",
+            layer_id="0",
+            params={
+                "WHERE": "STATE = 'TX'",
+                "TIME": "2024-01-01,2024-12-31",
+            },
+        )
+        source = _get_source(result)
+        assert source["props"]["params"] == {
+            "WHERE": "STATE = 'TX'",
+            "TIME": "2024-01-01,2024-12-31",
+        }
+        assert "WHERE" not in source["props"]
+        assert "TIME" not in source["props"]
+
+    def test_esri_feature_no_params_omits_params_key(self):
+        """No `params` argument supplied → source.props has no `params`
+        key (no empty {} scaffold). Mirrors ESRI Image and Map Service."""
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="ESRI Feature Service",
+            name="ESRI Feature Layer",
+            url="https://example.com/arcgis/rest/services/MyService/FeatureServer",
+            layer_id="0",
+        )
+        source = _get_source(result)
+        assert "params" not in source["props"]
+
+    def test_esri_feature_empty_params_dict_omits_params_key(self):
+        """params={} → source.props has no `params` key (consistent
+        with `if extra_params:` semantics in the producer)."""
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="ESRI Feature Service",
+            name="ESRI Feature Layer",
+            url="https://example.com/arcgis/rest/services/MyService/FeatureServer",
+            layer_id="0",
+            params={},
+        )
+        source = _get_source(result)
+        assert "params" not in source["props"]
+
+    def test_esri_feature_params_does_not_clobber_url_or_layer(self):
+        """Regression pin: with params supplied, url and layer keys still
+        land at top-level source.props with their canonical values."""
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="ESRI Feature Service",
+            name="ESRI Feature Layer",
+            url="https://example.com/arcgis/rest/services/MyService/FeatureServer",
+            layer_id="3",
+            params={"WHERE": "x = 1"},
+        )
+        source = _get_source(result)
+        assert source["props"]["url"] == (
+            "https://example.com/arcgis/rest/services/MyService/FeatureServer"
+        )
+        assert source["props"]["layer"] == 3
+        assert isinstance(source["props"]["layer"], int)
+
 
 # ---------------------------------------------------------------------------
 # GeoJSON
