@@ -766,6 +766,136 @@ class TestLayerConstructionBoundary:
         # Hint is only emitted by the Map-specific check
         assert "add_map_service_layer" not in result["error"]
 
+    # -- Whole-array `/args/layers` ops: regression coverage for the
+    # bug where an LLM emitted a single `replace` at `/args/layers` with
+    # a multi-element array, bypassing the layer-construction boundary
+    # and producing a duplicate layer. The path-equality match (not the
+    # `/args/layers/N` regex) is what closes the escape.
+
+    def test_replace_whole_layers_array_rejected(self):
+        """`replace` at the whole-array path /args/layers — the escape that
+        produced the Colorado RFC Boundary duplicate. Must be rejected."""
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="Map",
+            patches=[{
+                "op": "replace",
+                "path": "/args/layers",
+                "value": [
+                    {"name": "existing", "configuration": {"props": {"source": {"type": "GeoJSON"}}}},
+                    {"name": "existing", "configuration": {"props": {"source": {"type": "GeoJSON", "props": {"params": {"WHERE": "x"}}}}}},
+                ],
+            }],
+        )
+        assert "error" in result
+        assert "whitelist_rejected" in result["error"]
+
+    def test_add_whole_layers_array_rejected(self):
+        """`add` at /args/layers replaces the array (RFC 6902 add-to-existing-key
+        is replacement). Same escape vector as `replace`. Must be rejected."""
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="Map",
+            patches=[{
+                "op": "add",
+                "path": "/args/layers",
+                "value": [{"name": "x"}],
+            }],
+        )
+        assert "error" in result
+        assert "whitelist_rejected" in result["error"]
+
+    def test_whole_layers_array_rejection_lists_canonical_recovery_actions(self):
+        """The rejection envelope must redirect the LLM to the right tool/path
+        for each canonical layer-edit action. Per the mcp-error-envelopes
+        discipline: each error class maps to one recovery action; this one
+        carries the three actions actually available (add / edit / remove).
+        Reorder via patch is intentionally not supported — R5c rejects single-
+        op `move` within an indexed array because remove+add shifts indices."""
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="Map",
+            patches=[{
+                "op": "replace",
+                "path": "/args/layers",
+                "value": [{"name": "x"}],
+            }],
+        )
+        err = result.get("error", "")
+        # Add a new layer -> add_map_service_layer
+        assert "add_map_service_layer" in err
+        # Edit a layer field -> /args/layers/N/...
+        assert "/args/layers/N/" in err or "/args/layers/N" in err
+        # Remove a layer -> remove op
+        assert "remove" in err
+
+    def test_whole_layers_array_rejection_does_not_use_not_found(self):
+        """Negative assertion per mcp-error-envelopes: this is a
+        whitelist_rejected error class, not a not-found class. Mixing
+        vocabulary causes the LLM to retry the wrong way."""
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="Map",
+            patches=[{
+                "op": "replace",
+                "path": "/args/layers",
+                "value": [],
+            }],
+        )
+        err = result.get("error", "")
+        assert "not found" not in err.lower()
+
+    # -- Happy-path regression pins for the actions the LLM should reach for
+    # instead of whole-array replacement. Existing precedents are spread
+    # across TestHappyPath / TestR5cArrayCollision; pinning them here keeps
+    # the boundary contract self-contained.
+
+    def test_deep_layer_field_replace_still_allowed(self):
+        """The exact path the Colorado RFC Boundary prompt should have
+        produced: replace `/args/layers/N/...source/.../params/WHERE`."""
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="Map",
+            patches=[{
+                "op": "replace",
+                "path": "/args/layers/0/configuration/props/source/props/params/WHERE",
+                "value": "rfc_name = 'Colorado Basin'",
+            }],
+        )
+        assert "patch_update" in result, result
+
+    def test_remove_at_layer_index_still_allowed(self):
+        """Remove a whole layer by index — the documented deletion path."""
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="Map",
+            patches=[{"op": "remove", "path": "/args/layers/1"}],
+        )
+        assert "patch_update" in result, result
+
+    def test_single_op_move_within_layers_rejected_by_r5c(self):
+        """Single-op `move` between layer indices is intentionally rejected
+        — RFC 6902 `move` is `remove + add`, which shifts indices ambiguously
+        within the same indexed array. R5c catches this before reaching the
+        layer-construction boundary; the rejection message must NOT recommend
+        `replace` on `/args/layers` as a recovery (that's the new banned
+        escape this PR closes)."""
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="Map",
+            patches=[{
+                "op": "move",
+                "from": "/args/layers/0",
+                "path": "/args/layers/2",
+            }],
+        )
+        assert "error" in result
+        # R5c regression message — must not advertise the banned escape.
+        err = result["error"]
+        assert "single `replace`" not in err
+        assert "single 'replace'" not in err
+        assert "replace on '/args/layers'" not in err
+
 
 # ---------------------------------------------------------------------------
 # Return envelope shape

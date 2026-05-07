@@ -82,6 +82,318 @@ describe("buildDashboardState", () => {
     const result = buildDashboardState([{ gridItems: [noUuid, plotItem] }]);
     expect(result.map((i) => i.uuid)).toEqual(["plot-1"]);
   });
+
+  // -- Map items expose a per-layer summary so the LLM can construct
+  // precise `/args/layers/N/...` patch paths instead of falling back to
+  // whole-array replacement. Metadata-only — names/indices/source-type,
+  // never persisted values (params, style, url, etc.) the LLM might
+  // copy verbatim.
+
+  test("emits per-layer summary for Map items with multiple layers", () => {
+    // Real persisted shape: name lives at configuration.props.name (set by
+    // LayerConfigurationBuilder). source_type at configuration.props.source.type.
+    // GeoJSON and WMS have no field_paths (GeoJSON's source shape is special;
+    // WMS has both, asserted in dedicated cases below). Use ESRI sources here
+    // so this case tests source_type plumbing without drowning in field_paths.
+    const map = {
+      uuid: "map-multi",
+      source: "Map",
+      args_string: JSON.stringify({
+        title: "Watersheds",
+        layers: [
+          {
+            configuration: {
+              props: {
+                name: "Gauges",
+                source: { type: "ESRI Image and Map Service" },
+              },
+            },
+          },
+          {
+            configuration: {
+              props: {
+                name: "Boundary",
+                source: { type: "ESRI Feature Service" },
+              },
+            },
+          },
+        ],
+      }),
+    };
+    const result = buildDashboardState([{ id: "t1", gridItems: [map] }]);
+    const entry = result.find((i) => i.uuid === "map-multi");
+    expect(entry.layers.map((l) => ({ index: l.index, name: l.name, source_type: l.source_type }))).toEqual([
+      { index: 0, name: "Gauges", source_type: "ESRI Image and Map Service" },
+      { index: 1, name: "Boundary", source_type: "ESRI Feature Service" },
+    ]);
+  });
+
+  test("emits empty layers array for Map items with no layers", () => {
+    // mapItem fixture above has args.layers === [].
+    const result = buildDashboardState([{ id: "t1", gridItems: [mapItem] }]);
+    const entry = result.find((i) => i.uuid === "map-1");
+    expect(entry.layers).toEqual([]);
+  });
+
+  test("emits empty layers array for Map items missing the layers key", () => {
+    const map = {
+      uuid: "map-no-layers-key",
+      source: "Map",
+      args_string: JSON.stringify({ title: "Empty" }),
+    };
+    const result = buildDashboardState([{ id: "t1", gridItems: [map] }]);
+    const entry = result.find((i) => i.uuid === "map-no-layers-key");
+    expect(entry.layers).toEqual([]);
+  });
+
+  test("layer with missing name → name: null, index still present", () => {
+    const map = {
+      uuid: "map-noname",
+      source: "Map",
+      args_string: JSON.stringify({
+        layers: [
+          { configuration: { props: { source: { type: "WMS" } } } },
+        ],
+      }),
+    };
+    const result = buildDashboardState([{ id: "t1", gridItems: [map] }]);
+    const entry = result.find((i) => i.uuid === "map-noname");
+    // index/name/source_type pinned; field_paths covered separately.
+    expect(entry.layers[0].index).toBe(0);
+    expect(entry.layers[0].name).toBe(null);
+    expect(entry.layers[0].source_type).toBe("WMS");
+  });
+
+  test("layer with missing source.type → source_type: null, no field_paths", () => {
+    // Without source_type the layer's internal shape is unknown; do not
+    // emit field_paths so the LLM does not patch into a structure we can't
+    // reason about.
+    const map = {
+      uuid: "map-notype",
+      source: "Map",
+      args_string: JSON.stringify({
+        layers: [{ configuration: { props: { name: "Mystery" } } }],
+      }),
+    };
+    const result = buildDashboardState([{ id: "t1", gridItems: [map] }]);
+    const entry = result.find((i) => i.uuid === "map-notype");
+    expect(entry.layers).toEqual([
+      { index: 0, name: "Mystery", source_type: null },
+    ]);
+  });
+
+  test("non-Map items do not get a layers field", () => {
+    const result = buildDashboardState(tabs);
+    const plot = result.find((i) => i.uuid === "plot-1");
+    const text = result.find((i) => i.uuid === "text-1");
+    const vi = result.find((i) => i.uuid === "vi-1");
+    expect(plot.layers).toBeUndefined();
+    expect(text.layers).toBeUndefined();
+    expect(vi.layers).toBeUndefined();
+  });
+
+  test("per-layer entries carry only metadata + path strings — no leaked persisted values", () => {
+    // The LLM is told to copy values verbatim from context. Persisted values
+    // (concrete URL, secret:layer, WHERE clauses, opacity numbers) must never
+    // appear in dashboard_state's per-layer payload. Path strings are fine —
+    // they're the authoritative metadata the LLM is meant to copy.
+    const map = {
+      uuid: "map-leak-check",
+      source: "Map",
+      args_string: JSON.stringify({
+        layers: [
+          {
+            configuration: {
+              type: "ImageLayer",
+              layerVisibility: true,
+              props: {
+                name: "Sensitive",
+                opacity: 0.7,
+                source: {
+                  type: "WMS",
+                  props: {
+                    url: "https://secrets.example.com/wms",
+                    params: { LAYERS: "secret:layer", STYLES: "internal" },
+                  },
+                },
+              },
+              style: "https://secrets.example.com/style.json",
+            },
+          },
+        ],
+      }),
+    };
+    const result = buildDashboardState([{ id: "t1", gridItems: [map] }]);
+    const entry = result.find((i) => i.uuid === "map-leak-check");
+    const blob = JSON.stringify(entry.layers);
+    // Concrete persisted values — must not leak.
+    expect(blob).not.toContain("secrets.example.com");
+    expect(blob).not.toContain("secret:layer");
+    expect(blob).not.toContain("internal");
+    expect(blob).not.toContain("0.7");
+  });
+
+  // -- Unit C: per-source field_paths so the LLM knows where deep fields
+  // (params, url, opacity, visible) actually live in the persisted shape.
+  // Without these, the LLM emits shorthand paths like `/args/layers/N/params`
+  // that RFC 6902 silently creates as unread keys (renderer reads
+  // configuration.props.source.props.params, not a top-level params).
+
+  test("ESRI Feature Service layer emits field_paths with absolute, index-substituted paths", () => {
+    const map = {
+      uuid: "map-esri-feat",
+      source: "Map",
+      args_string: JSON.stringify({
+        layers: [
+          { configuration: { props: { name: "First", source: { type: "ESRI Image and Map Service" } } } },
+          { configuration: { props: { name: "Boundary", source: { type: "ESRI Feature Service" } } } },
+        ],
+      }),
+    };
+    const result = buildDashboardState([{ id: "t1", gridItems: [map] }]);
+    const entry = result.find((i) => i.uuid === "map-esri-feat");
+    // Index 1 is the Feature Service layer.
+    expect(entry.layers[1].field_paths).toEqual({
+      url: "/args/layers/1/configuration/props/source/props/url",
+      params: "/args/layers/1/configuration/props/source/props/params",
+      opacity: "/args/layers/1/configuration/props/opacity",
+      visible: "/args/layers/1/configuration/layerVisibility",
+    });
+  });
+
+  test("WMS layer emits field_paths including url and params", () => {
+    const map = {
+      uuid: "map-wms",
+      source: "Map",
+      args_string: JSON.stringify({
+        layers: [{ configuration: { props: { name: "WMS", source: { type: "WMS" } } } }],
+      }),
+    };
+    const result = buildDashboardState([{ id: "t1", gridItems: [map] }]);
+    const entry = result.find((i) => i.uuid === "map-wms");
+    expect(entry.layers[0].field_paths.url).toBe(
+      "/args/layers/0/configuration/props/source/props/url",
+    );
+    expect(entry.layers[0].field_paths.params).toBe(
+      "/args/layers/0/configuration/props/source/props/params",
+    );
+  });
+
+  test("ESRI Image and Map Service layer emits params + url field_paths", () => {
+    const map = {
+      uuid: "map-esri-img",
+      source: "Map",
+      args_string: JSON.stringify({
+        layers: [{ configuration: { props: { name: "Img", source: { type: "ESRI Image and Map Service" } } } }],
+      }),
+    };
+    const result = buildDashboardState([{ id: "t1", gridItems: [map] }]);
+    const entry = result.find((i) => i.uuid === "map-esri-img");
+    expect(entry.layers[0].field_paths.params).toBe(
+      "/args/layers/0/configuration/props/source/props/params",
+    );
+    expect(entry.layers[0].field_paths.url).toBe(
+      "/args/layers/0/configuration/props/source/props/url",
+    );
+  });
+
+  test("URL-only source types (KML, Image Tile, etc.) emit url but no params", () => {
+    const cases = ["KML", "Image Tile", "Vector Tile", "PMTiles Vector", "PMTiles Raster", "Static Image"];
+    for (const sourceType of cases) {
+      const map = {
+        uuid: `map-${sourceType.replace(/ /g, "-")}`,
+        source: "Map",
+        args_string: JSON.stringify({
+          layers: [{ configuration: { props: { name: "L", source: { type: sourceType } } } }],
+        }),
+      };
+      const result = buildDashboardState([{ id: "t1", gridItems: [map] }]);
+      const entry = result[0];
+      expect(entry.layers[0].field_paths).toEqual(
+        expect.objectContaining({
+          url: "/args/layers/0/configuration/props/source/props/url",
+          opacity: "/args/layers/0/configuration/props/opacity",
+          visible: "/args/layers/0/configuration/layerVisibility",
+        }),
+      );
+      expect(entry.layers[0].field_paths.params).toBeUndefined();
+    }
+  });
+
+  test("source types with non-standard source props (GeoJSON, GeoTIFF) omit field_paths", () => {
+    // GeoJSON's data lives at source.geojson (not source.props.*) and
+    // GeoTIFF uses source.props.sources (an array, not a flat URL). Their
+    // shapes don't match the common url/params template; safer to emit no
+    // field_paths than to emit wrong ones.
+    for (const sourceType of ["GeoJSON", "GeoTIFF"]) {
+      const map = {
+        uuid: `map-${sourceType}`,
+        source: "Map",
+        args_string: JSON.stringify({
+          layers: [{ configuration: { props: { name: "L", source: { type: sourceType } } } }],
+        }),
+      };
+      const result = buildDashboardState([{ id: "t1", gridItems: [map] }]);
+      const entry = result[0];
+      // Common per-layer paths (opacity, visible) are still emitted —
+      // those are layer-wrapper fields, not source-shape-dependent.
+      expect(entry.layers[0].field_paths).toEqual({
+        opacity: "/args/layers/0/configuration/props/opacity",
+        visible: "/args/layers/0/configuration/layerVisibility",
+      });
+      expect(entry.layers[0].field_paths.params).toBeUndefined();
+      expect(entry.layers[0].field_paths.url).toBeUndefined();
+    }
+  });
+
+  test("layer with null source_type omits field_paths entirely", () => {
+    const map = {
+      uuid: "map-no-type",
+      source: "Map",
+      args_string: JSON.stringify({
+        layers: [{ configuration: { props: { name: "L" } } }],
+      }),
+    };
+    const result = buildDashboardState([{ id: "t1", gridItems: [map] }]);
+    const entry = result[0];
+    expect(entry.layers[0].field_paths).toBeUndefined();
+  });
+
+  test("field_paths values are paths only — they do NOT contain persisted runtime data", () => {
+    const map = {
+      uuid: "map-no-values",
+      source: "Map",
+      args_string: JSON.stringify({
+        layers: [
+          {
+            configuration: {
+              layerVisibility: false,
+              props: {
+                name: "Test",
+                opacity: 0.42,
+                source: {
+                  type: "WMS",
+                  props: {
+                    url: "https://hidden.example.com/wms",
+                    params: { LAYERS: "x:y", WHERE: "id = 99" },
+                  },
+                },
+              },
+            },
+          },
+        ],
+      }),
+    };
+    const result = buildDashboardState([{ id: "t1", gridItems: [map] }]);
+    const fp = result[0].layers[0].field_paths;
+    // Each value is a path string, not the runtime value at that path.
+    expect(fp.url).toBe("/args/layers/0/configuration/props/source/props/url");
+    expect(fp.url).not.toContain("hidden.example.com");
+    expect(fp.params).toBe("/args/layers/0/configuration/props/source/props/params");
+    expect(fp.params).not.toContain("WHERE");
+    expect(fp.opacity).toBe("/args/layers/0/configuration/props/opacity");
+    expect(fp.opacity).not.toContain("0.42");
+  });
 });
 
 describe("buildEditablePathsBySource", () => {

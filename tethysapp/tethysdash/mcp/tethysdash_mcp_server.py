@@ -1411,8 +1411,9 @@ def _check_r5c_array_collision(patches):
                 f"multiple add/remove ops target the same array parent {parent!r} "
                 f"(op indices {indices}). RFC 6902 applies ops sequentially so "
                 f"array indices shift after each op — this produces incorrect "
-                f"results. Emit a single `replace` on {parent!r} carrying the "
-                f"intended final array instead."
+                f"results. Split the changes into separate turns so each turn "
+                f"applies to a stable index, or use the appropriate create/"
+                f"remove tool for new and deleted entries."
             )
     return None
 
@@ -1420,6 +1421,8 @@ def _check_r5c_array_collision(patches):
 def _check_layer_construction_boundary(source, patches):
     """R9/R10: Map layer construction is reserved for add_map_service_layer.
 
+    Reject `add`/`replace` at /args/layers (whole array — the LLM's wrong-
+    shape escape that produced the duplicate-layer bug).
     Reject `add` at /args/layers/- or /args/layers/N (creates new layer).
     Reject `replace` at /args/layers/N (replaces whole layer object).
     Allow field-level ops under an existing layer (e.g., /args/layers/N/visible).
@@ -1431,6 +1434,18 @@ def _check_layer_construction_boundary(source, patches):
     for i, op in enumerate(patches):
         op_name = op.get("op")
         path = op.get("path", "")
+        # Whole-array path. Catch this before the per-index branches so the
+        # error names the more general failure mode (writing the entire
+        # layers array vs. constructing a single new layer).
+        if op_name in ("add", "replace") and path == "/args/layers":
+            return (
+                f"op {i} `{op_name}` at '/args/layers' would replace the "
+                f"whole layers array, which is not permitted via "
+                f"patch_visualization. To add a new layer use "
+                f"`add_map_service_layer`. To modify an existing layer's "
+                f"fields, patch under '/args/layers/N/...'. To remove a "
+                f"layer, use a `remove` op at '/args/layers/N'."
+            )
         if op_name == "add":
             if path == "/args/layers/-" or _BARE_LAYER_INDEX.match(path):
                 return (
