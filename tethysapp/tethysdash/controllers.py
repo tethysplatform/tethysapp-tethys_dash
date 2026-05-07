@@ -1066,6 +1066,29 @@ def download_json(request, app_workspace):
 
 
 
+def _stream_with_logging(resp, api_path, method):
+    """Yield streaming response chunks; log any mid-stream exception.
+
+    `requests.post(stream=True)` returns immediately and chunks are read
+    when the consumer iterates. If Ollama drops the connection mid-stream
+    (ChunkedEncodingError, ProtocolError, IncompleteRead — common on long
+    generations like gpt-oss:120b), the exception fires here, after
+    _proxy_to_ollama has already returned. Without this wrapper, Django
+    logs only `Internal Server Error` via django.request middleware and no
+    traceback identifies the failing exception class.
+    """
+    try:
+        for chunk in resp.iter_content(chunk_size=4096):
+            yield chunk
+    except Exception:
+        logger.exception(
+            "Ollama proxy stream error on %s (method=%s)",
+            api_path,
+            method,
+        )
+        raise
+
+
 def _proxy_to_ollama(request, api_path, timeout=(10, 300)):
     # Read host/key from request headers (browser-managed credentials)
     host = (request.headers.get("X-Ollama-Host", "") or _DEFAULT_OLLAMA_HOST).rstrip("/")
@@ -1084,7 +1107,7 @@ def _proxy_to_ollama(request, api_path, timeout=(10, 300)):
                 url, headers=headers, stream=True, timeout=timeout
             )
         return StreamingHttpResponse(
-            resp.iter_content(chunk_size=4096),
+            _stream_with_logging(resp, api_path, request.method),
             content_type=resp.headers.get("Content-Type", "application/json"),
             status=resp.status_code,
         )
