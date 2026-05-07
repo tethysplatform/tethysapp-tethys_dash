@@ -2534,3 +2534,385 @@ class TestUuidValidationAddDynamicMapLayer:
                 "UUID validator must accept a real UUID; the error came from "
                 "elsewhere in the tool body. " + result["error"]
             )
+
+
+# ---------------------------------------------------------------------------
+# Plan 2026-05-07-004 Unit A: explicit rejection of `params` for source types
+# that don't consume it (close the silent-drop class)
+# ---------------------------------------------------------------------------
+
+
+class TestParamsRejection:
+    """`params` is silently dropped for 7 of 11 source types pre-fix. The
+    audit at the end of /ce:debug Phase 1 (this session) classified this
+    as a Tier-1 silent semantic failure — the LLM's call succeeds with no
+    indication the params it supplied went nowhere. This unit replaces
+    the silent drop with a structured `invalid_source_params:` envelope
+    for the 7 types that don't have server-side consumption today.
+    """
+
+    # Minimal valid call args per source type that DOESN'T accept params.
+    # GeoTIFF requires either url or source_props.sources; we use url to
+    # mirror the auto-canonicalization path the producer uses.
+    _MIN_ARGS_BY_TYPE = {
+        "GeoJSON": {
+            "geojson": {
+                "type": "FeatureCollection",
+                "features": [],
+            },
+        },
+        "KML": {"url": "https://example.com/data.kml"},
+        "Image Tile": {"url": "https://example.com/{z}/{x}/{y}.png"},
+        "Vector Tile": {"url": "https://example.com/{z}/{x}/{y}.pbf"},
+        "PMTiles Vector": {"url": "https://example.com/data.pmtiles"},
+        "PMTiles Raster": {"url": "https://example.com/data.pmtiles"},
+        "GeoTIFF": {"url": "https://example.com/data.tif"},
+    }
+
+    def _call(self, source_type, params):
+        kwargs = dict(
+            map_uuid=MAP_UUID,
+            source_type=source_type,
+            name="Layer",
+            **self._MIN_ARGS_BY_TYPE[source_type],
+        )
+        if params is not None:
+            kwargs["params"] = params
+        return add_map_service_layer(**kwargs)
+
+    def test_each_dropping_type_rejects_non_empty_params(self):
+        """Parametrized core test: each of the 7 source types that
+        previously dropped params now returns a structured rejection
+        envelope when supplied with a non-empty params dict."""
+        for source_type in self._MIN_ARGS_BY_TYPE.keys():
+            result = self._call(source_type, params={"foo": "bar"})
+            assert "error" in result, (
+                f"{source_type} should have rejected non-empty params, "
+                f"got success result instead: {result}"
+            )
+            err = result["error"]
+            assert err.startswith("invalid_source_params:"), (
+                f"{source_type} rejection must use the canonical "
+                f"`invalid_source_params:` class prefix. Got: {err}"
+            )
+            # The hint should name the source type so the LLM knows which
+            # call it was.
+            assert source_type in err, (
+                f"Rejection hint for {source_type} should name the type. "
+                f"Got: {err}"
+            )
+
+    def test_rejection_does_not_use_other_error_classes(self):
+        """The rejection must NOT collide with other error class
+        prefixes (whitelist_rejected, invalid_envelope, invalid_uuid).
+        Each error class maps to one canonical recovery action per
+        mcp-error-envelopes-not-found-vs-unsupported-state."""
+        result = self._call("GeoJSON", params={"foo": "bar"})
+        err = result.get("error", "")
+        assert "whitelist_rejected" not in err
+        assert "invalid_envelope" not in err
+        assert "invalid_uuid" not in err
+
+    def test_each_dropping_type_accepts_none_params(self):
+        """params=None (the default) succeeds for all 7 types — no
+        rejection fires. Implicit pin: the existing happy-path tests
+        already cover this; here we make it explicit."""
+        for source_type in self._MIN_ARGS_BY_TYPE.keys():
+            result = self._call(source_type, params=None)
+            assert "layer_update" in result, (
+                f"{source_type} with params=None should succeed. "
+                f"Got: {result}"
+            )
+
+    def test_each_dropping_type_accepts_empty_dict_params(self):
+        """params={} (empty dict) is treated the same as None — the
+        rejection fires only on a non-empty dict."""
+        for source_type in self._MIN_ARGS_BY_TYPE.keys():
+            result = self._call(source_type, params={})
+            assert "layer_update" in result, (
+                f"{source_type} with params=empty-dict should succeed. "
+                f"Got: {result}"
+            )
+
+    def test_consuming_types_still_accept_params(self):
+        """Regression pin: the 4 source types that DO consume params
+        (WMS, ESRI Image and Map Service, ESRI Feature Service, Static
+        Image) continue to succeed with non-empty params. Only the 7
+        dropping types are subject to the new rejection."""
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="ESRI Feature Service",
+            name="Boundary",
+            url="https://example.com/arcgis/rest/services/X/FeatureServer",
+            layer_id="0",
+            params={"WHERE": "id = 1"},
+        )
+        assert "layer_update" in result, result
+
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="WMS",
+            name="WMS Layer",
+            url="https://example.com/wms",
+            wms_layers="ws:layer",
+            params={"STYLES": "default"},
+        )
+        assert "layer_update" in result, result
+
+    def test_json_string_params_coerce_then_reject(self):
+        """Calling order matters: the existing Union[Dict, str] coercion
+        runs FIRST (mcp-tool-dict-parameter-coercion-2026-04-17), then
+        the rejection check evaluates the parsed dict. A JSON-string
+        params that parses to a non-empty dict is rejected with the
+        same canonical class."""
+        result = self._call("GeoJSON", params='{"foo": "bar"}')
+        assert "error" in result
+        assert result["error"].startswith("invalid_source_params:"), result
+
+    def test_json_string_empty_dict_succeeds(self):
+        """JSON-string `{}` coerces to empty dict, which is treated as
+        no-params and succeeds (no rejection)."""
+        result = self._call("KML", params="{}")
+        assert "layer_update" in result, result
+
+
+# ---------------------------------------------------------------------------
+# Plan 2026-05-07-004 Unit B: surface GeoTIFF renderer-consumed keys
+# ---------------------------------------------------------------------------
+
+
+class TestGeoTIFFRendererKeys:
+    """The GeoTIFF source-props allowlist pre-fix only included `sources`
+    (required) and `attributions` (optional). The renderer consumes more:
+
+      - `bands`, `nodata`, `min`, `max` — passed to OL GeoTIFF source
+        constructor; persisted under source.props (existing
+        set_source_properties flow).
+      - `rampName`, `rampMin`, `rampMax` — read by Map.js auto-legend
+        at source.<key> directly (siblings to `type`/`props`); persisted
+        at source-top-level.
+
+    Both groups are expanded by Unit B. The allowlist gate
+    (get_allowed_source_prop_keys -> available_source_properties) accepts
+    the new keys; the GeoTIFF branch of add_map_service_layer routes
+    rampName/rampMin/rampMax to source-top-level via the new builder
+    method.
+    """
+
+    def test_bands_string_persists_under_source_props(self):
+        """`bands` is a comma-string consumed by ModuleLoader.js's
+        resolveProps which parses it to int array at render time."""
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="GeoTIFF",
+            name="DEM",
+            url="https://example.com/dem.tif",
+            source_props={"bands": "1,2,3"},
+        )
+        assert "error" not in result, result
+        source = _get_source(result)
+        assert source["props"]["bands"] == "1,2,3"
+
+    def test_nodata_persists_under_source_props(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="GeoTIFF",
+            name="DEM",
+            url="https://example.com/dem.tif",
+            source_props={"nodata": -9999},
+        )
+        assert "error" not in result, result
+        assert _get_source(result)["props"]["nodata"] == -9999
+
+    def test_min_max_persist_under_source_props(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="GeoTIFF",
+            name="DEM",
+            url="https://example.com/dem.tif",
+            source_props={"min": 0, "max": 100},
+        )
+        assert "error" not in result, result
+        source = _get_source(result)
+        assert source["props"]["min"] == 0
+        assert source["props"]["max"] == 100
+
+    def test_rampname_persists_at_source_top_level(self):
+        """`rampName` is read by Map.js auto-legend at source.rampName
+        (one level above props). Must persist there, not at
+        source.props.rampName."""
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="GeoTIFF",
+            name="DEM",
+            url="https://example.com/dem.tif",
+            source_props={"rampName": "viridis"},
+        )
+        assert "error" not in result, result
+        source = _get_source(result)
+        # Top-level on the source object, NOT under props.
+        assert source.get("rampName") == "viridis"
+        assert "rampName" not in source["props"]
+
+    def test_rampmin_rampmax_persist_at_source_top_level(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="GeoTIFF",
+            name="DEM",
+            url="https://example.com/dem.tif",
+            source_props={
+                "rampName": "viridis",
+                "rampMin": "0",
+                "rampMax": "100",
+            },
+        )
+        assert "error" not in result, result
+        source = _get_source(result)
+        assert source.get("rampName") == "viridis"
+        assert source.get("rampMin") == "0"
+        assert source.get("rampMax") == "100"
+        assert "rampName" not in source["props"]
+        assert "rampMin" not in source["props"]
+        assert "rampMax" not in source["props"]
+
+    def test_mixed_keys_route_correctly(self):
+        """A single source_props dict mixing both groups routes each
+        key to its correct persisted location."""
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="GeoTIFF",
+            name="DEM",
+            url="https://example.com/dem.tif",
+            source_props={
+                "bands": "1",
+                "rampName": "viridis",
+            },
+        )
+        assert "error" not in result, result
+        source = _get_source(result)
+        # bands stays under props (OL constructor option).
+        assert source["props"]["bands"] == "1"
+        # rampName moves to top-level (TethysDash auto-legend metadata).
+        assert source.get("rampName") == "viridis"
+
+    def test_unknown_key_still_rejected(self):
+        """The expansion adds 7 specific keys, doesn't open the gate.
+        Unrecognized keys still get rejected by the allowlist."""
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="GeoTIFF",
+            name="DEM",
+            url="https://example.com/dem.tif",
+            source_props={"some_unknown_key": "x"},
+        )
+        assert "error" in result, result
+        # The error here comes from the allowlist gate — distinct from
+        # invalid_source_params (which is for the `params` argument).
+        assert "some_unknown_key" in result["error"]
+
+    def test_existing_attributions_still_works(self):
+        """Negative regression: pre-existing GeoTIFF allowlist entries
+        (sources via flat `url`, `attributions`) continue to work."""
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="GeoTIFF",
+            name="DEM",
+            url="https://example.com/dem.tif",
+            source_props={"attributions": "USGS"},
+        )
+        assert "error" not in result, result
+        source = _get_source(result)
+        assert source["props"].get("attributions") == "USGS"
+
+
+# ---------------------------------------------------------------------------
+# Plan 2026-05-07-004 Unit C: `visible` flat parameter
+# ---------------------------------------------------------------------------
+
+
+class TestLayerVisibility:
+    """Pre-fix, the LLM cannot create an initially-hidden layer.
+    LayerConfigurationBuilder.set_layer_visibility writes
+    configuration.layerVisibility (read by Map.js:335-340 to start
+    layers hidden when False) but add_map_service_layer never calls it.
+    Unit C surfaces it as a flat `visible: Optional[bool]` parameter
+    that dispatches through _LAYER_PROP_BUILDER_METHODS like opacity /
+    min_zoom / max_zoom.
+    """
+
+    def _call(self, **overrides):
+        kwargs = dict(
+            map_uuid=MAP_UUID,
+            source_type="WMS",
+            name="Layer",
+            url="https://example.com/wms",
+            wms_layers="ws:layer",
+        )
+        kwargs.update(overrides)
+        return add_map_service_layer(**kwargs)
+
+    def test_visible_false_persists_layer_visibility_false(self):
+        """The load-bearing case: visible=False persists at
+        configuration.layerVisibility = False so Map.js starts the
+        layer hidden."""
+        result = self._call(visible=False)
+        assert "error" not in result, result
+        config = _get_configuration(result)
+        assert config.get("layerVisibility") is False
+
+    def test_visible_true_persists_layer_visibility_true(self):
+        result = self._call(visible=True)
+        assert "error" not in result, result
+        config = _get_configuration(result)
+        assert config.get("layerVisibility") is True
+
+    def test_visible_omitted_no_layer_visibility_key(self):
+        """When visible is omitted (None default), the persisted config
+        does NOT contain a layerVisibility key — the builder default
+        applies and Map.js renders the layer visible (its consumer only
+        hides on === false)."""
+        result = self._call()
+        assert "error" not in result, result
+        config = _get_configuration(result)
+        assert "layerVisibility" not in config
+
+    def test_visible_works_for_geojson(self):
+        """Visibility is layer-level, not source-specific. Pin it for a
+        non-WMS type to confirm the flat parameter applies uniformly."""
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="GeoJSON",
+            name="GeoJSON Layer",
+            geojson={"type": "FeatureCollection", "features": []},
+            visible=False,
+        )
+        assert "error" not in result, result
+        config = _get_configuration(result)
+        assert config.get("layerVisibility") is False
+
+    def test_visible_works_for_geotiff(self):
+        """And for GeoTIFF — Unit B's source-prop routing must not
+        interfere with Unit C's layer-level visibility."""
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="GeoTIFF",
+            name="DEM",
+            url="https://example.com/dem.tif",
+            visible=False,
+        )
+        assert "error" not in result, result
+        config = _get_configuration(result)
+        assert config.get("layerVisibility") is False
+
+    def test_visible_combined_with_other_layer_props(self):
+        """Sanity check: visible composes with opacity / queryable /
+        zoom limits without conflict (each goes to a distinct path)."""
+        result = self._call(
+            visible=False,
+            opacity=0.5,
+            queryable=True,
+        )
+        assert "error" not in result, result
+        config = _get_configuration(result)
+        assert config.get("layerVisibility") is False
+        assert config["props"]["opacity"] == 0.5
