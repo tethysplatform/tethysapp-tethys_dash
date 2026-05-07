@@ -1,4 +1,4 @@
-"""Contract tests for add_map_service_layer across all 9 source types.
+"""Contract tests for add_map_service_layer across all source types.
 
 Validates: layer_update return shape, correct OpenLayers layer type,
 required source props per source type, GeoJSON placement, ESRI
@@ -792,6 +792,75 @@ class TestPMTilesRaster:
 
 
 # ---------------------------------------------------------------------------
+# GeoTIFF
+# ---------------------------------------------------------------------------
+
+class TestGeoTIFF:
+    """GeoTIFF source type contract tests."""
+
+    def test_geotiff_returns_layer_update_shape(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="GeoTIFF",
+            name="GeoTIFF Layer",
+            url="https://example.com/dem.tif",
+        )
+        assert_layer_update(result, expected_uuid=MAP_UUID)
+
+    def test_geotiff_layer_type_is_webgl_tile(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="GeoTIFF",
+            name="GeoTIFF Layer",
+            url="https://example.com/dem.tif",
+        )
+        config = _get_configuration(result)
+        assert config["type"] == "WebGLTile"
+
+    def test_geotiff_source_props_from_flat_url(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="GeoTIFF",
+            name="GeoTIFF Layer",
+            url="https://example.com/dem.tif",
+        )
+        source = _get_source(result)
+        assert source["type"] == "GeoTIFF"
+        assert source["props"]["sources"] == [
+            {"url": "https://example.com/dem.tif"}
+        ]
+
+    def test_geotiff_source_props_sources_array(self):
+        sources = [
+            {
+                "url": "https://example.com/dem.tif",
+                "bands": [1],
+                "nodata": -9999,
+            }
+        ]
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="GeoTIFF",
+            name="GeoTIFF Layer",
+            source_props={"sources": sources},
+        )
+        source = _get_source(result)
+        assert source["props"]["sources"] == sources
+
+    def test_geotiff_variable_url_preserved_in_sources(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="GeoTIFF",
+            name="GeoTIFF Layer",
+            url="https://example.com/${dem_date}/dem.tif",
+        )
+        source = _get_source(result)
+        assert source["props"]["sources"] == [
+            {"url": "https://example.com/${dem_date}/dem.tif"}
+        ]
+
+
+# ---------------------------------------------------------------------------
 # Cross-cutting: queryable flag
 # ---------------------------------------------------------------------------
 
@@ -841,6 +910,7 @@ class TestAllSourceTypesReturnLayerUpdate:
         "Vector Tile": dict(url="https://x.com/tiles/{z}/{x}/{y}.pbf"),
         "PMTiles Vector": dict(url="https://x.com/data.pmtiles"),
         "PMTiles Raster": dict(url="https://x.com/data.pmtiles"),
+        "GeoTIFF": dict(url="https://x.com/dem.tif"),
         "Static Image": dict(
             url="https://x.com/image.png",
             params={"projection": "EPSG:4326", "imageExtent": "0,0,10,10"},
@@ -859,6 +929,7 @@ class TestAllSourceTypesReturnLayerUpdate:
         "Vector Tile": dict(urls="https://x.com/tiles/{z}/{x}/{y}.pbf"),
         "PMTiles Vector": dict(url="https://x.com/data.pmtiles"),
         "PMTiles Raster": dict(url="https://x.com/data.pmtiles"),
+        "GeoTIFF": dict(sources=[{"url": "https://x.com/dem.tif"}]),
         "Static Image": dict(
             url="https://x.com/image.png",
             projection="EPSG:4326",
@@ -896,6 +967,9 @@ class TestAllSourceTypesReturnLayerUpdate:
 
     def test_pmtiles_raster_returns_layer_update(self):
         self._assert_source_type_returns_layer_update("PMTiles Raster")
+
+    def test_geotiff_returns_layer_update(self):
+        self._assert_source_type_returns_layer_update("GeoTIFF")
 
     def test_static_image_returns_layer_update(self):
         self._assert_source_type_returns_layer_update("Static Image")
@@ -1007,6 +1081,23 @@ class TestErrors:
             map_uuid=MAP_UUID,
             source_type="PMTiles Raster",
             name="PMTiles Raster No URL",
+        )
+        assert "error" in result
+
+    def test_geotiff_without_url_or_sources_returns_error(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="GeoTIFF",
+            name="GeoTIFF No Source",
+        )
+        assert "error" in result
+
+    def test_geotiff_empty_sources_returns_error(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="GeoTIFF",
+            name="GeoTIFF Empty Source",
+            source_props={"sources": []},
         )
         assert "error" in result
 

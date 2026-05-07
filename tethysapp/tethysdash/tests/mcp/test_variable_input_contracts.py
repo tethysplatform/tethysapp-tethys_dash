@@ -140,6 +140,40 @@ class TestDropdown:
         assert isinstance(args["variable_options_source"], list)
         assert args["variable_options_source"] == ["Red", "Green", "Blue"]
 
+    def test_options_imply_dropdown_when_type_omitted(self):
+        """LLMs often say "dropdown" but omit the optional variable_type arg."""
+        result = create_variable_input(
+            variable_name="dem_version",
+            options=["20190610", "20210611", "20211215", "20240614"],
+            initial_value="20240614",
+        )
+        assert_variable_input_viz(result)
+        args = result["visualization"]["args"]
+        assert args["variable_name"] == "dem_version"
+        assert args["initial_value"] == "20240614"
+        assert args["variable_options_source"] == [
+            "20190610",
+            "20210611",
+            "20211215",
+            "20240614",
+        ]
+
+    def test_string_options_imply_dropdown_when_type_omitted(self):
+        """Comma-separated options should also imply dropdown if type is omitted."""
+        result = create_variable_input(
+            variable_name="dem_version",
+            options="20190610, 20210611, 20211215, 20240614",
+            initial_value="20240614",
+        )
+        assert_variable_input_viz(result)
+        args = result["visualization"]["args"]
+        assert args["variable_options_source"] == [
+            "20190610",
+            "20210611",
+            "20211215",
+            "20240614",
+        ]
+
     def test_dropdown_requires_options(self):
         """Dropdown without options should return an error."""
         result = create_variable_input(

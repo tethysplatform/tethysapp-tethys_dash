@@ -475,7 +475,7 @@ export async function queryLayerFeatures(layerInfo, map, coordinate, pixel) {
         LayerName,
       );
     } else if (sourceType === "PMTiles Vector") {
-      features = getVectorTileLayerFeatures(map, pixel);
+      features = getVectorTileLayerFeatures(map, pixel, LayerName);
     } else if (sourceType === "KML") {
       features = getKMLLayerFeatures(map, pixel, coordinate, LayerName);
     } else if (sourceType === "GeoTIFF") {
@@ -561,19 +561,23 @@ function getGeoTIFFPixelValues(map, pixel, LayerName, layerInfo, coordinate) {
   ];
 }
 
-function getVectorTileLayerFeatures(map, pixel) {
+function getVectorTileLayerFeatures(map, pixel, configuredLayerName) {
   const features = [];
   map.forEachFeatureAtPixel(pixel, function (feature, layer) {
     if (!feature) return;
     let featureLayerName = feature.get("layer");
-    features.push({
+    const featureInfo = {
       layerName: featureLayerName,
       attributes: feature.getProperties(),
       geometry: {
         type: toGeometry(feature).getType(),
         coordinates: toGeometry(feature).getCoordinates(),
       },
-    });
+    };
+    if (configuredLayerName && configuredLayerName !== featureLayerName) {
+      featureInfo.configuredLayerName = configuredLayerName;
+    }
+    features.push(featureInfo);
   });
   return features;
 }

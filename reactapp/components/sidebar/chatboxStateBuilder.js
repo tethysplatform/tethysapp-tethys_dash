@@ -30,12 +30,118 @@ function extractTitle(args) {
   return typeof title === "string" ? title.slice(0, 120) : null;
 }
 
+// Common per-layer fields available regardless of source type. Templates
+// carry an "{N}" placeholder that extractMapLayers substitutes with the
+// layer's actual index, so the LLM gets a copy-paste-safe absolute JSON
+// Pointer rather than a relative fragment it has to assemble.
+const COMMON_FIELD_PATH_TEMPLATES = {
+  opacity: "/args/layers/{N}/configuration/props/opacity",
+  visible: "/args/layers/{N}/configuration/layerVisibility",
+};
+
+// Source-type-specific field paths. Only sources whose persisted shape
+// matches the standard `source.props.url` / `source.props.params` template
+// are listed here. GeoJSON (data at source.geojson) and GeoTIFF (sources
+// array at source.props.sources) deliberately omit shape-specific entries
+// — common paths still apply, but their internal shape is non-standard
+// and naming a wrong path is worse than naming none.
+const SOURCE_FIELD_PATH_TEMPLATES = {
+  "ESRI Image and Map Service": {
+    url: "/args/layers/{N}/configuration/props/source/props/url",
+    params: "/args/layers/{N}/configuration/props/source/props/params",
+  },
+  "ESRI Feature Service": {
+    url: "/args/layers/{N}/configuration/props/source/props/url",
+    params: "/args/layers/{N}/configuration/props/source/props/params",
+  },
+  WMS: {
+    url: "/args/layers/{N}/configuration/props/source/props/url",
+    params: "/args/layers/{N}/configuration/props/source/props/params",
+  },
+  KML: {
+    url: "/args/layers/{N}/configuration/props/source/props/url",
+  },
+  "Image Tile": {
+    url: "/args/layers/{N}/configuration/props/source/props/url",
+  },
+  "Vector Tile": {
+    url: "/args/layers/{N}/configuration/props/source/props/url",
+  },
+  "PMTiles Vector": {
+    url: "/args/layers/{N}/configuration/props/source/props/url",
+  },
+  "PMTiles Raster": {
+    url: "/args/layers/{N}/configuration/props/source/props/url",
+  },
+  "Static Image": {
+    url: "/args/layers/{N}/configuration/props/source/props/url",
+  },
+  // GeoJSON, GeoTIFF: common paths only — non-standard internal shape.
+  GeoJSON: {},
+  GeoTIFF: {},
+};
+
+function buildFieldPaths(sourceType, index) {
+  // null source_type → no field_paths emitted at all (caller omits the key).
+  if (typeof sourceType !== "string") return null;
+  const sourceSpecific = SOURCE_FIELD_PATH_TEMPLATES[sourceType];
+  if (sourceSpecific === undefined) {
+    // Unknown source type — emit common paths only. The LLM can still
+    // edit opacity/visibility without us having to recognize every plugin.
+    return substituteIndex(COMMON_FIELD_PATH_TEMPLATES, index);
+  }
+  return substituteIndex(
+    { ...COMMON_FIELD_PATH_TEMPLATES, ...sourceSpecific },
+    index,
+  );
+}
+
+function substituteIndex(templates, index) {
+  const out = {};
+  for (const [field, template] of Object.entries(templates)) {
+    out[field] = template.replace("{N}", String(index));
+  }
+  return out;
+}
+
+/**
+ * Per-layer summary for Map items. Names + indices + source-type + paths to
+ * common editable fields — never persisted values (params, style, url, etc.).
+ *
+ * Without per-layer info the LLM has no way to construct precise
+ * `/args/layers/N/...` patch paths. Without field_paths it knows the index
+ * and source type but doesn't know that, e.g., `params` is nested at
+ * `configuration.props.source.props.params`, not at `layer.params`. RFC 6902
+ * `add` to `/args/layers/N/params` silently creates a top-level field the
+ * renderer never reads — invisible failure.
+ */
+function extractMapLayers(args) {
+  const layers = Array.isArray(args?.layers) ? args.layers : [];
+  return layers.map((layer, index) => {
+    const sourceType =
+      typeof layer?.configuration?.props?.source?.type === "string"
+        ? layer.configuration.props.source.type
+        : null;
+    const entry = {
+      index,
+      name:
+        typeof layer?.configuration?.props?.name === "string"
+          ? layer.configuration.props.name
+          : null,
+      source_type: sourceType,
+    };
+    const fieldPaths = buildFieldPaths(sourceType, index);
+    if (fieldPaths) entry.field_paths = fieldPaths;
+    return entry;
+  });
+}
+
 /**
  * Build a compact dashboard-state snapshot the LLM can reason over when
  * emitting patch_visualization tool calls.
  *
  * @param {Array} tabs - TabContext tabs array
- * @returns {Array} per-item {uuid, source, vizType, title, tabId}
+ * @returns {Array} per-item {uuid, source, vizType, title, tabId, layers?}
  */
 export function buildDashboardState(tabs) {
   if (!Array.isArray(tabs)) return [];
@@ -52,13 +158,17 @@ export function buildDashboardState(tabs) {
         // anyway (reducer also guards on parse failure).
         continue;
       }
-      out.push({
+      const entry = {
         uuid: item.uuid,
         source: item.source || "",
         vizType: args?.vizType || null,
         title: extractTitle(args),
         tabId: tab.id,
-      });
+      };
+      if (item.source === "Map") {
+        entry.layers = extractMapLayers(args);
+      }
+      out.push(entry);
     }
   }
   return out;

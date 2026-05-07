@@ -1561,6 +1561,68 @@ test("Map click attribute variables match field name and alias", async () => {
   expect(await screen.findByText("value3")).toBeInTheDocument();
 });
 
+test("Map click attribute variables fall back to configured PMTiles layer name", async () => {
+  mockedQueryLayerFeatures.mockResolvedValue([
+    {
+      attributes: { id: "building-123" },
+      geometry: { x: 10, y: 10 },
+      layerName: "buildings",
+      configuredLayerName: "Vector Tiles Test",
+    },
+  ]);
+  jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+  const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
+
+  const layers = [
+    {
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "Vector Tiles Test",
+          source: {
+            type: "ESRI Image and Map Service",
+            props: { url: "some_url" },
+          },
+        },
+      },
+      attributeVariables: {
+        "Vector Tiles Test": { id: "selected_building_id" },
+      },
+    },
+  ];
+  const clickCoordinates = [10, 20];
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent
+          onMapClick={jest.fn()}
+          clickCoordinates={clickCoordinates}
+          mapProps={{
+            mapConfig: {},
+            viewConfig: {},
+            layers,
+            baseMap: null,
+            layerControl: false,
+          }}
+        />
+      </MapContextProvider>
+    ),
+  });
+  render(LoadedComponent);
+
+  expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  await waitFor(() => {
+    expect(popSetPosition).toHaveBeenCalledWith(clickCoordinates);
+  });
+
+  await waitFor(async () => {
+    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({ selected_building_id: "building-123" }),
+    );
+  });
+});
+
 test("Map click query error", async () => {
   mockedQueryLayerFeatures.mockRejectedValue("some error");
   jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
