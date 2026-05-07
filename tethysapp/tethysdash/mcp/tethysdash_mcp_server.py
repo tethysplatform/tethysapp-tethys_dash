@@ -633,6 +633,50 @@ _LAYER_PROP_BUILDER_METHODS = {
 }
 
 
+def _validate_uuid_arg(
+    value: Any, arg_name: str, returned_by_tool: str
+) -> Optional[str]:
+    """Validate that ``value`` is a well-formed UUID string.
+
+    Plan 2026-05-07-002 Unit A. Some LLMs (observed: gemma4:31b) emit
+    Mustache-style template placeholders like ``{{last_map_uuid}}`` for
+    chained tool args, expecting the host framework to substitute the
+    prior tool's return value. MCP doesn't do this. Without validation
+    the literal string passes through and the layer/patch is silently
+    dropped downstream when the dispatcher can't find a matching grid
+    item.
+
+    Returns ``None`` on success or a structured error string the caller
+    wraps in ``{"error": ...}``. The string is always prefixed
+    ``invalid_uuid:`` so the chatbox engine's ``toolErrorCheck`` routes
+    it through the existing repair-loop machinery without further wiring.
+
+    The fix-hint names the originating create_* tool so the LLM has a
+    concrete recovery action to take on the next round.
+    """
+    # Defensive: Pydantic types this as ``str`` but null inputs from a
+    # JSON-stringified payload could slip past in edge cases.
+    if not isinstance(value, str):
+        return (
+            f"invalid_uuid: {arg_name} must be a UUID string returned by "
+            f"{returned_by_tool}. Tool arguments are not template-substituted; "
+            f"pass the literal UUID from the prior tool result."
+        )
+    try:
+        uuid.UUID(value)
+    except (ValueError, AttributeError):
+        # Truncate at 80 chars so error logs don't bloat for adversarial
+        # inputs while still showing the LLM what shape was rejected.
+        offending = value if len(value) <= 80 else value[:77] + "..."
+        return (
+            f"invalid_uuid: {arg_name} must be a UUID string returned by "
+            f"{returned_by_tool}. You provided {offending!r}, which is not "
+            f"a valid UUID. Tool arguments are not template-substituted; "
+            f"pass the literal UUID from the prior tool result."
+        )
+    return None
+
+
 def _validate_advanced_layer_dicts(
     *,
     source_type: str,
@@ -912,6 +956,14 @@ def add_map_service_layer(
     parameters and returns a layer_update result (not a visualization).
     The chatbox dispatches this as a tethysdash:update-visualization event.
     """
+    # Plan 2026-05-07-002 Unit A: reject template placeholders / malformed
+    # UUIDs at the boundary so the LLM gets an actionable error instead of
+    # building a layer that gets silently dropped at dispatch.
+    uuid_error = _validate_uuid_arg(
+        map_uuid, "map_uuid", "create_map_visualization"
+    )
+    if uuid_error:
+        return {"error": uuid_error}
     LOGGER.info(
         "add_map_service_layer: map_uuid=%s, source_type=%s, name=%s",
         map_uuid, source_type, name,
@@ -1649,8 +1701,20 @@ def patch_visualization(
     and the reducer applies client-side via rfc6902.
 
     Returns `{error: "..."}` with a structured error class prefix on failure:
-    `invalid_envelope`, `whitelist_rejected`.
+    `invalid_envelope`, `whitelist_rejected`, `invalid_uuid`.
     """
+    # Plan 2026-05-07-002 Unit A: reject template placeholders / malformed
+    # UUIDs before any other work. Cheapest reject; most actionable error
+    # for the LLM (the prior tool's create_* return value is the recovery
+    # source of truth).
+    uuid_error = _validate_uuid_arg(
+        target_uuid,
+        "target_uuid",
+        "the create_* tool that returned this UUID",
+    )
+    if uuid_error:
+        return {"error": uuid_error}
+
     # Dict-coercion pattern (see docs/solutions/best-practices/mcp-tool-dict-parameter-coercion)
     if isinstance(patches, str):
         try:
@@ -2008,6 +2072,14 @@ def add_dynamic_map_layer(
     fetch failures surface through Map.js's existing visualization-error
     path (no new error handling here).
     """
+    # Plan 2026-05-07-002 Unit A: same UUID validation as
+    # add_map_service_layer — reject template placeholders / malformed UUIDs
+    # at the boundary.
+    uuid_error = _validate_uuid_arg(
+        map_uuid, "map_uuid", "create_map_visualization"
+    )
+    if uuid_error:
+        return {"error": uuid_error}
     LOGGER.info(
         "add_dynamic_map_layer: map_uuid=%s, source=%s, name=%s",
         map_uuid, source, name,

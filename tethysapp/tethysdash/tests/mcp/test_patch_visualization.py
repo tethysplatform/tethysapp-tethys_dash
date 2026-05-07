@@ -1323,3 +1323,72 @@ class TestRejectionTelemetry:
         assert (
             spy.call_args.kwargs["reason"] == "resolution_failure_or_unknown_source"
         )
+
+
+# ---------------------------------------------------------------------------
+# Plan 2026-05-07-002 Unit A: UUID format validation on target_uuid
+# ---------------------------------------------------------------------------
+
+
+class TestUuidValidationTargetUuid:
+    """`target_uuid` must be a well-formed UUID string. Same family as the
+    map_uuid validation in test_layer_contracts.py — same helper, same
+    rejection envelope shape (`invalid_uuid:` prefix), same fix-hint
+    template referencing the originating create_* tool.
+    """
+
+    def _valid_patch(self, target_uuid):
+        return patch_visualization(
+            target_uuid=target_uuid,
+            source="Inline Plotly",
+            patches=[
+                {"op": "replace", "path": "/args/inlineData/layout/title", "value": "X"},
+            ],
+        )
+
+    def test_valid_uuid_accepted(self):
+        result = self._valid_patch("11111111-1111-4111-8111-111111111111")
+        assert "error" not in result, result
+        assert "patch_update" in result
+
+    def test_uppercase_uuid_accepted(self):
+        result = self._valid_patch("11111111-1111-4111-8111-111111111111".upper())
+        assert "error" not in result, result
+
+    def test_template_placeholder_rejected(self):
+        result = self._valid_patch("{{last_map_uuid}}")
+        assert "error" in result
+        err = result["error"]
+        assert err.startswith("invalid_uuid:"), err
+        assert "target_uuid" in err
+        # Hint should reference create_* tools as the source of truth for UUIDs.
+        assert "create_" in err
+        assert "template" in err.lower() or "literal" in err.lower()
+        assert "whitelist_rejected" not in err
+
+    def test_dollar_brace_placeholder_rejected(self):
+        result = self._valid_patch("${last_plot_uuid}")
+        assert "error" in result
+        assert result["error"].startswith("invalid_uuid:")
+
+    def test_empty_string_rejected(self):
+        result = self._valid_patch("")
+        assert "error" in result
+        assert result["error"].startswith("invalid_uuid:")
+
+    def test_garbage_rejected(self):
+        result = self._valid_patch("not-a-uuid")
+        assert "error" in result
+        assert result["error"].startswith("invalid_uuid:")
+
+    def test_validation_runs_before_envelope_validation(self):
+        # An envelope with both a malformed target_uuid AND a malformed
+        # patches array should report the UUID error first (cheap reject,
+        # most actionable for the LLM).
+        result = patch_visualization(
+            target_uuid="{{last_map_uuid}}",
+            source="Inline Plotly",
+            patches="not a list",  # would normally trigger invalid_envelope
+        )
+        assert "error" in result
+        assert result["error"].startswith("invalid_uuid:")
