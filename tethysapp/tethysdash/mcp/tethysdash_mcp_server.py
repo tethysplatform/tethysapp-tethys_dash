@@ -517,8 +517,8 @@ def create_map_visualization(
     """Create a geographic map on the dashboard.
 
     Simple usage: provide 'center' or 'markers' for a quick map.
-    For service layers (WMS, ESRI, GeoJSON, KML): call add_map_service_layer
-    with the returned map UUID after creating the map.
+    For service layers (WMS, ESRI, GeoJSON, KML, GeoTIFF, etc.): call
+    add_map_service_layer with the returned map UUID after creating the map.
     """
     map_uuid = str(uuid.uuid4())
     LOGGER.info("create_map_visualization: uuid=%s, center=%s, markers=%s",
@@ -580,7 +580,11 @@ def create_map_visualization(
             "h": h,
         },
         "map_uuid": map_uuid,
-        "message": f"Map created (uuid: {map_uuid}). Use add_map_service_layer with this UUID to add WMS, ESRI, GeoJSON, or other service layers.",
+        "message": (
+            f"Map created (uuid: {map_uuid}). Use add_map_service_layer with "
+            "this UUID to add WMS, ESRI, GeoJSON, GeoTIFF, or other service "
+            "layers."
+        ),
     }
 
 
@@ -754,6 +758,7 @@ VALID_SOURCE_TYPES = [
     "Vector Tile",
     "PMTiles Vector",
     "PMTiles Raster",
+    "GeoTIFF",
     "Static Image",
 ]
 
@@ -806,9 +811,9 @@ def _resolve_esri_layer_name(url: str, layer_id: Optional[str]) -> Optional[str]
 @mcp.tool(
     name="add_map_service_layer",
     description=(
-        "Add a WMS, ESRI, GeoJSON, KML, Static Image, or tile service layer "
-        "to an existing map created by create_map_visualization. Supports "
-        "legend, style, popup configuration, attribute aliases, opacity, "
+        "Add a WMS, ESRI, GeoJSON, KML, GeoTIFF, Static Image, or tile "
+        "service layer to an existing map created by create_map_visualization. "
+        "Supports legend, style, popup configuration, attribute aliases, opacity, "
         "and zoom limits via optional advanced parameters. When the layer "
         "comes from a feature lookup, fetch the layer name and bounding "
         "box from a data-source tool first, then pass them through to "
@@ -821,11 +826,13 @@ def add_map_service_layer(
     source_type: Annotated[str, Field(description=(
         "Layer source type. One of: WMS, ESRI Image and Map Service, "
         "ESRI Feature Service, GeoJSON, KML, Image Tile, Vector Tile, "
-        "PMTiles Vector, PMTiles Raster, Static Image"
+        "PMTiles Vector, PMTiles Raster, GeoTIFF, Static Image"
     ))],
     name: Annotated[str, Field(description="Display name for the layer in the layer control")],
     url: Annotated[Optional[str], Field(description=(
-        "Service URL. Required for all source types except GeoJSON."
+        "Service URL. Required for all source types except GeoJSON. For "
+        "GeoTIFF, this may be a Cloud Optimized GeoTIFF URL; advanced callers "
+        "may instead pass source_props={'sources': [{'url': ...}]}."
     ))] = None,
     layer_id: Annotated[Optional[str], Field(description=(
         "Layer identifier within the service. "
@@ -883,7 +890,7 @@ def add_map_service_layer(
         "against the source-type's available_source_properties allowlist; "
         "unknown keys are rejected. Use this for source props beyond the "
         "first-class flat parameters (e.g., projection on Image Tile, "
-        "tileSize on PMTiles)."
+        "tileSize on PMTiles, or sources on GeoTIFF)."
     ))] = None,
     layer_props: Annotated[Optional[Union[Dict[str, Any], str]], Field(description=(
         "Advanced layer-level properties (opacity, minResolution, "
@@ -1030,6 +1037,29 @@ def add_map_service_layer(
     elif source_type == "PMTiles Raster":
         if not url:
             return {"error": "source_type 'PMTiles Raster' requires 'url' parameter"}
+    elif source_type == "GeoTIFF":
+        geotiff_sources = (
+            source_props.get("sources") if isinstance(source_props, dict) else None
+        )
+        if geotiff_sources is not None:
+            if not isinstance(geotiff_sources, list) or not any(
+                isinstance(source, dict) and source.get("url")
+                for source in geotiff_sources
+            ):
+                return {
+                    "error": (
+                        "source_type 'GeoTIFF' requires source_props.sources "
+                        "to be a non-empty list of source dictionaries with "
+                        "a 'url' value"
+                    )
+                }
+        elif not url:
+            return {
+                "error": (
+                    "source_type 'GeoTIFF' requires either 'url' or "
+                    "source_props={'sources': [{'url': ...}]}"
+                )
+            }
     elif source_type == "Static Image":
         # Static Image needs url + projection + imageExtent; the latter two
         # come through the `params` kwarg today (no dedicated flat params yet
@@ -1129,6 +1159,10 @@ def add_map_service_layer(
 
     elif source_type in ("PMTiles Vector", "PMTiles Raster"):
         _flat_source_props = {"url": url}
+
+    elif source_type == "GeoTIFF":
+        if not (isinstance(source_props, dict) and source_props.get("sources")):
+            _flat_source_props = {"sources": [{"url": url}]}
 
     elif source_type == "Static Image":
         _flat_source_props = {"url": url}
@@ -1670,11 +1704,19 @@ def patch_visualization(
 
 @mcp.tool(
     name="create_variable_input",
-    description="Create an interactive variable input that other visualizations can reference with ${variable_name} syntax",
+    description=(
+        "Create an interactive variable input that other visualizations can "
+        "reference with ${variable_name} syntax. Use the exact variable_name "
+        "requested by the user; do not rename it or add suffixes unless the "
+        "user explicitly asks."
+    ),
     tags=["visualization", "dashboard", "variable"],
 )
 def create_variable_input(
-    variable_name: Annotated[str, Field(description="Variable name used in ${...} references by other visualizations")],
+    variable_name: Annotated[str, Field(description=(
+        "Exact variable name used in ${...} references by other visualizations. "
+        "Preserve the user's requested snake_case identifier exactly."
+    ))],
     variable_type: Annotated[str, Field(description=(
         "Input type: 'text', 'number', 'checkbox', 'date', 'dropdown', "
         "'slider', 'date-range', or 'csv-uploader'"
@@ -1702,12 +1744,15 @@ def create_variable_input(
         "text", "number", "checkbox", "date",
         "dropdown", "slider", "date-range", "csv-uploader",
     ]
-    if variable_type not in valid_types:
-        return {"error": f"Invalid variable_type '{variable_type}'. Must be one of: {valid_types}"}
-
     # Coerce string options to list (LLMs may pass "A,B,C" instead of ["A","B","C"])
     if isinstance(options, str):
         options = [o.strip() for o in options.split(",")]
+
+    if variable_type == "text" and options:
+        variable_type = "dropdown"
+
+    if variable_type not in valid_types:
+        return {"error": f"Invalid variable_type '{variable_type}'. Must be one of: {valid_types}"}
 
     # Validate type-specific requirements
     if variable_type == "dropdown" and not options:
@@ -2303,7 +2348,11 @@ def list_available_visualizations() -> Dict[str, Any]:
                 "type": "map",
                 "name": "Map",
                 "tool": "create_map_visualization",
-                "description": "OpenLayers map. Supports WMS, GeoJSON, KML, ESRI services, Image/Vector tiles, PMTiles, Static Image",
+                "description": (
+                    "OpenLayers map. Supports WMS, GeoJSON, KML, ESRI "
+                    "services, Image/Vector tiles, PMTiles, GeoTIFF, "
+                    "Static Image"
+                ),
                 "prefer_native": True,
             },
             {

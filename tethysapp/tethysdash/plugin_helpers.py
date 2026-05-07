@@ -511,6 +511,17 @@ available_source_properties = {
             "tileSize": "Tile Size (e.g., 256, 512)",
         },
     },
+    "GeoTIFF": {
+        "required": {
+            "sources": (
+                "List of GeoTIFF source dictionaries. Each source must include "
+                "a URL to a Cloud Optimized GeoTIFF."
+            ),
+        },
+        "optional": {
+            "attributions": "Attributions",
+        },
+    },
     "Static Image": {
         "required": {
             "url": "Image URL",
@@ -551,6 +562,7 @@ class LayerConfigurationBuilder:
                 - 'Vector Tile'
                 - 'PMTiles Vector'
                 - 'PMTiles Raster'
+                - 'GeoTIFF'
                 - 'Static Image'
 
         Raises:
@@ -572,6 +584,7 @@ class LayerConfigurationBuilder:
             "KML": "VectorLayer",
             "PMTiles Vector": "VectorTileLayer",
             "PMTiles Raster": "WebGLTile",
+            "GeoTIFF": "WebGLTile",
             "Static Image": "ImageLayer",
         }
 

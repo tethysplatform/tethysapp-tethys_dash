@@ -1501,6 +1501,56 @@ test("queryLayerFeatures PMTiles Vector", async () => {
   ]);
 });
 
+test("queryLayerFeatures PMTiles Vector includes configured layer name when source layer differs", async () => {
+  const coordinate = [0, 0];
+  const pixel = [639, 366];
+
+  const mockFeature = {
+    getType: () => "LineString",
+    getFlatCoordinates: () => [0, 0, 0, 1],
+    getProperties: () => ({
+      id: "building-123",
+    }),
+    get: () => "buildings",
+  };
+
+  const mockMap = {
+    getView: jest.fn(() => ({
+      getZoom: jest.fn(() => 10),
+    })),
+    forEachFeatureAtPixel: jest.fn((pixelArg, callback) => {
+      callback(mockFeature, {});
+    }),
+  };
+
+  const layerConfig = JSON.parse(JSON.stringify(layerConfigPMTilesVector));
+  layerConfig.configuration.props.name = "Vector Tiles Test";
+
+  const features = await queryLayerFeatures(
+    layerConfig,
+    mockMap,
+    coordinate,
+    pixel,
+  );
+
+  expect(features).toStrictEqual([
+    {
+      layerName: "buildings",
+      configuredLayerName: "Vector Tiles Test",
+      attributes: {
+        id: "building-123",
+      },
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          [0, 0],
+          [0, 1],
+        ],
+      },
+    },
+  ]);
+});
+
 test("queryLayerFeatures PMTiles Vector Layer Name Mismatch", async () => {
   const coordinate = [0, 0];
   const pixel = [639, 366];

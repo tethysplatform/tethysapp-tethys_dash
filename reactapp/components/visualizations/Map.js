@@ -120,8 +120,12 @@ export const Popup = ({
   aliases,
 }) => {
   const filteredLayerAttributes = layerAttributes.map((feature) => {
-    const omittedFields = omittedPopupAttributes[feature.layerName] || [];
-    const aliasMap = aliases[feature.layerName] || {};
+    const omittedFields =
+      omittedPopupAttributes[feature.layerName] ||
+      omittedPopupAttributes[feature.configuredLayerName] ||
+      [];
+    const aliasMap =
+      aliases[feature.layerName] || aliases[feature.configuredLayerName] || {};
     const filteredAttributes = Object.fromEntries(
       Object.entries(feature.attributes)
         .filter(([key]) => !omittedFields.includes(key))
@@ -473,15 +477,25 @@ const MapVisualization = ({
   const updateVariableInputsForFeature = (selectedFeature) => {
     const layerName = selectedFeature.layerName;
     const mapAttributeVariables = mapAttributeVariablesRef.current;
+    const configuredLayerName = selectedFeature.configuredLayerName;
+    const attributeVariableLayerName =
+      layerName && mapAttributeVariables[layerName]
+        ? layerName
+        : configuredLayerName && mapAttributeVariables[configuredLayerName]
+          ? configuredLayerName
+          : null;
 
     // for mapped variable inputs, get the selected feature values and set the variable inputs accordingly
-    if (layerName && mapAttributeVariables[layerName]) {
+    if (attributeVariableLayerName) {
       let updatedVariableInputs = {};
-      for (const layerAttributeOrAlias in mapAttributeVariables[layerName]) {
+      for (const layerAttributeOrAlias in mapAttributeVariables[
+        attributeVariableLayerName
+      ]) {
         // Try to derive both the alias and the original field name from attributeAliases
         let layerAttribute = layerAttributeOrAlias;
         let layerAttributeAlias = layerAttributeOrAlias;
-        const aliasMap = mapAttributeAliasesRef.current[layerName] || {};
+        const aliasMap =
+          mapAttributeAliasesRef.current[attributeVariableLayerName] || {};
         // If the aliasMap has a mapping for this key, set alias and try to find the original
         if (aliasMap[layerAttributeOrAlias]) {
           layerAttributeAlias = aliasMap[layerAttributeOrAlias];
@@ -497,7 +511,9 @@ const MapVisualization = ({
         }
 
         const variableInputName =
-          mapAttributeVariables[layerName][layerAttributeOrAlias];
+          mapAttributeVariables[attributeVariableLayerName][
+            layerAttributeOrAlias
+          ];
 
         const featureValue =
           selectedFeature.attributes[layerAttribute] ||
@@ -624,7 +640,9 @@ const MapVisualization = ({
           return false;
         }
         const omittedFields =
-          mapOmittedPopupAttributesRef.current[item.layerName] || [];
+          mapOmittedPopupAttributesRef.current[item.layerName] ||
+          mapOmittedPopupAttributesRef.current[item.configuredLayerName] ||
+          [];
         // Check if there is at least one attribute not omitted
         return Object.keys(item.attributes).some(
           (key) => !omittedFields.includes(key),

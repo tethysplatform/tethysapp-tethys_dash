@@ -1512,6 +1512,10 @@ RENDERER_LAYER_TYPE_BY_SOURCE = {
     "Image Tile": ("TileLayer", {"url": "https://example.com/{z}/{x}/{y}.png"}),
     "KML": ("VectorLayer", {"url": "https://example.com/file.kml"}),
     "PMTiles Raster": ("WebGLTile", {"url": "https://example.com/raster.pmtiles"}),
+    "GeoTIFF": (
+        "WebGLTile",
+        {"sources": [{"url": "https://example.com/dem.tif"}]},
+    ),
     "PMTiles Vector": (
         "VectorTileLayer",
         {"url": "https://example.com/vector.pmtiles"},
@@ -1582,6 +1586,18 @@ def test_pmtiles_raster_layer_type_is_webgl_tile():
     builder.set_source_properties(url="https://example.com/raster.pmtiles")
     config = builder.build()
     assert config["configuration"]["type"] == "WebGLTile"
+
+
+def test_geotiff_source_props_shape():
+    """GeoTIFF source props match the UI's saved sources-array shape."""
+    builder = LayerConfigurationBuilder("dem", "GeoTIFF")
+    sources = [{"url": "https://example.com/dem.tif"}]
+    builder.set_source_properties(sources=sources)
+    config = builder.build()
+    source = config["configuration"]["props"]["source"]
+    assert config["configuration"]["type"] == "WebGLTile"
+    assert source["type"] == "GeoTIFF"
+    assert source["props"]["sources"] == sources
 
 
 def test_geojson_lives_at_source_geojson_not_props():
