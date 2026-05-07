@@ -18,7 +18,10 @@ from tethysapp.tethysdash.tests.mcp.test_visualization_contracts import (
 )
 
 
-TEST_MAP_UUID = "coercion-test-uuid-1234"
+# Stable real UUID v4 used by every coercion test below.
+# Plan 2026-05-07-002 added UUID-format validation to add_map_service_layer;
+# the prior fake "coercion-test-uuid-1234" string would now be rejected.
+TEST_MAP_UUID = "22222222-2222-4222-8222-222222222222"
 
 
 # ---------------------------------------------------------------------------

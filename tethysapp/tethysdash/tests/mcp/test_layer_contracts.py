@@ -20,7 +20,12 @@ from tethysapp.tethysdash.tests.mcp.test_visualization_contracts import (
 )
 
 
-MAP_UUID = "test-map-uuid-1234"
+# Stable real UUID v4 used by every layer-contract test below.
+# Plan 2026-05-07-002 added UUID-format validation to add_map_service_layer
+# and add_dynamic_map_layer; the prior fake "test-map-uuid-1234" string
+# would now be rejected at the new validator. The literal value here is
+# arbitrary — fixtures only care that it parses as a UUID.
+MAP_UUID = "11111111-1111-4111-8111-111111111111"
 
 
 # ---------------------------------------------------------------------------
@@ -2311,3 +2316,129 @@ class TestValidateAdvancedLayerDicts:
         result = self._call(popup_options={"omit": ["bad shape"]})
         assert result is not None
         assert "omit" in result["error"]
+
+
+# ---------------------------------------------------------------------------
+# Plan 2026-05-07-002 Unit A: UUID format validation on map_uuid
+# ---------------------------------------------------------------------------
+
+
+class TestUuidValidationAddMapServiceLayer:
+    """`map_uuid` must be a well-formed UUID string. The literal placeholder
+    `{{last_map_uuid}}` (and other Mustache-style template forms) that some
+    LLMs emit for chained tool args must be rejected with a structured
+    `invalid_uuid:` envelope so the LLM gets an in-band fix-hint and retries
+    with the actual UUID returned by `create_map_visualization`.
+    """
+
+    def _real_uuid_call(self, **overrides):
+        kwargs = dict(
+            map_uuid="33333333-3333-4333-8333-333333333333",
+            source_type="WMS",
+            name="Layer",
+            url="https://example.com/wms",
+            wms_layers="ws:layer",
+        )
+        kwargs.update(overrides)
+        return add_map_service_layer(**kwargs)
+
+    def test_valid_uuid_v4_lowercase_accepted(self):
+        result = self._real_uuid_call(map_uuid="11111111-1111-4111-8111-111111111111")
+        assert "error" not in result, result
+        assert "layer_update" in result
+
+    def test_valid_uuid_uppercase_accepted(self):
+        # uuid.UUID is case-insensitive — caps form must work.
+        result = self._real_uuid_call(map_uuid="11111111-1111-4111-8111-111111111111".upper())
+        assert "error" not in result, result
+        assert "layer_update" in result
+
+    def test_template_placeholder_rejected(self):
+        result = self._real_uuid_call(map_uuid="{{last_map_uuid}}")
+        assert "error" in result
+        err = result["error"]
+        assert err.startswith("invalid_uuid:"), err
+        assert "map_uuid" in err
+        assert "create_map_visualization" in err
+        # Hint about templating — the LLM must learn this is not a templating engine.
+        assert "template" in err.lower() or "literal" in err.lower()
+        # Must NOT collide with the whitelist_rejected error class.
+        assert "whitelist_rejected" not in err
+
+    def test_dollar_brace_placeholder_rejected(self):
+        result = self._real_uuid_call(map_uuid="${last_map_uuid}")
+        assert "error" in result
+        assert result["error"].startswith("invalid_uuid:")
+
+    def test_empty_string_rejected(self):
+        result = self._real_uuid_call(map_uuid="")
+        assert "error" in result
+        assert result["error"].startswith("invalid_uuid:")
+
+    def test_garbage_string_rejected(self):
+        result = self._real_uuid_call(map_uuid="not-a-uuid")
+        assert "error" in result
+        assert result["error"].startswith("invalid_uuid:")
+
+    def test_uuid_with_extra_hex_digit_rejected(self):
+        result = self._real_uuid_call(
+            map_uuid="11111111-1111-4111-8111-111111111111a"  # 33 hex chars
+        )
+        assert "error" in result
+        assert result["error"].startswith("invalid_uuid:")
+
+    def test_uuid_with_surrounding_whitespace_rejected(self):
+        # Strict canonical form — caller must trim before passing.
+        result = self._real_uuid_call(
+            map_uuid=" 11111111-1111-4111-8111-111111111111 "
+        )
+        assert "error" in result
+        assert result["error"].startswith("invalid_uuid:")
+
+    def test_validation_runs_before_other_checks(self):
+        # A payload with both a malformed map_uuid AND a missing required
+        # field (e.g., wms_layers) should report the UUID error first —
+        # it's the more actionable issue for the LLM.
+        result = add_map_service_layer(
+            map_uuid="{{last_map_uuid}}",
+            source_type="WMS",
+            name="Layer",
+            url="https://example.com/wms",
+            # wms_layers omitted — would normally produce its own error.
+        )
+        assert "error" in result
+        assert result["error"].startswith("invalid_uuid:")
+
+
+class TestUuidValidationAddDynamicMapLayer:
+    """`add_dynamic_map_layer` shares the same `map_uuid` contract — same
+    helper, same rejection envelope.
+    """
+
+    def test_template_placeholder_rejected(self):
+        # Minimal-args call; we only care about the map_uuid validator.
+        result = add_dynamic_map_layer(
+            map_uuid="{{last_map_uuid}}",
+            source="some_intake_plugin",
+            name="Layer",
+        )
+        assert "error" in result
+        err = result["error"]
+        assert err.startswith("invalid_uuid:")
+        assert "map_uuid" in err
+
+    def test_valid_uuid_passes_validation(self):
+        # The plugin source itself may not exist (we don't care for this
+        # test); we only assert that the UUID validator does NOT fire.
+        # If it gets past the UUID validator, any subsequent error must
+        # NOT be invalid_uuid:.
+        result = add_dynamic_map_layer(
+            map_uuid="11111111-1111-4111-8111-111111111111",
+            source="some_intake_plugin",
+            name="Layer",
+        )
+        if "error" in result:
+            assert not result["error"].startswith("invalid_uuid:"), (
+                "UUID validator must accept a real UUID; the error came from "
+                "elsewhere in the tool body. " + result["error"]
+            )
