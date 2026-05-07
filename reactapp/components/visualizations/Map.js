@@ -19,6 +19,7 @@ import {
 } from "components/map/utilities";
 import PropTypes from "prop-types";
 import { COLOR_RAMPS } from "components/map/colorRamps";
+import { buildGeoTIFFStyleColor } from "components/map/geoTIFFStyle";
 import { getBaseMapLayer } from "components/visualizations/utilities";
 import useRuntimeLayerFetcher from "components/visualizations/runtimeLayerFetcher";
 import {
@@ -112,6 +113,46 @@ const StyledCloser = styled.a`
 const StyledContent = styled.div`
   margin-top: 1rem;
 `;
+
+// Derive an OL `style.color` interpolate expression for a GeoTIFF layer
+// when the persisted configuration carries `rampName/rampMin/rampMax` but
+// no explicit `style.color`. Modal-saved layers persist `style.color`
+// directly and take precedence (this returns the original config when
+// `style.color` is already present). Shallow-clones to avoid mutating the
+// upstream layers prop. Callers must pre-validate that `rampSource` is a
+// GeoTIFF with a known ramp + finite-ish min/max — the inner helper still
+// throws on bad input, and we fall through to the original config in that
+// case so the auto-legend pipeline keeps working.
+export function deriveGeoTIFFRenderConfig({ layerConfiguration, rampSource }) {
+  if (layerConfiguration?.style?.color) {
+    return layerConfiguration;
+  }
+  try {
+    const sources = rampSource.props?.sources;
+    const hasNodata = Array.isArray(sources)
+      ? sources.some((s) => s?.nodata !== undefined && s.nodata !== "")
+      : false;
+    const derivedColor = buildGeoTIFFStyleColor({
+      rampName: rampSource.rampName,
+      rampMin: rampSource.rampMin,
+      rampMax: rampSource.rampMax,
+      hasNodata,
+    });
+    return {
+      ...layerConfiguration,
+      style: {
+        ...(layerConfiguration.style || {}),
+        color: derivedColor,
+      },
+    };
+  } catch (err) {
+    console.warn(
+      `Failed to derive GeoTIFF style.color for layer "${layerConfiguration?.props?.name}":`,
+      err,
+    );
+    return layerConfiguration;
+  }
+}
 
 export const Popup = ({
   layerAttributes,
@@ -404,7 +445,12 @@ const MapVisualization = ({
                   rampMax: rampSource.rampMax,
                   title: layer.configuration?.props?.name,
                 });
-                newMapLayers.push(layer.configuration);
+                newMapLayers.push(
+                  deriveGeoTIFFRenderConfig({
+                    layerConfiguration: layer.configuration,
+                    rampSource,
+                  }),
+                );
                 continue;
               }
               // If the layer has a style JSON, pass it as legend metadata
