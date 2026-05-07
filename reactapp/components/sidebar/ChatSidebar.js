@@ -1,4 +1,4 @@
-import { memo, useCallback, useContext, useMemo } from "react";
+import { memo, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import {
   AppContext,
@@ -43,6 +43,13 @@ const DELTA_MAX_UUIDS = 30;
 const DELTA_BLOCK_RE = /\n\n\[in-turn delta\]\n[\s\S]*$/;
 
 const SIDEBAR_WIDTH = 360;
+
+// Cap on patch-rejected entries shown in the banner. Older entries drop off
+// FIFO so the banner doesn't grow unbounded across a long debugging session.
+// Plan 2026-05-07-001 Unit B: silent-failure UX gap — failed patches must
+// surface to the user so the chatbox's confident "Done!" message is not the
+// last word.
+const PATCH_REJECTED_BANNER_CAP = 5;
 
 const Wrapper = styled.div`
   width: ${(props) => (props.$isOpen ? `${SIDEBAR_WIDTH}px` : "0px")};
@@ -94,6 +101,45 @@ const Content = styled.div`
   height: 0;
 `;
 
+const PatchRejectedBanner = styled.div`
+  flex-shrink: 0;
+  min-width: ${SIDEBAR_WIDTH}px;
+  background: #fff8e1;
+  border-bottom: 1px solid #f0d68a;
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  color: #5a4400;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+`;
+
+const PatchRejectedEntry = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  line-height: 1.3;
+`;
+
+const PatchRejectedBody = styled.div`
+  flex: 1;
+  word-break: break-all;
+`;
+
+const PatchRejectedDismiss = styled.button`
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #7a5c00;
+  padding: 0 4px;
+  font-size: 0.85rem;
+  line-height: 1;
+  flex-shrink: 0;
+  &:hover {
+    color: #3d2e00;
+  }
+`;
+
 function ChatSidebar() {
   // `?? {}` matches the pattern in components/layout/Header.js:287 — callers
   // that mount the sidebar outside the required providers (e.g., isolated
@@ -126,6 +172,46 @@ function ChatSidebar() {
     () => variableInputValues,
     [variableInputValues],
   );
+
+  // Plan 2026-05-07-001 Unit B: chat-sidebar-visible feedback when a patch
+  // dispatch fails inside `applyPatchToGridItem` (rfc6902 errors etc.).
+  // Without this banner, the chatbox shows the LLM's confident "Done!"
+  // message and the user has no signal that nothing actually changed.
+  const [patchRejections, setPatchRejections] = useState([]);
+  useEffect(() => {
+    function onPatchRejected(e) {
+      const detail = e?.detail;
+      if (!detail || typeof detail !== "object") return;
+      const entry = {
+        // A unique key for React; the same UUID can fail multiple times,
+        // so combine with a monotonic counter via Date.now() + Math.random()
+        // (collision-resistant enough for a chat-banner UI).
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        uuid: typeof detail.uuid === "string" ? detail.uuid : "(unknown)",
+        path: typeof detail.path === "string" ? detail.path : "(no path)",
+        errorClass:
+          typeof detail.errorClass === "string"
+            ? detail.errorClass
+            : "ApplyError",
+        opIndex: typeof detail.opIndex === "number" ? detail.opIndex : null,
+      };
+      setPatchRejections((prev) => {
+        const next = [...prev, entry];
+        // FIFO cap — drop oldest entries when over the limit.
+        return next.length > PATCH_REJECTED_BANNER_CAP
+          ? next.slice(next.length - PATCH_REJECTED_BANNER_CAP)
+          : next;
+      });
+    }
+    window.addEventListener("tethysdash:patch-rejected", onPatchRejected);
+    return () => {
+      window.removeEventListener("tethysdash:patch-rejected", onPatchRejected);
+    };
+  }, []);
+
+  const dismissPatchRejection = useCallback((id) => {
+    setPatchRejections((prev) => prev.filter((e) => e.id !== id));
+  }, []);
 
   // Snapshot of current dashboard visualizations + the editable-path
   // whitelist for every source present. Rebuilt on every tabs /
@@ -245,6 +331,30 @@ function ChatSidebar() {
           <BsXLg size={14} />
         </CloseButton>
       </Header>
+      {patchRejections.length > 0 && (
+        <PatchRejectedBanner data-testid="patch-rejected-banner" role="alert">
+          {patchRejections.map((entry) => (
+            <PatchRejectedEntry
+              key={entry.id}
+              data-testid="patch-rejected-entry"
+            >
+              <PatchRejectedBody>
+                <strong>Patch failed:</strong> {entry.errorClass}
+                {" · "}
+                <code>{entry.path}</code>
+                {" · "}
+                <span title={entry.uuid}>{entry.uuid.slice(0, 8)}</span>
+              </PatchRejectedBody>
+              <PatchRejectedDismiss
+                aria-label="Dismiss patch failure"
+                onClick={() => dismissPatchRejection(entry.id)}
+              >
+                <BsXLg size={10} />
+              </PatchRejectedDismiss>
+            </PatchRejectedEntry>
+          ))}
+        </PatchRejectedBanner>
+      )}
       <Content>
         <Chatbox
           csrfToken={csrf}
