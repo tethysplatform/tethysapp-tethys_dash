@@ -1184,8 +1184,16 @@ def add_map_service_layer(
             _flat_source_props["params"] = esri_params
 
     elif source_type == "ESRI Feature Service":
+        # Plan 2026-05-07-003 Unit A: nest user-supplied params under
+        # source.props.params (mirrors WMS line 1151-1154 and ESRI Image
+        # and Map Service line 1182-1184). Pre-fix, this branch flattened
+        # extra_params at the top of source.props; the renderer reads from
+        # config.props.params?.WHERE / .TIME (ModuleLoader.js:305-311) so
+        # WHERE/TIME clauses were silently ignored. Same producer/consumer
+        # shape-asymmetry family as args-wrapper-asymmetry-patch-reducer.
         _flat_source_props = {"url": url, "layer": int(layer_id)}
-        _flat_source_props.update(extra_params)
+        if extra_params:
+            _flat_source_props["params"] = extra_params
 
     elif source_type == "GeoJSON":
         # GeoJSON goes on the source object directly (not under props).
