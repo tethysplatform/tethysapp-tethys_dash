@@ -53,25 +53,20 @@ mcp = FastMCP(
         BM25SearchTransform(
             max_results=5,
             always_visible=[
+                # Plan 2026-05-07-007 (T3) revision: pinning all 11 per-
+                # source-type layer tools (initial K5 decision) crowded out
+                # `create_map_visualization` and `create_variable_input` in
+                # the chatbox-core engine's full-catalog selection (engine
+                # caps tools-per-prompt above SMALL_CATALOG_THRESHOLD=8 via
+                # keyword/embedding ranking; 11 layer tools all containing
+                # "layer"+"map" dominated the score). The 11 tools are now
+                # BM25-searchable instead — the LLM finds them via
+                # `search_tools` when adding layers, which restores
+                # `create_*` reliability for compound prompts.
                 "create_plotly_chart",
                 "create_data_table",
                 "create_variable_input",
                 "create_map_visualization",
-                # Plan 2026-05-07-007 (T3): per-source-type map-layer tools
-                # replace the umbrella `add_map_service_layer`. All 11 are
-                # pinned so the LLM can reach them without the BM25 search
-                # transform's `search_tools` -> `call_tool` indirection.
-                "add_wms_layer",
-                "add_esri_image_layer",
-                "add_esri_feature_layer",
-                "add_geojson_layer",
-                "add_kml_layer",
-                "add_image_tile_layer",
-                "add_vector_tile_layer",
-                "add_pmtiles_vector_layer",
-                "add_pmtiles_raster_layer",
-                "add_geotiff_layer",
-                "add_static_image_layer",
                 "add_dynamic_map_layer",
                 "patch_visualization",
                 "render_plugin",
