@@ -11,7 +11,13 @@ DOM events that DashboardLayout.js handles.
 Usage:
     python -m tethysapp.tethysdash.mcp.tethysdash_mcp_server
 
-Connects to chatbox via MCP SSE transport on port 9001.
+Connects to chatbox via MCP Streamable HTTP transport on port 9001 by
+default (path: ``/mcp``). Set ``MCP_TRANSPORT=sse`` for the legacy SSE
+compat path during the migration window. Default host binding is
+loopback (``127.0.0.1``); override with ``MCP_HOST`` for deployments
+behind an authenticated reverse proxy. CORS is env-driven via
+``ALLOWED_ORIGINS`` (default wildcard); see plan
+``docs/plans/2026-05-08-001-fix-mcp-validation-and-streamable-http-migration-plan.md``.
 """
 
 import logging
@@ -85,6 +91,28 @@ LOGGER = logging.getLogger("tethysdash.mcp")
 TETHYSDASH_BASE_URL = os.getenv("TETHYSDASH_BASE_URL", "http://localhost:8080/apps/tethysdash")
 
 
+def _parse_allowed_origins() -> List[str]:
+    """Read ALLOWED_ORIGINS from env (comma-separated). Defaults to wildcard.
+
+    Mirrors mcp/nrds_mcps/nextgen_mcp/mcp_server.py::_parse_allowed_origins
+    exactly — drift between sibling MCP servers' CORS handling is a
+    maintenance hazard. Production deployments behind a known origin
+    should set this explicitly via ALLOWED_ORIGINS=https://example.com[,...].
+    Empty / malformed values fall back to the wildcard (no silent lockdown).
+    """
+    raw = os.getenv("ALLOWED_ORIGINS", "*").strip()
+    if not raw or raw == "*":
+        return ["*"]
+    parsed = [o.strip() for o in raw.split(",") if o.strip()]
+    return parsed or ["*"]
+
+
+ALLOWED_ORIGINS = _parse_allowed_origins()
+# CORS spec forbids `allow_credentials=True` together with `allow_origins=["*"]`.
+# Auto-derive so a misconfigured deploy can't produce the spec violation.
+ALLOW_CREDENTIALS = ALLOWED_ORIGINS != ["*"]
+
+
 def _patch_sse_transport_for_cors():
     """Monkey-patch SseServerTransport.handle_post_message to handle OPTIONS.
 
@@ -92,6 +120,17 @@ def _patch_sse_transport_for_cors():
     handle_post_message, including CORS preflight OPTIONS (which have no
     Content-Type). This patch intercepts OPTIONS and returns 200 with
     CORS headers before the SDK's validation runs.
+
+    Origin handling mirrors mcp/nrds_mcps's corrected version: when
+    ``ALLOWED_ORIGINS != ["*"]``, only origins in the allowlist receive
+    CORS approval, and ``access-control-allow-credentials`` is gated on
+    a successful origin match. Without this gating, the patch is a
+    reflected-origin CORS vulnerability (any origin can issue authenticated
+    cross-site requests).
+
+    Invoked from `__main__` only when `MCP_TRANSPORT=sse`; the streamable-
+    http path uses the regular Starlette `CORSMiddleware` in `CORS_MIDDLEWARE`
+    and never reaches this code.
     """
     from mcp.server.sse import SseServerTransport
 
@@ -100,13 +139,19 @@ def _patch_sse_transport_for_cors():
     async def patched_handle(self, scope, receive, send):
         if scope.get("method") == "OPTIONS":
             origin = dict(scope.get("headers", [])).get(b"origin", b"").decode()
+            if ALLOWED_ORIGINS == ["*"]:
+                allow_origin = "*"
+            else:
+                allow_origin = origin if origin in ALLOWED_ORIGINS else ""
             headers = {
-                "access-control-allow-origin": origin or "*",
                 "access-control-allow-methods": "GET, POST, OPTIONS",
                 "access-control-allow-headers": "content-type, x-csrftoken, authorization",
-                "access-control-allow-credentials": "true",
                 "access-control-max-age": "86400",
             }
+            if allow_origin:
+                headers["access-control-allow-origin"] = allow_origin
+            if ALLOW_CREDENTIALS and allow_origin and allow_origin != "*":
+                headers["access-control-allow-credentials"] = "true"
             response = StarletteResponse(status_code=200, headers=headers)
             await response(scope, receive, send)
             return
@@ -114,13 +159,12 @@ def _patch_sse_transport_for_cors():
 
     SseServerTransport.handle_post_message = patched_handle
 
-_patch_sse_transport_for_cors()
-
 
 CORS_MIDDLEWARE = [
     Middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=ALLOWED_ORIGINS,
+        allow_credentials=ALLOW_CREDENTIALS,
         allow_methods=["*"],
         allow_headers=["*"],
     ),
@@ -3384,10 +3428,31 @@ def _configure_logging():
 if __name__ == "__main__":
     _configure_logging()
     port = int(os.getenv("TETHYSDASH_MCP_PORT", "9001"))
-    LOGGER.info(f"Starting TethysDash MCP Server on 0.0.0.0:{port} with SSE transport")
+    # R13: default to loopback binding (CLAUDE.md says the MCP server "must
+    # run localhost-bound or behind an authenticated reverse proxy"). The
+    # MCP_HOST override exists for production deploys that wrap this server
+    # behind such a proxy.
+    host = os.getenv("MCP_HOST", "127.0.0.1")
+    # R5/R6: default to Streamable HTTP at /mcp (FastMCP's default
+    # streamable_http_path). MCP_TRANSPORT=sse opts back into the legacy
+    # SSE transport during the migration window for users with /sse
+    # localStorage URLs (see plan Open Questions → SSE compat path).
+    transport = os.getenv("MCP_TRANSPORT", "streamable-http")
+    if transport == "sse":
+        # K3: SSE compat path — invoke the (R12-corrected) monkey-patch only
+        # when SSE is actually selected. On the streamable-http default path,
+        # the patch is never applied; CORS_MIDDLEWARE handles preflight.
+        _patch_sse_transport_for_cors()
+        endpoint = f"http://{host}:{port}/sse"
+    else:
+        endpoint = f"http://{host}:{port}/mcp"
+    LOGGER.info(
+        "Starting TethysDash MCP Server on %s:%d with %s transport at %s",
+        host, port, transport, endpoint,
+    )
     mcp.run(
-        transport="sse",
-        host="0.0.0.0",
+        transport=transport,
+        host=host,
         port=port,
         middleware=CORS_MIDDLEWARE,
     )

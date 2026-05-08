@@ -131,7 +131,7 @@ TethysDash includes an MCP (Model Context Protocol) server that allows LLMs to c
 
 ### MCP Server Architecture
 
-- **`tethysdash_mcp_server.py`** — FastMCP server with SSE transport (port 9001). Uses `BM25SearchTransform` for tool discovery with an `always_visible` set of core tools.
+- **`tethysdash_mcp_server.py`** — FastMCP server. Default transport is **Streamable HTTP at `http://localhost:9001/mcp`** (`MCP_TRANSPORT=streamable-http`); legacy SSE at `/sse` is opt-in via `MCP_TRANSPORT=sse` for users with `/sse`-suffixed localStorage configs migrating to the new endpoint. Default host is `127.0.0.1` (loopback only); set `MCP_HOST=0.0.0.0` for deployments behind an authenticated reverse proxy. CORS is env-driven via `ALLOWED_ORIGINS` (default `*`); `ALLOW_CREDENTIALS` is auto-derived (`False` on wildcard, `True` otherwise — coupling prevents the `allow_credentials=True` + `allow_origins=["*"]` spec violation). Uses `BM25SearchTransform` for tool discovery with an `always_visible` set of core tools.
 - **Engine** (`lib/chatbox-core/engine/index.js`) — Generic tool-use conversation loop that connects to MCP servers, streams LLM responses, and accumulates tool results.
 - **Chatbox** (`lib/chatbox-core/components/Chatbox.jsx`) — Dispatches visualization specs as DOM events that `DashboardLayout.js` handles.
 
