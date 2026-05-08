@@ -11,6 +11,10 @@ import { Chatbox } from "@chatbox/core/components";
 import { buildGenericSystemMessage } from "@chatbox/core/messages";
 import { BsXLg } from "react-icons/bs";
 import { buildDeltaSummary, buildPatchContext } from "./chatboxStateBuilder";
+import {
+  getChatHistory,
+  saveChatHistory,
+} from "services/chatHistoryStorage";
 
 // Plan 003 D3 — system-prompt instruction telling the LLM to use the
 // engine's `_engine_dispatched` field as ground truth for any claim
@@ -160,7 +164,10 @@ function ChatSidebar() {
   // chrome already uses to hide edit controls (DashboardLoader.js:50).
   // When mounted outside LayoutContext (test harness), default to not-
   // editable — failing closed is safer than failing open.
-  const { editable } = useContext(LayoutContext) ?? {};
+  // Plan 2026-05-08-004: also read `uuid` for per-dashboard chat
+  // history persistence. Same context source DashboardItem.js uses.
+  const { editable, uuid: dashboardUuid } =
+    useContext(LayoutContext) ?? {};
 
   const updateVariableInputValues = useCallback(
     (updatedValues) =>
@@ -171,6 +178,24 @@ function ChatSidebar() {
   const memoizedVariableInputValues = useMemo(
     () => variableInputValues,
     [variableInputValues],
+  );
+
+  // Plan 2026-05-08-004 — per-dashboard chat history persistence.
+  // Read once per dashboard mount (key={dashboardUuid} below remounts
+  // <Chatbox> on dashboard switch, so this useMemo runs fresh for each
+  // dashboard's history). Falls back to [] when no uuid is available
+  // (test harness, mounted outside LayoutContext).
+  const initialChatMessages = useMemo(
+    () => (dashboardUuid ? getChatHistory(dashboardUuid) : []),
+    [dashboardUuid],
+  );
+
+  const handleMessagesChange = useCallback(
+    (messages) => {
+      if (!dashboardUuid) return;
+      saveChatHistory(dashboardUuid, messages);
+    },
+    [dashboardUuid],
   );
 
   // Plan 2026-05-07-001 Unit B: chat-sidebar-visible feedback when a patch
@@ -357,10 +382,17 @@ function ChatSidebar() {
       )}
       <Content>
         <Chatbox
+          // Plan 2026-05-08-004 — `key={dashboardUuid}` forces React
+          // to tear down + remount when the user switches dashboards
+          // so `initialMessages` is read fresh per dashboard. Without
+          // this, the chatbox would carry stale state across switches.
+          key={dashboardUuid ?? "no-dashboard"}
           csrfToken={csrf}
           variableInputValues={memoizedVariableInputValues}
           updateVariableInputValues={updateVariableInputValues}
           engineExtensions={engineExtensions}
+          initialMessages={initialChatMessages}
+          onMessagesChange={handleMessagesChange}
           welcomeHeading="Ask me about your dashboard"
           welcomeSubtitle="I can create visualizations, edit tiles, add map layers, and analyze data — just ask."
           suggestedPrompts={[
