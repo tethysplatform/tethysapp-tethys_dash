@@ -5,6 +5,7 @@ import PropTypes from "prop-types";
 import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import PopupModalChrome from "components/modals/PopupModal/PopupModalChrome";
+import { VariableInputsContext } from "components/contexts/Contexts";
 
 // DashboardLayout transitively reads contexts and renders real visualization
 // machinery; replace it with a stub that exposes the props we care about for
@@ -74,8 +75,17 @@ const featureC = {
 // the activeIndex state and exposes it for assertions.
 const Harness = ({ features, popupConfig, initialActiveIndex = 0 }) => {
   const [activeIndex, setActiveIndex] = useState(initialActiveIndex);
+  const [variableInputValues, setVariableInputValues] = useState({});
   return (
-    <>
+    <VariableInputsContext.Provider
+      value={{
+        variableInputValues,
+        setVariableInputValues,
+        variableInputDateFormats: {},
+        variableInputSliderMeta: {},
+        setVariableInputSliderMeta: () => {},
+      }}
+    >
       <span data-testid="harness-active-index">{activeIndex}</span>
       <PopupModalChrome
         features={features}
@@ -83,7 +93,7 @@ const Harness = ({ features, popupConfig, initialActiveIndex = 0 }) => {
         activeIndex={activeIndex}
         onActiveIndexChange={setActiveIndex}
       />
-    </>
+    </VariableInputsContext.Provider>
   );
 };
 Harness.propTypes = {
@@ -96,9 +106,7 @@ Harness.propTypes = {
 
 describe("PopupModalChrome — carousel", () => {
   test("does not render the carousel for a single feature", () => {
-    render(
-      <Harness features={[featureA]} popupConfig={samplePopupConfig()} />,
-    );
+    render(<Harness features={[featureA]} popupConfig={samplePopupConfig()} />);
     expect(screen.queryByTestId("popup-modal-carousel")).toBeNull();
   });
 
@@ -178,9 +186,7 @@ describe("PopupModalChrome — DashboardLayout wiring", () => {
   });
 
   test("rowHeight is a positive integer derived from a measured body height", () => {
-    render(
-      <Harness features={[featureA]} popupConfig={samplePopupConfig()} />,
-    );
+    render(<Harness features={[featureA]} popupConfig={samplePopupConfig()} />);
     const rowHeightText = screen.getByTestId("mock-dl-row-height").textContent;
     const rowHeight = Number(rowHeightText);
     expect(Number.isFinite(rowHeight)).toBe(true);

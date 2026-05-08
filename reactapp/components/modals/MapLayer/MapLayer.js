@@ -154,8 +154,7 @@ const MapLayerModal = ({
   const legendContainerRef = useRef(null);
   const styleContainerRef = useRef(null);
   const { csrf, mapLayerTemplates, dynamicMapLayers } = useContext(AppContext);
-  const layoutContext = useContext(LayoutContext) ?? {};
-  const { uuid, editable: hostDashboardEditable } = layoutContext;
+  const { uuid, editable: hostDashboardEditable } = useContext(LayoutContext);
   const mapContext = useMapContext();
 
   const onRequestHideModal = useCallback(() => {
@@ -428,11 +427,6 @@ const MapLayerModal = ({
       mapConfiguration.configuration.style = apiResponse.filename;
     }
 
-    // Persist popup metadata (R1, R4–R7). Lazy-create the popup row the first
-    // time the editor flips a layer into modal mode; otherwise update the
-    // existing row. Flipping back to table mode preserves the row and its
-    // child grid items per R6. Skip the network call entirely (and stay
-    // synchronous) when there's no popup state to persist.
     if (popupRequiresPersist()) {
       const popupSaveResult = await persistPopupConfig(layerProps.name);
       if (!popupSaveResult.success) {
@@ -448,43 +442,15 @@ const MapLayerModal = ({
     handleModalClose();
   }
 
-  /**
-   * Returns true when `popupConfig` represents state that needs to be saved
-   * via the `/popups/update/` endpoint. This is the same predicate used
-   * inside `persistPopupConfig`, exposed so the synchronous fast path of
-   * `saveLayer` can avoid an unnecessary microtask boundary when no popup
-   * persistence is required (preserves test ergonomics for non-popup tests).
-   */
   function popupRequiresPersist() {
     const existingId = popupConfig?.id ?? null;
     const wantsModal = popupConfig?.mode === "modal";
     return wantsModal || !!existingId;
   }
 
-  /**
-   * Persist `popupConfig` to the new `/popups/update/` endpoint. Returns one
-   * of:
-   *   { success: true, popupConfig: <serialized> | null }
-   *   { success: false, message: <string> }
-   *
-   * Skips the network call when there's nothing to persist (no popupConfig
-   * in state and no existing row id) or when the parent grid item id is
-   * unknown (e.g., creating a brand-new Map GridItem before its first save).
-   */
   async function persistPopupConfig(targetLayerName) {
     const existingId = popupConfig?.id ?? null;
-    const wantsModal = popupConfig?.mode === "modal";
 
-    // Nothing to save if the layer never opted into modal mode and there's
-    // no existing popup row to update.
-    if (!wantsModal && !existingId) {
-      return { success: true, popupConfig: null };
-    }
-
-    // Without a popup_id and a known parent gridItemId, the backend can't
-    // resolve the popup row. Surface a soft warning rather than blocking the
-    // layer save — popup config can be configured after the parent Map
-    // GridItem is first saved.
     if (!existingId && !gridItemId) {
       console.warn(
         "[TethysDash] Cannot persist popupConfig: parent Map GridItem id is" +
@@ -494,13 +460,8 @@ const MapLayerModal = ({
       return { success: true, popupConfig: null };
     }
 
-    // Always send grid_item_id + layer_name alongside popup_id (when
-    // known). The backend uses popup_id when its row still exists and
-    // falls back to lazy-create from (grid_item_id, layer_name) when it
-    // doesn't — this keeps saves resilient to stale popup ids without
-    // requiring the frontend to track DB state.
     const payload = {
-      mode: popupConfig?.mode ?? "table",
+      mode: popupConfig.mode,
       position: popupConfig?.position ?? null,
       title_template: popupConfig?.titleTemplate ?? null,
       gridItems: popupConfig?.gridItems ?? [],
@@ -522,7 +483,7 @@ const MapLayerModal = ({
             "Failed to save popup configuration. Check logs.",
         };
       }
-      return { success: true, popupConfig: apiResponse.popup ?? popupConfig };
+      return { success: true, popupConfig: apiResponse.popup };
     } catch (err) {
       const status = err?.response?.status;
       const message =
@@ -825,7 +786,7 @@ const MapLayerModal = ({
           popupConfig={popupConfig}
           onSave={(nextGridItems) => {
             setPopupConfig((prev) => ({
-              ...(prev ?? { mode: "modal" }),
+              ...prev,
               gridItems: nextGridItems,
             }));
             setShowLayoutEditor(false);

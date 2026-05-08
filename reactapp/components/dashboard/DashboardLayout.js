@@ -23,16 +23,9 @@ import { valuesEqual } from "components/modals/utilities";
 const StaticGridLayout = WidthProvider(RGL);
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
-// Grid is divided into 100 equal columns so widget widths are percentages of
-// the viewport (e.g. w=50 → half the screen). Row height is derived from
-// column width minus a 10px gutter so cells are approximately square by default.
 const colCount = 100;
 const defaultRowHeight = window.innerWidth / colCount - 10;
 
-// Responsive mode (popup grids only) breakpoints + per-breakpoint cols.
-// At lg/md the grid keeps 100 columns to match the static (host) grid's
-// fine-grained placement. Below sm, columns coarsen so tiles remain readable
-// on small viewports; at xxs every tile becomes a single column.
 const responsiveBreakpoints = { lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 };
 const responsiveCols = { lg: 100, md: 100, sm: 12, xs: 4, xxs: 1 };
 
@@ -81,9 +74,6 @@ const DashboardLayout = ({
     DisabledEditingMovementContext,
   );
 
-  // Track the active breakpoint (responsive mode only). Drag/resize is
-  // disabled below sm so the viewer cannot edit auto-derived narrow layouts —
-  // those edits would not round-trip back to the persisted lg layout.
   const [currentBreakpoint, setCurrentBreakpoint] = useState("lg");
   const isWideBreakpoint =
     !responsive || currentBreakpoint === "lg" || currentBreakpoint === "md";
@@ -175,10 +165,6 @@ const DashboardLayout = ({
   );
 
   const sharedGridProps = {
-    // Re-key on the resolved allowOverlap so RGL's internal layout is rebuilt
-    // when the flag flips (e.g., popup-only forced false vs. host-default
-    // unrestrictedPlacement). Stale layouts from the prior mode would
-    // otherwise stick around and silently re-apply.
     key: `layout-${allowOverlap}`,
     className: "complex-interface-layout",
     rowHeight: rowHeight,
@@ -250,12 +236,9 @@ DashboardLayout.propTypes = {
       metadata_string: PropTypes.string.isRequired,
     }),
   ).isRequired,
-  shouldLoad: PropTypes.bool.isRequired,
+  shouldLoad: PropTypes.bool,
   rowHeight: PropTypes.number,
   responsive: PropTypes.bool,
-  // Optional override for the host dashboard's unrestrictedPlacement flag.
-  // Popup grids pass allowOverlap={false} so tiles never stack inside the
-  // modal, regardless of what the host dashboard allows.
   allowOverlap: PropTypes.bool,
 };
 

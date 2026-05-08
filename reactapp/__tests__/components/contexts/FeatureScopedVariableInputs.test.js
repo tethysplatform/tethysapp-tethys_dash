@@ -2,7 +2,9 @@ import { useContext, useState } from "react";
 import PropTypes from "prop-types";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { VariableInputsContext } from "components/contexts/Contexts";
-import FeatureScopedVariableInputs from "components/contexts/FeatureScopedVariableInputs";
+import FeatureScopedVariableInputs, {
+  FEATURE_SCOPE_MARKER,
+} from "components/contexts/FeatureScopedVariableInputs";
 import { updateObjectWithVariableInputs } from "components/visualizations/utilities";
 
 // A descendant probe that prints the merged VariableInputsContext value into
@@ -17,7 +19,7 @@ const ContextProbe = () => {
 // A descendant that lets us fire a setVariableInputValues call from a test
 // click handler. The `nextValue` prop is stringified JSON or a marker for the
 // functional updater path.
-const ContextWriter = ({ nextValue, useFunctional }) => {
+const ContextWriter = ({ nextValue, useFunctional, returnNull }) => {
   const { setVariableInputValues } = useContext(VariableInputsContext);
   return (
     <button
@@ -25,6 +27,10 @@ const ContextWriter = ({ nextValue, useFunctional }) => {
       data-testid="writer"
       onClick={() => {
         if (useFunctional) {
+          if (returnNull) {
+            setVariableInputValues(() => null);
+            return;
+          }
           setVariableInputValues((prev) => ({
             ...prev,
             ...JSON.parse(nextValue),
@@ -42,6 +48,7 @@ const ContextWriter = ({ nextValue, useFunctional }) => {
 ContextWriter.propTypes = {
   nextValue: PropTypes.string.isRequired,
   useFunctional: PropTypes.bool,
+  returnNull: PropTypes.bool,
 };
 
 ContextWriter.defaultProps = {
@@ -286,6 +293,22 @@ describe("FeatureScopedVariableInputs", () => {
     expect(merged["feature.note"]).toBe("scope");
   });
 
+  test("setVariableInputValues null nextValue", () => {
+    render(
+      <ParentProvider>
+        <FeatureScopedVariableInputs>
+          <ContextProbe />
+          <ContextWriter nextValue={null} />
+        </FeatureScopedVariableInputs>
+      </ParentProvider>,
+    );
+
+    fireEvent.click(screen.getByTestId("writer"));
+
+    const merged = readMerged();
+    expect(merged).toStrictEqual({ [FEATURE_SCOPE_MARKER]: true });
+  });
+
   test("functional updater pattern works against the merged view", () => {
     const feature = { layerName: "X", attributes: { a: 1 } };
     render(
@@ -312,6 +335,22 @@ describe("FeatureScopedVariableInputs", () => {
     expect(merged["feature.a"]).toBe(1);
     // Parent updated.
     expect(readParent().host_var).toBe("fresher");
+  });
+
+  test("functional updater null nextValue", () => {
+    render(
+      <ParentProvider initialValues={{}}>
+        <FeatureScopedVariableInputs>
+          <ContextProbe />
+          <ContextWriter useFunctional returnNull />
+        </FeatureScopedVariableInputs>
+      </ParentProvider>,
+    );
+
+    fireEvent.click(screen.getByTestId("writer"));
+
+    const merged = readMerged();
+    expect(merged).toStrictEqual({ [FEATURE_SCOPE_MARKER]: true });
   });
 
   test("scoped feature.* writes shadow the flattened attribute on collision", () => {

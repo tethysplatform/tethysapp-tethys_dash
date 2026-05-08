@@ -3,12 +3,6 @@ import PropTypes from "prop-types";
 import { VariableInputsContext } from "components/contexts/Contexts";
 
 const FEATURE_PREFIX = "feature.";
-
-// Sentinel key on the merged variableInputs map that signals descendants are
-// inside a feature-scope (i.e., a popup). updateObjectWithVariableInputs
-// uses it to choose between "preserve unresolved ${feature.<key>}" (host
-// scope, leave for the popup to resolve later) and "resolve to empty
-// string" (popup scope — there is no further resolution layer below).
 export const FEATURE_SCOPE_MARKER = "__tethysdash_feature_scope__";
 
 /**
@@ -27,29 +21,15 @@ function flattenFeatureAttrs(feature) {
   return result;
 }
 
-/**
- * Provides a nested view of `VariableInputsContext` that exposes the active
- * feature's attributes under the `feature.*` namespace to descendants while
- * leaving the host (parent) variable inputs untouched. Writes are split per
- * key:
- *   - keys starting with `feature.` route to the local scoped state
- *   - other keys fall through to the parent's setter
- *
- * The provided `setVariableInputValues` also accepts the functional updater
- * pattern: `setVariableInputValues((prev) => next)`. When called this way the
- * function is evaluated against the merged read view (parent + flattened
- * feature attrs + scoped state), and each resulting key is routed per the
- * rules above.
- */
+
 const FeatureScopedVariableInputs = ({ feature, children }) => {
-  const parent = useContext(VariableInputsContext) ?? {};
   const {
-    variableInputValues: parentValues = {},
-    setVariableInputValues: parentSetVariableInputValues = () => {},
+    variableInputValues: parentValues,
+    setVariableInputValues: parentSetVariableInputValues,
     variableInputDateFormats,
     variableInputSliderMeta,
     setVariableInputSliderMeta,
-  } = parent;
+  } = useContext(VariableInputsContext);
 
   const [scopedState, setScopedState] = useState({});
 
@@ -58,12 +38,6 @@ const FeatureScopedVariableInputs = ({ feature, children }) => {
     [feature],
   );
 
-  // Merged read view: parent → flattened feature attrs → scoped state.
-  // The scoped state shadows the flattened attrs (so any in-modal mutation
-  // wins). feature.* shadows host vars only when keys collide (host vars
-  // remain readable as their bare name). The FEATURE_SCOPE_MARKER tells
-  // descendants' substitution pass that we're inside the popup scope — see
-  // updateObjectWithVariableInputs for how it's consumed.
   const mergedValues = useMemo(
     () => ({
       ...parentValues,
@@ -97,14 +71,15 @@ const FeatureScopedVariableInputs = ({ feature, children }) => {
 
   const setVariableInputValues = useCallback(
     (updater) => {
-      // Functional updater path — evaluate against the current merged value
-      // and route the resulting object per key.
       if (typeof updater === "function") {
         const next = updater(mergedValues);
         const { featureUpdates, parentUpdates, hasFeatureKey, hasParentKey } =
           splitByPrefix(next ?? {});
         if (hasFeatureKey) {
-          setScopedState((prevScoped) => ({ ...prevScoped, ...featureUpdates }));
+          setScopedState((prevScoped) => ({
+            ...prevScoped,
+            ...featureUpdates,
+          }));
         }
         if (hasParentKey) {
           parentSetVariableInputValues((prevParent) => ({
@@ -115,7 +90,6 @@ const FeatureScopedVariableInputs = ({ feature, children }) => {
         return;
       }
 
-      // Object path — split keys and dispatch to the relevant setters.
       const { featureUpdates, parentUpdates, hasFeatureKey, hasParentKey } =
         splitByPrefix(updater ?? {});
       if (hasFeatureKey) {

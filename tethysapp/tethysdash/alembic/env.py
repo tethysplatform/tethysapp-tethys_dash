@@ -68,25 +68,14 @@ def run_migrations_online() -> None:
 
     """
     try:
-        # Create SQLAlchemy engine
-        engine = create_engine(config.get_main_option("sqlalchemy.url"))
-
-        # Try to connect
-        with engine.connect():
-            print("✅ Successfully connected to the database.")
-    except OperationalError as e:
-        print("❌ Failed to connect to the database.")
-        print(e)
-        print(
-            "Check DB connection parameters. To override connection parameters set the POSTGRES_PASSWORD, TETHYS_DB_HOST, TETHYSDASH_DB_NAME, and/or TETHYS_DB_PORT as needed"  # noqa: E501
+        connectable = engine_from_config(
+            config.get_section(config.config_ini_section, {}),
+            prefix="sqlalchemy.",
+            poolclass=pool.NullPool,
         )
-        return
-
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
+    except:
+        # If the database is not available, create an engine with the URL directly
+        connectable = create_engine(get_db_url())
 
     with connectable.connect() as connection:
         context.configure(connection=connection, target_metadata=target_metadata)

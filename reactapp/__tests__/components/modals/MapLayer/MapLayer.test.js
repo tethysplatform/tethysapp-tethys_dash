@@ -50,6 +50,58 @@ global.crypto = {
   },
 };
 
+// Helper component for extent draw tests — wraps MapLayerModal with MapContext
+const ExtentTestComponent = ({ layerInfo, visualizationRefOverride }) => {
+  const csrf = "asdasdasdasd";
+  const appContext = {
+    csrf,
+    mapLayerTemplates: [],
+    dynamicMapLayers: [],
+    sessionNonce: "test-nonce",
+  };
+  const { setExtentDrawMode, setDrawnExtent, extentDrawMode } = useMapContext();
+  const defaultRef = useRef({
+    getView: () => ({
+      getProjection: () => ({
+        getCode: () => "EPSG:4326",
+      }),
+    }),
+  });
+  const visualizationRef =
+    visualizationRefOverride !== undefined
+      ? visualizationRefOverride
+      : defaultRef;
+
+  return (
+    <>
+      <AppContext.Provider value={appContext}>
+        <LayoutContext.Provider value={{ uuid: "123" }}>
+          <MapLayerModal
+            showModal={true}
+            handleModalClose={jest.fn()}
+            addMapLayer={jest.fn()}
+            layerInfo={layerInfo}
+            visualizationRef={visualizationRef}
+          />
+        </LayoutContext.Provider>
+      </AppContext.Provider>
+      <button
+        data-testid="set-drawn-extent"
+        onClick={() => setDrawnExtent([10, 20, 30, 40])}
+      >
+        Set Drawn Extent
+      </button>
+      <button
+        data-testid="clear-extent-draw-mode"
+        onClick={() => setExtentDrawMode(null)}
+      >
+        Clear Extent Draw Mode
+      </button>
+      <p data-testid="extent-draw-mode">{extentDrawMode ? "active" : "null"}</p>
+    </>
+  );
+};
+
 const TestingComponent = ({
   showModal,
   handleModalClose,
@@ -365,7 +417,7 @@ test("MapLayerModal new ImageArcGISRest layer", async () => {
   expect(screen.getByText("Source")).toBeInTheDocument();
   expect(screen.getByText("Style")).toBeInTheDocument();
   expect(screen.getByText("Legend")).toBeInTheDocument();
-  expect(screen.getByText("Attributes/Popup")).toBeInTheDocument();
+  expect(screen.getByText("Attributes/Table Popup")).toBeInTheDocument();
 
   const nameInput = await screen.findByLabelText("Name Input");
   fireEvent.change(nameInput, { target: { value: "New Layer Name" } });
@@ -421,7 +473,7 @@ test("MapLayerModal new ImageWMS layer", async () => {
   expect(screen.getByText("Source")).toBeInTheDocument();
   expect(screen.getByText("Style")).toBeInTheDocument();
   expect(screen.getByText("Legend")).toBeInTheDocument();
-  expect(screen.getByText("Attributes/Popup")).toBeInTheDocument();
+  expect(screen.getByText("Attributes/Table Popup")).toBeInTheDocument();
 
   const nameInput = await screen.findByLabelText("Name Input");
   fireEvent.change(nameInput, { target: { value: "New Layer Name" } });
@@ -490,7 +542,7 @@ test("MapLayerModal new GeoJSON layer", async () => {
   expect(screen.getByText("Source")).toBeInTheDocument();
   expect(screen.getByText("Style")).toBeInTheDocument();
   expect(screen.getByText("Legend")).toBeInTheDocument();
-  expect(screen.getByText("Attributes/Popup")).toBeInTheDocument();
+  expect(screen.getByText("Attributes/Table Popup")).toBeInTheDocument();
 
   const nameInput = await screen.findByLabelText("Name Input");
   fireEvent.change(nameInput, { target: { value: "New Layer Name" } });
@@ -572,7 +624,7 @@ test("MapLayerModal new ImageTile layer", async () => {
   expect(screen.getByText("Source")).toBeInTheDocument();
   expect(screen.getByText("Style")).toBeInTheDocument();
   expect(screen.getByText("Legend")).toBeInTheDocument();
-  expect(screen.getByText("Attributes/Popup")).toBeInTheDocument();
+  expect(screen.getByText("Attributes/Table Popup")).toBeInTheDocument();
 
   const nameInput = await screen.findByLabelText("Name Input");
   fireEvent.change(nameInput, { target: { value: "New Layer Name" } });
@@ -630,7 +682,7 @@ test("MapLayerModal new VectorTile layer", async () => {
   expect(screen.getByText("Source")).toBeInTheDocument();
   expect(screen.getByText("Style")).toBeInTheDocument();
   expect(screen.getByText("Legend")).toBeInTheDocument();
-  expect(screen.getByText("Attributes/Popup")).toBeInTheDocument();
+  expect(screen.getByText("Attributes/Table Popup")).toBeInTheDocument();
 
   const nameInput = await screen.findByLabelText("Name Input");
   fireEvent.change(nameInput, { target: { value: "New Layer Name" } });
@@ -686,7 +738,7 @@ test("MapLayerModal new PMTiles Vector layer", async () => {
   expect(screen.getByText("Source")).toBeInTheDocument();
   expect(screen.getByText("Style")).toBeInTheDocument();
   expect(screen.getByText("Legend")).toBeInTheDocument();
-  expect(screen.getByText("Attributes/Popup")).toBeInTheDocument();
+  expect(screen.getByText("Attributes/Table Popup")).toBeInTheDocument();
 
   const nameInput = await screen.findByLabelText("Name Input");
   fireEvent.change(nameInput, { target: { value: "New Layer Name" } });
@@ -742,7 +794,7 @@ test("MapLayerModal new PMTiles Raster layer", async () => {
   expect(screen.getByText("Source")).toBeInTheDocument();
   expect(screen.getByText("Style")).toBeInTheDocument();
   expect(screen.getByText("Legend")).toBeInTheDocument();
-  expect(screen.getByText("Attributes/Popup")).toBeInTheDocument();
+  expect(screen.getByText("Attributes/Table Popup")).toBeInTheDocument();
 
   const nameInput = await screen.findByLabelText("Name Input");
   fireEvent.change(nameInput, { target: { value: "New Layer Name" } });
@@ -877,7 +929,7 @@ test("MapLayerModal attribute variables and omitted popups", async () => {
   const urlInput = within(sourceTabContent).getByLabelText("value Input 0");
   fireEvent.change(urlInput, { target: { value: "Some Url" } });
 
-  const attributesTab = screen.getByText("Attributes/Popup");
+  const attributesTab = screen.getByText("Attributes/Table Popup");
   fireEvent.click(attributesTab);
 
   expect(await screen.findByText("New Layer Name")).toBeInTheDocument();
@@ -1372,7 +1424,7 @@ test("MapLayerModal update ImageArcGISRest layer", async () => {
   expect(screen.getByText("Source")).toBeInTheDocument();
   expect(screen.getByText("Style")).toBeInTheDocument();
   expect(screen.getByText("Legend")).toBeInTheDocument();
-  expect(screen.getByText("Attributes/Popup")).toBeInTheDocument();
+  expect(screen.getByText("Attributes/Table Popup")).toBeInTheDocument();
 
   const nameInput = await screen.findByLabelText("Name Input");
   fireEvent.change(nameInput, { target: { value: "New Layer Name" } });
@@ -1391,7 +1443,7 @@ test("MapLayerModal update ImageArcGISRest layer", async () => {
   const urlInput = within(sourceTabContent).getByLabelText("value Input 0");
   fireEvent.change(urlInput, { target: { value: "Some Url" } });
 
-  const attributesTab = screen.getByText("Attributes/Popup");
+  const attributesTab = screen.getByText("Attributes/Table Popup");
   fireEvent.click(attributesTab);
 
   expect(await screen.findByText("New Layer Name")).toBeInTheDocument();
@@ -1498,63 +1550,6 @@ test("MapLayerModal handleLayerPropsChange accepts a direct object updater", asy
     },
   });
 });
-
-// Helper component for extent draw tests — wraps MapLayerModal with MapContext
-const ExtentTestComponent = ({ layerInfo, visualizationRefOverride }) => {
-  const csrf = "asdasdasdasd";
-  const appContext = {
-    csrf,
-    mapLayerTemplates: [],
-    dynamicMapLayers: [],
-    sessionNonce: "test-nonce",
-  };
-  const { setExtentDrawMode, setDrawnExtent, extentDrawMode } = useMapContext();
-  const defaultRef = useRef({
-    getView: () => ({
-      getProjection: () => ({
-        getCode: () => "EPSG:4326",
-      }),
-    }),
-  });
-  const visualizationRef =
-    visualizationRefOverride !== undefined
-      ? visualizationRefOverride
-      : defaultRef;
-
-  return (
-    <>
-      <AppContext.Provider value={appContext}>
-        <LayoutContext.Provider value={{ uuid: "123" }}>
-          <MapLayerModal
-            showModal={true}
-            handleModalClose={jest.fn()}
-            addMapLayer={jest.fn()}
-            layerInfo={layerInfo}
-            visualizationRef={visualizationRef}
-          />
-        </LayoutContext.Provider>
-      </AppContext.Provider>
-      <button
-        data-testid="set-drawn-extent"
-        onClick={() => setDrawnExtent([10, 20, 30, 40])}
-      >
-        Set Drawn Extent
-      </button>
-      <button
-        data-testid="clear-extent-draw-mode"
-        onClick={() => setExtentDrawMode(null)}
-      >
-        Clear Extent Draw Mode
-      </button>
-      <p data-testid="extent-draw-mode">{extentDrawMode ? "active" : "null"}</p>
-    </>
-  );
-};
-
-ExtentTestComponent.propTypes = {
-  layerInfo: PropTypes.object,
-  visualizationRefOverride: PropTypes.object,
-};
 
 test("MapLayerModal re-shows and updates sourceProps when drawnExtent arrives", async () => {
   render(
@@ -3297,34 +3292,32 @@ describe("MapLayerModal Popup pane", () => {
 
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     // Popup tab label appears.
-    expect(screen.getByText("Popup")).toBeInTheDocument();
+    expect(screen.getByText("Custom Modal Popup")).toBeInTheDocument();
 
     // Click the popup tab; the pane mounts with the custom popup modal
     // disabled (i.e., default = table popup only).
-    fireEvent.click(screen.getByText("Popup"));
+    fireEvent.click(screen.getByText("Custom Modal Popup"));
     expect(
       await screen.findByLabelText("Enable Custom Popup Modal"),
     ).not.toBeChecked();
   });
 
   test("flipping mode to modal and saving lazy-creates the popup row via updatePopup", async () => {
-    const updatePopupSpy = jest
-      .spyOn(appAPI, "updatePopup")
-      .mockResolvedValue({
-        success: true,
-        popup: {
-          id: 42,
-          mode: "modal",
-          position: {
-            leftPct: 20,
-            topPct: 20,
-            widthPct: 60,
-            heightPct: 60,
-          },
-          titleTemplate: "",
-          gridItems: [],
+    const updatePopupSpy = jest.spyOn(appAPI, "updatePopup").mockResolvedValue({
+      success: true,
+      popup: {
+        id: 42,
+        mode: "modal",
+        position: {
+          leftPct: 20,
+          topPct: 20,
+          widthPct: 60,
+          heightPct: 60,
         },
-      });
+        titleTemplate: "",
+        gridItems: [],
+      },
+    });
 
     const handleModalClose = jest.fn();
     const addMapLayer = jest.fn();
@@ -3360,7 +3353,7 @@ describe("MapLayerModal Popup pane", () => {
     );
 
     // Switch to popup tab and turn on modal mode.
-    fireEvent.click(await screen.findByText("Popup"));
+    fireEvent.click(await screen.findByText("Custom Modal Popup"));
     fireEvent.click(screen.getByLabelText("Enable Custom Popup Modal"));
 
     // Save the layer; should fire updatePopup with the create payload.
@@ -3385,23 +3378,21 @@ describe("MapLayerModal Popup pane", () => {
   });
 
   test("flipping mode back to table preserves popup_id and existing gridItems", async () => {
-    const updatePopupSpy = jest
-      .spyOn(appAPI, "updatePopup")
-      .mockResolvedValue({
-        success: true,
-        popup: {
-          id: 7,
-          mode: "table",
-          position: {
-            leftPct: 20,
-            topPct: 20,
-            widthPct: 60,
-            heightPct: 60,
-          },
-          titleTemplate: "",
-          gridItems: [{ source: "Plot", args_string: "{}" }],
+    const updatePopupSpy = jest.spyOn(appAPI, "updatePopup").mockResolvedValue({
+      success: true,
+      popup: {
+        id: 7,
+        mode: "table",
+        position: {
+          leftPct: 20,
+          topPct: 20,
+          widthPct: 60,
+          heightPct: 60,
         },
-      });
+        titleTemplate: "",
+        gridItems: [{ source: "Plot", args_string: "{}" }],
+      },
+    });
 
     const handleModalClose = jest.fn();
     const addMapLayer = jest.fn();
@@ -3444,7 +3435,7 @@ describe("MapLayerModal Popup pane", () => {
     );
 
     // Switch to popup tab and flip back to table.
-    fireEvent.click(await screen.findByText("Popup"));
+    fireEvent.click(await screen.findByText("Custom Modal Popup"));
     // Uncheck the modal-enable toggle to flip mode back to "table".
     fireEvent.click(screen.getByLabelText("Enable Custom Popup Modal"));
     fireEvent.click(await screen.findByLabelText("Create Layer Button"));
@@ -3467,15 +3458,10 @@ describe("MapLayerModal Popup pane", () => {
     updatePopupSpy.mockRestore();
   });
 
-  test("updatePopup 403 response surfaces an error and blocks the save", async () => {
-    const updatePopupSpy = jest
-      .spyOn(appAPI, "updatePopup")
-      .mockRejectedValue({
-        response: {
-          status: 403,
-          data: { success: false, message: "forbidden" },
-        },
-      });
+  test("updatePopup false success response surfaces an error and blocks the save", async () => {
+    const updatePopupSpy = jest.spyOn(appAPI, "updatePopup").mockResolvedValue({
+      success: false,
+    });
 
     const handleModalClose = jest.fn();
     const addMapLayer = jest.fn();
@@ -3508,13 +3494,260 @@ describe("MapLayerModal Popup pane", () => {
       </AppContext.Provider>,
     );
 
-    fireEvent.click(await screen.findByText("Popup"));
+    fireEvent.click(await screen.findByText("Custom Modal Popup"));
+    fireEvent.click(screen.getByLabelText("Enable Custom Popup Modal"));
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+
+    expect(
+      await screen.findByText(
+        /Failed to save popup configuration\. Check logs\./i,
+      ),
+    ).toBeInTheDocument();
+    expect(addMapLayer).not.toHaveBeenCalled();
+    updatePopupSpy.mockRestore();
+  });
+
+  test("updatePopup false success response surfaces an error with a specific message and blocks the save", async () => {
+    const updatePopupSpy = jest.spyOn(appAPI, "updatePopup").mockResolvedValue({
+      success: false,
+      message: "some error occurred.",
+    });
+
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const csrf = "csrf-token";
+    const appContext = {
+      csrf,
+      mapLayerTemplates: [],
+      dynamicMapLayers: [],
+    };
+    const MapLayerModal =
+      require("components/modals/MapLayer/MapLayer").default;
+
+    render(
+      <AppContext.Provider value={appContext}>
+        <LayoutContext.Provider value={{ uuid: "abc", editable: true }}>
+          <MapLayerModal
+            showModal={true}
+            handleModalClose={handleModalClose}
+            addMapLayer={addMapLayer}
+            layerInfo={{
+              sourceProps: {
+                type: "ESRI Image and Map Service",
+                props: { url: "https://example.com" },
+              },
+              layerProps: { name: "Layer C" },
+            }}
+            gridItemId={303}
+          />
+        </LayoutContext.Provider>
+      </AppContext.Provider>,
+    );
+
+    fireEvent.click(await screen.findByText("Custom Modal Popup"));
+    fireEvent.click(screen.getByLabelText("Enable Custom Popup Modal"));
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+
+    expect(
+      await screen.findByText(/some error occurred\./i),
+    ).toBeInTheDocument();
+    expect(addMapLayer).not.toHaveBeenCalled();
+    updatePopupSpy.mockRestore();
+  });
+
+  test("updatePopup 403 response surfaces an error and blocks the save", async () => {
+    const updatePopupSpy = jest.spyOn(appAPI, "updatePopup").mockRejectedValue({
+      response: {
+        status: 403,
+        data: { success: false, message: "forbidden" },
+      },
+    });
+
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const csrf = "csrf-token";
+    const appContext = {
+      csrf,
+      mapLayerTemplates: [],
+      dynamicMapLayers: [],
+    };
+    const MapLayerModal =
+      require("components/modals/MapLayer/MapLayer").default;
+
+    render(
+      <AppContext.Provider value={appContext}>
+        <LayoutContext.Provider value={{ uuid: "abc", editable: true }}>
+          <MapLayerModal
+            showModal={true}
+            handleModalClose={handleModalClose}
+            addMapLayer={addMapLayer}
+            layerInfo={{
+              sourceProps: {
+                type: "ESRI Image and Map Service",
+                props: { url: "https://example.com" },
+              },
+              layerProps: { name: "Layer C" },
+            }}
+            gridItemId={303}
+          />
+        </LayoutContext.Provider>
+      </AppContext.Provider>,
+    );
+
+    fireEvent.click(await screen.findByText("Custom Modal Popup"));
     fireEvent.click(screen.getByLabelText("Enable Custom Popup Modal"));
     fireEvent.click(await screen.findByLabelText("Create Layer Button"));
 
     expect(
       await screen.findByText(
         /You do not have permission to update this popup\./i,
+      ),
+    ).toBeInTheDocument();
+    expect(addMapLayer).not.toHaveBeenCalled();
+    updatePopupSpy.mockRestore();
+  });
+
+  test("updatePopup 400 response with custom message", async () => {
+    const updatePopupSpy = jest.spyOn(appAPI, "updatePopup").mockRejectedValue({
+      response: {
+        status: 400,
+      },
+      message: "forbidden2",
+    });
+
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const csrf = "csrf-token";
+    const appContext = {
+      csrf,
+      mapLayerTemplates: [],
+      dynamicMapLayers: [],
+    };
+    const MapLayerModal =
+      require("components/modals/MapLayer/MapLayer").default;
+
+    render(
+      <AppContext.Provider value={appContext}>
+        <LayoutContext.Provider value={{ uuid: "abc", editable: true }}>
+          <MapLayerModal
+            showModal={true}
+            handleModalClose={handleModalClose}
+            addMapLayer={addMapLayer}
+            layerInfo={{
+              sourceProps: {
+                type: "ESRI Image and Map Service",
+                props: { url: "https://example.com" },
+              },
+              layerProps: { name: "Layer C" },
+            }}
+            gridItemId={303}
+          />
+        </LayoutContext.Provider>
+      </AppContext.Provider>,
+    );
+
+    fireEvent.click(await screen.findByText("Custom Modal Popup"));
+    fireEvent.click(screen.getByLabelText("Enable Custom Popup Modal"));
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+
+    expect(await screen.findByText(/forbidden2/i)).toBeInTheDocument();
+    expect(addMapLayer).not.toHaveBeenCalled();
+    updatePopupSpy.mockRestore();
+  });
+
+  test("updatePopup 400 response with custom data message", async () => {
+    const updatePopupSpy = jest.spyOn(appAPI, "updatePopup").mockRejectedValue({
+      response: {
+        status: 400,
+        data: { success: false, message: "forbidden" },
+      },
+    });
+
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const csrf = "csrf-token";
+    const appContext = {
+      csrf,
+      mapLayerTemplates: [],
+      dynamicMapLayers: [],
+    };
+    const MapLayerModal =
+      require("components/modals/MapLayer/MapLayer").default;
+
+    render(
+      <AppContext.Provider value={appContext}>
+        <LayoutContext.Provider value={{ uuid: "abc", editable: true }}>
+          <MapLayerModal
+            showModal={true}
+            handleModalClose={handleModalClose}
+            addMapLayer={addMapLayer}
+            layerInfo={{
+              sourceProps: {
+                type: "ESRI Image and Map Service",
+                props: { url: "https://example.com" },
+              },
+              layerProps: { name: "Layer C" },
+            }}
+            gridItemId={303}
+          />
+        </LayoutContext.Provider>
+      </AppContext.Provider>,
+    );
+
+    fireEvent.click(await screen.findByText("Custom Modal Popup"));
+    fireEvent.click(screen.getByLabelText("Enable Custom Popup Modal"));
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+
+    expect(await screen.findByText(/forbidden/i)).toBeInTheDocument();
+    expect(addMapLayer).not.toHaveBeenCalled();
+    updatePopupSpy.mockRestore();
+  });
+
+  test("updatePopup 400 response without message", async () => {
+    const updatePopupSpy = jest.spyOn(appAPI, "updatePopup").mockRejectedValue({
+      response: {
+        status: 400,
+      },
+    });
+
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const csrf = "csrf-token";
+    const appContext = {
+      csrf,
+      mapLayerTemplates: [],
+      dynamicMapLayers: [],
+    };
+    const MapLayerModal =
+      require("components/modals/MapLayer/MapLayer").default;
+
+    render(
+      <AppContext.Provider value={appContext}>
+        <LayoutContext.Provider value={{ uuid: "abc", editable: true }}>
+          <MapLayerModal
+            showModal={true}
+            handleModalClose={handleModalClose}
+            addMapLayer={addMapLayer}
+            layerInfo={{
+              sourceProps: {
+                type: "ESRI Image and Map Service",
+                props: { url: "https://example.com" },
+              },
+              layerProps: { name: "Layer C" },
+            }}
+            gridItemId={303}
+          />
+        </LayoutContext.Provider>
+      </AppContext.Provider>,
+    );
+
+    fireEvent.click(await screen.findByText("Custom Modal Popup"));
+    fireEvent.click(screen.getByLabelText("Enable Custom Popup Modal"));
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+
+    expect(
+      await screen.findByText(
+        /Failed to save popup configuration\. Check logs\./i,
       ),
     ).toBeInTheDocument();
     expect(addMapLayer).not.toHaveBeenCalled();
@@ -3549,6 +3782,38 @@ describe("MapLayerModal Popup pane", () => {
   });
 
   test("parent modal drops zIndex to 1050 while the layout editor is open", async () => {
+    const updatePopupSpy = jest.spyOn(appAPI, "updatePopup").mockResolvedValue({
+      success: true,
+      popup: {
+        id: 7,
+        mode: "table",
+        position: {
+          leftPct: 20,
+          topPct: 20,
+          widthPct: 60,
+          heightPct: 60,
+        },
+        titleTemplate: "New Title",
+        gridItems: [{ source: "Plot", args_string: "{}" }],
+      },
+    });
+    const csrf = "csrf-token";
+    const appContext = {
+      csrf,
+      mapLayerTemplates: [],
+      dynamicMapLayers: [],
+    };
+    const MapLayerModal =
+      require("components/modals/MapLayer/MapLayer").default;
+
+    const existingPopupConfig = {
+      id: 7,
+      mode: "modal",
+      position: { leftPct: 20, topPct: 20, widthPct: 60, heightPct: 60 },
+      titleTemplate: "Title",
+      gridItems: [{ source: "Plot", args_string: "{}" }],
+    };
+
     // Stacking convention in this codebase: the parent raises into the
     // 1050 lane (its own backdrop level) so the sub-modal at Bootstrap's
     // default 1055 can render above. Without this, the layout editor was
@@ -3556,22 +3821,27 @@ describe("MapLayerModal Popup pane", () => {
     const handleModalClose = jest.fn();
     const addMapLayer = jest.fn();
     render(
-      <TestingComponent
-        showModal={true}
-        handleModalClose={handleModalClose}
-        addMapLayer={addMapLayer}
-        layerInfo={{
-          sourceProps: {
-            type: "ESRI Image and Map Service",
-            props: { url: "https://example.com" },
-          },
-          layerProps: { name: "Layer Z" },
-        }}
-      />,
+      <AppContext.Provider value={appContext}>
+        <LayoutContext.Provider value={{ uuid: "abc", editable: true }}>
+          <MapLayerModal
+            showModal={true}
+            handleModalClose={handleModalClose}
+            addMapLayer={addMapLayer}
+            layerInfo={{
+              sourceProps: {
+                type: "ESRI Image and Map Service",
+                props: { url: "https://example.com" },
+              },
+              layerProps: { name: "Layer B" },
+              popupConfig: existingPopupConfig,
+            }}
+            gridItemId={202}
+          />
+        </LayoutContext.Provider>
+      </AppContext.Provider>,
     );
 
-    fireEvent.click(await screen.findByText("Popup"));
-    fireEvent.click(screen.getByLabelText("Enable Custom Popup Modal"));
+    fireEvent.click(await screen.findByText("Custom Modal Popup"));
     fireEvent.click(await screen.findByLabelText("Edit Popup Layout Button"));
 
     await waitFor(() => {
@@ -3579,6 +3849,476 @@ describe("MapLayerModal Popup pane", () => {
       const outer = dialogs.find((d) => d.className.includes("map-layer"));
       expect(outer.style.zIndex).toBe("1050");
     });
+
+    const titleInput = await screen.findByLabelText("Popup Title Template");
+    fireEvent.change(titleInput, { target: { value: "New Title" } });
+
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+
+    await waitFor(() => {
+      expect(updatePopupSpy).toHaveBeenCalledTimes(1);
+    });
+    const [popupIdArg, payloadArg] = updatePopupSpy.mock.calls[0];
+    expect(popupIdArg).toBe(7);
+    expect(payloadArg.popup_id).toBe(7);
+    expect(payloadArg.title_template).toBe("New Title");
+    // grid_item_id + layer_name are now always sent alongside popup_id
+    // so the backend can lazy-create when the popup_id row is stale.
+    expect(payloadArg.grid_item_id).toBe(202);
+    expect(payloadArg.layer_name).toBe("Layer B");
+    expect(payloadArg.mode).toBe("modal");
+    // gridItems preserved (R6).
+    expect(payloadArg.gridItems).toEqual([
+      { source: "Plot", args_string: "{}" },
+    ]);
+    updatePopupSpy.mockRestore();
+  });
+
+  test("create popup layout and save", async () => {
+    const updatePopupSpy = jest.spyOn(appAPI, "updatePopup").mockResolvedValue({
+      success: true,
+      popup: {
+        id: 7,
+        mode: "table",
+        position: {
+          leftPct: 20,
+          topPct: 20,
+          widthPct: 60,
+          heightPct: 60,
+        },
+        titleTemplate: "",
+        gridItems: [{ source: "Plot", args_string: "{}" }],
+      },
+    });
+
+    const csrf = "csrf-token";
+    const appContext = {
+      csrf,
+      mapLayerTemplates: [],
+      dynamicMapLayers: [],
+    };
+    const MapLayerModal =
+      require("components/modals/MapLayer/MapLayer").default;
+
+    // Stacking convention in this codebase: the parent raises into the
+    // 1050 lane (its own backdrop level) so the sub-modal at Bootstrap's
+    // default 1055 can render above. Without this, the layout editor was
+    // hiding behind the MapLayer modal.
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    render(
+      <AppContext.Provider value={appContext}>
+        <LayoutContext.Provider value={{ uuid: "abc", editable: true }}>
+          <MapLayerModal
+            showModal={true}
+            handleModalClose={handleModalClose}
+            addMapLayer={addMapLayer}
+            layerInfo={{
+              sourceProps: {
+                type: "ESRI Image and Map Service",
+                props: { url: "https://example.com" },
+              },
+              layerProps: { name: "Layer B" },
+            }}
+            gridItemId={202}
+          />
+        </LayoutContext.Provider>
+      </AppContext.Provider>,
+    );
+
+    fireEvent.click(await screen.findByText("Custom Modal Popup"));
+    fireEvent.click(screen.getByLabelText("Enable Custom Popup Modal"));
+    fireEvent.click(await screen.findByLabelText("Edit Popup Layout Button"));
+
+    const dialogs = screen.getAllByRole("dialog");
+    const outer = dialogs.find((d) => d.className.includes("map-layer"));
+    await waitFor(() => {
+      expect(outer.style.zIndex).toBe("1050");
+    });
+
+    const addVisualization = screen.getByLabelText(
+      "Add Popup Visualization Button",
+    );
+    fireEvent.click(addVisualization);
+
+    const saveButton = await screen.findByLabelText("Save Popup Layout Editor");
+    fireEvent.click(saveButton);
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+
+    await waitFor(() => {
+      expect(updatePopupSpy).toHaveBeenCalledTimes(1);
+    });
+    const [popupIdArg, payloadArg] = updatePopupSpy.mock.calls[0];
+    expect(popupIdArg).toBe(null);
+    expect(payloadArg.popup_id).toBe(undefined);
+    // grid_item_id + layer_name are now always sent alongside popup_id
+    // so the backend can lazy-create when the popup_id row is stale.
+    expect(payloadArg.grid_item_id).toBe(202);
+    expect(payloadArg.layer_name).toBe("Layer B");
+    expect(payloadArg.mode).toBe("modal");
+    // gridItems preserved (R6).
+    expect(payloadArg.gridItems).toEqual([
+      {
+        args_string: "{}",
+        h: 20,
+        i: "1",
+        id: null,
+        metadata_string: '{"refreshRate":0}',
+        source: "",
+        uuid: 12345678,
+        w: 20,
+        x: 0,
+        y: 0,
+      },
+    ]);
+    updatePopupSpy.mockRestore();
+  });
+
+  test("edit popup layout and save", async () => {
+    const updatePopupSpy = jest.spyOn(appAPI, "updatePopup").mockResolvedValue({
+      success: true,
+      popup: {
+        id: 7,
+        mode: "table",
+        position: {
+          leftPct: 20,
+          topPct: 20,
+          widthPct: 60,
+          heightPct: 60,
+        },
+        titleTemplate: "",
+        gridItems: [{ source: "Plot", args_string: "{}" }],
+      },
+    });
+
+    const csrf = "csrf-token";
+    const appContext = {
+      csrf,
+      mapLayerTemplates: [],
+      dynamicMapLayers: [],
+    };
+    const MapLayerModal =
+      require("components/modals/MapLayer/MapLayer").default;
+
+    const existingPopupConfig = {
+      id: 7,
+      mode: "modal",
+      position: { leftPct: 20, topPct: 20, widthPct: 60, heightPct: 60 },
+      titleTemplate: "Title",
+      gridItems: [{ source: "Plot", args_string: "{}" }],
+    };
+
+    // Stacking convention in this codebase: the parent raises into the
+    // 1050 lane (its own backdrop level) so the sub-modal at Bootstrap's
+    // default 1055 can render above. Without this, the layout editor was
+    // hiding behind the MapLayer modal.
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    render(
+      <AppContext.Provider value={appContext}>
+        <LayoutContext.Provider value={{ uuid: "abc", editable: true }}>
+          <MapLayerModal
+            showModal={true}
+            handleModalClose={handleModalClose}
+            addMapLayer={addMapLayer}
+            layerInfo={{
+              sourceProps: {
+                type: "ESRI Image and Map Service",
+                props: { url: "https://example.com" },
+              },
+              layerProps: { name: "Layer B" },
+              popupConfig: existingPopupConfig,
+            }}
+            gridItemId={202}
+          />
+        </LayoutContext.Provider>
+      </AppContext.Provider>,
+    );
+
+    fireEvent.click(await screen.findByText("Custom Modal Popup"));
+    fireEvent.click(await screen.findByLabelText("Edit Popup Layout Button"));
+
+    const dialogs = screen.getAllByRole("dialog");
+    const outer = dialogs.find((d) => d.className.includes("map-layer"));
+    await waitFor(() => {
+      expect(outer.style.zIndex).toBe("1050");
+    });
+
+    const addVisualization = screen.getByLabelText(
+      "Add Popup Visualization Button",
+    );
+    fireEvent.click(addVisualization);
+
+    const saveButton = await screen.findByLabelText("Save Popup Layout Editor");
+    fireEvent.click(saveButton);
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+
+    await waitFor(() => {
+      expect(updatePopupSpy).toHaveBeenCalledTimes(1);
+    });
+    const [popupIdArg, payloadArg] = updatePopupSpy.mock.calls[0];
+    expect(popupIdArg).toBe(7);
+    expect(payloadArg.popup_id).toBe(7);
+    // grid_item_id + layer_name are now always sent alongside popup_id
+    // so the backend can lazy-create when the popup_id row is stale.
+    expect(payloadArg.grid_item_id).toBe(202);
+    expect(payloadArg.layer_name).toBe("Layer B");
+    expect(payloadArg.mode).toBe("modal");
+    // gridItems preserved (R6).
+    expect(payloadArg.gridItems).toEqual([
+      { source: "Plot", args_string: "{}" },
+      {
+        args_string: "{}",
+        h: 20,
+        i: "1",
+        id: null,
+        metadata_string: '{"refreshRate":0}',
+        source: "",
+        uuid: 12345678,
+        w: 20,
+        x: 0,
+        y: 0,
+      },
+    ]);
+    updatePopupSpy.mockRestore();
+  });
+
+  test("default popup layout and save", async () => {
+    const updatePopupSpy = jest.spyOn(appAPI, "updatePopup").mockResolvedValue({
+      success: true,
+      popup: {
+        id: 7,
+        mode: "table",
+        position: {
+          leftPct: 20,
+          topPct: 20,
+          widthPct: 60,
+          heightPct: 60,
+        },
+        titleTemplate: "",
+        gridItems: [{ source: "Plot", args_string: "{}" }],
+      },
+    });
+
+    const csrf = "csrf-token";
+    const appContext = {
+      csrf,
+      mapLayerTemplates: [],
+      dynamicMapLayers: [],
+    };
+    const MapLayerModal =
+      require("components/modals/MapLayer/MapLayer").default;
+
+    const existingPopupConfig = {
+      id: 7,
+      mode: "modal",
+    };
+
+    // Stacking convention in this codebase: the parent raises into the
+    // 1050 lane (its own backdrop level) so the sub-modal at Bootstrap's
+    // default 1055 can render above. Without this, the layout editor was
+    // hiding behind the MapLayer modal.
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    render(
+      <AppContext.Provider value={appContext}>
+        <LayoutContext.Provider value={{ uuid: "abc", editable: true }}>
+          <MapLayerModal
+            showModal={true}
+            handleModalClose={handleModalClose}
+            addMapLayer={addMapLayer}
+            layerInfo={{
+              sourceProps: {
+                type: "ESRI Image and Map Service",
+                props: { url: "https://example.com" },
+              },
+              layerProps: { name: "Layer B" },
+              popupConfig: existingPopupConfig,
+            }}
+            gridItemId={202}
+          />
+        </LayoutContext.Provider>
+      </AppContext.Provider>,
+    );
+
+    fireEvent.click(await screen.findByText("Custom Modal Popup"));
+    fireEvent.click(await screen.findByLabelText("Edit Popup Layout Button"));
+
+    const dialogs = screen.getAllByRole("dialog");
+    const outer = dialogs.find((d) => d.className.includes("map-layer"));
+    await waitFor(() => {
+      expect(outer.style.zIndex).toBe("1050");
+    });
+
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+
+    await waitFor(() => {
+      expect(updatePopupSpy).toHaveBeenCalledTimes(1);
+    });
+    const [popupIdArg, payloadArg] = updatePopupSpy.mock.calls[0];
+    expect(popupIdArg).toBe(7);
+    expect(payloadArg.popup_id).toBe(7);
+    expect(payloadArg.title_template).toBe(null);
+    expect(payloadArg.position).toEqual(null);
+    // grid_item_id + layer_name are now always sent alongside popup_id
+    // so the backend can lazy-create when the popup_id row is stale.
+    expect(payloadArg.grid_item_id).toBe(202);
+    expect(payloadArg.layer_name).toBe("Layer B");
+    expect(payloadArg.mode).toBe("modal");
+    // gridItems preserved (R6).
+    expect(payloadArg.gridItems).toEqual([]);
+    updatePopupSpy.mockRestore();
+  });
+
+  test("edit popup layout and then close", async () => {
+    const csrf = "csrf-token";
+    const appContext = {
+      csrf,
+      mapLayerTemplates: [],
+      dynamicMapLayers: [],
+    };
+    const MapLayerModal =
+      require("components/modals/MapLayer/MapLayer").default;
+
+    const existingPopupConfig = {
+      id: 7,
+      mode: "modal",
+      position: { leftPct: 20, topPct: 20, widthPct: 60, heightPct: 60 },
+      titleTemplate: "Title",
+      gridItems: [{ source: "Plot", args_string: "{}" }],
+    };
+
+    // Stacking convention in this codebase: the parent raises into the
+    // 1050 lane (its own backdrop level) so the sub-modal at Bootstrap's
+    // default 1055 can render above. Without this, the layout editor was
+    // hiding behind the MapLayer modal.
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    render(
+      <AppContext.Provider value={appContext}>
+        <LayoutContext.Provider value={{ uuid: "abc", editable: true }}>
+          <MapLayerModal
+            showModal={true}
+            handleModalClose={handleModalClose}
+            addMapLayer={addMapLayer}
+            layerInfo={{
+              sourceProps: {
+                type: "ESRI Image and Map Service",
+                props: { url: "https://example.com" },
+              },
+              layerProps: { name: "Layer B" },
+              popupConfig: existingPopupConfig,
+            }}
+            gridItemId={202}
+          />
+        </LayoutContext.Provider>
+      </AppContext.Provider>,
+    );
+
+    fireEvent.click(await screen.findByText("Custom Modal Popup"));
+    fireEvent.click(await screen.findByLabelText("Edit Popup Layout Button"));
+
+    const dialogs = screen.getAllByRole("dialog");
+    const outer = dialogs.find((d) => d.className.includes("map-layer"));
+    await waitFor(() => {
+      expect(outer.style.zIndex).toBe("1050");
+    });
+
+    expect(
+      screen.getByLabelText("Add Popup Visualization Button"),
+    ).toBeInTheDocument();
+
+    const closeButton = await screen.findByLabelText(
+      "Cancel Popup Layout Editor",
+    );
+    fireEvent.click(closeButton);
+
+    expect(
+      screen.queryByLabelText("Add Popup Visualization Button"),
+    ).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(outer.style.zIndex).toBe("");
+    });
+  });
+
+  test("doesnt call updatePopup when the griditem id is not provided", async () => {
+    const updatePopupSpy = jest.spyOn(appAPI, "updatePopup").mockResolvedValue({
+      success: true,
+      popup: {
+        id: 99,
+        mode: "modal",
+        position: {
+          leftPct: 10,
+          topPct: 10,
+          widthPct: 80,
+          heightPct: 80,
+        },
+        titleTemplate: "Custom Title",
+        gridItems: [{ source: "Table", args_string: "{}" }],
+      },
+    });
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const csrf = "csrf-token";
+    const appContext = {
+      csrf,
+      mapLayerTemplates: [],
+      dynamicMapLayers: [],
+    };
+    const MapLayerModal =
+      require("components/modals/MapLayer/MapLayer").default;
+
+    render(
+      <AppContext.Provider value={appContext}>
+        <LayoutContext.Provider value={{ uuid: "abc", editable: true }}>
+          <MapLayerModal
+            showModal={true}
+            handleModalClose={handleModalClose}
+            addMapLayer={addMapLayer}
+            layerInfo={{
+              sourceProps: {
+                type: "ESRI Image and Map Service",
+                props: { url: "https://example.com" },
+              },
+              layerProps: { name: "Layer E" },
+              popupConfig: {
+                mode: "modal",
+                position: {
+                  leftPct: 10,
+                  topPct: 10,
+                  widthPct: 80,
+                  heightPct: 80,
+                },
+                titleTemplate: "Custom Title",
+                gridItems: [{ source: "Table", args_string: "{}" }],
+              },
+            }}
+          />
+        </LayoutContext.Provider>
+      </AppContext.Provider>,
+    );
+
+    fireEvent.click(await screen.findByText("Custom Modal Popup"));
+
+    // Save the layer; should fire updatePopup with the create payload.
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+
+    expect(updatePopupSpy).toHaveBeenCalledTimes(0);
+    expect(warnSpy).toHaveBeenCalledWith(
+      "[TethysDash] Cannot persist popupConfig: parent Map GridItem id is" +
+        " not yet known. Save the layer first, then reopen this modal to" +
+        " configure popup metadata.",
+    );
+
+    // The map layer was added — the layer save flow continues normally.
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalled();
+    });
+
+    warnSpy.mockRestore();
+    updatePopupSpy.mockRestore();
   });
 });
 
@@ -3857,4 +4597,9 @@ TestingComponent.propTypes = {
   mapLayers: PropTypes.array,
   existingLayerOriginalName: PropTypes.object,
   dynamicMapLayers: PropTypes.array,
+};
+
+ExtentTestComponent.propTypes = {
+  layerInfo: PropTypes.object,
+  visualizationRefOverride: PropTypes.object,
 };
