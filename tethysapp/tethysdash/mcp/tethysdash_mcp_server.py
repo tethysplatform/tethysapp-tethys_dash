@@ -53,11 +53,20 @@ mcp = FastMCP(
         BM25SearchTransform(
             max_results=5,
             always_visible=[
+                # Plan 2026-05-07-007 (T3) revision: pinning all 11 per-
+                # source-type layer tools (initial K5 decision) crowded out
+                # `create_map_visualization` and `create_variable_input` in
+                # the chatbox-core engine's full-catalog selection (engine
+                # caps tools-per-prompt above SMALL_CATALOG_THRESHOLD=8 via
+                # keyword/embedding ranking; 11 layer tools all containing
+                # "layer"+"map" dominated the score). The 11 tools are now
+                # BM25-searchable instead — the LLM finds them via
+                # `search_tools` when adding layers, which restores
+                # `create_*` reliability for compound prompts.
                 "create_plotly_chart",
                 "create_data_table",
                 "create_variable_input",
                 "create_map_visualization",
-                "add_map_service_layer",
                 "add_dynamic_map_layer",
                 "patch_visualization",
                 "render_plugin",
@@ -911,406 +920,336 @@ def _resolve_esri_layer_name(url: str, layer_id: Optional[str]) -> Optional[str]
         return None
 
 
+# ---------------------------------------------------------------------------
+# Plan 2026-05-07-007 (T3): per-source-type map-layer tools.
+#
+# These 11 tools replace the umbrella `add_map_service_layer`. Each has a
+# flat narrow signature whose required + optional fields match exactly that
+# source type's entry in `available_source_properties` (plugin_helpers.py).
+# The conditional schema the LLM had to reason about under the umbrella is
+# gone — the MCP catalog itself now is the per-type contract.
+#
+# Implementation note vs plan K7: the plan estimated the shared post-routing
+# block at ~47 lines and prescribed inlining it across 11 tools. The actual
+# block is ~87 lines (see umbrella history). Inlining 87 lines × 11 tools
+# would be ~957 lines of duplicated code with high copy-paste-error risk.
+# We deviate to a module-private helper `_apply_common_layer_options` that
+# preserves K7's spirit (no public abstraction, no new test file, helper
+# exercised end-to-end through every tool's per-tool oracle tests) without
+# paying the duplication cost.
+# ---------------------------------------------------------------------------
+
+
+def _coerce_json_strings(args: Dict[str, Any]) -> Optional[Dict[str, str]]:
+    """Coerce JSON-string values in ``args`` to dicts in-place.
+
+    Some LLM providers stringify dict-typed tool args. This helper accepts
+    a kwargs-name -> value mapping; for each value that is a string, it
+    runs ``json.loads`` and rebinds the entry. Returns ``None`` on success,
+    or ``{"error": ...}`` on the first parse failure (the caller short-
+    circuits with the same envelope).
+    """
+    for arg_name, arg_value in list(args.items()):
+        if isinstance(arg_value, str):
+            try:
+                args[arg_name] = json.loads(arg_value)
+            except json.JSONDecodeError as exc:
+                return {
+                    "error": (
+                        f"{arg_name} is not valid JSON: {exc.msg} "
+                        f"(line {exc.lineno}, col {exc.colno})."
+                    )
+                }
+    return None
+
+
+def _apply_common_layer_options(
+    builder: LayerConfigurationBuilder,
+    *,
+    opacity: Optional[float],
+    min_zoom: Optional[int],
+    max_zoom: Optional[int],
+    visible: Optional[bool],
+    queryable: bool,
+    legend: Optional[Union[str, Dict[str, Any]]],
+    style: Optional[Union[str, Dict[str, Any]]],
+    attribute_variables: Optional[Dict[str, str]],
+    attr_key: str,
+    layer_props: Optional[Dict[str, Any]],
+    popup_options: Optional[Dict[str, Any]],
+) -> None:
+    """Apply the cross-cutting shared layer-level options to ``builder``.
+
+    Mirrors the umbrella's post-routing build block (preserved verbatim
+    in semantics from the prior `add_map_service_layer` flow). The caller
+    has already done UUID validation, JSON-string coercion, advanced-dict
+    validation, source-type-specific required-field checks, and source
+    routing (`set_source_properties` / `set_source_top_level_props` /
+    `set_geojson`) before invoking this helper.
+
+    Raises ``ValueError`` (caught by the caller's try-block and surfaced
+    as ``{"error": ...}``) when popup_options sub-shapes are wrong.
+    """
+    if opacity is not None:
+        builder.set_opacity(opacity)
+    if min_zoom is not None:
+        builder.set_min_zoom(min_zoom)
+    if max_zoom is not None:
+        builder.set_max_zoom(max_zoom)
+    if visible is not None:
+        builder.set_layer_visibility(visible)
+    if layer_props:
+        for key, val in layer_props.items():
+            getattr(builder, _LAYER_PROP_BUILDER_METHODS[key])(val)
+    if queryable:
+        builder.set_queryable(True)
+    if legend is not None:
+        builder.set_legend(legend)
+    if style is not None:
+        builder.set_style(style)
+    if attribute_variables:
+        for key, variable in attribute_variables.items():
+            builder.add_attribute_variable(key, variable, attr_key)
+    _popup_aliases = (popup_options or {}).get("aliases") or {}
+    _popup_omit = (popup_options or {}).get("omit") or {}
+    for layer_name, alias_map in _popup_aliases.items():
+        if not isinstance(alias_map, dict):
+            raise ValueError(
+                f"popup_options.aliases[{layer_name!r}] must be a dict "
+                f"of field-name -> alias."
+            )
+        for field, alias in alias_map.items():
+            builder.add_attribute_alias(field, alias, layer_name)
+    for layer_name, fields in _popup_omit.items():
+        if not isinstance(fields, list):
+            raise ValueError(
+                f"popup_options.omit[{layer_name!r}] must be a list "
+                f"of field names."
+            )
+        for field in fields:
+            builder.omit_popup_attribute(field, layer_name)
+
+
+# ---------------------------------------------------------------------------
+# WMS
+# ---------------------------------------------------------------------------
+
+
 @mcp.tool(
-    name="add_map_service_layer",
+    name="add_wms_layer",
     description=(
-        "Add a WMS, ESRI, GeoJSON, KML, GeoTIFF, Static Image, or tile "
-        "service layer to an existing map created by create_map_visualization. "
-        "Supports legend, style, popup configuration, attribute aliases, opacity, "
-        "and zoom limits via optional advanced parameters. When the layer "
-        "comes from a feature lookup, fetch the layer name and bounding "
-        "box from a data-source tool first, then pass them through to "
-        "this call."
+        "Add a WMS service layer to an existing map. Required: map_uuid "
+        "(from create_map_visualization), name, url, wms_layers (the "
+        "WMS LAYERS parameter value, e.g. workspace:layerName). Optional "
+        "params merges additional WMS parameters (STYLES, TIME, etc.) "
+        "into source.props.params; supports ${variable_name} substitution "
+        "for dashboard variable references. Returns a layer_update result."
     ),
-    tags=["map", "layer", "geographic"],
+    tags=["map", "layer", "wms"],
 )
-def add_map_service_layer(
+def add_wms_layer(
     map_uuid: Annotated[str, Field(description="UUID returned by create_map_visualization")],
-    source_type: Annotated[str, Field(description=(
-        "Layer source type. One of: WMS, ESRI Image and Map Service, "
-        "ESRI Feature Service, GeoJSON, KML, Image Tile, Vector Tile, "
-        "PMTiles Vector, PMTiles Raster, GeoTIFF, Static Image"
-    ))],
     name: Annotated[str, Field(description="Display name for the layer in the layer control")],
-    url: Annotated[Optional[str], Field(description=(
-        "Service URL. Required for all source types except GeoJSON. For "
-        "GeoTIFF, this may be a Cloud Optimized GeoTIFF URL; advanced callers "
-        "may instead pass source_props={'sources': [{'url': ...}]}."
-    ))] = None,
-    layer_id: Annotated[Optional[str], Field(description=(
-        "Layer identifier within the service. "
-        "For ESRI Image and Map Service: a bare integer or "
-        "comma-separated integer list is canonicalized to show: form on "
-        "emit (regardless of whether the value comes from this parameter "
-        "or from params.LAYERS). To use a different directive, prefix the "
-        "integer list with the directive name and a colon (one of show, "
-        "hide, include, exclude). Values that already carry a recognized "
-        "directive prefix are passed through unchanged. "
-        "For ESRI Feature Service: integer layer index as a string."
-    ))] = None,
-    wms_layers: Annotated[Optional[str], Field(description=(
+    url: Annotated[str, Field(description="WMS service URL")],
+    wms_layers: Annotated[str, Field(description=(
         "WMS LAYERS parameter value in workspace:layer format. "
-        "Required when source_type is WMS."
-    ))] = None,
-    geojson: Annotated[Optional[Union[Dict[str, Any], str]], Field(description=(
-        "Inline GeoJSON FeatureCollection or Feature object. "
-        "Required when source_type is GeoJSON and no geojson_url is provided. "
-        "CRS is auto-assigned if missing."
-    ))] = None,
-    geojson_url: Annotated[Optional[str], Field(description=(
-        "URL to a GeoJSON file. Use instead of inline geojson when the data "
-        "is hosted externally. The frontend fetches the URL at render time."
-    ))] = None,
-    queryable: Annotated[bool, Field(description=(
-        "Enable click-to-query on this layer"
-    ))] = False,
-    attribute_variables: Annotated[Optional[Union[Dict[str, str], str]], Field(description=(
-        "Maps feature attribute names to dashboard variable names. "
-        "When a feature is clicked, attribute values are published to the "
-        "corresponding dashboard variables."
-    ))] = None,
+        "Comma-separated for multiple layers."
+    ))],
     params: Annotated[Optional[Union[Dict[str, Any], str]], Field(description=(
-        "Additional source parameters merged into the source props. "
-        "Supports ${variable_name} syntax for dashboard variable references. "
-        "For Static Image source_type: must include both 'projection' and "
-        "'imageExtent' keys (an EPSG code and a comma-separated bounding-box "
-        "string, in that string form — not a numeric array)."
+        "Additional WMS source parameters merged into source.props.params "
+        "(e.g., STYLES, TIME, FORMAT). Supports ${variable_name} for dashboard "
+        "variable references."
+    ))] = None,
+    queryable: Annotated[bool, Field(description="Enable click-to-query on this layer")] = False,
+    attribute_variables: Annotated[Optional[Union[Dict[str, str], str]], Field(description=(
+        "Maps feature attribute names to dashboard variable names. When a "
+        "feature is clicked, attribute values are published to the corresponding "
+        "dashboard variables."
     ))] = None,
     opacity: Annotated[Optional[float], Field(description="Layer opacity from 0 (transparent) to 1 (opaque)")] = None,
     min_zoom: Annotated[Optional[int], Field(description="Minimum zoom level at which the layer is visible")] = None,
     max_zoom: Annotated[Optional[int], Field(description="Maximum zoom level at which the layer is visible")] = None,
     visible: Annotated[Optional[bool], Field(description=(
-        "Initial layer visibility. Default behavior renders the layer "
-        "visible. Set to False to start the layer hidden in the layer "
-        "control (the user can toggle it on at runtime)."
+        "Initial layer visibility. Default behavior renders the layer visible. "
+        "Set to False to start the layer hidden in the layer control."
     ))] = None,
     legend: Annotated[Optional[Union[str, Dict[str, Any]]], Field(description=(
-        "Layer legend. Pass 'default' to use the source's default legend, a "
-        "URL string for a hosted legend image, or a dict for a custom legend "
-        "definition (the dict shape mirrors the UI's Legend tab)."
+        "Layer legend. 'default' uses the source's default legend, a URL string "
+        "for a hosted legend image, or a dict for a custom legend definition."
     ))] = None,
     style: Annotated[Optional[Union[str, Dict[str, Any]]], Field(description=(
-        "Layer style. Pass a URL string (style JSON hosted externally) or "
-        "a dict for an inline style definition."
+        "Layer style. URL string (style JSON hosted externally) or dict for inline."
     ))] = None,
     source_props: Annotated[Optional[Union[Dict[str, Any], str]], Field(description=(
-        "Advanced source-side properties merged into source.props. Validated "
-        "against the source-type's available_source_properties allowlist; "
-        "unknown keys are rejected. Use this for source props beyond the "
-        "first-class flat parameters (e.g., projection on Image Tile, "
-        "tileSize on PMTiles, or sources on GeoTIFF)."
+        "Advanced source-side properties merged into source.props (e.g., "
+        "attributions, projection). Validated against the source-type allowlist."
     ))] = None,
     layer_props: Annotated[Optional[Union[Dict[str, Any], str]], Field(description=(
-        "Advanced layer-level properties (opacity, minResolution, "
-        "maxResolution, minZoom, maxZoom, minZoomQuery). Validated against "
-        "the LAYER_PROPERTIES_ALLOWLIST. Per-key value-type validation is "
-        "applied. Conflicts with the corresponding flat parameter (e.g., "
-        "opacity, min_zoom, max_zoom) are rejected — pick one path per prop."
+        "Advanced layer-level properties (opacity, minResolution, maxResolution, "
+        "minZoom, maxZoom, minZoomQuery, visible). Conflicts with the equivalent "
+        "flat parameters are rejected — pick one path per layer prop."
     ))] = None,
     popup_options: Annotated[Optional[Union[Dict[str, Any], str]], Field(description=(
         "Click-popup options. Accepts {'aliases': {layer_name: {field: alias}}} "
-        "and {'omit': {layer_name: [field, ...]}} sub-dicts. The 'aliases' "
-        "shape mirrors the UI's attribute-aliases tab; 'omit' marks fields "
-        "to hide from popups."
+        "and {'omit': {layer_name: [field, ...]}} sub-dicts."
     ))] = None,
 ) -> Dict[str, Any]:
-    """Add a service layer to an existing map.
-
-    Constructs the OpenLayers layer configuration from flat, source-type-specific
-    parameters and returns a layer_update result (not a visualization).
-    The chatbox dispatches this as a tethysdash:update-visualization event.
-    """
-    # Plan 2026-05-07-002 Unit A: reject template placeholders / malformed
-    # UUIDs at the boundary so the LLM gets an actionable error instead of
-    # building a layer that gets silently dropped at dispatch.
-    uuid_error = _validate_uuid_arg(
-        map_uuid, "map_uuid", "create_map_visualization"
-    )
+    """Add a WMS service layer to an existing map."""
+    uuid_error = _validate_uuid_arg(map_uuid, "map_uuid", "create_map_visualization")
     if uuid_error:
         return {"error": uuid_error}
-    LOGGER.info(
-        "add_map_service_layer: map_uuid=%s, source_type=%s, name=%s",
-        map_uuid, source_type, name,
+    LOGGER.info("add_wms_layer: map_uuid=%s, name=%s", map_uuid, name)
+
+    coercible = {
+        "params": params,
+        "attribute_variables": attribute_variables,
+        "source_props": source_props,
+        "layer_props": layer_props,
+        "popup_options": popup_options,
+    }
+    err = _coerce_json_strings(coercible)
+    if err:
+        return err
+    params = coercible["params"]
+    attribute_variables = coercible["attribute_variables"]
+    source_props = coercible["source_props"]
+    layer_props = coercible["layer_props"]
+    popup_options = coercible["popup_options"]
+
+    advanced_err = _validate_advanced_layer_dicts(
+        source_type="WMS",
+        layer_props=layer_props,
+        source_props=source_props,
+        popup_options=popup_options,
+        opacity=opacity,
+        min_zoom=min_zoom,
+        max_zoom=max_zoom,
     )
+    if advanced_err:
+        return advanced_err
 
-    # Coerce JSON strings to dicts — some LLM providers serialize object
-    # arguments as strings instead of parsed objects. Wrap each in a guard
-    # so a malformed string yields an MCP {"error": ...} rather than an
-    # opaque ToolError from FastMCP.
-    for _arg_name, _arg_value in (
-        ("geojson", geojson),
-        ("attribute_variables", attribute_variables),
-        ("params", params),
-        ("source_props", source_props),
-        ("layer_props", layer_props),
-        ("popup_options", popup_options),
-    ):
-        if isinstance(_arg_value, str):
-            try:
-                _decoded = json.loads(_arg_value)
-            except json.JSONDecodeError as exc:
-                return {
-                    "error": (
-                        f"{_arg_name} is not valid JSON: {exc.msg} "
-                        f"(line {exc.lineno}, col {exc.colno})."
-                    )
-                }
-            # Re-bind the local variable by name. locals()[name] = ... would
-            # be unreliable inside a function; explicit branches keep the
-            # rebind visible to static analysis.
-            if _arg_name == "geojson":
-                geojson = _decoded
-            elif _arg_name == "attribute_variables":
-                attribute_variables = _decoded
-            elif _arg_name == "params":
-                params = _decoded
-            elif _arg_name == "source_props":
-                source_props = _decoded
-            elif _arg_name == "layer_props":
-                layer_props = _decoded
-            elif _arg_name == "popup_options":
-                popup_options = _decoded
+    extra_params = params if isinstance(params, dict) else {}
+    wms_params = {"LAYERS": wms_layers}
+    wms_params.update(extra_params)
+    flat_source_props = {"url": url, "params": wms_params}
 
-    # Plan-005 S2 cap: reject oversized inline GeoJSON before any further
-    # processing. Cap is dynamically read from env vars at call time so
-    # tests and operators can override without re-importing the module.
-    # NB: only inline dict payloads are capped; geojson_url is unaffected
-    # (the cost is borne by the browser at render time, not the server).
-    if isinstance(geojson, dict):
-        max_features = _env_int(
-            "TETHYSDASH_MCP_GEOJSON_MAX_FEATURES", GEOJSON_MAX_FEATURES
+    try:
+        builder = LayerConfigurationBuilder(name, "WMS")
+        builder.set_source_properties(**flat_source_props)
+        if source_props:
+            builder.set_source_properties(**source_props)
+        _apply_common_layer_options(
+            builder,
+            opacity=opacity, min_zoom=min_zoom, max_zoom=max_zoom,
+            visible=visible, queryable=queryable, legend=legend, style=style,
+            attribute_variables=attribute_variables, attr_key=name,
+            layer_props=layer_props, popup_options=popup_options,
         )
-        max_bytes = _env_int(
-            "TETHYSDASH_MCP_GEOJSON_MAX_BYTES", GEOJSON_MAX_BYTES
-        )
-        # `or []` (not the `.get(..., [])` default) handles BOTH the
-        # missing-key case AND the explicit `features: None` case. The
-        # second is a real adversarial input — `len(None)` would otherwise
-        # raise unhandled TypeError before validate_geojson can produce
-        # a clean error.
-        feature_count = len(geojson.get("features") or [])
-        if feature_count > max_features:
-            return {
-                "error": (
-                    f"Inline GeoJSON has {feature_count} features; the "
-                    f"limit is {max_features}. Use geojson_url for hosted "
-                    f"large datasets, or raise "
-                    f"TETHYSDASH_MCP_GEOJSON_MAX_FEATURES on the server."
-                )
-            }
-        try:
-            payload_size = len(json.dumps(geojson))
-        except (TypeError, ValueError):
-            payload_size = 0
-        if payload_size > max_bytes:
-            return {
-                "error": (
-                    f"Inline GeoJSON serializes to {payload_size} bytes; "
-                    f"the limit is {max_bytes}. Use geojson_url for hosted "
-                    f"large datasets, or raise "
-                    f"TETHYSDASH_MCP_GEOJSON_MAX_BYTES on the server."
-                )
-            }
+        layer_config = builder.build()
+    except ValueError as err:
+        return {"error": str(err)}
 
-    # Validate source_type
-    if source_type not in VALID_SOURCE_TYPES:
-        return {
-            "error": (
-                f"Invalid source_type '{source_type}'. "
-                f"Valid types: {', '.join(VALID_SOURCE_TYPES)}"
-            )
-        }
+    return {"layer_update": {"map_uuid": map_uuid, "layer": layer_config}}
 
-    extra_params = params or {}
 
-    # Plan 2026-05-07-004 Unit A: reject `params` for source types that
-    # don't consume it server-side (close the silent-drop class). Runs
-    # after dict coercion (above) and after source_type validation, so
-    # the check operates on the parsed dict and only when the source
-    # type is itself valid.
-    params_error = _validate_source_params(source_type, params)
-    if params_error:
-        return {"error": params_error}
+# ---------------------------------------------------------------------------
+# ESRI Image and Map Service
+# ---------------------------------------------------------------------------
 
-    # Validate required fields per source type. Friendlier error messages
-    # than the builder's generic "Missing required key 'X'" — the builder
-    # raises ValueError after delegation as a secondary safety net.
-    if source_type == "WMS":
-        if not url or not wms_layers:
-            return {"error": "source_type 'WMS' requires 'url' and 'wms_layers' parameters"}
-    elif source_type == "ESRI Image and Map Service":
-        if not url:
-            return {"error": "source_type 'ESRI Image and Map Service' requires 'url' parameter"}
-    elif source_type == "ESRI Feature Service":
-        if not url or not layer_id:
-            return {"error": "source_type 'ESRI Feature Service' requires 'url' and 'layer_id' parameters"}
-    elif source_type == "GeoJSON":
-        if not geojson and not geojson_url:
-            return {"error": "source_type 'GeoJSON' requires 'geojson' or 'geojson_url' parameter"}
-    elif source_type == "KML":
-        if not url:
-            return {"error": "source_type 'KML' requires 'url' parameter"}
-    elif source_type == "Image Tile":
-        if not url:
-            return {"error": "source_type 'Image Tile' requires 'url' parameter"}
-    elif source_type == "Vector Tile":
-        if not url:
-            return {"error": "source_type 'Vector Tile' requires 'url' parameter"}
-    elif source_type == "PMTiles Vector":
-        if not url:
-            return {"error": "source_type 'PMTiles Vector' requires 'url' parameter"}
-    elif source_type == "PMTiles Raster":
-        if not url:
-            return {"error": "source_type 'PMTiles Raster' requires 'url' parameter"}
-    elif source_type == "GeoTIFF":
-        geotiff_sources = (
-            source_props.get("sources") if isinstance(source_props, dict) else None
-        )
-        if geotiff_sources is not None:
-            if not isinstance(geotiff_sources, list) or not any(
-                isinstance(source, dict) and source.get("url")
-                for source in geotiff_sources
-            ):
-                return {
-                    "error": (
-                        "source_type 'GeoTIFF' requires source_props.sources "
-                        "to be a non-empty list of source dictionaries with "
-                        "a 'url' value"
-                    )
-                }
-        elif not url:
-            return {
-                "error": (
-                    "source_type 'GeoTIFF' requires either 'url' or "
-                    "source_props={'sources': [{'url': ...}]}"
-                )
-            }
-    elif source_type == "Static Image":
-        # Static Image needs url + projection + imageExtent; the latter two
-        # come through the `params` kwarg today (no dedicated flat params yet
-        # — that surface lives in plan 005's source_props extension).
-        _params_dict = params if isinstance(params, dict) else {}
-        if not url:
-            return {
-                "error": "source_type 'Static Image' requires 'url' parameter"
-            }
-        # Truthy check, not just key presence: an LLM passing
-        # params={"projection": "EPSG:4326", "imageExtent": None} would otherwise
-        # pass this guard AND _validate_required_fields, persisting None to
-        # source.props.imageExtent and crashing the renderer at parse time.
-        if not _params_dict.get("projection") or not _params_dict.get("imageExtent"):
-            return {
-                "error": (
-                    "source_type 'Static Image' requires non-empty 'projection' "
-                    "and 'imageExtent' supplied via the 'params' parameter (e.g. "
-                    "params={'projection': 'EPSG:4326', "
-                    "'imageExtent': 'minX,minY,maxX,maxY'})"
-                )
-            }
 
-    # ------------------------------------------------------------------
-    # Phase 1: MCP-side coercion. ESRI LAYERS canonicalization, JSON-string
-    # dict coercion (above), and ESRI attribute-variable layer-name
-    # resolution all stay MCP-side per plan 004 K3 — the builder receives
-    # already-canonicalized inputs.
-    # ------------------------------------------------------------------
-    # Phase-1-local source props (assembled from flat params). Kept under a
-    # different name from the user-facing `source_props` parameter (the
-    # "advanced" dict) so the conflict check downstream can distinguish
-    # the two. Both are merged before delegation to the builder.
-    _flat_source_props: Dict[str, Any] = {}
-    geojson_payload: Optional[Union[Dict[str, Any], str]] = None
+@mcp.tool(
+    name="add_esri_image_layer",
+    description=(
+        "Add an ESRI Image and Map Service layer to an existing map. Required: "
+        "map_uuid, name, url. Optional layer_id (a bare integer or comma-"
+        "separated integer list is canonicalized to show: form on emit; to "
+        "use a different directive, prefix with show, hide, include, or "
+        "exclude). Optional params merges additional source parameters "
+        "(LAYERS, TIME, LAYERDEFS, mosaicRule). When attribute_variables is "
+        "provided, the ESRI service's actual layer name is fetched and used "
+        "as the attribute-variables key."
+    ),
+    tags=["map", "layer", "esri-image"],
+)
+def add_esri_image_layer(
+    map_uuid: Annotated[str, Field(description="UUID returned by create_map_visualization")],
+    name: Annotated[str, Field(description="Display name for the layer in the layer control")],
+    url: Annotated[str, Field(description="ArcGIS REST service URL")],
+    layer_id: Annotated[Optional[str], Field(description=(
+        "Layer identifier within the service. A bare integer or comma-separated "
+        "integer list is canonicalized to show: form on emit. To use a different "
+        "directive, prefix with show, hide, include, or exclude (e.g., hide:0,1)."
+    ))] = None,
+    params: Annotated[Optional[Union[Dict[str, Any], str]], Field(description=(
+        "Additional source parameters merged into source.props.params "
+        "(LAYERS, TIME, LAYERDEFS, mosaicRule). Supports ${variable_name}."
+    ))] = None,
+    queryable: Annotated[bool, Field(description="Enable click-to-query on this layer")] = False,
+    attribute_variables: Annotated[Optional[Union[Dict[str, str], str]], Field(description=(
+        "Maps feature attribute names to dashboard variable names. The "
+        "service's actual layer name is fetched from {url}?f=json and used "
+        "as the attribute-variables key."
+    ))] = None,
+    opacity: Annotated[Optional[float], Field(description="Layer opacity from 0 to 1")] = None,
+    min_zoom: Annotated[Optional[int], Field(description="Minimum zoom level at which the layer is visible")] = None,
+    max_zoom: Annotated[Optional[int], Field(description="Maximum zoom level at which the layer is visible")] = None,
+    visible: Annotated[Optional[bool], Field(description="Initial layer visibility")] = None,
+    legend: Annotated[Optional[Union[str, Dict[str, Any]]], Field(description="Layer legend")] = None,
+    style: Annotated[Optional[Union[str, Dict[str, Any]]], Field(description="Layer style")] = None,
+    source_props: Annotated[Optional[Union[Dict[str, Any], str]], Field(description="Advanced source.props")] = None,
+    layer_props: Annotated[Optional[Union[Dict[str, Any], str]], Field(description="Advanced layer-level props")] = None,
+    popup_options: Annotated[Optional[Union[Dict[str, Any], str]], Field(description="Click-popup options")] = None,
+) -> Dict[str, Any]:
+    """Add an ESRI Image and Map Service layer to an existing map."""
+    uuid_error = _validate_uuid_arg(map_uuid, "map_uuid", "create_map_visualization")
+    if uuid_error:
+        return {"error": uuid_error}
+    LOGGER.info("add_esri_image_layer: map_uuid=%s, name=%s", map_uuid, name)
 
-    if source_type == "WMS":
-        wms_params = {"LAYERS": wms_layers}
-        wms_params.update(extra_params)
-        _flat_source_props = {"url": url, "params": wms_params}
+    coercible = {
+        "params": params, "attribute_variables": attribute_variables,
+        "source_props": source_props, "layer_props": layer_props,
+        "popup_options": popup_options,
+    }
+    err = _coerce_json_strings(coercible)
+    if err:
+        return err
+    params = coercible["params"]
+    attribute_variables = coercible["attribute_variables"]
+    source_props = coercible["source_props"]
+    layer_props = coercible["layer_props"]
+    popup_options = coercible["popup_options"]
 
-    elif source_type == "ESRI Image and Map Service":
-        esri_params = {}
-        if layer_id:
-            esri_params["LAYERS"] = layer_id
-        esri_params.update(extra_params)
-        # Canonicalize LAYERS post-overlay so values from either input path
-        # (layer_id parameter OR LLM-supplied params={"LAYERS": ...}) land
-        # consistently in the persisted `show:` form. Bare ID lists ("0",
-        # "0,1") get the implicit `show:` prefix; values that already begin
-        # with a recognized directive are left unchanged. Narrow scope:
-        # only `LAYERS` is canonicalized; other LLM-supplied params keys
-        # continue to pass through verbatim per existing semantics.
-        # See plan docs/plans/2026-05-05-001-fix-esri-layers-directive-parsing-plan.md.
-        if "LAYERS" in esri_params:
-            layers_value = esri_params["LAYERS"]
-            # Coerce non-string LAYERS values (e.g. an LLM passing
-            # `params={"LAYERS": 0}` as an integer) before the prefix check.
-            if not isinstance(layers_value, str):
-                layers_value = str(layers_value)
-            layers_value = layers_value.strip()
-            if layers_value and not layers_value.startswith(
-                _RECOGNIZED_LAYERS_DIRECTIVES
-            ):
-                esri_params["LAYERS"] = "show:" + layers_value
-            else:
-                esri_params["LAYERS"] = layers_value
-        _flat_source_props = {"url": url}
-        if esri_params:
-            _flat_source_props["params"] = esri_params
+    advanced_err = _validate_advanced_layer_dicts(
+        source_type="ESRI Image and Map Service",
+        layer_props=layer_props, source_props=source_props,
+        popup_options=popup_options, opacity=opacity,
+        min_zoom=min_zoom, max_zoom=max_zoom,
+    )
+    if advanced_err:
+        return advanced_err
 
-    elif source_type == "ESRI Feature Service":
-        # Plan 2026-05-07-003 Unit A: nest user-supplied params under
-        # source.props.params (mirrors WMS line 1151-1154 and ESRI Image
-        # and Map Service line 1182-1184). Pre-fix, this branch flattened
-        # extra_params at the top of source.props; the renderer reads from
-        # config.props.params?.WHERE / .TIME (ModuleLoader.js:305-311) so
-        # WHERE/TIME clauses were silently ignored. Same producer/consumer
-        # shape-asymmetry family as args-wrapper-asymmetry-patch-reducer.
-        _flat_source_props = {"url": url, "layer": int(layer_id)}
-        if extra_params:
-            _flat_source_props["params"] = extra_params
-
-    elif source_type == "GeoJSON":
-        # GeoJSON goes on the source object directly (not under props).
-        # The builder's set_geojson method enforces this placement.
-        if geojson_url:
-            geojson_payload = geojson_url  # string URL; validate_geojson accepts strings with "/"
+    extra_params = params if isinstance(params, dict) else {}
+    esri_params = {}
+    if layer_id:
+        esri_params["LAYERS"] = layer_id
+    esri_params.update(extra_params)
+    if "LAYERS" in esri_params:
+        layers_value = esri_params["LAYERS"]
+        if not isinstance(layers_value, str):
+            layers_value = str(layers_value)
+        layers_value = layers_value.strip()
+        if layers_value and not layers_value.startswith(_RECOGNIZED_LAYERS_DIRECTIVES):
+            esri_params["LAYERS"] = "show:" + layers_value
         else:
-            geojson_payload = dict(geojson)
-            if "crs" not in geojson_payload:
-                geojson_payload["crs"] = {
-                    "type": "name",
-                    "properties": {"name": "EPSG:4326"},
-                }
+            esri_params["LAYERS"] = layers_value
+    flat_source_props = {"url": url}
+    if esri_params:
+        flat_source_props["params"] = esri_params
 
-    elif source_type == "KML":
-        _flat_source_props = {"url": url}
-
-    elif source_type == "Image Tile":
-        _flat_source_props = {"url": url}
-
-    elif source_type == "Vector Tile":
-        _flat_source_props = {"urls": url}
-
-    elif source_type in ("PMTiles Vector", "PMTiles Raster"):
-        _flat_source_props = {"url": url}
-
-    elif source_type == "GeoTIFF":
-        if not (isinstance(source_props, dict) and source_props.get("sources")):
-            _flat_source_props = {"sources": [{"url": url}]}
-
-    elif source_type == "Static Image":
-        _flat_source_props = {"url": url}
-        # projection + imageExtent come through `params`; merge them
-        # alongside `url` so they all land in source.props.
-        _flat_source_props.update(extra_params)
-
-    # ------------------------------------------------------------------
-    # Phase 2: Resolve ESRI attribute-variable layer name BEFORE delegation,
-    # so the builder gets the final attr_key. Uses the canonicalized LAYERS
-    # value computed above (catches both input paths uniformly).
-    # ------------------------------------------------------------------
     attr_key = name
-    if attribute_variables and source_type == "ESRI Image and Map Service":
-        effective_layer_id = _flat_source_props.get("params", {}).get("LAYERS")
+    if attribute_variables:
+        effective_layer_id = flat_source_props.get("params", {}).get("LAYERS")
         resolved = _resolve_esri_layer_name(url, effective_layer_id)
         if resolved:
             attr_key = resolved
@@ -1320,128 +1259,901 @@ def add_map_service_layer(
                 name,
             )
 
-    # ------------------------------------------------------------------
-    # Phase 2.5: Validate the advanced dicts via the module-level helper.
-    # Returns None on success or {"error": ...} on validation failure.
-    # See _validate_advanced_layer_dicts for the full contract.
-    # ------------------------------------------------------------------
-    validation_error = _validate_advanced_layer_dicts(
-        source_type=source_type,
-        layer_props=layer_props,
-        source_props=source_props,
-        popup_options=popup_options,
-        opacity=opacity,
-        min_zoom=min_zoom,
-        max_zoom=max_zoom,
-    )
-    if validation_error is not None:
-        return validation_error
-    # Re-derive popup-options sub-dicts for Phase 3's builder loop.
-    # Cheap (two .get calls) and keeps the helper's API focused on
-    # the validation contract rather than threading derived values.
-    _popup_aliases = (popup_options or {}).get("aliases") or {}
-    _popup_omit = (popup_options or {}).get("omit") or {}
-
-    # ------------------------------------------------------------------
-    # Phase 3: Delegate to LayerConfigurationBuilder. Builder owns
-    # configuration.type, source.type, source.props placement, GeoJSON
-    # placement at source.geojson, and required-field validation as a
-    # secondary safety net.
-    # ------------------------------------------------------------------
     try:
-        builder = LayerConfigurationBuilder(name, source_type)
-        # Merge flat source props with advanced source_props dict. Advanced
-        # dict overrides flat where keys overlap — caller-supplied data
-        # wins over derived defaults. (Conflict on layer-level scalars is
-        # rejected above; source-level overlap is more often legitimate
-        # — e.g., advanced `projection` on top of a default URL-only
-        # source_props.)
-        if _flat_source_props:
-            builder.set_source_properties(**_flat_source_props)
+        builder = LayerConfigurationBuilder(name, "ESRI Image and Map Service")
+        builder.set_source_properties(**flat_source_props)
         if source_props:
-            # Plan 2026-05-07-004 Unit B: GeoTIFF auto-legend metadata
-            # (`rampName`, `rampMin`, `rampMax`) is read by Map.js
-            # (visualizations) at source.<key> directly — NOT under
-            # source.props. Lift those keys out before passing the rest
-            # through set_source_properties; route them via the
-            # set_source_top_level_props builder method.
-            if source_type == "GeoTIFF":
-                _top_level_keys = {"rampName", "rampMin", "rampMax"}
-                top_level = {
-                    k: source_props[k]
-                    for k in _top_level_keys
-                    if k in source_props
-                }
-                nested = {
-                    k: v
-                    for k, v in source_props.items()
-                    if k not in _top_level_keys
-                }
-                if nested:
-                    builder.set_source_properties(**nested)
-                if top_level:
-                    builder.set_source_top_level_props(**top_level)
-            else:
-                builder.set_source_properties(**source_props)
-        if geojson_payload is not None:
-            builder.set_geojson(geojson_payload)
-        if opacity is not None:
-            builder.set_opacity(opacity)
-        if min_zoom is not None:
-            builder.set_min_zoom(min_zoom)
-        if max_zoom is not None:
-            builder.set_max_zoom(max_zoom)
-        if visible is not None:
-            builder.set_layer_visibility(visible)
-        # Apply layer_props after the flat scalars so the conflict check
-        # above is the only path through which both can be present.
-        # Dispatch via _LAYER_PROP_BUILDER_METHODS keeps the allowlist
-        # and the apply step coupled in one structure (see module-level
-        # comment); a future allowlist addition without a dispatch entry
-        # is caught by the drift test, not silently no-op'd.
-        if layer_props:
-            for key, val in layer_props.items():
-                getattr(builder, _LAYER_PROP_BUILDER_METHODS[key])(val)
-        if queryable:
-            builder.set_queryable(True)
-        if legend is not None:
-            builder.set_legend(legend)
-        if style is not None:
-            builder.set_style(style)
-        if attribute_variables:
-            for key, variable in attribute_variables.items():
-                builder.add_attribute_variable(key, variable, attr_key)
-        # Popup options: aliases + omitted fields.
-        for layer_name, alias_map in _popup_aliases.items():
-            if not isinstance(alias_map, dict):
-                return {
-                    "error": (
-                        f"popup_options.aliases[{layer_name!r}] must be a dict "
-                        f"of field-name -> alias."
-                    )
-                }
-            for field, alias in alias_map.items():
-                builder.add_attribute_alias(field, alias, layer_name)
-        for layer_name, fields in _popup_omit.items():
-            if not isinstance(fields, list):
-                return {
-                    "error": (
-                        f"popup_options.omit[{layer_name!r}] must be a list "
-                        f"of field names."
-                    )
-                }
-            for field in fields:
-                builder.omit_popup_attribute(field, layer_name)
+            builder.set_source_properties(**source_props)
+        _apply_common_layer_options(
+            builder,
+            opacity=opacity, min_zoom=min_zoom, max_zoom=max_zoom,
+            visible=visible, queryable=queryable, legend=legend, style=style,
+            attribute_variables=attribute_variables, attr_key=attr_key,
+            layer_props=layer_props, popup_options=popup_options,
+        )
         layer_config = builder.build()
     except ValueError as err:
         return {"error": str(err)}
 
-    return {
-        "layer_update": {
-            "map_uuid": map_uuid,
-            "layer": layer_config,
-        }
+    return {"layer_update": {"map_uuid": map_uuid, "layer": layer_config}}
+
+
+# ---------------------------------------------------------------------------
+# ESRI Feature Service
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool(
+    name="add_esri_feature_layer",
+    description=(
+        "Add an ESRI Feature Service layer to an existing map. Required: "
+        "map_uuid, name, url, layer_id (the integer index of the layer within "
+        "the service, passed as a string and cast to int internally). Optional "
+        "params merges feature-query parameters (TIME, WHERE) into "
+        "source.props.params."
+    ),
+    tags=["map", "layer", "esri-feature"],
+)
+def add_esri_feature_layer(
+    map_uuid: Annotated[str, Field(description="UUID returned by create_map_visualization")],
+    name: Annotated[str, Field(description="Display name for the layer in the layer control")],
+    url: Annotated[str, Field(description="ArcGIS Feature Service URL")],
+    layer_id: Annotated[str, Field(description=(
+        "Integer layer index as a string (the int form is the persisted shape; "
+        "this string-typed parameter is cast to int internally)."
+    ))],
+    params: Annotated[Optional[Union[Dict[str, Any], str]], Field(description=(
+        "Feature-query parameters (TIME, WHERE) merged into source.props.params. "
+        "Supports ${variable_name}."
+    ))] = None,
+    queryable: Annotated[bool, Field(description="Enable click-to-query on this layer")] = False,
+    attribute_variables: Annotated[Optional[Union[Dict[str, str], str]], Field(description=(
+        "Maps feature attribute names to dashboard variable names."
+    ))] = None,
+    opacity: Annotated[Optional[float], Field(description="Layer opacity from 0 to 1")] = None,
+    min_zoom: Annotated[Optional[int], Field(description="Minimum zoom level")] = None,
+    max_zoom: Annotated[Optional[int], Field(description="Maximum zoom level")] = None,
+    visible: Annotated[Optional[bool], Field(description="Initial layer visibility")] = None,
+    legend: Annotated[Optional[Union[str, Dict[str, Any]]], Field(description="Layer legend")] = None,
+    style: Annotated[Optional[Union[str, Dict[str, Any]]], Field(description="Layer style")] = None,
+    source_props: Annotated[Optional[Union[Dict[str, Any], str]], Field(description="Advanced source.props")] = None,
+    layer_props: Annotated[Optional[Union[Dict[str, Any], str]], Field(description="Advanced layer-level props")] = None,
+    popup_options: Annotated[Optional[Union[Dict[str, Any], str]], Field(description="Click-popup options")] = None,
+) -> Dict[str, Any]:
+    """Add an ESRI Feature Service layer to an existing map."""
+    uuid_error = _validate_uuid_arg(map_uuid, "map_uuid", "create_map_visualization")
+    if uuid_error:
+        return {"error": uuid_error}
+    LOGGER.info("add_esri_feature_layer: map_uuid=%s, name=%s", map_uuid, name)
+
+    coercible = {
+        "params": params, "attribute_variables": attribute_variables,
+        "source_props": source_props, "layer_props": layer_props,
+        "popup_options": popup_options,
     }
+    err = _coerce_json_strings(coercible)
+    if err:
+        return err
+    params = coercible["params"]
+    attribute_variables = coercible["attribute_variables"]
+    source_props = coercible["source_props"]
+    layer_props = coercible["layer_props"]
+    popup_options = coercible["popup_options"]
+
+    advanced_err = _validate_advanced_layer_dicts(
+        source_type="ESRI Feature Service",
+        layer_props=layer_props, source_props=source_props,
+        popup_options=popup_options, opacity=opacity,
+        min_zoom=min_zoom, max_zoom=max_zoom,
+    )
+    if advanced_err:
+        return advanced_err
+
+    try:
+        layer_index = int(layer_id)
+    except (TypeError, ValueError):
+        return {"error": (
+            "layer_id must be an integer index (passed as string and cast). "
+            f"Got: {layer_id!r}."
+        )}
+
+    extra_params = params if isinstance(params, dict) else {}
+    flat_source_props = {"url": url, "layer": layer_index}
+    if extra_params:
+        flat_source_props["params"] = extra_params
+
+    try:
+        builder = LayerConfigurationBuilder(name, "ESRI Feature Service")
+        builder.set_source_properties(**flat_source_props)
+        if source_props:
+            builder.set_source_properties(**source_props)
+        _apply_common_layer_options(
+            builder,
+            opacity=opacity, min_zoom=min_zoom, max_zoom=max_zoom,
+            visible=visible, queryable=queryable, legend=legend, style=style,
+            attribute_variables=attribute_variables, attr_key=name,
+            layer_props=layer_props, popup_options=popup_options,
+        )
+        layer_config = builder.build()
+    except ValueError as err:
+        return {"error": str(err)}
+
+    return {"layer_update": {"map_uuid": map_uuid, "layer": layer_config}}
+
+
+# ---------------------------------------------------------------------------
+# GeoJSON
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool(
+    name="add_geojson_layer",
+    description=(
+        "Add a GeoJSON layer to an existing map. Required: map_uuid, name, "
+        "and exactly one of geojson (inline FeatureCollection or Feature dict) "
+        "or geojson_url (a URL the frontend fetches at render time). When "
+        "the inline payload is missing a CRS field, EPSG:4326 is auto-assigned. "
+        "Inline GeoJSON is subject to feature-count and byte-size caps "
+        "(env-overridable via TETHYSDASH_MCP_GEOJSON_MAX_FEATURES and "
+        "TETHYSDASH_MCP_GEOJSON_MAX_BYTES)."
+    ),
+    tags=["map", "layer", "geojson"],
+)
+def add_geojson_layer(
+    map_uuid: Annotated[str, Field(description="UUID returned by create_map_visualization")],
+    name: Annotated[str, Field(description="Display name for the layer in the layer control")],
+    geojson: Annotated[Optional[Union[Dict[str, Any], str]], Field(description=(
+        "Inline GeoJSON FeatureCollection or Feature object. Required when "
+        "geojson_url is not provided."
+    ))] = None,
+    geojson_url: Annotated[Optional[str], Field(description=(
+        "URL to a GeoJSON file. Required when geojson is not provided. "
+        "The frontend fetches the URL at render time."
+    ))] = None,
+    queryable: Annotated[bool, Field(description="Enable click-to-query on this layer")] = False,
+    attribute_variables: Annotated[Optional[Union[Dict[str, str], str]], Field(description=(
+        "Maps feature attribute names to dashboard variable names."
+    ))] = None,
+    opacity: Annotated[Optional[float], Field(description="Layer opacity from 0 to 1")] = None,
+    min_zoom: Annotated[Optional[int], Field(description="Minimum zoom level")] = None,
+    max_zoom: Annotated[Optional[int], Field(description="Maximum zoom level")] = None,
+    visible: Annotated[Optional[bool], Field(description="Initial layer visibility")] = None,
+    legend: Annotated[Optional[Union[str, Dict[str, Any]]], Field(description="Layer legend")] = None,
+    style: Annotated[Optional[Union[str, Dict[str, Any]]], Field(description="Layer style")] = None,
+    source_props: Annotated[Optional[Union[Dict[str, Any], str]], Field(description="Advanced source.props")] = None,
+    layer_props: Annotated[Optional[Union[Dict[str, Any], str]], Field(description="Advanced layer-level props")] = None,
+    popup_options: Annotated[Optional[Union[Dict[str, Any], str]], Field(description="Click-popup options")] = None,
+) -> Dict[str, Any]:
+    """Add a GeoJSON layer to an existing map."""
+    uuid_error = _validate_uuid_arg(map_uuid, "map_uuid", "create_map_visualization")
+    if uuid_error:
+        return {"error": uuid_error}
+    LOGGER.info("add_geojson_layer: map_uuid=%s, name=%s", map_uuid, name)
+
+    coercible = {
+        "geojson": geojson, "attribute_variables": attribute_variables,
+        "source_props": source_props, "layer_props": layer_props,
+        "popup_options": popup_options,
+    }
+    err = _coerce_json_strings(coercible)
+    if err:
+        return err
+    geojson = coercible["geojson"]
+    attribute_variables = coercible["attribute_variables"]
+    source_props = coercible["source_props"]
+    layer_props = coercible["layer_props"]
+    popup_options = coercible["popup_options"]
+
+    if not geojson and not geojson_url:
+        return {"error": (
+            "add_geojson_layer requires either 'geojson' (inline) or "
+            "'geojson_url' (URL). Pass exactly one."
+        )}
+    if geojson and geojson_url:
+        return {"error": (
+            "add_geojson_layer accepts geojson OR geojson_url, not both. "
+            "Pick one."
+        )}
+
+    advanced_err = _validate_advanced_layer_dicts(
+        source_type="GeoJSON",
+        layer_props=layer_props, source_props=source_props,
+        popup_options=popup_options, opacity=opacity,
+        min_zoom=min_zoom, max_zoom=max_zoom,
+    )
+    if advanced_err:
+        return advanced_err
+
+    if geojson_url:
+        geojson_payload = geojson_url
+    else:
+        if not isinstance(geojson, dict):
+            return {"error": "geojson must be a dict (or JSON-string dict)."}
+        # Apply size caps for inline GeoJSON.
+        max_features = _env_int("TETHYSDASH_MCP_GEOJSON_MAX_FEATURES", GEOJSON_MAX_FEATURES)
+        max_bytes = _env_int("TETHYSDASH_MCP_GEOJSON_MAX_BYTES", GEOJSON_MAX_BYTES)
+        feature_count = (
+            len(geojson.get("features", []))
+            if isinstance(geojson.get("features"), list)
+            else 0
+        )
+        if feature_count > max_features:
+            return {"error": (
+                f"GeoJSON exceeds inline feature cap ({feature_count} > "
+                f"{max_features}). Host the GeoJSON externally and pass "
+                f"geojson_url, or override TETHYSDASH_MCP_GEOJSON_MAX_FEATURES."
+            )}
+        try:
+            payload_bytes = len(json.dumps(geojson).encode("utf-8"))
+        except (TypeError, ValueError) as exc:
+            return {"error": f"GeoJSON is not JSON-serializable: {exc}."}
+        if payload_bytes > max_bytes:
+            return {"error": (
+                f"GeoJSON exceeds inline byte cap ({payload_bytes} > "
+                f"{max_bytes}). Host the GeoJSON externally and pass "
+                f"geojson_url, or override TETHYSDASH_MCP_GEOJSON_MAX_BYTES."
+            )}
+        geojson_payload = dict(geojson)
+        if "crs" not in geojson_payload:
+            geojson_payload["crs"] = {
+                "type": "name",
+                "properties": {"name": "EPSG:4326"},
+            }
+
+    try:
+        builder = LayerConfigurationBuilder(name, "GeoJSON")
+        builder.set_geojson(geojson_payload)
+        if source_props:
+            builder.set_source_properties(**source_props)
+        _apply_common_layer_options(
+            builder,
+            opacity=opacity, min_zoom=min_zoom, max_zoom=max_zoom,
+            visible=visible, queryable=queryable, legend=legend, style=style,
+            attribute_variables=attribute_variables, attr_key=name,
+            layer_props=layer_props, popup_options=popup_options,
+        )
+        layer_config = builder.build()
+    except ValueError as err:
+        return {"error": str(err)}
+
+    return {"layer_update": {"map_uuid": map_uuid, "layer": layer_config}}
+
+
+# ---------------------------------------------------------------------------
+# KML
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool(
+    name="add_kml_layer",
+    description=(
+        "Add a KML layer to an existing map. Required: map_uuid, name, url. "
+        "KML layers do not accept a `params` argument. Use source_props for "
+        "advanced source-side properties (attributions, projection)."
+    ),
+    tags=["map", "layer", "kml"],
+)
+def add_kml_layer(
+    map_uuid: Annotated[str, Field(description="UUID returned by create_map_visualization")],
+    name: Annotated[str, Field(description="Display name for the layer in the layer control")],
+    url: Annotated[str, Field(description="KML URL")],
+    queryable: Annotated[bool, Field(description="Enable click-to-query on this layer")] = False,
+    attribute_variables: Annotated[Optional[Union[Dict[str, str], str]], Field(description=(
+        "Maps feature attribute names to dashboard variable names."
+    ))] = None,
+    opacity: Annotated[Optional[float], Field(description="Layer opacity from 0 to 1")] = None,
+    min_zoom: Annotated[Optional[int], Field(description="Minimum zoom level")] = None,
+    max_zoom: Annotated[Optional[int], Field(description="Maximum zoom level")] = None,
+    visible: Annotated[Optional[bool], Field(description="Initial layer visibility")] = None,
+    legend: Annotated[Optional[Union[str, Dict[str, Any]]], Field(description="Layer legend")] = None,
+    style: Annotated[Optional[Union[str, Dict[str, Any]]], Field(description="Layer style")] = None,
+    source_props: Annotated[Optional[Union[Dict[str, Any], str]], Field(description="Advanced source.props")] = None,
+    layer_props: Annotated[Optional[Union[Dict[str, Any], str]], Field(description="Advanced layer-level props")] = None,
+    popup_options: Annotated[Optional[Union[Dict[str, Any], str]], Field(description="Click-popup options")] = None,
+) -> Dict[str, Any]:
+    """Add a KML layer to an existing map."""
+    uuid_error = _validate_uuid_arg(map_uuid, "map_uuid", "create_map_visualization")
+    if uuid_error:
+        return {"error": uuid_error}
+    LOGGER.info("add_kml_layer: map_uuid=%s, name=%s", map_uuid, name)
+
+    coercible = {
+        "attribute_variables": attribute_variables, "source_props": source_props,
+        "layer_props": layer_props, "popup_options": popup_options,
+    }
+    err = _coerce_json_strings(coercible)
+    if err:
+        return err
+    attribute_variables = coercible["attribute_variables"]
+    source_props = coercible["source_props"]
+    layer_props = coercible["layer_props"]
+    popup_options = coercible["popup_options"]
+
+    advanced_err = _validate_advanced_layer_dicts(
+        source_type="KML",
+        layer_props=layer_props, source_props=source_props,
+        popup_options=popup_options, opacity=opacity,
+        min_zoom=min_zoom, max_zoom=max_zoom,
+    )
+    if advanced_err:
+        return advanced_err
+
+    try:
+        builder = LayerConfigurationBuilder(name, "KML")
+        builder.set_source_properties(url=url)
+        if source_props:
+            builder.set_source_properties(**source_props)
+        _apply_common_layer_options(
+            builder,
+            opacity=opacity, min_zoom=min_zoom, max_zoom=max_zoom,
+            visible=visible, queryable=queryable, legend=legend, style=style,
+            attribute_variables=attribute_variables, attr_key=name,
+            layer_props=layer_props, popup_options=popup_options,
+        )
+        layer_config = builder.build()
+    except ValueError as err:
+        return {"error": str(err)}
+
+    return {"layer_update": {"map_uuid": map_uuid, "layer": layer_config}}
+
+
+# ---------------------------------------------------------------------------
+# Image Tile
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool(
+    name="add_image_tile_layer",
+    description=(
+        "Add an Image Tile (XYZ-style raster tile) layer to an existing map. "
+        "Required: map_uuid, name, url. Image Tile layers do not accept a "
+        "`params` argument. Use source_props for advanced source-side properties."
+    ),
+    tags=["map", "layer", "image-tile"],
+)
+def add_image_tile_layer(
+    map_uuid: Annotated[str, Field(description="UUID returned by create_map_visualization")],
+    name: Annotated[str, Field(description="Display name for the layer in the layer control")],
+    url: Annotated[str, Field(description="Image Tile URL template (with {x}, {y}, {z} placeholders)")],
+    queryable: Annotated[bool, Field(description="Enable click-to-query on this layer")] = False,
+    attribute_variables: Annotated[Optional[Union[Dict[str, str], str]], Field(description="Attribute -> variable map")] = None,
+    opacity: Annotated[Optional[float], Field(description="Layer opacity from 0 to 1")] = None,
+    min_zoom: Annotated[Optional[int], Field(description="Minimum zoom level")] = None,
+    max_zoom: Annotated[Optional[int], Field(description="Maximum zoom level")] = None,
+    visible: Annotated[Optional[bool], Field(description="Initial layer visibility")] = None,
+    legend: Annotated[Optional[Union[str, Dict[str, Any]]], Field(description="Layer legend")] = None,
+    style: Annotated[Optional[Union[str, Dict[str, Any]]], Field(description="Layer style")] = None,
+    source_props: Annotated[Optional[Union[Dict[str, Any], str]], Field(description="Advanced source.props")] = None,
+    layer_props: Annotated[Optional[Union[Dict[str, Any], str]], Field(description="Advanced layer-level props")] = None,
+    popup_options: Annotated[Optional[Union[Dict[str, Any], str]], Field(description="Click-popup options")] = None,
+) -> Dict[str, Any]:
+    """Add an Image Tile layer to an existing map."""
+    uuid_error = _validate_uuid_arg(map_uuid, "map_uuid", "create_map_visualization")
+    if uuid_error:
+        return {"error": uuid_error}
+    LOGGER.info("add_image_tile_layer: map_uuid=%s, name=%s", map_uuid, name)
+
+    coercible = {
+        "attribute_variables": attribute_variables, "source_props": source_props,
+        "layer_props": layer_props, "popup_options": popup_options,
+    }
+    err = _coerce_json_strings(coercible)
+    if err:
+        return err
+    attribute_variables = coercible["attribute_variables"]
+    source_props = coercible["source_props"]
+    layer_props = coercible["layer_props"]
+    popup_options = coercible["popup_options"]
+
+    advanced_err = _validate_advanced_layer_dicts(
+        source_type="Image Tile",
+        layer_props=layer_props, source_props=source_props,
+        popup_options=popup_options, opacity=opacity,
+        min_zoom=min_zoom, max_zoom=max_zoom,
+    )
+    if advanced_err:
+        return advanced_err
+
+    try:
+        builder = LayerConfigurationBuilder(name, "Image Tile")
+        builder.set_source_properties(url=url)
+        if source_props:
+            builder.set_source_properties(**source_props)
+        _apply_common_layer_options(
+            builder,
+            opacity=opacity, min_zoom=min_zoom, max_zoom=max_zoom,
+            visible=visible, queryable=queryable, legend=legend, style=style,
+            attribute_variables=attribute_variables, attr_key=name,
+            layer_props=layer_props, popup_options=popup_options,
+        )
+        layer_config = builder.build()
+    except ValueError as err:
+        return {"error": str(err)}
+
+    return {"layer_update": {"map_uuid": map_uuid, "layer": layer_config}}
+
+
+# ---------------------------------------------------------------------------
+# Vector Tile
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool(
+    name="add_vector_tile_layer",
+    description=(
+        "Add a Vector Tile layer to an existing map. Required: map_uuid, name, "
+        "url. The url at the tool surface is a single template (or comma-"
+        "separated list of templates with {x}/{y}/{z} placeholders) and is "
+        "stored as `urls` in the persisted source.props (renamed at the "
+        "MCP boundary). Vector Tile layers do not accept a `params` argument."
+    ),
+    tags=["map", "layer", "vector-tile"],
+)
+def add_vector_tile_layer(
+    map_uuid: Annotated[str, Field(description="UUID returned by create_map_visualization")],
+    name: Annotated[str, Field(description="Display name for the layer in the layer control")],
+    url: Annotated[str, Field(description=(
+        "Vector tile URL template (with {x}, {y}/{-y}, {z} placeholders) or "
+        "comma-separated list of templates."
+    ))],
+    queryable: Annotated[bool, Field(description="Enable click-to-query on this layer")] = False,
+    attribute_variables: Annotated[Optional[Union[Dict[str, str], str]], Field(description="Attribute -> variable map")] = None,
+    opacity: Annotated[Optional[float], Field(description="Layer opacity from 0 to 1")] = None,
+    min_zoom: Annotated[Optional[int], Field(description="Minimum zoom level")] = None,
+    max_zoom: Annotated[Optional[int], Field(description="Maximum zoom level")] = None,
+    visible: Annotated[Optional[bool], Field(description="Initial layer visibility")] = None,
+    legend: Annotated[Optional[Union[str, Dict[str, Any]]], Field(description="Layer legend")] = None,
+    style: Annotated[Optional[Union[str, Dict[str, Any]]], Field(description="Layer style")] = None,
+    source_props: Annotated[Optional[Union[Dict[str, Any], str]], Field(description="Advanced source.props")] = None,
+    layer_props: Annotated[Optional[Union[Dict[str, Any], str]], Field(description="Advanced layer-level props")] = None,
+    popup_options: Annotated[Optional[Union[Dict[str, Any], str]], Field(description="Click-popup options")] = None,
+) -> Dict[str, Any]:
+    """Add a Vector Tile layer to an existing map."""
+    uuid_error = _validate_uuid_arg(map_uuid, "map_uuid", "create_map_visualization")
+    if uuid_error:
+        return {"error": uuid_error}
+    LOGGER.info("add_vector_tile_layer: map_uuid=%s, name=%s", map_uuid, name)
+
+    coercible = {
+        "attribute_variables": attribute_variables, "source_props": source_props,
+        "layer_props": layer_props, "popup_options": popup_options,
+    }
+    err = _coerce_json_strings(coercible)
+    if err:
+        return err
+    attribute_variables = coercible["attribute_variables"]
+    source_props = coercible["source_props"]
+    layer_props = coercible["layer_props"]
+    popup_options = coercible["popup_options"]
+
+    advanced_err = _validate_advanced_layer_dicts(
+        source_type="Vector Tile",
+        layer_props=layer_props, source_props=source_props,
+        popup_options=popup_options, opacity=opacity,
+        min_zoom=min_zoom, max_zoom=max_zoom,
+    )
+    if advanced_err:
+        return advanced_err
+
+    try:
+        builder = LayerConfigurationBuilder(name, "Vector Tile")
+        # Tool surface uses singular `url`; persisted shape uses `urls`.
+        builder.set_source_properties(urls=url)
+        if source_props:
+            builder.set_source_properties(**source_props)
+        _apply_common_layer_options(
+            builder,
+            opacity=opacity, min_zoom=min_zoom, max_zoom=max_zoom,
+            visible=visible, queryable=queryable, legend=legend, style=style,
+            attribute_variables=attribute_variables, attr_key=name,
+            layer_props=layer_props, popup_options=popup_options,
+        )
+        layer_config = builder.build()
+    except ValueError as err:
+        return {"error": str(err)}
+
+    return {"layer_update": {"map_uuid": map_uuid, "layer": layer_config}}
+
+
+# ---------------------------------------------------------------------------
+# PMTiles Vector
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool(
+    name="add_pmtiles_vector_layer",
+    description=(
+        "Add a PMTiles Vector layer to an existing map. Required: map_uuid, "
+        "name, url. PMTiles Vector layers do not accept a `params` argument. "
+        "Use source_props for tileSize and other advanced source-side properties."
+    ),
+    tags=["map", "layer", "pmtiles-vector"],
+)
+def add_pmtiles_vector_layer(
+    map_uuid: Annotated[str, Field(description="UUID returned by create_map_visualization")],
+    name: Annotated[str, Field(description="Display name for the layer in the layer control")],
+    url: Annotated[str, Field(description="PMTiles Vector URL")],
+    queryable: Annotated[bool, Field(description="Enable click-to-query on this layer")] = False,
+    attribute_variables: Annotated[Optional[Union[Dict[str, str], str]], Field(description="Attribute -> variable map")] = None,
+    opacity: Annotated[Optional[float], Field(description="Layer opacity from 0 to 1")] = None,
+    min_zoom: Annotated[Optional[int], Field(description="Minimum zoom level")] = None,
+    max_zoom: Annotated[Optional[int], Field(description="Maximum zoom level")] = None,
+    visible: Annotated[Optional[bool], Field(description="Initial layer visibility")] = None,
+    legend: Annotated[Optional[Union[str, Dict[str, Any]]], Field(description="Layer legend")] = None,
+    style: Annotated[Optional[Union[str, Dict[str, Any]]], Field(description="Layer style")] = None,
+    source_props: Annotated[Optional[Union[Dict[str, Any], str]], Field(description="Advanced source.props (tileSize, attributions)")] = None,
+    layer_props: Annotated[Optional[Union[Dict[str, Any], str]], Field(description="Advanced layer-level props")] = None,
+    popup_options: Annotated[Optional[Union[Dict[str, Any], str]], Field(description="Click-popup options")] = None,
+) -> Dict[str, Any]:
+    """Add a PMTiles Vector layer to an existing map."""
+    uuid_error = _validate_uuid_arg(map_uuid, "map_uuid", "create_map_visualization")
+    if uuid_error:
+        return {"error": uuid_error}
+    LOGGER.info("add_pmtiles_vector_layer: map_uuid=%s, name=%s", map_uuid, name)
+
+    coercible = {
+        "attribute_variables": attribute_variables, "source_props": source_props,
+        "layer_props": layer_props, "popup_options": popup_options,
+    }
+    err = _coerce_json_strings(coercible)
+    if err:
+        return err
+    attribute_variables = coercible["attribute_variables"]
+    source_props = coercible["source_props"]
+    layer_props = coercible["layer_props"]
+    popup_options = coercible["popup_options"]
+
+    advanced_err = _validate_advanced_layer_dicts(
+        source_type="PMTiles Vector",
+        layer_props=layer_props, source_props=source_props,
+        popup_options=popup_options, opacity=opacity,
+        min_zoom=min_zoom, max_zoom=max_zoom,
+    )
+    if advanced_err:
+        return advanced_err
+
+    try:
+        builder = LayerConfigurationBuilder(name, "PMTiles Vector")
+        builder.set_source_properties(url=url)
+        if source_props:
+            builder.set_source_properties(**source_props)
+        _apply_common_layer_options(
+            builder,
+            opacity=opacity, min_zoom=min_zoom, max_zoom=max_zoom,
+            visible=visible, queryable=queryable, legend=legend, style=style,
+            attribute_variables=attribute_variables, attr_key=name,
+            layer_props=layer_props, popup_options=popup_options,
+        )
+        layer_config = builder.build()
+    except ValueError as err:
+        return {"error": str(err)}
+
+    return {"layer_update": {"map_uuid": map_uuid, "layer": layer_config}}
+
+
+# ---------------------------------------------------------------------------
+# PMTiles Raster
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool(
+    name="add_pmtiles_raster_layer",
+    description=(
+        "Add a PMTiles Raster layer to an existing map. Required: map_uuid, "
+        "name, url. PMTiles Raster layers do not accept a `params` argument. "
+        "Use source_props for tileSize and other advanced source-side properties."
+    ),
+    tags=["map", "layer", "pmtiles-raster"],
+)
+def add_pmtiles_raster_layer(
+    map_uuid: Annotated[str, Field(description="UUID returned by create_map_visualization")],
+    name: Annotated[str, Field(description="Display name for the layer in the layer control")],
+    url: Annotated[str, Field(description="PMTiles Raster URL")],
+    queryable: Annotated[bool, Field(description="Enable click-to-query on this layer")] = False,
+    attribute_variables: Annotated[Optional[Union[Dict[str, str], str]], Field(description="Attribute -> variable map")] = None,
+    opacity: Annotated[Optional[float], Field(description="Layer opacity from 0 to 1")] = None,
+    min_zoom: Annotated[Optional[int], Field(description="Minimum zoom level")] = None,
+    max_zoom: Annotated[Optional[int], Field(description="Maximum zoom level")] = None,
+    visible: Annotated[Optional[bool], Field(description="Initial layer visibility")] = None,
+    legend: Annotated[Optional[Union[str, Dict[str, Any]]], Field(description="Layer legend")] = None,
+    style: Annotated[Optional[Union[str, Dict[str, Any]]], Field(description="Layer style")] = None,
+    source_props: Annotated[Optional[Union[Dict[str, Any], str]], Field(description="Advanced source.props (tileSize, attributions)")] = None,
+    layer_props: Annotated[Optional[Union[Dict[str, Any], str]], Field(description="Advanced layer-level props")] = None,
+    popup_options: Annotated[Optional[Union[Dict[str, Any], str]], Field(description="Click-popup options")] = None,
+) -> Dict[str, Any]:
+    """Add a PMTiles Raster layer to an existing map."""
+    uuid_error = _validate_uuid_arg(map_uuid, "map_uuid", "create_map_visualization")
+    if uuid_error:
+        return {"error": uuid_error}
+    LOGGER.info("add_pmtiles_raster_layer: map_uuid=%s, name=%s", map_uuid, name)
+
+    coercible = {
+        "attribute_variables": attribute_variables, "source_props": source_props,
+        "layer_props": layer_props, "popup_options": popup_options,
+    }
+    err = _coerce_json_strings(coercible)
+    if err:
+        return err
+    attribute_variables = coercible["attribute_variables"]
+    source_props = coercible["source_props"]
+    layer_props = coercible["layer_props"]
+    popup_options = coercible["popup_options"]
+
+    advanced_err = _validate_advanced_layer_dicts(
+        source_type="PMTiles Raster",
+        layer_props=layer_props, source_props=source_props,
+        popup_options=popup_options, opacity=opacity,
+        min_zoom=min_zoom, max_zoom=max_zoom,
+    )
+    if advanced_err:
+        return advanced_err
+
+    try:
+        builder = LayerConfigurationBuilder(name, "PMTiles Raster")
+        builder.set_source_properties(url=url)
+        if source_props:
+            builder.set_source_properties(**source_props)
+        _apply_common_layer_options(
+            builder,
+            opacity=opacity, min_zoom=min_zoom, max_zoom=max_zoom,
+            visible=visible, queryable=queryable, legend=legend, style=style,
+            attribute_variables=attribute_variables, attr_key=name,
+            layer_props=layer_props, popup_options=popup_options,
+        )
+        layer_config = builder.build()
+    except ValueError as err:
+        return {"error": str(err)}
+
+    return {"layer_update": {"map_uuid": map_uuid, "layer": layer_config}}
+
+
+# ---------------------------------------------------------------------------
+# GeoTIFF
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool(
+    name="add_geotiff_layer",
+    description=(
+        "Add a GeoTIFF (Cloud Optimized GeoTIFF) raster layer to an existing "
+        "map. Required: map_uuid, name, and either url (for a single source) "
+        "or source_props={'sources': [{'url': ...}, ...]} (for multi-source "
+        "GeoTIFFs). The auto-legend ramp keys (ramp_name, ramp_min, ramp_max) "
+        "are stored at source-top-level so Map.js can render the colorbar; "
+        "OL WebGLTile derives the tile colorization at render time. "
+        "GeoTIFF layers do not accept a `params` argument."
+    ),
+    tags=["map", "layer", "geotiff"],
+)
+def add_geotiff_layer(
+    map_uuid: Annotated[str, Field(description="UUID returned by create_map_visualization")],
+    name: Annotated[str, Field(description="Display name for the layer in the layer control")],
+    url: Annotated[Optional[str], Field(description=(
+        "Cloud Optimized GeoTIFF URL. Either url or source_props.sources is required."
+    ))] = None,
+    bands: Annotated[Optional[str], Field(description=(
+        "Comma-separated band indices to render (e.g., '1,2,3'). Parsed at render time."
+    ))] = None,
+    nodata: Annotated[Optional[float], Field(description="NoData sentinel value (number)")] = None,
+    min: Annotated[Optional[float], Field(description="Minimum value for color scaling")] = None,
+    max: Annotated[Optional[float], Field(description="Maximum value for color scaling")] = None,
+    ramp_name: Annotated[Optional[str], Field(description=(
+        "Color ramp name for auto-legend rendering and tile colorization "
+        "(e.g., a registered ramp such as 'viridis'). Used when legend is 'default'."
+    ))] = None,
+    ramp_min: Annotated[Optional[float], Field(description="Minimum value for the auto-legend ramp")] = None,
+    ramp_max: Annotated[Optional[float], Field(description="Maximum value for the auto-legend ramp")] = None,
+    queryable: Annotated[bool, Field(description="Enable click-to-query on this layer")] = False,
+    attribute_variables: Annotated[Optional[Union[Dict[str, str], str]], Field(description="Attribute -> variable map")] = None,
+    opacity: Annotated[Optional[float], Field(description="Layer opacity from 0 to 1")] = None,
+    min_zoom: Annotated[Optional[int], Field(description="Minimum zoom level")] = None,
+    max_zoom: Annotated[Optional[int], Field(description="Maximum zoom level")] = None,
+    visible: Annotated[Optional[bool], Field(description="Initial layer visibility")] = None,
+    legend: Annotated[Optional[Union[str, Dict[str, Any]]], Field(description="Layer legend (use 'default' for auto-legend)")] = None,
+    style: Annotated[Optional[Union[str, Dict[str, Any]]], Field(description="Layer style")] = None,
+    source_props: Annotated[Optional[Union[Dict[str, Any], str]], Field(description=(
+        "Advanced source.props. Use {'sources': [{'url': ...}]} for multi-source "
+        "GeoTIFFs or to override flat fields. Flat params take precedence over "
+        "source_props for the same key."
+    ))] = None,
+    layer_props: Annotated[Optional[Union[Dict[str, Any], str]], Field(description="Advanced layer-level props")] = None,
+    popup_options: Annotated[Optional[Union[Dict[str, Any], str]], Field(description="Click-popup options")] = None,
+) -> Dict[str, Any]:
+    """Add a GeoTIFF raster layer to an existing map."""
+    uuid_error = _validate_uuid_arg(map_uuid, "map_uuid", "create_map_visualization")
+    if uuid_error:
+        return {"error": uuid_error}
+    LOGGER.info("add_geotiff_layer: map_uuid=%s, name=%s", map_uuid, name)
+
+    coercible = {
+        "attribute_variables": attribute_variables, "source_props": source_props,
+        "layer_props": layer_props, "popup_options": popup_options,
+    }
+    err = _coerce_json_strings(coercible)
+    if err:
+        return err
+    attribute_variables = coercible["attribute_variables"]
+    source_props = coercible["source_props"]
+    layer_props = coercible["layer_props"]
+    popup_options = coercible["popup_options"]
+
+    advanced_err = _validate_advanced_layer_dicts(
+        source_type="GeoTIFF",
+        layer_props=layer_props, source_props=source_props,
+        popup_options=popup_options, opacity=opacity,
+        min_zoom=min_zoom, max_zoom=max_zoom,
+    )
+    if advanced_err:
+        return advanced_err
+
+    geotiff_sources = (
+        source_props.get("sources") if isinstance(source_props, dict) else None
+    )
+    if geotiff_sources is not None:
+        if not isinstance(geotiff_sources, list) or not any(
+            isinstance(source, dict) and source.get("url")
+            for source in geotiff_sources
+        ):
+            return {"error": (
+                "add_geotiff_layer requires source_props.sources to be a "
+                "non-empty list of source dictionaries with a 'url' value, "
+                "or a single 'url' parameter."
+            )}
+    elif not url:
+        return {"error": (
+            "add_geotiff_layer requires either 'url' or "
+            "source_props={'sources': [{'url': ...}]}."
+        )}
+
+    # Build the source.props dict (excluding the top-level ramp keys).
+    flat_source_props: Dict[str, Any] = {}
+    if geotiff_sources is None:
+        flat_source_props["sources"] = [{"url": url}]
+    if bands is not None:
+        flat_source_props["bands"] = bands
+    if nodata is not None:
+        flat_source_props["nodata"] = nodata
+    if min is not None:
+        flat_source_props["min"] = min
+    if max is not None:
+        flat_source_props["max"] = max
+
+    # Top-level ramp keys (siblings of `type`/`props` on source).
+    top_level_props: Dict[str, Any] = {}
+    if ramp_name is not None:
+        top_level_props["rampName"] = ramp_name
+    if ramp_min is not None:
+        top_level_props["rampMin"] = ramp_min
+    if ramp_max is not None:
+        top_level_props["rampMax"] = ramp_max
+
+    try:
+        builder = LayerConfigurationBuilder(name, "GeoTIFF")
+        if flat_source_props:
+            builder.set_source_properties(**flat_source_props)
+        if top_level_props:
+            builder.set_source_top_level_props(**top_level_props)
+        if source_props:
+            # Merge advanced source_props. Split top-level vs nested (mirrors
+            # umbrella behavior for `rampName`/`rampMin`/`rampMax`).
+            _top_level_keys = {"rampName", "rampMin", "rampMax"}
+            sp_top = {k: source_props[k] for k in _top_level_keys if k in source_props}
+            sp_nested = {k: v for k, v in source_props.items() if k not in _top_level_keys}
+            if sp_nested:
+                builder.set_source_properties(**sp_nested)
+            if sp_top:
+                builder.set_source_top_level_props(**sp_top)
+        _apply_common_layer_options(
+            builder,
+            opacity=opacity, min_zoom=min_zoom, max_zoom=max_zoom,
+            visible=visible, queryable=queryable, legend=legend, style=style,
+            attribute_variables=attribute_variables, attr_key=name,
+            layer_props=layer_props, popup_options=popup_options,
+        )
+        layer_config = builder.build()
+    except ValueError as err:
+        return {"error": str(err)}
+
+    return {"layer_update": {"map_uuid": map_uuid, "layer": layer_config}}
+
+
+# ---------------------------------------------------------------------------
+# Static Image
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool(
+    name="add_static_image_layer",
+    description=(
+        "Add a Static Image overlay layer to an existing map. Required: "
+        "map_uuid, name, url, projection (an EPSG code string), image_extent "
+        "(comma-separated bounding-box string in the form 'minX,minY,maxX,maxY' "
+        "in the projection's coordinate system). Static Image layers do not "
+        "accept a `params` argument; projection and image_extent are flat "
+        "parameters at this tool's surface (renamed to `imageExtent` in the "
+        "persisted shape)."
+    ),
+    tags=["map", "layer", "static-image"],
+)
+def add_static_image_layer(
+    map_uuid: Annotated[str, Field(description="UUID returned by create_map_visualization")],
+    name: Annotated[str, Field(description="Display name for the layer in the layer control")],
+    url: Annotated[str, Field(description="Image URL")],
+    projection: Annotated[str, Field(description="EPSG code (e.g., the projection of the bounding box)")],
+    image_extent: Annotated[str, Field(description=(
+        "Bounding box as a comma-separated string 'minX,minY,maxX,maxY' "
+        "in the projection's coordinate system."
+    ))],
+    queryable: Annotated[bool, Field(description="Enable click-to-query on this layer")] = False,
+    attribute_variables: Annotated[Optional[Union[Dict[str, str], str]], Field(description="Attribute -> variable map")] = None,
+    opacity: Annotated[Optional[float], Field(description="Layer opacity from 0 to 1")] = None,
+    min_zoom: Annotated[Optional[int], Field(description="Minimum zoom level")] = None,
+    max_zoom: Annotated[Optional[int], Field(description="Maximum zoom level")] = None,
+    visible: Annotated[Optional[bool], Field(description="Initial layer visibility")] = None,
+    legend: Annotated[Optional[Union[str, Dict[str, Any]]], Field(description="Layer legend")] = None,
+    style: Annotated[Optional[Union[str, Dict[str, Any]]], Field(description="Layer style")] = None,
+    source_props: Annotated[Optional[Union[Dict[str, Any], str]], Field(description="Advanced source.props (attributions, etc.)")] = None,
+    layer_props: Annotated[Optional[Union[Dict[str, Any], str]], Field(description="Advanced layer-level props")] = None,
+    popup_options: Annotated[Optional[Union[Dict[str, Any], str]], Field(description="Click-popup options")] = None,
+) -> Dict[str, Any]:
+    """Add a Static Image overlay layer to an existing map."""
+    uuid_error = _validate_uuid_arg(map_uuid, "map_uuid", "create_map_visualization")
+    if uuid_error:
+        return {"error": uuid_error}
+    LOGGER.info("add_static_image_layer: map_uuid=%s, name=%s", map_uuid, name)
+
+    coercible = {
+        "attribute_variables": attribute_variables, "source_props": source_props,
+        "layer_props": layer_props, "popup_options": popup_options,
+    }
+    err = _coerce_json_strings(coercible)
+    if err:
+        return err
+    attribute_variables = coercible["attribute_variables"]
+    source_props = coercible["source_props"]
+    layer_props = coercible["layer_props"]
+    popup_options = coercible["popup_options"]
+
+    advanced_err = _validate_advanced_layer_dicts(
+        source_type="Static Image",
+        layer_props=layer_props, source_props=source_props,
+        popup_options=popup_options, opacity=opacity,
+        min_zoom=min_zoom, max_zoom=max_zoom,
+    )
+    if advanced_err:
+        return advanced_err
+
+    flat_source_props = {
+        "url": url,
+        "projection": projection,
+        "imageExtent": image_extent,
+    }
+
+    try:
+        builder = LayerConfigurationBuilder(name, "Static Image")
+        builder.set_source_properties(**flat_source_props)
+        if source_props:
+            builder.set_source_properties(**source_props)
+        _apply_common_layer_options(
+            builder,
+            opacity=opacity, min_zoom=min_zoom, max_zoom=max_zoom,
+            visible=visible, queryable=queryable, legend=legend, style=style,
+            attribute_variables=attribute_variables, attr_key=name,
+            layer_props=layer_props, popup_options=popup_options,
+        )
+        layer_config = builder.build()
+    except ValueError as err:
+        return {"error": str(err)}
+
+    return {"layer_update": {"map_uuid": map_uuid, "layer": layer_config}}
+
+
+# ---------------------------------------------------------------------------
+# (Reserved space — `add_map_service_layer` umbrella was deleted here per
+# Plan 2026-05-07-007. Tests previously targeting the umbrella have been
+# migrated to per-tool oracle tests in test_per_source_type_layer_tools.py.)
+# ---------------------------------------------------------------------------
+
 
 
 # ---------------------------------------------------------------------------

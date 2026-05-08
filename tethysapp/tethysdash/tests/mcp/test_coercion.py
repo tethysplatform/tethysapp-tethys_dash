@@ -4,23 +4,27 @@ LLMs sometimes pass dict-typed arguments as JSON strings instead of parsed
 objects.  MCP tools that accept Union[Dict, str] must coerce strings via
 json.loads and produce identical output to dict inputs.
 
-Tests exercise add_map_service_layer with params, geojson, and
-attribute_variables as both dict and JSON string inputs.
+Tests exercise the per-source-type layer tools (add_wms_layer,
+add_geojson_layer) with params, geojson, and attribute_variables as both
+dict and JSON string inputs. Plan 2026-05-07-007 (T3) replaced the
+umbrella add_map_service_layer with per-tool functions; coercion is
+shared through _coerce_json_strings in tethysdash_mcp_server.py.
 
 Layer 1 tests -- no browser, no server, milliseconds per test.
 """
 
 import json
 
-from tethysapp.tethysdash.mcp.tethysdash_mcp_server import add_map_service_layer
+from tethysapp.tethysdash.mcp.tethysdash_mcp_server import (
+    add_geojson_layer,
+    add_wms_layer,
+)
 from tethysapp.tethysdash.tests.mcp.test_visualization_contracts import (
     assert_layer_update,
 )
 
 
 # Stable real UUID v4 used by every coercion test below.
-# Plan 2026-05-07-002 added UUID-format validation to add_map_service_layer;
-# the prior fake "coercion-test-uuid-1234" string would now be rejected.
 TEST_MAP_UUID = "22222222-2222-4222-8222-222222222222"
 
 
@@ -32,9 +36,8 @@ class TestParamsCoercion:
     """params can be passed as dict or JSON string with identical results."""
 
     def _make_wms_layer(self, params_value):
-        return add_map_service_layer(
+        return add_wms_layer(
             map_uuid=TEST_MAP_UUID,
-            source_type="WMS",
             name="Test WMS",
             url="https://example.com/wms",
             wms_layers="workspace:layer",
@@ -88,9 +91,8 @@ class TestGeojsonCoercion:
     """geojson can be passed as dict or JSON string with identical results."""
 
     def _make_geojson_layer(self, geojson_value):
-        return add_map_service_layer(
+        return add_geojson_layer(
             map_uuid=TEST_MAP_UUID,
-            source_type="GeoJSON",
             name="Test GeoJSON",
             geojson=geojson_value,
         )
@@ -146,9 +148,8 @@ class TestAttributeVariablesCoercion:
     """attribute_variables can be passed as dict or JSON string."""
 
     def _make_queryable_layer(self, attr_vars_value):
-        return add_map_service_layer(
+        return add_geojson_layer(
             map_uuid=TEST_MAP_UUID,
-            source_type="GeoJSON",
             name="Queryable GeoJSON",
             geojson=SAMPLE_GEOJSON,
             queryable=True,

@@ -178,7 +178,13 @@ def test_known_renderable_tools_are_covered(real_mcp_tools):
         "create_text": "visualization",
         "create_custom_image": "visualization",
         "create_map_visualization": "visualization",
-        "add_map_service_layer": "map",  # also has "layer"; either satisfies
+        # Plan 2026-05-07-007 (T3): umbrella add_map_service_layer was
+        # replaced with 11 per-source-type tools. Verify a representative
+        # one carries the expected map/layer tags; all 11 follow the same
+        # tag convention (["map", "layer", "<source-type-slug>"]).
+        "add_wms_layer": "map",
+        "add_geotiff_layer": "map",
+        "add_geojson_layer": "map",
         "patch_visualization": "visualization",
         "render_custom_visualization": "visualization",
     }

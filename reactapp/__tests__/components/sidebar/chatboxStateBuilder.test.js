@@ -10,7 +10,6 @@ import {
   buildDashboardState,
   buildEditablePathsBySource,
   buildValueHintsBySource,
-  buildMapLayerArgRouting,
   buildDeltaSummary,
   buildPatchContext,
 } from "../../../components/sidebar/chatboxStateBuilder";
@@ -514,189 +513,6 @@ describe("buildValueHintsBySource", () => {
   });
 });
 
-describe("buildMapLayerArgRouting", () => {
-  // Plan 2026-05-07-005 (T2). Per-source-type arg-routing templates
-  // injected into the system message so the LLM knows WHICH ARG
-  // carries WHICH KEY before calling add_map_service_layer.
-  // Closes the LLM-routing failure-mode class structurally — today's
-  // GeoTIFF auto-legend bug had rampName/rampMin/rampMax landing in
-  // `style` instead of `source_props` (silent semantic failure).
-
-  const ALL_SOURCE_TYPES = [
-    "WMS",
-    "ESRI Image and Map Service",
-    "ESRI Feature Service",
-    "GeoJSON",
-    "KML",
-    "Image Tile",
-    "Vector Tile",
-    "PMTiles Vector",
-    "PMTiles Raster",
-    "GeoTIFF",
-    "Static Image",
-  ];
-
-  const NO_PARAMS_TYPES = [
-    "GeoJSON",
-    "KML",
-    "Image Tile",
-    "Vector Tile",
-    "PMTiles Vector",
-    "PMTiles Raster",
-  ];
-
-  test("returns {} when no Map item is in the dashboard_state", () => {
-    // Plotly-only dashboard — no map-layer routing relevant.
-    const items = [
-      { uuid: "p", source: "Inline Plotly", title: null },
-      { uuid: "v", source: "Variable Input", title: null },
-    ];
-    expect(buildMapLayerArgRouting(items)).toEqual({});
-  });
-
-  test("returns {} for empty / missing items", () => {
-    expect(buildMapLayerArgRouting([])).toEqual({});
-    expect(buildMapLayerArgRouting(undefined)).toEqual({});
-    expect(buildMapLayerArgRouting(null)).toEqual({});
-  });
-
-  test("emits all 11 source-type templates when a Map is present", () => {
-    const items = [{ uuid: "m", source: "Map", title: "x" }];
-    const routing = buildMapLayerArgRouting(items);
-    expect(Object.keys(routing).sort()).toEqual(
-      [...ALL_SOURCE_TYPES].sort(),
-    );
-  });
-
-  test("each entry has source_props (string array), params (array or null), ambiguity_warnings (array)", () => {
-    const items = [{ uuid: "m", source: "Map", title: "x" }];
-    const routing = buildMapLayerArgRouting(items);
-    for (const sourceType of ALL_SOURCE_TYPES) {
-      const entry = routing[sourceType];
-      expect(entry).toBeDefined();
-      // source_props: array of string field names.
-      expect(Array.isArray(entry.source_props)).toBe(true);
-      for (const k of entry.source_props) expect(typeof k).toBe("string");
-      // params: array of strings, or null when source type doesn't accept params.
-      if (entry.params !== null) {
-        expect(Array.isArray(entry.params)).toBe(true);
-        for (const k of entry.params) expect(typeof k).toBe("string");
-      }
-      // ambiguity_warnings: array of strings.
-      expect(Array.isArray(entry.ambiguity_warnings)).toBe(true);
-      for (const w of entry.ambiguity_warnings) expect(typeof w).toBe("string");
-    }
-  });
-
-  test("GeoTIFF entry routes ramp keys to source_props with style-vs-source_props warning", () => {
-    const routing = buildMapLayerArgRouting([
-      { uuid: "m", source: "Map", title: "x" },
-    ]);
-    const entry = routing["GeoTIFF"];
-    expect(entry.source_props).toEqual(
-      expect.arrayContaining([
-        "sources",
-        "attributions",
-        "bands",
-        "nodata",
-        "min",
-        "max",
-        "rampName",
-        "rampMin",
-        "rampMax",
-      ]),
-    );
-    expect(entry.params).toBeNull();
-    // The load-bearing warning — the bug this plan fixes.
-    const warnings = entry.ambiguity_warnings.join(" ");
-    expect(warnings).toMatch(/source_props/);
-    expect(warnings).toMatch(/style/);
-    expect(warnings).toMatch(/legend/);
-  });
-
-  test("WMS entry routes STYLES/TIME to params, with style-vs-params warning", () => {
-    const routing = buildMapLayerArgRouting([
-      { uuid: "m", source: "Map", title: "x" },
-    ]);
-    const entry = routing["WMS"];
-    expect(entry.params).toEqual(
-      expect.arrayContaining(["LAYERS", "STYLES", "TIME"]),
-    );
-    const warnings = entry.ambiguity_warnings.join(" ");
-    expect(warnings).toMatch(/STYLES/);
-    expect(warnings).toMatch(/params/);
-  });
-
-  test("ESRI Image and Map Service routes LAYERS/LAYERDEFS/TIME/mosaicRule to params", () => {
-    const routing = buildMapLayerArgRouting([
-      { uuid: "m", source: "Map", title: "x" },
-    ]);
-    const entry = routing["ESRI Image and Map Service"];
-    expect(entry.params).toEqual(
-      expect.arrayContaining(["LAYERS", "LAYERDEFS", "TIME", "mosaicRule"]),
-    );
-  });
-
-  test("ESRI Feature Service routes WHERE/TIME to params", () => {
-    const routing = buildMapLayerArgRouting([
-      { uuid: "m", source: "Map", title: "x" },
-    ]);
-    const entry = routing["ESRI Feature Service"];
-    expect(entry.params).toEqual(expect.arrayContaining(["WHERE", "TIME"]));
-  });
-
-  test("source types that do not support params have params=null and a warning saying so", () => {
-    const routing = buildMapLayerArgRouting([
-      { uuid: "m", source: "Map", title: "x" },
-    ]);
-    for (const sourceType of NO_PARAMS_TYPES) {
-      const entry = routing[sourceType];
-      expect(entry.params).toBeNull();
-      const warnings = entry.ambiguity_warnings.join(" ");
-      // Should mention that params is rejected/not supported for these.
-      expect(warnings).toMatch(/params/i);
-    }
-  });
-
-  test("Static Image routes projection/imageExtent to params", () => {
-    const routing = buildMapLayerArgRouting([
-      { uuid: "m", source: "Map", title: "x" },
-    ]);
-    const entry = routing["Static Image"];
-    expect(entry.params).toEqual(
-      expect.arrayContaining(["projection", "imageExtent"]),
-    );
-  });
-
-  test("templates contain no concrete URL or SQL example values (workspace memory)", () => {
-    // Per workspace memory: "no concrete example values in MCP tool
-    // descriptions — LLMs copy them verbatim". The risk class is
-    // example *data* (URLs, query strings, IDs) that the LLM persists
-    // instead of resolving to the user's real values. Configuration
-    // directives like `legend='default'` are NOT the risk — they are
-    // the literal arg value the LLM should pass verbatim.
-    //
-    // Pin: no URL hosts, no SQL example clauses with field names, no
-    // ESRI service paths.
-    const routing = buildMapLayerArgRouting([
-      { uuid: "m", source: "Map", title: "x" },
-    ]);
-    const blob = JSON.stringify(routing);
-    expect(blob).not.toContain("https://");
-    expect(blob).not.toContain("http://");
-    expect(blob).not.toContain("FeatureServer");
-    expect(blob).not.toContain("MapServer");
-    // Field-name'd SQL example like `rfc_name = 'Colorado'` (capitalized
-    // value indicates a proper noun, the data-value risk class) would
-    // match. A directive like `legend='default'` (lowercase value) would
-    // not — directives are the literal arg value the LLM should pass
-    // verbatim, not example data. Case-sensitive on the value start.
-    expect(blob).not.toMatch(/[a-z_]+\s*=\s*'[A-Z]/);
-    expect(blob).not.toMatch(/SELECT /i);
-  });
-});
-
-
 describe("buildPatchContext", () => {
   test("returns null when no patchable items are in the dashboard", () => {
     // Empty dashboard, no variable inputs set — nothing useful to say.
@@ -717,24 +533,10 @@ describe("buildPatchContext", () => {
     // Map basemap hints must flow into the full patch context so the LLM
     // can pick a correct URL instead of guessing a label like "imagery".
     expect(ctx.value_hints_by_source.Map["/args/baseMap"]).toBeDefined();
-    // Plan 2026-05-07-005 (T2): map_layer_arg_routing flows when a Map
-    // is present so the LLM knows which arg holds which key for
-    // add_map_service_layer.
-    expect(ctx.map_layer_arg_routing).toBeDefined();
-    expect(ctx.map_layer_arg_routing["GeoTIFF"]).toBeDefined();
-  });
-
-  test("map_layer_arg_routing is empty/absent when dashboard has no Map", () => {
-    // A Plotly + Variable Input dashboard — no map layers possible.
-    // map_layer_arg_routing should be empty (or absent — implementation
-    // choice; test for {} since buildPatchContext threads helper output
-    // verbatim).
-    const ctx = buildPatchContext(
-      [{ id: "t", gridItems: [plotItem, variableInputItem] }],
-      {},
-    );
-    expect(ctx).not.toBeNull();
-    expect(ctx.map_layer_arg_routing).toEqual({});
+    // Plan 2026-05-07-007 (T3): map_layer_arg_routing was deleted
+    // alongside the umbrella add_map_service_layer. The per-source-type
+    // tools' descriptions are now the per-type contract.
+    expect(ctx.map_layer_arg_routing).toBeUndefined();
   });
 
   test("includes the plot's /args/inlineData prefix so the LLM can infer /args/inlineData/layout/title", () => {
