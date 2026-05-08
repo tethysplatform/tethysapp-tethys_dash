@@ -46,6 +46,9 @@ from tethysapp.tethysdash.editable_schemas_plugin import (
 from tethysapp.tethysdash.plugin_registry_loader import (
     load_runtime_plugin_registry,
 )
+from tethysapp.tethysdash.mcp._input_validation_middleware import (
+    InputValidationEnvelopeMiddleware,
+)
 
 mcp = FastMCP(
     "TethysDash MCP Server",
@@ -76,6 +79,7 @@ mcp = FastMCP(
             ],
         ),
     ],
+    middleware=[InputValidationEnvelopeMiddleware()],
 )
 LOGGER = logging.getLogger("tethysdash.mcp")
 TETHYSDASH_BASE_URL = os.getenv("TETHYSDASH_BASE_URL", "http://localhost:8080/apps/tethysdash")
