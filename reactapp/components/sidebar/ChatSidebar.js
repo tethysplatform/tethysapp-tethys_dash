@@ -290,7 +290,24 @@ function ChatSidebar() {
             "`value_hints_by_source`, the persisted value must be chosen " +
             "verbatim from the listed `options` — do not invent or " +
             "abbreviate the value. Variable input values are listed below " +
-            "so you can reason over current filters.\n" +
+            "so you can reason over current filters.\n\n" +
+            // PRIORITY rule — when both "create" and "patch" could
+            // plausibly fire (the user named an existing UUID OR asked
+            // to add to / modify an existing tile), patch wins. Without
+            // this, the LLM has been observed to fire both create_* AND
+            // patch_visualization in the same turn, producing a duplicate
+            // ghost tile alongside the correctly-patched target. See
+            // debug session 2026-05-09.
+            "PRIORITY: when the user names an existing visualization " +
+            "UUID from `dashboard_state` OR asks to modify / add to / " +
+            "update an existing chart, table, card, map, image, text " +
+            "block, or any other existing tile, ALWAYS use " +
+            "`patch_visualization`. Do NOT also call any `create_*` or " +
+            "`render_*` tool in the same turn — that produces duplicate " +
+            "ghost tiles on the dashboard. The only exception is adding " +
+            "a new layer to an existing map: use the appropriate " +
+            "`add_*_layer` tool with the existing `map_uuid`, never " +
+            "`create_map_visualization`.\n\n" +
             JSON.stringify(patchContext),
         };
       },

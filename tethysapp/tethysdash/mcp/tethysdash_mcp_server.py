@@ -228,9 +228,15 @@ def _convert_plugin_args_to_schema(args: Dict) -> Dict[str, Any]:
 @mcp.tool(
     name="create_plotly_chart",
     description=(
-        "Create an interactive Plotly chart on the dashboard. "
+        "Create a NEW interactive Plotly chart tile on the dashboard. "
         "Use this after fetching rows or series from a data-source tool — "
-        "pass them in via `data` to render a chart tile."
+        "pass them in via `data` to render a chart tile. "
+        "DO NOT call this when the user named an existing visualization "
+        "UUID (from `dashboard_state`) OR asked to add to / modify / "
+        "update an existing chart — use `patch_visualization` instead "
+        "(e.g., add a trace by patching `/args/inlineData/data/-`). "
+        "Only call this for a NEW chart that does not yet exist on the "
+        "dashboard."
     ),
     tags=["visualization", "chart"],
 )
@@ -279,9 +285,14 @@ def create_plotly_chart(
 @mcp.tool(
     name="create_data_table",
     description=(
-        "Create a data table on the dashboard. Use this after fetching "
-        "rows from a data-source tool — pass them in via `data` to "
-        "render a table tile."
+        "Create a NEW data table tile on the dashboard. Use this after "
+        "fetching rows from a data-source tool — pass them in via `data` "
+        "to render a table tile. "
+        "DO NOT call this when the user named an existing visualization "
+        "UUID (from `dashboard_state`) OR asked to add to / modify / "
+        "update an existing table — use `patch_visualization` instead. "
+        "Only call this for a NEW table that does not yet exist on the "
+        "dashboard."
     ),
     tags=["visualization", "table"],
 )
@@ -367,10 +378,15 @@ def _coerce_card_data(data: Any) -> List[Dict[str, Any]]:
 @mcp.tool(
     name="create_card",
     description=(
-        "Create a card visualization showing one or more key-value stats. "
+        "Create a NEW card tile showing one or more key-value stats. "
         "Each data entry carries optional `label`, `value`, `color`, and "
         "`icon` fields. A bare scalar or single dict is auto-wrapped into a "
-        "single-entry list; None renders an empty placeholder."
+        "single-entry list; None renders an empty placeholder. "
+        "DO NOT call this when the user named an existing visualization "
+        "UUID (from `dashboard_state`) OR asked to add to / modify / "
+        "update an existing card — use `patch_visualization` instead. "
+        "Only call this for a NEW card that does not yet exist on the "
+        "dashboard."
     ),
     tags=["visualization", "card"],
 )
@@ -419,7 +435,14 @@ def create_card(
 
 @mcp.tool(
     name="create_text",
-    description="Create a text content block on the dashboard",
+    description=(
+        "Create a NEW text content block tile on the dashboard. "
+        "DO NOT call this when the user named an existing visualization "
+        "UUID (from `dashboard_state`) OR asked to add to / modify / "
+        "update an existing text block — use `patch_visualization` "
+        "instead. Only call this for a NEW text tile that does not yet "
+        "exist on the dashboard."
+    ),
     tags=["visualization", "text"],
 )
 def create_text(
@@ -446,7 +469,15 @@ def create_text(
 
 @mcp.tool(
     name="create_custom_image",
-    description="Display an image from a URL on the dashboard",
+    description=(
+        "Display a NEW image-from-URL tile on the dashboard. "
+        "DO NOT call this when the user named an existing visualization "
+        "UUID (from `dashboard_state`) OR asked to add to / modify / "
+        "update an existing image tile — use `patch_visualization` "
+        "instead (e.g., to change the image URL on an existing tile). "
+        "Only call this for a NEW image tile that does not yet exist on "
+        "the dashboard."
+    ),
     tags=["visualization", "image"],
 )
 def create_custom_image(
@@ -535,13 +566,21 @@ def _build_markers_layer(markers):
 @mcp.tool(
     name="create_map_visualization",
     description=(
-        "Create a geographic map visualization on the dashboard. "
+        "Create a NEW geographic map visualization tile on the dashboard. "
         "Supports markers, drawing tools, and dashboard variable integration. "
         "Use 'center' for place names or 'map_extent' for explicit coordinates. "
         "When the user wants to focus on a specific feature, call a "
         "data-source feature-lookup tool first to obtain the bounding box "
         "and pass it via 'map_extent'. To add WMS, ESRI, GeoJSON, or other "
-        "service layers, call add_map_service_layer with the returned map UUID."
+        "service layers to a NEWLY-CREATED map, call add_map_service_layer "
+        "with the returned map UUID. "
+        "DO NOT call this when the user named an existing visualization "
+        "UUID (from `dashboard_state`) OR asked to add to / modify / "
+        "update an existing map — use `patch_visualization` for "
+        "property edits (zoom, base map, etc.) and the appropriate "
+        "`add_*_layer` tool to add a layer to an existing map. "
+        "Only call this for a NEW map that does not yet exist on the "
+        "dashboard."
     ),
     tags=["visualization", "map", "geographic", "location", "marker", "layer"],
 )
@@ -2704,10 +2743,16 @@ def patch_visualization(
 @mcp.tool(
     name="create_variable_input",
     description=(
-        "Create an interactive variable input that other visualizations can "
-        "reference with ${variable_name} syntax. Use the exact variable_name "
-        "requested by the user; do not rename it or add suffixes unless the "
-        "user explicitly asks."
+        "Create a NEW interactive variable-input tile that other "
+        "visualizations can reference with ${variable_name} syntax. Use "
+        "the exact variable_name requested by the user; do not rename it "
+        "or add suffixes unless the user explicitly asks. "
+        "DO NOT call this when the user named an existing visualization "
+        "UUID (from `dashboard_state`) OR asked to add to / modify / "
+        "update an existing variable input — use `patch_visualization` "
+        "instead (e.g., to change `initial_value`, `options`, or the "
+        "input type). Only call this for a NEW variable input that does "
+        "not yet exist on the dashboard."
     ),
     tags=["visualization", "dashboard", "variable"],
 )
@@ -3004,11 +3049,16 @@ def add_dynamic_map_layer(
 @mcp.tool(
     name="render_plugin",
     description=(
-        "Create a visualization using an installed backend plugin. "
+        "Create a NEW visualization tile using an installed backend plugin. "
         "Call list_intake_plugins first to discover available plugins and their args. "
         "Use the 'source' field from the results. "
         "To link to a dashboard variable input, use ${variable_name} syntax in arg values — "
-        "the visualization auto-refreshes when the variable changes."
+        "the visualization auto-refreshes when the variable changes. "
+        "DO NOT call this when the user named an existing visualization "
+        "UUID (from `dashboard_state`) OR asked to add to / modify / "
+        "update an existing plugin tile — use `patch_visualization` "
+        "instead (e.g., to change a plugin arg). Only call this for a "
+        "NEW plugin tile that does not yet exist on the dashboard."
     ),
     tags=["visualization", "dashboard", "plugin"],
 )
@@ -3164,7 +3214,17 @@ def _validate_plugin_props(source: str, props: Dict) -> Optional[str]:
 
 @mcp.tool(
     name="render_custom_visualization",
-    description="Render a registered custom visualization component on the dashboard. Call list_available_visualizations first to see available custom plugins.",
+    description=(
+        "Render a NEW registered custom-visualization component as a tile "
+        "on the dashboard. Call list_available_visualizations first to "
+        "see available custom plugins. "
+        "DO NOT call this when the user named an existing visualization "
+        "UUID (from `dashboard_state`) OR asked to add to / modify / "
+        "update an existing custom-component tile — use "
+        "`patch_visualization` instead (e.g., to change a prop on the "
+        "rendered component). Only call this for a NEW custom-component "
+        "tile that does not yet exist on the dashboard."
+    ),
     tags=["dashboard", "visualization", "custom"],
 )
 def render_custom_visualization(
