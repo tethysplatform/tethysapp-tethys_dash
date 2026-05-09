@@ -385,3 +385,87 @@ async def test_missing_only_envelope_uses_missing_kwargs(client):
     # No spurious unexpected entries.
     assert payload.get("unexpected_kwargs", []) == [] or \
         "unexpected_kwargs" not in payload
+
+
+# ---------------------------------------------------------------------------
+# Observability — single structured log line per tool call (debug 2026-05-09)
+# ---------------------------------------------------------------------------
+
+
+async def test_observability_emits_one_summary_line_per_call(client, caplog):
+    """Every tool call produces a single `tool-call` summary line on the
+    `tethysdash.mcp` logger naming the tool, arg keys (no values), status,
+    and duration. One line per call — entry + exit collapsed.
+    """
+    caplog.set_level(logging.INFO, logger="tethysdash.mcp")
+
+    async with client:
+        await client.call_tool(
+            "create_plotly_chart",
+            {"data": [{"x": [1], "y": [1]}]},
+        )
+
+    summary_lines = [
+        rec.message for rec in caplog.records
+        if "tool-call" in rec.message and "create_plotly_chart" in rec.message
+    ]
+    assert len(summary_lines) >= 1, (
+        f"expected at least one tool-call summary line; got {summary_lines!r}"
+    )
+    line = summary_lines[0]
+    assert "tool=create_plotly_chart" in line
+    assert "arg_keys=" in line
+    assert "data" in line  # arg key, not value
+    assert "status=" in line
+    assert "duration_ms=" in line
+
+
+async def test_observability_logs_status_invalid_args_on_validation_error(
+    client, caplog
+):
+    """Tool calls that get rejected by the validation middleware get
+    `status=invalid_args` in the summary line. The error class hint
+    (unexpected | missing | other) is also included for triage."""
+    caplog.set_level(logging.INFO, logger="tethysdash.mcp")
+
+    async with client:
+        await client.call_tool(
+            "patch_visualization",
+            {"uuid_typo": "x"},  # unexpected + missing
+        )
+
+    summary_lines = [
+        rec.message for rec in caplog.records
+        if "tool-call" in rec.message and "patch_visualization" in rec.message
+    ]
+    assert summary_lines, "expected at least one summary line"
+    assert any("status=invalid_args" in line for line in summary_lines), (
+        f"expected status=invalid_args on validation reject; got {summary_lines!r}"
+    )
+
+
+async def test_observability_does_not_log_arg_values(client, caplog):
+    """Arg values must never appear in the summary line — only arg keys.
+    Mirrors the existing _input_validation_middleware logging contract.
+    """
+    caplog.set_level(logging.INFO, logger="tethysdash.mcp")
+
+    secret = "super-secret-do-not-leak-9842"
+    async with client:
+        await client.call_tool(
+            "create_plotly_chart",
+            {
+                "data": [{"x": [1], "y": [1]}],
+                "auth_token": secret,
+            },
+        )
+
+    summary_lines = [
+        rec.message for rec in caplog.records
+        if "tool-call" in rec.message
+    ]
+    # auth_token (the arg key) IS in the line; the secret value is NOT.
+    assert any("auth_token" in line for line in summary_lines)
+    assert all(secret not in line for line in summary_lines), (
+        "arg value leaked into observability summary line"
+    )

@@ -55,6 +55,9 @@ from tethysapp.tethysdash.plugin_registry_loader import (
 from tethysapp.tethysdash.mcp._input_validation_middleware import (
     InputValidationEnvelopeMiddleware,
 )
+from tethysapp.tethysdash.mcp._observability_middleware import (
+    ToolCallObservabilityMiddleware,
+)
 
 mcp = FastMCP(
     "TethysDash MCP Server",
@@ -85,7 +88,14 @@ mcp = FastMCP(
             ],
         ),
     ],
-    middleware=[InputValidationEnvelopeMiddleware()],
+    middleware=[
+        # Order: observability is OUTERMOST so it observes the final
+        # envelope produced by InputValidationEnvelopeMiddleware
+        # (validation errors come back as structured tool results, not
+        # exceptions, and the observability log line shows status=invalid_args).
+        ToolCallObservabilityMiddleware(),
+        InputValidationEnvelopeMiddleware(),
+    ],
 )
 LOGGER = logging.getLogger("tethysdash.mcp")
 TETHYSDASH_BASE_URL = os.getenv("TETHYSDASH_BASE_URL", "http://localhost:8080/apps/tethysdash")
@@ -3417,12 +3427,65 @@ def list_available_visualizations() -> Dict[str, Any]:
 # Logging + Entry Point
 # ---------------------------------------------------------------------------
 
+class _SuppressFastMCPValidationTraceback(logging.Filter):
+    """Drop the FastMCP `logger.exception("Error validating tool ...")`
+    record at `fastmcp/server/server.py:1167`.
+
+    The verbose Pydantic Rich-formatted traceback was the dominant noise
+    source when validation errors fired (~50 lines per rejected call).
+    `InputValidationEnvelopeMiddleware` already converts the same error
+    into a structured tool-result envelope; the traceback adds nothing
+    actionable beyond what the envelope and the observability log line
+    already capture. Drop it.
+
+    Surgical filter over the message text rather than bumping the
+    logger's level — keeps other genuine errors from this logger
+    (`Error calling tool ...` for non-validation failures) visible.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:  # noqa: A003
+        return not record.getMessage().startswith("Error validating tool")
+
+
+class _SuppressUvicornAccessNoise(logging.Filter):
+    """Drop CORS-preflight and Streamable-HTTP-keepalive lines from
+    `uvicorn.access`.
+
+    The MCP transport produces a steady stream of OPTIONS preflights
+    (CORS) and GET /mcp keepalive polls. They almost never indicate a
+    problem and they drown out the POST /mcp lines that carry actual
+    tool invocations. Filter both. Leave 4xx/5xx lines visible — those
+    DO indicate problems.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:  # noqa: A003
+        msg = record.getMessage()
+        # uvicorn.access format: '<host>:<port> - "<METHOD> <path> HTTP/x" <code>'
+        if " 4" in msg or " 5" in msg:
+            return True  # let 4xx/5xx through regardless of method
+        if '"OPTIONS ' in msg:
+            return False
+        if '"GET /mcp ' in msg or '"GET /sse ' in msg:
+            return False
+        return True
+
+
 def _configure_logging():
     level = os.getenv("TETHYSDASH_LOG_LEVEL", "INFO").upper()
     logging.basicConfig(
         level=getattr(logging, level, logging.INFO),
         format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
     )
+    # Suppress the FastMCP validation-error Rich traceback — the
+    # observability middleware + envelope middleware already capture
+    # the actionable signal.
+    logging.getLogger("fastmcp.server.server").addFilter(
+        _SuppressFastMCPValidationTraceback()
+    )
+    # Dampen uvicorn HTTP-access noise. Set TETHYSDASH_VERBOSE_ACCESS=1
+    # to keep all access lines (useful when debugging transport issues).
+    if os.getenv("TETHYSDASH_VERBOSE_ACCESS", "").lower() not in ("1", "true", "yes"):
+        logging.getLogger("uvicorn.access").addFilter(_SuppressUvicornAccessNoise())
 
 
 if __name__ == "__main__":
