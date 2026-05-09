@@ -273,3 +273,199 @@ async def test_log_line_includes_tool_name_and_kwarg_names_only(
     assert secret_value not in log_text, (
         "value content must never appear in the log line"
     )
+
+
+# ---------------------------------------------------------------------------
+# Envelope-quality improvements (debug session 2026-05-09)
+#
+# When a single call has BOTH unexpected AND missing args, the LLM should
+# learn about both in one envelope so it can fix everything in a single
+# retry. Pre-fix, the middleware short-circuited on `unexpected_kwargs`
+# and the missing-arg info was logged but never surfaced. The LLM then
+# had to retry to discover the missing args — multiplying retry latency.
+#
+# Additionally, the envelope now exposes `expected_kwargs` (the schema's
+# property names) and a `fix_hint` so the LLM has the correct answer in
+# the same response, instead of needing to re-fetch the tool's schema.
+# ---------------------------------------------------------------------------
+
+
+async def test_envelope_reports_both_unexpected_and_missing_simultaneously(client):
+    """Mixed-class case: a call with BOTH unexpected kwargs AND missing
+    required args produces ONE envelope listing both classes.
+
+    Repro: emit `patch_visualization(uuid=..., ops=[...])`. The schema
+    expects `uuid` (post-rename) but the LLM might still try the old
+    qualifier-style names. To force the mixed-class case, send a typo'd
+    kwarg PLUS an unexpected kwarg.
+    """
+    async with client:
+        result = await client.call_tool(
+            "patch_visualization",
+            {
+                # `uuid_typo` is unexpected (not in schema). `source` and
+                # `ops` are missing (required). Both classes fire.
+                "uuid_typo": "11111111-1111-4111-8111-111111111111",
+                "bogus_kwarg": "anything",
+            },
+        )
+
+    payload = _structured(result)
+    assert payload["error"].startswith("invalid_args:")
+    # Both buckets present.
+    assert "unexpected_kwargs" in payload, (
+        f"expected mixed-class envelope to include unexpected_kwargs; got {payload!r}"
+    )
+    assert "missing_kwargs" in payload, (
+        f"expected mixed-class envelope to include missing_kwargs; got {payload!r}"
+    )
+    assert set(payload["unexpected_kwargs"]) == {"uuid_typo", "bogus_kwarg"}
+    # Missing should include the actually-required schema args.
+    assert "uuid" in payload["missing_kwargs"]
+    assert "source" in payload["missing_kwargs"]
+    assert "ops" in payload["missing_kwargs"]
+
+
+async def test_envelope_includes_expected_kwargs_from_schema(client):
+    """Every validation envelope includes `expected_kwargs` listing the
+    tool's schema property names. The LLM uses this to self-correct
+    without re-fetching tools/list.
+    """
+    async with client:
+        result = await client.call_tool(
+            "patch_visualization",
+            {"uuid_typo": "x"},  # triggers unexpected + missing
+        )
+
+    payload = _structured(result)
+    assert "expected_kwargs" in payload, (
+        f"envelope must list expected_kwargs; got {payload!r}"
+    )
+    expected = set(payload["expected_kwargs"])
+    # Post-rename schema: uuid + source + ops (+ optional description).
+    assert {"uuid", "source", "ops"}.issubset(expected), (
+        f"expected_kwargs missing required schema args; got {expected!r}"
+    )
+
+
+async def test_envelope_includes_fix_hint(client):
+    """A natural-language `fix_hint` accompanies every error envelope."""
+    async with client:
+        result = await client.call_tool(
+            "patch_visualization",
+            {"uuid_typo": "x"},
+        )
+
+    payload = _structured(result)
+    assert "fix_hint" in payload, (
+        f"envelope must include fix_hint; got {payload!r}"
+    )
+    assert isinstance(payload["fix_hint"], str)
+    assert len(payload["fix_hint"]) > 0
+
+
+async def test_missing_only_envelope_uses_missing_kwargs(client):
+    """When a call has only missing args (no unexpected, no type errors),
+    the envelope reports `missing_kwargs` rather than the generic
+    `details` bucket. This makes recovery actionable for the LLM.
+    """
+    async with client:
+        result = await client.call_tool(
+            "patch_visualization",
+            # Empty args → all 3 required kwargs are missing.
+            {},
+        )
+
+    payload = _structured(result)
+    assert payload["error"].startswith("invalid_args:")
+    assert "missing_kwargs" in payload, (
+        f"missing-only envelope must include missing_kwargs; got {payload!r}"
+    )
+    assert {"uuid", "source", "ops"}.issubset(set(payload["missing_kwargs"]))
+    # No spurious unexpected entries.
+    assert payload.get("unexpected_kwargs", []) == [] or \
+        "unexpected_kwargs" not in payload
+
+
+# ---------------------------------------------------------------------------
+# Observability — single structured log line per tool call (debug 2026-05-09)
+# ---------------------------------------------------------------------------
+
+
+async def test_observability_emits_one_summary_line_per_call(client, caplog):
+    """Every tool call produces a single `tool-call` summary line on the
+    `tethysdash.mcp` logger naming the tool, arg keys (no values), status,
+    and duration. One line per call — entry + exit collapsed.
+    """
+    caplog.set_level(logging.INFO, logger="tethysdash.mcp")
+
+    async with client:
+        await client.call_tool(
+            "create_plotly_chart",
+            {"data": [{"x": [1], "y": [1]}]},
+        )
+
+    summary_lines = [
+        rec.message for rec in caplog.records
+        if "tool-call" in rec.message and "create_plotly_chart" in rec.message
+    ]
+    assert len(summary_lines) >= 1, (
+        f"expected at least one tool-call summary line; got {summary_lines!r}"
+    )
+    line = summary_lines[0]
+    assert "tool=create_plotly_chart" in line
+    assert "arg_keys=" in line
+    assert "data" in line  # arg key, not value
+    assert "status=" in line
+    assert "duration_ms=" in line
+
+
+async def test_observability_logs_status_invalid_args_on_validation_error(
+    client, caplog
+):
+    """Tool calls that get rejected by the validation middleware get
+    `status=invalid_args` in the summary line. The error class hint
+    (unexpected | missing | other) is also included for triage."""
+    caplog.set_level(logging.INFO, logger="tethysdash.mcp")
+
+    async with client:
+        await client.call_tool(
+            "patch_visualization",
+            {"uuid_typo": "x"},  # unexpected + missing
+        )
+
+    summary_lines = [
+        rec.message for rec in caplog.records
+        if "tool-call" in rec.message and "patch_visualization" in rec.message
+    ]
+    assert summary_lines, "expected at least one summary line"
+    assert any("status=invalid_args" in line for line in summary_lines), (
+        f"expected status=invalid_args on validation reject; got {summary_lines!r}"
+    )
+
+
+async def test_observability_does_not_log_arg_values(client, caplog):
+    """Arg values must never appear in the summary line — only arg keys.
+    Mirrors the existing _input_validation_middleware logging contract.
+    """
+    caplog.set_level(logging.INFO, logger="tethysdash.mcp")
+
+    secret = "super-secret-do-not-leak-9842"
+    async with client:
+        await client.call_tool(
+            "create_plotly_chart",
+            {
+                "data": [{"x": [1], "y": [1]}],
+                "auth_token": secret,
+            },
+        )
+
+    summary_lines = [
+        rec.message for rec in caplog.records
+        if "tool-call" in rec.message
+    ]
+    # auth_token (the arg key) IS in the line; the secret value is NOT.
+    assert any("auth_token" in line for line in summary_lines)
+    assert all(secret not in line for line in summary_lines), (
+        "arg value leaked into observability summary line"
+    )

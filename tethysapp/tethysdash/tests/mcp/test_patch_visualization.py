@@ -46,9 +46,9 @@ class TestHappyPath:
 
     def test_single_replace_on_plot_title(self):
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Inline Plotly",
-            patches=[{"op": "replace", "path": "/args/inlineData/layout/title", "value": "Rainfall"}],
+            ops=[{"op": "replace", "path": "/args/inlineData/layout/title", "value": "Rainfall"}],
         )
         assert "patch_update" in result
         assert "error" not in result
@@ -58,18 +58,18 @@ class TestHappyPath:
     def test_single_replace_on_map_legend(self):
         """R9 fixture: toggle layerControl on a map."""
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[{"op": "replace", "path": "/args/layerControl", "value": True}],
+            ops=[{"op": "replace", "path": "/args/layerControl", "value": True}],
         )
         assert "patch_update" in result
 
     def test_multi_op_with_test_guard(self):
         """R8: test op + replace in one envelope."""
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Inline Plotly",
-            patches=[
+            ops=[
                 {"op": "test", "path": "/args/inlineData/layout/title", "value": "Old"},
                 {"op": "replace", "path": "/args/inlineData/layout/title", "value": "New"},
             ],
@@ -79,9 +79,9 @@ class TestHappyPath:
     def test_literal_dotted_key_in_variable_input(self):
         """R2 literal-dot: /args/variable_options_source.metadata is a single segment."""
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Variable Input",
-            patches=[{
+            ops=[{
                 "op": "replace",
                 "path": "/args/variable_options_source.metadata/outputFormat",
                 "value": "{{n}}",
@@ -92,27 +92,27 @@ class TestHappyPath:
     def test_deep_append_on_plot_data(self):
         """R9 fixture: /args/inlineData/data/0/x/- via `add` op."""
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Inline Plotly",
-            patches=[{"op": "add", "path": "/args/inlineData/data/0/x/-", "value": 11}],
+            ops=[{"op": "add", "path": "/args/inlineData/data/0/x/-", "value": 11}],
         )
         assert "patch_update" in result
 
     def test_remove_map_layer_at_index(self):
         """R9: single `remove` at /args/layers/N is permitted."""
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[{"op": "remove", "path": "/args/layers/2"}],
+            ops=[{"op": "remove", "path": "/args/layers/2"}],
         )
         assert "patch_update" in result
 
     def test_field_level_replace_inside_existing_map_layer(self):
         """R9: field-level patch under /args/layers/N is permitted."""
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[{
+            ops=[{
                 "op": "replace",
                 "path": "/args/layers/2/configuration/props/opacity",
                 "value": 0.5,
@@ -122,9 +122,9 @@ class TestHappyPath:
 
     def test_description_field_accepted(self):
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Inline Plotly",
-            patches=[{"op": "replace", "path": "/args/inlineData/layout/title", "value": "X"}],
+            ops=[{"op": "replace", "path": "/args/inlineData/layout/title", "value": "X"}],
             description="Rename the rainfall plot",
         )
         assert "patch_update" in result
@@ -147,9 +147,9 @@ class TestValueCoercion:
     def test_basemap_shorthand_resolved_to_full_url(self):
         """Mirror create_map_visualization's BASE_MAPS resolution."""
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[{"op": "replace", "path": "/args/baseMap", "value": "imagery"}],
+            ops=[{"op": "replace", "path": "/args/baseMap", "value": "imagery"}],
         )
         assert "patch_update" in result
         resolved = result["patch_update"]["ops"][0]["value"]
@@ -163,9 +163,9 @@ class TestValueCoercion:
             "World_Topo_Map/MapServer"
         )
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[{"op": "replace", "path": "/args/baseMap", "value": full_url}],
+            ops=[{"op": "replace", "path": "/args/baseMap", "value": full_url}],
         )
         assert "patch_update" in result
         assert result["patch_update"]["ops"][0]["value"] == full_url
@@ -174,18 +174,18 @@ class TestValueCoercion:
         """Don't clobber arbitrary URLs the user might paste in directly."""
         custom_url = "https://custom-tile-server.example.com/MapServer"
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[{"op": "replace", "path": "/args/baseMap", "value": custom_url}],
+            ops=[{"op": "replace", "path": "/args/baseMap", "value": custom_url}],
         )
         assert result["patch_update"]["ops"][0]["value"] == custom_url
 
     def test_coercion_does_not_touch_non_basemap_paths(self):
         """The shorthand map must not accidentally rewrite unrelated values."""
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[{"op": "replace", "path": "/args/layerControl", "value": True}],
+            ops=[{"op": "replace", "path": "/args/layerControl", "value": True}],
         )
         assert result["patch_update"]["ops"][0]["value"] is True
 
@@ -212,9 +212,9 @@ class TestOpCoercion:
     def test_replace_at_deep_object_key_path_is_coerced(self):
         """Positive coerce: the prompt-from-the-bug case."""
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[{
+            ops=[{
                 "op": "replace",
                 "path": "/args/layers/0/configuration/props/source/props/params",
                 "value": {"WHERE": "rfc_name = 'Colorado Basin'"},
@@ -232,9 +232,9 @@ class TestOpCoercion:
     def test_replace_at_deeper_nested_object_key_path_is_coerced(self):
         """Deeper than one level past `/args/layers/N`."""
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[{
+            ops=[{
                 "op": "replace",
                 "path": "/args/layers/2/configuration/props/source/props/params/WHERE",
                 "value": "x = 1",
@@ -246,9 +246,9 @@ class TestOpCoercion:
     def test_add_op_passes_through_unchanged(self):
         """Identity passthrough: existing `add` ops are not mangled."""
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[{
+            ops=[{
                 "op": "add",
                 "path": "/args/layers/0/configuration/props/opacity",
                 "value": 0.5,
@@ -260,9 +260,9 @@ class TestOpCoercion:
     def test_remove_op_passes_through_unchanged(self):
         """Identity passthrough: `remove` is not coerced."""
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[{
+            ops=[{
                 "op": "remove",
                 "path": "/args/layers/0/configuration/props/opacity",
             }],
@@ -273,9 +273,9 @@ class TestOpCoercion:
     def test_test_op_passes_through_unchanged(self):
         """Identity passthrough: `test` is not coerced."""
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[{
+            ops=[{
                 "op": "test",
                 "path": "/args/layers/0/configuration/props/opacity",
                 "value": 0.5,
@@ -287,9 +287,9 @@ class TestOpCoercion:
     def test_non_map_source_replace_is_not_coerced(self):
         """Scope guard: only Map source is coerced. Plotly etc. unaffected."""
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Inline Plotly",
-            patches=[{
+            ops=[{
                 "op": "replace",
                 "path": "/args/inlineData/layout/title",
                 "value": "X",
@@ -304,9 +304,9 @@ class TestOpCoercion:
         are layer-array-siblings, not layer-internals, and they always exist
         on a created Map (no missing-target failure mode)."""
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[{"op": "replace", "path": "/args/layerControl", "value": False}],
+            ops=[{"op": "replace", "path": "/args/layerControl", "value": False}],
         )
         assert "patch_update" in result, result
         assert result["patch_update"]["ops"][0]["op"] == "replace"
@@ -316,9 +316,9 @@ class TestOpCoercion:
         `add /N` shifts; `replace /N` substitutes — different semantics.
         Coercion would corrupt the patch, so it must not fire."""
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[{
+            ops=[{
                 "op": "replace",
                 "path": "/args/layers/0/configuration/props/source/props/sources/0",
                 "value": {"url": "https://example.com/cog.tif"},
@@ -331,9 +331,9 @@ class TestOpCoercion:
         """Scope guard: `-` is the JSON Pointer 'append' marker for arrays.
         Coercion must not fire — same reasoning as numeric leaves."""
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[{
+            ops=[{
                 "op": "replace",
                 "path": "/args/layers/0/configuration/props/source/props/sources/-",
                 "value": {"url": "https://example.com/cog.tif"},
@@ -350,9 +350,9 @@ class TestOpCoercion:
     def test_multi_op_envelope_coerces_per_op(self):
         """One coerce-eligible replace + one ineligible — each handled correctly."""
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[
+            ops=[
                 {
                     "op": "replace",
                     "path": "/args/layers/0/configuration/props/opacity",
@@ -390,36 +390,36 @@ class TestValueShapeValidation:
 
     def test_plotly_inline_data_must_be_a_list(self):
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Inline Plotly",
-            patches=[{"op": "replace", "path": "/args/inlineData/data", "value": 42}],
+            ops=[{"op": "replace", "path": "/args/inlineData/data", "value": 42}],
         )
         assert "error" in result
         assert "invalid_envelope" in result["error"]
 
     def test_table_inline_data_must_be_a_list(self):
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Inline Table",
-            patches=[{"op": "replace", "path": "/args/inlineData/data", "value": "rows"}],
+            ops=[{"op": "replace", "path": "/args/inlineData/data", "value": "rows"}],
         )
         assert "error" in result
         assert "invalid_envelope" in result["error"]
 
     def test_card_inline_data_must_be_a_list(self):
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Inline Card",
-            patches=[{"op": "replace", "path": "/args/inlineData/data", "value": {"value": 1}}],
+            ops=[{"op": "replace", "path": "/args/inlineData/data", "value": {"value": 1}}],
         )
         assert "error" in result
         assert "invalid_envelope" in result["error"]
 
     def test_plotly_inline_layout_must_be_a_dict(self):
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Inline Plotly",
-            patches=[{"op": "replace", "path": "/args/inlineData/layout", "value": "bad"}],
+            ops=[{"op": "replace", "path": "/args/inlineData/layout", "value": "bad"}],
         )
         assert "error" in result
         assert "invalid_envelope" in result["error"]
@@ -434,9 +434,9 @@ class TestValueShapeValidation:
         # Missing negative coverage would mean a non-dict config passes the
         # server and crashes the Plotly renderer (review finding T-03).
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Inline Plotly",
-            patches=[{"op": "replace", "path": "/args/inlineData/config", "value": "bad"}],
+            ops=[{"op": "replace", "path": "/args/inlineData/config", "value": "bad"}],
         )
         assert "error" in result
         assert "invalid_envelope" in result["error"]
@@ -444,9 +444,9 @@ class TestValueShapeValidation:
 
     def test_valid_list_value_still_accepted(self):
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Inline Plotly",
-            patches=[{
+            ops=[{
                 "op": "replace",
                 "path": "/args/inlineData/data",
                 "value": [{"x": [1, 2], "y": [3, 4]}],
@@ -459,11 +459,11 @@ class TestValueShapeValidation:
         same subtree use whatever value type RFC 6902 says is valid.
         """
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Inline Plotly",
             # Writing a scalar at .../layout/title is fine — the title itself
             # IS a string. The rule is on /args/inlineData/layout as a whole.
-            patches=[{
+            ops=[{
                 "op": "replace",
                 "path": "/args/inlineData/layout/title",
                 "value": "Rainfall",
@@ -474,9 +474,9 @@ class TestValueShapeValidation:
     def test_remove_op_skips_value_shape_check(self):
         """`remove` has no value — shape check must not spuriously fire."""
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Inline Plotly",
-            patches=[{"op": "remove", "path": "/args/inlineData/data"}],
+            ops=[{"op": "remove", "path": "/args/inlineData/data"}],
         )
         assert "patch_update" in result
 
@@ -491,17 +491,17 @@ class TestDictCoercion:
 
     def test_json_string_patches_are_coerced(self):
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Inline Plotly",
-            patches='[{"op":"replace","path":"/args/inlineData/layout/title","value":"X"}]',
+            ops='[{"op":"replace","path":"/args/inlineData/layout/title","value":"X"}]',
         )
         assert "patch_update" in result
 
     def test_malformed_json_string_rejected(self):
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Inline Plotly",
-            patches="not json",
+            ops="not json",
         )
         assert "error" in result
         assert result["error"].startswith("invalid_envelope:")
@@ -517,9 +517,9 @@ class TestEnvelopeShape:
 
     def test_empty_patches_list_rejected(self):
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Inline Plotly",
-            patches=[],
+            ops=[],
         )
         assert "error" in result
         assert result["error"].startswith("invalid_envelope:")
@@ -527,9 +527,9 @@ class TestEnvelopeShape:
     def test_copy_op_rejected(self):
         """`copy` is intentionally excluded from the supported op set."""
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Inline Plotly",
-            patches=[{"op": "copy", "from": "/args/title", "path": "/args/description"}],
+            ops=[{"op": "copy", "from": "/args/title", "path": "/args/description"}],
         )
         assert "error" in result
         assert "invalid_envelope" in result["error"]
@@ -537,27 +537,27 @@ class TestEnvelopeShape:
 
     def test_unknown_op_rejected(self):
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Inline Plotly",
-            patches=[{"op": "patch", "path": "/args/inlineData/layout/title", "value": "X"}],
+            ops=[{"op": "patch", "path": "/args/inlineData/layout/title", "value": "X"}],
         )
         assert "error" in result
         assert "invalid_envelope" in result["error"]
 
     def test_missing_op_field_rejected(self):
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Inline Plotly",
-            patches=[{"path": "/args/inlineData/layout/title", "value": "X"}],
+            ops=[{"path": "/args/inlineData/layout/title", "value": "X"}],
         )
         assert "error" in result
         assert "invalid_envelope" in result["error"]
 
     def test_missing_path_field_rejected(self):
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Inline Plotly",
-            patches=[{"op": "replace", "value": "X"}],
+            ops=[{"op": "replace", "value": "X"}],
         )
         assert "error" in result
         assert "invalid_envelope" in result["error"]
@@ -565,36 +565,36 @@ class TestEnvelopeShape:
     def test_relative_path_rejected(self):
         """Paths must be absolute JSON Pointers starting with '/'."""
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Inline Plotly",
-            patches=[{"op": "replace", "path": "args/title", "value": "X"}],
+            ops=[{"op": "replace", "path": "args/title", "value": "X"}],
         )
         assert "error" in result
         assert "invalid_envelope" in result["error"]
 
     def test_add_without_value_rejected(self):
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Inline Plotly",
-            patches=[{"op": "add", "path": "/args/inlineData/layout/title"}],
+            ops=[{"op": "add", "path": "/args/inlineData/layout/title"}],
         )
         assert "error" in result
         assert "invalid_envelope" in result["error"]
 
     def test_move_without_from_rejected(self):
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[{"op": "move", "path": "/args/layers/0"}],
+            ops=[{"op": "move", "path": "/args/layers/0"}],
         )
         assert "error" in result
         assert "invalid_envelope" in result["error"]
 
     def test_non_dict_op_rejected(self):
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Inline Plotly",
-            patches=["not a dict"],
+            ops=["not a dict"],
         )
         assert "error" in result
         assert "invalid_envelope" in result["error"]
@@ -610,9 +610,9 @@ class TestR5cArrayCollision:
 
     def test_two_removes_at_same_array_rejected(self):
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[
+            ops=[
                 {"op": "remove", "path": "/args/layers/2"},
                 {"op": "remove", "path": "/args/layers/3"},
             ],
@@ -624,9 +624,9 @@ class TestR5cArrayCollision:
     def test_two_adds_at_same_array_rejected(self):
         """(Even though /args/layers/- is layer-banned, R5c fires first on multi-op.)"""
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[
+            ops=[
                 {"op": "add", "path": "/args/layers/-", "value": {}},
                 {"op": "add", "path": "/args/layers/-", "value": {}},
             ],
@@ -636,9 +636,9 @@ class TestR5cArrayCollision:
 
     def test_add_plus_remove_at_same_array_rejected(self):
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[
+            ops=[
                 {"op": "remove", "path": "/args/layers/0"},
                 {"op": "add", "path": "/args/layers/-", "value": {}},
             ],
@@ -649,9 +649,9 @@ class TestR5cArrayCollision:
     def test_nested_array_collision_also_rejected(self):
         """R5c applies to any array parent, not just /args/layers."""
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Inline Plotly",
-            patches=[
+            ops=[
                 {"op": "remove", "path": "/args/inlineData/data/0/x/0"},
                 {"op": "remove", "path": "/args/inlineData/data/0/x/1"},
             ],
@@ -662,9 +662,9 @@ class TestR5cArrayCollision:
     def test_two_replaces_at_same_array_NOT_rejected(self):
         """R5c only flags add+add, add+remove, remove+remove. `replace` is index-stable."""
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[
+            ops=[
                 {"op": "replace", "path": "/args/layers/0/visible", "value": False},
                 {"op": "replace", "path": "/args/layers/1/visible", "value": True},
             ],
@@ -676,9 +676,9 @@ class TestR5cArrayCollision:
     def test_single_remove_at_array_NOT_rejected(self):
         """R5c only fires when >1 ops target the same parent."""
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[{"op": "remove", "path": "/args/layers/2"}],
+            ops=[{"op": "remove", "path": "/args/layers/2"}],
         )
         assert "patch_update" in result
 
@@ -689,9 +689,9 @@ class TestR5cArrayCollision:
         # finding COR-04 / ADV-002 — the earlier check only flagged
         # add/remove, letting move slip past.
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[
+            ops=[
                 {"op": "remove", "path": "/args/layers/2"},
                 {"op": "move", "from": "/args/layers/3", "path": "/args/layers/4"},
             ],
@@ -704,9 +704,9 @@ class TestR5cArrayCollision:
         # A single `move` op from/to the same indexed array parent already
         # shifts indices — reject on its own.
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[
+            ops=[
                 {"op": "move", "from": "/args/layers/0", "path": "/args/layers/2"},
                 {"op": "remove", "path": "/args/layers/3"},
             ],
@@ -725,9 +725,9 @@ class TestWhitelist:
 
     def test_unknown_path_rejected(self):
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[{"op": "replace", "path": "/args/secret_internal_field", "value": 1}],
+            ops=[{"op": "replace", "path": "/args/secret_internal_field", "value": 1}],
         )
         assert "error" in result
         assert "whitelist_rejected" in result["error"]
@@ -735,9 +735,9 @@ class TestWhitelist:
     def test_plot_path_rejected_on_map_source(self):
         """Source-specific whitelist — /args/inlineData is not a Map path."""
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[{"op": "replace", "path": "/args/inlineData/data", "value": []}],
+            ops=[{"op": "replace", "path": "/args/inlineData/data", "value": []}],
         )
         assert "error" in result
         assert "whitelist_rejected" in result["error"]
@@ -745,18 +745,18 @@ class TestWhitelist:
     def test_out_of_scope_source_rejects_all(self):
         """Fail-closed for viz types not in the in-scope 5 (Text, Custom Image, ...)."""
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Text",
-            patches=[{"op": "replace", "path": "/args/text", "value": "hi"}],
+            ops=[{"op": "replace", "path": "/args/text", "value": "hi"}],
         )
         assert "error" in result
         assert "whitelist_rejected" in result["error"]
 
     def test_unknown_source_rejected(self):
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Totally Made Up Source",
-            patches=[{"op": "replace", "path": "/args/inlineData/layout/title", "value": "X"}],
+            ops=[{"op": "replace", "path": "/args/inlineData/layout/title", "value": "X"}],
         )
         assert "error" in result
         assert "whitelist_rejected" in result["error"]
@@ -767,13 +767,13 @@ class TestWhitelist:
         dashboard_state injection may have been dropped or truncated.
         """
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Inline Plotly",
             # Plotly-native path without the /args/ prefix — exactly what
             # gemini-flash-preview, Claude, and GPT tried in R15 validation
             # before this fix. The error must tell them "/args/inlineData"
             # is an allowed prefix so the retry converges.
-            patches=[{"op": "replace", "path": "/layout/title", "value": "X"}],
+            ops=[{"op": "replace", "path": "/layout/title", "value": "X"}],
         )
         assert "error" in result
         assert "whitelist_rejected" in result["error"]
@@ -793,9 +793,9 @@ class TestWhitelist:
         # it into a user-visible whitelisted field (e.g., move internal
         # attribution string into /args/baseMap).
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[{
+            ops=[{
                 "op": "move",
                 "from": "/args/secret_internal_field",
                 "path": "/args/baseMap",
@@ -810,9 +810,9 @@ class TestWhitelist:
         # Sanity check: when both from and path fall under allowed prefixes,
         # the op is accepted (subject to other checks like R5c).
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[{
+            ops=[{
                 "op": "move",
                 "from": "/args/layerControl",
                 "path": "/args/baseMap",
@@ -826,27 +826,27 @@ class TestWhitelist:
         # R1/R2: shape validation rejects a `move` without `from` BEFORE
         # whitelist check runs, so the error class is invalid_envelope.
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[{"op": "move", "path": "/args/baseMap"}],
+            ops=[{"op": "move", "path": "/args/baseMap"}],
         )
         assert "error" in result
         assert "invalid_envelope" in result["error"]
 
     def test_move_from_non_string_rejected_at_shape_check(self):
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[{"op": "move", "from": 42, "path": "/args/baseMap"}],
+            ops=[{"op": "move", "from": 42, "path": "/args/baseMap"}],
         )
         assert "error" in result
         assert "invalid_envelope" in result["error"]
 
     def test_move_from_relative_path_rejected_at_shape_check(self):
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[{"op": "move", "from": "args/baseMap", "path": "/args/layerControl"}],
+            ops=[{"op": "move", "from": "args/baseMap", "path": "/args/layerControl"}],
         )
         assert "error" in result
         assert "invalid_envelope" in result["error"]
@@ -856,9 +856,9 @@ class TestWhitelist:
         doesn't think listed entries are the only addressable paths.
         """
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Inline Plotly",
-            patches=[{"op": "replace", "path": "/title", "value": "X"}],
+            ops=[{"op": "replace", "path": "/title", "value": "X"}],
         )
         assert "error" in result
         assert "whitelist_rejected" in result["error"]
@@ -877,9 +877,9 @@ class TestLayerConstructionBoundary:
     def test_add_at_layers_dash_rejected(self):
         """`add` at /args/layers/- creates a new layer — banned."""
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[{"op": "add", "path": "/args/layers/-", "value": {"name": "new"}}],
+            ops=[{"op": "add", "path": "/args/layers/-", "value": {"name": "new"}}],
         )
         assert "error" in result
         assert "whitelist_rejected" in result["error"]
@@ -888,9 +888,9 @@ class TestLayerConstructionBoundary:
     def test_add_at_layers_index_rejected(self):
         """`add` at /args/layers/N inserts a new layer — banned."""
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[{"op": "add", "path": "/args/layers/0", "value": {"name": "new"}}],
+            ops=[{"op": "add", "path": "/args/layers/0", "value": {"name": "new"}}],
         )
         assert "error" in result
         assert "whitelist_rejected" in result["error"]
@@ -899,9 +899,9 @@ class TestLayerConstructionBoundary:
     def test_replace_whole_layer_at_index_rejected(self):
         """`replace` at /args/layers/N replaces a whole layer object — banned."""
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[{
+            ops=[{
                 "op": "replace",
                 "path": "/args/layers/0",
                 "value": {"name": "replacement"},
@@ -913,9 +913,9 @@ class TestLayerConstructionBoundary:
     def test_field_level_replace_under_layer_allowed(self):
         """`replace` at /args/layers/N/field is permitted — field edit, not layer construction."""
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[{
+            ops=[{
                 "op": "replace",
                 "path": "/args/layers/2/configuration/props/opacity",
                 "value": 0.5,
@@ -926,9 +926,9 @@ class TestLayerConstructionBoundary:
     def test_add_field_under_existing_layer_allowed(self):
         """`add` at /args/layers/N/field adds a field to an existing layer — allowed."""
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[{
+            ops=[{
                 "op": "add",
                 "path": "/args/layers/0/visible",
                 "value": True,
@@ -942,9 +942,9 @@ class TestLayerConstructionBoundary:
         # not the layer-boundary check. Verify the error is whitelist_rejected
         # without the add_map_service_layer hint.
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Inline Plotly",
-            patches=[{"op": "add", "path": "/args/layers/-", "value": {}}],
+            ops=[{"op": "add", "path": "/args/layers/-", "value": {}}],
         )
         assert "error" in result
         assert "whitelist_rejected" in result["error"]
@@ -961,9 +961,9 @@ class TestLayerConstructionBoundary:
         """`replace` at the whole-array path /args/layers — the escape that
         produced the Colorado RFC Boundary duplicate. Must be rejected."""
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[{
+            ops=[{
                 "op": "replace",
                 "path": "/args/layers",
                 "value": [
@@ -979,9 +979,9 @@ class TestLayerConstructionBoundary:
         """`add` at /args/layers replaces the array (RFC 6902 add-to-existing-key
         is replacement). Same escape vector as `replace`. Must be rejected."""
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[{
+            ops=[{
                 "op": "add",
                 "path": "/args/layers",
                 "value": [{"name": "x"}],
@@ -998,9 +998,9 @@ class TestLayerConstructionBoundary:
         Reorder via patch is intentionally not supported — R5c rejects single-
         op `move` within an indexed array because remove+add shifts indices."""
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[{
+            ops=[{
                 "op": "replace",
                 "path": "/args/layers",
                 "value": [{"name": "x"}],
@@ -1019,9 +1019,9 @@ class TestLayerConstructionBoundary:
         whitelist_rejected error class, not a not-found class. Mixing
         vocabulary causes the LLM to retry the wrong way."""
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[{
+            ops=[{
                 "op": "replace",
                 "path": "/args/layers",
                 "value": [],
@@ -1039,9 +1039,9 @@ class TestLayerConstructionBoundary:
         """The exact path the Colorado RFC Boundary prompt should have
         produced: replace `/args/layers/N/...source/.../params/WHERE`."""
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[{
+            ops=[{
                 "op": "replace",
                 "path": "/args/layers/0/configuration/props/source/props/params/WHERE",
                 "value": "rfc_name = 'Colorado Basin'",
@@ -1052,9 +1052,9 @@ class TestLayerConstructionBoundary:
     def test_remove_at_layer_index_still_allowed(self):
         """Remove a whole layer by index — the documented deletion path."""
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[{"op": "remove", "path": "/args/layers/1"}],
+            ops=[{"op": "remove", "path": "/args/layers/1"}],
         )
         assert "patch_update" in result, result
 
@@ -1065,9 +1065,9 @@ class TestLayerConstructionBoundary:
         for Map paths. The boundary's bare-index rejection must not be
         bypassed by treating the op as `add` after the fact."""
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[{
+            ops=[{
                 "op": "replace",
                 "path": "/args/layers/0",
                 "value": {"name": "smuggled new layer"},
@@ -1084,9 +1084,9 @@ class TestLayerConstructionBoundary:
         `replace` on `/args/layers` as a recovery (that's the new banned
         escape this PR closes)."""
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Map",
-            patches=[{
+            ops=[{
                 "op": "move",
                 "from": "/args/layers/0",
                 "path": "/args/layers/2",
@@ -1111,9 +1111,9 @@ class TestReturnEnvelope:
     def test_return_shape_on_success(self):
         u = _fresh_uuid()
         result = patch_visualization(
-            target_uuid=u,
+            uuid=u,
             source="Inline Plotly",
-            patches=[{"op": "replace", "path": "/args/inlineData/layout/title", "value": "X"}],
+            ops=[{"op": "replace", "path": "/args/inlineData/layout/title", "value": "X"}],
         )
         assert result == {
             "patch_update": {
@@ -1125,9 +1125,9 @@ class TestReturnEnvelope:
 
     def test_return_shape_on_error_has_no_patch_update(self):
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="Inline Plotly",
-            patches=[],
+            ops=[],
         )
         assert "patch_update" not in result
         assert "error" in result
@@ -1155,9 +1155,9 @@ class TestPluginSourceDispatch:
             {"my_streamflow": fake_plugin},
         )
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="my_streamflow",
-            patches=[
+            ops=[
                 {"op": "replace", "path": "/args/start_date", "value": "2026-01-01"}
             ],
         )
@@ -1174,9 +1174,9 @@ class TestPluginSourceDispatch:
             {"my_streamflow": fake_plugin},
         )
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="my_streamflow",
-            patches=[{"op": "replace", "path": "/args/other_field", "value": "x"}],
+            ops=[{"op": "replace", "path": "/args/other_field", "value": "x"}],
         )
         assert "error" in result
         assert "whitelist_rejected" in result["error"]
@@ -1198,9 +1198,9 @@ class TestPluginSourceDispatch:
             {"my_streamflow": fake_plugin},
         )
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="my_streamflow",
-            patches=[{"op": "replace", "path": "/args/api_key", "value": "new"}],
+            ops=[{"op": "replace", "path": "/args/api_key", "value": "new"}],
         )
         assert "error" not in result, result
         assert result["patch_update"]["source"] == "my_streamflow"
@@ -1221,16 +1221,16 @@ class TestPluginSourceDispatch:
         )
         # username is allowed.
         ok = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="my_streamflow",
-            patches=[{"op": "replace", "path": "/args/username", "value": "alice"}],
+            ops=[{"op": "replace", "path": "/args/username", "value": "alice"}],
         )
         assert "error" not in ok
         # api_key is denied by the author declaration.
         rejected = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="my_streamflow",
-            patches=[{"op": "replace", "path": "/args/api_key", "value": "x"}],
+            ops=[{"op": "replace", "path": "/args/api_key", "value": "x"}],
         )
         assert "error" in rejected
         assert "whitelist_rejected" in rejected["error"]
@@ -1242,9 +1242,9 @@ class TestPluginSourceDispatch:
             {},
         )
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="phantom_plugin",
-            patches=[{"op": "replace", "path": "/args/anything", "value": "x"}],
+            ops=[{"op": "replace", "path": "/args/anything", "value": "x"}],
         )
         assert "error" in result
         assert "whitelist_rejected" in result["error"]
@@ -1265,9 +1265,9 @@ class TestPluginSourceDispatch:
         # Regression on the move-op symmetry the shipped protocol's P1/P2
         # fixes established: the `from` path must also be whitelisted.
         result = patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="my_plugin",
-            patches=[{
+            ops=[{
                 "op": "move",
                 "from": "/args/unknown_field",
                 "path": "/args/allowed_target",
@@ -1296,9 +1296,9 @@ class TestRejectionTelemetry:
         )
         spy = _spy_rejection_telemetry(mocker)
         patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="my_plugin",
-            patches=[{"op": "replace", "path": "/args/api_key", "value": "x"}],
+            ops=[{"op": "replace", "path": "/args/api_key", "value": "x"}],
         )
         assert spy.call_count == 1
         call_kwargs = spy.call_args.kwargs
@@ -1315,9 +1315,9 @@ class TestRejectionTelemetry:
         )
         spy = _spy_rejection_telemetry(mocker)
         patch_visualization(
-            target_uuid=_fresh_uuid(),
+            uuid=_fresh_uuid(),
             source="phantom",
-            patches=[{"op": "replace", "path": "/args/x", "value": 1}],
+            ops=[{"op": "replace", "path": "/args/x", "value": 1}],
         )
         assert spy.call_count == 1
         assert (
@@ -1326,22 +1326,24 @@ class TestRejectionTelemetry:
 
 
 # ---------------------------------------------------------------------------
-# Plan 2026-05-07-002 Unit A: UUID format validation on target_uuid
+# Plan 2026-05-07-002 Unit A: UUID format validation on the `uuid` arg
+# (renamed from `target_uuid` in 2026-05-09 to align with engine output
+# envelope and RFC 6902 idiom — see TestKwargNames at end of file).
 # ---------------------------------------------------------------------------
 
 
-class TestUuidValidationTargetUuid:
-    """`target_uuid` must be a well-formed UUID string. Same family as the
+class TestUuidValidation:
+    """`uuid` must be a well-formed UUID string. Same family as the
     map_uuid validation in test_layer_contracts.py — same helper, same
     rejection envelope shape (`invalid_uuid:` prefix), same fix-hint
     template referencing the originating create_* tool.
     """
 
-    def _valid_patch(self, target_uuid):
+    def _valid_patch(self, uuid):
         return patch_visualization(
-            target_uuid=target_uuid,
+            uuid=uuid,
             source="Inline Plotly",
-            patches=[
+            ops=[
                 {"op": "replace", "path": "/args/inlineData/layout/title", "value": "X"},
             ],
         )
@@ -1360,7 +1362,11 @@ class TestUuidValidationTargetUuid:
         assert "error" in result
         err = result["error"]
         assert err.startswith("invalid_uuid:"), err
-        assert "target_uuid" in err
+        # Error names the arg by the new schema name (`uuid`, formerly
+        # `target_uuid`). Match against the tail of the error message
+        # rather than just `"uuid" in err` since `invalid_uuid:` would
+        # make a substring check always-true.
+        assert "uuid must be a UUID string" in err
         # Hint should reference create_* tools as the source of truth for UUIDs.
         assert "create_" in err
         assert "template" in err.lower() or "literal" in err.lower()
@@ -1382,13 +1388,91 @@ class TestUuidValidationTargetUuid:
         assert result["error"].startswith("invalid_uuid:")
 
     def test_validation_runs_before_envelope_validation(self):
-        # An envelope with both a malformed target_uuid AND a malformed
-        # patches array should report the UUID error first (cheap reject,
+        # An envelope with both a malformed uuid AND a malformed
+        # ops array should report the UUID error first (cheap reject,
         # most actionable for the LLM).
         result = patch_visualization(
-            target_uuid="{{last_map_uuid}}",
+            uuid="{{last_map_uuid}}",
             source="Inline Plotly",
-            patches="not a list",  # would normally trigger invalid_envelope
+            ops="not a list",  # would normally trigger invalid_envelope
         )
         assert "error" in result
         assert result["error"].startswith("invalid_uuid:")
+
+
+# ---------------------------------------------------------------------------
+# Schema kwarg names — written FIRST during the rename to fail until the
+# function signature aligns to the engine's output envelope and RFC 6902
+# idiom. Debug session 2026-05-09: the LLM was emitting
+# `patch_visualization(uuid=..., ops=...)` because:
+#   - the docstring referenced the output envelope `{patch_update: {uuid,
+#     source, ops}}` as the natural names
+#   - RFC 6902 calls each item in the array an `op` (so the array is
+#     idiomatically `ops`/`operations`)
+#   - the system-message injection in ChatSidebar said "target its uuid"
+# … and the schema mismatch (`target_uuid`, `patches`) caused validator
+# rejections + ~2 minute retry-loop latency per turn. Aligning the input
+# names to the natural ones eliminates the friction.
+# ---------------------------------------------------------------------------
+
+
+class TestKwargNames:
+    """Lock the input arg names so future renames don't silently drift
+    back to the qualifier-style (`target_uuid`, `patches`).
+    """
+
+    def _signature_param_names(self):
+        import inspect
+        sig = inspect.signature(patch_visualization)
+        return list(sig.parameters.keys())
+
+    def test_uuid_kwarg_named_uuid(self):
+        # Aligns with the output envelope `{patch_update: {uuid, ...}}`
+        # and with `dashboard_state[].uuid` so the LLM sees one name
+        # consistently.
+        params = self._signature_param_names()
+        assert "uuid" in params, (
+            f"patch_visualization input arg should be named `uuid`; "
+            f"got {params}"
+        )
+        assert "target_uuid" not in params, (
+            f"patch_visualization input arg `target_uuid` was renamed to "
+            f"`uuid` in 2026-05-09 — schema must not regress; got {params}"
+        )
+
+    def test_ops_kwarg_named_ops(self):
+        # Aligns with RFC 6902 (each op is an `op`; the array is `ops`)
+        # and with the output envelope `{patch_update: {..., ops}}`.
+        params = self._signature_param_names()
+        assert "ops" in params, (
+            f"patch_visualization input arg should be named `ops`; "
+            f"got {params}"
+        )
+        assert "patches" not in params, (
+            f"patch_visualization input arg `patches` was renamed to "
+            f"`ops` in 2026-05-09 — schema must not regress; got {params}"
+        )
+
+    def test_source_and_description_unchanged(self):
+        params = self._signature_param_names()
+        assert "source" in params, f"`source` arg missing; got {params}"
+        assert "description" in params, (
+            f"`description` arg missing; got {params}"
+        )
+
+    def test_call_with_new_kwargs_succeeds(self):
+        # Smoke the rename end-to-end: the new kwargs work and produce
+        # the expected output envelope.
+        result = patch_visualization(
+            uuid=_fresh_uuid(),
+            source="Inline Plotly",
+            ops=[
+                {"op": "replace", "path": "/args/inlineData/layout/title",
+                 "value": "Hello"}
+            ],
+        )
+        # Output envelope unchanged — already used `uuid` and `ops`.
+        assert "patch_update" in result, result
+        assert "uuid" in result["patch_update"]
+        assert "source" in result["patch_update"]
+        assert "ops" in result["patch_update"]
