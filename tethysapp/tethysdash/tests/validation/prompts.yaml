@@ -33,9 +33,9 @@ prompts:
     user_prompt: "Show the legend on that map."
     expected_tool: patch_visualization
     expected_args:
-      uuid: "~fixture.map.uuid"
+      target_uuid: "~fixture.map.uuid"
       source: "Map"
-      ops:
+      patches:
         - { op: replace, path: "/args/layerControl", value: true }
     expected_outcome: correct
 
@@ -44,9 +44,9 @@ prompts:
     user_prompt: "Change the plot title to Rainfall."
     expected_tool: patch_visualization
     expected_args:
-      uuid: "~fixture.plot.uuid"
+      target_uuid: "~fixture.plot.uuid"
       source: "Inline Plotly"
-      ops:
+      patches:
         - { op: replace, path: "~title-path", value: "Rainfall" }
     notes: |
       Acceptable title path: /args/inlineData/layout/title (Plotly stores
@@ -58,9 +58,9 @@ prompts:
     user_prompt: "Replace the plot data with these points: [1,2,3] and [4,5,6]."
     expected_tool: patch_visualization
     expected_args:
-      uuid: "~fixture.plot.uuid"
+      target_uuid: "~fixture.plot.uuid"
       source: "Inline Plotly"
-      ops:
+      patches:
         - { op: replace, path: "/args/inlineData/data", value: "~any-nonempty-array" }
     expected_outcome: correct
 
@@ -69,9 +69,9 @@ prompts:
     user_prompt: "Remove the 3rd layer."
     expected_tool: patch_visualization
     expected_args:
-      uuid: "~fixture.map.uuid"
+      target_uuid: "~fixture.map.uuid"
       source: "Map"
-      ops:
+      patches:
         - { op: remove, path: "/args/layers/2" }
     expected_outcome: correct
 
@@ -80,9 +80,9 @@ prompts:
     user_prompt: "Rename this table to Stream Gauges."
     expected_tool: patch_visualization
     expected_args:
-      uuid: "~fixture.table.uuid"
+      target_uuid: "~fixture.table.uuid"
       source: "Inline Table"
-      ops:
+      patches:
         - { op: replace, path: "~title-path", value: "Stream Gauges" }
     notes: "Acceptable: /args/inlineData/title (Table stores title inside inlineData)."
     expected_outcome: correct
@@ -92,9 +92,9 @@ prompts:
     user_prompt: "Add 2 more points to that plot: (10, 20) and (11, 22)."
     expected_tool: patch_visualization
     expected_args:
-      uuid: "~fixture.plot.uuid"
+      target_uuid: "~fixture.plot.uuid"
       source: "Inline Plotly"
-      ops:
+      patches:
         - { op: add, path: "/args/inlineData/data/0/x/-", value: 10 }
         - { op: add, path: "/args/inlineData/data/0/y/-", value: 20 }
         - { op: add, path: "/args/inlineData/data/0/x/-", value: 11 }
@@ -135,7 +135,7 @@ prompts:
     user_prompt: "Rename the rainfall plot to Precipitation."
     expected_tool: patch_visualization
     expected_args:
-      uuid: "~fixture.rainfall-upstream.uuid OR ~fixture.rainfall-downstream.uuid"
+      target_uuid: "~fixture.rainfall-upstream.uuid OR ~fixture.rainfall-downstream.uuid"
       source: "Inline Plotly"
     expected_outcome: disambiguation
     notes: |
@@ -150,7 +150,7 @@ prompts:
     user_prompt: "Change the map's internal cache timeout to 60 seconds."
     expected_tool: patch_visualization
     expected_args:
-      uuid: "~fixture.map.uuid"
+      target_uuid: "~fixture.map.uuid"
       source: "Map"
     expected_outcome: recoverable_expected
     notes: |
@@ -164,9 +164,9 @@ prompts:
     user_prompt: "If the plot is still titled 'Old', rename it to 'New'."
     expected_tool: patch_visualization
     expected_args:
-      uuid: "~fixture.plot.uuid"
+      target_uuid: "~fixture.plot.uuid"
       source: "Inline Plotly"
-      ops:
+      patches:
         - { op: test, path: "~title-path", value: "Old" }
         - { op: replace, path: "~title-path", value: "New" }
     notes: Tests R8 `test` op usage idiom.
@@ -181,9 +181,9 @@ prompts:
     user_prompt: "Update the card's first metric value to 42."
     expected_tool: patch_visualization
     expected_args:
-      uuid: "~fixture.card.uuid"
+      target_uuid: "~fixture.card.uuid"
       source: "Inline Card"
-      ops:
+      patches:
         - { op: replace, path: "/args/inlineData/data/0/value", value: 42 }
     expected_outcome: correct
 
@@ -192,9 +192,9 @@ prompts:
     user_prompt: "Change the default value of the slider to 50."
     expected_tool: patch_visualization
     expected_args:
-      uuid: "~fixture.varinput.uuid"
+      target_uuid: "~fixture.varinput.uuid"
       source: "Variable Input"
-      ops:
+      patches:
         - { op: replace, path: "/args/initial_value", value: 50 }
     expected_outcome: correct
 
@@ -203,9 +203,9 @@ prompts:
     user_prompt: "Change the slider's max value to 200."
     expected_tool: patch_visualization
     expected_args:
-      uuid: "~fixture.varinput.uuid"
+      target_uuid: "~fixture.varinput.uuid"
       source: "Variable Input"
-      ops:
+      patches:
         - { op: replace, path: "/args/variable_options_source.metadata/max", value: 200 }
     notes: |
       Exercises the RFC 6901 literal-dot hazard — the path is a SINGLE
@@ -217,9 +217,9 @@ prompts:
     user_prompt: "Add a row to the table: {station: 'ABC', value: 15}."
     expected_tool: patch_visualization
     expected_args:
-      uuid: "~fixture.table.uuid"
+      target_uuid: "~fixture.table.uuid"
       source: "Inline Table"
-      ops:
+      patches:
         - { op: add, path: "/args/inlineData/data/-", value: { station: "ABC", value: 15 } }
     expected_outcome: correct
 
@@ -228,9 +228,9 @@ prompts:
     user_prompt: "Change the map's base map to imagery."
     expected_tool: patch_visualization
     expected_args:
-      uuid: "~fixture.map.uuid"
+      target_uuid: "~fixture.map.uuid"
       source: "Map"
-      ops:
+      patches:
         - { op: replace, path: "/args/baseMap", value: "~any-basemap-url-or-key" }
     expected_outcome: correct
 
@@ -250,9 +250,9 @@ prompts:
     user_prompt: "Delete the first layer from the map."
     expected_tool: patch_visualization
     expected_args:
-      uuid: "~fixture.map.uuid"
+      target_uuid: "~fixture.map.uuid"
       source: "Map"
-      ops:
+      patches:
         - { op: remove, path: "/args/layers/0" }
     expected_outcome: correct
 

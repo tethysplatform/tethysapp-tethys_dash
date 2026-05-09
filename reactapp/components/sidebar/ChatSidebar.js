@@ -262,22 +262,6 @@ function ChatSidebar() {
         return {
           role: "system",
           content:
-            // Escape clause first — the LLM weights early-positioned
-            // system content heavily. Without this, the dashboard-edit
-            // framing below reads as binding and the LLM refuses
-            // off-topic requests (e.g., a slash-command prompt
-            // template invoking a different MCP server's tools).
-            // See debug 2026-05-09 logical-error session.
-            "The dashboard context below is REFERENCE for editing " +
-            "existing visualizations. It is NOT exclusive scope. If the " +
-            "user's request is unrelated to this dashboard — e.g., a " +
-            "slash-command prompt template from another connected MCP " +
-            "server, a general question, or any request that does not " +
-            "reference visualizations — use whatever tools are " +
-            "appropriate from the available tool list. Do NOT refuse " +
-            "off-topic requests just because dashboard context is " +
-            "present. Treat the context below as advisory, not " +
-            "exclusive.\n\n" +
             "Current dashboard state and patch_visualization reference. " +
             "To edit an existing visualization, target its uuid via the " +
             "patch_visualization tool. Use `editable_paths_by_source` to " +

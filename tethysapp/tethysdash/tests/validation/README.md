@@ -122,7 +122,7 @@ the JS engine emits:
 [
     {
         "name": "patch_visualization",
-        "arguments": {"uuid": "...", "source": "Map", "ops": [...]},
+        "arguments": {"target_uuid": "...", "source": "Map", "patches": [...]},
         "_result": {"patch_update": {"uuid": "...", "ops": [...]}},
     },
     ...
