@@ -241,12 +241,51 @@ def _convert_plugin_args_to_schema(args: Dict) -> Dict[str, Any]:
     tags=["visualization", "chart"],
 )
 def create_plotly_chart(
-    data: Annotated[Union[List[Dict[str, Any]], str], Field(description="Plotly trace objects. Each dict should have 'x', 'y', and optionally 'type', 'name', 'mode', etc. May be passed as a JSON-string array too.")],
+    data: Annotated[
+        Union[List[Dict[str, Any]], str],
+        Field(
+            description=(
+                "Array of Plotly trace objects. Each trace MUST have non-empty "
+                "'x' and 'y' arrays. Optionally 'type' (default 'scatter'), "
+                "'name' (legend label), 'mode' ('lines' / 'markers' / "
+                "'lines+markers'). MUST contain at least one trace — do NOT "
+                "call this with `data=[]`. If a data-source tool failed or "
+                "returned no rows, ABORT and report the data-fetch error to "
+                "the user; do NOT fall back to creating an empty chart."
+            ),
+            min_length=1,
+        ),
+    ],
     layout: Annotated[Optional[Dict[str, Any]], Field(description="Plotly layout object with title, axis labels, etc.")] = None,
     config: Annotated[Optional[Dict[str, Any]], Field(description="Plotly config object (responsive, displaylogo, etc.)")] = None,
     title: Annotated[Optional[str], Field(description="Chart title (shorthand - added to layout.title)")] = None,
-    w: Annotated[int, Field(description="Grid width in columns (out of 100)")] = 50,
-    h: Annotated[int, Field(description="Grid height in row units (each unit ~10px at 1920px)")] = 40,
+    w: Annotated[
+        int,
+        Field(
+            description=(
+                "Tile WIDTH as a fraction of dashboard width (1-100). "
+                "Examples: 25=quarter-width, 50=half-width (DEFAULT — "
+                "recommended for time-series charts), 100=full-width. "
+                "Lower than 25 produces an unreadably narrow chart."
+            ),
+            ge=1,
+            le=100,
+        ),
+    ] = 50,
+    h: Annotated[
+        int,
+        Field(
+            description=(
+                "Tile HEIGHT in grid row-units (1 unit ≈ 5-10px depending on "
+                "viewport). Recommended range: 30-60 for time-series charts. "
+                "DEFAULT 40 ≈ 200-400px tall, suitable for 24-48 data points. "
+                "Do NOT pass values under 10 — chart will be unreadably "
+                "squished."
+            ),
+            ge=10,
+            le=100,
+        ),
+    ] = 40,
 ) -> Dict[str, Any]:
     """Create a Plotly chart visualization on the dashboard.
 
@@ -259,6 +298,20 @@ def create_plotly_chart(
             data = json.loads(data)
         except json.JSONDecodeError as e:
             return {"error": f"invalid_args: `data` is not valid JSON: {e}"}
+
+    # Server-side defense: Pydantic min_length=1 catches `data=[]` at the
+    # input level, but `data="[]"` (JSON string of empty array) passes
+    # because min_length applies to the str length, not the post-decode
+    # list length. After json.loads above, re-check.
+    if not isinstance(data, list) or len(data) == 0:
+        return {
+            "error": (
+                "invalid_args: `data` must be a non-empty list of Plotly "
+                "trace objects. Fetch values from a data-source tool first; "
+                "do NOT call create_plotly_chart with empty data when a "
+                "data fetch failed."
+            )
+        }
 
     final_layout = layout or {}
     if title and "title" not in final_layout:
@@ -297,11 +350,46 @@ def create_plotly_chart(
     tags=["visualization", "table"],
 )
 def create_data_table(
-    data: Annotated[Union[List[Dict[str, Any]], str], Field(description="Array of row objects. Each dict maps column names to cell values; all rows must share the same keys. May be passed as a JSON-string array too.")],
+    data: Annotated[
+        Union[List[Dict[str, Any]], str],
+        Field(
+            description=(
+                "Array of row objects. Each dict maps column names to cell "
+                "values; all rows must share the same keys. May be passed "
+                "as a JSON-string array too. MUST contain at least one row "
+                "— do NOT call this with `data=[]`. If a data-source tool "
+                "failed or returned no rows, ABORT and report the data-fetch "
+                "error to the user; do NOT fall back to creating an empty "
+                "table."
+            ),
+            min_length=1,
+        ),
+    ],
     title: Annotated[Optional[str], Field(description="Table title")] = None,
     subtitle: Annotated[Optional[str], Field(description="Table subtitle")] = None,
-    w: Annotated[int, Field(description="Grid width in columns (out of 100)")] = 50,
-    h: Annotated[int, Field(description="Grid height in row units (each unit ~10px at 1920px)")] = 35,
+    w: Annotated[
+        int,
+        Field(
+            description=(
+                "Tile WIDTH as a fraction of dashboard width (1-100). "
+                "Default 50 = half-width."
+            ),
+            ge=1,
+            le=100,
+        ),
+    ] = 50,
+    h: Annotated[
+        int,
+        Field(
+            description=(
+                "Tile HEIGHT in grid row-units. Default 35 ≈ 175-350px "
+                "tall, suitable for ~10-row tables. Do NOT pass values "
+                "under 10."
+            ),
+            ge=10,
+            le=100,
+        ),
+    ] = 35,
 ) -> Dict[str, Any]:
     """Create a data table visualization on the dashboard.
 
@@ -313,6 +401,18 @@ def create_data_table(
             data = json.loads(data)
         except json.JSONDecodeError as e:
             return {"error": f"invalid_args: `data` is not valid JSON: {e}"}
+
+    # Server-side defense: Pydantic min_length catches data=[] but not
+    # data="[]" (JSON string of empty array) — re-check after json.loads.
+    if not isinstance(data, list) or len(data) == 0:
+        return {
+            "error": (
+                "invalid_args: `data` must be a non-empty list of row "
+                "objects. Fetch values from a data-source tool first; do "
+                "NOT call create_data_table with empty data when a data "
+                "fetch failed."
+            )
+        }
 
     return {
         "visualization": {
@@ -398,8 +498,28 @@ def create_card(
         "`value`, `color`, and `icon`. Scalars, single dicts, and JSON-string "
         "payloads are coerced into list-of-dict form."
     ))] = None,
-    w: Annotated[int, Field(description="Grid width in columns (out of 100)")] = 25,
-    h: Annotated[int, Field(description="Grid height in row units")] = 15,
+    w: Annotated[
+        int,
+        Field(
+            description=(
+                "Tile WIDTH as a fraction of dashboard width (1-100). "
+                "Default 25 = quarter-width (cards are typically narrow)."
+            ),
+            ge=1,
+            le=100,
+        ),
+    ] = 25,
+    h: Annotated[
+        int,
+        Field(
+            description=(
+                "Tile HEIGHT in grid row-units. Default 15 ≈ 75-150px tall, "
+                "suitable for a small stat-card. Do NOT pass values under 10."
+            ),
+            ge=10,
+            le=100,
+        ),
+    ] = 15,
 ) -> Dict[str, Any]:
     """Create a card visualization on the dashboard.
 
@@ -446,9 +566,38 @@ def create_card(
     tags=["visualization", "text"],
 )
 def create_text(
-    text: Annotated[str, Field(description="Text content to display")],
-    w: Annotated[int, Field(description="Grid width in columns (out of 100)")] = 50,
-    h: Annotated[int, Field(description="Grid height in row units")] = 15,
+    text: Annotated[
+        str,
+        Field(
+            description=(
+                "Text content to display. MUST be non-empty — do NOT call "
+                "this with `text=''` (would produce an empty tile)."
+            ),
+            min_length=1,
+        ),
+    ],
+    w: Annotated[
+        int,
+        Field(
+            description=(
+                "Tile WIDTH as a fraction of dashboard width (1-100). "
+                "Default 50 = half-width."
+            ),
+            ge=1,
+            le=100,
+        ),
+    ] = 50,
+    h: Annotated[
+        int,
+        Field(
+            description=(
+                "Tile HEIGHT in grid row-units. Default 15 ≈ 75-150px tall, "
+                "suitable for short text. Do NOT pass values under 10."
+            ),
+            ge=10,
+            le=100,
+        ),
+    ] = 15,
 ) -> Dict[str, Any]:
     """Create a text visualization on the dashboard.
 
@@ -481,10 +630,39 @@ def create_text(
     tags=["visualization", "image"],
 )
 def create_custom_image(
-    image_url: Annotated[str, Field(description="URL of the image to display (http/https URL, data URI, or S3 path)")],
+    image_url: Annotated[
+        str,
+        Field(
+            description=(
+                "URL of the image to display (http/https URL, data URI, or "
+                "S3 path). MUST be non-empty."
+            ),
+            min_length=1,
+        ),
+    ],
     alt_text: Annotated[Optional[str], Field(description="Alt text for accessibility")] = None,
-    w: Annotated[int, Field(description="Grid width in columns (out of 100)")] = 50,
-    h: Annotated[int, Field(description="Grid height in row units (each unit ~10px at 1920px)")] = 30,
+    w: Annotated[
+        int,
+        Field(
+            description=(
+                "Tile WIDTH as a fraction of dashboard width (1-100). "
+                "Default 50 = half-width."
+            ),
+            ge=1,
+            le=100,
+        ),
+    ] = 50,
+    h: Annotated[
+        int,
+        Field(
+            description=(
+                "Tile HEIGHT in grid row-units. Default 30 ≈ 150-300px "
+                "tall. Do NOT pass values under 10."
+            ),
+            ge=10,
+            le=100,
+        ),
+    ] = 30,
 ) -> Dict[str, Any]:
     """Create a custom image visualization on the dashboard.
 
@@ -617,8 +795,28 @@ def create_map_visualization(
     extent_variable: Annotated[Optional[str], Field(description=(
         "Dashboard variable name to publish map extent on pan/zoom."
     ))] = None,
-    w: Annotated[int, Field(description="Grid width in columns (out of 100)")] = 50,
-    h: Annotated[int, Field(description="Grid height in row units")] = 45,
+    w: Annotated[
+        int,
+        Field(
+            description=(
+                "Tile WIDTH as a fraction of dashboard width (1-100). "
+                "Default 50 = half-width. Maps benefit from 50-100."
+            ),
+            ge=1,
+            le=100,
+        ),
+    ] = 50,
+    h: Annotated[
+        int,
+        Field(
+            description=(
+                "Tile HEIGHT in grid row-units. Default 45 ≈ 225-450px tall, "
+                "suitable for a regional map. Do NOT pass values under 10."
+            ),
+            ge=10,
+            le=100,
+        ),
+    ] = 45,
 ) -> Dict[str, Any]:
     """Create a geographic map on the dashboard.
 
@@ -2773,8 +2971,28 @@ def create_variable_input(
     slider_min: Annotated[Optional[float], Field(description="Minimum value for slider type")] = None,
     slider_max: Annotated[Optional[float], Field(description="Maximum value for slider type")] = None,
     slider_step: Annotated[Optional[float], Field(description="Step increment for slider type")] = None,
-    w: Annotated[int, Field(description="Grid width in columns (out of 100)")] = 25,
-    h: Annotated[int, Field(description="Grid height in row units")] = 12,
+    w: Annotated[
+        int,
+        Field(
+            description=(
+                "Tile WIDTH as a fraction of dashboard width (1-100). "
+                "Default 25 = quarter-width (variable inputs are usually narrow)."
+            ),
+            ge=1,
+            le=100,
+        ),
+    ] = 25,
+    h: Annotated[
+        int,
+        Field(
+            description=(
+                "Tile HEIGHT in grid row-units. Default 12 ≈ 60-120px tall, "
+                "suitable for a single input control. Do NOT pass values under 10."
+            ),
+            ge=10,
+            le=100,
+        ),
+    ] = 12,
 ) -> Dict[str, Any]:
     """Create a variable input on the dashboard.
 
@@ -3065,8 +3283,28 @@ def add_dynamic_map_layer(
 def render_plugin(
     source: Annotated[str, Field(description="Intake driver name from the 'source' field in list_intake_plugins results. Always call list_intake_plugins first to get the exact source name. Do NOT guess or invent source names — using a wrong name causes a 'not installed' error.")],
     args: Annotated[Dict[str, Any], Field(description="Plugin arguments. Use ${variable_name} syntax to reference dashboard variable inputs. Example: {\"gauge_id\": \"${my_gauge}\"}")],
-    w: Annotated[int, Field(description="Grid width in columns (out of 100)")] = 50,
-    h: Annotated[int, Field(description="Grid height in row units")] = 25,
+    w: Annotated[
+        int,
+        Field(
+            description=(
+                "Tile WIDTH as a fraction of dashboard width (1-100). "
+                "Default 50 = half-width."
+            ),
+            ge=1,
+            le=100,
+        ),
+    ] = 50,
+    h: Annotated[
+        int,
+        Field(
+            description=(
+                "Tile HEIGHT in grid row-units. Default 25 ≈ 125-250px tall. "
+                "Do NOT pass values under 10."
+            ),
+            ge=10,
+            le=100,
+        ),
+    ] = 25,
 ) -> Dict[str, Any]:
     """Create a visualization using a Python intake-driver plugin.
 
@@ -3230,8 +3468,28 @@ def _validate_plugin_props(source: str, props: Dict) -> Optional[str]:
 def render_custom_visualization(
     source: Annotated[str, Field(description="Client plugin source name from list_available_visualizations")],
     props: Annotated[Optional[Dict[str, Any]], Field(description="Props to pass to the plugin component. Check list_available_visualizations for each plugin's required args and valid values.")] = None,
-    w: Annotated[int, Field(description="Grid width in columns (out of 100)")] = 50,
-    h: Annotated[int, Field(description="Grid height in row units")] = 30,
+    w: Annotated[
+        int,
+        Field(
+            description=(
+                "Tile WIDTH as a fraction of dashboard width (1-100). "
+                "Default 50 = half-width."
+            ),
+            ge=1,
+            le=100,
+        ),
+    ] = 50,
+    h: Annotated[
+        int,
+        Field(
+            description=(
+                "Tile HEIGHT in grid row-units. Default 30 ≈ 150-300px "
+                "tall. Do NOT pass values under 10."
+            ),
+            ge=10,
+            le=100,
+        ),
+    ] = 30,
 ) -> Dict[str, Any]:
     """Render a registered client plugin on the dashboard.
 
