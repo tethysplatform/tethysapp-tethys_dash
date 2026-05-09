@@ -17,15 +17,26 @@ import {
 import { ChatSidebarContext } from "components/contexts/ChatSidebarContext";
 
 // The Chatbox itself connects to an MCP server and owns heavy state — stub
-// it out so this gate test doesn't need full chat infrastructure.
+// it out so this gate test doesn't need full chat infrastructure. The
+// stub records the most-recent props it was rendered with so tests can
+// inspect engineExtensions etc. (jest.mock factories can't close over
+// outer variables due to hoisting, so we attach to globalThis instead.)
 jest.mock("@chatbox/core/components", () => ({
-  Chatbox: () => <div data-testid="chatbox-stub" />,
+  Chatbox: (props) => {
+    globalThis.__chatboxLastProps = props;
+    return <div data-testid="chatbox-stub" />;
+  },
 }));
 
-function renderWithContexts({ editable, pluginEditablePaths = {} }) {
+function renderWithContexts({
+  editable,
+  pluginEditablePaths = {},
+  tabs = [],
+  variableInputValues = {},
+}) {
   const layout = { editable };
-  const tab = { tabs: [] };
-  const variables = { variableInputValues: {}, setVariableInputValues: () => {} };
+  const tab = { tabs };
+  const variables = { variableInputValues, setVariableInputValues: () => {} };
   const chatSidebar = { isOpen: true, setIsOpen: () => {} };
   const app = { csrf: "csrf-token", pluginEditablePaths };
   return render(
@@ -201,5 +212,83 @@ describe("ChatSidebar patch-rejected banner (plan 2026-05-07-001 Unit B)", () =>
     });
     expect(queryByTestId("patch-rejected-banner")).toBeNull();
     expect(container.firstChild).toBeNull();
+  });
+});
+
+/**
+ * 2026-05-09 debug session — third-party MCP servers (e.g.,
+ * mta-subway-mcp-server) hit by slash-command prompt templates were
+ * being refused by the LLM as "off-topic" because the
+ * `beforeFirstMessage` system message framed every turn as
+ * dashboard-edit-only, with no escape clause.
+ *
+ * The fix injects an explicit "advisory, not exclusive" preamble
+ * BEFORE the dashboard-state JSON so the LLM treats off-topic
+ * requests (slash-command templates from other MCP servers, general
+ * questions) as routable. These tests pin the wording so a future
+ * editor can't silently drop the escape clause.
+ */
+describe("ChatSidebar beforeFirstMessage system-message framing", () => {
+  beforeEach(() => {
+    globalThis.__chatboxLastProps = undefined;
+  });
+
+  const plotItem = {
+    uuid: "dd6a49b1-eee2-4300-a4a4-ab88f52571dd",
+    source: "Inline Plotly",
+    args_string: JSON.stringify({
+      inlineData: { layout: { title: "Streamflow timeseries" }, data: [] },
+    }),
+  };
+  const tabsWithViz = [{ id: "t1", gridItems: [plotItem] }];
+
+  test("returns null when the dashboard has no patchable visualizations", () => {
+    renderWithContexts({ editable: true, tabs: [] });
+    const props = globalThis.__chatboxLastProps;
+    expect(props).toBeDefined();
+    expect(props.engineExtensions.beforeFirstMessage()).toBeNull();
+  });
+
+  test("emits a system message containing both the escape clause AND the dashboard-edit framing", () => {
+    renderWithContexts({ editable: true, tabs: tabsWithViz });
+    const props = globalThis.__chatboxLastProps;
+    expect(props).toBeDefined();
+    const msg = props.engineExtensions.beforeFirstMessage();
+    expect(msg).not.toBeNull();
+    expect(msg.role).toBe("system");
+    // Escape clause — guards against the bug where the LLM refused
+    // off-topic slash-command prompts (subway etc.) because the
+    // dashboard-edit framing read as exclusive.
+    expect(msg.content).toMatch(/REFERENCE for editing existing visualizations/);
+    expect(msg.content).toMatch(/NOT exclusive scope/i);
+    expect(msg.content).toMatch(
+      /slash-command prompt template from another connected MCP server/i,
+    );
+    expect(msg.content).toMatch(/Do NOT refuse off-topic requests/i);
+    expect(msg.content).toMatch(/advisory, not exclusive/i);
+    // Dashboard-edit framing still present — the fix didn't drop it,
+    // just contextualized it.
+    expect(msg.content).toMatch(
+      /To edit an existing visualization, target its uuid via the patch_visualization tool/,
+    );
+    expect(msg.content).toMatch(/editable_paths_by_source/);
+    // Dashboard-state JSON is still appended.
+    expect(msg.content).toMatch(/dd6a49b1-eee2-4300-a4a4-ab88f52571dd/);
+    expect(msg.content).toMatch(/Inline Plotly/);
+  });
+
+  test("escape clause appears BEFORE the dashboard-edit framing in the system message", () => {
+    renderWithContexts({ editable: true, tabs: tabsWithViz });
+    const msg = globalThis.__chatboxLastProps.engineExtensions.beforeFirstMessage();
+    const escapeIdx = msg.content.indexOf("REFERENCE for editing");
+    const editFramingIdx = msg.content.indexOf(
+      "Current dashboard state and patch_visualization reference",
+    );
+    expect(escapeIdx).toBeGreaterThanOrEqual(0);
+    expect(editFramingIdx).toBeGreaterThanOrEqual(0);
+    // Position matters — system messages weight early content more.
+    // The escape clause must lead so the LLM sees the "not exclusive"
+    // framing before the dashboard-edit instructions.
+    expect(escapeIdx).toBeLessThan(editFramingIdx);
   });
 });
