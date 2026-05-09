@@ -291,4 +291,56 @@ describe("ChatSidebar beforeFirstMessage system-message framing", () => {
     // framing before the dashboard-edit instructions.
     expect(escapeIdx).toBeLessThan(editFramingIdx);
   });
+
+  // Debug session 2026-05-09 — LLM was firing BOTH create_plotly_chart
+  // AND patch_visualization for "add a line to viz X" requests, producing
+  // a duplicate ghost tile. The fix added a PRIORITY rule to the system
+  // message making patch_visualization the winner when both could apply.
+  // These tests pin the wording AND its position in the message so the
+  // rule can't silently regress.
+
+  test("PRIORITY rule names patch_visualization as the winner when both create and patch could apply", () => {
+    renderWithContexts({ editable: true, tabs: tabsWithViz });
+    const msg = globalThis.__chatboxLastProps.engineExtensions.beforeFirstMessage();
+    expect(msg.content).toMatch(/PRIORITY/);
+    expect(msg.content).toMatch(
+      /ALWAYS use\s+`?patch_visualization`?/i,
+    );
+    expect(msg.content).toMatch(/Do NOT also call any `?create_\*`?/i);
+    // Names the duplicate-ghost-tile failure mode so a future editor
+    // understands what the rule prevents.
+    expect(msg.content).toMatch(/duplicate ghost tiles/i);
+  });
+
+  test("PRIORITY rule preserves the add_*_layer exception for new layers on existing maps", () => {
+    renderWithContexts({ editable: true, tabs: tabsWithViz });
+    const msg = globalThis.__chatboxLastProps.engineExtensions.beforeFirstMessage();
+    // The PRIORITY rule's negative directive is "no create_* in the same
+    // turn as patch_visualization", but adding a NEW layer to an
+    // EXISTING map still goes through `add_*_layer` (which takes a
+    // map_uuid), not patch_visualization. The system message must
+    // surface this exception so the LLM doesn't degenerate to "every
+    // edit goes through patch_visualization".
+    expect(msg.content).toMatch(/add_\*_layer/);
+    expect(msg.content).toMatch(/exception/i);
+  });
+
+  test("PRIORITY rule appears BETWEEN the patch-framing and the dashboard-state JSON", () => {
+    renderWithContexts({ editable: true, tabs: tabsWithViz });
+    const msg = globalThis.__chatboxLastProps.engineExtensions.beforeFirstMessage();
+    const editFramingIdx = msg.content.indexOf(
+      "Current dashboard state and patch_visualization reference",
+    );
+    const priorityIdx = msg.content.indexOf("PRIORITY");
+    const jsonIdx = msg.content.indexOf("dd6a49b1-eee2-4300-a4a4-ab88f52571dd");
+    expect(editFramingIdx).toBeGreaterThanOrEqual(0);
+    expect(priorityIdx).toBeGreaterThanOrEqual(0);
+    expect(jsonIdx).toBeGreaterThanOrEqual(0);
+    // PRIORITY must sit between the framing prose and the dashboard-state
+    // JSON dump. Putting it BEFORE the framing risks the LLM weighting
+    // it as "advisory" along with the escape clause; putting it AFTER
+    // the JSON buries it. Between is the right slot.
+    expect(priorityIdx).toBeGreaterThan(editFramingIdx);
+    expect(priorityIdx).toBeLessThan(jsonIdx);
+  });
 });
