@@ -2238,14 +2238,14 @@ _VALUE_SHAPE_RULES: Dict[tuple, tuple] = {
 }
 
 
-def _validate_value_shapes(source: str, patches: List[Dict[str, Any]]) -> Optional[str]:
+def _validate_value_shapes(source: str, ops: List[Dict[str, Any]]) -> Optional[str]:
     """Reject ops whose value type would later crash the renderer.
 
     Only runs on ``add`` / ``replace`` / ``test`` (ops that carry a value).
     ``remove`` and ``move`` are skipped. Matches paths exactly — deeper
     ops inside a constrained subtree are left to RFC 6902 semantics.
     """
-    for i, op in enumerate(patches):
+    for i, op in enumerate(ops):
         if op.get("op") not in ("add", "replace", "test"):
             continue
         rule = _VALUE_SHAPE_RULES.get((source, op.get("path")))
@@ -2261,14 +2261,14 @@ def _validate_value_shapes(source: str, patches: List[Dict[str, Any]]) -> Option
     return None
 
 
-def _coerce_known_values(source: str, patches: List[Dict[str, Any]]) -> None:
+def _coerce_known_values(source: str, ops: List[Dict[str, Any]]) -> None:
     """Mirror create-tool value coercions on matching patch ops.
 
     Keeps patch-vs-create behavior symmetric: anything the LLM can pass to a
-    create tool should land the same way via patch. Mutates ``patches``
+    create tool should land the same way via patch. Mutates ``ops``
     in-place (the envelope is about to be returned verbatim to the client).
     """
-    for op in patches:
+    for op in ops:
         if op.get("op") not in ("add", "replace", "test"):
             continue
         # Mirror create_map_visualization's BASE_MAPS shorthand resolution
@@ -2281,7 +2281,7 @@ def _coerce_known_values(source: str, patches: List[Dict[str, Any]]) -> None:
 
 
 def _coerce_replace_to_add_on_layer_paths(
-    source: str, patches: List[Dict[str, Any]]
+    source: str, ops: List[Dict[str, Any]]
 ) -> None:
     """Op-level normalization: ``replace`` -> ``add`` for Map layer-internal
     paths whose leaf segment is an object key (not an array index).
@@ -2306,7 +2306,7 @@ def _coerce_replace_to_add_on_layer_paths(
         materially (insert vs substitute). Coercing them would change the
         semantics of legitimate array-element edits.
 
-    Mutates ``patches`` in-place. No I/O, no telemetry — silent
+    Mutates ``ops`` in-place. No I/O, no telemetry — silent
     transformation that matches sibling value-coercion precedent.
 
     Sibling to ``_coerce_known_values`` in this module; both are called
@@ -2315,7 +2315,7 @@ def _coerce_replace_to_add_on_layer_paths(
     """
     if source != "Map":
         return
-    for op in patches:
+    for op in ops:
         if op.get("op") != "replace":
             continue
         path = op.get("path", "")
@@ -2332,16 +2332,16 @@ def _coerce_replace_to_add_on_layer_paths(
         op["op"] = "add"
 
 
-def _validate_patch_envelope_shape(patches):
+def _validate_patch_envelope_shape(ops):
     """R1/R2: structural validation.
 
     Returns an error string or None.
     """
-    if not isinstance(patches, list):
-        return "`patches` must be a list of operations"
-    if len(patches) == 0:
-        return "`patches` list is empty — envelopes must contain at least one op"
-    for i, op in enumerate(patches):
+    if not isinstance(ops, list):
+        return "`ops` must be a list of operations"
+    if len(ops) == 0:
+        return "`ops` list is empty — envelopes must contain at least one op"
+    for i, op in enumerate(ops):
         if not isinstance(op, dict):
             return f"op {i} is not an object"
         if "op" not in op:
@@ -2373,7 +2373,7 @@ def _validate_patch_envelope_shape(patches):
     return None
 
 
-def _check_r5c_array_collision(patches):
+def _check_r5c_array_collision(ops):
     """R5c: reject multi-op envelopes with >1 index-shifting op targeting the
     same array parent.
 
@@ -2400,7 +2400,7 @@ def _check_r5c_array_collision(patches):
             parent = "/".join(segments[:-1])
             add_remove_by_parent.setdefault(parent, []).append(op_index)
 
-    for i, op in enumerate(patches):
+    for i, op in enumerate(ops):
         op_name = op.get("op")
         if op_name == "add" or op_name == "remove":
             _add_collision_candidate(op.get("path", ""), i)
@@ -2422,7 +2422,7 @@ def _check_r5c_array_collision(patches):
     return None
 
 
-def _check_layer_construction_boundary(source, patches):
+def _check_layer_construction_boundary(source, ops):
     """R9/R10: Map layer construction is reserved for add_map_service_layer.
 
     Reject `add`/`replace` at /args/layers (whole array — the LLM's wrong-
@@ -2435,7 +2435,7 @@ def _check_layer_construction_boundary(source, patches):
     """
     if source != "Map":
         return None
-    for i, op in enumerate(patches):
+    for i, op in enumerate(ops):
         op_name = op.get("op")
         path = op.get("path", "")
         # Whole-array path. Catch this before the per-index branches so the
@@ -2530,7 +2530,7 @@ def _emit_rejection_telemetry(
     tags=["visualization", "patch", "update"],
 )
 def patch_visualization(
-    target_uuid: Annotated[
+    uuid: Annotated[
         str,
         Field(description="UUID of the target visualization (from dashboard_state)."),
     ],
@@ -2541,7 +2541,7 @@ def patch_visualization(
             "source shown in dashboard_state for this UUID."
         )),
     ],
-    patches: Annotated[
+    ops: Annotated[
         Union[List[Dict[str, Any]], str],
         Field(description=(
             "Array of RFC 6902 operations. Each operation is an object with "
@@ -2574,27 +2574,27 @@ def patch_visualization(
     # for the LLM (the prior tool's create_* return value is the recovery
     # source of truth).
     uuid_error = _validate_uuid_arg(
-        target_uuid,
-        "target_uuid",
+        uuid,
+        "uuid",
         "the create_* tool that returned this UUID",
     )
     if uuid_error:
         return {"error": uuid_error}
 
     # Dict-coercion pattern (see docs/solutions/best-practices/mcp-tool-dict-parameter-coercion)
-    if isinstance(patches, str):
+    if isinstance(ops, str):
         try:
-            patches = json.loads(patches)
+            ops = json.loads(ops)
         except json.JSONDecodeError as e:
-            return {"error": f"invalid_envelope: `patches` is not valid JSON: {e}"}
+            return {"error": f"invalid_envelope: `ops` is not valid JSON: {e}"}
 
     # R1/R2: envelope shape
-    shape_error = _validate_patch_envelope_shape(patches)
+    shape_error = _validate_patch_envelope_shape(ops)
     if shape_error:
         return {"error": f"invalid_envelope: {shape_error}"}
 
     # R5c: multi-op array collision
-    r5c_error = _check_r5c_array_collision(patches)
+    r5c_error = _check_r5c_array_collision(ops)
     if r5c_error:
         return {"error": f"invalid_envelope: {r5c_error}"}
 
@@ -2611,7 +2611,7 @@ def patch_visualization(
         allowed_prefixes = resolve_editable_paths(source)
         def _path_allowed(path: str) -> bool:
             return is_path_allowed_plugin(source, path)
-    for i, op in enumerate(patches):
+    for i, op in enumerate(ops):
         if not _path_allowed(op["path"]):
             _emit_rejection_telemetry(
                 reason=(
@@ -2652,37 +2652,37 @@ def patch_visualization(
             )}
 
     # R9/R10: layer-construction boundary (Map only)
-    layer_error = _check_layer_construction_boundary(source, patches)
+    layer_error = _check_layer_construction_boundary(source, ops)
     if layer_error:
         return {"error": f"whitelist_rejected: {layer_error}"}
 
     # Value-shape validation: enforce renderer contracts that create tools
     # already enforce via Pydantic. Prevents a valid-envelope patch from
     # silently crashing Card.js / DataTable.js with a non-array payload.
-    shape_error = _validate_value_shapes(source, patches)
+    shape_error = _validate_value_shapes(source, ops)
     if shape_error:
         return {"error": f"invalid_envelope: {shape_error}"}
 
     # Value coercions that mirror the create tools (e.g., baseMap shorthand).
     # Run AFTER validation so shape rules apply to the pre-coercion value.
-    _coerce_known_values(source, patches)
+    _coerce_known_values(source, ops)
 
     # Op-level coercion: replace -> add for Map layer-internal paths.
     # Runs after the boundary check (so bare-index `replace` is already
     # rejected and never reaches this point) and after value coercion (so
     # the value rules apply to the pre-coercion shape if any field-specific
     # rules ever target an op-coerced path in the future).
-    _coerce_replace_to_add_on_layer_paths(source, patches)
+    _coerce_replace_to_add_on_layer_paths(source, ops)
 
     LOGGER.info(
-        "patch_visualization: target_uuid=%s source=%s ops=%d description=%s",
-        target_uuid, source, len(patches), description,
+        "patch_visualization: uuid=%s source=%s ops=%d description=%s",
+        uuid, source, len(ops), description,
     )
     return {
         "patch_update": {
-            "uuid": target_uuid,
+            "uuid": uuid,
             "source": source,
-            "ops": patches,
+            "ops": ops,
         }
     }
 
