@@ -2,7 +2,7 @@ import PropTypes from "prop-types";
 import styled, { css } from "styled-components";
 import Container from "react-bootstrap/Container";
 import { memo, useState, useContext, useEffect } from "react";
-import { BsInfoCircle } from "react-icons/bs";
+import { BsInfoCircle, BsClipboard } from "react-icons/bs";
 import {
   EditingContext,
   VariableInputsContext,
@@ -69,6 +69,27 @@ const InfoIconWrapper = styled.div`
   left: 0.5rem;
   display: flex;
   align-items: center;
+`;
+
+const CopyIconWrapper = styled.button`
+  position: absolute;
+  bottom: 0.5rem;
+  right: 0.5rem;
+  background: transparent;
+  border: none;
+  padding: 0.25rem;
+  cursor: pointer;
+  opacity: 0.15;
+  transition: opacity 120ms ease-in-out;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+
+  &:hover,
+  &:focus-visible {
+    opacity: 0.7;
+  }
 `;
 
 const AttributionTooltip = styled.div`
@@ -288,8 +309,13 @@ export const handleGridItemImport = async (gridItem, csrf, dashboard_uuid) => {
 };
 
 const DashboardItem = () => {
-  const { gridItemSource, gridItemI, gridItemMetadataString, gridItemIndex } =
-    useContext(GridItemContext);
+  const {
+    gridItemSource,
+    gridItemI,
+    gridItemMetadataString,
+    gridItemIndex,
+    gridItemUUID,
+  } = useContext(GridItemContext);
   const { isEditing, setIsEditing } = useContext(EditingContext);
   const [showDataViewerModal, setShowDataViewerModal] = useState(false);
   const [gridItemMessage, setGridItemMessage] = useState("");
@@ -422,6 +448,27 @@ const DashboardItem = () => {
     setIsEditing(true);
   }
 
+  async function copyGridItemContext(e) {
+    e.stopPropagation();
+    const activeTab = getActiveTab();
+    const gridItem = activeTab?.gridItems?.[gridItemIndex];
+    if (!gridItem) {
+      setGridItemWarning("Could not read tile metadata");
+      setShowGridItemWarning(true);
+      return;
+    }
+    const { x, y, w, h } = gridItem;
+    const payload = `uuid: ${gridItemUUID}\nsource: ${gridItemSource}\nposition: ${x},${y} ${w}×${h}`;
+    try {
+      await window.navigator.clipboard.writeText(payload);
+      setGridItemMessage("UUID copied to clipboard");
+      setShowGridItemMessage(true);
+    } catch {
+      setGridItemWarning("Failed to copy UUID");
+      setShowGridItemWarning(true);
+    }
+  }
+
   function hideDataViewerModal() {
     setShowDataViewerModal(false);
     setInDataViewerMode(false);
@@ -477,7 +524,7 @@ const DashboardItem = () => {
           <CustomAlert
             alertType={"warning"}
             showAlert={showGridItemWarning}
-            setShowAlert={setGridItemWarning}
+            setShowAlert={setShowGridItemWarning}
             alertMessage={gridItemWarning}
           />
           <ErrorBoundary
@@ -516,6 +563,13 @@ const DashboardItem = () => {
             setShowGridItemMessage={setShowGridItemMessage}
           />
         )}
+        <CopyIconWrapper
+          type="button"
+          aria-label="Copy grid item UUID"
+          onClick={copyGridItemContext}
+        >
+          <BsClipboard size={14} />
+        </CopyIconWrapper>
       </StyledDiv>
       {isEditing && (
         <StyledButtonDiv>
