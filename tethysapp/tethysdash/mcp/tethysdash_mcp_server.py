@@ -3742,6 +3742,117 @@ def list_available_visualizations() -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# Slash-command prompt templates (Phase 3a) — discovery + render pair.
+#
+# Pattern mirrors mcp/nrds_mcps/nextgen_mcp/mcp_server.py (Phases 2a/2b):
+#   - Zero-arg prompts for the two list_* tools.
+#   - Multi-arg prompts for the two render_* tools, with EVERY surfaced
+#     arg typed Annotated[str, Field(...)]. The chatbox-core slash
+#     popover synthesizes "[hint]" string tokens; FastMCP would reject
+#     those on Dict/int-typed prompt args with PromptError before
+#     render. The LLM consuming the rendered template translates the
+#     bracket-filled string back to the correct Dict/int when invoking
+#     the underlying tool.
+#   - Layout dims (w/h) are NOT surfaced — they're documented defaults,
+#     not routing decisions. Surfacing them would add bracket tokens
+#     for zero error-prevention benefit (see Phase 3a plan R7).
+#   - Argument NAMES mirror the underlying tool's exactly (R2 / parity
+#     test in test_prompts.py).
+#   - Hint copy is drawn from each tool's Field(description=...) with
+#     concrete-example values stripped per CLAUDE.md "MCP tool
+#     descriptions" rule. LOCKSTEP: when the tool's Field description
+#     changes, update the matching prompt arg description here.
+# ---------------------------------------------------------------------------
+
+
+# Python function names carry a ``_prompt_`` prefix so they don't shadow
+# the underlying tool functions defined earlier in this file (same name
+# binding rule). The ``name=`` arg on ``@mcp.prompt`` is the slash-command
+# name the chatbox-core popover surfaces — that name intentionally equals
+# the tool name so the slash menu reads "/list_intake_plugins" etc.,
+# matching the plan's documented contract (Phase 3a plan R2/R3).
+
+
+@mcp.prompt(name="list_intake_plugins")
+def _prompt_list_intake_plugins() -> str:
+    """List installed backend intake plugins.
+
+    Drives the ``list_intake_plugins`` tool. Zero-arg by design.
+    FastMCP 3.2.x silently ignores extra kwargs on no-arg prompts
+    (test pinned).
+    """
+    return "List the installed backend intake plugins."
+
+
+@mcp.prompt(name="list_available_visualizations")
+def _prompt_list_available_visualizations() -> str:
+    """List all available visualization types.
+
+    Drives the ``list_available_visualizations`` tool. Returns native
+    builtins (charts, tables, maps, cards, text, images), registered
+    client plugins, and MFE rendering info. Zero-arg.
+    """
+    return "List all available visualization types."
+
+
+@mcp.prompt(name="render_plugin")
+def _prompt_render_plugin(
+    source: Annotated[
+        str,
+        Field(
+            description=(
+                "Intake driver name from the 'source' field in "
+                "list_intake_plugins results."
+            ),
+        ),
+    ],
+    args: Annotated[
+        str,
+        Field(
+            description=(
+                "Plugin arguments as a JSON object. Use ${variable_name} "
+                "to reference dashboard variable inputs (auto-refreshes "
+                "when the variable changes)."
+            ),
+        ),
+    ],
+) -> str:
+    """Render a backend intake-plugin visualization on the dashboard.
+
+    Drives the ``render_plugin`` tool. ``source`` and ``args`` are the
+    truly-required routing args; layout w/h use the tool's documented
+    defaults (50/25) and are not surfaced. The ``args`` arg is typed
+    ``str`` on the prompt — the LLM translates the rendered string
+    into a Dict when calling the underlying tool.
+    """
+    return (
+        f"Render the {source} intake plugin on the dashboard with "
+        f"args {args}."
+    )
+
+
+@mcp.prompt(name="render_custom_visualization")
+def _prompt_render_custom_visualization(
+    source: Annotated[
+        str,
+        Field(
+            description=(
+                "Client plugin source name from list_available_visualizations."
+            ),
+        ),
+    ],
+) -> str:
+    """Render a registered client-side custom visualization on the dashboard.
+
+    Drives the ``render_custom_visualization`` tool. ``source`` is the
+    only truly-required routing arg; ``props`` is optional and layout
+    w/h use the tool's documented defaults (50/30). None of those are
+    surfaced — only the routing arg appears in the slash popover.
+    """
+    return f"Render the {source} custom visualization on the dashboard."
+
+
+# ---------------------------------------------------------------------------
 # Logging + Entry Point
 # ---------------------------------------------------------------------------
 
