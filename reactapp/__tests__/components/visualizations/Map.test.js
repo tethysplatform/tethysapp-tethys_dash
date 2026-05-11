@@ -2672,6 +2672,250 @@ describe("modal-mode popup integration", () => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
   });
+
+  // Line 267: findLayerByName's `if (!layers || !layerName) return undefined`.
+  // The early-return body is never hit by existing tests because every feature
+  // they return has a valid layerName. Feeding the click pipeline a feature
+  // with no layerName routes through isModalModeLayer → findLayerByName(undefined),
+  // exercising the !layerName branch.
+  test("findLayerByName returns undefined when feature has no layerName (covers line 267)", async () => {
+    mockedQueryLayerFeatures.mockResolvedValue([
+      {
+        attributes: { id: "ABC" },
+        geometry: { x: 10, y: 10 },
+        // layerName intentionally absent.
+      },
+    ]);
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+
+    const layers = [
+      {
+        name: "Stations",
+        configuration: {
+          type: "ImageLayer",
+          props: {
+            name: "Stations",
+            source: {
+              type: "ESRI Image and Map Service",
+              props: { url: "some_url" },
+            },
+          },
+        },
+        popupConfig: {
+          mode: "modal",
+          position: null,
+          titleTemplate: null,
+          gridItems: [],
+        },
+      },
+    ];
+    const LoadedComponent = createLoadedComponent({
+      children: (
+        <MapContextProvider>
+          <TestingComponent
+            onMapClick={jest.fn()}
+            clickCoordinates={[10, 20]}
+            mapProps={{
+              mapConfig: {},
+              viewConfig: {},
+              layers,
+              baseMap: null,
+              layerControl: false,
+            }}
+          />
+        </MapContextProvider>
+      ),
+    });
+    render(LoadedComponent);
+
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(mockedQueryLayerFeatures).toHaveBeenCalled();
+    });
+
+    // findLayerByName(undefined) hit the !layerName guard and returned
+    // undefined, so isModalModeLayer returned false and no modal opens.
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  // Line 307: closeModal's `if (container && typeof container.focus === "function")`.
+  // Existing tests always close with a real div (focus IS a function), so the
+  // if-not-taken branch is unhit. Replacing the wrapper's .focus with null
+  // makes typeof !== "function", so the branch returns false.
+  test("closeModal skips focus restore when the map container's focus is not callable (covers line 307 false branch)", async () => {
+    mockedQueryLayerFeatures.mockResolvedValue([
+      {
+        attributes: { station_id: "ABC" },
+        geometry: { x: 10, y: 10 },
+        layerName: "Stations",
+      },
+    ]);
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+
+    const layers = [
+      {
+        name: "Stations",
+        configuration: {
+          type: "ImageLayer",
+          props: {
+            name: "Stations",
+            source: {
+              type: "ESRI Image and Map Service",
+              props: { url: "some_url" },
+            },
+          },
+        },
+        popupConfig: {
+          mode: "modal",
+          position: null,
+          titleTemplate: null,
+          gridItems: [],
+        },
+      },
+    ];
+    const LoadedComponent = createLoadedComponent({
+      children: (
+        <MapContextProvider>
+          <TestingComponent
+            onMapClick={jest.fn()}
+            clickCoordinates={[10, 20]}
+            mapProps={{
+              mapConfig: {},
+              viewConfig: {},
+              layers,
+              baseMap: null,
+              layerControl: false,
+            }}
+          />
+        </MapContextProvider>
+      ),
+    });
+    const { container } = render(LoadedComponent);
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+
+    // mapContainerRef points at the wrapper div with tabIndex=-1 inside the
+    // test container. PopupModal's own tabIndex=-1 lives on document.body via
+    // portal, so the only tabindex=-1 element under `container` is the
+    // MapVisualization wrapper.
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
+    const wrapper = container.querySelector('div[tabindex="-1"]');
+    expect(wrapper).not.toBeNull();
+    // Make wrapper.focus return null on Map.js's first access (the
+    // `typeof container.focus === "function"` check at line 307 → false →
+    // branch alt 1 hit), then a no-op function for PopupModal's subsequent
+    // `triggerRef.current.focus()` call so the close-side focus restore
+    // doesn't crash on null.
+    let focusAccessCount = 0;
+    Object.defineProperty(wrapper, "focus", {
+      configurable: true,
+      get() {
+        focusAccessCount += 1;
+        if (focusAccessCount === 1) return null;
+        return () => {};
+      },
+    });
+
+    fireEvent.click(screen.getByTestId("popup-modal-close"));
+
+    // Modal closed cleanly: Map.js's closeModal skipped its focus call
+    // (branch 307 alt 1 — the if body NOT taken) and PopupModal's
+    // focus-restore call was a no-op.
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+    expect(focusAccessCount).toBeGreaterThanOrEqual(1);
+  });
+
+  // Lines 767, 769:
+  //   activeModalFeature.attributes ?? {}      ← line 767 (?? right-side)
+  //   if (substituted.trim().length > 0) { ... } ← line 769 (false branch)
+  //
+  // The OL-Overlay Popup component renders the same feature and would crash
+  // on `Object.entries(undefined)` if attributes is nullish. We side-step that
+  // by replacing react-dom/client's createRoot with a stub whose .render is a
+  // no-op so the Popup overlay is never actually rendered. The PopupModal
+  // (the React-Bootstrap-style portal) still renders normally and we can
+  // assert against its header.
+  // eslint-disable-next-line no-template-curly-in-string
+  test("modal title falls back to layerName when attributes is nullish and template substitutes to empty (covers lines 767, 769)", async () => {
+    const ReactDOMClient = require("react-dom/client");
+    const originalCreateRoot = ReactDOMClient.createRoot;
+    ReactDOMClient.createRoot = jest.fn(() => ({
+      render: jest.fn(),
+      unmount: jest.fn(),
+    }));
+
+    try {
+      mockedQueryLayerFeatures.mockResolvedValue([
+        {
+          // attributes intentionally undefined → exercises `?? {}` right side.
+          geometry: { x: 10, y: 10 },
+          layerName: "Stations",
+        },
+      ]);
+      jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+
+      const layers = [
+        {
+          name: "Stations",
+          configuration: {
+            type: "ImageLayer",
+            props: {
+              name: "Stations",
+              source: {
+                type: "ESRI Image and Map Service",
+                props: { url: "some_url" },
+              },
+            },
+          },
+          popupConfig: {
+            mode: "modal",
+            position: null,
+            // Template references a key that doesn't exist on the (empty)
+            // attributes map → substituted is "", trim().length === 0,
+            // so the `if (substituted.trim().length > 0)` body is skipped
+            // and popupTitleText stays at activeModalFeature.layerName.
+            // eslint-disable-next-line no-template-curly-in-string
+            titleTemplate: "${feature.missing}",
+            gridItems: [],
+          },
+        },
+      ];
+      const LoadedComponent = createLoadedComponent({
+        children: (
+          <MapContextProvider>
+            <TestingComponent
+              onMapClick={jest.fn()}
+              clickCoordinates={[10, 20]}
+              mapProps={{
+                mapConfig: {},
+                viewConfig: {},
+                layers,
+                baseMap: null,
+                layerControl: false,
+              }}
+            />
+          </MapContextProvider>
+        ),
+      });
+      render(LoadedComponent);
+
+      expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByRole("dialog")).toBeInTheDocument();
+      });
+
+      // Empty substitution → header falls back to the layerName.
+      expect(screen.getByTestId("popup-modal-header-title")).toHaveTextContent(
+        "Stations",
+      );
+    } finally {
+      ReactDOMClient.createRoot = originalCreateRoot;
+    }
+  });
 });
 
 describe("Popup component", () => {

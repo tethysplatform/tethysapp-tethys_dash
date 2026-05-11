@@ -1,8 +1,8 @@
 /* eslint-disable no-template-curly-in-string */
 // This file tests literal `${feature.<key>}` template syntax handling.
-import { useState } from "react";
+import React, { useState } from "react";
 import PropTypes from "prop-types";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import PopupModalChrome from "components/modals/PopupModal/PopupModalChrome";
 import { VariableInputsContext } from "components/contexts/Contexts";
@@ -117,7 +117,14 @@ describe("PopupModalChrome — carousel", () => {
   test("renders the carousel for multiple features with substituted labels", () => {
     render(
       <Harness
-        features={[featureA, featureB, featureC]}
+        features={[
+          featureA,
+          featureB,
+          featureC,
+          {
+            layerName: "Stations",
+          },
+        ]}
         popupConfig={samplePopupConfig({
           titleTemplate: "${feature.station_name}",
         })}
@@ -132,6 +139,9 @@ describe("PopupModalChrome — carousel", () => {
     );
     expect(screen.getByTestId("popup-modal-carousel-chip-2")).toHaveTextContent(
       "Animas River",
+    );
+    expect(screen.getByTestId("popup-modal-carousel-chip-3")).toHaveTextContent(
+      "Feature 4",
     );
   });
 
@@ -175,6 +185,19 @@ describe("PopupModalChrome — DashboardLayout wiring", () => {
     expect(screen.getByTestId("mock-dl-grid-items-count").textContent).toBe(
       "2",
     );
+  });
+
+  test("renders an empty hint when there are no gridItems", () => {
+    render(
+      <Harness
+        features={[featureA]}
+        popupConfig={samplePopupConfig({ gridItems: null })}
+      />,
+    );
+    expect(screen.getByTestId("popup-modal-chrome-empty")).toBeInTheDocument();
+    expect(
+      screen.getByText(/no visualizations have been configured/i),
+    ).toBeInTheDocument();
   });
 
   test("forces allowOverlap=false (popup grids never stack tiles, regardless of host)", () => {
@@ -254,6 +277,136 @@ describe("PopupModalChrome — re-render behavior", () => {
     expect(screen.queryByTestId("popup-modal-carousel")).toBeNull();
     // Active index clamps to 0.
     expect(screen.getByTestId("harness-active-index")).toHaveTextContent("3");
+  });
+});
+
+describe("PopupModalChrome — useLayoutEffect branch coverage (lines 86-91)", () => {
+  // Line 86: `if (!node) return undefined` — guards against bodyRef.current
+  // being null when the layout effect runs. In normal rendering React always
+  // populates the ref before useLayoutEffect fires. Wrap React.useRef so the
+  // fiber hook slot is registered (call-through to real useRef) but .current
+  // stays null via an accessor with a no-op setter.
+  test("layout effect returns early without crashing when bodyRef has no node", () => {
+    const realUseRef = React.useRef;
+    jest.spyOn(React, "useRef").mockImplementationOnce(() => {
+      const ref = realUseRef(null);
+      Object.defineProperty(ref, "current", {
+        get: () => null,
+        set: () => {},
+        configurable: true,
+        enumerable: true,
+      });
+      return ref;
+    });
+
+    render(<Harness features={[featureA]} popupConfig={samplePopupConfig()} />);
+
+    // No crash — the !node guard returned undefined before reaching apply().
+    expect(screen.getByTestId("popup-modal-chrome")).toBeInTheDocument();
+    // rowHeight stayed at the initial DEFAULT_ROW_HEIGHT because apply() never ran.
+    expect(screen.getByTestId("mock-dl-row-height").textContent).toBe(
+      String(DEFAULT_ROW_HEIGHT),
+    );
+
+    jest.restoreAllMocks();
+  });
+
+  // Line 91: setRowHeight((prev) => (prev === next ? prev : next))
+  // jsdom's default getBoundingClientRect returns zeros, so deriveRowHeight
+  // falls back to DEFAULT_ROW_HEIGHT — equal to the useState initial value,
+  // which makes the ternary always take the `prev === next` branch. Mocking
+  // a non-zero height makes deriveRowHeight produce a different value and
+  // forces the `prev !== next` branch.
+  test("setRowHeight takes the non-equal branch when measured height differs from default", () => {
+    jest
+      .spyOn(Element.prototype, "getBoundingClientRect")
+      .mockImplementation(() => ({
+        width: 800,
+        height: 800, // deriveRowHeight(800) = max(20, floor(800/20)) = 40
+        top: 0,
+        left: 0,
+        right: 800,
+        bottom: 800,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      }));
+
+    render(<Harness features={[featureA]} popupConfig={samplePopupConfig()} />);
+
+    // The updater fn observed prev=30 (DEFAULT_ROW_HEIGHT) vs next=40,
+    // returned `next`, and React committed the new value.
+    expect(screen.getByTestId("mock-dl-row-height").textContent).toBe("40");
+
+    jest.restoreAllMocks();
+  });
+});
+
+describe("PopupModalChrome — ResizeObserver callback (line 97)", () => {
+  // Line 97: `new window.ResizeObserver(() => apply())`. JSDOM doesn't ship
+  // ResizeObserver, so by default the layout effect returns early at line 94
+  // and the constructor + its callback are never reached. Install a mock that
+  // captures the callback, then invoke it manually after changing
+  // getBoundingClientRect to drive apply() through a re-measure.
+  test("ResizeObserver callback re-runs apply() and propagates the new rowHeight", () => {
+    let observerCallback;
+    const originalRO = window.ResizeObserver;
+    window.ResizeObserver = jest.fn().mockImplementation((cb) => {
+      observerCallback = cb;
+      return {
+        observe: jest.fn(),
+        unobserve: jest.fn(),
+        disconnect: jest.fn(),
+      };
+    });
+
+    // Initial height → deriveRowHeight(400) = 20. Different from
+    // DEFAULT_ROW_HEIGHT (30) so the first apply() commits a new state, then
+    // a follow-up re-measure with a larger rect must commit again.
+    const rectSpy = jest
+      .spyOn(Element.prototype, "getBoundingClientRect")
+      .mockImplementation(() => ({
+        width: 800,
+        height: 400,
+        top: 0,
+        left: 0,
+        right: 800,
+        bottom: 400,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      }));
+
+    render(<Harness features={[featureA]} popupConfig={samplePopupConfig()} />);
+
+    // First apply() ran during the layout effect: 400 → rowHeight = 20.
+    expect(screen.getByTestId("mock-dl-row-height").textContent).toBe("20");
+    expect(window.ResizeObserver).toHaveBeenCalledTimes(1);
+    expect(typeof observerCallback).toBe("function");
+
+    // Boundary grows. apply()'s setRowHeight must commit a new value.
+    rectSpy.mockImplementation(() => ({
+      width: 1600,
+      height: 1600, // deriveRowHeight(1600) = max(20, 80) = 80
+      top: 0,
+      left: 0,
+      right: 1600,
+      bottom: 1600,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    }));
+
+    act(() => {
+      observerCallback();
+    });
+
+    // The captured `() => apply()` callback ran apply(), which re-measured
+    // and called setRowHeight with the new value (80 !== 20).
+    expect(screen.getByTestId("mock-dl-row-height").textContent).toBe("80");
+
+    window.ResizeObserver = originalRO;
+    jest.restoreAllMocks();
   });
 });
 

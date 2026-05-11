@@ -291,6 +291,31 @@ describe("appAPI", () => {
     expect(response.filename).toBe("12345.json");
   });
 
+  test("updatePopup makes POST request with correct payload and CSRF token", async () => {
+    let capturedBody = {};
+    server.use(
+      rest.post(
+        "http://api.test/apps/tethysdash/popups/update/",
+        async (req, res, ctx) => {
+          capturedBody = await req.json();
+          return res(
+            ctx.status(200),
+            ctx.json({ success: true }),
+            ctx.set("Content-Type", "application/json"),
+          );
+        },
+      ),
+    );
+
+    const popupId = 1;
+    const payload = { title: "Updated Popup", content: "New content" };
+    const csrf = "test-csrf-token";
+    const response = await appAPI.updatePopup(popupId, payload, csrf);
+
+    expect(response.success).toBe(true);
+    expect(capturedBody).toEqual({ popup_id: popupId, ...payload });
+  });
+
   test("getVisualizationFeatures calls GET with mode=features and JSON-encoded args", async () => {
     let capturedParams;
     server.use(

@@ -249,19 +249,6 @@ const MapVisualization = ({
   const mapContextValue = useMapContext();
   const extentDrawMode = mapContextValue?.extentDrawMode ?? null;
 
-  /**
-   * Look up a layer's config by layer name. Matches in three passes:
-   * 1. Direct match on the configured wrapper name (`layer.name`,
-   *    `layer.configuration.name`, or `layer.configuration.props.name`).
-   * 2. Sub-layer match: ESRI Image/Map Service queries return features
-   *    keyed by sub-layer name (e.g., "Flow Forecast (m³/sec)") rather
-   *    than the wrapper name. Sub-layer names are also the keys in the
-   *    layer's `attributeAliases` / `attributeVariables` /
-   *    `omittedPopupAttributes` maps, so we use those as the lookup
-   *    table for sub-layer → wrapper resolution.
-   *
-   * Returns the matching layer or undefined.
-   */
   const findLayerByName = useCallback(
     (layerName) => {
       if (!layers || !layerName) return undefined;
@@ -284,10 +271,6 @@ const MapVisualization = ({
     [layers],
   );
 
-  /**
-   * Returns true when the given layerName resolves to a layer whose
-   * hydrated `popupConfig.mode === "modal"`.
-   */
   const isModalModeLayer = useCallback(
     (layerName) => {
       const layer = findLayerByName(layerName);
@@ -299,10 +282,6 @@ const MapVisualization = ({
   const closeModal = useCallback(() => {
     setModalOpen(false);
     setModalFeatures([]);
-    // Return focus to the map container (PopupModal's triggerRef supplies
-    // the same element, but we clear state explicitly in case a re-render
-    // detaches the modal before PopupModal's own focus-restore effect
-    // fires).
     const container = mapContainerRef.current;
     if (container && typeof container.focus === "function") {
       container.focus();
@@ -429,12 +408,6 @@ const MapVisualization = ({
       if (popupContent && popupContent.length > 0) {
         const selectedFeature = popupContent[0];
         addHighlightFeatures(highlightLayer.current, selectedFeature.geometry);
-
-        // Outer-context attribute write fires for ALL features including
-        // modal-mode ones — the table popup and the modal popup now show
-        // simultaneously, so host attributeVariables (e.g., comid →
-        // river_id) must keep populating downstream variable inputs in
-        // parallel with the modal's feature.* scope.
         updateVariableInputsForFeature(selectedFeature);
       }
     }
@@ -453,11 +426,6 @@ const MapVisualization = ({
         const newMapLayers = [];
 
         for (const layer of layers) {
-          // Dynamic_map_layer layers own their features at viewer time via
-          // plugin.fetch_features() and are saved with an inline empty
-          // FeatureCollection placeholder; loadLayerJSONs treats that as a
-          // no-op (loadGeoJSON early-returns for object geojson) and still
-          // resolves style file references, so the call is harmless.
           await loadLayerJSONs(layer, uuid);
           if (layer.legend) {
             if (layer.legend === "default") {
@@ -540,10 +508,6 @@ const MapVisualization = ({
     // Update highlights to only show the currently visible feature
     highlightLayer.current.getSource().clear();
     addHighlightFeatures(highlightLayer.current, selectedFeature.geometry);
-
-    // Outer-context attribute write fires for all features (including
-    // modal-mode ones). The table popup and the modal popup display in
-    // parallel, so host attributeVariables must keep flowing.
     updateVariableInputsForFeature(selectedFeature);
   };
 
@@ -697,13 +661,6 @@ const MapVisualization = ({
         .filter((arr) => arr && Array.isArray(arr) && arr.length > 0)
         .flat();
 
-      // Modal-mode is additive: when ANY hit feature has a configured
-      // popup modal, open the modal IN PARALLEL with the OL Overlay table
-      // popup. Both views render together (the modal is portaled to
-      // document.body, the overlay sits on the map), and host
-      // attributeVariables continue to flow via the table-popup path
-      // below. Modal feature.* values stay scoped inside the modal via
-      // FeatureScopedVariableInputs.
       const modalModeFeatures = nonEmptyLayers.filter((feature) =>
         isModalModeLayer(feature.layerName),
       );
@@ -739,10 +696,6 @@ const MapVisualization = ({
     popupOverlayRef.current?.setPosition(popupCoordinate);
   };
 
-  // Lifted active-feature index so the title (rendered in PopupModal's
-  // header) and the carousel (inside PopupModalChrome) stay in sync. Reset
-  // to 0 whenever a new gesture replaces the modalFeatures array — keeps
-  // the modal opening on the first feature of each click.
   useEffect(() => {
     setActiveFeatureIndex(0);
   }, [modalFeatures]);
@@ -757,9 +710,6 @@ const MapVisualization = ({
     : null;
   const activeModalPopupConfig = activeModalLayer?.popupConfig ?? null;
 
-  // Substituted modal title: ${feature.<key>} resolved against the active
-  // feature's attributes, falling back to the layer name when the result
-  // is empty/missing. Rendered into PopupModal's header slot below.
   let popupTitleText = activeModalFeature?.layerName ?? "";
   if (activeModalFeature && activeModalPopupConfig?.titleTemplate) {
     const substituted = substituteTemplateString(
@@ -832,10 +782,6 @@ MapVisualization.propTypes = {
   layerControl: PropTypes.bool, // deterimines if a layer control menu should be present
   dataviewerViz: PropTypes.bool, // determines if the map is in the dataviewer so that it doesnt affect the main map
   mapDrawing: mapDrawingPropType, // contains draw interaction metadata like options and limits
-  // Ticks on each refreshRate interval from Base.js. Used to force
-  // dynamic_map_layer re-fetches on schedule even when args are unchanged
-  // (getVisualization short-circuits Map to same-args vizData, so the
-  // orchestrator wouldn't otherwise see anything to re-run).
   refreshCount: PropTypes.number,
 };
 

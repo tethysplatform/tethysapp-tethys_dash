@@ -1559,6 +1559,58 @@ it("renders ImageSequence when vizType is imageSequence", () => {
   expect(activeImg).toBeTruthy();
 });
 
+describe("featurePending Visualization", () => {
+  it("source given", () => {
+    render(
+      <Visualization
+        vizType="featurePending"
+        vizData={{
+          source: "geoglows_forecast_plot",
+          pendingTokens: ["feature.comid", "feature.return_period"],
+        }}
+        vizMetadata={{}}
+      />,
+    );
+
+    const tile = screen.getByTestId("feature-pending-tile");
+    expect(tile).toBeInTheDocument();
+    expect(tile).toHaveTextContent(/awaiting feature selection/i);
+    expect(tile).toHaveTextContent(/geoglows_forecast_plot/);
+    expect(tile).toHaveTextContent(/feature\.comid/);
+    expect(tile).toHaveTextContent(/feature\.return_period/);
+  });
+
+  it("source missing", () => {
+    render(
+      <Visualization
+        vizType="featurePending"
+        vizData={{ pendingTokens: ["feature.x"] }}
+        vizMetadata={{}}
+      />,
+    );
+
+    const tile = screen.getByTestId("feature-pending-tile");
+    expect(tile).toBeInTheDocument();
+    expect(tile).toHaveTextContent(/awaiting feature selection/i);
+    expect(tile).toHaveTextContent(/feature\.x/);
+  });
+
+  it("no pending tokens", () => {
+    render(
+      <Visualization
+        vizType="featurePending"
+        vizData={{ source: "some_source", pendingTokens: [] }}
+        vizMetadata={{}}
+      />,
+    );
+
+    const tile = screen.getByTestId("feature-pending-tile");
+    expect(tile).toBeInTheDocument();
+    expect(tile).toHaveTextContent(/awaiting feature selection/i);
+    expect(tile).toHaveTextContent(/some_source/);
+  });
+});
+
 it("ImageSequence fast-path updates activeUrl without calling getVisualization", async () => {
   const spyGetVisualization = jest.spyOn(utilities, "getVisualization");
 

@@ -10,8 +10,6 @@ import { substituteTemplateString } from "components/modals/PopupModal/substitut
 export const DEFAULT_ROW_HEIGHT = 30;
 const TARGET_ROWS = 20;
 
-const noop = () => {};
-
 const Body = styled.div`
   flex: 1 1 auto;
   min-height: 0;
@@ -107,21 +105,11 @@ const PopupModalChrome = ({
     return {
       tabs: [popupTab],
       activeTabId: "popup",
-      setActiveTabId: noop,
-      addTab: noop,
-      importTabs: noop,
-      updateTab: noop,
-      deleteTab: noop,
-      reorderTabs: noop,
-      resetTabs: noop,
     };
   }, [gridItems]);
 
   // Runtime view: never editable. Editing happens in PopupLayoutEditor.
-  const editingContextValue = useMemo(
-    () => ({ isEditing: false, setIsEditing: noop }),
-    [],
-  );
+  const editingContextValue = useMemo(() => ({ isEditing: false }), []);
 
   const hasGridItems = gridItems.length > 0;
 
@@ -183,13 +171,6 @@ PopupModalChrome.propTypes = {
   }),
   activeIndex: PropTypes.number,
   onActiveIndexChange: PropTypes.func,
-};
-
-PopupModalChrome.defaultProps = {
-  features: [],
-  popupConfig: null,
-  activeIndex: 0,
-  onActiveIndexChange: () => {},
 };
 
 export default PopupModalChrome;
