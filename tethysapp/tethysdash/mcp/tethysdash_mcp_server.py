@@ -4084,6 +4084,358 @@ def _prompt_patch_visualization(
 
 
 # ---------------------------------------------------------------------------
+# Slash-command prompt templates (Phase 3c) — layer-add family.
+#
+# 12 prompts, one per add_*_layer tool. All surface map_uuid + name plus
+# layer-type-specific args (url, wms_layers, layer_id, projection, etc.).
+# All args typed Annotated[str, Field(...)] per R9.
+#
+# add_dynamic_map_layer is architecturally distinct from the other 11:
+# its `source` arg is an intake-driver source name discovered via
+# list_intake_plugins (structurally identical to render_plugin.source
+# in Phase 3a), NOT a URL. Its `source` arg description MUST reference
+# list_intake_plugins by name — the R5 lockstep test
+# `test_add_dynamic_map_layer_source_arg_references_list_intake_plugins`
+# enforces this.
+#
+# Phase 3c probe (commit a739750) removed BM25SearchTransform, so all
+# 25 tools are visible to chatbox-core's embedding ranker. No
+# always_visible pinning is needed for any of these layer prompts.
+# ---------------------------------------------------------------------------
+
+
+@mcp.prompt(name="add_wms_layer")
+def _prompt_add_wms_layer(
+    map_uuid: Annotated[
+        str,
+        Field(description="UUID of the existing map tile (from create_map_visualization)."),
+    ],
+    name: Annotated[
+        str,
+        Field(description="Display name for the WMS layer in the layer control."),
+    ],
+    url: Annotated[
+        str,
+        Field(description="WMS service URL (GetCapabilities endpoint)."),
+    ],
+    wms_layers: Annotated[
+        str,
+        Field(
+            description=(
+                "WMS LAYERS parameter value in workspace:layer format. "
+                "Comma-separated for multiple layers."
+            ),
+        ),
+    ],
+) -> str:
+    """Add a WMS map layer to an existing map tile.
+
+    Drives the add_wms_layer tool. Optional layer styling (opacity,
+    min/max resolution, visibility) uses the tool's defaults and is
+    not surfaced (R7).
+    """
+    return (
+        f"Add a WMS layer named '{name}' to map {map_uuid} from "
+        f"{url} (layers: {wms_layers})."
+    )
+
+
+@mcp.prompt(name="add_esri_image_layer")
+def _prompt_add_esri_image_layer(
+    map_uuid: Annotated[
+        str,
+        Field(description="UUID of the existing map tile (from create_map_visualization)."),
+    ],
+    name: Annotated[
+        str,
+        Field(description="Display name for the ESRI image layer in the layer control."),
+    ],
+    url: Annotated[
+        str,
+        Field(description="ArcGIS REST service URL (Image or Map Service)."),
+    ],
+) -> str:
+    """Add an ESRI Image / Map Service layer to an existing map tile.
+
+    Drives the add_esri_image_layer tool. Optional layer styling uses
+    the tool's defaults and is not surfaced (R7).
+    """
+    return f"Add an ESRI image layer named '{name}' to map {map_uuid} from {url}."
+
+
+@mcp.prompt(name="add_esri_feature_layer")
+def _prompt_add_esri_feature_layer(
+    map_uuid: Annotated[
+        str,
+        Field(description="UUID of the existing map tile (from create_map_visualization)."),
+    ],
+    name: Annotated[
+        str,
+        Field(description="Display name for the ESRI feature layer in the layer control."),
+    ],
+    url: Annotated[
+        str,
+        Field(description="ArcGIS Feature Service URL."),
+    ],
+    layer_id: Annotated[
+        str,
+        Field(
+            description=(
+                "Integer layer index within the service (as a string; cast "
+                "to int by the tool internally)."
+            ),
+        ),
+    ],
+) -> str:
+    """Add an ESRI Feature Service layer to an existing map tile.
+
+    Drives the add_esri_feature_layer tool. Optional layer styling and
+    attribute variables use the tool's defaults and are not surfaced
+    (R7).
+    """
+    return (
+        f"Add an ESRI feature layer named '{name}' to map {map_uuid} from "
+        f"{url} (layer index {layer_id})."
+    )
+
+
+@mcp.prompt(name="add_geojson_layer")
+def _prompt_add_geojson_layer(
+    map_uuid: Annotated[
+        str,
+        Field(description="UUID of the existing map tile (from create_map_visualization)."),
+    ],
+    name: Annotated[
+        str,
+        Field(description="Display name for the GeoJSON layer in the layer control."),
+    ],
+) -> str:
+    """Add a GeoJSON layer to an existing map tile.
+
+    Drives the add_geojson_layer tool. The GeoJSON data itself is
+    optional on the tool (the LLM can supply it inline or skip and
+    add the data later); the prompt surfaces only the required
+    routing args (R7).
+    """
+    return f"Add a GeoJSON layer named '{name}' to map {map_uuid}."
+
+
+@mcp.prompt(name="add_kml_layer")
+def _prompt_add_kml_layer(
+    map_uuid: Annotated[
+        str,
+        Field(description="UUID of the existing map tile (from create_map_visualization)."),
+    ],
+    name: Annotated[
+        str,
+        Field(description="Display name for the KML layer in the layer control."),
+    ],
+    url: Annotated[
+        str,
+        Field(description="KML resource URL."),
+    ],
+) -> str:
+    """Add a KML layer to an existing map tile.
+
+    Drives the add_kml_layer tool.
+    """
+    return f"Add a KML layer named '{name}' to map {map_uuid} from {url}."
+
+
+@mcp.prompt(name="add_image_tile_layer")
+def _prompt_add_image_tile_layer(
+    map_uuid: Annotated[
+        str,
+        Field(description="UUID of the existing map tile (from create_map_visualization)."),
+    ],
+    name: Annotated[
+        str,
+        Field(description="Display name for the image-tile layer in the layer control."),
+    ],
+    url: Annotated[
+        str,
+        Field(
+            description=(
+                "Image tile URL template with the standard {x}, {y}, {z} "
+                "tile-coordinate placeholders."
+            ),
+        ),
+    ],
+) -> str:
+    """Add an image-tile (raster XYZ) layer to an existing map tile.
+
+    Drives the add_image_tile_layer tool.
+    """
+    return f"Add an image-tile layer named '{name}' to map {map_uuid} from {url}."
+
+
+@mcp.prompt(name="add_vector_tile_layer")
+def _prompt_add_vector_tile_layer(
+    map_uuid: Annotated[
+        str,
+        Field(description="UUID of the existing map tile (from create_map_visualization)."),
+    ],
+    name: Annotated[
+        str,
+        Field(description="Display name for the vector-tile layer in the layer control."),
+    ],
+    url: Annotated[
+        str,
+        Field(
+            description=(
+                "Vector tile URL template with {x}, {y} (or {-y}), {z} "
+                "tile-coordinate placeholders. Comma-separated for "
+                "multiple template URLs."
+            ),
+        ),
+    ],
+) -> str:
+    """Add a vector-tile layer to an existing map tile.
+
+    Drives the add_vector_tile_layer tool.
+    """
+    return f"Add a vector-tile layer named '{name}' to map {map_uuid} from {url}."
+
+
+@mcp.prompt(name="add_pmtiles_vector_layer")
+def _prompt_add_pmtiles_vector_layer(
+    map_uuid: Annotated[
+        str,
+        Field(description="UUID of the existing map tile (from create_map_visualization)."),
+    ],
+    name: Annotated[
+        str,
+        Field(description="Display name for the PMTiles vector layer in the layer control."),
+    ],
+    url: Annotated[
+        str,
+        Field(description="PMTiles archive URL (vector tiles)."),
+    ],
+) -> str:
+    """Add a PMTiles vector layer to an existing map tile.
+
+    Drives the add_pmtiles_vector_layer tool.
+    """
+    return f"Add a PMTiles vector layer named '{name}' to map {map_uuid} from {url}."
+
+
+@mcp.prompt(name="add_pmtiles_raster_layer")
+def _prompt_add_pmtiles_raster_layer(
+    map_uuid: Annotated[
+        str,
+        Field(description="UUID of the existing map tile (from create_map_visualization)."),
+    ],
+    name: Annotated[
+        str,
+        Field(description="Display name for the PMTiles raster layer in the layer control."),
+    ],
+    url: Annotated[
+        str,
+        Field(description="PMTiles archive URL (raster tiles)."),
+    ],
+) -> str:
+    """Add a PMTiles raster layer to an existing map tile.
+
+    Drives the add_pmtiles_raster_layer tool.
+    """
+    return f"Add a PMTiles raster layer named '{name}' to map {map_uuid} from {url}."
+
+
+@mcp.prompt(name="add_geotiff_layer")
+def _prompt_add_geotiff_layer(
+    map_uuid: Annotated[
+        str,
+        Field(description="UUID of the existing map tile (from create_map_visualization)."),
+    ],
+    name: Annotated[
+        str,
+        Field(description="Display name for the GeoTIFF layer in the layer control."),
+    ],
+) -> str:
+    """Add a GeoTIFF layer to an existing map tile.
+
+    Drives the add_geotiff_layer tool. The GeoTIFF source URL is
+    optional on the tool (can be added later); the prompt surfaces
+    only the required routing args (R7).
+    """
+    return f"Add a GeoTIFF layer named '{name}' to map {map_uuid}."
+
+
+@mcp.prompt(name="add_static_image_layer")
+def _prompt_add_static_image_layer(
+    map_uuid: Annotated[
+        str,
+        Field(description="UUID of the existing map tile (from create_map_visualization)."),
+    ],
+    name: Annotated[
+        str,
+        Field(description="Display name for the static-image layer in the layer control."),
+    ],
+    url: Annotated[
+        str,
+        Field(description="Image resource URL."),
+    ],
+    projection: Annotated[
+        str,
+        Field(description="EPSG code identifying the projection of the bounding box."),
+    ],
+    image_extent: Annotated[
+        str,
+        Field(
+            description=(
+                "Bounding box as a comma-separated string "
+                "'minX,minY,maxX,maxY' in the projection's coordinate "
+                "system."
+            ),
+        ),
+    ],
+) -> str:
+    """Add a static-image (non-georeferenced raster pinned to an extent) layer to a map tile.
+
+    Drives the add_static_image_layer tool.
+    """
+    return (
+        f"Add a static-image layer named '{name}' to map {map_uuid} "
+        f"from {url}, projected as {projection} with extent {image_extent}."
+    )
+
+
+@mcp.prompt(name="add_dynamic_map_layer")
+def _prompt_add_dynamic_map_layer(
+    map_uuid: Annotated[
+        str,
+        Field(description="UUID of the existing map tile (from create_map_visualization)."),
+    ],
+    source: Annotated[
+        str,
+        Field(
+            description=(
+                "Intake plugin source name (from list_intake_plugins "
+                "results). Must resolve to a plugin with type=='map_layer' "
+                "and dynamic_map_layer=True."
+            ),
+        ),
+    ],
+    name: Annotated[
+        str,
+        Field(description="Display name for the dynamic map layer in the layer control."),
+    ],
+) -> str:
+    """Add a dynamically-generated map layer from a backend intake plugin to a map tile.
+
+    Drives the add_dynamic_map_layer tool. Architecturally distinct
+    from the other 11 layer prompts: `source` is an intake-driver
+    source name (discoverable via `list_intake_plugins`), NOT a URL.
+    Plugin args are optional on the tool and not surfaced (R7); the
+    user adds them in prose if the plugin requires non-default values.
+    """
+    return (
+        f"Add a dynamic map layer named '{name}' from intake plugin "
+        f"'{source}' to map {map_uuid}."
+    )
+
+
+# ---------------------------------------------------------------------------
 # Logging + Entry Point
 # ---------------------------------------------------------------------------
 

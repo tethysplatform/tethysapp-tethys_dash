@@ -96,19 +96,17 @@ def _get_prompt(name, args):
 def _tool_schema_properties(tool_name):
     """Read the underlying tool function's parameter names directly.
 
-    Originally this routed through ``Client(mcp).list_tools()``, but the
-    server's ``BM25SearchTransform`` filters tools/list to the
-    always_visible set plus BM25-matched results. Several Phase 3b
-    target tools (``create_card``, ``create_text``,
-    ``create_custom_image``, ``register_runtime_plugin``) are
-    intentionally NOT in always_visible — they're BM25-searchable, not
-    pinned — so they don't appear in an unqueried list_tools call.
-
-    For the parity contract, we want the canonical underlying-tool
-    parameter set regardless of search visibility. The cleanest source
-    is the Python function signature itself: ``@mcp.tool`` preserves
-    the wrapped function as a module-level symbol with its original
-    parameters.
+    Reads the Python function signature rather than routing through
+    ``Client(mcp).list_tools()``. The rationale was originally about
+    ``BM25SearchTransform`` filtering (Phase 3b era), but the
+    transform has since been removed (commit ``a739750`` Phase 3c
+    probe) and tethysdash's MCP server now returns all tools via
+    list_tools. The signature-read approach remains the cleanest
+    source for the parity contract regardless: ``@mcp.tool``
+    preserves the wrapped function as a module-level symbol with its
+    original parameters, so even if a future selection-layer change
+    re-filters list_tools, the parity check continues to work
+    against the canonical tool definition.
     """
     import inspect
     from tethysapp.tethysdash.mcp import tethysdash_mcp_server as srv
@@ -141,6 +139,24 @@ MULTI_ARG_PROMPTS = {
     "create_variable_input": ("variable_name",),
     "register_runtime_plugin": ("url", "scope", "module", "label"),
     "patch_visualization": ("uuid", "source", "ops"),
+    # Phase 3c (layer-add prompts) — every layer prompt surfaces
+    # map_uuid + name; URL-based variants add url; ESRI feature adds
+    # layer_id; static-image adds projection + image_extent; WMS
+    # adds wms_layers; dynamic adds source (instead of url).
+    "add_wms_layer": ("map_uuid", "name", "url", "wms_layers"),
+    "add_esri_image_layer": ("map_uuid", "name", "url"),
+    "add_esri_feature_layer": ("map_uuid", "name", "url", "layer_id"),
+    "add_geojson_layer": ("map_uuid", "name"),
+    "add_kml_layer": ("map_uuid", "name", "url"),
+    "add_image_tile_layer": ("map_uuid", "name", "url"),
+    "add_vector_tile_layer": ("map_uuid", "name", "url"),
+    "add_pmtiles_vector_layer": ("map_uuid", "name", "url"),
+    "add_pmtiles_raster_layer": ("map_uuid", "name", "url"),
+    "add_geotiff_layer": ("map_uuid", "name"),
+    "add_static_image_layer": (
+        "map_uuid", "name", "url", "projection", "image_extent",
+    ),
+    "add_dynamic_map_layer": ("map_uuid", "source", "name"),
 }
 
 # Per-(prompt, arg) hint copy. Drawn from each tool's
@@ -211,6 +227,120 @@ PROMPT_ARG_HINTS = {
         "{add, replace, remove, move, test}. Tool accepts both "
         "array and JSON-string shapes."
     ),
+    # Phase 3c — layer-add prompts. Every layer prompt's first two args
+    # (map_uuid, name) share the same canonical hint text below.
+    # Layer-type-specific args follow.
+    ("add_wms_layer", "map_uuid"): (
+        "UUID of the existing map tile (from create_map_visualization)."
+    ),
+    ("add_wms_layer", "name"): (
+        "Display name for the WMS layer in the layer control."
+    ),
+    ("add_wms_layer", "url"): "WMS service URL (GetCapabilities endpoint).",
+    ("add_wms_layer", "wms_layers"): (
+        "WMS LAYERS parameter value in workspace:layer format. "
+        "Comma-separated for multiple layers."
+    ),
+    ("add_esri_image_layer", "map_uuid"): (
+        "UUID of the existing map tile (from create_map_visualization)."
+    ),
+    ("add_esri_image_layer", "name"): (
+        "Display name for the ESRI image layer in the layer control."
+    ),
+    ("add_esri_image_layer", "url"): (
+        "ArcGIS REST service URL (Image or Map Service)."
+    ),
+    ("add_esri_feature_layer", "map_uuid"): (
+        "UUID of the existing map tile (from create_map_visualization)."
+    ),
+    ("add_esri_feature_layer", "name"): (
+        "Display name for the ESRI feature layer in the layer control."
+    ),
+    ("add_esri_feature_layer", "url"): "ArcGIS Feature Service URL.",
+    ("add_esri_feature_layer", "layer_id"): (
+        "Integer layer index within the service (as a string; cast "
+        "to int by the tool internally)."
+    ),
+    ("add_geojson_layer", "map_uuid"): (
+        "UUID of the existing map tile (from create_map_visualization)."
+    ),
+    ("add_geojson_layer", "name"): (
+        "Display name for the GeoJSON layer in the layer control."
+    ),
+    ("add_kml_layer", "map_uuid"): (
+        "UUID of the existing map tile (from create_map_visualization)."
+    ),
+    ("add_kml_layer", "name"): (
+        "Display name for the KML layer in the layer control."
+    ),
+    ("add_kml_layer", "url"): "KML resource URL.",
+    ("add_image_tile_layer", "map_uuid"): (
+        "UUID of the existing map tile (from create_map_visualization)."
+    ),
+    ("add_image_tile_layer", "name"): (
+        "Display name for the image-tile layer in the layer control."
+    ),
+    ("add_image_tile_layer", "url"): (
+        "Image tile URL template with the standard {x}, {y}, {z} "
+        "tile-coordinate placeholders."
+    ),
+    ("add_vector_tile_layer", "map_uuid"): (
+        "UUID of the existing map tile (from create_map_visualization)."
+    ),
+    ("add_vector_tile_layer", "name"): (
+        "Display name for the vector-tile layer in the layer control."
+    ),
+    ("add_vector_tile_layer", "url"): (
+        "Vector tile URL template with {x}, {y} (or {-y}), {z} "
+        "tile-coordinate placeholders. Comma-separated for "
+        "multiple template URLs."
+    ),
+    ("add_pmtiles_vector_layer", "map_uuid"): (
+        "UUID of the existing map tile (from create_map_visualization)."
+    ),
+    ("add_pmtiles_vector_layer", "name"): (
+        "Display name for the PMTiles vector layer in the layer control."
+    ),
+    ("add_pmtiles_vector_layer", "url"): "PMTiles archive URL (vector tiles).",
+    ("add_pmtiles_raster_layer", "map_uuid"): (
+        "UUID of the existing map tile (from create_map_visualization)."
+    ),
+    ("add_pmtiles_raster_layer", "name"): (
+        "Display name for the PMTiles raster layer in the layer control."
+    ),
+    ("add_pmtiles_raster_layer", "url"): "PMTiles archive URL (raster tiles).",
+    ("add_geotiff_layer", "map_uuid"): (
+        "UUID of the existing map tile (from create_map_visualization)."
+    ),
+    ("add_geotiff_layer", "name"): (
+        "Display name for the GeoTIFF layer in the layer control."
+    ),
+    ("add_static_image_layer", "map_uuid"): (
+        "UUID of the existing map tile (from create_map_visualization)."
+    ),
+    ("add_static_image_layer", "name"): (
+        "Display name for the static-image layer in the layer control."
+    ),
+    ("add_static_image_layer", "url"): "Image resource URL.",
+    ("add_static_image_layer", "projection"): (
+        "EPSG code identifying the projection of the bounding box."
+    ),
+    ("add_static_image_layer", "image_extent"): (
+        "Bounding box as a comma-separated string "
+        "'minX,minY,maxX,maxY' in the projection's coordinate "
+        "system."
+    ),
+    ("add_dynamic_map_layer", "map_uuid"): (
+        "UUID of the existing map tile (from create_map_visualization)."
+    ),
+    ("add_dynamic_map_layer", "source"): (
+        "Intake plugin source name (from list_intake_plugins "
+        "results). Must resolve to a plugin with type=='map_layer' "
+        "and dynamic_map_layer=True."
+    ),
+    ("add_dynamic_map_layer", "name"): (
+        "Display name for the dynamic map layer in the layer control."
+    ),
 }
 
 # Zero-arg prompts.
@@ -241,6 +371,19 @@ PROMPT_TO_TOOL = {
     "create_variable_input": "create_variable_input",
     "register_runtime_plugin": "register_runtime_plugin",
     "patch_visualization": "patch_visualization",
+    # Phase 3c (layer-add prompts)
+    "add_wms_layer": "add_wms_layer",
+    "add_esri_image_layer": "add_esri_image_layer",
+    "add_esri_feature_layer": "add_esri_feature_layer",
+    "add_geojson_layer": "add_geojson_layer",
+    "add_kml_layer": "add_kml_layer",
+    "add_image_tile_layer": "add_image_tile_layer",
+    "add_vector_tile_layer": "add_vector_tile_layer",
+    "add_pmtiles_vector_layer": "add_pmtiles_vector_layer",
+    "add_pmtiles_raster_layer": "add_pmtiles_raster_layer",
+    "add_geotiff_layer": "add_geotiff_layer",
+    "add_static_image_layer": "add_static_image_layer",
+    "add_dynamic_map_layer": "add_dynamic_map_layer",
 }
 
 
@@ -404,6 +547,9 @@ def test_multi_arg_prompt_substitutes_supplied_args_only(prompt_name):
         "variable_name": "selected_gauge_id",
         "url": "https://plugins.example.com/remoteEntry.js",
         "uuid": "12345678-1234-5678-1234-567812345678",
+        # Phase 3c — every layer prompt has `map_uuid` as its first
+        # required arg; one entry covers all 12.
+        "map_uuid": "abcdef12-3456-7890-abcd-ef1234567890",
     }
     args[first] = real_values[first]
 
@@ -487,6 +633,30 @@ def test_render_plugin_source_arg_references_list_intake_plugins():
     )
 
 
+def test_add_dynamic_map_layer_source_arg_references_list_intake_plugins():
+    """``add_dynamic_map_layer``'s ``source`` arg description names ``list_intake_plugins``.
+
+    Phase 3c R5 lockstep case. Among the 12 layer prompts,
+    `add_dynamic_map_layer` is architecturally distinct — its `source`
+    arg is an intake-driver source name (structurally identical to
+    Phase 3a's `render_plugin.source`), NOT a URL. The user must call
+    `list_intake_plugins` first to discover valid source names. This
+    test mirrors `test_render_plugin_source_arg_references_list_intake_plugins`
+    exactly, catching any future refactor that decouples this prompt
+    from its discovery tool.
+    """
+    prompts = _list_prompts()
+    by_name = {p.name: p for p in prompts}
+    prompt = by_name["add_dynamic_map_layer"]
+    source_arg = next(a for a in prompt.arguments if a.name == "source")
+    cleaned = _strip_fastmcp_schema_note(source_arg.description or "")
+    assert "list_intake_plugins" in cleaned, (
+        f"add_dynamic_map_layer.source description must reference "
+        f"'list_intake_plugins' so the prompt-to-discovery contract is "
+        f"visible; got: {cleaned!r}"
+    )
+
+
 @pytest.mark.parametrize("prompt_name", list(PROMPT_TO_TOOL.keys()))
 def test_prompt_target_tool_is_visible_in_default_list_tools(prompt_name):
     """Every prompt's target tool must appear in the default list_tools() output.
@@ -499,14 +669,22 @@ def test_prompt_target_tool_is_visible_in_default_list_tools(prompt_name):
     mis-routed to the nearest visible tool (e.g., create_card →
     create_data_table) or refused outright ("function doesn't exist").
 
-    Contract: for any prompt P that targets tool T, an unqueried
-    `Client(mcp).list_tools()` MUST include T. Either pin T in
-    `always_visible`, or accept that BM25 search is required (which
-    chatbox-core does not do for the initial tool-discovery call).
+    Resolution evolution:
+      Phase 3b pin-fix (commit fc887d8): added the 4 missing tools to
+        the BM25SearchTransform `always_visible` set.
+      Phase 3c probe (commit a739750): removed BM25SearchTransform
+        entirely; chatbox-core's per-prompt embedding ranker
+        (engine/embeddings.js) becomes the sole selection layer. The
+        contract this test guards is now trivially satisfied for all
+        prompts as long as the underlying tool exists.
 
-    This is the gap that allowed the Phase 3b shipping bug; pinning
-    this test prevents the regression class for any future prompt
-    family (Phase 3c, etc.).
+    Contract: for any prompt P that targets tool T, an unqueried
+    `Client(mcp).list_tools()` MUST include T. With BM25SearchTransform
+    removed, the contract is satisfied by tool existence alone. The
+    test still runs as a regression guard: if a future change
+    re-introduces server-side tool filtering (e.g., a new transform
+    pinned to a subset), this test fails for any prompt whose target
+    tool ends up unreachable.
     """
     target_tool = PROMPT_TO_TOOL[prompt_name]
 
@@ -518,10 +696,11 @@ def test_prompt_target_tool_is_visible_in_default_list_tools(prompt_name):
     visible = {t.name for t in tools}
     assert target_tool in visible, (
         f"{prompt_name!r} routes the LLM to {target_tool!r}, but that "
-        f"tool is not in the default list_tools() output. Add it to "
-        f"`always_visible` in tethysdash_mcp_server.py's "
-        f"BM25SearchTransform config, or this prompt will silently "
-        f"misroute. Currently visible tools: {sorted(visible)}"
+        f"tool is not in the default list_tools() output. Either the "
+        f"tool function was renamed/removed without updating "
+        f"PROMPT_TO_TOOL, or a server-side selection transform was "
+        f"re-introduced and is filtering out this tool. Currently "
+        f"visible tools: {sorted(visible)}"
     )
 
 
