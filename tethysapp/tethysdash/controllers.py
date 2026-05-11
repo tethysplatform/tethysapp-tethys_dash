@@ -40,6 +40,10 @@ from tethysapp.tethysdash.visualizations import (
 )
 from tethysapp.tethysdash.exceptions import VisualizationError
 from tethysapp.tethysdash.plugin_helpers import send_websocket_message
+from tethysapp.tethysdash.plugin_registry_loader import (
+    load_runtime_plugin_registry,
+    save_runtime_plugin_registry,
+)
 from channels.generic.websocket import AsyncWebsocketConsumer
 from tethys_sdk.routing import consumer
 from asgiref.sync import sync_to_async
@@ -1156,25 +1160,13 @@ def runtime_plugins_sync(request):
     POST: Overwrites the registry with the request body.
     The file is read by the MCP server for LLM tool discovery.
     """
-    registry_path = os.path.normpath(os.path.join(
-        os.path.dirname(__file__), "..", "..",
-        "reactapp", "generated", "runtimePluginRegistry.json"
-    ))
-
     if request.method == "GET":
-        try:
-            with open(registry_path, "r") as f:
-                data = json.load(f)
-            return JsonResponse(data, safe=False)
-        except (FileNotFoundError, json.JSONDecodeError):
-            return JsonResponse([], safe=False)
+        return JsonResponse(load_runtime_plugin_registry(), safe=False)
 
     # POST
     try:
         plugins = json.loads(request.body)
-        os.makedirs(os.path.dirname(registry_path), exist_ok=True)
-        with open(registry_path, "w") as f:
-            json.dump(plugins, f, indent=2)
+        save_runtime_plugin_registry(plugins)
         return JsonResponse({"status": "ok", "count": len(plugins)})
     except (json.JSONDecodeError, TypeError) as e:
         return JsonResponse({"error": str(e)}, status=400)

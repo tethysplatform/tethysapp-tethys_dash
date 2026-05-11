@@ -53,3 +53,23 @@ def load_runtime_plugin_registry() -> List[Dict[str, Any]]:
     except json.JSONDecodeError as e:
         LOGGER.warning("Invalid JSON in runtime plugin registry: %s", e)
         return []
+
+
+def save_runtime_plugin_registry(plugins: List[Dict[str, Any]]) -> None:
+    """Persist the runtime plugin registry list to the canonical JSON path.
+
+    Creates the parent directory if needed. Overwrites any existing file.
+    Centralized here so the path construction (`reactapp/generated/
+    runtimePluginRegistry.json`) lives in exactly one place — previously
+    re-derived inline by ``controllers.runtime_plugins_sync`` and the
+    ``register_runtime_plugin`` MCP tool, each with a per-file-depth
+    ``__file__`` walk.
+    """
+    os.makedirs(os.path.dirname(_RUNTIME_REGISTRY_PATH), exist_ok=True)
+    with open(_RUNTIME_REGISTRY_PATH, "w") as f:
+        json.dump(plugins, f, indent=2)
+    LOGGER.info(
+        "Wrote %d runtime plugin(s) to %s",
+        len(plugins),
+        _RUNTIME_REGISTRY_PATH,
+    )

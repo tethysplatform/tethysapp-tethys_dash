@@ -50,6 +50,7 @@ from tethysapp.tethysdash.editable_schemas_plugin import (
 )
 from tethysapp.tethysdash.plugin_registry_loader import (
     load_runtime_plugin_registry,
+    save_runtime_plugin_registry,
 )
 from tethysapp.tethysdash.mcp._input_validation_middleware import (
     InputValidationEnvelopeMiddleware,
@@ -3610,15 +3611,9 @@ def register_runtime_plugin(
         "type": "client_custom_remote",
     }
 
-    registry_path = os.path.normpath(os.path.join(
-        os.path.dirname(__file__), "..", "..", "..",
-        "reactapp", "generated", "runtimePluginRegistry.json"
-    ))
     runtime = load_runtime_plugin_registry()
     runtime.append(entry)
-    os.makedirs(os.path.dirname(registry_path), exist_ok=True)
-    with open(registry_path, "w") as f:
-        json.dump(runtime, f, indent=2)
+    save_runtime_plugin_registry(runtime)
 
     LOGGER.info("Registered plugin %s → %s (total runtime: %d)", key, label, len(runtime))
     return {"status": "registered", "plugin": entry}
