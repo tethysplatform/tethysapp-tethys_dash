@@ -35,13 +35,20 @@ Both servers must run simultaneously for full-stack development. The webpack dev
 
 ### Test skills (`.claude/skills/test-*`)
 
-Three project-level Claude Code skills run the test suites inside a self-contained venv at `.venv-test/`, so the active shell env doesn't need to be pre-configured:
+Two project-level Claude Code skills run the test suites:
 
-- **`test-backend`** — fastest. Python pytest only (MCP contracts + integrated + unit). Use while iterating on Python changes.
-- **`test-frontend`** — Jest component tests + mocked Playwright. Use while iterating on React changes. Still needs the venv because mocked Playwright launches a Tethys server.
-- **`test-all`** — full sweep: fresh-state E2E setup, full Python suite, Playwright integration project against real services. Use before pushing a branch.
+- **`test-backend`** — Python pytest only (MCP contracts + integrated + unit), in a self-contained venv at `.venv-test/`. Use while iterating on Python changes.
+- **`test-all`** — full sweep: Python pytest + Jest, with the React bundle rebuilt first. Use before pushing a branch. Uses the same `.venv-test/` for Python.
 
-Each skill creates or reuses `.venv-test/` via `pip install -e .`, keyed on a SHA-256 of `pyproject.toml`. Edit `pyproject.toml` and the next run rebuilds the venv automatically; otherwise the venv is reused. To force a rebuild: `rm -rf .venv-test`. Reports land in `test-results/reports/<ISO-timestamp>-<skill>.md` (gitignored).
+`test-backend` and `test-all` create or reuse `.venv-test/` via `pip install -e .`, keyed on a SHA-256 of `pyproject.toml`. Edit `pyproject.toml` and the next run rebuilds the venv automatically; otherwise the venv is reused. To force a rebuild: `rm -rf .venv-test`. Reports land in `test-results/reports/<ISO-timestamp>-<skill>.md` (gitignored).
+
+There is no dedicated front-end test skill — `npm test` is the canonical Jest runner. The previous `test-frontend` skill (Jest + mocked Playwright) was removed when the Playwright E2E suite was archived (see "Playwright suite — archived" below).
+
+### Playwright suite — archived
+
+The Playwright E2E suite (36 mocked tests + 4 skipped, plus `playwright.config.js`, `setup-test-db.py`, and the `@playwright/test` / `better-sqlite3` / `pg` devDeps) was removed in May 2026 to trim maintenance churn ahead of upstreaming. The full state is preserved on the `aquaveo` remote at branch `archive/playwright-suite-2026-05-11` if any of the tests need to be brought back.
+
+The charter that governs **re-introducing** Playwright (R2.1 unique-coverage criteria + R2.2 stability bar + R4 forward-going reviewer gate) lives at `docs/brainstorms/2026-05-11-tethysdash-playwright-smoke-charter-requirements.md` in the firoh workspace. Any future Playwright PR should reference and clear that charter before merging.
 
 ## Architecture
 
