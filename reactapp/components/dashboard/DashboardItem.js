@@ -457,10 +457,8 @@ const DashboardItem = () => {
       setShowGridItemWarning(true);
       return;
     }
-    const { x, y, w, h } = gridItem;
-    const payload = `uuid: ${gridItemUUID}\nsource: ${gridItemSource}\nposition: ${x},${y} ${w}×${h}`;
     try {
-      await window.navigator.clipboard.writeText(payload);
+      await window.navigator.clipboard.writeText(gridItemUUID);
       setGridItemMessage("UUID copied to clipboard");
       setShowGridItemMessage(true);
     } catch {
