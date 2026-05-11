@@ -4130,13 +4130,26 @@ def _prompt_add_wms_layer(
 ) -> str:
     """Add a WMS map layer to an existing map tile.
 
-    Drives the add_wms_layer tool. Optional layer styling (opacity,
-    min/max resolution, visibility) uses the tool's defaults and is
-    not surfaced (R7).
+    Drives the add_wms_layer tool. Required surfaced args (R6):
+    map_uuid, name, url, wms_layers.
+
+    Common optional args the LLM should consider when the user
+    requests them (set via the tool's `params` arg or per-layer
+    styling — not surfaced as prompt brackets per R7):
+      - params: WMS GetMap parameters merged into the request
+        (STYLES, TIME, FORMAT, TRANSPARENT). Supports ${variable_name}
+        substitution for dashboard variable inputs.
+      - queryable: enable click-to-query on this layer.
+      - attribute_variables: map feature attributes to dashboard
+        variable names.
+      - opacity (0-1), min_zoom, max_zoom, visible, legend, style.
     """
     return (
         f"Add a WMS layer named '{name}' to map {map_uuid} from "
-        f"{url} (layers: {wms_layers})."
+        f"{url} (layers: {wms_layers}). "
+        f"If the user requests temporal filtering, custom styles, or "
+        f"a non-default image format, set the tool's `params` arg "
+        f"(e.g., TIME, STYLES, FORMAT, TRANSPARENT)."
     )
 
 
@@ -4157,10 +4170,25 @@ def _prompt_add_esri_image_layer(
 ) -> str:
     """Add an ESRI Image / Map Service layer to an existing map tile.
 
-    Drives the add_esri_image_layer tool. Optional layer styling uses
-    the tool's defaults and is not surfaced (R7).
+    Drives the add_esri_image_layer tool. Required surfaced args (R6):
+    map_uuid, name, url.
+
+    Common optional args the LLM should consider:
+      - layer_id: integer or comma-separated layer indices to show
+        from the service (canonicalized internally to `LAYERS=show:...`).
+      - params: additional ESRI source parameters merged into the
+        request (LAYERS, TIME, LAYERDEFS, mosaicRule). Supports
+        ${variable_name} substitution.
+      - queryable, attribute_variables, opacity, min_zoom, max_zoom,
+        visible, legend, style.
     """
-    return f"Add an ESRI image layer named '{name}' to map {map_uuid} from {url}."
+    return (
+        f"Add an ESRI image layer named '{name}' to map {map_uuid} "
+        f"from {url}. "
+        f"If the user names specific service layers or requests temporal "
+        f"filtering / definition queries, set the tool's `layer_id` or "
+        f"`params` arg (LAYERS, TIME, LAYERDEFS, mosaicRule)."
+    )
 
 
 @mcp.prompt(name="add_esri_feature_layer")
@@ -4189,13 +4217,24 @@ def _prompt_add_esri_feature_layer(
 ) -> str:
     """Add an ESRI Feature Service layer to an existing map tile.
 
-    Drives the add_esri_feature_layer tool. Optional layer styling and
-    attribute variables use the tool's defaults and are not surfaced
-    (R7).
+    Drives the add_esri_feature_layer tool. Required surfaced args
+    (R6): map_uuid, name, url, layer_id.
+
+    Common optional args the LLM should consider:
+      - params: feature-query parameters merged into the request
+        (TIME for temporal, WHERE for SQL filtering). Supports
+        ${variable_name} substitution.
+      - queryable: enable feature attribute popups on click.
+      - attribute_variables: map feature attributes to dashboard
+        variable names — published on click.
+      - opacity, min_zoom, max_zoom, visible, legend, style.
     """
     return (
-        f"Add an ESRI feature layer named '{name}' to map {map_uuid} from "
-        f"{url} (layer index {layer_id})."
+        f"Add an ESRI feature layer named '{name}' to map {map_uuid} "
+        f"from {url} (layer index {layer_id}). "
+        f"If the user requests temporal filtering, SQL-style WHERE "
+        f"clauses, or click-to-query behavior, set the tool's `params` "
+        f"(TIME, WHERE), `queryable`, or `attribute_variables` args."
     )
 
 
@@ -4212,12 +4251,25 @@ def _prompt_add_geojson_layer(
 ) -> str:
     """Add a GeoJSON layer to an existing map tile.
 
-    Drives the add_geojson_layer tool. The GeoJSON data itself is
-    optional on the tool (the LLM can supply it inline or skip and
-    add the data later); the prompt surfaces only the required
-    routing args (R7).
+    Drives the add_geojson_layer tool. Required surfaced args (R6):
+    map_uuid, name. The user MUST supply one of `geojson` (inline
+    FeatureCollection / Feature) or `geojson_url` (URL fetched at
+    render time) — these are optional individually on the tool but
+    mutually-required (one or the other).
+
+    Common optional args the LLM should consider:
+      - geojson OR geojson_url: pick one based on whether the user
+        gave inline data or a URL.
+      - queryable, attribute_variables for click-to-query.
+      - opacity, min_zoom, max_zoom, visible, legend, style.
     """
-    return f"Add a GeoJSON layer named '{name}' to map {map_uuid}."
+    return (
+        f"Add a GeoJSON layer named '{name}' to map {map_uuid}. "
+        f"Supply either the tool's `geojson` arg (inline "
+        f"FeatureCollection or Feature) or `geojson_url` (URL of a "
+        f"GeoJSON file fetched at render time) — exactly one is "
+        f"required."
+    )
 
 
 @mcp.prompt(name="add_kml_layer")
@@ -4237,9 +4289,19 @@ def _prompt_add_kml_layer(
 ) -> str:
     """Add a KML layer to an existing map tile.
 
-    Drives the add_kml_layer tool.
+    Drives the add_kml_layer tool. Required surfaced args (R6):
+    map_uuid, name, url.
+
+    Common optional args: queryable, attribute_variables for
+    click-to-query; opacity, min_zoom, max_zoom, visible, legend,
+    style for layer presentation.
     """
-    return f"Add a KML layer named '{name}' to map {map_uuid} from {url}."
+    return (
+        f"Add a KML layer named '{name}' to map {map_uuid} from {url}. "
+        f"If the user requests custom styling, click-to-query, or "
+        f"zoom-range visibility, set the corresponding tool args "
+        f"(style, queryable, min_zoom, max_zoom)."
+    )
 
 
 @mcp.prompt(name="add_image_tile_layer")
@@ -4264,9 +4326,19 @@ def _prompt_add_image_tile_layer(
 ) -> str:
     """Add an image-tile (raster XYZ) layer to an existing map tile.
 
-    Drives the add_image_tile_layer tool.
+    Drives the add_image_tile_layer tool. Required surfaced args (R6):
+    map_uuid, name, url.
+
+    Common optional args: opacity, min_zoom, max_zoom, visible,
+    legend, style; queryable + attribute_variables for click-to-query.
     """
-    return f"Add an image-tile layer named '{name}' to map {map_uuid} from {url}."
+    return (
+        f"Add an image-tile layer named '{name}' to map {map_uuid} "
+        f"from {url}. "
+        f"If the user requests opacity, zoom-range visibility, "
+        f"attribution, or a custom legend, set the corresponding tool "
+        f"args (opacity, min_zoom, max_zoom, legend)."
+    )
 
 
 @mcp.prompt(name="add_vector_tile_layer")
@@ -4292,9 +4364,20 @@ def _prompt_add_vector_tile_layer(
 ) -> str:
     """Add a vector-tile layer to an existing map tile.
 
-    Drives the add_vector_tile_layer tool.
+    Drives the add_vector_tile_layer tool. Required surfaced args
+    (R6): map_uuid, name, url.
+
+    Common optional args: style (critical for vector tiles — controls
+    fill/stroke/text rendering), queryable, attribute_variables,
+    opacity, min_zoom, max_zoom, visible, legend.
     """
-    return f"Add a vector-tile layer named '{name}' to map {map_uuid} from {url}."
+    return (
+        f"Add a vector-tile layer named '{name}' to map {map_uuid} "
+        f"from {url}. "
+        f"Vector tiles typically need a custom `style` arg to control "
+        f"fill/stroke/text rendering — set it if the user supplies one "
+        f"or describes the desired styling."
+    )
 
 
 @mcp.prompt(name="add_pmtiles_vector_layer")
@@ -4314,9 +4397,20 @@ def _prompt_add_pmtiles_vector_layer(
 ) -> str:
     """Add a PMTiles vector layer to an existing map tile.
 
-    Drives the add_pmtiles_vector_layer tool.
+    Drives the add_pmtiles_vector_layer tool. Required surfaced args
+    (R6): map_uuid, name, url.
+
+    Common optional args: style (controls fill/stroke/text rendering
+    for vector features), queryable, attribute_variables, opacity,
+    min_zoom, max_zoom, visible, legend.
     """
-    return f"Add a PMTiles vector layer named '{name}' to map {map_uuid} from {url}."
+    return (
+        f"Add a PMTiles vector layer named '{name}' to map {map_uuid} "
+        f"from {url}. "
+        f"Vector layers typically need a custom `style` arg for "
+        f"rendering — set it if the user supplies one or describes "
+        f"the desired styling."
+    )
 
 
 @mcp.prompt(name="add_pmtiles_raster_layer")
@@ -4336,9 +4430,18 @@ def _prompt_add_pmtiles_raster_layer(
 ) -> str:
     """Add a PMTiles raster layer to an existing map tile.
 
-    Drives the add_pmtiles_raster_layer tool.
+    Drives the add_pmtiles_raster_layer tool. Required surfaced args
+    (R6): map_uuid, name, url.
+
+    Common optional args: opacity, min_zoom, max_zoom, visible,
+    legend; queryable + attribute_variables for click-to-query.
     """
-    return f"Add a PMTiles raster layer named '{name}' to map {map_uuid} from {url}."
+    return (
+        f"Add a PMTiles raster layer named '{name}' to map {map_uuid} "
+        f"from {url}. "
+        f"If the user requests opacity, zoom-range visibility, or a "
+        f"custom legend, set the corresponding tool args."
+    )
 
 
 @mcp.prompt(name="add_geotiff_layer")
@@ -4352,13 +4455,36 @@ def _prompt_add_geotiff_layer(
         Field(description="Display name for the GeoTIFF layer in the layer control."),
     ],
 ) -> str:
-    """Add a GeoTIFF layer to an existing map tile.
+    """Add a GeoTIFF layer (Cloud Optimized GeoTIFF) to an existing map tile.
 
-    Drives the add_geotiff_layer tool. The GeoTIFF source URL is
-    optional on the tool (can be added later); the prompt surfaces
-    only the required routing args (R7).
+    Drives the add_geotiff_layer tool. Required surfaced args (R6):
+    map_uuid, name.
+
+    GeoTIFF rendering has the richest optional-arg surface of any
+    layer type — the LLM should set these based on what the user
+    requests:
+      - url: COG URL (single-source). Required unless `source_props`
+        supplies multi-source `sources` array.
+      - bands: comma-separated band indices to render (single channel,
+        RGB triplet, or false-color combinations).
+      - nodata: sentinel value for transparent pixels.
+      - min, max: numeric range for color scaling.
+      - ramp_name: registered color ramp (e.g., 'viridis', 'magma',
+        'terrain'). Used when legend='default'.
+      - ramp_min, ramp_max: explicit ramp range for the auto-legend.
+      - source_props: advanced — pass {'sources': [{'url': ...}]}
+        for multi-source GeoTIFFs or to override flat fields.
+
+    Plus the standard styling args (queryable, attribute_variables,
+    opacity, min_zoom, max_zoom, visible, legend, style).
     """
-    return f"Add a GeoTIFF layer named '{name}' to map {map_uuid}."
+    return (
+        f"Add a GeoTIFF layer named '{name}' to map {map_uuid}. "
+        f"Configure rendering via the tool's args: `url` (COG URL), "
+        f"`bands` (e.g., comma-separated indices for single-channel or "
+        f"RGB), `nodata` (sentinel), `min`/`max` (color scaling), and "
+        f"`ramp_name` for the color ramp."
+    )
 
 
 @mcp.prompt(name="add_static_image_layer")
@@ -4392,11 +4518,19 @@ def _prompt_add_static_image_layer(
 ) -> str:
     """Add a static-image (non-georeferenced raster pinned to an extent) layer to a map tile.
 
-    Drives the add_static_image_layer tool.
+    Drives the add_static_image_layer tool. Required surfaced args
+    (R6): map_uuid, name, url, projection, image_extent.
+
+    Common optional args: opacity, min_zoom, max_zoom, visible,
+    legend, style; source_props for advanced source-level overrides
+    (e.g., attribution).
     """
     return (
         f"Add a static-image layer named '{name}' to map {map_uuid} "
-        f"from {url}, projected as {projection} with extent {image_extent}."
+        f"from {url}, projected as {projection} with extent "
+        f"{image_extent}. "
+        f"If the user requests opacity, zoom-range visibility, or an "
+        f"attribution string, set the corresponding tool args."
     )
 
 
@@ -4423,15 +4557,26 @@ def _prompt_add_dynamic_map_layer(
 ) -> str:
     """Add a dynamically-generated map layer from a backend intake plugin to a map tile.
 
-    Drives the add_dynamic_map_layer tool. Architecturally distinct
-    from the other 11 layer prompts: `source` is an intake-driver
-    source name (discoverable via `list_intake_plugins`), NOT a URL.
-    Plugin args are optional on the tool and not surfaced (R7); the
-    user adds them in prose if the plugin requires non-default values.
+    Drives the add_dynamic_map_layer tool. Required surfaced args
+    (R6): map_uuid, source, name. Architecturally distinct from the
+    other 11 layer prompts: `source` is an intake-driver source name
+    (discoverable via `list_intake_plugins`), NOT a URL.
+
+    Common optional args the LLM should set when the user supplies
+    plugin-specific values:
+      - args: dict of plugin args passed to fetch_features at render
+        time. Supports ${variable_name} syntax for dashboard variable
+        substitution — these are preserved verbatim and re-evaluated
+        on every variable change.
+      - queryable, attribute_variables, opacity, min_zoom, max_zoom,
+        visible, legend, style.
     """
     return (
         f"Add a dynamic map layer named '{name}' from intake plugin "
-        f"'{source}' to map {map_uuid}."
+        f"'{source}' to map {map_uuid}. "
+        f"If the plugin needs non-default arguments, set the tool's "
+        f"`args` dict; use ${{variable_name}} syntax to reference "
+        f"dashboard variable inputs that auto-refresh the layer."
     )
 
 
