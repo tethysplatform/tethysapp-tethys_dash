@@ -6,6 +6,10 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import PopupModalChrome from "components/modals/PopupModal/PopupModalChrome";
 import { VariableInputsContext } from "components/contexts/Contexts";
+import {
+  deriveRowHeight,
+  DEFAULT_ROW_HEIGHT,
+} from "components/modals/PopupModal/PopupModalChrome";
 
 // DashboardLayout transitively reads contexts and renders real visualization
 // machinery; replace it with a stub that exposes the props we care about for
@@ -237,8 +241,29 @@ describe("PopupModalChrome — re-render behavior", () => {
     const chips = screen.getAllByRole("tab");
     expect(chips[1]).toHaveAttribute("aria-selected", "true");
   });
+
+  test("clamps to 0 when features array is empty", () => {
+    render(
+      <Harness
+        features={[]}
+        popupConfig={samplePopupConfig()}
+        initialActiveIndex={3}
+      />,
+    );
+    // No crash; carousel doesn't render since there's only one "feature" (the empty state).
+    expect(screen.queryByTestId("popup-modal-carousel")).toBeNull();
+    // Active index clamps to 0.
+    expect(screen.getByTestId("harness-active-index")).toHaveTextContent("3");
+  });
 });
 
-// Note: title substitution and feature.* propagation are covered elsewhere —
-// title lives in PopupModal's header (see Map.test.js), and feature scoping
-// is verified in FeatureScopedVariableInputs.test.js.
+describe("deriveRowHeight", () => {
+  test("derives rowHeight from the given height and minimum row count", () => {
+    expect(deriveRowHeight(400, 20)).toBe(20);
+    expect(deriveRowHeight(200, 20)).toBe(20);
+    expect(deriveRowHeight(800, 20)).toBe(40);
+    expect(deriveRowHeight(1000, 25)).toBe(50);
+    expect(deriveRowHeight(null)).toBe(DEFAULT_ROW_HEIGHT);
+    expect(deriveRowHeight({})).toBe(DEFAULT_ROW_HEIGHT);
+  });
+});

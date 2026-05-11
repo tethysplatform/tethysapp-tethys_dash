@@ -1,11 +1,14 @@
-import { useState, useContext } from "react";
+import React, { useState, useContext } from "react";
 import PropTypes from "prop-types";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
   EditingContext,
   DisabledEditingMovementContext,
 } from "components/contexts/Contexts";
+import PopupLayoutEditor, {
+  getInitialViewportSize,
+} from "components/modals/MapLayer/PopupLayoutEditor";
 
 // Mock DashboardLayout so the popup editor's wiring (TabContext / EditingContext
 // / rowHeight) can be asserted without standing up react-grid-layout. The mock
@@ -52,7 +55,9 @@ jest.mock("components/dashboard/DashboardLayout", () => {
         <span data-testid="mock-dl-row-height">{rowHeight}</span>
         <span data-testid="mock-dl-responsive">{String(!!responsive)}</span>
         <span data-testid="mock-dl-grid-items-count">{gridItems.length}</span>
-        <span data-testid="mock-dl-grid-items">{JSON.stringify(gridItems)}</span>
+        <span data-testid="mock-dl-grid-items">
+          {JSON.stringify(gridItems)}
+        </span>
         <span data-testid="mock-dl-editing">
           {editingCtx?.isEditing ? "editing" : "not-editing"}
         </span>
@@ -99,6 +104,19 @@ jest.mock("components/dashboard/DashboardLayout", () => {
         >
           probe-call-noops
         </button>
+        {/* Probes for the false-branch of updateTab's gridItems guard (line 377) */}
+        <button
+          aria-label="probe-update-tab-null"
+          onClick={() => tabCtx.updateTab(tabId, null)}
+        >
+          probe-update-tab-null
+        </button>
+        <button
+          aria-label="probe-update-tab-non-array"
+          onClick={() => tabCtx.updateTab(tabId, { gridItems: "not-an-array" })}
+        >
+          probe-update-tab-non-array
+        </button>
       </div>
     );
   };
@@ -111,9 +129,6 @@ jest.mock("components/dashboard/DashboardLayout", () => {
   };
   return { __esModule: true, default: MockDashboardLayout };
 });
-
-// eslint-disable-next-line import/first
-import PopupLayoutEditor from "components/modals/MapLayer/PopupLayoutEditor";
 
 const baseGridItem = (overrides = {}) => ({
   i: "1",
@@ -219,12 +234,8 @@ test("renders modal title with layer name and Save/Cancel buttons", () => {
     />,
   );
 
-  expect(
-    screen.getByText("Edit popup layout: My Layer"),
-  ).toBeInTheDocument();
-  expect(
-    screen.getByLabelText("Save Popup Layout Editor"),
-  ).toBeInTheDocument();
+  expect(screen.getByText("Edit popup layout: My Layer")).toBeInTheDocument();
+  expect(screen.getByLabelText("Save Popup Layout Editor")).toBeInTheDocument();
   expect(
     screen.getByLabelText("Cancel Popup Layout Editor"),
   ).toBeInTheDocument();
@@ -451,7 +462,10 @@ test("synthetic DisabledEditingMovementContext forces movement on regardless of 
   // the synthetic provider always pins disabledEditingMovement=false.
   render(
     <DisabledEditingMovementContext.Provider
-      value={{ disabledEditingMovement: true, setDisabledEditingMovement: () => {} }}
+      value={{
+        disabledEditingMovement: true,
+        setDisabledEditingMovement: () => {},
+      }}
     >
       <PopupLayoutEditor
         show={true}
@@ -482,7 +496,9 @@ test("synthetic TabContext.getActiveTab returns the popup tab with current gridI
     />,
   );
 
-  const active = JSON.parse(screen.getByTestId("mock-dl-active-tab").textContent);
+  const active = JSON.parse(
+    screen.getByTestId("mock-dl-active-tab").textContent,
+  );
   expect(active.id).toBe("popup");
   expect(active.gridItems).toHaveLength(2);
 });
@@ -523,10 +539,7 @@ test("rowHeight is derived from the preview box's height (positive integer)", ()
     />,
   );
 
-  const rh = parseInt(
-    screen.getByTestId("mock-dl-row-height").textContent,
-    10,
-  );
+  const rh = parseInt(screen.getByTestId("mock-dl-row-height").textContent, 10);
   expect(rh).toBeGreaterThan(0);
   expect(Number.isInteger(rh)).toBe(true);
 });
@@ -849,5 +862,180 @@ describe("PopupLayoutEditor — preview dimensions", () => {
       10,
     );
     expect(rh).toBe(Math.max(20, Math.floor((400 - 60 - 2 * 8) / 20)));
+  });
+});
+
+describe("PopupLayoutEditor — branch coverage for guards and cleanup", () => {
+  // Line 377: if (updates && Array.isArray(updates.gridItems))
+  // The false branch fires when updateTab is called with null or with an object
+  // whose gridItems is not an array. Local state must stay unchanged in both cases.
+  test("updateTab with null updates does not change localGridItems", async () => {
+    render(
+      <PopupLayoutEditor
+        show={true}
+        onClose={jest.fn()}
+        onSave={jest.fn()}
+        popupConfig={samplePopupConfig({ gridItems: [baseGridItem()] })}
+        layerName="Layer A"
+      />,
+    );
+
+    expect(screen.getByTestId("mock-dl-grid-items-count").textContent).toBe(
+      "1",
+    );
+    await userEvent.click(screen.getByLabelText("probe-update-tab-null"));
+    expect(screen.getByTestId("mock-dl-grid-items-count").textContent).toBe(
+      "1",
+    );
+  });
+
+  test("updateTab with a non-array gridItems property does not change localGridItems", async () => {
+    render(
+      <PopupLayoutEditor
+        show={true}
+        onClose={jest.fn()}
+        onSave={jest.fn()}
+        popupConfig={samplePopupConfig({ gridItems: [baseGridItem()] })}
+        layerName="Layer A"
+      />,
+    );
+
+    expect(screen.getByTestId("mock-dl-grid-items-count").textContent).toBe(
+      "1",
+    );
+    await userEvent.click(screen.getByLabelText("probe-update-tab-non-array"));
+    expect(screen.getByTestId("mock-dl-grid-items-count").textContent).toBe(
+      "1",
+    );
+  });
+
+  // Line 289: if (!node) return undefined — safety guard inside useLayoutEffect.
+  // boundaryRef.current is always populated when show=true in normal rendering
+  // because useLayoutEffect fires after the DOM commit. To exercise the true
+  // branch we spy on React.useRef and wrap the real call so the fiber hook slot
+  // is still registered (preventing hook-count mismatch on re-render), but
+  // .current is permanently null via a no-op setter so React's own ref-
+  // assignment during commit cannot overwrite it.
+  test("useLayoutEffect returns early without crashing when boundaryRef has no node", () => {
+    const realUseRef = React.useRef;
+    jest.spyOn(React, "useRef").mockImplementationOnce(() => {
+      // Register the hook slot in React's fiber by calling the real useRef.
+      const ref = realUseRef(null);
+      // Replace the data property with an accessor so React's commit-phase
+      // `ref.current = domNode` silently does nothing.
+      Object.defineProperty(ref, "current", {
+        get: () => null,
+        set: () => {},
+        configurable: true,
+        enumerable: true,
+      });
+      return ref;
+    });
+
+    render(
+      <PopupLayoutEditor
+        show={true}
+        onClose={jest.fn()}
+        onSave={jest.fn()}
+        popupConfig={samplePopupConfig({ gridItems: [] })}
+        layerName="Layer A"
+      />,
+    );
+
+    // The null-node guard causes the layout effect to return early — no crash.
+    expect(screen.getByText("Edit popup layout: Layer A")).toBeInTheDocument();
+    // restoreAllMocks in afterEach handles spy cleanup
+  });
+
+  // Line 316: new window.ResizeObserver(() => apply())
+  // The arrow function passed to ResizeObserver fires when the observed
+  // boundary resizes. The default mock in beforeEach discards the constructor
+  // argument, so the callback never runs. Here we replace the mock to capture
+  // the callback, then invoke it manually after changing getBoundingClientRect
+  // so apply()'s "did the rect change?" guard takes the non-equal branch.
+  test("ResizeObserver callback re-runs apply() and propagates the new boundary size", () => {
+    let observerCallback;
+    window.ResizeObserver = jest.fn().mockImplementation((cb) => {
+      observerCallback = cb;
+      return {
+        observe: jest.fn(),
+        unobserve: jest.fn(),
+        disconnect: jest.fn(),
+      };
+    });
+
+    // Tiny initial boundary forces scale-to-fit; displayWidth clamps to MIN.
+    Element.prototype.getBoundingClientRect = jest.fn(() => ({
+      width: 50,
+      height: 50,
+      top: 0,
+      left: 0,
+      right: 50,
+      bottom: 50,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    }));
+
+    render(
+      <PopupLayoutEditor
+        show={true}
+        onClose={jest.fn()}
+        onSave={jest.fn()}
+        popupConfig={samplePopupConfig({
+          position: { leftPct: 0, topPct: 0, widthPct: 60, heightPct: 60 },
+        })}
+        layerName="Layer A"
+      />,
+    );
+
+    const initialBoxWidth = screen.getByTestId(
+      "popup-layout-editor-preview-box",
+    ).style.width;
+
+    // Boundary grows. Returning a different rect lets apply()'s guard take
+    // the non-equal branch and call setBoundarySize.
+    Element.prototype.getBoundingClientRect = jest.fn(() => ({
+      width: 5000,
+      height: 5000,
+      top: 0,
+      left: 0,
+      right: 5000,
+      bottom: 5000,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    }));
+
+    act(() => {
+      observerCallback();
+    });
+
+    // After re-render, the preview box renders at popup true size (no scaling)
+    // — proving the captured `() => apply()` callback actually ran apply().
+    expect(
+      screen.getByTestId("popup-layout-editor-preview-box").style.width,
+    ).not.toBe(initialBoxWidth);
+  });
+
+  // Lines 315-316: typeof window !== "undefined" ? window.innerWidth : 1920
+  // The false branch (SSR fallback to 1920/1080) is unreachable via render()
+  // because testing-library itself needs window. getInitialViewportSize() is
+  // the extracted lazy initializer; calling it directly while window is
+  // temporarily deleted exercises both ternary false branches.
+  test("getInitialViewportSize falls back to 1920×1080 when window is not defined", () => {
+    const savedWindow = global.window;
+    // Deleting global.window makes `typeof window` return "undefined" in the
+    // same JS environment, because `window` in Node.js/JSDOM is just a regular
+    // configurable global property (not a built-in).
+    delete global.window;
+    let result;
+    try {
+      result = getInitialViewportSize();
+    } finally {
+      global.window = savedWindow;
+    }
+    expect(result.width).toBe(1920);
+    expect(result.height).toBe(1080);
   });
 });

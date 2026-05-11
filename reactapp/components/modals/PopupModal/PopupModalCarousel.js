@@ -40,15 +40,23 @@ const Chip = styled.button`
   }
 `;
 
-/**
- * `PopupModalCarousel` — feature-selector chip strip.
- *
- * Renders nothing when `features` has 0 or 1 entries (no point selecting).
- * For multi-feature clicks, each chip is a focusable, role="tab" button
- * showing the per-feature label. Clicking sets `activeIndex` via
- * `onActiveIndexChange`. Arrow Left/Right cycles through chips for keyboard
- * a11y; Home/End jumps to the ends.
- */
+export function computeNextIndexFromKey(key, features, activeIndex) {
+  if (!features || features.length === 0) return null;
+  if (key === "ArrowRight") {
+    return Math.min(features.length - 1, activeIndex + 1);
+  }
+  if (key === "ArrowLeft") {
+    return Math.max(0, activeIndex - 1);
+  }
+  if (key === "Home") {
+    return 0;
+  }
+  if (key === "End") {
+    return features.length - 1;
+  }
+  return null;
+}
+
 const PopupModalCarousel = ({
   features,
   activeIndex,

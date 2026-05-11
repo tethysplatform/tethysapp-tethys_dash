@@ -4,12 +4,7 @@ import ReactDOM from "react-dom";
 import styled from "styled-components";
 import { FaTimes } from "react-icons/fa";
 
-// Bootstrap-modal z-index is 1050; sit just above so we render over any
-// open react-bootstrap modal but stay below toasts (1080).
 const POPUP_Z_INDEX = 1055;
-
-// Below this viewport width we ignore the configured position and render
-// near-fullscreen (R9 small-viewport fallback).
 const SMALL_VIEWPORT_BREAKPOINT = 768;
 
 const DEFAULT_POSITION = {
@@ -80,15 +75,8 @@ const ModalBody = styled.div`
   padding: 0.75rem;
 `;
 
-/**
- * Compute the inline style (position + size) for the modal container from the
- * percent-based `position` config. Below the small-viewport breakpoint the
- * configured position is ignored and the modal renders near-fullscreen.
- */
 function computePositionStyle({ position, isSmallViewport }) {
   if (isSmallViewport) {
-    // Near-fullscreen with a small inset so the modal doesn't visually
-    // bleed to viewport edges.
     return {
       top: "1rem",
       left: "1rem",
@@ -112,14 +100,10 @@ function computePositionStyle({ position, isSmallViewport }) {
   };
 }
 
-function isEditableTarget(el) {
+export function isEditableTarget(el) {
   if (!el) return false;
   const tag = el.tagName;
   if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
-  // Prefer the live `isContentEditable` getter where it exists (in real
-  // browsers it walks the inheritance chain). Fall back to the
-  // `contenteditable` attribute for environments — including jsdom — where
-  // the live getter isn't fully implemented.
   if (el.isContentEditable) return true;
   const ceAttr = el.getAttribute && el.getAttribute("contenteditable");
   if (ceAttr === "" || ceAttr === "true" || ceAttr === "plaintext-only") {
@@ -128,19 +112,21 @@ function isEditableTarget(el) {
   return false;
 }
 
-/**
- * `PopupModal` — a custom positioned overlay rendered into `document.body` via
- * a portal. Designed for the modal-mode map feature popup.
- *
- * Differences from `react-bootstrap/Modal`:
- *   - No backdrop element (the underlying map stays interactive — R15).
- *   - `aria-modal="false"` and no focus trap (R27).
- *   - Free-position percent sizing via `position`
- *     (`{leftPct, topPct, widthPct, heightPct}`) — R7, R8.
- *   - Esc-to-close, but no click-outside-to-close (R14).
- *   - Below 768px viewport width, ignores `position` and renders
- *     near-fullscreen (R9).
- */
+export function getInitialIsSmallViewport() {
+  if (typeof window === "undefined") return false;
+  return window.innerWidth < SMALL_VIEWPORT_BREAKPOINT;
+}
+
+export function trackSmallViewport(setIsSmallViewport) {
+  if (typeof window === "undefined") return undefined;
+  const handleResize = () => {
+    setIsSmallViewport(window.innerWidth < SMALL_VIEWPORT_BREAKPOINT);
+  };
+  handleResize();
+  window.addEventListener("resize", handleResize);
+  return () => window.removeEventListener("resize", handleResize);
+}
+
 function PopupModal({
   show,
   onClose,
@@ -151,25 +137,13 @@ function PopupModal({
   children,
 }) {
   const containerRef = useRef(null);
-  const [isSmallViewport, setIsSmallViewport] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return window.innerWidth < SMALL_VIEWPORT_BREAKPOINT;
-  });
+  const [isSmallViewport, setIsSmallViewport] = useState(
+    getInitialIsSmallViewport,
+  );
 
   // Track viewport size for R9 fallback.
-  useEffect(() => {
-    if (typeof window === "undefined") return undefined;
-    const handleResize = () => {
-      setIsSmallViewport(window.innerWidth < SMALL_VIEWPORT_BREAKPOINT);
-    };
-    // Sync once in case the initial state was computed before mount.
-    handleResize();
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
+  useEffect(() => trackSmallViewport(setIsSmallViewport), []);
 
-  // Focus management: on open, focus the modal container. On close,
-  // restore focus to the trigger element if provided (R28).
   useEffect(() => {
     if (show) {
       // Defer focus so the portal node is mounted in the DOM.
@@ -205,9 +179,6 @@ function PopupModal({
     zIndex: POPUP_Z_INDEX,
   };
 
-  // Inline min-width/min-height on the X button so the WCAG 2.5.5 hit-target
-  // assertion is observable via getComputedStyle in jsdom (styled-components'
-  // generated stylesheet isn't parsed by jsdom).
   const closeButtonStyle = {
     minWidth: `${MIN_TOUCH_TARGET_PX}px`,
     minHeight: `${MIN_TOUCH_TARGET_PX}px`,

@@ -60,21 +60,13 @@ const Note = styled.p`
   margin-top: 0.5rem;
 `;
 
-// User-facing help text showing the literal `${feature.<key>}` template
-// syntax. eslint's no-template-curly-in-string lint catches accidental
-// missing-backtick mistakes elsewhere; these strings are intentional.
 /* eslint-disable no-template-curly-in-string */
 const TITLE_TOOLTIP_TEXT =
   "Use ${feature.<key>} to substitute the clicked feature's attributes " +
   '(e.g., "Site: ${feature.station_name}"). Missing attributes resolve to ' +
   "an empty string. See docs for the full feature.* syntax.";
-/* eslint-enable no-template-curly-in-string */
 
-/**
- * Coerce/clamp a single percent input. Empty values fall back to the supplied
- * default so the form never emits NaN.
- */
-function clampPct(raw, fallback, min, max) {
+export function clampPct(raw, fallback, min, max) {
   if (raw === "" || raw === null || raw === undefined) return fallback;
   const num = Number(raw);
   if (!Number.isFinite(num)) return fallback;
@@ -83,13 +75,7 @@ function clampPct(raw, fallback, min, max) {
   return num;
 }
 
-/**
- * After applying a single-axis edit, ensure that left+width <= 100 and
- * top+height <= 100. Width/height take precedence over left/top — if a width
- * change overflows, shrink width to fit; if left grows past the bound, clamp
- * left to keep width intact.
- */
-function reconcilePosition(next) {
+export function reconcilePosition(next) {
   const result = { ...next };
   if (result.leftPct + result.widthPct > 100) {
     result.leftPct = Math.max(0, 100 - result.widthPct);
@@ -109,10 +95,6 @@ function buildDefaultConfig() {
   };
 }
 
-/**
- * Take an arbitrary popupConfig and fill in any defaults so the form always
- * has concrete values. Unknown fields pass through.
- */
 function withDefaults(popupConfig) {
   const base = buildDefaultConfig();
   if (!popupConfig) return base;
@@ -361,13 +343,6 @@ PopupConfigPane.propTypes = {
   onOpenLayoutEditor: PropTypes.func,
   hostDashboardEditable: PropTypes.bool,
   isSaving: PropTypes.bool,
-};
-
-PopupConfigPane.defaultProps = {
-  popupConfig: null,
-  onOpenLayoutEditor: () => {},
-  hostDashboardEditable: true,
-  isSaving: false,
 };
 
 export default memo(PopupConfigPane);

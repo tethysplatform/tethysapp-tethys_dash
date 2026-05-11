@@ -1,7 +1,11 @@
-import { useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import { act, render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import PopupModal from "components/modals/PopupModal/PopupModal";
+import PopupModal, {
+  isEditableTarget,
+  getInitialIsSmallViewport,
+  trackSmallViewport,
+} from "components/modals/PopupModal/PopupModal";
 
 const ORIGINAL_INNER_WIDTH = window.innerWidth;
 
@@ -86,27 +90,42 @@ describe("PopupModal — render", () => {
   });
 
   it.each([
-    [{ leftPct: 0, topPct: 0, widthPct: 30, heightPct: 30 }, { left: "0vw", top: "0vh" }],
-    [{ leftPct: 70, topPct: 0, widthPct: 30, heightPct: 30 }, { left: "70vw", top: "0vh" }],
-    [{ leftPct: 0, topPct: 70, widthPct: 30, heightPct: 30 }, { left: "0vw", top: "70vh" }],
-    [{ leftPct: 70, topPct: 70, widthPct: 30, heightPct: 30 }, { left: "70vw", top: "70vh" }],
-  ])("positions correctly for free-position config %#", (position, expected) => {
-    render(
-      <PopupModal
-        show={true}
-        onClose={() => {}}
-        position={position}
-        title={<span id="t">t</span>}
-        ariaLabelledBy="t"
-      />,
-    );
-    const dialog = screen.getByRole("dialog");
-    Object.entries(expected).forEach(([prop, value]) => {
-      expect(dialog).toHaveStyle(`${prop}: ${value}`);
-    });
-    expect(dialog).toHaveStyle(`width: ${position.widthPct}vw`);
-    expect(dialog).toHaveStyle(`height: ${position.heightPct}vh`);
-  });
+    [
+      { leftPct: 0, topPct: 0, widthPct: 30, heightPct: 30 },
+      { left: "0vw", top: "0vh" },
+    ],
+    [
+      { leftPct: 70, topPct: 0, widthPct: 30, heightPct: 30 },
+      { left: "70vw", top: "0vh" },
+    ],
+    [
+      { leftPct: 0, topPct: 70, widthPct: 30, heightPct: 30 },
+      { left: "0vw", top: "70vh" },
+    ],
+    [
+      { leftPct: 70, topPct: 70, widthPct: 30, heightPct: 30 },
+      { left: "70vw", top: "70vh" },
+    ],
+  ])(
+    "positions correctly for free-position config %#",
+    (position, expected) => {
+      render(
+        <PopupModal
+          show={true}
+          onClose={() => {}}
+          position={position}
+          title={<span id="t">t</span>}
+          ariaLabelledBy="t"
+        />,
+      );
+      const dialog = screen.getByRole("dialog");
+      Object.entries(expected).forEach(([prop, value]) => {
+        expect(dialog).toHaveStyle(`${prop}: ${value}`);
+      });
+      expect(dialog).toHaveStyle(`width: ${position.widthPct}vw`);
+      expect(dialog).toHaveStyle(`height: ${position.heightPct}vh`);
+    },
+  );
 });
 
 describe("PopupModal — Esc to close", () => {
@@ -180,7 +199,11 @@ describe("PopupModal — Esc to close", () => {
         title={<span id="t">t</span>}
         ariaLabelledBy="t"
       >
-        <div contentEditable="true" data-testid="child-ce" suppressContentEditableWarning>
+        <div
+          contentEditable="true"
+          data-testid="child-ce"
+          suppressContentEditableWarning
+        >
           editable
         </div>
       </PopupModal>,
@@ -296,7 +319,11 @@ describe("PopupModal — focus management (R28)", () => {
           <button type="button" ref={triggerRef} data-testid="trigger">
             trigger
           </button>
-          <button type="button" onClick={() => setShow(false)} data-testid="closer">
+          <button
+            type="button"
+            onClick={() => setShow(false)}
+            data-testid="closer"
+          >
             close
           </button>
           <PopupModal
@@ -325,7 +352,11 @@ describe("PopupModal — focus management (R28)", () => {
       const [show, setShow] = useState(true);
       return (
         <>
-          <button type="button" onClick={() => setShow(false)} data-testid="closer">
+          <button
+            type="button"
+            onClick={() => setShow(false)}
+            data-testid="closer"
+          >
             close
           </button>
           <PopupModal
@@ -427,13 +458,7 @@ describe("PopupModal — accessibility wiring (R27)", () => {
   });
 
   it("falls back to aria-label when ariaLabelledBy is omitted", () => {
-    render(
-      <PopupModal
-        show={true}
-        onClose={() => {}}
-        position={CENTERED}
-      />,
-    );
+    render(<PopupModal show={true} onClose={() => {}} position={CENTERED} />);
     const dialog = screen.getByRole("dialog");
     expect(dialog).not.toHaveAttribute("aria-labelledby");
     expect(dialog).toHaveAttribute("aria-label", "Popup Modal");
@@ -455,5 +480,96 @@ describe("PopupModal — accessibility wiring (R27)", () => {
     expect(document.querySelector(".modal-backdrop")).toBeNull();
     // eslint-disable-next-line testing-library/no-node-access
     expect(document.querySelector("[data-popup-backdrop]")).toBeNull();
+  });
+});
+
+describe("PopupModal — branch coverage for guards", () => {
+  // Line 116: if (!el) return false — !el true branch.
+  // fireEvent always sets event.target to the element, so this guard is
+  // unreachable via the component. Tested by calling the exported helper.
+  it("isEditableTarget returns false when el is null or undefined", () => {
+    expect(isEditableTarget(null)).toBe(false);
+    expect(isEditableTarget(undefined)).toBe(false);
+  });
+
+  // Line 123: if (el.isContentEditable) return true.
+  // JSDOM doesn't implement the live isContentEditable getter, so the existing
+  // contentEditable-attribute test falls through to the attribute branch.
+  // Overriding the getter via defineProperty exercises line 123 directly.
+  it("isEditableTarget returns true when el.isContentEditable is true", () => {
+    const div = document.createElement("div");
+    Object.defineProperty(div, "isContentEditable", {
+      value: true,
+      configurable: true,
+    });
+    expect(isEditableTarget(div)).toBe(true);
+  });
+
+  // Lines 155-156: useState lazy initializer's typeof window === "undefined"
+  // SSR fallback. Unreachable in JSDOM via render() because testing-library
+  // itself needs window. Calling the extracted helper with global.window
+  // temporarily deleted makes typeof window return "undefined".
+  it("getInitialIsSmallViewport returns false when window is not defined", () => {
+    const savedWindow = global.window;
+    delete global.window;
+    let result;
+    try {
+      result = getInitialIsSmallViewport();
+    } finally {
+      global.window = savedWindow;
+    }
+    expect(result).toBe(false);
+  });
+
+  // Line 161: useEffect's typeof window === "undefined" SSR guard.
+  // Same approach: call the extracted helper with window deleted and assert
+  // the function returns undefined (no listener attached).
+  it("trackSmallViewport returns undefined when window is not defined", () => {
+    const savedWindow = global.window;
+    delete global.window;
+    let result;
+    try {
+      result = trackSmallViewport(() => {});
+    } finally {
+      global.window = savedWindow;
+    }
+    expect(result).toBeUndefined();
+  });
+
+  // Line 177: if (node) — false branch (containerRef.current is null).
+  // In normal rendering React always populates the ref before useEffect runs.
+  // Spy on React.useRef so .current stays null even after commit-phase
+  // ref-attach (no-op setter), exercising the false branch.
+  it("focus useEffect skips node.focus() when containerRef.current is null", () => {
+    const realUseRef = useRef;
+    jest.spyOn(React, "useRef").mockImplementationOnce(() => {
+      const ref = realUseRef(null);
+      Object.defineProperty(ref, "current", {
+        get: () => null,
+        set: () => {},
+        configurable: true,
+        enumerable: true,
+      });
+      return ref;
+    });
+
+    render(
+      <PopupModal
+        show={true}
+        onClose={() => {}}
+        position={CENTERED}
+        title={<span id="t">t</span>}
+        ariaLabelledBy="t"
+      />,
+    );
+
+    // Modal renders without crashing. With containerRef.current null, the
+    // focus effect's `if (node)` guard returned false instead of calling
+    // node.focus(), so the dialog never received focus.
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toBeInTheDocument();
+    expect(dialog).not.toHaveFocus();
+
+    jest.restoreAllMocks();
   });
 });

@@ -54,14 +54,78 @@ const Handle = styled.div`
 `;
 
 const HANDLES = [
-  { mode: "n", style: { top: 0, left: "50%", transform: "translate(-50%, -50%)", cursor: "ns-resize" } },
-  { mode: "s", style: { bottom: 0, left: "50%", transform: "translate(-50%, 50%)", cursor: "ns-resize" } },
-  { mode: "e", style: { top: "50%", right: 0, transform: "translate(50%, -50%)", cursor: "ew-resize" } },
-  { mode: "w", style: { top: "50%", left: 0, transform: "translate(-50%, -50%)", cursor: "ew-resize" } },
-  { mode: "nw", style: { top: 0, left: 0, transform: "translate(-50%, -50%)", cursor: "nwse-resize" } },
-  { mode: "ne", style: { top: 0, right: 0, transform: "translate(50%, -50%)", cursor: "nesw-resize" } },
-  { mode: "sw", style: { bottom: 0, left: 0, transform: "translate(-50%, 50%)", cursor: "nesw-resize" } },
-  { mode: "se", style: { bottom: 0, right: 0, transform: "translate(50%, 50%)", cursor: "nwse-resize" } },
+  {
+    mode: "n",
+    style: {
+      top: 0,
+      left: "50%",
+      transform: "translate(-50%, -50%)",
+      cursor: "ns-resize",
+    },
+  },
+  {
+    mode: "s",
+    style: {
+      bottom: 0,
+      left: "50%",
+      transform: "translate(-50%, 50%)",
+      cursor: "ns-resize",
+    },
+  },
+  {
+    mode: "e",
+    style: {
+      top: "50%",
+      right: 0,
+      transform: "translate(50%, -50%)",
+      cursor: "ew-resize",
+    },
+  },
+  {
+    mode: "w",
+    style: {
+      top: "50%",
+      left: 0,
+      transform: "translate(-50%, -50%)",
+      cursor: "ew-resize",
+    },
+  },
+  {
+    mode: "nw",
+    style: {
+      top: 0,
+      left: 0,
+      transform: "translate(-50%, -50%)",
+      cursor: "nwse-resize",
+    },
+  },
+  {
+    mode: "ne",
+    style: {
+      top: 0,
+      right: 0,
+      transform: "translate(50%, -50%)",
+      cursor: "nesw-resize",
+    },
+  },
+  {
+    mode: "sw",
+    style: {
+      bottom: 0,
+      left: 0,
+      transform: "translate(-50%, 50%)",
+      cursor: "nesw-resize",
+    },
+  },
+  {
+    mode: "se",
+    style: {
+      bottom: 0,
+      right: 0,
+      transform: "translate(50%, 50%)",
+      cursor: "nwse-resize",
+    },
+  },
 ];
 
 function clamp(n, min, max) {
@@ -70,12 +134,6 @@ function clamp(n, min, max) {
   return n;
 }
 
-/**
- * Compute the next position object given a drag mode (`body` or a mix of
- * `n|s|e|w` characters), the starting value, and the pointer delta as
- * percentages of the canvas. Applies axis-independent clamping so corner
- * handles compose two axis updates.
- */
 export function computeNextPosition(mode, start, dx, dy, minW, minH) {
   const next = { ...start };
   if (mode === "body") {
@@ -110,14 +168,6 @@ export function computeNextPosition(mode, start, dx, dy, minW, minH) {
   return next;
 }
 
-/**
- * `PreviewCanvas` — a 16:9 viewport-shaped surface with a draggable and
- * resizable rectangle for visually configuring a popup's `position`
- * (`{leftPct, topPct, widthPct, heightPct}`). All values are percentages of
- * the runtime viewport. The numeric form fields in the parent pane provide
- * the keyboard-accessible fallback; this component exists for direct
- * mouse/touch manipulation.
- */
 const PreviewCanvas = ({
   value,
   onChange,

@@ -2,9 +2,12 @@
 // This file tests literal `${feature.x}` template syntax handling.
 import { useState } from "react";
 import PropTypes from "prop-types";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, createEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import PopupConfigPane from "components/modals/MapLayer/PopupConfigPane";
+import PopupConfigPane, {
+  reconcilePosition,
+  clampPct,
+} from "components/modals/MapLayer/PopupConfigPane";
 
 const SAMPLE_POSITION = {
   leftPct: 20,
@@ -40,12 +43,18 @@ test("renders with popupConfig=null and shows the modal-enable checkbox unchecke
   expect(modalCheckbox).not.toBeChecked();
 
   // Advanced controls hidden until the custom popup modal is enabled
-  expect(screen.queryByLabelText("Popup Width Percent")).not.toBeInTheDocument();
-  expect(screen.queryByLabelText("Popup Height Percent")).not.toBeInTheDocument();
+  expect(
+    screen.queryByLabelText("Popup Width Percent"),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByLabelText("Popup Height Percent"),
+  ).not.toBeInTheDocument();
   expect(screen.queryByLabelText("Popup Left Percent")).not.toBeInTheDocument();
   expect(screen.queryByLabelText("Popup Top Percent")).not.toBeInTheDocument();
   expect(screen.queryByTestId("popup-preview-canvas")).not.toBeInTheDocument();
-  expect(screen.queryByLabelText("Popup Title Template")).not.toBeInTheDocument();
+  expect(
+    screen.queryByLabelText("Popup Title Template"),
+  ).not.toBeInTheDocument();
   expect(
     screen.queryByLabelText("Edit Popup Layout Button"),
   ).not.toBeInTheDocument();
@@ -258,4 +267,114 @@ test("preview canvas reflects current position via inline percent style", () => 
   expect(rect).toHaveStyle("top: 5%");
   expect(rect).toHaveStyle("width: 80%");
   expect(rect).toHaveStyle("height: 70%");
+});
+
+test("dragging the PreviewCanvas rect calls handleCanvasChange with the reconciled position", () => {
+  // JSDOM returns zero from getBoundingClientRect, so canvasWidth/canvasHeight
+  // fall back to 1 inside PreviewCanvas. A 1px pointer move therefore equals
+  // 100% of the canvas: dxPct = (1 - 0) / 1 * 100 = 100.
+  //
+  // computeNextPosition("body", start={left:20,top:20,w:60,h:60}, dx=100, dy=100):
+  //   leftPct = clamp(20 + 100, 0, 100-60) = clamp(120, 0, 40) = 40
+  //   topPct  = clamp(20 + 100, 0, 100-60) = clamp(120, 0, 40) = 40
+  //
+  // reconcilePosition: 40+60=100 and 40+60=100, so no further adjustment.
+  const onChange = jest.fn();
+  render(
+    <Harness
+      initial={{
+        mode: "modal",
+        position: { leftPct: 20, topPct: 20, widthPct: 60, heightPct: 60 },
+        titleTemplate: "",
+        gridItems: [],
+      }}
+      onChange={onChange}
+    />,
+  );
+
+  const rect = screen.getByTestId("popup-preview-rect");
+
+  // JSDOM's pointer-event constructor drops clientX/clientY from the init
+  // dict; use createEvent + defineProperty (the same workaround used in
+  // PreviewCanvas.test.js).
+  function ptr(type, clientX, clientY) {
+    const e = createEvent[type](rect, { bubbles: true, cancelable: true });
+    Object.defineProperty(e, "clientX", { value: clientX });
+    Object.defineProperty(e, "clientY", { value: clientY });
+    Object.defineProperty(e, "pointerId", { value: 1 });
+    return e;
+  }
+
+  fireEvent(rect, ptr("pointerDown", 0, 0));
+  fireEvent(rect, ptr("pointerMove", 1, 1));
+
+  const last = onChange.mock.calls[onChange.mock.calls.length - 1][0];
+  expect(last.position.leftPct).toBe(40);
+  expect(last.position.topPct).toBe(40);
+  expect(last.position.widthPct).toBe(60);
+  expect(last.position.heightPct).toBe(60);
+});
+
+describe("reconcilePosition", () => {
+  test("does not modify a position that fits within the canvas bounds", () => {
+    const input = { leftPct: 20, topPct: 20, widthPct: 60, heightPct: 60 };
+    const output = reconcilePosition(input);
+    expect(output).toEqual(input);
+  });
+
+  test("if widthPct causes overflow, shrink width to fit", () => {
+    const input = { leftPct: 30, topPct: 0, widthPct: 80, heightPct: 30 };
+    const output = reconcilePosition(input);
+    expect(output.widthPct).toBe(80);
+    expect(output.leftPct).toBe(20);
+  });
+
+  test("if leftPct + widthPct causes overflow, clamp left to keep width intact", () => {
+    const input = { leftPct: 70, topPct: 0, widthPct: 40, heightPct: 30 };
+    const output = reconcilePosition(input);
+    expect(output.widthPct).toBe(40);
+    expect(output.leftPct).toBe(60);
+  });
+
+  test("if widthPct > 100, width doesnt change and left to 0", () => {
+    const input = { leftPct: 0, topPct: 0, widthPct: 150, heightPct: 30 };
+    const output = reconcilePosition(input);
+    expect(output.widthPct).toBe(150);
+    expect(output.leftPct).toBe(0);
+  });
+
+  test("if heightPct  > 100, height doesnt change and top to 0", () => {
+    const input = { leftPct: 0, topPct: 100, widthPct: 30, heightPct: 150 };
+    const output = reconcilePosition(input);
+    expect(output.heightPct).toBe(150);
+    expect(output.topPct).toBe(0);
+  });
+
+  test("if topPct + heightPct causes overflow, clamp top to keep height intact", () => {
+    const input = { leftPct: 0, topPct: 70, widthPct: 40, heightPct: 40 };
+    const output = reconcilePosition(input);
+    expect(output.heightPct).toBe(40);
+    expect(output.topPct).toBe(60);
+  });
+});
+
+describe("clampPct", () => {
+  test("returns fallback for empty/null/undefined input", () => {
+    expect(clampPct("", 42, 0, 100)).toBe(42);
+    expect(clampPct(null, 42, 0, 100)).toBe(42);
+    expect(clampPct(undefined, 42, 0, 100)).toBe(42);
+  });
+
+  test("returns fallback for non-numeric input", () => {
+    expect(clampPct("abc", 42, 0, 100)).toBe(42);
+    expect(clampPct({}, 42, 0, 100)).toBe(42);
+  });
+
+  test("clamps numeric input to the supplied min/max range", () => {
+    expect(clampPct(-10, 0, 20, 80)).toBe(20);
+    expect(clampPct(10, 0, 20, 80)).toBe(20);
+    expect(clampPct(50, 0, 20, 80)).toBe(50);
+    expect(clampPct(90, 0, 20, 80)).toBe(80);
+    expect(clampPct(150, 0, 20, 80)).toBe(80);
+  });
 });

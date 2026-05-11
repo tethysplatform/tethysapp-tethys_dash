@@ -7,10 +7,7 @@ import { TabContext, EditingContext } from "components/contexts/Contexts";
 import PopupModalCarousel from "components/modals/PopupModal/PopupModalCarousel";
 import { substituteTemplateString } from "components/modals/PopupModal/substituteTemplateString";
 
-// Default rowHeight used before useLayoutEffect measurement runs. Roughly
-// matches a legible cell size at 100-column resolution.
-const DEFAULT_ROW_HEIGHT = 30;
-// Target row count used to derive rowHeight from the measured body height.
+export const DEFAULT_ROW_HEIGHT = 30;
 const TARGET_ROWS = 20;
 
 const noop = () => {};
@@ -44,41 +41,19 @@ const EmptyHint = styled.p`
   margin: 1rem 0;
 `;
 
-function deriveRowHeight(containerHeight) {
+export function deriveRowHeight(containerHeight) {
   if (!containerHeight || !Number.isFinite(containerHeight)) {
     return DEFAULT_ROW_HEIGHT;
   }
   return Math.max(20, Math.floor(containerHeight / TARGET_ROWS));
 }
 
-/**
- * `PopupModalChrome` — runtime contents of the modal-mode popup.
- *
- * Renders the optional feature carousel and a single `<DashboardLayout>`
- * of the popup's configured visualizations wrapped in
- * `<FeatureScopedVariableInputs>` so each tile receives the active feature's
- * attributes via the `feature.*` namespace. Switching the carousel slide
- * remounts the FeatureScopedVariableInputs feature prop so dependent
- * visualizations re-fetch their data with the new `feature.*` values
- * (consistent with the rest of the variable-input pipeline).
- *
- * Controlled component: the parent owns `activeIndex` and supplies
- * `onActiveIndexChange`. The substituted title lives in `PopupModal`'s
- * header (above the chrome) so the parent computes it from the same
- * activeIndex; we don't render a title row here.
- *
- * View-only at runtime — `EditingContext.isEditing` is forced false. Popup
- * tile editing happens in `PopupLayoutEditor`, not here.
- */
 const PopupModalChrome = ({
   features,
   popupConfig,
   activeIndex,
   onActiveIndexChange,
 }) => {
-  // Clamp activeIndex if the features array shrinks. (Defensive — the parent
-  // typically remounts on each gesture, but we still don't want to render
-  // an out-of-range slide if the prop drifts.)
   const safeActiveIndex =
     features && features.length > 0
       ? Math.min(activeIndex, features.length - 1)
@@ -103,9 +78,6 @@ const PopupModalChrome = ({
     [popupConfig],
   );
 
-  // Measure the body to derive a sensible per-row pixel height. Synchronous
-  // first measurement avoids a first-paint reflow flash. ResizeObserver
-  // covers subsequent modal resizes / viewport resizes.
   const bodyRef = useRef(null);
   const [rowHeight, setRowHeight] = useState(DEFAULT_ROW_HEIGHT);
 
@@ -129,15 +101,7 @@ const PopupModalChrome = ({
     return () => observer.disconnect();
   }, []);
 
-  // Synthetic TabContext: the popup is modeled as a single "popup" tab. The
-  // embedded DashboardLayout reads gridItems via getActiveTab(); other
-  // methods are no-ops at runtime since reordering/deleting tiles only
-  // happens in the editor. Memoize the gridItems reference so the tab
-  // context value is stable when popupConfig hasn't actually changed.
-  const gridItems = useMemo(
-    () => popupConfig?.gridItems ?? [],
-    [popupConfig],
-  );
+  const gridItems = useMemo(() => popupConfig?.gridItems ?? [], [popupConfig]);
   const tabContextValue = useMemo(() => {
     const popupTab = { id: "popup", name: "popup", gridItems };
     return {
@@ -150,8 +114,6 @@ const PopupModalChrome = ({
       deleteTab: noop,
       reorderTabs: noop,
       resetTabs: noop,
-      getActiveTab: () => popupTab,
-      getTab: () => popupTab,
     };
   }, [gridItems]);
 

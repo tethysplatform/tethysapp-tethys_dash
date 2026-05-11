@@ -12,43 +12,16 @@ import {
 } from "components/contexts/Contexts";
 import DashboardLayout from "components/dashboard/DashboardLayout";
 import "components/modals/wideModal.css";
+import { deriveRowHeight } from "components/modals/PopupModal/PopupModalChrome";
 
-// Default rowHeight used before the layout-effect measurement runs. Matches a
-// ballpark cell size that keeps tiles legible on first paint inside the wide
-// modal. Subsequent updates flow through the ResizeObserver.
-const DEFAULT_ROW_HEIGHT = 30;
-
-// Target row count used to derive rowHeight from the preview-area height.
-// Picking ~20 rows per visible body keeps tiles roughly square at the
-// 100-column grid width (matching DashboardLayout's static column count).
-const TARGET_ROWS = 20;
-
-// Default popup position — same shape PopupConfigPane uses when popupConfig
-// is null/missing. Keeps the editor preview faithful to what the runtime
-// modal will render in the absence of explicit user config.
 const DEFAULT_POSITION = {
   leftPct: 20,
   topPct: 20,
   widthPct: 60,
   heightPct: 60,
 };
-
-// Minimum preview-area pixel dims so the grid stays interactable even when
-// the user configures a tiny popup or a very small viewport.
 const MIN_PREVIEW_WIDTH = 240;
 const MIN_PREVIEW_HEIGHT = 160;
-
-// Approximate vertical chrome that the runtime popup adds on top of the
-// configured popup dimensions:
-//
-//   - PopupModal header — close-button WCAG min target 44px + 0.5rem
-//     vertical padding + 1px bottom border ≈ 60px
-//   - ModalBody + PopupModalChrome body padding ≈ 16px combined
-//
-// Subtracting these from the preview's display height gives the grid area
-// the same usable space the runtime DashboardLayout actually sees, so
-// charts sized to fill the editor's grid area don't silently overflow at
-// runtime once the header eats into the popup's vertical budget.
 const PREVIEW_HEADER_HEIGHT = 60;
 const PREVIEW_BODY_PADDING_Y = 8;
 
@@ -91,10 +64,6 @@ const PreviewBoundary = styled.div`
   padding: 0.5rem;
 `;
 
-// The fixed-pixel-size box that mirrors the runtime popup's actual
-// dimensions. Tiles configured against this box scale 1:1 to the runtime
-// popup at the same viewport, so users can size visualizations relative to
-// the actual popup area instead of the editor's full body.
 const PreviewSizedBox = styled.div`
   flex: 0 0 auto;
   background-color: #ffffff;
@@ -107,9 +76,6 @@ const PreviewSizedBox = styled.div`
   flex-direction: column;
 `;
 
-// Visual stand-in for the runtime PopupModal header bar. Reserves the same
-// vertical space the real header takes (PREVIEW_HEADER_HEIGHT) so the grid
-// area below matches what the runtime DashboardLayout actually sees.
 const PreviewHeader = styled.div`
   flex: 0 0 ${PREVIEW_HEADER_HEIGHT}px;
   display: flex;
@@ -160,27 +126,6 @@ const EmptyHint = styled.p`
   margin: 1rem 0;
 `;
 
-function deriveRowHeight(containerHeight) {
-  if (!containerHeight || !Number.isFinite(containerHeight)) {
-    return DEFAULT_ROW_HEIGHT;
-  }
-  return Math.max(20, Math.floor(containerHeight / TARGET_ROWS));
-}
-
-/**
- * Compute the preview box dimensions in pixels.
- *
- * - True size = popup's configured % of viewport in pixels
- * - If true size > available editor body, scale down proportionally so the
- *   popup's aspect ratio is preserved
- * - Clamp to MIN_PREVIEW_* so the box stays interactable even on tiny
- *   configurations
- *
- * Returns `{ trueWidth, trueHeight, displayWidth, displayHeight, scaled }`
- * — `true*` are the runtime pixel dimensions (for the dimensions label),
- * `display*` are what the box actually renders at, and `scaled` flags
- * whether the down-scale kicked in.
- */
 function computePreviewDimensions({
   position,
   viewportWidth,
@@ -194,9 +139,6 @@ function computePreviewDimensions({
   const trueWidth = (viewportWidth * widthPct) / 100;
   const trueHeight = (viewportHeight * heightPct) / 100;
 
-  // If we don't have a body measurement yet, fall back to the true size —
-  // the box will paint at full popup dimensions until the boundary
-  // measures and we re-render with a scale factor.
   const fitsHorizontally =
     !Number.isFinite(availableWidth) || trueWidth <= availableWidth;
   const fitsVertically =
@@ -219,18 +161,12 @@ function computePreviewDimensions({
     trueWidth,
     trueHeight,
     displayWidth: Math.max(MIN_PREVIEW_WIDTH, Math.floor(trueWidth * scale)),
-    displayHeight: Math.max(
-      MIN_PREVIEW_HEIGHT,
-      Math.floor(trueHeight * scale),
-    ),
+    displayHeight: Math.max(MIN_PREVIEW_HEIGHT, Math.floor(trueHeight * scale)),
     scaled: true,
   };
 }
 
 function buildNewGridItem(localGridItems) {
-  // Mirror Header.js#onAddGridItem so popup grid items have the same shape as
-  // host-dashboard grid items (the runtime carousel renders them through the
-  // same DashboardLayout path).
   const maxGridItemI = localGridItems.reduce((acc, value) => {
     const parsed = parseInt(value.i, 10);
     return Number.isFinite(parsed) && parsed > acc ? parsed : acc;
@@ -250,6 +186,13 @@ function buildNewGridItem(localGridItems) {
   };
 }
 
+export function getInitialViewportSize() {
+  return {
+    width: typeof window !== "undefined" ? window.innerWidth : 1920,
+    height: typeof window !== "undefined" ? window.innerHeight : 1080,
+  };
+}
+
 const PopupLayoutEditor = ({
   show,
   onClose,
@@ -257,29 +200,16 @@ const PopupLayoutEditor = ({
   onSave,
   layerName,
 }) => {
-  // Local in-memory state. Drag/resize/add/delete only mutate this; the parent
-  // is told via onSave() when the user commits, and the actual persistence
-  // happens in MapLayer's overall Save flow (so Cancel on the host modal also
-  // discards popup edits — matches DataViewer's sub-modal pattern).
   const [localGridItems, setLocalGridItems] = useState(
     () => popupConfig?.gridItems ?? [],
   );
 
-  // Reset local state every time the editor re-opens. If the user cancels,
-  // their abandoned edits must not leak into the next open.
   useEffect(() => {
     if (show) {
       setLocalGridItems(popupConfig?.gridItems ?? []);
     }
-    // popupConfig is intentionally omitted — we only re-seed on the open
-    // transition, not on every parent rerender that creates a new object
-    // identity.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [show]);
 
-  // Measure the preview boundary (where the sized popup-area box lives) so
-  // we know how much room is available for the box. Synchronous first
-  // measurement via useLayoutEffect — avoids a first-paint reflow flash.
   const boundaryRef = useRef(null);
   const [boundarySize, setBoundarySize] = useState({
     width: NaN,
@@ -311,13 +241,7 @@ const PopupLayoutEditor = ({
     return () => observer.disconnect();
   }, [show]);
 
-  // Track viewport size so the preview area's "true pixel size" stays
-  // accurate as the user resizes the browser. The runtime popup also uses
-  // viewport percentages, so the editor preview tracks alongside it.
-  const [viewportSize, setViewportSize] = useState(() => ({
-    width: typeof window !== "undefined" ? window.innerWidth : 1920,
-    height: typeof window !== "undefined" ? window.innerHeight : 1080,
-  }));
+  const [viewportSize, setViewportSize] = useState(getInitialViewportSize);
 
   useEffect(() => {
     if (!show || typeof window === "undefined") return undefined;
@@ -345,10 +269,6 @@ const PopupLayoutEditor = ({
       [popupConfig, viewportSize, boundarySize],
     );
 
-  // Grid-area height = preview box height MINUS the visual header band MINUS
-  // the body padding above/below the grid. Matches the runtime budget the
-  // DashboardLayout actually sees inside the popup, so a tile sized to fill
-  // the editor's grid area also fits the runtime popup without overflow.
   const gridAreaHeight = Math.max(
     1,
     displayHeight - PREVIEW_HEADER_HEIGHT - 2 * PREVIEW_BODY_PADDING_Y,
@@ -362,12 +282,6 @@ const PopupLayoutEditor = ({
   const heightPct =
     popupConfig?.position?.heightPct ?? DEFAULT_POSITION.heightPct;
 
-  // Synthetic TabContext value. The popup is modeled as a single "popup" tab —
-  // the embedded DashboardLayout calls updateTab() on drag/resize, and
-  // DashboardItem calls it for delete/copy/reorder via getActiveTab(). Methods
-  // that don't make sense for a single-tab popup (addTab, deleteTab, etc.)
-  // degrade to no-ops rather than throwing so any downstream consumer that
-  // walks the context shape doesn't crash.
   const tabContextValue = useMemo(() => {
     const popupTab = { id: "popup", name: "popup", gridItems: localGridItems };
     return {
@@ -403,11 +317,11 @@ const PopupLayoutEditor = ({
     [],
   );
 
-  // Force movement on inside the sub-editor regardless of the host
-  // dashboard's "lock movement" toggle. The popup editor needs drag/resize
-  // handles to be usable; the host's lock has no semantic meaning here.
   const disabledEditingMovementContextValue = useMemo(
-    () => ({ disabledEditingMovement: false, setDisabledEditingMovement: noop }),
+    () => ({
+      disabledEditingMovement: false,
+      setDisabledEditingMovement: noop,
+    }),
     [],
   );
 
@@ -416,8 +330,6 @@ const PopupLayoutEditor = ({
   }
 
   function handleSave() {
-    // Parent's onSave handler closes the sub-editor; do NOT also call
-    // onClose() here or it would double-fire.
     onSave(localGridItems);
   }
 

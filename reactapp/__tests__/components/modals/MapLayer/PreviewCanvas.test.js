@@ -1,3 +1,4 @@
+import React, { useRef } from "react";
 import { render, screen, fireEvent, createEvent } from "@testing-library/react";
 import PreviewCanvas, {
   computeNextPosition,
@@ -45,7 +46,13 @@ function renderCanvas(initial = DEFAULT_VALUE) {
   const utils = render(
     <PreviewCanvas value={current} onChange={handleChange} />,
   );
-  return { ...utils, onChange, get value() { return current; } };
+  return {
+    ...utils,
+    onChange,
+    get value() {
+      return current;
+    },
+  };
 }
 
 // jsdom's pointer-event constructor drops clientX/clientY/pointerId from the
@@ -201,6 +208,89 @@ describe("PreviewCanvas — pointer-driven rendering", () => {
     const rect = screen.getByTestId("popup-preview-rect");
     pointer(rect, "pointerMove", 200, 200);
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("calls setPointerCapture on the target when the method is available (covers lines 148-149)", () => {
+    // JSDOM doesn't ship setPointerCapture on Elements, so the production
+    // `if (e.target.setPointerCapture)` guard normally short-circuits. Assigning
+    // a spy directly onto the rect node makes the guard truthy so the try block
+    // runs and we can verify setPointerCapture was called with the pointer id.
+    renderCanvas();
+    const rect = screen.getByTestId("popup-preview-rect");
+    const setPointerCaptureSpy = jest.fn();
+    rect.setPointerCapture = setPointerCaptureSpy;
+
+    pointer(rect, "pointerDown", 100, 100);
+
+    expect(setPointerCaptureSpy).toHaveBeenCalledWith(1);
+  });
+
+  it("calls releasePointerCapture on the target when the method is available (covers lines 180-181)", () => {
+    // Same approach as the setPointerCapture coverage test: attach a spy so the
+    // releasePointerCapture guard inside handlePointerUp enters its try block.
+    // pointerDown must fire first so dragRef.current is set — otherwise
+    // handlePointerUp returns early at the `if (!dragRef.current) return` guard.
+    renderCanvas();
+    const rect = screen.getByTestId("popup-preview-rect");
+    const releasePointerCaptureSpy = jest.fn();
+    rect.setPointerCapture = jest.fn();
+    rect.releasePointerCapture = releasePointerCaptureSpy;
+
+    pointer(rect, "pointerDown", 100, 100);
+    pointer(rect, "pointerUp", 100, 100);
+
+    expect(releasePointerCaptureSpy).toHaveBeenCalledWith(1);
+  });
+
+  it("handlePointerDown returns early when canvasRef is unattached (covers line 135 true branch)", () => {
+    // Spy on React.useRef so canvasRef.current is permanently null. We call the
+    // real useRef to register the fiber hook slot (otherwise the next render's
+    // hook reconciliation crashes), then replace .current with an accessor
+    // whose setter is a no-op so React's commit-phase ref-attach can't populate
+    // it. canvasRef is the first useRef call in PreviewCanvas, so
+    // mockImplementationOnce targets exactly that ref.
+    const realUseRef = useRef;
+    jest.spyOn(React, "useRef").mockImplementationOnce(() => {
+      const ref = realUseRef(null);
+      Object.defineProperty(ref, "current", {
+        get: () => null,
+        set: () => {},
+        configurable: true,
+        enumerable: true,
+      });
+      return ref;
+    });
+
+    const onChange = jest.fn();
+    render(<PreviewCanvas value={DEFAULT_VALUE} onChange={onChange} />);
+
+    const rect = screen.getByTestId("popup-preview-rect");
+    const setPointerCaptureSpy = jest.fn();
+    rect.setPointerCapture = setPointerCaptureSpy;
+
+    pointer(rect, "pointerDown", 100, 100);
+
+    // The `if (!canvas) return` guard fired before setPointerCapture or any
+    // dragRef state could be set.
+    expect(setPointerCaptureSpy).not.toHaveBeenCalled();
+
+    // And because dragRef.current is still null, a follow-up move emits nothing.
+    pointer(rect, "pointerMove", 200, 200);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("handlePointerUp returns early when no drag is in progress (covers line 178 true branch)", () => {
+    // Firing pointerUp with no prior pointerDown means dragRef.current is null,
+    // so the guard returns before reaching releasePointerCapture.
+    renderCanvas();
+    const rect = screen.getByTestId("popup-preview-rect");
+
+    const releasePointerCaptureSpy = jest.fn();
+    rect.releasePointerCapture = releasePointerCaptureSpy;
+
+    pointer(rect, "pointerUp", 100, 100);
+
+    expect(releasePointerCaptureSpy).not.toHaveBeenCalled();
   });
 
   it("disabled hides handles and ignores pointer drags", () => {
