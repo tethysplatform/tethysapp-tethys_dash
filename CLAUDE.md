@@ -131,7 +131,7 @@ TethysDash includes an MCP (Model Context Protocol) server that allows LLMs to c
 
 ### MCP Server Architecture
 
-- **`tethysdash_mcp_server.py`** — FastMCP server. Default transport is **Streamable HTTP at `http://localhost:9001/mcp`** (`MCP_TRANSPORT=streamable-http`); legacy SSE at `/sse` is opt-in via `MCP_TRANSPORT=sse` for users with `/sse`-suffixed localStorage configs migrating to the new endpoint. Default host is `127.0.0.1` (loopback only); set `MCP_HOST=0.0.0.0` for deployments behind an authenticated reverse proxy. CORS is env-driven via `ALLOWED_ORIGINS` (default `*`); `ALLOW_CREDENTIALS` is auto-derived (`False` on wildcard, `True` otherwise — coupling prevents the `allow_credentials=True` + `allow_origins=["*"]` spec violation). Uses `BM25SearchTransform` for tool discovery with an `always_visible` set of core tools.
+- **`tethysdash_mcp_server.py`** — FastMCP server. Default transport is **Streamable HTTP at `http://localhost:9001/mcp`** (`MCP_TRANSPORT=streamable-http`); legacy SSE at `/sse` is opt-in via `MCP_TRANSPORT=sse` for users with `/sse`-suffixed localStorage configs migrating to the new endpoint. Default host is `127.0.0.1` (loopback only); set `MCP_HOST=0.0.0.0` for deployments behind an authenticated reverse proxy. CORS is env-driven via `ALLOWED_ORIGINS` (default `*`); `ALLOW_CREDENTIALS` is auto-derived (`False` on wildcard, `True` otherwise — coupling prevents the `allow_credentials=True` + `allow_origins=["*"]` spec violation). **Tool discovery**: as of 2026-05-10 the server returns its full 25-tool catalog without server-side filtering (BM25SearchTransform was removed in commit `a739750`). Tool selection happens entirely in `chatbox-core/engine/embeddings.js` (per-prompt cosine-similarity ranking) capped by `TOOL_BUDGET=50` in `chatbox-core/engine/index.js`. See `docs/solutions/best-practices/mcp-server-vs-client-tool-selection-2026-05-10.md` for the architectural rationale.
 - **Engine** (`lib/chatbox-core/engine/index.js`) — Generic tool-use conversation loop that connects to MCP servers, streams LLM responses, and accumulates tool results.
 - **Chatbox** (`lib/chatbox-core/components/Chatbox.jsx`) — Dispatches visualization specs as DOM events that `DashboardLayout.js` handles.
 
@@ -139,17 +139,55 @@ TethysDash includes an MCP (Model Context Protocol) server that allows LLMs to c
 
 ### MCP Tools
 
+The server exposes **25 tools** across four families. The slash-command
+popover in the chatbox mirrors each tool with a corresponding
+`@mcp.prompt` (also 25 prompts total after Phase 3a/3b/3c shipped on
+2026-05-10 — see `docs/plans/2026-05-10-005/006/007-feat-tethysdash-mcp-*`).
+
+**Discovery** (zero-arg):
 | Tool | Purpose |
 |------|---------|
-| `create_plotly_chart` | Plotly chart with inline data |
-| `create_data_table` | Data table with inline data |
-| `create_variable_input` | Interactive variable input (text, number, checkbox, date, dropdown, slider, date-range, csv-uploader) |
-| `create_map_visualization` | Map with base layer, markers, extent, drawing tools. Returns a UUID for layer additions |
-| `add_map_service_layer` | Add WMS, ESRI, GeoJSON, KML, or tile layers to an existing map by UUID |
-| `render_plugin` | Render a registered backend intake plugin |
-| `render_custom_visualization` | Render a Module Federation remote component |
-| `list_intake_plugins` | List installed backend plugins (compact format) |
+| `list_intake_plugins` | List installed backend intake plugins (compact format) |
 | `list_available_visualizations` | List all registered visualization types |
+
+**Visualization create** (inline data):
+| Tool | Purpose |
+|------|---------|
+| `create_plotly_chart` | Plotly chart with inline `data` (trace array) |
+| `create_data_table` | Data table with inline row data |
+| `create_card` | Stat-card tile with title and (optional) data entries |
+| `create_text` | Plain text tile |
+| `create_custom_image` | Image tile from URL / data URI / S3 |
+| `create_map_visualization` | Map with base layer + drawing tools. Returns a UUID for layer additions |
+| `create_variable_input` | Interactive variable input (text, number, checkbox, date, dropdown, slider, date-range, csv-uploader) |
+
+**Render** (plugin / MFE):
+| Tool | Purpose |
+|------|---------|
+| `render_plugin` | Render a registered backend intake plugin (source name from `list_intake_plugins`) |
+| `render_custom_visualization` | Render a registered client-side custom plugin |
+| `register_runtime_plugin` | Register a runtime Module Federation plugin (url + scope + module + label) |
+
+**Modify**:
+| Tool | Purpose |
+|------|---------|
+| `patch_visualization` | Apply RFC 6902-style operations to an existing tile by UUID |
+
+**Layer-add** (each accepts a `map_uuid` returned by `create_map_visualization`):
+| Tool | Purpose |
+|------|---------|
+| `add_wms_layer` | WMS GetMap layer with `wms_layers` + optional `params` (STYLES/TIME/FORMAT/TRANSPARENT) |
+| `add_esri_image_layer` | ArcGIS Image / Map Service layer with optional `layer_id` + `params` |
+| `add_esri_feature_layer` | ArcGIS Feature Service layer with `layer_id` + optional WHERE / TIME `params` |
+| `add_geojson_layer` | GeoJSON layer (inline `geojson` or `geojson_url`) |
+| `add_kml_layer` | KML layer from URL |
+| `add_image_tile_layer` | Raster XYZ tile layer |
+| `add_vector_tile_layer` | Vector tile layer (style typically required) |
+| `add_pmtiles_vector_layer` | PMTiles vector archive |
+| `add_pmtiles_raster_layer` | PMTiles raster archive |
+| `add_geotiff_layer` | Cloud-Optimized GeoTIFF with optional `bands`/`nodata`/`min`/`max`/`ramp_name` |
+| `add_static_image_layer` | Non-georeferenced image pinned to an `image_extent` in a given `projection` |
+| `add_dynamic_map_layer` | Backend-intake-plugin-backed map layer (`source` from `list_intake_plugins`) |
 
 ### MCP Visualization Data Flow
 
