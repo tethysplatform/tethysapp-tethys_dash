@@ -35,6 +35,7 @@ dependencies = [
     "python-dateutil",
     "pytz",
     "jsonpatch==1.33",
+    "fastmcp",
 ]
 classifiers = [
      "Environment :: Web Environment",
@@ -46,11 +47,6 @@ classifiers = [
      "Programming Language :: Python :: 3.10",
      "Topic :: Internet :: WWW/HTTP",
      "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
-]
-
-[project.optional-dependencies]
-test = [
-    "fastmcp",
 ]
 
 [tool.setuptools]

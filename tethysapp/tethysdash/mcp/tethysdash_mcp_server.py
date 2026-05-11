@@ -748,7 +748,11 @@ def _build_markers_layer(markers):
         "When the user wants to focus on a specific feature, call a "
         "data-source feature-lookup tool first to obtain the bounding box "
         "and pass it via 'map_extent'. To add WMS, ESRI, GeoJSON, or other "
-        "service layers to a NEWLY-CREATED map, call add_map_service_layer "
+        "service layers to a NEWLY-CREATED map, call the matching `add_*_layer` "
+        "tool (add_wms_layer, add_esri_image_layer, add_esri_feature_layer, "
+        "add_geojson_layer, add_kml_layer, add_image_tile_layer, "
+        "add_vector_tile_layer, add_pmtiles_vector_layer, add_pmtiles_raster_layer, "
+        "add_geotiff_layer, add_static_image_layer, or add_dynamic_map_layer) "
         "with the returned map UUID. "
         "DO NOT call this when the user named an existing visualization "
         "UUID (from `dashboard_state`) OR asked to add to / modify / "
@@ -819,8 +823,9 @@ def create_map_visualization(
     """Create a geographic map on the dashboard.
 
     Simple usage: provide 'center' or 'markers' for a quick map.
-    For service layers (WMS, ESRI, GeoJSON, KML, GeoTIFF, etc.): call
-    add_map_service_layer with the returned map UUID after creating the map.
+    For service layers (WMS, ESRI, GeoJSON, KML, GeoTIFF, etc.): call the
+    matching `add_*_layer` tool (add_wms_layer, add_geojson_layer, etc.) with
+    the returned map UUID after creating the map.
     """
     map_uuid = str(uuid.uuid4())
     LOGGER.info("create_map_visualization: uuid=%s, center=%s, markers=%s",
@@ -883,9 +888,13 @@ def create_map_visualization(
         },
         "map_uuid": map_uuid,
         "message": (
-            f"Map created (uuid: {map_uuid}). Use add_map_service_layer with "
-            "this UUID to add WMS, ESRI, GeoJSON, GeoTIFF, or other service "
-            "layers."
+            f"Map created (uuid: {map_uuid}). Use the matching `add_*_layer` "
+            f"tool (add_wms_layer, add_esri_image_layer, add_esri_feature_layer, "
+            f"add_geojson_layer, add_kml_layer, add_image_tile_layer, "
+            f"add_vector_tile_layer, add_pmtiles_vector_layer, "
+            f"add_pmtiles_raster_layer, add_geotiff_layer, add_static_image_layer, "
+            f"or add_dynamic_map_layer) with this UUID to add WMS, ESRI, GeoJSON, "
+            f"GeoTIFF, or other service layers."
         ),
     }
 
@@ -2668,7 +2677,8 @@ def _check_r5c_array_collision(ops):
 
 
 def _check_layer_construction_boundary(source, ops):
-    """R9/R10: Map layer construction is reserved for add_map_service_layer.
+    """R9/R10: Map layer construction is reserved for the `add_*_layer` tools
+    (add_wms_layer, add_geojson_layer, add_esri_image_layer, etc.).
 
     Reject `add`/`replace` at /args/layers (whole array — the LLM's wrong-
     shape escape that produced the duplicate-layer bug).
@@ -2690,8 +2700,9 @@ def _check_layer_construction_boundary(source, ops):
             return (
                 f"op {i} `{op_name}` at '/args/layers' would replace the "
                 f"whole layers array, which is not permitted via "
-                f"patch_visualization. To add a new layer use "
-                f"`add_map_service_layer`. To modify an existing layer's "
+                f"patch_visualization. To add a new layer use the matching "
+                f"`add_*_layer` tool (add_wms_layer, add_geojson_layer, "
+                f"add_esri_image_layer, etc.). To modify an existing layer's "
                 f"fields, patch under '/args/layers/N/...'. To remove a "
                 f"layer, use a `remove` op at '/args/layers/N'."
             )
@@ -2700,9 +2711,12 @@ def _check_layer_construction_boundary(source, ops):
                 return (
                     f"op {i} `add` at {path!r} would construct a new map layer, "
                     f"which is not permitted via patch_visualization. Use the "
-                    f"`add_map_service_layer` tool to add a new service layer "
-                    f"(WMS, ESRI, GeoJSON, KML, tile, etc.) with its required "
-                    f"flat parameters."
+                    f"matching `add_*_layer` tool (add_wms_layer, add_geojson_layer, "
+                    f"add_esri_image_layer, add_esri_feature_layer, add_kml_layer, "
+                    f"add_image_tile_layer, add_vector_tile_layer, "
+                    f"add_pmtiles_vector_layer, add_pmtiles_raster_layer, "
+                    f"add_geotiff_layer, add_static_image_layer, or "
+                    f"add_dynamic_map_layer) with its required flat parameters."
                 )
         if op_name == "replace":
             if _BARE_LAYER_INDEX.match(path):
@@ -2711,8 +2725,8 @@ def _check_layer_construction_boundary(source, ops):
                     f"object, which is not permitted. Either patch individual "
                     f"fields within the existing layer (e.g., "
                     f"{path}/configuration/props/opacity or "
-                    f"{path}/visible) or use `add_map_service_layer` to add a "
-                    f"new layer."
+                    f"{path}/visible) or use the matching `add_*_layer` tool "
+                    f"(add_wms_layer, add_geojson_layer, etc.) to add a new layer."
                 )
     return None
 
@@ -2770,7 +2784,8 @@ def _emit_rejection_telemetry(
         "Paths use JSON Pointer syntax (RFC 6901): literal `.` in a segment is preserved "
         "as-is (do not escape). Supported ops: add, replace, remove, move, test. "
         "Copy is intentionally excluded. "
-        "To CREATE a new map layer, use add_map_service_layer — this tool is for edits only."
+        "To CREATE a new map layer, use the matching `add_*_layer` tool "
+        "(add_wms_layer, add_geojson_layer, add_esri_image_layer, etc.) — this tool is for edits only."
     ),
     tags=["visualization", "patch", "update"],
 )
@@ -3164,8 +3179,10 @@ def _resolve_dynamic_map_layer_plugin(source: str) -> Dict[str, Any]:
                     return {
                         "error": (
                             f"Plugin {source!r} is a static map_layer plugin "
-                            f"(dynamic_map_layer=False). Use add_map_service_layer "
-                            f"with the plugin's pre-baked layer config instead."
+                            f"(dynamic_map_layer=False). Use the matching "
+                            f"`add_*_layer` tool (add_wms_layer, add_geojson_layer, "
+                            f"add_esri_image_layer, etc.) with the plugin's pre-baked "
+                            f"layer config instead."
                         )
                     }
                 return {"plugin": opt}

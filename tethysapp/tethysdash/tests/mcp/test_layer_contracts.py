@@ -429,7 +429,7 @@ class TestResolveDynamicMapLayerPluginBranches:
             result = _resolve_dynamic_map_layer_plugin("static_overlay")
         assert "error" in result
         assert "static map_layer plugin" in result["error"]
-        assert "add_map_service_layer" in result["error"]
+        assert "add_*_layer" in result["error"]
 
     def test_happy_path_returns_plugin_metadata(self):
         """Sanity: when the plugin resolves AND has the right type +

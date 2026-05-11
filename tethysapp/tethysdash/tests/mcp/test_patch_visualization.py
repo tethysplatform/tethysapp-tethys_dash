@@ -872,7 +872,7 @@ class TestWhitelist:
 
 
 class TestLayerConstructionBoundary:
-    """Layer construction is reserved for add_map_service_layer."""
+    """Layer construction is reserved for the per-source-type `add_*_layer` tools."""
 
     def test_add_at_layers_dash_rejected(self):
         """`add` at /args/layers/- creates a new layer — banned."""
@@ -883,7 +883,7 @@ class TestLayerConstructionBoundary:
         )
         assert "error" in result
         assert "whitelist_rejected" in result["error"]
-        assert "add_map_service_layer" in result["error"]
+        assert "add_*_layer" in result["error"]
 
     def test_add_at_layers_index_rejected(self):
         """`add` at /args/layers/N inserts a new layer — banned."""
@@ -894,7 +894,7 @@ class TestLayerConstructionBoundary:
         )
         assert "error" in result
         assert "whitelist_rejected" in result["error"]
-        assert "add_map_service_layer" in result["error"]
+        assert "add_*_layer" in result["error"]
 
     def test_replace_whole_layer_at_index_rejected(self):
         """`replace` at /args/layers/N replaces a whole layer object — banned."""
@@ -940,7 +940,7 @@ class TestLayerConstructionBoundary:
         """Non-Map sources don't get the layer-construction check."""
         # Inline Plotly has no /args/layers, so this hits whitelist_rejected,
         # not the layer-boundary check. Verify the error is whitelist_rejected
-        # without the add_map_service_layer hint.
+        # without the add_*_layer hint.
         result = patch_visualization(
             uuid=_fresh_uuid(),
             source="Inline Plotly",
@@ -949,7 +949,7 @@ class TestLayerConstructionBoundary:
         assert "error" in result
         assert "whitelist_rejected" in result["error"]
         # Hint is only emitted by the Map-specific check
-        assert "add_map_service_layer" not in result["error"]
+        assert "add_*_layer" not in result["error"]
 
     # -- Whole-array `/args/layers` ops: regression coverage for the
     # bug where an LLM emitted a single `replace` at `/args/layers` with
@@ -1007,8 +1007,8 @@ class TestLayerConstructionBoundary:
             }],
         )
         err = result.get("error", "")
-        # Add a new layer -> add_map_service_layer
-        assert "add_map_service_layer" in err
+        # Add a new layer -> add_*_layer family (add_wms_layer, add_geojson_layer, ...)
+        assert "add_*_layer" in err
         # Edit a layer field -> /args/layers/N/...
         assert "/args/layers/N/" in err or "/args/layers/N" in err
         # Remove a layer -> remove op
