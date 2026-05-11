@@ -2458,7 +2458,7 @@ describe("Copy grid item UUID button", () => {
     ).toBeInTheDocument();
   });
 
-  test("click writes the chat-ready payload to the clipboard and shows success toast", async () => {
+  test("click writes only the bare UUID to the clipboard and shows success toast", async () => {
     const writeText = mockClipboard();
     renderWithGridItem();
 
@@ -2466,21 +2466,15 @@ describe("Copy grid item UUID button", () => {
     await userEvent.click(copyBtn);
 
     await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
-    const payload = writeText.mock.calls[0][0];
-    expect(payload).toContain("uuid: some-uuid-1");
-    expect(payload).toContain("source: ");
-    // Single-digit position values for the default fixture (x=0, y=0, w=20, h=20)
-    expect(payload).toContain("position: 0,0 20×20");
-    expect(payload).toBe(
-      `uuid: some-uuid-1\nsource: \nposition: 0,0 20×20`,
-    );
+    // Bare UUID only — no source, no position, no labels.
+    expect(writeText.mock.calls[0][0]).toBe("some-uuid-1");
 
     expect(
       await screen.findByText("UUID copied to clipboard"),
     ).toBeInTheDocument();
   });
 
-  test("payload position formats for multi-digit coordinates", async () => {
+  test("clipboard payload is unaffected by grid-item position / size", async () => {
     const writeText = mockClipboard();
     renderWithGridItem({
       gridItemOverrides: { x: 12, y: 8, w: 24, h: 45 },
@@ -2488,9 +2482,7 @@ describe("Copy grid item UUID button", () => {
 
     await userEvent.click(await screen.findByLabelText("Copy grid item UUID"));
     await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
-    expect(writeText.mock.calls[0][0]).toContain(
-      "position: 12,8 24×45",
-    );
+    expect(writeText.mock.calls[0][0]).toBe("some-uuid-1");
   });
 
   test("warns and skips clipboard write when grid item index is out of range", async () => {
