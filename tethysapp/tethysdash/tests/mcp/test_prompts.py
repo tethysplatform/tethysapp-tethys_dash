@@ -94,17 +94,32 @@ def _get_prompt(name, args):
 
 
 def _tool_schema_properties(tool_name):
-    async def go():
-        async with Client(mcp) as c:
-            return await c.list_tools()
+    """Read the underlying tool function's parameter names directly.
 
-    tools = _run(go())
-    tool = next((t for t in tools if t.name == tool_name), None)
-    assert tool is not None, (
-        f"{tool_name!r} missing from tools/list — parity contract cannot be evaluated"
+    Originally this routed through ``Client(mcp).list_tools()``, but the
+    server's ``BM25SearchTransform`` filters tools/list to the
+    always_visible set plus BM25-matched results. Several Phase 3b
+    target tools (``create_card``, ``create_text``,
+    ``create_custom_image``, ``register_runtime_plugin``) are
+    intentionally NOT in always_visible — they're BM25-searchable, not
+    pinned — so they don't appear in an unqueried list_tools call.
+
+    For the parity contract, we want the canonical underlying-tool
+    parameter set regardless of search visibility. The cleanest source
+    is the Python function signature itself: ``@mcp.tool`` preserves
+    the wrapped function as a module-level symbol with its original
+    parameters.
+    """
+    import inspect
+    from tethysapp.tethysdash.mcp import tethysdash_mcp_server as srv
+
+    fn = getattr(srv, tool_name, None)
+    assert fn is not None, (
+        f"{tool_name!r} not found as a module-level symbol in "
+        f"tethysdash_mcp_server.py — parity contract cannot be evaluated"
     )
-    schema = getattr(tool, "inputSchema", None) or {}
-    return set((schema.get("properties") or {}).keys())
+    sig = inspect.signature(fn)
+    return set(sig.parameters.keys())
 
 
 # ---------------------------------------------------------------------------
@@ -114,48 +129,118 @@ def _tool_schema_properties(tool_name):
 # Multi-arg prompts: name → tuple of surfaced arg names (R6: required-shaped
 # routing args only, in declaration order).
 MULTI_ARG_PROMPTS = {
+    # Phase 3a
     "render_plugin": ("source", "args"),
     "render_custom_visualization": ("source",),
+    # Phase 3b
+    "create_plotly_chart": ("data",),
+    "create_data_table": ("data",),
+    "create_card": ("title",),
+    "create_text": ("text",),
+    "create_custom_image": ("image_url",),
+    "create_variable_input": ("variable_name",),
+    "register_runtime_plugin": ("url", "scope", "module", "label"),
+    "patch_visualization": ("uuid", "source", "ops"),
 }
 
-# Hint description per arg name, drawn from the underlying tool's
+# Per-(prompt, arg) hint copy. Drawn from each tool's
 # Field(description=...) with concrete-example values stripped per
 # CLAUDE.md "MCP tool descriptions" rule. LOCKSTEP: when the tool's
-# Field description changes, update both the @mcp.prompt arg description
-# AND this dict.
-PROMPT_HINTS = {
-    "source": None,  # Two prompts share `source` with different hints; resolved per-prompt below
-    "args": (
-        "Plugin arguments as a JSON object. Use ${variable_name} "
-        "to reference dashboard variable inputs (auto-refreshes "
-        "when the variable changes)."
-    ),
-}
-
-# Per-(prompt, arg) hint override since `source` carries different copy on
-# the two render prompts (one points at list_intake_plugins, the other at
-# list_available_visualizations).
+# Field description changes, update both the @mcp.prompt arg
+# description AND this dict.
 PROMPT_ARG_HINTS = {
+    # Phase 3a
     ("render_plugin", "source"): (
         "Intake driver name from the 'source' field in "
         "list_intake_plugins results."
     ),
-    ("render_plugin", "args"): PROMPT_HINTS["args"],
+    ("render_plugin", "args"): (
+        "Plugin arguments as a JSON object. Use ${variable_name} "
+        "to reference dashboard variable inputs (auto-refreshes "
+        "when the variable changes)."
+    ),
     ("render_custom_visualization", "source"): (
         "Client plugin source name from list_available_visualizations."
+    ),
+    # Phase 3b
+    ("create_plotly_chart", "data"): (
+        "Array of Plotly trace objects (each with non-empty x and y "
+        "arrays). At least one trace required."
+    ),
+    ("create_data_table", "data"): (
+        "Array of row objects sharing the same keys. At least one row "
+        "required."
+    ),
+    ("create_card", "title"): "Title shown at the top of the card.",
+    ("create_text", "text"): (
+        "Text content to display in the tile (non-empty)."
+    ),
+    ("create_custom_image", "image_url"): (
+        "URL of the image to display (http/https URL, data URI, or "
+        "S3 path)."
+    ),
+    ("create_variable_input", "variable_name"): (
+        "Snake_case identifier other visualizations will reference "
+        "via ${variable_name}. Preserve the user's exact name."
+    ),
+    ("register_runtime_plugin", "url"): (
+        "Full URL to the plugin's remoteEntry.js manifest."
+    ),
+    ("register_runtime_plugin", "scope"): (
+        "Module Federation scope name registered by the build."
+    ),
+    ("register_runtime_plugin", "module"): (
+        "Exposed module path within the federation, "
+        "starting with a relative-path prefix."
+    ),
+    ("register_runtime_plugin", "label"): (
+        "Human-readable display name for the plugin in the "
+        "visualization picker."
+    ),
+    ("patch_visualization", "uuid"): (
+        "UUID of the target visualization tile (from dashboard_state)."
+    ),
+    ("patch_visualization", "source"): (
+        "Registry source name of the target visualization "
+        "(e.g., the source returned alongside the uuid)."
+    ),
+    ("patch_visualization", "ops"): (
+        "Operations to apply to the visualization identified by "
+        "uuid. RFC 6902-style array as JSON: each op is "
+        "{op, path, value} with op in "
+        "{add, replace, remove, move, test}. Tool accepts both "
+        "array and JSON-string shapes."
     ),
 }
 
 # Zero-arg prompts.
-ZERO_ARG_PROMPTS = ("list_intake_plugins", "list_available_visualizations")
+ZERO_ARG_PROMPTS = (
+    # Phase 3a
+    "list_intake_plugins",
+    "list_available_visualizations",
+    # Phase 3b
+    "create_map_visualization",
+)
 
-# Underlying tool per prompt — used by the parity test. Phase 3a names
-# the prompts identically to the tools, so the mapping is identity.
+# Underlying tool per prompt — used by the parity test. All prompt
+# names equal their tool names (slash command name matches the tool's
+# @mcp.tool name=...); the mapping is identity.
 PROMPT_TO_TOOL = {
+    # Phase 3a
     "list_intake_plugins": "list_intake_plugins",
     "list_available_visualizations": "list_available_visualizations",
     "render_plugin": "render_plugin",
     "render_custom_visualization": "render_custom_visualization",
+    # Phase 3b
+    "create_plotly_chart": "create_plotly_chart",
+    "create_data_table": "create_data_table",
+    "create_card": "create_card",
+    "create_text": "create_text",
+    "create_custom_image": "create_custom_image",
+    "create_map_visualization": "create_map_visualization",
+    "create_variable_input": "create_variable_input",
+    "register_runtime_plugin": "register_runtime_plugin",
+    "patch_visualization": "patch_visualization",
 }
 
 
@@ -192,9 +277,13 @@ def test_zero_arg_prompt_get_with_no_args_succeeds(prompt_name):
     result = _get_prompt(prompt_name, {})
     text = _concat_text(result.messages)
     assert text, f"{prompt_name!r} rendered prose was empty"
-    # Imperative declarative prose begins with the verb 'list'.
-    assert "list" in text.lower(), (
-        f"{prompt_name!r} prose should start with imperative 'list'; got: {text!r}"
+    # Imperative declarative prose begins with a capital-letter verb
+    # ("List", "Create", "Render", "Patch", "Register", "Lookup", etc.).
+    # Don't pin a specific verb — different zero-arg prompts use
+    # different verbs depending on their tool family.
+    assert text.lstrip()[0].isupper(), (
+        f"{prompt_name!r} prose should start with a capital letter "
+        f"(imperative declarative shape); got: {text!r}"
     )
 
 
@@ -295,11 +384,26 @@ def test_multi_arg_prompt_substitutes_supplied_args_only(prompt_name):
     """
     arg_names = MULTI_ARG_PROMPTS[prompt_name]
     args = _synth_brackets(prompt_name, arg_names)
-    # Substitute the first arg with a real value.
+    # Substitute the first arg with a real value. One entry per
+    # distinct `first` arg across MULTI_ARG_PROMPTS; values are
+    # plausible-looking strings (substring-presence assertion only —
+    # shape correctness is not asserted here).
     first = arg_names[0]
     real_values = {
+        # Phase 3a
         "source": "my_source",
         "args": '{"key": "value"}',
+        # Phase 3b — covers create_plotly_chart + create_data_table
+        # (both have `data` as first arg), create_card, create_text,
+        # create_custom_image, create_variable_input,
+        # register_runtime_plugin, patch_visualization.
+        "data": '[{"x": [1, 2, 3], "y": [4, 5, 6]}]',
+        "title": "Daily Active Users",
+        "text": "Welcome to the dashboard.",
+        "image_url": "https://example.com/image.png",
+        "variable_name": "selected_gauge_id",
+        "url": "https://plugins.example.com/remoteEntry.js",
+        "uuid": "12345678-1234-5678-1234-567812345678",
     }
     args[first] = real_values[first]
 
@@ -380,4 +484,24 @@ def test_render_plugin_source_arg_references_list_intake_plugins():
     assert "list_intake_plugins" in cleaned, (
         f"render_plugin.source description must reference 'list_intake_plugins' "
         f"so the prompt-to-discovery contract is visible; got: {cleaned!r}"
+    )
+
+
+def test_patch_visualization_ops_arg_references_uuid_arg():
+    """``patch_visualization``'s ``ops`` arg description names ``uuid``.
+
+    Pins the cross-arg reference: the operations apply to a SPECIFIC
+    visualization identified by ``uuid``. Without this textual link, a
+    future refactor could decouple the args (e.g., make ``ops`` look
+    self-contained) and the LLM would lose the routing signal that
+    operations are targeted at one tile. Phase 3b's R5 lockstep case.
+    """
+    prompts = _list_prompts()
+    by_name = {p.name: p for p in prompts}
+    prompt = by_name["patch_visualization"]
+    ops_arg = next(a for a in prompt.arguments if a.name == "ops")
+    cleaned = _strip_fastmcp_schema_note(ops_arg.description or "")
+    assert "uuid" in cleaned, (
+        f"patch_visualization.ops description must reference 'uuid' "
+        f"so the prompt-to-target-arg contract is visible; got: {cleaned!r}"
     )

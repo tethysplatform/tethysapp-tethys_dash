@@ -3853,6 +3853,239 @@ def _prompt_render_custom_visualization(
 
 
 # ---------------------------------------------------------------------------
+# Slash-command prompt templates (Phase 3b) — visualization create + modify
+# + plugin registration. Same pattern as Phase 3a:
+#   - Python function names carry the `_prompt_` prefix so they don't
+#     shadow the underlying tool functions of the same name. The `name=`
+#     arg on `@mcp.prompt` is the slash-command name the popover surfaces.
+#   - Every surfaced arg is `Annotated[str, Field(...)]` (R9). Even tools
+#     with Dict / List args (e.g., patch_visualization.ops) surface as str;
+#     the LLM (or the tool's own Union[List, str] coercion) handles the
+#     translation at invocation time.
+#   - Only TRULY required args are surfaced (R6). Defaultable layout dims
+#     (w, h) and optional decorations (title on create_text, description
+#     on patch_visualization) are NOT surfaced (R7).
+#   - Hint copy drawn from each tool's Field(description=...) with
+#     cleanups: drop concrete-example values per CLAUDE.md "MCP tool
+#     descriptions" rule. register_runtime_plugin's 4 args and
+#     patch_visualization.ops have fresh-authored hint copy (the tool's
+#     own Field descriptions contain example violations or insufficient
+#     cross-arg references for R5 lockstep).
+# ---------------------------------------------------------------------------
+
+
+@mcp.prompt(name="create_plotly_chart")
+def _prompt_create_plotly_chart(
+    data: Annotated[
+        str,
+        Field(
+            description=(
+                "Array of Plotly trace objects (each with non-empty x and y "
+                "arrays). At least one trace required."
+            ),
+        ),
+    ],
+) -> str:
+    """Create a NEW Plotly chart tile on the dashboard.
+
+    Drives the create_plotly_chart tool. Layout / config / title use the
+    tool's documented defaults and are not surfaced (R7).
+    """
+    return f"Create a Plotly chart tile on the dashboard with traces: {data}"
+
+
+@mcp.prompt(name="create_data_table")
+def _prompt_create_data_table(
+    data: Annotated[
+        str,
+        Field(
+            description=(
+                "Array of row objects sharing the same keys. At least one row "
+                "required."
+            ),
+        ),
+    ],
+) -> str:
+    """Create a NEW data-table tile on the dashboard.
+
+    Drives the create_data_table tool. Title / subtitle / layout use the
+    tool's documented defaults and are not surfaced (R7).
+    """
+    return f"Create a data table tile on the dashboard with rows: {data}"
+
+
+@mcp.prompt(name="create_card")
+def _prompt_create_card(
+    title: Annotated[
+        str,
+        Field(description="Title shown at the top of the card."),
+    ],
+) -> str:
+    """Create a NEW stat-card tile on the dashboard.
+
+    Drives the create_card tool. Description / data / layout are optional
+    on the tool and not surfaced on the prompt (R7); the user adds them
+    in prose if needed.
+    """
+    return f"Create a card tile on the dashboard with title: {title}"
+
+
+@mcp.prompt(name="create_text")
+def _prompt_create_text(
+    text: Annotated[
+        str,
+        Field(description="Text content to display in the tile (non-empty)."),
+    ],
+) -> str:
+    """Create a NEW text tile on the dashboard.
+
+    Drives the create_text tool. Layout uses the tool's documented
+    defaults and is not surfaced (R7).
+    """
+    return f"Create a text tile on the dashboard with content: {text}"
+
+
+@mcp.prompt(name="create_custom_image")
+def _prompt_create_custom_image(
+    image_url: Annotated[
+        str,
+        Field(
+            description=(
+                "URL of the image to display (http/https URL, data URI, or "
+                "S3 path)."
+            ),
+        ),
+    ],
+) -> str:
+    """Create a NEW custom-image tile on the dashboard.
+
+    Drives the create_custom_image tool. Alt text / layout use the tool's
+    documented defaults and are not surfaced (R7).
+    """
+    return f"Create a custom image tile on the dashboard with url: {image_url}"
+
+
+@mcp.prompt(name="create_map_visualization")
+def _prompt_create_map_visualization() -> str:
+    """Create a NEW map visualization tile on the dashboard.
+
+    Drives the create_map_visualization tool. Zero-arg by design — the
+    tool has no required arguments (base map, center, zoom, markers, and
+    layers all default sensibly). The user adds layers and config via
+    follow-up prose or by combining with add_*_layer tools.
+    """
+    return "Create a map visualization tile on the dashboard."
+
+
+@mcp.prompt(name="create_variable_input")
+def _prompt_create_variable_input(
+    variable_name: Annotated[
+        str,
+        Field(
+            description=(
+                "Snake_case identifier other visualizations will reference "
+                "via ${variable_name}. Preserve the user's exact name."
+            ),
+        ),
+    ],
+) -> str:
+    """Create a NEW variable-input tile on the dashboard.
+
+    Drives the create_variable_input tool. Variable type defaults to
+    'text'; the user requests a different type in prose if needed
+    (R7 — type is not surfaced).
+    """
+    return f"Create a variable input tile on the dashboard with name: {variable_name}"
+
+
+@mcp.prompt(name="register_runtime_plugin")
+def _prompt_register_runtime_plugin(
+    url: Annotated[
+        str,
+        Field(description="Full URL to the plugin's remoteEntry.js manifest."),
+    ],
+    scope: Annotated[
+        str,
+        Field(description="Module Federation scope name registered by the build."),
+    ],
+    module: Annotated[
+        str,
+        Field(
+            description=(
+                "Exposed module path within the federation, "
+                "starting with a relative-path prefix."
+            ),
+        ),
+    ],
+    label: Annotated[
+        str,
+        Field(
+            description=(
+                "Human-readable display name for the plugin in the "
+                "visualization picker."
+            ),
+        ),
+    ],
+) -> str:
+    """Register a runtime Module Federation plugin.
+
+    Drives the register_runtime_plugin tool. All 4 surfaced args
+    (url, scope, module, label) are routing decisions with no defaults
+    and are required per R6. Remote type / description / group /
+    data_key are optional and not surfaced (R7).
+    """
+    return (
+        f"Register the runtime plugin {label} (scope {scope}, module "
+        f"{module}) from {url}."
+    )
+
+
+@mcp.prompt(name="patch_visualization")
+def _prompt_patch_visualization(
+    uuid: Annotated[
+        str,
+        Field(
+            description=(
+                "UUID of the target visualization tile (from dashboard_state)."
+            ),
+        ),
+    ],
+    source: Annotated[
+        str,
+        Field(
+            description=(
+                "Registry source name of the target visualization "
+                "(e.g., the source returned alongside the uuid)."
+            ),
+        ),
+    ],
+    ops: Annotated[
+        str,
+        Field(
+            description=(
+                "Operations to apply to the visualization identified by "
+                "uuid. RFC 6902-style array as JSON: each op is "
+                "{op, path, value} with op in "
+                "{add, replace, remove, move, test}. Tool accepts both "
+                "array and JSON-string shapes."
+            ),
+        ),
+    ],
+) -> str:
+    """Patch an existing visualization tile with RFC 6902-style operations.
+
+    Drives the patch_visualization tool. The ops arg is typed str on the
+    prompt (R9); the tool's Union[List, str] signature with server-side
+    json.loads coercion accepts either the LLM-translated list or the
+    raw JSON string.
+    """
+    return (
+        f"Patch visualization {uuid} (source {source}) "
+        f"with operations: {ops}"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Logging + Entry Point
 # ---------------------------------------------------------------------------
 
