@@ -487,6 +487,44 @@ def test_render_plugin_source_arg_references_list_intake_plugins():
     )
 
 
+@pytest.mark.parametrize("prompt_name", list(PROMPT_TO_TOOL.keys()))
+def test_prompt_target_tool_is_visible_in_default_list_tools(prompt_name):
+    """Every prompt's target tool must appear in the default list_tools() output.
+
+    Caught 2026-05-10 after Phase 3b smoke: 4 prompts (`create_card`,
+    `create_text`, `create_custom_image`, `register_runtime_plugin`)
+    routed the LLM to tools that were NOT in the BM25 always_visible
+    set, so the chatbox-core engine — which calls `list_tools()` at
+    mount with no query — never received them. The LLM either silently
+    mis-routed to the nearest visible tool (e.g., create_card →
+    create_data_table) or refused outright ("function doesn't exist").
+
+    Contract: for any prompt P that targets tool T, an unqueried
+    `Client(mcp).list_tools()` MUST include T. Either pin T in
+    `always_visible`, or accept that BM25 search is required (which
+    chatbox-core does not do for the initial tool-discovery call).
+
+    This is the gap that allowed the Phase 3b shipping bug; pinning
+    this test prevents the regression class for any future prompt
+    family (Phase 3c, etc.).
+    """
+    target_tool = PROMPT_TO_TOOL[prompt_name]
+
+    async def go():
+        async with Client(mcp) as c:
+            return await c.list_tools()
+
+    tools = _run(go())
+    visible = {t.name for t in tools}
+    assert target_tool in visible, (
+        f"{prompt_name!r} routes the LLM to {target_tool!r}, but that "
+        f"tool is not in the default list_tools() output. Add it to "
+        f"`always_visible` in tethysdash_mcp_server.py's "
+        f"BM25SearchTransform config, or this prompt will silently "
+        f"misroute. Currently visible tools: {sorted(visible)}"
+    )
+
+
 def test_patch_visualization_ops_arg_references_uuid_arg():
     """``patch_visualization``'s ``ops`` arg description names ``uuid``.
 

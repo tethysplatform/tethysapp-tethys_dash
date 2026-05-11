@@ -75,12 +75,27 @@ mcp = FastMCP(
                 # BM25-searchable instead — the LLM finds them via
                 # `search_tools` when adding layers, which restores
                 # `create_*` reliability for compound prompts.
+                #
+                # 2026-05-10 Phase 3b follow-up: added `create_card`,
+                # `create_text`, `create_custom_image`, and
+                # `register_runtime_plugin`. Phase 3b's slash prompts route
+                # users to these tools; without pinning, chatbox-core's
+                # default `list_tools()` call (no search query) returns only
+                # `always_visible`, so the LLM never sees them and either
+                # mis-routes ("Create a card tile..." → create_data_table)
+                # or admits the tool doesn't exist. The contract test
+                # `test_prompt_target_tool_is_visible_in_default_list_tools`
+                # guards against this regression class for future prompts.
                 "create_plotly_chart",
                 "create_data_table",
+                "create_card",
+                "create_text",
+                "create_custom_image",
                 "create_variable_input",
                 "create_map_visualization",
                 "add_dynamic_map_layer",
                 "patch_visualization",
+                "register_runtime_plugin",
                 "render_plugin",
                 "render_custom_visualization",
                 "list_available_visualizations",
