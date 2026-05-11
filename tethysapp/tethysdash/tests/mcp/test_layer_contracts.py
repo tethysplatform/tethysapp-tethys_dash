@@ -489,27 +489,34 @@ class TestResolveDynamicMapLayerPluginBranches:
 # ---------------------------------------------------------------------------
 
 
-def test_add_dynamic_map_layer_in_always_visible():
-    """Pin the BM25 visibility config so the new tool isn't accidentally
-    dropped from always_visible during a future tool list refactor.
+def test_add_dynamic_map_layer_reachable_in_default_list_tools():
+    """Pin that ``add_dynamic_map_layer`` is reachable by chatbox-core's
+    default ``list_tools()`` call.
 
-    FastMCP stores the configured `always_visible` list under the
-    transform's private `_always_visible` attribute. Reading the
-    private attribute is acceptable here because the public BM25
-    transform API doesn't expose this list and the alternative is
-    parsing source — this test exists specifically to guard the
-    config value, so source-reading would defeat the purpose.
+    Original 2026-05-07 form of this test asserted that the tool was in
+    ``BM25SearchTransform.always_visible``. As of the 2026-05-10 Phase 3c
+    probe, BM25SearchTransform has been removed entirely — the chatbox-core
+    engine's per-prompt semantic-similarity ranker (engine/embeddings.js)
+    handles tool selection client-side instead. The underlying intent of
+    this test ("the LLM must be able to reach this tool for runtime-plugin
+    queries") is preserved by checking the canonical reachability surface:
+    ``Client(mcp).list_tools()``.
     """
+    import asyncio
+    from fastmcp import Client
     from tethysapp.tethysdash.mcp.tethysdash_mcp_server import mcp
-    flat = []
-    for t in mcp.transforms:
-        always = getattr(t, "_always_visible", None)
-        if always is not None:
-            flat.extend(list(always))
-    assert "add_dynamic_map_layer" in flat, (
-        "add_dynamic_map_layer must be in BM25 always_visible so the LLM "
-        "can find it for runtime-plugin queries; otherwise it competes "
-        "for one of max_results=5 BM25 slots."
+
+    async def go():
+        async with Client(mcp) as c:
+            return await c.list_tools()
+
+    tools = asyncio.new_event_loop().run_until_complete(go())
+    visible = {t.name for t in tools}
+    assert "add_dynamic_map_layer" in visible, (
+        "add_dynamic_map_layer must be reachable in the default "
+        "list_tools() output so chatbox-core's tool registry has it "
+        f"available for runtime-plugin queries. Currently visible: "
+        f"{sorted(visible)}"
     )
 
 

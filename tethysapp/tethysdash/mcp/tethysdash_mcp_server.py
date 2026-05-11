@@ -30,7 +30,6 @@ from typing import Optional, Dict, Any, List, Union
 from typing_extensions import Annotated
 from pydantic import Field
 from fastmcp import FastMCP
-from fastmcp.server.transforms.search import BM25SearchTransform
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import Response as StarletteResponse
@@ -61,48 +60,32 @@ from tethysapp.tethysdash.mcp._observability_middleware import (
 
 mcp = FastMCP(
     "TethysDash MCP Server",
-    transforms=[
-        BM25SearchTransform(
-            max_results=5,
-            always_visible=[
-                # Plan 2026-05-07-007 (T3) revision: pinning all 11 per-
-                # source-type layer tools (initial K5 decision) crowded out
-                # `create_map_visualization` and `create_variable_input` in
-                # the chatbox-core engine's full-catalog selection (engine
-                # caps tools-per-prompt above SMALL_CATALOG_THRESHOLD=8 via
-                # keyword/embedding ranking; 11 layer tools all containing
-                # "layer"+"map" dominated the score). The 11 tools are now
-                # BM25-searchable instead — the LLM finds them via
-                # `search_tools` when adding layers, which restores
-                # `create_*` reliability for compound prompts.
-                #
-                # 2026-05-10 Phase 3b follow-up: added `create_card`,
-                # `create_text`, `create_custom_image`, and
-                # `register_runtime_plugin`. Phase 3b's slash prompts route
-                # users to these tools; without pinning, chatbox-core's
-                # default `list_tools()` call (no search query) returns only
-                # `always_visible`, so the LLM never sees them and either
-                # mis-routes ("Create a card tile..." → create_data_table)
-                # or admits the tool doesn't exist. The contract test
-                # `test_prompt_target_tool_is_visible_in_default_list_tools`
-                # guards against this regression class for future prompts.
-                "create_plotly_chart",
-                "create_data_table",
-                "create_card",
-                "create_text",
-                "create_custom_image",
-                "create_variable_input",
-                "create_map_visualization",
-                "add_dynamic_map_layer",
-                "patch_visualization",
-                "register_runtime_plugin",
-                "render_plugin",
-                "render_custom_visualization",
-                "list_available_visualizations",
-                "list_intake_plugins",
-            ],
-        ),
-    ],
+    # 2026-05-10 Phase 3c probe: removed BM25SearchTransform entirely.
+    # The chatbox-core engine (engine/index.js:94-129 selectToolsForPrompt
+    # + engine/embeddings.js) already runs per-prompt semantic-similarity
+    # ranking using @huggingface/transformers on any server it classifies
+    # as full-catalog with >= SMALL_CATALOG_THRESHOLD (8) tools. Tethysdash
+    # has 25 tools, well above that threshold, so the embedding ranker is
+    # the authoritative selection layer regardless of what BM25SearchTransform
+    # would have done on the server side.
+    #
+    # Trading server-side BM25 filtering for client-side embedding ranking:
+    #   + Slash prompts route reliably without manual `always_visible`
+    #     curation (Phase 3a → 3b → 3c pattern stays trivial; no per-tool
+    #     pinning decisions needed)
+    #   + Per-prompt context-aware tool surfacing — "Add a WMS layer..."
+    #     ranks add_wms_layer highly; "Create a card tile..." ranks
+    #     create_card highly
+    #   + The contract test
+    #     `test_prompt_target_tool_is_visible_in_default_list_tools`
+    #     trivially passes since every tool is visible at the server
+    #   - Plan 2026-05-07-007 (T3) found that compound prompts like
+    #     "create a map with a WMS layer" could let the 11 add_*_layer
+    #     tools dominate the embedding score, crowding out
+    #     create_map_visualization. If the Phase 3c smoke surfaces this
+    #     regression, fall back: re-introduce BM25SearchTransform with a
+    #     curated `always_visible` set or use Option C from the plan
+    #     (pin 3-4 most-common layer types only).
     middleware=[
         # Order: observability is OUTERMOST so it observes the final
         # envelope produced by InputValidationEnvelopeMiddleware
