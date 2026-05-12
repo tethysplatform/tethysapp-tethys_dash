@@ -8,10 +8,12 @@ import MapContextProvider, {
 import { Map, View } from "ol";
 import { exampleStyle } from "__tests__/utilities/constants";
 import { VariableInputsContext } from "components/contexts/Contexts";
+import { wrapMercatorX } from "components/map/utilities";
 import * as olMapboxStyle from "ol-mapbox-style";
 import WebGLTileLayer from "ol/layer/WebGLTile";
 import GeoTIFFSource from "ol/source/GeoTIFF.js";
 import * as olProj from "ol/proj";
+import { get as olGetProj } from "ol/proj";
 
 global.ResizeObserver = require("resize-observer-polyfill"); // Mock GeoTIFF source so auto-fit tests don't trigger real network fetches.
 
@@ -203,6 +205,84 @@ test("Custom Map Config and View Config", async () => {
       center: [-10686671.12, 4721671.57],
     }),
   );
+});
+
+test("Custom map extent wraps an out-of-range lon for EPSG:3857 projections", async () => {
+  // The reported bug coordinate: stored center one world-width west of the
+  // valid EPSG:3857 range. The setCenter call on line 164 should receive the
+  // wrapped value (via the EPSG:3857 branch of the line 158 ternary), not the
+  // raw out-of-range lon.
+  const inputLon = -25981450.0;
+  const lat = 5746110.48;
+  const zoom = 7;
+  const expectedX = wrapMercatorX(inputLon);
+  expect(expectedX).not.toBe(inputLon); // sanity: wrap actually transforms
+
+  render(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
+      <MapContextProvider>
+        <TestingComponent
+          mapProps={{
+            mapConfig: { style: { width: "50%" } },
+            mapExtent: { extent: `${inputLon}, ${lat}, ${zoom}` },
+          }}
+        />
+      </MapContextProvider>
+    </VariableInputsContext.Provider>,
+  );
+
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+  expect(await screen.findByTestId("map-view")).toHaveTextContent(
+    JSON.stringify({
+      zoom,
+      center: [expectedX, lat],
+    }),
+  );
+});
+
+test("Custom map extent passes through raw lon for non-EPSG:3857 projections", async () => {
+  // Covers the falsy side of the projection ternary on Map.js:158. The
+  // `projection` state is initialized to EPSG:3857 with no external override,
+  // so the only way to exercise this branch is to spy on the View's
+  // getProjection so it reports a non-3857 code during the mapExtent effect.
+  // In that branch the raw lon must pass through unchanged — even when its
+  // magnitude is out of range for Web Mercator (no wrap is applied).
+  const mockProj = olGetProj("EPSG:4326");
+  const getProjectionSpy = jest
+    .spyOn(View.prototype, "getProjection")
+    .mockReturnValue(mockProj);
+
+  const inputLon = -25981450.0; // out-of-range for EPSG:3857
+  const lat = 30;
+  const zoom = 4;
+
+  render(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
+      <MapContextProvider>
+        <TestingComponent
+          mapProps={{
+            mapConfig: { style: { width: "50%" } },
+            mapExtent: { extent: `${inputLon}, ${lat}, ${zoom}` },
+          }}
+        />
+      </MapContextProvider>
+    </VariableInputsContext.Provider>,
+  );
+
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+  const viewText = (await screen.findByTestId("map-view")).textContent;
+  const parsed = JSON.parse(viewText);
+  // Raw lon passes through unchanged — no wrap applied on the false branch.
+  expect(parsed.center[0]).toBe(inputLon);
+  expect(parsed.center[1]).toBe(lat);
+
+  getProjectionSpy.mockRestore();
 });
 
 test("Custom bounding old map extent string", async () => {

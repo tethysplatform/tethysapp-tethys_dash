@@ -36,7 +36,7 @@ const styleCache = new Map();
 // Mercator central meridian. Without this, panning past the antimeridian
 // produces a blank layer because the ArcGIS /export endpoint can't render an
 // out-of-range BBOX. Leave any user-supplied imageLoadFunction untouched.
-function withAntimeridianFix(type, props) {
+export function withAntimeridianFix(type, props) {
   if (type !== "ESRI Image and Map Service") return props;
   if (props?.imageLoadFunction != null) return props;
   return {

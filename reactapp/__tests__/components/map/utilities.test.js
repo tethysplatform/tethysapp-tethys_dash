@@ -1024,6 +1024,77 @@ test("queryLayerFeatures ImageArcGISRest Bad Request", async () => {
   global.fetch.mockRestore?.();
 });
 
+test("queryLayerFeatures ImageArcGISRest shifts EPSG:3857 extent and coordinate when out of range", async () => {
+  // Covers the truthy side of the projection ternary in getESRILayerFeatures
+  // (utilities.js:702). When the view is EPSG:3857 and its extent center is
+  // outside the valid world range (e.g., panned across the antimeridian),
+  // both mapExtent and geometry must be translated by whole world widths so
+  // ArcGIS /identify returns features. ESRI's /identify does not auto-wrap
+  // raw out-of-range coordinates even when sr=3857.
+  global.fetch = jest.fn(() =>
+    Promise.resolve({
+      json: () => Promise.resolve({ results: [] }),
+    }),
+  );
+
+  // One world-width west of the valid range — the reported bug shape.
+  const rawExtent = [-26121778, 5687665, -25841122, 5804555];
+  const rawCoordinate = [-26000000, 5750000];
+
+  const mockMap = {
+    getSize: jest.fn(() => [100, 200]),
+    getView: jest.fn(() => ({
+      calculateExtent: jest.fn(() => rawExtent),
+      getResolution: jest.fn(() => 500),
+      getProjection: jest.fn(() => ({
+        getCode: jest.fn(() => "EPSG:3857"),
+      })),
+      getZoom: jest.fn(() => 10),
+    })),
+  };
+
+  // Use a deep clone so the prior test's `minZoomQuery = 12` mutation on
+  // the shared fixture doesn't short-circuit this code path.
+  const layerConfig = JSON.parse(JSON.stringify(layerConfigImageArcGISRest));
+  delete layerConfig.configuration.props.minZoomQuery;
+
+  await queryLayerFeatures(layerConfig, mockMap, rawCoordinate, [639, 366]);
+
+  // Compute expected via the same helper the production code uses, so the
+  // assertion matches float-for-float and verifies the shift actually fired.
+  const { extent: expectedExtent, point: expectedPoint } =
+    shiftEPSG3857ExtentAndPoint(rawExtent, rawCoordinate);
+  expect(expectedExtent).not.toEqual(rawExtent); // sanity: shift happened
+  expect(expectedPoint).not.toEqual(rawCoordinate);
+
+  const params = new URLSearchParams({
+    f: "json",
+    tolerance: 10,
+    returnGeometry: true,
+    geometryType: "esriGeometryPoint",
+    sr: "3857",
+    geometry: expectedPoint.join(","),
+    mapExtent: expectedExtent.join(","),
+    returnFieldName: true,
+    imageDisplay: "100, 200, 500",
+    layers: "visible",
+  });
+  const featureQueryUrl =
+    layerConfig.configuration.props.source.props.url + "/identify";
+  expect(global.fetch).toHaveBeenCalledWith(
+    `${featureQueryUrl}?${params.toString()}`,
+  );
+
+  // Belt-and-suspenders: the raw, unshifted values must NOT appear in the
+  // request URL. Guards against a regression where the truthy branch
+  // silently becomes a passthrough.
+  const calledUrl = global.fetch.mock.calls[0][0];
+  expect(calledUrl).not.toContain("mapExtent=-26121778");
+  expect(calledUrl).not.toContain("geometry=-26000000");
+
+  global.fetch.mockRestore?.();
+});
+
 test("queryLayerFeatures ImageArcGISRest with minZoomQuery", async () => {
   global.fetch = jest.fn();
 

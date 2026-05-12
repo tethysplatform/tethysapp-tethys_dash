@@ -6,6 +6,7 @@ import moduleLoader, {
   getGeometryBucket,
   loadESRIJSON,
   buildPolygonFill,
+  withAntimeridianFix,
 } from "components/map/ModuleLoader";
 import WebGLTile from "ol/layer/WebGLTile.js";
 import ImageLayer from "ol/layer/Image.js";
@@ -1442,5 +1443,65 @@ describe("buildPolygonFill createHatchFill", () => {
     });
     expect(fill).toBeInstanceOf(Fill);
     expect(fill.getColor()).toBe(defaultFill);
+  });
+});
+
+describe("withAntimeridianFix", () => {
+  it("returns original props if layer type is not 'ESRI Image and Map Service'", () => {
+    const props = {
+      url: "https://example.com/arcgis/rest/services/test/0/query/",
+    };
+    const result = withAntimeridianFix("ESRI Feature Service", props);
+    expect(result).toEqual(props);
+  });
+
+  it("returns original props if imageLoadFunction is not null", () => {
+    const props = {
+      url: "https://example.com/arcgis/rest/services/test/0/query/",
+      imageLoadFunction: () => {},
+    };
+    const result = withAntimeridianFix("ESRI Image and Map Service", props);
+    expect(result).toEqual(props);
+  });
+
+  it("returns modified props with imageLoadFunction that fixes antimeridian", () => {
+    const props = {
+      url: "https://example.com/arcgis/rest/services/test/0/query/",
+    };
+    const result = withAntimeridianFix("ESRI Image and Map Service", props);
+    expect(result).toHaveProperty("imageLoadFunction");
+    expect(typeof result.imageLoadFunction).toBe("function");
+
+    // Invoke the injected loader with an out-of-range BBOX (one world-width
+    // west of valid EPSG:3857 — the reported bug shape) and confirm it rewrote
+    // the underlying <img>.src via rewriteArcGISExportUrlForAntimeridian.
+    const mockImg = { src: null };
+    const mockImage = { getImage: () => mockImg };
+    const srcUrl =
+      "https://example.com/MapServer/export?" +
+      "BBOX=-26121778,5687665,-25841122,5804555" +
+      "&BBOXSR=3857&IMAGESR=3857&f=image";
+
+    result.imageLoadFunction(mockImage, srcUrl);
+
+    expect(mockImg.src).not.toBe(srcUrl); // sanity: the URL was rewritten
+    const rewritten = new URL(mockImg.src);
+    const bbox = rewritten.searchParams.get("BBOX").split(",").map(Number);
+    // Shifted CRS: BBOX X is centered at 0 with original half-width on each
+    // side; Y is untouched.
+    const halfWidth = (-25841122 - -26121778) / 2;
+    expect(bbox[0]).toBeCloseTo(-halfWidth, 3);
+    expect(bbox[2]).toBeCloseTo(halfWidth, 3);
+    expect(bbox[1]).toBe(5687665);
+    expect(bbox[3]).toBe(5804555);
+    // BBOXSR and IMAGESR now carry the custom WKT with the wrapped center
+    // longitude as Central_Meridian (≈ +126.6° E for this input).
+    const bboxSR = JSON.parse(rewritten.searchParams.get("BBOXSR"));
+    expect(bboxSR.wkt).toContain("WGS_1984_Web_Mercator_Auxiliary_Sphere");
+    const lonMatch = bboxSR.wkt.match(/Central_Meridian",(-?\d+\.?\d*)/);
+    expect(parseFloat(lonMatch[1])).toBeCloseTo(126.6, 1);
+    expect(rewritten.searchParams.get("IMAGESR")).toBe(
+      rewritten.searchParams.get("BBOXSR"),
+    );
   });
 });
