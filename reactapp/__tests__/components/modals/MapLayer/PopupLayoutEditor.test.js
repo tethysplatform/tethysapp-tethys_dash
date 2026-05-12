@@ -544,7 +544,12 @@ test("rowHeight is derived from the preview box's height (positive integer)", ()
   expect(Number.isInteger(rh)).toBe(true);
 });
 
-test("DashboardLayout receives responsive=true and tabId=popup", () => {
+test("DashboardLayout in the editor is non-responsive (tabId=popup) so edits land in the canonical 100-col layout", () => {
+  // Counterpart to PopupModalChrome which IS responsive at runtime — the
+  // editor edits the canonical lg layout directly. Responsive editing
+  // would cause RGL to emit drag/resize coords in the current
+  // breakpoint's column system (4 / 12 / 100), which when persisted
+  // straight into the lg layout produced "ghost reverts" of width edits.
   render(
     <PopupLayoutEditor
       show={true}
@@ -555,7 +560,7 @@ test("DashboardLayout receives responsive=true and tabId=popup", () => {
     />,
   );
 
-  expect(screen.getByTestId("mock-dl-responsive").textContent).toBe("true");
+  expect(screen.getByTestId("mock-dl-responsive").textContent).toBe("false");
   expect(screen.getByTestId("mock-dl-tab-id").textContent).toBe("popup");
 });
 

@@ -204,10 +204,15 @@ const PopupLayoutEditor = ({
     () => popupConfig?.gridItems ?? [],
   );
 
+  // Re-seed local state whenever the editor (re-)opens. popupConfig is
+  // intentionally omitted from the dep list — re-seeding on every parent
+  // rerender that creates a new object identity would wipe in-progress
+  // edits, and the [show] gate is what we actually want.
   useEffect(() => {
     if (show) {
       setLocalGridItems(popupConfig?.gridItems ?? []);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [show]);
 
   const boundaryRef = useRef(null);
@@ -408,11 +413,23 @@ const PopupLayoutEditor = ({
                     <DisabledEditingMovementContext.Provider
                       value={disabledEditingMovementContextValue}
                     >
+                      {/*
+                        Editor uses non-responsive DashboardLayout so RGL
+                        always works in the canonical 100-col coordinate
+                        space (matches the runtime's lg layout). At narrow
+                        preview widths the responsive grid would emit edits
+                        in the current breakpoint's column system (4-col
+                        xs, 12-col sm, etc.); persisting those straight
+                        back into the lg layout produced "ghost reverts"
+                        — a w=3 xs edit became a 3%-wide lg tile. The
+                        runtime PopupModalChrome stays responsive so the
+                        viewer's narrow viewports collapse correctly; the
+                        editor just edits the canonical lg layout.
+                      */}
                       <DashboardLayout
                         tabId="popup"
                         gridItems={localGridItems}
                         shouldLoad={true}
-                        responsive
                         rowHeight={rowHeight}
                         allowOverlap={false}
                       />
