@@ -11,6 +11,7 @@ const mockView = {
   un: jest.fn(),
   getCenter: () => [123456.78, 987654.32],
   getZoom: () => 4.5678,
+  getProjection: () => ({ getCode: () => "EPSG:3857" }),
 };
 
 // Mock map object with getView, on, un

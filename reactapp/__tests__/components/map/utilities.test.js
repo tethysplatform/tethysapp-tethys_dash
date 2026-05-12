@@ -12,6 +12,12 @@ import {
   getStyleFields,
   swapVectorLayerFeatures,
   updateOlLayerProps,
+  wrapMercatorX,
+  MERCATOR_HALF_WORLD,
+  mercatorXToLongitude,
+  buildShiftedMercatorWKT,
+  rewriteArcGISExportUrlForAntimeridian,
+  shiftEPSG3857ExtentAndPoint,
 } from "components/map/utilities";
 import VectorSource from "ol/source/Vector.js";
 import { LineString, Point, MultiPolygon, Polygon } from "ol/geom";
@@ -3447,4 +3453,188 @@ test("loadGeoJSON returns the URL untouched when keep_urls is true", async () =>
   expect(fetchSpy).not.toHaveBeenCalled();
 
   fetchSpy.mockRestore();
+});
+
+describe("wrapMercatorX", () => {
+  test("leaves in-range values unchanged", () => {
+    expect(wrapMercatorX(0)).toBeCloseTo(0, 6);
+    expect(wrapMercatorX(14090246.66)).toBeCloseTo(14090246.66, 6);
+    expect(wrapMercatorX(-10686671.12)).toBeCloseTo(-10686671.12, 6);
+  });
+
+  test("wraps a center one world-width west back into range", () => {
+    // The reported bug: -25,981,450 is the working extent 14,093,566 shifted
+    // one full world circumference west across the antimeridian.
+    const wrapped = wrapMercatorX(-25981450.0);
+    expect(wrapped).toBeCloseTo(-25981450.0 + 2 * MERCATOR_HALF_WORLD, 6);
+    expect(wrapped).toBeGreaterThan(-MERCATOR_HALF_WORLD);
+    expect(wrapped).toBeLessThan(MERCATOR_HALF_WORLD);
+  });
+
+  test("wraps a center one world-width east back into range", () => {
+    const x = 14090246.66 + 2 * MERCATOR_HALF_WORLD;
+    expect(wrapMercatorX(x)).toBeCloseTo(14090246.66, 6);
+  });
+
+  test("treats the positive boundary as wrapping to the negative boundary", () => {
+    // (+half + half) % world == 0, which yields -half. Either bound is the
+    // antimeridian and renders to the same place, so this is acceptable.
+    expect(wrapMercatorX(MERCATOR_HALF_WORLD)).toBeCloseTo(
+      -MERCATOR_HALF_WORLD,
+      6,
+    );
+    expect(wrapMercatorX(-MERCATOR_HALF_WORLD)).toBeCloseTo(
+      -MERCATOR_HALF_WORLD,
+      6,
+    );
+  });
+});
+
+describe("mercatorXToLongitude", () => {
+  test("maps the origin to 0 degrees", () => {
+    expect(mercatorXToLongitude(0)).toBeCloseTo(0, 6);
+  });
+
+  test("maps the eastern boundary to +180 degrees", () => {
+    expect(mercatorXToLongitude(MERCATOR_HALF_WORLD)).toBeCloseTo(180, 6);
+  });
+
+  test("maps the western boundary to -180 degrees", () => {
+    expect(mercatorXToLongitude(-MERCATOR_HALF_WORLD)).toBeCloseTo(-180, 6);
+  });
+});
+
+describe("buildShiftedMercatorWKT", () => {
+  test("returns the WGS_1984_Web_Mercator_Auxiliary_Sphere PROJCS", () => {
+    const wkt = buildShiftedMercatorWKT(0);
+    expect(wkt).toContain('PROJCS["WGS_1984_Web_Mercator_Auxiliary_Sphere"');
+    expect(wkt).toContain('PROJECTION["Mercator_Auxiliary_Sphere"]');
+  });
+
+  test("embeds the supplied central meridian and round-trips", () => {
+    const lon = 129.230861390639;
+    const wkt = buildShiftedMercatorWKT(lon);
+    expect(wkt).toContain(`PARAMETER["Central_Meridian",${lon}]`);
+    const match = wkt.match(/Central_Meridian",(-?\d+\.?\d*)/);
+    expect(match).not.toBeNull();
+    expect(parseFloat(match[1])).toBeCloseTo(lon, 9);
+  });
+});
+
+describe("rewriteArcGISExportUrlForAntimeridian", () => {
+  const baseUrl = "https://example.com/MapServer/export";
+
+  test("returns the original URL when BBOX is in range", () => {
+    const src = `${baseUrl}?BBOX=-1000000,-500000,1000000,500000&BBOXSR=3857&IMAGESR=3857&f=image`;
+    expect(rewriteArcGISExportUrlForAntimeridian(src)).toBe(src);
+  });
+
+  test("shifts a BBOX one world-width west (the reported bug)", () => {
+    // The user's failing request, simplified: bbox centered near -26M (one
+    // world west of the visible China extent at +14M).
+    const src = `${baseUrl}?BBOX=-26121778,5687665,-25841122,5804555&BBOXSR=3857&IMAGESR=3857&f=image`;
+    const rewritten = rewriteArcGISExportUrlForAntimeridian(src);
+    const params = new URL(rewritten).searchParams;
+
+    const bbox = params.get("BBOX").split(",").map(Number);
+    const halfWidth = (-25841122 - -26121778) / 2;
+    expect(bbox[0]).toBeCloseTo(-halfWidth, 3);
+    expect(bbox[2]).toBeCloseTo(halfWidth, 3);
+    expect(bbox[1]).toBe(5687665);
+    expect(bbox[3]).toBe(5804555);
+
+    // Wrapped center X ≈ +14,093,567 m → ≈ +126.6° E.
+    const wktObj = JSON.parse(params.get("BBOXSR"));
+    const lonMatch = wktObj.wkt.match(/Central_Meridian",(-?\d+\.?\d*)/);
+    expect(parseFloat(lonMatch[1])).toBeCloseTo(126.6, 1);
+    expect(params.get("IMAGESR")).toBe(params.get("BBOXSR"));
+  });
+
+  test("shifts a BBOX straddling the antimeridian", () => {
+    // View spanning from one world-copy to the next (e.g., zoomed-out Pacific).
+    const src = `${baseUrl}?BBOX=-22000000,-5000000,-18000000,5000000&BBOXSR=3857&IMAGESR=3857&f=image`;
+    const rewritten = rewriteArcGISExportUrlForAntimeridian(src);
+    const bbox = new URL(rewritten).searchParams.get("BBOX").split(",").map(Number);
+    expect(bbox[0]).toBeCloseTo(-2000000, 3);
+    expect(bbox[2]).toBeCloseTo(2000000, 3);
+    expect(bbox[0]).toBeGreaterThan(-MERCATOR_HALF_WORLD);
+    expect(bbox[2]).toBeLessThan(MERCATOR_HALF_WORLD);
+  });
+
+  test("injects BBOXSR/IMAGESR when the original URL omits them", () => {
+    const src = `${baseUrl}?BBOX=-26121778,5687665,-25841122,5804555&f=image`;
+    const rewritten = rewriteArcGISExportUrlForAntimeridian(src);
+    const params = new URL(rewritten).searchParams;
+    expect(params.get("BBOXSR")).toContain("WGS_1984_Web_Mercator_Auxiliary_Sphere");
+    expect(params.get("IMAGESR")).toBe(params.get("BBOXSR"));
+  });
+
+  test("returns the original URL when BBOX is missing or malformed", () => {
+    const noBbox = `${baseUrl}?f=image`;
+    expect(rewriteArcGISExportUrlForAntimeridian(noBbox)).toBe(noBbox);
+
+    const badBbox = `${baseUrl}?BBOX=not,a,bbox&f=image`;
+    expect(rewriteArcGISExportUrlForAntimeridian(badBbox)).toBe(badBbox);
+
+    const tooFew = `${baseUrl}?BBOX=1,2,3&f=image`;
+    expect(rewriteArcGISExportUrlForAntimeridian(tooFew)).toBe(tooFew);
+  });
+
+  test("does not throw on a non-URL string", () => {
+    expect(rewriteArcGISExportUrlForAntimeridian("not a url")).toBe("not a url");
+  });
+});
+
+describe("shiftEPSG3857ExtentAndPoint", () => {
+  test("returns inputs unchanged when extent center is in range", () => {
+    const extent = [-13896304, 3155645, -5546228, 6538634];
+    const point = [-9958433, 4681570];
+    const result = shiftEPSG3857ExtentAndPoint(extent, point);
+    expect(result.extent).toBe(extent);
+    expect(result.point).toBe(point);
+  });
+
+  test("shifts the reported-bug Identify request into valid range", () => {
+    // The failing request the user reported: a click at X=-50M with mapExtent
+    // centered near -49M (~one world-width west of valid range).
+    const extent = [-52637618.236296296, 2336110.4530613935, -45490855.942076325, 5231583.279658552];
+    const point = [-50025564.70754065, 4660914.693464138];
+    const { extent: newExtent, point: newPoint } = shiftEPSG3857ExtentAndPoint(extent, point);
+
+    // After shifting by exactly one world width east, the working URL the
+    // user verified has minX ≈ -12.5M and the click at ≈ -10M.
+    expect(newExtent[0]).toBeCloseTo(extent[0] + 2 * MERCATOR_HALF_WORLD, 3);
+    expect(newExtent[2]).toBeCloseTo(extent[2] + 2 * MERCATOR_HALF_WORLD, 3);
+    expect(newPoint[0]).toBeCloseTo(point[0] + 2 * MERCATOR_HALF_WORLD, 3);
+
+    // Y values are untouched.
+    expect(newExtent[1]).toBe(extent[1]);
+    expect(newExtent[3]).toBe(extent[3]);
+    expect(newPoint[1]).toBe(point[1]);
+
+    // The resulting extent center is now in valid range.
+    const newCenterX = (newExtent[0] + newExtent[2]) / 2;
+    expect(newCenterX).toBeGreaterThan(-MERCATOR_HALF_WORLD);
+    expect(newCenterX).toBeLessThan(MERCATOR_HALF_WORLD);
+  });
+
+  test("preserves the click point's relative position within the extent", () => {
+    const extent = [-52637618, 2336110, -45490855, 5231583];
+    const point = [-50025564, 4660914];
+    const { extent: newExtent, point: newPoint } = shiftEPSG3857ExtentAndPoint(extent, point);
+
+    const origFraction = (point[0] - extent[0]) / (extent[2] - extent[0]);
+    const newFraction = (newPoint[0] - newExtent[0]) / (newExtent[2] - newExtent[0]);
+    expect(newFraction).toBeCloseTo(origFraction, 9);
+  });
+
+  test("shifts a center far west by multiple world widths", () => {
+    // Center near -90M (~2.25 world widths west).
+    const extent = [-93000000, 0, -87000000, 1000000];
+    const point = [-90000000, 500000];
+    const { extent: newExtent } = shiftEPSG3857ExtentAndPoint(extent, point);
+    const newCenterX = (newExtent[0] + newExtent[2]) / 2;
+    expect(newCenterX).toBeGreaterThan(-MERCATOR_HALF_WORLD);
+    expect(newCenterX).toBeLessThan(MERCATOR_HALF_WORLD);
+  });
 });

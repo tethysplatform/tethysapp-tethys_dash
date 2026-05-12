@@ -414,6 +414,120 @@ export function addHighlightFeatures(highlightLayer, geometries) {
   highlightLayer.getSource().addFeatures(features);
 }
 
+// Half the circumference of the Earth at the equator in EPSG:3857 meters.
+// Valid X for EPSG:3857 lies in [-MERCATOR_HALF_WORLD, MERCATOR_HALF_WORLD].
+export const MERCATOR_HALF_WORLD = 20037508.342789244;
+
+// Normalize an EPSG:3857 X coordinate into the valid world range. OpenLayers
+// renders past the antimeridian by wrapping tiles, but `view.calculateExtent()`
+// returns the raw unwrapped value, which breaks BBOX-based image requests to
+// ArcGIS/WMS services.
+export function wrapMercatorX(x) {
+  // Short-circuit in-range values so identity inputs round-trip exactly,
+  // avoiding floating-point drift from the modulo arithmetic.
+  if (x >= -MERCATOR_HALF_WORLD && x < MERCATOR_HALF_WORLD) return x;
+  const world = MERCATOR_HALF_WORLD * 2;
+  return (
+    (((x + MERCATOR_HALF_WORLD) % world) + world) % world - MERCATOR_HALF_WORLD
+  );
+}
+
+// Convert an EPSG:3857 X (meters) to longitude in degrees. Linear in spherical
+// Web Mercator: X = R * lon_radians, with R chosen so ±half-world maps to ±180°.
+export function mercatorXToLongitude(x) {
+  return (x / MERCATOR_HALF_WORLD) * 180;
+}
+
+// Build a Well-Known Text string for a Web Mercator projection whose origin is
+// rotated so the given longitude maps to X=0. ArcGIS MapServer accepts this in
+// the `bboxSR` and `imageSR` query parameters, letting us request an in-range
+// BBOX even when the view straddles the antimeridian. Mirrors the WKT shape
+// produced by ESRI's own client (e.g., maps.water.noaa.gov panning requests).
+export function buildShiftedMercatorWKT(centralMeridianDegrees) {
+  return (
+    'PROJCS["WGS_1984_Web_Mercator_Auxiliary_Sphere",' +
+    'GEOGCS["GCS_WGS_1984",' +
+    'DATUM["D_WGS_1984",SPHEROID["WGS_1984",6378137.0,298.257223563]],' +
+    'PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]],' +
+    'PROJECTION["Mercator_Auxiliary_Sphere"],' +
+    'PARAMETER["False_Easting",0.0],PARAMETER["False_Northing",0.0],' +
+    `PARAMETER["Central_Meridian",${centralMeridianDegrees}],` +
+    'PARAMETER["Standard_Parallel_1",0.0],' +
+    'PARAMETER["Auxiliary_Sphere_Type",0.0],UNIT["Meter",1.0]]'
+  );
+}
+
+// Rewrite an ArcGIS MapServer /export URL so its BBOX stays in valid EPSG:3857
+// range. OpenLayers' ImageArcGISRest source builds the URL from
+// `view.calculateExtent()`, which can fall outside ±MERCATOR_HALF_WORLD when
+// the user pans past the antimeridian — the server then queries empty ocean
+// and returns a blank tile. We shift the spatial reference's central meridian
+// to the view's wrapped center longitude and re-express BBOX relative to that
+// origin, so the request is always in valid range. Pure URL-in URL-out — must
+// never throw, since it runs inside an OL `imageLoadFunction`.
+export function rewriteArcGISExportUrlForAntimeridian(src) {
+  let url;
+  try {
+    url = new URL(src);
+  } catch {
+    return src;
+  }
+  const params = url.searchParams;
+  const bboxKey = ["BBOX", "bbox"].find((k) => params.has(k));
+  if (!bboxKey) return src;
+
+  const parts = params.get(bboxKey).split(",").map(Number);
+  if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) return src;
+  const [minX, minY, maxX, maxY] = parts;
+
+  // Common case: bbox already in-range. Skip the rewrite entirely.
+  if (
+    minX >= -MERCATOR_HALF_WORLD &&
+    maxX <= MERCATOR_HALF_WORLD &&
+    minX <= maxX
+  ) {
+    return src;
+  }
+
+  const centerX = (minX + maxX) / 2;
+  const wrappedCenterX = wrapMercatorX(centerX);
+  const centerLon = mercatorXToLongitude(wrappedCenterX);
+  const halfWidth = (maxX - minX) / 2;
+  const wkt = buildShiftedMercatorWKT(centerLon);
+
+  params.set(bboxKey, [-halfWidth, minY, halfWidth, maxY].join(","));
+  for (const key of ["BBOXSR", "bboxSR", "IMAGESR", "imageSR"]) {
+    if (params.has(key)) params.set(key, JSON.stringify({ wkt }));
+  }
+  // If the URL didn't have explicit SR params yet, set the canonical casing.
+  if (!params.has("BBOXSR") && !params.has("bboxSR")) {
+    params.set("BBOXSR", JSON.stringify({ wkt }));
+  }
+  if (!params.has("IMAGESR") && !params.has("imageSR")) {
+    params.set("IMAGESR", JSON.stringify({ wkt }));
+  }
+  return url.toString();
+}
+
+// Translate an EPSG:3857 extent and a point inside it by whole world-widths so
+// the extent's center lands in valid range. ArcGIS `/identify` doesn't
+// auto-wrap out-of-range coordinates (despite `sr=3857`), so a click on a
+// panned-past-antimeridian view returns no features. Shifting both `mapExtent`
+// and `geometry` by the same offset preserves the relative click position and
+// produces a request the server handles correctly without needing a custom SR.
+// Returns the original inputs when the extent center is already in range.
+export function shiftEPSG3857ExtentAndPoint(extent, point) {
+  const centerX = (extent[0] + extent[2]) / 2;
+  if (centerX >= -MERCATOR_HALF_WORLD && centerX < MERCATOR_HALF_WORLD) {
+    return { extent, point };
+  }
+  const shift = wrapMercatorX(centerX) - centerX;
+  return {
+    extent: [extent[0] + shift, extent[1], extent[2] + shift, extent[3]],
+    point: [point[0] + shift, point[1]],
+  };
+}
+
 export function transformCoordinates(coords, sourceProj, destProj) {
   // check to see if the coords values are an array (nested coords) or a number
   if (Array.isArray(coords[0])) {
@@ -581,19 +695,23 @@ function getVectorTileLayerFeatures(map, pixel) {
 async function getESRILayerFeatures(sourceUrl, sourceParams, map, coordinate) {
   // setup fetch request with params
   const featureQueryUrl = sourceUrl + "/identify";
+  const view = map.getView();
+  const projectionCode = view.getProjection().getCode();
+  const rawExtent = view.calculateExtent();
+  const { extent, point } =
+    projectionCode === "EPSG:3857"
+      ? shiftEPSG3857ExtentAndPoint(rawExtent, coordinate)
+      : { extent: rawExtent, point: coordinate };
   const params = new URLSearchParams({
     f: "json",
     tolerance: 10, // Pixel tolerance
     returnGeometry: true,
     geometryType: "esriGeometryPoint",
-    sr: map.getView().getProjection().getCode().split(":")[1],
-    geometry: coordinate.join(","),
-    mapExtent: map.getView().calculateExtent().join(","),
+    sr: projectionCode.split(":")[1],
+    geometry: point.join(","),
+    mapExtent: extent.join(","),
     returnFieldName: true,
-    imageDisplay: map
-      .getSize()
-      .concat(map.getView().getResolution())
-      .join(", "),
+    imageDisplay: map.getSize().concat(view.getResolution()).join(", "),
     layers: sourceParams?.LAYERS?.startsWith("show:")
       ? `visible:${sourceParams.LAYERS.slice(5)}`
       : "visible",
