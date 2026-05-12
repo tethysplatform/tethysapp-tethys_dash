@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- **New endpoint `/apps/tethysdash/runtime-plugins/list/`** — GET-only, `login_required=False`, returns the runtime plugin registry as a JSON array. Sibling of the existing gated `runtime-plugins/sync/` endpoint (which keeps its `login_required=True` posture for the browser-side write flow). Lets the standalone `Aquaveo/tethysdash_mcps` MCP server read the registry over HTTP via `TETHYSDASH_BASE_URL` instead of needing a shared filesystem path. Three new integration tests in `tests/integrated_tests/test_controllers.py`. Plan: `docs/plans/2026-05-11-006-feat-runtime-plugin-registry-http-endpoint-plan.md` (Unit 1).
+
 ### Breaking changes
 
 - **MCP server default transport: `/sse` → `/mcp`.** The TethysDash in-app

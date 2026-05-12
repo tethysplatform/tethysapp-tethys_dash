@@ -39,3 +39,4 @@ test-results/
 .venv-test/
 # Local code-review artifacts from compound-engineering ce:review
 .context/
+reactapp/generated/runtimePluginRegistry.json
