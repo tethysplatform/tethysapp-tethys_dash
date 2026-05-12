@@ -11,6 +11,7 @@ const mockView = {
   un: jest.fn(),
   getCenter: () => [123456.78, 987654.32],
   getZoom: () => 4.5678,
+  getProjection: () => ({ getCode: () => "EPSG:3857" }),
 };
 
 // Mock map object with getView, on, un
@@ -260,5 +261,82 @@ test("attaches event listeners when extentMode is mapExtent", async () => {
   expect(onChange.mock.calls[7][0]).toStrictEqual({
     extent: "123456.78,987654.32,4.57",
     variable: "new_test",
+  });
+});
+
+test("setMapExtent wraps an out-of-range center X for EPSG:3857 projections", async () => {
+  // The wrap branch in setMapExtent activates only for EPSG:3857. An
+  // out-of-range center (e.g., one world-width west of valid range, the
+  // reported bug coordinate) must be wrapped back into [-half, +half].
+  const view3857 = {
+    on: jest.fn(),
+    un: jest.fn(),
+    getCenter: () => [-25981450.0, 5746110.48],
+    getZoom: () => 10.61,
+    getProjection: () => ({ getCode: () => "EPSG:3857" }),
+  };
+  const map3857 = {
+    getView: () => view3857,
+    on: jest.fn(),
+    un: jest.fn(),
+  };
+  const visualizationRef = createRef();
+  visualizationRef.current = map3857;
+  const onChange = jest.fn();
+
+  render(
+    <MapContext.Provider value={{ mapReady: true }}>
+      <MapExtent
+        onChange={onChange}
+        values={{ extent: "10,20,4" }}
+        visualizationRef={visualizationRef}
+      />
+    </MapContext.Provider>
+  );
+
+  fireEvent.click(screen.getByText("Map Extent"));
+  fireEvent.click(await screen.findByLabelText(/Use the Previewed Map Extent/i));
+
+  // -25,981,450 + 2 * MERCATOR_HALF_WORLD ≈ +14,093,566.69
+  expect(onChange).toHaveBeenCalledWith({
+    extent: "14093566.69,5746110.48,10.61",
+  });
+});
+
+test("setMapExtent leaves the raw center X unwrapped for non-EPSG:3857 projections", async () => {
+  // The wrap branch in setMapExtent is gated on EPSG:3857. A view in another
+  // projection must pass center[0] through untouched, even if its magnitude
+  // would be out of range for Web Mercator.
+  const view4326 = {
+    on: jest.fn(),
+    un: jest.fn(),
+    getCenter: () => [9999999999, 987654.32],
+    getZoom: () => 4.5678,
+    getProjection: () => ({ getCode: () => "EPSG:4326" }),
+  };
+  const map4326 = {
+    getView: () => view4326,
+    on: jest.fn(),
+    un: jest.fn(),
+  };
+  const visualizationRef = createRef();
+  visualizationRef.current = map4326;
+  const onChange = jest.fn();
+
+  render(
+    <MapContext.Provider value={{ mapReady: true }}>
+      <MapExtent
+        onChange={onChange}
+        values={{ extent: "10,20,4" }}
+        visualizationRef={visualizationRef}
+      />
+    </MapContext.Provider>
+  );
+
+  fireEvent.click(screen.getByText("Map Extent"));
+  fireEvent.click(await screen.findByLabelText(/Use the Previewed Map Extent/i));
+
+  expect(onChange).toHaveBeenCalledWith({
+    extent: "9999999999.00,987654.32,4.57",
   });
 });

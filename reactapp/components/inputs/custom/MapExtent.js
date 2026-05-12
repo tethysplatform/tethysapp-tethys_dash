@@ -3,6 +3,7 @@ import DataRadioSelect from "components/inputs/DataRadioSelect";
 import PropTypes from "prop-types";
 import styled from "styled-components";
 import { useMapContext } from "components/contexts/MapContext";
+import { wrapMercatorX } from "components/map/utilities";
 
 const FullInput = styled.input`
   width: 100%;
@@ -133,9 +134,14 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
   }, [extentMode, mapReady]);
 
   const setMapExtent = () => {
-    const center = visualizationRef.current.getView().getCenter();
-    const zoom = visualizationRef.current.getView().getZoom().toFixed(2);
-    const newExtent = `${center[0].toFixed(2)},${center[1].toFixed(2)},${zoom}`;
+    const view = visualizationRef.current.getView();
+    const center = view.getCenter();
+    const zoom = view.getZoom().toFixed(2);
+    const centerX =
+      view.getProjection().getCode() === "EPSG:3857"
+        ? wrapMercatorX(center[0])
+        : center[0];
+    const newExtent = `${centerX.toFixed(2)},${center[1].toFixed(2)},${zoom}`;
     setCustomExtent(newExtent);
     onChange({
       extent: newExtent,

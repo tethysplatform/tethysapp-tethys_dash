@@ -12,6 +12,7 @@ import {
   configurationPropType,
   mapDrawingPropType,
   updateOlLayerProps,
+  wrapMercatorX,
 } from "components/map/utilities";
 import Alert from "react-bootstrap/Alert";
 import styled from "styled-components";
@@ -153,10 +154,14 @@ const MapComponent = ({
     const parts = extent.split(",").map((p) => parseFloat(p.trim()));
     if (parts.length === 3) {
       const [lon, lat, zoomLevel] = parts;
-      setLonLat([lon, lat]);
+      const centerX =
+        mapViewConfig.getProjection().getCode() === "EPSG:3857"
+          ? wrapMercatorX(lon)
+          : lon;
+      setLonLat([centerX, lat]);
       setZoom(zoomLevel);
       mapViewConfig.setZoom(zoomLevel);
-      mapViewConfig.setCenter([lon, lat]);
+      mapViewConfig.setCenter([centerX, lat]);
     } else {
       mapViewConfig.fit(extent.split(",").map(Number), {
         size: visualizationRef.current.getSize(),
