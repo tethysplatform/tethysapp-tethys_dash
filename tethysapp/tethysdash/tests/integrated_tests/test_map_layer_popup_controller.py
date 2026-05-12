@@ -7,6 +7,7 @@ import pytest
 from uuid import uuid4
 from unittest.mock import MagicMock
 from django.urls import reverse
+from django.test import override_settings
 
 from tethysapp.tethysdash.model import (
     DashboardTab,
@@ -37,9 +38,7 @@ def _make_map_grid_item_with_popup(
         w=10,
         h=10,
         source="Map",
-        args_string=json.dumps(
-            {"layers": [{"name": layer_name, "configuration": {}}]}
-        ),
+        args_string=json.dumps({"layers": [{"name": layer_name, "configuration": {}}]}),
         metadata_string=json.dumps({}),
         order=0,
     )
@@ -395,3 +394,34 @@ def test_update_popup_unknown_id_without_fallback_returns_error(
     body = response.json()
     assert body["success"] is False
     assert "popup_id" in body["message"] or "required" in body["message"]
+
+
+@override_settings(DATA_UPLOAD_MAX_MEMORY_SIZE=1024)  # 1 KB
+def test_update_popup_body_too_big(client, admin_user, mock_app, mocker):
+    mock_app("tethysapp.tethysdash.controllers.App")
+
+    url = reverse("tethysdash:update_popup")
+    client.force_login(admin_user)
+
+    # Patch the update method to ensure it's not called
+    mock_update_named_popup = mocker.patch(
+        "tethysapp.tethysdash.controllers.update_named_popup"
+    )
+
+    # Create a body that's too big (e.g., 2 KB JSON string)
+    too_big_data = {"data": "x" * 2048}
+    body = json.dumps(too_big_data)
+
+    # Use .generic() to simulate raw POST with a large body
+    response = client.generic(
+        "POST",
+        url,
+        body,
+        content_type="application/json",
+    )
+
+    # Assert behavior
+    mock_update_named_popup.assert_not_called()
+    assert response.status_code == 200  # or the expected status
+    assert response.json()["success"] is False
+    assert "File size too big" in response.json()["message"]

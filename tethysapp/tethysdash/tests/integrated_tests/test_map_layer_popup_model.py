@@ -17,9 +17,12 @@ from uuid import uuid4
 from sqlalchemy.exc import IntegrityError
 
 from tethysapp.tethysdash.model import (
+    Dashboard,
     DashboardTab,
     GridItem,
     MapLayerPopup,
+    _hydrate_map_args_string_with_popups,
+    copy_named_dashboard,
     update_named_popup,
 )
 
@@ -534,3 +537,276 @@ def test_update_named_popup_requires_create_args(
     with pytest.raises(Exception) as excinfo:
         update_named_popup(test_owner_user, {"layer_name": "Layer A"})
     assert "popup_id" in str(excinfo.value) or "required" in str(excinfo.value)
+
+
+# ---------------------------------------------------------------------------
+# _hydrate_map_args_string_with_popups — pure function branches
+# (lines 508, 511-512, 516, 521, 524-526, 532 in model.py)
+# ---------------------------------------------------------------------------
+
+
+def test_hydrate_returns_args_string_when_popups_or_args_empty():
+    """Line 508: short-circuit when either popups_by_layer or args_string is
+    falsy."""
+    # Empty popups → return unchanged
+    assert _hydrate_map_args_string_with_popups("{}", {}) == "{}"
+    # None popups → return unchanged
+    assert _hydrate_map_args_string_with_popups("{}", None) == "{}"
+    # Empty args_string → return unchanged
+    assert _hydrate_map_args_string_with_popups("", {"L": {"id": 1}}) == ""
+    # None args_string → return unchanged
+    assert _hydrate_map_args_string_with_popups(None, {"L": {"id": 1}}) is None
+
+
+def test_hydrate_returns_args_string_on_invalid_json():
+    """Lines 511-512: an unparseable args_string is returned as-is."""
+    bad = "not valid json at all"
+    assert _hydrate_map_args_string_with_popups(bad, {"L": {"id": 1}}) == bad
+
+
+def test_hydrate_returns_args_string_when_layers_is_missing_or_not_a_list():
+    """Line 516: parsed has no ``layers`` list (or layers is a non-list value)
+    → return args_string unchanged."""
+    no_layers_key = json.dumps({"other": "stuff"})
+    assert (
+        _hydrate_map_args_string_with_popups(no_layers_key, {"L": {"id": 1}})
+        == no_layers_key
+    )
+
+    layers_not_list = json.dumps({"layers": "this-is-a-string"})
+    assert (
+        _hydrate_map_args_string_with_popups(layers_not_list, {"L": {"id": 1}})
+        == layers_not_list
+    )
+
+    # Top-level non-dict (e.g., array) also fails the `isinstance(parsed, dict)`
+    # check, so `layers` becomes None and the function returns unchanged.
+    top_level_list = json.dumps(["something"])
+    assert (
+        _hydrate_map_args_string_with_popups(top_level_list, {"L": {"id": 1}})
+        == top_level_list
+    )
+
+
+def test_hydrate_skips_non_dict_layer_entries():
+    """Line 521: layer entries that aren't dicts (strings, ints, None) are
+    skipped without raising; the dict entry still gets popupConfig."""
+    args_string = json.dumps(
+        {"layers": ["string-entry", 42, None, {"name": "L"}]}
+    )
+    result = _hydrate_map_args_string_with_popups(args_string, {"L": {"id": 7}})
+    parsed = json.loads(result)
+    assert parsed["layers"][0] == "string-entry"  # untouched
+    assert parsed["layers"][1] == 42
+    assert parsed["layers"][2] is None
+    assert parsed["layers"][3]["popupConfig"] == {"id": 7}
+
+
+def test_hydrate_falls_back_to_configuration_name():
+    """Lines 524-526: when a layer has no top-level ``name``, the lookup
+    falls back to ``layer.configuration.name``."""
+    args_string = json.dumps(
+        {
+            "layers": [
+                # No top-level name; configuration.name should be used.
+                {"configuration": {"name": "Stations"}},
+                # configuration is not a dict → skip lookup, no popupConfig.
+                {"configuration": "not-a-dict"},
+            ]
+        }
+    )
+    result = _hydrate_map_args_string_with_popups(
+        args_string, {"Stations": {"id": 1, "mode": "modal"}}
+    )
+    parsed = json.loads(result)
+    assert parsed["layers"][0]["popupConfig"] == {"id": 1, "mode": "modal"}
+    # The malformed-configuration layer is left untouched.
+    assert "popupConfig" not in parsed["layers"][1]
+
+
+def test_hydrate_returns_args_string_when_no_layer_matches():
+    """Line 532: no layer name matched a popup → return original args_string
+    without re-serializing."""
+    args_string = json.dumps({"layers": [{"name": "L1"}, {"name": "L2"}]})
+    # popups_by_layer has only L3 → no match → no mutation.
+    result = _hydrate_map_args_string_with_popups(
+        args_string, {"L3": {"id": 1}}
+    )
+    # Must return the SAME string (no JSON re-serialization).
+    assert result == args_string
+
+
+# ---------------------------------------------------------------------------
+# copy_named_dashboard skips popup-owned grid items (line 882)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_copy_named_dashboard_skips_popup_owned_grid_items(
+    db_session, mock_app_get_ps_db, dashboard, test_member_user
+):
+    """Line 882: ``copy_named_dashboard`` intentionally skips grid items whose
+    ``tab_id`` is None (popup-owned children). This is a documented v1
+    limitation — only tab-owned grid items are carried across."""
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    tab = DashboardTab(dashboard_id=dashboard.id, name="Tab", tab_order=0)
+    db_session.add(tab)
+    db_session.commit()
+    db_session.refresh(tab)
+    map_grid_item = _make_map_grid_item(db_session, dashboard, tab)
+    popup = _make_popup(db_session, map_grid_item)
+    popup_child = _add_popup_grid_item(
+        db_session, dashboard, popup, source="Text"
+    )
+    popup_child_id = popup_child.id
+
+    new_dashboard_id, _ = copy_named_dashboard(
+        test_member_user, dashboard.id, "copied-name", str(uuid4())
+    )
+
+    copied = (
+        db_session.query(Dashboard).filter(Dashboard.id == new_dashboard_id).first()
+    )
+    # Popup-owned grid items are NOT carried across.
+    popup_owned = [g for g in copied.grid_items if g.tab_id is None]
+    assert popup_owned == []
+    # Tab-owned grid items ARE carried across (sanity).
+    tab_owned = [g for g in copied.grid_items if g.tab_id is not None]
+    assert len(tab_owned) >= 1
+    # The original popup child still exists on the source dashboard.
+    assert db_session.get(GridItem, popup_child_id) is not None
+
+
+# ---------------------------------------------------------------------------
+# update_named_popup — additional error paths and upsert branch
+# (lines 1225, 1230, 1234, 1295-1308 in model.py)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_update_named_popup_raises_when_grid_item_id_does_not_exist(
+    db_session, mock_app_get_ps_db, test_owner_user
+):
+    """Line 1225: lazy-create path with a ``grid_item_id`` that doesn't exist
+    in the database raises."""
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    with pytest.raises(Exception, match="does not exist"):
+        update_named_popup(
+            test_owner_user,
+            {"grid_item_id": 999999, "layer_name": "Layer A"},
+        )
+
+
+@pytest.mark.django_db
+def test_update_named_popup_raises_when_parent_grid_item_relationship_is_none(
+    db_session, mock_app_get_ps_db, dashboard, test_owner_user, mocker
+):
+    """Line 1230: defensive guard for the should-never-happen case where the
+    popup row was loaded but its ``grid_item`` relationship resolves to None.
+    Patching the class attribute is the cleanest way to simulate that state
+    in an integration test."""
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    tab = DashboardTab(dashboard_id=dashboard.id, name="Tab", tab_order=0)
+    db_session.add(tab)
+    db_session.commit()
+    db_session.refresh(tab)
+    map_grid_item = _make_map_grid_item(db_session, dashboard, tab)
+    popup = _make_popup(db_session, map_grid_item)
+
+    # Force MapLayerPopup.grid_item to return None for any instance loaded
+    # inside update_named_popup's session.
+    mocker.patch(
+        "tethysapp.tethysdash.model.MapLayerPopup.grid_item",
+        new_callable=mocker.PropertyMock,
+        return_value=None,
+    )
+
+    with pytest.raises(Exception, match="Unable to resolve parent grid item"):
+        update_named_popup(test_owner_user, {"popup_id": popup.id})
+
+
+@pytest.mark.django_db
+def test_update_named_popup_raises_when_parent_dashboard_relationship_is_none(
+    db_session, mock_app_get_ps_db, dashboard, test_owner_user, mocker
+):
+    """Line 1234: defensive guard for the should-never-happen case where the
+    parent grid item's ``dashboard`` relationship resolves to None."""
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    tab = DashboardTab(dashboard_id=dashboard.id, name="Tab", tab_order=0)
+    db_session.add(tab)
+    db_session.commit()
+    db_session.refresh(tab)
+    map_grid_item = _make_map_grid_item(db_session, dashboard, tab)
+    popup = _make_popup(db_session, map_grid_item)
+
+    # Force GridItem.dashboard to return None — the parent_grid_item resolves
+    # fine but the dashboard lookup off it doesn't.
+    mocker.patch(
+        "tethysapp.tethysdash.model.GridItem.dashboard",
+        new_callable=mocker.PropertyMock,
+        return_value=None,
+    )
+
+    with pytest.raises(Exception, match="Unable to resolve parent dashboard"):
+        update_named_popup(test_owner_user, {"popup_id": popup.id})
+
+
+@pytest.mark.django_db
+def test_update_named_popup_updates_existing_grid_item_in_place(
+    db_session, mock_app_get_ps_db, dashboard, test_owner_user
+):
+    """Lines 1295-1308: passing a gridItem with an ``id`` matching an existing
+    popup-owned child updates that row in-place — preserving uuid, switching
+    tab_id to None, and pointing popup_id at the popup row. (The
+    delete-and-recreate path used by ``test_update_named_popup_replaces_grid_items``
+    only exercises the new-grid-item branch.)"""
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    tab = DashboardTab(dashboard_id=dashboard.id, name="Tab", tab_order=0)
+    db_session.add(tab)
+    db_session.commit()
+    db_session.refresh(tab)
+    map_grid_item = _make_map_grid_item(db_session, dashboard, tab)
+    popup = _make_popup(db_session, map_grid_item)
+    initial_child = _add_popup_grid_item(
+        db_session, dashboard, popup, source="Text"
+    )
+    initial_child_id = initial_child.id
+    initial_child_uuid = initial_child.uuid
+
+    payload = {
+        "popup_id": popup.id,
+        "gridItems": [
+            {
+                "id": initial_child_id,  # ← matches existing → upsert branch
+                "i": "updated-i",
+                "x": 5,
+                "y": 6,
+                "w": 7,
+                "h": 8,
+                "source": "Custom Image",
+                "args_string": json.dumps({"uri": "new-uri"}),
+                "metadata_string": json.dumps({"foo": "bar"}),
+            }
+        ],
+    }
+    result = update_named_popup(test_owner_user, payload)
+
+    assert len(result["gridItems"]) == 1
+
+    db_session.expire_all()
+    updated = db_session.get(GridItem, initial_child_id)
+    assert updated is not None
+    # uuid is preserved on in-place update (it wasn't in the payload).
+    assert updated.uuid == initial_child_uuid
+    assert updated.i == "updated-i"
+    assert updated.x == 5
+    assert updated.y == 6
+    assert updated.w == 7
+    assert updated.h == 8
+    assert updated.source == "Custom Image"
+    assert json.loads(updated.args_string) == {"uri": "new-uri"}
+    assert json.loads(updated.metadata_string) == {"foo": "bar"}
+    assert updated.order == 0
+    # Popup-owned: tab_id cleared, popup_id set.
+    assert updated.tab_id is None
+    assert updated.popup_id == popup.id
