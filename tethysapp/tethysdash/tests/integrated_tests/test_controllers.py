@@ -2664,3 +2664,95 @@ def test_ollama_proxy_does_not_log_for_known_handled_exceptions(
         "ConnectionError must not trigger the unexpected-error logger; "
         f"calls: {mock_logger.mock_calls}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Runtime plugin registry — anonymous read endpoint.
+#
+# /apps/tethysdash/runtime-plugins/list/ is a GET-only sibling of the
+# existing /runtime-plugins/sync/ endpoint, exposed without auth so the
+# standalone tethysdash MCP server (mcp/tethysdash_mcps/) can read the
+# registry over HTTP via TETHYSDASH_BASE_URL instead of via a shared
+# filesystem path. Writes stay gated through the sibling endpoint.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_runtime_plugins_list_anonymous_returns_registry(client, mock_app, mocker):
+    """GET /runtime-plugins/list/ is anonymous-accessible and returns the
+    current registry as a JSON array."""
+    mock_app("tethysapp.tethysdash.controllers.App")
+    fake_registry = [
+        {
+            "source": "Echo Runtime Plugin",
+            "url": "http://x/rp.js",
+            "scope": "rp",
+            "module": "./Echo",
+            "label": "Echo",
+        },
+    ]
+    mock_load = mocker.patch(
+        "tethysapp.tethysdash.controllers.load_runtime_plugin_registry",
+        return_value=fake_registry,
+    )
+
+    response = client.get("/apps/tethysdash/runtime-plugins/list/")
+
+    mock_load.assert_called_once()
+    assert response.status_code == 200
+    assert response.json() == fake_registry
+
+
+@pytest.mark.django_db
+def test_runtime_plugins_list_empty_registry_returns_empty_array(
+    client, mock_app, mocker
+):
+    """Empty registry returns 200 + []. Matches the loader's silent-recovery
+    posture for missing/malformed registry files."""
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mocker.patch(
+        "tethysapp.tethysdash.controllers.load_runtime_plugin_registry",
+        return_value=[],
+    )
+
+    response = client.get("/apps/tethysdash/runtime-plugins/list/")
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+@pytest.mark.django_db
+def test_runtime_plugins_list_non_get_methods_have_no_side_effects(
+    client, mock_app, mocker
+):
+    """Match the convention of other login_required=False read endpoints
+    (e.g., visualizations): non-GET methods return the same registry payload
+    with no side effects. Writes belong to the gated sibling endpoint at
+    /runtime-plugins/sync/, which has its own auth gate; this endpoint just
+    never writes."""
+    mock_app("tethysapp.tethysdash.controllers.App")
+    fake_registry = [{"source": "X", "url": "http://x", "scope": "x", "module": "./X"}]
+    mock_load = mocker.patch(
+        "tethysapp.tethysdash.controllers.load_runtime_plugin_registry",
+        return_value=fake_registry,
+    )
+    mock_save = mocker.patch(
+        "tethysapp.tethysdash.controllers.save_runtime_plugin_registry"
+    )
+
+    for method in ("post", "put", "delete"):
+        response = getattr(client, method)(
+            "/apps/tethysdash/runtime-plugins/list/"
+        )
+        # body matches the GET payload — body is pure-read
+        assert response.status_code == 200, (
+            f"{method.upper()} returned {response.status_code} — "
+            f"endpoint should treat all methods as a read"
+        )
+        assert response.json() == fake_registry
+
+    # No write ever happens on this endpoint regardless of method
+    mock_save.assert_not_called()
+    # load was called once per method
+    assert mock_load.call_count == 3
+

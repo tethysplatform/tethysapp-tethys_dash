@@ -1170,3 +1170,22 @@ def runtime_plugins_sync(request):
         return JsonResponse({"status": "ok", "count": len(plugins)})
     except (json.JSONDecodeError, TypeError) as e:
         return JsonResponse({"error": str(e)}, status=400)
+
+
+@controller(url="tethysdash/runtime-plugins/list", login_required=False)
+def runtime_plugins_list(request):
+    """
+    Anonymous read-only view of the runtime plugin registry.
+
+    Sibling of ``runtime_plugins_sync`` — same data source, but the write
+    branch lives only on the gated ``runtime_plugins_sync`` endpoint. This
+    one is open to unauthenticated callers so the standalone tethysdash MCP
+    server (``mcp/tethysdash_mcps/``) can read the registry over HTTP via
+    ``TETHYSDASH_BASE_URL`` instead of needing a shared filesystem path.
+
+    Method handling matches the convention of the other ``login_required=False``
+    read endpoints in this module (e.g., ``visualizations``); the body is a
+    pure read of ``load_runtime_plugin_registry()`` so non-GET methods return
+    the same registry payload with no side effects.
+    """
+    return JsonResponse(load_runtime_plugin_registry(), safe=False)
