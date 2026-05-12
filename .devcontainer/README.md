@@ -47,13 +47,11 @@ If you change `pyproject.toml` (e.g., add a Python dep), run `pip install -e .[t
 
 ## Run tests
 
-The MCP contract suite:
+(The MCP contract suite was moved out with the embedded MCP server — it now
+lives in the standalone repo `Aquaveo/tethysdash_mcps`. Run it from that repo
+via `./scripts/setup-mcp.sh --setup && .venv-mcp/bin/python -m pytest test_mcp/`.)
 
-```bash
-python -m pytest tethysapp/tethysdash/tests/mcp/ --no-cov -q
-```
-
-Other backend tests:
+Backend tests:
 
 ```bash
 python -m pytest --reuse-db

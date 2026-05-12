@@ -45,14 +45,13 @@ WORKDIR /workspaces/tethysapp-tethys_dash
 # from build time still resolves because absolute paths match.
 COPY . .
 
-# Editable install with the [test] extra. fastmcp (pulled in by [test]) is required
-# for the MCP contract suite to collect — `pip install -e .` alone leaves it at 0.
+# Editable install with the [test] extra.
 RUN pip install --no-cache-dir -e ".[test]"
 
-# Build-time gate: contract suite must collect and pass against the COPYed snapshot.
-# Catches dep-resolution regressions before the contributor ever opens a shell.
-# pytest.ini at repo root sets DJANGO_SETTINGS_MODULE=tethys_portal.settings.
-RUN python -m pytest tethysapp/tethysdash/tests/mcp/ --no-cov -q
+# (MCP contract test build gate removed: the embedded MCP server was extracted
+# into the standalone repo Aquaveo/tethysdash_mcps and is now published as
+# ghcr.io/aquaveo/tethysdash-mcps. The contract suite lives there; this image
+# no longer ships the MCP server, so no contract test runs at build time.)
 
 EXPOSE 8000
 

@@ -145,7 +145,7 @@ Slot-finding: for each new panel, scans grid top-to-bottom, left-to-right for th
 
 ## 6. TethysDash MCP Server (Session 6)
 
-A FastMCP server (`tethysapp/tethysdash/mcp/tethysdash_mcp_server.py`, port 9001) that lets the LLM create native tethysdash visualizations with inline data — no backend API call needed.
+A FastMCP server (external — `Aquaveo/tethysdash_mcps` repo, image `ghcr.io/aquaveo/tethysdash-mcps:latest`, port 9001) that lets the LLM create native tethysdash visualizations with inline data — no backend API call needed. Reads runtime plugins from this app over HTTP via `/apps/tethysdash/runtime-plugins/list/`.
 
 ### Inline Data Path
 
@@ -188,7 +188,7 @@ The map tool accepts the full OpenLayers layer structure:
 
 | File | Role |
 |------|------|
-| `tethysapp/tethysdash/mcp/tethysdash_mcp_server.py` | MCP server with visualization tools |
+| `tethysapp/tethysdash/controllers.py::runtime_plugins_list` | Anonymous read endpoint that exposes the runtime-plugin registry to the standalone MCP server (`Aquaveo/tethysdash_mcps`, image `ghcr.io/aquaveo/tethysdash-mcps`) over HTTP |
 | `reactapp/components/visualizations/utilities.js` | `inlineData` check (safety backup) |
 | `reactapp/components/visualizations/Base.js` | `inlineData` handler in useEffect (primary, prevents loop) |
 | `reactapp/components/visualizations/BasePlot.js` | `EMPTY_VERTICAL_LINE` fix |

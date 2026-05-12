@@ -45,5 +45,5 @@ On preflight or bootstrap failure, STOP and tell the user exactly what to fix. O
 
 - The venv is cached. If someone edits `pyproject.toml` (adds/removes a dep), the next run will automatically recreate `.venv-test/`.
 - To force a rebuild without touching `pyproject.toml`, delete `.venv-test/` and re-run.
-- This skill covers `tests/mcp/` (contracts), `tests/integrated_tests/`, and `tests/unit_tests/` — everything under `tethysapp/tethysdash/tests/`.
+- This skill covers `tests/integrated_tests/` and `tests/unit_tests/` — everything under `tethysapp/tethysdash/tests/`. (The MCP contract suite that used to live at `tests/mcp/` was moved to the standalone repo `Aquaveo/tethysdash_mcps` when the embedded MCP server was extracted.)
 - On a warm venv, a full green run today is ~25–60 seconds. Cold first-run with `pip install -e .` is 60–120 seconds plus suite time.

@@ -967,8 +967,9 @@ class LayerConfigurationBuilder:
 
         Raises whatever requests.get + .json() would raise — caller
         decides how to wrap. Default timeout matches
-        _resolve_dynamic_map_layer_plugin's value in mcp/tethysdash_mcp_server.py
-        for consistency across server-side outbound fetches.
+        _resolve_dynamic_map_layer_plugin's value in the standalone MCP
+        server (Aquaveo/tethysdash_mcps) for consistency across
+        server-side outbound fetches.
         """
         response = requests.get(url, timeout=timeout)
         response.raise_for_status()

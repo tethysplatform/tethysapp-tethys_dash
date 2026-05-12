@@ -954,8 +954,9 @@ async function getKMLLayerAttributes(sourceUrl, layerName) {
 // Recognized directive prefixes for ESRI Image and Map Service `params.LAYERS`.
 // The directive vocabulary is duplicated across three sites:
 //   - this JS constant (bare directive names, used as parsing input)
-//   - `_RECOGNIZED_LAYERS_DIRECTIVES` in `tethysdash_mcp_server.py` (colon-suffixed
-//     strings, passed to `str.startswith()` for canonicalization)
+//   - `_RECOGNIZED_LAYERS_DIRECTIVES` in the standalone MCP server
+//     (`Aquaveo/tethysdash_mcps`, file `tethysdash_mcp/mcp_server.py`;
+//     colon-suffixed strings, passed to `str.startswith()` for canonicalization)
 //   - `DIRECTIVE_PREFIXES` in `scripts/audit_esri_layers.py` (also colon-suffixed)
 // The three are duplicated by language but must never diverge — when adding a new
 // directive, update all three. The format differs (bare names here, colon-suffixed
