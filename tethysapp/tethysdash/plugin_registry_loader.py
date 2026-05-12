@@ -2,14 +2,21 @@
 
 The registry is a JSON file under ``reactapp/generated/`` persisted from
 browser state (``runtimePluginRegistry.json``) — written when the user
-registers a Module Federation remote plugin via the chatbox or the
-``register_runtime_plugin`` MCP tool.
+registers a Module Federation remote plugin via the chatbox UI.
 
-Currently consumed by ``tethysdash_mcp_server.py`` only. The module is
-preserved as a focused loader so the JSON-read concern stays out of the
-MCP server file and so a future runtime-remote editability resolver in
-``editable_schemas_plugin.py`` can read the same registry without
-re-implementing the I/O.
+Consumed by two Django controllers in ``controllers.py``:
+
+- ``runtime_plugins_sync`` (``login_required=True``, GET + POST): the
+  authenticated browser-side endpoint the chatbox UI posts to when a
+  user registers / removes a runtime plugin. Writes the file via
+  ``save_runtime_plugin_registry``; reads it via
+  ``load_runtime_plugin_registry`` on GET.
+- ``runtime_plugins_list`` (``login_required=False``, GET-only): the
+  anonymous read-only sibling endpoint the standalone tethysdash MCP
+  server (``Aquaveo/tethysdash_mcps``, image
+  ``ghcr.io/aquaveo/tethysdash-mcps``) reads over HTTP via
+  ``${TETHYSDASH_BASE_URL}/runtime-plugins/list/`` to discover
+  registered runtime plugins. Calls ``load_runtime_plugin_registry``.
 
 Returned shape: ``List[Dict[str, Any]]`` — a list of plugin entries, NOT
 a dict keyed by source. Consumers that need lookup by source should

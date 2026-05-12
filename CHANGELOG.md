@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Removed (BREAKING)
+
+- **Embedded MCP server deleted from this repo.** `tethysapp/tethysdash/mcp/` (4 files, ~5,100 lines) and `tethysapp/tethysdash/tests/mcp/` (~16 contract test files) are gone. The MCP server now lives exclusively in the sibling repo `Aquaveo/tethysdash_mcps` and is published as `ghcr.io/aquaveo/tethysdash-mcps:latest`. The chatbox sidebar continues to work — it has always reached the MCP server over HTTP at an operator-supplied URL; only the URL target shifts (from the in-app server on port 9001 to the standalone container on port 9001). The workshop `docker-compose.yml` already runs the standalone as a sibling service. Plan: `docs/plans/2026-05-11-003-refactor-remove-embedded-mcp-server-plan.md`.
+
+  **Side effects of the removal:**
+  - `.devcontainer/Dockerfile` no longer runs `pytest tethysapp/tethysdash/tests/mcp/` as a build gate (the suite moved with the server).
+  - `.devcontainer/README.md` and `.claude/skills/test-backend/SKILL.md` updated to drop the `tests/mcp/` references.
+  - `plugin_registry_loader.py` stays — its `runtime_plugins_sync` (writer, gated) and `runtime_plugins_list` (reader, anonymous) Django consumers both continue to use it.
+  - `CLAUDE.md` and `TETHYSDASH_ARCHITECTURE.md` updated to point at the standalone repo + image.
+
 ### Added
 
 - **New endpoint `/apps/tethysdash/runtime-plugins/list/`** — GET-only, `login_required=False`, returns the runtime plugin registry as a JSON array. Sibling of the existing gated `runtime-plugins/sync/` endpoint (which keeps its `login_required=True` posture for the browser-side write flow). Lets the standalone `Aquaveo/tethysdash_mcps` MCP server read the registry over HTTP via `TETHYSDASH_BASE_URL` instead of needing a shared filesystem path. Three new integration tests in `tests/integrated_tests/test_controllers.py`. Plan: `docs/plans/2026-05-11-006-feat-runtime-plugin-registry-http-endpoint-plan.md` (Unit 1).
