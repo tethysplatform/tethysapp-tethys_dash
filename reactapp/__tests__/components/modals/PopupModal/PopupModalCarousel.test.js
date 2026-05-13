@@ -10,7 +10,7 @@ const FEATURES = [
   { layerName: "L", attributes: { id: "c" } },
 ];
 
-describe("PopupModalCarousel", () => {
+describe("PopupModalCarousel — visibility", () => {
   test("renders nothing when there are 0 features", () => {
     render(
       <PopupModalCarousel
@@ -33,7 +33,7 @@ describe("PopupModalCarousel", () => {
     expect(screen.queryByTestId("popup-modal-carousel")).toBeNull();
   });
 
-  test("renders one chip per feature for multi-feature input", () => {
+  test("renders prev / pagination / next controls for multi-feature input", () => {
     render(
       <PopupModalCarousel
         features={FEATURES}
@@ -42,38 +42,16 @@ describe("PopupModalCarousel", () => {
       />,
     );
     expect(screen.getByTestId("popup-modal-carousel")).toBeInTheDocument();
-    expect(screen.getAllByRole("tab")).toHaveLength(3);
+    expect(screen.getByTestId("popup-modal-carousel-prev")).toBeInTheDocument();
+    expect(screen.getByTestId("popup-modal-carousel-next")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("popup-modal-carousel-pagination"),
+    ).toBeInTheDocument();
   });
+});
 
-  test("falls back to 'Feature N' label when no getLabel is supplied", () => {
-    render(
-      <PopupModalCarousel
-        features={FEATURES}
-        activeIndex={0}
-        onActiveIndexChange={jest.fn()}
-      />,
-    );
-    expect(screen.getByText("Feature 1")).toBeInTheDocument();
-    expect(screen.getByText("Feature 2")).toBeInTheDocument();
-    expect(screen.getByText("Feature 3")).toBeInTheDocument();
-  });
-
-  test("uses getLabel(feature, i) when supplied", () => {
-    const getLabel = (feature, i) => `${feature.attributes.id}@${i}`;
-    render(
-      <PopupModalCarousel
-        features={FEATURES}
-        activeIndex={0}
-        onActiveIndexChange={jest.fn()}
-        getLabel={getLabel}
-      />,
-    );
-    expect(screen.getByText("a@0")).toBeInTheDocument();
-    expect(screen.getByText("b@1")).toBeInTheDocument();
-    expect(screen.getByText("c@2")).toBeInTheDocument();
-  });
-
-  test("active chip carries aria-selected=true; others false", () => {
+describe("PopupModalCarousel — pagination indicator", () => {
+  test("shows the active 1-indexed position over the total", () => {
     render(
       <PopupModalCarousel
         features={FEATURES}
@@ -81,13 +59,38 @@ describe("PopupModalCarousel", () => {
         onActiveIndexChange={jest.fn()}
       />,
     );
-    const chips = screen.getAllByRole("tab");
-    expect(chips[0]).toHaveAttribute("aria-selected", "false");
-    expect(chips[1]).toHaveAttribute("aria-selected", "true");
-    expect(chips[2]).toHaveAttribute("aria-selected", "false");
+    expect(
+      screen.getByTestId("popup-modal-carousel-pagination"),
+    ).toHaveTextContent("2 / 3");
   });
 
-  test("clicking a chip calls onActiveIndexChange with its index", async () => {
+  test("updates the indicator when activeIndex changes", () => {
+    const { rerender } = render(
+      <PopupModalCarousel
+        features={FEATURES}
+        activeIndex={0}
+        onActiveIndexChange={jest.fn()}
+      />,
+    );
+    expect(
+      screen.getByTestId("popup-modal-carousel-pagination"),
+    ).toHaveTextContent("1 / 3");
+
+    rerender(
+      <PopupModalCarousel
+        features={FEATURES}
+        activeIndex={2}
+        onActiveIndexChange={jest.fn()}
+      />,
+    );
+    expect(
+      screen.getByTestId("popup-modal-carousel-pagination"),
+    ).toHaveTextContent("3 / 3");
+  });
+});
+
+describe("PopupModalCarousel — arrow buttons", () => {
+  test("clicking the next arrow advances the active index", async () => {
     const user = userEvent.setup();
     const onActiveIndexChange = jest.fn();
     render(
@@ -97,11 +100,121 @@ describe("PopupModalCarousel", () => {
         onActiveIndexChange={onActiveIndexChange}
       />,
     );
-    await user.click(screen.getByTestId("popup-modal-carousel-chip-2"));
-    expect(onActiveIndexChange).toHaveBeenCalledWith(2);
+    await user.click(screen.getByTestId("popup-modal-carousel-next"));
+    expect(onActiveIndexChange).toHaveBeenCalledWith(1);
   });
 
-  test("ArrowRight advances active index", () => {
+  test("clicking the prev arrow decreases the active index", async () => {
+    const user = userEvent.setup();
+    const onActiveIndexChange = jest.fn();
+    render(
+      <PopupModalCarousel
+        features={FEATURES}
+        activeIndex={2}
+        onActiveIndexChange={onActiveIndexChange}
+      />,
+    );
+    await user.click(screen.getByTestId("popup-modal-carousel-prev"));
+    expect(onActiveIndexChange).toHaveBeenCalledWith(1);
+  });
+
+  test("prev is disabled at activeIndex=0 and does not fire onActiveIndexChange", async () => {
+    const user = userEvent.setup();
+    const onActiveIndexChange = jest.fn();
+    render(
+      <PopupModalCarousel
+        features={FEATURES}
+        activeIndex={0}
+        onActiveIndexChange={onActiveIndexChange}
+      />,
+    );
+    const prev = screen.getByTestId("popup-modal-carousel-prev");
+    expect(prev).toBeDisabled();
+    await user.click(prev);
+    expect(onActiveIndexChange).not.toHaveBeenCalled();
+  });
+
+  test("next is disabled at the last feature and does not fire onActiveIndexChange", async () => {
+    const user = userEvent.setup();
+    const onActiveIndexChange = jest.fn();
+    render(
+      <PopupModalCarousel
+        features={FEATURES}
+        activeIndex={2}
+        onActiveIndexChange={onActiveIndexChange}
+      />,
+    );
+    const next = screen.getByTestId("popup-modal-carousel-next");
+    expect(next).toBeDisabled();
+    await user.click(next);
+    expect(onActiveIndexChange).not.toHaveBeenCalled();
+  });
+});
+
+describe("PopupModalCarousel — aria labels", () => {
+  test("falls back to generic 'Previous feature' / 'Next feature' when no getLabel is supplied", () => {
+    render(
+      <PopupModalCarousel
+        features={FEATURES}
+        activeIndex={1}
+        onActiveIndexChange={jest.fn()}
+      />,
+    );
+    expect(screen.getByTestId("popup-modal-carousel-prev")).toHaveAttribute(
+      "aria-label",
+      "Previous feature",
+    );
+    expect(screen.getByTestId("popup-modal-carousel-next")).toHaveAttribute(
+      "aria-label",
+      "Next feature",
+    );
+  });
+
+  test("uses getLabel for the neighboring feature so screen readers announce its title", () => {
+    const getLabel = (feature) => `Site ${feature.attributes.id}`;
+    render(
+      <PopupModalCarousel
+        features={FEATURES}
+        activeIndex={1}
+        onActiveIndexChange={jest.fn()}
+        getLabel={getLabel}
+      />,
+    );
+    expect(screen.getByTestId("popup-modal-carousel-prev")).toHaveAttribute(
+      "aria-label",
+      "Previous feature: Site a",
+    );
+    expect(screen.getByTestId("popup-modal-carousel-next")).toHaveAttribute(
+      "aria-label",
+      "Next feature: Site c",
+    );
+  });
+
+  test("disabled arrows still announce the generic label (no neighbor to read out)", () => {
+    const getLabel = (feature) => `Site ${feature.attributes.id}`;
+    render(
+      <PopupModalCarousel
+        features={FEATURES}
+        activeIndex={0}
+        onActiveIndexChange={jest.fn()}
+        getLabel={getLabel}
+      />,
+    );
+    // At index 0 there's no previous feature to describe.
+    expect(screen.getByTestId("popup-modal-carousel-prev")).toHaveAttribute(
+      "aria-label",
+      "Previous feature",
+    );
+    // Next IS available, so it uses the label.
+    expect(screen.getByTestId("popup-modal-carousel-next")).toHaveAttribute(
+      "aria-label",
+      "Next feature: Site b",
+    );
+  });
+});
+
+describe("PopupModalCarousel — keyboard navigation", () => {
+  test("ArrowRight advances the active index", () => {
     const onActiveIndexChange = jest.fn();
     render(
       <PopupModalCarousel
@@ -116,7 +229,7 @@ describe("PopupModalCarousel", () => {
     expect(onActiveIndexChange).toHaveBeenCalledWith(1);
   });
 
-  test("ArrowLeft decreases active index, clamps at 0", () => {
+  test("ArrowLeft at the boundary doesn't fire", () => {
     const onActiveIndexChange = jest.fn();
     render(
       <PopupModalCarousel
@@ -128,7 +241,6 @@ describe("PopupModalCarousel", () => {
     fireEvent.keyDown(screen.getByTestId("popup-modal-carousel"), {
       key: "ArrowLeft",
     });
-    // No change emitted because activeIndex was already 0.
     expect(onActiveIndexChange).not.toHaveBeenCalled();
   });
 
@@ -148,56 +260,7 @@ describe("PopupModalCarousel", () => {
     expect(onActiveIndexChange).toHaveBeenLastCalledWith(0);
   });
 
-  test("does not fire onActiveIndexChange when arrow is pressed at the boundary", () => {
-    const onActiveIndexChange = jest.fn();
-    render(
-      <PopupModalCarousel
-        features={FEATURES}
-        activeIndex={2}
-        onActiveIndexChange={onActiveIndexChange}
-      />,
-    );
-    fireEvent.keyDown(screen.getByTestId("popup-modal-carousel"), {
-      key: "ArrowRight",
-    });
-    expect(onActiveIndexChange).not.toHaveBeenCalled();
-  });
-
-  // Line 70 — handleKeyDown's defensive `!features || features.length === 0`
-  // guard. The Strip only mounts when features.length >= 2 (line 89), so the
-  // handler is normally only invokable when features is healthy. We exploit
-  // useCallback's reference-equality deps: mutating the array in place keeps
-  // the same reference, so the already-attached handler keeps running, but
-  // its closure now sees features.length === 0 and the guard fires.
-  test("handleKeyDown's empty-features guard fires when the array is mutated to empty in place", () => {
-    const features = [...FEATURES];
-    const onActiveIndexChange = jest.fn();
-    render(
-      <PopupModalCarousel
-        features={features}
-        activeIndex={0}
-        onActiveIndexChange={onActiveIndexChange}
-      />,
-    );
-
-    // Empty the array — same reference, length now 0. No re-render is
-    // triggered (React doesn't observe mutations), so the Strip stays mounted
-    // with the original handleKeyDown attached.
-    features.length = 0;
-
-    fireEvent.keyDown(screen.getByTestId("popup-modal-carousel"), {
-      key: "ArrowRight",
-    });
-
-    // Guard returned before reaching the navigation logic.
-    expect(onActiveIndexChange).not.toHaveBeenCalled();
-  });
-
-  // Line 70 false branch: a key that reaches the End check without matching it.
-  // Existing tests fire Arrow*/Home/End, all of which either short-circuit the
-  // if/else chain early or match End. Firing an unrelated key (e.g. "Tab")
-  // walks the full chain and exits with the End check evaluating to false.
-  test("ignores non-navigation keys (Tab/Enter) without firing onActiveIndexChange", () => {
+  test("non-navigation keys (Tab / Enter) are ignored", () => {
     const onActiveIndexChange = jest.fn();
     render(
       <PopupModalCarousel
@@ -213,13 +276,12 @@ describe("PopupModalCarousel", () => {
   });
 });
 
-// Line 62: the `if (!features || features.length === 0)` guard is unreachable
-// through the component because Strip only renders when features.length >= 2.
-// The logic now lives in the exported computeNextIndexFromKey pure function
-// so each branch can be exercised directly.
+// `computeNextIndexFromKey` is exported so each branch of the keyboard
+// navigation logic can be exercised directly — the previous chip-based UI
+// had an empty-features guard that was unreachable via the rendered
+// component, and this pattern keeps that branch covered.
 describe("computeNextIndexFromKey", () => {
   test("returns null when features is null", () => {
-    // Hits `!features` truthy → if-body taken → return null.
     expect(computeNextIndexFromKey("ArrowRight", null, 0)).toBeNull();
   });
 
@@ -228,7 +290,6 @@ describe("computeNextIndexFromKey", () => {
   });
 
   test("returns null when features is an empty array", () => {
-    // Hits `features.length === 0` truthy via the `||` right operand.
     expect(computeNextIndexFromKey("Home", [], 0)).toBeNull();
   });
 

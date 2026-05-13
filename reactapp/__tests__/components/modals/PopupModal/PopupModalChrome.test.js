@@ -114,49 +114,53 @@ describe("PopupModalChrome — carousel", () => {
     expect(screen.queryByTestId("popup-modal-carousel")).toBeNull();
   });
 
-  test("renders the carousel for multiple features with substituted labels", () => {
+  test("renders the carousel with the pagination indicator for multi-feature input", () => {
     render(
       <Harness
-        features={[
-          featureA,
-          featureB,
-          featureC,
-          {
-            layerName: "Stations",
-          },
-        ]}
+        features={[featureA, featureB, featureC]}
         popupConfig={samplePopupConfig({
           titleTemplate: "${feature.station_name}",
         })}
       />,
     );
     expect(screen.getByTestId("popup-modal-carousel")).toBeInTheDocument();
-    expect(screen.getByTestId("popup-modal-carousel-chip-0")).toHaveTextContent(
-      "Boulder Creek",
+    expect(
+      screen.getByTestId("popup-modal-carousel-pagination"),
+    ).toHaveTextContent("1 / 3");
+  });
+
+  test("threads a getLabel through to the carousel arrows' aria-labels", () => {
+    render(
+      <Harness
+        features={[featureA, featureB]}
+        popupConfig={samplePopupConfig({
+          titleTemplate: "${feature.station_name}",
+        })}
+      />,
     );
-    expect(screen.getByTestId("popup-modal-carousel-chip-1")).toHaveTextContent(
-      "Eagle River",
-    );
-    expect(screen.getByTestId("popup-modal-carousel-chip-2")).toHaveTextContent(
-      "Animas River",
-    );
-    expect(screen.getByTestId("popup-modal-carousel-chip-3")).toHaveTextContent(
-      "Feature 4",
+    // PopupModalChrome builds getCarouselLabel from the title template, so
+    // the next-arrow's neighbor label resolves to feature B's substituted
+    // title.
+    expect(screen.getByTestId("popup-modal-carousel-next")).toHaveAttribute(
+      "aria-label",
+      "Next feature: Eagle River",
     );
   });
 
-  test("falls back to 'Feature N' carousel label when the template is empty", () => {
+  test("falls back to 'Feature N' aria-label when the template is empty", () => {
     render(
       <Harness
         features={[featureA, featureB]}
         popupConfig={samplePopupConfig({ titleTemplate: "" })}
       />,
     );
-    expect(screen.getByText("Feature 1")).toBeInTheDocument();
-    expect(screen.getByText("Feature 2")).toBeInTheDocument();
+    expect(screen.getByTestId("popup-modal-carousel-next")).toHaveAttribute(
+      "aria-label",
+      "Next feature: Feature 2",
+    );
   });
 
-  test("clicking a chip bubbles up via onActiveIndexChange", async () => {
+  test("clicking the next arrow bubbles up via onActiveIndexChange", async () => {
     const user = userEvent.setup();
     render(
       <Harness
@@ -165,8 +169,8 @@ describe("PopupModalChrome — carousel", () => {
       />,
     );
     expect(screen.getByTestId("harness-active-index")).toHaveTextContent("0");
-    await user.click(screen.getByTestId("popup-modal-carousel-chip-2"));
-    expect(screen.getByTestId("harness-active-index")).toHaveTextContent("2");
+    await user.click(screen.getByTestId("popup-modal-carousel-next"));
+    expect(screen.getByTestId("harness-active-index")).toHaveTextContent("1");
   });
 });
 
@@ -236,7 +240,7 @@ describe("PopupModalChrome — DashboardLayout wiring", () => {
 });
 
 describe("PopupModalChrome — re-render behavior", () => {
-  test("switching the active carousel slide re-renders without remounting DashboardLayout twice", () => {
+  test("clicking next re-renders without remounting DashboardLayout twice", () => {
     render(
       <Harness
         features={[featureA, featureB]}
@@ -244,7 +248,7 @@ describe("PopupModalChrome — re-render behavior", () => {
       />,
     );
     expect(screen.getAllByTestId("mock-dashboard-layout")).toHaveLength(1);
-    fireEvent.click(screen.getByTestId("popup-modal-carousel-chip-1"));
+    fireEvent.click(screen.getByTestId("popup-modal-carousel-next"));
     expect(screen.getAllByTestId("mock-dashboard-layout")).toHaveLength(1);
     expect(screen.getByTestId("harness-active-index")).toHaveTextContent("1");
   });
@@ -260,9 +264,12 @@ describe("PopupModalChrome — re-render behavior", () => {
         initialActiveIndex={5}
       />,
     );
-    // No crash; carousel renders with the last chip selected.
-    const chips = screen.getAllByRole("tab");
-    expect(chips[1]).toHaveAttribute("aria-selected", "true");
+    // No crash; carousel renders with the pagination at the last feature.
+    expect(
+      screen.getByTestId("popup-modal-carousel-pagination"),
+    ).toHaveTextContent("2 / 2");
+    // Next arrow disabled because we're at the end.
+    expect(screen.getByTestId("popup-modal-carousel-next")).toBeDisabled();
   });
 
   test("clamps to 0 when features array is empty", () => {

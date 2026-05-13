@@ -1,38 +1,34 @@
-import { useCallback, useRef } from "react";
+import { useCallback } from "react";
 import PropTypes from "prop-types";
 import styled from "styled-components";
 
-const Strip = styled.div`
+const Controls = styled.div`
   display: flex;
-  flex-direction: row;
-  gap: 0.4rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
   padding: 0.4rem 0;
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch;
-  /* Hide scrollbar in webkit + firefox so the chips look like a control row,
-     not a content scroller. The scroll behavior still works via gestures and
-     keyboard. */
-  scrollbar-width: none;
-  &::-webkit-scrollbar {
-    display: none;
-  }
+  user-select: none;
 `;
 
-const Chip = styled.button`
-  flex: 0 0 auto;
-  scroll-snap-align: start;
-  max-width: 16rem;
-  padding: 0.3rem 0.7rem;
-  border: 1px solid ${({ $active }) => ($active ? "#0d6efd" : "#ced4da")};
-  background: ${({ $active }) => ($active ? "#0d6efd" : "#ffffff")};
-  color: ${({ $active }) => ($active ? "#ffffff" : "#212529")};
-  border-radius: 999px;
-  font-size: 0.85rem;
+const Arrow = styled.button`
+  background: transparent;
+  border: none;
+  font-size: 1.25rem;
+  line-height: 1;
+  color: #333;
   cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  padding: 0.2rem 0.55rem;
+  border-radius: 4px;
+
+  &:hover:not(:disabled) {
+    background: #f1f3f5;
+  }
+
+  &:disabled {
+    color: #ced4da;
+    cursor: default;
+  }
 
   &:focus-visible {
     outline: 2px solid #2684ff;
@@ -40,6 +36,19 @@ const Chip = styled.button`
   }
 `;
 
+const Pagination = styled.span`
+  font-size: 0.9rem;
+  color: #495057;
+  min-width: 3.5rem;
+  text-align: center;
+`;
+
+/**
+ * Pure helper: compute the next active index given a keyboard key, the
+ * features array, and the current index. Returns null when the key isn't a
+ * navigation key (or when there are no features). Exported so keyboard
+ * navigation can be unit-tested without standing up the component.
+ */
 export function computeNextIndexFromKey(key, features, activeIndex) {
   if (!features || features.length === 0) return null;
   if (key === "ArrowRight") {
@@ -57,27 +66,34 @@ export function computeNextIndexFromKey(key, features, activeIndex) {
   return null;
 }
 
+/**
+ * `PopupModalCarousel` — prev / pagination / next controls for stepping
+ * through the features clicked in a single map gesture. Mirrors the
+ * navigation pattern of the regular OL Overlay popup's swiper (◀ N / Total
+ * ▶) so the two popup styles feel consistent.
+ *
+ * Renders nothing for 0 or 1 features (no choice to make). The active
+ * feature's visible title is rendered by the modal header — this row only
+ * does navigation, so the pagination indicator is a simple "N / Total"
+ * fraction.
+ *
+ * `getLabel` (optional) is used only for the prev/next arrows' aria-labels
+ * so screen readers can announce "Next feature: <label>" instead of just
+ * "Next feature".
+ */
 const PopupModalCarousel = ({
   features,
   activeIndex,
   onActiveIndexChange,
   getLabel,
 }) => {
-  const stripRef = useRef(null);
-
   const handleKeyDown = useCallback(
     (event) => {
-      if (!features || features.length === 0) return;
-      let nextIndex = null;
-      if (event.key === "ArrowRight") {
-        nextIndex = Math.min(features.length - 1, activeIndex + 1);
-      } else if (event.key === "ArrowLeft") {
-        nextIndex = Math.max(0, activeIndex - 1);
-      } else if (event.key === "Home") {
-        nextIndex = 0;
-      } else if (event.key === "End") {
-        nextIndex = features.length - 1;
-      }
+      const nextIndex = computeNextIndexFromKey(
+        event.key,
+        features,
+        activeIndex,
+      );
       if (nextIndex !== null && nextIndex !== activeIndex) {
         event.preventDefault();
         onActiveIndexChange(nextIndex);
@@ -90,34 +106,58 @@ const PopupModalCarousel = ({
     return null;
   }
 
+  const atStart = activeIndex <= 0;
+  const atEnd = activeIndex >= features.length - 1;
+
+  const goPrev = () => {
+    if (!atStart) onActiveIndexChange(activeIndex - 1);
+  };
+  const goNext = () => {
+    if (!atEnd) onActiveIndexChange(activeIndex + 1);
+  };
+
+  const prevAriaLabel =
+    !atStart && getLabel
+      ? `Previous feature: ${getLabel(features[activeIndex - 1], activeIndex - 1)}`
+      : "Previous feature";
+  const nextAriaLabel =
+    !atEnd && getLabel
+      ? `Next feature: ${getLabel(features[activeIndex + 1], activeIndex + 1)}`
+      : "Next feature";
+
   return (
-    <Strip
-      ref={stripRef}
-      role="tablist"
-      aria-label="Popup feature selector"
+    <Controls
+      role="group"
+      aria-label="Popup feature navigation"
       onKeyDown={handleKeyDown}
       data-testid="popup-modal-carousel"
     >
-      {features.map((feature, i) => {
-        const label = getLabel ? getLabel(feature, i) : `Feature ${i + 1}`;
-        const isActive = i === activeIndex;
-        return (
-          <Chip
-            key={i}
-            type="button"
-            role="tab"
-            aria-selected={isActive}
-            tabIndex={isActive ? 0 : -1}
-            $active={isActive}
-            onClick={() => onActiveIndexChange(i)}
-            data-testid={`popup-modal-carousel-chip-${i}`}
-            title={label}
-          >
-            {label}
-          </Chip>
-        );
-      })}
-    </Strip>
+      <Arrow
+        type="button"
+        onClick={goPrev}
+        disabled={atStart}
+        aria-label={prevAriaLabel}
+        data-testid="popup-modal-carousel-prev"
+      >
+        ❮
+      </Arrow>
+      <Pagination
+        aria-live="polite"
+        aria-atomic="true"
+        data-testid="popup-modal-carousel-pagination"
+      >
+        {activeIndex + 1} / {features.length}
+      </Pagination>
+      <Arrow
+        type="button"
+        onClick={goNext}
+        disabled={atEnd}
+        aria-label={nextAriaLabel}
+        data-testid="popup-modal-carousel-next"
+      >
+        ❯
+      </Arrow>
+    </Controls>
   );
 };
 
