@@ -2367,10 +2367,12 @@ describe("modal-mode popup integration", () => {
   test("ESRI sub-layer click resolves to the wrapper layer's popupConfig (modal opens)", async () => {
     // ESRI Image/Map Service queries return features keyed by the
     // sub-layer name (e.g., "Flow Forecast (m³/sec)") rather than the
-    // wrapper layer's configured name ("China Flowlines"). Sub-layer
-    // names appear as keys in attributeAliases / attributeVariables /
-    // omittedPopupAttributes. findLayerByName uses those maps as the
-    // sub-layer → wrapper lookup so the popup mode can be resolved.
+    // wrapper layer's configured name ("China Flowlines"). The wrapper
+    // is now tagged onto every feature at query time
+    // (feature.__wrapperLayer), so popup resolution doesn't depend on
+    // any string-name back-lookup that would only work when the user
+    // happens to have configured aliases/variables/omitted-attrs on
+    // the relevant sub-layer.
     mockedQueryLayerFeatures.mockResolvedValue([
       {
         attributes: { comid: "55555" },
@@ -2439,6 +2441,73 @@ describe("modal-mode popup integration", () => {
     expect(screen.getByTestId("popup-modal-header-title")).toHaveTextContent(
       "Flow Forecast (m³/sec)",
     );
+  });
+
+  test("ESRI sub-layer click opens the modal even with no aliases configured (regression)", async () => {
+    // Bug scenario: user names a layer "a", configures a modal popup, but
+    // never sets attributeAliases/Variables/OmittedPopupAttributes. The
+    // ESRI service returns features tagged with the sub-layer name
+    // ("Max Status - Forecast Trend"). The string-name back-lookup
+    // previously failed because there were no alias maps to mine for
+    // sub-layer keys — so the popup wouldn't open. With wrapper-tagging
+    // at query time, popup resolution works regardless.
+    mockedQueryLayerFeatures.mockResolvedValue([
+      {
+        attributes: { nws_lid: "NILM4", nws_name: "Niles" },
+        geometry: { x: 10, y: 10 },
+        layerName: "Max Status - Forecast Trend",
+      },
+    ]);
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+
+    const layers = [
+      {
+        configuration: {
+          type: "ImageLayer",
+          props: {
+            name: "a",
+            source: {
+              type: "ESRI Image and Map Service",
+              props: { url: "https://example.com/MapServer" },
+            },
+          },
+        },
+        // No attributeAliases / attributeVariables / omittedPopupAttributes
+        // — the user only configured the popup, nothing else.
+        popupConfig: {
+          mode: "modal",
+          position: { leftPct: 20, topPct: 20, widthPct: 60, heightPct: 60 },
+          titleTemplate: null,
+          gridItems: [],
+        },
+      },
+    ];
+    const LoadedComponent = createLoadedComponent({
+      children: (
+        <MapContextProvider>
+          <TestingComponent
+            onMapClick={jest.fn()}
+            clickCoordinates={[10, 20]}
+            mapProps={{
+              mapConfig: {},
+              viewConfig: {},
+              layers,
+              baseMap: null,
+              layerControl: false,
+            }}
+          />
+        </MapContextProvider>
+      ),
+    });
+    render(LoadedComponent);
+
+    expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("popup-modal-chrome")).toBeInTheDocument();
   });
 
   test("MapContext.extentDrawMode active suppresses modal open on a modal-mode click", async () => {
@@ -2673,12 +2742,12 @@ describe("modal-mode popup integration", () => {
     });
   });
 
-  // Line 267: findLayerByName's `if (!layers || !layerName) return undefined`.
-  // The early-return body is never hit by existing tests because every feature
-  // they return has a valid layerName. Feeding the click pipeline a feature
-  // with no layerName routes through isModalModeLayer → findLayerByName(undefined),
-  // exercising the !layerName branch.
-  test("findLayerByName returns undefined when feature has no layerName (covers line 267)", async () => {
+  // Defensive coverage: query results without a wrapper-layer tag don't
+  // trigger the modal. The wrapper-tag is added in onMapClick's queryCalls
+  // loop; if a feature somehow lacks it (or lacks the popupConfig wrapper
+  // entirely), the `feature.__wrapperLayer?.popupConfig?.mode === "modal"`
+  // predicate falls through cleanly to false and no modal opens.
+  test("no modal opens when the query feature carries no popup-config wrapper", async () => {
     mockedQueryLayerFeatures.mockResolvedValue([
       {
         attributes: { id: "ABC" },

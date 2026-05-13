@@ -249,36 +249,6 @@ const MapVisualization = ({
   const mapContextValue = useMapContext();
   const extentDrawMode = mapContextValue?.extentDrawMode ?? null;
 
-  const findLayerByName = useCallback(
-    (layerName) => {
-      if (!layers || !layerName) return undefined;
-      return layers.find((layer) => {
-        if (
-          layer?.name === layerName ||
-          layer?.configuration?.name === layerName ||
-          layer?.configuration?.props?.name === layerName
-        ) {
-          return true;
-        }
-        const subLayerKeys = [
-          ...Object.keys(layer?.attributeAliases ?? {}),
-          ...Object.keys(layer?.attributeVariables ?? {}),
-          ...Object.keys(layer?.omittedPopupAttributes ?? {}),
-        ];
-        return subLayerKeys.includes(layerName);
-      });
-    },
-    [layers],
-  );
-
-  const isModalModeLayer = useCallback(
-    (layerName) => {
-      const layer = findLayerByName(layerName);
-      return layer?.popupConfig?.mode === "modal";
-    },
-    [findLayerByName],
-  );
-
   const closeModal = useCallback(() => {
     setModalOpen(false);
     setModalFeatures([]);
@@ -633,9 +603,31 @@ const MapVisualization = ({
     mapOmittedPopupAttributesRef.current = mapOmittedPopupAttributes;
 
     // query the layers
+    //
+    // Each feature returned by queryLayerFeatures carries the SOURCE
+    // sub-layer name in `feature.layerName` (e.g., for ESRI Image/Map
+    // Services that's the rendered sub-layer like "Max Status - Forecast
+    // Trend", NOT the wrapper layer the user named "a"). The wrapper is
+    // where popupConfig lives, so we tag each feature with its parent
+    // wrapper at query time. Downstream popup-resolution code reads
+    // `feature.__wrapperLayer` directly instead of trying to back into
+    // the wrapper from a sub-layer name string — that lookup is fragile
+    // because it only works when the user has also configured aliases /
+    // variables / omitted-attrs on that sub-layer.
     const queryCalls = queryableLayers.map(async (layer) => {
       try {
-        return await queryLayerFeatures(layer, map, coordinate, pixel);
+        const features = await queryLayerFeatures(
+          layer,
+          map,
+          coordinate,
+          pixel,
+        );
+        if (!Array.isArray(features)) return features;
+        return features.map((feature) =>
+          feature && typeof feature === "object"
+            ? { ...feature, __wrapperLayer: layer }
+            : feature,
+        );
       } catch (error) {
         // Optionally log error: console.error(error);
         return [];
@@ -661,8 +653,9 @@ const MapVisualization = ({
         .filter((arr) => arr && Array.isArray(arr) && arr.length > 0)
         .flat();
 
-      const modalModeFeatures = nonEmptyLayers.filter((feature) =>
-        isModalModeLayer(feature.layerName),
+      const modalModeFeatures = nonEmptyLayers.filter(
+        (feature) =>
+          feature?.__wrapperLayer?.popupConfig?.mode === "modal",
       );
 
       if (modalModeFeatures.length > 0 && !extentDrawMode) {
@@ -705,9 +698,12 @@ const MapVisualization = ({
       ? Math.min(activeFeatureIndex, modalFeatures.length - 1)
       : 0;
   const activeModalFeature = modalFeatures[safeActiveFeatureIndex] ?? null;
-  const activeModalLayer = activeModalFeature
-    ? findLayerByName(activeModalFeature.layerName)
-    : null;
+  // The wrapper layer is tagged onto each feature at query time (see the
+  // queryCalls loop in onMapClick). Reading it back here avoids a fragile
+  // sub-layer-name → wrapper-name back-lookup that would fail whenever
+  // the user hasn't configured aliases/variables/omitted-attrs on the
+  // sub-layer the ESRI service happens to report.
+  const activeModalLayer = activeModalFeature?.__wrapperLayer ?? null;
   const activeModalPopupConfig = activeModalLayer?.popupConfig ?? null;
 
   let popupTitleText = activeModalFeature?.layerName ?? "";
