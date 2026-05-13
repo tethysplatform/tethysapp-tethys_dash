@@ -32,19 +32,33 @@ const ModalContainer = styled.div`
 const ModalHeader = styled.div`
   display: flex;
   align-items: center;
-  justify-content: space-between;
   padding: 0.5rem 0.75rem;
   border-bottom: 1px solid rgba(0, 0, 0, 0.15);
   flex-shrink: 0;
   gap: 0.5rem;
 `;
 
-const TitleSlot = styled.div`
-  flex: 1;
-  min-width: 0;
+// Auto-width slot on the left for optional navigation controls (e.g., the
+// multi-feature carousel's prev/next arrows). Renders nothing when no
+// controls are supplied.
+const LeadingSlot = styled.div`
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  min-width: 0;
+`;
+
+// Flexible middle slot. text-align:center keeps the title visually balanced
+// between the leading controls and the close button. min-width:0 + the
+// ellipsis styles together guarantee long titles truncate instead of
+// overlapping the arrows on the left or the close button on the right.
+const TitleSlot = styled.div`
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 `;
 
 const CloseButton = styled.button`
@@ -132,6 +146,7 @@ function PopupModal({
   onClose,
   position,
   title,
+  leadingControls,
   ariaLabelledBy,
   triggerRef,
   children,
@@ -197,7 +212,10 @@ function PopupModal({
       data-testid="popup-modal"
     >
       <ModalHeader data-testid="popup-modal-header">
-        <TitleSlot>{title}</TitleSlot>
+        <LeadingSlot data-testid="popup-modal-header-leading">
+          {leadingControls}
+        </LeadingSlot>
+        <TitleSlot data-testid="popup-modal-header-title-slot">{title}</TitleSlot>
         <CloseButton
           type="button"
           onClick={onClose}
@@ -225,6 +243,9 @@ PopupModal.propTypes = {
     heightPct: PropTypes.number,
   }),
   title: PropTypes.node,
+  // Optional left-side header content (e.g., the multi-feature carousel's
+  // prev/next arrows). Renders to an empty slot when omitted.
+  leadingControls: PropTypes.node,
   ariaLabelledBy: PropTypes.string,
   triggerRef: PropTypes.shape({
     // eslint-disable-next-line react/forbid-prop-types
@@ -236,6 +257,7 @@ PopupModal.propTypes = {
 PopupModal.defaultProps = {
   position: { ...DEFAULT_POSITION },
   title: null,
+  leadingControls: null,
   ariaLabelledBy: undefined,
   triggerRef: null,
   children: null,

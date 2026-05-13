@@ -31,6 +31,7 @@ import {
 import { useMapContext } from "components/contexts/MapContext";
 import PopupModal from "components/modals/PopupModal/PopupModal";
 import PopupModalChrome from "components/modals/PopupModal/PopupModalChrome";
+import PopupModalCarousel from "components/modals/PopupModal/PopupModalCarousel";
 import { substituteTemplateString } from "components/modals/PopupModal/substituteTemplateString";
 import Table from "react-bootstrap/Table";
 import styled from "styled-components";
@@ -706,16 +707,26 @@ const MapVisualization = ({
   const activeModalLayer = activeModalFeature?.__wrapperLayer ?? null;
   const activeModalPopupConfig = activeModalLayer?.popupConfig ?? null;
 
-  let popupTitleText = activeModalFeature?.layerName ?? "";
-  if (activeModalFeature && activeModalPopupConfig?.titleTemplate) {
-    const substituted = substituteTemplateString(
-      activeModalPopupConfig.titleTemplate,
-      activeModalFeature.attributes ?? {},
-    );
-    if (substituted.trim().length > 0) {
-      popupTitleText = substituted;
-    }
-  }
+  // Resolve a popup feature's display label. Used both for the header title
+  // (active feature) and the carousel prev/next arrows' aria-labels
+  // (neighboring features) so screen readers announce them by name.
+  const buildFeatureLabel = useCallback(
+    (feature, i) => {
+      const template = activeModalPopupConfig?.titleTemplate;
+      if (feature && template) {
+        const substituted = substituteTemplateString(
+          template,
+          feature.attributes ?? {},
+        );
+        if (substituted.trim().length > 0) return substituted;
+      }
+      return feature?.layerName ?? `Feature ${(i ?? 0) + 1}`;
+    },
+    [activeModalPopupConfig],
+  );
+  const popupTitleText = activeModalFeature
+    ? buildFeatureLabel(activeModalFeature, safeActiveFeatureIndex)
+    : "";
 
   return (
     <div
@@ -746,15 +757,23 @@ const MapVisualization = ({
             {popupTitleText}
           </span>
         }
+        leadingControls={
+          modalFeatures.length > 1 ? (
+            <PopupModalCarousel
+              features={modalFeatures}
+              activeIndex={safeActiveFeatureIndex}
+              onActiveIndexChange={setActiveFeatureIndex}
+              getLabel={buildFeatureLabel}
+            />
+          ) : null
+        }
         ariaLabelledBy="popup-modal-title"
         triggerRef={mapContainerRef}
       >
         {activeModalFeature ? (
           <PopupModalChrome
-            features={modalFeatures}
+            feature={activeModalFeature}
             popupConfig={activeModalPopupConfig}
-            activeIndex={safeActiveFeatureIndex}
-            onActiveIndexChange={setActiveFeatureIndex}
           />
         ) : null}
       </PopupModal>

@@ -1,11 +1,9 @@
-import { useMemo, useRef, useLayoutEffect, useCallback, useState } from "react";
+import { useMemo, useRef, useLayoutEffect, useState } from "react";
 import PropTypes from "prop-types";
 import styled from "styled-components";
 import FeatureScopedVariableInputs from "components/contexts/FeatureScopedVariableInputs";
 import DashboardLayout from "components/dashboard/DashboardLayout";
 import { TabContext, EditingContext } from "components/contexts/Contexts";
-import PopupModalCarousel from "components/modals/PopupModal/PopupModalCarousel";
-import { substituteTemplateString } from "components/modals/PopupModal/substituteTemplateString";
 
 export const DEFAULT_ROW_HEIGHT = 30;
 const TARGET_ROWS = 20;
@@ -46,36 +44,18 @@ export function deriveRowHeight(containerHeight) {
   return Math.max(20, Math.floor(containerHeight / TARGET_ROWS));
 }
 
-const PopupModalChrome = ({
-  features,
-  popupConfig,
-  activeIndex,
-  onActiveIndexChange,
-}) => {
-  const safeActiveIndex =
-    features && features.length > 0
-      ? Math.min(activeIndex, features.length - 1)
-      : 0;
-  const activeFeature =
-    features && features.length > 0 ? features[safeActiveIndex] : null;
-
-  const getCarouselLabel = useCallback(
-    (feature, i) => {
-      const template = popupConfig?.titleTemplate;
-      if (template) {
-        const substituted = substituteTemplateString(
-          template,
-          feature?.attributes ?? {},
-        );
-        if (substituted.trim().length > 0) {
-          return substituted;
-        }
-      }
-      return `Feature ${i + 1}`;
-    },
-    [popupConfig],
-  );
-
+/**
+ * `PopupModalChrome` — body contents of the modal popup. Wraps the embedded
+ * DashboardLayout in `<FeatureScopedVariableInputs feature={feature}>` so the
+ * configured visualizations see the clicked feature's attributes under the
+ * `feature.*` namespace.
+ *
+ * Multi-feature navigation lives in `PopupModal`'s header (via the
+ * `leadingControls` prop wired up in Map.js), NOT here — keeping the chrome
+ * focused on rendering the active feature's body. The parent owns the
+ * active-feature state and just hands us the resolved `feature`.
+ */
+const PopupModalChrome = ({ feature, popupConfig }) => {
   const bodyRef = useRef(null);
   const [rowHeight, setRowHeight] = useState(DEFAULT_ROW_HEIGHT);
 
@@ -115,13 +95,7 @@ const PopupModalChrome = ({
 
   return (
     <Body data-testid="popup-modal-chrome">
-      <PopupModalCarousel
-        features={features}
-        activeIndex={safeActiveIndex}
-        onActiveIndexChange={onActiveIndexChange}
-        getLabel={getCarouselLabel}
-      />
-      <FeatureScopedVariableInputs feature={activeFeature}>
+      <FeatureScopedVariableInputs feature={feature}>
         <GridContainer
           ref={bodyRef}
           data-testid="popup-modal-chrome-grid-container"
@@ -151,15 +125,13 @@ const PopupModalChrome = ({
 };
 
 PopupModalChrome.propTypes = {
-  features: PropTypes.arrayOf(
-    PropTypes.shape({
-      layerName: PropTypes.string,
-      // eslint-disable-next-line react/forbid-prop-types
-      attributes: PropTypes.object,
-      // eslint-disable-next-line react/forbid-prop-types
-      geometry: PropTypes.any,
-    }),
-  ),
+  feature: PropTypes.shape({
+    layerName: PropTypes.string,
+    // eslint-disable-next-line react/forbid-prop-types
+    attributes: PropTypes.object,
+    // eslint-disable-next-line react/forbid-prop-types
+    geometry: PropTypes.any,
+  }),
   popupConfig: PropTypes.shape({
     id: PropTypes.number,
     mode: PropTypes.oneOf(["table", "modal"]),
@@ -169,8 +141,11 @@ PopupModalChrome.propTypes = {
     // eslint-disable-next-line react/forbid-prop-types
     gridItems: PropTypes.array,
   }),
-  activeIndex: PropTypes.number,
-  onActiveIndexChange: PropTypes.func,
+};
+
+PopupModalChrome.defaultProps = {
+  feature: null,
+  popupConfig: null,
 };
 
 export default PopupModalChrome;

@@ -573,3 +573,63 @@ describe("PopupModal — branch coverage for guards", () => {
     jest.restoreAllMocks();
   });
 });
+
+describe("PopupModal — header layout", () => {
+  it("renders the leading slot empty when no leadingControls are supplied", () => {
+    render(
+      <PopupModal
+        show={true}
+        onClose={() => {}}
+        position={CENTERED}
+        title={<span id="t">Title</span>}
+        ariaLabelledBy="t"
+      />,
+    );
+    const leading = screen.getByTestId("popup-modal-header-leading");
+    expect(leading).toBeInTheDocument();
+    expect(leading).toBeEmptyDOMElement();
+  });
+
+  it("renders leadingControls inside the header's left slot", () => {
+    render(
+      <PopupModal
+        show={true}
+        onClose={() => {}}
+        position={CENTERED}
+        title={<span id="t">Title</span>}
+        ariaLabelledBy="t"
+        leadingControls={
+          <button type="button" data-testid="my-leading-button">
+            ◀ ▶
+          </button>
+        }
+      />,
+    );
+    const leading = screen.getByTestId("popup-modal-header-leading");
+    expect(leading).toContainElement(screen.getByTestId("my-leading-button"));
+  });
+
+  it("title slot is centered and truncates long content with ellipsis", () => {
+    render(
+      <PopupModal
+        show={true}
+        onClose={() => {}}
+        position={CENTERED}
+        title={
+          <span id="t">
+            A very long popup title that would overlap controls without truncation
+          </span>
+        }
+        ariaLabelledBy="t"
+      />,
+    );
+    const titleSlot = screen.getByTestId("popup-modal-header-title-slot");
+    // The slot's computed style isn't fully resolved in jsdom, but
+    // styled-components applies inline rules we can check directly via
+    // the rule strings in toHaveStyle.
+    expect(titleSlot).toHaveStyle("text-align: center");
+    expect(titleSlot).toHaveStyle("white-space: nowrap");
+    expect(titleSlot).toHaveStyle("overflow: hidden");
+    expect(titleSlot).toHaveStyle("text-overflow: ellipsis");
+  });
+});
