@@ -465,7 +465,6 @@ PopupLayoutEditor.propTypes = {
   show: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired,
   popupConfig: PropTypes.shape({
-    id: PropTypes.number,
     mode: PropTypes.string,
     position: PropTypes.shape({
       leftPct: PropTypes.number,
@@ -478,15 +477,11 @@ PopupLayoutEditor.propTypes = {
     gridItems: PropTypes.array,
   }),
   onSave: PropTypes.func.isRequired,
-  popupId: PropTypes.number,
-  gridItemId: PropTypes.number,
   layerName: PropTypes.string,
 };
 
 PopupLayoutEditor.defaultProps = {
   popupConfig: null,
-  popupId: null,
-  gridItemId: null,
   layerName: null,
 };
 

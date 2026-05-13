@@ -98,15 +98,6 @@ const appAPI = {
       headers: { "x-csrftoken": csrf },
     });
   },
-  updatePopup: (popupId, payload, csrf) => {
-    return apiClient.post(
-      `${APP_ROOT_URL}popups/update/`,
-      { popup_id: popupId, ...payload },
-      {
-        headers: { "x-csrftoken": csrf },
-      },
-    );
-  },
   updatePermissionGroup: (data, csrf) => {
     return apiClient.post(`${APP_ROOT_URL}permission_groups/update/`, data, {
       headers: { "x-csrftoken": csrf },
