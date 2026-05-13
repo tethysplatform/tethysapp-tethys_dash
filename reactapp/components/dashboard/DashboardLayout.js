@@ -24,17 +24,11 @@ const StaticGridLayout = WidthProvider(RGL);
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
 const colCount = 100;
-const defaultRowHeight = window.innerWidth / colCount - 10;
+const defaultRowHeight = window.innerWidth / colCount;
 
 const responsiveBreakpoints = { lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 };
 const responsiveCols = { lg: 100, md: 100, sm: 12, xs: 4, xxs: 1 };
 
-// Pre-generate explicit layouts for every breakpoint. react-grid-layout's
-// Responsive auto-derives missing layouts via findOrGenerateResponsiveLayout,
-// which always runs compact() and does NOT pass allowOverlap through — so
-// overlaps get silently stripped at breakpoint transitions even when
-// allowOverlap=true. Supplying every layout makes the library return them
-// cached and skip the auto-derivation compaction.
 function buildResponsiveLayouts(lgLayout) {
   const lgCols = responsiveCols.lg;
   const result = { lg: lgLayout };
@@ -168,6 +162,13 @@ const DashboardLayout = ({
     key: `layout-${allowOverlap}`,
     className: "complex-interface-layout",
     rowHeight: rowHeight,
+    // Zero RGL spacing — items sit flush against each other AND reach
+    // the container's edges. RGL's defaults of margin:[10,10] +
+    // containerPadding:[10,10] add a 10px outline around every tile
+    // and an extra 10px ring around the whole grid, which kept the
+    // dashboard from extending to the screen edge.
+    margin: [0, 0],
+    containerPadding: [0, 0],
     onDragStop:
       // istanbul ignore next
       (newLayout) => updateLayout(newLayout),
