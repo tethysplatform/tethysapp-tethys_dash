@@ -1,4 +1,4 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import createLoadedComponent, {
   InputVariablePComponent,
@@ -1021,6 +1021,121 @@ test("Map click no queryable layer", async () => {
   expect(
     mockedQueryLayerFeatures.mock.calls[0][0].configuration.props.name,
   ).toBe("NWC");
+});
+
+test("Map click skips layers the user has hidden via the layer control", async () => {
+  // Visibility is mutated on the OL layer directly by LayersControl, so the
+  // config-side `layers` array doesn't reflect toggles. The click handler
+  // must consult `olLayer.getVisible()` (looked up by name) and skip
+  // queries on hidden layers — otherwise a user who turned off a layer
+  // would still see its features in the popup table. The OL layer's
+  // `layerVisibility: false` flag in the layer config drives initial
+  // visibility (Map.js#L329-L334).
+  mockedQueryLayerFeatures.mockResolvedValue([
+    {
+      attributes: { field1: "some value" },
+      geometry: { x: 0, y: 0 },
+      layerName: "Some Layer",
+    },
+  ]);
+  jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+  const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+
+  const layers = [
+    {
+      configuration: {
+        type: "ImageLayer",
+        layerVisibility: false,
+        props: {
+          name: "NWC hidden",
+          source: {
+            type: "ESRI Image and Map Service",
+            props: { url: "some_url" },
+          },
+        },
+      },
+    },
+    {
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "NWC visible",
+          source: {
+            type: "ESRI Image and Map Service",
+            props: { url: "some_url" },
+          },
+        },
+      },
+    },
+  ];
+
+  // The default TestingComponent dispatches the click on mapReady, but
+  // mapReady flips to true on OL's first `rendercomplete` — BEFORE the
+  // async customLayers loop finishes mounting OL layers. That race
+  // doesn't matter for tests that filter config-side (queryable: false),
+  // but the visibility filter needs the OL layers to exist. Gate the
+  // click on the OL layers actually being added.
+  const ManualClickHarness = () => {
+    const visualizationRef = useRef();
+    const { mapReady } = useMapContext();
+    const clickCoordinates = [10, 20];
+    return (
+      <div>
+        <MapVisualization
+          visualizationRef={visualizationRef}
+          mapConfig={{}}
+          viewConfig={{}}
+          layers={layers}
+          baseMap={null}
+          layerControl={false}
+        />
+        <p>{mapReady ? "Map Ready" : "Map Not Ready"}</p>
+        <button
+          type="button"
+          onClick={() =>
+            visualizationRef.current?.dispatchEvent({
+              type: "singleclick",
+              coordinate: clickCoordinates,
+            })
+          }
+        >
+          fire-click
+        </button>
+      </div>
+    );
+  };
+
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <ManualClickHarness />
+      </MapContextProvider>
+    ),
+  });
+  render(LoadedComponent);
+
+  expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+  // Wait for OL to mount both custom layers before firing the click.
+  // (The Highlighted Layer + Marker are added LATER, inside onMapClick.)
+  await waitFor(() => {
+    const addedNames = addLayerSpy.mock.calls.map(
+      (call) => call[0].values_?.name,
+    );
+    expect(addedNames).toEqual(
+      expect.arrayContaining(["NWC hidden", "NWC visible"]),
+    );
+  });
+
+  fireEvent.click(screen.getByText("fire-click"));
+
+  await waitFor(() => {
+    expect(mockedQueryLayerFeatures.mock.calls.length).toBe(1);
+  });
+  expect(
+    mockedQueryLayerFeatures.mock.calls[0][0].configuration.props.name,
+  ).toBe("NWC visible");
 });
 
 test("Map click no features found", async () => {
@@ -2293,6 +2408,88 @@ describe("modal-mode popup integration", () => {
     expect(screen.getByTestId("popup-modal-header-title")).toHaveTextContent(
       "Site: Boulder Creek",
     );
+  });
+
+  // Regression: with a popup open, host-level variable input changes rebuild
+  // the Map's `layers` prop with freshly substituted strings. The wrapper
+  // layer captured onto `__wrapperLayer` at click time becomes stale —
+  // `activeModalLayer` must be re-resolved against the current `layers`
+  // prop (matched by `configuration.props.name`) so the popup body and
+  // header always see up-to-date popupConfig content.
+  test("popup body re-resolves layer config when host re-substitutes the layers prop", async () => {
+    mockedQueryLayerFeatures.mockResolvedValue([
+      {
+        attributes: { id: "X" },
+        geometry: { x: 10, y: 10 },
+        layerName: "Stations",
+      },
+    ]);
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+
+    const buildLayers = (fValue) => [
+      {
+        configuration: {
+          type: "ImageLayer",
+          props: {
+            name: "Stations",
+            source: {
+              type: "ESRI Image and Map Service",
+              props: { url: "some_url" },
+            },
+          },
+        },
+        popupConfig: {
+          mode: "modal",
+          titleTemplate: `Site ${fValue}`,
+          gridItems: [],
+        },
+      },
+    ];
+
+    const HostHarness = () => {
+      const [fValue, setFValue] = useState("first");
+      return (
+        <>
+          <button type="button" onClick={() => setFValue("second")}>
+            change-f
+          </button>
+          <MapContextProvider>
+            <TestingComponent
+              onMapClick={jest.fn()}
+              clickCoordinates={[10, 20]}
+              mapProps={{
+                mapConfig: {},
+                viewConfig: {},
+                layers: buildLayers(fValue),
+                baseMap: null,
+                layerControl: false,
+              }}
+            />
+          </MapContextProvider>
+        </>
+      );
+    };
+
+    const LoadedComponent = createLoadedComponent({
+      children: <HostHarness />,
+    });
+    render(LoadedComponent);
+
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("popup-modal-header-title")).toHaveTextContent(
+      "Site first",
+    );
+
+    fireEvent.click(screen.getByText("change-f"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("popup-modal-header-title")).toHaveTextContent(
+        "Site second",
+      );
+    });
   });
 
   test("table-mode (popupConfig absent) layer click still drives outer-context attribute write", async () => {

@@ -5,6 +5,7 @@ import {
   useState,
   useContext,
   useCallback,
+  useMemo,
 } from "react";
 import { createRoot } from "react-dom/client";
 import MapComponent from "components/map/Map";
@@ -554,9 +555,25 @@ const MapVisualization = ({
     markerLayer.current = newMarkerLayer;
     map.addLayer(newMarkerLayer);
 
-    const queryableLayers = layers.filter(
-      (item) => !(item.queryable === false),
-    );
+    // Skip layers the user has hidden via the layer control. The OL layer
+    // is the source of truth for visibility because LayersControl mutates
+    // `olLayer.setVisible(...)` directly; the config-side `layers` array
+    // is not re-synced on toggle. If a config layer has no matching OL
+    // layer (e.g., not yet mounted) keep it queryable as a safe default.
+    const olLayerVisibility = new Map();
+    map
+      .getLayers()
+      .getArray()
+      .forEach((olLayer) => {
+        const name = olLayer.get("name");
+        if (name) olLayerVisibility.set(name, olLayer.getVisible());
+      });
+    const queryableLayers = layers.filter((item) => {
+      if (item.queryable === false) return false;
+      const name = item.configuration?.props?.name;
+      if (!name || !olLayerVisibility.has(name)) return true;
+      return olLayerVisibility.get(name) === true;
+    });
 
     // reduce the layer attributes variables values into a simplified object of layer names and then values
     const mapAttributeAliases = queryableLayers.reduce((combined, current) => {
@@ -704,7 +721,25 @@ const MapVisualization = ({
   // sub-layer-name → wrapper-name back-lookup that would fail whenever
   // the user hasn't configured aliases/variables/omitted-attrs on the
   // sub-layer the ESRI service happens to report.
-  const activeModalLayer = activeModalFeature?.__wrapperLayer ?? null;
+  //
+  // The captured `__wrapperLayer` is a closure over the layer object at
+  // click time. Host-level variable input changes (e.g., `${f}` in a
+  // popup gridItem's args_string) rebuild the `layers` prop with freshly
+  // substituted strings — but `modalFeatures` state still holds the
+  // old wrapper. Re-resolve here against the current `layers` prop by
+  // wrapper name so the popup body always sees up-to-date popupConfig.
+  const activeModalLayer = useMemo(() => {
+    const captured = activeModalFeature?.__wrapperLayer ?? null;
+    if (!captured) return null;
+    const name = captured.configuration?.props?.name;
+    if (name && Array.isArray(layers)) {
+      const fresh = layers.find(
+        (l) => l?.configuration?.props?.name === name,
+      );
+      if (fresh) return fresh;
+    }
+    return captured;
+  }, [activeModalFeature, layers]);
   const activeModalPopupConfig = activeModalLayer?.popupConfig ?? null;
 
   // Resolve a popup feature's display label. Used both for the header title
