@@ -3303,6 +3303,501 @@ describe("Popup component", () => {
   });
 });
 
+describe("MapVisualization — branch/statement coverage gaps", () => {
+  // Map.js:646 (else branch of `feature && typeof feature === "object"`)
+  // queryLayerFeatures normally yields plain feature objects, but the map
+  // at L644 also defensively passes non-objects through unwrapped. Drive
+  // that path by mocking one layer's queryLayerFeatures to return an
+  // array containing `null`. A second layer returns the sentinel
+  // "zoomed" string, which sets hasZoomed=true at L664 and short-
+  // circuits the popup render — so the null from the first layer hits
+  // the defensive else branch but never reaches the (non-null-safe)
+  // downstream filter that would crash on `null.attributes`.
+  test("non-object features in a query result pass through unwrapped (defensive map branch)", async () => {
+    mockedQueryLayerFeatures
+      .mockResolvedValueOnce([null])
+      .mockResolvedValueOnce("zoomed");
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+    const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
+
+    const layers = [
+      {
+        configuration: {
+          type: "ImageLayer",
+          props: {
+            name: "L1",
+            source: {
+              type: "ESRI Image and Map Service",
+              props: { url: "url1" },
+            },
+          },
+        },
+      },
+      {
+        configuration: {
+          type: "ImageLayer",
+          props: {
+            name: "L2",
+            source: {
+              type: "ESRI Image and Map Service",
+              props: { url: "url2" },
+            },
+          },
+        },
+      },
+    ];
+    const LoadedComponent = createLoadedComponent({
+      children: (
+        <MapContextProvider>
+          <TestingComponent
+            onMapClick={jest.fn()}
+            clickCoordinates={[10, 20]}
+            mapProps={{
+              mapConfig: {},
+              viewConfig: {},
+              layers,
+              baseMap: null,
+              layerControl: false,
+            }}
+          />
+        </MapContextProvider>
+      ),
+    });
+    render(LoadedComponent);
+
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(mockedQueryLayerFeatures.mock.calls.length).toBeGreaterThanOrEqual(
+        2,
+      );
+    });
+    // hasZoomed short-circuits → popup is dismissed (position=undefined).
+    // The `null` from the first layer still flowed through the defensive
+    // map branch on the way to that decision.
+    await waitFor(() => {
+      expect(popSetPosition).toHaveBeenLastCalledWith(undefined);
+    });
+  });
+
+  // Map.js:741 (`return captured` fallback in the activeModalLayer
+  // useMemo). When the captured `__wrapperLayer` (snapshotted at
+  // click-time) has no match in the current `layers` prop — e.g. the
+  // host swaps the layer set while the modal is open — the lookup falls
+  // back to the captured value so the popup keeps showing its original
+  // titleTemplate instead of going blank.
+  test("activeModalLayer falls back to the captured wrapper when the layers prop no longer contains a match", async () => {
+    mockedQueryLayerFeatures.mockResolvedValue([
+      {
+        attributes: { id: "X" },
+        geometry: { x: 10, y: 10 },
+        layerName: "Stations",
+      },
+    ]);
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+
+    const layerA = {
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "LayerA",
+          source: {
+            type: "ESRI Image and Map Service",
+            props: { url: "url" },
+          },
+        },
+      },
+      popupConfig: {
+        mode: "modal",
+        titleTemplate: "Captured Title",
+        gridItems: [],
+      },
+    };
+    const layerB = {
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "LayerB",
+          source: {
+            type: "ESRI Image and Map Service",
+            props: { url: "url" },
+          },
+        },
+      },
+    };
+
+    const SwapHarness = () => {
+      const [layers, setLayers] = useState([layerA]);
+      return (
+        <>
+          <button type="button" onClick={() => setLayers([layerB])}>
+            swap-layers
+          </button>
+          <MapContextProvider>
+            <TestingComponent
+              onMapClick={jest.fn()}
+              clickCoordinates={[10, 20]}
+              mapProps={{
+                mapConfig: {},
+                viewConfig: {},
+                layers,
+                baseMap: null,
+                layerControl: false,
+              }}
+            />
+          </MapContextProvider>
+        </>
+      );
+    };
+
+    const LoadedComponent = createLoadedComponent({
+      children: <SwapHarness />,
+    });
+    render(LoadedComponent);
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("popup-modal-header-title")).toHaveTextContent(
+      "Captured Title",
+    );
+
+    // Drop LayerA from the layers prop. activeModalLayer's `find` returns
+    // undefined; the fallback (`return captured`) keeps the original
+    // popupConfig in play, so the title stays.
+    fireEvent.click(screen.getByText("swap-layers"));
+
+    // Modal still shows the captured title.
+    expect(screen.getByTestId("popup-modal-header-title")).toHaveTextContent(
+      "Captured Title",
+    );
+  });
+
+  // Map.js:758 (`feature?.layerName ?? \`Feature ${(i ?? 0) + 1}\``).
+  // When the active feature has no `layerName` and the popupConfig
+  // doesn't carry a titleTemplate, buildFeatureLabel falls through to
+  // the generic "Feature N" label.
+  test("popup title falls back to 'Feature N' when the feature has no layerName and no titleTemplate", async () => {
+    mockedQueryLayerFeatures.mockResolvedValue([
+      {
+        attributes: { id: "X" },
+        geometry: { x: 10, y: 10 },
+        // No layerName — exercises the `feature?.layerName ?? ...` fallback.
+      },
+    ]);
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+
+    const layers = [
+      {
+        configuration: {
+          type: "ImageLayer",
+          props: {
+            name: "NoNameLayer",
+            source: {
+              type: "ESRI Image and Map Service",
+              props: { url: "url" },
+            },
+          },
+        },
+        popupConfig: {
+          mode: "modal",
+          // No titleTemplate so the early-return at L756 doesn't run.
+          gridItems: [],
+        },
+      },
+    ];
+    const LoadedComponent = createLoadedComponent({
+      children: (
+        <MapContextProvider>
+          <TestingComponent
+            onMapClick={jest.fn()}
+            clickCoordinates={[10, 20]}
+            mapProps={{
+              mapConfig: {},
+              viewConfig: {},
+              layers,
+              baseMap: null,
+              layerControl: false,
+            }}
+          />
+        </MapContextProvider>
+      ),
+    });
+    render(LoadedComponent);
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+    // safeActiveFeatureIndex=0 → fallback string ends with "Feature 1".
+    expect(screen.getByTestId("popup-modal-header-title")).toHaveTextContent(
+      "Feature 1",
+    );
+  });
+
+  // Map.js:569 (`if (name)` else inside the visibility loop) AND
+  // Map.js:735 (`if (name && Array.isArray(layers))` else inside the
+  // activeModalLayer useMemo). Both fire when a layer config lacks
+  // `configuration.props.name`:
+  //   - the OL layer's `get("name")` returns undefined, so the
+  //     visibility-collection if-skip branch runs;
+  //   - the captured `__wrapperLayer` (snapshotted at click time) also
+  //     has no name, so the useMemo's name-and-array guard short-
+  //     circuits and falls through to `return captured`.
+  // Uses the ManualClickHarness pattern so the click is dispatched
+  // AFTER the unnamed custom layer is mounted into OL (mapReady fires
+  // on first rendercomplete, which is before customLayers finish).
+  test("unnamed layer: visibility-loop skips it AND activeModalLayer falls back to captured wrapper", async () => {
+    mockedQueryLayerFeatures.mockResolvedValue([
+      {
+        attributes: { id: "X" },
+        geometry: { x: 10, y: 10 },
+        layerName: "Feature Source",
+      },
+    ]);
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+    const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+
+    const layers = [
+      {
+        configuration: {
+          type: "ImageLayer",
+          // Intentionally omit `props.name` so the OL layer ends up
+          // with `get("name") === undefined`. Modal mode is still
+          // configured so the popup opens and the activeModalLayer
+          // useMemo runs.
+          props: {
+            source: {
+              type: "ESRI Image and Map Service",
+              props: { url: "url" },
+            },
+          },
+        },
+        popupConfig: {
+          mode: "modal",
+          titleTemplate: "No-Name Title",
+          gridItems: [],
+        },
+      },
+    ];
+
+    const ManualClickHarness = () => {
+      const visualizationRef = useRef();
+      const { mapReady } = useMapContext();
+      return (
+        <div>
+          <MapVisualization
+            visualizationRef={visualizationRef}
+            mapConfig={{}}
+            viewConfig={{}}
+            layers={layers}
+            baseMap={null}
+            layerControl={false}
+          />
+          <p>{mapReady ? "Map Ready" : "Map Not Ready"}</p>
+          <button
+            type="button"
+            onClick={() =>
+              visualizationRef.current?.dispatchEvent({
+                type: "singleclick",
+                coordinate: [10, 20],
+              })
+            }
+          >
+            fire-click
+          </button>
+        </div>
+      );
+    };
+
+    const LoadedComponent = createLoadedComponent({
+      children: (
+        <MapContextProvider>
+          <ManualClickHarness />
+        </MapContextProvider>
+      ),
+    });
+    render(LoadedComponent);
+
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+    // Wait for the unnamed custom layer to actually land in OL — its
+    // value `get("name")` will be undefined, which is exactly what we
+    // need at click time to hit Map.js:569's `if (name)` else branch.
+    await waitFor(() => {
+      const addedNames = addLayerSpy.mock.calls.map(
+        (call) => call[0].values_?.name,
+      );
+      // 3 layers expected: undefined (our custom), Highlighted, Marker
+      // are added later at click time. Until click, only the unnamed
+      // custom layer is present.
+      expect(addedNames).toContain(undefined);
+    });
+
+    fireEvent.click(screen.getByText("fire-click"));
+
+    // Modal opens with the captured wrapper's titleTemplate — the
+    // useMemo's else branch (`return captured`) supplies the layer to
+    // popupTitleText since `name` was undefined and the `find` lookup
+    // would have been skipped.
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("popup-modal-header-title")).toHaveTextContent(
+      "No-Name Title",
+    );
+  });
+
+  // Map.js:758 `(i ?? 0)` else branch. The runtime call sites for
+  // buildFeatureLabel always pass a numeric index, so this branch is
+  // only reachable by invoking the `getLabel` prop directly. Pull it
+  // off the carousel's React fiber and call with no index.
+  test("buildFeatureLabel falls back to 'Feature 1' when invoked with no index (covers `i ?? 0` else)", async () => {
+    mockedQueryLayerFeatures.mockResolvedValue([
+      {
+        attributes: { id: "A" },
+        geometry: { x: 10, y: 10 },
+        layerName: "Stations",
+      },
+      {
+        attributes: { id: "B" },
+        geometry: { x: 10, y: 10 },
+        layerName: "Stations",
+      },
+    ]);
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+
+    const layers = [
+      {
+        configuration: {
+          type: "ImageLayer",
+          props: {
+            name: "Stations",
+            source: {
+              type: "ESRI Image and Map Service",
+              props: { url: "url" },
+            },
+          },
+        },
+        // No titleTemplate so buildFeatureLabel's first if-branch is
+        // skipped and the test exercises the `??` fallback path.
+        popupConfig: { mode: "modal", gridItems: [] },
+      },
+    ];
+    const LoadedComponent = createLoadedComponent({
+      children: (
+        <MapContextProvider>
+          <TestingComponent
+            onMapClick={jest.fn()}
+            clickCoordinates={[10, 20]}
+            mapProps={{
+              mapConfig: {},
+              viewConfig: {},
+              layers,
+              baseMap: null,
+              layerControl: false,
+            }}
+          />
+        </MapContextProvider>
+      ),
+    });
+    render(LoadedComponent);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("popup-modal-carousel")).toBeInTheDocument();
+    });
+
+    // `getLabel` is a prop on <PopupModalCarousel>, not on its inner
+    // DOM nodes. Walk up the React fiber tree from the carousel's DOM
+    // node until we find a fiber whose memoizedProps carries getLabel.
+    const carouselDiv = screen.getByTestId("popup-modal-carousel");
+    const fiberKey = Object.keys(carouselDiv).find((k) =>
+      k.startsWith("__reactFiber"),
+    );
+    if (!fiberKey) throw new Error("React fiber not found on carousel node");
+    let fiber = carouselDiv[fiberKey];
+    while (fiber && !fiber.memoizedProps?.getLabel) {
+      fiber = fiber.return;
+    }
+    const getLabel = fiber?.memoizedProps?.getLabel;
+    expect(typeof getLabel).toBe("function");
+
+    // Feature without a layerName forces `feature?.layerName ??` to
+    // fall through; calling with no second arg makes `i` undefined →
+    // `(undefined ?? 0)` falls back to 0 → "Feature 1".
+    expect(getLabel({ attributes: { id: "Z" } })).toBe("Feature 1");
+  });
+
+  // Map.js:797 (the `modalFeatures.length > 1` branch of the
+  // leadingControls ternary). With multiple modal-mode features, the
+  // PopupModalCarousel renders into the modal header's leading slot.
+  test("multi-feature modal popup renders the carousel in the header slot", async () => {
+    mockedQueryLayerFeatures.mockResolvedValue([
+      {
+        attributes: { id: "A" },
+        geometry: { x: 10, y: 10 },
+        layerName: "Stations",
+      },
+      {
+        attributes: { id: "B" },
+        geometry: { x: 10, y: 10 },
+        layerName: "Stations",
+      },
+      {
+        attributes: { id: "C" },
+        geometry: { x: 10, y: 10 },
+        layerName: "Stations",
+      },
+    ]);
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+
+    const layers = [
+      {
+        configuration: {
+          type: "ImageLayer",
+          props: {
+            name: "Stations",
+            source: {
+              type: "ESRI Image and Map Service",
+              props: { url: "url" },
+            },
+          },
+        },
+        popupConfig: {
+          mode: "modal",
+          titleTemplate: "Site ${feature.id}", // eslint-disable-line no-template-curly-in-string
+          gridItems: [],
+        },
+      },
+    ];
+    const LoadedComponent = createLoadedComponent({
+      children: (
+        <MapContextProvider>
+          <TestingComponent
+            onMapClick={jest.fn()}
+            clickCoordinates={[10, 20]}
+            mapProps={{
+              mapConfig: {},
+              viewConfig: {},
+              layers,
+              baseMap: null,
+              layerControl: false,
+            }}
+          />
+        </MapContextProvider>
+      ),
+    });
+    render(LoadedComponent);
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+    // Carousel only renders when modalFeatures.length > 1 (3 here).
+    expect(screen.getByTestId("popup-modal-carousel")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("popup-modal-carousel-pagination"),
+    ).toHaveTextContent("1 / 3");
+  });
+});
+
 TestingComponent.propTypes = {
   mapProps: PropTypes.shape({
     onMapClick: PropTypes.func,

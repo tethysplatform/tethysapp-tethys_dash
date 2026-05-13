@@ -201,7 +201,7 @@ describe("PopupModalChrome — useLayoutEffect branch coverage", () => {
       .spyOn(Element.prototype, "getBoundingClientRect")
       .mockImplementation(() => ({
         width: 800,
-        height: 800, // deriveRowHeight(800) = max(20, floor(800/20)) = 40
+        height: 800, // deriveRowHeight(800) = 800 / 20 = 40
         top: 0,
         left: 0,
         right: 800,
@@ -261,7 +261,7 @@ describe("PopupModalChrome — ResizeObserver callback", () => {
     // Boundary grows.
     rectSpy.mockImplementation(() => ({
       width: 1600,
-      height: 1600, // deriveRowHeight(1600) = max(20, 80) = 80
+      height: 1600, // deriveRowHeight(1600) = 1600 / 20 = 80
       top: 0,
       left: 0,
       right: 1600,
@@ -283,12 +283,27 @@ describe("PopupModalChrome — ResizeObserver callback", () => {
 });
 
 describe("deriveRowHeight", () => {
-  test("derives rowHeight from the given height and minimum row count", () => {
-    expect(deriveRowHeight(400, 20)).toBe(20);
-    expect(deriveRowHeight(200, 20)).toBe(20);
-    expect(deriveRowHeight(800, 20)).toBe(40);
-    expect(deriveRowHeight(1000, 25)).toBe(50);
+  test("divides container height evenly across TARGET_ROWS slices", () => {
+    // Clean divisions still yield integers. Editor and runtime use the
+    // same helper, so identical `h` values fill the same fraction of body.
+    expect(deriveRowHeight(400)).toBe(20);
+    expect(deriveRowHeight(200)).toBe(10);
+    expect(deriveRowHeight(800)).toBe(40);
+    expect(deriveRowHeight(1000)).toBe(50);
     expect(deriveRowHeight(null)).toBe(DEFAULT_ROW_HEIGHT);
     expect(deriveRowHeight({})).toBe(DEFAULT_ROW_HEIGHT);
+  });
+
+  test("returns fractional rowHeight when the body doesn't divide evenly", () => {
+    // Floor-rounding here would leak up to 19px (~5% of small modals) as a
+    // gap below the visualization at h=TARGET_ROWS. RGL accepts fractional
+    // rowHeight so we just don't round.
+    expect(deriveRowHeight(450)).toBe(22.5);
+    expect(deriveRowHeight(999)).toBeCloseTo(49.95, 5);
+  });
+
+  test("clamps to 1 only to avoid pathological zero/sub-pixel rows", () => {
+    expect(deriveRowHeight(10)).toBe(1);
+    expect(deriveRowHeight(1)).toBe(1);
   });
 });

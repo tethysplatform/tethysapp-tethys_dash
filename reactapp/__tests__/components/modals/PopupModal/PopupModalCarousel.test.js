@@ -149,6 +149,50 @@ describe("PopupModalCarousel — arrow buttons", () => {
     await user.click(next);
     expect(onActiveIndexChange).not.toHaveBeenCalled();
   });
+
+  // The `disabled` attribute on the arrows is the primary defense
+  // against out-of-bounds navigation, but goPrev / goNext also each
+  // carry a defensive `if (!atStart)` / `if (!atEnd)` guard inside
+  // their click handler. `userEvent.click` (and `fireEvent.click`)
+  // honor React's synthetic-event filter for `<button disabled>` and
+  // never reach the handler, so those guards never execute in the
+  // user-behavior tests above. The two tests below pull the registered
+  // onClick straight off the DOM node's React fiber props and invoke it
+  // directly, so the handler runs while `atStart` / `atEnd` is still
+  // true and the early-return is exercised.
+  const invokeReactOnClick = (node) => {
+    const propsKey = Object.keys(node).find((k) =>
+      k.startsWith("__reactProps"),
+    );
+    if (!propsKey) throw new Error("React props not found on node");
+    node[propsKey].onClick();
+  };
+
+  test("goPrev's defensive guard suppresses onActiveIndexChange when atStart is true", () => {
+    const onActiveIndexChange = jest.fn();
+    render(
+      <PopupModalCarousel
+        features={FEATURES}
+        activeIndex={0}
+        onActiveIndexChange={onActiveIndexChange}
+      />,
+    );
+    invokeReactOnClick(screen.getByTestId("popup-modal-carousel-prev"));
+    expect(onActiveIndexChange).not.toHaveBeenCalled();
+  });
+
+  test("goNext's defensive guard suppresses onActiveIndexChange when atEnd is true", () => {
+    const onActiveIndexChange = jest.fn();
+    render(
+      <PopupModalCarousel
+        features={FEATURES}
+        activeIndex={FEATURES.length - 1}
+        onActiveIndexChange={onActiveIndexChange}
+      />,
+    );
+    invokeReactOnClick(screen.getByTestId("popup-modal-carousel-next"));
+    expect(onActiveIndexChange).not.toHaveBeenCalled();
+  });
 });
 
 describe("PopupModalCarousel — aria labels", () => {

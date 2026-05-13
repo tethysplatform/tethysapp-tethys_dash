@@ -21,7 +21,7 @@ const POS_MIN = 0;
 const POS_MAX = 100;
 
 // Default position centers a 60×60 popup in the viewport.
-const DEFAULT_POSITION = {
+export const DEFAULT_POSITION = {
   leftPct: 20,
   topPct: 20,
   widthPct: 60,
@@ -95,7 +95,7 @@ function buildDefaultConfig() {
   };
 }
 
-function withDefaults(popupConfig) {
+export function withDefaults(popupConfig) {
   const base = buildDefaultConfig();
   if (!popupConfig) return base;
   return {
@@ -166,9 +166,6 @@ const PopupConfigPane = ({
   );
 
   const showLayoutButton = hostDashboardEditable !== false;
-  const layoutButtonDisabled =
-    !!isSaving &&
-    (resolved.gridItems === null || resolved.gridItems === undefined);
 
   return (
     <div data-testid="popup-config-pane" data-layer-name={layerName ?? ""}>
@@ -313,7 +310,7 @@ const PopupConfigPane = ({
                 variant="primary"
                 aria-label="Edit Popup Layout Button"
                 onClick={onOpenLayoutEditor}
-                disabled={layoutButtonDisabled}
+                disabled={!!isSaving}
               >
                 Edit popup layout
               </Button>

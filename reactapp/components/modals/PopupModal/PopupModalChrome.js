@@ -41,7 +41,12 @@ export function deriveRowHeight(containerHeight) {
   if (!containerHeight || !Number.isFinite(containerHeight)) {
     return DEFAULT_ROW_HEIGHT;
   }
-  return Math.max(20, Math.floor(containerHeight / TARGET_ROWS));
+  // Fractional rowHeight is intentional: with Math.floor an item at
+  // h=TARGET_ROWS could be up to 19px short of the body height (~5% gap
+  // on small modals). RGL accepts non-integer rowHeight, so dividing
+  // cleanly gives h=TARGET_ROWS an exact 100% fill. Clamp to >=1 only to
+  // avoid pathological zero/sub-pixel rows at tiny containers.
+  return Math.max(1, containerHeight / TARGET_ROWS);
 }
 
 /**

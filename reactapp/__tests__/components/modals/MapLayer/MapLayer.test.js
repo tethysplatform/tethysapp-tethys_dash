@@ -3369,6 +3369,162 @@ describe("MapLayerModal Popup pane (in-memory popup config)", () => {
       expect(outer.style.zIndex).toBe("1050");
     });
   });
+
+  // Covers the `onClose: () => setShowLayoutEditor(false)` handler at
+  // MapLayer.js:723. Cancel must unmount the editor, drop the parent
+  // modal's zIndex back to undefined, and discard any local edits made
+  // inside the editor (i.e., `popupConfig.gridItems` is unchanged).
+  test("cancelling the layout editor closes it and discards in-editor edits", async () => {
+    const seedGridItem = {
+      i: "1",
+      x: 0,
+      y: 0,
+      w: 4,
+      h: 4,
+      source: "Text",
+      args_string: "{}",
+      metadata_string: "{}",
+      uuid: "seed-uuid",
+      id: null,
+    };
+    const existingPopupConfig = {
+      mode: "modal",
+      position: { leftPct: 20, topPct: 20, widthPct: 60, heightPct: 60 },
+      titleTemplate: "",
+      gridItems: [seedGridItem],
+    };
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={{
+          sourceProps: {
+            type: "ESRI Image and Map Service",
+            props: { url: "https://example.com" },
+          },
+          layerProps: { name: "Layer C" },
+          popupConfig: existingPopupConfig,
+        }}
+      />,
+    );
+
+    fireEvent.click(await screen.findByText("Custom Modal Popup"));
+    fireEvent.click(await screen.findByLabelText("Edit Popup Layout Button"));
+
+    expect(
+      await screen.findByLabelText("Popup Layout Editor Modal"),
+    ).toBeInTheDocument();
+
+    // Diverge the editor's local state from the seed so cancelling has
+    // something concrete to discard.
+    fireEvent.click(
+      await screen.findByLabelText("Add Popup Visualization Button"),
+    );
+
+    fireEvent.click(screen.getByLabelText("Cancel Popup Layout Editor"));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByLabelText("Popup Layout Editor Modal"),
+      ).not.toBeInTheDocument();
+    });
+
+    // Parent modal's style ternary returns `undefined` when neither
+    // showLayoutEditor nor showingSubModal is true — inline `style` is
+    // unset, so the dialog's style.zIndex reads as empty string.
+    const outer = screen
+      .getAllByRole("dialog")
+      .find((d) => d.className.includes("map-layer"));
+    expect(outer.style.zIndex).toBe("");
+
+    fireEvent.click(screen.getByLabelText("Create Layer Button"));
+
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalledTimes(1);
+    });
+    const passedConfig = addMapLayer.mock.calls[0][0];
+    // Cancel discards the editor-local gridItem; the seed survives.
+    expect(passedConfig.popupConfig.gridItems).toEqual([seedGridItem]);
+  });
+
+  // Covers the `onSave: (nextGridItems) => { setPopupConfig(...); setShowLayoutEditor(false); }`
+  // handler at MapLayer.js:725-730. Save must (a) close the editor and
+  // (b) propagate the edited gridItems back into popupConfig so the
+  // parent modal's saveLayer carries them along.
+  test("saving the layout editor propagates edited gridItems into popupConfig", async () => {
+    const existingPopupConfig = {
+      mode: "modal",
+      position: { leftPct: 20, topPct: 20, widthPct: 60, heightPct: 60 },
+      titleTemplate: "",
+      gridItems: [],
+    };
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={{
+          sourceProps: {
+            type: "ESRI Image and Map Service",
+            props: { url: "https://example.com" },
+          },
+          layerProps: { name: "Layer D" },
+          popupConfig: existingPopupConfig,
+        }}
+      />,
+    );
+
+    fireEvent.click(await screen.findByText("Custom Modal Popup"));
+    fireEvent.click(await screen.findByLabelText("Edit Popup Layout Button"));
+    expect(
+      await screen.findByLabelText("Popup Layout Editor Modal"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      await screen.findByLabelText("Add Popup Visualization Button"),
+    );
+
+    fireEvent.click(screen.getByLabelText("Save Popup Layout Editor"));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByLabelText("Popup Layout Editor Modal"),
+      ).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByLabelText("Create Layer Button"));
+
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalledTimes(1);
+    });
+    const passedConfig = addMapLayer.mock.calls[0][0];
+    expect(passedConfig.popupConfig.gridItems).toHaveLength(1);
+    const addedItem = passedConfig.popupConfig.gridItems[0];
+    // Shape from buildNewGridItem in PopupLayoutEditor.js. The uuid is a
+    // generated v4 string, so just assert its type rather than pinning it.
+    expect(addedItem).toEqual(
+      expect.objectContaining({
+        i: "1",
+        x: 0,
+        y: 0,
+        w: 20,
+        h: 20,
+        source: "",
+        args_string: "{}",
+        id: null,
+      }),
+    );
+    // uuidv4() is exercised by buildNewGridItem; the test-file crypto
+    // mock above leaves the value's exact type implementation-defined, so
+    // just verify the property is present (the meaningful assertion is
+    // that the editor's saved item flowed through to popupConfig).
+    expect(addedItem).toHaveProperty("uuid");
+  });
 });
 
 describe("rekeyAttributeMapToLayer", () => {

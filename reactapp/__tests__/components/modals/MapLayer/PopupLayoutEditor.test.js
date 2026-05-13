@@ -8,6 +8,7 @@ import {
 } from "components/contexts/Contexts";
 import PopupLayoutEditor, {
   getInitialViewportSize,
+  buildNewGridItem,
 } from "components/modals/MapLayer/PopupLayoutEditor";
 
 // Mock DashboardLayout so the popup editor's wiring (TabContext / EditingContext
@@ -862,11 +863,11 @@ describe("PopupLayoutEditor — preview dimensions", () => {
     // rowHeight passed to DashboardLayout derives from the SHRUNK grid
     // height, not the full popup height — so 20 tile rows fit the actual
     // runtime grid budget rather than overflowing once the header lands.
-    const rh = parseInt(
-      screen.getByTestId("mock-dl-row-height").textContent,
-      10,
-    );
-    expect(rh).toBe(Math.max(20, Math.floor((400 - 60 - 2 * 8) / 20)));
+    // deriveRowHeight: gridHeight / TARGET_ROWS (fractional allowed). The
+    // editor and runtime share this helper so identical `h` fills the
+    // same fraction of body in both views.
+    const rh = Number(screen.getByTestId("mock-dl-row-height").textContent);
+    expect(rh).toBe(Math.max(1, (400 - 60 - 2 * 8) / 20));
   });
 });
 
@@ -1042,5 +1043,55 @@ describe("PopupLayoutEditor — branch coverage for guards and cleanup", () => {
     }
     expect(result.width).toBe(1920);
     expect(result.height).toBe(1080);
+  });
+});
+
+describe("buildNewGridItem helper function", () => {
+  test("returns a grid item with default properties and sequential `i`", () => {
+    const existing = [
+      baseGridItem({ i: "1" }),
+      baseGridItem({ i: "2" }),
+      baseGridItem({ i: "5" }),
+    ];
+    const newItem = buildNewGridItem(existing);
+    expect(newItem).toMatchObject({
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "",
+      args_string: "{}",
+      id: null,
+    });
+    expect(newItem.i).toBe("6");
+  });
+
+  test("returns `i` of '1' when no existing items", () => {
+    const newItem = buildNewGridItem([]);
+    expect(newItem.i).toBe("1");
+  });
+
+  test("handles non-sequential and non-numeric `i` values in existing items", () => {
+    const existing = [
+      baseGridItem({ i: "a" }),
+      baseGridItem({ i: "3" }),
+      baseGridItem({ i: "7" }),
+    ];
+    const newItem = buildNewGridItem(existing);
+    expect(newItem.i).toBe("8");
+  });
+
+  // Covers the `parsed > acc` false sub-branch of
+  // `Number.isFinite(parsed) && parsed > acc` in buildNewGridItem.
+  // The first item seeds acc=10; the second's parsed=3 is finite but
+  // NOT greater than acc, so the reducer keeps acc=10 (falls into the
+  // ternary's false branch via the comparison, not the !isFinite path).
+  test("keeps the running max when a later item's numeric `i` is smaller", () => {
+    const existing = [
+      baseGridItem({ i: "10" }),
+      baseGridItem({ i: "3" }),
+    ];
+    const newItem = buildNewGridItem(existing);
+    expect(newItem.i).toBe("11");
   });
 });

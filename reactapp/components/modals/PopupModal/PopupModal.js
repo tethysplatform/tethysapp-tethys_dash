@@ -85,6 +85,15 @@ const CloseButton = styled.button`
 
 const ModalBody = styled.div`
   flex: 1 1 auto;
+  min-height: 0;
+  /* display:flex is required so PopupModalChrome's <Body> can flex-fill
+     this region. Without it the body falls back to height:auto, which
+     makes the popup's GridContainer measure RGL's own content height
+     (self-referential) instead of the modal body height — pinning
+     rowHeight at DEFAULT_ROW_HEIGHT and leaving a large empty gap below
+     the visualization. */
+  display: flex;
+  flex-direction: column;
   overflow: auto;
   padding: 0.75rem;
 `;

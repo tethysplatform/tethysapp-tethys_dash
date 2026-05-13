@@ -166,7 +166,7 @@ function computePreviewDimensions({
   };
 }
 
-function buildNewGridItem(localGridItems) {
+export function buildNewGridItem(localGridItems) {
   const maxGridItemI = localGridItems.reduce((acc, value) => {
     const parsed = parseInt(value.i, 10);
     return Number.isFinite(parsed) && parsed > acc ? parsed : acc;

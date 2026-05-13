@@ -7,6 +7,8 @@ import userEvent from "@testing-library/user-event";
 import PopupConfigPane, {
   reconcilePosition,
   clampPct,
+  withDefaults,
+  DEFAULT_POSITION,
 } from "components/modals/MapLayer/PopupConfigPane";
 
 const SAMPLE_POSITION = {
@@ -376,5 +378,40 @@ describe("clampPct", () => {
     expect(clampPct(50, 0, 20, 80)).toBe(50);
     expect(clampPct(90, 0, 20, 80)).toBe(80);
     expect(clampPct(150, 0, 20, 80)).toBe(80);
+  });
+});
+
+describe("withDefaults", () => {
+  test("returns default position and titleTemplate when popupConfig is null", () => {
+    const result = withDefaults(null);
+    expect(result.position).toEqual(DEFAULT_POSITION);
+    expect(result.titleTemplate).toBe("");
+  });
+
+  test("returns the original popupConfig values when all fields are present", () => {
+    const input = {
+      mode: "modal",
+      position: { leftPct: 10, topPct: 10, widthPct: 50, heightPct: 50 },
+      titleTemplate: "Test",
+      gridItems: [],
+    };
+    const result = withDefaults(input);
+    expect(result).toEqual(input);
+  });
+
+  test("fills in missing  fields with defaults", () => {
+    const input = {
+      mode: "modal",
+      position: {},
+      gridItems: [],
+    };
+    const result = withDefaults(input);
+    expect(result.position).toEqual({
+      leftPct: DEFAULT_POSITION.leftPct,
+      topPct: DEFAULT_POSITION.topPct,
+      widthPct: DEFAULT_POSITION.widthPct,
+      heightPct: DEFAULT_POSITION.heightPct,
+    });
+    expect(result.titleTemplate).toBe("");
   });
 });
