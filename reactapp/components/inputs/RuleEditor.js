@@ -35,6 +35,77 @@ const XButton = styled.button`
   margin-right: 4px;
 `;
 
+const AndLabel = styled.span`
+  font-weight: 600;
+  font-size: 12px;
+  color: #555;
+  padding: 2px 6px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: #eef;
+`;
+
+const AddConditionButton = styled.button`
+  background: none;
+  border: 1px dashed #888;
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 13px;
+  color: #333;
+  cursor: pointer;
+  &:hover {
+    background: #f0f0f0;
+  }
+`;
+
+const HeaderRow = styled.div`
+  display: flex;
+  gap: 16px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+`;
+
+const Section = styled.section`
+  margin-top: 12px;
+`;
+
+const SectionHeader = styled.div`
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #666;
+  margin-bottom: 6px;
+`;
+
+const SectionDivider = styled.hr`
+  border: none;
+  border-top: 1px solid #e5e5e5;
+  margin: 16px 0 0 0;
+`;
+
+const ConditionRowWrapper = styled.div`
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 4px;
+`;
+
+const StyleRowWrapper = styled.div`
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 6px;
+  width: 100%;
+`;
+
+const Spacer = styled.div`
+  margin-left: auto;
+`;
+
 const FullWidthContainer = styled.div`
   width: 100%;
 `;
@@ -91,6 +162,24 @@ const CONDITION_OPTIONS = [
   { value: "<=", label: "≤" },
   { value: ">", label: ">" },
   { value: ">=", label: "≥" },
+  { value: "isNull", label: "is null/empty" },
+  { value: "isNotNull", label: "is not null/empty" },
+];
+
+const VALUELESS_CONDITIONS = ["isNull", "isNotNull"];
+
+const RULE_METADATA_KEYS = [
+  "conditionField",
+  "conditionType",
+  "conditionValue",
+  "conditions",
+  "geometryType",
+  "iconUrl",
+  "hatchDirection",
+  "hatchSpacing",
+  "dotRadius",
+  "dotSpacing",
+  "name",
 ];
 
 // Geometry type options for dropdown
@@ -182,6 +271,7 @@ const RuleEditor = ({
         conditionField: "",
         conditionType: "=",
         conditionValue: "",
+        conditions: [],
       });
       currentGeomType.current = selectedGeomType.value;
     }
@@ -227,60 +317,61 @@ const RuleEditor = ({
     onChange(newRule);
   };
 
-  return (
-    <RuleContainer>
-      <FlexContainer>
-        {!defaultSection && (
-          <RuleConditionEditor
-            rule={rule}
-            onChange={onChange}
-            availableFields={availableFields}
-            selectedGeomType={selectedGeomType}
-            handleGeomTypeChange={handleGeomTypeChange}
-            styleOptions={styleOptions}
-            handleAddStyle={handleAddStyle}
-            GEOMETRY_TYPE_OPTIONS={GEOMETRY_TYPE_OPTIONS}
-            CONDITION_OPTIONS={CONDITION_OPTIONS}
-          />
-        )}
-        <FullWidthContainer>
-          {defaultSection ? (
+  if (defaultSection) {
+    return (
+      <RuleContainer>
+        <FlexContainer>
+          <FullWidthContainer>
             <DefaultStyleSection
               rule={rule}
               onChange={onChange}
               containerRef={containerRef}
               sectionName={defaultSection}
             />
-          ) : (
-            Object.keys(rule)
-              .filter(
-                (key) =>
-                  ![
-                    "conditionField",
-                    "conditionType",
-                    "conditionValue",
-                    "geometryType",
-                    "iconUrl",
-                    "hatchDirection",
-                    "hatchSpacing",
-                    "dotRadius",
-                    "dotSpacing",
-                    "name",
-                  ].includes(key),
-              )
-              .map((key) => (
-                <StyleOptionControl
-                  key={key}
-                  keyName={key}
-                  rule={rule}
-                  onChange={onChange}
-                  containerRef={containerRef}
-                  handleRemoveStyle={handleRemoveStyle}
-                />
-              ))
-          )}
-        </FullWidthContainer>
-      </FlexContainer>
+          </FullWidthContainer>
+        </FlexContainer>
+      </RuleContainer>
+    );
+  }
+
+  const styleKeys = Object.keys(rule).filter(
+    (key) => !RULE_METADATA_KEYS.includes(key),
+  );
+
+  return (
+    <RuleContainer>
+      <RuleConditionEditor
+        rule={rule}
+        onChange={onChange}
+        availableFields={availableFields}
+        selectedGeomType={selectedGeomType}
+        handleGeomTypeChange={handleGeomTypeChange}
+        GEOMETRY_TYPE_OPTIONS={GEOMETRY_TYPE_OPTIONS}
+      />
+      <SectionDivider />
+      <Section>
+        <SectionHeader>Then apply style</SectionHeader>
+        {styleKeys.map((key) => (
+          <StyleOptionControl
+            key={key}
+            keyName={key}
+            rule={rule}
+            onChange={onChange}
+            containerRef={containerRef}
+            handleRemoveStyle={handleRemoveStyle}
+          />
+        ))}
+        <StyleRowWrapper>
+          <DataSelect
+            label="Add Style Option"
+            options={styleOptions}
+            selectedOption={null}
+            onChange={handleAddStyle}
+            creatable={false}
+            divProps={{ style: { marginBottom: 0 } }}
+          />
+        </StyleRowWrapper>
+      </Section>
     </RuleContainer>
   );
 };
@@ -304,16 +395,6 @@ function StyleOptionControl({
   if (keyName === "polygonFillType") {
     return (
       <StyleContainer $gap={8} key={keyName}>
-        {handleRemoveStyle && (
-          <XButton
-            type="button"
-            onClick={() => handleRemoveStyle(keyName)}
-            aria-label={`Remove ${keyName} style option`}
-            title={`Remove ${keyName} style option`}
-          >
-            ×
-          </XButton>
-        )}
         <DataSelect
           label="Polygon Fill Type"
           options={POLYGON_FILL_TYPES}
@@ -398,22 +479,25 @@ function StyleOptionControl({
             </NumberInputWrapper>
           </>
         )}
+        {handleRemoveStyle && (
+          <>
+            <Spacer />
+            <XButton
+              type="button"
+              onClick={() => handleRemoveStyle(keyName)}
+              aria-label={`Remove ${keyName} style option`}
+              title={`Remove ${keyName} style option`}
+            >
+              ×
+            </XButton>
+          </>
+        )}
       </StyleContainer>
     );
   }
   if (keyName === "shape") {
     return (
       <StyleContainer $gap={8} key={keyName}>
-        {handleRemoveStyle && (
-          <XButton
-            type="button"
-            onClick={() => handleRemoveStyle(keyName)}
-            aria-label={`Remove ${keyName} style option`}
-            title={`Remove ${keyName} style option`}
-          >
-            ×
-          </XButton>
-        )}
         <DataSelect
           label="Shape"
           options={availableShapes.map((s) => ({ value: s, label: s }))}
@@ -439,22 +523,25 @@ function StyleOptionControl({
             labelProps={{ style: { marginBottom: 0 } }}
           />
         )}
+        {handleRemoveStyle && (
+          <>
+            <Spacer />
+            <XButton
+              type="button"
+              onClick={() => handleRemoveStyle(keyName)}
+              aria-label={`Remove ${keyName} style option`}
+              title={`Remove ${keyName} style option`}
+            >
+              ×
+            </XButton>
+          </>
+        )}
       </StyleContainer>
     );
   }
   if (keyName === "fill" || keyName === "stroke") {
     return (
       <StyleContainer key={keyName} $gap={4}>
-        {handleRemoveStyle && (
-          <XButton
-            type="button"
-            onClick={() => handleRemoveStyle(keyName)}
-            aria-label={`Remove ${keyName} style option`}
-            title={`Remove ${keyName} style option`}
-          >
-            ×
-          </XButton>
-        )}
         <ColorPickerPopover
           label={keyName === "fill" ? "Fill" : "Stroke"}
           color={value || (keyName === "fill" ? defaultFill : defaultStroke)}
@@ -462,22 +549,25 @@ function StyleOptionControl({
           containerRef={containerRef}
           divProps={defaultSection && { style: { "flex-direction": "column" } }}
         />
+        {handleRemoveStyle && (
+          <>
+            <Spacer />
+            <XButton
+              type="button"
+              onClick={() => handleRemoveStyle(keyName)}
+              aria-label={`Remove ${keyName} style option`}
+              title={`Remove ${keyName} style option`}
+            >
+              ×
+            </XButton>
+          </>
+        )}
       </StyleContainer>
     );
   }
   if (keyName === "strokeDash") {
     return (
       <StyleContainer key={keyName} $gap={4}>
-        {handleRemoveStyle && (
-          <XButton
-            type="button"
-            onClick={() => handleRemoveStyle(keyName)}
-            aria-label={`Remove ${keyName} style option`}
-            title={`Remove ${keyName} style option`}
-          >
-            ×
-          </XButton>
-        )}
         <DataSelect
           label="Stroke Dash"
           options={availableStrokeDashOptions}
@@ -489,6 +579,19 @@ function StyleOptionControl({
           creatable={false}
           divProps={{ style: { marginBottom: 0 } }}
         />
+        {handleRemoveStyle && (
+          <>
+            <Spacer />
+            <XButton
+              type="button"
+              onClick={() => handleRemoveStyle(keyName)}
+              aria-label={`Remove ${keyName} style option`}
+              title={`Remove ${keyName} style option`}
+            >
+              ×
+            </XButton>
+          </>
+        )}
       </StyleContainer>
     );
   }
@@ -498,16 +601,6 @@ function StyleOptionControl({
     .replace(/^./, (str) => str.toUpperCase());
   return (
     <StyleContainer key={keyName} $gap={4}>
-      {handleRemoveStyle && (
-        <XButton
-          type="button"
-          onClick={() => handleRemoveStyle(keyName)}
-          aria-label={`Remove ${keyName} style option`}
-          title={`Remove ${keyName} style option`}
-        >
-          ×
-        </XButton>
-      )}
       <NumberInputWrapper>
         <NormalInput
           label={label}
@@ -524,9 +617,63 @@ function StyleOptionControl({
           labelProps={{ style: { marginBottom: 0 } }}
         />
       </NumberInputWrapper>
+      {handleRemoveStyle && (
+        <>
+          <Spacer />
+          <XButton
+            type="button"
+            onClick={() => handleRemoveStyle(keyName)}
+            aria-label={`Remove ${keyName} style option`}
+            title={`Remove ${keyName} style option`}
+          >
+            ×
+          </XButton>
+        </>
+      )}
     </StyleContainer>
   );
 }
+
+function ConditionRow({ field, type, value, availableFields, onChange }) {
+  const valueless = VALUELESS_CONDITIONS.includes(type);
+  return (
+    <>
+      <DataSelect
+        label="Field"
+        options={availableFields.map((f) => ({ value: f, label: f }))}
+        selectedOption={field ? { value: field, label: field } : null}
+        onChange={(opt) => onChange({ field: opt.value, type, value })}
+        creatable={true}
+        divProps={{ style: { marginBottom: 0 } }}
+      />
+      <DataSelect
+        label="Condition"
+        options={CONDITION_OPTIONS}
+        selectedOption={CONDITION_OPTIONS.find((o) => o.value === type)}
+        onChange={(opt) => onChange({ field, type: opt.value, value })}
+        creatable={false}
+        divProps={{ style: { marginBottom: 0 } }}
+      />
+      {!valueless && (
+        <NormalInput
+          label="Value"
+          value={value || ""}
+          type="text"
+          onChange={(e) => onChange({ field, type, value: e.target.value })}
+          labelProps={{ style: { marginBottom: 0 } }}
+        />
+      )}
+    </>
+  );
+}
+
+ConditionRow.propTypes = {
+  field: PropTypes.string,
+  type: PropTypes.string,
+  value: PropTypes.string,
+  availableFields: PropTypes.array.isRequired,
+  onChange: PropTypes.func.isRequired,
+};
 
 const RuleConditionEditor = ({
   rule,
@@ -534,69 +681,116 @@ const RuleConditionEditor = ({
   availableFields,
   selectedGeomType,
   handleGeomTypeChange,
-  styleOptions,
-  handleAddStyle,
   GEOMETRY_TYPE_OPTIONS,
-  CONDITION_OPTIONS,
 }) => {
   const conditionField = rule.conditionField || "";
   const conditionType = rule.conditionType || "=";
   const conditionValue = rule.conditionValue || "";
   const ruleName = rule.name || "";
+  const extraConditions = rule.conditions || [];
+
+  const updateFirstCondition = (next) => {
+    onChange({
+      ...rule,
+      conditionField: next.field,
+      conditionType: next.type,
+      conditionValue: VALUELESS_CONDITIONS.includes(next.type)
+        ? ""
+        : next.value,
+    });
+  };
+
+  const updateExtraCondition = (i, next) => {
+    const conditions = [...extraConditions];
+    conditions[i] = {
+      field: next.field,
+      type: next.type,
+      value: VALUELESS_CONDITIONS.includes(next.type) ? "" : next.value,
+    };
+    onChange({ ...rule, conditions });
+  };
+
+  const addExtraCondition = () => {
+    const conditions = [
+      ...extraConditions,
+      { field: "", type: "=", value: "" },
+    ];
+    onChange({ ...rule, conditions });
+  };
+
+  const removeExtraCondition = (i) => {
+    const conditions = extraConditions.filter((_, idx) => idx !== i);
+    const nextRule = { ...rule };
+    if (conditions.length === 0) {
+      delete nextRule.conditions;
+    } else {
+      nextRule.conditions = conditions;
+    }
+    onChange(nextRule);
+  };
+
   return (
     <>
-      <NormalInput
-        label="Rule Name"
-        value={ruleName}
-        type="text"
-        onChange={(e) => onChange({ ...rule, name: e.target.value })}
-        labelProps={{ style: { marginBottom: 0 } }}
-      />
-      <DataSelect
-        label="Geometry Type"
-        options={GEOMETRY_TYPE_OPTIONS}
-        selectedOption={selectedGeomType}
-        onChange={handleGeomTypeChange}
-        creatable={false}
-        divProps={{ style: { marginBottom: 0 } }}
-      />
-      <DataSelect
-        label="Field"
-        options={availableFields.map((f) => ({ value: f, label: f }))}
-        selectedOption={
-          conditionField
-            ? { value: conditionField, label: conditionField }
-            : null
-        }
-        onChange={(opt) => onChange({ ...rule, conditionField: opt.value })}
-        creatable={true}
-        divProps={{ style: { marginBottom: 0 } }}
-      />
-      <DataSelect
-        label="Condition"
-        options={CONDITION_OPTIONS}
-        selectedOption={CONDITION_OPTIONS.find(
-          (o) => o.value === conditionType,
-        )}
-        onChange={(opt) => onChange({ ...rule, conditionType: opt.value })}
-        creatable={false}
-        divProps={{ style: { marginBottom: 0 } }}
-      />
-      <NormalInput
-        label="Value"
-        value={conditionValue}
-        type="text"
-        onChange={(e) => onChange({ ...rule, conditionValue: e.target.value })}
-        labelProps={{ style: { marginBottom: 0 } }}
-      />
-      <DataSelect
-        label="Add Style Option"
-        options={styleOptions}
-        selectedOption={null}
-        onChange={handleAddStyle}
-        creatable={false}
-        divProps={{ style: { marginBottom: 0 } }}
-      />
+      <HeaderRow>
+        <NormalInput
+          label="Rule Name"
+          value={ruleName}
+          type="text"
+          onChange={(e) => onChange({ ...rule, name: e.target.value })}
+          labelProps={{ style: { marginBottom: 0 } }}
+        />
+        <DataSelect
+          label="Geometry Type"
+          options={GEOMETRY_TYPE_OPTIONS}
+          selectedOption={selectedGeomType}
+          onChange={handleGeomTypeChange}
+          creatable={false}
+          divProps={{ style: { marginBottom: 0 } }}
+        />
+      </HeaderRow>
+
+      <Section>
+        <SectionHeader>When</SectionHeader>
+        <ConditionRowWrapper>
+          <ConditionRow
+            field={conditionField}
+            type={conditionType}
+            value={conditionValue}
+            availableFields={availableFields}
+            onChange={updateFirstCondition}
+          />
+        </ConditionRowWrapper>
+        {extraConditions.map((c, i) => (
+          <ConditionRowWrapper key={i}>
+            <AndLabel>AND</AndLabel>
+            <ConditionRow
+              field={c.field || ""}
+              type={c.type || "="}
+              value={c.value || ""}
+              availableFields={availableFields}
+              onChange={(next) => updateExtraCondition(i, next)}
+            />
+            <Spacer />
+            <XButton
+              type="button"
+              onClick={() => removeExtraCondition(i)}
+              aria-label="Remove condition"
+              title="Remove condition"
+            >
+              ×
+            </XButton>
+          </ConditionRowWrapper>
+        ))}
+        <ConditionRowWrapper>
+          <AddConditionButton
+            type="button"
+            onClick={addExtraCondition}
+            aria-label="Add AND condition"
+          >
+            + AND condition
+          </AddConditionButton>
+        </ConditionRowWrapper>
+      </Section>
     </>
   );
 };
@@ -659,10 +853,7 @@ RuleConditionEditor.propTypes = {
   availableFields: PropTypes.array.isRequired,
   selectedGeomType: PropTypes.object.isRequired,
   handleGeomTypeChange: PropTypes.func.isRequired,
-  styleOptions: PropTypes.array.isRequired,
-  handleAddStyle: PropTypes.func.isRequired,
   GEOMETRY_TYPE_OPTIONS: PropTypes.array.isRequired,
-  CONDITION_OPTIONS: PropTypes.array.isRequired,
 };
 
 export default memo(RuleEditor, valuesEqual);

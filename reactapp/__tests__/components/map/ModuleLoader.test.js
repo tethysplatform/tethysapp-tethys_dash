@@ -1,6 +1,7 @@
 import moduleLoader, {
   createJsonStyleFunction,
   matchesCondition,
+  ruleMatches,
   resolveSize,
   buildPointStyle,
   getGeometryBucket,
@@ -670,6 +671,85 @@ describe("matchesCondition", () => {
     expect(matchesCondition(2, "adasd", 3)).toBe(false);
     expect(matchesCondition(3, "asdad", 3)).toBe(false);
     expect(matchesCondition(5, "asdasd", 3)).toBe(false);
+  });
+
+  it("matches 'isNull' condition", () => {
+    expect(matchesCondition(null, "isNull")).toBe(true);
+    expect(matchesCondition(undefined, "isNull")).toBe(true);
+    expect(matchesCondition("", "isNull")).toBe(true);
+    expect(matchesCondition(0, "isNull")).toBe(false);
+    expect(matchesCondition("0", "isNull")).toBe(false);
+    expect(matchesCondition("x", "isNull")).toBe(false);
+  });
+
+  it("matches 'isNotNull' condition", () => {
+    expect(matchesCondition(null, "isNotNull")).toBe(false);
+    expect(matchesCondition(undefined, "isNotNull")).toBe(false);
+    expect(matchesCondition("", "isNotNull")).toBe(false);
+    expect(matchesCondition(0, "isNotNull")).toBe(true);
+    expect(matchesCondition(-1, "isNotNull")).toBe(true);
+    expect(matchesCondition("x", "isNotNull")).toBe(true);
+  });
+});
+
+describe("ruleMatches", () => {
+  it("matches a legacy single-condition rule", () => {
+    const rule = {
+      conditionField: "type",
+      conditionType: "=",
+      conditionValue: "a",
+    };
+    expect(ruleMatches(rule, { type: "a" })).toBe(true);
+    expect(ruleMatches(rule, { type: "b" })).toBe(false);
+  });
+
+  it("ANDs a legacy condition with conditions[] entries", () => {
+    const rule = {
+      conditionField: "type",
+      conditionType: "=",
+      conditionValue: "streamflow_gage",
+      conditions: [{ field: "bankfull", type: "isNotNull" }],
+    };
+    expect(ruleMatches(rule, { type: "streamflow_gage", bankfull: 100 })).toBe(
+      true,
+    );
+    expect(ruleMatches(rule, { type: "streamflow_gage", bankfull: null })).toBe(
+      false,
+    );
+    expect(ruleMatches(rule, { type: "streamflow_gage", bankfull: "" })).toBe(
+      false,
+    );
+    expect(ruleMatches(rule, { type: "reservoir", bankfull: 100 })).toBe(false);
+  });
+
+  it("ANDs multiple entries within conditions[]", () => {
+    const rule = {
+      conditions: [
+        { field: "type", type: "=", value: "gage" },
+        { field: "active", type: "=", value: "true" },
+      ],
+    };
+    expect(ruleMatches(rule, { type: "gage", active: "true" })).toBe(true);
+    expect(ruleMatches(rule, { type: "gage", active: "false" })).toBe(false);
+    expect(ruleMatches(rule, { type: "other", active: "true" })).toBe(false);
+  });
+
+  it("does not match when no conditions are defined", () => {
+    expect(ruleMatches({}, { type: "a" })).toBe(false);
+    expect(ruleMatches({ conditions: [] }, { type: "a" })).toBe(false);
+  });
+
+  it("skips malformed entries in conditions[]", () => {
+    const rule = {
+      conditionField: "type",
+      conditionType: "=",
+      conditionValue: "a",
+      conditions: [
+        { field: "", type: "=", value: "ignored" },
+        { field: "missing-type", value: "x" },
+      ],
+    };
+    expect(ruleMatches(rule, { type: "a" })).toBe(true);
   });
 });
 

@@ -59,9 +59,15 @@ describe("RuleEditor", () => {
     render(<TestingComponent />);
     expect(screen.getByLabelText(/geometrytype/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Field/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/Condition/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Condition$/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Value/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/addstyle option/i)).toBeInTheDocument();
+  });
+
+  it("renders WHEN and THEN section headers", () => {
+    render(<TestingComponent />);
+    expect(screen.getByText("When")).toBeInTheDocument();
+    expect(screen.getByText(/Then apply style/i)).toBeInTheDocument();
   });
 
   it("calls onChange when geometry type changes", async () => {
@@ -79,6 +85,7 @@ describe("RuleEditor", () => {
       conditionField: "",
       conditionType: "=",
       conditionValue: "",
+      conditions: [],
       geometryType: "polygon",
     });
   });
@@ -101,6 +108,8 @@ describe("RuleEditor", () => {
     expect(mockOnChange).toHaveBeenLastCalledWith({
       geometryType: "polygon",
       conditionField: "field1",
+      conditionType: "=",
+      conditionValue: "",
     });
 
     const condSelect = screen.getByRole("combobox", { name: /Condition/i });
@@ -110,6 +119,7 @@ describe("RuleEditor", () => {
       geometryType: "polygon",
       conditionField: "field1",
       conditionType: ">",
+      conditionValue: "",
     });
 
     const valueInput = screen.getByLabelText(/Value/i);
@@ -898,6 +908,97 @@ describe("RuleEditor", () => {
         polygonFillType: "solid",
       },
     });
+  });
+
+  it("adds an extra AND condition when the + AND condition button is clicked", async () => {
+    const mockOnChange = jest.fn();
+
+    render(
+      <TestingComponent
+        initialRule={{
+          geometryType: "point",
+          conditionField: "type",
+          conditionType: "=",
+          conditionValue: "streamflow_gage",
+        }}
+        onRuleChange={mockOnChange}
+      />,
+    );
+
+    const addBtn = screen.getByRole("button", {
+      name: /add and condition/i,
+    });
+    fireEvent.click(addBtn);
+
+    expect(mockOnChange).toHaveBeenLastCalledWith({
+      geometryType: "point",
+      conditionField: "type",
+      conditionType: "=",
+      conditionValue: "streamflow_gage",
+      conditions: [{ field: "", type: "=", value: "" }],
+    });
+  });
+
+  it("hides the Value input when condition is isNull or isNotNull", async () => {
+    render(
+      <TestingComponent
+        initialRule={{
+          geometryType: "point",
+          conditionField: "bankfull",
+          conditionType: "isNotNull",
+          conditionValue: "",
+        }}
+      />,
+    );
+
+    expect(screen.queryByLabelText(/Value/i)).not.toBeInTheDocument();
+  });
+
+  it("removes an extra condition when its remove button is clicked", async () => {
+    const mockOnChange = jest.fn();
+
+    render(
+      <TestingComponent
+        initialRule={{
+          geometryType: "point",
+          conditionField: "type",
+          conditionType: "=",
+          conditionValue: "gage",
+          conditions: [{ field: "bankfull", type: "isNotNull", value: "" }],
+        }}
+        onRuleChange={mockOnChange}
+      />,
+    );
+
+    const removeBtn = screen.getByLabelText("Remove condition");
+    fireEvent.click(removeBtn);
+
+    expect(mockOnChange).toHaveBeenLastCalledWith({
+      geometryType: "point",
+      conditionField: "type",
+      conditionType: "=",
+      conditionValue: "gage",
+    });
+  });
+
+  it("does not render the conditions array as a style option", () => {
+    render(
+      <TestingComponent
+        initialRule={{
+          geometryType: "point",
+          conditionField: "type",
+          conditionType: "=",
+          conditionValue: "gage",
+          conditions: [{ field: "bankfull", type: "isNotNull", value: "" }],
+          fill: "#7f00ff",
+        }}
+      />,
+    );
+
+    expect(
+      screen.queryByLabelText(/Remove conditions style option/i),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/\[object Object\]/)).not.toBeInTheDocument();
   });
 
   it("default point section iconUrl not present when shape is changed", async () => {

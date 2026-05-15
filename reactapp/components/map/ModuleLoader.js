@@ -407,6 +407,16 @@ function mergeStyleProperties(base, override) {
 
 export function matchesCondition(featureValue, type, conditionValue) {
   const a = featureValue;
+
+  // Presence checks must operate on the raw value: Number("") is 0, which would
+  // defeat the empty-string check after numeric coercion.
+  if (type === "isNull") {
+    return a === null || a === undefined || a === "";
+  }
+  if (type === "isNotNull") {
+    return a !== null && a !== undefined && a !== "";
+  }
+
   const b =
     typeof conditionValue === "string" && !isNaN(conditionValue)
       ? Number(conditionValue)
@@ -430,6 +440,43 @@ export function matchesCondition(featureValue, type, conditionValue) {
     default:
       return false;
   }
+}
+
+function evaluateCondition({ field, type, value }, properties) {
+  const fv = properties[field];
+  let ruleValue = value;
+  if (
+    typeof fv === "number" &&
+    typeof ruleValue === "string" &&
+    !isNaN(ruleValue)
+  ) {
+    ruleValue = Number(ruleValue);
+  }
+  return matchesCondition(fv, type, ruleValue);
+}
+
+export function ruleMatches(rule, properties) {
+  const conditions = [];
+
+  if (rule.conditionField && rule.conditionType) {
+    conditions.push({
+      field: rule.conditionField,
+      type: rule.conditionType,
+      value: rule.conditionValue,
+    });
+  }
+
+  if (Array.isArray(rule.conditions)) {
+    for (const c of rule.conditions) {
+      if (c && c.field && c.type) {
+        conditions.push(c);
+      }
+    }
+  }
+
+  if (conditions.length === 0) return false;
+
+  return conditions.every((c) => evaluateCondition(c, properties));
 }
 
 export function resolveSize(feature, rules, defaultSize) {
@@ -659,22 +706,7 @@ export function createJsonStyleFunction(styleJson) {
       const ruleGeom = rule.geometryType || geometryBucket;
       if (ruleGeom !== geometryBucket) continue;
 
-      // Defensive: convert rule values to correct types
-      const fv = properties[rule.conditionField];
-      let ruleValue = rule.conditionValue;
-      if (
-        typeof fv === "number" &&
-        typeof ruleValue === "string" &&
-        !isNaN(ruleValue)
-      ) {
-        ruleValue = Number(ruleValue);
-      }
-
-      if (
-        rule.conditionField &&
-        rule.conditionType &&
-        matchesCondition(fv, rule.conditionType, ruleValue)
-      ) {
+      if (ruleMatches(rule, properties)) {
         merged = mergeStyleProperties(merged, rule);
       }
     }
