@@ -58,9 +58,10 @@ describe("RuleEditor", () => {
   it("renders geometry type, field, condition, and value inputs", () => {
     render(<TestingComponent />);
     expect(screen.getByLabelText(/geometrytype/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/Field/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Field$/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/^Condition$/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/Value/i)).toBeInTheDocument();
+    expect(screen.getByLabelText("Value Input")).toBeInTheDocument();
+    expect(screen.getByLabelText(/valuesource/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/addstyle option/i)).toBeInTheDocument();
   });
 
@@ -85,6 +86,7 @@ describe("RuleEditor", () => {
       conditionField: "",
       conditionType: "=",
       conditionValue: "",
+      conditionValueIsField: false,
       conditions: [],
       geometryType: "polygon",
     });
@@ -102,7 +104,7 @@ describe("RuleEditor", () => {
 
     expect(screen.getByText("Polygon")).toBeInTheDocument();
 
-    const fieldSelect = screen.getByRole("combobox", { name: /Field/i });
+    const fieldSelect = screen.getByRole("combobox", { name: /^Field$/i });
     await selectEvent.select(fieldSelect, "field1");
 
     expect(mockOnChange).toHaveBeenLastCalledWith({
@@ -110,9 +112,10 @@ describe("RuleEditor", () => {
       conditionField: "field1",
       conditionType: "=",
       conditionValue: "",
+      conditionValueIsField: false,
     });
 
-    const condSelect = screen.getByRole("combobox", { name: /Condition/i });
+    const condSelect = screen.getByRole("combobox", { name: /^Condition$/i });
     await selectEvent.select(condSelect, ">");
 
     expect(mockOnChange).toHaveBeenLastCalledWith({
@@ -120,9 +123,10 @@ describe("RuleEditor", () => {
       conditionField: "field1",
       conditionType: ">",
       conditionValue: "",
+      conditionValueIsField: false,
     });
 
-    const valueInput = screen.getByLabelText(/Value/i);
+    const valueInput = screen.getByLabelText("Value Input");
     fireEvent.change(valueInput, { target: { value: "test" } });
 
     expect(mockOnChange).toHaveBeenLastCalledWith({
@@ -130,6 +134,7 @@ describe("RuleEditor", () => {
       conditionField: "field1",
       conditionType: ">",
       conditionValue: "test",
+      conditionValueIsField: false,
     });
   });
 
@@ -910,6 +915,141 @@ describe("RuleEditor", () => {
     });
   });
 
+  it("switches rotation to a feature-field reference via propertyRefs", async () => {
+    const mockOnChange = jest.fn();
+    render(
+      <TestingComponent
+        initialRule={{
+          geometryType: "point",
+          shape: "rectangle",
+          rotation: 0,
+        }}
+        onRuleChange={mockOnChange}
+      />,
+    );
+
+    const sourceSelects = screen.getAllByRole("combobox", {
+      name: /valuesource/i,
+    });
+    await selectEvent.select(sourceSelects[sourceSelects.length - 1], "Field");
+
+    expect(mockOnChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        propertyRefs: { rotation: "" },
+      }),
+    );
+
+    const rotationFieldSelect = screen.getByRole("combobox", {
+      name: /rotationfield/i,
+    });
+    await selectEvent.select(rotationFieldSelect, "field1");
+
+    expect(mockOnChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        propertyRefs: { rotation: "field1" },
+      }),
+    );
+  });
+
+  it("switches fill to a feature-field reference via propertyRefs", async () => {
+    const mockOnChange = jest.fn();
+    render(
+      <TestingComponent
+        initialRule={{ geometryType: "point", fill: defaultFill }}
+        onRuleChange={mockOnChange}
+      />,
+    );
+
+    const sources = screen.getAllByRole("combobox", {
+      name: /valuesource/i,
+    });
+    await selectEvent.select(sources[sources.length - 1], "Field");
+
+    expect(mockOnChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ propertyRefs: { fill: "" } }),
+    );
+
+    const fieldDropdown = screen.getByRole("combobox", {
+      name: /fillfield/i,
+    });
+    await selectEvent.select(fieldDropdown, "field1");
+
+    expect(mockOnChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ propertyRefs: { fill: "field1" } }),
+    );
+  });
+
+  it("switches size to a feature-field reference via propertyRefs", async () => {
+    const mockOnChange = jest.fn();
+    render(
+      <TestingComponent
+        initialRule={{ geometryType: "point", size: defaultSize }}
+        onRuleChange={mockOnChange}
+      />,
+    );
+
+    const sources = screen.getAllByRole("combobox", {
+      name: /valuesource/i,
+    });
+    await selectEvent.select(sources[sources.length - 1], "Field");
+
+    const fieldDropdown = screen.getByRole("combobox", {
+      name: /sizefield/i,
+    });
+    await selectEvent.select(fieldDropdown, "field2");
+
+    expect(mockOnChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ propertyRefs: { size: "field2" } }),
+    );
+  });
+
+  it("clears propertyRefs.rotation when the rotation style is removed", () => {
+    const mockOnChange = jest.fn();
+    render(
+      <TestingComponent
+        initialRule={{
+          geometryType: "point",
+          shape: "rectangle",
+          rotation: 0,
+          propertyRefs: { rotation: "bearing" },
+        }}
+        onRuleChange={mockOnChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByLabelText("Remove rotation style option"));
+
+    expect(mockOnChange).toHaveBeenLastCalledWith(
+      expect.not.objectContaining({ propertyRefs: expect.anything() }),
+    );
+  });
+
+  it("adds rotation as a point style option and accepts a degree value", async () => {
+    const mockOnChange = jest.fn();
+    render(
+      <TestingComponent
+        initialRule={{ geometryType: "point" }}
+        onRuleChange={mockOnChange}
+      />,
+    );
+
+    const styleSelect = screen.getByRole("combobox", {
+      name: /addstyle option/i,
+    });
+    await selectEvent.select(styleSelect, "Rotation");
+
+    expect(mockOnChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ rotation: 0 }),
+    );
+
+    const rotationInput = screen.getByLabelText("Rotation Input");
+    fireEvent.change(rotationInput, { target: { value: 90 } });
+
+    expect(mockOnChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ rotation: "90" }),
+    );
+  });
+
   it("adds an extra AND condition when the + AND condition button is clicked", async () => {
     const mockOnChange = jest.fn();
 
@@ -951,7 +1091,47 @@ describe("RuleEditor", () => {
       />,
     );
 
-    expect(screen.queryByLabelText(/Value/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Value Input")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/valuesource/i)).not.toBeInTheDocument();
+  });
+
+  it("switches the value input to a field dropdown when Value Source = Field", async () => {
+    const mockOnChange = jest.fn();
+    render(
+      <TestingComponent
+        initialRule={{
+          geometryType: "point",
+          conditionField: "value",
+          conditionType: ">",
+          conditionValue: "",
+        }}
+        onRuleChange={mockOnChange}
+      />,
+    );
+
+    const sourceSelect = screen.getByRole("combobox", {
+      name: /valuesource/i,
+    });
+    await selectEvent.select(sourceSelect, "Field");
+
+    expect(mockOnChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        conditionValueIsField: true,
+        conditionValue: "",
+      }),
+    );
+
+    const valueFieldSelect = screen.getByRole("combobox", {
+      name: /valuefield/i,
+    });
+    await selectEvent.select(valueFieldSelect, "field1");
+
+    expect(mockOnChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        conditionValueIsField: true,
+        conditionValue: "field1",
+      }),
+    );
   });
 
   it("removes an extra condition when its remove button is clicked", async () => {
@@ -1031,6 +1211,7 @@ describe("getStyleKeysForGeom", () => {
       "strokeWidth",
       "size",
       "shape",
+      "rotation",
       "zIndex",
     ]);
   });

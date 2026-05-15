@@ -442,9 +442,24 @@ export function matchesCondition(featureValue, type, conditionValue) {
   }
 }
 
-function evaluateCondition({ field, type, value }, properties) {
+export function resolveAllStyleValues(merged, properties) {
+  if (!merged.propertyRefs || typeof merged.propertyRefs !== "object") {
+    return merged;
+  }
+  const resolved = { ...merged };
+  for (const [key, fieldName] of Object.entries(merged.propertyRefs)) {
+    if (typeof fieldName !== "string" || !fieldName) continue;
+    const fv = properties[fieldName];
+    if (fv !== undefined && fv !== null && fv !== "") {
+      resolved[key] = fv;
+    }
+  }
+  return resolved;
+}
+
+function evaluateCondition({ field, type, value, valueIsField }, properties) {
   const fv = properties[field];
-  let ruleValue = value;
+  let ruleValue = valueIsField ? properties[value] : value;
   if (
     typeof fv === "number" &&
     typeof ruleValue === "string" &&
@@ -463,6 +478,7 @@ export function ruleMatches(rule, properties) {
       field: rule.conditionField,
       type: rule.conditionType,
       value: rule.conditionValue,
+      valueIsField: !!rule.conditionValueIsField,
     });
   }
 
@@ -506,7 +522,43 @@ export function resolveSize(feature, rules, defaultSize) {
   return size;
 }
 
-export function createDiamondIconStyle({ size, fill, stroke }) {
+export function createTrapezoidIconStyle({ size, fill, stroke, rotation = 0 }) {
+  const canvasSize = size * 2;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvasSize;
+  canvas.height = canvasSize;
+
+  const ctx = canvas.getContext("2d");
+  ctx.translate(canvasSize / 2, canvasSize / 2);
+
+  ctx.fillStyle = fill.getColor();
+  ctx.strokeStyle = stroke.getColor();
+  ctx.lineWidth = stroke.getWidth();
+
+  const topHalfWidth = size * 0.5;
+  const baseHalfWidth = size;
+  const halfHeight = size * 0.5;
+
+  ctx.beginPath();
+  ctx.moveTo(-topHalfWidth, -halfHeight);
+  ctx.lineTo(topHalfWidth, -halfHeight);
+  ctx.lineTo(baseHalfWidth, halfHeight);
+  ctx.lineTo(-baseHalfWidth, halfHeight);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  return new Style({
+    image: new Icon({
+      img: canvas,
+      imgSize: [canvasSize, canvasSize],
+      anchor: [0.5, 0.5],
+      rotation,
+    }),
+  });
+}
+
+export function createDiamondIconStyle({ size, fill, stroke, rotation = 0 }) {
   const canvasSize = size * 2;
 
   const canvas = document.createElement("canvas");
@@ -558,11 +610,21 @@ export function createDiamondIconStyle({ size, fill, stroke }) {
       img: canvas,
       imgSize: [canvasSize, canvasSize],
       anchor: [0.5, 0.5],
+      rotation,
     }),
   });
 }
 
-export function buildPointStyle(shape, size, fill, stroke, iconUrl) {
+export function buildPointStyle(
+  shape,
+  size,
+  fill,
+  stroke,
+  iconUrl,
+  rotation = 0,
+) {
+  const rotationRad = (Number(rotation) || 0) * (Math.PI / 180);
+
   switch (shape) {
     case "circle":
       return new Style({
@@ -575,6 +637,7 @@ export function buildPointStyle(shape, size, fill, stroke, iconUrl) {
           points: 4,
           radius: size,
           angle: Math.PI / 4,
+          rotation: rotationRad,
           fill,
           stroke,
         }),
@@ -589,6 +652,7 @@ export function buildPointStyle(shape, size, fill, stroke, iconUrl) {
           radius2: size,
           points: 4,
           angle: 0,
+          rotation: rotationRad,
           scale: [1, 0.5],
         }),
       });
@@ -598,6 +662,7 @@ export function buildPointStyle(shape, size, fill, stroke, iconUrl) {
         image: new RegularShape({
           points: 3,
           radius: size,
+          rotation: rotationRad,
           fill,
           stroke,
         }),
@@ -609,13 +674,27 @@ export function buildPointStyle(shape, size, fill, stroke, iconUrl) {
           points: 5,
           radius: size,
           radius2: size / 2,
+          rotation: rotationRad,
           fill,
           stroke,
         }),
       });
 
     case "diamond":
-      return createDiamondIconStyle({ size, fill, stroke });
+      return createDiamondIconStyle({
+        size,
+        fill,
+        stroke,
+        rotation: rotationRad,
+      });
+
+    case "trapezoid":
+      return createTrapezoidIconStyle({
+        size,
+        fill,
+        stroke,
+        rotation: rotationRad,
+      });
 
     case "cross":
       return new Style({
@@ -624,6 +703,7 @@ export function buildPointStyle(shape, size, fill, stroke, iconUrl) {
           radius: size,
           radius2: 0,
           angle: 0,
+          rotation: rotationRad,
           fill,
           stroke,
         }),
@@ -636,6 +716,7 @@ export function buildPointStyle(shape, size, fill, stroke, iconUrl) {
           radius: size,
           radius2: 0,
           angle: Math.PI / 4,
+          rotation: rotationRad,
           fill,
           stroke,
         }),
@@ -647,6 +728,7 @@ export function buildPointStyle(shape, size, fill, stroke, iconUrl) {
           image: new Icon({
             src: iconUrl,
             scale: size / 10, // optional scaling
+            rotation: rotationRad,
           }),
         });
       }
@@ -711,6 +793,9 @@ export function createJsonStyleFunction(styleJson) {
       }
     }
 
+    // --- Resolve any field references against this feature's properties ---
+    merged = resolveAllStyleValues(merged, properties);
+
     // --- Set sensible defaults for points ---
     if (geometryBucket === "point") {
       if (merged.size == null) merged.size = defaultSize;
@@ -764,6 +849,7 @@ export function createJsonStyleFunction(styleJson) {
         fill,
         stroke,
         merged.iconUrl,
+        merged.rotation,
       );
     }
     // --- LINE ---

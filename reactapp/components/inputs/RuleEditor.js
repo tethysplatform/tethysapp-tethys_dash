@@ -133,6 +133,7 @@ const availableShapes = [
   "square",
   "rectangle",
   "triangle",
+  "trapezoid",
   "star",
   "diamond",
   "cross",
@@ -150,7 +151,15 @@ export const availableStrokeDashOptions = [
 
 // Geometry-specific style option filters
 export const geomStyleOptions = {
-  point: ["fill", "stroke", "strokeWidth", "size", "shape", "zIndex"],
+  point: [
+    "fill",
+    "stroke",
+    "strokeWidth",
+    "size",
+    "shape",
+    "rotation",
+    "zIndex",
+  ],
   linestring: ["stroke", "strokeWidth", "strokeDash", "zIndex"],
   polygon: ["fill", "stroke", "strokeWidth", "polygonFillType", "zIndex"],
 };
@@ -168,10 +177,16 @@ const CONDITION_OPTIONS = [
 
 const VALUELESS_CONDITIONS = ["isNull", "isNotNull"];
 
+const VALUE_SOURCE_OPTIONS = [
+  { value: "literal", label: "Literal" },
+  { value: "field", label: "Field" },
+];
+
 const RULE_METADATA_KEYS = [
   "conditionField",
   "conditionType",
   "conditionValue",
+  "conditionValueIsField",
   "conditions",
   "geometryType",
   "iconUrl",
@@ -179,6 +194,7 @@ const RULE_METADATA_KEYS = [
   "hatchSpacing",
   "dotRadius",
   "dotSpacing",
+  "propertyRefs",
   "name",
 ];
 
@@ -208,6 +224,7 @@ export const defaultStrokeWidth = 1.25;
 export const defaultSize = 5;
 export const defaultZIndex = 0;
 export const defaultShape = "circle";
+export const defaultRotation = 0;
 export const defaultHatchSpacing = 8;
 export const defaultHatchDirection = "diagonal";
 export const defaultDotSpacing = 8;
@@ -271,6 +288,7 @@ const RuleEditor = ({
         conditionField: "",
         conditionType: "=",
         conditionValue: "",
+        conditionValueIsField: false,
         conditions: [],
       });
       currentGeomType.current = selectedGeomType.value;
@@ -296,6 +314,7 @@ const RuleEditor = ({
     else if (selected.value === "strokeWidth")
       newRule.strokeWidth = defaultStrokeWidth;
     else if (selected.value === "size") newRule.size = defaultSize;
+    else if (selected.value === "rotation") newRule.rotation = defaultRotation;
     else if (selected.value === "zIndex") newRule.zIndex = defaultZIndex;
     else newRule[selected.value] = "";
     onChange(newRule);
@@ -313,6 +332,15 @@ const RuleEditor = ({
     }
     if (key === "shape" && "iconUrl" in newRule) {
       delete newRule.iconUrl;
+    }
+    if (newRule.propertyRefs && key in newRule.propertyRefs) {
+      const nextRefs = { ...newRule.propertyRefs };
+      delete nextRefs[key];
+      if (Object.keys(nextRefs).length === 0) {
+        delete newRule.propertyRefs;
+      } else {
+        newRule.propertyRefs = nextRefs;
+      }
     }
     onChange(newRule);
   };
@@ -359,6 +387,7 @@ const RuleEditor = ({
             onChange={onChange}
             containerRef={containerRef}
             handleRemoveStyle={handleRemoveStyle}
+            availableFields={availableFields}
           />
         ))}
         <StyleRowWrapper>
@@ -376,6 +405,93 @@ const RuleEditor = ({
   );
 };
 
+// Wraps a style control with a Literal | Field source toggle so the value can
+// either be a rule literal or a per-feature property reference (propertyRefs).
+function WithFieldToggle({
+  keyName,
+  label,
+  rule,
+  onChange,
+  availableFields,
+  sectionName,
+  defaultLiteralValue,
+  children,
+}) {
+  // Default-style section has no per-feature semantics — render the literal control as-is.
+  if (sectionName) return children;
+
+  const refs = rule.propertyRefs || {};
+  const isField = typeof refs[keyName] === "string";
+
+  const setSource = (nextSource) => {
+    const nextRule = { ...rule };
+    const nextRefs = { ...(nextRule.propertyRefs || {}) };
+    if (nextSource === "field") {
+      nextRefs[keyName] = "";
+    } else {
+      delete nextRefs[keyName];
+    }
+    if (Object.keys(nextRefs).length === 0) {
+      delete nextRule.propertyRefs;
+    } else {
+      nextRule.propertyRefs = nextRefs;
+    }
+    if (defaultLiteralValue !== undefined) {
+      nextRule[keyName] = defaultLiteralValue;
+    }
+    onChange(nextRule);
+  };
+
+  const setFieldRef = (fieldName) => {
+    onChange({
+      ...rule,
+      propertyRefs: { ...(rule.propertyRefs || {}), [keyName]: fieldName },
+    });
+  };
+
+  return (
+    <>
+      <DataSelect
+        label="Value Source"
+        options={VALUE_SOURCE_OPTIONS}
+        selectedOption={VALUE_SOURCE_OPTIONS.find(
+          (o) => o.value === (isField ? "field" : "literal"),
+        )}
+        onChange={(opt) => setSource(opt.value)}
+        creatable={false}
+        divProps={{ style: { marginBottom: 0, marginRight: "1rem" } }}
+      />
+      {isField ? (
+        <DataSelect
+          label={`${label} Field`}
+          options={(availableFields || []).map((f) => ({ value: f, label: f }))}
+          selectedOption={
+            refs[keyName]
+              ? { value: refs[keyName], label: refs[keyName] }
+              : null
+          }
+          onChange={(opt) => setFieldRef(opt.value)}
+          creatable={true}
+          divProps={{ style: { marginBottom: 0 } }}
+        />
+      ) : (
+        children
+      )}
+    </>
+  );
+}
+
+WithFieldToggle.propTypes = {
+  keyName: PropTypes.string.isRequired,
+  label: PropTypes.string.isRequired,
+  rule: PropTypes.object.isRequired,
+  onChange: PropTypes.func.isRequired,
+  availableFields: PropTypes.array,
+  sectionName: PropTypes.string,
+  defaultLiteralValue: PropTypes.any,
+  children: PropTypes.node,
+};
+
 // Reusable style option control
 function StyleOptionControl({
   keyName,
@@ -385,6 +501,7 @@ function StyleOptionControl({
   handleRemoveStyle,
   sectionName,
   defaultSection,
+  availableFields = [],
 }) {
   const value = sectionName ? rule?.[sectionName]?.[keyName] : rule[keyName];
   const styleValueChange = (k, v) => {
@@ -395,17 +512,27 @@ function StyleOptionControl({
   if (keyName === "polygonFillType") {
     return (
       <StyleContainer $gap={8} key={keyName}>
-        <DataSelect
+        <WithFieldToggle
+          keyName={keyName}
           label="Polygon Fill Type"
-          options={POLYGON_FILL_TYPES}
-          selectedOption={
-            POLYGON_FILL_TYPES.find((o) => o.value === value) ||
-            POLYGON_FILL_TYPES[0]
-          }
-          onChange={(opt) => styleValueChange(keyName, opt.value)}
-          creatable={false}
-          divProps={{ style: { marginBottom: 0 } }}
-        />
+          rule={rule}
+          onChange={onChange}
+          availableFields={availableFields}
+          sectionName={sectionName}
+          defaultLiteralValue="solid"
+        >
+          <DataSelect
+            label="Polygon Fill Type"
+            options={POLYGON_FILL_TYPES}
+            selectedOption={
+              POLYGON_FILL_TYPES.find((o) => o.value === value) ||
+              POLYGON_FILL_TYPES[0]
+            }
+            onChange={(opt) => styleValueChange(keyName, opt.value)}
+            creatable={false}
+            divProps={{ style: { marginBottom: 0 } }}
+          />
+        </WithFieldToggle>
         {value === "hatch" && (
           <>
             <DataSelect
@@ -498,18 +625,28 @@ function StyleOptionControl({
   if (keyName === "shape") {
     return (
       <StyleContainer $gap={8} key={keyName}>
-        <DataSelect
+        <WithFieldToggle
+          keyName={keyName}
           label="Shape"
-          options={availableShapes.map((s) => ({ value: s, label: s }))}
-          selectedOption={
-            value
-              ? { value, label: value }
-              : { value: defaultShape, label: defaultShape }
-          }
-          onChange={(o) => styleValueChange(keyName, o.value)}
-          creatable={false}
-          divProps={{ style: { marginBottom: 0 } }}
-        />
+          rule={rule}
+          onChange={onChange}
+          availableFields={availableFields}
+          sectionName={sectionName}
+          defaultLiteralValue={defaultShape}
+        >
+          <DataSelect
+            label="Shape"
+            options={availableShapes.map((s) => ({ value: s, label: s }))}
+            selectedOption={
+              value
+                ? { value, label: value }
+                : { value: defaultShape, label: defaultShape }
+            }
+            onChange={(o) => styleValueChange(keyName, o.value)}
+            creatable={false}
+            divProps={{ style: { marginBottom: 0 } }}
+          />
+        </WithFieldToggle>
         {value === "icon" && (
           <NormalInput
             label="Icon URL"
@@ -542,13 +679,25 @@ function StyleOptionControl({
   if (keyName === "fill" || keyName === "stroke") {
     return (
       <StyleContainer key={keyName} $gap={4}>
-        <ColorPickerPopover
+        <WithFieldToggle
+          keyName={keyName}
           label={keyName === "fill" ? "Fill" : "Stroke"}
-          color={value || (keyName === "fill" ? defaultFill : defaultStroke)}
-          onChange={(color) => styleValueChange(keyName, color)}
-          containerRef={containerRef}
-          divProps={defaultSection && { style: { "flex-direction": "column" } }}
-        />
+          rule={rule}
+          onChange={onChange}
+          availableFields={availableFields}
+          sectionName={sectionName}
+          defaultLiteralValue={keyName === "fill" ? defaultFill : defaultStroke}
+        >
+          <ColorPickerPopover
+            label={keyName === "fill" ? "Fill" : "Stroke"}
+            color={value || (keyName === "fill" ? defaultFill : defaultStroke)}
+            onChange={(color) => styleValueChange(keyName, color)}
+            containerRef={containerRef}
+            divProps={
+              defaultSection && { style: { "flex-direction": "column" } }
+            }
+          />
+        </WithFieldToggle>
         {handleRemoveStyle && (
           <>
             <Spacer />
@@ -568,17 +717,28 @@ function StyleOptionControl({
   if (keyName === "strokeDash") {
     return (
       <StyleContainer key={keyName} $gap={4}>
-        <DataSelect
+        <WithFieldToggle
+          keyName={keyName}
           label="Stroke Dash"
-          options={availableStrokeDashOptions}
-          selectedOption={
-            availableStrokeDashOptions.find((o) => o.value === (value || "")) ||
-            availableStrokeDashOptions[0]
-          }
-          onChange={(opt) => styleValueChange(keyName, opt.value)}
-          creatable={false}
-          divProps={{ style: { marginBottom: 0 } }}
-        />
+          rule={rule}
+          onChange={onChange}
+          availableFields={availableFields}
+          sectionName={sectionName}
+          defaultLiteralValue=""
+        >
+          <DataSelect
+            label="Stroke Dash"
+            options={availableStrokeDashOptions}
+            selectedOption={
+              availableStrokeDashOptions.find(
+                (o) => o.value === (value || ""),
+              ) || availableStrokeDashOptions[0]
+            }
+            onChange={(opt) => styleValueChange(keyName, opt.value)}
+            creatable={false}
+            divProps={{ style: { marginBottom: 0 } }}
+          />
+        </WithFieldToggle>
         {handleRemoveStyle && (
           <>
             <Spacer />
@@ -595,28 +755,39 @@ function StyleOptionControl({
       </StyleContainer>
     );
   }
-  // Fallback for number input
+  // Fallback for number input (size, strokeWidth, zIndex, rotation)
   const label = keyName
     .replace(/([A-Z])/g, " $1")
     .replace(/^./, (str) => str.toUpperCase());
+  const numericDefault =
+    keyName === "strokeWidth"
+      ? defaultStrokeWidth
+      : keyName === "size"
+        ? defaultSize
+        : keyName === "rotation"
+          ? defaultRotation
+          : defaultZIndex;
   return (
     <StyleContainer key={keyName} $gap={4}>
-      <NumberInputWrapper>
-        <NormalInput
-          label={label}
-          value={
-            value ??
-            (keyName === "strokeWidth"
-              ? defaultStrokeWidth
-              : keyName === "size"
-                ? defaultSize
-                : defaultZIndex)
-          }
-          type="number"
-          onChange={(e) => styleValueChange(keyName, e.target.value)}
-          labelProps={{ style: { marginBottom: 0 } }}
-        />
-      </NumberInputWrapper>
+      <WithFieldToggle
+        keyName={keyName}
+        label={label}
+        rule={rule}
+        onChange={onChange}
+        availableFields={availableFields}
+        sectionName={sectionName}
+        defaultLiteralValue={numericDefault}
+      >
+        <NumberInputWrapper>
+          <NormalInput
+            label={label}
+            value={value ?? numericDefault}
+            type="number"
+            onChange={(e) => styleValueChange(keyName, e.target.value)}
+            labelProps={{ style: { marginBottom: 0 } }}
+          />
+        </NumberInputWrapper>
+      </WithFieldToggle>
       {handleRemoveStyle && (
         <>
           <Spacer />
@@ -634,15 +805,35 @@ function StyleOptionControl({
   );
 }
 
-function ConditionRow({ field, type, value, availableFields, onChange }) {
+function ConditionRow({
+  field,
+  type,
+  value,
+  valueIsField,
+  availableFields,
+  onChange,
+}) {
   const valueless = VALUELESS_CONDITIONS.includes(type);
+  const source = valueIsField ? "field" : "literal";
+
+  const emit = (next) =>
+    onChange({
+      field: next.field !== undefined ? next.field : field,
+      type: next.type !== undefined ? next.type : type,
+      value: next.value !== undefined ? next.value : value,
+      valueIsField:
+        next.valueIsField !== undefined
+          ? next.valueIsField
+          : valueIsField || false,
+    });
+
   return (
     <>
       <DataSelect
         label="Field"
         options={availableFields.map((f) => ({ value: f, label: f }))}
         selectedOption={field ? { value: field, label: field } : null}
-        onChange={(opt) => onChange({ field: opt.value, type, value })}
+        onChange={(opt) => emit({ field: opt.value })}
         creatable={true}
         divProps={{ style: { marginBottom: 0 } }}
       />
@@ -650,18 +841,43 @@ function ConditionRow({ field, type, value, availableFields, onChange }) {
         label="Condition"
         options={CONDITION_OPTIONS}
         selectedOption={CONDITION_OPTIONS.find((o) => o.value === type)}
-        onChange={(opt) => onChange({ field, type: opt.value, value })}
+        onChange={(opt) => emit({ type: opt.value })}
         creatable={false}
         divProps={{ style: { marginBottom: 0 } }}
       />
       {!valueless && (
-        <NormalInput
-          label="Value"
-          value={value || ""}
-          type="text"
-          onChange={(e) => onChange({ field, type, value: e.target.value })}
-          labelProps={{ style: { marginBottom: 0 } }}
-        />
+        <>
+          <DataSelect
+            label="Value Source"
+            options={VALUE_SOURCE_OPTIONS}
+            selectedOption={VALUE_SOURCE_OPTIONS.find(
+              (o) => o.value === source,
+            )}
+            onChange={(opt) =>
+              emit({ valueIsField: opt.value === "field", value: "" })
+            }
+            creatable={false}
+            divProps={{ style: { marginBottom: 0 } }}
+          />
+          {valueIsField ? (
+            <DataSelect
+              label="Value Field"
+              options={availableFields.map((f) => ({ value: f, label: f }))}
+              selectedOption={value ? { value, label: value } : null}
+              onChange={(opt) => emit({ value: opt.value })}
+              creatable={true}
+              divProps={{ style: { marginBottom: 0 } }}
+            />
+          ) : (
+            <NormalInput
+              label="Value"
+              value={value || ""}
+              type="text"
+              onChange={(e) => emit({ value: e.target.value })}
+              labelProps={{ style: { marginBottom: 0 } }}
+            />
+          )}
+        </>
       )}
     </>
   );
@@ -671,6 +887,7 @@ ConditionRow.propTypes = {
   field: PropTypes.string,
   type: PropTypes.string,
   value: PropTypes.string,
+  valueIsField: PropTypes.bool,
   availableFields: PropTypes.array.isRequired,
   onChange: PropTypes.func.isRequired,
 };
@@ -690,22 +907,24 @@ const RuleConditionEditor = ({
   const extraConditions = rule.conditions || [];
 
   const updateFirstCondition = (next) => {
+    const valueless = VALUELESS_CONDITIONS.includes(next.type);
     onChange({
       ...rule,
       conditionField: next.field,
       conditionType: next.type,
-      conditionValue: VALUELESS_CONDITIONS.includes(next.type)
-        ? ""
-        : next.value,
+      conditionValue: valueless ? "" : next.value,
+      conditionValueIsField: valueless ? false : !!next.valueIsField,
     });
   };
 
   const updateExtraCondition = (i, next) => {
+    const valueless = VALUELESS_CONDITIONS.includes(next.type);
     const conditions = [...extraConditions];
     conditions[i] = {
       field: next.field,
       type: next.type,
-      value: VALUELESS_CONDITIONS.includes(next.type) ? "" : next.value,
+      value: valueless ? "" : next.value,
+      valueIsField: valueless ? false : !!next.valueIsField,
     };
     onChange({ ...rule, conditions });
   };
@@ -756,6 +975,7 @@ const RuleConditionEditor = ({
             field={conditionField}
             type={conditionType}
             value={conditionValue}
+            valueIsField={!!rule.conditionValueIsField}
             availableFields={availableFields}
             onChange={updateFirstCondition}
           />
@@ -767,6 +987,7 @@ const RuleConditionEditor = ({
               field={c.field || ""}
               type={c.type || "="}
               value={c.value || ""}
+              valueIsField={!!c.valueIsField}
               availableFields={availableFields}
               onChange={(next) => updateExtraCondition(i, next)}
             />
@@ -828,6 +1049,7 @@ StyleOptionControl.propTypes = {
   handleRemoveStyle: PropTypes.func,
   sectionName: PropTypes.string,
   defaultSection: PropTypes.oneOfType([PropTypes.string, PropTypes.bool]),
+  availableFields: PropTypes.array,
 };
 
 DefaultStyleSection.propTypes = {
