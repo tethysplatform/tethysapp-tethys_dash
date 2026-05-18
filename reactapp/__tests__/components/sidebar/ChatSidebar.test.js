@@ -343,4 +343,52 @@ describe("ChatSidebar beforeFirstMessage system-message framing", () => {
     expect(priorityIdx).toBeGreaterThan(editFramingIdx);
     expect(priorityIdx).toBeLessThan(jsonIdx);
   });
+
+  // Debug session 2026-05-17 — LLM was treating dashboard_state as
+  // additive to its own prior-turn tool-call history. When the user
+  // deleted a viz in the UI between turns, the LLM trusted "I created
+  // uuid X earlier" over the fresh dashboard_state that no longer
+  // listed X — refusing to recreate ("it already exists") or trying to
+  // patch_visualization a UUID that was gone. The fix adds an
+  // AUTHORITATIVE clause establishing dashboard_state as the complete
+  // current truth, with prior tool-call history explicitly subordinate.
+  // These tests pin the wording and its position so the rule can't
+  // silently regress.
+
+  test("AUTHORITATIVE clause establishes dashboard_state as the complete current truth, overriding prior tool-call history", () => {
+    renderWithContexts({ editable: true, tabs: tabsWithViz });
+    const msg = globalThis.__chatboxLastProps.engineExtensions.beforeFirstMessage();
+    expect(msg.content).toMatch(/AUTHORITATIVE/);
+    expect(msg.content).toMatch(/COMPLETE list/i);
+    // Names the deletion semantics so the LLM knows what missing UUIDs mean.
+    expect(msg.content).toMatch(/DELETED by the user/i);
+    // Names the wrong behaviors the rule prevents — refusing to recreate
+    // and trying to patch a UUID that no longer exists.
+    expect(msg.content).toMatch(/recreate from scratch/i);
+    // Explicitly subordinates prior-turn history to dashboard_state.
+    expect(msg.content).toMatch(
+      /tool-call history is NOT authoritative/i,
+    );
+    expect(msg.content).toMatch(/`?dashboard_state`?\s+always\s+wins/i);
+  });
+
+  test("AUTHORITATIVE clause appears AFTER the escape clause and BEFORE the dashboard-edit framing", () => {
+    renderWithContexts({ editable: true, tabs: tabsWithViz });
+    const msg = globalThis.__chatboxLastProps.engineExtensions.beforeFirstMessage();
+    const escapeIdx = msg.content.indexOf("REFERENCE for editing");
+    const authorityIdx = msg.content.indexOf("AUTHORITATIVE");
+    const editFramingIdx = msg.content.indexOf(
+      "Current dashboard state and patch_visualization reference",
+    );
+    expect(escapeIdx).toBeGreaterThanOrEqual(0);
+    expect(authorityIdx).toBeGreaterThanOrEqual(0);
+    expect(editFramingIdx).toBeGreaterThanOrEqual(0);
+    // Position is load-bearing: the escape clause defends against
+    // off-topic refusals (must lead); the AUTHORITATIVE clause defends
+    // against stale-history reasoning (must lead the dashboard-edit
+    // section so the LLM knows dashboard_state is current truth before
+    // it reads any patch_visualization instructions).
+    expect(authorityIdx).toBeGreaterThan(escapeIdx);
+    expect(authorityIdx).toBeLessThan(editFramingIdx);
+  });
 });
