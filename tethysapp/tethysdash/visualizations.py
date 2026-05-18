@@ -5,6 +5,7 @@ from tethysapp.tethysdash.plugin_helpers import (
     get_plugin_prop,
     validate_feature_collection,
 )
+import inspect
 
 
 def build_plugin_metadata(plugin, source):
@@ -256,9 +257,9 @@ def get_visualization(viz_source, viz_args, user, viz_request_id, mode="scaffold
         validate_feature_collection(data)
         return "features", data
 
-    try:
+    if "request_id" in inspect.signature(plugin_instance.read).parameters:
         data = plugin_instance.read(request_id=viz_request_id)
-    except TypeError:
+    else:
         data = plugin_instance.read()
 
     return get_plugin_prop(plugin, "type"), data

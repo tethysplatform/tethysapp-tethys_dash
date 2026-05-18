@@ -37,9 +37,7 @@ def copy_plugin_static(plugin_modules, static_plugin_images, static_plugin_data)
 
             if not found:
                 try:
-                    visualization_type = intake.source.registry[
-                        source
-                    ].visualization_type
+                    visualization_type = intake.source.registry[source].type
                 except AttributeError:
                     print(f"--> {source} is not a tethysdash plugin")
                     continue

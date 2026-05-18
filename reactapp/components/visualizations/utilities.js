@@ -118,9 +118,19 @@ export async function getVisualization({
 
   if (itemData.source === "Map") {
     setVizType("map");
+    // Restore each layer's popupConfig from the raw (unresolved) argsString so
+    // that ${variable} template strings in popup gridItem args_string survive to
+    // the popup visualization's own getVisualization call. Without this, the
+    // Map-level updateObjectWithVariableInputs formats dates as locale strings
+    // (e.g. "01/15/2024") which new Date() cannot parse, producing null args.
+    const rawLayers = JSON.parse(argsString).layers ?? [];
+    const layers = (itemData.args.layers ?? []).map((layer, i) => {
+      const rawPopupConfig = rawLayers[i]?.popupConfig;
+      return rawPopupConfig ? { ...layer, popupConfig: rawPopupConfig } : layer;
+    });
     setVizData({
       baseMap: itemData.args.baseMap,
-      layers: itemData.args.layers,
+      layers,
       layerControl: itemData.args.layerControl,
       map_extent: itemData.args.map_extent,
       mapConfig: itemData.args.mapConfig,

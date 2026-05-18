@@ -165,6 +165,7 @@ const DatePicker = ({
             scrollableYearDropdown
             customInput={<div />} // Prevents a visible input
             popperPlacement="bottom-end"
+            popperProps={{ strategy: "fixed" }}
             wrapperClassName="icon-location"
           />
         </Wrapper>
