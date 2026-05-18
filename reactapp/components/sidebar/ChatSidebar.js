@@ -278,6 +278,23 @@ function ChatSidebar() {
             "off-topic requests just because dashboard context is " +
             "present. Treat the context below as advisory, not " +
             "exclusive.\n\n" +
+            // Authority clause — dashboard_state wins over conversation
+            // history. Without this, when the user deletes a viz in the
+            // UI between turns, the LLM trusts its own prior tool-call
+            // history ("I created uuid X") more than the fresh
+            // dashboard_state injection and either (a) refuses to
+            // recreate the viz because "it already exists" or (b) tries
+            // to patch_visualization on a UUID that's no longer there.
+            // See debug session 2026-05-17.
+            "AUTHORITATIVE: `dashboard_state` below is the COMPLETE list " +
+            "of visualizations currently on the dashboard. If a " +
+            "visualization was created by a prior tool call but is NOT " +
+            "listed in `dashboard_state`, it has been DELETED by the " +
+            "user since that call. Treat such UUIDs as gone — do NOT " +
+            "attempt to `patch_visualization` on them, and recreate from " +
+            "scratch if the user asks for them again. Prior-turn " +
+            "tool-call history is NOT authoritative for what currently " +
+            "exists; `dashboard_state` always wins.\n\n" +
             "Current dashboard state and patch_visualization reference. " +
             "To edit an existing visualization, target its uuid via the " +
             "patch_visualization tool. Use `editable_paths_by_source` to " +
