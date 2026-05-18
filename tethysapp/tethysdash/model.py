@@ -508,22 +508,14 @@ def add_new_dashboard(
                         tab_id=default_tab.id,
                     )
                     grid_item_i += 1
-            else:
-                add_new_grid_item(
-                    session,
-                    new_dashboard_id,
-                    str(grid_item_i),
-                    0,
-                    0,
-                    20,
-                    20,
-                    "",
-                    "{}",
-                    "{}",
-                    0,
-                    str(uuid4()),
-                    tab_id=default_tab.id,
-                )
+            # Fresh dashboards with no grid_items are left truly empty.
+            # The previous else branch inserted a placeholder GridItem with
+            # source="", args_string="{}", x=0, y=0 to make the default tab
+            # non-empty for the legacy "+" button workflow — but it persists
+            # forever as a phantom top-left tile that the user can't easily
+            # distinguish from a real empty tile awaiting Edit. With the
+            # chatbox + manual "+" button both able to create the first
+            # tile on demand, no placeholder is needed. Debug 2026-05-18.
 
         # Commit the session and close the connection
         session.commit()

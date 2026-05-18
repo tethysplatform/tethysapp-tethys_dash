@@ -98,7 +98,10 @@ def test_add_and_delete_dashboard(db_session, mock_app_get_ps_db, test_owner_use
     dashboard_id = dashboard.id
 
     assert len(dashboard.tabs) == 1
-    assert len(dashboard.grid_items) == 1
+    # Fresh dashboards created with no grid_items now persist with zero
+    # grid items — the legacy empty placeholder at (0,0) was removed
+    # because it manifested as a phantom top-left tile in the UI.
+    assert len(dashboard.grid_items) == 0
 
     # Add a grid item and verify
     grid_item_i = "2"
