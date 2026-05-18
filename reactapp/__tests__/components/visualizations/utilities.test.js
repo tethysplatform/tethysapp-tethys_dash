@@ -445,6 +445,134 @@ test("getVisualization map", async () => {
   });
 });
 
+// Lines 126-130: source === "Map" short-circuit with popupConfig restoration.
+// These tests do NOT need a server mock — the Map branch returns before any API call.
+
+describe("getVisualization source=Map (popupConfig restoration, lines 126-130)", () => {
+  const baseCall = (overrides) =>
+    getVisualization({
+      setVizType: jest.fn(),
+      setVizData: jest.fn(),
+      sourceType: "Map",
+      metadataString: "{}",
+      variableInputValues: [],
+      ...overrides,
+    });
+
+  test("restores raw popupConfig onto each layer when argsString has one (line 130 truthy branch)", async () => {
+    // The resolved layer would lose ${variable} tokens in popupConfig;
+    // the raw argsString version must win.
+    const rawPopupConfig = { titleTemplate: "${feature.name}", mode: "modal" };
+    const resolvedLayer = {
+      name: "Layer A",
+      popupConfig: { titleTemplate: "resolved name", mode: "modal" },
+    };
+
+    const mockSetVizData = jest.fn();
+    await baseCall({
+      setVizData: mockSetVizData,
+      itemData: {
+        source: "Map",
+        args: {
+          layers: [resolvedLayer],
+          baseMap: "base",
+          layerControl: true,
+          map_extent: [0, 0, 1, 1],
+          mapConfig: {},
+          mapDrawing: null,
+        },
+      },
+      argsString: JSON.stringify({
+        layers: [{ name: "Layer A", popupConfig: rawPopupConfig }],
+      }),
+    });
+
+    const { layers } = mockSetVizData.mock.calls[0][0];
+    expect(layers).toHaveLength(1);
+    // popupConfig must come from the raw argsString, not the resolved layer
+    expect(layers[0].popupConfig).toEqual(rawPopupConfig);
+    // other layer props are preserved from itemData.args
+    expect(layers[0].name).toBe("Layer A");
+  });
+
+  test("returns layer unchanged when argsString layer has no popupConfig (line 130 falsy branch)", async () => {
+    const layer = { name: "Layer B", fill: "#ff0000" };
+
+    const mockSetVizData = jest.fn();
+    await baseCall({
+      setVizData: mockSetVizData,
+      itemData: {
+        source: "Map",
+        args: {
+          layers: [layer],
+          baseMap: null,
+          layerControl: false,
+          map_extent: null,
+          mapConfig: null,
+          mapDrawing: null,
+        },
+      },
+      // argsString has a layer but no popupConfig on it
+      argsString: JSON.stringify({ layers: [{ name: "Layer B" }] }),
+    });
+
+    const { layers } = mockSetVizData.mock.calls[0][0];
+    expect(layers[0]).toEqual(layer);
+  });
+
+  test("falls back to empty rawLayers when argsString has no layers key (line 127 ?? branch)", async () => {
+    // argsString has no `layers` property → rawLayers = []
+    // rawLayers[i] is undefined → popupConfig treated as absent → layer unchanged
+    const layer = { name: "Layer C", popupConfig: { mode: "table" } };
+
+    const mockSetVizData = jest.fn();
+    await baseCall({
+      setVizData: mockSetVizData,
+      itemData: {
+        source: "Map",
+        args: {
+          layers: [layer],
+          baseMap: null,
+          layerControl: false,
+          map_extent: null,
+          mapConfig: null,
+          mapDrawing: null,
+        },
+      },
+      argsString: JSON.stringify({}), // no "layers" key at all
+    });
+
+    const { layers } = mockSetVizData.mock.calls[0][0];
+    // layer returned as-is because there was no raw entry to restore from
+    expect(layers[0]).toEqual(layer);
+  });
+
+  test("produces empty layers when itemData.args.layers is undefined (line 128 ?? branch)", async () => {
+    const mockSetVizData = jest.fn();
+    await baseCall({
+      setVizData: mockSetVizData,
+      itemData: {
+        source: "Map",
+        args: {
+          // layers deliberately omitted
+          baseMap: "base",
+          layerControl: true,
+          map_extent: null,
+          mapConfig: {},
+          mapDrawing: null,
+        },
+      },
+      argsString: JSON.stringify({
+        layers: [{ name: "Layer D", popupConfig: { mode: "modal" } }],
+      }),
+    });
+
+    const { layers, baseMap } = mockSetVizData.mock.calls[0][0];
+    expect(layers).toEqual([]);
+    expect(baseMap).toBe("base");
+  });
+});
+
 test("getVisualization custom", async () => {
   const customData = {
     url: "url",
