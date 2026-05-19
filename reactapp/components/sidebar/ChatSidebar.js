@@ -14,6 +14,7 @@ import { buildDeltaSummary, buildPatchContext } from "./chatboxStateBuilder";
 import {
   getChatHistory,
   saveChatHistory,
+  clearChatHistory,
 } from "services/chatHistoryStorage";
 
 // Plan 003 D3 — system-prompt instruction telling the LLM to use the
@@ -450,6 +451,15 @@ function ChatSidebar() {
           // Scoped per dashboard via conversationId.
           enableResultCache={true}
           conversationId={dashboardUuid ?? "no-dashboard"}
+          // Plan 2026-05-19-001 — `/clear` slash command. The built-in
+          // `/clear` in chatbox-core wipes its own messages + IndexedDB
+          // cache; this callback fires after that so we also wipe the
+          // per-dashboard localStorage chat-history entry. Result: the
+          // chat is empty and stays empty across page refreshes after a
+          // /clear.
+          onClear={() =>
+            clearChatHistory(dashboardUuid ?? "no-dashboard")
+          }
           welcomeHeading="Ask me about your dashboard"
           welcomeSubtitle="I can create visualizations, edit tiles, add map layers, and analyze data — just ask."
           suggestedPrompts={[
