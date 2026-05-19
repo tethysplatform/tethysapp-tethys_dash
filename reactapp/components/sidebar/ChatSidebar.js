@@ -443,6 +443,13 @@ function ChatSidebar() {
           engineExtensions={engineExtensions}
           initialMessages={initialChatMessages}
           onMessagesChange={handleMessagesChange}
+          // Plan 2026-05-18-002 — MCP result-by-reference protocol
+          // (chatbox-core PR #36 + tethysdash_mcps PR #7). Caches
+          // oversized tool results in IndexedDB and lets the LLM
+          // reference them by URI instead of re-emitting inline data.
+          // Scoped per dashboard via conversationId.
+          enableResultCache={true}
+          conversationId={dashboardUuid ?? "no-dashboard"}
           welcomeHeading="Ask me about your dashboard"
           welcomeSubtitle="I can create visualizations, edit tiles, add map layers, and analyze data — just ask."
           suggestedPrompts={[
