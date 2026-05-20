@@ -82,7 +82,7 @@ describe("ChatSidebar permission gate (R11)", () => {
   });
 });
 
-describe("ChatSidebar patch-rejected banner (plan 2026-05-07-001 Unit B)", () => {
+describe("ChatSidebar patch-rejected banner", () => {
   test("renders nothing initially when no events have fired", () => {
     const { queryByTestId } = renderWithContexts({ editable: true });
     expect(queryByTestId("patch-rejected-banner")).toBeNull();

@@ -549,9 +549,9 @@ describe("buildPatchContext", () => {
     // Map basemap hints must flow into the full patch context so the LLM
     // can pick a correct URL instead of guessing a label like "imagery".
     expect(ctx.value_hints_by_source.Map["/args/baseMap"]).toBeDefined();
-    // Plan 2026-05-07-007 (T3): map_layer_arg_routing was deleted
-    // alongside the umbrella add_map_service_layer. The per-source-type
-    // tools' descriptions are now the per-type contract.
+    // map_layer_arg_routing was deleted alongside the umbrella
+    // add_map_service_layer; the per-source-type tools' descriptions
+    // are now the per-type contract.
     expect(ctx.map_layer_arg_routing).toBeUndefined();
   });
 

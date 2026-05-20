@@ -1,6 +1,6 @@
 /**
  * services/chatHistoryStorage.test.js — coverage for the per-dashboard
- * chat-history localStorage helper (plan 2026-05-08-004 Unit 2).
+ * chat-history localStorage helper.
  */
 
 import {

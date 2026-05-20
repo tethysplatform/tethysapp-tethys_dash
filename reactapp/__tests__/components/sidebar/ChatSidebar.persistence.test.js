@@ -1,6 +1,6 @@
 /**
  * ChatSidebar.persistence.test.js — wiring coverage for per-dashboard
- * chat history persistence (plan 2026-05-08-004 Unit 3).
+ * chat history persistence.
  *
  * Verifies:
  *   - <Chatbox> receives initialMessages hydrated from getChatHistory(uuid)

@@ -306,8 +306,8 @@ describe("handleUpdateVisualization — apply_patch", () => {
   });
 
   test("emits tethysdash:patch-rejected when rfc6902 fails", async () => {
-    // Plan 2026-05-07-001 Unit B: silent-failure UX gap — failed patches
-    // must surface a chat-visible event so the user sees the failure.
+    // Silent-failure UX gap: failed patches must surface a chat-visible
+    // event so the user sees the failure.
     await renderWithDashboard(makeDashboard([plotItem]));
     const events = [];
     const onReject = (e) => events.push(e.detail);
@@ -690,19 +690,20 @@ describe("handleUpdateVisualization — unknown operation", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Same-UUID-twice apply ordering (Plan 20 #15 — per-envelope atomicity)
+// Same-UUID-twice apply ordering (per-envelope atomicity)
 // ---------------------------------------------------------------------------
 //
-// Post-#15, Chatbox.jsx emits one patches[] entry per engine envelope rather
-// than merging by UUID. So `patches[]` may contain two entries with the
-// same UUID. The handler's existing per-entry `updated`-array threading
-// (`updated = [...updated.slice(...), newItem, ...]` plus the next iteration's
-// `updated.findIndex(...)`) is what makes entry-B see entry-A's output.
+// Chatbox.jsx emits one patches[] entry per engine envelope rather than
+// merging by UUID, so `patches[]` may contain two entries with the same
+// UUID. The handler's per-entry `updated`-array threading
+// (`updated = [...updated.slice(...), newItem, ...]` plus the next
+// iteration's `updated.findIndex(...)`) is what makes entry-B see entry-A's
+// output.
 //
 // These tests prove the threading works and that per-envelope failure
 // isolation holds — entry-B failing no longer poisons entry-A.
 
-describe("handleUpdateVisualization — apply_patch same-UUID-twice (Plan 20 #15)", () => {
+describe("handleUpdateVisualization — apply_patch same-UUID-twice", () => {
   const plotItem = {
     id: 1,
     uuid: "plot-1",

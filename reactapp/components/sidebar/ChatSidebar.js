@@ -17,13 +17,9 @@ import {
   clearChatHistory,
 } from "services/chatHistoryStorage";
 
-// Plan 003 D3 — system-prompt instruction telling the LLM to use the
-// engine's `_engine_dispatched` field as ground truth for any claim
-// that a visualization, chart, map, or other tile was created or
-// updated. Without this, an LLM that gets data back from a tool call
-// can confidently tell the user a tile was rendered when nothing
-// reached the dashboard. The Unit C3 banner is the structural
-// fallback; this instruction is the in-band fix.
+// Tells the LLM to treat `_engine_dispatched` as ground truth before
+// claiming a tile was created/updated. Without it, tool calls that only
+// return data may be reported as rendered tiles.
 const DISPATCH_FEEDBACK_RULE =
   "Only claim a visualization was created or updated if its UUID " +
   "appears in the `_engine_dispatched` field of the corresponding " +
@@ -49,11 +45,9 @@ const DELTA_BLOCK_RE = /\n\n\[in-turn delta\]\n[\s\S]*$/;
 
 const SIDEBAR_WIDTH = 360;
 
-// Cap on patch-rejected entries shown in the banner. Older entries drop off
-// FIFO so the banner doesn't grow unbounded across a long debugging session.
-// Plan 2026-05-07-001 Unit B: silent-failure UX gap — failed patches must
-// surface to the user so the chatbox's confident "Done!" message is not the
-// last word.
+// Cap on patch-rejected entries shown in the banner. FIFO drop keeps the
+// banner bounded across long sessions. Banner exists so failed patches
+// surface to the user rather than being masked by the chatbox's "Done!".
 const PATCH_REJECTED_BANNER_CAP = 5;
 
 const Wrapper = styled.div`
@@ -165,8 +159,7 @@ function ChatSidebar() {
   // chrome already uses to hide edit controls (DashboardLoader.js:50).
   // When mounted outside LayoutContext (test harness), default to not-
   // editable — failing closed is safer than failing open.
-  // Plan 2026-05-08-004: also read `uuid` for per-dashboard chat
-  // history persistence. Same context source DashboardItem.js uses.
+  // `uuid` keys per-dashboard chat history. Same source DashboardItem.js uses.
   const { editable, uuid: dashboardUuid } =
     useContext(LayoutContext) ?? {};
 
@@ -181,11 +174,9 @@ function ChatSidebar() {
     [variableInputValues],
   );
 
-  // Plan 2026-05-08-004 — per-dashboard chat history persistence.
-  // Read once per dashboard mount (key={dashboardUuid} below remounts
-  // <Chatbox> on dashboard switch, so this useMemo runs fresh for each
-  // dashboard's history). Falls back to [] when no uuid is available
-  // (test harness, mounted outside LayoutContext).
+  // Per-dashboard chat history: read once per mount. `key={dashboardUuid}`
+  // below remounts <Chatbox> on dashboard switch so this useMemo runs fresh.
+  // Falls back to [] when no uuid is available (test harness).
   const initialChatMessages = useMemo(
     () => (dashboardUuid ? getChatHistory(dashboardUuid) : []),
     [dashboardUuid],
@@ -199,10 +190,9 @@ function ChatSidebar() {
     [dashboardUuid],
   );
 
-  // Plan 2026-05-07-001 Unit B: chat-sidebar-visible feedback when a patch
-  // dispatch fails inside `applyPatchToGridItem` (rfc6902 errors etc.).
-  // Without this banner, the chatbox shows the LLM's confident "Done!"
-  // message and the user has no signal that nothing actually changed.
+  // Sidebar-visible feedback when `applyPatchToGridItem` rejects a patch
+  // (rfc6902 errors etc.). Without it the chatbox's "Done!" is the only
+  // signal and the user has no indication that nothing changed.
   const [patchRejections, setPatchRejections] = useState([]);
   useEffect(() => {
     function onPatchRejected(e) {
@@ -433,10 +423,9 @@ function ChatSidebar() {
       )}
       <Content>
         <Chatbox
-          // Plan 2026-05-08-004 — `key={dashboardUuid}` forces React
-          // to tear down + remount when the user switches dashboards
-          // so `initialMessages` is read fresh per dashboard. Without
-          // this, the chatbox would carry stale state across switches.
+          // `key={dashboardUuid}` forces remount on dashboard switch so
+          // `initialMessages` reloads per dashboard. Without it the chatbox
+          // would carry stale state across switches.
           key={dashboardUuid ?? "no-dashboard"}
           csrfToken={csrf}
           variableInputValues={memoizedVariableInputValues}
@@ -444,19 +433,14 @@ function ChatSidebar() {
           engineExtensions={engineExtensions}
           initialMessages={initialChatMessages}
           onMessagesChange={handleMessagesChange}
-          // Plan 2026-05-18-002 — MCP result-by-reference protocol
-          // (chatbox-core PR #36 + tethysdash_mcps PR #7). Caches
-          // oversized tool results in IndexedDB and lets the LLM
-          // reference them by URI instead of re-emitting inline data.
-          // Scoped per dashboard via conversationId.
+          // MCP result-by-reference protocol: caches oversized tool results
+          // in IndexedDB and lets the LLM reference them by URI instead of
+          // re-emitting inline data. Scoped per dashboard via conversationId.
           enableResultCache={true}
           conversationId={dashboardUuid ?? "no-dashboard"}
-          // Plan 2026-05-19-001 — `/clear` slash command. The built-in
-          // `/clear` in chatbox-core wipes its own messages + IndexedDB
-          // cache; this callback fires after that so we also wipe the
-          // per-dashboard localStorage chat-history entry. Result: the
-          // chat is empty and stays empty across page refreshes after a
-          // /clear.
+          // Built-in `/clear` wipes chatbox messages + IndexedDB cache; this
+          // callback also wipes the per-dashboard localStorage entry so the
+          // chat stays empty across page refreshes.
           onClear={() =>
             clearChatHistory(dashboardUuid ?? "no-dashboard")
           }

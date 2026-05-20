@@ -583,13 +583,12 @@ function getVectorTileLayerFeatures(map, pixel, configuredLayerName) {
 }
 
 async function getESRILayerFeatures(sourceUrl, sourceParams, map, coordinate) {
-  // ArcGIS identify endpoint accepts `layers=visible:<ids>` for filtered queries
-  // and `layers=visible` for "all visible". Per plan 2026-05-05-001 R3, only the
-  // `show` directive maps to a filtered query — `hide`/`include`/`exclude` and
-  // null/missing fall back to `visible` (all-visible). Bare ID lists ("0",
-  // "0,1") are treated as implicit-show by the helper, so click-identify on a
-  // dashboard authored with `LAYERS="0"` now correctly filters to layer 0
-  // instead of silently returning features from all visible layers.
+  // ArcGIS identify accepts `layers=visible:<ids>` for filtered queries and
+  // `layers=visible` for "all visible". Only the `show` directive maps to a
+  // filtered query — `hide`/`include`/`exclude` and null/missing fall back
+  // to all-visible. Bare ID lists ("0", "0,1") are treated as implicit-show
+  // so click-identify on a dashboard authored with `LAYERS="0"` filters to
+  // layer 0 instead of returning features from all visible layers.
   const { directive, ids } = normalizeLayersParam(sourceParams?.LAYERS);
   const identifyLayers =
     directive === "show" && ids ? `visible:${ids.join(",")}` : "visible";

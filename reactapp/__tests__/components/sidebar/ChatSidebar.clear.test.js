@@ -1,6 +1,6 @@
 /**
  * ChatSidebar.clear.test.js — wiring coverage for the host-side `/clear`
- * integration (plan 2026-05-19-001 Unit 2).
+ * integration.
  *
  * Verifies:
  *   - <Chatbox> receives an `onClear` callback prop
@@ -75,7 +75,7 @@ function renderWithContexts(opts = {}) {
   );
 }
 
-describe("ChatSidebar — /clear wiring (plan 2026-05-19-001 Unit 2)", () => {
+describe("ChatSidebar — /clear wiring", () => {
   it("passes an onClear callback to <Chatbox>", () => {
     renderWithContexts();
     const props = lastChatboxProps();

@@ -948,8 +948,8 @@ test("queryLayerFeatures ImageArcGISRest, show layer", async () => {
   global.fetch.mockRestore?.();
 });
 
-// Plan 2026-05-05-001 Unit 4: bare-ID input produces a filtered identify URL
-// (visible:<ids>), not the silent visible-everything fallback.
+// Bare-ID input produces a filtered identify URL (visible:<ids>), not the
+// silent visible-everything fallback.
 test("queryLayerFeatures ImageArcGISRest, bare LAYERS produces filtered identify URL", async () => {
   global.fetch = jest.fn(() =>
     Promise.resolve({
@@ -2332,9 +2332,9 @@ test("getLayerAttributes ImageArcGISRest, param layers nonsense, missing fields"
   });
 });
 
-// Plan 2026-05-05-001 Unit 3: bare-ID input ("0", "0,1") is treated as
-// implicit-show. Was the regression repro before the fix — `split(":")` on
-// "0" produced ["0"] and `ids.split(",")` on undefined threw.
+// Bare-ID input ("0", "0,1") is treated as implicit-show. Was the regression
+// repro before the fix — `split(":")` on "0" produced ["0"] and
+// `ids.split(",")` on undefined threw.
 test("getLayerAttributes ImageArcGISRest, bare ID treated as implicit show", async () => {
   const mockServiceResults = {
     layers: [

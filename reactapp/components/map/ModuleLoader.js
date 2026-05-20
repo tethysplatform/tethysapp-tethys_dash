@@ -302,12 +302,9 @@ export const loadESRIJSON = (config) => {
         "&outSR=" +
         srid;
 
-      // Plan 2026-05-07-003 Unit B: URL-encode user-supplied WHERE/TIME
-      // values before concatenating into the ArcGIS query URL. Mirrors
-      // the geometry-parameter encoding on the same builder (line ~286).
-      // Without this, a WHERE clause like `rfc_name = 'Colorado Basin'`
-      // relies on browser auto-encoding for spaces and quotes, and would
-      // silently break for values containing `&`, `+`, or `#`.
+      // URL-encode user-supplied WHERE/TIME before concatenating into the
+      // ArcGIS query URL. Without this, values containing `&`, `+`, or `#`
+      // silently break (browser auto-encoding only covers spaces/quotes).
       if (config.props.params?.WHERE) {
         url += "&where=" + encodeURIComponent(config.props.params.WHERE);
       }

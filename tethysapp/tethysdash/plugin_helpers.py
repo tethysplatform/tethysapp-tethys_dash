@@ -395,11 +395,10 @@ LAYER_PROPERTIES_ALLOWLIST = {
     "minZoom": (int, float),
     "maxZoom": (int, float),
     "minZoomQuery": (int, float),
-    # Plan 2026-05-07-004 Unit C: layer-level initial-visibility flag.
-    # Persists at configuration.layerVisibility via set_layer_visibility;
-    # Map.js:335-340 starts the layer hidden when False. Python-side
-    # superset is OK (JS drift guard at sourcePropertiesOptionsDrift.test.js
-    # only asserts Python ⊇ JS).
+    # Layer-level initial-visibility flag. Persists at
+    # configuration.layerVisibility via set_layer_visibility; Map.js:335-340
+    # starts the layer hidden when False. Python-side superset is OK (the JS
+    # drift guard only asserts Python ⊇ JS).
     "visible": (bool,),
 }
 
@@ -526,17 +525,15 @@ available_source_properties = {
         },
         "optional": {
             "attributions": "Attributions",
-            # Plan 2026-05-07-004 Unit B: renderer-consumed keys.
+            # Renderer-consumed keys.
             #
             # `bands`, `nodata`, `min`, `max` flow to OL's GeoTIFF source
-            # constructor at source.props.<key> via set_source_properties
-            # (existing builder path).
+            # constructor at source.props.<key> via set_source_properties.
             #
             # `rampName`, `rampMin`, `rampMax` are TethysDash auto-legend
-            # metadata read by Map.js (visualizations) at source.<key>
-            # directly (siblings to `type`/`props`). The GeoTIFF branch
-            # of add_map_service_layer routes these three to source-top-
-            # level via set_source_top_level_props.
+            # metadata read by Map.js at source.<key> directly (siblings
+            # to `type`/`props`). The GeoTIFF branch routes these to
+            # source-top-level via set_source_top_level_props.
             "bands": (
                 "Comma-separated band indices to render (e.g., '1,2,3'). "
                 "Parsed at render time."
@@ -849,10 +846,9 @@ class LayerConfigurationBuilder:
         """Set properties at the source-top-level (siblings of `type` and
         `props`), as opposed to under `source.props`.
 
-        Plan 2026-05-07-004 Unit B: GeoTIFF auto-legend metadata
-        (`rampName`, `rampMin`, `rampMax`) is read by Map.js at
-        ``layer.configuration.props.source.<key>`` directly — NOT under
-        ``source.props.<key>``. Use this method instead of
+        GeoTIFF auto-legend metadata (`rampName`, `rampMin`, `rampMax`) is
+        read by Map.js at ``layer.configuration.props.source.<key>`` directly
+        — NOT under ``source.props.<key>``. Use this method instead of
         ``set_source_properties`` for keys whose consumer reads at
         source-top-level.
 

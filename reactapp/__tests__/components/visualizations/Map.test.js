@@ -661,13 +661,13 @@ test("Map GeoTIFF with default legend emits a ramp colorbar from sourceProps met
   expect(screen.getByText("Ramp Raster Layer")).toBeInTheDocument();
 });
 
-// Plan 006: Renderer-side derivation of OL `style.color` for GeoTIFF
-// layers persisted via MCP (which only carries rampName/rampMin/rampMax).
-// Modal-saved layers persist `style.color` explicitly and take precedence.
-// The synthesis is exercised through the pure `deriveGeoTIFFRenderConfig`
-// helper — `Map.js`'s auto-legend block is a single call site for it, and
-// the helper's behavior is the load-bearing piece. Renderer-level
-// integration is covered by the existing GeoTIFF auto-legend test above.
+// Renderer-side derivation of OL `style.color` for GeoTIFF layers persisted
+// via MCP (which only carries rampName/rampMin/rampMax). Modal-saved layers
+// persist `style.color` explicitly and take precedence. The synthesis is
+// exercised through the pure `deriveGeoTIFFRenderConfig` helper — `Map.js`'s
+// auto-legend block is a single call site, and the helper's behavior is the
+// load-bearing piece. Renderer-level integration is covered by the existing
+// GeoTIFF auto-legend test above.
 
 const buildGeoTIFFConfig = ({ sources, style } = {}) => ({
   type: "WebGLTile",
@@ -686,7 +686,7 @@ const buildGeoTIFFConfig = ({ sources, style } = {}) => ({
   ...(style !== undefined ? { style } : {}),
 });
 
-describe("deriveGeoTIFFRenderConfig (Plan 006)", () => {
+describe("deriveGeoTIFFRenderConfig", () => {
   test("#1 synthesizes interpolate style.color when layer has no explicit style", () => {
     const layerConfiguration = buildGeoTIFFConfig();
     const result = deriveGeoTIFFRenderConfig({
