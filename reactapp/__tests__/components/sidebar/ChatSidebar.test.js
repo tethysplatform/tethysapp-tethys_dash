@@ -242,11 +242,26 @@ describe("ChatSidebar beforeFirstMessage system-message framing", () => {
   };
   const tabsWithViz = [{ id: "t1", gridItems: [plotItem] }];
 
-  test("returns null when the dashboard has no patchable visualizations", () => {
+  test("emits the AUTHORITATIVE clause with empty dashboard_state when the dashboard is empty", () => {
+    // Empty dashboard must still emit a system message so the AUTHORITATIVE
+    // clause fires. Without this, the LLM reasons over prior-turn
+    // create_* / patch_visualization tool calls and believes deleted UUIDs
+    // still exist (bug 2026-05-19: user deletes plot, asks for new plot of
+    // same data, LLM patches the no-longer-existing tile instead of
+    // creating fresh).
     renderWithContexts({ editable: true, tabs: [] });
     const props = globalThis.__chatboxLastProps;
     expect(props).toBeDefined();
-    expect(props.engineExtensions.beforeFirstMessage()).toBeNull();
+    const msg = props.engineExtensions.beforeFirstMessage();
+    expect(msg).not.toBeNull();
+    expect(msg.role).toBe("system");
+    expect(msg.content).toMatch(/AUTHORITATIVE/);
+    expect(msg.content).toMatch(
+      /has been DELETED by the user since that call/,
+    );
+    // dashboard_state is the empty array — LLM applies AUTHORITATIVE semantics
+    // ("everything previously created has been deleted") to all prior UUIDs.
+    expect(msg.content).toMatch(/"dashboard_state":\[\]/);
   });
 
   test("emits a system message containing both the escape clause AND the dashboard-edit framing", () => {

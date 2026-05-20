@@ -514,10 +514,26 @@ describe("buildValueHintsBySource", () => {
 });
 
 describe("buildPatchContext", () => {
-  test("returns null when no patchable items are in the dashboard", () => {
-    // Empty dashboard, no variable inputs set — nothing useful to say.
-    expect(buildPatchContext([], {})).toBeNull();
-    expect(buildPatchContext(undefined, undefined)).toBeNull();
+  test("returns envelope with empty dashboard_state when the dashboard is empty", () => {
+    // Empty dashboard must still emit a context payload so the
+    // beforeFirstMessage AUTHORITATIVE clause fires. Without this, the LLM
+    // reasons over prior-turn create_* / patch_visualization tool calls and
+    // believes deleted UUIDs still exist (bug 2026-05-19: user deletes plot,
+    // asks for new plot of same data, LLM patches the no-longer-existing
+    // tile instead of creating fresh).
+    const ctx = buildPatchContext([], {});
+    expect(ctx).not.toBeNull();
+    expect(ctx.dashboard_state).toEqual([]);
+    expect(ctx.editable_paths_by_source).toEqual({});
+    expect(ctx.value_hints_by_source).toEqual({});
+    expect(ctx.variable_input_values).toEqual({});
+  });
+
+  test("undefined/null inputs still emit an envelope (variable_input_values defaults to {})", () => {
+    const ctx = buildPatchContext(undefined, undefined);
+    expect(ctx).not.toBeNull();
+    expect(ctx.dashboard_state).toEqual([]);
+    expect(ctx.variable_input_values).toEqual({});
   });
 
   test("returns context when items are present", () => {
@@ -546,16 +562,21 @@ describe("buildPatchContext", () => {
     );
   });
 
-  test("returns context even when no items are patchable but variable inputs exist", () => {
-    // A dashboard with only Text items and variable inputs — still useful
-    // to tell the LLM what variables exist, even if nothing is patchable.
-    // Decision: return null here (no patchable targets, injection has no
-    // effect on patch_visualization). Keep behavior narrow.
-    const result = buildPatchContext(
+  test("returns context with non-empty dashboard_state when items exist but none are patchable", () => {
+    // A dashboard with only Text items — Text is not in LLM_EDITABLE_PATHS
+    // so editable_paths_by_source ends up empty. We still emit the envelope:
+    // the LLM needs to see the tile exists (so it doesn't try to recreate
+    // it) and the AUTHORITATIVE clause needs dashboard_state to compare
+    // against prior-turn tool-call history. Variable inputs surface too.
+    const ctx = buildPatchContext(
       [{ id: "t", gridItems: [textItem] }],
       { year: 2026 },
     );
-    expect(result).toBeNull();
+    expect(ctx).not.toBeNull();
+    expect(ctx.dashboard_state).toHaveLength(1);
+    expect(ctx.dashboard_state[0].source).toBe("Text");
+    expect(ctx.editable_paths_by_source).toEqual({});
+    expect(ctx.variable_input_values).toEqual({ year: 2026 });
   });
 
   test("plugin tiles produce a context when server-provided whitelists are supplied", () => {
