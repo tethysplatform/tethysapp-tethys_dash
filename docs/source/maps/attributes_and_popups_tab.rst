@@ -1,15 +1,15 @@
 .. _attributes_and_popups_tab:
 
---------------------
-Attributes/Popup Tab
---------------------
+--------------------------
+Attributes/Table Popup Tab
+--------------------------
 
 
-The Attributes/Popup tab configures how users interact with a map layer when it is clicked.
+The Attributes/Table Popup tab configures the default table popup that appears when a feature on this layer is clicked. The table popup always shows on click (subject to the **Allow Layer Query** checkbox at the top of the tab) — it cannot be disabled. A separate, additive Custom Modal Popup can be configured on its own tab; see :ref:`popup_modal`.
 
 **After configuring the layer name and required source properties**, a table of layers and their attributes will appear.
 
-At the top of the tab, the "Allow Layer Query" checkbox enables click interaction for the layer. If unchecked, no attribute table will load and the layer will not be queryable.
+At the top of the tab, the "Allow Layer Query" checkbox enables click interaction for the layer. If unchecked, no attribute table will load and the layer will not be queryable (neither the table popup nor the Custom Modal Popup will open).
 
 Within this table, fields can be configured for click interaction in two ways:
 

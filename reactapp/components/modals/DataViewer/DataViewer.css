@@ -14,5 +14,8 @@
 .dataviewer .tab-pane {
   height: 100%;
   overflow: auto;
-  padding: 1rem;
+}
+
+.react-datepicker-popper {
+  z-index: 9999;
 }

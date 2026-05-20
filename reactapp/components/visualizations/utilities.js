@@ -18,7 +18,14 @@ export function checkForEmptyVariableInputs({
   variableInputValues,
 }) {
   const metadata = JSON.parse(metadataString);
-  const dependentVariableInputs = getDependentVariableInputs(argsString);
+  const allDependentVariableInputs = getDependentVariableInputs(argsString);
+  // Skip feature-scoped keys: they're populated by the
+  // FeatureScopedVariableInputs provider on a per-feature basis and are
+  // unbinding-by-design when no feature is active. Warning on every render
+  // would spam the console.
+  const dependentVariableInputs = allDependentVariableInputs.filter(
+    (key) => !key.startsWith("feature."),
+  );
   let warnings = [];
 
   if (!dependentVariableInputs.every((key) => variableInputValues[key])) {
@@ -129,9 +136,19 @@ export async function getVisualization({
 
   if (itemData.source === "Map") {
     setVizType("map");
+    // Restore each layer's popupConfig from the raw (unresolved) argsString so
+    // that ${variable} template strings in popup gridItem args_string survive to
+    // the popup visualization's own getVisualization call. Without this, the
+    // Map-level updateObjectWithVariableInputs formats dates as locale strings
+    // (e.g. "01/15/2024") which new Date() cannot parse, producing null args.
+    const rawLayers = JSON.parse(argsString).layers ?? [];
+    const layers = (itemData.args.layers ?? []).map((layer, i) => {
+      const rawPopupConfig = rawLayers[i]?.popupConfig;
+      return rawPopupConfig ? { ...layer, popupConfig: rawPopupConfig } : layer;
+    });
     setVizData({
       baseMap: itemData.args.baseMap,
-      layers: itemData.args.layers,
+      layers,
       layerControl: itemData.args.layerControl,
       map_extent: itemData.args.map_extent,
       mapConfig: itemData.args.mapConfig,
@@ -379,22 +396,48 @@ export function updateObjectWithVariableInputs({
       value = JSON.stringify(value);
     }
 
+    // FeatureScopedVariableInputs marks the merged context with this
+    // sentinel. When absent we're at host scope, so unresolved
+    // `${feature.<key>}` tokens must be PRESERVED for the popup to resolve
+    // later. When present we're inside the popup scope and there is no
+    // further resolution layer, so unresolved feature.* tokens fall back
+    // to "" like any other missing variable.
+    const inFeatureScope =
+      variableInputsCopy.__tethysdash_feature_scope__ === true;
+
     // If value is exactly a variable input, preserve its type.
     // Matches the full string "${variableName}" with no surrounding text.
     const exactVarMatch = value.match(/^\$\{([^}]+)\}$/);
     let updatedValuesWithVariableInputs;
     if (exactVarMatch) {
       const key = exactVarMatch[1];
-      updatedValuesWithVariableInputs = variableInputsCopy[key] || "";
+      if (
+        variableInputsCopy[key] === undefined &&
+        key.startsWith("feature.") &&
+        !inFeatureScope
+      ) {
+        updatedValuesWithVariableInputs = value;
+      } else {
+        updatedValuesWithVariableInputs = variableInputsCopy[key] || "";
+      }
     } else {
       // Value contains one or more inline ${variableName} placeholders mixed
       // with other text. Replaces each placeholder with its string equivalent.
       updatedValuesWithVariableInputs = value.replace(
         /\$\{([^}]+)\}/g,
-        (_, key) =>
-          typeof variableInputsCopy[key] === "object"
-            ? JSON.stringify(variableInputsCopy[key])
-            : (variableInputsCopy[key] ?? ""),
+        (_, key) => {
+          if (
+            variableInputsCopy[key] === undefined &&
+            key.startsWith("feature.") &&
+            !inFeatureScope
+          ) {
+            return "${" + key + "}";
+          }
+          if (typeof variableInputsCopy[key] === "object") {
+            return JSON.stringify(variableInputsCopy[key]);
+          }
+          return variableInputsCopy[key] ?? "";
+        },
       );
     }
 
@@ -415,6 +458,59 @@ export function updateObjectWithVariableInputs({
   }
 
   return argsCopy;
+}
+
+const FEATURE_TOKEN_RE = /\$\{(feature\.[^}]+)\}/g;
+
+// Object keys whose subtree is intentionally NOT scanned for unresolved
+// feature.* tokens. The Map widget's args carry per-layer `popupConfig`
+// (titleTemplate + nested popup gridItems' args_string) for round-tripping
+// — those tokens are meant to resolve later inside the popup's own
+// FeatureScopedVariableInputs scope, NOT against the Map widget's host
+// scope. Without this skip, opening any dashboard with a configured popup
+// modal gates the entire Map widget on the popup's deferred tokens.
+const FEATURE_SCAN_SKIP_KEYS = new Set(["popupConfig"]);
+
+/**
+ * Recursively walk an args object/array and return the unique set of
+ * unresolved `${feature.<key>}` tokens still embedded in any string value.
+ *
+ * Used at edit time (popup layout editor) to detect that no feature is
+ * currently in scope so the visualization fetch can be skipped in favor
+ * of a friendly "awaiting feature selection" placeholder, instead of
+ * letting plugins error out on the unresolved literal.
+ *
+ * Subtrees under keys in `FEATURE_SCAN_SKIP_KEYS` are skipped — see the
+ * constant for why.
+ *
+ * Returns an array of feature.<key> strings (without the `${}` wrapper),
+ * deduplicated and in encounter order. Empty/non-string/non-object inputs
+ * yield an empty array.
+ */
+export function findUnresolvedFeatureTokens(value) {
+  const found = new Set();
+
+  const visit = (v) => {
+    if (typeof v === "string") {
+      // Reset regex state — global regexes preserve `lastIndex` across
+      // calls when they're shared at module scope.
+      FEATURE_TOKEN_RE.lastIndex = 0;
+      let match;
+      while ((match = FEATURE_TOKEN_RE.exec(v)) !== null) {
+        found.add(match[1]);
+      }
+    } else if (Array.isArray(v)) {
+      for (const item of v) visit(item);
+    } else if (v && typeof v === "object") {
+      for (const key of Object.keys(v)) {
+        if (FEATURE_SCAN_SKIP_KEYS.has(key)) continue;
+        visit(v[key]);
+      }
+    }
+  };
+
+  visit(value);
+  return Array.from(found);
 }
 
 export const nonDropDownVariableInputTypes = [

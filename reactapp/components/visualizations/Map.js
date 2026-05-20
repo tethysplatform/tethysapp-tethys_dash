@@ -5,6 +5,7 @@ import {
   useState,
   useContext,
   useCallback,
+  useMemo,
 } from "react";
 import { createRoot } from "react-dom/client";
 import MapComponent from "components/map/Map";
@@ -29,6 +30,11 @@ import {
   LayoutContext,
   GridItemContext,
 } from "components/contexts/Contexts";
+import { useMapContext } from "components/contexts/MapContext";
+import PopupModal from "components/modals/PopupModal/PopupModal";
+import PopupModalChrome from "components/modals/PopupModal/PopupModalChrome";
+import PopupModalCarousel from "components/modals/PopupModal/PopupModalCarousel";
+import { substituteTemplateString } from "components/modals/PopupModal/substituteTemplateString";
 import Table from "react-bootstrap/Table";
 import styled from "styled-components";
 import { valuesEqual } from "components/modals/utilities";
@@ -267,6 +273,9 @@ const MapVisualization = ({
   const [mapLegend, setMapLegend] = useState();
   const [mapLayers, setMapLayers] = useState();
   const [popupContent, setPopupContent] = useState(null);
+  const [modalFeatures, setModalFeatures] = useState([]);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [activeFeatureIndex, setActiveFeatureIndex] = useState(0);
   const markerLayer = useRef();
   const highlightLayer = useRef();
   const currentLayers = useRef([]);
@@ -274,6 +283,7 @@ const MapVisualization = ({
   const mapAttributeVariablesRef = useRef({});
   const mapOmittedPopupAttributesRef = useRef({});
   const mapAttributeAliasesRef = useRef({});
+  const mapContainerRef = useRef(null);
   const {
     variableInputValues,
     variableInputDateFormats,
@@ -283,6 +293,17 @@ const MapVisualization = ({
   const { uuid } = useContext(LayoutContext);
   const { sessionNonce } = useContext(AppContext);
   const { gridItemUUID } = useContext(GridItemContext) ?? {};
+  const mapContextValue = useMapContext();
+  const extentDrawMode = mapContextValue?.extentDrawMode ?? null;
+
+  const closeModal = useCallback(() => {
+    setModalOpen(false);
+    setModalFeatures([]);
+    const container = mapContainerRef.current;
+    if (container && typeof container.focus === "function") {
+      container.focus();
+    }
+  }, []);
 
   const dismissPopupBeforeSwap = useCallback(() => {
     // istanbul ignore next
@@ -404,7 +425,6 @@ const MapVisualization = ({
       if (popupContent && popupContent.length > 0) {
         const selectedFeature = popupContent[0];
         addHighlightFeatures(highlightLayer.current, selectedFeature.geometry);
-
         updateVariableInputsForFeature(selectedFeature);
       }
     }
@@ -423,11 +443,6 @@ const MapVisualization = ({
         const newMapLayers = [];
 
         for (const layer of layers) {
-          // Dynamic_map_layer layers own their features at viewer time via
-          // plugin.fetch_features() and are saved with an inline empty
-          // FeatureCollection placeholder; loadLayerJSONs treats that as a
-          // no-op (loadGeoJSON early-returns for object geojson) and still
-          // resolves style file references, so the call is harmless.
           await loadLayerJSONs(layer, uuid);
           if (layer.legend) {
             if (layer.legend === "default") {
@@ -515,8 +530,6 @@ const MapVisualization = ({
     // Update highlights to only show the currently visible feature
     highlightLayer.current.getSource().clear();
     addHighlightFeatures(highlightLayer.current, selectedFeature.geometry);
-
-    // Use your variable mapping logic here
     updateVariableInputsForFeature(selectedFeature);
   };
 
@@ -604,9 +617,25 @@ const MapVisualization = ({
     markerLayer.current = newMarkerLayer;
     map.addLayer(newMarkerLayer);
 
-    const queryableLayers = layers.filter(
-      (item) => !(item.queryable === false),
-    );
+    // Skip layers the user has hidden via the layer control. The OL layer
+    // is the source of truth for visibility because LayersControl mutates
+    // `olLayer.setVisible(...)` directly; the config-side `layers` array
+    // is not re-synced on toggle. If a config layer has no matching OL
+    // layer (e.g., not yet mounted) keep it queryable as a safe default.
+    const olLayerVisibility = new Map();
+    map
+      .getLayers()
+      .getArray()
+      .forEach((olLayer) => {
+        const name = olLayer.get("name");
+        if (name) olLayerVisibility.set(name, olLayer.getVisible());
+      });
+    const queryableLayers = layers.filter((item) => {
+      if (item.queryable === false) return false;
+      const name = item.configuration?.props?.name;
+      if (!name || !olLayerVisibility.has(name)) return true;
+      return olLayerVisibility.get(name) === true;
+    });
 
     // reduce the layer attributes variables values into a simplified object of layer names and then values
     const mapAttributeAliases = queryableLayers.reduce((combined, current) => {
@@ -654,9 +683,31 @@ const MapVisualization = ({
     mapOmittedPopupAttributesRef.current = mapOmittedPopupAttributes;
 
     // query the layers
+    //
+    // Each feature returned by queryLayerFeatures carries the SOURCE
+    // sub-layer name in `feature.layerName` (e.g., for ESRI Image/Map
+    // Services that's the rendered sub-layer like "Max Status - Forecast
+    // Trend", NOT the wrapper layer the user named "a"). The wrapper is
+    // where popupConfig lives, so we tag each feature with its parent
+    // wrapper at query time. Downstream popup-resolution code reads
+    // `feature.__wrapperLayer` directly instead of trying to back into
+    // the wrapper from a sub-layer name string — that lookup is fragile
+    // because it only works when the user has also configured aliases /
+    // variables / omitted-attrs on that sub-layer.
     const queryCalls = queryableLayers.map(async (layer) => {
       try {
-        return await queryLayerFeatures(layer, map, coordinate, pixel);
+        const features = await queryLayerFeatures(
+          layer,
+          map,
+          coordinate,
+          pixel,
+        );
+        if (!Array.isArray(features)) return features;
+        return features.map((feature) =>
+          feature && typeof feature === "object"
+            ? { ...feature, __wrapperLayer: layer }
+            : feature,
+        );
       } catch (error) {
         // Optionally log error: console.error(error);
         return [];
@@ -681,6 +732,17 @@ const MapVisualization = ({
       const nonEmptyLayers = queryLayerFeaturesResults
         .filter((arr) => arr && Array.isArray(arr) && arr.length > 0)
         .flat();
+
+      const modalModeFeatures = nonEmptyLayers.filter(
+        (feature) =>
+          feature?.__wrapperLayer?.popupConfig?.mode === "modal",
+      );
+
+      if (modalModeFeatures.length > 0 && !extentDrawMode) {
+        setModalFeatures(modalModeFeatures);
+        setModalOpen(true);
+      }
+
       const nonEmptyLayerAttributes = nonEmptyLayers.filter((item) => {
         if (!item.attributes || Object.keys(item.attributes).length === 0) {
           return false;
@@ -709,21 +771,112 @@ const MapVisualization = ({
     popupOverlayRef.current?.setPosition(popupCoordinate);
   };
 
+  useEffect(() => {
+    setActiveFeatureIndex(0);
+  }, [modalFeatures]);
+
+  const safeActiveFeatureIndex =
+    modalFeatures.length > 0
+      ? Math.min(activeFeatureIndex, modalFeatures.length - 1)
+      : 0;
+  const activeModalFeature = modalFeatures[safeActiveFeatureIndex] ?? null;
+  // The wrapper layer is tagged onto each feature at query time (see the
+  // queryCalls loop in onMapClick). Reading it back here avoids a fragile
+  // sub-layer-name → wrapper-name back-lookup that would fail whenever
+  // the user hasn't configured aliases/variables/omitted-attrs on the
+  // sub-layer the ESRI service happens to report.
+  //
+  // The captured `__wrapperLayer` is a closure over the layer object at
+  // click time. Host-level variable input changes (e.g., `${f}` in a
+  // popup gridItem's args_string) rebuild the `layers` prop with freshly
+  // substituted strings — but `modalFeatures` state still holds the
+  // old wrapper. Re-resolve here against the current `layers` prop by
+  // wrapper name so the popup body always sees up-to-date popupConfig.
+  const activeModalLayer = useMemo(() => {
+    const captured = activeModalFeature?.__wrapperLayer ?? null;
+    if (!captured) return null;
+    const name = captured.configuration?.props?.name;
+    if (name && Array.isArray(layers)) {
+      const fresh = layers.find(
+        (l) => l?.configuration?.props?.name === name,
+      );
+      if (fresh) return fresh;
+    }
+    return captured;
+  }, [activeModalFeature, layers]);
+  const activeModalPopupConfig = activeModalLayer?.popupConfig ?? null;
+
+  // Resolve a popup feature's display label. Used both for the header title
+  // (active feature) and the carousel prev/next arrows' aria-labels
+  // (neighboring features) so screen readers announce them by name.
+  const buildFeatureLabel = useCallback(
+    (feature, i) => {
+      const template = activeModalPopupConfig?.titleTemplate;
+      if (feature && template) {
+        const substituted = substituteTemplateString(
+          template,
+          feature.attributes ?? {},
+        );
+        if (substituted.trim().length > 0) return substituted;
+      }
+      return feature?.layerName ?? `Feature ${(i ?? 0) + 1}`;
+    },
+    [activeModalPopupConfig],
+  );
+  const popupTitleText = activeModalFeature
+    ? buildFeatureLabel(activeModalFeature, safeActiveFeatureIndex)
+    : "";
+
   return (
-    <MapComponent
-      mapConfig={mapConfig}
-      mapExtent={mapExtent}
-      layers={mapLayers}
-      legend={mapLegend}
-      layerControl={layerControl}
-      mapDrawing={mapDrawing}
-      drawing={drawing}
-      onMapClick={inDataViewerMode ? () => {} : onMapClick}
-      visualizationRef={visualizationRef}
-      data-testid="backlayer-map"
-      dataviewerViz={dataviewerViz}
-      runtimeLayerState={runtimeLayerState}
-    />
+    <div
+      ref={mapContainerRef}
+      tabIndex={-1}
+      style={{ outline: "none", width: "100%", height: "100%" }}
+    >
+      <MapComponent
+        mapConfig={mapConfig}
+        mapExtent={mapExtent}
+        layers={mapLayers}
+        legend={mapLegend}
+        layerControl={layerControl}
+        mapDrawing={mapDrawing}
+        drawing={drawing}
+        onMapClick={inDataViewerMode ? () => {} : onMapClick}
+        visualizationRef={visualizationRef}
+        data-testid="backlayer-map"
+        dataviewerViz={dataviewerViz}
+        runtimeLayerState={runtimeLayerState}
+      />
+      <PopupModal
+        show={modalOpen && !!activeModalFeature}
+        onClose={closeModal}
+        position={activeModalPopupConfig?.position}
+        title={
+          <span id="popup-modal-title" data-testid="popup-modal-header-title">
+            {popupTitleText}
+          </span>
+        }
+        leadingControls={
+          modalFeatures.length > 1 ? (
+            <PopupModalCarousel
+              features={modalFeatures}
+              activeIndex={safeActiveFeatureIndex}
+              onActiveIndexChange={setActiveFeatureIndex}
+              getLabel={buildFeatureLabel}
+            />
+          ) : null
+        }
+        ariaLabelledBy="popup-modal-title"
+        triggerRef={mapContainerRef}
+      >
+        {activeModalFeature ? (
+          <PopupModalChrome
+            feature={activeModalFeature}
+            popupConfig={activeModalPopupConfig}
+          />
+        ) : null}
+      </PopupModal>
+    </div>
   );
 };
 
@@ -743,10 +896,6 @@ MapVisualization.propTypes = {
   layerControl: PropTypes.bool, // deterimines if a layer control menu should be present
   dataviewerViz: PropTypes.bool, // determines if the map is in the dataviewer so that it doesnt affect the main map
   mapDrawing: mapDrawingPropType, // contains draw interaction metadata like options and limits
-  // Ticks on each refreshRate interval from Base.js. Used to force
-  // dynamic_map_layer re-fetches on schedule even when args are unchanged
-  // (getVisualization short-circuits Map to same-args vizData, so the
-  // orchestrator wouldn't otherwise see anything to re-run).
   refreshCount: PropTypes.number,
 };
 

@@ -1,3 +1,7 @@
+/* eslint-disable no-template-curly-in-string */
+// This file tests ${variable} substitution (including the feature.* scope);
+// literal `${...}` strings appear throughout test names and assertions on
+// purpose, so disable the missing-backtick lint at the file level.
 import {
   getVisualization,
   getGridItem,
@@ -7,6 +11,7 @@ import {
   baseMapLayers,
   downloadJSONFile,
   checkForEmptyVariableInputs,
+  findUnresolvedFeatureTokens,
 } from "components/visualizations/utilities";
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
@@ -440,6 +445,134 @@ test("getVisualization map", async () => {
   });
 });
 
+// Lines 126-130: source === "Map" short-circuit with popupConfig restoration.
+// These tests do NOT need a server mock — the Map branch returns before any API call.
+
+describe("getVisualization source=Map (popupConfig restoration, lines 126-130)", () => {
+  const baseCall = (overrides) =>
+    getVisualization({
+      setVizType: jest.fn(),
+      setVizData: jest.fn(),
+      sourceType: "Map",
+      metadataString: "{}",
+      variableInputValues: [],
+      ...overrides,
+    });
+
+  test("restores raw popupConfig onto each layer when argsString has one (line 130 truthy branch)", async () => {
+    // The resolved layer would lose ${variable} tokens in popupConfig;
+    // the raw argsString version must win.
+    const rawPopupConfig = { titleTemplate: "${feature.name}", mode: "modal" };
+    const resolvedLayer = {
+      name: "Layer A",
+      popupConfig: { titleTemplate: "resolved name", mode: "modal" },
+    };
+
+    const mockSetVizData = jest.fn();
+    await baseCall({
+      setVizData: mockSetVizData,
+      itemData: {
+        source: "Map",
+        args: {
+          layers: [resolvedLayer],
+          baseMap: "base",
+          layerControl: true,
+          map_extent: [0, 0, 1, 1],
+          mapConfig: {},
+          mapDrawing: null,
+        },
+      },
+      argsString: JSON.stringify({
+        layers: [{ name: "Layer A", popupConfig: rawPopupConfig }],
+      }),
+    });
+
+    const { layers } = mockSetVizData.mock.calls[0][0];
+    expect(layers).toHaveLength(1);
+    // popupConfig must come from the raw argsString, not the resolved layer
+    expect(layers[0].popupConfig).toEqual(rawPopupConfig);
+    // other layer props are preserved from itemData.args
+    expect(layers[0].name).toBe("Layer A");
+  });
+
+  test("returns layer unchanged when argsString layer has no popupConfig (line 130 falsy branch)", async () => {
+    const layer = { name: "Layer B", fill: "#ff0000" };
+
+    const mockSetVizData = jest.fn();
+    await baseCall({
+      setVizData: mockSetVizData,
+      itemData: {
+        source: "Map",
+        args: {
+          layers: [layer],
+          baseMap: null,
+          layerControl: false,
+          map_extent: null,
+          mapConfig: null,
+          mapDrawing: null,
+        },
+      },
+      // argsString has a layer but no popupConfig on it
+      argsString: JSON.stringify({ layers: [{ name: "Layer B" }] }),
+    });
+
+    const { layers } = mockSetVizData.mock.calls[0][0];
+    expect(layers[0]).toEqual(layer);
+  });
+
+  test("falls back to empty rawLayers when argsString has no layers key (line 127 ?? branch)", async () => {
+    // argsString has no `layers` property → rawLayers = []
+    // rawLayers[i] is undefined → popupConfig treated as absent → layer unchanged
+    const layer = { name: "Layer C", popupConfig: { mode: "table" } };
+
+    const mockSetVizData = jest.fn();
+    await baseCall({
+      setVizData: mockSetVizData,
+      itemData: {
+        source: "Map",
+        args: {
+          layers: [layer],
+          baseMap: null,
+          layerControl: false,
+          map_extent: null,
+          mapConfig: null,
+          mapDrawing: null,
+        },
+      },
+      argsString: JSON.stringify({}), // no "layers" key at all
+    });
+
+    const { layers } = mockSetVizData.mock.calls[0][0];
+    // layer returned as-is because there was no raw entry to restore from
+    expect(layers[0]).toEqual(layer);
+  });
+
+  test("produces empty layers when itemData.args.layers is undefined (line 128 ?? branch)", async () => {
+    const mockSetVizData = jest.fn();
+    await baseCall({
+      setVizData: mockSetVizData,
+      itemData: {
+        source: "Map",
+        args: {
+          // layers deliberately omitted
+          baseMap: "base",
+          layerControl: true,
+          map_extent: null,
+          mapConfig: {},
+          mapDrawing: null,
+        },
+      },
+      argsString: JSON.stringify({
+        layers: [{ name: "Layer D", popupConfig: { mode: "modal" } }],
+      }),
+    });
+
+    const { layers, baseMap } = mockSetVizData.mock.calls[0][0];
+    expect(layers).toEqual([]);
+    expect(baseMap).toBe("base");
+  });
+});
+
 test("getVisualization custom", async () => {
   const customData = {
     url: "url",
@@ -770,6 +903,67 @@ test("updateObjectWithVariableInputs", async () => {
   }
 });
 
+test("updateObjectWithVariableInputs preserves unresolved ${feature.<key>} tokens", () => {
+  // The feature.* namespace is owned by FeatureScopedVariableInputs (the
+  // popup scope). At the host pass, those tokens must be preserved rather
+  // than stripped to "" — otherwise titleTemplate "River: ${feature.comid}"
+  // surfaces as "River: " by the time the popup chrome reads it.
+  const args = {
+    // eslint-disable-next-line no-template-curly-in-string
+    inline: "River: ${feature.comid}",
+    // eslint-disable-next-line no-template-curly-in-string
+    exact: "${feature.station_id}",
+    // eslint-disable-next-line no-template-curly-in-string
+    mixed: "Site ${Site Name} flow ${feature.flow}",
+  };
+
+  const result = updateObjectWithVariableInputs({
+    args: JSON.parse(JSON.stringify(args)),
+    variableInputs: { "Site Name": "Boulder" },
+  });
+
+  // Both branches (inline and exact-match) preserve feature.* tokens.
+  expect(result.inline).toBe("River: ${feature.comid}");
+  expect(result.exact).toBe("${feature.station_id}");
+  // Mixed: host-resolved variable substituted, feature.* preserved.
+  expect(result.mixed).toBe("Site Boulder flow ${feature.flow}");
+});
+
+test("updateObjectWithVariableInputs still resolves ${feature.<key>} when the value IS in scope", () => {
+  // Inside the FeatureScopedVariableInputs scope, feature.* keys are present
+  // in the merged variableInputs and should resolve normally.
+  const args = {
+    // eslint-disable-next-line no-template-curly-in-string
+    title: "River: ${feature.comid}",
+  };
+  const result = updateObjectWithVariableInputs({
+    args,
+    variableInputs: { "feature.comid": "12345" },
+  });
+  expect(result.title).toBe("River: 12345");
+});
+
+test("updateObjectWithVariableInputs resolves missing ${feature.<key>} to empty inside the popup scope", () => {
+  // FEATURE_SCOPE_MARKER signals that we are inside the popup scope and
+  // there is no further resolution layer below — unresolved feature.*
+  // tokens must fall back to "" like any other missing variable.
+  const args = {
+    // eslint-disable-next-line no-template-curly-in-string
+    title: "River: ${feature.unknown}",
+    // eslint-disable-next-line no-template-curly-in-string
+    exact: "${feature.also_missing}",
+  };
+  const result = updateObjectWithVariableInputs({
+    args,
+    variableInputs: {
+      __tethysdash_feature_scope__: true,
+      "feature.comid": "12345",
+    },
+  });
+  expect(result.title).toBe("River: ");
+  expect(result.exact).toBe("");
+});
+
 test("getBaseMapLayer", async () => {
   const result = getBaseMapLayer(
     "https://server.arcgisonline.com/arcgis/rest/services/Ocean/World_Ocean_Base/MapServer",
@@ -988,6 +1182,56 @@ test("checkForEmptyVariableInputs", async () => {
   expect(emptyVariableWarnings).toStrictEqual(null);
 });
 
+test("checkForEmptyVariableInputs skips feature.* keys", () => {
+  // feature.* keys are scoped/unbinding-by-design; they should never
+  // produce a warning regardless of whether the value is set.
+  // eslint-disable-next-line
+  let argsString = JSON.stringify({ source: "${feature.station_id}" });
+  let metadataString = JSON.stringify({});
+  let variableInputValues = {};
+
+  let emptyVariableWarnings = checkForEmptyVariableInputs({
+    metadataString,
+    argsString,
+    variableInputValues,
+  });
+
+  expect(emptyVariableWarnings).toStrictEqual(null);
+
+  // feature.* keys with spaces and dots in the suffix also skipped.
+  // eslint-disable-next-line
+  argsString = JSON.stringify({ source: "${feature.Site Name}" });
+  emptyVariableWarnings = checkForEmptyVariableInputs({
+    metadataString,
+    argsString,
+    variableInputValues,
+  });
+  expect(emptyVariableWarnings).toStrictEqual(null);
+});
+
+test("checkForEmptyVariableInputs warns for non-feature.* keys when feature.* is also present", () => {
+  // Regression: filtering out feature.* must not suppress warnings for
+  // sibling host variable keys.
+  const argsString = JSON.stringify({
+    // eslint-disable-next-line
+    a: "${feature.station_id}",
+    // eslint-disable-next-line
+    b: "${some_host_var}",
+  });
+  const metadataString = JSON.stringify({});
+  const variableInputValues = {};
+
+  const emptyVariableWarnings = checkForEmptyVariableInputs({
+    metadataString,
+    argsString,
+    variableInputValues,
+  });
+
+  expect(emptyVariableWarnings).toStrictEqual([
+    "some_host_var variable is empty",
+  ]);
+});
+
 test("getVisualization Custom Image with slider metadata returns imageSequence", async () => {
   const mockSetVizType = jest.fn();
   const mockSetVizData = jest.fn();
@@ -1147,5 +1391,114 @@ test("getVisualization Custom Image with empty slider values falls back to image
     source: "https://example.com/current.gif",
     alt: "custom_image",
     imageError: undefined,
+  });
+});
+
+describe("findUnresolvedFeatureTokens", () => {
+  test("returns empty array for non-string/non-object inputs", () => {
+    expect(findUnresolvedFeatureTokens(undefined)).toEqual([]);
+    expect(findUnresolvedFeatureTokens(null)).toEqual([]);
+    expect(findUnresolvedFeatureTokens(42)).toEqual([]);
+    expect(findUnresolvedFeatureTokens(true)).toEqual([]);
+  });
+
+  test("returns empty array when no feature.* tokens are present", () => {
+    expect(findUnresolvedFeatureTokens("plain text")).toEqual([]);
+    expect(findUnresolvedFeatureTokens({ x: "no tokens here" })).toEqual([]);
+    expect(findUnresolvedFeatureTokens({ x: "${other.var}" })).toEqual([]);
+  });
+
+  test("finds feature.* tokens in a top-level string", () => {
+    expect(findUnresolvedFeatureTokens("River: ${feature.comid}")).toEqual([
+      "feature.comid",
+    ]);
+  });
+
+  test("finds tokens nested inside an object", () => {
+    expect(
+      findUnresolvedFeatureTokens({
+        river_id: "${feature.comid}",
+        title: "Site ${feature.station_name}",
+      }),
+    ).toEqual(["feature.comid", "feature.station_name"]);
+  });
+
+  test("finds tokens nested inside an array", () => {
+    expect(
+      findUnresolvedFeatureTokens(["${feature.a}", { b: "${feature.b}" }]),
+    ).toEqual(["feature.a", "feature.b"]);
+  });
+
+  test("deduplicates repeated tokens", () => {
+    expect(
+      findUnresolvedFeatureTokens({
+        a: "${feature.x}",
+        b: "${feature.x}/${feature.x}",
+      }),
+    ).toEqual(["feature.x"]);
+  });
+
+  test("supports keys with dots, spaces, and parens", () => {
+    expect(
+      findUnresolvedFeatureTokens("${feature.Mean Flow (m³/sec)}"),
+    ).toEqual(["feature.Mean Flow (m³/sec)"]);
+  });
+
+  test("does NOT match non-feature ${...} tokens", () => {
+    expect(findUnresolvedFeatureTokens("${other}")).toEqual([]);
+    expect(
+      findUnresolvedFeatureTokens({ a: "${plain}", b: "${feature.kept}" }),
+    ).toEqual(["feature.kept"]);
+  });
+
+  test("safe to call repeatedly without leaking regex state", () => {
+    // Defends against the global-regex `lastIndex` pitfall — if the helper
+    // accidentally shared state across calls, the second call could miss
+    // tokens depending on where the previous call left lastIndex.
+    expect(findUnresolvedFeatureTokens("${feature.a}")).toEqual([
+      "feature.a",
+    ]);
+    expect(findUnresolvedFeatureTokens("${feature.b}")).toEqual([
+      "feature.b",
+    ]);
+    expect(findUnresolvedFeatureTokens("${feature.c}")).toEqual([
+      "feature.c",
+    ]);
+  });
+
+  test("skips subtrees under `popupConfig` (deferred to the popup scope)", () => {
+    // Map widget's args carry per-layer popupConfig. Those tokens belong
+    // to the popup's own scope and must NOT gate the parent Map.
+    const mapArgs = {
+      // Map's own args have no feature.* tokens.
+      baseMap: "https://example.com/basemap",
+      layers: [
+        {
+          configuration: { type: "ImageLayer", props: { name: "Stations" } },
+          popupConfig: {
+            titleTemplate: "Site: ${feature.station_name}",
+            gridItems: [
+              {
+                source: "geoglows_forecast_plot",
+                args_string: '{"river_id":"${feature.comid}"}',
+              },
+            ],
+          },
+        },
+      ],
+    };
+    expect(findUnresolvedFeatureTokens(mapArgs)).toEqual([]);
+  });
+
+  test("still finds tokens at non-skip keys when popupConfig is also present", () => {
+    // If a parent-widget arg legitimately references feature.* (which is
+    // the gate's whole point), the skip on popupConfig must NOT mask it.
+    const args = {
+      river_id: "${feature.comid}",
+      popupConfig: {
+        titleTemplate: "${feature.also_skipped}",
+      },
+    };
+    expect(findUnresolvedFeatureTokens(args)).toEqual(["feature.comid"]);
   });
 });

@@ -11,3 +11,4 @@ End-to-end walkthroughs that combine multiple TethysDash features to build real 
    rfc_max_stage_analysis
    geoglows_demo
    geoglows_demo_part2
+   popup_modal_tutorial

@@ -12,7 +12,13 @@ import SourcePane from "components/modals/MapLayer/SourcePane";
 import LegendPane from "components/modals/MapLayer/LegendPane";
 import AttributesPane from "components/modals/MapLayer/AttributesPane";
 import StylePane from "components/modals/MapLayer/StylePane";
-import { AppContext, LayoutContext } from "components/contexts/Contexts";
+import PopupConfigPane from "components/modals/MapLayer/PopupConfigPane";
+import PopupLayoutEditor from "components/modals/MapLayer/PopupLayoutEditor";
+import {
+  AppContext,
+  LayoutContext,
+  VariableInputsContext,
+} from "components/contexts/Contexts";
 import {
   sourcePropertiesOptions,
   layerPropType,
@@ -26,7 +32,10 @@ import {
   removeEmptyValues,
   checkRequiredKeys,
 } from "components/modals/utilities";
-import { findSelectOptionByValue } from "components/visualizations/utilities";
+import {
+  findSelectOptionByValue,
+  updateObjectWithVariableInputs,
+} from "components/visualizations/utilities";
 import { useMapContext } from "components/contexts/MapContext";
 import Select from "react-select";
 import appAPI from "services/api/app";
@@ -142,13 +151,18 @@ const MapLayerModal = ({
   );
   const [style, setStyle] = useState(layerInfo.style);
   const [legend, setLegend] = useState(layerInfo.legend);
+  const [popupConfig, setPopupConfig] = useState(layerInfo.popupConfig ?? null);
   const [selectedOption, setSelectedOption] = useState(null);
   const [hiddenForExtentDraw, setHiddenForExtentDraw] = useState(false);
   const [showingSubModal, setShowingSubModal] = useState(false);
+  const [showLayoutEditor, setShowLayoutEditor] = useState(false);
   const legendContainerRef = useRef(null);
   const styleContainerRef = useRef(null);
   const { csrf, mapLayerTemplates, dynamicMapLayers } = useContext(AppContext);
-  const { uuid } = useContext(LayoutContext);
+  const { uuid, editable: hostDashboardEditable } = useContext(LayoutContext);
+  const { variableInputValues, variableInputDateFormats } = useContext(
+    VariableInputsContext,
+  );
   const mapContext = useMapContext();
 
   const onRequestHideModal = useCallback(() => {
@@ -421,6 +435,14 @@ const MapLayerModal = ({
       mapConfiguration.configuration.style = apiResponse.filename;
     }
 
+    // Popup config rides along with the rest of the layer config in
+    // mapConfiguration. It's stored as JSON inside the parent Map gridItem's
+    // args_string — no separate API call, no premature persistence. Edits
+    // discard cleanly if the user cancels the dashboard save.
+    if (popupConfig) {
+      mapConfiguration.popupConfig = popupConfig;
+    }
+
     addMapLayer(mapConfiguration);
     handleModalClose();
   }
@@ -474,9 +496,14 @@ const MapLayerModal = ({
   const fetchPluginDefaults = useCallback(
     async (source, args) => {
       try {
+        const resolvedArgs = updateObjectWithVariableInputs({
+          args,
+          variableInputs: variableInputValues,
+          variableInputDateFormats,
+        });
         const apiResponse = await appAPI.getVisualizationData({
           source,
-          args: args,
+          args: resolvedArgs,
         });
         if (!apiResponse.success) {
           return {
@@ -530,7 +557,15 @@ const MapLayerModal = ({
         };
       }
     },
-    [layerProps?.name, setLayerProps, setAttributeProps, setStyle, setLegend],
+    [
+      layerProps?.name,
+      setLayerProps,
+      setAttributeProps,
+      setStyle,
+      setLegend,
+      variableInputValues,
+      variableInputDateFormats,
+    ],
   );
 
   return (
@@ -544,7 +579,7 @@ const MapLayerModal = ({
         style={
           hiddenForExtentDraw
             ? { visibility: "hidden" }
-            : showingSubModal
+            : showingSubModal || showLayoutEditor
               ? { zIndex: 1050 }
               : undefined
         }
@@ -623,7 +658,7 @@ const MapLayerModal = ({
             </Tab>
             <Tab
               eventKey="attributes"
-              title="Attributes/Popup"
+              title="Attributes/Table Popup"
               aria-label="layer-attributes-tab"
               className="layer-attributes-tab"
             >
@@ -633,6 +668,20 @@ const MapLayerModal = ({
                 sourceProps={sourceProps}
                 layerProps={layerProps}
                 tabKey={tabKey}
+              />
+            </Tab>
+            <Tab
+              eventKey="popup"
+              title="Custom Modal Popup"
+              aria-label="layer-popup-tab"
+              className="layer-popup-tab"
+            >
+              <PopupConfigPane
+                layerName={layerProps?.name}
+                popupConfig={popupConfig}
+                onChange={setPopupConfig}
+                onOpenLayoutEditor={() => setShowLayoutEditor(true)}
+                hostDashboardEditable={hostDashboardEditable !== false}
               />
             </Tab>
           </Tabs>
@@ -691,6 +740,21 @@ const MapLayerModal = ({
           </FooterContent>
         </Modal.Footer>
       </Modal>
+      {showLayoutEditor && (
+        <PopupLayoutEditor
+          show={showLayoutEditor}
+          onClose={() => setShowLayoutEditor(false)}
+          popupConfig={popupConfig}
+          onSave={(nextGridItems) => {
+            setPopupConfig((prev) => ({
+              ...prev,
+              gridItems: nextGridItems,
+            }));
+            setShowLayoutEditor(false);
+          }}
+          layerName={layerProps?.name}
+        />
+      )}
     </>
   );
 };
@@ -711,6 +775,18 @@ MapLayerModal.propTypes = {
     legend: legendPropType,
     style: PropTypes.string, // name of .json file that is save with the application that contain the actual style json
     attributeProps: attributePropsPropType,
+    popupConfig: PropTypes.shape({
+      id: PropTypes.number,
+      mode: PropTypes.oneOf(["table", "modal"]),
+      position: PropTypes.shape({
+        leftPct: PropTypes.number,
+        topPct: PropTypes.number,
+        widthPct: PropTypes.number,
+        heightPct: PropTypes.number,
+      }),
+      titleTemplate: PropTypes.string,
+      gridItems: PropTypes.array,
+    }),
   }),
   mapLayers: PropTypes.arrayOf(layerPropType),
   existingLayerOriginalName: PropTypes.shape({

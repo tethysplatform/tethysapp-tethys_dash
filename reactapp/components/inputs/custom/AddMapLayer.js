@@ -111,6 +111,7 @@ const MapLayerTemplate = ({
         aliases: attributeAliases,
         queryable: queryableLayer,
       },
+      popupConfig: existingMapLayer.popupConfig ?? null,
     };
 
     // Set the layerInfo and existingLayerOriginalName to the specified mapLayer

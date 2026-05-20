@@ -26,9 +26,26 @@ import {
   defaultDotSpacing,
   defaultDotRadius,
 } from "components/inputs/RuleEditor.js";
+import { rewriteArcGISExportUrlForAntimeridian } from "components/map/utilities";
 
 const moduleCache = {};
 const styleCache = new Map();
+
+// Inject an OpenLayers `imageLoadFunction` for ESRI Image and Map Service
+// sources that rewrites out-of-range BBOX requests to use a shifted Web
+// Mercator central meridian. Without this, panning past the antimeridian
+// produces a blank layer because the ArcGIS /export endpoint can't render an
+// out-of-range BBOX. Leave any user-supplied imageLoadFunction untouched.
+export function withAntimeridianFix(type, props) {
+  if (type !== "ESRI Image and Map Service") return props;
+  if (props?.imageLoadFunction != null) return props;
+  return {
+    ...props,
+    imageLoadFunction: (image, src) => {
+      image.getImage().src = rewriteArcGISExportUrlForAntimeridian(src);
+    },
+  };
+}
 
 const moduleLoader = async (config, mapProjection) => {
   if (
@@ -75,7 +92,7 @@ const moduleLoader = async (config, mapProjection) => {
         if (type === "KML") {
           resolvedProps.format = new KML();
         }
-        return new moduleCache[type](resolvedProps);
+        return new moduleCache[type](withAntimeridianFix(type, resolvedProps));
       }
     }
     const importModule = getModuleImporter(type);
@@ -109,7 +126,7 @@ const moduleLoader = async (config, mapProjection) => {
     } else if (type === "ESRI Feature Service") {
       return loadESRIJSON(config);
     } else {
-      return new ModuleConstructor(resolvedProps);
+      return new ModuleConstructor(withAntimeridianFix(type, resolvedProps));
     }
   } catch (error) {
     console.error(`Failed to load module '${type}':`, error);

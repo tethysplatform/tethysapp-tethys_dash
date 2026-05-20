@@ -22,3 +22,4 @@ Layer configuration is organized into several tabs for easier navigation and set
    style_tab
    legend_tab
    attributes_and_popups_tab
+   popup_modal

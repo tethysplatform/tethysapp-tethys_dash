@@ -145,6 +145,7 @@ class GridItem(Base):
         args_string (str): JSON string containing visualization arguments
         metadata_string (str): JSON string containing component metadata
         order (int): Display order within the dashboard
+        tab_id (int): Foreign key to parent tab
     """
 
     __tablename__ = "griditems"
@@ -345,6 +346,30 @@ class Message(Base):
     sender = Column(String, nullable=False)
     message = Column(String, nullable=False)
     edited = Column(Boolean, nullable=False, default=False)
+
+
+def _serialize_grid_item(griditem):
+    """Serialize a ``GridItem`` row into a dictionary for API responses.
+
+    Args:
+        griditem (GridItem): SQLAlchemy ``GridItem`` row.
+
+    Returns:
+        dict: Public representation matching the shape used inside tab/grid
+        item payloads.
+    """
+    return {
+        "id": griditem.id,
+        "uuid": griditem.uuid,
+        "i": griditem.i,
+        "x": griditem.x,
+        "y": griditem.y,
+        "w": griditem.w,
+        "h": griditem.h,
+        "source": griditem.source,
+        "args_string": griditem.args_string,
+        "metadata_string": griditem.metadata_string,
+    }
 
 
 def _sanitize_text_args_string(args_string):
@@ -675,9 +700,10 @@ def copy_named_dashboard(user, id, new_name, dashboard_uuid):
             session.flush()  # Get new tab ID
             tab_id_mapping[tab.id] = new_tab.id
 
-        # Copy GridItems and link them to appropriate tabs
+        # Copy GridItems and link them to appropriate tabs.
         new_grid_items = []
-        for index, grid_item in enumerate(original_dashboard.grid_items):
+        index = 0
+        for grid_item in original_dashboard.grid_items:
             # Determine which tab this grid item should belong to
             new_tab_id = tab_id_mapping.get(grid_item.tab_id)
 
@@ -697,6 +723,7 @@ def copy_named_dashboard(user, id, new_name, dashboard_uuid):
             )
             session.add(new_item)
             new_grid_items.append(new_item)
+            index += 1
 
         new_dashboard.grid_items = new_grid_items
 
@@ -1725,18 +1752,7 @@ def parse_db_dashboard(session, dashboards, user, dashboard_view):
             for tab in dashboard.tabs:
                 griditems = []
                 for griditem in tab.grid_items:
-                    griditem_data = {
-                        "id": griditem.id,
-                        "uuid": griditem.uuid,
-                        "i": griditem.i,
-                        "x": griditem.x,
-                        "y": griditem.y,
-                        "w": griditem.w,
-                        "h": griditem.h,
-                        "source": griditem.source,
-                        "args_string": griditem.args_string,
-                        "metadata_string": griditem.metadata_string,
-                    }
+                    griditem_data = _serialize_grid_item(griditem)
                     griditems.append(griditem_data)
 
                 tab_data = {
