@@ -258,24 +258,24 @@ export function buildValueHintsBySource(items) {
 
 /**
  * Build the full system-message payload for the chatbox beforeFirstMessage
- * injection. Returns null if there is nothing useful to inject — either
- * the dashboard has no grid items, or every item's source is outside the
- * whitelist (nothing patchable anyway).
+ * injection. Always returns an envelope so the AUTHORITATIVE clause in
+ * ChatSidebar's beforeFirstMessage can fire on every turn — including the
+ * empty-dashboard case, where the clause's "anything in history but not in
+ * `dashboard_state` has been deleted" semantics protect against staleness
+ * after a user deletes their only visualization. (Without this, the LLM
+ * reasons over prior `create_*` / `patch_visualization` tool calls and
+ * believes deleted UUIDs still exist.)
  *
  * @param {Array} tabs - TabContext tabs array
  * @param {Object} variableInputValues - current variable input values
- * @returns {Object|null} {dashboard_state, editable_paths_by_source, value_hints_by_source, variable_input_values}
+ * @returns {Object} {dashboard_state, editable_paths_by_source, value_hints_by_source, variable_input_values}
  */
 export function buildPatchContext(tabs, variableInputValues, pluginEditablePaths) {
   const dashboardState = buildDashboardState(tabs);
-  if (dashboardState.length === 0) return null;
   const editablePathsBySource = buildEditablePathsBySource(
     dashboardState,
     pluginEditablePaths,
   );
-  // If nothing in the dashboard is patchable, skip the injection — the
-  // LLM has no use for it (and the create tools provide their own context).
-  if (Object.keys(editablePathsBySource).length === 0) return null;
   return {
     dashboard_state: dashboardState,
     editable_paths_by_source: editablePathsBySource,
