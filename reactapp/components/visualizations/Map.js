@@ -240,8 +240,12 @@ const MapVisualization = ({
   const mapOmittedPopupAttributesRef = useRef({});
   const mapAttributeAliasesRef = useRef({});
   const mapContainerRef = useRef(null);
-  // Throttles pointermove-driven hover queries; reset by a 120ms timer.
-  const hoverThrottleRef = useRef(null);
+  // Debounces pointermove-driven hover queries. The handler restarts a 250ms
+  // timer on every move so the actual query only fires once the cursor
+  // settles. Avoids hammering ESRI/WMS `identify` endpoints (1 request per
+  // pause vs. ~8/sec under a 120ms throttle) and prevents popup flicker from
+  // out-of-order in-flight responses.
+  const hoverDebounceRef = useRef(null);
   // Tracks whether the currently visible overlay popup was opened by the
   // hover handler. Only hover-opened popups should close-on-empty; a popup
   // the user opened by clicking must survive cursor movement off-feature.
@@ -747,16 +751,9 @@ const MapVisualization = ({
     popupOverlayRef.current?.setPosition(popupCoordinate);
   };
 
-  const onMapHover = async (map, evt) => {
-    // istanbul ignore next
-    if (drawing.current) return;
-    // Throttle pointermove. The timer reset happens before any work so the
-    // first event in the window runs immediately and subsequent ones drop.
-    if (hoverThrottleRef.current) return;
-    hoverThrottleRef.current = setTimeout(() => {
-      hoverThrottleRef.current = null;
-    }, 120);
+  const HOVER_DEBOUNCE_MS = 250;
 
+  const runHoverQuery = async (map, coordinate, pixel) => {
     const olLayerVisibility = new Map();
     map
       .getLayers()
@@ -817,8 +814,8 @@ const MapVisualization = ({
         const features = await queryLayerFeatures(
           layer,
           map,
-          evt.coordinate,
-          evt.pixel,
+          coordinate,
+          pixel,
         );
         if (!Array.isArray(features)) return features;
         return features.map((feature) =>
@@ -839,7 +836,7 @@ const MapVisualization = ({
 
     if (nonEmpty.length > 0) {
       setPopupContent(nonEmpty);
-      popupOverlayRef.current?.setPosition(evt.coordinate);
+      popupOverlayRef.current?.setPosition(coordinate);
       hoverActiveRef.current = true;
     } else if (hoverActiveRef.current) {
       // Only close popups the hover handler itself opened. Click-opened
@@ -848,6 +845,23 @@ const MapVisualization = ({
       popupOverlayRef.current?.setPosition(undefined);
       hoverActiveRef.current = false;
     }
+  };
+
+  const onMapHover = (map, evt) => {
+    // istanbul ignore next
+    if (drawing.current) return;
+    // Debounce: restart the timer on every move so the query only fires once
+    // the cursor settles for HOVER_DEBOUNCE_MS. Capture coordinate/pixel by
+    // value so the deferred call uses the LAST cursor position, not stale.
+    if (hoverDebounceRef.current) {
+      clearTimeout(hoverDebounceRef.current);
+    }
+    const coordinate = evt.coordinate;
+    const pixel = evt.pixel;
+    hoverDebounceRef.current = setTimeout(() => {
+      hoverDebounceRef.current = null;
+      runHoverQuery(map, coordinate, pixel);
+    }, HOVER_DEBOUNCE_MS);
   };
 
   useEffect(() => {
