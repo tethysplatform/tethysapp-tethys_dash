@@ -123,7 +123,7 @@ it("AddMapLayer update existing", async () => {
       omittedPopupAttributes: {
         states: ["the_geom"],
       },
-      queryable: false,
+      tablePopupType: "none",
     },
   ]);
 

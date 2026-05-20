@@ -26,6 +26,7 @@ import {
   sourcePropType,
   attributePropsPropType,
   saveLayerJSON,
+  resolveTablePopupType,
 } from "components/map/utilities";
 import { buildGeoTIFFStyleColor } from "components/map/geoTIFFStyle";
 import {
@@ -338,8 +339,9 @@ const MapLayerModal = ({
       mapConfiguration.omittedPopupAttributes = attributeProps.omitted;
     }
 
-    if (attributeProps.queryable === false) {
-      mapConfiguration.queryable = false;
+    const resolvedTablePopupType = resolveTablePopupType(attributeProps);
+    if (resolvedTablePopupType !== "click") {
+      mapConfiguration.tablePopupType = resolvedTablePopupType;
     }
 
     if (legend) {
@@ -465,7 +467,7 @@ const MapLayerModal = ({
     const attributeAliases = apiResponse.data.attributeAliases ?? {};
     const omittedPopupAttributes =
       apiResponse.data.omittedPopupAttributes ?? {};
-    const queryableLayer = apiResponse.data.queryable === false ? false : true;
+    const layerTablePopupType = resolveTablePopupType(apiResponse.data);
     const updatedLayerProps = Object.fromEntries(
       Object.entries(apiResponse.data.configuration.props).filter(
         ([key]) => key !== "source",
@@ -484,7 +486,7 @@ const MapLayerModal = ({
           variables: attributeVariables,
           omitted: omittedPopupAttributes,
           aliases: attributeAliases,
-          queryable: queryableLayer,
+          tablePopupType: layerTablePopupType,
         },
         effectiveName,
       ),
@@ -518,7 +520,7 @@ const MapLayerModal = ({
         const attributeVariables = scaffold.attributeVariables ?? {};
         const attributeAliases = scaffold.attributeAliases ?? {};
         const omittedPopupAttributes = scaffold.omittedPopupAttributes ?? {};
-        const queryableLayer = scaffold.queryable === false ? false : true;
+        const scaffoldTablePopupType = resolveTablePopupType(scaffold);
 
         const updatedLayerProps = Object.fromEntries(
           Object.entries(config.props ?? {}).filter(
@@ -542,7 +544,7 @@ const MapLayerModal = ({
               variables: attributeVariables,
               omitted: omittedPopupAttributes,
               aliases: attributeAliases,
-              queryable: queryableLayer,
+              tablePopupType: scaffoldTablePopupType,
             },
             effectiveName,
           ),

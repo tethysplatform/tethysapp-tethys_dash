@@ -322,7 +322,7 @@ test("MapLayerModal layer template partial map layer", async () => {
           },
         },
       },
-      queryable: false,
+      tablePopupType: "none",
     });
   });
 });
@@ -2807,7 +2807,7 @@ describe("MapLayerModal plugin layer", () => {
       omittedPopupAttributes: {
         "Some Plugin Layer": ["omitted"],
       },
-      queryable: false,
+      tablePopupType: "none",
     });
   });
 

@@ -1485,8 +1485,24 @@ export const omittedPopupAttributesPropType = PropTypes.objectOf(
 export const attributePropsPropType = PropTypes.shape({
   variables: attributeVariablesPropType,
   omitted: omittedPopupAttributesPropType,
+  tablePopupType: PropTypes.oneOf(["none", "click", "hover"]),
+  // Legacy: superseded by tablePopupType. Kept on the PropType so dashboards
+  // saved before the migration still pass type-checking until they're re-saved.
   queryable: PropTypes.bool,
 });
+
+// Resolves the per-layer table popup trigger from either the new
+// `tablePopupType` field or the legacy `queryable` boolean. Accepts any object
+// with these keys at the top level — works for attributeProps (used in the
+// MapLayer modal) and for hoisted layer config (used in Map.js filters).
+//   tablePopupType present  → use it directly
+//   queryable === false     → "none" (legacy "Allow Layer Query" off)
+//   otherwise               → "click" (default)
+export function resolveTablePopupType(obj) {
+  if (obj?.tablePopupType) return obj.tablePopupType;
+  if (obj?.queryable === false) return "none";
+  return "click";
+}
 
 export const sourcePropType = PropTypes.shape({
   props: PropTypes.object, // an object of source properties like url, params, etc. see components/map/utilities.js (sourcePropertiesOptions) for examples

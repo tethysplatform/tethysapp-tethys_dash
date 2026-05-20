@@ -8,7 +8,7 @@ import Button from "react-bootstrap/Button";
 import { valuesEqual } from "components/modals/utilities";
 import { BsPencilSquare, BsTrash } from "react-icons/bs";
 import { RxDragHandleHorizontal } from "react-icons/rx";
-import { layerPropType } from "components/map/utilities";
+import { layerPropType, resolveTablePopupType } from "components/map/utilities";
 import { AppContext } from "components/contexts/Contexts";
 import { findSelectOptionByValue } from "components/visualizations/utilities";
 
@@ -79,7 +79,7 @@ const MapLayerTemplate = ({
     const attributeAliases = existingMapLayer.attributeAliases ?? {};
     const omittedPopupAttributes =
       existingMapLayer.omittedPopupAttributes ?? {};
-    const queryableLayer = existingMapLayer.queryable === false ? false : true;
+    const layerTablePopupType = resolveTablePopupType(existingMapLayer);
     const layerProps = Object.fromEntries(
       Object.entries(existingMapLayer.configuration.props).filter(
         ([key]) => key !== "source",
@@ -109,7 +109,7 @@ const MapLayerTemplate = ({
         variables: attributeVariables,
         omitted: omittedPopupAttributes,
         aliases: attributeAliases,
-        queryable: queryableLayer,
+        tablePopupType: layerTablePopupType,
       },
       popupConfig: existingMapLayer.popupConfig ?? null,
     };

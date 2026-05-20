@@ -17,6 +17,7 @@ import {
   configurationPropType,
   mapDrawingPropType,
   loadLayerJSONs,
+  resolveTablePopupType,
 } from "components/map/utilities";
 import PropTypes from "prop-types";
 import { COLOR_RAMPS } from "components/map/colorRamps";
@@ -239,6 +240,12 @@ const MapVisualization = ({
   const mapOmittedPopupAttributesRef = useRef({});
   const mapAttributeAliasesRef = useRef({});
   const mapContainerRef = useRef(null);
+  // Throttles pointermove-driven hover queries; reset by a 120ms timer.
+  const hoverThrottleRef = useRef(null);
+  // Tracks whether the currently visible overlay popup was opened by the
+  // hover handler. Only hover-opened popups should close-on-empty; a popup
+  // the user opened by clicking must survive cursor movement off-feature.
+  const hoverActiveRef = useRef(false);
   const {
     variableInputValues,
     variableInputDateFormats,
@@ -376,8 +383,17 @@ const MapVisualization = ({
         </OverlayContentWrapper>,
       );
 
-      // Highlight the first feature when the popup is created
-      if (popupContent && popupContent.length > 0) {
+      // Highlight the first feature when the popup is created. Skip when the
+      // popup was opened by the hover handler — highlighting on every cursor
+      // movement is too aggressive a visual affordance. Also defensively skip
+      // when no highlight layer exists yet (hover can fire before any click
+      // has lazily created it).
+      if (
+        popupContent &&
+        popupContent.length > 0 &&
+        !hoverActiveRef.current &&
+        highlightLayer.current
+      ) {
         const selectedFeature = popupContent[0];
         addHighlightFeatures(highlightLayer.current, selectedFeature.geometry);
         updateVariableInputsForFeature(selectedFeature);
@@ -568,8 +584,14 @@ const MapVisualization = ({
         const name = olLayer.get("name");
         if (name) olLayerVisibility.set(name, olLayer.getVisible());
       });
+    // Include a layer for click queries when its modal popup is configured
+    // (the modal is always click-driven) OR its table popup is click-driven.
+    // Hover-triggered table layers are queried only by onMapHover, and a
+    // table-popup-type of "none" with no modal turns the layer off entirely.
     const queryableLayers = layers.filter((item) => {
-      if (item.queryable === false) return false;
+      const tablePopupType = resolveTablePopupType(item);
+      const modalEnabled = item.popupConfig?.mode === "modal";
+      if (!modalEnabled && tablePopupType !== "click") return false;
       const name = item.configuration?.props?.name;
       if (!name || !olLayerVisibility.has(name)) return true;
       return olLayerVisibility.get(name) === true;
@@ -672,8 +694,7 @@ const MapVisualization = ({
         .flat();
 
       const modalModeFeatures = nonEmptyLayers.filter(
-        (feature) =>
-          feature?.__wrapperLayer?.popupConfig?.mode === "modal",
+        (feature) => feature?.__wrapperLayer?.popupConfig?.mode === "modal",
       );
 
       if (modalModeFeatures.length > 0 && !extentDrawMode) {
@@ -681,7 +702,15 @@ const MapVisualization = ({
         setModalOpen(true);
       }
 
-      const nonEmptyLayerAttributes = nonEmptyLayers.filter((item) => {
+      // The click-handler queries layers whose modal is configured even when
+      // their table popup type is "none". Those modal-only features must NOT
+      // populate the table overlay — restrict overlay content to features
+      // whose layer is click-driven for its table popup.
+      const tableOverlayFeatures = nonEmptyLayers.filter(
+        (feature) => resolveTablePopupType(feature?.__wrapperLayer) === "click",
+      );
+
+      const nonEmptyLayerAttributes = tableOverlayFeatures.filter((item) => {
         if (!item.attributes || Object.keys(item.attributes).length === 0) {
           return false;
         }
@@ -693,18 +722,132 @@ const MapVisualization = ({
         );
       });
 
-      newPopupContent = nonEmptyLayers;
-      // no features found at the location, show "No Attributes Found" in the popup
-      if (nonEmptyLayers.length === 0) {
+      newPopupContent = tableOverlayFeatures;
+      if (tableOverlayFeatures.length === 0 && nonEmptyLayers.length === 0) {
+        // No features anywhere at this location — anchor the empty popup at
+        // the cursor so the user still sees "No Attributes Found".
         popupCoordinate = coordinate;
         newPopupContent = null;
-        // if any valid attributes, show them in popup and set the coordinate to the first feature with attributes
+      } else if (tableOverlayFeatures.length === 0) {
+        // Features exist but only for modal-only layers (table popup type
+        // "none"). Suppress the table overlay so the modal opens alone.
+        newPopupContent = null;
       } else if (nonEmptyLayerAttributes.length > 0) {
+        // At least one click-driven layer has visible attributes — anchor
+        // the overlay at the cursor.
         popupCoordinate = coordinate;
       }
     }
+    // The click handler is now the authoritative owner of the popup; if the
+    // hover handler later fires over empty space, it must not close this
+    // click-opened popup.
+    hoverActiveRef.current = false;
+
     setPopupContent(newPopupContent);
     popupOverlayRef.current?.setPosition(popupCoordinate);
+  };
+
+  const onMapHover = async (map, evt) => {
+    // istanbul ignore next
+    if (drawing.current) return;
+    // Throttle pointermove. The timer reset happens before any work so the
+    // first event in the window runs immediately and subsequent ones drop.
+    if (hoverThrottleRef.current) return;
+    hoverThrottleRef.current = setTimeout(() => {
+      hoverThrottleRef.current = null;
+    }, 120);
+
+    const olLayerVisibility = new Map();
+    map
+      .getLayers()
+      .getArray()
+      .forEach((olLayer) => {
+        const name = olLayer.get("name");
+        if (name) olLayerVisibility.set(name, olLayer.getVisible());
+      });
+
+    // Hover only handles layers whose table popup type is "hover", regardless
+    // of whether their modal is configured. Modal popups never open on hover.
+    const hoverLayers = layers.filter((item) => {
+      if (resolveTablePopupType(item) !== "hover") return false;
+      const name = item.configuration?.props?.name;
+      if (!name || !olLayerVisibility.has(name)) return true;
+      return olLayerVisibility.get(name) === true;
+    });
+    if (hoverLayers.length === 0) return;
+
+    // Refresh the alias / variable / omitted-attribute refs from the
+    // hover-eligible layer set so popup formatting honors per-layer overrides.
+    mapAttributeAliasesRef.current = hoverLayers.reduce((combined, current) => {
+      if (
+        current.attributeAliases &&
+        typeof current.attributeAliases === "object"
+      ) {
+        Object.assign(combined, current.attributeAliases);
+      }
+      return combined;
+    }, {});
+    mapAttributeVariablesRef.current = hoverLayers.reduce(
+      (combined, current) => {
+        if (
+          current.attributeVariables &&
+          typeof current.attributeVariables === "object"
+        ) {
+          Object.assign(combined, current.attributeVariables);
+        }
+        return combined;
+      },
+      {},
+    );
+    mapOmittedPopupAttributesRef.current = hoverLayers.reduce(
+      (combined, current) => {
+        if (
+          current.omittedPopupAttributes &&
+          typeof current.omittedPopupAttributes === "object"
+        ) {
+          Object.assign(combined, current.omittedPopupAttributes);
+        }
+        return combined;
+      },
+      {},
+    );
+
+    const queryCalls = hoverLayers.map(async (layer) => {
+      try {
+        const features = await queryLayerFeatures(
+          layer,
+          map,
+          evt.coordinate,
+          evt.pixel,
+        );
+        if (!Array.isArray(features)) return features;
+        return features.map((feature) =>
+          feature && typeof feature === "object"
+            ? { ...feature, __wrapperLayer: layer }
+            : feature,
+        );
+      } catch (error) {
+        // istanbul ignore next
+        return [];
+      }
+    });
+    const results = await Promise.all(queryCalls);
+
+    const nonEmpty = results
+      .filter((arr) => Array.isArray(arr) && arr.length > 0)
+      .flat();
+
+    if (nonEmpty.length > 0) {
+      setPopupContent(nonEmpty);
+      popupOverlayRef.current?.setPosition(evt.coordinate);
+      hoverActiveRef.current = true;
+    } else if (hoverActiveRef.current) {
+      // Only close popups the hover handler itself opened. Click-opened
+      // popups stay put until the user clicks again.
+      setPopupContent(null);
+      popupOverlayRef.current?.setPosition(undefined);
+      hoverActiveRef.current = false;
+    }
   };
 
   useEffect(() => {
@@ -733,9 +876,7 @@ const MapVisualization = ({
     if (!captured) return null;
     const name = captured.configuration?.props?.name;
     if (name && Array.isArray(layers)) {
-      const fresh = layers.find(
-        (l) => l?.configuration?.props?.name === name,
-      );
+      const fresh = layers.find((l) => l?.configuration?.props?.name === name);
       if (fresh) return fresh;
     }
     return captured;
@@ -778,6 +919,7 @@ const MapVisualization = ({
         mapDrawing={mapDrawing}
         drawing={drawing}
         onMapClick={inDataViewerMode ? () => {} : onMapClick}
+        onMapHover={inDataViewerMode ? () => {} : onMapHover}
         visualizationRef={visualizationRef}
         data-testid="backlayer-map"
         dataviewerViz={dataviewerViz}

@@ -43,6 +43,9 @@ const TestingComponent = ({
       <p data-testid="omittedPopupAttributes">
         {JSON.stringify(attributeProps.omitted)}
       </p>
+      <p data-testid="tablePopupType">
+        {JSON.stringify(attributeProps.tablePopupType)}
+      </p>
       <p data-testid="queryable">{JSON.stringify(attributeProps.queryable)}</p>
     </AppContext.Provider>
   );
@@ -170,7 +173,7 @@ test("AttributesPane successful query with initial variables or popups", async (
     />,
   );
 
-  expect(screen.getByLabelText("Allow Layer Query").checked).toBe(true); // allow llayer query checkbox should be on
+  expect(screen.getByLabelText("Click").checked).toBe(true); // default Table Popup Type radio is "Click"
 
   const spinner = screen.getByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
@@ -238,7 +241,7 @@ test("AttributesPane unsuccessful query no initial variables or popups", async (
     ),
   ).toBeInTheDocument();
 
-  expect(screen.getByLabelText("Allow Layer Query").checked).toBe(true); // allow llayer query checkbox should be on
+  expect(screen.getByLabelText("Click").checked).toBe(true); // default Table Popup Type radio is "Click"
 
   // Headers
   expect(await screen.findByText("states")).toBeInTheDocument();
@@ -358,7 +361,7 @@ test("AttributesPane unsuccessful query with initial variables, fields, and popu
   expect(screen.getByText("Show in popup")).toBeInTheDocument();
   expect(screen.getByText("Variable Input Name")).toBeInTheDocument();
 
-  expect(screen.getByLabelText("Allow Layer Query").checked).toBe(true); // allow llayer query checkbox should be on
+  expect(screen.getByLabelText("Click").checked).toBe(true); // default Table Popup Type radio is "Click"
 
   const popCheckboxes = screen.getAllByRole("checkbox", { name: /popup/i });
   expect(popCheckboxes.length).toBe(2); // includes 2 row
@@ -477,7 +480,7 @@ test("AttributesPane popups initial values", async () => {
     JSON.stringify({ states: ["the_geom", "STATE_NAME"] }),
   );
 
-  expect(screen.getByLabelText("Allow Layer Query").checked).toBe(true); // allow llayer query checkbox should be on
+  expect(screen.getByLabelText("Click").checked).toBe(true); // default Table Popup Type radio is "Click"
 
   // since all field popups are off, so should the header checkbox
   expect(await screen.findByText("states")).toBeInTheDocument();
@@ -635,7 +638,7 @@ test("AttributesPane bad GeoJSON", async () => {
   ).toBeInTheDocument();
 });
 
-test("AttributesPane allow layer query", async () => {
+test("AttributesPane table popup type — radio writes tablePopupType and strips legacy queryable", async () => {
   mockedGetLayerAttributes.mockResolvedValue({
     states: [
       { name: "the_geom", alias: "the_geom" },
@@ -652,6 +655,8 @@ test("AttributesPane allow layer query", async () => {
       },
     },
   };
+  // Start with a legacy attributeProps shape that carries queryable: false.
+  // The component should resolve that to the "None" radio via the shim.
   render(
     <TestingComponent
       sourceProps={sourceProps}
@@ -667,23 +672,93 @@ test("AttributesPane allow layer query", async () => {
     />,
   );
 
-  const layerQuery = screen.getByLabelText("Allow Layer Query");
-  expect(layerQuery.checked).toBe(false);
-  expect(screen.getByTestId("queryable")).toHaveTextContent(
-    JSON.stringify(false),
+  const noneRadio = screen.getByLabelText("None");
+  const clickRadio = screen.getByLabelText("Click");
+  const hoverRadio = screen.getByLabelText("Hover");
+
+  // Legacy queryable: false → None selected by the shim.
+  expect(noneRadio.checked).toBe(true);
+  expect(clickRadio.checked).toBe(false);
+  expect(hoverRadio.checked).toBe(false);
+
+  // Switching to Hover writes tablePopupType and drops legacy queryable.
+  fireEvent.click(hoverRadio);
+  expect(hoverRadio.checked).toBe(true);
+  expect(screen.getByTestId("tablePopupType")).toHaveTextContent(
+    JSON.stringify("hover"),
   );
-
-  fireEvent.click(layerQuery);
-
-  expect(layerQuery.checked).toBe(true);
   expect(screen.getByTestId("queryable")).toBeEmptyDOMElement();
 
-  fireEvent.click(layerQuery);
+  // Switching to Click (the default) clears the field entirely.
+  fireEvent.click(clickRadio);
+  expect(clickRadio.checked).toBe(true);
+  expect(screen.getByTestId("tablePopupType")).toBeEmptyDOMElement();
+  expect(screen.getByTestId("queryable")).toBeEmptyDOMElement();
 
-  expect(layerQuery.checked).toBe(false);
-  expect(screen.getByTestId("queryable")).toHaveTextContent(
-    JSON.stringify(false),
+  // Switching back to None writes "none" and still does not write queryable.
+  fireEvent.click(noneRadio);
+  expect(noneRadio.checked).toBe(true);
+  expect(screen.getByTestId("tablePopupType")).toHaveTextContent(
+    JSON.stringify("none"),
   );
+  expect(screen.getByTestId("queryable")).toBeEmptyDOMElement();
+});
+
+test("AttributesPane table popup type — defaults to Click when neither field is set", async () => {
+  mockedGetLayerAttributes.mockResolvedValue({});
+  render(
+    <TestingComponent
+      sourceProps={{
+        type: "WMS",
+        props: { url: "http://localhost:8081/geoserver/wms", params: {} },
+      }}
+      layerProps={{ name: "esri" }}
+      tabKey={"attributes"}
+    />,
+  );
+
+  expect(screen.getByLabelText("Click").checked).toBe(true);
+  expect(screen.getByLabelText("None").checked).toBe(false);
+  expect(screen.getByLabelText("Hover").checked).toBe(false);
+  // No legacy field is written when the user lands on the default.
+  expect(screen.getByTestId("tablePopupType")).toBeEmptyDOMElement();
+  expect(screen.getByTestId("queryable")).toBeEmptyDOMElement();
+});
+
+test("AttributesPane table popup type — legacy queryable: true resolves to Click", async () => {
+  mockedGetLayerAttributes.mockResolvedValue({});
+  render(
+    <TestingComponent
+      sourceProps={{
+        type: "WMS",
+        props: { url: "http://localhost:8081/geoserver/wms", params: {} },
+      }}
+      layerProps={{ name: "esri" }}
+      tabKey={"attributes"}
+      initialAttributeProps={{ queryable: true }}
+    />,
+  );
+
+  expect(screen.getByLabelText("Click").checked).toBe(true);
+});
+
+test("AttributesPane table popup type — new tablePopupType field wins over legacy queryable", async () => {
+  mockedGetLayerAttributes.mockResolvedValue({});
+  render(
+    <TestingComponent
+      sourceProps={{
+        type: "WMS",
+        props: { url: "http://localhost:8081/geoserver/wms", params: {} },
+      }}
+      layerProps={{ name: "esri" }}
+      tabKey={"attributes"}
+      initialAttributeProps={{ tablePopupType: "hover", queryable: false }}
+    />,
+  );
+
+  // tablePopupType takes precedence — the legacy queryable: false is ignored.
+  expect(screen.getByLabelText("Hover").checked).toBe(true);
+  expect(screen.getByLabelText("None").checked).toBe(false);
 });
 
 test("URL-based GeoJSON skips auto-extract on tab switch and exposes the 'Load attributes from URL' button", async () => {

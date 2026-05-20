@@ -8,7 +8,9 @@ import {
   sourcePropertiesOptions,
   attributePropsPropType,
   sourcePropType,
+  resolveTablePopupType,
 } from "components/map/utilities";
+import DataRadioSelect from "components/inputs/DataRadioSelect";
 import Spinner from "react-bootstrap/Spinner";
 import Button from "react-bootstrap/Button";
 import {
@@ -45,10 +47,11 @@ const CenteredTD = styled.td`
   vertical-align: middle;
 `;
 
-const QueryLabel = styled.label`
-  margin-bottom: 1rem;
-  font-weight: bold;
-`;
+const TABLE_POPUP_TYPE_OPTIONS = [
+  { value: "none", label: "None" },
+  { value: "click", label: "Click" },
+  { value: "hover", label: "Hover" },
+];
 
 const UrlLoadBar = styled.div`
   display: flex;
@@ -76,8 +79,8 @@ const AttributesPane = ({
   const previousAttributeProps = useRef({});
   const [customAttributes, setCustomAttributes] = useState(null);
   const [layerPopupSwitch, setLayerPopupSwitch] = useState({});
-  const [allowLayerQuery, setAllowLayerQuery] = useState(
-    attributeProps.queryable ?? true,
+  const [tablePopupType, setTablePopupType] = useState(
+    resolveTablePopupType(attributeProps),
   );
   const { dynamicMapLayers } = useContext(AppContext);
 
@@ -191,7 +194,7 @@ const AttributesPane = ({
     // set states and refs after processing all done
     setAttributes(layerAttributes);
     setLayerPopupSwitch(popupSwitchValues);
-    setAllowLayerQuery(attributeProps.queryable ?? true);
+    setTablePopupType(resolveTablePopupType(attributeProps));
   }
 
   async function queryLayerAttributes() {
@@ -485,175 +488,173 @@ const AttributesPane = ({
     setAttributes(updatedAttributes);
   }
 
-  function updatedQueryable(e) {
-    const newAllowLayerQuery = e.target.checked;
-    setAllowLayerQuery(newAllowLayerQuery);
+  function updateTablePopupType(value) {
+    setTablePopupType(value);
 
     setAttributeProps((previousAttributeProps) => {
-      const { queryable, ...rest } = previousAttributeProps;
+      // Drop both legacy `queryable` and any prior tablePopupType so we never
+      // leave stale fields behind. Then store the new value only when it
+      // differs from the "click" default.
+      const {
+        queryable: _legacyQueryable,
+        tablePopupType: _prevTablePopupType,
+        ...rest
+      } = previousAttributeProps;
 
-      return newAllowLayerQuery
-        ? rest // remove 'queryable'
-        : { ...rest, queryable: newAllowLayerQuery }; // keep or set it to false
+      return value === "click" ? rest : { ...rest, tablePopupType: value };
     });
   }
 
   return (
     <>
-      <QueryLabel>
-        <input
-          type="checkbox"
-          onChange={updatedQueryable}
-          checked={allowLayerQuery}
-        ></input>{" "}
-        Allow Layer Query
-      </QueryLabel>
-      {allowLayerQuery && (
+      <DataRadioSelect
+        label="Table Popup Type"
+        selectedRadio={tablePopupType}
+        radioOptions={TABLE_POPUP_TYPE_OPTIONS}
+        onChange={updateTablePopupType}
+      />
+      {errorMessage ? (
+        <Alert key="danger" variant="danger" dismissible>
+          {errorMessage}
+        </Alert>
+      ) : (
         <>
-          {errorMessage ? (
-            <Alert key="danger" variant="danger" dismissible>
-              {errorMessage}
+          {warningMessage && (
+            <Alert key="warning" variant="warning" dismissible>
+              {warningMessage}
             </Alert>
+          )}
+          {customAttributes === null ? (
+            <StyledSpinner
+              data-testid="Loading..."
+              animation="border"
+              variant="info"
+            />
+          ) : customAttributes ? (
+            Object.keys(attributes).map((layerName, index) => (
+              <div key={index}>
+                <p>
+                  <b>{layerName}</b>:
+                </p>
+                <FixedTable striped bordered hover size="sm">
+                  <thead>
+                    <tr>
+                      <th className="text-center" style={{ width: "25%" }}>
+                        Name
+                      </th>
+                      <th className="text-center" style={{ width: "25%" }}>
+                        Alias
+                      </th>
+                      <th className="text-center" style={{ width: "20%" }}>
+                        Show in popup
+                        <br />
+                        <input
+                          type="checkbox"
+                          checked={layerPopupSwitch[layerName]}
+                          onChange={(e) =>
+                            handleLayerPopup(layerName, e.target.checked)
+                          }
+                          aria-label="Show in popup header"
+                        />
+                      </th>
+                      <th className="text-center">Variable Input Name</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {attributes[layerName].map(({ name }, index) => (
+                      <tr key={index}>
+                        <OverflowTD>{name}</OverflowTD>
+                        <td>
+                          <StyledInput
+                            value={attributes[layerName][index]["alias"]}
+                            aria-label="alias row"
+                            onChange={(e) => {
+                              updateAttributes({
+                                index,
+                                layerName,
+                                field: "alias",
+                                fieldChange: e.target.value,
+                              });
+                            }}
+                          />
+                        </td>
+                        <CenteredTD>
+                          <input
+                            type="checkbox"
+                            checked={attributes[layerName][index]["popup"]}
+                            aria-label="Show in popup row"
+                            onChange={(e) => {
+                              updateAttributes({
+                                index,
+                                layerName,
+                                field: "popup",
+                                fieldChange: e.target.checked,
+                              });
+                            }}
+                          />
+                        </CenteredTD>
+                        <td>
+                          <StyledInput
+                            value={
+                              attributes[layerName][index]["variableInput"]
+                            }
+                            aria-label="variable row"
+                            onChange={(e) => {
+                              updateAttributes({
+                                index,
+                                layerName,
+                                field: "variableInput",
+                                fieldChange: e.target.value,
+                              });
+                            }}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </FixedTable>
+              </div>
+            ))
           ) : (
             <>
-              {warningMessage && (
-                <Alert key="warning" variant="warning" dismissible>
-                  {warningMessage}
-                </Alert>
+              {isUrlGeoJSON && (
+                <UrlLoadBar>
+                  <Button
+                    variant="outline-primary"
+                    size="sm"
+                    onClick={handleLoadAttributesFromUrl}
+                    aria-label="Load attributes from URL"
+                  >
+                    Load attributes from URL
+                  </Button>
+                  <UrlLoadHint>
+                    Large remote GeoJSON files may take a while to load.
+                  </UrlLoadHint>
+                </UrlLoadBar>
               )}
-              {customAttributes === null ? (
-                <StyledSpinner
-                  data-testid="Loading..."
-                  animation="border"
-                  variant="info"
+              {Object.keys(attributes).map((layerName, index) => (
+                <InputTable
+                  key={index}
+                  label={layerName}
+                  onChange={({ newValue, field, fullChange }) =>
+                    updateAttributes({
+                      index,
+                      layerName,
+                      field,
+                      fieldChange: newValue,
+                      fullChange: fullChange,
+                    })
+                  }
+                  values={attributes[layerName]}
+                  allowRowCreation={true}
+                  headers={[
+                    "Name",
+                    "Alias",
+                    "Show in popup",
+                    "Variable Input Name",
+                  ]}
                 />
-              ) : customAttributes ? (
-                Object.keys(attributes).map((layerName, index) => (
-                  <div key={index}>
-                    <p>
-                      <b>{layerName}</b>:
-                    </p>
-                    <FixedTable striped bordered hover size="sm">
-                      <thead>
-                        <tr>
-                          <th className="text-center" style={{ width: "25%" }}>
-                            Name
-                          </th>
-                          <th className="text-center" style={{ width: "25%" }}>
-                            Alias
-                          </th>
-                          <th className="text-center" style={{ width: "20%" }}>
-                            Show in popup
-                            <br />
-                            <input
-                              type="checkbox"
-                              checked={layerPopupSwitch[layerName]}
-                              onChange={(e) =>
-                                handleLayerPopup(layerName, e.target.checked)
-                              }
-                              aria-label="Show in popup header"
-                            />
-                          </th>
-                          <th className="text-center">Variable Input Name</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {attributes[layerName].map(({ name }, index) => (
-                          <tr key={index}>
-                            <OverflowTD>{name}</OverflowTD>
-                            <td>
-                              <StyledInput
-                                value={attributes[layerName][index]["alias"]}
-                                aria-label="alias row"
-                                onChange={(e) => {
-                                  updateAttributes({
-                                    index,
-                                    layerName,
-                                    field: "alias",
-                                    fieldChange: e.target.value,
-                                  });
-                                }}
-                              />
-                            </td>
-                            <CenteredTD>
-                              <input
-                                type="checkbox"
-                                checked={attributes[layerName][index]["popup"]}
-                                aria-label="Show in popup row"
-                                onChange={(e) => {
-                                  updateAttributes({
-                                    index,
-                                    layerName,
-                                    field: "popup",
-                                    fieldChange: e.target.checked,
-                                  });
-                                }}
-                              />
-                            </CenteredTD>
-                            <td>
-                              <StyledInput
-                                value={
-                                  attributes[layerName][index]["variableInput"]
-                                }
-                                aria-label="variable row"
-                                onChange={(e) => {
-                                  updateAttributes({
-                                    index,
-                                    layerName,
-                                    field: "variableInput",
-                                    fieldChange: e.target.value,
-                                  });
-                                }}
-                              />
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </FixedTable>
-                  </div>
-                ))
-              ) : (
-                <>
-                  {isUrlGeoJSON && (
-                    <UrlLoadBar>
-                      <Button
-                        variant="outline-primary"
-                        size="sm"
-                        onClick={handleLoadAttributesFromUrl}
-                        aria-label="Load attributes from URL"
-                      >
-                        Load attributes from URL
-                      </Button>
-                      <UrlLoadHint>
-                        Large remote GeoJSON files may take a while to load.
-                      </UrlLoadHint>
-                    </UrlLoadBar>
-                  )}
-                  {Object.keys(attributes).map((layerName, index) => (
-                    <InputTable
-                      key={index}
-                      label={layerName}
-                      onChange={({ newValue, field, fullChange }) =>
-                        updateAttributes({
-                          index,
-                          layerName,
-                          field,
-                          fieldChange: newValue,
-                          fullChange: fullChange,
-                        })
-                      }
-                      values={attributes[layerName]}
-                      allowRowCreation={true}
-                      headers={[
-                        "Name",
-                        "Alias",
-                        "Show in popup",
-                        "Variable Input Name",
-                      ]}
-                    />
-                  ))}
-                </>
-              )}
+              ))}
             </>
           )}
         </>

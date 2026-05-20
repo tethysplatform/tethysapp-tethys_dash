@@ -1023,6 +1023,318 @@ test("Map click no queryable layer", async () => {
   ).toBe("NWC");
 });
 
+test("Map click — table popup type 'none' skips a layer when no modal is configured", async () => {
+  // New equivalent of the legacy queryable: false case using the
+  // tablePopupType field. With no modal popup configured and the table popup
+  // turned off, the click handler must not query the layer at all.
+  mockedQueryLayerFeatures.mockResolvedValue([
+    {
+      attributes: { field1: "some value" },
+      geometry: { x: 0, y: 0 },
+      layerName: "Some Layer",
+    },
+  ]);
+  jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+
+  const layers = [
+    {
+      tablePopupType: "none",
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "OffLayer",
+          source: {
+            type: "ESRI Image and Map Service",
+            props: { url: "some_url" },
+          },
+        },
+      },
+    },
+    {
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "OnLayer",
+          source: {
+            type: "ESRI Image and Map Service",
+            props: { url: "some_url" },
+          },
+        },
+      },
+    },
+  ];
+  const clickCoordinates = [10, 20];
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent
+          onMapClick={jest.fn()}
+          clickCoordinates={clickCoordinates}
+          mapProps={{
+            mapConfig: {},
+            viewConfig: {},
+            layers,
+            baseMap: null,
+            layerControl: false,
+          }}
+        />
+      </MapContextProvider>
+    ),
+  });
+  render(LoadedComponent);
+
+  expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+  // Only the layer with the default (Click) table popup type is queried.
+  await waitFor(() => {
+    expect(mockedQueryLayerFeatures.mock.calls.length).toBe(1);
+  });
+  expect(
+    mockedQueryLayerFeatures.mock.calls[0][0].configuration.props.name,
+  ).toBe("OnLayer");
+});
+
+test("Map click — modal-only layer with tablePopupType 'none' IS queried and modal opens", async () => {
+  // Regression for the bug fix: a layer with the table popup turned off but a
+  // modal popup configured must still be queried on click so the modal can
+  // open. Previously, queryable: false short-circuited modals too.
+  mockedQueryLayerFeatures.mockResolvedValue([
+    {
+      attributes: { station_id: "ABC" },
+      geometry: { x: 10, y: 10 },
+      layerName: "ModalOnly",
+    },
+  ]);
+  jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+  const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
+
+  const layers = [
+    {
+      name: "ModalOnly",
+      tablePopupType: "none",
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "ModalOnly",
+          source: {
+            type: "ESRI Image and Map Service",
+            props: { url: "modal_url" },
+          },
+        },
+      },
+      popupConfig: {
+        mode: "modal",
+        position: null,
+        titleTemplate: null,
+        gridItems: [],
+      },
+    },
+  ];
+  const clickCoordinates = [10, 20];
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent
+          onMapClick={jest.fn()}
+          clickCoordinates={clickCoordinates}
+          mapProps={{
+            mapConfig: {},
+            viewConfig: {},
+            layers,
+            baseMap: null,
+            layerControl: false,
+          }}
+        />
+      </MapContextProvider>
+    ),
+  });
+  render(LoadedComponent);
+
+  expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+  // The layer IS queried (modal is configured).
+  await waitFor(() => {
+    expect(mockedQueryLayerFeatures.mock.calls.length).toBe(1);
+  });
+  expect(
+    mockedQueryLayerFeatures.mock.calls[0][0].configuration.props.name,
+  ).toBe("ModalOnly");
+
+  // The modal opens.
+  await waitFor(() => {
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  // The table overlay popup is NOT positioned at the click coordinate.
+  // popSetPosition is shared with the spinner overlay (it's called with the
+  // click coordinate at the start of the handler and then null when queries
+  // finish), so the meaningful assertion is on the LAST call — which is the
+  // popup overlay being set to `undefined` to keep it hidden.
+  await waitFor(() => {
+    expect(popSetPosition).toHaveBeenLastCalledWith(undefined);
+  });
+});
+
+test("Map click — hover-table layer is excluded from the click handler", async () => {
+  // tablePopupType: "hover" without modal must not be queried on click; only
+  // the hover handler should fire for that layer.
+  mockedQueryLayerFeatures.mockResolvedValue([
+    {
+      attributes: { field1: "value" },
+      geometry: { x: 0, y: 0 },
+      layerName: "HoverLayer",
+    },
+  ]);
+  jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+
+  const layers = [
+    {
+      tablePopupType: "hover",
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "HoverLayer",
+          source: {
+            type: "ESRI Image and Map Service",
+            props: { url: "hover_url" },
+          },
+        },
+      },
+    },
+    {
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "ClickLayer",
+          source: {
+            type: "ESRI Image and Map Service",
+            props: { url: "click_url" },
+          },
+        },
+      },
+    },
+  ];
+  const clickCoordinates = [10, 20];
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent
+          onMapClick={jest.fn()}
+          clickCoordinates={clickCoordinates}
+          mapProps={{
+            mapConfig: {},
+            viewConfig: {},
+            layers,
+            baseMap: null,
+            layerControl: false,
+          }}
+        />
+      </MapContextProvider>
+    ),
+  });
+  render(LoadedComponent);
+
+  expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+  // Click handler queries only ClickLayer. (The pointermove dispatch in the
+  // TestingComponent only fires when onMapPointerMove is passed, so the hover
+  // handler does not run here — this is purely a click-filter test.)
+  await waitFor(() => {
+    expect(mockedQueryLayerFeatures.mock.calls.length).toBeGreaterThanOrEqual(
+      1,
+    );
+  });
+  const queriedNames = mockedQueryLayerFeatures.mock.calls.map(
+    ([layer]) => layer.configuration.props.name,
+  );
+  expect(queriedNames).toContain("ClickLayer");
+  expect(queriedNames).not.toContain("HoverLayer");
+});
+
+test("Map hover — pointermove queries only hover-tagged layers and positions the overlay", async () => {
+  // The hover handler subscribes to OL's pointermove event. It must query
+  // only layers with tablePopupType === "hover" and open the table overlay
+  // at the cursor; it must never open the modal.
+  mockedQueryLayerFeatures.mockResolvedValue([
+    {
+      attributes: { field1: "value" },
+      geometry: { x: 0, y: 0 },
+      layerName: "HoverLayer",
+    },
+  ]);
+  jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+  const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
+
+  const layers = [
+    {
+      tablePopupType: "hover",
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "HoverLayer",
+          source: {
+            type: "ESRI Image and Map Service",
+            props: { url: "hover_url" },
+          },
+        },
+      },
+    },
+    {
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "ClickLayer",
+          source: {
+            type: "ESRI Image and Map Service",
+            props: { url: "click_url" },
+          },
+        },
+      },
+    },
+  ];
+  const clickCoordinates = [10, 20];
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent
+          onMapPointerMove={true}
+          clickCoordinates={clickCoordinates}
+          mapProps={{
+            mapConfig: {},
+            viewConfig: {},
+            layers,
+            baseMap: null,
+            layerControl: false,
+          }}
+        />
+      </MapContextProvider>
+    ),
+  });
+  render(LoadedComponent);
+
+  expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+  // Only the hover-tagged layer is queried by the hover handler.
+  await waitFor(() => {
+    expect(mockedQueryLayerFeatures.mock.calls.length).toBe(1);
+  });
+  expect(
+    mockedQueryLayerFeatures.mock.calls[0][0].configuration.props.name,
+  ).toBe("HoverLayer");
+
+  // The overlay positions itself at the cursor coordinate.
+  await waitFor(() => {
+    expect(popSetPosition).toHaveBeenCalledWith(clickCoordinates);
+  });
+
+  // No modal opens from a hover event.
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+});
+
 test("Map click skips layers the user has hidden via the layer control", async () => {
   // Visibility is mutated on the OL layer directly by LayersControl, so the
   // config-side `layers` array doesn't reflect toggles. The click handler
