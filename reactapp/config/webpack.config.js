@@ -128,12 +128,24 @@ module.exports = (env, argv) => {
       minimize: true,
     },
     devServer: {
-      proxy: {
-        "!/static/tethysdash/frontend/**": {
-          target: "http://localhost:8000", // points to django dev server
+      // Proxy everything to Tethys on :8000 except what the dev server holds
+      // in memory: the unhashed entry bundle and webpack HMR chunks. Hashed
+      // names from a committed public/frontend/manifest.json (which Tethys's
+      // controller reads via _get_main_bundle_path) DO get proxied, so Tethys
+      // serves them from disk instead of dev-server 404'ing on a name it
+      // never built.
+      proxy: [
+        {
+          context: [
+            "**",
+            "!/static/tethysdash/frontend/main.js",
+            "!/static/tethysdash/frontend/main.js.map",
+            "!**/*.hot-update.*",
+          ],
+          target: "http://localhost:8000",
           changeOrigin: true,
         },
-      },
+      ],
       open: true,
     },
   };
