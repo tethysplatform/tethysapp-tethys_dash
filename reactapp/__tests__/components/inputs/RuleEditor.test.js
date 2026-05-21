@@ -1003,7 +1003,7 @@ describe("RuleEditor", () => {
     );
   });
 
-  it("clears propertyRefs.rotation when the rotation style is removed", () => {
+  it("clears propertyRefs.rotation when the styles are removed", () => {
     const mockOnChange = jest.fn();
     render(
       <TestingComponent
@@ -1011,7 +1011,7 @@ describe("RuleEditor", () => {
           geometryType: "point",
           shape: "rectangle",
           rotation: 0,
-          propertyRefs: { rotation: "bearing" },
+          propertyRefs: { rotation: "bearing", color: "color" },
         }}
         onRuleChange={mockOnChange}
       />,
@@ -1019,9 +1019,18 @@ describe("RuleEditor", () => {
 
     fireEvent.click(screen.getByLabelText("Remove rotation style option"));
 
-    expect(mockOnChange).toHaveBeenLastCalledWith(
-      expect.not.objectContaining({ propertyRefs: expect.anything() }),
-    );
+    expect(mockOnChange).toHaveBeenLastCalledWith({
+      geometryType: "point",
+      propertyRefs: { color: "color" },
+      shape: "rectangle",
+    });
+
+    fireEvent.click(screen.getByLabelText("Remove color style option"));
+
+    expect(mockOnChange).toHaveBeenLastCalledWith({
+      geometryType: "point",
+      shape: "rectangle",
+    });
   });
 
   it("adds rotation as a point style option and accepts a degree value", async () => {
