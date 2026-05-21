@@ -2,6 +2,7 @@ const path = require("path");
 const webpack = require("webpack");
 const Dotenv = require("dotenv-webpack");
 const ModuleFederationPlugin = require("webpack/lib/container/ModuleFederationPlugin");
+const { WebpackManifestPlugin } = require("webpack-manifest-plugin");
 
 module.exports = (env, argv) => {
   const dotEnvPath = `./reactapp/config/${argv.mode}.env`;
@@ -11,6 +12,8 @@ module.exports = (env, argv) => {
   } else {
     tethys_prefix_url = "";
   }
+
+  const isProd = argv.mode === "production";
 
   console.log(`Building in ${argv.mode} mode...`);
   console.log(`=> Using .env config at "${dotEnvPath}"`);
@@ -22,8 +25,10 @@ module.exports = (env, argv) => {
         __dirname,
         "../../tethysapp/tethysdash/public/frontend"
       ),
-      filename: "[name].js",
+      filename: isProd ? "[name].[contenthash].js" : "[name].js",
+      chunkFilename: isProd ? "[name].[contenthash].js" : "[name].js",
       publicPath: `${tethys_prefix_url}/static/tethysdash/frontend/`,
+      clean: isProd ? { keep: /\.gitkeep$/ } : false,
     },
     resolve: {
       modules: [
@@ -47,6 +52,14 @@ module.exports = (env, argv) => {
           },
         },
       }),
+      ...(isProd
+        ? [
+            new WebpackManifestPlugin({
+              fileName: "manifest.json",
+              publicPath: "",
+            }),
+          ]
+        : []),
     ],
     module: {
       rules: [
