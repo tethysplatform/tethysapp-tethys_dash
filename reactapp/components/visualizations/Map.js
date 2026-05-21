@@ -497,6 +497,13 @@ const MapVisualization = ({
   const onSwipe = (swiper) => {
     const selectedFeature = popupContent[swiper.activeIndex];
 
+    // Hover-opened popups never created the highlight layer (that's a
+    // click-handler side effect) and they intentionally skipped variable
+    // updates when first opened. Swiping inside a hover popup must follow
+    // the same rules — otherwise navigating the swiper crashes on the
+    // undefined highlight layer.
+    if (hoverActiveRef.current || !highlightLayer.current) return;
+
     // Update highlights to only show the currently visible feature
     highlightLayer.current.getSource().clear();
     addHighlightFeatures(highlightLayer.current, selectedFeature.geometry);
@@ -850,6 +857,23 @@ const MapVisualization = ({
   const onMapHover = (map, evt) => {
     // istanbul ignore next
     if (drawing.current) return;
+
+    // If the cursor is over the popup itself, ignore the event entirely.
+    // pointermove still fires from OL when the cursor sits on the overlay's
+    // DOM element, but the map coordinate underneath is whatever empty map
+    // is BEHIND the popup — debouncing it would trigger a close-on-empty
+    // and dismiss the popup the moment the user tries to interact with it.
+    // Also cancel any pending debounce so it doesn't fire mid-interaction.
+    const popupEl = popupContainerRef.current;
+    const target = evt.originalEvent?.target;
+    if (popupEl && target && popupEl.contains(target)) {
+      if (hoverDebounceRef.current) {
+        clearTimeout(hoverDebounceRef.current);
+        hoverDebounceRef.current = null;
+      }
+      return;
+    }
+
     // Debounce: restart the timer on every move so the query only fires once
     // the cursor settles for HOVER_DEBOUNCE_MS. Capture coordinate/pixel by
     // value so the deferred call uses the LAST cursor position, not stale.
