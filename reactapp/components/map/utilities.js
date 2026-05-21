@@ -428,7 +428,8 @@ export function wrapMercatorX(x) {
   if (x >= -MERCATOR_HALF_WORLD && x < MERCATOR_HALF_WORLD) return x;
   const world = MERCATOR_HALF_WORLD * 2;
   return (
-    (((x + MERCATOR_HALF_WORLD) % world) + world) % world - MERCATOR_HALF_WORLD
+    ((((x + MERCATOR_HALF_WORLD) % world) + world) % world) -
+    MERCATOR_HALF_WORLD
   );
 }
 
@@ -744,6 +745,7 @@ async function getImageWMSLayerFeatures(sourceUrl, sourceParams, map, pixel) {
   try {
     // setup fetch request with params
     const params = new URLSearchParams({
+      SERVICE: "WMS",
       INFO_FORMAT: "application/json",
       LAYERS: lowercaseSourceParams.layers,
       QUERY_LAYERS: lowercaseSourceParams.layers,

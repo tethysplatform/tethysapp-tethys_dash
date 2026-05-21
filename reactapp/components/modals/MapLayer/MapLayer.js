@@ -14,7 +14,11 @@ import AttributesPane from "components/modals/MapLayer/AttributesPane";
 import StylePane from "components/modals/MapLayer/StylePane";
 import PopupConfigPane from "components/modals/MapLayer/PopupConfigPane";
 import PopupLayoutEditor from "components/modals/MapLayer/PopupLayoutEditor";
-import { AppContext, LayoutContext } from "components/contexts/Contexts";
+import {
+  AppContext,
+  LayoutContext,
+  VariableInputsContext,
+} from "components/contexts/Contexts";
 import {
   sourcePropertiesOptions,
   layerPropType,
@@ -28,7 +32,10 @@ import {
   removeEmptyValues,
   checkRequiredKeys,
 } from "components/modals/utilities";
-import { findSelectOptionByValue } from "components/visualizations/utilities";
+import {
+  findSelectOptionByValue,
+  updateObjectWithVariableInputs,
+} from "components/visualizations/utilities";
 import { useMapContext } from "components/contexts/MapContext";
 import Select from "react-select";
 import appAPI from "services/api/app";
@@ -153,6 +160,9 @@ const MapLayerModal = ({
   const styleContainerRef = useRef(null);
   const { csrf, mapLayerTemplates, dynamicMapLayers } = useContext(AppContext);
   const { uuid, editable: hostDashboardEditable } = useContext(LayoutContext);
+  const { variableInputValues, variableInputDateFormats } = useContext(
+    VariableInputsContext,
+  );
   const mapContext = useMapContext();
 
   const onRequestHideModal = useCallback(() => {
@@ -486,9 +496,14 @@ const MapLayerModal = ({
   const fetchPluginDefaults = useCallback(
     async (source, args) => {
       try {
+        const resolvedArgs = updateObjectWithVariableInputs({
+          args,
+          variableInputs: variableInputValues,
+          variableInputDateFormats,
+        });
         const apiResponse = await appAPI.getVisualizationData({
           source,
-          args: args,
+          args: resolvedArgs,
         });
         if (!apiResponse.success) {
           return {
@@ -542,7 +557,15 @@ const MapLayerModal = ({
         };
       }
     },
-    [layerProps?.name, setLayerProps, setAttributeProps, setStyle, setLegend],
+    [
+      layerProps?.name,
+      setLayerProps,
+      setAttributeProps,
+      setStyle,
+      setLegend,
+      variableInputValues,
+      variableInputDateFormats,
+    ],
   );
 
   return (

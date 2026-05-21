@@ -61,6 +61,32 @@ def _get_error_message(e, fallback):
         return fallback
 
 
+_FRONTEND_DIR = os.path.join(
+    os.path.dirname(__file__), "public", "frontend"
+)
+_MANIFEST_PATH = os.path.join(_FRONTEND_DIR, "manifest.json")
+
+
+def _get_main_bundle_path():
+    """Resolve the entry bundle path under the app's public dir.
+
+    The production webpack build emits ``main.<contenthash>.js`` and a
+    ``manifest.json`` mapping logical names to hashed filenames. In dev the
+    webpack-dev-server serves an unhashed ``main.js`` from memory and no
+    manifest is written, so we fall back to that name.
+
+    Returns:
+        str: Relative path like ``"frontend/main.abc123.js"`` for use with
+        Tethys' ``public`` template filter.
+    """
+    try:
+        with open(_MANIFEST_PATH) as f:
+            bundle = json.load(f).get("main.js", "main.js")
+    except (FileNotFoundError, ValueError):
+        bundle = "main.js"
+    return f"frontend/{bundle}"
+
+
 @controller(login_required=False)
 def home(request):
     """
@@ -76,7 +102,11 @@ def home(request):
         Rendered HTML response containing the React application
     """
     # The index.html template loads the React frontend
-    return App.render(request, "index.html")
+    return App.render(
+        request,
+        "index.html",
+        context={"main_bundle_path": _get_main_bundle_path()},
+    )
 
 
 @api_view(["GET"])

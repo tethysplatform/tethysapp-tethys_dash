@@ -14,7 +14,11 @@ import MapLayerModal, {
   renameLayerInAttributeProps,
   normalizeAttributePropsForLayer,
 } from "components/modals/MapLayer/MapLayer";
-import { AppContext, LayoutContext } from "components/contexts/Contexts";
+import {
+  AppContext,
+  LayoutContext,
+  VariableInputsContext,
+} from "components/contexts/Contexts";
 import MapContextProvider, {
   useMapContext,
 } from "components/contexts/MapContext";
@@ -76,13 +80,17 @@ const ExtentTestComponent = ({ layerInfo, visualizationRefOverride }) => {
     <>
       <AppContext.Provider value={appContext}>
         <LayoutContext.Provider value={{ uuid: "123" }}>
-          <MapLayerModal
-            showModal={true}
-            handleModalClose={jest.fn()}
-            addMapLayer={jest.fn()}
-            layerInfo={layerInfo}
-            visualizationRef={visualizationRef}
-          />
+          <VariableInputsContext.Provider
+            value={{ variableInputValues: {}, variableInputDateFormats: {} }}
+          >
+            <MapLayerModal
+              showModal={true}
+              handleModalClose={jest.fn()}
+              addMapLayer={jest.fn()}
+              layerInfo={layerInfo}
+              visualizationRef={visualizationRef}
+            />
+          </VariableInputsContext.Provider>
         </LayoutContext.Provider>
       </AppContext.Provider>
       <button
@@ -131,12 +139,16 @@ const TestingComponent = ({
     <>
       <AppContext.Provider value={appContext}>
         <LayoutContext.Provider value={{ uuid: "123" }}>
-          <MapLayerModal
-            showModal={showModal}
-            handleModalClose={handleModalClose}
-            addMapLayer={addMapLayer}
-            layerInfo={layerInfo}
-          />
+          <VariableInputsContext.Provider
+            value={{ variableInputValues: {}, variableInputDateFormats: {} }}
+          >
+            <MapLayerModal
+              showModal={showModal}
+              handleModalClose={handleModalClose}
+              addMapLayer={addMapLayer}
+              layerInfo={layerInfo}
+            />
+          </VariableInputsContext.Provider>
         </LayoutContext.Provider>
       </AppContext.Provider>
     </>

@@ -1186,6 +1186,7 @@ test("queryLayerFeatures ImageWMS", async () => {
   );
 
   const params = new URLSearchParams({
+    SERVICE: "WMS",
     INFO_FORMAT: "application/json",
     LAYERS: "topp:states",
     QUERY_LAYERS: "topp:states",
@@ -1283,6 +1284,7 @@ test("queryLayerFeatures ImageWMS Different Projection", async () => {
   );
 
   const params = new URLSearchParams({
+    SERVICE: "WMS",
     INFO_FORMAT: "application/json",
     LAYERS: "topp:states",
     QUERY_LAYERS: "topp:states",
@@ -1347,6 +1349,7 @@ test("queryLayerFeatures ImageWMS Bad Request", async () => {
   );
 
   const params = new URLSearchParams({
+    SERVICE: "WMS",
     INFO_FORMAT: "application/json",
     LAYERS: "topp:states",
     QUERY_LAYERS: "topp:states",
