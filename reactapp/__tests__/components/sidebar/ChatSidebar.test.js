@@ -340,6 +340,32 @@ describe("ChatSidebar beforeFirstMessage system-message framing", () => {
     expect(msg.content).toMatch(/exception/i);
   });
 
+  // Debug session 2026-05-21 turn 2 — gemini-flash routed
+  // "Enable the Custom Popup Modal on the China Flowlines layer..."
+  // (a FIRST-time popup-modal setup) to patch_visualization instead of
+  // configure_popup_modal_layer, because the PRIORITY clause says
+  // "modify existing → patch_visualization" and the user prompt reads
+  // as "modify the existing layer." The LLM then fabricated the wrong
+  // path (/args/layers/0/configuration/props/popup vs canonical
+  // /args/layers/0/popupConfig) and wrong shape ({content, title, type}
+  // vs canonical {mode, position, titleTemplate, gridItems}). The fix
+  // adds a SECOND exception to the PRIORITY clause carving out
+  // first-time popup-modal setup, plus the partial-edits-only
+  // boundary for patch_visualization.
+
+  test("PRIORITY rule preserves the configure_popup_modal_layer exception for first-time popup-modal setup", () => {
+    renderWithContexts({ editable: true, tabs: tabsWithViz });
+    const msg = globalThis.__chatboxLastProps.engineExtensions.beforeFirstMessage();
+    expect(msg.content).toMatch(/configure_popup_modal_layer/);
+    // Name the first-time framing so the LLM knows when configure wins.
+    expect(msg.content).toMatch(/first time/i);
+    // Name the patch_visualization boundary (partial-edits-only) so the
+    // LLM doesn't read this exception as "never use patch_visualization
+    // for popups."
+    expect(msg.content).toMatch(/PARTIAL EDITS/i);
+    expect(msg.content).toMatch(/popupConfig/);
+  });
+
   test("PRIORITY rule appears BETWEEN the patch-framing and the dashboard-state JSON", () => {
     renderWithContexts({ editable: true, tabs: tabsWithViz });
     const msg = globalThis.__chatboxLastProps.engineExtensions.beforeFirstMessage();

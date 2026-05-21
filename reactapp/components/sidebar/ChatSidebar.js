@@ -312,10 +312,19 @@ function ChatSidebar() {
             "block, or any other existing tile, ALWAYS use " +
             "`patch_visualization`. Do NOT also call any `create_*` or " +
             "`render_*` tool in the same turn — that produces duplicate " +
-            "ghost tiles on the dashboard. The only exception is adding " +
-            "a new layer to an existing map: use the appropriate " +
-            "`add_*_layer` tool with the existing `map_uuid`, never " +
-            "`create_map_visualization`.\n\n" +
+            "ghost tiles on the dashboard. EXCEPTIONS where a more-" +
+            "specific tool wins over `patch_visualization`: " +
+            "(a) adding a new layer to an existing map → use the " +
+            "appropriate `add_*_layer` tool with the existing " +
+            "`map_uuid`, never `create_map_visualization`; " +
+            "(b) configuring a custom popup modal on an existing map " +
+            "layer for the FIRST TIME (the layer exists, but the layer " +
+            "has no `popupConfig` yet) → use " +
+            "`configure_popup_modal_layer`, never `patch_visualization`. " +
+            "`patch_visualization` is correct for PARTIAL EDITS to an " +
+            "already-existing `popupConfig` (e.g., changing just the " +
+            "title template via `/args/layers/N/popupConfig/" +
+            "titleTemplate`).\n\n" +
             JSON.stringify(patchContext),
         };
       },
