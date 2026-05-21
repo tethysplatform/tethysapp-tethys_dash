@@ -374,7 +374,7 @@ function ChatSidebar() {
           typeof toolResult === "object" &&
           typeof toolResult.error === "string"
         ) {
-          return { error: toolResult.error };
+          return toolResult.error;
         }
         return null;
       },
