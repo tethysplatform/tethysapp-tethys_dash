@@ -407,7 +407,7 @@ const RuleEditor = ({
 
 // Wraps a style control with a Literal | Field source toggle so the value can
 // either be a rule literal or a per-feature property reference (propertyRefs).
-function WithFieldToggle({
+export function WithFieldToggle({
   keyName,
   label,
   rule,

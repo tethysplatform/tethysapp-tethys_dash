@@ -5,6 +5,8 @@ import moduleLoader, {
   resolveAllStyleValues,
   resolveSize,
   buildPointStyle,
+  createTrapezoidIconStyle,
+  createDiamondIconStyle,
   getGeometryBucket,
   loadESRIJSON,
   buildPolygonFill,
@@ -768,6 +770,21 @@ describe("resolveAllStyleValues", () => {
     expect(resolveAllStyleValues(merged, { color: "" }).fill).toBe("#000");
     expect(resolveAllStyleValues(merged, { color: null }).fill).toBe("#000");
   });
+
+  it("skips propertyRefs entries where fieldName is empty or not a string (line 451)", () => {
+    const merged = {
+      fill: "#000",
+      size: 5,
+      propertyRefs: {
+        fill: "color", // valid — resolved
+        size: "", // empty string → continue (line 451)
+        rotation: 42, // non-string → continue (line 451)
+      },
+    };
+    const resolved = resolveAllStyleValues(merged, { color: "#ff0000" });
+    expect(resolved.fill).toBe("#ff0000");
+    expect(resolved.size).toBe(5); // unchanged; empty fieldName was skipped
+  });
 });
 
 describe("matchesCondition", () => {
@@ -1145,6 +1162,14 @@ describe("buildPointStyle", () => {
       const style = buildPointStyle("trapezoid", 10, fill, stroke, null, 90);
       expect(style.getImage().getRotation()).toBeCloseTo(Math.PI / 2);
     });
+
+    it("uses rotation=0 default when createTrapezoidIconStyle is called without rotation (line 525)", () => {
+      const trapFill = new Fill({ color: "#ff0000" });
+      const trapStroke = new Stroke({ color: "#0000ff", width: 1 });
+      const style = createTrapezoidIconStyle({ size: 10, fill: trapFill, stroke: trapStroke });
+      expect(style).toBeInstanceOf(Style);
+      expect(style.getImage().getRotation()).toBe(0);
+    });
   });
 
   it("builds style of star shape", () => {
@@ -1259,6 +1284,28 @@ describe("buildPointStyle", () => {
     expect(mockMoveTo.mock.calls[5]).toEqual([0, size]);
     expect(mockLineTo.mock.calls[7]).toEqual([-scaledSize, 0]);
 
+    HTMLCanvasElement.prototype.getContext = originalGetContext;
+  });
+
+  it("uses rotation=0 default when createDiamondIconStyle is called without rotation (line 561)", () => {
+    const originalGetContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = jest.fn(() => ({
+      fillStyle: null,
+      strokeStyle: null,
+      lineWidth: null,
+      translate: jest.fn(),
+      beginPath: jest.fn(),
+      moveTo: jest.fn(),
+      lineTo: jest.fn(),
+      closePath: jest.fn(),
+      fill: jest.fn(),
+      stroke: jest.fn(),
+    }));
+    const diamondFill = new Fill({ color: "#ff00ff" });
+    const diamondStroke = new Stroke({ color: "#00ff00", width: 2 });
+    const style = createDiamondIconStyle({ size: 8, fill: diamondFill, stroke: diamondStroke });
+    expect(style).toBeInstanceOf(Style);
+    expect(style.getImage().getRotation()).toBe(0);
     HTMLCanvasElement.prototype.getContext = originalGetContext;
   });
 

@@ -9,6 +9,7 @@ import RuleEditor, {
   defaultZIndex,
   defaultSize,
   availableStrokeDashOptions,
+  WithFieldToggle,
 } from "components/inputs/RuleEditor";
 import selectEvent from "react-select-event";
 
@@ -955,7 +956,12 @@ describe("RuleEditor", () => {
     const mockOnChange = jest.fn();
     render(
       <TestingComponent
-        initialRule={{ geometryType: "point", fill: defaultFill }}
+        initialRule={{
+          geometryType: "point",
+          fill: defaultFill,
+          rotation: 0,
+          propertyRefs: { rotation: "bearing" },
+        }}
         onRuleChange={mockOnChange}
       />,
     );
@@ -963,20 +969,26 @@ describe("RuleEditor", () => {
     const sources = screen.getAllByRole("combobox", {
       name: /valuesource/i,
     });
-    await selectEvent.select(sources[sources.length - 1], "Field");
+    await selectEvent.select(sources[sources.length - 2], "Field");
 
-    expect(mockOnChange).toHaveBeenLastCalledWith(
-      expect.objectContaining({ propertyRefs: { fill: "" } }),
-    );
+    expect(mockOnChange).toHaveBeenLastCalledWith({
+      fill: "rgba(255, 255, 255, 0.4)",
+      geometryType: "point",
+      propertyRefs: { rotation: "bearing", fill: "" },
+      rotation: 0,
+    });
 
     const fieldDropdown = screen.getByRole("combobox", {
       name: /fillfield/i,
     });
     await selectEvent.select(fieldDropdown, "field1");
 
-    expect(mockOnChange).toHaveBeenLastCalledWith(
-      expect.objectContaining({ propertyRefs: { fill: "field1" } }),
-    );
+    expect(mockOnChange).toHaveBeenLastCalledWith({
+      fill: "rgba(255, 255, 255, 0.4)",
+      geometryType: "point",
+      propertyRefs: { rotation: "bearing", fill: "field1" },
+      rotation: 0,
+    });
   });
 
   it("switches size to a feature-field reference via propertyRefs", async () => {
@@ -998,9 +1010,20 @@ describe("RuleEditor", () => {
     });
     await selectEvent.select(fieldDropdown, "field2");
 
-    expect(mockOnChange).toHaveBeenLastCalledWith(
-      expect.objectContaining({ propertyRefs: { size: "field2" } }),
-    );
+    expect(mockOnChange).toHaveBeenLastCalledWith({
+      geometryType: "point",
+      propertyRefs: {
+        size: "field2",
+      },
+      size: 5,
+    });
+
+    await selectEvent.select(sources[sources.length - 1], "Literal");
+
+    expect(mockOnChange).toHaveBeenLastCalledWith({
+      geometryType: "point",
+      size: 5,
+    });
   });
 
   it("clears propertyRefs.rotation when the styles are removed", () => {
@@ -1011,7 +1034,12 @@ describe("RuleEditor", () => {
           geometryType: "point",
           shape: "rectangle",
           rotation: 0,
+<<<<<<< Updated upstream
           propertyRefs: { rotation: "bearing", color: "color" },
+=======
+          fill: "red",
+          propertyRefs: { rotation: "bearing", fill: "color" },
+>>>>>>> Stashed changes
         }}
         onRuleChange={mockOnChange}
       />,
@@ -1021,11 +1049,20 @@ describe("RuleEditor", () => {
 
     expect(mockOnChange).toHaveBeenLastCalledWith({
       geometryType: "point",
+<<<<<<< Updated upstream
       propertyRefs: { color: "color" },
       shape: "rectangle",
     });
 
     fireEvent.click(screen.getByLabelText("Remove color style option"));
+=======
+      fill: "red",
+      propertyRefs: { fill: "color" },
+      shape: "rectangle",
+    });
+
+    fireEvent.click(screen.getByLabelText("Remove fill style option"));
+>>>>>>> Stashed changes
 
     expect(mockOnChange).toHaveBeenLastCalledWith({
       geometryType: "point",
@@ -1085,6 +1122,24 @@ describe("RuleEditor", () => {
       conditionType: "=",
       conditionValue: "streamflow_gage",
       conditions: [{ field: "", type: "=", value: "" }],
+    });
+
+    const conditions = screen.getAllByRole("combobox", {
+      name: /condition/i,
+    });
+    await selectEvent.select(
+      conditions[conditions.length - 1],
+      "is null/empty",
+    );
+
+    expect(mockOnChange).toHaveBeenLastCalledWith({
+      geometryType: "point",
+      conditionField: "type",
+      conditionType: "=",
+      conditionValue: "streamflow_gage",
+      conditions: [
+        { field: "", type: "isNull", value: "", valueIsField: false },
+      ],
     });
   });
 
@@ -1153,13 +1208,27 @@ describe("RuleEditor", () => {
           conditionField: "type",
           conditionType: "=",
           conditionValue: "gage",
-          conditions: [{ field: "bankfull", type: "isNotNull", value: "" }],
+          conditions: [
+            { field: "bankfull", type: "isNotNull", value: "" },
+            { field: "", type: "=", value: "" },
+          ],
         }}
         onRuleChange={mockOnChange}
       />,
     );
 
-    const removeBtn = screen.getByLabelText("Remove condition");
+    let removeBtn = screen.getAllByLabelText("Remove condition");
+    fireEvent.click(removeBtn[0]);
+
+    expect(mockOnChange).toHaveBeenLastCalledWith({
+      geometryType: "point",
+      conditionField: "type",
+      conditionType: "=",
+      conditionValue: "gage",
+      conditions: [{ field: "", type: "=", value: "" }],
+    });
+
+    removeBtn = screen.getByLabelText("Remove condition");
     fireEvent.click(removeBtn);
 
     expect(mockOnChange).toHaveBeenLastCalledWith({
@@ -1208,6 +1277,249 @@ describe("RuleEditor", () => {
     expect(mockOnChange).toHaveBeenLastCalledWith({
       point: { shape: "circle" },
     });
+  });
+
+  it("handleAddStyle else branch: strokeDash sets empty string (line 319)", async () => {
+    const mockOnChange = jest.fn();
+    render(
+      <TestingComponent
+        initialRule={{ geometryType: "linestring" }}
+        onRuleChange={mockOnChange}
+      />,
+    );
+
+    const styleSelect = screen.getByRole("combobox", {
+      name: /addstyle option/i,
+    });
+    await selectEvent.select(styleSelect, "Stroke Dash");
+
+    expect(mockOnChange).toHaveBeenLastCalledWith({
+      geometryType: "linestring",
+      strokeDash: "",
+    });
+  });
+
+  it("updateStyleValue null-section branch: non-defaultSection style change (line 236)", async () => {
+    const mockOnChange = jest.fn();
+    render(
+      <TestingComponent
+        initialRule={{ geometryType: "linestring", strokeWidth: 2 }}
+        onRuleChange={mockOnChange}
+      />,
+    );
+
+    const strokeWidthInput = screen.getByLabelText("Stroke Width Input");
+    fireEvent.change(strokeWidthInput, { target: { value: 4 } });
+
+    expect(mockOnChange).toHaveBeenLastCalledWith({
+      geometryType: "linestring",
+      strokeWidth: "4",
+    });
+  });
+
+  it("geometry type change clears existing conditions array (line 292)", async () => {
+    const mockOnChange = jest.fn();
+    render(
+      <TestingComponent
+        initialRule={{
+          geometryType: "point",
+          conditionField: "type",
+          conditionType: "=",
+          conditionValue: "gage",
+          conditions: [{ field: "bankfull", type: "isNotNull", value: "" }],
+        }}
+        onRuleChange={mockOnChange}
+      />,
+    );
+
+    const geomTypeSelect = screen.getByRole("combobox", {
+      name: /geometrytype/i,
+    });
+    await selectEvent.select(geomTypeSelect, "Polygon");
+
+    expect(mockOnChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ conditions: [] }),
+    );
+  });
+
+  it("updateFirstCondition clears value and valueIsField when isNull selected (lines 915-916)", async () => {
+    const mockOnChange = jest.fn();
+    render(
+      <TestingComponent
+        initialRule={{
+          geometryType: "point",
+          conditionField: "bankfull",
+          conditionType: ">",
+          conditionValue: "100",
+          conditionValueIsField: true,
+        }}
+        onRuleChange={mockOnChange}
+      />,
+    );
+
+    const condSelect = screen.getByRole("combobox", { name: /^Condition$/i });
+    await selectEvent.select(condSelect, "is null/empty");
+
+    expect(mockOnChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        conditionType: "isNull",
+        conditionValue: "",
+        conditionValueIsField: false,
+      }),
+    );
+  });
+
+  it("updateExtraCondition preserves value and valueIsField for non-valueless type (lines 926-927)", async () => {
+    const mockOnChange = jest.fn();
+    render(
+      <TestingComponent
+        initialRule={{
+          geometryType: "point",
+          conditionField: "type",
+          conditionType: "=",
+          conditionValue: "gage",
+          conditions: [
+            { field: "value", type: "isNull", value: "", valueIsField: false },
+          ],
+        }}
+        onRuleChange={mockOnChange}
+      />,
+    );
+
+    const conditionSelects = screen.getAllByRole("combobox", {
+      name: /^Condition$/i,
+    });
+    await selectEvent.select(
+      conditionSelects[conditionSelects.length - 1],
+      ">",
+    );
+
+    expect(mockOnChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        conditions: [
+          expect.objectContaining({
+            type: ">",
+            value: "",
+            valueIsField: false,
+          }),
+        ],
+      }),
+    );
+  });
+
+  it("extra condition without type renders with = fallback (line 988)", () => {
+    render(
+      <TestingComponent
+        initialRule={{
+          geometryType: "point",
+          conditionField: "type",
+          conditionType: "=",
+          conditionValue: "gage",
+          conditions: [{ field: "bankfull", value: "" }],
+        }}
+      />,
+    );
+
+    const conditionSelects = screen.getAllByRole("combobox", {
+      name: /^Condition$/i,
+    });
+    expect(conditionSelects.length).toBe(2);
+  });
+});
+
+describe("WithFieldToggle", () => {
+  it("setSource skips keyName reset when defaultLiteralValue is undefined (line 439)", async () => {
+    const mockOnChange = jest.fn();
+    const WFTWrapper = () => {
+      const [rule, setRule] = useState({ rotation: 45 });
+      return (
+        <WithFieldToggle
+          keyName="rotation"
+          label="Rotation"
+          rule={rule}
+          onChange={(r) => {
+            setRule(r);
+            mockOnChange(r);
+          }}
+          availableFields={["field1", "field2"]}
+        >
+          <input aria-label="Rotation Input" />
+        </WithFieldToggle>
+      );
+    };
+    render(<WFTWrapper />);
+
+    const sourceSelect = screen.getByRole("combobox", { name: /valuesource/i });
+    await selectEvent.select(sourceSelect, "Field");
+
+    // defaultLiteralValue is undefined → line 439 is false → rotation stays 45, not reset
+    expect(mockOnChange).toHaveBeenLastCalledWith({
+      rotation: 45,
+      propertyRefs: { rotation: "" },
+    });
+  });
+
+  it("setFieldRef falls back to {} when rule.propertyRefs is null (line 448)", async () => {
+    const mockOnChange = jest.fn();
+    let readCount = 0;
+    // Proxy: first read (render) returns an object so isField=true;
+    // second read (inside setFieldRef closure) returns null to hit the {} fallback.
+    const ruleProxy = new Proxy(
+      { rotation: 45 },
+      {
+        get(target, prop) {
+          if (prop === "propertyRefs") {
+            readCount++;
+            return readCount === 1 ? { rotation: "" } : null;
+          }
+          return Reflect.get(target, prop);
+        },
+      },
+    );
+
+    render(
+      <WithFieldToggle
+        keyName="rotation"
+        label="Rotation"
+        rule={ruleProxy}
+        onChange={mockOnChange}
+        availableFields={["field1", "field2"]}
+      >
+        <input aria-label="Rotation Input" />
+      </WithFieldToggle>,
+    );
+
+    const fieldDropdown = screen.getByRole("combobox", {
+      name: /rotationfield/i,
+    });
+    await selectEvent.select(fieldDropdown, "field1");
+
+    // rule.propertyRefs was null in setFieldRef → {} fallback spread, then key added
+    expect(mockOnChange).toHaveBeenCalledWith(
+      expect.objectContaining({
+        propertyRefs: { rotation: "field1" },
+      }),
+    );
+  });
+
+  it("field dropdown renders with empty options when availableFields is null (line 467)", () => {
+    render(
+      <WithFieldToggle
+        keyName="rotation"
+        label="Rotation"
+        rule={{ rotation: 45, propertyRefs: { rotation: "" } }}
+        onChange={jest.fn()}
+        availableFields={null}
+      >
+        <input aria-label="Rotation Input" />
+      </WithFieldToggle>,
+    );
+
+    // isField=true (propertyRefs.rotation is a string) so the field dropdown renders.
+    // availableFields || [] triggers the [] fallback — options are empty but no crash.
+    expect(
+      screen.getByRole("combobox", { name: /rotationfield/i }),
+    ).toBeInTheDocument();
   });
 });
 
