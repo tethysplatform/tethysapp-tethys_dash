@@ -11,7 +11,7 @@ COPY package.json package-lock.json ./
 # Swap `@chatbox/core` file: link → published npm alias; the sibling source
 # isn't in this build context. Bump version when chatbox-core releases.
 RUN sed -i \
-        's|"@chatbox/core": "file:\.\./lib/chatbox-core"|"@chatbox/core": "npm:@aquaveo/chatbox-core@0.15.1"|' \
+        's|"@chatbox/core": "file:\.\./lib/chatbox-core"|"@chatbox/core": "npm:@aquaveo/chatbox-core@0.15.2"|' \
         package.json \
     && rm package-lock.json \
     && npm install --no-audit --no-fund
