@@ -52,6 +52,20 @@ COPY . .
 
 RUN pip install --no-cache-dir -e ".[test]"
 
+# Workshop plugins — installed at image-build time so the CIROH DevCon 2026
+# workshop image (ghcr.io/aquaveo/ciroh-devcon-2026:...) ships with the
+# FIRO-Tethys plugin catalog the demos depend on. Branch-pinned to `main`
+# per the workshop's branch-track convention; rebuilding the image close to
+# event day picks up any plugin fixes.
+#
+# Each plugin is a tethysdash plugin (it brings its own intake driver via
+# its setup.py entry-points; no separate intake / intake-* install needed).
+RUN pip install --no-cache-dir \
+    "git+https://github.com/FIRO-Tethys/ciroh_plugins.git@main" \
+    "git+https://github.com/FIRO-Tethys/tethysdash_plugin_cnrfc.git@main" \
+    "git+https://github.com/FIRO-Tethys/tethysdash_examples.git@main" \
+    "git+https://github.com/FIRO-Tethys/RFC-Plugins.git@main"
+
 # Overlay the fresh bundle from stage 1, clobbering any stale main.js from `COPY . .`.
 COPY --from=frontend-builder \
      /build/tethysapp/tethysdash/public/frontend/ \
