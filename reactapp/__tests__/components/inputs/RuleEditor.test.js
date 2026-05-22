@@ -1034,12 +1034,8 @@ describe("RuleEditor", () => {
           geometryType: "point",
           shape: "rectangle",
           rotation: 0,
-<<<<<<< Updated upstream
-          propertyRefs: { rotation: "bearing", color: "color" },
-=======
           fill: "red",
           propertyRefs: { rotation: "bearing", fill: "color" },
->>>>>>> Stashed changes
         }}
         onRuleChange={mockOnChange}
       />,
@@ -1049,20 +1045,12 @@ describe("RuleEditor", () => {
 
     expect(mockOnChange).toHaveBeenLastCalledWith({
       geometryType: "point",
-<<<<<<< Updated upstream
-      propertyRefs: { color: "color" },
-      shape: "rectangle",
-    });
-
-    fireEvent.click(screen.getByLabelText("Remove color style option"));
-=======
       fill: "red",
       propertyRefs: { fill: "color" },
       shape: "rectangle",
     });
 
     fireEvent.click(screen.getByLabelText("Remove fill style option"));
->>>>>>> Stashed changes
 
     expect(mockOnChange).toHaveBeenLastCalledWith({
       geometryType: "point",
