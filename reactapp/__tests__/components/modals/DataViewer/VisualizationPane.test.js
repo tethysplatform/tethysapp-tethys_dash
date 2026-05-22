@@ -2000,3 +2000,82 @@ TestingComponent.propTypes = {
   setVizData: PropTypes.func,
   initialSelectedVizTypeOption: PropTypes.object,
 };
+
+// Debug arc 2026-05-21 deferred Unit 5: when the Edit Visualization
+// modal is opened on a popup gridItem whose args contain a literal
+// `${feature.<key>}` token (because no feature is selected in the
+// preview context), the preview pane previously fired
+// getVisualization with the raw token → plugin rejected → preview
+// showed "Failed to retrieve data". Base.js already had this
+// short-circuit (Base.js:441-460); VisualizationPane.js did not.
+// This test pins the new parity: setVizType("featurePending") fires
+// BEFORE getVisualization, with pendingTokens listing the unresolved
+// feature paths.
+
+test(
+  "Visualization Pane short-circuits to featurePending when args contain ${feature.*} tokens",
+  async () => {
+    const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
+    const mockedDashboard = updatedMockedDashboards.dashboards[0];
+    mockedDashboard.tabs[0].gridItems = [
+      {
+        i: "1",
+        x: 0,
+        y: 0,
+        w: 20,
+        h: 20,
+        source: "Custom Image",
+        // image_source contains an unresolved `${feature.comid}` token
+        // (the kind a popup gridItem would carry when no feature is
+        // clicked).
+        args_string: JSON.stringify({
+          image_source: "https://example.com/${feature.comid}.png",
+        }),
+        metadata_string: JSON.stringify({ refreshRate: 0 }),
+      },
+    ];
+    const gridItem = mockedDashboard.tabs[0].gridItems[0];
+    const mockSetGridItemMessage = jest.fn();
+    const mockSetVizType = jest.fn();
+    const mockSetVizData = jest.fn();
+    const mockSetVizMetadata = jest.fn();
+
+    render(
+      createLoadedComponent({
+        children: (
+          <TestingComponent
+            layoutContext={mockedDashboard}
+            source={gridItem.source}
+            argsString={gridItem.args_string}
+            setGridItemMessage={mockSetGridItemMessage}
+            vizType={"loader"}
+            setVizType={mockSetVizType}
+            setVizData={mockSetVizData}
+            setVizMetadata={mockSetVizMetadata}
+          />
+        ),
+        options: {
+          inDataViewerMode: true,
+          dashboards: updatedMockedDashboards,
+        },
+      }),
+    );
+
+    expect(await screen.findByText("Custom Image")).toBeInTheDocument();
+
+    // Short-circuit fired: vizType set to featurePending with pendingTokens.
+    await waitFor(() => {
+      expect(mockSetVizType).toHaveBeenCalledWith("featurePending");
+    });
+    const featurePendingCalls = mockSetVizData.mock.calls.filter(
+      (call) => call[0]?.pendingTokens,
+    );
+    expect(featurePendingCalls.length).toBeGreaterThan(0);
+    expect(featurePendingCalls[0][0].pendingTokens).toContain("feature.comid");
+    expect(featurePendingCalls[0][0].source).toBe("Custom Image");
+
+    // Negative: vizType was NEVER set to "image" (the success path that
+    // would have fired if getVisualization ran with the raw token).
+    expect(mockSetVizType).not.toHaveBeenCalledWith("image");
+  },
+);
