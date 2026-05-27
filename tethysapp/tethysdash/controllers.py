@@ -1181,6 +1181,65 @@ def ollama_chat(request):
     return _proxy_to_ollama(request, "api/chat", timeout=(10, 300))
 
 
+@api_view(["POST"])
+@controller(url="tethysdash/llm-proxy/chat/completions/", login_required=True)
+def llm_proxy_chat_completions(request):
+    """Generic LLM proxy for providers that block browser CORS (e.g., Google AI Studio).
+
+    Reads target base URL and API key from request headers, proxies the
+    streaming chat/completions call server-side, and relays the SSE stream
+    back to the browser. Same pattern as the Ollama proxy above.
+    """
+    base_url = (request.headers.get("X-LLM-Base-URL", "")).rstrip("/")
+    api_key = request.headers.get("X-LLM-API-Key", "")
+    if not base_url:
+        return JsonResponse({"error": "X-LLM-Base-URL header is required"}, status=400)
+    url = f"{base_url}/chat/completions"
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    try:
+        resp = http_requests.post(
+            url, headers=headers, data=request.body, stream=True, timeout=(10, 300)
+        )
+        return StreamingHttpResponse(
+            _stream_with_logging(resp, "llm-proxy/chat/completions", "POST"),
+            content_type=resp.headers.get("Content-Type", "application/json"),
+            status=resp.status_code,
+        )
+    except http_requests.ConnectionError:
+        return JsonResponse({"error": "Cannot connect to LLM provider"}, status=502)
+    except http_requests.Timeout:
+        return JsonResponse({"error": "LLM provider request timed out"}, status=504)
+    except Exception:
+        logger.exception("LLM proxy unexpected error on chat/completions")
+        raise
+
+
+@api_view(["POST"])
+@controller(url="tethysdash/llm-proxy/models/", login_required=True)
+def llm_proxy_models(request):
+    """Proxy for model listing from CORS-blocked providers."""
+    base_url = (request.headers.get("X-LLM-Base-URL", "")).rstrip("/")
+    api_key = request.headers.get("X-LLM-API-Key", "")
+    if not base_url:
+        return JsonResponse({"error": "X-LLM-Base-URL header is required"}, status=400)
+    url = f"{base_url}/models"
+    headers = {}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    try:
+        resp = http_requests.get(url, headers=headers, timeout=(5, 30))
+        return JsonResponse(resp.json(), status=resp.status_code, safe=False)
+    except http_requests.ConnectionError:
+        return JsonResponse({"error": "Cannot connect to LLM provider"}, status=502)
+    except http_requests.Timeout:
+        return JsonResponse({"error": "LLM provider request timed out"}, status=504)
+    except Exception:
+        logger.exception("LLM proxy unexpected error on models")
+        raise
+
+
 @api_view(["GET", "POST"])
 @controller(url="tethysdash/runtime-plugins/sync", login_required=True)
 def runtime_plugins_sync(request):
