@@ -1196,15 +1196,11 @@ def llm_proxy_chat_completions(request):
         return JsonResponse({"error": "X-LLM-Base-URL header is required"}, status=400)
     url = f"{base_url}/chat/completions"
     headers = {"Content-Type": "application/json"}
-    params = {}
     if api_key:
-        if "googleapis.com" in base_url:
-            params["key"] = api_key
-        else:
-            headers["Authorization"] = f"Bearer {api_key}"
+        headers["Authorization"] = f"Bearer {api_key}"
     try:
         resp = http_requests.post(
-            url, headers=headers, params=params, data=request.body,
+            url, headers=headers, data=request.body,
             stream=True, timeout=(10, 300),
         )
         return StreamingHttpResponse(
@@ -1231,14 +1227,10 @@ def llm_proxy_models(request):
         return JsonResponse({"error": "X-LLM-Base-URL header is required"}, status=400)
     url = f"{base_url}/models"
     headers = {}
-    params = {}
     if api_key:
-        if "googleapis.com" in base_url:
-            params["key"] = api_key
-        else:
-            headers["Authorization"] = f"Bearer {api_key}"
+        headers["Authorization"] = f"Bearer {api_key}"
     try:
-        resp = http_requests.get(url, headers=headers, params=params, timeout=(5, 30))
+        resp = http_requests.get(url, headers=headers, timeout=(5, 30))
         return JsonResponse(resp.json(), status=resp.status_code, safe=False)
     except http_requests.ConnectionError:
         return JsonResponse({"error": "Cannot connect to LLM provider"}, status=502)
