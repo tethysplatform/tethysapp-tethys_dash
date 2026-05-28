@@ -2666,6 +2666,48 @@ def test_ollama_proxy_does_not_log_for_known_handled_exceptions(
     )
 
 
+@pytest.mark.django_db
+def test_ollama_v1_chat_completions_proxy_forwards_to_openai_compat_path(
+    client, admin_user, mock_app, mocker
+):
+    """The /ollama-proxy/v1/chat/completions/ route must forward upstream to
+    the OpenAI-compat endpoint, not /api/chat. This is the route that fixes
+    the tool_calls argument-shape dispute between Ollama versions: /api/chat
+    flipped from object-args (<=0.16.2) to string-args (>0.16.2) for tool
+    history, while /v1/chat/completions follows OpenAI spec stably.
+    """
+    mock_app("tethysapp.tethysdash.controllers.App")
+    client.force_login(admin_user)
+
+    mock_post = mocker.patch(
+        "tethysapp.tethysdash.controllers.http_requests.post"
+    )
+    mock_resp = mocker.MagicMock()
+    mock_resp.iter_content = lambda chunk_size: iter([b'{"id":"x"}\n'])
+    mock_resp.headers = {"Content-Type": "application/json"}
+    mock_resp.status_code = 200
+    mock_post.return_value = mock_resp
+
+    url = "/apps/tethysdash/ollama-proxy/v1/chat/completions/"
+    response = client.post(
+        url,
+        data=json.dumps({"messages": [{"role": "user", "content": "hi"}]}),
+        content_type="application/json",
+        HTTP_X_OLLAMA_HOST="http://localhost:11434",
+    )
+
+    assert response.status_code == 200
+    assert mock_post.called
+    call_url = mock_post.call_args[0][0]
+    assert call_url.endswith("/v1/chat/completions"), (
+        f"Expected forward path to end with /v1/chat/completions; got {call_url!r}"
+    )
+    # Confirm x-ollama-host routed correctly
+    assert call_url.startswith("http://localhost:11434"), (
+        f"Expected upstream host to be from X-Ollama-Host header; got {call_url!r}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Runtime plugin registry — anonymous read endpoint.
 #
