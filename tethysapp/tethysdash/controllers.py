@@ -1245,7 +1245,7 @@ _GOOGLE_GENAI_HOST = "https://generativelanguage.googleapis.com"
 
 
 @api_view(["GET", "POST"])
-@controller(url="tethysdash/llm-proxy/google/{rest}", regex=r".+", login_required=True)
+@controller(url="tethysdash/llm-proxy/google/{rest}", regex=r".+?", login_required=True)
 def llm_proxy_google(request, rest):
     """Generic proxy for Google AI Studio native API paths.
 
