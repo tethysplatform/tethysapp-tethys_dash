@@ -1241,6 +1241,55 @@ def llm_proxy_models(request):
         raise
 
 
+_GOOGLE_GENAI_HOST = "https://generativelanguage.googleapis.com"
+
+
+@api_view(["GET", "POST"])
+@controller(url="tethysdash/llm-proxy/google/{rest}", regex=r".+", login_required=True)
+def llm_proxy_google(request, rest):
+    """Generic proxy for Google AI Studio native API paths.
+
+    The `@google/genai` SDK constructs URLs like
+    /v1beta/models/gemini-2.5-flash:streamGenerateContent — too varied
+    for the narrow chat/completions + models proxies above. This endpoint
+    forwards any path under /llm-proxy/google/ to the Google API host,
+    relaying streaming responses chunk-by-chunk. Auth is the browser-
+    supplied X-Goog-API-Key header (Google's native header name).
+    """
+    api_key = request.headers.get("X-Goog-API-Key", "")
+    if not api_key:
+        return JsonResponse({"error": "X-Goog-API-Key header is required"}, status=400)
+    url = f"{_GOOGLE_GENAI_HOST}/{rest}"
+    if request.GET:
+        url += "?" + request.GET.urlencode()
+    headers = {
+        "X-Goog-API-Key": api_key,
+        "Content-Type": request.headers.get("Content-Type", "application/json"),
+    }
+    try:
+        if request.method == "POST":
+            resp = http_requests.post(
+                url, headers=headers, data=request.body,
+                stream=True, timeout=(10, 300),
+            )
+        else:
+            resp = http_requests.get(
+                url, headers=headers, stream=True, timeout=(10, 60),
+            )
+        return StreamingHttpResponse(
+            _stream_with_logging(resp, f"llm-proxy/google/{rest}", request.method),
+            content_type=resp.headers.get("Content-Type", "application/json"),
+            status=resp.status_code,
+        )
+    except http_requests.ConnectionError:
+        return JsonResponse({"error": "Cannot connect to Google AI Studio"}, status=502)
+    except http_requests.Timeout:
+        return JsonResponse({"error": "Google AI Studio request timed out"}, status=504)
+    except Exception:
+        logger.exception("Google AI Studio proxy unexpected error on %s", rest)
+        raise
+
+
 @api_view(["GET", "POST"])
 @controller(url="tethysdash/runtime-plugins/sync", login_required=True)
 def runtime_plugins_sync(request):
