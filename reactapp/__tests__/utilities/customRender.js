@@ -10,6 +10,7 @@ import {
   VariableInputsContext,
   DisabledEditingMovementContext,
   TabContext,
+  StreamingContext,
 } from "components/contexts/Contexts";
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import { ModalPriorityProvider } from "components/contexts/ModalPriorityContext";
@@ -214,6 +215,19 @@ export const DataViewerPComponent = () => {
   return (
     <p data-testid="dataviewer-mode">
       {inDataViewerMode ? "dataviewer-mode" : "not in dataviewer-mode"}
+    </p>
+  );
+};
+
+// Plan 2026-05-28-002 Unit 6 — read the chatbox-driven streaming flag.
+// Tests fire `window.dispatchEvent(new CustomEvent("tethysdash:turn-start"))`
+// to flip it true, and `"tethysdash:turn-end"` to flip back to false.
+export const StreamingPComponent = () => {
+  const { isStreaming } = useContext(StreamingContext);
+
+  return (
+    <p data-testid="streaming">
+      {isStreaming ? "streaming" : "not streaming"}
     </p>
   );
 };
