@@ -18,6 +18,7 @@ import {
   DataViewerModeContext,
   AvailableDashboardsContext,
   TabContext,
+  StreamingContext,
 } from "components/contexts/Contexts";
 import Error from "components/error/Error";
 import errorImage from "assets/error404.png";
@@ -45,6 +46,11 @@ const DashboardLoader = ({
   const [isEditing, setIsEditing] = useState(false);
   const [disabledEditingMovement, setDisabledEditingMovement] = useState(false);
   const [inDataViewerMode, setInDataViewerMode] = useState(false);
+  // Plan 2026-05-28-002 Unit 6 — streaming-state listener for chatbox-driven
+  // tile work. Separate useState from disabledEditingMovement so the reset
+  // effect at lines 75-79 (which zeroes disabledEditingMovement when isEditing
+  // flips false) does NOT zero isStreaming spuriously.
+  const [isStreaming, setIsStreaming] = useState(false);
   const { updateDashboard } = useContext(AvailableDashboardsContext);
   const originalTabs = useRef({});
   const editable = ["admin", "editor"].includes(userPermission);
@@ -77,6 +83,23 @@ const DashboardLoader = ({
       setDisabledEditingMovement(false);
     }
   }, [isEditing]);
+
+  // Plan 2026-05-28-002 Unit 6 — chatbox-core (>=0.16.0-beta.0) emits
+  // tethysdash:turn-start when a chatbox turn begins and tethysdash:turn-end
+  // when it ends (covering success / error / abort / /clear uniformly via
+  // the shared finally block at Chatbox.jsx:1118). DashboardItem reads
+  // isStreaming from StreamingContext to gate edit/delete/reorder
+  // affordances during streaming (Unit 7).
+  useEffect(() => {
+    const onStart = () => setIsStreaming(true);
+    const onEnd = () => setIsStreaming(false);
+    window.addEventListener("tethysdash:turn-start", onStart);
+    window.addEventListener("tethysdash:turn-end", onEnd);
+    return () => {
+      window.removeEventListener("tethysdash:turn-start", onStart);
+      window.removeEventListener("tethysdash:turn-end", onEnd);
+    };
+  }, []);
 
   const updateVariableInputValuesWithGridItems = useCallback(
     (updatedTabs) => {
@@ -337,6 +360,13 @@ const DashboardLoader = ({
     () => ({ inDataViewerMode, setInDataViewerMode }),
     [inDataViewerMode, setInDataViewerMode],
   );
+  // Plan 2026-05-28-002 Unit 6 — dedicated context for the chatbox-driven
+  // streaming flag. Re-renders only DashboardItem consumers (not the 4+
+  // consumers of DisabledEditingMovementContext) on every turn boundary.
+  const streamingContextValue = useMemo(
+    () => ({ isStreaming, setIsStreaming }),
+    [isStreaming],
+  );
 
   if (loadError) {
     return (
@@ -359,7 +389,9 @@ const DashboardLoader = ({
               <DataViewerModeContext.Provider
                 value={dataViewerModeContextValue}
               >
-                {children}
+                <StreamingContext.Provider value={streamingContextValue}>
+                  {children}
+                </StreamingContext.Provider>
               </DataViewerModeContext.Provider>
             </DisabledEditingMovementContext.Provider>
           </EditingContext.Provider>
