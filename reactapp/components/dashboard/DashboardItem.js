@@ -11,6 +11,7 @@ import {
   LayoutContext,
   TabContext,
   GridItemContext,
+  StreamingContext,
 } from "components/contexts/Contexts";
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import DataViewerModal from "components/modals/DataViewer/DataViewer";
@@ -332,6 +333,13 @@ const DashboardItem = () => {
   const { setInDataViewerMode } = useContext(DataViewerModeContext);
   const { visualizations } = useContext(AppContext);
   const { uuid } = useContext(LayoutContext);
+  // Plan 2026-05-28-002 Unit 7 — read chatbox-driven streaming flag so
+  // edit/delete/reorder affordances no-op while the LLM is mutating tiles
+  // via patch_visualization. StreamingContext is provided by DashboardLoader
+  // (Unit 6) and consumed only by DashboardItem to keep the per-turn
+  // re-render footprint isolated. Falsy default for hosts without the
+  // Provider (e.g., legacy tests not yet updated).
+  const { isStreaming = false } = useContext(StreamingContext) ?? {};
   const { setAppTourStep, activeAppTour } = useAppTourContext();
   const [attribution, setAttribution] = useState(
     findVisualizationBySource(visualizations, gridItemSource)?.attribution,
@@ -351,6 +359,11 @@ const DashboardItem = () => {
   }, [gridItemMetadataString]);
 
   async function deleteGridItem(e) {
+    // Plan 2026-05-28-002 Unit 7 — guard BEFORE confirm() so the modal does
+    // not open at all when the chatbox is mid-turn (R5). If the guard fired
+    // after confirm, the user would see the modal, dismiss it, and have a
+    // silent no-op afterwards — confusing.
+    if (isStreaming) return;
     if (await confirm("Are you sure you want to delete the item?")) {
       const { gridItems, id: activeTabId } = getActiveTab();
       const updated_grid_items = JSON.parse(JSON.stringify(gridItems));
@@ -362,6 +375,11 @@ const DashboardItem = () => {
   }
 
   function editGridItem() {
+    // Plan 2026-05-28-002 Unit 7 — gate edit-modal-open while chatbox
+    // streams (R5). Open modals that predate the stream are unaffected
+    // per the Scope Boundary "open edit modals at stream start are not
+    // auto-closed" — accepted v1 UX cost.
+    if (isStreaming) return;
     setShowDataViewerModal(true);
     setIsEditing(true);
     setInDataViewerMode(true);
@@ -371,6 +389,12 @@ const DashboardItem = () => {
   }
 
   function updateGridItemOrder(newIndex) {
+    // Plan 2026-05-28-002 Unit 7 — gate per-tile reorder affordances
+    // (arrows / dropdown menu entries calling bringGridItemToFront /
+    // bringGridItemForward / etc., which all delegate here). The
+    // react-grid-layout drag-to-reorder gesture is NOT routed through
+    // here, so it remains enabled per R6.
+    if (isStreaming) return;
     const { gridItems, id: activeTabId } = getActiveTab();
     const updatedGridItems = [...gridItems];
     const [movingGridItem] = updatedGridItems.splice(gridItemIndex, 1);
@@ -581,6 +605,7 @@ const DashboardItem = () => {
             bringGridItemForward={bringGridItemForward}
             sendGridItemtoBack={sendGridItemtoBack}
             sendGridItembackward={sendGridItembackward}
+            isStreaming={isStreaming}
           />
         </StyledButtonDiv>
       )}
