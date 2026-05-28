@@ -1182,6 +1182,18 @@ def ollama_chat(request):
 
 
 @api_view(["POST"])
+@controller(url="tethysdash/ollama-proxy/v1/chat/completions/", login_required=True)
+def ollama_v1_chat_completions(request):
+    # Ollama's OpenAI-compat endpoint. Use this instead of /api/chat for
+    # multi-round tool-call sessions: newer Ollama (>0.16.2) rejects
+    # object-typed tool_calls.function.arguments on /api/chat with
+    # "cannot unmarshal object into Go struct field ... of type string",
+    # while /v1/chat/completions follows the stable OpenAI spec (arguments
+    # always stringified). See chatbox-core PR #23 follow-up note.
+    return _proxy_to_ollama(request, "v1/chat/completions", timeout=(10, 300))
+
+
+@api_view(["POST"])
 @controller(url="tethysdash/llm-proxy/chat/completions/", login_required=True)
 def llm_proxy_chat_completions(request):
     """Generic LLM proxy for providers that block browser CORS (e.g., Google AI Studio).
