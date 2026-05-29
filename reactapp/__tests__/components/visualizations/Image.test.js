@@ -51,5 +51,5 @@ it("Doesn't render an image if the source is invalid", () => {
   expect(image).toBeInTheDocument();
   fireEvent.error(image); // Weird that you need to force an error but okay?
 
-  expect(screen.getByText("Failed to get image.")).toBeInTheDocument();
+  expect(screen.getByText("Image unavailable")).toBeInTheDocument();
 });

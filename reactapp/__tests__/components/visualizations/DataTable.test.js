@@ -47,7 +47,7 @@ describe.each([
 ])("renders empty placeholder when data is %s", (_label, badData) => {
   it("does not crash", () => {
     initAndRender({ title: "Graceful", data: badData, subtitle: "" });
-    expect(screen.getByText("No Data Available")).toBeInTheDocument();
+    expect(screen.getByText("No data.")).toBeInTheDocument();
   });
 });
 
@@ -56,9 +56,9 @@ it("Creates a Data Table with the provided data", () => {
 
   expect(screen.getByText("User Information")).toBeInTheDocument();
 
-  const header1 = screen.getByText("Name");
-  const header2 = screen.getByText("Age");
-  const header3 = screen.getByText("Occupation");
+  const header1 = screen.getByText("name");
+  const header2 = screen.getByText("age");
+  const header3 = screen.getByText("occupation");
   expect(header1).toBeInTheDocument();
   expect(header2).toBeInTheDocument();
   expect(header3).toBeInTheDocument();
@@ -92,9 +92,9 @@ it("Creates a Data Table with subtitle with the provided data", () => {
   expect(screen.getByText("User Information")).toBeInTheDocument();
   expect(screen.getByText("some subtitle")).toBeInTheDocument();
 
-  const header1 = screen.getByText("Name");
-  const header2 = screen.getByText("Age");
-  const header3 = screen.getByText("Occupation");
+  const header1 = screen.getByText("name");
+  const header2 = screen.getByText("age");
+  const header3 = screen.getByText("occupation");
   expect(header1).toBeInTheDocument();
   expect(header2).toBeInTheDocument();
   expect(header3).toBeInTheDocument();
@@ -127,5 +127,5 @@ it("Renders nothing if the data is empty", () => {
     data: [],
   });
 
-  expect(screen.getByText("No Data Available")).toBeInTheDocument();
+  expect(screen.getByText("No data.")).toBeInTheDocument();
 });

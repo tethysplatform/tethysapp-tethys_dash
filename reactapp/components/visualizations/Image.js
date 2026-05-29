@@ -1,17 +1,11 @@
 import PropTypes from "prop-types";
 import styled from "styled-components";
 import { memo, useState, useEffect } from "react";
+import EmptyState from "components/visualizations/EmptyState";
 
 const StyledImg = styled.img`
   height: 100%;
   width: 100%;
-`;
-
-const StyledDiv = styled.div`
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100%;
 `;
 
 const Image = ({ source, alt, visualizationRef, imageError }) => {
@@ -28,9 +22,11 @@ const Image = ({ source, alt, visualizationRef, imageError }) => {
   return (
     <>
       {imageWarning ? (
-        <StyledDiv>
-          <h2>{imageError ?? "Failed to get image."}</h2>
-        </StyledDiv>
+        <EmptyState
+          variant="error"
+          title="Image unavailable"
+          hint={imageError || "Could not load this image."}
+        />
       ) : (
         <StyledImg
           src={source}

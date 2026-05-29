@@ -10,6 +10,7 @@ import BasePlot from "components/visualizations/BasePlot";
 import Card from "components/visualizations/Card";
 import DataTable from "components/visualizations/DataTable";
 import ModuleLoader from "components/visualizations/ModuleLoader";
+import EmptyState from "components/visualizations/EmptyState";
 import {
   getVisualization,
   updateObjectWithVariableInputs,
@@ -128,7 +129,7 @@ export const Visualization = memo(
             <StyledSpinner
               data-testid="Progress Message Loading..."
               animation="border"
-              variant="info"
+              variant="primary"
             />
           </SpinnerContainer>
         </CenteredContainer>
@@ -266,14 +267,21 @@ export const Visualization = memo(
           </FeaturePendingShell>
         );
       case "vizError":
-        return <StyledH2>{vizData.error}</StyledH2>;
+        return (
+          <EmptyState
+            variant="error"
+            title="Could not load tile"
+            hint="Try the refresh control on this tile, or check the server logs."
+            details={typeof vizData?.error === "string" ? vizData.error : undefined}
+          />
+        );
       default:
         return (
           <SpinnerContainer>
             <StyledSpinner
               data-testid="Loading..."
               animation="border"
-              variant="info"
+              variant="primary"
             />
           </SpinnerContainer>
         );

@@ -103,10 +103,10 @@ const StyledSwiper = styled(Swiper)`
 
 const OverlayContentWrapper = styled.div`
   position: relative;
-  background-color: white;
-  border-radius: 8px;
+  background-color: #fbfcfc;
+  border: 1px solid #e0e5e9;
+  border-radius: 4px;
   padding: 1rem;
-  box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.2);
 `;
 
 const StyledCloser = styled.a`
@@ -335,14 +335,22 @@ const MapVisualization = ({
   };
 
   const spinnerOverlayRef = useRef(null);
-  // Create a spinner element for the overlay
-  const spinnerElement = document.createElement("div");
-  spinnerElement.style.display = "flex";
-  spinnerElement.style.justifyContent = "center";
-  spinnerElement.style.alignItems = "center";
-  spinnerElement.style.width = "48px";
-  spinnerElement.style.height = "48px";
-  spinnerElement.innerHTML = `<div style="border: 3px solid rgba(30, 107, 139, 0.16); border-top: 3px solid #1e6b8b; border-radius: 50%; width: 32px; height: 32px; animation: spin 0.9s cubic-bezier(0.4, 0, 0.2, 1) infinite;"></div><style>@keyframes spin { to { transform: rotate(360deg); } } @media (prefers-reduced-motion: reduce) { div[style*="animation: spin"] { animation: none !important; border: 3px solid #1e6b8b !important; } }</style>`;
+  // Spinner element for the OL overlay. Built once via useMemo so we
+  // don't re-create the DOM node + duplicate the <style> tag on every
+  // render. The element renders into an OL Overlay (not React), so it
+  // stays detached from the React tree.
+  const spinnerElement = useMemo(() => {
+    const el = document.createElement("div");
+    el.style.display = "flex";
+    el.style.justifyContent = "center";
+    el.style.alignItems = "center";
+    el.style.width = "48px";
+    el.style.height = "48px";
+    el.innerHTML =
+      '<div style="border: 3px solid rgba(30, 107, 139, 0.16); border-top: 3px solid #1e6b8b; border-radius: 50%; width: 32px; height: 32px; animation: ts-map-spin 0.9s cubic-bezier(0.4, 0, 0.2, 1) infinite;"></div>' +
+      '<style>@keyframes ts-map-spin { to { transform: rotate(360deg); } } @media (prefers-reduced-motion: reduce) { div[style*="animation: ts-map-spin"] { animation: none !important; border: 3px solid #1e6b8b !important; } }</style>';
+    return el;
+  }, []);
   const popupOverlayRef = useRef(null);
   const popupContainerRef = useRef(document.createElement("div"));
   const popupRootRef = useRef(null);

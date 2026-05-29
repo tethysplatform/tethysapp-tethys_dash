@@ -1,6 +1,7 @@
 import PropTypes from "prop-types";
 import styled from "styled-components";
 import { memo, useState, useCallback } from "react";
+import EmptyState from "components/visualizations/EmptyState";
 
 const Container = styled.div`
   width: 100%;
@@ -39,14 +40,6 @@ const StyledImg = styled.img`
   object-fit: contain;
 `;
 
-const ErrorText = styled.div`
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 100px;
-  color: #888;
-`;
-
 const ImageCollection = ({ urls, title, columns, imageError, visualizationRef }) => {
   const [errorUrls, setErrorUrls] = useState(() => new Set());
 
@@ -66,9 +59,11 @@ const ImageCollection = ({ urls, title, columns, imageError, visualizationRef })
         {urls.map((url, index) => (
           <ImageWrapper key={url + index} $columns={columns}>
             {errorUrls.has(url) ? (
-              <ErrorText>
-                <h6>{imageError ?? "Failed to get image."}</h6>
-              </ErrorText>
+              <EmptyState
+                variant="error"
+                title="Image unavailable"
+                hint={imageError || undefined}
+              />
             ) : (
               <StyledImg
                 src={url}

@@ -21,6 +21,12 @@ import {
   DataViewerModeContext,
 } from "components/contexts/Contexts";
 import { format } from "date-fns";
+import {
+  FORECASTING_DESK_LAYOUT_DEFAULTS,
+  FORECASTING_DESK_CONFIG_DEFAULTS,
+  FORECASTING_DESK_TOKEN_COLORS,
+  deepMerge,
+} from "components/visualizations/plotlyTheme";
 
 const Plotly = require("plotly.js-strict-dist-min");
 const Plot = createPlotlyComponent(Plotly);
@@ -164,7 +170,7 @@ export const createVerticalLine = ({
   options = {},
 }) => {
   const {
-    color = "red",
+    color = FORECASTING_DESK_TOKEN_COLORS.primary,
     width = 2,
     dash = "solid",
     id = `vline_${Date.now()}`,
@@ -369,13 +375,13 @@ const BasePlot = ({
     mode: verticalLineMode,
     value: verticalLineValue,
   } = plotlyVerticalLine;
-  const [plotLayout, setPlotLayout] = useState({
-    ...layout,
-    ...{
+  const [plotLayout, setPlotLayout] = useState(
+    deepMerge(FORECASTING_DESK_LAYOUT_DEFAULTS, {
+      ...layout,
       width: width,
       height: height,
-    },
-  });
+    }),
+  );
 
   // Ref to track the original vertical line shape
   const verticalLineOriginalRef = useRef(null);
@@ -407,15 +413,14 @@ const BasePlot = ({
       };
     }
 
-    setPlotLayout((prevLayout) => ({
-      ...prevLayout,
-      ...layout,
-      ...{
+    setPlotLayout((prevLayout) =>
+      deepMerge(prevLayout, {
+        ...layout,
         width: width,
         height: height,
-      },
-      shapes: currentShapes,
-    }));
+        shapes: currentShapes,
+      }),
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [width, height, layout, plotlyVerticalLine]);
 
@@ -443,7 +448,7 @@ const BasePlot = ({
         ref={visualizationRef}
         data={data}
         layout={plotLayout}
-        config={config}
+        config={deepMerge(FORECASTING_DESK_CONFIG_DEFAULTS, config || {})}
         onRelayout={handleRelayout}
       />
     </div>
