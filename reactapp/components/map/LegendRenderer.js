@@ -1,12 +1,13 @@
 import { useEffect, useState, memo } from "react";
 import PropTypes from "prop-types";
-import { RiRectangleFill, RiAddFill } from "react-icons/ri";
 import {
   BsFillTriangleFill,
   BsFillSquareFill,
   BsFillCircleFill,
   BsFillStarFill,
   BsDiamondFill,
+  BsSquareFill as RiRectangleFill,
+  BsPlus as RiAddFill,
 } from "react-icons/bs";
 import { legendPropType } from "components/map/utilities";
 import styled from "styled-components";

@@ -3,8 +3,7 @@ import { useContext, useState, memo, useEffect, useRef } from "react";
 import { getPublicUrl } from "services/utilities";
 import Card from "react-bootstrap/Card";
 import styled from "styled-components";
-import { BsPeopleFill } from "react-icons/bs";
-import { FaPlus } from "react-icons/fa";
+import { BsPeopleFill, BsPlus as FaPlus, BsPersonCircle as FaRegUserCircle } from "react-icons/bs";
 import { useNavigate } from "react-router-dom";
 import { confirm } from "components/inputs/DeleteConfirmation";
 import {
@@ -14,7 +13,6 @@ import {
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import Alert from "react-bootstrap/Alert";
 import NewDashboardModal from "components/modals/NewDashboard";
-import { FaRegUserCircle } from "react-icons/fa";
 import ContextMenu from "components/landingPage/ContextMenu";
 import DashboardThumbnailModal from "components/modals/DashboardThumbnail";
 import PermissionsModal from "components/modals/Permissions";

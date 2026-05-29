@@ -37,12 +37,14 @@ import {
   BsFillPersonFill,
   BsUpload,
   BsChatDots,
+  BsPeople as HiUserGroup,
+  BsArrowCounterclockwise as CiUndo,
+  BsPlus as FaPlus,
+  BsArrowsFullscreen as FaExpandArrowsAlt,
+  BsLockFill as FaLock,
+  BsUnlockFill as FaUnlock,
 } from "react-icons/bs";
-import { HiUserGroup } from "react-icons/hi";
 import { ChatSidebarContext } from "components/contexts/ChatSidebarContext";
-import { CiUndo } from "react-icons/ci";
-import { FaPlus } from "react-icons/fa6";
-import { FaExpandArrowsAlt, FaLock, FaUnlock } from "react-icons/fa";
 import "components/buttons/HeaderButton.css";
 import { v4 as uuidv4 } from "uuid";
 

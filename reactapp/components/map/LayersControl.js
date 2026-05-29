@@ -2,11 +2,11 @@ import { useContext, useEffect, useState } from "react";
 import PropTypes from "prop-types";
 import styled from "styled-components";
 import {
-  FaLayerGroup,
-  FaTimes,
-  FaExclamationTriangle,
-  FaRedo,
-} from "react-icons/fa";
+  BsStack as FaLayerGroup,
+  BsX as FaTimes,
+  BsExclamationTriangle as FaExclamationTriangle,
+  BsArrowClockwise as FaRedo,
+} from "react-icons/bs";
 import { WebsocketContext } from "components/contexts/WebSocketContext";
 
 const ControlWrapper = styled.div`

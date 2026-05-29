@@ -28,13 +28,13 @@ import {
 } from "components/contexts/Contexts";
 import { checkForVariable } from "components/inputs/dateUtils";
 import {
-  FaPlay,
-  FaStop,
-  FaFastForward,
-  FaForward,
-  FaFastBackward,
-  FaBackward,
-} from "react-icons/fa";
+  BsPlayFill as FaPlay,
+  BsStopFill as FaStop,
+  BsFastForwardFill as FaFastForward,
+  BsSkipForwardFill as FaForward,
+  BsRewindFill as FaFastBackward,
+  BsSkipBackwardFill as FaBackward,
+} from "react-icons/bs";
 import styled from "styled-components";
 
 const CenteredButtonSpan = styled.span`

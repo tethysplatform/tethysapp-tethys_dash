@@ -2,11 +2,14 @@ import { useEffect, useState, useRef, memo, useContext } from "react";
 import { Vector as VectorLayer } from "ol/layer";
 import VectorSource from "ol/source/Vector";
 import Draw, { createBox } from "ol/interaction/Draw";
-import { TbPointFilled } from "react-icons/tb";
-import { MdHorizontalRule } from "react-icons/md";
-import { FaDrawPolygon } from "react-icons/fa6";
-import { BiRectangle } from "react-icons/bi";
-import { BsSignStopFill, BsEraser } from "react-icons/bs";
+import {
+  BsCircleFill as TbPointFilled,
+  BsDash as MdHorizontalRule,
+  BsBoundingBoxCircles as FaDrawPolygon,
+  BsSquare as BiRectangle,
+  BsSignStopFill,
+  BsEraser,
+} from "react-icons/bs";
 import { mapDrawingPropType } from "components/map/utilities";
 import { VariableInputsContext } from "components/contexts/Contexts";
 import GeoJSON from "ol/format/GeoJSON";

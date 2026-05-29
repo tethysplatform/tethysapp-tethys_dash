@@ -14,7 +14,7 @@ import LegendRenderer, {
   legendSymbols,
   LegendSymbol,
 } from "components/map/LegendRenderer";
-import { RxDragHandleHorizontal } from "react-icons/rx";
+import { BsGripHorizontal as RxDragHandleHorizontal } from "react-icons/bs";
 import {
   legendPropType,
   legendItemPropType,

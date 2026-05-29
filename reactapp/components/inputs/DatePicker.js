@@ -3,7 +3,7 @@ import { useRef, memo, useState, useEffect, useContext } from "react";
 import PropTypes from "prop-types";
 import ReactDatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { FaRegCalendarAlt } from "react-icons/fa";
+import { BsCalendar as FaRegCalendarAlt } from "react-icons/bs";
 import "components/inputs/DatePicker.css";
 import { DataViewerModeContext } from "components/contexts/Contexts";
 import styled from "styled-components";
