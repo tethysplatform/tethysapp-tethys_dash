@@ -57,19 +57,25 @@ const StyledSpinner = styled(Spinner)`
 
 const CustomNavBar = styled(Navbar)`
   min-height: var(--ts-header-height);
+  border-bottom: 1px solid #e0e5e9;
 `;
 
 const TitleDiv = styled.div`
   justify-content: center;
 `;
 
-const WhiteTitle = styled.h1`
+const Title = styled.h1`
   position: absolute;
   left: 50%;
   top: 0;
   transform: translateX(-50%);
   white-space: nowrap;
-  color: white;
+  color: #15202a;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  margin: 0;
+  line-height: var(--ts-header-height);
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
@@ -161,10 +167,10 @@ export const LandingPageHeader = () => {
 
   return (
     <>
-      <CustomNavBar fixed="top" bg="primary" variant="dark" className="shadow">
+      <CustomNavBar fixed="top" bg="light" variant="light">
         <Container as="header" fluid className="px-4">
           <TitleDiv>
-            <WhiteTitle>Available Dashboards</WhiteTitle>
+            <Title>Available Dashboards</Title>
           </TitleDiv>
           <div>
             {user?.username ? (
@@ -472,7 +478,7 @@ export const DashboardHeader = () => {
 
   return (
     <>
-      <CustomNavBar fixed="top" bg="primary" variant="dark" className="shadow">
+      <CustomNavBar fixed="top" bg="light" variant="light">
         <Container as="header" fluid className="px-4">
           <TooltipButton
             onClick={() => {
@@ -486,7 +492,7 @@ export const DashboardHeader = () => {
           >
             <BsGrid3X3Gap size="1.5rem" />
           </TooltipButton>
-          <WhiteTitle>{name}</WhiteTitle>
+          <Title>{name}</Title>
           <div>
             {editable && (
               <>

@@ -3,15 +3,15 @@
 }
 
 .navbar .btn {
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: transparent;
   border: none;
-  color: white;
+  color: #4b5b6a;
 }
 
 .navbar .btn:hover,
 .navbar .btn:focus {
-  background-color: rgba(0, 0, 0, 0.1) !important;
-  color: white;
+  background-color: #f4f6f7 !important;
+  color: #15202a;
   border: none;
   box-shadow: none;
 }
