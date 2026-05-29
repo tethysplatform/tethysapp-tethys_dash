@@ -35,7 +35,6 @@ import PopupModal from "components/modals/PopupModal/PopupModal";
 import PopupModalChrome from "components/modals/PopupModal/PopupModalChrome";
 import PopupModalCarousel from "components/modals/PopupModal/PopupModalCarousel";
 import { substituteTemplateString } from "components/modals/PopupModal/substituteTemplateString";
-import Table from "react-bootstrap/Table";
 import styled from "styled-components";
 import { valuesEqual } from "components/modals/utilities";
 import { Swiper, SwiperSlide } from "swiper/react";
@@ -44,15 +43,68 @@ import "swiper/css/pagination";
 import "swiper/css/navigation";
 import { Pagination, Navigation } from "swiper/modules";
 import Overlay from "ol/Overlay";
-import { BsX as FaTimes } from "react-icons/bs";
+import {
+  BsX as FaTimes,
+  BsChevronLeft,
+  BsChevronRight,
+} from "react-icons/bs";
 
-const FixedTable = styled(Table)`
+/*
+ * Map popup table — same typeset commitments as DataTable.js (the
+ * 2026-05-29 visualizations critique flagged this surface as still
+ * using react-bootstrap <Table striped bordered hover> after the
+ * DataTable rewrite). Bare <table>, subtle row-bottom borders only,
+ * column-wide numeric detection → tabular-nums + right-align, header
+ * text verbatim. Two-column popup variant (Field / Value) doesn't need
+ * sticky thead because the popup content fits in 40vh.
+ */
+const PopupTable = styled.table`
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12px;
+  color: #15202a;
   table-layout: fixed;
-  font-size: small;
+
+  thead th {
+    background: #f4f6f7;
+    text-align: left;
+    font-weight: 600;
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #4b5b6a;
+    padding: 4px 8px;
+    border-bottom: 1px solid #e0e5e9;
+  }
+
+  tbody td {
+    padding: 4px 8px;
+    border-bottom: 1px solid #e0e5e9;
+    vertical-align: top;
+    line-height: 1.4;
+    overflow-x: auto;
+    word-break: break-word;
+  }
+
+  tbody td.numeric {
+    text-align: right;
+    font-family: "JetBrains Mono", Menlo, Consolas, monospace;
+    font-feature-settings: "tnum";
+    font-variant-numeric: tabular-nums;
+  }
+
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
 `;
 
-const OverflowTD = styled.td`
-  overflow-x: auto;
+const PopupHeading = styled.p`
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #15202a;
+  line-height: 1.3;
 `;
 
 const PopupDiv = styled.div`
@@ -68,29 +120,53 @@ const CenteredP = styled.p`
 
 const SwiperControls = styled.div`
   display: flex;
-  justify-content: center; /* Center the controls */
-  align-items: center; /* Vertically align the controls */
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
   position: absolute;
-  bottom: 10px; /* Adjust as needed */
-  width: 100%; /* Full width for proper alignment */
+  bottom: 8px;
+  width: 100%;
   z-index: 10;
-  height: 2rem;
+  height: 28px;
 `;
 
-const SwiperArrows = styled.div`
-  font-size: 24px;
-  color: #333;
+const SwiperArrow = styled.button`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 4px;
   cursor: pointer;
-  margin: 0 10px; /* Space between the arrows and pagination */
-  padding: 5px;
-  border-radius: 50%;
+  color: #4b5b6a;
+  font-family: inherit;
+
+  &:hover {
+    background: #f4f6f7;
+    color: #1e6b8b;
+  }
+
+  &:focus-visible {
+    outline: 2px solid rgba(30, 107, 139, 0.3);
+    outline-offset: 1px;
+  }
+
+  svg {
+    width: 14px;
+    height: 14px;
+  }
 `;
 
 const SwiperPagination = styled.div`
-  font-size: 16px;
-  color: #333;
-  margin: 0 10px; /* Space between pagination and arrows */
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: #4b5b6a;
   text-align: center;
+  min-width: 36px;
 `;
 
 const MarginSwiperSlide = styled(SwiperSlide)`
@@ -193,67 +269,71 @@ export const Popup = ({
       {filteredLayerAttributes.map((selectedFeature, index) => (
         <MarginSwiperSlide key={index}>
           <PopupDiv>
-            <div>
-              <p>
-                <b>{selectedFeature.layerName}</b>:
-              </p>
-              <FixedTable striped bordered hover size="sm">
-                <thead>
-                  <tr>
-                    <th className="text-center" style={{ width: "33%" }}>
-                      Field
-                    </th>
-                    <th className="text-center" style={{ width: "33%" }}>
-                      Value
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Object.keys(selectedFeature.attributes).map((field) => {
-                    const value = selectedFeature.attributes[field];
-                    // Simple URL regex: matches http(s)://, ftp://, or www.
-                    const urlRegex =
-                      /^(https?:\/\/|ftp:\/\/|www\.)[\w-]+(\.[\w-]+)+([\w\-.,@?^=%&:/~+#]*[\w\-@?^=%&/~+#])?/i;
-                    let renderedValue;
-                    if (typeof value === "string" && urlRegex.test(value)) {
-                      // Ensure protocol for www. links
-                      const href =
-                        value.startsWith("http") || value.startsWith("ftp")
-                          ? value
-                          : `https://${value}`;
-                      renderedValue = (
-                        <a
-                          href={href}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          {value}
-                        </a>
-                      );
-                    } else {
-                      renderedValue = value;
-                    }
-                    return (
-                      <tr key={field}>
-                        <OverflowTD>{field}</OverflowTD>
-                        <OverflowTD>{renderedValue}</OverflowTD>
-                      </tr>
+            <PopupHeading>{selectedFeature.layerName}</PopupHeading>
+            <PopupTable>
+              <thead>
+                <tr>
+                  <th style={{ width: "40%" }}>Field</th>
+                  <th style={{ width: "60%" }}>Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.keys(selectedFeature.attributes).map((field) => {
+                  const value = selectedFeature.attributes[field];
+                  // Simple URL regex: matches http(s)://, ftp://, or www.
+                  const urlRegex =
+                    /^(https?:\/\/|ftp:\/\/|www\.)[\w-]+(\.[\w-]+)+([\w\-.,@?^=%&:/~+#]*[\w\-@?^=%&/~+#])?/i;
+                  let renderedValue;
+                  const isNumeric =
+                    typeof value === "number" && Number.isFinite(value);
+                  if (typeof value === "string" && urlRegex.test(value)) {
+                    // Ensure protocol for www. links
+                    const href =
+                      value.startsWith("http") || value.startsWith("ftp")
+                        ? value
+                        : `https://${value}`;
+                    renderedValue = (
+                      <a
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {value}
+                      </a>
                     );
-                  })}
-                </tbody>
-              </FixedTable>
-            </div>
+                  } else {
+                    renderedValue = value;
+                  }
+                  return (
+                    <tr key={field}>
+                      <td>{field}</td>
+                      <td className={isNumeric ? "numeric" : undefined}>
+                        {renderedValue}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </PopupTable>
           </PopupDiv>
         </MarginSwiperSlide>
       ))}
       <SwiperControls>
-        <SwiperArrows className="custom-prev" aria-label="Previous Swiper">
-          ❮
-        </SwiperArrows>
+        <SwiperArrow
+          className="custom-prev"
+          aria-label="Previous feature"
+          type="button"
+        >
+          <BsChevronLeft aria-hidden="true" />
+        </SwiperArrow>
         <SwiperPagination className="custom-pagination"></SwiperPagination>
-        <SwiperArrows className="custom-next" aria-label="Next Swiper">
-          ❯
-        </SwiperArrows>
+        <SwiperArrow
+          className="custom-next"
+          aria-label="Next feature"
+          type="button"
+        >
+          <BsChevronRight aria-hidden="true" />
+        </SwiperArrow>
       </SwiperControls>
     </StyledSwiper>
   );
