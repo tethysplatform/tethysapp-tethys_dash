@@ -2,7 +2,7 @@ import PropTypes from "prop-types";
 import styled, { css } from "styled-components";
 import Container from "react-bootstrap/Container";
 import { memo, useState, useContext, useEffect } from "react";
-import { BsInfoCircle } from "react-icons/bs";
+import { BsInfoCircle, BsClipboard } from "react-icons/bs";
 import {
   EditingContext,
   VariableInputsContext,
@@ -11,11 +11,14 @@ import {
   LayoutContext,
   TabContext,
   GridItemContext,
+  StreamingContext,
 } from "components/contexts/Contexts";
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import DataViewerModal from "components/modals/DataViewer/DataViewer";
 import DashboardItemDropdown from "components/dashboard/DashboardItemDropdown";
 import BaseVisualization from "components/visualizations/Base";
+import ErrorBoundary from "components/error/ErrorBoundary";
+import TileErrorFallback from "components/error/TileErrorFallback";
 import { confirm } from "components/inputs/DeleteConfirmation";
 import {
   getGridItem,
@@ -67,6 +70,27 @@ const InfoIconWrapper = styled.div`
   left: 0.5rem;
   display: flex;
   align-items: center;
+`;
+
+const CopyIconWrapper = styled.button`
+  position: absolute;
+  bottom: 0.5rem;
+  right: 0.5rem;
+  background: transparent;
+  border: none;
+  padding: 0.25rem;
+  cursor: pointer;
+  opacity: 0.15;
+  transition: opacity 120ms ease-in-out;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+
+  &:hover,
+  &:focus-visible {
+    opacity: 0.7;
+  }
 `;
 
 const AttributionTooltip = styled.div`
@@ -286,8 +310,13 @@ export const handleGridItemImport = async (gridItem, csrf, dashboard_uuid) => {
 };
 
 const DashboardItem = () => {
-  const { gridItemSource, gridItemI, gridItemMetadataString, gridItemIndex } =
-    useContext(GridItemContext);
+  const {
+    gridItemSource,
+    gridItemI,
+    gridItemMetadataString,
+    gridItemIndex,
+    gridItemUUID,
+  } = useContext(GridItemContext);
   const { isEditing, setIsEditing } = useContext(EditingContext);
   const [showDataViewerModal, setShowDataViewerModal] = useState(false);
   const [gridItemMessage, setGridItemMessage] = useState("");
@@ -304,6 +333,13 @@ const DashboardItem = () => {
   const { setInDataViewerMode } = useContext(DataViewerModeContext);
   const { visualizations } = useContext(AppContext);
   const { uuid } = useContext(LayoutContext);
+  // Plan 2026-05-28-002 Unit 7 — read chatbox-driven streaming flag so
+  // edit/delete/reorder affordances no-op while the LLM is mutating tiles
+  // via patch_visualization. StreamingContext is provided by DashboardLoader
+  // (Unit 6) and consumed only by DashboardItem to keep the per-turn
+  // re-render footprint isolated. Falsy default for hosts without the
+  // Provider (e.g., legacy tests not yet updated).
+  const { isStreaming = false } = useContext(StreamingContext) ?? {};
   const { setAppTourStep, activeAppTour } = useAppTourContext();
   const [attribution, setAttribution] = useState(
     findVisualizationBySource(visualizations, gridItemSource)?.attribution,
@@ -323,6 +359,11 @@ const DashboardItem = () => {
   }, [gridItemMetadataString]);
 
   async function deleteGridItem(e) {
+    // Plan 2026-05-28-002 Unit 7 — guard BEFORE confirm() so the modal does
+    // not open at all when the chatbox is mid-turn (R5). If the guard fired
+    // after confirm, the user would see the modal, dismiss it, and have a
+    // silent no-op afterwards — confusing.
+    if (isStreaming) return;
     if (await confirm("Are you sure you want to delete the item?")) {
       const { gridItems, id: activeTabId } = getActiveTab();
       const updated_grid_items = JSON.parse(JSON.stringify(gridItems));
@@ -334,6 +375,11 @@ const DashboardItem = () => {
   }
 
   function editGridItem() {
+    // Plan 2026-05-28-002 Unit 7 — gate edit-modal-open while chatbox
+    // streams (R5). Open modals that predate the stream are unaffected
+    // per the Scope Boundary "open edit modals at stream start are not
+    // auto-closed" — accepted v1 UX cost.
+    if (isStreaming) return;
     setShowDataViewerModal(true);
     setIsEditing(true);
     setInDataViewerMode(true);
@@ -343,6 +389,12 @@ const DashboardItem = () => {
   }
 
   function updateGridItemOrder(newIndex) {
+    // Plan 2026-05-28-002 Unit 7 — gate per-tile reorder affordances
+    // (arrows / dropdown menu entries calling bringGridItemToFront /
+    // bringGridItemForward / etc., which all delegate here). The
+    // react-grid-layout drag-to-reorder gesture is NOT routed through
+    // here, so it remains enabled per R6.
+    if (isStreaming) return;
     const { gridItems, id: activeTabId } = getActiveTab();
     const updatedGridItems = [...gridItems];
     const [movingGridItem] = updatedGridItems.splice(gridItemIndex, 1);
@@ -420,6 +472,25 @@ const DashboardItem = () => {
     setIsEditing(true);
   }
 
+  async function copyGridItemContext(e) {
+    e.stopPropagation();
+    const activeTab = getActiveTab();
+    const gridItem = activeTab?.gridItems?.[gridItemIndex];
+    if (!gridItem) {
+      setGridItemWarning("Could not read tile metadata");
+      setShowGridItemWarning(true);
+      return;
+    }
+    try {
+      await window.navigator.clipboard.writeText(gridItemUUID);
+      setGridItemMessage("UUID copied to clipboard");
+      setShowGridItemMessage(true);
+    } catch {
+      setGridItemWarning("Failed to copy UUID");
+      setShowGridItemWarning(true);
+    }
+  }
+
   function hideDataViewerModal() {
     setShowDataViewerModal(false);
     setInDataViewerMode(false);
@@ -475,10 +546,16 @@ const DashboardItem = () => {
           <CustomAlert
             alertType={"warning"}
             showAlert={showGridItemWarning}
-            setShowAlert={setGridItemWarning}
+            setShowAlert={setShowGridItemWarning}
             alertMessage={gridItemWarning}
           />
-          <BaseVisualization key={gridItemI} />
+          <ErrorBoundary
+            fallback={(error, errorInfo) => (
+              <TileErrorFallback error={error} errorInfo={errorInfo} />
+            )}
+          >
+            <BaseVisualization key={gridItemI} />
+          </ErrorBoundary>
         </StyledContainer>
         {gridItemStyling?.attribution !== false && attribution && (
           <InfoIconWrapper
@@ -508,6 +585,13 @@ const DashboardItem = () => {
             setShowGridItemMessage={setShowGridItemMessage}
           />
         )}
+        <CopyIconWrapper
+          type="button"
+          aria-label="Copy grid item UUID"
+          onClick={copyGridItemContext}
+        >
+          <BsClipboard size={14} />
+        </CopyIconWrapper>
       </StyledDiv>
       {isEditing && (
         <StyledButtonDiv>
@@ -521,6 +605,7 @@ const DashboardItem = () => {
             bringGridItemForward={bringGridItemForward}
             sendGridItemtoBack={sendGridItemtoBack}
             sendGridItembackward={sendGridItembackward}
+            isStreaming={isStreaming}
           />
         </StyledButtonDiv>
       )}

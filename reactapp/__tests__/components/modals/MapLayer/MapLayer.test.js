@@ -3804,6 +3804,35 @@ describe("getLayerType", () => {
     expect(getLayerType("GeoJSON")).toBe("VectorLayer");
     expect(getLayerType("KML")).toBe("VectorLayer");
   });
+
+  // Plan-004 review finding #12 (companion to the Python parity test in
+  // tethysapp/tethysdash/tests/unit_tests/test_plugin_helpers.py
+  // RENDERER_LAYER_TYPE_BY_SOURCE).
+  //
+  // The Python test pins the builder's valid_sources mapping against the
+  // *expected* layer type per source. This JS test pins getLayerType()
+  // against the *same* expected mapping, so a renderer-side change in
+  // either direction (rule reorder, new substring branch, semantic
+  // change) surfaces in CI alongside a Python-side change. Without
+  // this pair, either side could drift silently — the original gap
+  // documented in plan 004's review.
+  test("Mapping mirrors Python builder's valid_sources (cross-language drift guard)", () => {
+    const EXPECTED = {
+      "ESRI Image and Map Service": "ImageLayer",
+      "ESRI Feature Service": "VectorLayer",
+      GeoJSON: "VectorLayer",
+      "Image Tile": "TileLayer",
+      KML: "VectorLayer",
+      "PMTiles Raster": "WebGLTile",
+      "PMTiles Vector": "VectorTileLayer",
+      "Static Image": "ImageLayer",
+      "Vector Tile": "VectorTileLayer",
+      WMS: "ImageLayer",
+    };
+    Object.entries(EXPECTED).forEach(([sourceType, expected]) => {
+      expect(getLayerType(sourceType)).toBe(expected);
+    });
+  });
 });
 
 TestingComponent.propTypes = {

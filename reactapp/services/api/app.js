@@ -58,6 +58,12 @@ const appAPI = {
   listVisualizations: () => {
     return apiClient.get(`${APP_ROOT_URL}visualizations/list/`);
   },
+  getPluginEditablePaths: () => {
+    // Server-authoritative LLM-editable-path whitelist for every registered
+    // Intake plugin source. Chatbox calls this at dashboard load and
+    // threads the result into the LLM system prompt.
+    return apiClient.get(`${APP_ROOT_URL}plugins/editable-paths/`);
+  },
   listVisualizationPermissions: () => {
     return apiClient.get(`${APP_ROOT_URL}visualizations/permissions/list/`);
   },

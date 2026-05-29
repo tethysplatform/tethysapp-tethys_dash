@@ -319,12 +319,15 @@ export const loadESRIJSON = (config) => {
         "&outSR=" +
         srid;
 
+      // URL-encode user-supplied WHERE/TIME before concatenating into the
+      // ArcGIS query URL. Without this, values containing `&`, `+`, or `#`
+      // silently break (browser auto-encoding only covers spaces/quotes).
       if (config.props.params?.WHERE) {
-        url += "&where=" + config.props.params.WHERE;
+        url += "&where=" + encodeURIComponent(config.props.params.WHERE);
       }
 
       if (config.props.params?.TIME) {
-        url += "&time=" + config.props.params.TIME;
+        url += "&time=" + encodeURIComponent(config.props.params.TIME);
       }
 
       return url;

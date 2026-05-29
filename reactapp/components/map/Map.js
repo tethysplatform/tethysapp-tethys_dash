@@ -20,7 +20,7 @@ import { applyStyle } from "ol-mapbox-style";
 import PropTypes from "prop-types";
 import { useMapContext } from "components/contexts/MapContext";
 import { fromExtent } from "ol/geom/Polygon";
-import { transformExtent } from "ol/proj";
+import { fromLonLat, transformExtent } from "ol/proj";
 import { VariableInputsContext } from "components/contexts/Contexts";
 import GeoJSON from "ol/format/GeoJSON";
 import { valuesEqual } from "components/modals/utilities";
@@ -161,9 +161,20 @@ const MapComponent = ({
       setLonLat([centerX, lat]);
       setZoom(zoomLevel);
       mapViewConfig.setZoom(zoomLevel);
-      mapViewConfig.setCenter([centerX, lat]);
+      const is4326 = Math.abs(lon) <= 180 && Math.abs(lat) <= 90;
+      const center = is4326 ? fromLonLat([lon, lat]) : [centerX, lat];
+      mapViewConfig.setCenter(center);
     } else {
-      mapViewConfig.fit(extent.split(",").map(Number), {
+      const bbox = extent.split(",").map(Number);
+      const is4326 =
+        Math.abs(bbox[0]) <= 180 &&
+        Math.abs(bbox[1]) <= 90 &&
+        Math.abs(bbox[2]) <= 180 &&
+        Math.abs(bbox[3]) <= 90;
+      const fitExtent = is4326
+        ? transformExtent(bbox, "EPSG:4326", "EPSG:3857")
+        : bbox;
+      mapViewConfig.fit(fitExtent, {
         size: visualizationRef.current.getSize(),
       });
       setZoom(mapViewConfig.getZoom().toFixed(2));

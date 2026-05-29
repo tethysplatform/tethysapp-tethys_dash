@@ -10,6 +10,7 @@ import warnings
 import xmltodict
 import copy
 from datetime import datetime
+from typing import Union
 from intake.source import base
 from dateutil.parser import parse
 
@@ -129,6 +130,11 @@ class TethysDashPlugin(base.DataSource):
             "restricted",
             "loading_icon",
             "attribution",
+            # LLM-editability declarations — see editable_schemas_plugin.py
+            # for the resolver that reads these. Blocking them as arg names
+            # prevents a runtime arg from shadowing the class-level declaration.
+            "llm_editable_args",
+            "llm_non_editable_args",
             "dynamic_map_layer",
         }
 
@@ -374,6 +380,50 @@ def validate_feature_collection(data):
     return True
 
 
+# Mirror of frontend `layerPropertiesOptions` (reactapp/components/map/utilities.js).
+# Maps each layer-prop key to its accepted Python value type(s). The MCP layer's
+# `layer_props` advanced dict is validated against this allowlist — keys not
+# present are rejected; values failing isinstance() are rejected.
+#
+# Drift guard: tests/mcp/test_source_metadata_drift.py asserts the keys here
+# are a superset of `Object.keys(layerPropertiesOptions)` (snapshotted via
+# the JS-side jest helper into tests/fixtures/source_properties_options.json).
+LAYER_PROPERTIES_ALLOWLIST = {
+    "opacity": (int, float),
+    "minResolution": (int, float),
+    "maxResolution": (int, float),
+    "minZoom": (int, float),
+    "maxZoom": (int, float),
+    "minZoomQuery": (int, float),
+    # Layer-level initial-visibility flag. Persists at
+    # configuration.layerVisibility via set_layer_visibility; Map.js:335-340
+    # starts the layer hidden when False. Python-side superset is OK (the JS
+    # drift guard only asserts Python ⊇ JS).
+    "visible": (bool,),
+}
+
+
+def get_allowed_source_prop_keys(source_type: str) -> set:
+    """Return the set of allowed top-level source-prop keys for the given
+    source type, derived from `available_source_properties`.
+
+    Combines `required` and `optional` keys. Used by the MCP layer's
+    `source_props` advanced-dict validation: keys outside this set are
+    rejected at the MCP boundary instead of being silently passed to
+    the builder.
+
+    Returns an empty set for unknown source types (caller is expected to
+    have already validated source_type via VALID_SOURCE_TYPES).
+    """
+    spec = available_source_properties.get(source_type)
+    if not spec:
+        return set()
+    keys = set()
+    keys.update((spec.get("required") or {}).keys())
+    keys.update((spec.get("optional") or {}).keys())
+    return keys
+
+
 available_source_properties = {
     "ESRI Image and Map Service": {
         "required": {"url": "ArcGIS Rest service URL"},
@@ -466,6 +516,49 @@ available_source_properties = {
             "tileSize": "Tile Size (e.g., 256, 512)",
         },
     },
+    "GeoTIFF": {
+        "required": {
+            "sources": (
+                "List of GeoTIFF source dictionaries. Each source must include "
+                "a URL to a Cloud Optimized GeoTIFF."
+            ),
+        },
+        "optional": {
+            "attributions": "Attributions",
+            # Renderer-consumed keys.
+            #
+            # `bands`, `nodata`, `min`, `max` flow to OL's GeoTIFF source
+            # constructor at source.props.<key> via set_source_properties.
+            #
+            # `rampName`, `rampMin`, `rampMax` are TethysDash auto-legend
+            # metadata read by Map.js at source.<key> directly (siblings
+            # to `type`/`props`). The GeoTIFF branch routes these to
+            # source-top-level via set_source_top_level_props.
+            "bands": (
+                "Comma-separated band indices to render (e.g., '1,2,3'). "
+                "Parsed at render time."
+            ),
+            "nodata": "NoData sentinel value (number).",
+            "min": "Minimum value for color scaling (number).",
+            "max": "Maximum value for color scaling (number).",
+            "rampName": (
+                "Color ramp name for auto-legend rendering (e.g., "
+                "'viridis'). Used when `legend='default'`."
+            ),
+            "rampMin": "Minimum value for the auto-legend ramp.",
+            "rampMax": "Maximum value for the auto-legend ramp.",
+        },
+    },
+    "Static Image": {
+        "required": {
+            "url": "Image URL",
+            "projection": "EPSG:<Code>",
+            "imageExtent": "minX,minY,maxX,maxY",
+        },
+        "optional": {
+            "attributions": "Attributions",
+        },
+    },
 }
 
 
@@ -496,12 +589,18 @@ class LayerConfigurationBuilder:
                 - 'Vector Tile'
                 - 'PMTiles Vector'
                 - 'PMTiles Raster'
+                - 'GeoTIFF'
+                - 'Static Image'
 
         Raises:
             ValueError: If layer_source is not one of the supported options.
         """
         self.name = name
 
+        # Layer-type mapping mirrors the renderer's getLayerType() in
+        # reactapp/components/modals/MapLayer/MapLayer.js. The renderer is
+        # the source of truth; any divergence here will silently produce
+        # un-renderable layers.
         valid_sources = {
             "Vector Tile": "VectorTileLayer",
             "Image Tile": "TileLayer",
@@ -511,7 +610,9 @@ class LayerConfigurationBuilder:
             "GeoJSON": "VectorLayer",
             "KML": "VectorLayer",
             "PMTiles Vector": "VectorTileLayer",
-            "PMTiles Raster": "TileLayer",
+            "PMTiles Raster": "WebGLTile",
+            "GeoTIFF": "WebGLTile",
+            "Static Image": "ImageLayer",
         }
 
         if layer_source not in valid_sources:
@@ -585,12 +686,16 @@ class LayerConfigurationBuilder:
         self._plugin_source = {"source": source, "args": args}
         return self
 
-    def set_geojson(self, geojson: dict):
+    def set_geojson(self, geojson: Union[dict, str]):
         """
-        Attach a validated GeoJSON dictionary to the layer source.
+        Attach a validated GeoJSON FeatureCollection / Feature object OR a URL
+        string pointing at GeoJSON to the layer source.
 
         Args:
-            geojson (dict): A valid GeoJSON FeatureCollection or Feature object.
+            geojson: Either a dict (inline GeoJSON FeatureCollection or Feature
+                object), or a string URL the frontend will fetch at render time
+                (loadGeoJSON in reactapp/components/map/utilities.js handles the
+                URL form).
 
         Raises:
             ValueError: If the geojson is not valid.
@@ -737,6 +842,26 @@ class LayerConfigurationBuilder:
         self.config["configuration"]["props"]["source"]["props"].update(kwargs)
         return self
 
+    def set_source_top_level_props(self, **kwargs):
+        """Set properties at the source-top-level (siblings of `type` and
+        `props`), as opposed to under `source.props`.
+
+        GeoTIFF auto-legend metadata (`rampName`, `rampMin`, `rampMax`) is
+        read by Map.js at ``layer.configuration.props.source.<key>`` directly
+        — NOT under ``source.props.<key>``. Use this method instead of
+        ``set_source_properties`` for keys whose consumer reads at
+        source-top-level.
+
+        Args:
+            **kwargs: Arbitrary keyword arguments to set as siblings of
+                ``type`` and ``props`` on the source object.
+
+        Returns:
+            LayerConfigurationBuilder: self (for chaining)
+        """
+        self.config["configuration"]["props"]["source"].update(kwargs)
+        return self
+
     def get_layer_names(self):
         """
         Retrieve the names of layers associated with the configured layer source.
@@ -820,6 +945,32 @@ class LayerConfigurationBuilder:
                 f"{self.layer_source} is not currently configured to return attributes"
             )
 
+    @staticmethod
+    def _fetch_json(url: str, timeout: int = 10) -> dict:
+        """Fetch + parse JSON from a remote URL with a hard timeout.
+
+        Centralizes the get → raise_for_status → .json() pattern shared by
+        the four ArcGIS / map-service attribute fetchers below. Closes
+        three pre-existing gaps in one helper:
+
+          - Per-call timeout (a slow upstream service no longer pins a
+            Django/MCP worker thread indefinitely).
+          - raise_for_status() before .json() so 4xx/5xx HTTP responses
+            surface as HTTPError, not the downstream JSONDecodeError that
+            an HTML error body would produce.
+          - Single edit site for future hardening (retries, header
+            injection, etc.).
+
+        Raises whatever requests.get + .json() would raise — caller
+        decides how to wrap. Default timeout matches
+        _resolve_dynamic_map_layer_plugin's value in the standalone MCP
+        server (Aquaveo/tethysdash_mcps) for consistency across
+        server-side outbound fetches.
+        """
+        response = requests.get(url, timeout=timeout)
+        response.raise_for_status()
+        return response.json()
+
     def _get_arcgis_layer_names(self, url):
         """
         Fetch the list of layer names from an ArcGIS Map or Image Service.
@@ -833,15 +984,14 @@ class LayerConfigurationBuilder:
         Raises:
             ValueError: If `url` is not provided.
             requests.HTTPError: If the HTTP request to the ArcGIS service fails.
+            requests.Timeout: If the service does not respond within the timeout.
             requests.RequestException: For other network-related errors.
         """
         if not url:
             raise ValueError(
                 "url must be provided. Set using .set_source_properties(url='some_url')"
             )
-        response = requests.get(f"{url}?f=json")
-        response.raise_for_status()
-        data = response.json()
+        data = self._fetch_json(f"{url}?f=json")
         return [layer["name"] for layer in data.get("layers", [])]
 
     def _get_arcgis_image_attributes(self, url):
@@ -862,20 +1012,25 @@ class LayerConfigurationBuilder:
         Raises:
             ValueError: If `url` is not provided.
             requests.HTTPError: If a request to the ArcGIS service or layer fails.
+            requests.Timeout: If a request does not complete within the timeout.
             requests.RequestException: For other network-related errors.
         """
         if not url:
             raise ValueError(
                 "url must be provided. Set using .set_source_properties(url='some_url')"
             )
-        response = requests.get(f"{url}?f=json")
-        response.raise_for_status()
-        data = response.json()
+        data = self._fetch_json(f"{url}?f=json")
         attributes = {}
         for index, layer in enumerate(data.get("layers", [])):
             name = layer["name"]
-            layer_url = f"{url}/{index}?f=json"
-            layer_data = requests.get(layer_url).json()
+            # Use the layer's own `id` field, not the loop position, so
+            # services with non-contiguous layer IDs (e.g., [0, 5, 10]
+            # after deletions) hit the right endpoints. Falls back to
+            # `index` if a layer object lacks `id` (defensive — ArcGIS
+            # metadata shape variation).
+            layer_id = layer.get("id", index)
+            layer_url = f"{url}/{layer_id}?f=json"
+            layer_data = self._fetch_json(layer_url)
             fields = [
                 {"name": f["name"], "alias": f["alias"]}
                 for f in layer_data.get("fields", [])
@@ -916,9 +1071,7 @@ class LayerConfigurationBuilder:
             )
 
         layer_url = f"{url.rstrip('/')}/{layer_number}?f=json"
-        response = requests.get(layer_url)
-        response.raise_for_status()
-        data = response.json()
+        data = self._fetch_json(layer_url)
         fields = [
             {"name": f["name"], "alias": f["alias"]} for f in data.get("fields", [])
         ]
@@ -994,7 +1147,9 @@ class LayerConfigurationBuilder:
                 "typename": layer,
             }
 
-            response = requests.get(url, params=query_params)
+            # Timeout matches _fetch_json's default; WMS XML responses
+            # share the same risk profile as the ArcGIS JSON ones.
+            response = requests.get(url, params=query_params, timeout=10)
             try:
                 response.raise_for_status()
             except requests.HTTPError as e:
@@ -1138,6 +1293,9 @@ class LayerConfigurationBuilder:
 
         Accepts one of the following:
         - The string "default" to apply a default legend.
+        - A URL string (any string containing "/") for a hosted legend image.
+          The frontend renderer fetches the URL at render time. Mirrors
+          set_style's URL-string acceptance for symmetry.
         - `None` to remove the legend from the configuration.
         - A dictionary defining a custom legend structure.
 
@@ -1148,7 +1306,7 @@ class LayerConfigurationBuilder:
 
         Args:
             legend (str | dict | None): Legend configuration. Must be either "default",
-                None, or a dictionary with required keys and structure.
+                a URL string, None, or a dictionary with required keys and structure.
 
         Returns:
             self: Returns the current instance for method chaining.
@@ -1161,12 +1319,24 @@ class LayerConfigurationBuilder:
             self.config["legend"] = legend
             return self
 
+        # URL-string path: any string containing "/" is treated as a URL the
+        # frontend will fetch at render time. Same shape as set_style's
+        # string handling — keeps the two parameters symmetric.
+        if isinstance(legend, str) and "/" in legend:
+            self.config["legend"] = legend
+            return self
+
         if legend is None:
-            del self.config["legend"]
+            # pop() over del so calling set_legend(None) on a fresh builder
+            # (where 'legend' has never been set) is idempotent rather than
+            # raising KeyError.
+            self.config.pop("legend", None)
             return self
 
         if not isinstance(legend, dict):
-            raise ValueError("legend must be 'default', None, or a valid dictionary.")
+            raise ValueError(
+                "legend must be 'default', a URL string, None, or a valid dictionary."
+            )
 
         if "title" not in legend or "items" not in legend:
             raise ValueError("a dictionary legend must have a title and items key")
@@ -1255,7 +1425,11 @@ class LayerConfigurationBuilder:
                     else:
                         collect_missing(val, act[key], current_path)
                 else:
-                    if key not in act:
+                    # Treat None / empty-string as missing for required leaves —
+                    # an LLM passing {"imageExtent": None} would otherwise
+                    # persist a None into source.props and crash the renderer
+                    # at parse time.
+                    if key not in act or act[key] is None or act[key] == "":
                         missing.append(f"Missing required key '{current_path}'")
 
         collect_missing(required, actual, path)

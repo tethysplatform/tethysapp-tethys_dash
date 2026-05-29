@@ -27,7 +27,8 @@ def test_layer_configuration_builder_ESRI_map(mocker):
     layer_names = builder.get_layer_names()
 
     mock_requests_get.assert_called_once_with(
-        "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer?f=json"  # noqa: E501
+        "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer?f=json",  # noqa: E501
+        timeout=10,
     )
     assert layer_names == ["some layer"]
 
@@ -254,7 +255,8 @@ def test_layer_configuration_builder_ESRI_feature(mocker):
     layer_attributes = builder.get_layer_attributes()
 
     mock_requests_get.assert_called_once_with(
-        "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_based_5day_max_streamflow/FeatureServer/0?f=json"  # noqa: E501
+        "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_based_5day_max_streamflow/FeatureServer/0?f=json",  # noqa: E501
+        timeout=10,
     )
     assert layer_attributes == {layer_name: [{"alias": "Field", "name": "field"}]}
 
@@ -692,7 +694,9 @@ def test_layer_configuration_builder_legend():
 
     with pytest.raises(
         ValueError,
-        match=re.escape("legend must be 'default', None, or a valid dictionary."),
+        match=re.escape(
+            "legend must be 'default', a URL string, None, or a valid dictionary."
+        ),
     ):
         builder.set_legend("bad legend")
 
@@ -1061,7 +1065,106 @@ def test_plugin_send_update(monkeypatch):
 def test_plugin_kwargs_are_set():
     plugin = MinimalPlugin(foo=123, fooDate="2023-01-01")
     assert plugin.foo == 123
+    # plugin_helpers.__init__ uses dateutil.parser.parse which returns a naive
+    # datetime. Downstream code that needs UTC-aware comparisons must attach
+    # tzinfo explicitly; see plugin_helpers.py:128.
     assert plugin.fooDate == datetime(2023, 1, 1, 0, 0)
+
+
+# ---------------------------------------------------------------------------
+# R7: llm_editable_args / llm_non_editable_args class-attr convention
+# ---------------------------------------------------------------------------
+
+
+def test_plugin_llm_editable_args_attr_is_reserved():
+    """A runtime arg named llm_editable_args must raise at registration.
+
+    Prevents a plugin author from accidentally shadowing the class-level
+    declaration with a runtime arg of the same name.
+    """
+
+    class ShadowEditable(TethysDashPlugin):
+        name = "n"
+        group = "g"
+        label = "l"
+        type = "plotly"
+        args = {"llm_editable_args": "text"}
+
+    with pytest.raises(ValueError, match="reserved keys"):
+        ShadowEditable()
+
+
+def test_plugin_llm_non_editable_args_attr_is_reserved():
+    """Runtime arg named llm_non_editable_args must also be rejected."""
+
+    class ShadowNonEditable(TethysDashPlugin):
+        name = "n"
+        group = "g"
+        label = "l"
+        type = "plotly"
+        args = {"llm_non_editable_args": "text"}
+
+    with pytest.raises(ValueError, match="reserved keys"):
+        ShadowNonEditable()
+
+
+def test_plugin_llm_editable_declarations_are_optional():
+    """Plugins that don't declare the attrs still instantiate cleanly."""
+
+    class NoDeclarations(TethysDashPlugin):
+        name = "n"
+        group = "g"
+        label = "l"
+        type = "plotly"
+        args = {"start_date": "text"}
+
+        def run(self):
+            return "ok"
+
+    plugin = NoDeclarations()
+    # Attributes are NOT set on instance when absent on the class.
+    assert not hasattr(plugin, "llm_editable_args")
+    assert not hasattr(plugin, "llm_non_editable_args")
+
+
+def test_plugin_llm_editable_declarations_round_trip_to_metadata():
+    """A plugin that declares the attrs surfaces them via build_plugin_metadata."""
+    from tethysapp.tethysdash.visualizations import build_plugin_metadata
+
+    class Declared(TethysDashPlugin):
+        name = "n"
+        group = "g"
+        label = "l"
+        type = "plotly"
+        args = {"start_date": "text", "api_key": "text"}
+        llm_editable_args = ["start_date"]
+        llm_non_editable_args = ["api_key"]
+
+        def run(self):
+            return "ok"
+
+    metadata = build_plugin_metadata(Declared, "declared_source")
+    assert metadata["llm_editable_args"] == ["start_date"]
+    assert metadata["llm_non_editable_args"] == ["api_key"]
+
+
+def test_plugin_metadata_absent_declarations_are_none():
+    """build_plugin_metadata emits None for absent declarations, not missing keys."""
+    from tethysapp.tethysdash.visualizations import build_plugin_metadata
+
+    class Undeclared(TethysDashPlugin):
+        name = "n"
+        group = "g"
+        label = "l"
+        type = "plotly"
+        args = {"start_date": "text"}
+
+        def run(self):
+            return "ok"
+
+    metadata = build_plugin_metadata(Undeclared, "undeclared_source")
+    assert metadata["llm_editable_args"] is None
+    assert metadata["llm_non_editable_args"] is None
 
 
 # --- Runtime-capable plugin tests -------------------------------------------
@@ -1379,3 +1482,257 @@ def test_builder_runtime_geojson_override():
         ]["type"]
         == "Point"
     )
+
+
+# ---------------------------------------------------------------------------
+# Renderer-fixture-anchored parity tests (plan 004 R6).
+#
+# Source of truth: reactapp/components/modals/MapLayer/MapLayer.js's
+# getLayerType() function and the saved-config fixtures used in
+# reactapp/__tests__/components/modals/MapLayer/MapLayer.test.js and
+# reactapp/__tests__/components/map/ModuleLoader.test.js. The expected
+# values below are derived from those files; if they change, this test
+# is the canary.
+# ---------------------------------------------------------------------------
+
+
+# Mirror of MapLayer.js:119 getLayerType() — keep in lockstep.
+# Each entry: (expected layer.type, minimal source-prop kwargs to satisfy
+# build()'s required-field validation).
+RENDERER_LAYER_TYPE_BY_SOURCE = {
+    "ESRI Image and Map Service": (
+        "ImageLayer",  # *Image* branch
+        {"url": "https://example.com/MapServer"},
+    ),
+    "ESRI Feature Service": (
+        "VectorLayer",  # else branch
+        {"url": "https://example.com/FeatureServer", "layer": 0},
+    ),
+    "GeoJSON": ("VectorLayer", {}),  # else branch; no required source props
+    "Image Tile": ("TileLayer", {"url": "https://example.com/{z}/{x}/{y}.png"}),
+    "KML": ("VectorLayer", {"url": "https://example.com/file.kml"}),
+    "PMTiles Raster": ("WebGLTile", {"url": "https://example.com/raster.pmtiles"}),
+    "GeoTIFF": (
+        "WebGLTile",
+        {"sources": [{"url": "https://example.com/dem.tif"}]},
+    ),
+    "PMTiles Vector": (
+        "VectorTileLayer",
+        {"url": "https://example.com/vector.pmtiles"},
+    ),
+    "Static Image": (
+        "ImageLayer",  # *Image* branch
+        {
+            "url": "https://example.com/image.png",
+            "projection": "EPSG:4326",
+            "imageExtent": "0,0,10,10",
+        },
+    ),
+    "Vector Tile": (
+        "VectorTileLayer",
+        {"urls": "https://example.com/{z}/{x}/{y}.pbf"},
+    ),
+    "WMS": (
+        "ImageLayer",
+        {"url": "https://example.com/wms", "params": {"LAYERS": "topp:states"}},
+    ),
+}
+
+
+@pytest.mark.parametrize(
+    "source_type,expected,kwargs",
+    [(k, v[0], v[1]) for k, v in RENDERER_LAYER_TYPE_BY_SOURCE.items()],
+)
+def test_builder_layer_type_matches_renderer(source_type, expected, kwargs):
+    """The builder's layer-type mapping must match the renderer's
+    getLayerType(). A drift here silently produces un-renderable layers.
+    """
+    builder = LayerConfigurationBuilder("test layer", source_type)
+    if kwargs:
+        builder.set_source_properties(**kwargs)
+    config = builder.build()
+    actual = config["configuration"]["type"]
+    assert actual == expected, (
+        f"Builder produces layer.type={actual!r} for source {source_type!r}, "
+        f"but the renderer's getLayerType() expects {expected!r}. Update "
+        f"plugin_helpers.py LayerConfigurationBuilder.valid_sources to match "
+        f"reactapp/components/modals/MapLayer/MapLayer.js getLayerType()."
+    )
+
+
+def test_static_image_source_props_shape():
+    """Static Image's required source props match the UI's saved shape
+    (reactapp/__tests__/components/modals/MapLayer/MapLayer.test.js
+    'Static Image save preserves imageExtent string')."""
+    builder = LayerConfigurationBuilder("static layer", "Static Image")
+    builder.set_source_properties(
+        url="https://example.com/image.png",
+        projection="EPSG:4326",
+        imageExtent="0,0,10,10",
+    )
+    config = builder.build()
+    source = config["configuration"]["props"]["source"]
+    assert source["type"] == "Static Image"
+    assert source["props"]["url"] == "https://example.com/image.png"
+    assert source["props"]["projection"] == "EPSG:4326"
+    assert source["props"]["imageExtent"] == "0,0,10,10"
+
+
+def test_pmtiles_raster_layer_type_is_webgl_tile():
+    """Regression guard for the plan-004 PMTiles Raster fix. Renderer
+    test ModuleLoader.test.js asserts WebGLTile for this source. Prior
+    to plan 004, the builder mapped this to TileLayer."""
+    builder = LayerConfigurationBuilder("raster", "PMTiles Raster")
+    builder.set_source_properties(url="https://example.com/raster.pmtiles")
+    config = builder.build()
+    assert config["configuration"]["type"] == "WebGLTile"
+
+
+def test_geotiff_source_props_shape():
+    """GeoTIFF source props match the UI's saved sources-array shape."""
+    builder = LayerConfigurationBuilder("dem", "GeoTIFF")
+    sources = [{"url": "https://example.com/dem.tif"}]
+    builder.set_source_properties(sources=sources)
+    config = builder.build()
+    source = config["configuration"]["props"]["source"]
+    assert config["configuration"]["type"] == "WebGLTile"
+    assert source["type"] == "GeoTIFF"
+    assert source["props"]["sources"] == sources
+
+
+def test_geojson_lives_at_source_geojson_not_props():
+    """GeoJSON inline data must live at configuration.props.source.geojson,
+    not at configuration.props.source.props.geojson — per
+    docs/solutions/best-practices/mcp-visualization-inline-data-vs-top-level-args-2026-04-14.md
+    rule 6."""
+    builder = LayerConfigurationBuilder("geojson layer", "GeoJSON")
+    builder.set_geojson(
+        {
+            "type": "FeatureCollection",
+            "features": [],
+            "crs": {"properties": {"name": "EPSG:4326"}},
+        }
+    )
+    config = builder.build()
+    source = config["configuration"]["props"]["source"]
+    assert "geojson" in source, "GeoJSON must be at source.geojson"
+    assert "geojson" not in source.get("props", {}), (
+        "GeoJSON must NOT be at source.props.geojson"
+    )
+
+
+# Plan-004 review finding #21: builder-side coverage of the URL-string
+# path through set_geojson. validate_geojson accepts any string
+# containing "/" as a URL; the MCP layer relies on this to route
+# geojson_url to set_geojson(string). The MCP-side path is covered by
+# test_geojson_url_at_source_top_level in test_layer_contracts.py;
+# this test pins the builder half so the contract is verified at both
+# layers.
+def test_set_geojson_accepts_url_string():
+    """set_geojson accepts a URL string and persists it at source.geojson
+    verbatim. The frontend's loadGeoJSON fetches the URL at render time."""
+    builder = LayerConfigurationBuilder("url-backed geojson", "GeoJSON")
+    url = "https://example.com/data.geojson"
+    builder.set_geojson(url)
+    config = builder.build()
+    source = config["configuration"]["props"]["source"]
+    assert source["geojson"] == url
+    # And not nested inside source.props (rule 6).
+    assert "geojson" not in source.get("props", {})
+
+
+# Todos #001/#002/#003: ArcGIS attribute-fetch hardening.
+# Pin the three new behaviors (correct layer ID, timeout, raise_for_status).
+
+
+def test_arcgis_image_attributes_uses_layer_id_not_enumerate_index(mocker):
+    """Todo #001: services with non-contiguous layer IDs (e.g. [0, 5, 10]
+    after deletions) must hit /0, /5, /10 — NOT /0, /1, /2 (the loop
+    position). Pre-PR code used enumerate(layers); now uses
+    layer.get('id', index)."""
+    mock_get = mocker.patch("tethysapp.tethysdash.plugin_helpers.requests.get")
+    response = mock_get.return_value
+    response.raise_for_status.return_value = None
+    response.json.side_effect = [
+        # Service-info response — non-contiguous IDs.
+        {"layers": [
+            {"id": 0, "name": "first"},
+            {"id": 5, "name": "skip-to-5"},
+        ]},
+        # Per-layer field-info responses (one per layer).
+        {"fields": [{"name": "f0", "alias": "F0"}]},
+        {"fields": [{"name": "f5", "alias": "F5"}]},
+    ]
+
+    builder = LayerConfigurationBuilder("test", "ESRI Image and Map Service")
+    builder.set_source_properties(url="https://example.com/MapServer")
+    builder.get_layer_attributes()
+
+    # Three calls: 1 service-info + 2 per-layer.
+    assert mock_get.call_count == 3
+    fetched_urls = [call.args[0] for call in mock_get.call_args_list]
+    assert fetched_urls[1].endswith("/0?f=json"), fetched_urls
+    # The critical one — would be /1 with the buggy code.
+    assert fetched_urls[2].endswith("/5?f=json"), fetched_urls
+
+
+def test_arcgis_layer_names_passes_timeout(mocker):
+    """Todo #002: every requests.get must include timeout=10."""
+    mock_get = mocker.patch("tethysapp.tethysdash.plugin_helpers.requests.get")
+    mock_get.return_value.raise_for_status.return_value = None
+    mock_get.return_value.json.return_value = {"layers": []}
+    builder = LayerConfigurationBuilder("t", "ESRI Image and Map Service")
+    builder.set_source_properties(url="https://example.com/MapServer")
+    builder.get_layer_names()
+    # Single call with timeout kwarg.
+    assert mock_get.call_args.kwargs.get("timeout") == 10
+
+
+def test_arcgis_per_layer_4xx_raises_httperror_not_jsondecode(mocker):
+    """Todo #003: per-layer fetch must call raise_for_status() so a
+    404/500 with HTML body surfaces as HTTPError, not the
+    downstream JSONDecodeError that .json() would produce on HTML."""
+    mock_get = mocker.patch("tethysapp.tethysdash.plugin_helpers.requests.get")
+    # First call (service info) succeeds; second call (per-layer) 404s.
+    service_resp = mocker.MagicMock()
+    service_resp.raise_for_status.return_value = None
+    service_resp.json.return_value = {"layers": [{"id": 0, "name": "x"}]}
+    per_layer_resp = mocker.MagicMock()
+    per_layer_resp.raise_for_status.side_effect = requests.HTTPError(
+        "404 Not Found"
+    )
+    mock_get.side_effect = [service_resp, per_layer_resp]
+    builder = LayerConfigurationBuilder("t", "ESRI Image and Map Service")
+    builder.set_source_properties(url="https://example.com/MapServer")
+    with pytest.raises(requests.HTTPError, match="404"):
+        builder.get_layer_attributes()
+
+
+def test_arcgis_feature_service_passes_timeout(mocker):
+    """Todo #002 (continued): ESRI Feature Service path also gets timeout."""
+    mock_get = mocker.patch("tethysapp.tethysdash.plugin_helpers.requests.get")
+    mock_get.return_value.raise_for_status.return_value = None
+    mock_get.return_value.json.return_value = {"fields": []}
+    builder = LayerConfigurationBuilder("t", "ESRI Feature Service")
+    builder.set_source_properties(
+        url="https://example.com/FeatureServer", layer=0
+    )
+    builder.get_layer_attributes()
+    assert mock_get.call_args.kwargs.get("timeout") == 10
+
+
+def test_wms_attributes_passes_timeout(mocker):
+    """Todo #002 (continued): WMS path also gets timeout (XML response,
+    not JSON, but the same risk profile). Uses the same XML schema
+    fixture as test_layer_configuration_builder_WMS to avoid
+    re-crafting the parser-compatible shape."""
+    mock_get = mocker.patch("tethysapp.tethysdash.plugin_helpers.requests.get")
+    mock_get.return_value.raise_for_status.return_value = None
+    mock_get.return_value.text = '<?xml version="1.0" encoding="UTF-8"?><xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:gml="http://www.opengis.net/gml/3.2" xmlns:topp="http://www.openplans.org/topp" xmlns:wfs="http://www.opengis.net/wfs/2.0" elementFormDefault="qualified" targetNamespace="http://www.openplans.org/topp"><xsd:import namespace="http://www.opengis.net/gml/3.2" schemaLocation="https://ahocevar.com/geoserver/schemas/gml/3.2.1/gml.xsd"/><xsd:complexType name="statesType"><xsd:complexContent><xsd:extension base="gml:AbstractFeatureType"><xsd:sequence><xsd:element maxOccurs="1" minOccurs="0" name="the_geom" nillable="true" type="gml:MultiSurfacePropertyType"/><xsd:element maxOccurs="1" minOccurs="0" name="STATE_NAME" nillable="true" type="xsd:string"/></xsd:sequence></xsd:extension></xsd:complexContent></xsd:complexType><xsd:element name="states" substitutionGroup="gml:AbstractFeature" type="topp:statesType"/></xsd:schema>'  # noqa: E501
+    builder = LayerConfigurationBuilder("t", "WMS")
+    builder.set_source_properties(
+        url="https://example.com/wms",
+        params={"LAYERS": "topp:states"},
+    )
+    builder.get_layer_attributes()
+    assert mock_get.call_args.kwargs.get("timeout") == 10

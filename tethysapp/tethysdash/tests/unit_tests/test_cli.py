@@ -82,3 +82,106 @@ class TestCLI(unittest.TestCase):
         mock_parse_args.return_value = args
         cli.main()
         mock_start.assert_called_once_with(args)
+
+
+class TestInspectEditablePathsCommand(unittest.TestCase):
+    """Unit tests for the inspect_editable_paths subcommand (R13)."""
+
+    def _invoke(self, source, capsys=None, **patches):
+        """Run the command via subprocess to avoid logger pollution."""
+        import argparse as _argparse
+        from io import StringIO
+        from contextlib import redirect_stdout
+
+        cli = importlib.import_module("tethysapp.tethysdash.cli")
+        buf = StringIO()
+        args = _argparse.Namespace(source=source)
+        exit_code = 0
+        try:
+            with redirect_stdout(buf):
+                cli.inspect_editable_paths_command(args)
+        except SystemExit as e:
+            exit_code = e.code if isinstance(e.code, int) else 1
+        return exit_code, buf.getvalue()
+
+    def test_unknown_source_exits_nonzero(self):
+        """When a specific source isn't in the Intake registry, exit code is 1."""
+        import tethysapp.tethysdash.editable_schemas_plugin as esp
+
+        with mock.patch.object(esp.intake.source, "registry", {}):
+            exit_code, out = self._invoke(source="phantom_plugin")
+        self.assertEqual(exit_code, 1)
+        self.assertIn("phantom_plugin", out)
+        self.assertIn("unresolved", out.lower())
+
+    def test_known_intake_plugin_shows_editable_paths(self):
+        from types import SimpleNamespace
+        import tethysapp.tethysdash.editable_schemas_plugin as esp
+
+        # Author declares an explicit deny-list entry so we get a mix of
+        # [editable] and [denied: author] in the output.
+        fake_plugin = SimpleNamespace(
+            args={"start_date": "text", "api_key": "text"},
+            llm_non_editable_args=["api_key"],
+        )
+        with mock.patch.object(
+            esp.intake.source, "registry", {"my_streamflow": fake_plugin}
+        ):
+            exit_code, out = self._invoke(source="my_streamflow")
+        self.assertEqual(exit_code, 0)
+        self.assertIn("my_streamflow", out)
+        self.assertIn("Intake plugin", out)
+        # start_date is editable; api_key is author-denied.
+        self.assertIn("[editable] start_date", out)
+        self.assertIn("[denied: author] api_key", out)
+        self.assertIn("/args/start_date", out)
+        # Sensitive arg value must NEVER appear — the annotation lists only
+        # the name. (This test exercises only arg names, but pins the rule.)
+        self.assertNotIn("some_secret_value", out)
+
+    def test_intake_plugin_with_legacy_visualization_args_naming(self):
+        """Regression: ciroh_plugins use `visualization_args` (legacy naming).
+
+        The CLI must honor the same get_plugin_prop lookup the resolver uses
+        so authors see their declared args annotated in the inspect output.
+        Raw getattr(plugin, "args") would miss these — the class has
+        `visualization_args` set and no bare `args` attribute.
+        """
+        from types import SimpleNamespace
+        import tethysapp.tethysdash.editable_schemas_plugin as esp
+
+        # Plugin declares args via the legacy visualization_* naming.
+        # No bare `args` attribute — this is how ciroh_plugins work.
+        # Author denies one arg explicitly to exercise the [denied: author]
+        # annotation alongside [editable].
+        fake_plugin = SimpleNamespace(
+            visualization_args={
+                "id": "text",
+                "api_key": "text",
+            },
+            llm_non_editable_args=["api_key"],
+        )
+        with mock.patch.object(
+            esp.intake.source, "registry", {"nwmp_api_reaches": fake_plugin}
+        ):
+            exit_code, out = self._invoke(source="nwmp_api_reaches")
+        self.assertEqual(exit_code, 0)
+        # Both args surface in the registered-args listing despite using
+        # the legacy `visualization_args` attribute name.
+        self.assertIn("[editable] id", out)
+        self.assertIn("[denied: author] api_key", out)
+        # And the resolver emits the right path.
+        self.assertIn("/args/id", out)
+
+    def test_no_source_lists_all_plugins(self):
+        from types import SimpleNamespace
+        import tethysapp.tethysdash.editable_schemas_plugin as esp
+
+        fake_plugin = SimpleNamespace(args={"station": "text"})
+        with mock.patch.object(
+            esp.intake.source, "registry", {"my_plugin": fake_plugin}
+        ):
+            exit_code, out = self._invoke(source=None)
+        self.assertEqual(exit_code, 0)
+        self.assertIn("my_plugin", out)
+        self.assertIn("Intake", out)

@@ -590,7 +590,7 @@ export async function queryLayerFeatures(layerInfo, map, coordinate, pixel) {
         LayerName,
       );
     } else if (sourceType === "PMTiles Vector") {
-      features = getVectorTileLayerFeatures(map, pixel);
+      features = getVectorTileLayerFeatures(map, pixel, LayerName);
     } else if (sourceType === "KML") {
       features = getKMLLayerFeatures(map, pixel, coordinate, LayerName);
     } else if (sourceType === "GeoTIFF") {
@@ -676,24 +676,38 @@ function getGeoTIFFPixelValues(map, pixel, LayerName, layerInfo, coordinate) {
   ];
 }
 
-function getVectorTileLayerFeatures(map, pixel) {
+function getVectorTileLayerFeatures(map, pixel, configuredLayerName) {
   const features = [];
   map.forEachFeatureAtPixel(pixel, function (feature, layer) {
     if (!feature) return;
     let featureLayerName = feature.get("layer");
-    features.push({
+    const featureInfo = {
       layerName: featureLayerName,
       attributes: feature.getProperties(),
       geometry: {
         type: toGeometry(feature).getType(),
         coordinates: toGeometry(feature).getCoordinates(),
       },
-    });
+    };
+    if (configuredLayerName && configuredLayerName !== featureLayerName) {
+      featureInfo.configuredLayerName = configuredLayerName;
+    }
+    features.push(featureInfo);
   });
   return features;
 }
 
 async function getESRILayerFeatures(sourceUrl, sourceParams, map, coordinate) {
+  // ArcGIS identify accepts `layers=visible:<ids>` for filtered queries and
+  // `layers=visible` for "all visible". Only the `show` directive maps to a
+  // filtered query — `hide`/`include`/`exclude` and null/missing fall back
+  // to all-visible. Bare ID lists ("0", "0,1") are treated as implicit-show
+  // so click-identify on a dashboard authored with `LAYERS="0"` filters to
+  // layer 0 instead of returning features from all visible layers.
+  const { directive, ids } = normalizeLayersParam(sourceParams?.LAYERS);
+  const identifyLayers =
+    directive === "show" && ids ? `visible:${ids.join(",")}` : "visible";
+
   // setup fetch request with params
   const featureQueryUrl = sourceUrl + "/identify";
   const view = map.getView();
@@ -713,9 +727,7 @@ async function getESRILayerFeatures(sourceUrl, sourceParams, map, coordinate) {
     mapExtent: extent.join(","),
     returnFieldName: true,
     imageDisplay: map.getSize().concat(view.getResolution()).join(", "),
-    layers: sourceParams?.LAYERS?.startsWith("show:")
-      ? `visible:${sourceParams.LAYERS.slice(5)}`
-      : "visible",
+    layers: identifyLayers,
   });
 
   let featureQueryJson;
@@ -1058,6 +1070,80 @@ async function getKMLLayerAttributes(sourceUrl, layerName) {
   };
 }
 
+// Recognized directive prefixes for ESRI Image and Map Service `params.LAYERS`.
+// The directive vocabulary is duplicated across three sites:
+//   - this JS constant (bare directive names, used as parsing input)
+//   - `_RECOGNIZED_LAYERS_DIRECTIVES` in the standalone MCP server
+//     (`Aquaveo/tethysdash_mcps`, file `tethysdash_mcp/mcp_server.py`;
+//     colon-suffixed strings, passed to `str.startswith()` for canonicalization)
+//   - `DIRECTIVE_PREFIXES` in `scripts/audit_esri_layers.py` (also colon-suffixed)
+// The three are duplicated by language but must never diverge — when adding a new
+// directive, update all three. The format differs (bare names here, colon-suffixed
+// elsewhere) because each site uses the value differently.
+const RECOGNIZED_LAYERS_DIRECTIVES = ["show", "hide", "include", "exclude"];
+
+/**
+ * Parse an ESRI Image and Map Service `params.LAYERS` value into a directive +
+ * IDs pair. Single source of truth for LAYERS parsing across the frontend.
+ *
+ * Returns `{ directive, ids }` where `directive` is one of "show" | "hide" |
+ * "include" | "exclude" | null and `ids` is a string array (parts left
+ * verbatim; callers can int-coerce as needed) or null.
+ *
+ * NOTE: the returned `directive` is a parser hint describing the input shape's
+ * directive prefix, NOT a display-policy instruction. Different consumers act
+ * on it differently — `getESRILayerFeatures` uses it as display semantics for
+ * the click-identify URL, while `getImageArcGISRestLayerAttributes` feeds it
+ * into the existing four-directive switch over the service's layer list. The
+ * helper labels what it parsed; consumers decide what to do with it.
+ *
+ * @param {*} rawValue The raw `params.LAYERS` value (any type; non-strings
+ *   return the empty result).
+ * @returns {{directive: string|null, ids: string[]|null}}
+ */
+export function normalizeLayersParam(rawValue) {
+  if (typeof rawValue !== "string") return { directive: null, ids: null };
+  const trimmed = rawValue.trim();
+  if (!trimmed) return { directive: null, ids: null };
+
+  const colonIdx = trimmed.indexOf(":");
+  let directive;
+  let idsPart;
+
+  if (colonIdx >= 0) {
+    const prefix = trimmed.slice(0, colonIdx).trim();
+    const after = trimmed.slice(colonIdx + 1);
+    if (!RECOGNIZED_LAYERS_DIRECTIVES.includes(prefix)) {
+      // Unrecognized prefix (e.g. WMS "topp:states", arbitrary garbage) —
+      // fall through cleanly. Callers default to defaultVisibility semantics.
+      return { directive: null, ids: null };
+    }
+    directive = prefix;
+    idsPart = after;
+  } else {
+    // No colon. Either a bare ID list (implicit-show) or a bare directive name
+    // ("show" alone has no IDs to act on — treat as malformed).
+    if (RECOGNIZED_LAYERS_DIRECTIVES.includes(trimmed)) {
+      return { directive: null, ids: null };
+    }
+    directive = "show";
+    idsPart = trimmed;
+  }
+
+  const idsTrimmed = idsPart.trim();
+  if (!idsTrimmed) return { directive: null, ids: null };
+
+  // Comma-separated list. Empty positions are malformed (do not silently
+  // filter — `"0,,1"` is not the same as `"0,1"` and we don't guess).
+  const parts = idsTrimmed.split(",").map((p) => p.trim());
+  if (parts.some((p) => !p)) return { directive: null, ids: null };
+  // Reject nested colons (e.g. `"show:0:1"`) — defends against malformed input
+  // a downstream caller would otherwise have to re-parse.
+  if (parts.some((p) => p.includes(":"))) return { directive: null, ids: null };
+
+  return { directive, ids: parts };
+}
+
 async function getImageArcGISRestLayerAttributes(sourceUrl, sourceParams) {
   // setup fetch request with params
   const sourceURLParams = new URLSearchParams({
@@ -1069,14 +1155,18 @@ async function getImageArcGISRestLayerAttributes(sourceUrl, sourceParams) {
   const sourceInfoResponse = await fetch(sourceInfoUrl);
   const sourceInfoJSON = await sourceInfoResponse.json();
 
-  // Filter layers based on sourceParams.LAYERS directive (show/hide/include/exclude)
+  // Filter layers based on sourceParams.LAYERS directive (show/hide/include/exclude).
+  // Parsing goes through normalizeLayersParam so bare-ID values ("0", "0,1")
+  // are treated as implicit-show and unrecognized prefixes (WMS workspace:layer
+  // shapes that may land here by user error) fall through to defaultVisibility
+  // rather than crashing.
   const sourceAttributes = {};
   const allLayers = sourceInfoJSON.layers;
   let visibleLayers;
 
-  if (sourceParams?.LAYERS) {
-    const [directive, ids] = sourceParams.LAYERS.split(":");
-    const layerIds = ids.split(",").map(Number);
+  const { directive, ids } = normalizeLayersParam(sourceParams?.LAYERS);
+  if (directive && ids) {
+    const layerIds = ids.map(Number);
 
     if (directive === "show") {
       visibleLayers = allLayers.filter((l) => layerIds.includes(l.id));
@@ -1090,8 +1180,6 @@ async function getImageArcGISRestLayerAttributes(sourceUrl, sourceParams) {
       visibleLayers = allLayers.filter(
         (l) => l.defaultVisibility && !layerIds.includes(l.id),
       );
-    } else {
-      visibleLayers = allLayers.filter((l) => l.defaultVisibility);
     }
   } else {
     visibleLayers = allLayers.filter((l) => l.defaultVisibility);
@@ -1280,11 +1368,11 @@ async function loadStyle(style, layerName, dashboard_uuid, keep_urls) {
 }
 
 export async function loadGeoJSON(geojson, dashboard_uuid, keep_urls = false) {
-  if (typeof geojson === "object") return geojson;
-  if (geojson.trim().startsWith("{")) {
-    return JSON5.parse(geojson);
-  }
-  if (geojson.includes("/")) {
+  if (typeof geojson === "object") {
+    // Already an object — skip string handling, fall through to CRS assignment
+  } else if (geojson.trim().startsWith("{")) {
+    geojson = JSON5.parse(geojson);
+  } else if (geojson.includes("/")) {
     if (keep_urls) return geojson;
     const response = await fetch(geojson);
     if (!response.ok) throw Error(`Failed to fetch: ${response.statusText}`);

@@ -98,7 +98,10 @@ def test_add_and_delete_dashboard(db_session, mock_app_get_ps_db, test_owner_use
     dashboard_id = dashboard.id
 
     assert len(dashboard.tabs) == 1
-    assert len(dashboard.grid_items) == 1
+    # Fresh dashboards created with no grid_items now persist with zero
+    # grid items — the legacy empty placeholder at (0,0) was removed
+    # because it manifested as a phantom top-left tile in the UI.
+    assert len(dashboard.grid_items) == 0
 
     # Add a grid item and verify
     grid_item_i = "2"
@@ -1160,25 +1163,14 @@ def test_clean_up_jsons_no_existing_dashboard_folder(
     mock_remove.assert_not_called()
 
 
-@pytest.mark.django_db
-def test_init_primary_db_with_current_revision(mock_app_get_ps_db, mocker, tmp_path):
-    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+def test_init_primary_db_with_current_revision(mocker):
     mocker.patch(
         "tethysapp.tethysdash.model.subprocess.run",
         return_value=SimpleNamespace(stdout="abcd1234 some message"),
     )
     mock_cfg = mocker.patch("tethysapp.tethysdash.model.config")
     mock_command = mocker.patch("tethysapp.tethysdash.model.command")
-    mock_script = mocker.patch(
-        "tethysapp.tethysdash.model.script",
-    )
-
-    workspace_path = tmp_path
-    mock_get_app_workspace = mocker.patch(
-        "tethysapp.tethysdash.model.get_app_workspace"
-    )
-    mock_get_app_workspace.return_value = MagicMock(path=workspace_path)
-
+    mock_script = mocker.patch("tethysapp.tethysdash.model.script")
     mock_script.walk_revisions.return_value = []
 
     init_primary_db(engine=mocker.Mock(), first_time=True)
@@ -1187,26 +1179,14 @@ def test_init_primary_db_with_current_revision(mock_app_get_ps_db, mocker, tmp_p
     mock_command.stamp.assert_not_called()
 
 
-@pytest.mark.django_db
-def test_init_primary_db_no_current_revision_upgrade_all(
-    mock_app_get_ps_db, mocker, tmp_path
-):
-    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+def test_init_primary_db_no_current_revision_upgrade_all(mocker):
     mocker.patch(
         "tethysapp.tethysdash.model.subprocess.run",
         return_value=SimpleNamespace(stdout=""),
     )
     mock_cfg = mocker.patch("tethysapp.tethysdash.model.config")
     mock_command = mocker.patch("tethysapp.tethysdash.model.command")
-    mock_script = mocker.patch(
-        "tethysapp.tethysdash.model.script",
-    )
-
-    workspace_path = tmp_path
-    mock_get_app_workspace = mocker.patch(
-        "tethysapp.tethysdash.model.get_app_workspace"
-    )
-    mock_get_app_workspace.return_value = MagicMock(path=workspace_path)
+    mock_script = mocker.patch("tethysapp.tethysdash.model.script")
 
     rev1 = mocker.Mock(revision="rev1")
     rev2 = mocker.Mock(revision="rev2")
@@ -1220,24 +1200,14 @@ def test_init_primary_db_no_current_revision_upgrade_all(
     mock_command.stamp.assert_not_called()
 
 
-@pytest.mark.django_db
-def test_init_primary_db_skips_existing_table(mock_app_get_ps_db, mocker, tmp_path):
-    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+def test_init_primary_db_skips_existing_table(mocker):
     mocker.patch(
         "tethysapp.tethysdash.model.subprocess.run",
         return_value=SimpleNamespace(stdout=""),
     )
     mock_cfg = mocker.patch("tethysapp.tethysdash.model.config")
     mock_command = mocker.patch("tethysapp.tethysdash.model.command")
-    mock_script = mocker.patch(
-        "tethysapp.tethysdash.model.script",
-    )
-
-    workspace_path = tmp_path
-    mock_get_app_workspace = mocker.patch(
-        "tethysapp.tethysdash.model.get_app_workspace"
-    )
-    mock_get_app_workspace.return_value = MagicMock(path=workspace_path)
+    mock_script = mocker.patch("tethysapp.tethysdash.model.script")
 
     rev = mock_script.revision
     mock_script.ScriptDirectory.from_config().walk_revisions.return_value = [rev]
@@ -1267,6 +1237,43 @@ def test_init_primary_db_raises_unexpected_error(mocker, mock_alembic):
     with pytest.raises(ProgrammingError):
         init_primary_db(engine=mocker.Mock(), first_time=True)
 
+    mock_alembic.stamp.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "first_time, clean, expect_cleanup",
+    [
+        # Brand-new DB: nothing to clean, and SingletonHarvester may not be
+        # primed (bare-Django syncstores path).
+        (True, True, False),
+        (True, False, False),
+        # Existing DB: run the one-shot pre-PR-#35 cleanup.
+        (False, True, True),
+        # Explicit opt-out on an existing DB.
+        (False, False, False),
+    ],
+)
+def test_init_primary_db_cleanup_guard(
+    mocker, mock_alembic, first_time, clean, expect_cleanup
+):
+    """cleanup_old_jsons is a one-shot migration from the pre-PR-#35 layout.
+    It must be skipped on first_time=True (nothing to clean, harvester not
+    primed) and whenever the caller opts out with clean=False. Also asserts
+    migrations still run (mock_alembic.upgrade) in the happy path so a future
+    regression that short-circuits the alembic block would be caught.
+    """
+    mocker.patch(
+        "tethysapp.tethysdash.model.subprocess.run",
+        return_value=SimpleNamespace(stdout="abcd1234 current"),
+    )
+    mock_cleanup = mocker.patch("tethysapp.tethysdash.model.cleanup_old_jsons")
+
+    init_primary_db(engine=mocker.Mock(), first_time=first_time, clean=clean)
+
+    assert mock_cleanup.called is expect_cleanup
+    # Migrations must still run regardless of the cleanup-guard branch; catch
+    # any future regression that short-circuits the alembic block.
+    mock_alembic.upgrade.assert_called_once()
     mock_alembic.stamp.assert_not_called()
 
 
@@ -2120,7 +2127,7 @@ class MockGridItem:
             self.args_string = args_string
 
 
-def test_init_primary_db_moves_json_and_geojson_files(
+def test_init_primary_db_moves_json_and_geojson_files_when_not_first_time(
     mock_app_get_ps_db, tmp_path, mocker
 ):
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
@@ -2201,7 +2208,9 @@ def test_init_primary_db_moves_json_and_geojson_files(
     )
     mock_query.return_value.all.return_value = [dashboard_1]
 
-    init_primary_db(engine=mock_engine, first_time=True)
+    # cleanup_old_jsons is a migration of pre-PR-#35 layouts, so it runs on
+    # non-first-time init only.
+    init_primary_db(engine=mock_engine, first_time=False)
 
     # Check that files have been deleted from original locations
     assert not os.path.exists(os.path.join(json_dir, "a.json"))

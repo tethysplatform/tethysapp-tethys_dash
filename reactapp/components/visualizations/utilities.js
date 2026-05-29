@@ -100,6 +100,7 @@ export async function getVisualization({
   dashboardView,
   vizLoadingIcon = true,
   variableInputDateFormats = {},
+  visualizations = [],
   variableInputSliderMeta = {},
 }) {
   const metadata = JSON.parse(metadataString);
@@ -113,6 +114,23 @@ export async function getVisualization({
     setVizData({
       warnings: emptyVariableWarnings,
     });
+    return;
+  }
+
+  // Default args to an empty object so callers that pass a bare itemData
+  // (no args yet — e.g., Base.js before interpolation, or test fixtures that
+  // exercise the no-inline-data path) don't crash on the reads below. The
+  // subsequent Map/Text/Custom Image branches and the API-call path all
+  // continue to read itemData.args as before.
+  if (!itemData.args) itemData.args = {};
+
+  // Inline data: render directly without a backend API call.
+  // Used by TethysDash MCP server to create native visualizations with data attached.
+  // args.vizType overrides sourceType since inline grid items may not be in the visualization list.
+  const inlineVizType = itemData.args.vizType || sourceType;
+  if (itemData.args.inlineData && inlineVizType) {
+    setVizType(inlineVizType);
+    setVizData(itemData.args.inlineData);
     return;
   }
 
@@ -182,6 +200,16 @@ export async function getVisualization({
       imageError: metadata.customMessaging?.error,
     });
 
+    return;
+  } else if (sourceType === "client_custom_remote") {
+    setVizType("custom");
+    setVizData({
+      url: itemData.args.url,
+      scope: itemData.args.scope,
+      module: itemData.args.module,
+      remoteType: itemData.args.remoteType ?? "vite-esm",
+      props: itemData.args.initialData ?? {},
+    });
     return;
   }
 

@@ -48,6 +48,29 @@ it("Creates a Card with a Title and Description", () => {
   expect(screen.getByText("Fake Description")).toBeInTheDocument();
 });
 
+// Crash-hardening: Card receives data from multiple sources — MCP create
+// tool, patch protocol, legacy dashboards, migrations. Anything other
+// than an array must render the empty placeholder, not crash with
+// "data.length is undefined".
+describe.each([
+  ["null", null],
+  ["undefined", undefined],
+  ["scalar number", 42],
+  ["scalar string", "42"],
+  ["plain object", { value: 1 }],
+])("renders empty placeholder when data is %s", (_label, badData) => {
+  it("does not crash", () => {
+    initAndRender({
+      title: "Graceful",
+      description: "Should not throw",
+      data: badData,
+    });
+    // The component still mounts; title + description still render.
+    expect(screen.getByText("Graceful")).toBeInTheDocument();
+    expect(screen.getByText("Should not throw")).toBeInTheDocument();
+  });
+});
+
 it("Creates a Card with actual data", async () => {
   const { title, data } = mockedCardData;
   initAndRender({

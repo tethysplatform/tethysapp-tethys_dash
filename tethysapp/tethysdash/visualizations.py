@@ -31,6 +31,15 @@ def build_plugin_metadata(plugin, source):
         "description": get_plugin_prop(plugin, "description", ""),
         "loading_icon": get_plugin_prop(plugin, "loading_icon", True),
         "restricted": get_plugin_prop(plugin, "restricted", False),
+        # Propagated for downstream consumers (list_intake_plugins,
+        # list_available_visualizations). The resolver in
+        # editable_schemas_plugin.py reads directly from the plugin class,
+        # not from this metadata dict, so absence here never hides a
+        # declaration from whitelist resolution.
+        "llm_editable_args": get_plugin_prop(plugin, "llm_editable_args", None),
+        "llm_non_editable_args": get_plugin_prop(
+            plugin, "llm_non_editable_args", None
+        ),
         "dynamic_map_layer": get_plugin_prop(plugin, "dynamic_map_layer", False),
     }
 

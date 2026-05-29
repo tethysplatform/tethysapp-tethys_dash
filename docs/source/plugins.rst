@@ -1297,3 +1297,131 @@ In your plugin class, simply call `self.send_update` from within a class method.
 The `percentage_complete` argument is optional and can be used to indicate progress as a percentage (0–100). You can call `send_update` as many times as needed during your process.
 
 This approach is recommended for all new plugins. If you are maintaining legacy plugins that do not subclass `TethysDashPlugin`, you may still use `send_websocket_message` directly, but new development should use `send_update` for clarity and maintainability.
+
+
+.. _plugin_llm_editability:
+
+===================================
+LLM-editability (chatbox patch)
+===================================
+
+TethysDash ships a chatbox that lets users edit their dashboard via natural
+language. The chatbox is only available to users with **editor** or **admin**
+permission on the active dashboard — viewers never see the chatbox at all,
+matching the edit modal's visibility.
+
+When an editor-role user asks the chatbox to modify a tile ("change the
+station to 01638500", "use a 30-day window"), the LLM emits a JSON Patch
+envelope against your plugin's args. Each op is validated server-side
+against a per-plugin whitelist before it is accepted.
+
+How the whitelist is built
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For every registered Intake plugin, the effective LLM-editable set is:
+
+1. **All arg names** in your ``args`` class attribute,
+2. Narrowed to what you enumerate in an optional ``llm_editable_args``
+   class attribute (when present),
+3. Minus anything you exclude via an optional ``llm_non_editable_args``
+   class attribute.
+
+**Default (no declarations): every registered arg is LLM-editable.** The
+chatbox is already gated to editor/admin users on the current dashboard —
+those users can set any arg via the edit modal today, so exposing the
+same surface via natural language doesn't add new attack surface.
+
+If you need to protect a specific arg (e.g., a hardcoded credential your
+plugin ships with), use ``llm_non_editable_args``.
+
+Author declarations (``llm_editable_args`` / ``llm_non_editable_args``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Two optional class attributes let you narrow or carve out the default::
+
+    class MyPlugin(TethysDashPlugin):
+        name = "my_plugin"
+        args = {"start_date": "text", "station_id": "text", "secret_salt": "text"}
+        # ...
+
+        # Optional ALLOW-LIST. When present, ONLY these args are LLM-editable.
+        llm_editable_args = ["start_date"]
+
+        # Optional DENY-LIST. Applied ON TOP of the default (or allow-list).
+        llm_non_editable_args = ["station_id"]
+
+Precedence matrix:
+
+===================== ========================= ========================================================
+``llm_editable_args`` ``llm_non_editable_args`` Effective whitelist
+===================== ========================= ========================================================
+absent                absent                    all registered args
+present               absent                    ``llm_editable_args``
+absent                present                   all registered args, minus ``llm_non_editable_args``
+present               present                   ``llm_editable_args`` minus ``llm_non_editable_args``
+===================== ========================= ========================================================
+
+Worked example — protecting a credential arg
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If your plugin ships with a hardcoded credential arg that should not be
+LLM-editable::
+
+    class MyPlugin(TethysDashPlugin):
+        args = {"api_key": "text", "start_date": "text", "station_id": "text"}
+        llm_non_editable_args = ["api_key"]
+
+Effective whitelist: ``["start_date", "station_id"]``. The ``api_key``
+arg stays read-only from the chatbox (but editors can still change it
+via the edit modal, same as today).
+
+Verification — inspecting the resolved whitelist
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use the ``inspect_editable_paths`` CLI to see exactly what the chatbox
+will allow for your plugin, without invoking a live LLM::
+
+    # List every registered plugin with a summary count
+    tethysdash inspect_editable_paths
+
+    # Detailed view for one source, with per-arg annotations
+    tethysdash inspect_editable_paths my_plugin
+
+The detailed output annotates each registered arg as ``[editable]``,
+``[denied: pattern]``, or ``[denied: author]`` so you can tell whether a
+denied arg was caught by the pattern deny-list or by your own
+declarations.
+
+Silent-enrollment advisory
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When TethysDash adopts this feature, **existing plugins are enrolled
+automatically** — every registered arg becomes LLM-editable by default.
+This matches the edit-modal permission model (editors can already set
+any arg via the modal), but it's worth auditing your plugin's args
+after upgrading.
+
+Example audit::
+
+    # After upgrading TethysDash, inspect your plugin:
+    $ tethysdash inspect_editable_paths my_plugin
+    Source: my_plugin
+    Kind: Intake plugin
+    Registered args:
+      [editable] customer_id       # <- is this really something any editor should change from chat?
+      [editable] api_key
+      [editable] start_date
+    ...
+
+If a listed ``[editable]`` arg should not be LLM-editable from chat,
+add it to ``llm_non_editable_args``.
+
+MCP deployment requirement
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The chatbox sends patch requests to the TethysDash MCP server. The MCP
+server must run either bound to ``localhost`` or behind an authenticated
+reverse proxy — it does not enforce per-request authorization on its own.
+The chatbox mount gate (editor/admin permission on the current dashboard)
+is the authorization boundary; network exposure of port 9001 without a
+proxy would route around that gate.

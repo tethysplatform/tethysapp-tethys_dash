@@ -10,6 +10,7 @@ import {
   saveLayerJSON,
   checkForCRS,
   getStyleFields,
+  normalizeLayersParam,
   swapVectorLayerFeatures,
   updateOlLayerProps,
   wrapMercatorX,
@@ -953,6 +954,162 @@ test("queryLayerFeatures ImageArcGISRest, show layer", async () => {
   global.fetch.mockRestore?.();
 });
 
+// Bare-ID input produces a filtered identify URL (visible:<ids>), not the
+// silent visible-everything fallback.
+test("queryLayerFeatures ImageArcGISRest, bare LAYERS produces filtered identify URL", async () => {
+  global.fetch = jest.fn(() =>
+    Promise.resolve({
+      json: () => Promise.resolve({ results: [] }),
+    }),
+  );
+  const mockMap = {
+    getSize: jest.fn(() => [100, 200]),
+    getView: jest.fn(() => ({
+      calculateExtent: jest.fn(() => [1, 2, 3, 4]),
+      getResolution: jest.fn(() => 500),
+      getProjection: jest.fn(() => ({ getCode: jest.fn(() => "EPSG:4326") })),
+      getZoom: jest.fn(() => 10),
+    })),
+    forEachFeatureAtPixel: jest.fn((pixel, callback) => {
+      const mockFeature = {
+        getId: () => "feature-123",
+        getProperties: () => ({
+          geometry: {
+            getType: jest.fn(() => "LineString"),
+            getCoordinates: jest.fn(() => [[0, 0], [0, 1]]),
+          },
+        }),
+      };
+      const mockLayer = {
+        get: jest.fn(() => "ImageArcGISRest Layer"),
+        getProperties: () => ({ name: "ImageArcGISRest Layer" }),
+      };
+      callback(mockFeature, mockLayer);
+    }),
+  };
+
+  const copiedLayerConfig = JSON.parse(
+    JSON.stringify(layerConfigImageArcGISRest),
+  );
+  copiedLayerConfig.configuration.props.source.props.params = {
+    // The regression repro: bare "0" without the show: prefix.
+    LAYERS: "0",
+  };
+
+  await queryLayerFeatures(copiedLayerConfig, mockMap, [0, 0], [639, 366]);
+
+  const fetchCall = global.fetch.mock.calls[0][0];
+  // Bare "0" is now treated as implicit show:0 — the identify URL filters
+  // to just layer 0, not the silent "visible" all-visible fallback.
+  expect(fetchCall).toContain("layers=visible%3A0");
+  expect(fetchCall).not.toMatch(/layers=visible(?:&|$)/);
+  global.fetch.mockRestore?.();
+});
+
+test("queryLayerFeatures ImageArcGISRest, hide directive preserves visible (no client-side filter)", async () => {
+  // Per plan R3: hide/include/exclude/null preserve today's "all-visible"
+  // fallback. ArcGIS identify endpoint has no native equivalent for these
+  // directives in click-identify queries; client-side filtering is out of scope.
+  global.fetch = jest.fn(() =>
+    Promise.resolve({
+      json: () => Promise.resolve({ results: [] }),
+    }),
+  );
+  const mockMap = {
+    getSize: jest.fn(() => [100, 200]),
+    getView: jest.fn(() => ({
+      calculateExtent: jest.fn(() => [1, 2, 3, 4]),
+      getResolution: jest.fn(() => 500),
+      getProjection: jest.fn(() => ({ getCode: jest.fn(() => "EPSG:4326") })),
+      getZoom: jest.fn(() => 10),
+    })),
+    forEachFeatureAtPixel: jest.fn((pixel, callback) => {
+      const mockFeature = {
+        getId: () => "feature-123",
+        getProperties: () => ({
+          geometry: {
+            getType: jest.fn(() => "LineString"),
+            getCoordinates: jest.fn(() => [[0, 0], [0, 1]]),
+          },
+        }),
+      };
+      const mockLayer = {
+        get: jest.fn(() => "ImageArcGISRest Layer"),
+        getProperties: () => ({ name: "ImageArcGISRest Layer" }),
+      };
+      callback(mockFeature, mockLayer);
+    }),
+  };
+
+  const copiedLayerConfig = JSON.parse(
+    JSON.stringify(layerConfigImageArcGISRest),
+  );
+  copiedLayerConfig.configuration.props.source.props.params = {
+    LAYERS: "hide:1",
+  };
+
+  await queryLayerFeatures(copiedLayerConfig, mockMap, [0, 0], [639, 366]);
+
+  const fetchCall = global.fetch.mock.calls[0][0];
+  // hide directive doesn't map to an ArcGIS identify shape — falls back to
+  // bare "visible" (all visible layers). Documented as accepted imperfection.
+  // layers=visible (no `visible:<ids>` form, no trailing ampersand needed —
+  // it's the last query param).
+  expect(fetchCall).toMatch(/layers=visible(?:&|$)/);
+  expect(fetchCall).not.toContain("visible%3A");
+  global.fetch.mockRestore?.();
+});
+
+test("queryLayerFeatures ImageArcGISRest, WMS-shape LAYERS falls through to visible", async () => {
+  // WMS workspace:layer values may land here by user error. The helper
+  // returns directive=null for unrecognized prefixes; the caller falls
+  // through to "visible" rather than crashing or producing a malformed URL.
+  global.fetch = jest.fn(() =>
+    Promise.resolve({
+      json: () => Promise.resolve({ results: [] }),
+    }),
+  );
+  const mockMap = {
+    getSize: jest.fn(() => [100, 200]),
+    getView: jest.fn(() => ({
+      calculateExtent: jest.fn(() => [1, 2, 3, 4]),
+      getResolution: jest.fn(() => 500),
+      getProjection: jest.fn(() => ({ getCode: jest.fn(() => "EPSG:4326") })),
+      getZoom: jest.fn(() => 10),
+    })),
+    forEachFeatureAtPixel: jest.fn((pixel, callback) => {
+      const mockFeature = {
+        getId: () => "feature-123",
+        getProperties: () => ({
+          geometry: {
+            getType: jest.fn(() => "LineString"),
+            getCoordinates: jest.fn(() => [[0, 0], [0, 1]]),
+          },
+        }),
+      };
+      const mockLayer = {
+        get: jest.fn(() => "ImageArcGISRest Layer"),
+        getProperties: () => ({ name: "ImageArcGISRest Layer" }),
+      };
+      callback(mockFeature, mockLayer);
+    }),
+  };
+
+  const copiedLayerConfig = JSON.parse(
+    JSON.stringify(layerConfigImageArcGISRest),
+  );
+  copiedLayerConfig.configuration.props.source.props.params = {
+    LAYERS: "topp:states",
+  };
+
+  await queryLayerFeatures(copiedLayerConfig, mockMap, [0, 0], [639, 366]);
+
+  const fetchCall = global.fetch.mock.calls[0][0];
+  expect(fetchCall).toMatch(/layers=visible(?:&|$)/);
+  expect(fetchCall).not.toContain("topp");
+  global.fetch.mockRestore?.();
+});
+
 test("queryLayerFeatures ImageArcGISRest Bad Request", async () => {
   const mockArgisResults = null;
 
@@ -1412,6 +1569,56 @@ test("queryLayerFeatures PMTiles Vector", async () => {
       attributes: {
         id: "feature-123",
         prop1: "value1",
+      },
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          [0, 0],
+          [0, 1],
+        ],
+      },
+    },
+  ]);
+});
+
+test("queryLayerFeatures PMTiles Vector includes configured layer name when source layer differs", async () => {
+  const coordinate = [0, 0];
+  const pixel = [639, 366];
+
+  const mockFeature = {
+    getType: () => "LineString",
+    getFlatCoordinates: () => [0, 0, 0, 1],
+    getProperties: () => ({
+      id: "building-123",
+    }),
+    get: () => "buildings",
+  };
+
+  const mockMap = {
+    getView: jest.fn(() => ({
+      getZoom: jest.fn(() => 10),
+    })),
+    forEachFeatureAtPixel: jest.fn((pixelArg, callback) => {
+      callback(mockFeature, {});
+    }),
+  };
+
+  const layerConfig = JSON.parse(JSON.stringify(layerConfigPMTilesVector));
+  layerConfig.configuration.props.name = "Vector Tiles Test";
+
+  const features = await queryLayerFeatures(
+    layerConfig,
+    mockMap,
+    coordinate,
+    pixel,
+  );
+
+  expect(features).toStrictEqual([
+    {
+      layerName: "buildings",
+      configuredLayerName: "Vector Tiles Test",
+      attributes: {
+        id: "building-123",
       },
       geometry: {
         type: "LineString",
@@ -2202,6 +2409,203 @@ test("getLayerAttributes ImageArcGISRest, param layers nonsense, missing fields"
   expect(attributes).toStrictEqual({
     "Max Status - Forecast Trend": [],
     "Max Status - Forecast Trend (2)": [{ name: "nws_name3", alias: "Name3" }],
+  });
+});
+
+// Bare-ID input ("0", "0,1") is treated as implicit-show. Was the regression
+// repro before the fix — `split(":")` on "0" produced ["0"] and
+// `ids.split(",")` on undefined threw.
+test("getLayerAttributes ImageArcGISRest, bare ID treated as implicit show", async () => {
+  const mockServiceResults = {
+    layers: [
+      {
+        id: 0,
+        name: "Max Status - Forecast Trend",
+        parentLayerId: -1,
+        defaultVisibility: true,
+        subLayerIds: null,
+        minScale: 0,
+        maxScale: 0,
+        type: "Feature Layer",
+        geometryType: "esriGeometryPoint",
+        supportsDynamicLegends: true,
+      },
+      {
+        id: 1,
+        name: "Max Status - Forecast Trend (1)",
+        parentLayerId: -1,
+        defaultVisibility: true,
+        subLayerIds: null,
+        minScale: 0,
+        maxScale: 0,
+        type: "Feature Layer",
+        geometryType: "esriGeometryPoint",
+        supportsDynamicLegends: true,
+      },
+    ],
+  };
+
+  const mockLayerResults = {
+    fields: [
+      {
+        name: "nws_name",
+        type: "esriFieldTypeString",
+        alias: "Name",
+        length: 60000,
+        domain: null,
+      },
+    ],
+  };
+
+  const mockFetch = jest.fn();
+  global.fetch = jest.fn(() =>
+    Promise.resolve({
+      json: mockFetch,
+    }),
+  );
+  mockFetch.mockResolvedValueOnce(mockServiceResults);
+  mockFetch.mockResolvedValueOnce(mockLayerResults);
+
+  const sourceProps = layerConfigImageArcGISRest.configuration.props.source;
+  const layerName = layerConfigImageArcGISRest.configuration.props.name;
+
+  // The regression repro: bare "0" without a directive prefix.
+  sourceProps.props.params = {
+    LAYERS: "0",
+  };
+
+  const attributes = await getLayerAttributes({ sourceProps, layerName });
+
+  // Bare "0" is treated as implicit show:0 — only layer 0's attributes returned.
+  expect(attributes).toStrictEqual({
+    "Max Status - Forecast Trend": [{ name: "nws_name", alias: "Name" }],
+  });
+});
+
+test("getLayerAttributes ImageArcGISRest, bare comma-list treated as implicit show", async () => {
+  const mockServiceResults = {
+    layers: [
+      {
+        id: 0,
+        name: "Max Status - Forecast Trend",
+        parentLayerId: -1,
+        defaultVisibility: true,
+        subLayerIds: null,
+        minScale: 0,
+        maxScale: 0,
+        type: "Feature Layer",
+        geometryType: "esriGeometryPoint",
+        supportsDynamicLegends: true,
+      },
+      {
+        id: 1,
+        name: "Max Status - Forecast Trend (1)",
+        parentLayerId: -1,
+        defaultVisibility: true,
+        subLayerIds: null,
+        minScale: 0,
+        maxScale: 0,
+        type: "Feature Layer",
+        geometryType: "esriGeometryPoint",
+        supportsDynamicLegends: true,
+      },
+      {
+        id: 2,
+        name: "Max Status - Forecast Trend (2)",
+        parentLayerId: -1,
+        defaultVisibility: true,
+        subLayerIds: null,
+        minScale: 0,
+        maxScale: 0,
+        type: "Feature Layer",
+        geometryType: "esriGeometryPoint",
+        supportsDynamicLegends: true,
+      },
+    ],
+  };
+
+  const mockLayerResults0 = {
+    fields: [{ name: "f0", type: "esriFieldTypeString", alias: "F0", length: 100 }],
+  };
+  const mockLayerResults2 = {
+    fields: [{ name: "f2", type: "esriFieldTypeString", alias: "F2", length: 100 }],
+  };
+
+  const mockFetch = jest.fn();
+  global.fetch = jest.fn(() => Promise.resolve({ json: mockFetch }));
+  mockFetch.mockResolvedValueOnce(mockServiceResults);
+  mockFetch.mockResolvedValueOnce(mockLayerResults0);
+  mockFetch.mockResolvedValueOnce(mockLayerResults2);
+
+  const sourceProps = layerConfigImageArcGISRest.configuration.props.source;
+  const layerName = layerConfigImageArcGISRest.configuration.props.name;
+
+  sourceProps.props.params = {
+    LAYERS: "0,2",
+  };
+
+  const attributes = await getLayerAttributes({ sourceProps, layerName });
+
+  expect(attributes).toStrictEqual({
+    "Max Status - Forecast Trend": [{ name: "f0", alias: "F0" }],
+    "Max Status - Forecast Trend (2)": [{ name: "f2", alias: "F2" }],
+  });
+});
+
+// WMS workspace:layer values (`topp:states`) may land in an ESRI source-params
+// field by user error. Helper returns directive=null for unrecognized prefixes
+// and the function falls through to defaultVisibility — does not crash.
+test("getLayerAttributes ImageArcGISRest, WMS-shaped LAYERS falls through to defaultVisibility", async () => {
+  const mockServiceResults = {
+    layers: [
+      {
+        id: 0,
+        name: "Default Visible Layer",
+        parentLayerId: -1,
+        defaultVisibility: true,
+        subLayerIds: null,
+        minScale: 0,
+        maxScale: 0,
+        type: "Feature Layer",
+        geometryType: "esriGeometryPoint",
+        supportsDynamicLegends: true,
+      },
+      {
+        id: 1,
+        name: "Default Hidden Layer",
+        parentLayerId: -1,
+        defaultVisibility: false,
+        subLayerIds: null,
+        minScale: 0,
+        maxScale: 0,
+        type: "Feature Layer",
+        geometryType: "esriGeometryPoint",
+        supportsDynamicLegends: true,
+      },
+    ],
+  };
+
+  const mockLayerResults = {
+    fields: [{ name: "f", type: "esriFieldTypeString", alias: "F", length: 100 }],
+  };
+
+  const mockFetch = jest.fn();
+  global.fetch = jest.fn(() => Promise.resolve({ json: mockFetch }));
+  mockFetch.mockResolvedValueOnce(mockServiceResults);
+  mockFetch.mockResolvedValueOnce(mockLayerResults);
+
+  const sourceProps = layerConfigImageArcGISRest.configuration.props.source;
+  const layerName = layerConfigImageArcGISRest.configuration.props.name;
+
+  sourceProps.props.params = {
+    LAYERS: "topp:states",
+  };
+
+  const attributes = await getLayerAttributes({ sourceProps, layerName });
+
+  // Falls back to defaultVisibility — only the first layer (defaultVisibility=true).
+  expect(attributes).toStrictEqual({
+    "Default Visible Layer": [{ name: "f", alias: "F" }],
   });
 });
 
@@ -3334,6 +3738,136 @@ test("saveLayerJSON geojson", async () => {
 
   expect(response.success).toBe(true);
   expect(response.filename).toBe("some_file.json");
+});
+
+// ---------------------------------------------------------------------------
+// normalizeLayersParam — single source of truth for parsing
+// ESRI Image and Map Service `params.LAYERS` values across the frontend.
+// Plan: docs/plans/2026-05-05-001-fix-esri-layers-directive-parsing-plan.md
+// ---------------------------------------------------------------------------
+
+const NULL_RESULT = { directive: null, ids: null };
+
+// Happy paths — bare ID lists (implicit-show) and recognized directives.
+
+test("normalizeLayersParam bare single ID returns implicit show", () => {
+  expect(normalizeLayersParam("0")).toEqual({ directive: "show", ids: ["0"] });
+});
+
+test("normalizeLayersParam bare comma-separated IDs returns implicit show", () => {
+  expect(normalizeLayersParam("0,1,2")).toEqual({
+    directive: "show",
+    ids: ["0", "1", "2"],
+  });
+});
+
+test("normalizeLayersParam show: prefix preserves directive", () => {
+  expect(normalizeLayersParam("show:0")).toEqual({
+    directive: "show",
+    ids: ["0"],
+  });
+});
+
+test("normalizeLayersParam hide: prefix preserves directive", () => {
+  expect(normalizeLayersParam("hide:1,2")).toEqual({
+    directive: "hide",
+    ids: ["1", "2"],
+  });
+});
+
+test("normalizeLayersParam include: prefix preserves directive", () => {
+  expect(normalizeLayersParam("include:0")).toEqual({
+    directive: "include",
+    ids: ["0"],
+  });
+});
+
+test("normalizeLayersParam exclude: prefix preserves directive", () => {
+  expect(normalizeLayersParam("exclude:1")).toEqual({
+    directive: "exclude",
+    ids: ["1"],
+  });
+});
+
+// Edge cases — empty / null / whitespace.
+
+test("normalizeLayersParam null input returns null result", () => {
+  expect(normalizeLayersParam(null)).toEqual(NULL_RESULT);
+});
+
+test("normalizeLayersParam undefined input returns null result", () => {
+  expect(normalizeLayersParam(undefined)).toEqual(NULL_RESULT);
+});
+
+test("normalizeLayersParam empty string returns null result", () => {
+  expect(normalizeLayersParam("")).toEqual(NULL_RESULT);
+});
+
+test("normalizeLayersParam whitespace-only string returns null result", () => {
+  expect(normalizeLayersParam("   ")).toEqual(NULL_RESULT);
+});
+
+test("normalizeLayersParam non-string input returns null result", () => {
+  expect(normalizeLayersParam(0)).toEqual(NULL_RESULT);
+  expect(normalizeLayersParam([])).toEqual(NULL_RESULT);
+  expect(normalizeLayersParam({})).toEqual(NULL_RESULT);
+});
+
+// Edge cases — unrecognized prefixes (callers fall through to defaultVisibility).
+
+test("normalizeLayersParam unrecognized prefix returns null result", () => {
+  expect(normalizeLayersParam("abc:0")).toEqual(NULL_RESULT);
+});
+
+test("normalizeLayersParam WMS workspace:layer shape returns null result (no crash)", () => {
+  // WMS values may land here by user error in the manual UI source-params field.
+  // Helper must not crash and must not coerce to a false `show` interpretation.
+  expect(normalizeLayersParam("topp:states")).toEqual(NULL_RESULT);
+});
+
+// Edge cases — directive-name-without-IDs (no usable IDs to act on).
+
+test("normalizeLayersParam bare directive name returns null result", () => {
+  expect(normalizeLayersParam("show")).toEqual(NULL_RESULT);
+  expect(normalizeLayersParam("hide")).toEqual(NULL_RESULT);
+});
+
+test("normalizeLayersParam directive-with-empty-ids returns null result", () => {
+  expect(normalizeLayersParam("show:")).toEqual(NULL_RESULT);
+  expect(normalizeLayersParam("hide:   ")).toEqual(NULL_RESULT);
+});
+
+// Whitespace tolerance — trim outer + per-ID whitespace.
+
+test("normalizeLayersParam trims outer whitespace", () => {
+  expect(normalizeLayersParam("  show:0  ")).toEqual({
+    directive: "show",
+    ids: ["0"],
+  });
+});
+
+test("normalizeLayersParam trims whitespace around comma-split IDs", () => {
+  expect(normalizeLayersParam("show: 0 , 1 ")).toEqual({
+    directive: "show",
+    ids: ["0", "1"],
+  });
+});
+
+// Edge cases — malformed lists (do not silently coerce).
+
+test("normalizeLayersParam empty position in list returns null result", () => {
+  // "0,,1" is malformed — we don't guess the intended IDs.
+  expect(normalizeLayersParam("0,,1")).toEqual(NULL_RESULT);
+});
+
+test("normalizeLayersParam trailing comma returns null result", () => {
+  expect(normalizeLayersParam("show:0,")).toEqual(NULL_RESULT);
+});
+
+test("normalizeLayersParam nested colon in IDs returns null result", () => {
+  // Defends against malformed input like "show:0:1" that a downstream caller
+  // would otherwise have to re-parse.
+  expect(normalizeLayersParam("show:0:1")).toEqual(NULL_RESULT);
 });
 
 function makeVectorLayerWithFeatures(initialFeatureCount = 0) {

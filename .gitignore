@@ -25,5 +25,18 @@ docs/brainstorms/
 docs/plans/
 
 
+reactapp/generated/clientPluginRegistry.json
+reactapp/generated/clientPluginImports.js
+
 tethysapp/tethysdash/public/images/plugins/*
 tethysapp/tethysdash/public/data/plugins/*
+
+playwright-report/
+test-results/
+
+# Disposable venv used by the test-* skills (.claude/skills/test-*).
+# Cache key: .venv-test/.pyproject-hash.
+.venv-test/
+# Local code-review artifacts from compound-engineering ce:review
+.context/
+reactapp/generated/runtimePluginRegistry.json

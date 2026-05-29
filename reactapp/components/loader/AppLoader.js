@@ -25,7 +25,9 @@ import {
 } from "components/dashboard/DashboardItem";
 import IdleTimerManager from "components/loader/IdleTimerManager";
 import WebsocketProvider from "components/contexts/WebSocketContext";
+import { ChatSidebarProvider } from "components/contexts/ChatSidebarContext";
 import { v4 as uuidv4 } from "uuid";
+import { getPlugins } from "services/pluginRegistry";
 
 const APP_ID = process.env.TETHYS_APP_ID;
 const LOADER_DELAY = process.env.TETHYS_LOADER_DELAY;
@@ -101,6 +103,7 @@ function Loader({ children }) {
       let dynamicMapLayers = [];
       let visualizationArgs = [];
       let userAppPermissions = [];
+      let pluginEditablePaths = {};
 
       try {
         tethysSession = await tethysAPI.getSession();
@@ -128,6 +131,16 @@ function Loader({ children }) {
             appAPI.listVisualizations(),
             appAPI.getUserAppPermissions(),
           ]);
+          try {
+            pluginEditablePaths = (
+              await appAPI.getPluginEditablePaths()
+            ).editable_paths_by_source || {};
+          } catch (e) {
+            // Non-fatal: chatbox still works, plugin paths just aren't
+            // surfaced in the LLM system prompt on this load. Fail-open on
+            // the guidance layer; server-side validation is unchanged.
+            pluginEditablePaths = {};
+          }
         } else {
           [tethysApp, dashboards, visualizations] = await Promise.all([
             tethysAPI.getAppData(APP_ID),
@@ -272,14 +285,67 @@ function Loader({ children }) {
             description:
               "A live chart box that allows users to send and receive messages with other users.",
           },
+          {
+            // `source` and `value` keep the legacy "Client Custom" key so
+            // persisted GridItems and the utilities.js / VisualizationSelector
+            // routing continue to resolve. `label` is display-only and was
+            // renamed when the build-time client_custom path was removed.
+            source: "Client Custom",
+            value: "Client Custom",
+            label: "Runtime Plugin",
+            type: "client_custom_remote",
+            args: {
+              url: "text",
+              scope: "text",
+              module: "text",
+              remoteType: ["webpack", "vite-esm"],
+            },
+            tags: ["custom", "remote", "microfrontend"],
+            description:
+              "Load a custom React component from a remote Module Federation URL. Requires a remoteEntry.js URL, scope, and module name.",
+          },
         ],
       });
+
+      // Merge runtime-registered plugins (from localStorage)
+      const runtimePlugins = getPlugins();
+      for (const plugin of runtimePlugins) {
+        const entry = {
+          source: plugin.label,
+          value: plugin.label,
+          label: plugin.label,
+          type: plugin.type || "client_custom_remote",
+          tags: plugin.tags ?? [],
+          description: plugin.description ?? "",
+          args: plugin.args || {},
+          module: plugin.module,
+          scope: plugin.scope,
+          url: plugin.url,
+          remoteType: plugin.remoteType,
+          runtimePluginId: plugin.id,
+        };
+        const existingGroup = allVisualizations.find(
+          (g) => g.label === (plugin.group || "Custom"),
+        );
+        if (existingGroup) {
+          const key = `${plugin.scope}/${plugin.module}`;
+          if (!existingGroup.options.some((o) => `${o.scope}/${o.module}` === key)) {
+            existingGroup.options.push(entry);
+          }
+        } else {
+          allVisualizations.push({
+            label: plugin.group || "Custom",
+            options: [entry],
+          });
+        }
+      }
 
       tethysApp.customSettings = {
         support_email: contactUsEmail,
         support_github: contactUsGitHub,
         ...(dashboards.support_info || {}),
       };
+      tethysApp.chatboxConfig = dashboards.chatbox_config || null;
 
       setAppContext({
         tethysApp,
@@ -297,6 +363,10 @@ function Loader({ children }) {
         dynamicMapLayers,
         visualizationArgs,
         userAppPermissions: userAppPermissions.permissions,
+        // Server-authoritative LLM-editable-path whitelist for every
+        // registered plugin source. Consumed by ChatSidebar to thread
+        // plugin whitelists into the chatbox's system-prompt injection.
+        pluginEditablePaths,
       });
       setPermissionGroups(dashboards.permission_groups);
       setAvailableDashboards(dashboards.dashboards);
@@ -547,12 +617,14 @@ function Loader({ children }) {
           <AvailableDashboardsContext.Provider
             value={availableDashboardsContextValue}
           >
-            <AppTourContextProvider>
-              <WebsocketProvider>
-                {children}
-                <IdleTimerManager />
-              </WebsocketProvider>
-            </AppTourContextProvider>
+            <ChatSidebarProvider>
+              <AppTourContextProvider>
+                <WebsocketProvider>
+                  {children}
+                  <IdleTimerManager />
+                </WebsocketProvider>
+              </AppTourContextProvider>
+            </ChatSidebarProvider>
           </AvailableDashboardsContext.Provider>
         </PermissionGroupContext.Provider>
       </AppContext.Provider>

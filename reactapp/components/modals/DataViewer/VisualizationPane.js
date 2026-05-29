@@ -13,6 +13,7 @@ import DataInput from "components/inputs/DataInput";
 import {
   getVisualization,
   findSelectOptionByValue,
+  findUnresolvedFeatureTokens,
 } from "components/visualizations/utilities";
 import {
   AppContext,
@@ -345,6 +346,31 @@ function VisualizationPane({
       });
       itemData.args = updatedGridItemArgs;
       itemData.requestId = requestId;
+
+      // Edit-time gate (parity with Base.js): when args reference
+      // `${feature.<key>}` and no feature is in scope (e.g., opening the
+      // Edit Visualization modal on a popup gridItem before a feature is
+      // clicked), the host substitution preserves the raw token. Calling
+      // the plugin with a literal "${feature.comid}" would error out and
+      // render "Failed to retrieve data" in the preview pane — a confusing
+      // UX for what is actually awaiting runtime state. Short-circuit to
+      // the same featurePending state Base.js uses so the preview shows
+      // the friendly "Awaiting feature selection" placeholder.
+      const pendingFeatureTokens = findUnresolvedFeatureTokens(
+        updatedGridItemArgs,
+      );
+      if (pendingFeatureTokens.length > 0) {
+        setVizType("featurePending");
+        setVizData({
+          // Base.js's featurePending shell renders a hint like
+          // "Custom Image renders when a feature is clicked..." — pass
+          // the source NAME (display label), not the source TYPE.
+          source: selectedVizTypeOption["source"],
+          pendingTokens: pendingFeatureTokens,
+        });
+        return;
+      }
+
       await getVisualization({
         setVizType,
         setVizData,

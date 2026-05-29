@@ -84,9 +84,11 @@ const VisualizationCard = ({
   tags,
   attribution,
   onClick,
+  onRemove,
 }) => {
   const cardRef = useRef();
   const [showPopover, setShowPopover] = useState(false);
+  const [imgFailed, setImgFailed] = useState(false);
 
   const prefixUrlSegment = (process.env.TETHYS_PREFIX_URL || "").replace(
     /(^\/+|\/+?$)/g,
@@ -109,14 +111,45 @@ const VisualizationCard = ({
           <CardTitleDiv className="card-header-title">
             <CardTitle>{label}</CardTitle>
           </CardTitleDiv>
+          {onRemove && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove();
+              }}
+              style={{
+                background: "none",
+                border: "none",
+                color: "#dc3545",
+                cursor: "pointer",
+                fontSize: "0.9rem",
+                padding: "0 4px",
+                lineHeight: 1,
+                flexShrink: 0,
+              }}
+              aria-label={`Remove ${label}`}
+            >
+              ×
+            </button>
+          )}
         </CardHeader>
         <CardBody>
           <ImageWrapper>
-            <CardImage
-              variant="top"
-              src={`${pluginsImageBasePath}${source}.png`}
-              aria-label="Dashboard Card Image"
-            />
+            {imgFailed ? (
+              <svg width="80" height="80" viewBox="0 0 80 80" fill="none" aria-label="Custom plugin placeholder">
+                <rect width="80" height="80" rx="8" fill="#e9ecef" />
+                <path d="M28 52V28h24v24H28z" stroke="#adb5bd" strokeWidth="2" fill="none" />
+                <path d="M32 48l6-8 4 5 6-10 8 13H32z" fill="#adb5bd" />
+                <circle cx="36" cy="36" r="3" fill="#adb5bd" />
+              </svg>
+            ) : (
+              <CardImage
+                variant="top"
+                src={`${pluginsImageBasePath}${source}.png`}
+                aria-label="Dashboard Card Image"
+                onError={() => setImgFailed(true)}
+              />
+            )}
           </ImageWrapper>
         </CardBody>
       </CustomCard>
@@ -169,6 +202,7 @@ VisualizationCard.propTypes = {
   attribution: PropTypes.string,
   tags: PropTypes.arrayOf(PropTypes.string),
   onClick: PropTypes.func,
+  onRemove: PropTypes.func,
 };
 
 export default memo(VisualizationCard);

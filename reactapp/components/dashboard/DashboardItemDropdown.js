@@ -30,6 +30,13 @@ const Submenu = styled.div`
   padding: 5px 0;
 `;
 
+// Plan 2026-05-28-002 Unit 7 — when isStreaming is true, edit/delete/order
+// menu items render in a disabled state with a consistent tooltip. Copy /
+// Export are NOT gated — they don't mutate tile config so they can't race
+// the LLM's patch_visualization. Handlers are also gated upstream in
+// DashboardItem (defense in depth: visual + behavior).
+const STREAMING_DISABLED_TITLE = "Editing disabled while dashboard is updating";
+
 const DashboardItemDropdown = ({
   gridItemIndex,
   deleteGridItem,
@@ -40,6 +47,7 @@ const DashboardItemDropdown = ({
   bringGridItemForward,
   sendGridItemtoBack,
   sendGridItembackward,
+  isStreaming = false,
 }) => {
   const { unrestrictedPlacement } = useContext(LayoutContext);
   const { getActiveTab } = useContext(TabContext);
@@ -92,6 +100,8 @@ const DashboardItemDropdown = ({
         <Dropdown.Item
           onClick={editGridItem}
           className="dashboard-item-dropdown-edit-visualization"
+          disabled={isStreaming}
+          title={isStreaming ? STREAMING_DISABLED_TITLE : undefined}
         >
           Edit
         </Dropdown.Item>
@@ -126,25 +136,29 @@ const DashboardItemDropdown = ({
             >
               <Dropdown.Item
                 onClick={bringGridItemtoFront}
-                disabled={gridItemIndex === gridItems.length - 1}
+                disabled={isStreaming || gridItemIndex === gridItems.length - 1}
+                title={isStreaming ? STREAMING_DISABLED_TITLE : undefined}
               >
                 Bring to Front
               </Dropdown.Item>
               <Dropdown.Item
                 onClick={bringGridItemForward}
-                disabled={gridItemIndex === gridItems.length - 1}
+                disabled={isStreaming || gridItemIndex === gridItems.length - 1}
+                title={isStreaming ? STREAMING_DISABLED_TITLE : undefined}
               >
                 Bring Forward
               </Dropdown.Item>
               <Dropdown.Item
                 onClick={sendGridItembackward}
-                disabled={gridItemIndex === 0}
+                disabled={isStreaming || gridItemIndex === 0}
+                title={isStreaming ? STREAMING_DISABLED_TITLE : undefined}
               >
                 Send Backward
               </Dropdown.Item>
               <Dropdown.Item
                 onClick={sendGridItemtoBack}
-                disabled={gridItemIndex === 0}
+                disabled={isStreaming || gridItemIndex === 0}
+                title={isStreaming ? STREAMING_DISABLED_TITLE : undefined}
               >
                 Send to Back
               </Dropdown.Item>
@@ -160,6 +174,8 @@ const DashboardItemDropdown = ({
         <Dropdown.Item
           onClick={deleteGridItem}
           className="dashboard-item-dropdown-delete"
+          disabled={isStreaming}
+          title={isStreaming ? STREAMING_DISABLED_TITLE : undefined}
         >
           Delete
         </Dropdown.Item>
@@ -179,6 +195,7 @@ DashboardItemDropdown.propTypes = {
   bringGridItemForward: PropTypes.func,
   sendGridItemtoBack: PropTypes.func,
   sendGridItembackward: PropTypes.func,
+  isStreaming: PropTypes.bool,
 };
 
 export default DashboardItemDropdown;

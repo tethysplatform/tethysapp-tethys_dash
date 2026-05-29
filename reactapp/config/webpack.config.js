@@ -112,16 +112,40 @@ module.exports = (env, argv) => {
         },
       ],
     },
+    ignoreWarnings: [
+      // @huggingface/transformers v4.1.0–4.2.0 (latest) emits
+      // `Object(import.meta).url` at transformers.web.js:89, which webpack's
+      // ESM parser rejects — only property access or destructuring of
+      // `import.meta` is statically analyzable. The offending line is guarded
+      // by `if (RUNNING_LOCALLY)` (Node-only), so it is unreachable in the
+      // browser bundle. Remove this entry if upstream fixes the pattern.
+      {
+        module: /@huggingface\/transformers\/dist\/transformers\.web\.js/,
+        message: /Critical dependency: Accessing import\.meta directly/,
+      },
+    ],
     optimization: {
       minimize: true,
     },
     devServer: {
-      proxy: {
-        "!/static/tethysdash/frontend/**": {
-          target: "http://localhost:8000", // points to django dev server
+      // Proxy everything to Tethys on :8000 except what the dev server holds
+      // in memory: the unhashed entry bundle and webpack HMR chunks. Hashed
+      // names from a committed public/frontend/manifest.json (which Tethys's
+      // controller reads via _get_main_bundle_path) DO get proxied, so Tethys
+      // serves them from disk instead of dev-server 404'ing on a name it
+      // never built.
+      proxy: [
+        {
+          context: [
+            "**",
+            "!/static/tethysdash/frontend/main.js",
+            "!/static/tethysdash/frontend/main.js.map",
+            "!**/*.hot-update.*",
+          ],
+          target: "http://localhost:8000",
           changeOrigin: true,
         },
-      },
+      ],
       open: true,
     },
   };

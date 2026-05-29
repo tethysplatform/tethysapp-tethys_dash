@@ -35,7 +35,10 @@ jest.mock("components/map/ModuleLoader", () => {
 });
 
 // eslint-disable-next-line
-import MapVisualization, { Popup } from "components/visualizations/Map";
+import MapVisualization, {
+  Popup,
+  deriveGeoTIFFRenderConfig,
+} from "components/visualizations/Map";
 // eslint-disable-next-line
 import { createJsonStyleFunction } from "components/map/ModuleLoader";
 
@@ -656,6 +659,162 @@ test("Map GeoTIFF with default legend emits a ramp colorbar from sourceProps met
   // Layer name is used as the legend title for the colorbar entry
   // (line 357: `title: layer.configuration?.props?.name`).
   expect(screen.getByText("Ramp Raster Layer")).toBeInTheDocument();
+});
+
+// Renderer-side derivation of OL `style.color` for GeoTIFF layers persisted
+// via MCP (which only carries rampName/rampMin/rampMax). Modal-saved layers
+// persist `style.color` explicitly and take precedence. The synthesis is
+// exercised through the pure `deriveGeoTIFFRenderConfig` helper — `Map.js`'s
+// auto-legend block is a single call site, and the helper's behavior is the
+// load-bearing piece. Renderer-level integration is covered by the existing
+// GeoTIFF auto-legend test above.
+
+const buildGeoTIFFConfig = ({ sources, style } = {}) => ({
+  type: "WebGLTile",
+  props: {
+    name: "Ramp Raster Layer",
+    source: {
+      type: "GeoTIFF",
+      props: {
+        sources: sources ?? [{ url: "https://example.com/ramp.tif" }],
+      },
+      rampName: "viridis",
+      rampMin: "0",
+      rampMax: "100",
+    },
+  },
+  ...(style !== undefined ? { style } : {}),
+});
+
+describe("deriveGeoTIFFRenderConfig", () => {
+  test("#1 synthesizes interpolate style.color when layer has no explicit style", () => {
+    const layerConfiguration = buildGeoTIFFConfig();
+    const result = deriveGeoTIFFRenderConfig({
+      layerConfiguration,
+      rampSource: layerConfiguration.props.source,
+    });
+
+    expect(result.style?.color).toBeDefined();
+    expect(result.style.color[0]).toBe("interpolate");
+    expect(result.style.color[1]).toEqual(["linear"]);
+    expect(result.style.color[2]).toEqual(["band", 1]);
+    // First stop value === rampMin (0), last stop value === rampMax (100).
+    expect(result.style.color[3]).toBe(0);
+    expect(result.style.color[result.style.color.length - 2]).toBe(100);
+    // Stop hex values match the viridis ramp shape.
+    expect(result.style.color[result.style.color.length - 1]).toMatch(
+      /^#[0-9a-f]{6}$/i,
+    );
+  });
+
+  test("#2 explicit style.color is preserved (precedence over synthesis)", () => {
+    const explicitColor = [
+      "interpolate",
+      ["linear"],
+      ["band", 1],
+      0,
+      "#000000",
+      100,
+      "#ffffff",
+    ];
+    const layerConfiguration = buildGeoTIFFConfig({
+      style: { color: explicitColor },
+    });
+    const result = deriveGeoTIFFRenderConfig({
+      layerConfiguration,
+      rampSource: layerConfiguration.props.source,
+    });
+
+    // Explicit value preserved verbatim — synthesis must not overwrite.
+    expect(result).toBe(layerConfiguration);
+    expect(result.style.color).toEqual(explicitColor);
+  });
+
+  test("#3 hasNodata wraps interpolate in a `case` expression", () => {
+    const layerConfiguration = buildGeoTIFFConfig({
+      sources: [{ url: "https://example.com/ramp.tif", nodata: -9999 }],
+    });
+    const result = deriveGeoTIFFRenderConfig({
+      layerConfiguration,
+      rampSource: layerConfiguration.props.source,
+    });
+
+    expect(result.style.color[0]).toBe("case");
+    expect(result.style.color[3][0]).toBe("interpolate");
+  });
+
+  test("#4 nodata empty string is treated as absent", () => {
+    const layerConfiguration = buildGeoTIFFConfig({
+      sources: [{ url: "https://example.com/ramp.tif", nodata: "" }],
+    });
+    const result = deriveGeoTIFFRenderConfig({
+      layerConfiguration,
+      rampSource: layerConfiguration.props.source,
+    });
+
+    expect(result.style.color[0]).toBe("interpolate");
+  });
+
+  test("#5 missing sources array still synthesizes (hasNodata=false)", () => {
+    const layerConfiguration = {
+      type: "WebGLTile",
+      props: {
+        name: "Ramp Raster Layer",
+        source: {
+          type: "GeoTIFF",
+          props: {},
+          rampName: "viridis",
+          rampMin: "0",
+          rampMax: "100",
+        },
+      },
+    };
+    const result = deriveGeoTIFFRenderConfig({
+      layerConfiguration,
+      rampSource: layerConfiguration.props.source,
+    });
+
+    expect(result.style.color[0]).toBe("interpolate");
+  });
+
+  test("#6 upstream layerConfiguration is not mutated by synthesis", () => {
+    const layerConfiguration = buildGeoTIFFConfig();
+    Object.freeze(layerConfiguration);
+    Object.freeze(layerConfiguration.props);
+    Object.freeze(layerConfiguration.props.source);
+
+    // Synthesis must shallow-clone — frozen object writes would throw.
+    expect(() =>
+      deriveGeoTIFFRenderConfig({
+        layerConfiguration,
+        rampSource: layerConfiguration.props.source,
+      }),
+    ).not.toThrow();
+
+    // Original has no `style` key — derivation lives only on the returned
+    // shallow-cloned config.
+    expect(layerConfiguration.style).toBeUndefined();
+  });
+
+  test("#7 synthesis throw falls through to original configuration", () => {
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    const layerConfiguration = buildGeoTIFFConfig();
+    // Force buildGeoTIFFStyleColor to throw with non-finite rampMin while
+    // still satisfying the outer auto-legend guard (rampMin !== undefined).
+    layerConfiguration.props.source.rampMin = "not-a-number";
+
+    const result = deriveGeoTIFFRenderConfig({
+      layerConfiguration,
+      rampSource: layerConfiguration.props.source,
+    });
+
+    // Original config returned unchanged; warning logged.
+    expect(result).toBe(layerConfiguration);
+    expect(result.style).toBeUndefined();
+    expect(warnSpy).toHaveBeenCalled();
+
+    warnSpy.mockRestore();
+  });
 });
 
 test("Map ESRI with default legend", async () => {
@@ -1674,6 +1833,68 @@ test("Map click attribute variables match field name and alias", async () => {
   expect(await screen.findByText("value1")).toBeInTheDocument();
   expect(await screen.findByText("field3")).toBeInTheDocument();
   expect(await screen.findByText("value3")).toBeInTheDocument();
+});
+
+test("Map click attribute variables fall back to configured PMTiles layer name", async () => {
+  mockedQueryLayerFeatures.mockResolvedValue([
+    {
+      attributes: { id: "building-123" },
+      geometry: { x: 10, y: 10 },
+      layerName: "buildings",
+      configuredLayerName: "Vector Tiles Test",
+    },
+  ]);
+  jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+  const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
+
+  const layers = [
+    {
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "Vector Tiles Test",
+          source: {
+            type: "ESRI Image and Map Service",
+            props: { url: "some_url" },
+          },
+        },
+      },
+      attributeVariables: {
+        "Vector Tiles Test": { id: "selected_building_id" },
+      },
+    },
+  ];
+  const clickCoordinates = [10, 20];
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent
+          onMapClick={jest.fn()}
+          clickCoordinates={clickCoordinates}
+          mapProps={{
+            mapConfig: {},
+            viewConfig: {},
+            layers,
+            baseMap: null,
+            layerControl: false,
+          }}
+        />
+      </MapContextProvider>
+    ),
+  });
+  render(LoadedComponent);
+
+  expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  await waitFor(() => {
+    expect(popSetPosition).toHaveBeenCalledWith(clickCoordinates);
+  });
+
+  await waitFor(async () => {
+    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({ selected_building_id: "building-123" }),
+    );
+  });
 });
 
 test("Map click query error", async () => {

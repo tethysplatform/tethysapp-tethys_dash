@@ -31,7 +31,11 @@ dependencies = [
     "psycopg2-binary==2.9.11",
     "geoalchemy2==0.18.4",
     "tethys-platform>=4.5.0",
-    "python-dateutil"
+    "pydantic",
+    "python-dateutil",
+    "pytz",
+    "jsonpatch==1.33",
+    "fastmcp",
 ]
 classifiers = [
      "Environment :: Web Environment",

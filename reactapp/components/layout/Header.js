@@ -36,8 +36,10 @@ import {
   BsPencilSquare,
   BsFillPersonFill,
   BsUpload,
+  BsChatDots,
 } from "react-icons/bs";
 import { HiUserGroup } from "react-icons/hi";
+import { ChatSidebarContext } from "components/contexts/ChatSidebarContext";
 import { CiUndo } from "react-icons/ci";
 import { FaPlus } from "react-icons/fa6";
 import { FaExpandArrowsAlt, FaLock, FaUnlock } from "react-icons/fa";
@@ -280,7 +282,9 @@ export const DashboardHeader = () => {
     "dontShowDashboardInfoOnStart"
   );
   const [showInfoModal, setShowInfoModal] = useState(false);
-  const { user } = useContext(AppContext);
+  const { user, tethysApp } = useContext(AppContext);
+  const { isOpen: chatSidebarOpen, toggle: toggleChatSidebar } =
+    useContext(ChatSidebarContext) ?? {};
   const { name, editable, saveLayoutContext, unrestrictedPlacement } =
     useContext(LayoutContext);
   const { tabs, updateTab, importTabs, resetTabs, getActiveTab } =
@@ -583,6 +587,21 @@ export const DashboardHeader = () => {
                 disabled={isSaving}
               >
                 <BsFillPersonFill size="1.5rem" />
+              </TooltipButton>
+            )}
+            {/* R11: chatbox toggle is only visible to editors/admins. The
+                sidebar itself also gates on `editable` defensively; this
+                hides the affordance so viewers don't see a button that
+                opens an empty region. */}
+            {editable && (
+              <TooltipButton
+                onClick={toggleChatSidebar}
+                tooltipPlacement="bottom"
+                tooltipText={chatSidebarOpen ? "Close Chat" : "Open Chat"}
+                aria-label="chatSidebarToggle"
+                disabled={isSaving}
+              >
+                <BsChatDots size="1.5rem" />
               </TooltipButton>
             )}
             <TooltipButton

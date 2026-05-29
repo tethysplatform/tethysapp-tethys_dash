@@ -533,22 +533,14 @@ def add_new_dashboard(
                         tab_id=default_tab.id,
                     )
                     grid_item_i += 1
-            else:
-                add_new_grid_item(
-                    session,
-                    new_dashboard_id,
-                    str(grid_item_i),
-                    0,
-                    0,
-                    20,
-                    20,
-                    "",
-                    "{}",
-                    "{}",
-                    0,
-                    str(uuid4()),
-                    tab_id=default_tab.id,
-                )
+            # Fresh dashboards with no grid_items are left truly empty.
+            # The previous else branch inserted a placeholder GridItem with
+            # source="", args_string="{}", x=0, y=0 to make the default tab
+            # non-empty for the legacy "+" button workflow — but it persists
+            # forever as a phantom top-left tile that the user can't easily
+            # distinguish from a real empty tile awaiting Edit. With the
+            # chatbox + manual "+" button both able to create the first
+            # tile on demand, no placeholder is needed. Debug 2026-05-18.
 
         # Commit the session and close the connection
         session.commit()
@@ -2138,6 +2130,11 @@ def init_primary_db(engine, first_time, clean=True):
     Args:
         engine: SQLAlchemy database engine
         first_time (bool): Whether this is the first time setup
+        clean (bool): When True (default), run cleanup_old_jsons after the
+            schema is up to date. Automatically skipped when first_time is
+            True because a brand-new DB has no legacy JSON/GeoJSON layout
+            to migrate, and the cleanup depends on a primed SingletonHarvester
+            that bare-Django syncstores invocations do not populate.
 
     Raises:
         ProgrammingError: If migration fails due to schema conflicts
@@ -2180,5 +2177,5 @@ def init_primary_db(engine, first_time, clean=True):
                 else:
                     raise  # Unknown error — don't skip
 
-    if clean:
+    if clean and not first_time:
         cleanup_old_jsons()

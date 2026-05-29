@@ -25,6 +25,8 @@ import { format } from "date-fns";
 const Plotly = require("plotly.js-strict-dist-min");
 const Plot = createPlotlyComponent(Plotly);
 
+// Stable empty object — prevents useEffect re-render loop when metadata
+// has no plotlyVerticalLine (destructuring default {} creates new ref each render).
 const EMPTY_VERTICAL_LINE = Object.freeze({});
 
 const StyledPlot = styled(Plot)`
@@ -361,7 +363,7 @@ const BasePlot = ({
     VariableInputsContext,
   );
   const { inDataViewerMode } = useContext(DataViewerModeContext);
-  const plotlyVerticalLine = metadata.plotlyVerticalLine || EMPTY_VERTICAL_LINE;
+  const { plotlyVerticalLine = EMPTY_VERTICAL_LINE } = metadata;
   const {
     step: verticalLineStep,
     mode: verticalLineMode,

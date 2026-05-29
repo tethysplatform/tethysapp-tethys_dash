@@ -1,10 +1,17 @@
-.tab-content {
+/*
+  Scoped to .dataviewer (the className on the Modal in DataViewer.js) so
+  these overrides don't leak to other react-bootstrap Tabs in the app —
+  e.g., the dashboard tabs in DashboardTabs.js, where applying overflow:auto
+  to .tab-pane produced a second vertical scrollbar alongside the
+  dashboard column wrapper's own scrollbar.
+*/
+.dataviewer .tab-content {
   flex-grow: 1;
   overflow: auto;
   height: 100%;
 }
 
-.tab-pane {
+.dataviewer .tab-pane {
   height: 100%;
   overflow: auto;
 }

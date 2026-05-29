@@ -1,5 +1,6 @@
 import pytest
 import json
+import requests as http_requests
 from django.urls import reverse
 from tethysapp.tethysdash.model import Dashboard, Message
 from unittest.mock import MagicMock
@@ -212,6 +213,84 @@ def test_visualizations(
     mock_gav.assert_called_once()
     assert response.status_code == 200
     assert response.json() == mock_gav_return
+
+
+@pytest.mark.django_db
+def test_plugin_editable_paths_includes_intake_plugin(
+    client, admin_user, mock_app, mocker
+):
+    """Intake plugin sources surface through the resolver into the endpoint."""
+    from types import SimpleNamespace
+
+    mock_app("tethysapp.tethysdash.controllers.App")
+    url = reverse("tethysdash:plugin_editable_paths")
+    client.force_login(admin_user)
+
+    fake_plugin = SimpleNamespace(args={"start_date": "text", "station_id": "text"})
+    mocker.patch(
+        "tethysapp.tethysdash.editable_schemas_plugin.intake.source.registry",
+        {"my_streamflow": fake_plugin},
+    )
+
+    response = client.get(url)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert "editable_paths_by_source" in body
+    assert "my_streamflow" in body["editable_paths_by_source"]
+    assert sorted(body["editable_paths_by_source"]["my_streamflow"]) == sorted(
+        ["/args/start_date", "/args/station_id"]
+    )
+
+
+@pytest.mark.django_db
+def test_plugin_editable_paths_empty_registry_returns_empty_map(
+    client, admin_user, mock_app, mocker
+):
+    """No Intake plugins -> empty map (not null, not missing)."""
+    mock_app("tethysapp.tethysdash.controllers.App")
+    url = reverse("tethysdash:plugin_editable_paths")
+    client.force_login(admin_user)
+
+    mocker.patch(
+        "tethysapp.tethysdash.editable_schemas_plugin.intake.source.registry",
+        {},
+    )
+
+    response = client.get(url)
+
+    assert response.status_code == 200
+    assert response.json() == {"editable_paths_by_source": {}}
+
+
+@pytest.mark.django_db
+def test_plugin_editable_paths_omits_empty_whitelists(
+    client, admin_user, mock_app, mocker
+):
+    """A plugin whose author declared all args non-editable is omitted."""
+    from types import SimpleNamespace
+
+    mock_app("tethysapp.tethysdash.controllers.App")
+    url = reverse("tethysdash:plugin_editable_paths")
+    client.force_login(admin_user)
+
+    # Author declared every registered arg in llm_non_editable_args — the
+    # resolver returns [] and the controller omits the entry so the client
+    # can treat presence as "patchable" without a length check.
+    fake_plugin = SimpleNamespace(
+        args={"api_key": "text", "service_url": "text"},
+        llm_non_editable_args=["api_key", "service_url"],
+    )
+    mocker.patch(
+        "tethysapp.tethysdash.editable_schemas_plugin.intake.source.registry",
+        {"locked_down_plugin": fake_plugin},
+    )
+
+    response = client.get(url)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert "locked_down_plugin" not in body["editable_paths_by_source"]
 
 
 @pytest.mark.django_db
@@ -600,7 +679,7 @@ def test_add_dashboard_failed_unknown_exception(
     assert response.json()["success"] is False
     assert (
         response.json()["message"]
-        == f"Failed to create the dashboard named {itemData["name"]}. Check server for logs."  # noqa: E501
+        == f"Failed to create the dashboard named {itemData['name']}. Check server for logs."  # noqa: E501
     )
 
 
@@ -734,7 +813,7 @@ def test_delete_dashboard_failed_unknown_exception(
     assert response.json()["success"] is False
     assert (
         response.json()["message"]
-        == f"Failed to delete the dashboard {itemData["id"]}. Check server for logs."  # noqa: E501
+        == f"Failed to delete the dashboard {itemData['id']}. Check server for logs."  # noqa: E501
     )
 
 
@@ -874,7 +953,7 @@ def test_update_dashboard_failed_unknown_exception(
     assert response.json()["success"] is False
     assert (
         response.json()["message"]
-        == f"Failed to update the dashboard {itemData["id"]}. Check server for logs."  # noqa: E501
+        == f"Failed to update the dashboard {itemData['id']}. Check server for logs."  # noqa: E501
     )
 
 
@@ -2490,3 +2569,232 @@ def test_update_visualization_permissions_error(client, admin_user, mock_app, mo
         response.json()["message"]
         == "Failed to update visualization permissions: failed to update visualization permissions"  # noqa: E501
     )
+
+
+# ---------------------------------------------------------------------------
+# Ollama proxy — diagnostic logging on unhandled exceptions.
+#
+# We're chasing intermittent 500s at /ollama-proxy/api/chat/ on long prompts
+# (tools + thinking history) with no traceback in the Django log because the
+# proxy previously caught only requests.ConnectionError and requests.Timeout.
+# The handler below logs the stack and re-raises so caller-visible behavior
+# (Django returns 500) is preserved while the next failure becomes
+# diagnosable from the log alone.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_ollama_proxy_logs_unexpected_exception(
+    client, admin_user, mock_app, mocker
+):
+    """ConnectionError/Timeout already had handlers. Other exceptions
+    used to vanish silently into Django's 500 path. After this change
+    the proxy logs a traceback at ERROR level before re-raising. We
+    patch the controller's logger directly because the project's
+    pytest setup has no LOGGING propagation contract pinned, and a
+    direct patch is the most robust way to assert the call was made.
+    """
+    mock_app("tethysapp.tethysdash.controllers.App")
+    client.force_login(admin_user)
+
+    # Simulate a non-Connection/Timeout failure. InvalidURL stands in
+    # for the whole class of "neither caught" exceptions
+    # (ChunkedEncodingError, RawPostDataException, etc.). NOTE: SSLError
+    # inherits from ConnectionError and would be swallowed by the
+    # existing handler, so it can't stand in for the unhandled case.
+    mock_post = mocker.patch(
+        "tethysapp.tethysdash.controllers.http_requests.post"
+    )
+    mock_post.side_effect = http_requests.exceptions.InvalidURL("bad url")
+
+    mock_logger = mocker.patch("tethysapp.tethysdash.controllers.logger")
+
+    url = "/apps/tethysdash/ollama-proxy/api/chat/"
+
+    # Django's test client surfaces unhandled view exceptions directly.
+    response = None
+    try:
+        response = client.post(url, data=json.dumps({"messages": []}),
+                               content_type="application/json")
+    except http_requests.exceptions.InvalidURL:
+        pass  # expected — the proxy re-raises after logging
+
+    # Diagnostic: confirm the view actually reached http_requests.post.
+    # If mock_post wasn't called, the test URL didn't resolve to our view
+    # (URL config or middleware short-circuit) and the test contract is
+    # broken before it can even check the logger.
+    assert mock_post.called, (
+        f"http_requests.post mock was never called — view didn't reach the "
+        f"proxy line. Response: {response!r} status={getattr(response, 'status_code', None)}"
+    )
+
+    # logger.exception(...) always attaches exc_info; that's what puts
+    # the traceback into the log. Guards against a regression to
+    # logger.error/info which would lose the stack.
+    assert mock_logger.exception.called, (
+        f"Expected logger.exception to be called; calls: {mock_logger.mock_calls}"
+    )
+    call_args = mock_logger.exception.call_args
+    assert "Ollama proxy unexpected error" in call_args[0][0]
+    assert "api/chat" in call_args[0][1]
+
+
+@pytest.mark.django_db
+def test_ollama_proxy_does_not_log_for_known_handled_exceptions(
+    client, admin_user, mock_app, mocker
+):
+    """ConnectionError and Timeout get user-friendly responses; they
+    are expected and must NOT trip the new diagnostic logger."""
+    mock_app("tethysapp.tethysdash.controllers.App")
+    client.force_login(admin_user)
+
+    mock_post = mocker.patch(
+        "tethysapp.tethysdash.controllers.http_requests.post"
+    )
+    mock_post.side_effect = http_requests.ConnectionError("refused")
+    mock_logger = mocker.patch("tethysapp.tethysdash.controllers.logger")
+
+    url = "/apps/tethysdash/ollama-proxy/api/chat/"
+
+    response = client.post(url, data=json.dumps({"messages": []}),
+                           content_type="application/json")
+
+    assert response.status_code == 502  # existing user-friendly handler
+    assert not mock_logger.exception.called, (
+        "ConnectionError must not trigger the unexpected-error logger; "
+        f"calls: {mock_logger.mock_calls}"
+    )
+
+
+@pytest.mark.django_db
+def test_ollama_v1_chat_completions_proxy_forwards_to_openai_compat_path(
+    client, admin_user, mock_app, mocker
+):
+    """The /ollama-proxy/v1/chat/completions/ route must forward upstream to
+    the OpenAI-compat endpoint, not /api/chat. This is the route that fixes
+    the tool_calls argument-shape dispute between Ollama versions: /api/chat
+    flipped from object-args (<=0.16.2) to string-args (>0.16.2) for tool
+    history, while /v1/chat/completions follows OpenAI spec stably.
+    """
+    mock_app("tethysapp.tethysdash.controllers.App")
+    client.force_login(admin_user)
+
+    mock_post = mocker.patch(
+        "tethysapp.tethysdash.controllers.http_requests.post"
+    )
+    mock_resp = mocker.MagicMock()
+    mock_resp.iter_content = lambda chunk_size: iter([b'{"id":"x"}\n'])
+    mock_resp.headers = {"Content-Type": "application/json"}
+    mock_resp.status_code = 200
+    mock_post.return_value = mock_resp
+
+    url = "/apps/tethysdash/ollama-proxy/v1/chat/completions/"
+    response = client.post(
+        url,
+        data=json.dumps({"messages": [{"role": "user", "content": "hi"}]}),
+        content_type="application/json",
+        HTTP_X_OLLAMA_HOST="http://localhost:11434",
+    )
+
+    assert response.status_code == 200
+    assert mock_post.called
+    call_url = mock_post.call_args[0][0]
+    assert call_url.endswith("/v1/chat/completions"), (
+        f"Expected forward path to end with /v1/chat/completions; got {call_url!r}"
+    )
+    # Confirm x-ollama-host routed correctly
+    assert call_url.startswith("http://localhost:11434"), (
+        f"Expected upstream host to be from X-Ollama-Host header; got {call_url!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Runtime plugin registry — anonymous read endpoint.
+#
+# /apps/tethysdash/runtime-plugins/list/ is a GET-only sibling of the
+# existing /runtime-plugins/sync/ endpoint, exposed without auth so the
+# standalone tethysdash MCP server (mcp/tethysdash_mcps/) can read the
+# registry over HTTP via TETHYSDASH_BASE_URL instead of via a shared
+# filesystem path. Writes stay gated through the sibling endpoint.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_runtime_plugins_list_anonymous_returns_registry(client, mock_app, mocker):
+    """GET /runtime-plugins/list/ is anonymous-accessible and returns the
+    current registry as a JSON array."""
+    mock_app("tethysapp.tethysdash.controllers.App")
+    fake_registry = [
+        {
+            "source": "Echo Runtime Plugin",
+            "url": "http://x/rp.js",
+            "scope": "rp",
+            "module": "./Echo",
+            "label": "Echo",
+        },
+    ]
+    mock_load = mocker.patch(
+        "tethysapp.tethysdash.controllers.load_runtime_plugin_registry",
+        return_value=fake_registry,
+    )
+
+    response = client.get("/apps/tethysdash/runtime-plugins/list/")
+
+    mock_load.assert_called_once()
+    assert response.status_code == 200
+    assert response.json() == fake_registry
+
+
+@pytest.mark.django_db
+def test_runtime_plugins_list_empty_registry_returns_empty_array(
+    client, mock_app, mocker
+):
+    """Empty registry returns 200 + []. Matches the loader's silent-recovery
+    posture for missing/malformed registry files."""
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mocker.patch(
+        "tethysapp.tethysdash.controllers.load_runtime_plugin_registry",
+        return_value=[],
+    )
+
+    response = client.get("/apps/tethysdash/runtime-plugins/list/")
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+@pytest.mark.django_db
+def test_runtime_plugins_list_non_get_methods_have_no_side_effects(
+    client, mock_app, mocker
+):
+    """Match the convention of other login_required=False read endpoints
+    (e.g., visualizations): non-GET methods return the same registry payload
+    with no side effects. Writes belong to the gated sibling endpoint at
+    /runtime-plugins/sync/, which has its own auth gate; this endpoint just
+    never writes."""
+    mock_app("tethysapp.tethysdash.controllers.App")
+    fake_registry = [{"source": "X", "url": "http://x", "scope": "x", "module": "./X"}]
+    mock_load = mocker.patch(
+        "tethysapp.tethysdash.controllers.load_runtime_plugin_registry",
+        return_value=fake_registry,
+    )
+    mock_save = mocker.patch(
+        "tethysapp.tethysdash.controllers.save_runtime_plugin_registry"
+    )
+
+    for method in ("post", "put", "delete"):
+        response = getattr(client, method)(
+            "/apps/tethysdash/runtime-plugins/list/"
+        )
+        # body matches the GET payload — body is pure-read
+        assert response.status_code == 200, (
+            f"{method.upper()} returned {response.status_code} — "
+            f"endpoint should treat all methods as a read"
+        )
+        assert response.json() == fake_registry
+
+    # No write ever happens on this endpoint regardless of method
+    mock_save.assert_not_called()
+    # load was called once per method
+    assert mock_load.call_count == 3
+

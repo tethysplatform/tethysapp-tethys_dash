@@ -2343,6 +2343,206 @@ test("handleGridItemImport bad style load", async () => {
   expect(response).toStrictEqual(apiResponse);
 });
 
+describe("Copy grid item UUID button", () => {
+  function renderWithGridItem({
+    inEditing = false,
+    gridItemOverrides = {},
+    fixtureOverrides = {},
+  } = {}) {
+    const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
+    Object.assign(mockedDashboard.tabs[0].gridItems[0], gridItemOverrides);
+    const gridItem = mockedDashboard.tabs[0].gridItems[0];
+
+    return render(
+      createLoadedComponent({
+        children: (
+          <>
+            <GridItemContext.Provider
+              value={{
+                gridItemSource: gridItem.source,
+                gridItemI: gridItem.i,
+                gridItemMetadataString: gridItem.metadata_string,
+                gridItemArgsString: gridItem.args_string,
+                gridItemIndex: 0,
+                gridItemUUID: gridItem.uuid,
+                ...fixtureOverrides,
+              }}
+            >
+              <DashboardItem />
+            </GridItemContext.Provider>
+            <EditingPComponent />
+          </>
+        ),
+        options: {
+          initialDashboard: mockedDashboard,
+          inEditing,
+        },
+      }),
+    );
+  }
+
+  function mockClipboard(impl = jest.fn().mockResolvedValue()) {
+    Object.defineProperty(window.navigator, "clipboard", {
+      value: { writeText: impl },
+      configurable: true,
+      writable: true,
+    });
+    return impl;
+  }
+
+  test("renders the copy button regardless of editing mode", async () => {
+    renderWithGridItem({ inEditing: false });
+    expect(
+      await screen.findByLabelText("Copy grid item UUID"),
+    ).toBeInTheDocument();
+    // Edit-mode dropdown is absent for viewers
+    expect(
+      screen.queryByLabelText("dashboard-item-dropdown-toggle"),
+    ).not.toBeInTheDocument();
+  });
+
+  test("copy button is rendered alongside the attribution icon when both apply", async () => {
+    const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
+    const gridItem = mockedDashboard.tabs[0].gridItems[0];
+    gridItem.source = "plugin_attr_source";
+    const availableVisualizations = [
+      {
+        label: "Other",
+        options: [
+          {
+            source: "plugin_attr_source",
+            value: "v",
+            label: "l",
+            args: {},
+            type: "text",
+            tags: [],
+            description: "",
+            loading_icon: true,
+            attribution: "Some attribution",
+          },
+        ],
+      },
+    ];
+
+    render(
+      createLoadedComponent({
+        children: (
+          <>
+            <GridItemContext.Provider
+              value={{
+                gridItemSource: gridItem.source,
+                gridItemI: gridItem.i,
+                gridItemMetadataString: gridItem.metadata_string,
+                gridItemArgsString: gridItem.args_string,
+                gridItemIndex: 0,
+                gridItemUUID: gridItem.uuid,
+              }}
+            >
+              <DashboardItem />
+            </GridItemContext.Provider>
+            <EditingPComponent />
+          </>
+        ),
+        options: {
+          initialDashboard: mockedDashboard,
+          visualizations: availableVisualizations,
+        },
+      }),
+    );
+
+    expect(
+      await screen.findByLabelText("Copy grid item UUID"),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByLabelText("attribution-info-icon"),
+    ).toBeInTheDocument();
+  });
+
+  test("click writes only the bare UUID to the clipboard and shows success toast", async () => {
+    const writeText = mockClipboard();
+    renderWithGridItem();
+
+    const copyBtn = await screen.findByLabelText("Copy grid item UUID");
+    await userEvent.click(copyBtn);
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    // Bare UUID only — no source, no position, no labels.
+    expect(writeText.mock.calls[0][0]).toBe("some-uuid-1");
+
+    expect(
+      await screen.findByText("UUID copied to clipboard"),
+    ).toBeInTheDocument();
+  });
+
+  test("clipboard payload is unaffected by grid-item position / size", async () => {
+    const writeText = mockClipboard();
+    renderWithGridItem({
+      gridItemOverrides: { x: 12, y: 8, w: 24, h: 45 },
+    });
+
+    await userEvent.click(await screen.findByLabelText("Copy grid item UUID"));
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    expect(writeText.mock.calls[0][0]).toBe("some-uuid-1");
+  });
+
+  test("warns and skips clipboard write when grid item index is out of range", async () => {
+    const writeText = mockClipboard();
+    renderWithGridItem({ fixtureOverrides: { gridItemIndex: 99 } });
+
+    await userEvent.click(await screen.findByLabelText("Copy grid item UUID"));
+
+    expect(
+      await screen.findByText("Could not read tile metadata"),
+    ).toBeInTheDocument();
+    expect(writeText).not.toHaveBeenCalled();
+  });
+
+  test("clipboard rejection surfaces the warning toast and skips the success toast", async () => {
+    mockClipboard(jest.fn().mockRejectedValue(new Error("denied")));
+    renderWithGridItem();
+
+    await userEvent.click(await screen.findByLabelText("Copy grid item UUID"));
+
+    expect(await screen.findByText("Failed to copy UUID")).toBeInTheDocument();
+    expect(
+      screen.queryByText("UUID copied to clipboard"),
+    ).not.toBeInTheDocument();
+  });
+
+  test("click does not propagate to ancestor handlers", async () => {
+    mockClipboard();
+    const ancestorClick = jest.fn();
+    const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
+    const gridItem = mockedDashboard.tabs[0].gridItems[0];
+
+    render(
+      createLoadedComponent({
+        children: (
+          <div onClick={ancestorClick}>
+            <GridItemContext.Provider
+              value={{
+                gridItemSource: gridItem.source,
+                gridItemI: gridItem.i,
+                gridItemMetadataString: gridItem.metadata_string,
+                gridItemArgsString: gridItem.args_string,
+                gridItemIndex: 0,
+                gridItemUUID: gridItem.uuid,
+              }}
+            >
+              <DashboardItem />
+            </GridItemContext.Provider>
+            <EditingPComponent />
+          </div>
+        ),
+        options: { initialDashboard: mockedDashboard },
+      }),
+    );
+
+    await userEvent.click(await screen.findByLabelText("Copy grid item UUID"));
+    expect(ancestorClick).not.toHaveBeenCalled();
+  });
+});
+
 describe("detectImportFormat", () => {
   const validGridItem = {
     i: "1",

@@ -20,6 +20,7 @@ import {
 } from "components/map/utilities";
 import PropTypes from "prop-types";
 import { COLOR_RAMPS } from "components/map/colorRamps";
+import { buildGeoTIFFStyleColor } from "components/map/geoTIFFStyle";
 import { getBaseMapLayer } from "components/visualizations/utilities";
 import useRuntimeLayerFetcher from "components/visualizations/runtimeLayerFetcher";
 import {
@@ -119,6 +120,46 @@ const StyledContent = styled.div`
   margin-top: 1rem;
 `;
 
+// Derive an OL `style.color` interpolate expression for a GeoTIFF layer
+// when the persisted configuration carries `rampName/rampMin/rampMax` but
+// no explicit `style.color`. Modal-saved layers persist `style.color`
+// directly and take precedence (this returns the original config when
+// `style.color` is already present). Shallow-clones to avoid mutating the
+// upstream layers prop. Callers must pre-validate that `rampSource` is a
+// GeoTIFF with a known ramp + finite-ish min/max — the inner helper still
+// throws on bad input, and we fall through to the original config in that
+// case so the auto-legend pipeline keeps working.
+export function deriveGeoTIFFRenderConfig({ layerConfiguration, rampSource }) {
+  if (layerConfiguration?.style?.color) {
+    return layerConfiguration;
+  }
+  try {
+    const sources = rampSource.props?.sources;
+    const hasNodata = Array.isArray(sources)
+      ? sources.some((s) => s?.nodata !== undefined && s.nodata !== "")
+      : false;
+    const derivedColor = buildGeoTIFFStyleColor({
+      rampName: rampSource.rampName,
+      rampMin: rampSource.rampMin,
+      rampMax: rampSource.rampMax,
+      hasNodata,
+    });
+    return {
+      ...layerConfiguration,
+      style: {
+        ...(layerConfiguration.style || {}),
+        color: derivedColor,
+      },
+    };
+  } catch (err) {
+    console.warn(
+      `Failed to derive GeoTIFF style.color for layer "${layerConfiguration?.props?.name}":`,
+      err,
+    );
+    return layerConfiguration;
+  }
+}
+
 export const Popup = ({
   layerAttributes,
   onSwipe,
@@ -126,8 +167,12 @@ export const Popup = ({
   aliases,
 }) => {
   const filteredLayerAttributes = layerAttributes.map((feature) => {
-    const omittedFields = omittedPopupAttributes[feature.layerName] || [];
-    const aliasMap = aliases[feature.layerName] || {};
+    const omittedFields =
+      omittedPopupAttributes[feature.layerName] ||
+      omittedPopupAttributes[feature.configuredLayerName] ||
+      [];
+    const aliasMap =
+      aliases[feature.layerName] || aliases[feature.configuredLayerName] || {};
     const filteredAttributes = Object.fromEntries(
       Object.entries(feature.attributes)
         .filter(([key]) => !omittedFields.includes(key))
@@ -415,7 +460,12 @@ const MapVisualization = ({
                   rampMax: rampSource.rampMax,
                   title: layer.configuration?.props?.name,
                 });
-                newMapLayers.push(layer.configuration);
+                newMapLayers.push(
+                  deriveGeoTIFFRenderConfig({
+                    layerConfiguration: layer.configuration,
+                    rampSource,
+                  }),
+                );
                 continue;
               }
               // If the layer has a style JSON, pass it as legend metadata
@@ -486,15 +536,25 @@ const MapVisualization = ({
   const updateVariableInputsForFeature = (selectedFeature) => {
     const layerName = selectedFeature.layerName;
     const mapAttributeVariables = mapAttributeVariablesRef.current;
+    const configuredLayerName = selectedFeature.configuredLayerName;
+    const attributeVariableLayerName =
+      layerName && mapAttributeVariables[layerName]
+        ? layerName
+        : configuredLayerName && mapAttributeVariables[configuredLayerName]
+          ? configuredLayerName
+          : null;
 
     // for mapped variable inputs, get the selected feature values and set the variable inputs accordingly
-    if (layerName && mapAttributeVariables[layerName]) {
+    if (attributeVariableLayerName) {
       let updatedVariableInputs = {};
-      for (const layerAttributeOrAlias in mapAttributeVariables[layerName]) {
+      for (const layerAttributeOrAlias in mapAttributeVariables[
+        attributeVariableLayerName
+      ]) {
         // Try to derive both the alias and the original field name from attributeAliases
         let layerAttribute = layerAttributeOrAlias;
         let layerAttributeAlias = layerAttributeOrAlias;
-        const aliasMap = mapAttributeAliasesRef.current[layerName] || {};
+        const aliasMap =
+          mapAttributeAliasesRef.current[attributeVariableLayerName] || {};
         // If the aliasMap has a mapping for this key, set alias and try to find the original
         if (aliasMap[layerAttributeOrAlias]) {
           layerAttributeAlias = aliasMap[layerAttributeOrAlias];
@@ -510,7 +570,9 @@ const MapVisualization = ({
         }
 
         const variableInputName =
-          mapAttributeVariables[layerName][layerAttributeOrAlias];
+          mapAttributeVariables[attributeVariableLayerName][
+            layerAttributeOrAlias
+          ];
 
         const featureValue =
           selectedFeature.attributes[layerAttribute] ||
@@ -686,7 +748,9 @@ const MapVisualization = ({
           return false;
         }
         const omittedFields =
-          mapOmittedPopupAttributesRef.current[item.layerName] || [];
+          mapOmittedPopupAttributesRef.current[item.layerName] ||
+          mapOmittedPopupAttributesRef.current[item.configuredLayerName] ||
+          [];
         // Check if there is at least one attribute not omitted
         return Object.keys(item.attributes).some(
           (key) => !omittedFields.includes(key),

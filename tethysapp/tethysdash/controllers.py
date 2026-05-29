@@ -1,8 +1,12 @@
-from django.http import JsonResponse
+from django.http import JsonResponse, StreamingHttpResponse
 import json
+import logging
 import os
 import shutil
 import nh3
+import requests as http_requests
+
+logger = logging.getLogger(__name__)
 from rest_framework.decorators import api_view
 import uuid
 from datetime import datetime
@@ -36,6 +40,10 @@ from tethysapp.tethysdash.visualizations import (
 )
 from tethysapp.tethysdash.exceptions import VisualizationError
 from tethysapp.tethysdash.plugin_helpers import send_websocket_message
+from tethysapp.tethysdash.plugin_registry_loader import (
+    load_runtime_plugin_registry,
+    save_runtime_plugin_registry,
+)
 from channels.generic.websocket import AsyncWebsocketConsumer
 from tethys_sdk.routing import consumer
 from asgiref.sync import sync_to_async
@@ -43,7 +51,7 @@ from better_profanity import profanity
 
 # Load the default wordlist
 profanity.load_censor_words()
-
+_DEFAULT_OLLAMA_HOST = "http://localhost:11434"
 
 def _get_error_message(e, fallback):
     """Return the first arg of an exception, or ``fallback`` if unavailable.
@@ -285,11 +293,57 @@ def dashboards(request):
     if support_info:
         response["support_info"] = support_info
 
+    response["chatbox_config"] = {}
+
     clean_up_jsons(user)
     return JsonResponse(response)
 
 
 @api_view(["GET"])
+@controller(url="tethysdash/plugins/editable-paths", login_required=False)
+def plugin_editable_paths(request):
+    """Return the server-authoritative LLM-editable-path whitelist for every
+    registered Intake plugin source.
+
+    The chatbox calls this once per dashboard load and threads the result
+    into the ``dashboard_state`` injection so the LLM knows which ``/args/*``
+    paths are patchable on plugin-backed tiles. The static built-in
+    whitelist (``editable_schemas.py``) is NOT duplicated here — the
+    ``chatboxStateBuilder.js`` consumer merges both sources.
+
+    Output shape::
+
+        {"editable_paths_by_source": {"<source>": ["<JSON Pointer>", ...]}}
+
+    Sources with empty whitelists (no patchable args after author
+    declarations) are omitted so the client can treat presence as
+    "patchable" without a length check.
+    """
+    # Import locally to keep controller-module import fast when the MCP
+    # code path isn't needed (e.g., CLI management commands). Wrap intake
+    # in try/except so a deployment without intake on PYTHONPATH degrades
+    # to an empty-map response rather than a 500.
+    from tethysapp.tethysdash.editable_schemas_plugin import (
+        resolve_editable_paths,
+    )
+    try:
+        import intake
+    except ImportError:
+        return JsonResponse({"editable_paths_by_source": {}})
+
+    out = {}
+    # Intake plugins — registered via entry-points at import time.
+    try:
+        for source in list(intake.source.registry):
+            paths = resolve_editable_paths(source)
+            if paths:
+                out[source] = paths
+    except TypeError:
+        # Defensive: if the registry isn't iterable (unlikely), fall through.
+        pass
+    return JsonResponse({"editable_paths_by_source": out})
+
+
 @controller(url="tethysdash/visualizations/list", login_required=False)
 def visualizations(request):
     """
@@ -1038,3 +1092,251 @@ def download_json(request, app_workspace):
             e, "Failed to download the json. Check server for logs."
         )
         return JsonResponse({"success": False, "message": message})
+
+
+# ---------------------------------------------------------------------------
+# Ollama Proxy — avoids CORS by forwarding browser requests to Ollama
+# ---------------------------------------------------------------------------
+
+
+
+def _stream_with_logging(resp, api_path, method):
+    """Yield streaming response chunks; log any mid-stream exception.
+
+    `requests.post(stream=True)` returns immediately and chunks are read
+    when the consumer iterates. If Ollama drops the connection mid-stream
+    (ChunkedEncodingError, ProtocolError, IncompleteRead — common on long
+    generations like gpt-oss:120b), the exception fires here, after
+    _proxy_to_ollama has already returned. Without this wrapper, Django
+    logs only `Internal Server Error` via django.request middleware and no
+    traceback identifies the failing exception class.
+    """
+    try:
+        for chunk in resp.iter_content(chunk_size=4096):
+            yield chunk
+    except Exception:
+        logger.exception(
+            "Ollama proxy stream error on %s (method=%s)",
+            api_path,
+            method,
+        )
+        raise
+
+
+def _proxy_to_ollama(request, api_path, timeout=(10, 300)):
+    # Read host/key from request headers (browser-managed credentials)
+    host = (request.headers.get("X-Ollama-Host", "") or _DEFAULT_OLLAMA_HOST).rstrip("/")
+    key = request.headers.get("X-Ollama-Key", "")
+    url = f"{host}/{api_path}"
+    headers = {"Content-Type": "application/json"}
+    if key:
+        headers["Authorization"] = f"Bearer {key}"
+    try:
+        if request.method == "POST":
+            resp = http_requests.post(
+                url, headers=headers, data=request.body, stream=True, timeout=timeout
+            )
+        else:
+            resp = http_requests.get(
+                url, headers=headers, stream=True, timeout=timeout
+            )
+        return StreamingHttpResponse(
+            _stream_with_logging(resp, api_path, request.method),
+            content_type=resp.headers.get("Content-Type", "application/json"),
+            status=resp.status_code,
+        )
+    except http_requests.ConnectionError:
+        return JsonResponse({"error": "Cannot connect to Ollama"}, status=502)
+    except http_requests.Timeout:
+        return JsonResponse({"error": "Ollama request timed out"}, status=504)
+    except Exception:
+        # Diagnostic-only catch. We've been seeing intermittent 500s on long
+        # prompts at this endpoint with no traceback in the Django log because
+        # only ConnectionError / Timeout were named above. Log the stack and
+        # re-raise so caller-visible behavior is unchanged — Django still
+        # returns 500, but the log now identifies which exception class fired.
+        logger.exception(
+            "Ollama proxy unexpected error on %s (method=%s)",
+            api_path,
+            request.method,
+        )
+        raise
+
+
+@api_view(["GET"])
+@controller(url="tethysdash/ollama-proxy/api/tags/", login_required=True)
+def ollama_tags(request):
+    return _proxy_to_ollama(request, "api/tags", timeout=(5, 30))
+
+
+@api_view(["POST"])
+@controller(url="tethysdash/ollama-proxy/api/show/", login_required=True)
+def ollama_show(request):
+    return _proxy_to_ollama(request, "api/show", timeout=(5, 30))
+
+
+@api_view(["POST"])
+@controller(url="tethysdash/ollama-proxy/api/chat/", login_required=True)
+def ollama_chat(request):
+    return _proxy_to_ollama(request, "api/chat", timeout=(10, 300))
+
+
+@api_view(["POST"])
+@controller(url="tethysdash/ollama-proxy/v1/chat/completions/", login_required=True)
+def ollama_v1_chat_completions(request):
+    # Ollama's OpenAI-compat endpoint. Use this instead of /api/chat for
+    # multi-round tool-call sessions: newer Ollama (>0.16.2) rejects
+    # object-typed tool_calls.function.arguments on /api/chat with
+    # "cannot unmarshal object into Go struct field ... of type string",
+    # while /v1/chat/completions follows the stable OpenAI spec (arguments
+    # always stringified). See chatbox-core PR #23 follow-up note.
+    return _proxy_to_ollama(request, "v1/chat/completions", timeout=(10, 300))
+
+
+@api_view(["POST"])
+@controller(url="tethysdash/llm-proxy/chat/completions/", login_required=True)
+def llm_proxy_chat_completions(request):
+    """Generic LLM proxy for providers that block browser CORS (e.g., Google AI Studio).
+
+    Reads target base URL and API key from request headers, proxies the
+    streaming chat/completions call server-side, and relays the SSE stream
+    back to the browser. Same pattern as the Ollama proxy above.
+    """
+    base_url = (request.headers.get("X-LLM-Base-URL", "")).rstrip("/")
+    api_key = request.headers.get("X-LLM-API-Key", "")
+    if not base_url:
+        return JsonResponse({"error": "X-LLM-Base-URL header is required"}, status=400)
+    url = f"{base_url}/chat/completions"
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    try:
+        resp = http_requests.post(
+            url, headers=headers, data=request.body,
+            stream=True, timeout=(10, 300),
+        )
+        return StreamingHttpResponse(
+            _stream_with_logging(resp, "llm-proxy/chat/completions", "POST"),
+            content_type=resp.headers.get("Content-Type", "application/json"),
+            status=resp.status_code,
+        )
+    except http_requests.ConnectionError:
+        return JsonResponse({"error": "Cannot connect to LLM provider"}, status=502)
+    except http_requests.Timeout:
+        return JsonResponse({"error": "LLM provider request timed out"}, status=504)
+    except Exception:
+        logger.exception("LLM proxy unexpected error on chat/completions")
+        raise
+
+
+@api_view(["POST"])
+@controller(url="tethysdash/llm-proxy/models/", login_required=True)
+def llm_proxy_models(request):
+    """Proxy for model listing from CORS-blocked providers."""
+    base_url = (request.headers.get("X-LLM-Base-URL", "")).rstrip("/")
+    api_key = request.headers.get("X-LLM-API-Key", "")
+    if not base_url:
+        return JsonResponse({"error": "X-LLM-Base-URL header is required"}, status=400)
+    url = f"{base_url}/models"
+    headers = {}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    try:
+        resp = http_requests.get(url, headers=headers, timeout=(5, 30))
+        return JsonResponse(resp.json(), status=resp.status_code, safe=False)
+    except http_requests.ConnectionError:
+        return JsonResponse({"error": "Cannot connect to LLM provider"}, status=502)
+    except http_requests.Timeout:
+        return JsonResponse({"error": "LLM provider request timed out"}, status=504)
+    except Exception:
+        logger.exception("LLM proxy unexpected error on models")
+        raise
+
+
+_GOOGLE_GENAI_HOST = "https://generativelanguage.googleapis.com"
+
+
+@api_view(["GET", "POST"])
+@controller(url="tethysdash/llm-proxy/google/{rest}", regex=r".+?", login_required=True)
+def llm_proxy_google(request, rest):
+    """Generic proxy for Google AI Studio native API paths.
+
+    The `@google/genai` SDK constructs URLs like
+    /v1beta/models/gemini-2.5-flash:streamGenerateContent — too varied
+    for the narrow chat/completions + models proxies above. This endpoint
+    forwards any path under /llm-proxy/google/ to the Google API host,
+    relaying streaming responses chunk-by-chunk. Auth is the browser-
+    supplied X-Goog-API-Key header (Google's native header name).
+    """
+    api_key = request.headers.get("X-Goog-API-Key", "")
+    if not api_key:
+        return JsonResponse({"error": "X-Goog-API-Key header is required"}, status=400)
+    url = f"{_GOOGLE_GENAI_HOST}/{rest}"
+    if request.GET:
+        url += "?" + request.GET.urlencode()
+    headers = {
+        "X-Goog-API-Key": api_key,
+        "Content-Type": request.headers.get("Content-Type", "application/json"),
+    }
+    try:
+        if request.method == "POST":
+            resp = http_requests.post(
+                url, headers=headers, data=request.body,
+                stream=True, timeout=(10, 300),
+            )
+        else:
+            resp = http_requests.get(
+                url, headers=headers, stream=True, timeout=(10, 60),
+            )
+        return StreamingHttpResponse(
+            _stream_with_logging(resp, f"llm-proxy/google/{rest}", request.method),
+            content_type=resp.headers.get("Content-Type", "application/json"),
+            status=resp.status_code,
+        )
+    except http_requests.ConnectionError:
+        return JsonResponse({"error": "Cannot connect to Google AI Studio"}, status=502)
+    except http_requests.Timeout:
+        return JsonResponse({"error": "Google AI Studio request timed out"}, status=504)
+    except Exception:
+        logger.exception("Google AI Studio proxy unexpected error on %s", rest)
+        raise
+
+
+@api_view(["GET", "POST"])
+@controller(url="tethysdash/runtime-plugins/sync", login_required=True)
+def runtime_plugins_sync(request):
+    """
+    Sync runtime plugin registry between browser localStorage and server.
+    GET: Returns the current registry.
+    POST: Overwrites the registry with the request body.
+    The file is read by the MCP server for LLM tool discovery.
+    """
+    if request.method == "GET":
+        return JsonResponse(load_runtime_plugin_registry(), safe=False)
+
+    # POST
+    try:
+        plugins = json.loads(request.body)
+        save_runtime_plugin_registry(plugins)
+        return JsonResponse({"status": "ok", "count": len(plugins)})
+    except (json.JSONDecodeError, TypeError) as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+
+@controller(url="tethysdash/runtime-plugins/list", login_required=False)
+def runtime_plugins_list(request):
+    """
+    Anonymous read-only view of the runtime plugin registry.
+
+    Sibling of ``runtime_plugins_sync`` — same data source, but the write
+    branch lives only on the gated ``runtime_plugins_sync`` endpoint. This
+    one is open to unauthenticated callers so the standalone tethysdash MCP
+    server (``mcp/tethysdash_mcps/``) can read the registry over HTTP via
+    ``TETHYSDASH_BASE_URL`` instead of needing a shared filesystem path.
+
+    Method handling matches the convention of the other ``login_required=False``
+    read endpoints in this module (e.g., ``visualizations``); the body is a
+    pure read of ``load_runtime_plugin_registry()`` so non-GET methods return
+    the same registry payload with no side effects.
+    """
+    return JsonResponse(load_runtime_plugin_registry(), safe=False)
