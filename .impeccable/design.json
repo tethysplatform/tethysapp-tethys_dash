@@ -1,0 +1,190 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-05-29T14:00:00Z",
+  "title": "Design System: TethysDash",
+  "extensions": {
+    "colorMeta": {
+      "watershed-slate": {
+        "role": "primary",
+        "displayName": "Watershed Slate",
+        "canonical": "oklch(45.4% 0.064 231)",
+        "tonalRamp": [
+          "oklch(20% 0.05 231)",
+          "oklch(28% 0.058 231)",
+          "oklch(38% 0.063 231)",
+          "oklch(45.4% 0.064 231)",
+          "oklch(57.4% 0.064 231)",
+          "oklch(70% 0.055 231)",
+          "oklch(82% 0.04 231)",
+          "oklch(93% 0.02 231)"
+        ]
+      },
+      "watershed-slate-deep": {
+        "role": "primary-hover",
+        "displayName": "Watershed Slate Deep",
+        "canonical": "oklch(38.0% 0.063 231)"
+      },
+      "watershed-slate-soft": {
+        "role": "primary-soft",
+        "displayName": "Watershed Slate Soft",
+        "canonical": "oklch(57.4% 0.064 231)"
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "oklch(20.5% 0.012 231)",
+        "tonalRamp": [
+          "oklch(15% 0.012 231)",
+          "oklch(20.5% 0.012 231)",
+          "oklch(30% 0.013 231)",
+          "oklch(43% 0.014 231)",
+          "oklch(60% 0.014 231)",
+          "oklch(75% 0.01 231)",
+          "oklch(88% 0.007 231)",
+          "oklch(96% 0.004 231)"
+        ]
+      },
+      "ink-muted": { "role": "neutral", "displayName": "Ink Muted", "canonical": "oklch(43.0% 0.014 231)" },
+      "ink-subtle": { "role": "neutral", "displayName": "Ink Subtle", "canonical": "oklch(60.0% 0.014 231)" },
+      "paper": { "role": "neutral-bg", "displayName": "Paper", "canonical": "oklch(98.5% 0.003 231)" },
+      "paper-raised": { "role": "neutral-bg-raised", "displayName": "Paper Raised", "canonical": "oklch(96.5% 0.003 231)" },
+      "paper-sunken": { "role": "neutral-bg-sunken", "displayName": "Paper Sunken", "canonical": "oklch(94.5% 0.003 231)" },
+      "rule": { "role": "border", "displayName": "Rule", "canonical": "oklch(90.5% 0.005 231)" },
+      "rule-strong": { "role": "border-strong", "displayName": "Rule Strong", "canonical": "oklch(83.5% 0.007 231)" },
+      "warn": { "role": "status-warn", "displayName": "Warn", "canonical": "oklch(54.2% 0.155 47)" },
+      "danger": { "role": "status-danger", "displayName": "Danger", "canonical": "oklch(48.5% 0.156 27)" },
+      "ok": { "role": "status-ok", "displayName": "OK", "canonical": "oklch(50.0% 0.096 145)" }
+    },
+    "typographyMeta": {
+      "display":  { "displayName": "Display",  "purpose": "Dashboard editor view title. Never on tiles." },
+      "headline": { "displayName": "Headline", "purpose": "Section heading inside a modal; landing-page row header." },
+      "title":    { "displayName": "Title",    "purpose": "Tile title, button label, primary nav item." },
+      "body":     { "displayName": "Body",     "purpose": "Default reading text. Capped at 65–75ch line length." },
+      "label":    { "displayName": "Label",    "purpose": "Metadata, badge text, tab labels. Slightly tracked." },
+      "mono":     { "displayName": "Mono",     "purpose": "Tabular data, variable-substitution syntax, code in chatbox." }
+    },
+    "shadows": [
+      {
+        "name": "state-elevation",
+        "value": "0 4px 12px oklch(20% 0.01 231 / 0.08)",
+        "purpose": "The single elevation step. Hover state of an interactive tile, active drag, modals / popovers / dropdowns at rest. Ink-tinted alpha, never rgba(0,0,0,...)."
+      }
+    ],
+    "motion": [
+      { "name": "ease-out-quart", "value": "cubic-bezier(0.25, 1, 0.5, 1)", "purpose": "Default easing for state transitions." },
+      { "name": "duration-fast",  "value": "120ms", "purpose": "Button hover, border-color shifts, focus ring fade-in." },
+      { "name": "duration-base",  "value": "180ms", "purpose": "Streaming tile arrival fade-in. Gated on prefers-reduced-motion." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "960px" },
+      { "name": "lg", "value": "1280px" },
+      { "name": "xl", "value": "1600px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Primary action: save dashboard, create dashboard, send chatbox message.",
+      "html": "<button class=\"ds-btn-primary\">Save dashboard</button>",
+      "css": ".ds-btn-primary { background: #1e6b8b; color: #fbfcfc; font: 600 15px/1.3 InterVariable, Inter, system-ui, sans-serif; padding: 8px 14px; border: none; border-radius: 4px; cursor: pointer; transition: background 120ms cubic-bezier(0.25, 1, 0.5, 1); } .ds-btn-primary:hover { background: #185571; } .ds-btn-primary:focus-visible { outline: 2px solid rgba(30, 107, 139, 0.3); outline-offset: 2px; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Secondary action: cancel, dismiss, dropdown trigger. No border at rest.",
+      "html": "<button class=\"ds-btn-ghost\">Cancel</button>",
+      "css": ".ds-btn-ghost { background: #fbfcfc; color: #15202a; font: 600 15px/1.3 InterVariable, Inter, system-ui, sans-serif; padding: 8px 14px; border: none; border-radius: 4px; cursor: pointer; transition: background 120ms cubic-bezier(0.25, 1, 0.5, 1); } .ds-btn-ghost:hover { background: #f4f6f7; } .ds-btn-ghost:focus-visible { outline: 2px solid rgba(30, 107, 139, 0.3); outline-offset: 2px; }"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Destructive confirm inside a modal. Ink + border at rest, fill on hover.",
+      "html": "<button class=\"ds-btn-danger\">Delete dashboard</button>",
+      "css": ".ds-btn-danger { background: #fbfcfc; color: #b03434; font: 600 15px/1.3 InterVariable, Inter, system-ui, sans-serif; padding: 8px 14px; border: 1px solid #b03434; border-radius: 4px; cursor: pointer; transition: background 120ms cubic-bezier(0.25, 1, 0.5, 1), color 120ms cubic-bezier(0.25, 1, 0.5, 1); } .ds-btn-danger:hover { background: #b03434; color: #fbfcfc; } .ds-btn-danger:focus-visible { outline: 2px solid rgba(176, 52, 52, 0.3); outline-offset: 2px; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input-text",
+      "description": "Default form field. Paper-sunken background, rule border, focus ring in Watershed Slate.",
+      "html": "<input class=\"ds-input-text\" type=\"text\" placeholder=\"Dashboard name\" />",
+      "css": ".ds-input-text { background: #eef1f3; color: #15202a; font: 400 14px/1.45 InterVariable, Inter, system-ui, sans-serif; padding: 6px 10px; border: 1px solid #e0e5e9; border-radius: 4px; outline: none; transition: border-color 120ms cubic-bezier(0.25, 1, 0.5, 1), box-shadow 120ms cubic-bezier(0.25, 1, 0.5, 1); } .ds-input-text::placeholder { color: #7d8d9b; } .ds-input-text:focus { border-color: #cbd3da; box-shadow: 0 0 0 2px rgba(30, 107, 139, 0.25); }"
+    },
+    {
+      "name": "Dashboard Tile",
+      "kind": "card",
+      "refersTo": "card-tile",
+      "description": "The signature surface. Flat at rest, border-shift on hover, state-elevation shadow on active drag.",
+      "html": "<article class=\"ds-tile\"><header class=\"ds-tile__head\">Streamflow at COMID 1019290</header><div class=\"ds-tile__body\">Plot renders here.</div></article>",
+      "css": ".ds-tile { background: #f4f6f7; color: #15202a; border: 1px solid #e0e5e9; border-radius: 4px; padding: 12px; transition: border-color 120ms cubic-bezier(0.25, 1, 0.5, 1); } .ds-tile:hover { border-color: #cbd3da; } .ds-tile__head { font: 600 15px/1.3 InterVariable, Inter, system-ui, sans-serif; margin: 0 0 8px; } .ds-tile__body { font: 400 14px/1.45 InterVariable, Inter, system-ui, sans-serif; }"
+    },
+    {
+      "name": "Dashboard Tab",
+      "kind": "chip",
+      "refersTo": "chip-tab",
+      "description": "Tab in the dashboard editor strip. Active state carries a Watershed Slate underline.",
+      "html": "<button class=\"ds-tab ds-tab--active\">Reservoir A</button>",
+      "css": ".ds-tab { background: #fbfcfc; color: #4b5b6a; font: 500 11px/1.2 InterVariable, Inter, system-ui, sans-serif; letter-spacing: 0.04em; padding: 4px 10px; border: none; border-radius: 2px 2px 0 0; cursor: pointer; position: relative; transition: background 120ms cubic-bezier(0.25, 1, 0.5, 1), color 120ms cubic-bezier(0.25, 1, 0.5, 1); } .ds-tab:hover { background: #f4f6f7; color: #15202a; } .ds-tab--active { background: #f4f6f7; color: #1e6b8b; } .ds-tab--active::after { content: \"\"; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: #1e6b8b; }"
+    },
+    {
+      "name": "Header Nav",
+      "kind": "nav",
+      "refersTo": "nav-header",
+      "description": "Top chrome. Paper background (NOT Watershed Slate fill — Restrained, not Committed), 56px height, 1px Rule bottom border.",
+      "html": "<header class=\"ds-nav\"><span class=\"ds-nav__brand\">TethysDash</span><span class=\"ds-nav__user\">admin</span></header>",
+      "css": ".ds-nav { display: flex; align-items: center; justify-content: space-between; height: 56px; padding: 8px 16px; background: #fbfcfc; color: #15202a; border-bottom: 1px solid #e0e5e9; } .ds-nav__brand { font: 600 15px/1.3 InterVariable, Inter, system-ui, sans-serif; } .ds-nav__user { font: 400 14px/1.45 InterVariable, Inter, system-ui, sans-serif; color: #4b5b6a; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Forecasting Desk",
+    "overview": "TethysDash is the operations-room calm of a working hydrologist's desk: slate ink on paper, the data is the loudest thing on the screen, the chrome stays out of the way. The reference is the NWS forecaster screen and the Bloomberg-terminal sobriety, modernized for the Linear/Figma/Stripe lane. The instrument is the dashboard tile; every other element loses the contest for attention with that tile. Restrained color strategy: tinted-neutral paper, one accent (Watershed Slate) used as ink rather than fill, 4px-base radius for structural decisiveness, flat surfaces at rest with shadow reserved for state.",
+    "keyCharacteristics": [
+      "One accent color, used on ≤10% of any given screen, used as ink not fill.",
+      "Tinted-neutral paper for the base; the Watershed hue carries a trace into the neutrals.",
+      "4px structural radius across product UI. Pill only on numeric badges.",
+      "Inter for the entire UI stack. JetBrains Mono for tabular / numeric data.",
+      "Flat surfaces by default. Shadow appears only on state, and only at one elevation step."
+    ],
+    "rules": [
+      { "name": "The One Voice Rule", "body": "The primary accent is used on no more than 10% of any given screen. It is ink, not fill.", "section": "colors" },
+      { "name": "The Trace Rule", "body": "Every neutral carries a trace of the watershed hue. Pure #fff and #000 are absolutely prohibited.", "section": "colors" },
+      { "name": "The Drift Kill Rule", "body": "The legacy hex values #007bff, #0d6efd, #0a62a9 are prohibited. Any new component touches collapse these to colors.watershed-slate.", "section": "colors" },
+      { "name": "The Two Families Rule", "body": "Inter + JetBrains Mono is the entire type stack. No third UI face is permitted.", "section": "typography" },
+      { "name": "The Title Anchor Rule", "body": "The smallest size that may carry weight 600 is Title (15px). Below that, weight maxes at 500.", "section": "typography" },
+      { "name": "The No Rest Shadow Rule", "body": "A dashboard tile at rest has zero shadow. Use tonal layering instead.", "section": "elevation" },
+      { "name": "The Single Step Rule", "body": "There is one elevation step. Stacking 3+ shadow layers on hover is prohibited.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do use Watershed Slate as the single accent; render it as ink on no more than 10% of any screen.",
+      "Do name colors by role from the palette, never by hex literal inside style={{ color: \"#007bff\" }}.",
+      "Do keep components flat at rest; let tonal layering carry the depth signal.",
+      "Do reserve shadow for state changes and for floating UI where overlap requires depth.",
+      "Do use the 4px radius scale. Never invent a new radius step.",
+      "Do keep the type stack at exactly two families: Inter for UI, JetBrains Mono for tabular / numeric data.",
+      "Do use 4.5:1 contrast minimum for body text on its background.",
+      "Do respect prefers-reduced-motion: reduce on every animation."
+    ],
+    "donts": [
+      "Don't introduce a second accent color.",
+      "Don't use #fff or #000 anywhere. Pure neutrals detach from the system.",
+      "Don't reintroduce #007bff, #0d6efd, or #0a62a9 — these are the drift values flagged in the 2026-05-28 critique.",
+      "Don't use border-left or border-right greater than 1px as a colored accent.",
+      "Don't ship a hero metric template.",
+      "Don't ship identical card grids of icon + heading + text repeating endlessly.",
+      "Don't use gradient text.",
+      "Don't use glassmorphism, mesh gradients, dark-mode-by-default, or purple-gradient hero treatments.",
+      "Don't introduce rounded-everything, soft pastel palettes, illustrative empty states with mascots, or 'Great job!' microcopy.",
+      "Don't animate layout properties (width, height, top, left).",
+      "Don't mix seven icon families. Pick one.",
+      "Don't ship inline style={{}} with literal hex values.",
+      "Don't stack nested cards.",
+      "Don't ship 'Welcome to your dashboard journey!' or any first-run modal that introduces the product.",
+      "Don't use exclamation points or emoji in product UI copy."
+    ]
+  }
+}

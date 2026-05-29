@@ -342,7 +342,7 @@ const MapVisualization = ({
   spinnerElement.style.alignItems = "center";
   spinnerElement.style.width = "48px";
   spinnerElement.style.height = "48px";
-  spinnerElement.innerHTML = `<div style="border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 32px; height: 32px; animation: spin 1s linear infinite;"></div><style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>`;
+  spinnerElement.innerHTML = `<div style="border: 3px solid rgba(30, 107, 139, 0.16); border-top: 3px solid #1e6b8b; border-radius: 50%; width: 32px; height: 32px; animation: spin 0.9s cubic-bezier(0.4, 0, 0.2, 1) infinite;"></div><style>@keyframes spin { to { transform: rotate(360deg); } } @media (prefers-reduced-motion: reduce) { div[style*="animation: spin"] { animation: none !important; border: 3px solid #1e6b8b !important; } }</style>`;
   const popupOverlayRef = useRef(null);
   const popupContainerRef = useRef(document.createElement("div"));
   const popupRootRef = useRef(null);

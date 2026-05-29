@@ -33,24 +33,22 @@ describe("LoadingAnimation", () => {
     expect(screen.getByText("Custom Loading")).toBeInTheDocument();
   });
 
-  it("renders all animation elements after delay", () => {
+  it("renders loader structure (spinner + label)", () => {
     render(<LoadingAnimation delay={0} />);
-    act(() => {
-      jest.advanceTimersByTime(0);
-    });
     expect(screen.getByText("Loading...")).toBeInTheDocument();
-    // Check for key animation
     // eslint-disable-next-line testing-library/no-node-access
-    expect(document.querySelector(".center")).toBeInTheDocument();
+    expect(document.querySelector(".loader")).toBeInTheDocument();
+    // eslint-disable-next-line testing-library/no-node-access
+    expect(document.querySelector(".loader__spinner")).toBeInTheDocument();
+    // eslint-disable-next-line testing-library/no-node-access
+    expect(document.querySelector(".loader__label")).toBeInTheDocument();
+  });
 
-    // eslint-disable-next-line testing-library/no-node-access
-    expect(document.querySelector(".inner-spin")).toBeInTheDocument();
-
-    // eslint-disable-next-line testing-library/no-node-access
-    expect(document.querySelector(".outer-spin")).toBeInTheDocument();
-
-    // eslint-disable-next-line testing-library/no-node-access
-    expect(document.querySelector(".loading-text")).toBeInTheDocument();
+  it("exposes a polite live-region for assistive tech", () => {
+    render(<LoadingAnimation delay={0} text="Loading Dashboard..." />);
+    const region = screen.getByRole("status");
+    expect(region).toHaveAttribute("aria-live", "polite");
+    expect(region).toHaveTextContent("Loading Dashboard...");
   });
 
   it("does not throw if delay is undefined", () => {

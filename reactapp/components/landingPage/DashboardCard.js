@@ -112,7 +112,7 @@ const EditableInput = styled.input`
 
   &:focus {
     outline: none; /* Prevent default focus outline */
-    border: 1px solid #007bff; /* Outline color when focused */
+    border: 1px solid var(--bs-primary); /* Outline color when focused */
   }
 `;
 
@@ -129,7 +129,7 @@ const EditableTextarea = styled.textarea`
 
   &:focus {
     outline: none;
-    border: 1px solid #007bff;
+    border: 1px solid var(--bs-primary);
   }
 `;
 

@@ -26,9 +26,11 @@ const ProgressBar = styled.div`
 
 const ProgressFill = styled.div`
   height: 100%;
-  background: #3498db;
-  transition: width 200ms ease-out;
-  width: ${(props) => `${props.$pct}%`};
+  background: var(--bs-primary);
+  transform-origin: left center;
+  transform: scaleX(${(props) => (props.$pct ?? 0) / 100});
+  transition: transform 200ms cubic-bezier(0.25, 1, 0.5, 1);
+  width: 100%;
 `;
 
 const ErrorBadge = styled.div`

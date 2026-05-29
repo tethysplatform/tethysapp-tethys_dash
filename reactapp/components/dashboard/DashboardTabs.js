@@ -35,7 +35,7 @@ const TabTitleInput = styled.input`
   flex: 1;
 
   &:focus {
-    outline: 1px solid #007bff;
+    outline: 1px solid var(--bs-primary);
     outline-offset: 1px;
     border-radius: 2px;
   }
@@ -99,9 +99,8 @@ const StyledTabs = styled(Tabs)`
 
     &.active {
       background-color: white;
-      border-right: 1px solid #999;
-      border-left: 1px solid #999;
-      color: #333;
+      box-shadow: inset 0 -2px 0 var(--bs-primary);
+      color: #15202a;
     }
   }
 `;

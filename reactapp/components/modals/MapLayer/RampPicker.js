@@ -15,15 +15,15 @@ const RampRow = styled.button`
   gap: 12px;
   width: 100%;
   padding: 6px 10px;
-  background: ${({ $selected }) => ($selected ? "#e7f1ff" : "transparent")};
+  background: ${({ $selected }) => ($selected ? "rgba(30, 107, 139, 0.1)" : "transparent")};
   border: 2px solid
-    ${({ $selected }) => ($selected ? "#007bff" : "transparent")};
+    ${({ $selected }) => ($selected ? "var(--bs-primary)" : "transparent")};
   border-radius: 4px;
   cursor: pointer;
   text-align: left;
 
   &:hover {
-    border-color: ${({ $selected }) => ($selected ? "#007bff" : "#ccc")};
+    border-color: ${({ $selected }) => ($selected ? "var(--bs-primary)" : "#ccc")};
   }
 
   &:focus {

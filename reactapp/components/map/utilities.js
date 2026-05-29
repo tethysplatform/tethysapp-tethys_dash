@@ -315,7 +315,7 @@ export function createMarkerLayer(coordinate) {
     `;
   const svgIcon = `
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="40" height="40">
-        <path d="${markPath}" fill="#007bff" stroke="white" stroke-width="1"/>
+        <path d="${markPath}" fill="#1e6b8b" stroke="white" stroke-width="1"/>
       </svg>
     `;
   const svgURI = "data:image/svg+xml;base64," + btoa(svgIcon);

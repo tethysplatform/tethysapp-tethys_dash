@@ -1,164 +1,46 @@
-html {
-    --bs-primary: #0a62a9;
-    --center: translate(-50%, -50%);
-    --center-dia: 40px;
-    --inner-spin: 15s;
-    --inner-arc-dia: 150px;
-    --inner-moon-dia: 15px;
-    --inner-moon-orbit: 72px;
-    --outer-spin: 13s;
-    --outer-arc-dia: 300px;
-    --outer-moon-dia: 25px;
-    --outer-moon-orbit: 148px;
+/* Quiet loader. Single 32px spinner + body-size label.
+ * Gated on prefers-reduced-motion: reduce (no animation, just label).
+ * Replaces a prior 24-element planetary orbit; see DESIGN.md §4 elevation +
+ * §5 components (loader is part of the streaming feedback vocabulary).
+ */
+
+.loader {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 24px;
+    /* Center within whatever the parent layout supplies. Most call sites wrap
+     * us in a centered container; if not, we still read as quiet rather than
+     * theatrical. */
 }
 
-.loading-text {
-    position: absolute;
-    top: 70%;
-    left: 0;
-    width: 100%;
-    text-align: center;
-    font-size: 40pt;
+.loader__spinner {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 3px solid rgba(30, 107, 139, 0.16);
+    border-top-color: var(--bs-primary);
+    animation: loader-spin 0.9s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.loader__label {
+    font-size: 14px;
+    line-height: 1.45;
     color: var(--bs-primary);
+    text-align: center;
 }
 
-.center {
-    position: absolute;
-    width: var(--center-dia);
-    height: var(--center-dia);
-    background: var(--bs-primary);
-    border-radius: 50%;
-    top: 50%;
-    left: 50%;
-    transform: var(--center);
-}
-
-.outer-spin,
-.inner-spin {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-}
-
-.outer-spin {
-    animation: revspin var(--outer-spin) linear infinite;
-}
-
-.outer-arc,
-.inner-arc {
-    position: absolute;
-    border-radius: 50%;
-    border: 5px solid;
-}
-
-.outer-arc {
-    width: var(--outer-arc-dia);
-    height: var(--outer-arc-dia);
-}
-
-.outer-arc_start-a {
-    border-color: transparent transparent transparent var(--bs-primary);
-    /*NOTE: the order here very much matters!  */
-    transform: var(--center) rotate(55deg);
-}
-
-.outer-arc_end-a {
-    border-color: var(--bs-primary) transparent transparent transparent;
-    transform: var(--center) rotate(35deg);
-}
-
-.outer-arc_start-b {
-    border-color: transparent transparent transparent var(--bs-primary);
-    transform: var(--center) rotate(55deg) scale(-1, -1);
-}
-
-.outer-arc_end-b {
-    border-color: var(--bs-primary) transparent transparent transparent;
-    transform: var(--center) rotate(35deg) scale(-1, -1);
-}
-
-.outer-moon-a {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: var(--outer-moon-dia);
-    height: var(--outer-moon-dia);
-    background: var(--bs-primary);
-    border-radius: 50%;
-    transform: var(--center) translate(var(--outer-moon-orbit), 0);
-}
-
-.outer-moon-b {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: var(--outer-moon-dia);
-    height: var(--outer-moon-dia);
-    background: var(--bs-primary);
-    border-radius: 50%;
-    transform: var(--center) translate(calc(-1 * var(--outer-moon-orbit)), 0);
-}
-
-.inner-spin {
-    animation: spin var(--inner-spin) linear infinite;
-}
-
-.inner-arc {
-    width: var(--inner-arc-dia);
-    height: var(--inner-arc-dia);
-}
-
-.inner-arc_start-a {
-    border-color: transparent transparent transparent var(--bs-primary);
-    /*NOTE: the order here very much matters!  */
-    transform: var(--center) rotate(60deg);
-}
-
-.inner-arc_end-a {
-    border-color: var(--bs-primary) transparent transparent transparent;
-    transform: var(--center) rotate(30deg);
-}
-
-.inner-arc_start-b {
-    border-color: transparent transparent transparent var(--bs-primary);
-    transform: var(--center) rotate(60deg) scale(-1, -1);
-}
-
-.inner-arc_end-b {
-    border-color: var(--bs-primary) transparent transparent transparent;
-    transform: var(--center) rotate(30deg) scale(-1, -1);
-}
-
-.inner-moon-a {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: var(--inner-moon-dia);
-    height: var(--inner-moon-dia);
-    background: var(--bs-primary);
-    border-radius: 50%;
-    transform: var(--center) translate(var(--inner-moon-orbit), 0);
-}
-
-.inner-moon-b {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: var(--inner-moon-dia);
-    height: var(--inner-moon-dia);
-    background: var(--bs-primary);
-    border-radius: 50%;
-    transform: var(--center) translate(calc(-1 * var(--inner-moon-orbit)), 0);
-}
-
-@keyframes spin {
-    100% {
+@keyframes loader-spin {
+    to {
         transform: rotate(360deg);
     }
 }
 
-@keyframes revspin {
-    100% {
-        transform: rotate(-360deg);
+@media (prefers-reduced-motion: reduce) {
+    .loader__spinner {
+        animation: none;
+        border: 3px solid var(--bs-primary);
     }
 }

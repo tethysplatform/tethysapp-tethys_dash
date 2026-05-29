@@ -1034,11 +1034,11 @@ const Slider = ({
               disabled={playing && !rangeMode ? true : false}
               styles={{
                 handle: {
-                  borderColor: "#0d6efd",
+                  borderColor: "var(--bs-primary)",
                   backgroundColor: "#fff",
                 },
                 track: {
-                  backgroundColor: "#0d6efd",
+                  backgroundColor: "var(--bs-primary)",
                 },
                 rail: {
                   backgroundColor: "#ddd",
