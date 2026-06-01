@@ -5,6 +5,7 @@ import appAPI from "services/api/app";
 import PropTypes from "prop-types";
 import userEvent from "@testing-library/user-event";
 import { LayoutContext, AppContext } from "components/contexts/Contexts";
+import * as utilities from "components/map/utilities";
 
 const exampleStyle = {
   version: 8,
@@ -603,4 +604,40 @@ test("StylePane json/rules editor still works for non-GeoTIFF layers (regression
   await userEvent.click(rulesRadio);
   const addRuleBtn = await screen.findByLabelText("Add Rule Button");
   expect(addRuleBtn).toBeInTheDocument();
+});
+
+test("StylePane calls getStyleFields for URL-based GeoJSON (no early bail-out)", async () => {
+  const getStyleFieldsSpy = jest
+    .spyOn(utilities, "getStyleFields")
+    .mockResolvedValue(["station_id", "flow"]);
+
+  render(
+    <AppContext.Provider value={{ dynamicMapLayers: [] }}>
+      <LayoutContext.Provider value={{ uuid: "123" }}>
+        <StylePane
+          style={"{}"}
+          setStyle={() => {}}
+          setErrorMessage={() => {}}
+          sourceProps={{
+            type: "GeoJSON",
+            geojson: "https://example.com/data.geojson",
+          }}
+          setSourceProps={() => {}}
+          layerProps={{}}
+        />
+      </LayoutContext.Provider>
+    </AppContext.Provider>,
+  );
+
+  await waitFor(() => {
+    expect(getStyleFieldsSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceProps: expect.objectContaining({
+          geojson: "https://example.com/data.geojson",
+        }),
+      }),
+    );
+  });
+
+  getStyleFieldsSpy.mockRestore();
 });

@@ -3074,7 +3074,7 @@ describe("MapLayerModal plugin layer", () => {
 
     const spy = jest
       .spyOn(appAPI, "getVisualizationData")
-      .mockRejectedValueOnce(new Error());
+      .mockRejectedValue(new Error());
 
     render(
       <TestingComponent
@@ -3135,7 +3135,7 @@ describe("MapLayerModal plugin layer", () => {
 
     const spy = jest
       .spyOn(appAPI, "getVisualizationData")
-      .mockRejectedValueOnce(new Error("Some error occurred"));
+      .mockRejectedValue(new Error("Some error occurred"));
 
     render(
       <TestingComponent

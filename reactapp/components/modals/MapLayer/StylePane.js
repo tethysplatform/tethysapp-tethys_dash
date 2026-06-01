@@ -74,22 +74,17 @@ const StylePane = ({
   const { dynamicMapLayers } = useContext(AppContext);
 
   useEffect(() => {
-    const isUrlGeoJSON =
-      sourceProps?.type === "GeoJSON" &&
-      typeof sourceProps?.geojson === "string" &&
-      sourceProps.geojson.trim() !== "" &&
-      !sourceProps.geojson.trim().startsWith("{");
-    if (isUrlGeoJSON) {
-      setAvailableFields([]);
-      return;
-    }
-
+    const isDynamic = !!findSelectOptionByValue(
+      dynamicMapLayers,
+      sourceProps.type,
+    );
     const fetchAvailableFields = async () => {
       try {
         const fields = await getStyleFields({
           sourceProps,
           layerProps,
           dashboard_uuid: uuid,
+          isDynamicMapLayer: isDynamic,
         });
         setAvailableFields(fields);
       } catch (e) {
@@ -97,7 +92,7 @@ const StylePane = ({
       }
     };
     fetchAvailableFields();
-  }, [sourceProps, layerProps, uuid]);
+  }, [sourceProps, layerProps, uuid, dynamicMapLayers]);
 
   useEffect(() => {
     const fetchJSON = async () => {
