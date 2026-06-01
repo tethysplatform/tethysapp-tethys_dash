@@ -559,29 +559,13 @@ const MapVisualization = ({
   const onMapClick = async (map, evt) => {
     // istanbul ignore next
     if (drawing.current || isProcessing) return;
-    setIsProcessing(true);
 
-    const coordinate = evt.coordinate;
-    const pixel = evt.pixel;
-
-    // istanbul ignore next
-    if (spinnerOverlayRef.current) {
-      spinnerOverlayRef.current.setPosition(coordinate);
-    }
-
-    const newMarkerLayer = createMarkerLayer(coordinate);
-    if (markerLayer.current) {
-      map.removeLayer(markerLayer.current);
-    }
-    if (highlightLayer.current) {
-      highlightLayer.current.getSource().clear();
-    } else {
-      highlightLayer.current = createHighlightLayer();
-      map.addLayer(highlightLayer.current);
-    }
-    markerLayer.current = newMarkerLayer;
-    map.addLayer(newMarkerLayer);
-
+    // Compute the queryable layer set FIRST, before any side effects. If
+    // nothing is click-eligible (e.g., the map has only hover-tagged
+    // layers), bail entirely — no marker, no spinner, no popup state
+    // change. An open hover popup must survive a click that has no
+    // semantic meaning in a hover-driven configuration.
+    //
     // Skip layers the user has hidden via the layer control. The OL layer
     // is the source of truth for visibility because LayersControl mutates
     // `olLayer.setVisible(...)` directly; the config-side `layers` array
@@ -607,6 +591,30 @@ const MapVisualization = ({
       if (!name || !olLayerVisibility.has(name)) return true;
       return olLayerVisibility.get(name) === true;
     });
+    if (queryableLayers.length === 0) return;
+
+    setIsProcessing(true);
+
+    const coordinate = evt.coordinate;
+    const pixel = evt.pixel;
+
+    // istanbul ignore next
+    if (spinnerOverlayRef.current) {
+      spinnerOverlayRef.current.setPosition(coordinate);
+    }
+
+    const newMarkerLayer = createMarkerLayer(coordinate);
+    if (markerLayer.current) {
+      map.removeLayer(markerLayer.current);
+    }
+    if (highlightLayer.current) {
+      highlightLayer.current.getSource().clear();
+    } else {
+      highlightLayer.current = createHighlightLayer();
+      map.addLayer(highlightLayer.current);
+    }
+    markerLayer.current = newMarkerLayer;
+    map.addLayer(newMarkerLayer);
 
     // reduce the layer attributes variables values into a simplified object of layer names and then values
     const mapAttributeAliases = queryableLayers.reduce((combined, current) => {
@@ -735,8 +743,14 @@ const MapVisualization = ({
 
       newPopupContent = tableOverlayFeatures;
       if (tableOverlayFeatures.length === 0 && nonEmptyLayers.length === 0) {
-        // No features anywhere at this location — anchor the empty popup at
-        // the cursor so the user still sees "No Attributes Found".
+        // No click-eligible features at this location. If a hover popup is
+        // currently open, the user is mid-interaction with it — replacing
+        // it with an empty "No Attributes Found" overlay would be hostile.
+        // Bail without touching popup state or hoverActiveRef; the marker
+        // already added is the click-registered feedback.
+        if (hoverActiveRef.current) return;
+        // Otherwise anchor the empty popup at the cursor so the user still
+        // sees "No Attributes Found".
         popupCoordinate = coordinate;
         newPopupContent = null;
       } else if (tableOverlayFeatures.length === 0) {

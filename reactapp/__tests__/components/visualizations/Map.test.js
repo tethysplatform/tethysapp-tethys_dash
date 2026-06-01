@@ -1335,6 +1335,199 @@ test("Map hover — pointermove queries only hover-tagged layers and positions t
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 });
 
+test("Map click — hover-only map: click is a no-op (no query, no empty popup)", async () => {
+  // Regression: when the map has only hover-tagged layers, clicking
+  // anywhere previously overwrote the hover popup with an empty
+  // "No Attributes Found" overlay. The click handler now bails before
+  // any side effects when nothing is click-eligible.
+  jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+  const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
+
+  const layers = [
+    {
+      tablePopupType: "hover",
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "HoverOnly",
+          source: {
+            type: "ESRI Image and Map Service",
+            props: { url: "hover_url" },
+          },
+        },
+      },
+    },
+  ];
+  const clickCoordinates = [10, 20];
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent
+          onMapClick={jest.fn()}
+          clickCoordinates={clickCoordinates}
+          mapProps={{
+            mapConfig: {},
+            viewConfig: {},
+            layers,
+            baseMap: null,
+            layerControl: false,
+          }}
+        />
+      </MapContextProvider>
+    ),
+  });
+  render(LoadedComponent);
+
+  expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+  // Give the click handler time to run (or NOT run). The early-bail guard
+  // returns before any async work, so this is a small fixed wait.
+  await new Promise((resolve) => setTimeout(resolve, 50));
+
+  // No query was issued — nothing is click-eligible.
+  expect(mockedQueryLayerFeatures).not.toHaveBeenCalled();
+  // The popup overlay was never positioned at the click coordinate (the
+  // bug symptom was setPosition([10, 20]) leaving the empty popup visible).
+  const positionCalls = popSetPosition.mock.calls.map(([arg]) => arg);
+  expect(positionCalls).not.toContainEqual(clickCoordinates);
+});
+
+test("Map click — mixed config: click on hover feature preserves the hover popup", async () => {
+  // Regression: when both click and hover layers exist, clicking on a
+  // location where ONLY the hover layer has a feature must not replace
+  // the hover popup with "No Attributes Found". The click handler queries
+  // the click-eligible layer, finds nothing, and now bails via the
+  // hoverActiveRef guard instead of overwriting popup state.
+  mockedQueryLayerFeatures.mockImplementation(async (layer) => {
+    if (layer.configuration.props.name === "HoverLayer") {
+      return [
+        {
+          attributes: { field1: "hover-value" },
+          geometry: { x: 10, y: 10 },
+          layerName: "HoverLayer",
+        },
+      ];
+    }
+    // Click layer returns nothing at this location.
+    return [];
+  });
+  jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+  const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
+
+  const layers = [
+    {
+      tablePopupType: "hover",
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "HoverLayer",
+          source: {
+            type: "ESRI Image and Map Service",
+            props: { url: "hover_url" },
+          },
+        },
+      },
+    },
+    {
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "ClickLayer",
+          source: {
+            type: "ESRI Image and Map Service",
+            props: { url: "click_url" },
+          },
+        },
+      },
+    },
+  ];
+  const sharedCoordinates = [10, 20];
+
+  // The default TestingComponent fires singleclick before pointermove,
+  // which is the wrong order for this test (we need hover popup OPEN
+  // first, then dispatch the click). Use a manual harness with two
+  // buttons so the test body controls the dispatch order.
+  const HoverThenClickHarness = () => {
+    const visualizationRef = useRef();
+    const { mapReady } = useMapContext();
+    return (
+      <div>
+        <MapVisualization
+          visualizationRef={visualizationRef}
+          mapConfig={{}}
+          viewConfig={{}}
+          layers={layers}
+          baseMap={null}
+          layerControl={false}
+        />
+        <p>{mapReady ? "Map Ready" : "Map Not Ready"}</p>
+        <button
+          type="button"
+          onClick={() =>
+            visualizationRef.current?.dispatchEvent({
+              type: "pointermove",
+              coordinate: sharedCoordinates,
+            })
+          }
+        >
+          fire-hover
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            visualizationRef.current?.dispatchEvent({
+              type: "singleclick",
+              coordinate: sharedCoordinates,
+            })
+          }
+        >
+          fire-click
+        </button>
+      </div>
+    );
+  };
+
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <HoverThenClickHarness />
+      </MapContextProvider>
+    ),
+  });
+  render(LoadedComponent);
+
+  expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+  // Step 1: fire hover. After the 250ms debounce, the hover popup opens
+  // at sharedCoordinates and the overlay is positioned there.
+  fireEvent.click(screen.getByText("fire-hover"));
+  await waitFor(() => {
+    expect(popSetPosition).toHaveBeenCalledWith(sharedCoordinates);
+  });
+  const queriedAfterHover = mockedQueryLayerFeatures.mock.calls.length;
+
+  // Step 2: fire click at the same coordinate. The click handler will
+  // query ClickLayer (which returns []), find no features, see that a
+  // hover popup is open, and bail without modifying popup state.
+  fireEvent.click(screen.getByText("fire-click"));
+  // Give the async click handler time to complete its query work.
+  await waitFor(() => {
+    expect(mockedQueryLayerFeatures.mock.calls.length).toBeGreaterThan(
+      queriedAfterHover,
+    );
+  });
+
+  // The overlay was NOT repositioned to undefined (which would hide it)
+  // and was NOT given a fresh setPosition with the click coordinate to
+  // anchor an empty popup. The last setPosition call should still be the
+  // hover anchor — sharedCoordinates — leaving the hover popup visible.
+  await waitFor(() => {
+    expect(popSetPosition).toHaveBeenLastCalledWith(sharedCoordinates);
+  });
+});
+
 test("Map click skips layers the user has hidden via the layer control", async () => {
   // Visibility is mutated on the OL layer directly by LayersControl, so the
   // config-side `layers` array doesn't reflect toggles. The click handler
