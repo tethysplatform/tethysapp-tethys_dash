@@ -1953,6 +1953,84 @@ test("Map click attribute variables update text variable input then swipe and up
   });
 });
 
+test("Map hover attribute variables update text variable input", async () => {
+  // Hover-opened popups should drive variable inputs the same way click
+  // does — enables hover-driven dashboards where other widgets follow
+  // the hovered feature. The hover query is debounced (~1 write per
+  // cursor pause), so downstream re-fetches are bounded.
+  mockedQueryLayerFeatures.mockResolvedValue([
+    {
+      attributes: { field1: "hover value" },
+      geometry: { x: 10, y: 10 },
+      layerName: "Hover Layer",
+    },
+  ]);
+  jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+  const handleChange = jest.fn();
+  const dashboard = JSON.parse(JSON.stringify(userDashboard));
+  dashboard.tabs[0].gridItems = [mockedTextVariable];
+  const varInputArgs = JSON.parse(mockedTextVariable.args_string);
+
+  const layers = [
+    {
+      tablePopupType: "hover",
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "Hover Layer",
+          source: {
+            type: "ESRI Image and Map Service",
+            props: { url: "hover_url" },
+          },
+        },
+      },
+      attributeVariables: { "Hover Layer": { field1: "Test Variable" } },
+    },
+  ];
+  const hoverCoordinates = [10, 20];
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent
+          onMapPointerMove={true}
+          clickCoordinates={hoverCoordinates}
+          mapProps={{
+            mapConfig: {},
+            viewConfig: {},
+            layers,
+            baseMap: null,
+            layerControl: false,
+          }}
+        />
+        <VariableInput
+          variable_name={varInputArgs.variable_name}
+          initial_value={varInputArgs.initial_value}
+          variable_options_source={varInputArgs.variable_options_source}
+          onChange={handleChange}
+        />
+      </MapContextProvider>
+    ),
+    options: { dashboards: { dashboards: [dashboard] } },
+  });
+  render(LoadedComponent);
+
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({ "Test Variable": "" }),
+  );
+  expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+  // After the hover debounce settles and the query resolves, the variable
+  // input should hold the hovered feature's field1 value.
+  await waitFor(async () => {
+    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({
+        "Test Variable": "hover value",
+      }),
+    );
+  });
+});
+
 test("Map click attribute variables update dropdown variable input", async () => {
   mockedQueryLayerFeatures.mockResolvedValue([
     {

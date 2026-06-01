@@ -387,19 +387,23 @@ const MapVisualization = ({
         </OverlayContentWrapper>,
       );
 
-      // Highlight the first feature when the popup is created. Skip when the
-      // popup was opened by the hover handler — highlighting on every cursor
-      // movement is too aggressive a visual affordance. Also defensively skip
-      // when no highlight layer exists yet (hover can fire before any click
-      // has lazily created it).
-      if (
-        popupContent &&
-        popupContent.length > 0 &&
-        !hoverActiveRef.current &&
-        highlightLayer.current
-      ) {
+      // When the popup is created, run two side effects with different scopes:
+      //   - Highlight overlay: click-only. The highlight layer is created
+      //     lazily by onMapClick, so it may not exist on a hover-opened popup,
+      //     and re-highlighting as the cursor sweeps would be too aggressive.
+      //   - Variable input updates: fire for both click AND hover popups so
+      //     dashboards built around hover (e.g., "hover a gauge to drive
+      //     the chart below") can wire other widgets to the hovered feature.
+      //     The hover query is already debounced to ~1 update per cursor
+      //     pause, so downstream re-fetches are bounded.
+      if (popupContent && popupContent.length > 0) {
         const selectedFeature = popupContent[0];
-        addHighlightFeatures(highlightLayer.current, selectedFeature.geometry);
+        if (!hoverActiveRef.current && highlightLayer.current) {
+          addHighlightFeatures(
+            highlightLayer.current,
+            selectedFeature.geometry,
+          );
+        }
         updateVariableInputsForFeature(selectedFeature);
       }
     }
@@ -495,18 +499,19 @@ const MapVisualization = ({
   }, [layers, baseMap]);
 
   const onSwipe = (swiper) => {
-    const selectedFeature = popupContent[swiper.activeIndex];
+    const selectedFeature = popupContent?.[swiper.activeIndex];
+    if (!selectedFeature) return;
 
-    // Hover-opened popups never created the highlight layer (that's a
-    // click-handler side effect) and they intentionally skipped variable
-    // updates when first opened. Swiping inside a hover popup must follow
-    // the same rules — otherwise navigating the swiper crashes on the
-    // undefined highlight layer.
-    if (hoverActiveRef.current || !highlightLayer.current) return;
-
-    // Update highlights to only show the currently visible feature
-    highlightLayer.current.getSource().clear();
-    addHighlightFeatures(highlightLayer.current, selectedFeature.geometry);
+    // Highlight overlay is click-only: hover-opened popups never created
+    // the highlight layer, so guard the highlight ops separately from the
+    // variable update. (Without the guard, navigating the swiper inside a
+    // hover popup crashes on the undefined highlight layer.)
+    if (!hoverActiveRef.current && highlightLayer.current) {
+      highlightLayer.current.getSource().clear();
+      addHighlightFeatures(highlightLayer.current, selectedFeature.geometry);
+    }
+    // Variable inputs follow the popup regardless of how it opened — keeps
+    // swipe behavior consistent for hover-driven dashboards.
     updateVariableInputsForFeature(selectedFeature);
   };
 
