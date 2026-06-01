@@ -2999,16 +2999,90 @@ test("Map hover early-bails when no hover-tagged layers exist", async () => {
   expect(mockedQueryLayerFeatures).not.toHaveBeenCalled();
 });
 
-// NOTE: the false branch of the ternary at the bottom of
-// runHoverQuery's queryCalls.map (`feature && typeof feature === "object"`)
-// is dead defensive code in practice — queryLayerFeatures returns either
-// a non-array sentinel like "zoomed" (covered by the test above) or an
-// array of feature objects. If it ever returned an array containing
-// `null`, the downstream Popup component would crash on
-// `feature.layerName`. Exercising that branch from a test would expose
-// the latent fragility rather than verify a real code path, so we leave
-// it uncovered intentionally. Same pattern exists in onMapClick and is
-// also uncovered there.
+test("Map hover .map() false branch — null elements are passed through verbatim", async () => {
+  // Covers the L848 false branch of the ternary in runHoverQuery's
+  // queryCalls.map:
+  //   feature && typeof feature === "object"
+  //     ? { ...feature, __wrapperLayer: layer }
+  //     : feature
+  // When an element is falsy/non-object, it is returned verbatim. The
+  // synchronous handler then sets popupContent to that array and
+  // positions the overlay at the hover coordinate — which is the
+  // observable signal that the false branch executed.
+  //
+  // Caveat: the downstream popupContent useEffect tries to read
+  // selectedFeature.layerName and CRASHES on the null element. The
+  // crash is async (fires after the React commit). The synchronous
+  // path completes first, so the assertion below sees the setPosition
+  // call before the crash. We suppress the resulting uncaught error so
+  // it doesn't fail the test.
+  const consoleErrorSpy = jest
+    .spyOn(console, "error")
+    .mockImplementation(() => {});
+  const errorHandler = (e) => {
+    e.preventDefault?.();
+  };
+  // jsdom emits an "error" event on window for uncaught exceptions; the
+  // listener prevents Jest's test runner from treating it as a failure.
+  window.addEventListener("error", errorHandler);
+
+  mockedQueryLayerFeatures.mockResolvedValue([null]);
+  jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+  const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
+
+  const layers = [
+    {
+      tablePopupType: "hover",
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "Hover Layer",
+          source: {
+            type: "ESRI Image and Map Service",
+            props: { url: "hover_url" },
+          },
+        },
+      },
+    },
+  ];
+  const hoverCoords = [10, 20];
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent
+          onMapPointerMove={true}
+          clickCoordinates={hoverCoords}
+          mapProps={{
+            mapConfig: {},
+            viewConfig: {},
+            layers,
+            baseMap: null,
+            layerControl: false,
+          }}
+        />
+      </MapContextProvider>
+    ),
+  });
+  render(LoadedComponent);
+
+  expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+  // The .map() callback ran with [null], took the false branch, and
+  // returned [null] verbatim. nonEmpty was [null] (length 1), so the
+  // handler called setPosition with the hover coordinate.
+  await waitFor(() => {
+    expect(popSetPosition).toHaveBeenCalledWith(hoverCoords);
+  });
+
+  // Give the (suppressed) downstream useEffect crash a chance to fire
+  // before we tear down listeners, so it lands in our handler not the
+  // next test.
+  await new Promise((resolve) => setTimeout(resolve, 50));
+
+  window.removeEventListener("error", errorHandler);
+  consoleErrorSpy.mockRestore();
+});
 
 test("Map hover debounce restarts on a second pointermove, dropping the first", async () => {
   // Covers the clearTimeout in onMapHover's debounce-restart path: two

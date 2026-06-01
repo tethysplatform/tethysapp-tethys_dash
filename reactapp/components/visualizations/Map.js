@@ -500,6 +500,11 @@ const MapVisualization = ({
 
   const onSwipe = (swiper) => {
     const selectedFeature = popupContent?.[swiper.activeIndex];
+    // istanbul ignore next — defensive guard against a popupContent /
+    // Swiper desync. Unreachable in practice: when popupContent goes to
+    // null the Popup unmounts (taking Swiper with it), and Swiper enforces
+    // that activeIndex stays in bounds of the rendered slides. Same
+    // istanbul-ignore convention is used on the catch block below.
     if (!selectedFeature) return;
 
     // Highlight overlay is click-only: hover-opened popups never created
