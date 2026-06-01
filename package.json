@@ -149,7 +149,30 @@
       "__webpack_share_scopes__": true
     },
     "rules": {
-      "react/no-unescaped-entities": 0
+      "react/no-unescaped-entities": 0,
+      "no-restricted-imports": [
+        "error",
+        {
+          "patterns": [
+            {
+              "group": [
+                "react-icons/fa",
+                "react-icons/fa6",
+                "react-icons/bi",
+                "react-icons/cg",
+                "react-icons/ci",
+                "react-icons/hi",
+                "react-icons/lu",
+                "react-icons/md",
+                "react-icons/ri",
+                "react-icons/rx",
+                "react-icons/tb"
+              ],
+              "message": "Use react-icons/bs (Bootstrap Icons). DESIGN.md \"Two Families Rule\": one icon family across the app. If the Bs library does not have the icon you need, propose an addition in DESIGN.md before importing from another family."
+            }
+          ]
+        }
+      ]
     }
   },
   "jest": {

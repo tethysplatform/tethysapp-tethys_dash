@@ -54,12 +54,11 @@ const Wrapper = styled.div`
   width: ${(props) => (props.$isOpen ? `${SIDEBAR_WIDTH}px` : "0px")};
   min-width: ${(props) => (props.$isOpen ? `${SIDEBAR_WIDTH}px` : "0px")};
   overflow: hidden;
-  transition: width 0.3s ease, min-width 0.3s ease;
   border-left: ${(props) => (props.$isOpen ? "1px solid #ddd" : "none")};
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #fff;
+  background: #fbfcfc;
   position: relative;
 `;
 
@@ -103,11 +102,11 @@ const Content = styled.div`
 const PatchRejectedBanner = styled.div`
   flex-shrink: 0;
   min-width: ${SIDEBAR_WIDTH}px;
-  background: #fff8e1;
-  border-bottom: 1px solid #f0d68a;
+  background: rgba(194, 90, 20, 0.08);
+  border-bottom: 1px solid rgba(194, 90, 20, 0.32);
   padding: 6px 10px;
   font-size: 0.78rem;
-  color: #5a4400;
+  color: #c25a14;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -454,7 +453,7 @@ function ChatSidebar() {
             clearChatHistory(dashboardUuid ?? "no-dashboard")
           }
           welcomeHeading="Ask me about your dashboard"
-          welcomeSubtitle="I can create visualizations, edit tiles, add map layers, and analyze data — just ask."
+          welcomeSubtitle="Create visualizations, edit tiles, add map layers, analyze data."
           suggestedPrompts={[
             "Create a bar chart",
             "Add a map layer",

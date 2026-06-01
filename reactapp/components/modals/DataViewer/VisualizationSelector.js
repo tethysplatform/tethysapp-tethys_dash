@@ -141,7 +141,7 @@ function VisualizationSelector({
             <button
               onClick={() => setShowRegisterForm((prev) => !prev)}
               style={{
-                background: showRegisterForm ? "#dc3545" : "#0d6efd",
+                background: showRegisterForm ? "#dc3545" : "var(--bs-primary)",
                 color: "#fff",
                 border: "none",
                 borderRadius: "6px",

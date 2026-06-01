@@ -100,8 +100,8 @@ const AttributionTooltip = styled.div`
   position: absolute;
   top: 0.5rem;
   left: 0.5rem;
-  background: rgba(0, 0, 0, 0.97);
-  color: #ffffffff;
+  background: rgba(21, 32, 42, 0.97);
+  color: #fbfcfc;
   border: 1px solid #ccc;
   border-radius: 6px;
   padding: 0.75rem 1.5rem 0.75rem 1rem;
@@ -363,7 +363,13 @@ const DashboardItem = () => {
     // not open at all when the chatbox is mid-turn (R5). If the guard fired
     // after confirm, the user would see the modal, dismiss it, and have a
     // silent no-op afterwards — confusing.
-    if (isStreaming) return;
+    if (isStreaming) {
+      setGridItemWarning(
+        "Editing paused while the chatbox is updating this dashboard.",
+      );
+      setShowGridItemWarning(true);
+      return;
+    }
     if (await confirm("Are you sure you want to delete the item?")) {
       const { gridItems, id: activeTabId } = getActiveTab();
       const updated_grid_items = JSON.parse(JSON.stringify(gridItems));
@@ -379,7 +385,13 @@ const DashboardItem = () => {
     // streams (R5). Open modals that predate the stream are unaffected
     // per the Scope Boundary "open edit modals at stream start are not
     // auto-closed" — accepted v1 UX cost.
-    if (isStreaming) return;
+    if (isStreaming) {
+      setGridItemWarning(
+        "Editing paused while the chatbox is updating this dashboard.",
+      );
+      setShowGridItemWarning(true);
+      return;
+    }
     setShowDataViewerModal(true);
     setIsEditing(true);
     setInDataViewerMode(true);
@@ -394,7 +406,13 @@ const DashboardItem = () => {
     // bringGridItemForward / etc., which all delegate here). The
     // react-grid-layout drag-to-reorder gesture is NOT routed through
     // here, so it remains enabled per R6.
-    if (isStreaming) return;
+    if (isStreaming) {
+      setGridItemWarning(
+        "Editing paused while the chatbox is updating this dashboard.",
+      );
+      setShowGridItemWarning(true);
+      return;
+    }
     const { gridItems, id: activeTabId } = getActiveTab();
     const updatedGridItems = [...gridItems];
     const [movingGridItem] = updatedGridItems.splice(gridItemIndex, 1);
@@ -512,7 +530,7 @@ const DashboardItem = () => {
             href={href}
             target="_blank"
             rel="noopener noreferrer"
-            style={{ color: "#007bff", wordBreak: "break-all" }}
+            style={{ color: "var(--bs-primary)", wordBreak: "break-all" }}
           >
             {part}
           </a>
@@ -565,7 +583,7 @@ const DashboardItem = () => {
           >
             <BsInfoCircle
               size={22}
-              color="#007bff"
+              color="var(--bs-primary)"
               style={{ cursor: "pointer" }}
             />
             <AttributionTooltip

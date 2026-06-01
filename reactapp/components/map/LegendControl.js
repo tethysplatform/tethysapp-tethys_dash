@@ -1,7 +1,7 @@
 import { useState } from "react";
 import styled from "styled-components";
 import LegendRenderer from "components/map/LegendRenderer";
-import { FaTimes, FaListUl } from "react-icons/fa";
+import { BsX as FaTimes, BsListUl as FaListUl } from "react-icons/bs";
 import PropTypes from "prop-types";
 
 const LegendWrapper = styled.div`

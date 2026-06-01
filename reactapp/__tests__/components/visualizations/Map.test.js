@@ -1575,7 +1575,7 @@ test("Map click attribute variables update text variable input then swipe and up
     expect(variableInput.value).toBe("some value");
   });
 
-  const nextSwiper = screen.getByLabelText("Next Swiper");
+  const nextSwiper = screen.getByLabelText("Next feature");
   fireEvent.click(nextSwiper);
 
   await waitFor(async () => {

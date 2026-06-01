@@ -339,7 +339,7 @@ const VariableInput = ({
               onClick={handleInputRefresh}
               tooltipPlacement={"left"}
               tooltipText={"Refresh variable input"}
-              variant={"warning"}
+              variant={"outline-secondary"}
               style={{ height: "100%" }}
               aria-label={"Refresh variable input"}
             >

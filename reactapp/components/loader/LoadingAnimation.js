@@ -3,42 +3,22 @@ import { useState, useEffect } from "react";
 
 import "components/loader/LoadingAnimation.scss";
 
-const LoadingAnimation = ({ delay, text = "Loading..." }) => {
-  const [show, setShow] = useState(false);
+const LoadingAnimation = ({ delay = 0, text = "Loading..." }) => {
+  const [show, setShow] = useState(delay === 0);
 
   useEffect(() => {
-    // Option to delay display of animated loader for longer resolutions
-    setTimeout(() => {
-      setShow(true);
-    }, delay);
+    if (delay === 0) return undefined;
+    const id = setTimeout(() => setShow(true), delay);
+    return () => clearTimeout(id);
   }, [delay]);
 
-  return (
-    <>
-      {show && (
-        <div>
-          <div className="center"></div>
-          <div className="inner-spin">
-            <div className="inner-arc inner-arc_start-a"></div>
-            <div className="inner-arc inner-arc_end-a"></div>
-            <div className="inner-arc inner-arc_start-b"></div>
-            <div className="inner-arc inner-arc_end-b"></div>
+  if (!show) return null;
 
-            <div className="inner-moon-a"></div>
-            <div className="inner-moon-b"></div>
-          </div>
-          <div className="outer-spin">
-            <div className="outer-arc outer-arc_start-a"></div>
-            <div className="outer-arc outer-arc_end-a"></div>
-            <div className="outer-arc outer-arc_start-b"></div>
-            <div className="outer-arc outer-arc_end-b"></div>
-            <div className="outer-moon-a"></div>
-            <div className="outer-moon-b"></div>
-          </div>
-          <div className="loading-text">{text}</div>
-        </div>
-      )}
-    </>
+  return (
+    <div className="loader" role="status" aria-live="polite">
+      <div className="loader__spinner" aria-hidden="true" />
+      <div className="loader__label">{text}</div>
+    </div>
   );
 };
 

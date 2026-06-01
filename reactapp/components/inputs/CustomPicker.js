@@ -3,13 +3,13 @@ import styled from "styled-components";
 import { Container, Row, Col } from "react-bootstrap";
 
 const HighlightedCol = styled(Col)`
-  border: 2px solid ${({ selected }) => (selected ? "#007bff" : "transparent")};
+  border: 2px solid ${({ selected }) => (selected ? "var(--bs-primary)" : "transparent")};
   border-radius: 4px;
   padding: 0.25rem;
   cursor: pointer;
 
   &:hover {
-    border-color: ${({ selected }) => (selected ? "#007bff" : "#ccc")};
+    border-color: ${({ selected }) => (selected ? "var(--bs-primary)" : "#ccc")};
   }
 `;
 

@@ -57,20 +57,22 @@ describe("ImageCollection", () => {
     const image = screen.getByAltText("image-0");
     fireEvent.error(image);
 
-    expect(screen.getByText("Failed to get image.")).toBeInTheDocument();
+    expect(screen.getAllByText("Image unavailable")[0]).toBeInTheDocument();
     expect(screen.queryByAltText("image-0")).not.toBeInTheDocument();
   });
 
   it("shows custom error message when imageError prop is provided", () => {
     renderCollection({
       urls: ["https://example.com/broken.png"],
-      imageError: "Image unavailable",
+      imageError: "Plugin-specific image-error copy.",
     });
 
     const image = screen.getByAltText("image-0");
     fireEvent.error(image);
 
-    expect(screen.getByText("Image unavailable")).toBeInTheDocument();
+    expect(
+      screen.getByText("Plugin-specific image-error copy."),
+    ).toBeInTheDocument();
   });
 
   it("only replaces the broken image, not all images", () => {
@@ -82,7 +84,7 @@ describe("ImageCollection", () => {
     expect(screen.getByAltText("image-0")).toBeInTheDocument();
     expect(screen.queryByAltText("image-1")).not.toBeInTheDocument();
     expect(screen.getByAltText("image-2")).toBeInTheDocument();
-    expect(screen.getByText("Failed to get image.")).toBeInTheDocument();
+    expect(screen.getAllByText("Image unavailable")[0]).toBeInTheDocument();
   });
 
   it("handles multiple images failing", () => {
@@ -91,7 +93,7 @@ describe("ImageCollection", () => {
     fireEvent.error(screen.getByAltText("image-0"));
     fireEvent.error(screen.getByAltText("image-2"));
 
-    const errors = screen.getAllByText("Failed to get image.");
+    const errors = screen.getAllByText("Image unavailable");
     expect(errors).toHaveLength(2);
     expect(screen.getByAltText("image-1")).toBeInTheDocument();
   });
@@ -125,7 +127,7 @@ describe("ImageCollection", () => {
       img1.dispatchEvent(new Event("error", { bubbles: false }));
     });
 
-    expect(screen.getAllByText("Failed to get image.")).toHaveLength(2);
+    expect(screen.getAllByText("Image unavailable")).toHaveLength(2);
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
   });
 });

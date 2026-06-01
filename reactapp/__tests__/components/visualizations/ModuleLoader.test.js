@@ -74,7 +74,7 @@ describe("ModuleLoader", () => {
           <ModuleLoader {...defaultProps} module={null} />
         </Wrapper>,
       );
-      expect(screen.getByText("No system specified")).toBeInTheDocument();
+      expect(screen.getByText("No module specified")).toBeInTheDocument();
     });
 
     test("renders 'No system specified' when module is undefined", () => {
@@ -84,7 +84,7 @@ describe("ModuleLoader", () => {
           <ModuleLoader {...defaultProps} module={undefined} />
         </Wrapper>,
       );
-      expect(screen.getByText("No system specified")).toBeInTheDocument();
+      expect(screen.getByText("No module specified")).toBeInTheDocument();
     });
 
     test("renders 'No system specified' when module is empty string", () => {
@@ -94,7 +94,7 @@ describe("ModuleLoader", () => {
           <ModuleLoader {...defaultProps} module="" />
         </Wrapper>,
       );
-      expect(screen.getByText("No system specified")).toBeInTheDocument();
+      expect(screen.getByText("No module specified")).toBeInTheDocument();
     });
 
     test("renders 'No system specified' when module is falsy (0)", () => {
@@ -104,7 +104,7 @@ describe("ModuleLoader", () => {
           <ModuleLoader {...defaultProps} module={0} />
         </Wrapper>,
       );
-      expect(screen.getByText("No system specified")).toBeInTheDocument();
+      expect(screen.getByText("No module specified")).toBeInTheDocument();
     });
 
     test("does not call loadComponent when module is falsy", () => {
@@ -291,7 +291,7 @@ describe("ModuleLoader", () => {
       );
 
       expect(
-        await screen.findByText(`Failed to load remote: ${defaultProps.url}`),
+        await screen.findByText("Could not load module"),
       ).toBeInTheDocument();
     });
 
@@ -304,7 +304,7 @@ describe("ModuleLoader", () => {
       );
 
       expect(screen.queryByTestId("loading-animation")).not.toBeInTheDocument();
-      expect(screen.queryByText("No system specified")).not.toBeInTheDocument();
+      expect(screen.queryByText("No module specified")).not.toBeInTheDocument();
       expect(container).toBeEmptyDOMElement();
     });
   });
@@ -467,14 +467,14 @@ describe("ModuleLoader", () => {
           <ModuleLoader {...defaultProps} module={0} />
         </Wrapper>,
       );
-      expect(screen.getByText("No system specified")).toBeInTheDocument();
+      expect(screen.getByText("No module specified")).toBeInTheDocument();
 
       rerender(
         <Wrapper>
           <ModuleLoader {...defaultProps} module={false} />
         </Wrapper>,
       );
-      expect(screen.getByText("No system specified")).toBeInTheDocument();
+      expect(screen.getByText("No module specified")).toBeInTheDocument();
     });
 
     test("integrates with VariableInputsContext", async () => {

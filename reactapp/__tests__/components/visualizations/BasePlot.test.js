@@ -294,7 +294,7 @@ describe("BasePlot vertical line", () => {
     expect(shape.meta.variable).toBe("var1");
     expect(shape.x0).toBe(0);
     expect(shape.x1).toBe(0);
-    expect(shape.line.color).toBe("red");
+    expect(shape.line.color).toBe("#1e6b8b");
   });
 
   it("creates a vertical line, axis match is nonexistent", () => {
@@ -319,7 +319,7 @@ describe("BasePlot vertical line", () => {
     expect(shape.meta.variable).toBe("var1");
     expect(shape.x0).toBe(0);
     expect(shape.x1).toBe(0);
-    expect(shape.line.color).toBe("red");
+    expect(shape.line.color).toBe("#1e6b8b");
   });
 
   it("creates a vertical line, axis bad match format", () => {
@@ -344,7 +344,7 @@ describe("BasePlot vertical line", () => {
     expect(shape.meta.variable).toBe("var1");
     expect(shape.x0).toBe(0);
     expect(shape.x1).toBe(0);
-    expect(shape.line.color).toBe("red");
+    expect(shape.line.color).toBe("#1e6b8b");
   });
 
   it("creates a vertical line shape with correct metadata, shared axis", () => {
@@ -371,7 +371,7 @@ describe("BasePlot vertical line", () => {
     expect(shape.meta.variable).toBe("var1");
     expect(shape.x0).toBe(0);
     expect(shape.x1).toBe(0);
-    expect(shape.line.color).toBe("red");
+    expect(shape.line.color).toBe("#1e6b8b");
   });
 
   it("creates a vertical line with custom color, width, dash", () => {
@@ -464,7 +464,7 @@ describe("BasePlot vertical line", () => {
     expect(shape.meta.variable).toBe("var1");
     expect(shape.x0).toBe(1);
     expect(shape.x1).toBe(1);
-    expect(shape.line.color).toBe("red");
+    expect(shape.line.color).toBe("#1e6b8b");
   });
 
   it("handles out of range values, min", () => {
@@ -488,7 +488,7 @@ describe("BasePlot vertical line", () => {
     expect(shape.meta.variable).toBe("var1");
     expect(shape.x0).toBe(0);
     expect(shape.x1).toBe(0);
-    expect(shape.line.color).toBe("red");
+    expect(shape.line.color).toBe("#1e6b8b");
   });
 
   it("handles out of range values, returnOutOfRange is true", () => {
@@ -513,7 +513,7 @@ describe("BasePlot vertical line", () => {
     expect(shape.meta.variable).toBe("var1");
     expect(shape.x0).toBe(2);
     expect(shape.x1).toBe(2);
-    expect(shape.line.color).toBe("red");
+    expect(shape.line.color).toBe("#1e6b8b");
   });
 });
 

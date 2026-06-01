@@ -25,8 +25,8 @@ const CanvasLabel = styled.span`
 
 const Rect = styled.div`
   position: absolute;
-  background: rgba(13, 110, 253, 0.18);
-  border: 2px solid #0d6efd;
+  background: rgba(30, 107, 139, 0.18);
+  border: 2px solid var(--bs-primary);
   cursor: move;
   box-sizing: border-box;
 `;
@@ -36,7 +36,7 @@ const RectLabel = styled.span`
   top: 0.15rem;
   left: 0.35rem;
   font-size: 0.7rem;
-  color: #0d6efd;
+  color: var(--bs-primary);
   pointer-events: none;
 `;
 
@@ -47,7 +47,7 @@ const Handle = styled.div`
   width: ${HANDLE_SIZE_PX}px;
   height: ${HANDLE_SIZE_PX}px;
   background: #ffffff;
-  border: 2px solid #0d6efd;
+  border: 2px solid var(--bs-primary);
   border-radius: 2px;
   z-index: 1;
   box-sizing: border-box;

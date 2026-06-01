@@ -104,10 +104,10 @@ const GeoTIFFRowControls = styled.div`
 const GeoTIFFHint = styled.div`
   padding: 0.5rem 0.75rem;
   margin: 0.5rem 0 0.75rem;
-  border-left: 3px solid #0d6efd;
-  background: #e7f1ff;
+  background: rgba(30, 107, 139, 0.06);
+  border-radius: 4px;
   font-size: 0.85rem;
-  color: #0a4b8c;
+  color: #15202a;
 `;
 
 const singleBandIndex = (bandsStr) => {

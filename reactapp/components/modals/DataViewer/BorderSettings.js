@@ -4,12 +4,12 @@ import ButtonToolbar from "react-bootstrap/ButtonToolbar";
 import styled from "styled-components";
 import PropTypes from "prop-types";
 import {
-  CgBorderLeft,
-  CgBorderTop,
-  CgBorderRight,
-  CgBorderBottom,
-  CgBorderAll,
-} from "react-icons/cg";
+  BsBorderLeft as CgBorderLeft,
+  BsBorderTop as CgBorderTop,
+  BsBorderRight as CgBorderRight,
+  BsBorderBottom as CgBorderBottom,
+  BsBorderAll as CgBorderAll,
+} from "react-icons/bs";
 import Overlay from "react-bootstrap/Overlay";
 import Popover from "react-bootstrap/Popover";
 import ColorPicker from "components/inputs/ColorPicker";

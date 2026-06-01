@@ -6,12 +6,12 @@ import {
   useMemo,
 } from "react";
 import LoadingAnimation from "components/loader/LoadingAnimation";
+import EmptyState from "components/visualizations/EmptyState";
 import { VariableInputsContext } from "components/contexts/Contexts";
 import PropTypes from "prop-types";
 import useDynamicFederatedComponent from "./useDynamicFederatedComponent";
 
 function ModuleLoader(props) {
-  console.log("[ModuleLoader] props:", props);
   const { variableInputValues, setVariableInputValues } = useContext(
     VariableInputsContext,
   );
@@ -30,11 +30,9 @@ function ModuleLoader(props) {
     [variableInputValues],
   );
 
-  if (!props.module) {
-    return <h2>No system specified</h2>;
-  }
-
-  // eslint-disable-next-line react-hooks/rules-of-hooks
+  // useDynamicFederatedComponent must run on every render to keep its
+  // internal effects consistent. Branch on the result, not on whether
+  // the hook is called.
   const { Component, failed } = useDynamicFederatedComponent({
     scope: props.scope,
     module: props.module,
@@ -42,8 +40,25 @@ function ModuleLoader(props) {
     remoteType: props.remoteType || "webpack",
   });
 
+  if (!props.module) {
+    return (
+      <EmptyState
+        variant="info"
+        title="No module specified"
+        hint="This tile is waiting for a Module Federation source."
+      />
+    );
+  }
+
   if (failed) {
-    return <h2>Failed to load remote: {props.url}</h2>;
+    return (
+      <EmptyState
+        variant="error"
+        title="Could not load module"
+        hint="The remote module is unreachable. Try reloading; if it persists, the source has likely been removed."
+        details={props.url}
+      />
+    );
   }
 
   return (

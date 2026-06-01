@@ -35,7 +35,6 @@ const ChatBubble = styled.div`
   padding-right: ${(props) => (props.isUser ? "28px" : "14px")};
   max-width: 75%;
   font-size: 15px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   align-self: ${(props) => (props.isUser ? "flex-end" : "flex-start")};
   margin-top: 2px;
   position: relative;

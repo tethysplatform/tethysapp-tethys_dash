@@ -14,27 +14,27 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import styled from "styled-components";
 import {
-  LuBold,
-  LuItalic,
-  LuStrikethrough,
-  LuCode,
-  LuUnderline,
-  LuHighlighter,
-  LuSuperscript,
-  LuSubscript,
-  LuBaseline,
-  LuAlignLeft,
-  LuAlignJustify,
-  LuAlignRight,
-  LuUndo,
-  LuRedo,
-  LuEraser,
-  LuList,
-  LuListOrdered,
-  LuMinus,
-  LuIndentIncrease,
-  LuIndentDecrease,
-} from "react-icons/lu";
+  BsTypeBold as LuBold,
+  BsTypeItalic as LuItalic,
+  BsTypeStrikethrough as LuStrikethrough,
+  BsCode as LuCode,
+  BsTypeUnderline as LuUnderline,
+  BsHighlighter as LuHighlighter,
+  BsSuperscript as LuSuperscript,
+  BsSubscript as LuSubscript,
+  BsType as LuBaseline,
+  BsTextLeft as LuAlignLeft,
+  BsJustify as LuAlignJustify,
+  BsTextRight as LuAlignRight,
+  BsArrowCounterclockwise as LuUndo,
+  BsArrowClockwise as LuRedo,
+  BsEraser as LuEraser,
+  BsListUl as LuList,
+  BsListOl as LuListOrdered,
+  BsDash as LuMinus,
+  BsTextIndentLeft as LuIndentIncrease,
+  BsTextIndentRight as LuIndentDecrease,
+} from "react-icons/bs";
 import ButtonGroup from "react-bootstrap/ButtonGroup";
 import Overlay from "react-bootstrap/Overlay";
 import Popover from "react-bootstrap/Popover";

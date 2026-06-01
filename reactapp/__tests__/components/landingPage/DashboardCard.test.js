@@ -243,8 +243,12 @@ test("DashboardCard editable, edit name and no change", async () => {
   expect(await screen.findByLabelText("Owner Icon")).toBeInTheDocument();
   expect(screen.queryByLabelText("Public Icon")).not.toBeInTheDocument();
 
-  const image = await screen.findByLabelText("Dashboard Card Image");
-  expect(image.src).toBe("http://localhost/some_image.png");
+  // The illustrative chart-icon thumbnail was retired in favor of a
+  // first-letter monogram + description-in-flow (2026-05-29 critique
+  // closed "identical card grids" anti-reference). The `image` prop is
+  // still accepted by DashboardCard for backward compat, but no
+  // <CardImage> is rendered until the custom-thumbnail UI returns.
+  expect(screen.queryByLabelText("Dashboard Card Image")).toBeNull();
 
   const contextMenuButton = await screen.findByLabelText(
     "dashboard-item-dropdown-toggle"

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import PropTypes from "prop-types";
 import ReactDOM from "react-dom";
 import styled from "styled-components";
-import { FaTimes } from "react-icons/fa";
+import { BsX as FaTimes } from "react-icons/bs";
 
 const POPUP_Z_INDEX = 1055;
 const SMALL_VIEWPORT_BREAKPOINT = 768;

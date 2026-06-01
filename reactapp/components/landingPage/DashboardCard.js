@@ -3,8 +3,7 @@ import { useContext, useState, memo, useEffect, useRef } from "react";
 import { getPublicUrl } from "services/utilities";
 import Card from "react-bootstrap/Card";
 import styled from "styled-components";
-import { BsPeopleFill } from "react-icons/bs";
-import { FaPlus } from "react-icons/fa";
+import { BsPeopleFill, BsPlus as FaPlus, BsPersonCircle as FaRegUserCircle } from "react-icons/bs";
 import { useNavigate } from "react-router-dom";
 import { confirm } from "components/inputs/DeleteConfirmation";
 import {
@@ -14,7 +13,6 @@ import {
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import Alert from "react-bootstrap/Alert";
 import NewDashboardModal from "components/modals/NewDashboard";
-import { FaRegUserCircle } from "react-icons/fa";
 import ContextMenu from "components/landingPage/ContextMenu";
 import DashboardThumbnailModal from "components/modals/DashboardThumbnail";
 import PermissionsModal from "components/modals/Permissions";
@@ -23,63 +21,95 @@ const StyledBsPeopleFill = styled(BsPeopleFill)`
   margin-left: 0.3rem;
 `;
 
+/*
+ * DashboardCard surface — 2026-05-29 critique called out the
+ * landing-page grid as DESIGN.md absolute ban "identical card grids":
+ * 12 cards, same illustrative chart-icon placeholder thumbnail, same
+ * shape, same padding, no differentiating metadata.
+ *
+ * Redesign:
+ *   - Drop the placeholder thumbnail. If a user set a custom one we
+ *     could show it small and leading, but currently `image` is always
+ *     the placeholder (no custom-thumbnail UI yet).
+ *   - Replace with a quiet first-letter monogram (large slate-tinted
+ *     letterform, ~30% alpha) as a low-key visual mark per card.
+ *   - Promote the `description` from hover-overlay-only to in-flow body
+ *     text. Cards now differentiate by actual content the editor wrote.
+ *   - Paper background (was rgb(238,238,238) grey), Rule border, 4px
+ *     radius. Flat-by-default; no hover surface change beyond a border
+ *     darken.
+ *   - Variable card height (auto, min 9rem) so cards with no
+ *     description shrink and cards with multi-line descriptions grow.
+ *     Variable height kills the identical-grid uniformity.
+ */
 const CustomCard = styled(Card).withConfig({
-  shouldForwardProp: (prop) => prop !== "newCard", // Prevent `newCard` from being passed to the DOM
+  shouldForwardProp: (prop) => prop !== "newCard",
 })`
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
   user-select: none;
   width: 20rem;
-  height: 15rem;
+  min-height: 9rem;
   display: flex;
   margin-bottom: 1.5rem;
-  background-color: rgb(238, 238, 238);
-  border: ${(props) => props?.newCard && "#dcdcdc dashed 1px"};
+  background-color: #fbfcfc;
+  border-radius: 4px;
+  border: ${(props) =>
+    props?.newCard ? "1px dashed #cbd3da" : "1px solid #e0e5e9"};
+  transition: border-color 120ms cubic-bezier(0.25, 1, 0.5, 1);
+
+  &:hover {
+    border-color: #cbd3da;
+    cursor: pointer;
+  }
 `;
 
 const CardBody = styled(Card.Body)`
-  position: relative; /* Ensure content is layered properly */
-  overflow-y: auto;
+  position: relative;
+  overflow: hidden;
+  padding: 12px 16px;
+`;
 
-  &:hover {
-    background-color: rgba(
-      169,
-      169,
-      169,
-      0.5
-    ); /* Light gray background on hover */
-  }
+const Monogram = styled.div`
+  position: absolute;
+  right: 12px;
+  bottom: 8px;
+  font-family: "JetBrains Mono", Menlo, Consolas, monospace;
+  font-size: 56px;
+  font-weight: 600;
+  line-height: 1;
+  color: rgba(30, 107, 139, 0.16);
+  pointer-events: none;
+  user-select: none;
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
 `;
 
 const DescriptionDiv = styled.div.withConfig({
   shouldForwardProp: (prop) => !["isEditing"].includes(prop),
 })`
-  position: absolute; /* Overlay the description on top of the image */
-  bottom: 10px; /* Adjust the position as needed */
-  left: 10px; /* Adjust the position as needed */
-  right: 10px;
-  color: white;
-  font-size: 1rem;
-  background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent background */
-  padding: 5px;
-  border-radius: 4px;
-  display: ${(props) => (props?.isEditing ? "flex" : "none")};
-  height: 90%; /* Ensure it takes full height of the parent */
-  overflow-y: auto;
+  position: relative;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #4b5b6a;
+  margin: 0;
   white-space: pre-wrap;
-
-  ${CardBody}:hover & {
-    display: flex; /* Show the description on hover */
-  }
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
+  ${(props) => props?.isEditing && "display: block; -webkit-line-clamp: none; overflow: visible;"}
 `;
 
 const CardHeader = styled(Card.Header)`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  min-height: 3rem;
-  max-height: 4.5rem;
+  min-height: 2.5rem;
+  background-color: transparent;
+  border-bottom: 1px solid #e0e5e9;
+  padding: 8px 12px;
 `;
 
 const NewDashboardDiv = styled.div`
@@ -92,14 +122,14 @@ const NewDashboardDiv = styled.div`
 `;
 
 const CardTitleDiv = styled.div`
-  height: 100%;
-  overflow-y: auto;
-  margin: 0.1rem;
+  overflow: hidden;
+  margin: 0 8px;
   display: flex;
   align-items: center;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   position: relative;
-  text-align: center;
+  text-align: left;
 `;
 
 const EditableInput = styled.input`
@@ -112,7 +142,7 @@ const EditableInput = styled.input`
 
   &:focus {
     outline: none; /* Prevent default focus outline */
-    border: 1px solid #007bff; /* Outline color when focused */
+    border: 1px solid var(--bs-primary); /* Outline color when focused */
   }
 `;
 
@@ -129,31 +159,28 @@ const EditableTextarea = styled.textarea`
 
   &:focus {
     outline: none;
-    border: 1px solid #007bff;
+    border: 1px solid var(--bs-primary);
   }
 `;
 
 const CardTitle = styled.h5`
   margin: 0;
   width: 100%;
+  font-size: 15px;
+  font-weight: 600;
+  color: #15202a;
+  line-height: 1.3;
+  text-align: left;
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 `;
 
 const StyledAlert = styled(Alert)`
   position: absolute;
   margin: 1rem;
   z-index: 1;
-`;
-
-const CardImage = styled(Card.Img)`
-  transition: opacity 0.3s ease; /* Smooth transition for opacity change */
-  opacity: 1; /* Default visibility */
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-
-  ${CardBody}:hover & {
-    opacity: 0.5; /* Dim the image on hover */
-  }
 `;
 
 const FlexDiv = styled.div`
@@ -182,6 +209,11 @@ const DashboardCard = ({
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [title, setTitle] = useState(name);
   const [desc, setDesc] = useState(description);
+  // `image` prop retained for backward compat with parent dashboards
+  // list; the illustrative thumbnail was retired (2026-05-29 critique
+  // closed "identical card grids"). Custom thumbnail UI can come back
+  // as a leading mark when needed.
+  // eslint-disable-next-line no-unused-vars
   const [dashboardImage, setDashboardImage] = useState(image);
   const nameInput = useRef();
   const descriptionInput = useRef();
@@ -392,12 +424,9 @@ const DashboardCard = ({
               {errorMessage}
             </StyledAlert>
           )}
-          <CardImage
-            variant="top"
-            src={dashboardImage}
-            aria-label="Dashboard Card Image"
-          />
-
+          <Monogram aria-hidden="true">
+            {(title || "?").trim().charAt(0)}
+          </Monogram>
           <DescriptionDiv
             isEditing={isEditingDescription}
             aria-label="Description"

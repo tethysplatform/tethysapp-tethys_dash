@@ -4,7 +4,7 @@ import Modal from "react-bootstrap/Modal";
 import Button from "react-bootstrap/Button";
 import styled from "styled-components";
 import { v4 as uuidv4 } from "uuid";
-import { FaPlus } from "react-icons/fa";
+import { BsPlus as FaPlus } from "react-icons/bs";
 import {
   TabContext,
   EditingContext,
