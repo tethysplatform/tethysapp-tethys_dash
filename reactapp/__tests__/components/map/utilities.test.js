@@ -47,6 +47,19 @@ test("getStyleFields GeoJSON", async () => {
   expect(styleFields).toStrictEqual(["Some Field"]);
 });
 
+test("getStyleFields GeoJSON with no features returns empty array (line 903 ?? [])", async () => {
+  const styleFields = await getStyleFields({
+    sourceProps: {
+      type: "GeoJSON",
+      geojson: { type: "FeatureCollection" }, // no features key
+    },
+    layerProps: { name: "Test Layer" },
+    dashboard_uuid: "some-uuid",
+  });
+
+  expect(styleFields).toStrictEqual([]);
+});
+
 test("getStyleFields  fails", async () => {
   global.fetch = jest.fn(() =>
     Promise.resolve({
