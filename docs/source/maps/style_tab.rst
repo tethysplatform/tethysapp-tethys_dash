@@ -34,8 +34,7 @@ The graphical rule editor is organized into two sections for each rule:
 .. figure:: ../../images/rule_editor_overview.png
     :align: center
 
-    *Screenshot placeholder — add a screenshot of the full rule editor showing the WHEN / THEN layout.*
-    *Suggested filename:* ``docs/images/rule_editor_overview.png``
+    Rule editor showing the WHEN / THEN layout for a single rule.
 
 Rule Conditions
 ~~~~~~~~~~~~~~~
@@ -74,8 +73,7 @@ The following operators are available:
 .. figure:: ../../images/rule_condition_isnull.png
     :align: center
 
-    *Screenshot placeholder — add a screenshot of a condition row with the ``isNull`` operator selected (value input hidden).*
-    *Suggested filename:* ``docs/images/rule_condition_isnull.png``
+    Condition row with ``isNull`` selected — the value input is hidden.
 
 Compound AND Conditions
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -87,8 +85,7 @@ You can add as many condition rows as needed and remove any individual row with 
 .. figure:: ../../images/rule_and_conditions.png
     :align: center
 
-    *Screenshot placeholder — add a screenshot showing a rule with two or more AND conditions.*
-    *Suggested filename:* ``docs/images/rule_and_conditions.png``
+    A rule with two AND conditions that must both be true for the rule to apply.
 
 Field-to-Field Comparison
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -191,8 +188,7 @@ The following shapes are available for point features:
 .. figure:: ../../images/rule_shape_picker.png
     :align: center
 
-    *Screenshot placeholder — add a screenshot of the Shape dropdown open showing all available shapes.*
-    *Suggested filename:* ``docs/images/rule_shape_picker.png``
+    Shape dropdown showing all available point marker shapes.
 
 Per-Feature Property References (Literal | Field Toggle)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -209,8 +205,7 @@ Switching back to **Literal** clears the field reference and restores the fixed 
 .. figure:: ../../images/rule_field_toggle.png
     :align: center
 
-    *Screenshot placeholder — add a screenshot of a style property row with the Field source toggle active and a field selected.*
-    *Suggested filename:* ``docs/images/rule_field_toggle.png``
+    Style property row with the Field source toggle active — the value is read from a per-feature GeoJSON property.
 
 Rule-Based Style JSON Reference
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -430,7 +425,7 @@ MapLibre Style JSON Example::
 
 
 .. warning::
-    For map libre styling to work, the "sources" key in the JSON object must match the layer name from the layer tab. For example, if your layer is named "My Beautiful Layer", the styling JSON should look like:
+    For map libre styling to work, the "sources" key in the JSON object must match the layer name from the layer tab. For example, if your layer is named "My Beautiful Layer", the styling JSON should look like::
 
         {
             "version": 8,
