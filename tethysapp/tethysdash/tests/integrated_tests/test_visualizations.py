@@ -196,10 +196,7 @@ def test_get_visualization_without_request_id_kwarg(
 ):
     mock_intake = mocker.patch("tethysapp.tethysdash.visualizations.intake")
     mock_intake.open_package_name2 = mock_plugin2
-    mock_intake.open_package_name2().read.side_effect = [
-        TypeError("missing 1 required positional argument: 'request_id'"),
-        "some_data",
-    ]
+    mock_intake.open_package_name2().read.return_value = "some_data"
     mock_intake.open_package_name2.visualization_restricted = False
 
     test_args = {"some_arg": "test"}
@@ -210,6 +207,25 @@ def test_get_visualization_without_request_id_kwarg(
     mock_intake.open_package_name2.assert_called_with(some_arg="test")
     assert viz_type == mock_plugin2.visualization_type
     assert viz_data == "some_data"
+
+
+def test_get_visualization_with_request_id_kwarg(mock_plugin2, mocker, test_owner_user):
+    mock_intake = mocker.patch("tethysapp.tethysdash.visualizations.intake")
+    mock_intake.open_package_name2 = mock_plugin2
+    mock_intake.open_package_name2.visualization_restricted = False
+
+    def read_with_request_id(request_id=None):
+        return "data_with_request_id"
+
+    mock_intake.open_package_name2().read = read_with_request_id
+
+    test_args = {"some_arg": "test"}
+    viz_type, viz_data = get_visualization(
+        mock_plugin2.name, test_args, test_owner_user, "req-42"
+    )
+
+    assert viz_type == mock_plugin2.visualization_type
+    assert viz_data == "data_with_request_id"
 
 
 def test_get_restricted_visualizations_none(mocker):

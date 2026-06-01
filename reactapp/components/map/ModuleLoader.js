@@ -407,6 +407,16 @@ function mergeStyleProperties(base, override) {
 
 export function matchesCondition(featureValue, type, conditionValue) {
   const a = featureValue;
+
+  // Presence checks must operate on the raw value: Number("") is 0, which would
+  // defeat the empty-string check after numeric coercion.
+  if (type === "isNull") {
+    return a === null || a === undefined || a === "";
+  }
+  if (type === "isNotNull") {
+    return a !== null && a !== undefined && a !== "";
+  }
+
   const b =
     typeof conditionValue === "string" && !isNaN(conditionValue)
       ? Number(conditionValue)
@@ -430,6 +440,59 @@ export function matchesCondition(featureValue, type, conditionValue) {
     default:
       return false;
   }
+}
+
+export function resolveAllStyleValues(merged, properties) {
+  if (!merged.propertyRefs || typeof merged.propertyRefs !== "object") {
+    return merged;
+  }
+  const resolved = { ...merged };
+  for (const [key, fieldName] of Object.entries(merged.propertyRefs)) {
+    if (typeof fieldName !== "string" || !fieldName) continue;
+    const fv = properties[fieldName];
+    if (fv !== undefined && fv !== null && fv !== "") {
+      resolved[key] = fv;
+    }
+  }
+  return resolved;
+}
+
+function evaluateCondition({ field, type, value, valueIsField }, properties) {
+  const fv = properties[field];
+  let ruleValue = valueIsField ? properties[value] : value;
+  if (
+    typeof fv === "number" &&
+    typeof ruleValue === "string" &&
+    !isNaN(ruleValue)
+  ) {
+    ruleValue = Number(ruleValue);
+  }
+  return matchesCondition(fv, type, ruleValue);
+}
+
+export function ruleMatches(rule, properties) {
+  const conditions = [];
+
+  if (rule.conditionField && rule.conditionType) {
+    conditions.push({
+      field: rule.conditionField,
+      type: rule.conditionType,
+      value: rule.conditionValue,
+      valueIsField: !!rule.conditionValueIsField,
+    });
+  }
+
+  if (Array.isArray(rule.conditions)) {
+    for (const c of rule.conditions) {
+      if (c && c.field && c.type) {
+        conditions.push(c);
+      }
+    }
+  }
+
+  if (conditions.length === 0) return false;
+
+  return conditions.every((c) => evaluateCondition(c, properties));
 }
 
 export function resolveSize(feature, rules, defaultSize) {
@@ -459,7 +522,43 @@ export function resolveSize(feature, rules, defaultSize) {
   return size;
 }
 
-export function createDiamondIconStyle({ size, fill, stroke }) {
+export function createTrapezoidIconStyle({ size, fill, stroke, rotation = 0 }) {
+  const canvasSize = size * 2;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvasSize;
+  canvas.height = canvasSize;
+
+  const ctx = canvas.getContext("2d");
+  ctx.translate(canvasSize / 2, canvasSize / 2);
+
+  ctx.fillStyle = fill.getColor();
+  ctx.strokeStyle = stroke.getColor();
+  ctx.lineWidth = stroke.getWidth();
+
+  const topHalfWidth = size * 0.5;
+  const baseHalfWidth = size;
+  const halfHeight = size * 0.5;
+
+  ctx.beginPath();
+  ctx.moveTo(-topHalfWidth, -halfHeight);
+  ctx.lineTo(topHalfWidth, -halfHeight);
+  ctx.lineTo(baseHalfWidth, halfHeight);
+  ctx.lineTo(-baseHalfWidth, halfHeight);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  return new Style({
+    image: new Icon({
+      img: canvas,
+      imgSize: [canvasSize, canvasSize],
+      anchor: [0.5, 0.5],
+      rotation,
+    }),
+  });
+}
+
+export function createDiamondIconStyle({ size, fill, stroke, rotation = 0 }) {
   const canvasSize = size * 2;
 
   const canvas = document.createElement("canvas");
@@ -511,11 +610,21 @@ export function createDiamondIconStyle({ size, fill, stroke }) {
       img: canvas,
       imgSize: [canvasSize, canvasSize],
       anchor: [0.5, 0.5],
+      rotation,
     }),
   });
 }
 
-export function buildPointStyle(shape, size, fill, stroke, iconUrl) {
+export function buildPointStyle(
+  shape,
+  size,
+  fill,
+  stroke,
+  iconUrl,
+  rotation = 0,
+) {
+  const rotationRad = (Number(rotation) || 0) * (Math.PI / 180);
+
   switch (shape) {
     case "circle":
       return new Style({
@@ -528,6 +637,7 @@ export function buildPointStyle(shape, size, fill, stroke, iconUrl) {
           points: 4,
           radius: size,
           angle: Math.PI / 4,
+          rotation: rotationRad,
           fill,
           stroke,
         }),
@@ -542,6 +652,7 @@ export function buildPointStyle(shape, size, fill, stroke, iconUrl) {
           radius2: size,
           points: 4,
           angle: 0,
+          rotation: rotationRad,
           scale: [1, 0.5],
         }),
       });
@@ -551,6 +662,7 @@ export function buildPointStyle(shape, size, fill, stroke, iconUrl) {
         image: new RegularShape({
           points: 3,
           radius: size,
+          rotation: rotationRad,
           fill,
           stroke,
         }),
@@ -562,13 +674,27 @@ export function buildPointStyle(shape, size, fill, stroke, iconUrl) {
           points: 5,
           radius: size,
           radius2: size / 2,
+          rotation: rotationRad,
           fill,
           stroke,
         }),
       });
 
     case "diamond":
-      return createDiamondIconStyle({ size, fill, stroke });
+      return createDiamondIconStyle({
+        size,
+        fill,
+        stroke,
+        rotation: rotationRad,
+      });
+
+    case "trapezoid":
+      return createTrapezoidIconStyle({
+        size,
+        fill,
+        stroke,
+        rotation: rotationRad,
+      });
 
     case "cross":
       return new Style({
@@ -577,6 +703,7 @@ export function buildPointStyle(shape, size, fill, stroke, iconUrl) {
           radius: size,
           radius2: 0,
           angle: 0,
+          rotation: rotationRad,
           fill,
           stroke,
         }),
@@ -589,6 +716,7 @@ export function buildPointStyle(shape, size, fill, stroke, iconUrl) {
           radius: size,
           radius2: 0,
           angle: Math.PI / 4,
+          rotation: rotationRad,
           fill,
           stroke,
         }),
@@ -600,6 +728,7 @@ export function buildPointStyle(shape, size, fill, stroke, iconUrl) {
           image: new Icon({
             src: iconUrl,
             scale: size / 10, // optional scaling
+            rotation: rotationRad,
           }),
         });
       }
@@ -659,25 +788,13 @@ export function createJsonStyleFunction(styleJson) {
       const ruleGeom = rule.geometryType || geometryBucket;
       if (ruleGeom !== geometryBucket) continue;
 
-      // Defensive: convert rule values to correct types
-      const fv = properties[rule.conditionField];
-      let ruleValue = rule.conditionValue;
-      if (
-        typeof fv === "number" &&
-        typeof ruleValue === "string" &&
-        !isNaN(ruleValue)
-      ) {
-        ruleValue = Number(ruleValue);
-      }
-
-      if (
-        rule.conditionField &&
-        rule.conditionType &&
-        matchesCondition(fv, rule.conditionType, ruleValue)
-      ) {
+      if (ruleMatches(rule, properties)) {
         merged = mergeStyleProperties(merged, rule);
       }
     }
+
+    // --- Resolve any field references against this feature's properties ---
+    merged = resolveAllStyleValues(merged, properties);
 
     // --- Set sensible defaults for points ---
     if (geometryBucket === "point") {
@@ -732,6 +849,7 @@ export function createJsonStyleFunction(styleJson) {
         fill,
         stroke,
         merged.iconUrl,
+        merged.rotation,
       );
     }
     // --- LINE ---

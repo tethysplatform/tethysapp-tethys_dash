@@ -61,9 +61,7 @@ def _get_error_message(e, fallback):
         return fallback
 
 
-_FRONTEND_DIR = os.path.join(
-    os.path.dirname(__file__), "public", "frontend"
-)
+_FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "public", "frontend")
 _MANIFEST_PATH = os.path.join(_FRONTEND_DIR, "manifest.json")
 
 

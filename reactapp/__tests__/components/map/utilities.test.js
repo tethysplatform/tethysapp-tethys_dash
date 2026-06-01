@@ -47,6 +47,19 @@ test("getStyleFields GeoJSON", async () => {
   expect(styleFields).toStrictEqual(["Some Field"]);
 });
 
+test("getStyleFields GeoJSON with no features returns empty array (line 903 ?? [])", async () => {
+  const styleFields = await getStyleFields({
+    sourceProps: {
+      type: "GeoJSON",
+      geojson: { type: "FeatureCollection" }, // no features key
+    },
+    layerProps: { name: "Test Layer" },
+    dashboard_uuid: "some-uuid",
+  });
+
+  expect(styleFields).toStrictEqual([]);
+});
+
 test("getStyleFields  fails", async () => {
   global.fetch = jest.fn(() =>
     Promise.resolve({
@@ -132,6 +145,28 @@ test("getStyleFields Other Type", async () => {
   });
 
   expect(styleFields).toStrictEqual([]);
+});
+
+test("getStyleFields dynamic map layer", async () => {
+  jest.spyOn(appAPI, "getVisualizationData").mockResolvedValueOnce({
+    success: true,
+    data: {
+      attributeAliases: {
+        "My Layer": { stage: "Stage (ft)", flow: "Flow (cfs)" },
+      },
+      attributeVariables: {},
+      omittedPopupAttributes: {},
+    },
+  });
+
+  const styleFields = await getStyleFields({
+    sourceProps: { type: "cw3e_geojson_layer", source: "open_cw3e_geojson_layer", args: {} },
+    layerProps: { name: "My Layer" },
+    dashboard_uuid: "some-uuid",
+    isDynamicMapLayer: true,
+  });
+
+  expect(styleFields).toStrictEqual(["stage", "flow"]);
 });
 
 test("createMarkerLayer", async () => {

@@ -2,7 +2,7 @@ import pytest
 import json
 from django.urls import reverse
 from tethysapp.tethysdash.model import Dashboard, Message
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, mock_open, patch
 import os
 import shutil
 from django.conf import settings
@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 import types
 from tethysapp.tethysdash.exceptions import VisualizationError
 import uuid
-from tethysapp.tethysdash.controllers import VisualizationConsumer
+from tethysapp.tethysdash.controllers import VisualizationConsumer, _get_main_bundle_path
 from channels.layers import get_channel_layer
 
 
@@ -2490,3 +2490,20 @@ def test_update_visualization_permissions_error(client, admin_user, mock_app, mo
         response.json()["message"]
         == "Failed to update visualization permissions: failed to update visualization permissions"  # noqa: E501
     )
+
+
+@override_settings(DEBUG=True)
+def test_get_main_bundle_path_debug():
+    assert _get_main_bundle_path() == "frontend/main.js"
+
+
+@override_settings(DEBUG=False)
+def test_get_main_bundle_path_manifest_not_found():
+    with patch("builtins.open", side_effect=FileNotFoundError):
+        assert _get_main_bundle_path() == "frontend/main.js"
+
+
+@override_settings(DEBUG=False)
+def test_get_main_bundle_path_manifest_invalid_json():
+    with patch("builtins.open", mock_open(read_data="not json")):
+        assert _get_main_bundle_path() == "frontend/main.js"

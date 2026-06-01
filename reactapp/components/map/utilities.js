@@ -878,23 +878,36 @@ export async function getStyleFields({
   sourceProps,
   layerProps,
   dashboard_uuid,
+  isDynamicMapLayer = false,
 }) {
-  // make sure a valid json is supplied if the source is GeoJSON
   let fields = [];
-  let geojson;
-  if (sourceProps.type === "GeoJSON") {
-    try {
-      geojson = await loadGeoJSON(sourceProps.geojson, dashboard_uuid);
-    } catch (e) {
-      return fields;
-    }
+  if (isDynamicMapLayer || sourceProps.type === "PMTiles Vector") {
+    const attributes = await getLayerAttributes({
+      sourceProps,
+      layerName: layerProps?.name ?? "",
+      dashboard_uuid,
+      isDynamicMapLayer,
+    });
     fields = [
       ...new Set(
-        geojson.features.flatMap((feature) =>
-          Object.keys(feature.properties ?? {}),
+        Object.values(attributes).flatMap((attrs) =>
+          attrs.map((f) => f.name),
         ),
       ),
     ];
+  } else if (sourceProps.type === "GeoJSON") {
+    try {
+      const geojson = await loadGeoJSON(sourceProps.geojson, dashboard_uuid);
+      fields = [
+        ...new Set(
+          (geojson.features ?? []).flatMap((feature) =>
+            Object.keys(feature.properties ?? {}),
+          ),
+        ),
+      ];
+    } catch (e) {
+      return fields;
+    }
   } else if (sourceProps.type === "ESRI Feature Service") {
     const attributes = await getArcGISFeatureServiceLayerAttributes(
       sourceProps.props.url,
@@ -903,8 +916,8 @@ export async function getStyleFields({
     );
     fields = [
       ...new Set(
-        Object.values(attributes).flatMap((fields) =>
-          fields.map((f) => f.name),
+        Object.values(attributes).flatMap((attrs) =>
+          attrs.map((f) => f.name),
         ),
       ),
     ];

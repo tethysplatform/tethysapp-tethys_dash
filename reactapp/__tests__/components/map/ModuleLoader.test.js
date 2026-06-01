@@ -1,8 +1,12 @@
 import moduleLoader, {
   createJsonStyleFunction,
   matchesCondition,
+  ruleMatches,
+  resolveAllStyleValues,
   resolveSize,
   buildPointStyle,
+  createTrapezoidIconStyle,
+  createDiamondIconStyle,
   getGeometryBucket,
   loadESRIJSON,
   buildPolygonFill,
@@ -629,6 +633,158 @@ describe("createJsonStyleFunction", () => {
     const size = style.getImage().getRadius();
     expect(size).toBe(defaultSize);
   });
+
+  it("resolves rotation from a feature property via propertyRefs", () => {
+    const styleJson = {
+      rules: [
+        {
+          conditionField: "type",
+          conditionType: "=",
+          conditionValue: "gage",
+          geometryType: "point",
+          shape: "rectangle",
+          rotation: 0,
+          propertyRefs: { rotation: "bearing" },
+        },
+      ],
+    };
+    const styleFn = createJsonStyleFunction(styleJson);
+    const feature = mockFeature({ type: "gage", bearing: 90 }, "Point");
+    expect(styleFn(feature).getImage().getRotation()).toBeCloseTo(Math.PI / 2);
+  });
+
+  it("falls back to the rule literal when the referenced field is missing", () => {
+    const styleJson = {
+      rules: [
+        {
+          conditionField: "type",
+          conditionType: "=",
+          conditionValue: "gage",
+          geometryType: "point",
+          shape: "rectangle",
+          rotation: 45,
+          propertyRefs: { rotation: "bearing" },
+        },
+      ],
+    };
+    const styleFn = createJsonStyleFunction(styleJson);
+    const feature = mockFeature({ type: "gage" }, "Point");
+    expect(styleFn(feature).getImage().getRotation()).toBeCloseTo(Math.PI / 4);
+  });
+
+  it("resolves fill, size, and shape from feature properties via propertyRefs", () => {
+    const styleFn = createJsonStyleFunction({
+      rules: [
+        {
+          conditionField: "type",
+          conditionType: "=",
+          conditionValue: "marker",
+          geometryType: "point",
+          fill: "#000000",
+          size: 5,
+          shape: "circle",
+          propertyRefs: {
+            fill: "color",
+            size: "radius",
+            shape: "kind",
+          },
+        },
+      ],
+    });
+    const feature = mockFeature(
+      { type: "marker", color: "#ff0000", radius: 12, kind: "square" },
+      "Point",
+    );
+    const style = styleFn(feature);
+    expect(style.getImage().getFill().getColor()).toBe("#ff0000");
+    expect(style.getImage()).toBeInstanceOf(RegularShape);
+  });
+
+  it("resolves stroke and strokeWidth from feature properties for linestrings", () => {
+    const styleFn = createJsonStyleFunction({
+      rules: [
+        {
+          conditionField: "type",
+          conditionType: "=",
+          conditionValue: "road",
+          geometryType: "linestring",
+          stroke: "#000000",
+          strokeWidth: 1,
+          propertyRefs: { stroke: "color", strokeWidth: "width" },
+        },
+      ],
+    });
+    const feature = mockFeature(
+      { type: "road", color: "#0000ff", width: 6 },
+      "LineString",
+    );
+    const style = styleFn(feature);
+    expect(style.getStroke().getColor()).toBe("#0000ff");
+    expect(style.getStroke().getWidth()).toBe(6);
+  });
+
+  it("each feature gets its own resolved style values", () => {
+    const styleFn = createJsonStyleFunction({
+      rules: [
+        {
+          conditionField: "type",
+          conditionType: "=",
+          conditionValue: "p",
+          geometryType: "point",
+          fill: "#000",
+          size: 5,
+          propertyRefs: { fill: "color" },
+        },
+      ],
+    });
+    const featA = mockFeature({ type: "p", color: "#ff0000" }, "Point");
+    const featB = mockFeature({ type: "p", color: "#00ff00" }, "Point");
+    expect(styleFn(featA).getImage().getFill().getColor()).toBe("#ff0000");
+    expect(styleFn(featB).getImage().getFill().getColor()).toBe("#00ff00");
+  });
+});
+
+describe("resolveAllStyleValues", () => {
+  it("returns merged unchanged when propertyRefs is absent", () => {
+    const merged = { fill: "#abc", size: 5 };
+    expect(resolveAllStyleValues(merged, {})).toBe(merged);
+  });
+
+  it("substitutes referenced keys from feature properties", () => {
+    const merged = {
+      fill: "#000",
+      size: 5,
+      propertyRefs: { fill: "color", size: "radius" },
+    };
+    const resolved = resolveAllStyleValues(merged, {
+      color: "#ff0000",
+      radius: 12,
+    });
+    expect(resolved.fill).toBe("#ff0000");
+    expect(resolved.size).toBe(12);
+  });
+
+  it("falls back to the rule literal when the feature value is missing/empty", () => {
+    const merged = { fill: "#000", propertyRefs: { fill: "color" } };
+    expect(resolveAllStyleValues(merged, {}).fill).toBe("#000");
+    expect(resolveAllStyleValues(merged, { color: "" }).fill).toBe("#000");
+    expect(resolveAllStyleValues(merged, { color: null }).fill).toBe("#000");
+  });
+
+  it("skips propertyRefs entries where fieldName is empty or not a string (line 451)", () => {
+    const merged = {
+      fill: "#000",
+      size: 5,
+      propertyRefs: {
+        fill: "color", // valid — resolved
+        size: "", // empty string → continue (line 451)
+        rotation: 42, // non-string → continue (line 451)
+      },
+    };
+    const resolved = resolveAllStyleValues(merged, { color: "#ff0000" });
+    expect(resolved.fill).toBe("#ff0000");
+    expect(resolved.size).toBe(5); // unchanged; empty fieldName was skipped
+  });
 });
 
 describe("matchesCondition", () => {
@@ -670,6 +826,116 @@ describe("matchesCondition", () => {
     expect(matchesCondition(2, "adasd", 3)).toBe(false);
     expect(matchesCondition(3, "asdad", 3)).toBe(false);
     expect(matchesCondition(5, "asdasd", 3)).toBe(false);
+  });
+
+  it("matches 'isNull' condition", () => {
+    expect(matchesCondition(null, "isNull")).toBe(true);
+    expect(matchesCondition(undefined, "isNull")).toBe(true);
+    expect(matchesCondition("", "isNull")).toBe(true);
+    expect(matchesCondition(0, "isNull")).toBe(false);
+    expect(matchesCondition("0", "isNull")).toBe(false);
+    expect(matchesCondition("x", "isNull")).toBe(false);
+  });
+
+  it("matches 'isNotNull' condition", () => {
+    expect(matchesCondition(null, "isNotNull")).toBe(false);
+    expect(matchesCondition(undefined, "isNotNull")).toBe(false);
+    expect(matchesCondition("", "isNotNull")).toBe(false);
+    expect(matchesCondition(0, "isNotNull")).toBe(true);
+    expect(matchesCondition(-1, "isNotNull")).toBe(true);
+    expect(matchesCondition("x", "isNotNull")).toBe(true);
+  });
+});
+
+describe("ruleMatches", () => {
+  it("matches a legacy single-condition rule", () => {
+    const rule = {
+      conditionField: "type",
+      conditionType: "=",
+      conditionValue: "a",
+    };
+    expect(ruleMatches(rule, { type: "a" })).toBe(true);
+    expect(ruleMatches(rule, { type: "b" })).toBe(false);
+  });
+
+  it("ANDs a legacy condition with conditions[] entries", () => {
+    const rule = {
+      conditionField: "type",
+      conditionType: "=",
+      conditionValue: "streamflow_gage",
+      conditions: [{ field: "bankfull", type: "isNotNull" }],
+    };
+    expect(ruleMatches(rule, { type: "streamflow_gage", bankfull: 100 })).toBe(
+      true,
+    );
+    expect(ruleMatches(rule, { type: "streamflow_gage", bankfull: null })).toBe(
+      false,
+    );
+    expect(ruleMatches(rule, { type: "streamflow_gage", bankfull: "" })).toBe(
+      false,
+    );
+    expect(ruleMatches(rule, { type: "reservoir", bankfull: 100 })).toBe(false);
+  });
+
+  it("ANDs multiple entries within conditions[]", () => {
+    const rule = {
+      conditions: [
+        { field: "type", type: "=", value: "gage" },
+        { field: "active", type: "=", value: "true" },
+      ],
+    };
+    expect(ruleMatches(rule, { type: "gage", active: "true" })).toBe(true);
+    expect(ruleMatches(rule, { type: "gage", active: "false" })).toBe(false);
+    expect(ruleMatches(rule, { type: "other", active: "true" })).toBe(false);
+  });
+
+  it("does not match when no conditions are defined", () => {
+    expect(ruleMatches({}, { type: "a" })).toBe(false);
+    expect(ruleMatches({ conditions: [] }, { type: "a" })).toBe(false);
+  });
+
+  it("skips malformed entries in conditions[]", () => {
+    const rule = {
+      conditionField: "type",
+      conditionType: "=",
+      conditionValue: "a",
+      conditions: [
+        { field: "", type: "=", value: "ignored" },
+        { field: "missing-type", value: "x" },
+      ],
+    };
+    expect(ruleMatches(rule, { type: "a" })).toBe(true);
+  });
+
+  it("compares against another field when valueIsField is true", () => {
+    const rule = {
+      conditions: [
+        { field: "value", type: ">", value: "bankfull", valueIsField: true },
+      ],
+    };
+    expect(ruleMatches(rule, { value: 100, bankfull: 50 })).toBe(true);
+    expect(ruleMatches(rule, { value: 10, bankfull: 50 })).toBe(false);
+    expect(ruleMatches(rule, { value: "100", bankfull: "50" })).toBe(true);
+  });
+
+  it("compares against another field via legacy conditionValueIsField", () => {
+    const rule = {
+      conditionField: "value",
+      conditionType: "<",
+      conditionValue: "bankfull",
+      conditionValueIsField: true,
+    };
+    expect(ruleMatches(rule, { value: 10, bankfull: 50 })).toBe(true);
+    expect(ruleMatches(rule, { value: 100, bankfull: 50 })).toBe(false);
+  });
+
+  it("returns false when the referenced field is missing", () => {
+    const rule = {
+      conditions: [
+        { field: "value", type: ">", value: "missing", valueIsField: true },
+      ],
+    };
+    expect(ruleMatches(rule, { value: 100 })).toBe(false);
   });
 });
 
@@ -860,6 +1126,52 @@ describe("buildPointStyle", () => {
     expect(image.getStroke().getWidth()).toBe(2);
   });
 
+  describe("trapezoid", () => {
+    let restoreGetContext;
+
+    beforeEach(() => {
+      const original = HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext = jest.fn(() => ({
+        fillStyle: null,
+        strokeStyle: null,
+        lineWidth: null,
+        translate: jest.fn(),
+        beginPath: jest.fn(),
+        moveTo: jest.fn(),
+        lineTo: jest.fn(),
+        closePath: jest.fn(),
+        fill: jest.fn(),
+        stroke: jest.fn(),
+      }));
+      restoreGetContext = () => {
+        HTMLCanvasElement.prototype.getContext = original;
+      };
+    });
+
+    afterEach(() => {
+      restoreGetContext();
+    });
+
+    it("builds style of trapezoid shape", () => {
+      const style = buildPointStyle("trapezoid", 10, fill, stroke);
+      expect(style).toBeInstanceOf(Style);
+      expect(style.getImage()).toBeInstanceOf(Icon);
+    });
+
+    it("applies rotation to a trapezoid", () => {
+      const style = buildPointStyle("trapezoid", 10, fill, stroke, null, 90);
+      expect(style.getImage().getRotation()).toBeCloseTo(Math.PI / 2);
+    });
+
+    it("uses rotation=0 default when createTrapezoidIconStyle is called without rotation (line 525)", () => {
+      const trapFill = new Fill({ color: "#ff0000" });
+      const trapStroke = new Stroke({ color: "#0000ff", width: 1 });
+      const style = createTrapezoidIconStyle({ size: 10, fill: trapFill, stroke: trapStroke });
+      expect(style).toBeInstanceOf(Style);
+      expect(style.getImage().getRotation()).toBe(0);
+    });
+  });
+
   it("builds style of star shape", () => {
     const style = buildPointStyle("star", 18, fill, stroke);
     expect(style).toBeInstanceOf(Style);
@@ -973,6 +1285,64 @@ describe("buildPointStyle", () => {
     expect(mockLineTo.mock.calls[7]).toEqual([-scaledSize, 0]);
 
     HTMLCanvasElement.prototype.getContext = originalGetContext;
+  });
+
+  it("uses rotation=0 default when createDiamondIconStyle is called without rotation (line 561)", () => {
+    const originalGetContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = jest.fn(() => ({
+      fillStyle: null,
+      strokeStyle: null,
+      lineWidth: null,
+      translate: jest.fn(),
+      beginPath: jest.fn(),
+      moveTo: jest.fn(),
+      lineTo: jest.fn(),
+      closePath: jest.fn(),
+      fill: jest.fn(),
+      stroke: jest.fn(),
+    }));
+    const diamondFill = new Fill({ color: "#ff00ff" });
+    const diamondStroke = new Stroke({ color: "#00ff00", width: 2 });
+    const style = createDiamondIconStyle({ size: 8, fill: diamondFill, stroke: diamondStroke });
+    expect(style).toBeInstanceOf(Style);
+    expect(style.getImage().getRotation()).toBe(0);
+    HTMLCanvasElement.prototype.getContext = originalGetContext;
+  });
+
+  it("applies rotation to a rectangle (degrees → radians)", () => {
+    const style = buildPointStyle("rectangle", 10, fill, stroke, null, 90);
+    expect(style.getImage().getRotation()).toBeCloseTo(Math.PI / 2);
+  });
+
+  it("applies rotation to square, triangle, star, cross, x, and icon", () => {
+    const cases = [
+      ["square", null],
+      ["triangle", null],
+      ["star", null],
+      ["cross", null],
+      ["x", null],
+      ["icon", "https://example.com/icon.png"],
+    ];
+    cases.forEach(([shape, iconUrl]) => {
+      const style = buildPointStyle(shape, 10, fill, stroke, iconUrl, 180);
+      expect(style.getImage().getRotation()).toBeCloseTo(Math.PI);
+    });
+  });
+
+  it("defaults rotation to 0 when omitted or invalid", () => {
+    expect(
+      buildPointStyle("square", 10, fill, stroke).getImage().getRotation(),
+    ).toBe(0);
+    expect(
+      buildPointStyle("square", 10, fill, stroke, null, "garbage")
+        .getImage()
+        .getRotation(),
+    ).toBe(0);
+  });
+
+  it("accepts numeric-string rotation from rule JSON", () => {
+    const style = buildPointStyle("triangle", 10, fill, stroke, null, "45");
+    expect(style.getImage().getRotation()).toBeCloseTo(Math.PI / 4);
   });
 });
 

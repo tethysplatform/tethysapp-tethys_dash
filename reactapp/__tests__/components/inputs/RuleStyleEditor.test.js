@@ -80,6 +80,7 @@ describe("RuleStyleEditor", () => {
         conditionField: "field1",
         conditionType: "==",
         conditionValue: "B",
+        conditionValueIsField: false,
         style: { color: "#f00" },
       },
       rules[1],

@@ -4,6 +4,7 @@ import DatePicker from "components/inputs/DatePicker";
 import { format } from "date-fns";
 import { getOrdinal } from "__tests__/utilities/constants";
 import { DataViewerModeContext } from "components/contexts/Contexts";
+import { dateHourFormat, dateOnlyFormat } from "components/inputs/dateUtils";
 
 test("DatePicker date", async () => {
   const mockOnChange = jest.fn();
@@ -136,7 +137,7 @@ test("DatePicker initial date", async () => {
   expect(await screen.findByText("Test DatePicker")).toBeInTheDocument();
 
   const input = screen.getByRole("textbox");
-  expect(input.value).toBe("03/30/2026 2:23 PM");
+  expect(input.value).toBe(format(frozenNow, dateHourFormat));
   expect(mockOnChange).toHaveBeenCalledTimes(0);
 });
 
