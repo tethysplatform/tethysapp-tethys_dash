@@ -844,7 +844,8 @@ from the plugin
     - **attributeVariables** (optional): An object that maps a layers name (key) with a nested object for the layers field and desired variable input. See maps :ref:`attributes_and_popups_tab` for more information.
     - **omittedPopupAttributes** (optional): An object that maps a layers name (key) with an array of fields to omit in the popup. See maps :ref:`attributes_and_popups_tab` for more information.
     - **attributeAliases** (optional): An object that maps a layers name (key) with a nested object for the layers field and desired aliases. See maps :ref:`attributes_and_popups_tab` for more information.
-    - **queryable** (optional): A boolean indicating if the layer is queryable
+    - **tablePopupType** (optional): One of ``"none"``, ``"click"``, or ``"hover"``. Governs whether and how the default attribute table popup opens for this layer. Defaults to ``"click"`` if omitted. ``"none"`` suppresses only the table overlay popup — if a Custom Modal Popup is configured on the layer, it is still queried on click. See maps :ref:`attributes_and_popups_tab` for the full matrix.
+    - **queryable** (optional, legacy): A boolean. Kept for backward compatibility with dashboards saved before ``tablePopupType`` existed. Reads as ``"none"`` when ``false`` and ``"click"`` otherwise. New plugins should prefer ``tablePopupType``.
     - **legend** (optional): See maps :ref:`legend_tab` for more information.
 
 **LayerConfigurationBuilder**
@@ -868,7 +869,7 @@ from the plugin
     - ``set_source_properties(**kwargs)`` — Set properties on the layer's data source (e.g., ``url``, ``params``, ``attributions``). Required and optional properties vary by source type; call ``get_available_source_properties()`` to inspect them.
     - ``set_layer_visibility(bool)`` — Set the default visibility of the layer.
     - ``set_opacity(float)`` — Set layer opacity between 0.0 and 1.0.
-    - ``set_queryable(bool)`` — Set whether the layer is queryable on click.
+    - ``set_queryable(bool)`` — *(legacy)* Maps ``False`` to ``tablePopupType: "none"`` and ``True`` to the default (``"click"``). Kept for backward compatibility; new plugins should write ``tablePopupType`` directly into the config (see the bullet above) when they need ``"hover"`` or want to make the field explicit.
     - ``set_min_zoom(int)`` / ``set_max_zoom(int)`` — Set zoom visibility bounds.
     - ``set_min_resolution(int)`` / ``set_max_resolution(int)`` — Set resolution visibility bounds.
     - ``set_min_zoom_query(int)`` — Minimum zoom level required to query the layer.
