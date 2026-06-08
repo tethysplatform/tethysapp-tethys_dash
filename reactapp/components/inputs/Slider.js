@@ -754,7 +754,16 @@ const Slider = ({
             if (nextEnd <= nextStart) nextEnd = nextStart + 1;
             return [nextStart, nextEnd];
           } else {
-            let next = idx + 1;
+            // Reuse the same closest-match anchor logic used by the step
+            // buttons so the play loop also advances from where the
+            // slider handle is visually drawn after a non-aligned external
+            // write (e.g., a Plotly vertical line drag). Reading via the
+            // ref keeps this interval's closure simple — the ref is
+            // refreshed every render, so we always see the latest rawValue
+            // without tearing the interval down.
+            const anchor = getStepAnchorRef.current?.();
+            const base = anchor !== null && anchor !== undefined ? anchor : idx;
+            let next = base + 1;
             return next >= values.length ? 0 : next;
           }
         });
@@ -795,6 +804,56 @@ const Slider = ({
     }
   };
 
+  // When the variable input was changed externally to a value that doesn't
+  // align with the slider's steps (e.g., a Plotly vertical line drag wrote a
+  // minute-snapped date into an hourly slider), `currentIdx` stays at its
+  // pre-write position so the slider's onChange effect doesn't clobber the
+  // user's minute-precise placement. The step buttons AND the play interval
+  // must still advance relative to the user's *actual* current position —
+  // i.e., the closest matching index — otherwise they jump from the stale
+  // pre-drag index.
+  //
+  // This mirrors the closest-index logic used for the slider handle's
+  // visual position at the bottom of the render path so the controls
+  // advance from the same anchor the user sees on screen.
+  //
+  // Returns null when there is no anchor override (rangeMode, Array type,
+  // or rawValue cleared). Callers fall back to the current state — for
+  // step buttons that's `currentIdx`, for the play interval that's the
+  // functional updater's argument, so each gets the freshest position.
+  //
+  // Stored on a ref so the play interval's closure can read the latest
+  // anchor on every tick without tearing down/rebuilding when rawValue
+  // changes.
+  const getStepAnchorRef = useRef(null);
+  getStepAnchorRef.current = () => {
+    if (rangeMode || isArrayType || rawValue === null) return null;
+    let closestIdx = 0;
+    let minDiff = Infinity;
+    for (let i = 0; i < values.length; i++) {
+      let diff;
+      if (isDateType) {
+        const valDate = parseDateMath({
+          value: values[i],
+          dateFormat: outputFormat,
+        });
+        const rawDate = parseDateMath({
+          value: rawValue,
+          dateFormat: outputFormat,
+        });
+        if (!valDate || !rawDate) continue;
+        diff = Math.abs(valDate.getTime() - rawDate.getTime());
+      } else {
+        diff = Math.abs(Number(values[i]) - Number(rawValue));
+      }
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestIdx = i;
+      }
+    }
+    return closestIdx;
+  };
+
   const goBackStep = () => {
     if (rangeMode) {
       let rangeSize = 1;
@@ -805,7 +864,9 @@ const Slider = ({
       let newEnd = Math.min(values.length - 1, newStart + rangeSize);
       setCurrentIdx([newStart, newEnd]);
     } else {
-      setCurrentIdx(Math.max(0, currentIdx - 1));
+      const anchor = getStepAnchorRef.current();
+      const base = anchor !== null ? anchor : currentIdx;
+      setCurrentIdx(Math.max(0, base - 1));
     }
   };
 
@@ -819,7 +880,9 @@ const Slider = ({
       let newEnd = Math.min(values.length - 1, newStart + rangeSize);
       setCurrentIdx([newStart, newEnd]);
     } else {
-      setCurrentIdx(Math.min(values.length - 1, currentIdx + 1));
+      const anchor = getStepAnchorRef.current();
+      const base = anchor !== null ? anchor : currentIdx;
+      setCurrentIdx(Math.min(values.length - 1, base + 1));
     }
   };
 

@@ -410,6 +410,51 @@ const MapVisualization = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [popupContent]);
 
+  // Sync the highlight overlay with the modal's active feature. Two cases
+  // this covers that the popupContent-driven effect above does NOT:
+  //   (1) Modal-only layers (Table Popup Type "none" + Custom Modal Popup
+  //       enabled). Their clicked features never enter `popupContent` —
+  //       without this effect the user gets a popup modal but no visible
+  //       highlight on the clicked feature.
+  //   (2) Multi-feature carousel switches inside the modal. Activating a
+  //       different carousel slot bumps `activeFeatureIndex` without firing
+  //       a fresh click, so the click-time clear in `onMapClick` doesn't
+  //       run and the highlight would stay pinned to the first feature.
+  //       Mirrors how `onSwipe` (above) drives the highlight for the
+  //       table popup's swiper.
+  // We clear before adding so the highlight tracks exactly one feature at
+  // a time across carousel navigation. The check on `hoverActiveRef` is a
+  // belt-and-braces guard — the modal is click-only by design (see the
+  // PopupModal-mode discussion in the brainstorm doc), so this should
+  // already be false on a click that opens the modal.
+  useEffect(() => {
+    if (!modalOpen) return;
+    // istanbul ignore if -- defensive: `onMapClick` creates `highlightLayer`
+    // synchronously before it calls setModalOpen(true), so this branch is
+    // unreachable through the public API. Left as a belt-and-braces guard
+    // against future refactors that change the ordering.
+    if (!highlightLayer.current) return;
+    // istanbul ignore if -- defensive: the modal is click-only by design
+    // and `onMapClick` resets `hoverActiveRef` to false before flipping
+    // `setModalOpen(true)`. Hover-then-carousel-switch could in principle
+    // re-trigger the effect with the ref still true, but the carousel
+    // arrows themselves are inside the modal portal (outside the map
+    // surface), so a pointer move at the moment of click is not a real
+    // user pattern. Kept as a no-op guard so a future hover path can't
+    // accidentally re-highlight a feature the user is hovering past.
+    if (hoverActiveRef.current) return;
+    // istanbul ignore if -- defensive: `setModalFeatures([])` only ever
+    // runs inside `closeModal`, which also flips `setModalOpen(false)` in
+    // the same batch. So `modalOpen === true` always implies
+    // `modalFeatures.length > 0` here.
+    if (modalFeatures.length === 0) return;
+    const idx = Math.min(activeFeatureIndex, modalFeatures.length - 1);
+    const feature = modalFeatures[idx];
+    if (!feature?.geometry) return;
+    highlightLayer.current.getSource().clear();
+    addHighlightFeatures(highlightLayer.current, feature.geometry);
+  }, [modalOpen, modalFeatures, activeFeatureIndex]);
+
   useEffect(() => {
     const updateLayers = async () => {
       if (

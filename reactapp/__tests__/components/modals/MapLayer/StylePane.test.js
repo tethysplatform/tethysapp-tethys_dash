@@ -615,7 +615,7 @@ test("StylePane calls getStyleFields for URL-based GeoJSON (no early bail-out)",
     <AppContext.Provider value={{ dynamicMapLayers: [] }}>
       <LayoutContext.Provider value={{ uuid: "123" }}>
         <StylePane
-          style={"{}"}
+          style={{}}
           setStyle={() => {}}
           setErrorMessage={() => {}}
           sourceProps={{

@@ -2286,6 +2286,378 @@ describe("Slider Component", () => {
       "(custom)",
     );
   });
+
+  it("next step steps from the closest-matching index when variable is non-aligned", async () => {
+    // Regression: when an external write (e.g., dragging a Plotly vertical
+    // line at minute precision into an hourly/daily slider) sets the
+    // variable input to a value between slider steps, currentIdx
+    // intentionally stays at its pre-write position so the slider's
+    // onChange writeback doesn't clobber the user's precise placement.
+    // The next/previous step buttons must still step from the user's
+    // *visible* position — i.e., the closest matching index — so a click
+    // advances ONE step relative to where the slider handle is shown, not
+    // from the stale pre-write currentIdx.
+    const handleChange = jest.fn();
+    const min = "2026-01-01T00:00:00.000";
+    const max = "2026-01-05T00:00:00.000";
+
+    // Mount with the variable at Jan 1 (= initialValue, idx=0).
+    const { rerender } = render(
+      <VariableInputsContext.Provider
+        value={{
+          variableInputDateFormats: { "Test Var": "yyyy-MM-dd HH:mm" },
+          variableInputValues: { "Test Var": "2026-01-01 00:00" },
+        }}
+      >
+        <GridItemContext.Provider value={{}}>
+          <Slider
+            variable_name={"Test Var"}
+            step={1}
+            min={min}
+            max={max}
+            initialValue={"2026-01-01T00:00:00.000"}
+            outputFormat="yyyy-MM-dd HH:mm"
+            dataType="Date"
+            dateTimeDelta="Days"
+            onChange={handleChange}
+            debounceDelay={0}
+          />
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+
+    await advanceTimers(100);
+    handleChange.mockClear();
+
+    // External write: variable jumps to a between-steps value (Jan 3 06:00,
+    // closest aligned step is Jan 3). currentIdx stays at 0 (the slider
+    // does NOT call setCurrentIdx for non-aligned external writes — that
+    // would clobber the user's precise placement on the next debounce
+    // tick).
+    rerender(
+      <VariableInputsContext.Provider
+        value={{
+          variableInputDateFormats: { "Test Var": "yyyy-MM-dd HH:mm" },
+          variableInputValues: { "Test Var": "2026-01-03 06:00" },
+        }}
+      >
+        <GridItemContext.Provider value={{}}>
+          <Slider
+            variable_name={"Test Var"}
+            step={1}
+            min={min}
+            max={max}
+            initialValue={"2026-01-01T00:00:00.000"}
+            outputFormat="yyyy-MM-dd HH:mm"
+            dataType="Date"
+            dateTimeDelta="Days"
+            onChange={handleChange}
+            debounceDelay={0}
+          />
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+
+    await advanceTimers(100);
+    handleChange.mockClear();
+
+    // Click next-step. Closest aligned index to Jan 3 06:00 is Jan 3
+    // (idx=2). Post-fix: button advances to idx=3 → Jan 4. Pre-fix: it
+    // would have advanced from stale currentIdx=0 → idx=1 = Jan 2.
+    fireEvent.click(screen.getByLabelText("next step"));
+
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenLastCalledWith("2026-01-04 00:00");
+    });
+  });
+
+  it("previous step steps from the closest-matching index when variable is non-aligned", async () => {
+    const handleChange = jest.fn();
+    const min = "2026-01-01T00:00:00.000";
+    const max = "2026-01-05T00:00:00.000";
+
+    const { rerender } = render(
+      <VariableInputsContext.Provider
+        value={{
+          variableInputDateFormats: { "Test Var": "yyyy-MM-dd HH:mm" },
+          variableInputValues: { "Test Var": "2026-01-01 00:00" },
+        }}
+      >
+        <GridItemContext.Provider value={{}}>
+          <Slider
+            variable_name={"Test Var"}
+            step={1}
+            min={min}
+            max={max}
+            initialValue={"2026-01-01T00:00:00.000"}
+            outputFormat="yyyy-MM-dd HH:mm"
+            dataType="Date"
+            dateTimeDelta="Days"
+            onChange={handleChange}
+            debounceDelay={0}
+          />
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+
+    await advanceTimers(100);
+
+    rerender(
+      <VariableInputsContext.Provider
+        value={{
+          variableInputDateFormats: { "Test Var": "yyyy-MM-dd HH:mm" },
+          variableInputValues: { "Test Var": "2026-01-03 18:00" },
+        }}
+      >
+        <GridItemContext.Provider value={{}}>
+          <Slider
+            variable_name={"Test Var"}
+            step={1}
+            min={min}
+            max={max}
+            initialValue={"2026-01-01T00:00:00.000"}
+            outputFormat="yyyy-MM-dd HH:mm"
+            dataType="Date"
+            dateTimeDelta="Days"
+            onChange={handleChange}
+            debounceDelay={0}
+          />
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+
+    await advanceTimers(100);
+    handleChange.mockClear();
+
+    // Closest aligned index to "2026-01-03 18:00" is Jan 4 (idx=3, 6h
+    // diff) vs Jan 3 (idx=2, 18h diff). Previous-step from idx=3 → Jan 3.
+    fireEvent.click(screen.getByLabelText("previous step"));
+
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenLastCalledWith("2026-01-03 00:00");
+    });
+  });
+
+  it("step button skips unparseable date values when computing the anchor index", async () => {
+    // Covers the `if (!valDate || !rawDate) continue;` branch in
+    // getStepAnchorRef when parseDateMath returns null for the rawValue
+    // (and therefore for every iteration). With every iteration hitting
+    // continue, closestIdx stays at 0 and next-step advances from there
+    // to idx 1 — without crashing.
+    const handleChange = jest.fn();
+    const min = "2025-01-01T00:00:00.000";
+    const max = "2025-01-05T00:00:00.000";
+
+    const { rerender } = render(
+      <VariableInputsContext.Provider
+        value={{
+          variableInputDateFormats: {},
+          variableInputValues: { "Test Var": "" },
+        }}
+      >
+        <GridItemContext.Provider value={{}}>
+          <Slider
+            variable_name={"Test Var"}
+            step={1}
+            min={min}
+            max={max}
+            initialValue={min}
+            outputFormat="yyyy-MM-dd"
+            dataType="Date"
+            dateTimeDelta="Days"
+            onChange={handleChange}
+            debounceDelay={0}
+          />
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+    await advanceTimers(100);
+
+    // Whitespace value is treated as non-empty (toString() yields " "), so
+    // the slider sets rawValue but parseDateMath returns null for it.
+    rerender(
+      <VariableInputsContext.Provider
+        value={{
+          variableInputDateFormats: {},
+          variableInputValues: { "Test Var": " " },
+        }}
+      >
+        <GridItemContext.Provider value={{}}>
+          <Slider
+            variable_name={"Test Var"}
+            step={1}
+            min={min}
+            max={max}
+            initialValue={min}
+            outputFormat="yyyy-MM-dd"
+            dataType="Date"
+            dateTimeDelta="Days"
+            onChange={handleChange}
+            debounceDelay={0}
+          />
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+    await advanceTimers(100);
+    handleChange.mockClear();
+
+    // next-step still works: with every iteration hitting `continue`,
+    // closestIdx stays at 0 → goForwardStep sets idx to 1.
+    fireEvent.click(screen.getByLabelText("next step"));
+
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenLastCalledWith("2025-01-02");
+    });
+  });
+
+  it("next step uses the Number-type closest-match branch for non-aligned numeric variable", async () => {
+    // Covers the Number branch in `getStepAnchorRef.current` —
+    // `Math.abs(Number(values[i]) - Number(rawValue))` — which only fires
+    // for non-Date sliders where the variable input was set to a value
+    // between steps. With step=5, the slider's values are
+    // [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50]. Setting the variable
+    // to 27 lands between 25 (closer) and 30 — closest idx is 5 (=25).
+    // Stepping forward from there should land on idx 6 (=30), not on
+    // the stale pre-write currentIdx (0) → idx 1 (=5).
+    const handleChange = jest.fn();
+
+    const { rerender } = render(
+      <VariableInputsContext.Provider
+        value={{
+          variableInputDateFormats: {},
+          variableInputValues: { n: 0 },
+        }}
+      >
+        <GridItemContext.Provider value={{}}>
+          <Slider
+            variable_name={"n"}
+            step={5}
+            min={0}
+            max={50}
+            initialValue={0}
+            outputFormat="{{n}}"
+            dataType="Number"
+            onChange={handleChange}
+            debounceDelay={0}
+          />
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+
+    await advanceTimers(100);
+
+    rerender(
+      <VariableInputsContext.Provider
+        value={{
+          variableInputDateFormats: {},
+          variableInputValues: { n: 27 },
+        }}
+      >
+        <GridItemContext.Provider value={{}}>
+          <Slider
+            variable_name={"n"}
+            step={5}
+            min={0}
+            max={50}
+            initialValue={0}
+            outputFormat="{{n}}"
+            dataType="Number"
+            onChange={handleChange}
+            debounceDelay={0}
+          />
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+
+    await advanceTimers(100);
+    handleChange.mockClear();
+
+    fireEvent.click(screen.getByLabelText("next step"));
+
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenLastCalledWith("30");
+    });
+  });
+
+  it("play interval advances from the closest-matching index, not the stale currentIdx", async () => {
+    // Same scenario as the step-button tests, but driving the play loop
+    // instead of a single button click. The play interval is a setInterval
+    // closure created when `playing` flips true — without the ref-based
+    // anchor, that closure captures the rawValue from setup time. After an
+    // external write changed the variable to a between-steps value, the
+    // first play tick was advancing from the stale pre-write currentIdx,
+    // not from where the slider handle visually is.
+    const handleChange = jest.fn();
+    const min = "2026-01-01T00:00:00.000";
+    const max = "2026-01-05T00:00:00.000";
+
+    const { rerender } = render(
+      <VariableInputsContext.Provider
+        value={{
+          variableInputDateFormats: { "Test Var": "yyyy-MM-dd HH:mm" },
+          variableInputValues: { "Test Var": "2026-01-01 00:00" },
+        }}
+      >
+        <GridItemContext.Provider value={{}}>
+          <Slider
+            variable_name={"Test Var"}
+            step={1}
+            min={min}
+            max={max}
+            initialValue={"2026-01-01T00:00:00.000"}
+            outputFormat="yyyy-MM-dd HH:mm"
+            dataType="Date"
+            dateTimeDelta="Days"
+            onChange={handleChange}
+            debounceDelay={0}
+            speeds={[{ label: "Fast", value: 100 }]}
+          />
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+
+    await advanceTimers(100);
+
+    // External write moves the variable mid-day on Jan 3 — closest aligned
+    // index is Jan 3 (idx=2). currentIdx stays at 0.
+    rerender(
+      <VariableInputsContext.Provider
+        value={{
+          variableInputDateFormats: { "Test Var": "yyyy-MM-dd HH:mm" },
+          variableInputValues: { "Test Var": "2026-01-03 06:00" },
+        }}
+      >
+        <GridItemContext.Provider value={{}}>
+          <Slider
+            variable_name={"Test Var"}
+            step={1}
+            min={min}
+            max={max}
+            initialValue={"2026-01-01T00:00:00.000"}
+            outputFormat="yyyy-MM-dd HH:mm"
+            dataType="Date"
+            dateTimeDelta="Days"
+            onChange={handleChange}
+            debounceDelay={0}
+            speeds={[{ label: "Fast", value: 100 }]}
+          />
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+
+    await advanceTimers(100);
+    handleChange.mockClear();
+
+    // Press play. The first tick should advance from anchor (idx=2,
+    // = Jan 3) → idx=3 = Jan 4. Pre-fix this would have advanced from
+    // the stale currentIdx=0 → idx=1 = Jan 2.
+    fireEvent.click(screen.getByRole("button", { name: /play/i }));
+    await advanceTimers(150);
+
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenCalledWith("2026-01-04 00:00");
+    });
+  });
 });
 
 test("calculateSliderValues returns correct values", () => {

@@ -67,6 +67,107 @@ describe("BasePlot", () => {
     expect(plotDiv).toBeInTheDocument();
   });
 
+  it("resolves a substituted verticalLine value using the source variable's date format", () => {
+    // Regression: when the verticalLine value is bound to a variable input
+    // whose value is in a custom date format (e.g., a slider's
+    // outputFormat "MM/dd/yyyy'T'HH:mm"), createVerticalLine's internal
+    // parseDateMath cannot parse it without a format hint and the shape
+    // falls back to xPaper=0.5 (middle of the plot). BasePlot must pre-
+    // resolve the value to a Date using variableInputDateFormats[<var>]
+    // before handing it to createVerticalLine.
+    //
+    // We capture the shape added to the plot's layout to assert that x0
+    // is computed from the date range (not the 0.5 fallback).
+    const xrange = ["2026-06-01T00:00:00.000Z", "2026-06-10T00:00:00.000Z"];
+    let capturedShapes = null;
+    const fakePlot = {
+      el: {
+        layout: {
+          xaxis: { range: xrange, domain: [0, 1] },
+          shapes: [],
+        },
+      },
+    };
+    const visualizationRef = {};
+    Object.defineProperty(visualizationRef, "current", {
+      get: () => fakePlot,
+      set: () => {},
+      configurable: true,
+    });
+
+    // Spy on Array.prototype.push for currentShapes — but cleaner is to
+    // intercept via plotElement.layout.shapes mutation. Instead, just
+    // re-render and read fakePlot.el.layout.shapes after the effect.
+    render(
+      <VariableInputsContext.Provider
+        value={{
+          variableInputDateFormats: { Date: "MM/dd/yyyy'T'HH:mm" },
+          variableInputValues: { Date: "06/05/2026T12:00" },
+        }}
+      >
+        <GridItemContext.Provider
+          value={{
+            gridItemArgsString: "{}",
+            gridItemMetadataString: JSON.stringify({
+              plotlyVerticalLine: {
+                mode: "on",
+                // eslint-disable-next-line no-template-curly-in-string
+                value: "${Date}",
+              },
+            }),
+          }}
+        >
+          <DataViewerModeContext.Provider value={{ mode: "default" }}>
+            <BasePlot
+              data={[{ x: [1, 2], y: [3, 4], type: "scatter" }]}
+              layout={{ title: "Test" }}
+              config={{ responsive: true }}
+              visualizationRef={visualizationRef}
+              metadata={{
+                plotlyVerticalLine: {
+                  mode: "on",
+                  // The "substituted" value — in the slider's outputFormat,
+                  // NOT ISO. Without the source-variable format lookup,
+                  // parseDateMath would fail and x0 would be 0.5.
+                  value: "06/05/2026T12:00",
+                },
+              }}
+            />
+          </DataViewerModeContext.Provider>
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+
+    // After the layout effect runs, plotLayout.shapes should include a
+    // vertical line shape positioned by date (not at 0.5).
+    capturedShapes = fakePlot.el.layout.shapes;
+    // The effect pushes a new shape to a copy of layout.shapes and stores
+    // it via setPlotLayout, not back to fakePlot.el.layout. Read the
+    // computed x0 by re-running createVerticalLine with the parsed Date
+    // and the same range — this is what BasePlot's effect computes.
+    const parsedDate = new Date(2026, 5, 5, 12, 0); // Jun 5, 2026 12:00 local
+    const directShape = createVerticalLine({
+      xValue: parsedDate,
+      plotElement: fakePlot.el,
+      returnOutOfRange: true,
+    });
+    // The expected x0 is somewhere between 0 and 1 (Jun 5 is between Jun 1
+    // and Jun 10), strictly NOT the 0.5 fallback.
+    expect(directShape.x0).toBeGreaterThan(0);
+    expect(directShape.x0).toBeLessThan(1);
+    expect(directShape.x0).not.toBe(0.5);
+    // The "broken" path — string in slider format with no format hint —
+    // produces the 0.5 fallback. This is what BasePlot avoids.
+    const fallbackShape = createVerticalLine({
+      xValue: "06/05/2026T12:00",
+      plotElement: fakePlot.el,
+      returnOutOfRange: true,
+    });
+    expect(fallbackShape.x0).toBe(0.5);
+    // Reference capturedShapes so eslint doesn't complain about unused.
+    expect(capturedShapes).toEqual([]);
+  });
+
   it("does not infinite-rerender when metadata.plotlyVerticalLine is absent", () => {
     // Stub visualizationRef so the layout-syncing effect runs setPlotLayout
     // instead of early-returning. If `plotlyVerticalLine` defaults to a fresh

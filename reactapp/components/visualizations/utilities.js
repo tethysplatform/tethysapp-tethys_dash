@@ -18,7 +18,14 @@ export function checkForEmptyVariableInputs({
   variableInputValues,
 }) {
   const metadata = JSON.parse(metadataString);
-  const allDependentVariableInputs = getDependentVariableInputs(argsString);
+  // Walk the parsed args, NOT the JSON string, so the recursion can skip the
+  // popupConfig subtree. A flat regex over the JSON string would surface
+  // popup-scoped variable inputs (e.g. `${Start Time}` declared inside the
+  // popup) at the host level — those resolve inside the popup's own
+  // FeatureScopedVariableInputs provider, not in the host context.
+  const parsedArgs = JSON.parse(argsString);
+  const allDependentVariableInputs =
+    findUnresolvedVariableInputTokens(parsedArgs);
   // Skip feature-scoped keys: they're populated by the
   // FeatureScopedVariableInputs provider on a per-feature basis and are
   // unbinding-by-design when no feature is active. Warning on every render
@@ -413,12 +420,48 @@ export function updateObjectWithVariableInputs({
       );
     }
 
-    if (sourceArgs[gridItemsArg] === "date") {
-      const parsedDate = parseDate(
-        updatedValuesWithVariableInputs,
-        variableInputDateFormats?.[gridItemsArg],
-      );
-      updatedValuesWithVariableInputs = convertDatesToLocalISO(parsedDate);
+    // Resolve relative ("now-1D") and absolute dates for any date-typed arg.
+    // DataInput renders a date picker for every arg type containing "date"
+    // (e.g. "date", "date-hour", "date-range"), so the resolver must cover them
+    // all — not just exactly "date" — or relative dates leak to the API raw.
+    const argType = sourceArgs[gridItemsArg];
+    if (typeof argType === "string" && argType.includes("date")) {
+      const dateFormat = variableInputDateFormats?.[gridItemsArg];
+
+      if (argType === "date-range") {
+        // Original value was an object → updatedValuesWithVariableInputs is a
+        // JSON string here (see the stringify at the top of the loop). Parse it,
+        // resolve each endpoint independently, then re-stringify so the
+        // JSON.parse reassembly below restores the object shape.
+        let rangeObj;
+        try {
+          rangeObj = JSON.parse(updatedValuesWithVariableInputs);
+        } catch (e) {
+          rangeObj = null;
+        }
+        if (
+          rangeObj &&
+          typeof rangeObj === "object" &&
+          !Array.isArray(rangeObj)
+        ) {
+          for (const endpointKey of Object.keys(rangeObj)) {
+            const endpointValue = rangeObj[endpointKey];
+            if (typeof endpointValue === "string") {
+              rangeObj[endpointKey] = convertDatesToLocalISO(
+                parseDate(endpointValue, dateFormat),
+              );
+            }
+          }
+          updatedValuesWithVariableInputs = JSON.stringify(rangeObj);
+        }
+      } else {
+        // Single date arg ("date", legacy "date-hour", etc.): value is a string.
+        const parsedDate = parseDate(
+          updatedValuesWithVariableInputs,
+          dateFormat,
+        );
+        updatedValuesWithVariableInputs = convertDatesToLocalISO(parsedDate);
+      }
     }
 
     if (typeof argsCopy[gridItemsArg] !== "string") {
@@ -433,15 +476,46 @@ export function updateObjectWithVariableInputs({
 }
 
 const FEATURE_TOKEN_RE = /\$\{(feature\.[^}]+)\}/g;
+const VARIABLE_INPUT_TOKEN_RE = /\$\{([^}]+)\}/g;
 
 // Object keys whose subtree is intentionally NOT scanned for unresolved
-// feature.* tokens. The Map widget's args carry per-layer `popupConfig`
-// (titleTemplate + nested popup gridItems' args_string) for round-tripping
-// — those tokens are meant to resolve later inside the popup's own
-// FeatureScopedVariableInputs scope, NOT against the Map widget's host
-// scope. Without this skip, opening any dashboard with a configured popup
-// modal gates the entire Map widget on the popup's deferred tokens.
+// tokens. The Map widget's args carry per-layer `popupConfig` (titleTemplate
+// + nested popup gridItems' args_string) for round-tripping — those tokens
+// are meant to resolve later inside the popup's own FeatureScopedVariableInputs
+// scope, NOT against the Map widget's host scope. Without this skip, opening
+// any dashboard with a configured popup modal gates the entire Map widget on
+// the popup's deferred tokens (both `${feature.*}` AND popup-internal
+// variable input names such as `${Start Time}` declared by inner Variable
+// Input grid items).
 const FEATURE_SCAN_SKIP_KEYS = new Set(["popupConfig"]);
+
+// Shared recursive walker. Returns the deduped set of capture-group-1 matches
+// of `regex` across every string leaf, skipping any object key in `skipKeys`.
+function collectTokens(value, regex, skipKeys) {
+  const found = new Set();
+
+  const visit = (v) => {
+    if (typeof v === "string") {
+      // Reset regex state — global regexes preserve `lastIndex` across
+      // calls when they're shared at module scope.
+      regex.lastIndex = 0;
+      let match;
+      while ((match = regex.exec(v)) !== null) {
+        found.add(match[1]);
+      }
+    } else if (Array.isArray(v)) {
+      for (const item of v) visit(item);
+    } else if (v && typeof v === "object") {
+      for (const key of Object.keys(v)) {
+        if (skipKeys.has(key)) continue;
+        visit(v[key]);
+      }
+    }
+  };
+
+  visit(value);
+  return Array.from(found);
+}
 
 /**
  * Recursively walk an args object/array and return the unique set of
@@ -460,29 +534,28 @@ const FEATURE_SCAN_SKIP_KEYS = new Set(["popupConfig"]);
  * yield an empty array.
  */
 export function findUnresolvedFeatureTokens(value) {
-  const found = new Set();
+  return collectTokens(value, FEATURE_TOKEN_RE, FEATURE_SCAN_SKIP_KEYS);
+}
 
-  const visit = (v) => {
-    if (typeof v === "string") {
-      // Reset regex state — global regexes preserve `lastIndex` across
-      // calls when they're shared at module scope.
-      FEATURE_TOKEN_RE.lastIndex = 0;
-      let match;
-      while ((match = FEATURE_TOKEN_RE.exec(v)) !== null) {
-        found.add(match[1]);
-      }
-    } else if (Array.isArray(v)) {
-      for (const item of v) visit(item);
-    } else if (v && typeof v === "object") {
-      for (const key of Object.keys(v)) {
-        if (FEATURE_SCAN_SKIP_KEYS.has(key)) continue;
-        visit(v[key]);
-      }
-    }
-  };
-
-  visit(value);
-  return Array.from(found);
+/**
+ * Recursively walk an args object/array and return the unique set of
+ * `${<name>}` variable-input references embedded in any string value,
+ * EXCLUDING the popupConfig subtree.
+ *
+ * Used by `checkForEmptyVariableInputs` so that a Map widget hosting a
+ * popup modal whose inner gridItems define their own variable inputs
+ * (e.g. `${Start Time}` supplied by a Variable Input grid item inside
+ * the popup) does not gate the host map render on those popup-scoped
+ * names. The host context will never have them — they're resolved inside
+ * the popup's nested FeatureScopedVariableInputs provider when the popup
+ * opens.
+ *
+ * Returns the capture-group-1 strings (without the `${}` wrapper),
+ * deduplicated and in encounter order. Empty/non-string/non-object inputs
+ * yield an empty array.
+ */
+export function findUnresolvedVariableInputTokens(value) {
+  return collectTokens(value, VARIABLE_INPUT_TOKEN_RE, FEATURE_SCAN_SKIP_KEYS);
 }
 
 export const nonDropDownVariableInputTypes = [

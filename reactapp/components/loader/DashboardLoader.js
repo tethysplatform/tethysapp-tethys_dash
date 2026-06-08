@@ -151,7 +151,15 @@ const DashboardLoader = ({
         }
       }
       setVariableInputValues(updatedVariableInputValues);
-      setVariableInputDateFormats(updatedVariableInputDateFormats);
+      // Merge instead of replace: popup-internal Variable Inputs register
+      // their date formats from inside their own subtree (they never appear
+      // in tab.gridItems and so were invisible to this boot-time scan).
+      // Replacing the whole map here would wipe those popup registrations
+      // whenever the host dashboard's gridItems changed.
+      setVariableInputDateFormats((prev) => ({
+        ...prev,
+        ...updatedVariableInputDateFormats,
+      }));
     },
     [variableInputValues],
   );
@@ -255,6 +263,7 @@ const DashboardLoader = ({
       variableInputValues,
       setVariableInputValues,
       variableInputDateFormats,
+      setVariableInputDateFormats,
       variableInputSliderMeta,
       setVariableInputSliderMeta,
     }),
@@ -262,6 +271,7 @@ const DashboardLoader = ({
       variableInputValues,
       setVariableInputValues,
       variableInputDateFormats,
+      setVariableInputDateFormats,
       variableInputSliderMeta,
       setVariableInputSliderMeta,
     ],

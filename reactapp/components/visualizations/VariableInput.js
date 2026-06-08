@@ -53,9 +53,11 @@ const VariableInput = ({
   const [updatedMetadata, setUpdatedMetadata] = useState(metadata);
   const { visualizationArgs } = useContext(AppContext);
   const { inDataViewerMode } = useContext(DataViewerModeContext);
-  const { variableInputValues, setVariableInputValues } = useContext(
-    VariableInputsContext,
-  );
+  const {
+    variableInputValues,
+    setVariableInputValues,
+    setVariableInputDateFormats,
+  } = useContext(VariableInputsContext);
 
   // Initialize updatedMetadata when metadata or variableInputValues change
   useEffect(() => {
@@ -67,6 +69,40 @@ const VariableInput = ({
       setUpdatedMetadata(newUpdatedMetadata);
     }
   }, [metadata, variableInputValues]);
+
+  // Register this Variable Input's date format under its variable name so the
+  // date-resolution pass in updateObjectWithVariableInputs can normalize the
+  // value to ISO before it reaches plugins. DashboardLoader pre-populates the
+  // format map at boot for host gridItems, but never recurses into a map
+  // layer's popupConfig.gridItems — so popup-internal date/date-range/slider
+  // Variable Inputs need to self-register on mount, or their values arrive at
+  // the backend as null (parseDate falls through to the default format and
+  // can't parse the slider's outputFormat strings).
+  useEffect(() => {
+    if (!setVariableInputDateFormats || !variable_name) return;
+    let dateFormat = null;
+    if (
+      typeof variable_options_source === "string" &&
+      variable_options_source.includes("date")
+    ) {
+      dateFormat = metadata?.format || null;
+    } else if (
+      variable_options_source === "slider" &&
+      metadata?.dataType === "Date"
+    ) {
+      dateFormat = metadata?.outputFormat || null;
+    }
+    if (!dateFormat) return;
+    setVariableInputDateFormats((prev) => {
+      if (prev?.[variable_name] === dateFormat) return prev;
+      return { ...prev, [variable_name]: dateFormat };
+    });
+  }, [
+    variable_name,
+    variable_options_source,
+    metadata,
+    setVariableInputDateFormats,
+  ]);
 
   const updateVariableInputs = useCallback(
     (new_value) => {
@@ -393,6 +429,7 @@ VariableInput.propTypes = {
     outputFormat: PropTypes.string, // For slider metadata
     dateTimeDelta: PropTypes.string, // For slider metadata
     headers: PropTypes.arrayOf(PropTypes.string), // For CSVUploader metadata
+    format: PropTypes.string, // For date parsing in various inputs
   }),
 };
 

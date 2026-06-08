@@ -376,6 +376,70 @@ describe("FeatureScopedVariableInputs", () => {
     expect(readMerged()["feature.a"]).toBe("from-scope");
   });
 
+  test("functional updater spread does not pollute scopedState with feature attrs", () => {
+    // Regression: when an inner popup viz calls
+    //   setVariableInputValues((prev) => ({ ...prev, "Start Time": "now" }))
+    // every feature.* key from `prev` is re-included in the returned object.
+    // The pre-fix splitByPrefix routed all of them into scopedState. On the
+    // next feature switch in the multi-feature carousel, scopedState (with
+    // the OLD feature's attrs) would shadow the new flattenedFeatureAttrs —
+    // so the new feature's `${feature.cw3e_id}` never reached the inner plot.
+    //
+    // This test swaps the feature prop AFTER the functional updater fires and
+    // asserts the new feature's attrs are visible (no shadowing).
+    const FeatureSwitcher = () => {
+      const [feature, setFeature] = useState({
+        layerName: "Stations",
+        attributes: { cw3e_id: "AAA", station_name: "Alpha" },
+      });
+      return (
+        <ParentProvider>
+          <button
+            type="button"
+            data-testid="switch-feature"
+            onClick={() =>
+              setFeature({
+                layerName: "Stations",
+                attributes: { cw3e_id: "BBB", station_name: "Bravo" },
+              })
+            }
+          >
+            switch
+          </button>
+          <FeatureScopedVariableInputs feature={feature}>
+            <ContextProbe />
+            <ContextWriter
+              useFunctional
+              nextValue={JSON.stringify({ "Start Time": "now-48H" })}
+            />
+          </FeatureScopedVariableInputs>
+        </ParentProvider>
+      );
+    };
+
+    render(<FeatureSwitcher />);
+
+    // Feature A is in scope.
+    expect(readMerged()["feature.cw3e_id"]).toBe("AAA");
+
+    // Inner viz fires its initial-value write through the functional updater.
+    fireEvent.click(screen.getByTestId("writer"));
+    expect(readMerged()["Start Time"]).toBe("now-48H");
+    // Feature A still visible.
+    expect(readMerged()["feature.cw3e_id"]).toBe("AAA");
+
+    // Carousel switches to feature B.
+    fireEvent.click(screen.getByTestId("switch-feature"));
+
+    // Feature B's attrs must be visible — NOT shadowed by a stale scopedState
+    // snapshot of feature A.
+    expect(readMerged()["feature.cw3e_id"]).toBe("BBB");
+    expect(readMerged()["feature.station_name"]).toBe("Bravo");
+    // The earlier non-feature write survives the feature switch (it lives in
+    // the parent context, which is independent of the feature prop).
+    expect(readMerged()["Start Time"]).toBe("now-48H");
+  });
+
   test("mounts cleanly with feature={null}", () => {
     render(
       <ParentProvider initialValues={{ host: "v" }}>

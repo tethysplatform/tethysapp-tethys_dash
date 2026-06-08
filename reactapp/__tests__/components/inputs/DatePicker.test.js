@@ -4,7 +4,7 @@ import DatePicker from "components/inputs/DatePicker";
 import { format } from "date-fns";
 import { getOrdinal } from "__tests__/utilities/constants";
 import { DataViewerModeContext } from "components/contexts/Contexts";
-import { dateHourFormat, dateOnlyFormat } from "components/inputs/dateUtils";
+import { dateHourFormat } from "components/inputs/dateUtils";
 
 test("DatePicker date", async () => {
   const mockOnChange = jest.fn();

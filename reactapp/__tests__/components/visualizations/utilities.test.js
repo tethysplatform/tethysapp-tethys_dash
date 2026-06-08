@@ -12,10 +12,12 @@ import {
   downloadJSONFile,
   checkForEmptyVariableInputs,
   findUnresolvedFeatureTokens,
+  findUnresolvedVariableInputTokens,
 } from "components/visualizations/utilities";
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
 import { format } from "date-fns";
+import { convertDatesToLocalISO, parseDate } from "components/inputs/dateUtils";
 
 jest.mock("components/visualizations/Map", () => {
   const MockMapVisualization = () => <div>Map Mock</div>;
@@ -903,6 +905,215 @@ test("updateObjectWithVariableInputs", async () => {
   }
 });
 
+describe("updateObjectWithVariableInputs date arg resolution", () => {
+  // Mock Date so "now" math is deterministic and timezone-independent
+  // assertions can be derived from the same parseDate/convertDatesToLocalISO
+  // helpers the implementation uses.
+  const fixedDate = new Date("2023-06-15T12:30:00Z");
+  let originalDate;
+
+  beforeEach(() => {
+    originalDate = global.Date;
+    const MockedDate = class extends originalDate {
+      constructor(...dateArgs) {
+        if (dateArgs.length === 0) {
+          super(fixedDate.getTime());
+          return;
+        }
+        super(...dateArgs);
+      }
+      static now = () => fixedDate.getTime();
+      static UTC = originalDate.UTC;
+      static parse = originalDate.parse;
+    };
+    global.Date = MockedDate;
+  });
+
+  afterEach(() => {
+    global.Date = originalDate;
+  });
+
+  it("resolves a relative date for an exactly-'date' arg", () => {
+    const result = updateObjectWithVariableInputs({
+      args: { d: "now-1D" },
+      variableInputs: {},
+      variableInputDateFormats: {},
+      sourceArgs: { d: "date" },
+      returnDatesAsLocalISO: true,
+    });
+    expect(result.d).toBe(convertDatesToLocalISO(parseDate("now-1D")));
+    expect(result.d).not.toBe("now-1D");
+  });
+
+  it("resolves a relative date for a 'date-hour' arg (regression guard)", () => {
+    const result = updateObjectWithVariableInputs({
+      args: { d: "now-1D" },
+      variableInputs: {},
+      variableInputDateFormats: {},
+      sourceArgs: { d: "date-hour" },
+      returnDatesAsLocalISO: true,
+    });
+    expect(result.d).toBe(convertDatesToLocalISO(parseDate("now-1D")));
+    expect(result.d).not.toBe("now-1D");
+  });
+
+  it("resolves both endpoints of a 'date-range' arg with relative values", () => {
+    const result = updateObjectWithVariableInputs({
+      args: { range: { "Start Date": "now-7D", "End Date": "now" } },
+      variableInputs: {},
+      variableInputDateFormats: {},
+      sourceArgs: { range: "date-range" },
+      returnDatesAsLocalISO: true,
+    });
+    expect(result.range).toStrictEqual({
+      "Start Date": convertDatesToLocalISO(parseDate("now-7D")),
+      "End Date": convertDatesToLocalISO(parseDate("now")),
+    });
+    expect(typeof result.range).toBe("object");
+  });
+
+  it("resolves a 'date-range' arg with mixed relative + absolute values using the arg format", () => {
+    const fmt = "MM/dd/yyyy h:mm aa";
+    const result = updateObjectWithVariableInputs({
+      args: {
+        range: { "Start Date": "now-7D", "End Date": "01/05/2024 3:00 PM" },
+      },
+      variableInputs: {},
+      variableInputDateFormats: { range: fmt },
+      sourceArgs: { range: "date-range" },
+      returnDatesAsLocalISO: true,
+    });
+    expect(result.range).toStrictEqual({
+      "Start Date": convertDatesToLocalISO(parseDate("now-7D", fmt)),
+      "End Date": convertDatesToLocalISO(parseDate("01/05/2024 3:00 PM", fmt)),
+    });
+  });
+
+  it("resolves a 'date-range' arg with custom endpoint key names", () => {
+    const result = updateObjectWithVariableInputs({
+      args: { range: { From: "now-1D", To: "now" } },
+      variableInputs: {},
+      variableInputDateFormats: {},
+      sourceArgs: { range: "date-range" },
+      returnDatesAsLocalISO: true,
+    });
+    expect(result.range).toStrictEqual({
+      From: convertDatesToLocalISO(parseDate("now-1D")),
+      To: convertDatesToLocalISO(parseDate("now")),
+    });
+  });
+
+  it("resolves an absolute single date", () => {
+    const fmt = "MM/dd/yyyy h:mm aa";
+    const result = updateObjectWithVariableInputs({
+      args: { d: "01/05/2024 3:00 PM" },
+      variableInputs: {},
+      variableInputDateFormats: { d: fmt },
+      sourceArgs: { d: "date" },
+      returnDatesAsLocalISO: true,
+    });
+    expect(result.d).toBe(
+      convertDatesToLocalISO(parseDate("01/05/2024 3:00 PM", fmt)),
+    );
+  });
+
+  it("resolves a date arg fed by a variable input holding a relative date", () => {
+    // eslint-disable-next-line no-template-curly-in-string
+    const result = updateObjectWithVariableInputs({
+      // eslint-disable-next-line no-template-curly-in-string
+      args: { d: "${StartVar}" },
+      variableInputs: { StartVar: "now-1D" },
+      variableInputDateFormats: {},
+      sourceArgs: { d: "date" },
+      returnDatesAsLocalISO: true,
+    });
+    expect(result.d).toBe(convertDatesToLocalISO(parseDate("now-1D")));
+  });
+
+  it("resolves only the concrete endpoint when a date-range endpoint is an unresolved variable", () => {
+    const result = updateObjectWithVariableInputs({
+      // eslint-disable-next-line no-template-curly-in-string
+      args: { range: { "Start Date": "${StartVar}", "End Date": "now" } },
+      variableInputs: {},
+      variableInputDateFormats: {},
+      sourceArgs: { range: "date-range" },
+      returnDatesAsLocalISO: true,
+    });
+    // Unresolved ${StartVar} substitutes to "" (missing variable); parseDate("")
+    // is null, so the empty endpoint becomes null. "End Date" resolves normally.
+    expect(result.range["End Date"]).toBe(
+      convertDatesToLocalISO(parseDate("now")),
+    );
+    expect(result.range["Start Date"]).toBeNull();
+  });
+
+  it("leaves a non-date arg with a relative-looking value untouched", () => {
+    const result = updateObjectWithVariableInputs({
+      args: { label: "now-1D" },
+      variableInputs: {},
+      variableInputDateFormats: {},
+      sourceArgs: { label: "text" },
+      returnDatesAsLocalISO: true,
+    });
+    expect(result.label).toBe("now-1D");
+  });
+
+  it("keeps relative dates symbolic when no sourceArgs are passed (snapshot comparison)", () => {
+    const result = updateObjectWithVariableInputs({
+      args: { d: "now-1D" },
+      variableInputs: {},
+      variableInputDateFormats: {},
+    });
+    expect(result.d).toBe("now-1D");
+  });
+
+  it("leaves non-string endpoints in a date-range arg untouched", () => {
+    // Covers the `if (typeof endpointValue === "string")` guard inside
+    // the date-range endpoint loop. If a host supplies a number, null,
+    // or other non-string value for a range endpoint (legitimately as a
+    // Date-as-number or accidentally), we skip the parseDate /
+    // convertDatesToLocalISO conversion and pass the value through
+    // verbatim — converting a number with the wrong format would corrupt
+    // it. After the loop, the object is re-serialized so the result
+    // round-trips through the JSON.parse reassembly below.
+    const result = updateObjectWithVariableInputs({
+      args: {
+        range: {
+          "Start Date": 1735689600000, // numeric epoch ms
+          "End Date": "now",
+        },
+      },
+      variableInputs: {},
+      variableInputDateFormats: {},
+      sourceArgs: { range: "date-range" },
+      returnDatesAsLocalISO: true,
+    });
+    // The numeric endpoint passed through untouched.
+    expect(result.range["Start Date"]).toBe(1735689600000);
+    // The string endpoint was still resolved as before.
+    expect(result.range["End Date"]).toBe(
+      convertDatesToLocalISO(parseDate("now")),
+    );
+  });
+
+  it("safely passes through a date-range arg whose value is not valid JSON", () => {
+    // Covers the catch branch in the date-range resolution path
+    // (`rangeObj = null` after JSON.parse throws). A date-range arg is
+    // shaped as a `{Start, End}` object, but a malformed configuration
+    // (or a bad host substitution) could deliver a plain string. The
+    // helper must not crash — it falls through, leaves the value as-is,
+    // and lets downstream code handle the type mismatch.
+    const result = updateObjectWithVariableInputs({
+      args: { range: "not-valid-json" },
+      variableInputs: {},
+      variableInputDateFormats: {},
+      sourceArgs: { range: "date-range" },
+      returnDatesAsLocalISO: true,
+    });
+    expect(result.range).toBe("not-valid-json");
+  });
+});
+
 test("updateObjectWithVariableInputs preserves unresolved ${feature.<key>} tokens", () => {
   // The feature.* namespace is owned by FeatureScopedVariableInputs (the
   // popup scope). At the host pass, those tokens must be preserved rather
@@ -1232,6 +1443,82 @@ test("checkForEmptyVariableInputs warns for non-feature.* keys when feature.* is
   ]);
 });
 
+test("checkForEmptyVariableInputs skips popupConfig subtree (popup-scoped vars do not gate host)", () => {
+  // Regression: a Map layer whose popupConfig defines its own variable inputs
+  // (e.g. "Start Time" supplied by a Variable Input grid item INSIDE the popup)
+  // must not gate the host map render. Those names live in the popup's
+  // nested FeatureScopedVariableInputs provider — not in the host context —
+  // so the host must NOT warn that they're "empty" before the popup even opens.
+  const argsString = JSON.stringify({
+    baseMap: "https://example.com/basemap",
+    layers: [
+      {
+        configuration: { type: "ImageLayer", props: { name: "Stations" } },
+        popupConfig: {
+          mode: "modal",
+          titleTemplate: "Site: ${feature.station_name}",
+          gridItems: [
+            {
+              source: "some_plot",
+              args_string:
+                '{"location":"${feature.cw3e_id}","start_time":"${Start Time}","end_time":"${End Time}"}',
+            },
+            {
+              source: "Variable Input",
+              args_string:
+                '{"variable_name":"Start Time","initial_value":"now-48H"}',
+            },
+          ],
+        },
+      },
+    ],
+  });
+  const metadataString = JSON.stringify({});
+  const variableInputValues = {};
+
+  const emptyVariableWarnings = checkForEmptyVariableInputs({
+    metadataString,
+    argsString,
+    variableInputValues,
+  });
+
+  expect(emptyVariableWarnings).toStrictEqual(null);
+});
+
+test("checkForEmptyVariableInputs still warns for host-level vars when popupConfig also present", () => {
+  // Positive control for the popupConfig skip: we're skipping ONLY the
+  // popupConfig subtree, not silencing host-level references on the same
+  // visualization. A genuinely-missing host variable referenced outside
+  // popupConfig must still warn.
+  const argsString = JSON.stringify({
+    baseMap: "${Host Var}",
+    layers: [
+      {
+        configuration: { type: "ImageLayer", props: { name: "Stations" } },
+        popupConfig: {
+          mode: "modal",
+          gridItems: [
+            {
+              source: "some_plot",
+              args_string: '{"start_time":"${Start Time}"}',
+            },
+          ],
+        },
+      },
+    ],
+  });
+  const metadataString = JSON.stringify({});
+  const variableInputValues = {};
+
+  const emptyVariableWarnings = checkForEmptyVariableInputs({
+    metadataString,
+    argsString,
+    variableInputValues,
+  });
+
+  expect(emptyVariableWarnings).toStrictEqual(["Host Var variable is empty"]);
+});
+
 test("getVisualization Custom Image with slider metadata returns imageSequence", async () => {
   const mockSetVizType = jest.fn();
   const mockSetVizData = jest.fn();
@@ -1455,15 +1742,9 @@ describe("findUnresolvedFeatureTokens", () => {
     // Defends against the global-regex `lastIndex` pitfall — if the helper
     // accidentally shared state across calls, the second call could miss
     // tokens depending on where the previous call left lastIndex.
-    expect(findUnresolvedFeatureTokens("${feature.a}")).toEqual([
-      "feature.a",
-    ]);
-    expect(findUnresolvedFeatureTokens("${feature.b}")).toEqual([
-      "feature.b",
-    ]);
-    expect(findUnresolvedFeatureTokens("${feature.c}")).toEqual([
-      "feature.c",
-    ]);
+    expect(findUnresolvedFeatureTokens("${feature.a}")).toEqual(["feature.a"]);
+    expect(findUnresolvedFeatureTokens("${feature.b}")).toEqual(["feature.b"]);
+    expect(findUnresolvedFeatureTokens("${feature.c}")).toEqual(["feature.c"]);
   });
 
   test("skips subtrees under `popupConfig` (deferred to the popup scope)", () => {
@@ -1500,5 +1781,117 @@ describe("findUnresolvedFeatureTokens", () => {
       },
     };
     expect(findUnresolvedFeatureTokens(args)).toEqual(["feature.comid"]);
+  });
+});
+
+describe("findUnresolvedVariableInputTokens", () => {
+  test("returns empty array for non-string/non-object inputs", () => {
+    expect(findUnresolvedVariableInputTokens(undefined)).toEqual([]);
+    expect(findUnresolvedVariableInputTokens(null)).toEqual([]);
+    expect(findUnresolvedVariableInputTokens(42)).toEqual([]);
+    expect(findUnresolvedVariableInputTokens(true)).toEqual([]);
+  });
+
+  test("returns empty array when no ${...} tokens are present", () => {
+    expect(findUnresolvedVariableInputTokens("plain text")).toEqual([]);
+    expect(findUnresolvedVariableInputTokens({ x: "no tokens here" })).toEqual(
+      [],
+    );
+  });
+
+  test("finds bare-name tokens in a top-level string", () => {
+    expect(findUnresolvedVariableInputTokens("Hello ${Name}")).toEqual([
+      "Name",
+    ]);
+  });
+
+  test("finds feature.* tokens just like any other token", () => {
+    // findUnresolvedVariableInputTokens is the superset walker — it captures
+    // every ${...} reference, feature-scoped or not. Filtering happens at
+    // the call site (checkForEmptyVariableInputs filters out feature.*).
+    expect(findUnresolvedVariableInputTokens("${feature.comid}")).toEqual([
+      "feature.comid",
+    ]);
+  });
+
+  test("finds tokens nested inside an object", () => {
+    expect(
+      findUnresolvedVariableInputTokens({
+        a: "${Foo}",
+        b: "Bar = ${Bar}",
+      }),
+    ).toEqual(["Foo", "Bar"]);
+  });
+
+  test("finds tokens nested inside an array", () => {
+    expect(
+      findUnresolvedVariableInputTokens(["${A}", { b: "${B}" }]),
+    ).toEqual(["A", "B"]);
+  });
+
+  test("deduplicates repeated tokens", () => {
+    expect(
+      findUnresolvedVariableInputTokens({
+        a: "${X}",
+        b: "${X}/${X}",
+      }),
+    ).toEqual(["X"]);
+  });
+
+  test("supports variable names with spaces", () => {
+    expect(findUnresolvedVariableInputTokens("${Start Time}")).toEqual([
+      "Start Time",
+    ]);
+  });
+
+  test("skips subtrees under `popupConfig` (deferred to the popup scope)", () => {
+    // The core bug: popup-internal variable inputs (Start Time, End Time)
+    // declared inside the popup must NOT surface at the host level.
+    const mapArgs = {
+      baseMap: "https://example.com/basemap",
+      layers: [
+        {
+          configuration: { type: "ImageLayer", props: { name: "Stations" } },
+          popupConfig: {
+            mode: "modal",
+            titleTemplate: "Site: ${feature.station_name}",
+            gridItems: [
+              {
+                source: "some_plot",
+                args_string:
+                  '{"start_time":"${Start Time}","end_time":"${End Time}"}',
+              },
+            ],
+          },
+        },
+      ],
+    };
+    expect(findUnresolvedVariableInputTokens(mapArgs)).toEqual([]);
+  });
+
+  test("still finds host-level tokens when popupConfig is also present", () => {
+    // Skip applies ONLY to popupConfig — sibling host-level references
+    // must still surface so the host gate can warn appropriately.
+    const args = {
+      baseMap: "${Host Base}",
+      layers: [
+        {
+          popupConfig: {
+            gridItems: [
+              { args_string: '{"start_time":"${Popup Var}"}' },
+            ],
+          },
+        },
+      ],
+    };
+    expect(findUnresolvedVariableInputTokens(args)).toEqual(["Host Base"]);
+  });
+
+  test("safe to call repeatedly without leaking regex state", () => {
+    // Defends against the global-regex `lastIndex` pitfall shared with
+    // findUnresolvedFeatureTokens.
+    expect(findUnresolvedVariableInputTokens("${A}")).toEqual(["A"]);
+    expect(findUnresolvedVariableInputTokens("${B}")).toEqual(["B"]);
+    expect(findUnresolvedVariableInputTokens("${C}")).toEqual(["C"]);
   });
 });

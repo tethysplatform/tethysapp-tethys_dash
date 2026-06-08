@@ -27,6 +27,7 @@ const FeatureScopedVariableInputs = ({ feature, children }) => {
     variableInputValues: parentValues,
     setVariableInputValues: parentSetVariableInputValues,
     variableInputDateFormats,
+    setVariableInputDateFormats,
     variableInputSliderMeta,
     setVariableInputSliderMeta,
   } = useContext(VariableInputsContext);
@@ -51,47 +52,44 @@ const FeatureScopedVariableInputs = ({ feature, children }) => {
   /**
    * Split a flat object of `{ key: value }` into two buckets — feature.* keys
    * for the local scoped state and everything else for the parent setter.
+   *
+   * Only forwards keys whose value actually CHANGED relative to
+   * `mergedValues`. This is what makes the functional-updater pattern
+   * `(prev) => ({...prev, X: Y})` safe: the spread re-includes every existing
+   * key (including the immutable `feature.*` snapshot), and without this
+   * diff filter those keys would land in `scopedState` and shadow the live
+   * feature prop on the next feature switch in the multi-feature carousel.
    */
-  const splitByPrefix = useCallback((nextObj) => {
-    const featureUpdates = {};
-    const parentUpdates = {};
-    let hasFeatureKey = false;
-    let hasParentKey = false;
-    for (const [key, value] of Object.entries(nextObj)) {
-      if (key.startsWith(FEATURE_PREFIX)) {
-        featureUpdates[key] = value;
-        hasFeatureKey = true;
-      } else {
-        parentUpdates[key] = value;
-        hasParentKey = true;
+  const splitChanges = useCallback(
+    (nextObj) => {
+      const featureUpdates = {};
+      const parentUpdates = {};
+      let hasFeatureKey = false;
+      let hasParentKey = false;
+      for (const [key, value] of Object.entries(nextObj)) {
+        if (key === FEATURE_SCOPE_MARKER) continue;
+        if (Object.is(mergedValues[key], value)) continue;
+        if (key.startsWith(FEATURE_PREFIX)) {
+          featureUpdates[key] = value;
+          hasFeatureKey = true;
+        } else {
+          parentUpdates[key] = value;
+          hasParentKey = true;
+        }
       }
-    }
-    return { featureUpdates, parentUpdates, hasFeatureKey, hasParentKey };
-  }, []);
+      return { featureUpdates, parentUpdates, hasFeatureKey, hasParentKey };
+    },
+    [mergedValues],
+  );
 
   const setVariableInputValues = useCallback(
     (updater) => {
-      if (typeof updater === "function") {
-        const next = updater(mergedValues);
-        const { featureUpdates, parentUpdates, hasFeatureKey, hasParentKey } =
-          splitByPrefix(next ?? {});
-        if (hasFeatureKey) {
-          setScopedState((prevScoped) => ({
-            ...prevScoped,
-            ...featureUpdates,
-          }));
-        }
-        if (hasParentKey) {
-          parentSetVariableInputValues((prevParent) => ({
-            ...prevParent,
-            ...parentUpdates,
-          }));
-        }
-        return;
-      }
+      const next =
+        typeof updater === "function" ? updater(mergedValues) : updater;
+      if (!next || typeof next !== "object") return;
 
       const { featureUpdates, parentUpdates, hasFeatureKey, hasParentKey } =
-        splitByPrefix(updater ?? {});
+        splitChanges(next);
       if (hasFeatureKey) {
         setScopedState((prevScoped) => ({ ...prevScoped, ...featureUpdates }));
       }
@@ -102,7 +100,7 @@ const FeatureScopedVariableInputs = ({ feature, children }) => {
         }));
       }
     },
-    [mergedValues, parentSetVariableInputValues, splitByPrefix],
+    [mergedValues, parentSetVariableInputValues, splitChanges],
   );
 
   const contextValue = useMemo(
@@ -110,6 +108,7 @@ const FeatureScopedVariableInputs = ({ feature, children }) => {
       variableInputValues: mergedValues,
       setVariableInputValues,
       variableInputDateFormats,
+      setVariableInputDateFormats,
       variableInputSliderMeta,
       setVariableInputSliderMeta,
     }),
@@ -117,6 +116,7 @@ const FeatureScopedVariableInputs = ({ feature, children }) => {
       mergedValues,
       setVariableInputValues,
       variableInputDateFormats,
+      setVariableInputDateFormats,
       variableInputSliderMeta,
       setVariableInputSliderMeta,
     ],

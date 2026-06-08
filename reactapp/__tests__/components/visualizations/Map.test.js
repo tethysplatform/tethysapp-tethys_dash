@@ -1177,6 +1177,164 @@ test("Map click — modal-only layer with tablePopupType 'none' IS queried and m
   });
 });
 
+test("Map click — modal-only layer feature without geometry does not call addHighlightFeatures", async () => {
+  // Covers the `!feature?.geometry` early-return guard in the modal-driven
+  // highlight effect. A queried feature whose geometry field is absent
+  // (e.g., a non-spatial result from a custom feature source) must not
+  // crash the effect — it should bail before calling addHighlightFeatures.
+  //
+  // The effect still runs through its earlier guards (modalOpen is true,
+  // highlightLayer.current is set by the click handler, hoverActiveRef is
+  // false because click resets it, modalFeatures has the missing-geometry
+  // feature), so reaching the no-geometry guard is what's being exercised.
+  mockedQueryLayerFeatures.mockResolvedValue([
+    {
+      attributes: { reach_id: "ABC" },
+      // geometry deliberately omitted.
+      layerName: "NoGeom",
+    },
+  ]);
+  jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+  const vectorAddFeaturesSpy = jest.spyOn(
+    VectorSource.prototype,
+    "addFeatures",
+  );
+
+  const layers = [
+    {
+      name: "NoGeom",
+      tablePopupType: "none",
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "NoGeom",
+          source: {
+            type: "ESRI Image and Map Service",
+            props: { url: "nogeom_url" },
+          },
+        },
+      },
+      popupConfig: {
+        mode: "modal",
+        position: null,
+        titleTemplate: null,
+        gridItems: [],
+      },
+    },
+  ];
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent
+          onMapClick={jest.fn()}
+          clickCoordinates={[10, 20]}
+          mapProps={{
+            mapConfig: {},
+            viewConfig: {},
+            layers,
+            baseMap: null,
+            layerControl: false,
+          }}
+        />
+      </MapContextProvider>
+    ),
+  });
+  render(LoadedComponent);
+
+  await waitFor(() => {
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  // The modal opened (so the effect's first three guards passed), but
+  // addHighlightFeatures was never called for this feature because the
+  // no-geometry guard fired.
+  expect(vectorAddFeaturesSpy).not.toHaveBeenCalled();
+});
+
+test("Map click — modal-only layer highlights the clicked feature's GeoJSON geometry", async () => {
+  // Regression: clicking a feature on a modal-only layer (tablePopupType
+  // "none" + Custom Modal Popup enabled) must still produce a highlight
+  // overlay. The popupContent-driven highlight effect doesn't fire for
+  // these layers because their features never enter `popupContent`, so a
+  // separate modal-driven effect is responsible for the highlight.
+  //
+  // Uses a GeoJSON LineString geometry shape (as returned by
+  // getGeoJSONLayerFeatures for vector layers) to exercise the
+  // addHighlightFeatures LineString branch end-to-end from a click event.
+  mockedQueryLayerFeatures.mockResolvedValue([
+    {
+      attributes: { reach_id: "ABC" },
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          [0, 0],
+          [1, 1],
+        ],
+      },
+      layerName: "GeoJSONLayer",
+    },
+  ]);
+  jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+  const vectorClearSpy = jest.spyOn(VectorSource.prototype, "clear");
+  const vectorAddFeaturesSpy = jest.spyOn(
+    VectorSource.prototype,
+    "addFeatures",
+  );
+
+  const layers = [
+    {
+      name: "GeoJSONLayer",
+      tablePopupType: "none",
+      configuration: {
+        type: "VectorLayer",
+        props: {
+          name: "GeoJSONLayer",
+          source: {
+            type: "GeoJSON",
+            props: { url: "geojson_url" },
+          },
+        },
+      },
+      popupConfig: {
+        mode: "modal",
+        position: null,
+        titleTemplate: null,
+        gridItems: [],
+      },
+    },
+  ];
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent
+          onMapClick={jest.fn()}
+          clickCoordinates={[10, 20]}
+          mapProps={{
+            mapConfig: {},
+            viewConfig: {},
+            layers,
+            baseMap: null,
+            layerControl: false,
+          }}
+        />
+      </MapContextProvider>
+    ),
+  });
+  render(LoadedComponent);
+
+  // The modal opens (which is what gates the highlight effect).
+  await waitFor(() => {
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  // The highlight layer was cleared and the GeoJSON LineString feature
+  // was added — proving the modal-driven highlight effect ran end-to-end.
+  await waitFor(() => {
+    expect(vectorClearSpy).toHaveBeenCalled();
+  });
+  expect(vectorAddFeaturesSpy).toHaveBeenCalled();
+});
+
 test("Map click — hover-table layer is excluded from the click handler", async () => {
   // tablePopupType: "hover" without modal must not be queried on click; only
   // the hover handler should fire for that layer.

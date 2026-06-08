@@ -392,8 +392,40 @@ const BasePlot = ({
     );
 
     if (verticalLineMode === "on" && verticalLineValue) {
+      // The substituted `verticalLineValue` arrives in its source
+      // variable's date format (e.g., a slider's outputFormat such as
+      // "MM/dd/yyyy'T'HH:mm"). `createVerticalLine`'s internal
+      // `parseDateMath` is called without a format hint and so cannot
+      // parse non-ISO strings — without this pre-resolution the value
+      // fails to parse, `xPaper` falls back to 0.5, and the line
+      // snaps to the middle of the plot every time the variable
+      // changes (e.g., on every slider move). Look up the source
+      // variable's registered format and pre-parse here so
+      // createVerticalLine receives a Date that its top-of-function
+      // short-circuit accepts unchanged.
+      let xValueResolved = verticalLineValue;
+      try {
+        const rawValue = JSON.parse(gridItemMetadataString)
+          ?.plotlyVerticalLine?.value;
+        const sourceVar = checkForVariable(rawValue);
+        const dateFormat = sourceVar
+          ? variableInputDateFormats?.[sourceVar]
+          : null;
+        if (dateFormat) {
+          const parsed = parseDateMath({
+            value: verticalLineValue,
+            dateFormat,
+          });
+          if (parsed instanceof Date && !isNaN(parsed)) {
+            xValueResolved = parsed;
+          }
+        }
+      } catch {
+        // Malformed metadata string — fall back to the raw value and let
+        // createVerticalLine's existing fallback handle it.
+      }
       const verticalLineShape = createVerticalLine({
-        xValue: verticalLineValue,
+        xValue: xValueResolved,
         plotElement,
         options: plotlyVerticalLine,
         returnOutOfRange: true,
@@ -415,7 +447,14 @@ const BasePlot = ({
       shapes: currentShapes,
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [width, height, layout, plotlyVerticalLine]);
+  }, [
+    width,
+    height,
+    layout,
+    plotlyVerticalLine,
+    gridItemMetadataString,
+    variableInputDateFormats,
+  ]);
 
   // istanbul ignore next - functons tested separately, this is just cleanup
   const handleRelayout = useCallback(

@@ -19,11 +19,17 @@ import {
 import { select } from "react-select-event";
 import createLoadedComponent, {
   InputVariablePComponent,
+  VariableInputDateFormatsPComponent,
 } from "__tests__/utilities/customRender";
 import { getOrdinal } from "__tests__/utilities/constants";
 import { format } from "date-fns";
 import { dateHourFormat } from "components/inputs/dateUtils";
-import { GridItemContext } from "components/contexts/Contexts";
+import {
+  AppContext,
+  DataViewerModeContext,
+  GridItemContext,
+  VariableInputsContext,
+} from "components/contexts/Contexts";
 
 const advanceTimers = async (ms) => {
   await act(async () => {
@@ -1134,6 +1140,238 @@ it("Creates a Dropdown Input for a Variable Input, not signed in", async () => {
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
     JSON.stringify({ "Test Variable": "CREC1" }),
   );
+});
+
+describe("Date format self-registration", () => {
+  // Regression: popup-internal Variable Inputs are never seen by
+  // DashboardLoader's boot-time scan (which only walks tab.gridItems),
+  // so they have to self-register their date format under
+  // variableInputDateFormats[variable_name] on mount. Without that
+  // registration, the date-resolution pass in updateObjectWithVariableInputs
+  // can't parse a slider's outputFormat value and the resulting arg
+  // arrives at the backend as null.
+
+  it("registers a date-type Variable Input's metadata.format on mount", async () => {
+    const dashboard = JSON.parse(JSON.stringify(userDashboard));
+    dashboard.tabs[0].gridItems = [];
+
+    render(
+      createLoadedComponent({
+        children: (
+          <>
+            <VariableInput
+              variable_name="My Date"
+              initial_value=""
+              variable_options_source="date"
+              metadata={{ format: "MM/dd/yyyy'T'HH:mm" }}
+              onChange={() => {}}
+            />
+            <VariableInputDateFormatsPComponent />
+          </>
+        ),
+        options: { dashboards: { dashboards: [dashboard] } },
+      }),
+    );
+
+    await waitFor(() => {
+      const formats = JSON.parse(
+        screen.getByTestId("variable-input-date-formats").textContent,
+      );
+      expect(formats["My Date"]).toBe("MM/dd/yyyy'T'HH:mm");
+    });
+  });
+
+  it("registers a Date-typed slider's metadata.outputFormat on mount", async () => {
+    const dashboard = JSON.parse(JSON.stringify(userDashboard));
+    dashboard.tabs[0].gridItems = [];
+
+    render(
+      createLoadedComponent({
+        children: (
+          <>
+            <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+              <VariableInput
+                variable_name="Date"
+                initial_value="12/08/2025T00:29"
+                variable_options_source="slider"
+                metadata={{
+                  dataType: "Date",
+                  rangeMode: false,
+                  min: "now-6M",
+                  max: "now",
+                  initialValue: "12/08/2025T00:29",
+                  step: 1,
+                  outputFormat: "MM/dd/yyyy'T'HH:mm",
+                  dateTimeDelta: "Hours",
+                }}
+                onChange={() => {}}
+              />
+            </GridItemContext.Provider>
+            <VariableInputDateFormatsPComponent />
+          </>
+        ),
+        options: { dashboards: { dashboards: [dashboard] } },
+      }),
+    );
+
+    await waitFor(() => {
+      const formats = JSON.parse(
+        screen.getByTestId("variable-input-date-formats").textContent,
+      );
+      expect(formats["Date"]).toBe("MM/dd/yyyy'T'HH:mm");
+    });
+  });
+
+  it("no-ops when the context does not expose setVariableInputDateFormats", async () => {
+    // Covers the `!setVariableInputDateFormats` branch of the early-return
+    // guard. Render directly under a bare VariableInputsContext.Provider
+    // that omits the setter (e.g., a legacy callsite or test harness).
+    // The Variable Input must mount without crashing — the effect simply
+    // returns without trying to register.
+    const probe = jest.fn();
+    expect(() =>
+      render(
+        <AppContext.Provider value={{ visualizationArgs: [] }}>
+          <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
+            <VariableInputsContext.Provider
+              value={{
+                variableInputValues: {},
+                setVariableInputValues: probe,
+                // setVariableInputDateFormats deliberately omitted.
+                variableInputDateFormats: {},
+                variableInputSliderMeta: {},
+                setVariableInputSliderMeta: () => {},
+              }}
+            >
+              <VariableInput
+                variable_name="Maybe Date"
+                initial_value=""
+                variable_options_source="date"
+                metadata={{ format: "MM/dd/yyyy" }}
+                onChange={() => {}}
+              />
+            </VariableInputsContext.Provider>
+          </DataViewerModeContext.Provider>
+        </AppContext.Provider>,
+      ),
+    ).not.toThrow();
+  });
+
+  it("no-ops when variable_name is empty", async () => {
+    // Covers the `!variable_name` branch of the early-return guard.
+    // Without a name, there's no key to register under, so the effect
+    // must short-circuit instead of writing `undefined` into the map.
+    const setVariableInputDateFormats = jest.fn();
+    render(
+      <AppContext.Provider value={{ visualizationArgs: [] }}>
+        <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
+          <VariableInputsContext.Provider
+            value={{
+              variableInputValues: {},
+              setVariableInputValues: () => {},
+              variableInputDateFormats: {},
+              setVariableInputDateFormats,
+              variableInputSliderMeta: {},
+              setVariableInputSliderMeta: () => {},
+            }}
+          >
+            <VariableInput
+              variable_name=""
+              initial_value=""
+              variable_options_source="date"
+              metadata={{ format: "MM/dd/yyyy" }}
+              onChange={() => {}}
+            />
+          </VariableInputsContext.Provider>
+        </DataViewerModeContext.Provider>
+      </AppContext.Provider>,
+    );
+
+    await waitFor(() => {
+      // No registration occurred.
+      expect(setVariableInputDateFormats).not.toHaveBeenCalled();
+    });
+  });
+
+  it("no-ops when a Date-typed slider is missing outputFormat", async () => {
+    // Covers the `metadata?.outputFormat || null` fallback at the slider
+    // branch of the format-resolution block — when a slider with
+    // dataType "Date" lacks an outputFormat, the resolved format is null
+    // and no entry is registered (the subsequent `if (!dateFormat)` bail
+    // fires).
+    const setVariableInputDateFormats = jest.fn();
+    render(
+      <AppContext.Provider value={{ visualizationArgs: [] }}>
+        <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
+          <VariableInputsContext.Provider
+            value={{
+              variableInputValues: {},
+              setVariableInputValues: () => {},
+              variableInputDateFormats: {},
+              setVariableInputDateFormats,
+              variableInputSliderMeta: {},
+              setVariableInputSliderMeta: () => {},
+            }}
+          >
+            <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+              <VariableInput
+                variable_name="No Format Date"
+                initial_value=""
+                variable_options_source="slider"
+                metadata={{
+                  dataType: "Date",
+                  min: "2026-01-01T00:00:00",
+                  max: "2026-01-05T00:00:00",
+                  step: 1,
+                  initialValue: "2026-01-01T00:00:00",
+                  dateTimeDelta: "Days",
+                  // outputFormat deliberately omitted.
+                }}
+                onChange={() => {}}
+              />
+            </GridItemContext.Provider>
+          </VariableInputsContext.Provider>
+        </DataViewerModeContext.Provider>
+      </AppContext.Provider>,
+    );
+
+    await waitFor(() => {
+      // No registration occurred — dateFormat resolved to null.
+      expect(setVariableInputDateFormats).not.toHaveBeenCalled();
+    });
+  });
+
+  it("does NOT register a format for a non-date Variable Input", async () => {
+    const dashboard = JSON.parse(JSON.stringify(userDashboard));
+    dashboard.tabs[0].gridItems = [];
+
+    render(
+      createLoadedComponent({
+        children: (
+          <>
+            <VariableInput
+              variable_name="Plain Text"
+              initial_value=""
+              variable_options_source="text"
+              onChange={() => {}}
+            />
+            <VariableInputDateFormatsPComponent />
+          </>
+        ),
+        options: { dashboards: { dashboards: [dashboard] } },
+      }),
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("variable-input-date-formats"),
+      ).toBeInTheDocument();
+    });
+    const formats = JSON.parse(
+      screen.getByTestId("variable-input-date-formats").textContent,
+    );
+    expect(formats["Plain Text"]).toBeUndefined();
+  });
 });
 
 describe("When inDataViewerMode", () => {
