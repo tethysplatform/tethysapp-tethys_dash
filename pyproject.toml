@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tethysdash"
-version = "0.19.12"
+version = "0.19.13"
 description = "A Tethys App for no code/low code web application development app"
 authors = [{ name = "Corey Krewson", email = "ckrewson@aquaveo.com" }]
 license-files = ["LICENSE"]
