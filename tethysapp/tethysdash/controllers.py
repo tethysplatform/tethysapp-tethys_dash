@@ -1039,3 +1039,208 @@ def download_json(request, app_workspace):
             e, "Failed to download the json. Check server for logs."
         )
         return JsonResponse({"success": False, "message": message})
+
+
+# ---------------------------------------------------------------------------
+# Chat agent — Python-native tool-use loop over plugin-contributed @tool
+# callables. Sourced from packages listed under AGENT_TOOL_PACKAGES in
+# portal_config.yaml's `settings:` block. See README "Chat agent" section.
+# ---------------------------------------------------------------------------
+
+DEFAULT_AGENT_TOOL_PACKAGES = []  # empty default — operator opts in via portal_config.yaml
+DEFAULT_AGENT_MODEL = "qwen3:latest"
+
+
+def _resolve_agent_tool_packages():
+    """Return the operator's AGENT_TOOL_PACKAGES list with a safe default.
+
+    Accepts both a YAML list and (legacy) a comma-separated string so that
+    operators upgrading from a string-typed setting don't break.
+
+    When the setting is missing the agent comes up with zero tools — still
+    callable, just can't reach external data sources. Operators enable
+    tools by adding their package names to ``AGENT_TOOL_PACKAGES`` in
+    ``portal_config.yaml``'s ``settings:`` block.
+    """
+    raw = getattr(settings, "AGENT_TOOL_PACKAGES", None)
+    if raw is None:
+        return list(DEFAULT_AGENT_TOOL_PACKAGES)
+    if isinstance(raw, str):
+        return [pkg.strip() for pkg in raw.split(",") if pkg.strip()]
+    return [str(pkg).strip() for pkg in raw if str(pkg).strip()]
+
+
+def _build_agent_system_prompt() -> str:
+    """Return a system prompt that includes the available-plugins catalog.
+
+    Baking the plugin list into the system prompt saves one LLM round-trip
+    (the model doesn't have to call ``list_available_plugins`` separately
+    before its first action) and works for small models that drift on
+    multi-step discovery patterns.
+    """
+    try:
+        from tethysapp.tethysdash.tools import list_available_plugins
+        plugins_summary = list_available_plugins()
+    except Exception:  # never block the chat if plugin enumeration fails
+        plugins_summary = ""
+
+    base = (
+        "You are an assistant for TethysDash users. You can read data and "
+        "add visualization tiles to the user's active dashboard via the "
+        "available tools. When the user asks for a chart or map, use "
+        "add_visualization_from_plugin with the right `source` and a "
+        "JSON-encoded `args_json` matching the plugin's args schema."
+    )
+    if plugins_summary:
+        base += (
+            "\n\nVisualization plugins installed on this server:\n"
+            f"{plugins_summary}"
+        )
+    return base
+
+
+@controller(url="tethysdash/agent/chat", login_required=True)
+def chat_agent(request):
+    """
+    API controller for the Python-native chat agent.
+
+    Runs a single ReAct tool-use loop using @tool functions discovered from
+    the packages listed in ``settings.AGENT_TOOL_PACKAGES``. Gated on the
+    ``manage_visualizations`` permission (matches the chatbox sidebar's
+    editor/admin floor).
+
+    portal_config.yaml example::
+
+        settings:
+          AGENT_TOOL_PACKAGES:
+            - tethysapp.tethysdash       # dashboard-manipulation tools
+            - geoglows_summit_example    # data-fetcher tools
+          AGENT_MODEL: qwen3:latest
+
+    Args:
+        request: Django HTTP request object with POST body containing:
+            - message: User prompt for the agent (required, non-empty)
+            - dashboard_id: Integer dashboard id the user is currently
+              viewing (optional). When present, tools like
+              ``add_visualization_from_plugin`` can mutate that dashboard.
+
+    Returns:
+        JsonResponse with:
+            - success: True + response: agent's final text +
+              dashboard_id_used: int (so the client knows whether to refetch)
+            - or success: False + message: error description
+    """
+    if not has_permission(request, "manage_visualizations"):
+        return JsonResponse(
+            {
+                "success": False,
+                "message": "User does not have permission to use the chat agent.",
+            },
+            status=403,
+        )
+
+    message = (request.POST.get("message") or "").strip()
+    if not message:
+        return JsonResponse(
+            {"success": False, "message": "Missing or empty 'message' field."},
+            status=400,
+        )
+
+    dashboard_id_raw = (request.POST.get("dashboard_id") or "").strip()
+    dashboard_id = None
+    if dashboard_id_raw:
+        try:
+            dashboard_id = int(dashboard_id_raw)
+        except ValueError:
+            return JsonResponse(
+                {
+                    "success": False,
+                    "message": (
+                        f"Invalid dashboard_id '{dashboard_id_raw}'; must be int."
+                    ),
+                },
+                status=400,
+            )
+
+    # Lazy imports keep the module importable even if tethys-agents
+    # somehow isn't installed in the environment (e.g. interim deploy
+    # state). The chat endpoint is the only thing that fails in that
+    # case — every other controller still works.
+    try:
+        from tethys_agents.discover import discover
+        from tethys_agents.react_agent import ReactAgent
+        from tethysapp.tethysdash.tools import current_dashboard
+    except ImportError as e:
+        return JsonResponse(
+            {
+                "success": False,
+                "message": f"Chat agent backend not installed: {e}",
+            },
+            status=503,
+        )
+
+    packages = _resolve_agent_tool_packages()
+    model = getattr(settings, "AGENT_MODEL", DEFAULT_AGENT_MODEL)
+    system_prompt = _build_agent_system_prompt()
+
+    # Set the dashboard contextvar BEFORE the agent runs so any tool calls
+    # inside agent.run() see the right user + dashboard for side effects.
+    # Setting to None when no dashboard_id is provided keeps the tools'
+    # "no active dashboard" guard intact.
+    ctx_value = (
+        {"user": request.user, "dashboard_id": dashboard_id}
+        if dashboard_id is not None
+        else None
+    )
+    token = current_dashboard.set(ctx_value)
+    try:
+        tools = discover(packages)
+        agent = ReactAgent(
+            tools=tools, model=model, system_prompt=system_prompt
+        )
+        response_text = agent.run(user_msg=message)
+        return JsonResponse(
+            {
+                "success": True,
+                "response": response_text,
+                "dashboard_id_used": dashboard_id,
+            }
+        )
+    except ValueError as e:
+        # ReactAgent / tool validation rejected the request (e.g. empty
+        # message after sanitization, duplicate tool names in the
+        # constructor list). Dump a full traceback to the Django console
+        # so the operator can diagnose without re-running with a debugger.
+        import traceback
+        print(
+            f"\n[chat_agent] ValueError ({type(e).__name__}): {e}\n"
+            f"User message was: {message!r}\n"
+            f"Dashboard id: {dashboard_id}\n"
+            f"{traceback.format_exc()}"
+        )
+        return JsonResponse(
+            {"success": False, "message": str(e)},
+            status=400,
+        )
+    except Exception as e:
+        # Likewise: full traceback to the server console so the user can
+        # see exactly which layer failed (Ollama down, plugin crashed,
+        # tool persistence error, etc.) without a generic 503.
+        import traceback
+        print(
+            f"\n[chat_agent] {type(e).__name__}: {e}\n"
+            f"User message was: {message!r}\n"
+            f"Dashboard id: {dashboard_id}\n"
+            f"{traceback.format_exc()}"
+        )
+        err_msg = _get_error_message(
+            e, "Chat agent backend unavailable. Check server for logs."
+        )
+        return JsonResponse(
+            {"success": False, "message": err_msg},
+            status=503,
+        )
+    finally:
+        # Reset the contextvar so per-request state never leaks into the
+        # next request that lands on the same worker thread.
+        current_dashboard.reset(token)

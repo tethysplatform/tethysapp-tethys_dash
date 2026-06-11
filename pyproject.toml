@@ -31,6 +31,7 @@ dependencies = [
     "psycopg2-binary==2.9.11",
     "geoalchemy2==0.18.4",
     "tethys-platform>=4.5.0",
+    "tethys-agents",
     "python-dateutil"
 ]
 classifiers = [
