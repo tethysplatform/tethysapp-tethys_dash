@@ -46,8 +46,10 @@ export const layoutKeyToAxisRef = (key) => {
   return m ? m[1] + m[2] : null;
 };
 
+// `layout` is always a real object here — the sole caller (`overlaysOf` in
+// derivePanes) runs after `layout` has been defaulted to `{}`.
 const listAxisKeys = (layout) =>
-  Object.keys(layout || {}).filter((k) => AXIS_KEY_RE.test(k));
+  Object.keys(layout).filter((k) => AXIS_KEY_RE.test(k));
 
 /**
  * Follow an axis's `overlaying` chain to its base axis ref. An overlay

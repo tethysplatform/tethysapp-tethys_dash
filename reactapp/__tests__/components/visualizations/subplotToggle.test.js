@@ -458,3 +458,199 @@ describe("annotation / shape / image association", () => {
     expect(layout.shapes[0].visible).toBeUndefined();
   });
 });
+
+describe("branch coverage", () => {
+  it("resolveBaseAxis tolerates a missing layout (line 61)", () => {
+    expect(resolveBaseAxis("y")).toBe("y");
+    expect(resolveBaseAxis("x3", undefined)).toBe("x3");
+  });
+
+  it("derivePanes returns [] with no arguments (lines 107-110)", () => {
+    expect(derivePanes()).toEqual([]);
+  });
+
+  it("places scene and geo traces as non-cartesian panes (lines 74-75)", () => {
+    const panes = derivePanes([
+      { type: "scatter3d", scene: "scene" },
+      { type: "scattergeo", geo: "geo2" },
+      { type: "scatterpolar", subplot: "polar" },
+    ]);
+    expect(panes.map((p) => p.id)).toEqual(["np:scene", "np:geo2", "np:polar"]);
+    expect(panes.every((p) => p.kind === "nonCartesian")).toBe(true);
+  });
+
+  it("defaults cartesian refs and axis domains when absent (lines 80-85)", () => {
+    // Trace with no xaxis/yaxis -> defaults to x/y; empty layout -> [0,1] rects.
+    const panes = derivePanes([{}], {});
+    expect(panes[0].id).toBe("x|y");
+    expect(panes[0].rect.x).toEqual([0, 1]);
+    expect(panes[0].rect.y).toEqual([0, 1]);
+    expect(panes[0].primaryYKey).toBe("yaxis");
+  });
+
+  it("non-cartesian pane without a domain defaults its rect (lines 166-180)", () => {
+    const panes = derivePanes([{ scene: "scene" }], {}); // no layout.scene
+    expect(panes[0].kind).toBe("nonCartesian");
+    expect(panes[0].rect).toEqual({ x: [0, 1], y: [0, 1] });
+    expect(panes[0].exclusiveAxisKeys).toEqual([]);
+  });
+
+  it("listAxisKeys skips non-axis layout keys (line 50 filter)", () => {
+    // A non-axis top-level key ("title") must be filtered out of overlay scan.
+    const layout = {
+      title: "ignored",
+      xaxis: { domain: [0, 1] },
+      yaxis: { domain: [0.6, 1], anchor: "x" },
+      yaxis2: { domain: [0, 0.4], anchor: "x" },
+    };
+    const panes = derivePanes([{ yaxis: "y" }, { yaxis: "y2" }], layout);
+    expect(panes).toHaveLength(2);
+  });
+
+  it("classifyArrangement returns none for overlapping bands (line 220)", () => {
+    const layout = {
+      xaxis: { domain: [0, 1] },
+      yaxis: { domain: [0, 0.6], anchor: "x" },
+      yaxis2: { domain: [0.4, 1], anchor: "x" }, // overlaps yaxis
+    };
+    const panes = derivePanes([{ yaxis: "y" }, { yaxis: "y2" }], layout);
+    expect(classifyArrangement(panes)).toBe("none");
+  });
+
+  it("reflowDomains returns {} when nothing is visible (line 275)", () => {
+    const { data, layout } = verticalStackWithOverlays();
+    const panes = derivePanes(data, layout);
+    expect(reflowDomains(panes, [], "vertical")).toEqual({});
+  });
+
+  it("reflowDomains splits evenly when bands sum to ~0 (lines 287-290)", () => {
+    const panes = [
+      { id: "a", kind: "cartesian", primaryYKey: "yaxis", rect: { y: [0, 0] } },
+      {
+        id: "b",
+        kind: "cartesian",
+        primaryYKey: "yaxis3",
+        rect: { y: [0, 0] },
+      },
+    ];
+    const out = reflowDomains(panes, ["a", "b"], "vertical");
+    expect(out.yaxis).toEqual([0, 0.5]);
+    expect(out.yaxis3).toEqual([0.5, 1]);
+  });
+
+  it("associateItemToPane prefers the x-axis for a horizontal strip (line 333)", () => {
+    const { data, layout } = horizontalStrip();
+    const panes = derivePanes(data, layout);
+    const item = { xref: "x2", yref: "paper" };
+    expect(associateItemToPane(item, panes, layout, "horizontal").id).toBe(
+      panes[1].id,
+    );
+  });
+
+  it("associateItemToPane returns null for items with no axis refs (lines 309-310)", () => {
+    const { data, layout } = verticalStackWithOverlays();
+    const panes = derivePanes(data, layout);
+    expect(associateItemToPane({}, panes, layout, "vertical")).toBeNull();
+  });
+
+  it("applySubplotToggle no-ops with no arguments (lines 355-372)", () => {
+    const out = applySubplotToggle();
+    expect(out).toEqual({
+      data: [],
+      layout: {},
+      panes: [],
+      arrangement: "none",
+    });
+  });
+
+  it("applySubplotToggle forwards labels when deriving internally (lines 358-363)", () => {
+    const { data, layout } = verticalStackWithOverlays();
+    const panes = derivePanes(data, layout);
+    const out = applySubplotToggle(data, layout, [panes[0].id], {
+      labels: { y: "Air Temp" },
+    });
+    expect(out.panes[0].label).toBe("Air Temp");
+  });
+
+  it("leaves a trace already at the target visibility untouched (line 385)", () => {
+    const { data, layout } = verticalStackWithOverlays();
+    data[2].visible = false; // MSLP already hidden
+    const out = applySubplotToggle(data, layout, [panes0Ids(data, layout)]);
+    // Unchanged trace keeps its identity (no needless clone).
+    expect(out.data[2]).toBe(data[2]);
+    expect(out.data[2].visible).toBe(false);
+    // A sibling that did need flipping is a new object.
+    expect(out.data[3]).not.toBe(data[3]);
+    expect(out.data[3].visible).toBe(false);
+  });
+
+  it("leaves a non-array annotations/images container untouched (line 431)", () => {
+    const { data, layout } = verticalStackWithOverlays();
+    const notArray = { text: "oops, not wrapped in a list" };
+    layout.images = notArray;
+    const panes = derivePanes(data, layout);
+    const out = applySubplotToggle(data, layout, [panes[0].id]);
+    expect(out.layout.images).toBe(notArray); // returned as-is
+  });
+
+  it("does not mark a shared y-axis exclusive in a horizontal strip (line 188)", () => {
+    // Two columns sharing one y-axis -> usageY[y] === 2, so y is not exclusive.
+    const layout = {
+      xaxis: { domain: [0, 0.45] },
+      xaxis2: { domain: [0.55, 1] },
+      yaxis: { domain: [0, 1], anchor: "x" },
+    };
+    const panes = derivePanes(
+      [
+        { xaxis: "x", yaxis: "y" },
+        { xaxis: "x2", yaxis: "y" },
+      ],
+      layout,
+    );
+    expect(panes[0].exclusiveAxisKeys).toEqual(["xaxis"]); // y omitted (shared)
+    expect(panes[1].exclusiveAxisKeys).toEqual(["xaxis2"]);
+  });
+
+  it("clones an override target absent from the layout (line 298)", () => {
+    // Axes referenced by traces but not declared in layout.
+    const data = [
+      { xaxis: "x", yaxis: "y" },
+      { xaxis: "x2", yaxis: "y2" },
+    ];
+    const panes = derivePanes(data, {});
+    const out = applySubplotToggle(data, {}, [panes[0].id]);
+    expect(out.layout.yaxis2.visible).toBe(false); // built from {}
+    expect(out.layout.xaxis2.visible).toBe(false);
+  });
+
+  it("associateItemToPane falls through to the other axis (line 333)", () => {
+    const horiz = horizontalStrip();
+    const hPanes = derivePanes(horiz.data, horiz.layout);
+    // Horizontal but only the y-ref resolves -> byX null, falls back to byY.
+    expect(
+      associateItemToPane(
+        { xref: "paper", yref: "y2" },
+        hPanes,
+        horiz.layout,
+        "horizontal",
+      )?.id,
+    ).toBe(hPanes[1].id);
+
+    const vert = verticalStackWithOverlays();
+    const vPanes = derivePanes(vert.data, vert.layout);
+    // Vertical but only the x-ref resolves -> byY null, falls back to byX.
+    expect(
+      associateItemToPane(
+        { xref: "x2", yref: "paper" },
+        vPanes,
+        vert.layout,
+        "vertical",
+      )?.id,
+    ).toBe(vPanes[1].id);
+  });
+});
+
+// Helper: id of the first pane for a figure (keeps the line-385 test terse).
+function panes0Ids(data, layout) {
+  return derivePanes(data, layout)[0].id;
+}
