@@ -475,6 +475,7 @@ const BaseVisualization = () => {
         )?.loading_icon,
         variableInputDateFormats,
         variableInputSliderMeta,
+        refresh,
       });
     }
 

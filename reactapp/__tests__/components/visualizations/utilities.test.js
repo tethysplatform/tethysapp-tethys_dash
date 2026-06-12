@@ -13,6 +13,7 @@ import {
   checkForEmptyVariableInputs,
   findUnresolvedFeatureTokens,
   findUnresolvedVariableInputTokens,
+  clearImageVizCache,
 } from "components/visualizations/utilities";
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
@@ -23,6 +24,12 @@ jest.mock("components/visualizations/Map", () => {
   const MockMapVisualization = () => <div>Map Mock</div>;
   MockMapVisualization.displayName = "MapVisualization"; // Set the display name to resolve the linting warning
   return MockMapVisualization;
+});
+
+// The image-viz cache is module-level state; reset it between tests so cached
+// results from one test don't short-circuit the backend call another expects.
+beforeEach(() => {
+  clearImageVizCache();
 });
 
 test("getVisualization bad response", async () => {
@@ -269,6 +276,78 @@ test("getVisualization image", async () => {
     alt: "some_source",
     imageError: undefined,
   });
+});
+
+test("getVisualization image caches result, skips repeat request, refresh bypasses", async () => {
+  let requestCount = 0;
+  server.use(
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        requestCount += 1;
+        return res(
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            viz_type: "image",
+            data: "cached_path",
+          }),
+          ctx.set("Content-Type", "application/json"),
+        );
+      },
+    ),
+  );
+
+  const baseParams = (setVizType, setVizData) => ({
+    setVizType,
+    setVizData,
+    sourceType: "image",
+    itemData: { source: "img_source" },
+    metadataString: "{}",
+    argsString: JSON.stringify({ station: "ABC", hour: "05" }),
+    variableInputValues: {},
+  });
+
+  // First call: hits the backend and populates the cache.
+  const type1 = jest.fn();
+  const data1 = jest.fn();
+  await getVisualization(baseParams(type1, data1));
+  expect(requestCount).toBe(1);
+  expect(type1.mock.calls.map((c) => c[0])).toEqual(["loader", "image"]);
+  expect(data1.mock.calls[0][0]).toStrictEqual({
+    source: "cached_path",
+    alt: "img_source",
+    imageError: undefined,
+  });
+
+  // Second identical call: served from cache — no backend request, no loader.
+  const type2 = jest.fn();
+  const data2 = jest.fn();
+  await getVisualization(baseParams(type2, data2));
+  expect(requestCount).toBe(1);
+  expect(type2.mock.calls.map((c) => c[0])).toEqual(["image"]);
+  expect(data2.mock.calls[0][0]).toStrictEqual({
+    source: "cached_path",
+    alt: "img_source",
+    imageError: undefined,
+  });
+
+  // refresh: true bypasses the cache and re-fetches.
+  const type3 = jest.fn();
+  const data3 = jest.fn();
+  await getVisualization({ ...baseParams(type3, data3), refresh: true });
+  expect(requestCount).toBe(2);
+  expect(type3.mock.calls[0][0]).toBe("loader");
+
+  // Different args do not collide with the cached entry.
+  const type4 = jest.fn();
+  const data4 = jest.fn();
+  await getVisualization({
+    ...baseParams(type4, data4),
+    argsString: JSON.stringify({ station: "ABC", hour: "06" }),
+  });
+  expect(requestCount).toBe(3);
+  expect(type4.mock.calls[0][0]).toBe("loader");
 });
 
 test("getVisualization, empty variable and no custom messaging", async () => {

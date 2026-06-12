@@ -88,6 +88,11 @@ jest.mock("date-fns", () => {
 const { ResizeObserver } = window;
 
 beforeEach(() => {
+  // Reset the module-level image-viz cache so a cached image result from one
+  // test doesn't short-circuit another test that reuses the same source+args
+  // to return a different viz type (all the "plugin_source" fixtures share a
+  // cache key).
+  utilities.clearImageVizCache();
   delete window.ResizeObserver;
   window.ResizeObserver = jest.fn().mockImplementation(() => ({
     observe: jest.fn(),
