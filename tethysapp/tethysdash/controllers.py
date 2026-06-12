@@ -1199,10 +1199,28 @@ def chat_agent(request):
             tools=tools, model=model, system_prompt=system_prompt
         )
         response_text = agent.run(user_msg=message)
+
+        # Render the agent's workflow as a graphviz SVG. Wrap in try/except
+        # so a missing `dot` binary, or an exotic trace entry the visualizer
+        # doesn't know how to draw, can't break the chat endpoint — the
+        # front-end falls back to its text-timeline view in that case.
+        graph_svg = None
+        try:
+            from tethys_agents.visualize import trace_to_svg
+            graph_svg = trace_to_svg(agent.trace)
+        except Exception as viz_exc:  # noqa: BLE001
+            print(
+                f"\n[chat_agent] trace_to_svg failed "
+                f"({type(viz_exc).__name__}: {viz_exc}). "
+                "Falling back to text-only trace."
+            )
+
         return JsonResponse(
             {
                 "success": True,
                 "response": response_text,
+                "trace": agent.trace,
+                "graph_svg": graph_svg,
                 "dashboard_id_used": dashboard_id,
             }
         )
