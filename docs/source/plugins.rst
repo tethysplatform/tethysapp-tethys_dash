@@ -141,6 +141,87 @@ Displays a `Plotly <https://plotly.com/python/>`_ chart with the provided data, 
 
 |
 
+Subplot Show/Hide Toggle
+::::::::::::::::::::::::::
+
+For figures built from multiple subplots, a plugin can let viewers show and hide
+individual subplots from a control in the top-right corner of the plot. When a
+subplot is hidden, the remaining subplots **reflow** to fill the freed space.
+
+To opt in, return ``toggle_subplots: True`` as a top-level key alongside
+``data``/``layout``/``config``::
+
+    return {
+        "data": data,
+        "layout": layout,
+        "config": config,
+        "toggle_subplots": True,
+    }
+
+That single key is all that is required. The frontend discovers the subplots
+("panes") from the figure's axes:
+
+- Traces are grouped into a pane by their ``xaxis``/``yaxis`` assignment.
+  Secondary-y overlays (an axis with ``overlaying``) are folded into the pane of
+  the axis they overlay.
+- Each pane's checkbox label comes from its y-axis ``title`` → else the first
+  trace ``name`` → else ``"Subplot N"``.
+- Toggling a pane off hides its traces and its dedicated axes (axes shared with
+  another pane are never hidden), then recomputes the domains of the remaining
+  visible panes. Axes are only hidden and re-domained, never removed, so
+  ``matches``/zoom-linking is preserved.
+
+The toggle state is ephemeral (it resets on reload) and at least one pane always
+remains visible.
+
+**Reflow.** Reflow is only applied when the subplots form a single row-stack
+(shared x-domain, stacked y-domains) or column-strip (the mirror). Grids,
+insets, and non-cartesian subplots (polar/geo/3D) fall back to *visibility-only*
+— panes hide but the layout does not reflow. To override the auto-detection,
+return an optional hint::
+
+    "subplot_toggle": {"reflow": "vertical"}  # or "horizontal" or "none"
+
+**Checkbox labels.** By default each checkbox is labeled from the subplot's
+primary y-axis ``title`` → else the first trace ``name`` → else ``"Subplot N"``.
+If your y-axis titles are units (e.g. ``"°F"``, ``"m/s"``) the labels will be
+units and may repeat, so you can supply explicit labels keyed by axis reference
+(``"y"``, ``"y3"``, ...) or layout key (``"yaxis"``, ``"yaxis3"``, ...)::
+
+    "subplot_toggle": {
+        "labels": {"y": "Temperature", "y3": "Pressure", "y5": "Wind Speed"},
+    }
+
+You can build this from each subplot's primary axis (see ``get_subplot_axes``).
+Any pane without an explicit label uses the default fallback above.
+
+**Tying annotations, shapes, and images to a subplot.** So that titles,
+drawings, and images for a hidden subplot are hidden (and reflow) along with it,
+**anchor them to that subplot's axes** rather than to the paper. The frontend
+ties a layout item to a pane by resolving its ``xref``/``yref``:
+
+- **Drawings/shapes** that live in data coordinates already work — e.g. a shape
+  with ``"xref": "x3", "yref": "y5"`` is tied to that subplot, hides with it, and
+  follows reflow automatically.
+- **Subplot titles / annotations** should use the axis *domain* reference
+  instead of ``"paper"`` so they both hide and reflow with their subplot::
+
+      # Instead of an absolute paper position:
+      {"text": "Wind Speed", "xref": "paper", "yref": "paper", "x": 0, "y": 0.65}
+
+      # Anchor to the subplot's axes (here the Wind row uses x3 / y5):
+      {"text": "Wind Speed", "xref": "x3 domain", "yref": "y5 domain",
+       "x": 0, "y": 1, "xanchor": "left", "yanchor": "bottom"}
+
+- **Images** likewise: a paper-anchored logo stays put (often desired), while an
+  image anchored to a subplot's axis is tied to it.
+
+Items that cannot be tied to a single subplot (paper-anchored, spanning multiple
+panes, or anchored only to a shared axis) are left untouched — for example a
+full-height vertical line drawn across all subplots is never hidden.
+
+|
+
 Table
 `````
 

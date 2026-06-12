@@ -201,7 +201,17 @@ export const Visualization = memo(
             layout={vizData.layout}
             config={vizData.config}
             visualizationRef={vizRef}
-            metadata={vizMetadata}
+            metadata={{
+              ...vizMetadata,
+              // Plugin-driven subplot toggle opt-in: a plugin can enable the
+              // feature by returning these keys at the top level of its
+              // figure. Grid-item metadata (authored in the dashboard) takes
+              // precedence so it can override the plugin default later.
+              toggle_subplots:
+                vizMetadata.toggle_subplots ?? vizData.toggle_subplots,
+              subplot_toggle:
+                vizMetadata.subplot_toggle ?? vizData.subplot_toggle,
+            }}
           />
         );
       case "card":

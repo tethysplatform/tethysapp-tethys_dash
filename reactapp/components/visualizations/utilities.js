@@ -228,6 +228,9 @@ export async function getVisualization({
         data: responseData.data,
         layout: responseData.layout,
         config: responseData.config,
+        // Plugin-driven subplot toggle opt-in (top-level figure keys).
+        toggle_subplots: responseData.toggle_subplots,
+        subplot_toggle: responseData.subplot_toggle,
       });
     } else if (apiResponse.viz_type === "card") {
       setVizType("card");

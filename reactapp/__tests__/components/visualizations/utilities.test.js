@@ -181,6 +181,52 @@ test("getVisualization plotly", async () => {
     data: {},
     layout: {},
     config: undefined,
+    toggle_subplots: undefined,
+    subplot_toggle: undefined,
+  });
+});
+
+test("getVisualization plotly passes through subplot toggle opt-in keys", async () => {
+  // Regression: the plotly branch must forward plugin-returned top-level
+  // `toggle_subplots`/`subplot_toggle` keys, not strip them to data/layout/config.
+  const plotData = {
+    data: [],
+    layout: {},
+    toggle_subplots: true,
+    subplot_toggle: { reflow: "vertical" },
+  };
+  server.use(
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({ success: true, viz_type: "plotly", data: plotData }),
+          ctx.set("Content-Type", "application/json"),
+        );
+      },
+    ),
+  );
+
+  const mockSetVizType = jest.fn();
+  const mockSetVizData = jest.fn();
+  await getVisualization({
+    setVizType: mockSetVizType,
+    setVizData: mockSetVizData,
+    sourceType: "plotly",
+    itemData: {},
+    visualizationRef: jest.fn(),
+    metadataString: "{}",
+    argsString: "{}",
+    variableInputValues: [],
+  });
+
+  expect(mockSetVizData.mock.calls[0][0]).toStrictEqual({
+    data: [],
+    layout: {},
+    config: undefined,
+    toggle_subplots: true,
+    subplot_toggle: { reflow: "vertical" },
   });
 });
 
