@@ -1042,12 +1042,12 @@ def download_json(request, app_workspace):
 
 
 # ---------------------------------------------------------------------------
-# Chat agent — Python-native tool-use loop over plugin-contributed @tool
+# Chat agent - Python-native tool-use loop over plugin-contributed @tool
 # callables. Sourced from packages listed under AGENT_TOOL_PACKAGES in
 # portal_config.yaml's `settings:` block. See README "Chat agent" section.
 # ---------------------------------------------------------------------------
 
-DEFAULT_AGENT_TOOL_PACKAGES = []  # empty default — operator opts in via portal_config.yaml
+DEFAULT_AGENT_TOOL_PACKAGES = []  # empty default - operator opts in via portal_config.yaml
 DEFAULT_AGENT_MODEL = "qwen3:latest"
 
 
@@ -1057,7 +1057,7 @@ def _resolve_agent_tool_packages():
     Accepts both a YAML list and (legacy) a comma-separated string so that
     operators upgrading from a string-typed setting don't break.
 
-    When the setting is missing the agent comes up with zero tools — still
+    When the setting is missing the agent comes up with zero tools - still
     callable, just can't reach external data sources. Operators enable
     tools by adding their package names to ``AGENT_TOOL_PACKAGES`` in
     ``portal_config.yaml``'s ``settings:`` block.
@@ -1163,9 +1163,7 @@ def chat_agent(request):
             )
 
     # Lazy imports keep the module importable even if tethys-agents
-    # somehow isn't installed in the environment (e.g. interim deploy
-    # state). The chat endpoint is the only thing that fails in that
-    # case — every other controller still works.
+    # somehow isn't installed in the environment
     try:
         from tethys_agents.discover import discover
         from tethys_agents.react_agent import ReactAgent
@@ -1200,27 +1198,13 @@ def chat_agent(request):
         )
         response_text = agent.run(user_msg=message)
 
-        # Render the agent's workflow as a graphviz SVG. Wrap in try/except
-        # so a missing `dot` binary, or an exotic trace entry the visualizer
-        # doesn't know how to draw, can't break the chat endpoint — the
-        # front-end falls back to its text-timeline view in that case.
-        graph_svg = None
-        try:
-            from tethys_agents.visualize import trace_to_svg
-            graph_svg = trace_to_svg(agent.trace)
-        except Exception as viz_exc:  # noqa: BLE001
-            print(
-                f"\n[chat_agent] trace_to_svg failed "
-                f"({type(viz_exc).__name__}: {viz_exc}). "
-                "Falling back to text-only trace."
-            )
-
+        # ReactAgent.run() already pipes the trace through `graph-easy` (or
+        # falls back to DOT source) and prints it to the Django console. The
+        # UI only needs the final response text - no trace surfaced client-side.
         return JsonResponse(
             {
                 "success": True,
                 "response": response_text,
-                "trace": agent.trace,
-                "graph_svg": graph_svg,
                 "dashboard_id_used": dashboard_id,
             }
         )
