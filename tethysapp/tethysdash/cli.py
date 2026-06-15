@@ -63,7 +63,7 @@ def _resolve_dashboard_id(raw: str) -> int:
     Dashboard.id is an integer PK (model.py:64), so a UUID has to be
     resolved through the Dashboard.uuid column.
 
-    Lazy-imports the SQLAlchemy session — module-load time predates
+    Lazy-imports the SQLAlchemy session - module-load time predates
     django.setup() in some entry points.
     """
     import sys
@@ -205,7 +205,7 @@ def chat_command(args):
     except ModuleNotFoundError as exc:
         # Most common cause: operator listed a package in
         # AGENT_PLUGIN_PACKAGES that doesn't expose <pkg>.agent at all
-        # (e.g. "tethysapp.tethysdash" — that's a tool package, not a
+        # (e.g. "tethysapp.tethysdash" - that's a tool package, not a
         # runner package). Spell out the distinction so they don't have
         # to read the protocol docs to recover.
         sys.exit(
@@ -216,7 +216,7 @@ def chat_command(args):
             "package (LLM-callable functions); it belongs in "
             "AGENT_TOOL_PACKAGES, which the chat controller reads. The "
             "CLI harness adds it to the runner's dashboard_tool_packages "
-            "automatically — you don't need to list it.\n"
+            "automatically - you don't need to list it.\n"
             "  - Typo in the plugin package name.\n"
             "  - Plugin not installed in this environment.\n\n"
             f"Current AGENT_PLUGIN_PACKAGES: {plugin_packages}"
