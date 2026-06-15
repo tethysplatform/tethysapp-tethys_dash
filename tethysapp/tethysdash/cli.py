@@ -55,6 +55,185 @@ def start_command(args):
     subprocess.run(["tethys", "manage", "start"], check=True)
 
 
+def chat_command(args):
+    """Terminal REPL harness for chat agents.
+
+    This is a domain-blind harness: it knows about Django, the active
+    user/dashboard, readline + history persistence, and the AgentRunner
+    protocol - and nothing else. The plugin (named by the operator in
+    ``AGENT_PLUGIN_PACKAGES``) owns the agent shape, backstories, tools,
+    and topology.
+
+    All Django / tethys_agents imports happen here (not at module top) so
+    that `tethysdash setup` and `tethysdash start` stay fast and don't
+    pull the full app registry.
+    """
+    import os
+    import sys
+    # readline upgrades input() with arrow-key line editing, up/down
+    # history navigation, and Ctrl+R reverse search. Just importing it
+    # is enough - no further calls needed for in-session editing.
+    import readline
+    from pathlib import Path
+
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "tethys_portal.settings")
+    import django
+    django.setup()
+
+    from django.conf import settings
+    from django.contrib.auth import get_user_model
+    from tethys_agents.runner import discover_runners
+    from tethysapp.tethysdash.controllers import DEFAULT_AGENT_MODEL
+    from tethysapp.tethysdash.tools import current_dashboard
+    from tethysapp.tethysdash.model import get_dashboards
+
+    # Resolution order matches the chat controller (controllers.py:1181):
+    # CLI --model overrides portal_config AGENT_MODEL overrides hardcoded
+    # DEFAULT_AGENT_MODEL. Resolved AFTER django.setup() because settings
+    # aren't readable at argparse-build time.
+    model = args.model or getattr(settings, "AGENT_MODEL", DEFAULT_AGENT_MODEL)
+
+    # The harness owns knowledge of where ITS mutation tools live (this
+    # package), but not which plugin defines the chat agents.
+    dashboard_tool_packages = ["tethysapp.tethysdash"]
+
+    User = get_user_model()
+    try:
+        user = User.objects.get(username=args.user)
+    except User.DoesNotExist:
+        sys.exit(
+            f"User {args.user!r} not found. Create one via "
+            "`tethys manage createsuperuser`."
+        )
+
+    if args.dashboard is not None:
+        dashboard_id = args.dashboard
+    else:
+        owned = get_dashboards(user)
+        if not owned:
+            sys.exit(
+                f"User {user.username!r} owns no dashboards. Create one in "
+                "the browser first, or pass --dashboard <id>."
+            )
+        dashboard_id = max(owned, key=lambda d: d.get("id", 0))["id"]
+
+    dashboard = get_dashboards(user, id=dashboard_id, dashboard_view=True)
+    uuid = dashboard.get("uuid", "?")
+
+    # Set the contextvar ONCE for the whole REPL session. Runners use it
+    # transitively when their tools mutate the active dashboard.
+    current_dashboard.set({"user": user, "dashboard_id": dashboard_id})
+
+    # Plugin runner resolution. Operator configures portal_config.yaml:
+    #     AGENT_PLUGIN_PACKAGES:
+    #       - <plugin_package_name>
+    #     AGENT_RUNNER: <runner_name>      # optional default
+    # Each plugin exposes a RUNNERS dict at <pkg>.agent; discover_runners
+    # walks the list and merges them. See tethys_agents/runner.py.
+    plugin_packages = list(getattr(settings, "AGENT_PLUGIN_PACKAGES", []))
+    if not plugin_packages:
+        sys.exit(
+            "AGENT_PLUGIN_PACKAGES is empty. Add a chat-agent plugin to "
+            "portal_config.yaml, e.g.:\n"
+            "    settings:\n"
+            "      AGENT_PLUGIN_PACKAGES:\n"
+            "        - <your_workshop_plugin>"
+        )
+    try:
+        runners = discover_runners(plugin_packages)
+    except ModuleNotFoundError as exc:
+        # Most common cause: operator listed a package in
+        # AGENT_PLUGIN_PACKAGES that doesn't expose <pkg>.agent at all
+        # (e.g. "tethysapp.tethysdash" — that's a tool package, not a
+        # runner package). Spell out the distinction so they don't have
+        # to read the protocol docs to recover.
+        sys.exit(
+            f"Could not import {exc.name!r}.\n\n"
+            f"AGENT_PLUGIN_PACKAGES expects packages whose <pkg>.agent "
+            "module defines a RUNNERS dict. Common mistakes:\n"
+            "  - Listing 'tethysapp.tethysdash' here. That's a TOOL "
+            "package (LLM-callable functions); it belongs in "
+            "AGENT_TOOL_PACKAGES, which the chat controller reads. The "
+            "CLI harness adds it to the runner's dashboard_tool_packages "
+            "automatically — you don't need to list it.\n"
+            "  - Typo in the plugin package name.\n"
+            "  - Plugin not installed in this environment.\n\n"
+            f"Current AGENT_PLUGIN_PACKAGES: {plugin_packages}"
+        )
+    if not runners:
+        sys.exit(
+            f"No runners exposed by {plugin_packages}. Each package must "
+            "define a RUNNERS dict at <pkg>.agent."
+        )
+    runner_name = args.runner or getattr(settings, "AGENT_RUNNER", None) \
+        or next(iter(runners))
+    if runner_name not in runners:
+        sys.exit(
+            f"Runner {runner_name!r} not found. Available runners "
+            f"(from {plugin_packages}): {sorted(runners)}"
+        )
+    runner = runners[runner_name](
+        model=model,
+        dashboard_tool_packages=dashboard_tool_packages,
+    )
+
+    # Banner.
+    print(f"Active dashboard: id={dashboard_id} uuid={uuid}")
+    print(f"View at: http://localhost:8000/apps/tethysdash/dashboard/{uuid}/")
+    print(f"Model:   {model}")
+    print(f"Plugins: {plugin_packages}")
+    print(f"Runner:  {runner_name} - {runner.describe()}")
+    print(f"Available runners: {sorted(runners)}")
+    print("Type /exit to quit, /clear to reset runner state.\n")
+
+    # Persist prompt history across REPL sessions. Missing file on first
+    # run is fine - read_history_file errors are non-fatal.
+    history_file = Path.home() / ".cache" / "tethysdash" / "chat_history"
+    history_file.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        readline.read_history_file(history_file)
+    except FileNotFoundError:
+        pass
+    readline.set_history_length(1000)
+
+    try:
+        _repl_loop(runner)
+    finally:
+        try:
+            readline.write_history_file(history_file)
+        except OSError as exc:
+            print(f"[warn] could not write history file: {exc}")
+
+
+def _repl_loop(runner) -> None:
+    """Generic REPL: takes any AgentRunner, knows nothing about agent shape.
+
+    The runner's ``run_turn`` does its own printing; the harness just
+    handles input, /exit, /clear, and the refresh nudge.
+    """
+    while True:
+        try:
+            msg = input("\n› ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            break
+        if not msg:
+            continue
+        if msg in {"/exit", "/quit"}:
+            break
+        if msg == "/clear":
+            runner.reset()
+            print("Runner state cleared.")
+            continue
+
+        try:
+            runner.run_turn(msg)
+        except Exception as exc:  # noqa: BLE001 - workshop UX, show everything
+            print(f"\n[runner error] {exc}")
+            continue
+        print("(refresh the dashboard tab to see changes)")
+
+
 def main():
     parser = argparse.ArgumentParser(description="TethysDash CLI")
     subparsers = parser.add_subparsers(title="Commands", dest="subcommand")
@@ -71,6 +250,40 @@ def main():
         "start", help="Start the TethysDash application"
     )
     start_parser.set_defaults(func=start_command)
+
+    # Chat command (terminal REPL for the workshop chat agent)
+    chat_parser = subparsers.add_parser(
+        "chat",
+        help="Terminal REPL for the workshop chat agent.",
+    )
+    chat_parser.add_argument(
+        "--user", required=True, help="Django username to act as."
+    )
+    chat_parser.add_argument(
+        "--dashboard",
+        type=int,
+        help="Dashboard id (default: most recent owned by --user).",
+    )
+    chat_parser.add_argument(
+        "--model",
+        default=None,
+        help=(
+            "LLM model name. Default: portal_config AGENT_MODEL setting, "
+            "falling back to DEFAULT_AGENT_MODEL from controllers.py. "
+            "Pass this flag to override per-invocation."
+        ),
+    )
+    chat_parser.add_argument(
+        "--runner",
+        default=None,
+        help=(
+            "Runner name exposed by one of the AGENT_PLUGIN_PACKAGES. "
+            "Default: portal_config AGENT_RUNNER setting, falling back "
+            "to the first runner discovered. Use any value to see the "
+            "'available runners' list in the error message."
+        ),
+    )
+    chat_parser.set_defaults(func=chat_command)
 
     args = parser.parse_args()
     args.func(args)

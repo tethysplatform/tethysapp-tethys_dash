@@ -3,14 +3,14 @@
 These functions are discovered by ``tethys_agents.discover()`` when the
 operator includes ``"tethysapp.tethysdash"`` in ``settings.AGENT_TOOL_PACKAGES``.
 The convention is: any public, type-annotated function in this module
-becomes an LLM-callable tool — no ``@tool`` decorator required.
+becomes an LLM-callable tool - no ``@tool`` decorator required.
 
 The two we expose are intentionally generic so they work with **any**
 intake-registered visualization plugin without per-plugin glue:
 
-* :func:`add_visualization_from_plugin` — add a tile pointing at any
+* :func:`add_visualization_from_plugin` - add a tile pointing at any
   registered plugin source with arbitrary args.
-* :func:`list_available_plugins` — surface the catalog the LLM should pick
+* :func:`list_available_plugins` - surface the catalog the LLM should pick
   ``source`` values from.
 
 The active user + dashboard come from the :data:`current_dashboard`
@@ -82,12 +82,39 @@ def add_visualization_from_plugin(source: str, args_json: str) -> str:
         )
 
     if source not in intake.source.registry:
+        # intake>=2.0 replaced the dict-style registry with DriverRegistry,
+        # which exposes only iteration and __getitem__ (no .items()). Other
+        # callsites in this app (visualizations.py:46, tools.py:140) use
+        # the same iterate-then-index pattern.
         candidates = sorted(
             name
-            for name, cls in intake.source.registry.items()
-            if _is_visualization_plugin(cls)
+            for name in intake.source.registry
+            if _is_visualization_plugin(intake.source.registry[name])
         )
         return f"Unknown plugin source '{source}'. Available: {candidates}"
+
+    # Validate args against the plugin's declared visualization_args
+    # schema BEFORE persisting. Without this, junk args ("river_id" /
+    # "bias_id" instead of "handle") get written to the DB, succeed at
+    # tool-call time, then crash at dashboard-render time with a
+    # TypeError that the agent never sees. The render-time error is in
+    # a different process - no feedback loop. Catch it at the writer
+    # and surface the schema so the agent can self-correct.
+    plugin_cls = intake.source.registry[source]
+    expected_args = _plugin_attr(plugin_cls, "args", {}) or {}
+    if isinstance(expected_args, dict) and expected_args:
+        missing = sorted(set(expected_args.keys()) - set(args.keys()))
+        if missing:
+            return (
+                f"Missing required args for '{source}': {missing}. "
+                f"Expected args: {sorted(expected_args.keys())}. "
+                f"Got: {sorted(args.keys())}. "
+                "Re-call add_visualization_from_plugin with an args_json "
+                "that includes every expected key. NOTE: cache handles "
+                "(strings like 'bias:<river>:<station>') are opaque - "
+                "pass the full handle string as a single arg value, do "
+                "NOT split it into pieces."
+            )
 
     user = ctx["user"]
     dashboard_id = ctx["dashboard_id"]
@@ -100,7 +127,7 @@ def add_visualization_from_plugin(source: str, args_json: str) -> str:
         )
 
     # Append to the first tab. Multi-tab routing (which tab the user is
-    # currently viewing) is a v0.2 concern — for v0.1 the workshop
+    # currently viewing) is a v0.2 concern - for v0.1 the workshop
     # convention is single-tab dashboards.
     active_tab = dict(tabs[0])  # shallow copy so we don't mutate the cached dict
     new_tile = {
@@ -147,7 +174,7 @@ def list_available_plugins() -> str:
         description = (_plugin_attr(plugin_cls, "description", "") or "").strip()
         first_line = description.split("\n")[0][:80]
         arg_names = list(viz_args.keys()) if isinstance(viz_args, dict) else []
-        lines.append(f"- {name} ({viz_type}) — args={arg_names} — {first_line}")
+        lines.append(f"- {name} ({viz_type}) - args={arg_names} - {first_line}")
 
     if not lines:
         return "No visualization plugins are installed on this server."

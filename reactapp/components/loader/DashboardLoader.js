@@ -21,9 +21,11 @@ import {
 } from "components/contexts/Contexts";
 import Error from "components/error/Error";
 import errorImage from "assets/error404.png";
-import SimpleAgentChat, {
-  DASHBOARD_REFETCH_EVENT,
-} from "components/agent/SimpleAgentChat";
+// Inlined from the (removed) SimpleAgentChat component. The listener
+// below stays active so any future surface (CLI auto-refresh via
+// WebSocket, a re-skinned chat UI, etc.) can dispatch this event to
+// trigger an in-place dashboard refetch without a full page reload.
+const DASHBOARD_REFETCH_EVENT = "tethysdash:agent-dashboard-refetch";
 
 const DashboardLoader = ({
   children,
@@ -388,7 +390,6 @@ const DashboardLoader = ({
                 value={dataViewerModeContextValue}
               >
                 {children}
-                {editable && <SimpleAgentChat />}
               </DataViewerModeContext.Provider>
             </DisabledEditingMovementContext.Provider>
           </EditingContext.Provider>

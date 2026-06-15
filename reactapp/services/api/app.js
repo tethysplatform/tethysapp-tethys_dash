@@ -113,21 +113,6 @@ const appAPI = {
       headers: { "x-csrftoken": csrf },
     });
   },
-  chatAgent: (message, dashboardId, csrf) => {
-    // The chat_agent controller accepts form-encoded POSTs (matches the
-    // existing dashboards/update etc. surface). axios's default
-    // Content-Type is application/json — override here.
-    const params = new URLSearchParams({ message });
-    if (dashboardId !== null && dashboardId !== undefined) {
-      params.append("dashboard_id", String(dashboardId));
-    }
-    return apiClient.post(`${APP_ROOT_URL}agent/chat/`, params.toString(), {
-      headers: {
-        "x-csrftoken": csrf,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-    });
-  },
   downloadJSON: async (data) => {
     let jsonData = await apiClient.get(`${APP_ROOT_URL}json/download/`, {
       params: data,
