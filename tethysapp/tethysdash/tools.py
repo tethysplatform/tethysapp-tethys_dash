@@ -130,6 +130,13 @@ def add_visualization_from_plugin(source: str, args_json: str) -> str:
     # currently viewing) is a v0.2 concern - for v0.1 the workshop
     # convention is single-tab dashboards.
     active_tab = dict(tabs[0])  # shallow copy so we don't mutate the cached dict
+    # Grid is 100 cols wide on desktop breakpoints (DashboardLayout.js:30
+    # - responsiveCols.lg/md = 100). Each row is ~viewport_width / 100 px
+    # tall (defaultRowHeight at DashboardLayout.js:27). w=33, h=12 yields
+    # roughly 1/3 of viewport width × ~230 px tall on a 1920-px screen -
+    # comfortable Plotly chart aspect ratio, and 100/33 = 3 so the agent's
+    # typical 2-4 tile placements wrap into a 3-wide row instead of
+    # stacking unreadable postage stamps. The user can drag to resize.
     new_tile = {
         "uuid": str(uuid_lib.uuid4()),
         "i": str(uuid_lib.uuid4())[:8],  # display index; overwritten server-side
@@ -138,8 +145,8 @@ def add_visualization_from_plugin(source: str, args_json: str) -> str:
         "metadata_string": "{}",
         "x": 0,
         "y": 0,
-        "w": 6,
-        "h": 4,
+        "w": 50,
+        "h": 40,
     }
     active_tab["gridItems"] = list(active_tab.get("gridItems", [])) + [new_tile]
     tabs[0] = active_tab

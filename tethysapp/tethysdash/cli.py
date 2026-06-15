@@ -55,6 +55,54 @@ def start_command(args):
     subprocess.run(["tethys", "manage", "start"], check=True)
 
 
+def _resolve_dashboard_id(raw: str) -> int:
+    """Accept either an integer ID or a UUID string; return the integer ID.
+
+    Users see dashboard UUIDs in the browser URL (the chat banner prints
+    one too) so the CLI should accept that shape directly. Internally
+    Dashboard.id is an integer PK (model.py:64), so a UUID has to be
+    resolved through the Dashboard.uuid column.
+
+    Lazy-imports the SQLAlchemy session — module-load time predates
+    django.setup() in some entry points.
+    """
+    import sys
+    import uuid as _uuid
+
+    # Integer-first: cheapest path, no DB hit needed.
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        pass
+
+    # UUID shape check before hitting the DB.
+    try:
+        _uuid.UUID(raw)
+    except (TypeError, ValueError, AttributeError):
+        sys.exit(
+            f"--dashboard must be an integer id or a UUID string, "
+            f"got {raw!r}."
+        )
+
+    from tethysapp.tethysdash.app import App
+    from tethysapp.tethysdash.model import Dashboard
+
+    Session = App.get_persistent_store_database(
+        "primary_db", as_sessionmaker=True
+    )
+    session = Session()
+    try:
+        row = session.query(Dashboard).filter(Dashboard.uuid == raw).first()
+        if row is None:
+            sys.exit(
+                f"No dashboard found with UUID {raw!r}. Check the URL "
+                "or list dashboards in the browser."
+            )
+        return row.id
+    finally:
+        session.close()
+
+
 def chat_command(args):
     """Terminal REPL harness for chat agents.
 
@@ -107,17 +155,30 @@ def chat_command(args):
         )
 
     if args.dashboard is not None:
-        dashboard_id = args.dashboard
+        # --dashboard accepts EITHER the integer PK (e.g. 2) OR the
+        # UUID string visible in the browser URL (e.g. 5976be43-...).
+        # Dashboard.id (model.py:64) is an Integer column, so a UUID
+        # lookup needs to resolve through Dashboard.uuid first.
+        dashboard_id = _resolve_dashboard_id(args.dashboard)
     else:
         owned = get_dashboards(user)
         if not owned:
             sys.exit(
                 f"User {user.username!r} owns no dashboards. Create one in "
-                "the browser first, or pass --dashboard <id>."
+                "the browser first, or pass --dashboard <id-or-uuid>."
             )
         dashboard_id = max(owned, key=lambda d: d.get("id", 0))["id"]
 
     dashboard = get_dashboards(user, id=dashboard_id, dashboard_view=True)
+    if dashboard is None or not isinstance(dashboard, dict):
+        # get_dashboards crashes with AttributeError inside
+        # parse_db_dashboard if the row was deleted between resolution
+        # and read. Catch the resolved-but-missing case explicitly here
+        # so the user sees "not found" instead of a Python traceback.
+        sys.exit(
+            f"Dashboard id={dashboard_id!r} could not be loaded "
+            f"(may have been deleted, or {user.username!r} lacks access)."
+        )
     uuid = dashboard.get("uuid", "?")
 
     # Set the contextvar ONCE for the whole REPL session. Runners use it
@@ -261,8 +322,13 @@ def main():
     )
     chat_parser.add_argument(
         "--dashboard",
-        type=int,
-        help="Dashboard id (default: most recent owned by --user).",
+        type=str,
+        help=(
+            "Dashboard to target. Accepts either the integer PK "
+            "(e.g. '2') or the UUID string from the browser URL "
+            "(e.g. '5976be43-3f09-4f62-aa08-920974cab70a'). "
+            "Default: most recent dashboard owned by --user."
+        ),
     )
     chat_parser.add_argument(
         "--model",
