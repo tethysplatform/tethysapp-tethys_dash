@@ -108,9 +108,9 @@ def chat_command(args):
 
     This is a domain-blind harness: it knows about Django, the active
     user/dashboard, readline + history persistence, and the AgentRunner
-    protocol - and nothing else. The plugin (named by the operator in
-    ``AGENT_PLUGIN_PACKAGES``) owns the agent shape, backstories, tools,
-    and topology.
+    protocol - and nothing else. Plugins (named by the operator in
+    ``settings.AGENTS.PACKAGES``) own the agent shape, backstories,
+    tools, and topology.
 
     All Django / tethys_agents imports happen here (not at module top) so
     that `tethysdash setup` and `tethysdash start` stay fast and don't
@@ -135,15 +135,44 @@ def chat_command(args):
     from tethysapp.tethysdash.tools import current_dashboard
     from tethysapp.tethysdash.model import get_dashboards
 
-    # Resolution order matches the chat controller (controllers.py:1181):
-    # CLI --model overrides portal_config AGENT_MODEL overrides hardcoded
-    # DEFAULT_AGENT_MODEL. Resolved AFTER django.setup() because settings
-    # aren't readable at argparse-build time.
-    model = args.model or getattr(settings, "AGENT_MODEL", DEFAULT_AGENT_MODEL)
+    # Unified AGENTS block from portal_config.yaml:
+    #     settings:
+    #       AGENTS:
+    #         PACKAGES: [...]      # tools + runners - discovery layers
+    #                              # each pick the submodule they need.
+    #         MODELS:              # list of {name, host} dicts. First entry
+    #                              # is the default; CLI --model picks any
+    #                              # other entry by name (or any free-form
+    #                              # name, in which case the default host
+    #                              # applies). Per-model host lets future
+    #                              # entries point at different backends.
+    #           - name: <model>
+    #             host: <url>
+    #         MODE:    <name>      # default runner name (CLI --runner wins).
+    agents_cfg = getattr(settings, "AGENTS", None)
+    if not isinstance(agents_cfg, dict):
+        agents_cfg = {}
 
-    # The harness owns knowledge of where ITS mutation tools live (this
-    # package), but not which plugin defines the chat agents.
-    dashboard_tool_packages = ["tethysapp.tethysdash"]
+    # Resolution order: CLI --model > AGENTS.MODELS[0].name > DEFAULT_AGENT_MODEL.
+    # Resolved AFTER django.setup() because settings aren't readable at
+    # argparse-build time.
+    models_list = [m for m in (agents_cfg.get("MODELS") or []) if isinstance(m, dict)]
+    default_entry = models_list[0] if models_list else {}
+    default_name = default_entry.get("name") or DEFAULT_AGENT_MODEL
+    model = args.model or default_name
+    # Find the chosen model's entry to pick up its host. If --model named
+    # a model not listed in MODELS, fall back to the default entry's host
+    # (workshop assumption: one ollama backend hosts every model name you
+    # might pull at runtime).
+    chosen_entry = next(
+        (m for m in models_list if m.get("name") == model),
+        default_entry,
+    )
+    host = chosen_entry.get("host")
+    if host:
+        # The tethys_agents._ollama wrapper reads OLLAMA_HOST from
+        # os.environ at construction time; setting it here is the seam.
+        os.environ["OLLAMA_HOST"] = str(host)
 
     User = get_user_model()
     try:
@@ -185,65 +214,60 @@ def chat_command(args):
     # transitively when their tools mutate the active dashboard.
     current_dashboard.set({"user": user, "dashboard_id": dashboard_id})
 
-    # Plugin runner resolution. Operator configures portal_config.yaml:
-    #     AGENT_PLUGIN_PACKAGES:
-    #       - <plugin_package_name>
-    #     AGENT_RUNNER: <runner_name>      # optional default
-    # Each plugin exposes a RUNNERS dict at <pkg>.agent; discover_runners
-    # walks the list and merges them. See tethys_agents/runner.py.
-    plugin_packages = list(getattr(settings, "AGENT_PLUGIN_PACKAGES", []))
-    if not plugin_packages:
+    # Unified package list. Each discovery layer picks the submodule it
+    # needs: discover_runners walks <pkg>.agent for RUNNERS dicts;
+    # discover (called by the runner) walks <pkg>.tools for @tool
+    # functions. Missing submodules are skipped silently - so a
+    # tools-only package and a runners-only package can live in the same
+    # PACKAGES list with no operator intervention.
+    packages = [str(p).strip() for p in (agents_cfg.get("PACKAGES") or []) if str(p).strip()]
+    # The harness always needs its own mutation tools available to runners,
+    # even if the operator forgot to list it explicitly.
+    if "tethysapp.tethysdash" not in packages:
+        packages.append("tethysapp.tethysdash")
+    if not packages:
         sys.exit(
-            "AGENT_PLUGIN_PACKAGES is empty. Add a chat-agent plugin to "
-            "portal_config.yaml, e.g.:\n"
+            "AGENTS.PACKAGES is empty. Add at least one chat-agent plugin "
+            "to portal_config.yaml, e.g.:\n"
             "    settings:\n"
-            "      AGENT_PLUGIN_PACKAGES:\n"
-            "        - <your_workshop_plugin>"
+            "      AGENTS:\n"
+            "        PACKAGES:\n"
+            "          - <your_workshop_plugin>"
         )
     try:
-        runners = discover_runners(plugin_packages)
+        runners = discover_runners(packages)
     except ModuleNotFoundError as exc:
-        # Most common cause: operator listed a package in
-        # AGENT_PLUGIN_PACKAGES that doesn't expose <pkg>.agent at all
-        # (e.g. "tethysapp.tethysdash" - that's a tool package, not a
-        # runner package). Spell out the distinction so they don't have
-        # to read the protocol docs to recover.
         sys.exit(
             f"Could not import {exc.name!r}.\n\n"
-            f"AGENT_PLUGIN_PACKAGES expects packages whose <pkg>.agent "
-            "module defines a RUNNERS dict. Common mistakes:\n"
-            "  - Listing 'tethysapp.tethysdash' here. That's a TOOL "
-            "package (LLM-callable functions); it belongs in "
-            "AGENT_TOOL_PACKAGES, which the chat controller reads. The "
-            "CLI harness adds it to the runner's dashboard_tool_packages "
-            "automatically - you don't need to list it.\n"
-            "  - Typo in the plugin package name.\n"
-            "  - Plugin not installed in this environment.\n\n"
-            f"Current AGENT_PLUGIN_PACKAGES: {plugin_packages}"
+            "AGENTS.PACKAGES expects importable Python packages. Each may "
+            "contribute tools (<pkg>.tools), runners (<pkg>.agent), or both. "
+            "Common causes:\n"
+            "  - Typo in the package name.\n"
+            "  - Package not installed in this environment.\n\n"
+            f"Current AGENTS.PACKAGES (incl. harness defaults): {packages}"
         )
     if not runners:
         sys.exit(
-            f"No runners exposed by {plugin_packages}. Each package must "
+            f"No runners exposed by {packages}. At least one package must "
             "define a RUNNERS dict at <pkg>.agent."
         )
-    runner_name = args.runner or getattr(settings, "AGENT_RUNNER", None) \
-        or next(iter(runners))
+    runner_name = args.runner or agents_cfg.get("MODE") or next(iter(runners))
     if runner_name not in runners:
         sys.exit(
             f"Runner {runner_name!r} not found. Available runners "
-            f"(from {plugin_packages}): {sorted(runners)}"
+            f"(from {packages}): {sorted(runners)}"
         )
     runner = runners[runner_name](
         model=model,
-        dashboard_tool_packages=dashboard_tool_packages,
+        dashboard_tool_packages=packages,
     )
 
     # Banner.
     print(f"Active dashboard: id={dashboard_id} uuid={uuid}")
     print(f"View at: http://localhost:8000/apps/tethysdash/dashboard/{uuid}/")
-    print(f"Model:   {model}")
-    print(f"Plugins: {plugin_packages}")
-    print(f"Runner:  {runner_name} - {runner.describe()}")
+    print(f"Model:    {model}")
+    print(f"Packages: {packages}")
+    print(f"Runner:   {runner_name} - {runner.describe()}")
     print(f"Available runners: {sorted(runners)}")
     print("Type /exit to quit, /clear to reset runner state.\n")
 
@@ -334,19 +358,19 @@ def main():
         "--model",
         default=None,
         help=(
-            "LLM model name. Default: portal_config AGENT_MODEL setting, "
-            "falling back to DEFAULT_AGENT_MODEL from controllers.py. "
-            "Pass this flag to override per-invocation."
+            "LLM model name. Default: first entry of portal_config "
+            "AGENTS.MODELS, falling back to DEFAULT_AGENT_MODEL from "
+            "controllers.py. Pass this flag to override per-invocation."
         ),
     )
     chat_parser.add_argument(
         "--runner",
         default=None,
         help=(
-            "Runner name exposed by one of the AGENT_PLUGIN_PACKAGES. "
-            "Default: portal_config AGENT_RUNNER setting, falling back "
-            "to the first runner discovered. Use any value to see the "
-            "'available runners' list in the error message."
+            "Runner name exposed by one of the packages in AGENTS.PACKAGES. "
+            "Default: portal_config AGENTS.MODE, falling back to the first "
+            "runner discovered. Use any value to see the 'available "
+            "runners' list in the error message."
         ),
     )
     chat_parser.set_defaults(func=chat_command)

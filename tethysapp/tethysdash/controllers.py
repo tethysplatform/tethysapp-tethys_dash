@@ -1043,31 +1043,56 @@ def download_json(request, app_workspace):
 
 # ---------------------------------------------------------------------------
 # Chat agent - Python-native tool-use loop over plugin-contributed @tool
-# callables. Sourced from packages listed under AGENT_TOOL_PACKAGES in
+# callables. Sourced from packages listed under AGENTS.PACKAGES in
 # portal_config.yaml's `settings:` block. See README "Chat agent" section.
 # ---------------------------------------------------------------------------
 
-DEFAULT_AGENT_TOOL_PACKAGES = []  # empty default - operator opts in via portal_config.yaml
 DEFAULT_AGENT_MODEL = "qwen3:latest"
 
 
+def _resolve_agents_config() -> dict:
+    """Return the operator's AGENTS block as a dict (empty if unset)."""
+    raw = getattr(settings, "AGENTS", None)
+    return raw if isinstance(raw, dict) else {}
+
+
 def _resolve_agent_tool_packages():
-    """Return the operator's AGENT_TOOL_PACKAGES list with a safe default.
+    """Return AGENTS.PACKAGES with a safe default.
 
-    Accepts both a YAML list and (legacy) a comma-separated string so that
-    operators upgrading from a string-typed setting don't break.
-
-    When the setting is missing the agent comes up with zero tools - still
-    callable, just can't reach external data sources. Operators enable
-    tools by adding their package names to ``AGENT_TOOL_PACKAGES`` in
-    ``portal_config.yaml``'s ``settings:`` block.
+    When unset the agent comes up with zero tools - still callable, just
+    can't reach external data sources. Operators enable tools by adding
+    package names to ``AGENTS.PACKAGES`` in ``portal_config.yaml``'s
+    ``settings:`` block.
     """
-    raw = getattr(settings, "AGENT_TOOL_PACKAGES", None)
-    if raw is None:
-        return list(DEFAULT_AGENT_TOOL_PACKAGES)
-    if isinstance(raw, str):
-        return [pkg.strip() for pkg in raw.split(",") if pkg.strip()]
+    raw = _resolve_agents_config().get("PACKAGES")
+    if not raw:
+        return []
     return [str(pkg).strip() for pkg in raw if str(pkg).strip()]
+
+
+def _resolve_default_model_entry() -> dict:
+    """Return the first AGENTS.MODELS entry as a dict (``{}`` if unset).
+
+    Each entry must be a mapping with at least a ``name:`` field and an
+    optional ``host:`` field (the LLM-backend URL). Per-model host lets
+    different models point at different backends (e.g. one local ollama,
+    one hosted endpoint) without a separate top-level setting.
+    """
+    models = _resolve_agents_config().get("MODELS") or []
+    first = models[0] if models else None
+    return first if isinstance(first, dict) else {}
+
+
+def _resolve_agent_model() -> str:
+    """First MODELS entry's ``name``; falls back to DEFAULT_AGENT_MODEL."""
+    name = _resolve_default_model_entry().get("name")
+    return str(name) if name else DEFAULT_AGENT_MODEL
+
+
+def _resolve_agent_host() -> str | None:
+    """First MODELS entry's ``host``; ``None`` if unset."""
+    host = _resolve_default_model_entry().get("host")
+    return str(host) if host else None
 
 
 def _build_agent_system_prompt() -> str:
@@ -1105,17 +1130,21 @@ def chat_agent(request):
     API controller for the Python-native chat agent.
 
     Runs a single ReAct tool-use loop using @tool functions discovered from
-    the packages listed in ``settings.AGENT_TOOL_PACKAGES``. Gated on the
+    the packages listed in ``settings.AGENTS.PACKAGES``. Gated on the
     ``manage_visualizations`` permission (matches the chatbox sidebar's
     editor/admin floor).
 
     portal_config.yaml example::
 
         settings:
-          AGENT_TOOL_PACKAGES:
-            - tethysapp.tethysdash       # dashboard-manipulation tools
-            - geoglows_summit_example    # data-fetcher tools
-          AGENT_MODEL: qwen3:latest
+          AGENTS:
+            PACKAGES:
+              - tethysapp.tethysdash       # dashboard-manipulation tools
+              - geoglows_summit_example    # data-fetcher tools
+            MODELS:
+              - name: qwen3:latest
+                host: http://ollama:11434
+            MODE: single
 
     Args:
         request: Django HTTP request object with POST body containing:
@@ -1178,7 +1207,13 @@ def chat_agent(request):
         )
 
     packages = _resolve_agent_tool_packages()
-    model = getattr(settings, "AGENT_MODEL", DEFAULT_AGENT_MODEL)
+    model = _resolve_agent_model()
+    # Per-model host (AGENTS.MODELS[0].host) wins over any pre-existing
+    # OLLAMA_HOST env var. The transport layer in tethys_agents._ollama
+    # reads OLLAMA_HOST from os.environ; setting it here is the seam.
+    host = _resolve_agent_host()
+    if host:
+        os.environ["OLLAMA_HOST"] = host
     system_prompt = _build_agent_system_prompt()
 
     # Set the dashboard contextvar BEFORE the agent runs so any tool calls

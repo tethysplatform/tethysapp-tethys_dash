@@ -1,7 +1,7 @@
 """Dashboard-manipulation tools for the chat agent.
 
 These functions are discovered by ``tethys_agents.discover()`` when the
-operator includes ``"tethysapp.tethysdash"`` in ``settings.AGENT_TOOL_PACKAGES``.
+operator includes ``"tethysapp.tethysdash"`` in ``settings.AGENTS.PACKAGES``.
 The convention is: any public, type-annotated function in this module
 becomes an LLM-callable tool - no ``@tool`` decorator required.
 
