@@ -105,6 +105,8 @@ Webpack is configured to bundle and build the React app into the `tethysapp/<app
 npm run build
 ```
 
+> **Note:** The compiled frontend in `tethysapp/tethysdash/public/frontend/` is **not committed** to the repository — CI builds it when publishing a release. When running the app from a clone, you must build it yourself first: either run `npm run build` before `tethysdash start`, or use the webpack dev server (`npm start`) which serves the bundle from memory. Without one of these, Django has no frontend bundle to serve.
+
 ### Serving the built frontend in development
 
 The production build emits content-hashed filenames (e.g. `main.<hash>.js`) and a `manifest.json` mapping logical names to the hashed files. Mode detection is automatic:
@@ -124,3 +126,28 @@ npm run test
 ```
 
 The linting capability is powered by [eslint](https://eslint.org/) and a number of plugins for React. The testing capabilities include [jest](https://jestjs.io/), [jsdom](https://github.com/jsdom/jsdom#readme), [testing-framework](https://testing-library.com/), [user-event](https://testing-library.com/docs/user-event/intro/), and a few other JavaScript testing utilties to make it easy to test the frontend of the React-Tethys app.
+
+## Backend Lint and Test
+
+The Python backend is linted with [ruff](https://docs.astral.sh/ruff/) and tested with `pytest`:
+
+```
+ruff check .
+python -m pytest --reuse-db
+```
+
+## Continuous Integration and Releasing
+
+CI runs in GitHub Actions (`.github/workflows/`):
+
+- **On every pull request to `main`** (`ci.yml`): the frontend (eslint, prettier, jest) and backend (ruff, pytest) suites must pass.
+- **On a version tag** (`release.yml`): the suite re-runs, then the package is built and published to PyPI.
+
+The package version is **dynamic** — it is derived from the git tag at build time by [setuptools_scm](https://setuptools-scm.readthedocs.io/), not stored in `pyproject.toml`. To cut a release, push a `v`-prefixed semantic-version tag from `main`:
+
+```
+git tag v0.19.17
+git push origin v0.19.17
+```
+
+This triggers the release workflow, which publishes `tethysdash 0.19.17` to PyPI (via [PyPI Trusted Publishing](https://docs.pypi.org/trusted-publishers/)) and creates a GitHub Release. Tags must use the `v` prefix for the workflow to fire.

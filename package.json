@@ -1,6 +1,7 @@
 {
   "name": "tethysdash_frontend",
   "version": "0.16.10",
+  "//": "The published Python package version is dynamic, derived from the git tag at build time via setuptools_scm (see pyproject.toml). This npm version field is not published and is not kept in sync with it.",
   "description": "Frontend React project for tethysdash",
   "main": "index.js",
   "scripts": {
