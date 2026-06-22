@@ -145,13 +145,17 @@ describe("BasePlot", () => {
     // it via setPlotLayout, not back to fakePlot.el.layout. Read the
     // computed x0 by re-running createVerticalLine with the parsed Date
     // and the same range — this is what BasePlot's effect computes.
-    const parsedDate = new Date(2026, 5, 5, 12, 0); // Jun 5, 2026 12:00 local
+    // Use an absolute UTC instant OFF the range midpoint so x0 is the same in
+    // every timezone. Jun 5 12:00 lands exactly at 0.5 in the Jun 1-10 UTC
+    // range, which collides with the fallback sentinel under UTC (e.g. CI);
+    // Jun 3 12:00 UTC is ~0.28 in any timezone.
+    const parsedDate = new Date(Date.UTC(2026, 5, 3, 12, 0)); // Jun 3, 2026 12:00 UTC
     const directShape = createVerticalLine({
       xValue: parsedDate,
       plotElement: fakePlot.el,
       returnOutOfRange: true,
     });
-    // The expected x0 is somewhere between 0 and 1 (Jun 5 is between Jun 1
+    // The expected x0 is somewhere between 0 and 1 (Jun 3 is between Jun 1
     // and Jun 10), strictly NOT the 0.5 fallback.
     expect(directShape.x0).toBeGreaterThan(0);
     expect(directShape.x0).toBeLessThan(1);
