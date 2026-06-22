@@ -10,6 +10,13 @@ on:
 # suite never needs write access, even when called from the release flow.
 permissions: {}
 
+# Keep these in sync with release.yml's build job so the package is built
+# under the same toolchain the tests ran on. 3.12 floor: the test suite uses
+# PEP 701 f-string syntax.
+env:
+  NODE_VERSION: "20"
+  PYTHON_VERSION: "3.12"
+
 jobs:
   frontend:
     runs-on: ubuntu-latest
@@ -17,7 +24,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
       - name: Lint
@@ -33,14 +40,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          # 3.12 floor: the test suite uses PEP 701 f-string syntax.
-          python-version: "3.12"
+          python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
+          cache-dependency-path: requirements-ci.txt
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install ruff
           pip install -r requirements-ci.txt
           pip install -e .
 
@@ -65,4 +71,4 @@ jobs:
       - name: Test
         env:
           DJANGO_SETTINGS_MODULE: tethys_portal.settings
-        run: python -m pytest
+        run: python -m pytest --reuse-db

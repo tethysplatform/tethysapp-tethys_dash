@@ -18,6 +18,12 @@ on:
 permissions:
   contents: read
 
+# Keep these in sync with the versions in test.yml so the package is built
+# under the same toolchain the test suite ran on.
+env:
+  NODE_VERSION: "20"
+  PYTHON_VERSION: "3.12"
+
 jobs:
   # Gate: the publish must not proceed unless the full suite is green.
   test:
@@ -34,7 +40,10 @@ jobs:
 
       - name: Verify tag is on main
         run: |
-          git fetch --no-tags --depth=1 origin main
+          # Fetch main with full history (no --depth) so merge-base can walk
+          # the parent graph; a shallow FETCH_HEAD makes --is-ancestor
+          # unreliable. The checkout above already used fetch-depth: 0.
+          git fetch --no-tags origin main
           if ! git merge-base --is-ancestor "$GITHUB_SHA" FETCH_HEAD; then
             echo "::error::Tagged commit is not an ancestor of main; refusing to publish." >&2
             exit 1
@@ -42,7 +51,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - name: Build frontend
         run: |
@@ -51,7 +60,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ env.PYTHON_VERSION }}
       - name: Build Python package
         run: |
           python -m pip install --upgrade pip build
@@ -78,6 +87,11 @@ jobs:
           path: dist/
       - name: Publish to PyPI (Trusted Publishing)
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          # Tolerate re-runs: if the version is already on PyPI (e.g. publish
+          # succeeded but github-release failed), skip rather than fail so the
+          # workflow can be safely retried.
+          skip-existing: true
 
   github-release:
     needs: publish
