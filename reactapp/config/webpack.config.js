@@ -116,12 +116,17 @@ module.exports = (env, argv) => {
       minimize: true,
     },
     devServer: {
-      proxy: {
-        "!/static/tethysdash/frontend/**": {
+      proxy: [
+        {
+          context: ["!/static/tethysdash/frontend/**"],
           target: "http://localhost:8000", // points to django dev server
           changeOrigin: true,
+          // Lets Django detect that this request was proxied through
+          // webpack-dev-server so it renders the unhashed main.js URL
+          // (served from memory) instead of the on-disk hashed bundle.
+          headers: { "X-Webpack-Dev-Server": "1" },
         },
-      },
+      ],
       open: true,
     },
   };

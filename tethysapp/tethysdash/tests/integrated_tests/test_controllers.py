@@ -2492,26 +2492,31 @@ def test_update_visualization_permissions_error(client, admin_user, mock_app, mo
     )
 
 
-@override_settings(DEBUG=True)
-def test_get_main_bundle_path_debug():
-    assert _get_main_bundle_path() == "frontend/main.js"
+def _request_with_headers(headers=None):
+    request = MagicMock()
+    request.headers = headers or {}
+    return request
 
 
-@override_settings(DEBUG=False)
+def test_get_main_bundle_path_dev_server_header():
+    request = _request_with_headers({"X-Webpack-Dev-Server": "1"})
+    assert _get_main_bundle_path(request) == "frontend/main.js"
+
+
 def test_get_main_bundle_path_manifest_not_found():
+    request = _request_with_headers()
     with patch("builtins.open", side_effect=FileNotFoundError):
-        assert _get_main_bundle_path() == "frontend/main.js"
+        assert _get_main_bundle_path(request) == "frontend/main.js"
 
 
-@override_settings(DEBUG=False)
 def test_get_main_bundle_path_manifest_invalid_json():
+    request = _request_with_headers()
     with patch("builtins.open", mock_open(read_data="not json")):
-        assert _get_main_bundle_path() == "frontend/main.js"
+        assert _get_main_bundle_path(request) == "frontend/main.js"
 
 
-@override_settings(DEBUG=True)
-def test_get_main_bundle_path_debug_serve_built_override():
+def test_get_main_bundle_path_returns_hashed_from_manifest():
+    request = _request_with_headers()
     manifest = json.dumps({"main.js": "main.abc123.js"})
-    with patch.dict(os.environ, {"TETHYSDASH_SERVE_BUILT_FRONTEND": "true"}):
-        with patch("builtins.open", mock_open(read_data=manifest)):
-            assert _get_main_bundle_path() == "frontend/main.abc123.js"
+    with patch("builtins.open", mock_open(read_data=manifest)):
+        assert _get_main_bundle_path(request) == "frontend/main.abc123.js"

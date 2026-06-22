@@ -65,29 +65,17 @@ _FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "public", "frontend")
 _MANIFEST_PATH = os.path.join(_FRONTEND_DIR, "manifest.json")
 
 
-def _get_main_bundle_path():
+def _get_main_bundle_path(request):
     """Resolve the entry bundle path under the app's public dir.
 
-    The production webpack build emits ``main.<contenthash>.js`` and a
-    ``manifest.json`` mapping logical names to hashed filenames. In dev
-    (``DEBUG=True``) webpack-dev-server serves an unhashed ``main.js`` from
-    memory, so we normally reference that name and ignore any stale manifest
-    left over from a prior production build.
-
-    Set the ``TETHYSDASH_SERVE_BUILT_FRONTEND`` env var (``1``/``true``/``yes``)
-    to serve the on-disk hashed bundle from ``manifest.json`` even when
-    ``DEBUG=True``. This lets the built frontend be served straight from Django
-    (e.g. at ``localhost:8000``) without running webpack-dev-server or disabling
-    DEBUG.
-
-    Returns:
-        str: Relative path like ``"frontend/main.abc123.js"`` for use with
-        Tethys' ``public`` template filter.
+    Production builds emit ``main.<contenthash>.js`` and a ``manifest.json``
+    mapping logical names to hashed filenames. When webpack-dev-server proxies
+    a request to Django it injects ``X-Webpack-Dev-Server: 1``; that signals
+    Django to render the unhashed ``main.js`` URL, which the dev-server then
+    serves from memory. Direct hits to Django (no header) get the hashed
+    bundle from the manifest, served straight from disk.
     """
-    serve_built = os.environ.get(
-        "TETHYSDASH_SERVE_BUILT_FRONTEND", ""
-    ).lower() in ("1", "true", "yes")
-    if settings.DEBUG and not serve_built:
+    if request.headers.get("X-Webpack-Dev-Server"):
         return "frontend/main.js"
     try:
         with open(_MANIFEST_PATH) as f:
@@ -115,7 +103,7 @@ def home(request):
     return App.render(
         request,
         "index.html",
-        context={"main_bundle_path": _get_main_bundle_path()},
+        context={"main_bundle_path": _get_main_bundle_path(request)},
     )
 
 
