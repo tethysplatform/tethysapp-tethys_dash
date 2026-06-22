@@ -890,9 +890,7 @@ export async function getStyleFields({
     });
     fields = [
       ...new Set(
-        Object.values(attributes).flatMap((attrs) =>
-          attrs.map((f) => f.name),
-        ),
+        Object.values(attributes).flatMap((attrs) => attrs.map((f) => f.name)),
       ),
     ];
   } else if (sourceProps.type === "GeoJSON") {
@@ -916,9 +914,7 @@ export async function getStyleFields({
     );
     fields = [
       ...new Set(
-        Object.values(attributes).flatMap((attrs) =>
-          attrs.map((f) => f.name),
-        ),
+        Object.values(attributes).flatMap((attrs) => attrs.map((f) => f.name)),
       ),
     ];
   }

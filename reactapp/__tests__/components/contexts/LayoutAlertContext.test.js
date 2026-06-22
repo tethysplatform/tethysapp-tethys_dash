@@ -18,7 +18,7 @@ const TestingComponent = () => {
     errorMessage,
     setErrorMessage,
     showErrorMessage,
-    setShowErrorMessage
+    setShowErrorMessage,
   } = useLayoutErrorAlertContext();
   const {
     warningMessage,
@@ -64,7 +64,7 @@ test("layout alert context", async () => {
   render(
     <LayoutAlertContextProvider>
       <TestingComponent />
-    </LayoutAlertContextProvider>
+    </LayoutAlertContextProvider>,
   );
 
   expect(await screen.findByText("success")).toBeInTheDocument();

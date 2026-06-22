@@ -7,7 +7,7 @@ export const useModalPriority = () => {
   const context = useContext(ModalPriorityContext);
   if (!context) {
     throw new Error(
-      "useModalPriority must be used within a ModalPriorityProvider"
+      "useModalPriority must be used within a ModalPriorityProvider",
     );
   }
   return context;

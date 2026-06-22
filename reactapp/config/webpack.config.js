@@ -23,7 +23,7 @@ module.exports = (env, argv) => {
     output: {
       path: path.resolve(
         __dirname,
-        "../../tethysapp/tethysdash/public/frontend"
+        "../../tethysapp/tethysdash/public/frontend",
       ),
       filename: isProd ? "[name].[contenthash].js" : "[name].js",
       chunkFilename: isProd ? "[name].[contenthash].js" : "[name].js",

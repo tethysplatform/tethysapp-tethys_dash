@@ -8,7 +8,7 @@ test("TooltipButton tooltips and href", async () => {
       tooltipPlacement={"right"}
       tooltipText={"Test"}
       href={"some/url"}
-    />
+    />,
   );
 
   const button = screen.getByRole("button");
@@ -27,7 +27,7 @@ test("TooltipButton no tooltips", async () => {
       tooltipText={null}
       href={"some/url"}
       variant={"warning"}
-    />
+    />,
   );
 
   const button = screen.getByRole("button");

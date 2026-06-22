@@ -16,7 +16,7 @@ const draggableItems = [
 it("DraggableList with components", async () => {
   const onOrderUpdate = jest.fn();
   render(
-    <DraggableList items={draggableItems} onOrderUpdate={onOrderUpdate} />
+    <DraggableList items={draggableItems} onOrderUpdate={onOrderUpdate} />,
   );
 
   const item1 = screen.getByTestId("item-1");
@@ -57,7 +57,7 @@ it("DraggableList with components", async () => {
 it("DraggableList with components, drag to self", async () => {
   const onOrderUpdate = jest.fn();
   render(
-    <DraggableList items={draggableItems} onOrderUpdate={onOrderUpdate} />
+    <DraggableList items={draggableItems} onOrderUpdate={onOrderUpdate} />,
   );
 
   const item1 = screen.getByTestId("item-1");

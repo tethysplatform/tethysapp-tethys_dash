@@ -9,7 +9,7 @@ const AppTour = () => {
 
   const prefixUrlSegment = (process.env.TETHYS_PREFIX_URL || "").replace(
     /(^\/+|\/+?$)/g,
-    ""
+    "",
   );
   const samplePluginImagePath = `${prefixUrlSegment ? `/${prefixUrlSegment}` : ""}/static/tethysdash/images/tethys_dash.png`;
 

@@ -2171,8 +2171,10 @@ describe("Slider Component", () => {
     handleChange.mockClear();
 
     // Advance time past the next 30-minute boundary (9:30) + 100ms buffer
-    const msUntilBoundary = new Date("2025-06-15T09:30:00").getTime() -
-      new Date("2025-06-15T09:01:00").getTime() + 200;
+    const msUntilBoundary =
+      new Date("2025-06-15T09:30:00").getTime() -
+      new Date("2025-06-15T09:01:00").getTime() +
+      200;
     jest.setSystemTime(new Date("2025-06-15T09:30:01"));
     await advanceTimers(msUntilBoundary);
 
@@ -2183,7 +2185,6 @@ describe("Slider Component", () => {
     const newCall =
       handleChange.mock.calls[handleChange.mock.calls.length - 1][0];
     expect(newCall).toMatch(/00$|30$/);
-
   });
 
   it("publishes raw values for array-type sliders to context", async () => {

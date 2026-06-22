@@ -8,7 +8,7 @@ it("MultiInput", async () => {
   const values = [];
 
   const { rerender } = render(
-    <MultiInput label={label} onChange={onChange} values={values} />
+    <MultiInput label={label} onChange={onChange} values={values} />,
   );
 
   expect(screen.getByText("Test Multi Input")).toBeInTheDocument();
@@ -30,7 +30,11 @@ it("MultiInput", async () => {
   expect(screen.queryByText("Some Input Value")).not.toBeInTheDocument();
 
   rerender(
-    <MultiInput label={label} onChange={onChange} values={["Some new Value"]} />
+    <MultiInput
+      label={label}
+      onChange={onChange}
+      values={["Some new Value"]}
+    />,
   );
   expect(await screen.findByText("Some new Value")).toBeInTheDocument();
 });

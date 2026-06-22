@@ -31,21 +31,21 @@ it("VisualizationGroup", async () => {
   const sectionArrow = screen.getByLabelText("Section Arrow");
   expect(sectionArrow).toHaveStyle("transform: rotate(-90deg)");
   expect(await screen.findByTestId("sectionsOpened")).toHaveTextContent(
-    JSON.stringify([])
+    JSON.stringify([]),
   );
 
   await userEvent.click(sectionTitle);
 
   expect(sectionArrow).toHaveStyle("transform: rotate(0deg)");
   expect(await screen.findByTestId("sectionsOpened")).toHaveTextContent(
-    JSON.stringify([title])
+    JSON.stringify([title]),
   );
 
   await userEvent.click(sectionTitle);
 
   expect(sectionArrow).toHaveStyle("transform: rotate(-90deg)");
   expect(await screen.findByTestId("sectionsOpened")).toHaveTextContent(
-    JSON.stringify([])
+    JSON.stringify([]),
   );
 });
 

@@ -36,11 +36,11 @@ test("app tour context", async () => {
   render(
     <AppTourContextProvider>
       <TestingComponent />
-    </AppTourContextProvider>
+    </AppTourContextProvider>,
   );
   expect(await screen.findByTestId("app-tour-step")).toHaveTextContent(0);
   expect(await screen.findByTestId("active-app-tour")).toHaveTextContent(
-    "not active"
+    "not active",
   );
 });
 
@@ -50,11 +50,11 @@ test("app tour context update", async () => {
   render(
     <AppTourContextProvider>
       <TestingComponent appTourStep={1} activeAppTour={true} />
-    </AppTourContextProvider>
+    </AppTourContextProvider>,
   );
   expect(await screen.findByTestId("app-tour-step")).toHaveTextContent(1);
   expect(await screen.findByTestId("active-app-tour")).toHaveTextContent(
-    "active"
+    "active",
   );
 });
 

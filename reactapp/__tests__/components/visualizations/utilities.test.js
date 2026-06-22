@@ -1870,9 +1870,10 @@ describe("findUnresolvedVariableInputTokens", () => {
   });
 
   test("finds tokens nested inside an array", () => {
-    expect(
-      findUnresolvedVariableInputTokens(["${A}", { b: "${B}" }]),
-    ).toEqual(["A", "B"]);
+    expect(findUnresolvedVariableInputTokens(["${A}", { b: "${B}" }])).toEqual([
+      "A",
+      "B",
+    ]);
   });
 
   test("deduplicates repeated tokens", () => {
@@ -1923,9 +1924,7 @@ describe("findUnresolvedVariableInputTokens", () => {
       layers: [
         {
           popupConfig: {
-            gridItems: [
-              { args_string: '{"start_time":"${Popup Var}"}' },
-            ],
+            gridItems: [{ args_string: '{"start_time":"${Popup Var}"}' }],
           },
         },
       ],

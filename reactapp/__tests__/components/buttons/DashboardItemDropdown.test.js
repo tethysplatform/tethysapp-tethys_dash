@@ -21,7 +21,7 @@ test("DashboardItemDropdown for editable item but already in edit mode", async (
       options: {
         initialDashboard: userDashboard,
       },
-    })
+    }),
   );
 
   const dropdownToggle = await screen.findByRole("button");
@@ -61,7 +61,7 @@ test("DashboardItemDropdown for editable item and not in edit mode", async () =>
       options: {
         initialDashboard: userDashboard,
       },
-    })
+    }),
   );
 
   const dropdownToggle = await screen.findByRole("button");

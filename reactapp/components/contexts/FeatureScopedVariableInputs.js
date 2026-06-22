@@ -21,7 +21,6 @@ function flattenFeatureAttrs(feature) {
   return result;
 }
 
-
 const FeatureScopedVariableInputs = ({ feature, children }) => {
   const {
     variableInputValues: parentValues,

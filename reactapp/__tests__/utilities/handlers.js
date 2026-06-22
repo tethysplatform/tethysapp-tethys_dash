@@ -8,7 +8,7 @@ import {
 
 const prefixUrlSegment = (process.env.TETHYS_PREFIX_URL || "").replace(
   /(^\/+|\/+?$)/g,
-  ""
+  "",
 );
 const staticBasePath = `${prefixUrlSegment ? `/${prefixUrlSegment}` : ""}/static/tethysdash/images/`;
 
@@ -28,7 +28,7 @@ const handlers = [
         rootUrl: "/apps/tethysdash/",
         settingsUrl: "/admin/tethys_apps/tethysapp/999/change/",
       }),
-      ctx.set("Content-Type", "application/json")
+      ctx.set("Content-Type", "application/json"),
     );
   }),
   rest.get(
@@ -39,9 +39,9 @@ const handlers = [
         ctx.json({
           visualizations: mockedVisualizations,
         }),
-        ctx.set("Content-Type", "application/json")
+        ctx.set("Content-Type", "application/json"),
       );
-    }
+    },
   ),
   rest.get(
     "http://api.test/apps/tethysdash/dashboards/list/",
@@ -49,9 +49,9 @@ const handlers = [
       return res(
         ctx.status(200),
         ctx.json(mockedDashboards),
-        ctx.set("Content-Type", "application/json")
+        ctx.set("Content-Type", "application/json"),
       );
-    }
+    },
   ),
   rest.get(
     "http://api.test/apps/tethysdash/json/download/",
@@ -59,9 +59,9 @@ const handlers = [
       return res(
         ctx.status(200),
         ctx.json({ data: {} }),
-        ctx.set("Content-Type", "application/json")
+        ctx.set("Content-Type", "application/json"),
       );
-    }
+    },
   ),
   rest.get("http://api.test/apps/tethysdash/ping/", (req, res, ctx) => {
     return res(
@@ -71,14 +71,14 @@ const handlers = [
         EXPIRE_AFTER: 0,
         WARN_AFTER: 0,
       }),
-      ctx.set("Content-Type", "application/json")
+      ctx.set("Content-Type", "application/json"),
     );
   }),
   rest.post("http://api.test/apps/tethysdash/json/upload/", (req, res, ctx) => {
     return res(
       ctx.status(200),
       ctx.json({ success: true, filename: "12345.json" }),
-      ctx.set("Content-Type", "application/json")
+      ctx.set("Content-Type", "application/json"),
     );
   }),
   rest.get(
@@ -87,9 +87,9 @@ const handlers = [
       return res(
         ctx.status(200),
         ctx.json({ success: true, permissions: ["manage_visualizations"] }),
-        ctx.set("Content-Type", "application/json")
+        ctx.set("Content-Type", "application/json"),
       );
-    }
+    },
   ),
   rest.get(
     "http://api.test/apps/tethysdash/visualizations/permissions/list/",
@@ -100,9 +100,9 @@ const handlers = [
           success: true,
           visualization_permissions: mockVisualizationPermissions,
         }),
-        ctx.set("Content-Type", "application/json")
+        ctx.set("Content-Type", "application/json"),
       );
-    }
+    },
   ),
   rest.get(
     "http://api.test/apps/tethysdash/dashboards/get/",
@@ -110,9 +110,9 @@ const handlers = [
       return res(
         ctx.status(200),
         ctx.json({ success: true, dashboard: userDashboard }),
-        ctx.set("Content-Type", "application/json")
+        ctx.set("Content-Type", "application/json"),
       );
-    }
+    },
   ),
   rest.get(
     "http://api.test/apps/tethysdash/visualizations/get/",
@@ -120,9 +120,9 @@ const handlers = [
       return res(
         ctx.status(200),
         ctx.json({ success: true, data: {}, viz_type: "plotly" }),
-        ctx.set("Content-Type", "application/json")
+        ctx.set("Content-Type", "application/json"),
       );
-    }
+    },
   ),
   rest.get("http://api.test/api/session/", (req, res, ctx) => {
     return res(
@@ -131,8 +131,8 @@ const handlers = [
       ctx.set("Content-Type", "application/json"),
       ctx.set(
         "Set-Cookie",
-        "sessionid=3mp52f19lnnrl1eeyb4b7xlxm9f2id8d; HttpOnly; Path=/; SameSite=Lax"
-      )
+        "sessionid=3mp52f19lnnrl1eeyb4b7xlxm9f2id8d; HttpOnly; Path=/; SameSite=Lax",
+      ),
     );
   }),
   rest.get("http://api.test/api/csrf/", (req, res, ctx) => {
@@ -140,8 +140,8 @@ const handlers = [
       ctx.status(200),
       ctx.set(
         "X-CSRFToken",
-        "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
-      )
+        "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
+      ),
     );
   }),
   rest.get("http://api.test/api/whoami/", (req, res, ctx) => {
@@ -155,7 +155,7 @@ const handlers = [
         isAuthenticated: true,
         isStaff: true,
       }),
-      ctx.set("Content-Type", "application/json")
+      ctx.set("Content-Type", "application/json"),
     );
   }),
 ];

@@ -34,7 +34,7 @@ function VisualizationSelector({
           const filteredOptions = group.options.filter((option) => {
             const labelMatch = option.label.toLowerCase().includes(lowerQuery);
             const tagMatch = option.tags.some((tag) =>
-              tag.toLowerCase().includes(lowerQuery)
+              tag.toLowerCase().includes(lowerQuery),
             );
             return labelMatch || tagMatch;
           });
@@ -48,7 +48,7 @@ function VisualizationSelector({
 
           return null;
         })
-        .filter((group) => group !== null)
+        .filter((group) => group !== null),
     );
   };
 

@@ -1166,7 +1166,11 @@ describe("buildPointStyle", () => {
     it("uses rotation=0 default when createTrapezoidIconStyle is called without rotation (line 525)", () => {
       const trapFill = new Fill({ color: "#ff0000" });
       const trapStroke = new Stroke({ color: "#0000ff", width: 1 });
-      const style = createTrapezoidIconStyle({ size: 10, fill: trapFill, stroke: trapStroke });
+      const style = createTrapezoidIconStyle({
+        size: 10,
+        fill: trapFill,
+        stroke: trapStroke,
+      });
       expect(style).toBeInstanceOf(Style);
       expect(style.getImage().getRotation()).toBe(0);
     });
@@ -1303,7 +1307,11 @@ describe("buildPointStyle", () => {
     }));
     const diamondFill = new Fill({ color: "#ff00ff" });
     const diamondStroke = new Stroke({ color: "#00ff00", width: 2 });
-    const style = createDiamondIconStyle({ size: 8, fill: diamondFill, stroke: diamondStroke });
+    const style = createDiamondIconStyle({
+      size: 8,
+      fill: diamondFill,
+      stroke: diamondStroke,
+    });
     expect(style).toBeInstanceOf(Style);
     expect(style.getImage().getRotation()).toBe(0);
     HTMLCanvasElement.prototype.getContext = originalGetContext;

@@ -224,7 +224,9 @@ function PopupModal({
         <LeadingSlot data-testid="popup-modal-header-leading">
           {leadingControls}
         </LeadingSlot>
-        <TitleSlot data-testid="popup-modal-header-title-slot">{title}</TitleSlot>
+        <TitleSlot data-testid="popup-modal-header-title-slot">
+          {title}
+        </TitleSlot>
         <CloseButton
           type="button"
           onClick={onClose}

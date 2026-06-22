@@ -59,8 +59,12 @@ describe("Text", () => {
       textValue: "See https://one.com and https://two.com",
     });
 
-    expect(screen.getByRole("link", { name: "https://one.com" })).toHaveAttribute("href", "https://one.com");
-    expect(screen.getByRole("link", { name: "https://two.com" })).toHaveAttribute("href", "https://two.com");
+    expect(
+      screen.getByRole("link", { name: "https://one.com" }),
+    ).toHaveAttribute("href", "https://one.com");
+    expect(
+      screen.getByRole("link", { name: "https://two.com" }),
+    ).toHaveAttribute("href", "https://two.com");
   });
 
   it("handles ftp URLs", () => {

@@ -89,7 +89,7 @@ describe("DashboardView", () => {
     render(
       <MemoryRouter>
         <DashboardView {...dashboardProps} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     // Verify DashboardLoader is rendered with correct props
@@ -107,7 +107,7 @@ describe("DashboardView", () => {
 
     // Verify component hierarchy
     expect(
-      screen.getByTestId("layout-alert-context-provider")
+      screen.getByTestId("layout-alert-context-provider"),
     ).toBeInTheDocument();
     expect(screen.getByTestId("dashboard-header")).toBeInTheDocument();
     expect(screen.getByTestId("dashboard-layout-alerts")).toBeInTheDocument();
@@ -118,13 +118,13 @@ describe("DashboardView", () => {
     render(
       <MemoryRouter>
         <DashboardView />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     const dashboardLoader = await screen.findByTestId("dashboard-loader");
     expect(dashboardLoader).toBeInTheDocument();
     expect(
-      screen.getByTestId("layout-alert-context-provider")
+      screen.getByTestId("layout-alert-context-provider"),
     ).toBeInTheDocument();
     expect(screen.getByTestId("dashboard-header")).toBeInTheDocument();
     expect(screen.getByTestId("dashboard-layout-alerts")).toBeInTheDocument();
@@ -139,7 +139,7 @@ describe("DashboardView", () => {
     render(
       <MemoryRouter>
         <DashboardView {...dashboardProps} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     const dashboardLoader = await screen.findByTestId("dashboard-loader");
@@ -155,7 +155,7 @@ describe("DashboardView", () => {
     render(
       <MemoryRouter>
         <DashboardView {...dashboardProps} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     const dashboardLoader = await screen.findByTestId("dashboard-loader");
@@ -171,13 +171,13 @@ describe("DashboardView", () => {
     render(
       <MemoryRouter>
         <DashboardView {...dashboardProps} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     const dashboardLoader = await screen.findByTestId("dashboard-loader");
     const loaderProps = JSON.parse(dashboardLoader.getAttribute("data-props"));
     expect(loaderProps.description).toBe(
-      "A detailed description of the dashboard"
+      "A detailed description of the dashboard",
     );
   });
 
@@ -189,7 +189,7 @@ describe("DashboardView", () => {
     render(
       <MemoryRouter>
         <DashboardView {...dashboardProps} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     const dashboardLoader = await screen.findByTestId("dashboard-loader");
@@ -205,7 +205,7 @@ describe("DashboardView", () => {
     render(
       <MemoryRouter>
         <DashboardView {...dashboardProps} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     const dashboardLoader = await screen.findByTestId("dashboard-loader");
@@ -221,7 +221,7 @@ describe("DashboardView", () => {
     render(
       <MemoryRouter>
         <DashboardView {...dashboardProps} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     const dashboardLoader = await screen.findByTestId("dashboard-loader");
@@ -237,7 +237,7 @@ describe("DashboardView", () => {
     render(
       <MemoryRouter>
         <DashboardView {...dashboardProps} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     const dashboardLoader = await screen.findByTestId("dashboard-loader");
@@ -253,7 +253,7 @@ describe("DashboardView", () => {
     render(
       <MemoryRouter>
         <DashboardView {...dashboardProps} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     const dashboardLoader = await screen.findByTestId("dashboard-loader");
@@ -275,7 +275,7 @@ describe("DashboardView", () => {
     render(
       <MemoryRouter>
         <DashboardView {...dashboardProps} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     const dashboardLoader = await screen.findByTestId("dashboard-loader");
@@ -309,7 +309,7 @@ describe("DashboardView", () => {
     render(
       <MemoryRouter>
         <DashboardView {...dashboardProps} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     const dashboardLoader = await screen.findByTestId("dashboard-loader");
@@ -350,7 +350,7 @@ describe("DashboardView", () => {
     render(
       <MemoryRouter>
         <DashboardView {...dashboardProps} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     const dashboardLoader = await screen.findByTestId("dashboard-loader");
@@ -384,7 +384,7 @@ describe("DashboardView", () => {
     render(
       <MemoryRouter>
         <DashboardView {...dashboardProps} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     const dashboardLoader = await screen.findByTestId("dashboard-loader");
@@ -398,10 +398,10 @@ describe("DashboardView", () => {
     expect(loaderProps.tabs[0].gridItems[0].h).toBe(25);
     expect(loaderProps.tabs[0].gridItems[0].source).toBe("Complex Source");
     expect(loaderProps.tabs[0].gridItems[0].args_string).toBe(
-      '{"complex": "args", "nested": {"property": "value"}}'
+      '{"complex": "args", "nested": {"property": "value"}}',
     );
     expect(loaderProps.tabs[0].gridItems[0].metadata_string).toBe(
-      '{"refreshRate": 10, "enforceAspectRatio": true}'
+      '{"refreshRate": 10, "enforceAspectRatio": true}',
     );
   });
 
@@ -446,7 +446,7 @@ describe("DashboardView", () => {
     render(
       <MemoryRouter>
         <DashboardView {...dashboardProps} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     const dashboardLoader = await screen.findByTestId("dashboard-loader");
@@ -455,10 +455,10 @@ describe("DashboardView", () => {
     expect(loaderProps.id).toBe(42);
     expect(loaderProps.name).toBe("Complex Dashboard");
     expect(loaderProps.description).toBe(
-      "This is a complex dashboard with multiple items"
+      "This is a complex dashboard with multiple items",
     );
     expect(loaderProps.notes).toBe(
-      "These are detailed notes about the dashboard functionality"
+      "These are detailed notes about the dashboard functionality",
     );
     expect(loaderProps.editable).toBe(true);
     expect(loaderProps.publicDashboard).toBe(false);
@@ -467,7 +467,7 @@ describe("DashboardView", () => {
 
     // Verify all components are rendered
     expect(
-      screen.getByTestId("layout-alert-context-provider")
+      screen.getByTestId("layout-alert-context-provider"),
     ).toBeInTheDocument();
     expect(screen.getByTestId("dashboard-header")).toBeInTheDocument();
     expect(screen.getByTestId("dashboard-layout-alerts")).toBeInTheDocument();
@@ -488,7 +488,7 @@ describe("DashboardView", () => {
     render(
       <MemoryRouter>
         <DashboardView {...dashboardProps} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     const dashboardLoader = await screen.findByTestId("dashboard-loader");
@@ -504,7 +504,7 @@ describe("DashboardView", () => {
 
     // Components should still render
     expect(
-      screen.getByTestId("layout-alert-context-provider")
+      screen.getByTestId("layout-alert-context-provider"),
     ).toBeInTheDocument();
     expect(screen.getByTestId("dashboard-header")).toBeInTheDocument();
     expect(screen.getByTestId("dashboard-layout-alerts")).toBeInTheDocument();
@@ -523,7 +523,7 @@ describe("DashboardView", () => {
     const dashboardLoader = await screen.findByTestId("dashboard-loader");
     expect(dashboardLoader).toBeInTheDocument();
     expect(
-      screen.getByTestId("layout-alert-context-provider")
+      screen.getByTestId("layout-alert-context-provider"),
     ).toBeInTheDocument();
     expect(screen.getByTestId("dashboard-header")).toBeInTheDocument();
     expect(screen.getByTestId("dashboard-layout-alerts")).toBeInTheDocument();
@@ -567,7 +567,7 @@ describe("DashboardView", () => {
     render(
       <MemoryRouter>
         <DashboardView {...validProps} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(consoleSpy).not.toHaveBeenCalled();
@@ -578,7 +578,7 @@ describe("DashboardView", () => {
     render(
       <MemoryRouter>
         <DashboardView {...userDashboard} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     const dashboardLoader = await screen.findByTestId("dashboard-loader");
@@ -592,7 +592,7 @@ describe("DashboardView", () => {
     render(
       <MemoryRouter>
         <DashboardView {...publicDashboard} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     const dashboardLoader = await screen.findByTestId("dashboard-loader");
@@ -605,7 +605,7 @@ describe("DashboardView", () => {
     render(
       <MemoryRouter>
         <DashboardView {...editorDashboard} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     const dashboardLoader = await screen.findByTestId("dashboard-loader");
@@ -618,7 +618,7 @@ describe("DashboardView", () => {
     render(
       <MemoryRouter>
         <DashboardView {...adminDashboard} />
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     const dashboardLoader = await screen.findByTestId("dashboard-loader");

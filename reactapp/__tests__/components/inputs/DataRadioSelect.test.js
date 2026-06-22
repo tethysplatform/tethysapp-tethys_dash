@@ -20,7 +20,7 @@ describe("DataRadioSelect Component", () => {
         selectedRadio=""
         radioOptions={radioOptions}
         onChange={mockOnChange}
-      />
+      />,
     );
     expect(screen.getByText("Test Label")).toBeInTheDocument();
   });
@@ -32,7 +32,7 @@ describe("DataRadioSelect Component", () => {
         selectedRadio=""
         radioOptions={radioOptions}
         onChange={mockOnChange}
-      />
+      />,
     );
     const radioButtons = screen.getAllByRole("radio");
     expect(radioButtons).toHaveLength(radioOptions.length);
@@ -45,7 +45,7 @@ describe("DataRadioSelect Component", () => {
         selectedRadio=""
         radioOptions={radioOptions}
         onChange={mockOnChange}
-      />
+      />,
     );
 
     radioOptions.forEach((option) => {
@@ -62,7 +62,7 @@ describe("DataRadioSelect Component", () => {
         selectedRadio="option2"
         radioOptions={radioOptions}
         onChange={mockOnChange}
-      />
+      />,
     );
 
     const selectedRadio = screen.getByLabelText("Option 2");
@@ -76,7 +76,7 @@ describe("DataRadioSelect Component", () => {
         selectedRadio=""
         radioOptions={radioOptions}
         onChange={mockOnChange}
-      />
+      />,
     );
 
     radioOptions.forEach((option) => {
@@ -92,7 +92,7 @@ describe("DataRadioSelect Component", () => {
         selectedRadio=""
         radioOptions={radioOptions}
         onChange={mockOnChange}
-      />
+      />,
     );
 
     const radioToSelect = screen.getByLabelText("Option 3");

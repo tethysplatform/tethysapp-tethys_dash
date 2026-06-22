@@ -166,9 +166,7 @@ export function validateGridItemBatch(items) {
       (key) => !Object.prototype.hasOwnProperty.call(item, key),
     );
     if (missingKeys.length > 0) {
-      errors.push(
-        `Item ${i + 1}: missing ${missingKeys.join(", ")}`,
-      );
+      errors.push(`Item ${i + 1}: missing ${missingKeys.join(", ")}`);
     }
   }
   return {

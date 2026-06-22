@@ -58,7 +58,7 @@ describe("utilities", () => {
       process.env.TETHYS_PREFIX_URL = "/tethys/";
       mockLocation(
         "https://localhost:8000/apps/tethysdash/",
-        "https://localhost:8000"
+        "https://localhost:8000",
       );
 
       const result = getTethysPortalHost();
@@ -108,7 +108,7 @@ describe("utilities", () => {
       const uuid = "test-uuid-123";
       const result = getPublicUrl(uuid);
       expect(result).toBe(
-        "https://example.com/apps/tethysdash/dashboard/test-uuid-123"
+        "https://example.com/apps/tethysdash/dashboard/test-uuid-123",
       );
     });
 
@@ -120,7 +120,7 @@ describe("utilities", () => {
       const uuid = "another-uuid-456";
       const result = getPublicUrl(uuid);
       expect(result).toBe(
-        "https://example.com/tethys/apps/tethysdash/dashboard/another-uuid-456"
+        "https://example.com/tethys/apps/tethysdash/dashboard/another-uuid-456",
       );
     });
 
@@ -132,7 +132,7 @@ describe("utilities", () => {
       const uuid = "test-uuid_with-special.chars";
       const result = getPublicUrl(uuid);
       expect(result).toBe(
-        "https://example.com/apps/tethysdash/dashboard/test-uuid_with-special.chars"
+        "https://example.com/apps/tethysdash/dashboard/test-uuid_with-special.chars",
       );
     });
 
@@ -142,13 +142,13 @@ describe("utilities", () => {
       process.env.TETHYS_APP_ROOT_URL = "/apps/tethysdash/";
       mockLocation(
         "https://localhost:8000/apps/tethysdash/",
-        "https://localhost:8000"
+        "https://localhost:8000",
       );
 
       const uuid = "local-test-uuid";
       const result = getPublicUrl(uuid);
       expect(result).toBe(
-        "https://localhost:8000/apps/tethysdash/dashboard/local-test-uuid"
+        "https://localhost:8000/apps/tethysdash/dashboard/local-test-uuid",
       );
     });
   });
@@ -229,7 +229,7 @@ describe("utilities", () => {
       process.env.TETHYS_APP_ROOT_URL = "/apps/tethysdash/";
       mockLocation(
         "https://myapp.com/tethys/apps/tethysdash/",
-        "https://myapp.com"
+        "https://myapp.com",
       );
 
       // Test portal host derivation
@@ -243,7 +243,7 @@ describe("utilities", () => {
       // Test public URL generation
       const publicUrl = getPublicUrl("test-123");
       expect(publicUrl).toBe(
-        "https://myapp.com/tethys/apps/tethysdash/dashboard/test-123"
+        "https://myapp.com/tethys/apps/tethysdash/dashboard/test-123",
       );
     });
 
@@ -264,7 +264,7 @@ describe("utilities", () => {
       // Test public URL generation
       const publicUrl = getPublicUrl("prod-dashboard-456");
       expect(publicUrl).toBe(
-        "https://production.example.com/apps/tethysdash/dashboard/prod-dashboard-456"
+        "https://production.example.com/apps/tethysdash/dashboard/prod-dashboard-456",
       );
     });
   });

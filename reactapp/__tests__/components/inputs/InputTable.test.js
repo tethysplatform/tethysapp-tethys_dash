@@ -39,7 +39,7 @@ it("InputTable hidden fields", async () => {
       values={values}
       hiddenFields={["field 1"]}
       disabledFields={["field 2"]}
-    />
+    />,
   );
 
   // field 1 should be a checkbox
@@ -48,7 +48,7 @@ it("InputTable hidden fields", async () => {
 
   // field 2 should be a stringified object
   expect(
-    screen.getByText(JSON.stringify({ some: "object" }))
+    screen.getByText(JSON.stringify({ some: "object" })),
   ).toBeInTheDocument();
 });
 
@@ -62,7 +62,7 @@ it("InputTable allow row creation", async () => {
       onChange={onChange}
       values={values}
       allowRowCreation={true}
-    />
+    />,
   );
 
   // check that 2 textboxes were rendered
@@ -110,7 +110,7 @@ it("InputTable allow row creation with checkbox at end", async () => {
       onChange={onChange}
       values={values}
       allowRowCreation={true}
-    />
+    />,
   );
 
   expect(screen.getAllByRole("textbox").length).toBe(1);
@@ -152,7 +152,7 @@ it("InputTable Disabled Fields", async () => {
       onChange={onChange}
       values={values}
       disabledFields={["field 1", "field 3"]}
-    />
+    />,
   );
 
   expect(screen.getByText("field 1")).toBeInTheDocument();
@@ -190,7 +190,7 @@ it("InputTable Placeholders", async () => {
       onChange={onChange}
       values={values}
       placeholders={placeholders}
-    />
+    />,
   );
 
   expect(screen.getByText("field 1")).toBeInTheDocument();

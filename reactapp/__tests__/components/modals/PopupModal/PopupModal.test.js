@@ -617,7 +617,8 @@ describe("PopupModal — header layout", () => {
         position={CENTERED}
         title={
           <span id="t">
-            A very long popup title that would overlap controls without truncation
+            A very long popup title that would overlap controls without
+            truncation
           </span>
         }
         ariaLabelledBy="t"

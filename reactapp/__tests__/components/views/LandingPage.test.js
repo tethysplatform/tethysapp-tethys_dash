@@ -36,7 +36,7 @@ describe("LandingPage", () => {
             </AppTourContextProvider>
           </AvailableDashboardsContext.Provider>
         </AppContext.Provider>
-      </ModalPriorityProvider>
+      </ModalPriorityProvider>,
     );
 
     expect(screen.getByText("Create a New Dashboard")).toBeInTheDocument();
@@ -46,7 +46,7 @@ describe("LandingPage", () => {
 
   it("Shows both public and user dashboard cards when they are available", () => {
     const customDashboards = JSON.parse(
-      JSON.stringify(mockedDashboards.dashboards)
+      JSON.stringify(mockedDashboards.dashboards),
     );
     customDashboards[1].owner = "random_owner";
 
@@ -79,7 +79,7 @@ describe("LandingPage", () => {
             </PermissionGroupContext.Provider>
           </AppContext.Provider>
         </ModalPriorityProvider>
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(screen.getByText("Create a New Dashboard")).toBeInTheDocument();
@@ -111,11 +111,11 @@ describe("LandingPage", () => {
             </AvailableDashboardsContext.Provider>
           </AppContext.Provider>
         </ModalPriorityProvider>
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(
-      screen.queryByText("Create a New Dashboard")
+      screen.queryByText("Create a New Dashboard"),
     ).not.toBeInTheDocument();
     expect(screen.queryByTitle("You are the owner")).not.toBeInTheDocument();
     expect(screen.getAllByTitle("Public dashboard")).toHaveLength(1);
@@ -145,16 +145,16 @@ describe("LandingPage", () => {
             </AvailableDashboardsContext.Provider>
           </AppContext.Provider>
         </ModalPriorityProvider>
-      </MemoryRouter>
+      </MemoryRouter>,
     );
 
     expect(
-      screen.queryByText("Create a New Dashboard")
+      screen.queryByText("Create a New Dashboard"),
     ).not.toBeInTheDocument();
     expect(screen.queryByTitle("You are the owner")).not.toBeInTheDocument();
     expect(screen.queryByTitle("Public Dashboard")).not.toBeInTheDocument();
     expect(
-      screen.getByText("There are no available public dashboards")
+      screen.getByText("There are no available public dashboards"),
     ).toBeInTheDocument();
   });
 });

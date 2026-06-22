@@ -45,7 +45,7 @@ it("FileUpload with invalid extension", async () => {
       label={label}
       onFileUpload={onFileUpload}
       extensionsAllowed={["json"]}
-    />
+    />,
   );
 
   const file = new File(["file content"], "test-file.txt", {
@@ -63,7 +63,7 @@ it("FileUpload with invalid extension", async () => {
   });
   expect(
     await screen.findByText(
-      "txt is not a valid extension. The uploaded file must be one of the following extensions: json"
-    )
+      "txt is not a valid extension. The uploaded file must be one of the following extensions: json",
+    ),
   ).toBeInTheDocument();
 });

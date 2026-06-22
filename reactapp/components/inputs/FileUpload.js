@@ -38,7 +38,7 @@ const FileUpload = ({ label, onFileUpload, extensionsAllowed }) => {
       reader.readAsText(uploadedFile);
     } else {
       setWarningMessage(
-        `${extension} is not a valid extension. The uploaded file must be one of the following extensions: ${extensionsAllowed.join(", ")}`
+        `${extension} is not a valid extension. The uploaded file must be one of the following extensions: ${extensionsAllowed.join(", ")}`,
       );
     }
   };

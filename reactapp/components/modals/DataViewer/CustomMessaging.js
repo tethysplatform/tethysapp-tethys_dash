@@ -30,10 +30,10 @@ const CustomMessaging = ({
   onChange,
 }) => {
   const [customMessaging, setCustomMessaging] = useState(
-    initialCustomMessaging ?? {}
+    initialCustomMessaging ?? {},
   );
   const [dependentVariableInputs, setDependentVariableInputs] = useState(
-    getDependentVariableInputs(vizInputsValues)
+    getDependentVariableInputs(vizInputsValues),
   );
 
   useEffect(() => {

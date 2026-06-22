@@ -26,7 +26,7 @@ test("confirm ok", async () => {
   const button = screen.getByRole("button");
   await userEvent.click(button);
   expect(
-    await screen.findByText("Are you sure you want this?")
+    await screen.findByText("Are you sure you want this?"),
   ).toBeInTheDocument();
   const cancelButton = await screen.findByText("Cancel");
   expect(cancelButton).toBeInTheDocument();

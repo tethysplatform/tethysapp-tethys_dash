@@ -65,7 +65,7 @@ test("DashboardCard editable, open and edit name", async () => {
           <DashboardCard {...userDashboard} />
         </MemoryRouter>
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText(userDashboard.name)).toBeInTheDocument();
@@ -73,7 +73,7 @@ test("DashboardCard editable, open and edit name", async () => {
   expect(screen.queryByLabelText("Public Icon")).not.toBeInTheDocument();
 
   const contextMenuButton = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(contextMenuButton);
 
@@ -111,7 +111,7 @@ test("DashboardCard editable, open and edit name", async () => {
 
   userEvent.type(titleInput, " updated{enter}");
   expect(
-    await screen.findByText(`${userDashboard.name} updated`)
+    await screen.findByText(`${userDashboard.name} updated`),
   ).toBeInTheDocument();
   expect(screen.queryByLabelText("Title Input")).not.toBeInTheDocument();
 
@@ -120,7 +120,7 @@ test("DashboardCard editable, open and edit name", async () => {
       id: userDashboard.id,
       name: `${userDashboard.name} updated`,
     },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
   );
 });
 
@@ -143,7 +143,7 @@ test("DashboardCard editable, edit name with blur", async () => {
           <DashboardCard {...userDashboard} />
         </MemoryRouter>
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText(userDashboard.name)).toBeInTheDocument();
@@ -151,7 +151,7 @@ test("DashboardCard editable, edit name with blur", async () => {
   expect(screen.queryByLabelText("Public Icon")).not.toBeInTheDocument();
 
   const contextMenuButton = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(contextMenuButton);
 
@@ -168,7 +168,7 @@ test("DashboardCard editable, edit name with blur", async () => {
   titleInput.blur();
 
   expect(
-    await screen.findByText(`${userDashboard.name} updated`)
+    await screen.findByText(`${userDashboard.name} updated`),
   ).toBeInTheDocument();
   expect(screen.queryByLabelText("Title Input")).not.toBeInTheDocument();
 
@@ -177,7 +177,7 @@ test("DashboardCard editable, edit name with blur", async () => {
       id: userDashboard.id,
       name: `${userDashboard.name} updated`,
     },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
   );
 });
 
@@ -193,7 +193,7 @@ test("DashboardCard editable, edit name but cancel", async () => {
           <DashboardCard {...userDashboard} />
         </MemoryRouter>
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText(userDashboard.name)).toBeInTheDocument();
@@ -201,7 +201,7 @@ test("DashboardCard editable, edit name but cancel", async () => {
   expect(screen.queryByLabelText("Public Icon")).not.toBeInTheDocument();
 
   const contextMenuButton = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(contextMenuButton);
 
@@ -236,7 +236,7 @@ test("DashboardCard editable, edit name and no change", async () => {
           <DashboardCard {...imageDashboard} />
         </MemoryRouter>
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText(imageDashboard.name)).toBeInTheDocument();
@@ -247,7 +247,7 @@ test("DashboardCard editable, edit name and no change", async () => {
   expect(image.src).toBe("http://localhost/some_image.png");
 
   const contextMenuButton = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(contextMenuButton);
 
@@ -280,7 +280,7 @@ test("DashboardCard not editable, open", async () => {
           <DashboardCard {...customPublicDashboard} />
         </MemoryRouter>
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText(publicDashboard.name)).toBeInTheDocument();
@@ -288,7 +288,7 @@ test("DashboardCard not editable, open", async () => {
   expect(await screen.findByLabelText("Public Icon")).toBeInTheDocument();
 
   const contextMenuButton = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(contextMenuButton);
 
@@ -305,7 +305,7 @@ test("DashboardCard not editable, open", async () => {
   // open with context menu
   await userEvent.click(openOption);
   expect(navigateMock).toHaveBeenCalledWith(
-    `/dashboard/${publicDashboard.uuid}`
+    `/dashboard/${publicDashboard.uuid}`,
   );
   navigateMock.mockClear();
   expect(navigateMock).toHaveBeenCalledTimes(0);
@@ -314,7 +314,7 @@ test("DashboardCard not editable, open", async () => {
   const card = screen.getByLabelText("Dashboard Card");
   await userEvent.dblClick(card);
   expect(navigateMock).toHaveBeenCalledWith(
-    `/dashboard/${publicDashboard.uuid}`
+    `/dashboard/${publicDashboard.uuid}`,
   );
 });
 
@@ -329,7 +329,7 @@ test("DashboardCard viewer permission, open", async () => {
           <DashboardCard {...viewerDashboard} />
         </MemoryRouter>
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText(viewerDashboard.name)).toBeInTheDocument();
@@ -337,7 +337,7 @@ test("DashboardCard viewer permission, open", async () => {
   expect(screen.queryByLabelText("Public Icon")).not.toBeInTheDocument();
 
   const contextMenuButton = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(contextMenuButton);
 
@@ -355,7 +355,7 @@ test("DashboardCard viewer permission, open", async () => {
   // open with context menu
   await userEvent.click(openOption);
   expect(navigateMock).toHaveBeenCalledWith(
-    `/dashboard/${viewerDashboard.uuid}`
+    `/dashboard/${viewerDashboard.uuid}`,
   );
   navigateMock.mockClear();
   expect(navigateMock).toHaveBeenCalledTimes(0);
@@ -364,7 +364,7 @@ test("DashboardCard viewer permission, open", async () => {
   const card = screen.getByLabelText("Dashboard Card");
   await userEvent.dblClick(card);
   expect(navigateMock).toHaveBeenCalledWith(
-    `/dashboard/${viewerDashboard.uuid}`
+    `/dashboard/${viewerDashboard.uuid}`,
   );
 });
 
@@ -381,7 +381,7 @@ test("DashboardCard editable, dont open in app tour", async () => {
         </MemoryRouter>
       ),
       options: { inAppTour: true, appTourStep: 3 },
-    })
+    }),
   );
 
   // open with double click doesnt work in app tour mode
@@ -411,15 +411,15 @@ test("DashboardCard editable, edit description", async () => {
           <DashboardCard {...userDashboard} />
         </MemoryRouter>
       ),
-    })
+    }),
   );
 
   expect(
-    await screen.findByText(userDashboard.description)
+    await screen.findByText(userDashboard.description),
   ).toBeInTheDocument();
 
   const contextMenuButton = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(contextMenuButton);
 
@@ -437,11 +437,11 @@ test("DashboardCard editable, edit description", async () => {
 
   userEvent.type(descriptionInput, " updated{enter}");
   expect(
-    await screen.findByText(`${userDashboard.description} updated`)
+    await screen.findByText(`${userDashboard.description} updated`),
   ).toBeInTheDocument();
   await waitFor(() => {
     expect(
-      screen.queryByLabelText("Description Input")
+      screen.queryByLabelText("Description Input"),
     ).not.toBeInTheDocument();
   });
 
@@ -450,7 +450,7 @@ test("DashboardCard editable, edit description", async () => {
       id: userDashboard.id,
       description: `${userDashboard.description} updated`,
     },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
   );
 });
 
@@ -476,15 +476,15 @@ test("DashboardCard editable, edit description with blur", async () => {
           <DashboardCard {...userDashboard} />
         </MemoryRouter>
       ),
-    })
+    }),
   );
 
   expect(
-    await screen.findByText(userDashboard.description)
+    await screen.findByText(userDashboard.description),
   ).toBeInTheDocument();
 
   const contextMenuButton = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(contextMenuButton);
 
@@ -501,11 +501,11 @@ test("DashboardCard editable, edit description with blur", async () => {
   descriptionInput.blur();
 
   expect(
-    await screen.findByText(`${userDashboard.description} updated`)
+    await screen.findByText(`${userDashboard.description} updated`),
   ).toBeInTheDocument();
   await waitFor(() => {
     expect(
-      screen.queryByLabelText("Description Input")
+      screen.queryByLabelText("Description Input"),
     ).not.toBeInTheDocument();
   });
 
@@ -514,7 +514,7 @@ test("DashboardCard editable, edit description with blur", async () => {
       id: userDashboard.id,
       description: `${userDashboard.description} updated`,
     },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
   );
 });
 
@@ -539,15 +539,15 @@ test("DashboardCard editable, edit description new line", async () => {
           <DashboardCard {...userDashboard} />
         </MemoryRouter>
       ),
-    })
+    }),
   );
 
   expect(
-    await screen.findByText(userDashboard.description)
+    await screen.findByText(userDashboard.description),
   ).toBeInTheDocument();
 
   const contextMenuButton = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(contextMenuButton);
 
@@ -565,15 +565,15 @@ test("DashboardCard editable, edit description new line", async () => {
 
   userEvent.type(
     descriptionInput,
-    " updated{Shift>}{enter}{/Shift}Another Line{enter}"
+    " updated{Shift>}{enter}{/Shift}Another Line{enter}",
   );
 
   expect(
-    await screen.findByText(`${userDashboard.description} updated`)
+    await screen.findByText(`${userDashboard.description} updated`),
   ).toBeInTheDocument();
   await waitFor(() => {
     expect(
-      screen.queryByLabelText("Description Input")
+      screen.queryByLabelText("Description Input"),
     ).not.toBeInTheDocument();
   });
 
@@ -582,7 +582,7 @@ test("DashboardCard editable, edit description new line", async () => {
       id: userDashboard.id,
       description: `${userDashboard.description} updated\nAnother Line`,
     },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
   );
 });
 
@@ -598,15 +598,15 @@ test("DashboardCard editable, edit description but cancel", async () => {
           <DashboardCard {...userDashboard} />
         </MemoryRouter>
       ),
-    })
+    }),
   );
 
   expect(
-    await screen.findByText(userDashboard.description)
+    await screen.findByText(userDashboard.description),
   ).toBeInTheDocument();
 
   const contextMenuButton = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(contextMenuButton);
 
@@ -621,12 +621,12 @@ test("DashboardCard editable, edit description but cancel", async () => {
   userEvent.type(descriptionInput, " updated{Escape}");
   await waitFor(() => {
     expect(
-      screen.queryByLabelText("Description Input")
+      screen.queryByLabelText("Description Input"),
     ).not.toBeInTheDocument();
   });
 
   expect(
-    await screen.findByText(userDashboard.description)
+    await screen.findByText(userDashboard.description),
   ).toBeInTheDocument();
 
   expect(mockUpdateDashboard).toHaveBeenCalledTimes(0);
@@ -647,15 +647,15 @@ test("DashboardCard editable, edit description fail", async () => {
           <DashboardCard {...userDashboard} />
         </MemoryRouter>
       ),
-    })
+    }),
   );
 
   expect(
-    await screen.findByText(userDashboard.description)
+    await screen.findByText(userDashboard.description),
   ).toBeInTheDocument();
 
   const contextMenuButton = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(contextMenuButton);
 
@@ -670,7 +670,7 @@ test("DashboardCard editable, edit description fail", async () => {
 
   userEvent.type(descriptionInput, " updated{enter}");
   expect(
-    await screen.findByText(`${userDashboard.description} updated`)
+    await screen.findByText(`${userDashboard.description} updated`),
   ).toBeInTheDocument();
   expect(descriptionInput).toBeInTheDocument();
 
@@ -680,19 +680,19 @@ test("DashboardCard editable, edit description fail", async () => {
         id: userDashboard.id,
         description: `${userDashboard.description} updated`,
       },
-      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
     );
   });
 
   expect(
-    await screen.findByText("Failed to update dashboard")
+    await screen.findByText("Failed to update dashboard"),
   ).toBeInTheDocument();
 
   const closeAlert = screen.getByLabelText("Close alert");
   fireEvent.click(closeAlert);
 
   expect(
-    screen.queryByText("Failed to update dashboard")
+    screen.queryByText("Failed to update dashboard"),
   ).not.toBeInTheDocument();
 });
 
@@ -712,15 +712,15 @@ test("DashboardCard editable, edit description fail with message", async () => {
           <DashboardCard {...userDashboard} />
         </MemoryRouter>
       ),
-    })
+    }),
   );
 
   expect(
-    await screen.findByText(userDashboard.description)
+    await screen.findByText(userDashboard.description),
   ).toBeInTheDocument();
 
   const contextMenuButton = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(contextMenuButton);
 
@@ -735,7 +735,7 @@ test("DashboardCard editable, edit description fail with message", async () => {
 
   userEvent.type(descriptionInput, " updated{enter}");
   expect(
-    await screen.findByText(`${userDashboard.description} updated`)
+    await screen.findByText(`${userDashboard.description} updated`),
   ).toBeInTheDocument();
   expect(descriptionInput).toBeInTheDocument();
 
@@ -745,7 +745,7 @@ test("DashboardCard editable, edit description fail with message", async () => {
         id: userDashboard.id,
         description: `${userDashboard.description} updated`,
       },
-      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
     );
   });
 
@@ -783,11 +783,11 @@ test("DashboardCard editable, edit thumbnail and cancel", async () => {
           <DashboardCard {...userDashboard} />
         </MemoryRouter>
       ),
-    })
+    }),
   );
 
   const contextMenuButton = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(contextMenuButton);
 
@@ -796,10 +796,10 @@ test("DashboardCard editable, edit thumbnail and cancel", async () => {
 
   await userEvent.click(updateThumbnailOption);
   expect(
-    await screen.findByText("Update Dashboard Thumbnail")
+    await screen.findByText("Update Dashboard Thumbnail"),
   ).toBeInTheDocument();
   const updateThumbnailButton = screen.getByLabelText(
-    "Update Thumbnail Button"
+    "Update Thumbnail Button",
   );
   await userEvent.click(updateThumbnailButton);
 
@@ -837,11 +837,11 @@ test("DashboardCard editable, edit thumbnail", async () => {
           <DashboardCard {...userDashboard} />
         </MemoryRouter>
       ),
-    })
+    }),
   );
 
   const contextMenuButton = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(contextMenuButton);
 
@@ -850,10 +850,10 @@ test("DashboardCard editable, edit thumbnail", async () => {
 
   await userEvent.click(updateThumbnailOption);
   expect(
-    await screen.findByText("Update Dashboard Thumbnail")
+    await screen.findByText("Update Dashboard Thumbnail"),
   ).toBeInTheDocument();
   const updateThumbnailButton = screen.getByLabelText(
-    "Update Thumbnail Button"
+    "Update Thumbnail Button",
   );
 
   const file = new File(["dummy content"], "test-image.png", {
@@ -873,7 +873,7 @@ test("DashboardCard editable, edit thumbnail", async () => {
         id: userDashboard.id,
         image: "data:image/png;base64,testImage",
       },
-      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
     );
   });
 });
@@ -901,11 +901,11 @@ test("DashboardCard editable, edit thumbnail fail", async () => {
           <DashboardCard {...userDashboard} />
         </MemoryRouter>
       ),
-    })
+    }),
   );
 
   const contextMenuButton = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(contextMenuButton);
 
@@ -914,10 +914,10 @@ test("DashboardCard editable, edit thumbnail fail", async () => {
 
   await userEvent.click(updateThumbnailOption);
   expect(
-    await screen.findByText("Update Dashboard Thumbnail")
+    await screen.findByText("Update Dashboard Thumbnail"),
   ).toBeInTheDocument();
   const updateThumbnailButton = screen.getByLabelText(
-    "Update Thumbnail Button"
+    "Update Thumbnail Button",
   );
 
   const file = new File(["dummy content"], "test-image.png", {
@@ -937,12 +937,12 @@ test("DashboardCard editable, edit thumbnail fail", async () => {
         id: userDashboard.id,
         image: "data:image/png;base64,testImage",
       },
-      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
     );
   });
 
   expect(
-    await screen.findByText("Failed to update dashboard")
+    await screen.findByText("Failed to update dashboard"),
   ).toBeInTheDocument();
 });
 
@@ -964,11 +964,11 @@ test("DashboardCard editable, copy", async () => {
           <DashboardCard {...userDashboard} />
         </MemoryRouter>
       ),
-    })
+    }),
   );
 
   const contextMenuButton = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(contextMenuButton);
 
@@ -983,7 +983,7 @@ test("DashboardCard editable, copy", async () => {
         id: userDashboard.id,
         newName: `${userDashboard.name} - Copy`,
       },
-      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
     );
   });
 });
@@ -1002,11 +1002,11 @@ test("DashboardCard editable, copy fail", async () => {
           <DashboardCard {...userDashboard} />
         </MemoryRouter>
       ),
-    })
+    }),
   );
 
   const contextMenuButton = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(contextMenuButton);
 
@@ -1021,12 +1021,12 @@ test("DashboardCard editable, copy fail", async () => {
         id: userDashboard.id,
         newName: `${userDashboard.name} - Copy`,
       },
-      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
     );
   });
 
   expect(
-    await screen.findByText("Failed to copy dashboard")
+    await screen.findByText("Failed to copy dashboard"),
   ).toBeInTheDocument();
 });
 
@@ -1036,10 +1036,10 @@ test("DashboardCard editable, export", async () => {
     .mockImplementation(jest.fn());
   const downloadedDashboard = JSON.parse(JSON.stringify(userDashboard));
   downloadedDashboard.tabs[0].gridItems[0].args_string = JSON.parse(
-    userDashboard.tabs[0].gridItems[0].args_string
+    userDashboard.tabs[0].gridItems[0].args_string,
   );
   downloadedDashboard.tabs[0].gridItems[0].metadata_string = JSON.parse(
-    userDashboard.tabs[0].gridItems[0].metadata_string
+    userDashboard.tabs[0].gridItems[0].metadata_string,
   );
   delete downloadedDashboard.id;
   delete downloadedDashboard.uuid;
@@ -1053,11 +1053,11 @@ test("DashboardCard editable, export", async () => {
           <DashboardCard {...userDashboard} />
         </MemoryRouter>
       ),
-    })
+    }),
   );
 
   const contextMenuButton = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(contextMenuButton);
 
@@ -1068,7 +1068,7 @@ test("DashboardCard editable, export", async () => {
 
   expect(spyDownloadJSONFile).toHaveBeenCalledWith(
     downloadedDashboard,
-    `${userDashboard.name}.json`
+    `${userDashboard.name}.json`,
   );
 });
 
@@ -1091,11 +1091,11 @@ test("DashboardCard editable, export fail to get dashboard", async () => {
           <DashboardCard {...userDashboard} />
         </MemoryRouter>
       ),
-    })
+    }),
   );
 
   const contextMenuButton = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(contextMenuButton);
 
@@ -1105,7 +1105,7 @@ test("DashboardCard editable, export fail to get dashboard", async () => {
   await userEvent.click(exportOption);
 
   expect(
-    await screen.findByText("Failed to get dashboard")
+    await screen.findByText("Failed to get dashboard"),
   ).toBeInTheDocument();
 });
 
@@ -1117,10 +1117,10 @@ test("DashboardCard editable, export fail", async () => {
     });
   const downloadedDashboard = JSON.parse(JSON.stringify(userDashboard));
   downloadedDashboard.tabs[0].gridItems[0].args_string = JSON.parse(
-    userDashboard.tabs[0].gridItems[0].args_string
+    userDashboard.tabs[0].gridItems[0].args_string,
   );
   downloadedDashboard.tabs[0].gridItems[0].metadata_string = JSON.parse(
-    userDashboard.tabs[0].gridItems[0].metadata_string
+    userDashboard.tabs[0].gridItems[0].metadata_string,
   );
   delete downloadedDashboard.id;
   delete downloadedDashboard.uuid;
@@ -1134,11 +1134,11 @@ test("DashboardCard editable, export fail", async () => {
           <DashboardCard {...userDashboard} />
         </MemoryRouter>
       ),
-    })
+    }),
   );
 
   const contextMenuButton = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(contextMenuButton);
 
@@ -1149,11 +1149,11 @@ test("DashboardCard editable, export fail", async () => {
 
   expect(spyDownloadJSONFile).toHaveBeenCalledWith(
     downloadedDashboard,
-    `${userDashboard.name}.json`
+    `${userDashboard.name}.json`,
   );
 
   expect(
-    await screen.findByText("Failed to export dashboard")
+    await screen.findByText("Failed to export dashboard"),
   ).toBeInTheDocument();
 });
 
@@ -1176,13 +1176,13 @@ test("DashboardCard editable, share", async () => {
           <DashboardCard {...userDashboard} />
         </MemoryRouter>
       ),
-    })
+    }),
   );
   expect(await screen.findByLabelText("Owner Icon")).toBeInTheDocument();
   expect(screen.queryByLabelText("Public Icon")).not.toBeInTheDocument();
 
   const contextMenuButton = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(contextMenuButton);
 
@@ -1200,7 +1200,7 @@ test("DashboardCard editable, share", async () => {
         id: userDashboard.id,
         public: true,
       },
-      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
     );
   });
   expect(await screen.findByLabelText("Owner Icon")).toBeInTheDocument();
@@ -1228,13 +1228,13 @@ test("DashboardCard editable, share and update permissions", async () => {
           <DashboardCard {...userDashboard} />
         </MemoryRouter>
       ),
-    })
+    }),
   );
   expect(await screen.findByLabelText("Owner Icon")).toBeInTheDocument();
   expect(screen.queryByLabelText("Public Icon")).not.toBeInTheDocument();
 
   const contextMenuButton = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(contextMenuButton);
 
@@ -1275,7 +1275,7 @@ test("DashboardCard editable, share and update permissions", async () => {
         ],
         public: true,
       },
-      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
     );
   });
   expect(await screen.findByLabelText("Owner Icon")).toBeInTheDocument();
@@ -1308,13 +1308,13 @@ test("DashboardCard editable, make private", async () => {
           <DashboardCard {...updatedDashboard} />
         </MemoryRouter>
       ),
-    })
+    }),
   );
   expect(await screen.findByLabelText("Owner Icon")).toBeInTheDocument();
   expect(await screen.findByLabelText("Public Icon")).toBeInTheDocument();
 
   const contextMenuButton = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(contextMenuButton);
 
@@ -1332,7 +1332,7 @@ test("DashboardCard editable, make private", async () => {
         id: publicDashboard.id,
         public: false,
       },
-      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
     );
   });
   expect(await screen.findByLabelText("Owner Icon")).toBeInTheDocument();
@@ -1356,13 +1356,13 @@ test("DashboardCard editable, share fail", async () => {
           <DashboardCard {...userDashboard} />
         </MemoryRouter>
       ),
-    })
+    }),
   );
   expect(await screen.findByLabelText("Owner Icon")).toBeInTheDocument();
   expect(screen.queryByLabelText("Public Icon")).not.toBeInTheDocument();
 
   const contextMenuButton = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(contextMenuButton);
 
@@ -1380,14 +1380,14 @@ test("DashboardCard editable, share fail", async () => {
         id: userDashboard.id,
         public: true,
       },
-      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
     );
   });
   expect(await screen.findByLabelText("Owner Icon")).toBeInTheDocument();
   expect(screen.queryByLabelText("Public Icon")).not.toBeInTheDocument();
 
   expect(
-    await screen.findByText("Failed to share dashboard")
+    await screen.findByText("Failed to share dashboard"),
   ).toBeInTheDocument();
 });
 
@@ -1407,13 +1407,13 @@ test("DashboardCard editable, share fail with message", async () => {
           <DashboardCard {...userDashboard} />
         </MemoryRouter>
       ),
-    })
+    }),
   );
   expect(await screen.findByLabelText("Owner Icon")).toBeInTheDocument();
   expect(screen.queryByLabelText("Public Icon")).not.toBeInTheDocument();
 
   const contextMenuButton = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(contextMenuButton);
 
@@ -1431,7 +1431,7 @@ test("DashboardCard editable, share fail with message", async () => {
         id: userDashboard.id,
         public: true,
       },
-      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
     );
   });
   expect(await screen.findByLabelText("Owner Icon")).toBeInTheDocument();
@@ -1451,10 +1451,10 @@ test("DashboardCard editable, copy public link fail", async () => {
           <DashboardCard {...updatedDashboard} />
         </MemoryRouter>
       ),
-    })
+    }),
   );
   const contextMenuButton = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(contextMenuButton);
 
@@ -1467,7 +1467,7 @@ test("DashboardCard editable, copy public link fail", async () => {
   await userEvent.click(copyPublicURLOption);
 
   expect(
-    await screen.findByText("Failed to copy public link")
+    await screen.findByText("Failed to copy public link"),
   ).toBeInTheDocument();
 });
 
@@ -1486,10 +1486,10 @@ test("DashboardCard copy public link", async () => {
           <DashboardCard {...publicDashboard} />
         </MemoryRouter>
       ),
-    })
+    }),
   );
   const contextMenuButton = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(contextMenuButton);
 
@@ -1502,14 +1502,14 @@ test("DashboardCard copy public link", async () => {
   await userEvent.click(copyPublicURLOption);
 
   expect(mockWriteText).toHaveBeenCalledWith(
-    "http://api.test/apps/tethysdash/dashboard/public-uuid"
+    "http://api.test/apps/tethysdash/dashboard/public-uuid",
   );
 });
 
 test("DashboardCard editable, delete and confirm", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
   const mockedDashboard = JSON.parse(
-    JSON.stringify(updatedMockedDashboards.dashboards[0])
+    JSON.stringify(updatedMockedDashboards.dashboards[0]),
   );
 
   const mockDeleteDashboard = jest.fn();
@@ -1533,10 +1533,10 @@ test("DashboardCard editable, delete and confirm", async () => {
         dashboards: updatedMockedDashboards,
         initialDashboard: mockedDashboard,
       },
-    })
+    }),
   );
   const contextMenuButton = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(contextMenuButton);
 
@@ -1549,15 +1549,13 @@ test("DashboardCard editable, delete and confirm", async () => {
       {
         id: mockedDashboard.id,
       },
-      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
     );
   });
 
-  const dashboards = await screen.findByTestId("availableDashboards")
+  const dashboards = await screen.findByTestId("availableDashboards");
   await waitFor(() => {
-    expect(dashboards).toHaveTextContent(
-      JSON.stringify([publicDashboard])
-    );
+    expect(dashboards).toHaveTextContent(JSON.stringify([publicDashboard]));
   });
 });
 
@@ -1573,10 +1571,10 @@ test("DashboardCard editable, delete and not confirm", async () => {
           <DashboardCard {...userDashboard} />
         </MemoryRouter>
       ),
-    })
+    }),
   );
   const contextMenuButton = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(contextMenuButton);
 
@@ -1599,10 +1597,10 @@ test("DashboardCard editable, delete and fail", async () => {
           <DashboardCard {...userDashboard} />
         </MemoryRouter>
       ),
-    })
+    }),
   );
   const contextMenuButton = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(contextMenuButton);
 
@@ -1615,12 +1613,12 @@ test("DashboardCard editable, delete and fail", async () => {
       {
         id: userDashboard.id,
       },
-      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
     );
   });
 
   expect(
-    await screen.findByText("Failed to delete dashboard")
+    await screen.findByText("Failed to delete dashboard"),
   ).toBeInTheDocument();
 });
 
@@ -1632,7 +1630,7 @@ test("NewDashboardCard", async () => {
           <NewDashboardCard />
         </MemoryRouter>
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("Create a New Dashboard")).toBeInTheDocument();

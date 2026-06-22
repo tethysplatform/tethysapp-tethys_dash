@@ -22,7 +22,7 @@ test("Permissions Modal", async () => {
           owner={userDashboard.owner}
         />
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("Manage Permissions")).toBeInTheDocument();
@@ -47,8 +47,8 @@ test("Permissions Modal", async () => {
   expect(screen.getByLabelText("Copy Clipboard Button")).toBeInTheDocument();
   expect(
     screen.getByText(
-      `http://api.test/apps/tethysdash/dashboard/${userDashboard.uuid}`
-    )
+      `http://api.test/apps/tethysdash/dashboard/${userDashboard.uuid}`,
+    ),
   ).toBeInTheDocument();
 
   const closeModalButton = screen.getByLabelText("Close Modal Button");
@@ -89,7 +89,7 @@ test("Permissions Modal add user and update", async () => {
           owner={userDashboard.owner}
         />
       ),
-    })
+    }),
   );
 
   let rows = await screen.findAllByRole("row");
@@ -111,7 +111,7 @@ test("Permissions Modal add user and update", async () => {
   expect(rows.length).toBe(3);
   expect(rows[2].cells[0]).toHaveTextContent("newuser");
   const permissionLevelDropdown = screen.getByLabelText(
-    "Permission level for newuser user"
+    "Permission level for newuser user",
   );
   expect(permissionLevelDropdown.value).toBe("viewer");
 
@@ -127,18 +127,18 @@ test("Permissions Modal add user and update", async () => {
       permissions: newPermissions,
       public: userDashboard.publicDashboard,
     },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
   );
 
   expect(
-    await screen.findByText("Successfully updated dashboard settings")
+    await screen.findByText("Successfully updated dashboard settings"),
   ).toBeInTheDocument();
 
   const closeAlert = await screen.findByLabelText("Close alert");
   fireEvent.click(closeAlert);
 
   expect(
-    screen.queryByText("Successfully updated dashboard settings")
+    screen.queryByText("Successfully updated dashboard settings"),
   ).not.toBeInTheDocument();
 });
 
@@ -172,7 +172,7 @@ test("Permissions Modal add group and update", async () => {
           owner={userDashboard.owner}
         />
       ),
-    })
+    }),
   );
 
   let rows = await screen.findAllByRole("row");
@@ -194,7 +194,7 @@ test("Permissions Modal add group and update", async () => {
   expect(rows.length).toBe(3);
   expect(rows[2].cells[0]).toHaveTextContent("newgroup");
   const permissionLevelDropdown = screen.getByLabelText(
-    "Permission level for newgroup group"
+    "Permission level for newgroup group",
   );
   expect(permissionLevelDropdown.value).toBe("viewer");
 
@@ -210,18 +210,18 @@ test("Permissions Modal add group and update", async () => {
       permissions: newPermissions,
       public: userDashboard.publicDashboard,
     },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
   );
 
   expect(
-    await screen.findByText("Successfully updated dashboard settings")
+    await screen.findByText("Successfully updated dashboard settings"),
   ).toBeInTheDocument();
 
   const closeAlert = await screen.findByLabelText("Close alert");
   fireEvent.click(closeAlert);
 
   expect(
-    screen.queryByText("Successfully updated dashboard settings")
+    screen.queryByText("Successfully updated dashboard settings"),
   ).not.toBeInTheDocument();
 });
 
@@ -240,7 +240,7 @@ test("Permissions Modal add user but empty", async () => {
           owner={userDashboard.owner}
         />
       ),
-    })
+    }),
   );
 
   let rows = await screen.findAllByRole("row");
@@ -259,7 +259,7 @@ test("Permissions Modal add user but empty", async () => {
   await userEvent.click(userItem);
 
   expect(
-    await screen.findByText("Username cannot be empty.")
+    await screen.findByText("Username cannot be empty."),
   ).toBeInTheDocument();
 });
 
@@ -282,7 +282,7 @@ test("Permissions Modal, add user but already exists", async () => {
         initialDashboard: adminDashboard,
         user: { username: "admin" },
       },
-    })
+    }),
   );
 
   let rows = await screen.findAllByRole("row");
@@ -296,7 +296,7 @@ test("Permissions Modal, add user but already exists", async () => {
   expect(rows[2].cells[2]).toHaveTextContent("Admin");
 
   expect(
-    screen.getByLabelText("Permission level for jsmith user")
+    screen.getByLabelText("Permission level for jsmith user"),
   ).toBeInTheDocument();
 
   const usernameInput = screen.getByLabelText("Username Input");
@@ -309,14 +309,14 @@ test("Permissions Modal, add user but already exists", async () => {
   await userEvent.click(userItem[0]);
 
   expect(
-    await screen.findByText("This user is already in the list.")
+    await screen.findByText("This user is already in the list."),
   ).toBeInTheDocument();
 
   const closeAlert = await screen.findByLabelText("Close alert");
   fireEvent.click(closeAlert);
 
   expect(
-    screen.queryByText("This user is already in the list.")
+    screen.queryByText("This user is already in the list."),
   ).not.toBeInTheDocument();
 });
 
@@ -351,7 +351,7 @@ test("Permissions Modal, delete user", async () => {
         initialDashboard: adminDashboard,
         user: { username: "admin" },
       },
-    })
+    }),
   );
 
   let rows = await screen.findAllByRole("row");
@@ -365,7 +365,7 @@ test("Permissions Modal, delete user", async () => {
   expect(rows[2].cells[2]).toHaveTextContent("Admin");
 
   const deleteButton = screen.getByLabelText(
-    "Delete permission for jsmith user"
+    "Delete permission for jsmith user",
   );
   await userEvent.click(deleteButton);
 
@@ -381,7 +381,7 @@ test("Permissions Modal, delete user", async () => {
       permissions: newPermissions,
       public: adminDashboard.publicDashboard,
     },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
   );
 });
 
@@ -404,7 +404,7 @@ test("Permissions Modal, admin permission, not owner", async () => {
         initialDashboard: adminDashboard,
         user: { username: "jsmith" },
       },
-    })
+    }),
   );
 
   let rows = await screen.findAllByRole("row");
@@ -436,7 +436,7 @@ test("Permissions Modal, change public status", async () => {
           owner={userDashboard.owner}
         />
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("Public")).toBeInTheDocument();
@@ -457,8 +457,8 @@ test("Permissions Modal, change public status", async () => {
   expect(await screen.findByText("URL")).toBeInTheDocument();
   expect(
     await screen.findByText(
-      `http://api.test/apps/tethysdash/dashboard/${userDashboard.uuid}`
-    )
+      `http://api.test/apps/tethysdash/dashboard/${userDashboard.uuid}`,
+    ),
   ).toBeInTheDocument();
 });
 
@@ -484,7 +484,7 @@ test("Permissions Modal fail save, default message", async () => {
           owner={userDashboard.owner}
         />
       ),
-    })
+    }),
   );
 
   const saveButton = await screen.findByLabelText("Save Permissions Button");
@@ -492,8 +492,8 @@ test("Permissions Modal fail save, default message", async () => {
 
   expect(
     await screen.findByText(
-      "Failed to update dashboard settings. Check server logs."
-    )
+      "Failed to update dashboard settings. Check server logs.",
+    ),
   ).toBeInTheDocument();
   expect(mockUpdateDashboard).toHaveBeenCalledTimes(1);
 });
@@ -521,7 +521,7 @@ test("Permissions Modal fail save, custom message", async () => {
           owner={userDashboard.owner}
         />
       ),
-    })
+    }),
   );
 
   const saveButton = await screen.findByLabelText("Save Permissions Button");
@@ -546,11 +546,11 @@ test("Permissions Modal URL copy fail", async () => {
           owner={userDashboard.owner}
         />
       ),
-    })
+    }),
   );
 
   const copyClipboardButton = await screen.findByLabelText(
-    "Copy Clipboard Button"
+    "Copy Clipboard Button",
   );
   await userEvent.hover(copyClipboardButton);
 
@@ -561,7 +561,7 @@ test("Permissions Modal URL copy fail", async () => {
   fireEvent.click(copyClipboardButton);
   await userEvent.hover(copyClipboardButton);
   expect(await screen.findByRole("tooltip")).toHaveTextContent(
-    "Failed to Copy"
+    "Failed to Copy",
   );
 });
 
@@ -587,11 +587,11 @@ test("Permissions Modal URL copy", async () => {
           owner={userDashboard.owner}
         />
       ),
-    })
+    }),
   );
 
   const copyClipboardButton = await screen.findByLabelText(
-    "Copy Clipboard Button"
+    "Copy Clipboard Button",
   );
   await userEvent.hover(copyClipboardButton);
 
@@ -601,7 +601,7 @@ test("Permissions Modal URL copy", async () => {
   expect(copyClipboardButton).toBeInTheDocument();
   fireEvent.click(copyClipboardButton);
   expect(mockWriteText).toHaveBeenCalledWith(
-    `http://api.test/apps/tethysdash/dashboard/${userDashboard.uuid}`
+    `http://api.test/apps/tethysdash/dashboard/${userDashboard.uuid}`,
   );
   await userEvent.hover(copyClipboardButton);
   expect(screen.getByRole("tooltip")).toHaveTextContent("Copied");
@@ -633,7 +633,7 @@ test("Permissions Modal group member access", async () => {
       options: {
         dashboards: { dashboards: [mockedDashboard] },
       },
-    })
+    }),
   );
 
   expect(await screen.findByText("Manage Permissions")).toBeInTheDocument();

@@ -42,9 +42,9 @@ describe("substituteTemplateString", () => {
     expect(substituteTemplateString("Site: ${feature.unknown}", {})).toBe(
       "Site: ",
     );
-    expect(
-      substituteTemplateString("a${feature.x}b", { other: "y" }),
-    ).toBe("ab");
+    expect(substituteTemplateString("a${feature.x}b", { other: "y" })).toBe(
+      "ab",
+    );
   });
 
   test("null/undefined attribute value resolves to empty string", () => {
@@ -82,8 +82,8 @@ describe("substituteTemplateString", () => {
     // The variable-input pipeline owns generic ${name} substitution
     // elsewhere; this helper is scoped to the feature.* namespace and must
     // leave other tokens alone.
-    expect(
-      substituteTemplateString("${other} ${feature.x}", { x: "Y" }),
-    ).toBe("${other} Y");
+    expect(substituteTemplateString("${other} ${feature.x}", { x: "Y" })).toBe(
+      "${other} Y",
+    );
   });
 });

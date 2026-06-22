@@ -57,7 +57,7 @@ describe("WebsocketProvider", () => {
     render(
       <WebsocketProvider>
         <Child />
-      </WebsocketProvider>
+      </WebsocketProvider>,
     );
 
     act(() => {
@@ -72,7 +72,7 @@ describe("WebsocketProvider", () => {
     render(
       <WebsocketProvider>
         <Child />
-      </WebsocketProvider>
+      </WebsocketProvider>,
     );
     expect(screen.queryByText("child")).toBeNull();
   });
@@ -84,7 +84,7 @@ describe("WebsocketProvider", () => {
     render(
       <WebsocketProvider>
         <Child />
-      </WebsocketProvider>
+      </WebsocketProvider>,
     );
 
     act(() => {
@@ -106,7 +106,7 @@ describe("WebsocketProvider", () => {
     render(
       <WebsocketProvider>
         <TestConsumer />
-      </WebsocketProvider>
+      </WebsocketProvider>,
     );
 
     act(() => {
@@ -139,7 +139,7 @@ describe("WebsocketProvider", () => {
     render(
       <WebsocketProvider>
         <TestConsumer />
-      </WebsocketProvider>
+      </WebsocketProvider>,
     );
 
     act(() => {
@@ -166,7 +166,7 @@ describe("WebsocketProvider", () => {
     render(
       <WebsocketProvider>
         <TestConsumer />
-      </WebsocketProvider>
+      </WebsocketProvider>,
     );
 
     act(() => {
@@ -193,7 +193,7 @@ describe("WebsocketProvider", () => {
     render(
       <WebsocketProvider>
         <TestConsumer />
-      </WebsocketProvider>
+      </WebsocketProvider>,
     );
 
     act(() => {
@@ -214,7 +214,7 @@ describe("WebsocketProvider", () => {
 
     // getMessageForRequest for requestId that doesn't exist
     expect(
-      contextValue.getErrorMessageForRequest("nonexistent")
+      contextValue.getErrorMessageForRequest("nonexistent"),
     ).toBeUndefined();
   });
 
@@ -232,7 +232,7 @@ describe("WebsocketProvider", () => {
     render(
       <WebsocketProvider>
         <TestConsumer />
-      </WebsocketProvider>
+      </WebsocketProvider>,
     );
 
     act(() => {
@@ -267,19 +267,19 @@ describe("WebsocketProvider", () => {
     });
 
     await waitFor(() => {
-      expect(
-        contextValue.getMessageForRequest("nonce-1:grid-x:layer-a")
-      ).toBe(layerA);
+      expect(contextValue.getMessageForRequest("nonce-1:grid-x:layer-a")).toBe(
+        layerA,
+      );
     });
-    expect(
-      contextValue.getMessageForRequest("nonce-1:grid-x:layer-b")
-    ).toBe(layerB);
-    expect(
-      contextValue.getMessageForRequest("nonce-2:grid-x:layer-a")
-    ).toBe(otherTab);
+    expect(contextValue.getMessageForRequest("nonce-1:grid-x:layer-b")).toBe(
+      layerB,
+    );
+    expect(contextValue.getMessageForRequest("nonce-2:grid-x:layer-a")).toBe(
+      otherTab,
+    );
     // Partial matches must not leak between layers or tabs
     expect(
-      contextValue.getMessageForRequest("nonce-1:grid-x:layer-c")
+      contextValue.getMessageForRequest("nonce-1:grid-x:layer-c"),
     ).toBeUndefined();
   });
 
@@ -293,7 +293,7 @@ describe("WebsocketProvider", () => {
     render(
       <WebsocketProvider>
         <TestConsumer />
-      </WebsocketProvider>
+      </WebsocketProvider>,
     );
 
     act(() => {
@@ -315,7 +315,7 @@ describe("WebsocketProvider", () => {
     render(
       <WebsocketProvider>
         <TestConsumer />
-      </WebsocketProvider>
+      </WebsocketProvider>,
     );
 
     act(() => {
@@ -355,7 +355,7 @@ describe("WebsocketProvider", () => {
     render(
       <WebsocketProvider>
         <TestConsumer />
-      </WebsocketProvider>
+      </WebsocketProvider>,
     );
 
     act(() => {
@@ -396,7 +396,7 @@ describe("WebsocketProvider", () => {
     render(
       <WebsocketProvider>
         <TestConsumer />
-      </WebsocketProvider>
+      </WebsocketProvider>,
     );
 
     expect(MockWebSocket.instances.length).toBe(0);
