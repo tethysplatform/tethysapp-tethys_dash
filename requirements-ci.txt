@@ -1,0 +1,6 @@
+# Pinned dependencies for CI test/release runs.
+#
+# tethys-platform is pinned so CI builds can't silently pull a new upstream
+# release. The runtime floor in pyproject.toml is ">=4.5.0"; this pin must
+# stay at or above that floor. Bump deliberately when upgrading.
+tethys-platform==4.5.0
