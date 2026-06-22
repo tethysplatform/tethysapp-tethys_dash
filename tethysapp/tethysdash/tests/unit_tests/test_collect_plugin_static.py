@@ -188,10 +188,7 @@ def test_copy_plugin_static_with_visualization_types(
 
     for vis_type, expected_image in visualization_types_and_images.items():
         fake_registry = {"plugin_x": mock.Mock(type=vis_type)}
-        monkeypatch.setattr(
-            "tethysapp.tethysdash.collect_plugin_static.intake.source.registry",
-            fake_registry,
-        )
+        monkeypatch.setattr(intake.source, "registry", fake_registry)
 
         copyfile_mock.reset_mock()
 
