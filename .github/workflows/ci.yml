@@ -1,0 +1,18 @@
+name: CI
+
+# Runs the full test + lint suite on every pull request to main.
+# Mark this workflow's checks as required in the branch protection rules
+# for `main` so failures block merge.
+on:
+  pull_request:
+    branches: [main]
+  # Also run on direct pushes to main as a safety net (e.g. hotfixes).
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    uses: ./.github/workflows/test.yml
