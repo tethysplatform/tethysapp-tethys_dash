@@ -14,6 +14,10 @@ import {
   findUnresolvedFeatureTokens,
   findUnresolvedVariableInputTokens,
   clearImageVizCache,
+  getCachedImageViz,
+  setCachedImageViz,
+  buildImageVizCacheKey,
+  IMAGE_VIZ_CACHE_LIMIT,
 } from "components/visualizations/utilities";
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
@@ -348,6 +352,35 @@ test("getVisualization image caches result, skips repeat request, refresh bypass
   });
   expect(requestCount).toBe(3);
   expect(type4.mock.calls[0][0]).toBe("loader");
+});
+
+test("buildImageVizCacheKey falls back to null for missing source/args", () => {
+  // Both ?? null branches: nullish source and nullish args.
+  expect(buildImageVizCacheKey({})).toBe(
+    JSON.stringify({ s: null, a: null }),
+  );
+  // Truthy branches: both provided.
+  expect(
+    buildImageVizCacheKey({ source: "img", args: { hour: "05" } }),
+  ).toBe(JSON.stringify({ s: "img", a: { hour: "05" } }));
+});
+
+test("image cache evicts the least-recently-used entry past the limit", () => {
+  // LRU mechanics are pure, so exercise the eviction branch directly rather
+  // than driving thousands of slow getVisualization round-trips.
+  for (let i = 0; i < IMAGE_VIZ_CACHE_LIMIT; i += 1) {
+    setCachedImageViz(`k${i}`, `v${i}`);
+  }
+  // A read promotes k0 to most-recently-used, so the next eviction must drop
+  // k1 (now the oldest) instead.
+  expect(getCachedImageViz("k0")).toBe("v0");
+
+  // One more distinct entry overflows the cache and evicts the LRU entry.
+  setCachedImageViz("kOverflow", "vOverflow");
+
+  expect(getCachedImageViz("k1")).toBeUndefined(); // evicted
+  expect(getCachedImageViz("k0")).toBe("v0"); // promoted, survived
+  expect(getCachedImageViz("kOverflow")).toBe("vOverflow");
 });
 
 test("getVisualization, empty variable and no custom messaging", async () => {

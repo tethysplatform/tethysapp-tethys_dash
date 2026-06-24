@@ -14,14 +14,18 @@ import { format } from "date-fns";
 // re-hitting the backend, mirroring how a browser caches by request URL.
 // Only `image`-type responses are stored; every other viz type still fetches
 // fresh. Values are short URL strings, so a generous entry cap is cheap.
-const IMAGE_VIZ_CACHE_LIMIT = 2000;
+export const IMAGE_VIZ_CACHE_LIMIT = 2000;
 const imageVizCache = new Map();
 
-function buildImageVizCacheKey({ source, args }) {
+// Exported for unit tests of the null-coalescing branches; production code
+// reaches the cache only through getVisualization.
+export function buildImageVizCacheKey({ source, args }) {
   return JSON.stringify({ s: source ?? null, a: args ?? null });
 }
 
-function getCachedImageViz(key) {
+// Exported for unit tests of the LRU read/evict logic; not part of the runtime
+// API (production code reaches the cache only through getVisualization).
+export function getCachedImageViz(key) {
   if (!imageVizCache.has(key)) return undefined;
   // Refresh recency so the LRU eviction below keeps hot frames.
   const value = imageVizCache.get(key);
@@ -30,7 +34,7 @@ function getCachedImageViz(key) {
   return value;
 }
 
-function setCachedImageViz(key, value) {
+export function setCachedImageViz(key, value) {
   if (imageVizCache.has(key)) imageVizCache.delete(key);
   imageVizCache.set(key, value);
   if (imageVizCache.size > IMAGE_VIZ_CACHE_LIMIT) {
