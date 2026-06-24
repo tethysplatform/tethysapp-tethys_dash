@@ -221,6 +221,24 @@ describe("utilities", () => {
     });
   });
 
+  describe("undefined env var fallbacks", () => {
+    test("getTethysAppRoot should default TETHYS_APP_ROOT_URL to /apps/tethysdash/ when undefined", () => {
+      delete process.env.TETHYS_APP_ROOT_URL;
+      process.env.TETHYS_PREFIX_URL = "";
+
+      const result = getTethysAppRoot();
+      expect(result).toBe("/apps/tethysdash/");
+    });
+
+    test("getTethysAppRoot should default TETHYS_APP_ROOT_URL to /apps/tethysdash/ with a prefix when undefined", () => {
+      delete process.env.TETHYS_APP_ROOT_URL;
+      process.env.TETHYS_PREFIX_URL = "/tethys/";
+
+      const result = getTethysAppRoot();
+      expect(result).toBe("/tethys/apps/tethysdash/");
+    });
+  });
+
   describe("Integration tests", () => {
     test("should work together - full workflow with derived host", () => {
       // Setup environment without explicit host

@@ -2,6 +2,41 @@ import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
 import appAPI from "services/api/app";
 
+describe("appAPI APP_ROOT_URL fallback", () => {
+  const originalEnv = process.env;
+
+  afterEach(() => {
+    process.env = originalEnv;
+    jest.resetModules();
+  });
+
+  test("should default APP_ROOT_URL to /apps/tethysdash/ when TETHYS_APP_ROOT_URL is undefined", async () => {
+    process.env = { ...originalEnv };
+    delete process.env.TETHYS_APP_ROOT_URL;
+    jest.resetModules();
+
+    const { default: freshAppAPI } = require("services/api/app");
+
+    let capturedUrl;
+    server.use(
+      rest.get(
+        "http://api.test/apps/tethysdash/dashboards/list/",
+        (req, res, ctx) => {
+          capturedUrl = req.url.pathname;
+          return res(
+            ctx.status(200),
+            ctx.json({ success: true, dashboards: [] }),
+          );
+        },
+      ),
+    );
+
+    const response = await freshAppAPI.listDashboards();
+    expect(capturedUrl).toBe("/apps/tethysdash/dashboards/list/");
+    expect(response.success).toBe(true);
+  });
+});
+
 describe("appAPI", () => {
   test("downloadJSON replaces HTML entities in response data", async () => {
     server.use(
