@@ -356,13 +356,11 @@ test("getVisualization image caches result, skips repeat request, refresh bypass
 
 test("buildImageVizCacheKey falls back to null for missing source/args", () => {
   // Both ?? null branches: nullish source and nullish args.
-  expect(buildImageVizCacheKey({})).toBe(
-    JSON.stringify({ s: null, a: null }),
-  );
+  expect(buildImageVizCacheKey({})).toBe(JSON.stringify({ s: null, a: null }));
   // Truthy branches: both provided.
-  expect(
-    buildImageVizCacheKey({ source: "img", args: { hour: "05" } }),
-  ).toBe(JSON.stringify({ s: "img", a: { hour: "05" } }));
+  expect(buildImageVizCacheKey({ source: "img", args: { hour: "05" } })).toBe(
+    JSON.stringify({ s: "img", a: { hour: "05" } }),
+  );
 });
 
 test("image cache evicts the least-recently-used entry past the limit", () => {
