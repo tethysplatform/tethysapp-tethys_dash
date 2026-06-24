@@ -30,11 +30,11 @@ it("ContextMenu editable and shared", async () => {
           setShowThumbnailModal={setShowThumbnailModal}
         />
       ),
-    })
+    }),
   );
 
   const contextMenuButton = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(contextMenuButton);
 
@@ -110,11 +110,11 @@ it("ContextMenu editable and editor permission", async () => {
           setShowThumbnailModal={setShowThumbnailModal}
         />
       ),
-    })
+    }),
   );
 
   const contextMenuButton = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(contextMenuButton);
 
@@ -181,11 +181,11 @@ it("ContextMenu editable and not shared", async () => {
           setShowThumbnailModal={setShowThumbnailModal}
         />
       ),
-    })
+    }),
   );
 
   const contextMenuButton = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(contextMenuButton);
 
@@ -262,11 +262,11 @@ it("ContextMenu not editable and shared", async () => {
           setShowThumbnailModal={setShowThumbnailModal}
         />
       ),
-    })
+    }),
   );
 
   const contextMenuButton = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(contextMenuButton);
 
@@ -326,11 +326,11 @@ it("ContextMenu not overflowing submenu", async () => {
           setShowThumbnailModal={setShowThumbnailModal}
         />
       ),
-    })
+    }),
   );
 
   const contextMenuButton = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(contextMenuButton);
 
@@ -375,11 +375,11 @@ it("ContextMenu overflowing submenu", async () => {
           setShowThumbnailModal={setShowThumbnailModal}
         />
       ),
-    })
+    }),
   );
 
   const contextMenuButton = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(contextMenuButton);
 

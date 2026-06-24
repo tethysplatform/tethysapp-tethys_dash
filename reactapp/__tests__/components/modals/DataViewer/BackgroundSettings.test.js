@@ -25,13 +25,13 @@ it("BackgroundSettings", async () => {
   render(<TestingComponent onChange={mockOnChange} />);
 
   const backgroundColorButton = await screen.findByLabelText(
-    "Background Color Selector"
+    "Background Color Selector",
   );
   expect(backgroundColorButton).toBeInTheDocument();
   // eslint-disable-next-line
   expect(backgroundColorButton.querySelector("svg")).toHaveAttribute(
     "color",
-    "black"
+    "black",
   );
 
   await userEvent.click(backgroundColorButton);
@@ -46,11 +46,11 @@ it("BackgroundSettings", async () => {
   await waitFor(() => {
     expect(mockOnChange).toHaveBeenCalledWith("#0000ff");
   });
-  
+
   // eslint-disable-next-line
   expect(backgroundColorButton.querySelector("svg")).toHaveAttribute(
     "color",
-    "#0000ff"
+    "#0000ff",
   );
 
   await userEvent.click(backgroundColorButton);

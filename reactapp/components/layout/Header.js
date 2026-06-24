@@ -104,7 +104,7 @@ export const LandingPageHeader = () => {
     setAppInfoModalWasOpen,
   } = useModalPriority();
   const dontShowLandingPageInfoOnStart = localStorage.getItem(
-    "dontShowLandingPageInfoOnStart"
+    "dontShowLandingPageInfoOnStart",
   );
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
@@ -120,7 +120,7 @@ export const LandingPageHeader = () => {
 
   const prefixUrlSegment = (process.env.TETHYS_PREFIX_URL || "").replace(
     /(^\/+|\/+?$)/g,
-    ""
+    "",
   );
   const staticBasePath = `${prefixUrlSegment ? `/${prefixUrlSegment}` : ""}/static/tethysdash/images/`;
 
@@ -208,7 +208,7 @@ export const LandingPageHeader = () => {
               <TooltipButton
                 onClick={() => {
                   window.location.assign(
-                    `${TETHYS_PORTAL_BASE}/accounts/login?next=${window.location.pathname}`
+                    `${TETHYS_PORTAL_BASE}/accounts/login?next=${window.location.pathname}`,
                   );
                 }}
                 tooltipPlacement="bottom"
@@ -277,7 +277,7 @@ export const DashboardHeader = () => {
     setAppInfoModalWasOpen,
   } = useModalPriority();
   const dontShowDashboardInfoOnStart = localStorage.getItem(
-    "dontShowDashboardInfoOnStart"
+    "dontShowDashboardInfoOnStart",
   );
   const [showInfoModal, setShowInfoModal] = useState(false);
   const { user } = useContext(AppContext);
@@ -288,7 +288,7 @@ export const DashboardHeader = () => {
   const { isEditing, setIsEditing } = useContext(EditingContext);
   const [isSaving, setIsSaving] = useState(false);
   const { disabledEditingMovement, setDisabledEditingMovement } = useContext(
-    DisabledEditingMovementContext
+    DisabledEditingMovementContext,
   );
   const { setAppTourStep, activeAppTour } = useAppTourContext();
   const { setSuccessMessage, setShowSuccessMessage } =
@@ -456,7 +456,7 @@ export const DashboardHeader = () => {
       setIsEditing(false);
     } else {
       setErrorMessage(
-        "Failed to save changes. Check server logs for more information."
+        "Failed to save changes. Check server logs for more information.",
       );
       setShowErrorMessage(true);
     }
@@ -574,7 +574,7 @@ export const DashboardHeader = () => {
               <TooltipButton
                 onClick={() => {
                   window.location.assign(
-                    `${TETHYS_PORTAL_BASE}/accounts/login?next=${window.location.pathname}`
+                    `${TETHYS_PORTAL_BASE}/accounts/login?next=${window.location.pathname}`,
                   );
                 }}
                 tooltipPlacement="bottom"

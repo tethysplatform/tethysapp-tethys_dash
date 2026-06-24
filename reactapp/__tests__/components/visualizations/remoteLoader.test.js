@@ -45,8 +45,11 @@ describe("remoteLoader", () => {
 
       jest.doMock(
         url,
-        () => ({ __esModule: true, default: { get: jest.fn(), init: jest.fn() } }),
-        { virtual: true }
+        () => ({
+          __esModule: true,
+          default: { get: jest.fn(), init: jest.fn() },
+        }),
+        { virtual: true },
       );
 
       const { loadRemoteContainer } = getModule();
@@ -125,7 +128,7 @@ describe("remoteLoader", () => {
       appendChildSpy.mock.calls[0][0].onload();
 
       await expect(promise).rejects.toThrow(
-        `Webpack remote loaded but window.${scope} was not found`
+        `Webpack remote loaded but window.${scope} was not found`,
       );
     });
 
@@ -139,7 +142,7 @@ describe("remoteLoader", () => {
       appendChildSpy.mock.calls[0][0].onerror();
 
       await expect(promise).rejects.toThrow(
-        `Failed to load webpack remote: ${url}`
+        `Failed to load webpack remote: ${url}`,
       );
     });
 
@@ -177,9 +180,13 @@ describe("remoteLoader", () => {
       const mockGet = jest.fn();
       const mockInit = jest.fn();
 
-      jest.doMock(url, () => ({ __esModule: true, default: { get: mockGet, init: mockInit } }), {
-        virtual: true,
-      });
+      jest.doMock(
+        url,
+        () => ({ __esModule: true, default: { get: mockGet, init: mockInit } }),
+        {
+          virtual: true,
+        },
+      );
 
       const { loadRemoteContainer } = getModule();
       const result = await loadRemoteContainer({
@@ -195,9 +202,13 @@ describe("remoteLoader", () => {
     test("provides no-op init when container lacks init()", async () => {
       const url = "https://example.com/vite-no-init.js";
 
-      jest.doMock(url, () => ({ __esModule: true, default: { get: jest.fn() } }), {
-        virtual: true,
-      });
+      jest.doMock(
+        url,
+        () => ({ __esModule: true, default: { get: jest.fn() } }),
+        {
+          virtual: true,
+        },
+      );
 
       const { loadRemoteContainer } = getModule();
       const result = await loadRemoteContainer({
@@ -213,9 +224,13 @@ describe("remoteLoader", () => {
     test("rejects when container lacks get() method", async () => {
       const url = "https://example.com/vite-no-get.js";
 
-      jest.doMock(url, () => ({ __esModule: true, default: { init: jest.fn() } }), {
-        virtual: true,
-      });
+      jest.doMock(
+        url,
+        () => ({ __esModule: true, default: { init: jest.fn() } }),
+        {
+          virtual: true,
+        },
+      );
 
       const { loadRemoteContainer } = getModule();
 
@@ -224,7 +239,7 @@ describe("remoteLoader", () => {
           scope: "ViteNoGet",
           url,
           remoteType: "vite-esm",
-        })
+        }),
       ).rejects.toThrow("does not expose a compatible get() API");
     });
 
@@ -232,7 +247,9 @@ describe("remoteLoader", () => {
       const url = "https://example.com/vite-fallback.js";
       const mockGet = jest.fn();
 
-      jest.doMock(url, () => ({ __esModule: true, get: mockGet }), { virtual: true });
+      jest.doMock(url, () => ({ __esModule: true, get: mockGet }), {
+        virtual: true,
+      });
 
       const { loadRemoteContainer } = getModule();
       const result = await loadRemoteContainer({
@@ -249,8 +266,11 @@ describe("remoteLoader", () => {
 
       jest.doMock(
         url,
-        () => ({ __esModule: true, default: { get: jest.fn(), init: jest.fn() } }),
-        { virtual: true }
+        () => ({
+          __esModule: true,
+          default: { get: jest.fn(), init: jest.fn() },
+        }),
+        { virtual: true },
       );
 
       const { loadRemoteContainer } = getModule();
@@ -305,7 +325,7 @@ describe("remoteLoader", () => {
       await loadComponent({ scope, module: "./Mod", url: "http://b.js" })();
 
       expect(mockInit).toHaveBeenCalledWith(
-        global.__webpack_share_scopes__.default
+        global.__webpack_share_scopes__.default,
       );
       expect(window[scope].__initialized).toBe(true);
       delete window[scope];
@@ -326,15 +346,13 @@ describe("remoteLoader", () => {
     test("handles init collision errors gracefully", async () => {
       const scope = "Collision";
       setupWindowContainer(scope, {
-        init: jest.fn(() =>
-          Promise.reject(new Error("already initialized"))
-        ),
+        init: jest.fn(() => Promise.reject(new Error("already initialized"))),
       });
 
       const { loadComponent } = getModule();
 
       await expect(
-        loadComponent({ scope, module: "./Mod", url: "http://d.js" })()
+        loadComponent({ scope, module: "./Mod", url: "http://d.js" })(),
       ).resolves.toBeDefined();
 
       expect(window[scope].__initialized).toBe(true);
@@ -344,7 +362,7 @@ describe("remoteLoader", () => {
     test("calls container.get with module name", async () => {
       const scope = "GetMod";
       const mockGet = jest.fn(() =>
-        Promise.resolve(() => ({ default: () => "comp" }))
+        Promise.resolve(() => ({ default: () => "comp" })),
       );
       setupWindowContainer(scope, { __initialized: true, get: mockGet });
 

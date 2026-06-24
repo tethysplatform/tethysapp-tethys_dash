@@ -7,17 +7,20 @@ This tutorial is an alternative ending to :doc:`geoglows_demo`. Instead of addin
 
 Floating popup modals are useful when you want contextual information to appear *on demand* without taking up permanent dashboard real estate.
 
-What you will build
--------------------
-
-- A **Custom Popup Modal** on the China Flowlines layer that opens whenever a user clicks a river segment.
-- A **GeoGLOWS Forecast Plot** inside the popup, parameterized by the clicked feature's ``comid`` via the ``${feature.<key>}`` template syntax.
+**Finished product:** `https://demo.tethysgeoscience.org/apps/tethysdash/dashboard/3367ea97-2895-4355-a513-b452d21e4bf9 <https://demo.tethysgeoscience.org/apps/tethysdash/dashboard/3367ea97-2895-4355-a513-b452d21e4bf9>`_
 
 .. image:: ../../images/tutorials/popup_modal/2.10B_try_it_out.png
    :align: center
    :class: tutorial-image
 
 |
+
+What you will build
+-------------------
+
+- A **Custom Popup Modal** on the China Flowlines layer that opens whenever a user clicks a river segment.
+- A **GeoGLOWS Forecast Plot** inside the popup, parameterized by the clicked feature's ``comid`` via the ``${feature.<key>}`` template syntax.
+
 
 Prerequisites
 -------------

@@ -2364,7 +2364,11 @@ describe("detectImportFormat", () => {
   });
 
   test("detects array of grid items", () => {
-    const items = [validGridItem, { ...validGridItem, i: "2" }, { ...validGridItem, i: "3" }];
+    const items = [
+      validGridItem,
+      { ...validGridItem, i: "2" },
+      { ...validGridItem, i: "3" },
+    ];
     const result = detectImportFormat(items);
     expect(result.type).toBe("array");
     expect(result.gridItems).toEqual(items);
@@ -2373,7 +2377,10 @@ describe("detectImportFormat", () => {
   });
 
   test("detects single tab", () => {
-    const tab = { name: "MyTab", gridItems: [validGridItem, { ...validGridItem, i: "2" }] };
+    const tab = {
+      name: "MyTab",
+      gridItems: [validGridItem, { ...validGridItem, i: "2" }],
+    };
     const result = detectImportFormat(tab);
     expect(result.type).toBe("tab");
     expect(result.gridItems).toEqual([]);
@@ -2384,7 +2391,10 @@ describe("detectImportFormat", () => {
   test("detects full dashboard export", () => {
     const dashboard = {
       tabs: [
-        { name: "Tab A", gridItems: [validGridItem, { ...validGridItem, i: "2" }] },
+        {
+          name: "Tab A",
+          gridItems: [validGridItem, { ...validGridItem, i: "2" }],
+        },
         { name: "Tab B", gridItems: [validGridItem] },
       ],
     };
@@ -2407,7 +2417,9 @@ describe("detectImportFormat", () => {
     };
     const result = detectImportFormat(dashboard);
     expect(result.type).toBe("dashboard");
-    expect(result.summary).toBe("2 tabs: Unnamed tab (0 items), Named (1 items)");
+    expect(result.summary).toBe(
+      "2 tabs: Unnamed tab (0 items), Named (1 items)",
+    );
   });
 
   test("detects empty array", () => {
@@ -2453,7 +2465,10 @@ describe("validateGridItemBatch", () => {
   };
 
   test("passes for valid items", () => {
-    const result = validateGridItemBatch([validGridItem, { ...validGridItem, i: "2" }]);
+    const result = validateGridItemBatch([
+      validGridItem,
+      { ...validGridItem, i: "2" },
+    ]);
     expect(result.valid).toBe(true);
     expect(result.errors).toEqual([]);
   });

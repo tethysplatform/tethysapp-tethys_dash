@@ -57,16 +57,16 @@ function AppInfoModal({ showModal, setShowModal, view }) {
   const { user, tethysApp } = useContext(AppContext);
   const { setActiveAppTour, setAppTourStep } = useAppTourContext();
   const dontShowLandingPageInfoOnStart = localStorage.getItem(
-    "dontShowLandingPageInfoOnStart"
+    "dontShowLandingPageInfoOnStart",
   );
   const dontShowDashboardInfoOnStart = localStorage.getItem(
-    "dontShowDashboardInfoOnStart"
+    "dontShowDashboardInfoOnStart",
   );
   const [showingConfirm, setShowingConfirm] = useState(false);
   const [checked, setChecked] = useState(
     view === "dashboard"
       ? dontShowDashboardInfoOnStart === "true"
-      : dontShowLandingPageInfoOnStart === "true"
+      : dontShowLandingPageInfoOnStart === "true",
   );
 
   const handleClose = () => setShowModal(false);
@@ -77,7 +77,7 @@ function AppInfoModal({ showModal, setShowModal, view }) {
         setShowingConfirm(true);
         if (
           !(await confirm(
-            "Starting the app tour will cancel any changes you have made to the current dashboard. Are your sure you want to start the tour?"
+            "Starting the app tour will cancel any changes you have made to the current dashboard. Are your sure you want to start the tour?",
           ))
         ) {
           return;

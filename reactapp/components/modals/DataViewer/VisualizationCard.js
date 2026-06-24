@@ -90,7 +90,7 @@ const VisualizationCard = ({
 
   const prefixUrlSegment = (process.env.TETHYS_PREFIX_URL || "").replace(
     /(^\/+|\/+?$)/g,
-    ""
+    "",
   );
   const pluginsImageBasePath = `${prefixUrlSegment ? `/${prefixUrlSegment}` : ""}/static/tethysdash/images/plugins/`;
 

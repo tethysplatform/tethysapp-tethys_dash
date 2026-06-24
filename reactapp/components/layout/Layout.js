@@ -30,7 +30,7 @@ Layout.propTypes = {
       title: PropTypes.string,
       to: PropTypes.string,
       eventKey: PropTypes.string,
-    })
+    }),
   ),
   routes: PropTypes.arrayOf(PropTypes.node),
   children: PropTypes.oneOfType([

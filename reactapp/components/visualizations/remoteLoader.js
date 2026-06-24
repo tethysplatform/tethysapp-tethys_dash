@@ -20,7 +20,9 @@ async function loadWebpackRemote(scope, url) {
     script.onload = () => {
       const container = window[scope];
       if (!container) {
-        reject(new Error(`Webpack remote loaded but window.${scope} was not found`));
+        reject(
+          new Error(`Webpack remote loaded but window.${scope} was not found`),
+        );
         return;
       }
       resolve(container);
@@ -47,7 +49,7 @@ async function loadViteEsmRemote(scope, url) {
 
     if (!container || typeof container.get !== "function") {
       throw new Error(
-        `Vite remote loaded from ${url}, but it does not expose a compatible get() API`
+        `Vite remote loaded from ${url}, but it does not expose a compatible get() API`,
       );
     }
 
@@ -64,7 +66,11 @@ async function loadViteEsmRemote(scope, url) {
   return promise;
 }
 
-export async function loadRemoteContainer({ scope, url, remoteType = "webpack" }) {
+export async function loadRemoteContainer({
+  scope,
+  url,
+  remoteType = "webpack",
+}) {
   console.log("[remoteLoader]", { scope, url, remoteType });
   if (remoteType === "vite-esm") {
     return loadViteEsmRemote(scope, url);
@@ -91,11 +97,7 @@ export function loadComponent({ scope, module, url, remoteType = "webpack" }) {
     const rawModule = await factory();
 
     // Normalize for React.lazy: always return { default: Component }
-    if (
-      rawModule &&
-      typeof rawModule === "object" &&
-      "default" in rawModule
-    ) {
+    if (rawModule && typeof rawModule === "object" && "default" in rawModule) {
       return rawModule;
     }
 

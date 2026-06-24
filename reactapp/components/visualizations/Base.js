@@ -446,9 +446,8 @@ const BaseVisualization = () => {
       // skip the fetch. The next render that *does* have feature.* in
       // scope will resolve the tokens, the args will differ from the
       // ref above, and getVisualization will fire normally.
-      const pendingFeatureTokens = findUnresolvedFeatureTokens(
-        updatedGridItemArgs,
-      );
+      const pendingFeatureTokens =
+        findUnresolvedFeatureTokens(updatedGridItemArgs);
       if (pendingFeatureTokens.length > 0) {
         setVizType("featurePending");
         setVizData({

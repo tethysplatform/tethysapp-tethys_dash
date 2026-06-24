@@ -29,11 +29,11 @@ it("DashboardItemDropdown", async () => {
           sendGridItembackward={sendGridItembackward}
         />
       ),
-    })
+    }),
   );
 
   const contextMenuButton = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(contextMenuButton);
 
@@ -96,11 +96,11 @@ it("DashboardItemDropdown order not overflowing submenu", async () => {
       options: {
         dashboards: updatedMockedDashboards,
       },
-    })
+    }),
   );
 
   const contextMenuButton = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(contextMenuButton);
 
@@ -150,11 +150,11 @@ it("ContextMenu overflowing submenu", async () => {
       options: {
         dashboards: updatedMockedDashboards,
       },
-    })
+    }),
   );
 
   const contextMenuButton = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(contextMenuButton);
 

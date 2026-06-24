@@ -796,7 +796,9 @@ test("Map click", async () => {
   ).toStrictEqual(clickCoordinates);
 
   // popup
-  expect(popSetPosition).toHaveBeenCalledWith(clickCoordinates);
+  await waitFor(() =>
+    expect(popSetPosition).toHaveBeenCalledWith(clickCoordinates),
+  );
 
   expect(await screen.findByText("Some Layer")).toBeInTheDocument();
   expect(await screen.findByText("Field")).toBeInTheDocument();
@@ -921,7 +923,9 @@ test("Map click with aliases", async () => {
   });
 
   // popup
-  expect(popSetPosition).toHaveBeenCalledWith(clickCoordinates);
+  await waitFor(() =>
+    expect(popSetPosition).toHaveBeenCalledWith(clickCoordinates),
+  );
 
   expect(await screen.findByText("Some Layer")).toBeInTheDocument();
   expect(await screen.findByText("Field")).toBeInTheDocument();
@@ -1844,7 +1848,9 @@ test("Map click no features found", async () => {
 
   expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
   expect(await screen.findByText("Map Ready")).toBeInTheDocument();
-  expect(popSetPosition).toHaveBeenLastCalledWith(clickCoordinates);
+  await waitFor(() =>
+    expect(popSetPosition).toHaveBeenLastCalledWith(clickCoordinates),
+  );
 
   await waitFor(async () => {
     expect(await screen.findByText("No Attributes Found")).toBeInTheDocument();
@@ -1852,7 +1858,9 @@ test("Map click no features found", async () => {
 
   const popupCloser = await screen.findByLabelText("Popup Closer");
   fireEvent.click(popupCloser);
-  expect(popSetPosition).toHaveBeenLastCalledWith(undefined);
+  await waitFor(() =>
+    expect(popSetPosition).toHaveBeenLastCalledWith(undefined),
+  );
 });
 
 test("Map click no attributes found", async () => {
@@ -1904,7 +1912,9 @@ test("Map click no attributes found", async () => {
 
   expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
   expect(await screen.findByText("Map Ready")).toBeInTheDocument();
-  expect(popSetPosition).toHaveBeenLastCalledWith(clickCoordinates);
+  await waitFor(() =>
+    expect(popSetPosition).toHaveBeenLastCalledWith(clickCoordinates),
+  );
 
   await waitFor(async () => {
     expect(await screen.findByText("No Attributes Found")).toBeInTheDocument();
@@ -1912,7 +1922,9 @@ test("Map click no attributes found", async () => {
 
   const popupCloser = await screen.findByLabelText("Popup Closer");
   fireEvent.click(popupCloser);
-  expect(popSetPosition).toHaveBeenLastCalledWith(undefined);
+  await waitFor(() =>
+    expect(popSetPosition).toHaveBeenLastCalledWith(undefined),
+  );
 });
 
 test("Map click all attributes omitted", async () => {
@@ -2478,7 +2490,9 @@ test("Map hover ignores pointermove when the cursor is over the popup itself", a
   // Wait past the debounce window. If the guard didn't work, a second
   // query would fire here.
   await new Promise((resolve) => setTimeout(resolve, 400));
-  expect(mockedQueryLayerFeatures).toHaveBeenCalledTimes(1);
+  await waitFor(() =>
+    expect(mockedQueryLayerFeatures).toHaveBeenCalledTimes(1),
+  );
 });
 
 test("Map hover cursor-over-popup also cancels a pending debounce", async () => {
@@ -3324,7 +3338,9 @@ test("Map hover debounce restarts on a second pointermove, dropping the first", 
   });
   // Wait a bit longer to make sure no extra query trickles in.
   await new Promise((resolve) => setTimeout(resolve, 300));
-  expect(mockedQueryLayerFeatures).toHaveBeenCalledTimes(1);
+  await waitFor(() =>
+    expect(mockedQueryLayerFeatures).toHaveBeenCalledTimes(1),
+  );
   // The lone call used the second coordinate.
   expect(mockedQueryLayerFeatures.mock.calls[0][2]).toEqual(secondCoords);
 });

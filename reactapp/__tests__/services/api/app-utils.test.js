@@ -16,10 +16,10 @@ describe("replaceHtmlEntitiesInExpressions utility function", () => {
               success: true,
               data: "&gt;",
             }),
-            ctx.set("Content-Type", "application/json")
+            ctx.set("Content-Type", "application/json"),
           );
-        }
-      )
+        },
+      ),
     );
 
     const response = await appAPI.downloadJSON({ filename: "test.json" });
@@ -37,10 +37,10 @@ describe("replaceHtmlEntitiesInExpressions utility function", () => {
               success: true,
               data: "normalString",
             }),
-            ctx.set("Content-Type", "application/json")
+            ctx.set("Content-Type", "application/json"),
           );
-        }
-      )
+        },
+      ),
     );
 
     const response = await appAPI.downloadJSON({ filename: "test.json" });
@@ -58,10 +58,10 @@ describe("replaceHtmlEntitiesInExpressions utility function", () => {
               success: true,
               data: ["&gt;", "&lt;", "normal", "&eq;"],
             }),
-            ctx.set("Content-Type", "application/json")
+            ctx.set("Content-Type", "application/json"),
           );
-        }
-      )
+        },
+      ),
     );
 
     const response = await appAPI.downloadJSON({ filename: "test.json" });
@@ -82,10 +82,10 @@ describe("replaceHtmlEntitiesInExpressions utility function", () => {
                 ["&ne;", "normal"],
               ],
             }),
-            ctx.set("Content-Type", "application/json")
+            ctx.set("Content-Type", "application/json"),
           );
-        }
-      )
+        },
+      ),
     );
 
     const response = await appAPI.downloadJSON({ filename: "test.json" });
@@ -106,10 +106,10 @@ describe("replaceHtmlEntitiesInExpressions utility function", () => {
               success: true,
               data: null,
             }),
-            ctx.set("Content-Type", "application/json")
+            ctx.set("Content-Type", "application/json"),
           );
-        }
-      )
+        },
+      ),
     );
 
     const response = await appAPI.downloadJSON({ filename: "test.json" });
@@ -136,10 +136,10 @@ describe("replaceHtmlEntitiesInExpressions utility function", () => {
                 topLevel: "&ne;",
               },
             }),
-            ctx.set("Content-Type", "application/json")
+            ctx.set("Content-Type", "application/json"),
           );
-        }
-      )
+        },
+      ),
     );
 
     const response = await appAPI.downloadJSON({ filename: "test.json" });
@@ -172,10 +172,10 @@ describe("replaceHtmlEntitiesInExpressions utility function", () => {
                 text: "&gt;",
               },
             }),
-            ctx.set("Content-Type", "application/json")
+            ctx.set("Content-Type", "application/json"),
           );
-        }
-      )
+        },
+      ),
     );
 
     const response = await appAPI.downloadJSON({ filename: "test.json" });
@@ -207,10 +207,10 @@ describe("replaceHtmlEntitiesInExpressions utility function", () => {
                 },
               },
             }),
-            ctx.set("Content-Type", "application/json")
+            ctx.set("Content-Type", "application/json"),
           );
-        }
-      )
+        },
+      ),
     );
 
     const response = await appAPI.downloadJSON({ filename: "test.json" });
@@ -244,10 +244,10 @@ describe("replaceHtmlEntitiesInExpressions utility function", () => {
                 "&amp;": "&amp;",
               },
             }),
-            ctx.set("Content-Type", "application/json")
+            ctx.set("Content-Type", "application/json"),
           );
-        }
-      )
+        },
+      ),
     );
 
     const response = await appAPI.downloadJSON({ filename: "test.json" });

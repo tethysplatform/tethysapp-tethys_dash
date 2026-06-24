@@ -5,7 +5,7 @@ export function confirm(
   confirmation,
   proceedLabel = "OK",
   cancelLabel = "Cancel",
-  options = {}
+  options = {},
 ) {
   return createConfirmation(confirmable(Confirmation))({
     confirmation,

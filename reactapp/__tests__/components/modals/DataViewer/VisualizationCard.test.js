@@ -18,14 +18,14 @@ it("VisualizationCard", async () => {
       description={description}
       tags={tags}
       onClick={mockOnClick}
-    />
+    />,
   );
 
   expect(await screen.findByText(label)).toBeInTheDocument();
   const thumbnail = screen.getByRole("img");
   expect(thumbnail).toBeInTheDocument();
   expect(thumbnail.src).toBe(
-    "http://localhost/static/tethysdash/images/plugins/some_source.png"
+    "http://localhost/static/tethysdash/images/plugins/some_source.png",
   );
 
   fireEvent.mouseEnter(thumbnail);
@@ -92,14 +92,14 @@ it("VisualizationCard with attribution", async () => {
       attribution={attribution}
       tags={tags}
       onClick={mockOnClick}
-    />
+    />,
   );
 
   expect(await screen.findByText(label)).toBeInTheDocument();
   const thumbnail = screen.getByRole("img");
   expect(thumbnail).toBeInTheDocument();
   expect(thumbnail.src).toBe(
-    "http://localhost/static/tethysdash/images/plugins/some_source.png"
+    "http://localhost/static/tethysdash/images/plugins/some_source.png",
   );
 
   fireEvent.mouseEnter(thumbnail);
@@ -174,14 +174,14 @@ it("VisualizationCard with prefix", async () => {
       description={description}
       tags={tags}
       onClick={mockOnClick}
-    />
+    />,
   );
 
   expect(await screen.findByText(label)).toBeInTheDocument();
   const thumbnail = screen.getByRole("img");
   expect(thumbnail).toBeInTheDocument();
   expect(thumbnail.src).toBe(
-    "http://localhost/test-prefix/static/tethysdash/images/plugins/some_source.png"
+    "http://localhost/test-prefix/static/tethysdash/images/plugins/some_source.png",
   );
 
   process.env.TETHYS_PREFIX_URL = originalEnv;

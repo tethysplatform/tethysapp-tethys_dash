@@ -22,7 +22,7 @@ test("LayerPane", async () => {
   const nameInput = await screen.findByLabelText("Name Input");
   fireEvent.change(nameInput, { target: { value: "some name" } });
   expect(await screen.findByTestId("layerProps")).toHaveTextContent(
-    JSON.stringify({ name: "some name" })
+    JSON.stringify({ name: "some name" }),
   );
 
   expect(await screen.findByText("Opacity")).toBeInTheDocument();
@@ -34,7 +34,7 @@ test("LayerPane", async () => {
   const opacityInput = await screen.findByLabelText("value Input 0");
   fireEvent.change(opacityInput, { target: { value: ".5" } });
   expect(await screen.findByTestId("layerProps")).toHaveTextContent(
-    JSON.stringify({ name: "some name", opacity: ".5" })
+    JSON.stringify({ name: "some name", opacity: ".5" }),
   );
 
   expect(await screen.findByText("Default Visibility")).toBeInTheDocument();
@@ -42,19 +42,23 @@ test("LayerPane", async () => {
   expect(await screen.findByText("Visible")).toBeInTheDocument();
 
   const visibilityToggle = await screen.findByLabelText(
-    "Default Visibility Toggle"
+    "Default Visibility Toggle",
   );
   expect(visibilityToggle.checked).toBe(true);
   fireEvent.click(visibilityToggle);
   expect(visibilityToggle.checked).toBe(false);
 
   expect(await screen.findByTestId("layerProps")).toHaveTextContent(
-    JSON.stringify({ name: "some name", opacity: ".5", layerVisibility: false })
+    JSON.stringify({
+      name: "some name",
+      opacity: ".5",
+      layerVisibility: false,
+    }),
   );
 
   fireEvent.click(visibilityToggle);
 
   expect(await screen.findByTestId("layerProps")).toHaveTextContent(
-    JSON.stringify({ name: "some name", opacity: ".5" })
+    JSON.stringify({ name: "some name", opacity: ".5" }),
   );
 });

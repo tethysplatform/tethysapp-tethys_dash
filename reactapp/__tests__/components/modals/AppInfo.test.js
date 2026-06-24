@@ -21,10 +21,10 @@ test("landing page app info modal and close", async () => {
               support_github: "some/github/url",
             },
           }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   const user = userEvent.setup();
@@ -58,24 +58,24 @@ test("landing page app info modal and close", async () => {
       children: (
         <AppInfoModal showModal={true} setShowModal={mockSetShowModal} />
       ),
-    })
+    }),
   );
 
   expect(
-    await screen.findByText("TethysDash Landing Page")
+    await screen.findByText("TethysDash Landing Page"),
   ).toBeInTheDocument();
   expect(
     await screen.findByText(
-      /If you would like to take a tour of the application, click on the button below to begin./i
-    )
+      /If you would like to take a tour of the application, click on the button below to begin./i,
+    ),
   ).toBeInTheDocument();
   expect(
     await screen.findByText(
-      /Welcome to TethysDash, a customizable data viewer and dashboard application. The landing page provides a summary of all available dashboards, including publicly available dashboards. For more information about the application and developing visualizations, check the official/i
-    )
+      /Welcome to TethysDash, a customizable data viewer and dashboard application. The landing page provides a summary of all available dashboards, including publicly available dashboards. For more information about the application and developing visualizations, check the official/i,
+    ),
   ).toBeInTheDocument();
   expect(
-    screen.getByText(/Have questions or need support\? Contact us at/i)
+    screen.getByText(/Have questions or need support\? Contact us at/i),
   ).toBeInTheDocument();
   expect(screen.getByText("support@example.com")).toBeInTheDocument();
   expect(screen.getByText("GitHub")).toBeInTheDocument();
@@ -83,8 +83,8 @@ test("landing page app info modal and close", async () => {
   expect(githubLink).toHaveAttribute("href", "some/github/url");
   expect(
     screen.getByText(
-      /for inquiries about custom visualizations, dashboards, or any issues you encounter\./i
-    )
+      /for inquiries about custom visualizations, dashboards, or any issues you encounter\./i,
+    ),
   ).toBeInTheDocument();
 
   expect(localStorage.getItem("dontShowLandingPageInfoOnStart")).toEqual(null);
@@ -92,7 +92,7 @@ test("landing page app info modal and close", async () => {
   await user.click(dontShowOnStartupInput);
   expect(dontShowOnStartupInput).toBeChecked();
   expect(localStorage.getItem("dontShowLandingPageInfoOnStart")).toEqual(
-    "true"
+    "true",
   );
 
   const closeButton = await screen.findByLabelText("Close");
@@ -115,10 +115,10 @@ test("dashboard app info modal and close", async () => {
               support_github: null,
             },
           }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   const user = userEvent.setup();
@@ -156,29 +156,29 @@ test("dashboard app info modal and close", async () => {
           view="dashboard"
         />
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("TethysDash Dashboards")).toBeInTheDocument();
   expect(
     await screen.findByText(
-      /If you would like to take a tour of the application, click on the button below to begin./i
-    )
+      /If you would like to take a tour of the application, click on the button below to begin./i,
+    ),
   ).toBeInTheDocument();
   expect(
     await screen.findByText(
-      /TethysDash dashboards provide a customizable dataviewer for a variety of user defined data sources. For more information about the application and developing visualizations, check the official/i
-    )
+      /TethysDash dashboards provide a customizable dataviewer for a variety of user defined data sources. For more information about the application and developing visualizations, check the official/i,
+    ),
   ).toBeInTheDocument();
   expect(
-    screen.getByText(/Have questions or need support\? Contact us at/i)
+    screen.getByText(/Have questions or need support\? Contact us at/i),
   ).toBeInTheDocument();
   expect(screen.getByText("support@example.com")).toBeInTheDocument();
   expect(screen.queryByText("GitHub")).not.toBeInTheDocument();
   expect(
     screen.getByText(
-      /for inquiries about custom visualizations, dashboards, or any issues you encounter\./i
-    )
+      /for inquiries about custom visualizations, dashboards, or any issues you encounter\./i,
+    ),
   ).toBeInTheDocument();
 
   expect(localStorage.getItem("dontShowDashboardInfoOnStart")).toEqual(null);
@@ -207,10 +207,10 @@ test("shows only email if only support_email is provided", async () => {
               support_github: null,
             },
           }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   const mockSetShowModal = jest.fn();
@@ -219,7 +219,7 @@ test("shows only email if only support_email is provided", async () => {
       children: (
         <AppInfoModal showModal={true} setShowModal={mockSetShowModal} />
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText(/Contact us at/i)).toBeInTheDocument();
@@ -242,10 +242,10 @@ test("shows only github if only support_github is provided", async () => {
               support_github: "https://github.com/example/support",
             },
           }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   const mockSetShowModal = jest.fn();
@@ -254,14 +254,14 @@ test("shows only github if only support_github is provided", async () => {
       children: (
         <AppInfoModal showModal={true} setShowModal={mockSetShowModal} />
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText(/Contact us at/i)).toBeInTheDocument();
   expect(screen.getByText("GitHub")).toBeInTheDocument();
   expect(screen.getByText("GitHub")).toHaveAttribute(
     "href",
-    "https://github.com/example/support"
+    "https://github.com/example/support",
   );
   expect(screen.queryByText("support@example.com")).not.toBeInTheDocument();
 });
@@ -281,10 +281,10 @@ test("does not show support section if neither email nor github is provided", as
               support_github: null,
             },
           }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   const mockSetShowModal = jest.fn();
@@ -293,11 +293,11 @@ test("does not show support section if neither email nor github is provided", as
       children: (
         <AppInfoModal showModal={true} setShowModal={mockSetShowModal} />
       ),
-    })
+    }),
   );
 
   expect(
-    screen.queryByText(/Have questions or need support/i)
+    screen.queryByText(/Have questions or need support/i),
   ).not.toBeInTheDocument();
   expect(screen.queryByText("support@example.com")).not.toBeInTheDocument();
   expect(screen.queryByText("GitHub")).not.toBeInTheDocument();

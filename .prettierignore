@@ -1,0 +1,9 @@
+# Generated frontend build output (produced by `npm run build`, not committed).
+tethysapp/tethysdash/public/frontend/
+
+# Generated / vendored
+node_modules/
+coverage/
+dist/
+build/
+package-lock.json

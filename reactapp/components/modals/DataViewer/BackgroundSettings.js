@@ -98,7 +98,7 @@ const BackgroundSettings = ({
   settingsPaneRef,
 }) => {
   const [backgroundColor, setBackgroundColor] = useState(
-    initialBackgroundColor ?? "#00000000"
+    initialBackgroundColor ?? "#00000000",
   );
 
   useEffect(() => {

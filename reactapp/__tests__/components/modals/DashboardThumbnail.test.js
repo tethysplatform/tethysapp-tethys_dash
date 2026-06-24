@@ -33,11 +33,11 @@ test("DashboardThumbnailModal", async () => {
   render(
     createLoadedComponent({
       children: <TestingComponent onUpdateThumbnail={onUpdateThumbnail} />,
-    })
+    }),
   );
 
   expect(
-    await screen.findByText("Update Dashboard Thumbnail")
+    await screen.findByText("Update Dashboard Thumbnail"),
   ).toBeInTheDocument();
 
   const file = new File(["dummy content"], "test-image.png", {
@@ -47,7 +47,7 @@ test("DashboardThumbnailModal", async () => {
   await userEvent.upload(input, file);
 
   const updateThumbnailButton = screen.getByLabelText(
-    "Update Thumbnail Button"
+    "Update Thumbnail Button",
   );
 
   await waitFor(() => {
@@ -57,7 +57,7 @@ test("DashboardThumbnailModal", async () => {
 
   await waitFor(async () => {
     expect(onUpdateThumbnail).toHaveBeenCalledWith(
-      "data:image/png;base64,testImage"
+      "data:image/png;base64,testImage",
     );
   });
 });
@@ -76,11 +76,11 @@ test("DashboardThumbnailModal no file", async () => {
   render(
     createLoadedComponent({
       children: <TestingComponent onUpdateThumbnail={onUpdateThumbnail} />,
-    })
+    }),
   );
 
   expect(
-    await screen.findByText("Update Dashboard Thumbnail")
+    await screen.findByText("Update Dashboard Thumbnail"),
   ).toBeInTheDocument();
 
   const input = screen.getByTestId("file-input");
@@ -99,21 +99,21 @@ test("DashboardThumbnailModal close", async () => {
   render(
     createLoadedComponent({
       children: <TestingComponent onUpdateThumbnail={onUpdateThumbnail} />,
-    })
+    }),
   );
 
   expect(
-    await screen.findByText("Update Dashboard Thumbnail")
+    await screen.findByText("Update Dashboard Thumbnail"),
   ).toBeInTheDocument();
 
   const closeThumbnailModalButton = await screen.findByLabelText(
-    "Close Thumbnail Modal Button"
+    "Close Thumbnail Modal Button",
   );
   await userEvent.click(closeThumbnailModalButton);
 
   await waitFor(() => {
     expect(
-      screen.queryByText("Update Dashboard Thumbnail")
+      screen.queryByText("Update Dashboard Thumbnail"),
     ).not.toBeInTheDocument();
   });
 });

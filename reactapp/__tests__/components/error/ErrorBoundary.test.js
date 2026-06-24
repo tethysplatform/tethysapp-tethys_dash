@@ -9,7 +9,7 @@ test("error boundary no issue", async () => {
   render(
     <ErrorBoundary>
       <div>No issues</div>
-    </ErrorBoundary>
+    </ErrorBoundary>,
   );
 
   expect(await screen.findByText("No issues")).toBeInTheDocument();
@@ -20,7 +20,7 @@ test("error boundary debug", async () => {
   render(
     <ErrorBoundary>
       <BuggyComponent />
-    </ErrorBoundary>
+    </ErrorBoundary>,
   );
 
   expect(await screen.findByText("TETHYS_DEBUG = true")).toBeInTheDocument();
@@ -31,10 +31,10 @@ test("error boundary no debug", async () => {
   render(
     <ErrorBoundary>
       <BuggyComponent />
-    </ErrorBoundary>
+    </ErrorBoundary>,
   );
 
   expect(
-    await screen.findByText("Something went wrong. Please try again.")
+    await screen.findByText("Something went wrong. Please try again."),
   ).toBeInTheDocument();
 });

@@ -37,7 +37,7 @@ DashboardView.propTypes = {
       source: PropTypes.string,
       args_string: PropTypes.string,
       metadata_string: PropTypes.string,
-    })
+    }),
   ),
 };
 

@@ -13,7 +13,7 @@ export function getTethysPortalHost() {
 
 export const getPublicUrl = (uuid) => {
   return new URL(
-    getTethysPortalHost() + getTethysAppRoot() + "dashboard/" + uuid
+    getTethysPortalHost() + getTethysAppRoot() + "dashboard/" + uuid,
   ).href;
 };
 

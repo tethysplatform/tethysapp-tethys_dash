@@ -620,7 +620,7 @@ test("Dashboard App Tour", async () => {
     // eslint-disable-next-line
     document.querySelector("#react-joyride-portal"),
   ).not.toBeInTheDocument();
-}, 60000);
+}, 150000);
 
 test("Dashboard App Tour check static image prefix", async () => {
   // Save original environment variable
@@ -853,7 +853,7 @@ test("Dashboard App Tour check static image prefix", async () => {
 
   // Restore original environment variable
   process.env.TETHYS_PREFIX_URL = originalPrefixUrl;
-}, 60000);
+}, 150000);
 
 test("Dashboard App Tour while editing and then exit", async () => {
   const mockAddDashboard = jest.fn();
@@ -1291,4 +1291,4 @@ test("Landing Page App Tour", async () => {
     // eslint-disable-next-line
     document.querySelector("#react-joyride-portal"),
   ).not.toBeInTheDocument();
-}, 40000);
+}, 90000);

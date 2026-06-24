@@ -5,6 +5,6 @@ test("generic error", async () => {
   render(<GenericError />);
 
   expect(
-    await screen.findByText("Something went wrong. Please try again.")
+    await screen.findByText("Something went wrong. Please try again."),
   ).toBeInTheDocument();
 });

@@ -8,9 +8,7 @@ const urls = [
 ];
 
 it("renders all images in the DOM", () => {
-  render(
-    <ImageSequence urls={urls} activeUrl={urls[0]} alt="sequence" />,
-  );
+  render(<ImageSequence urls={urls} activeUrl={urls[0]} alt="sequence" />);
 
   const images = screen.getAllByAltText("sequence");
   expect(images).toHaveLength(3);
@@ -20,9 +18,7 @@ it("renders all images in the DOM", () => {
 });
 
 it("shows loading text while active image has not loaded", () => {
-  render(
-    <ImageSequence urls={urls} activeUrl={urls[0]} alt="sequence" />,
-  );
+  render(<ImageSequence urls={urls} activeUrl={urls[0]} alt="sequence" />);
 
   expect(screen.getByText("Loading Images...")).toBeInTheDocument();
   // All images should be hidden while loading
@@ -33,9 +29,7 @@ it("shows loading text while active image has not loaded", () => {
 });
 
 it("shows active image after it loads", () => {
-  render(
-    <ImageSequence urls={urls} activeUrl={urls[1]} alt="sequence" />,
-  );
+  render(<ImageSequence urls={urls} activeUrl={urls[1]} alt="sequence" />);
 
   // Simulate the active image loading
   const images = screen.getAllByAltText("sequence");
@@ -71,9 +65,7 @@ it("shows error message when active image fails to load", () => {
 });
 
 it("shows default error message when no imageError prop provided", () => {
-  render(
-    <ImageSequence urls={urls} activeUrl={urls[0]} alt="sequence" />,
-  );
+  render(<ImageSequence urls={urls} activeUrl={urls[0]} alt="sequence" />);
 
   const images = screen.getAllByAltText("sequence");
   fireEvent.error(images[0]);
@@ -94,9 +86,7 @@ it("switches visible image when activeUrl changes", () => {
   expect(firstImg.style.visibility).toBe("visible");
 
   // Change activeUrl to frame2
-  rerender(
-    <ImageSequence urls={urls} activeUrl={urls[1]} alt="sequence" />,
-  );
+  rerender(<ImageSequence urls={urls} activeUrl={urls[1]} alt="sequence" />);
 
   // frame2 is already loaded, so it should be visible immediately
   const secondImg = images.find((img) => img.src === urls[1]);
@@ -121,9 +111,7 @@ it("attaches visualizationRef to the active image", () => {
 });
 
 it("does not duplicate entries in loadedUrls on repeated onLoad", () => {
-  render(
-    <ImageSequence urls={urls} activeUrl={urls[0]} alt="sequence" />,
-  );
+  render(<ImageSequence urls={urls} activeUrl={urls[0]} alt="sequence" />);
 
   const images = screen.getAllByAltText("sequence");
   // Fire onLoad twice for the same image
@@ -135,9 +123,7 @@ it("does not duplicate entries in loadedUrls on repeated onLoad", () => {
 });
 
 it("does not duplicate entries in errorUrls on repeated onError", () => {
-  render(
-    <ImageSequence urls={urls} activeUrl={urls[0]} alt="sequence" />,
-  );
+  render(<ImageSequence urls={urls} activeUrl={urls[0]} alt="sequence" />);
 
   const images = screen.getAllByAltText("sequence");
   fireEvent.error(images[0]);
@@ -160,9 +146,7 @@ it("shows loading for new activeUrl that has not loaded yet", () => {
   expect(screen.queryByText("Loading Images...")).not.toBeInTheDocument();
 
   // Switch to a non-loaded image
-  rerender(
-    <ImageSequence urls={urls} activeUrl={urls[2]} alt="sequence" />,
-  );
+  rerender(<ImageSequence urls={urls} activeUrl={urls[2]} alt="sequence" />);
 
   // Should show loading since frame3 hasn't loaded yet
   expect(screen.getByText("Loading Images...")).toBeInTheDocument();

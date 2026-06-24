@@ -65,20 +65,17 @@ _FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "public", "frontend")
 _MANIFEST_PATH = os.path.join(_FRONTEND_DIR, "manifest.json")
 
 
-def _get_main_bundle_path():
+def _get_main_bundle_path(request):
     """Resolve the entry bundle path under the app's public dir.
 
-    The production webpack build emits ``main.<contenthash>.js`` and a
-    ``manifest.json`` mapping logical names to hashed filenames. In dev
-    (``DEBUG=True``) webpack-dev-server serves an unhashed ``main.js`` from
-    memory, so we always reference that name and ignore any stale manifest
-    left over from a prior production build.
-
-    Returns:
-        str: Relative path like ``"frontend/main.abc123.js"`` for use with
-        Tethys' ``public`` template filter.
+    Production builds emit ``main.<contenthash>.js`` and a ``manifest.json``
+    mapping logical names to hashed filenames. When webpack-dev-server proxies
+    a request to Django it injects ``X-Webpack-Dev-Server: 1``; that signals
+    Django to render the unhashed ``main.js`` URL, which the dev-server then
+    serves from memory. Direct hits to Django (no header) get the hashed
+    bundle from the manifest, served straight from disk.
     """
-    if settings.DEBUG:
+    if request.headers.get("X-Webpack-Dev-Server"):
         return "frontend/main.js"
     try:
         with open(_MANIFEST_PATH) as f:
@@ -106,7 +103,7 @@ def home(request):
     return App.render(
         request,
         "index.html",
-        context={"main_bundle_path": _get_main_bundle_path()},
+        context={"main_bundle_path": _get_main_bundle_path(request)},
     )
 
 

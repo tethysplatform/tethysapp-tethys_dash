@@ -103,22 +103,22 @@ it("BorderSettings", async () => {
   // eslint-disable-next-line
   expect(leftBorderButton.querySelector("svg")).toHaveAttribute(
     "color",
-    "#0000ff"
+    "#0000ff",
   );
   // eslint-disable-next-line
   expect(topBorderButton.querySelector("svg")).toHaveAttribute(
     "color",
-    "#0000ff"
+    "#0000ff",
   );
   // eslint-disable-next-line
   expect(rightBorderButton.querySelector("svg")).toHaveAttribute(
     "color",
-    "#0000ff"
+    "#0000ff",
   );
   // eslint-disable-next-line
   expect(bottomBorderButton.querySelector("svg")).toHaveAttribute(
     "color",
-    "#0000ff"
+    "#0000ff",
   );
 
   expect(mockOnChange).toHaveBeenCalledWith({
@@ -171,22 +171,22 @@ it("BorderSettings", async () => {
   // eslint-disable-next-line
   expect(leftBorderButton.querySelector("svg")).toHaveAttribute(
     "color",
-    "#FF0000"
+    "#FF0000",
   );
   // eslint-disable-next-line
   expect(topBorderButton.querySelector("svg")).toHaveAttribute(
     "color",
-    "#0000ff"
+    "#0000ff",
   );
   // eslint-disable-next-line
   expect(rightBorderButton.querySelector("svg")).toHaveAttribute(
     "color",
-    "#0000ff"
+    "#0000ff",
   );
   // eslint-disable-next-line
   expect(bottomBorderButton.querySelector("svg")).toHaveAttribute(
     "color",
-    "#0000ff"
+    "#0000ff",
   );
 
   expect(mockOnChange).toHaveBeenCalledWith({

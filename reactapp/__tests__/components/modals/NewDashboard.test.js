@@ -56,16 +56,16 @@ test("New Dashboard Modal add dashboard success", async () => {
               ],
             },
           }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   render(
     createLoadedComponent({
       children: <TestingComponent />,
-    })
+    }),
   );
 
   expect(await screen.findByText("Create a new dashboard")).toBeInTheDocument();
@@ -75,15 +75,15 @@ test("New Dashboard Modal add dashboard success", async () => {
   fireEvent.change(dashboardNameInput, { target: { value: "new_name" } });
 
   const createDashboardInput = await screen.findByLabelText(
-    "Create Dashboard Button"
+    "Create Dashboard Button",
   );
   expect(screen.getByText("Create")).toBeInTheDocument();
   await userEvent.click(createDashboardInput);
 
   expect(
     await screen.findByText(
-      "All inputs must be filled out for creating a dashboard."
-    )
+      "All inputs must be filled out for creating a dashboard.",
+    ),
   ).toBeInTheDocument();
 
   const descriptionInput = await screen.findByLabelText("Description Input");
@@ -98,7 +98,7 @@ test("New Dashboard Modal add dashboard success", async () => {
 
   await waitFor(() => {
     expect(
-      screen.queryByText("Create a new dashboard")
+      screen.queryByText("Create a new dashboard"),
     ).not.toBeInTheDocument();
   });
 });
@@ -152,7 +152,7 @@ test("New Dashboard Modal add dashboard success with app tour", async () => {
           <TestingComponent />
         </AppTourContext.Provider>
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("Create a new dashboard")).toBeInTheDocument();
@@ -162,13 +162,13 @@ test("New Dashboard Modal add dashboard success with app tour", async () => {
   fireEvent.change(dashboardNameInput, { target: { value: "new_name" } });
 
   const createDashboardInput = await screen.findByLabelText(
-    "Create Dashboard Button"
+    "Create Dashboard Button",
   );
   await userEvent.click(createDashboardInput);
   expect(
     await screen.findByText(
-      "All inputs must be filled out for creating a dashboard."
-    )
+      "All inputs must be filled out for creating a dashboard.",
+    ),
   ).toBeInTheDocument();
 
   const descriptionInput = await screen.findByLabelText("Description Input");
@@ -177,12 +177,12 @@ test("New Dashboard Modal add dashboard success with app tour", async () => {
 
   await waitFor(() => {
     expect(
-      screen.queryByText("Create a new dashboard")
+      screen.queryByText("Create a new dashboard"),
     ).not.toBeInTheDocument();
   });
 
   await waitFor(() =>
-    expect(mockSetAppTourStep).toHaveBeenCalledWith(expect.any(Function))
+    expect(mockSetAppTourStep).toHaveBeenCalledWith(expect.any(Function)),
   );
 });
 
@@ -197,7 +197,7 @@ test("New Dashboard Modal add dashboard fail", async () => {
   render(
     createLoadedComponent({
       children: <TestingComponent />,
-    })
+    }),
   );
 
   expect(await screen.findByText("Create a new dashboard")).toBeInTheDocument();
@@ -211,7 +211,7 @@ test("New Dashboard Modal add dashboard fail", async () => {
   fireEvent.change(descriptionInput, { target: { value: "some description" } });
 
   const createDashboardInput = await screen.findByLabelText(
-    "Create Dashboard Button"
+    "Create Dashboard Button",
   );
   await userEvent.click(createDashboardInput);
   expect(await screen.findByText("failed to add")).toBeInTheDocument();

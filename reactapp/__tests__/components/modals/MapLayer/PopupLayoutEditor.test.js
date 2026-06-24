@@ -1087,10 +1087,7 @@ describe("buildNewGridItem helper function", () => {
   // NOT greater than acc, so the reducer keeps acc=10 (falls into the
   // ternary's false branch via the comparison, not the !isFinite path).
   test("keeps the running max when a later item's numeric `i` is smaller", () => {
-    const existing = [
-      baseGridItem({ i: "10" }),
-      baseGridItem({ i: "3" }),
-    ];
+    const existing = [baseGridItem({ i: "10" }), baseGridItem({ i: "3" })];
     const newItem = buildNewGridItem(existing);
     expect(newItem.i).toBe("11");
   });

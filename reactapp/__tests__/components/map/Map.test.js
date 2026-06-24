@@ -103,11 +103,13 @@ test("Default Map", async () => {
 
   expect(await screen.findByText("Map Ready")).toBeInTheDocument();
   await waitFor(async () => {
-    expect(await screen.findByTestId("map-view")).toHaveTextContent(
-      JSON.stringify({
-        zoom: 4.5,
-        center: [-10686671.12, 4721671.57],
-      }),
+    await waitFor(() =>
+      expect(screen.getByTestId("map-view")).toHaveTextContent(
+        JSON.stringify({
+          zoom: 4.5,
+          center: [-10686671.12, 4721671.57],
+        }),
+      ),
     );
   });
 
@@ -155,11 +157,13 @@ test("Custom Map Config and View Config", async () => {
   expect(mapDiv).toHaveStyle("width: 50%");
   expect(await screen.findByText("Map Ready")).toBeInTheDocument();
 
-  expect(await screen.findByTestId("map-view")).toHaveTextContent(
-    JSON.stringify({
-      zoom: 7,
-      center: [-10686671.12, 4721671.57],
-    }),
+  await waitFor(() =>
+    expect(screen.getByTestId("map-view")).toHaveTextContent(
+      JSON.stringify({
+        zoom: 7,
+        center: [-10686671.12, 4721671.57],
+      }),
+    ),
   );
 
   rerender(
@@ -177,11 +181,13 @@ test("Custom Map Config and View Config", async () => {
     </VariableInputsContext.Provider>,
   );
 
-  expect(await screen.findByTestId("map-view")).toHaveTextContent(
-    JSON.stringify({
-      zoom: 8,
-      center: [-10686671.12, 4721671.57],
-    }),
+  await waitFor(() =>
+    expect(screen.getByTestId("map-view")).toHaveTextContent(
+      JSON.stringify({
+        zoom: 8,
+        center: [-10686671.12, 4721671.57],
+      }),
+    ),
   );
 
   rerender(
@@ -199,11 +205,13 @@ test("Custom Map Config and View Config", async () => {
     </VariableInputsContext.Provider>,
   );
 
-  expect(await screen.findByTestId("map-view")).toHaveTextContent(
-    JSON.stringify({
-      zoom: 8,
-      center: [-10686671.12, 4721671.57],
-    }),
+  await waitFor(() =>
+    expect(screen.getByTestId("map-view")).toHaveTextContent(
+      JSON.stringify({
+        zoom: 8,
+        center: [-10686671.12, 4721671.57],
+      }),
+    ),
   );
 });
 
@@ -235,11 +243,13 @@ test("Custom map extent wraps an out-of-range lon for EPSG:3857 projections", as
 
   expect(await screen.findByText("Map Ready")).toBeInTheDocument();
 
-  expect(await screen.findByTestId("map-view")).toHaveTextContent(
-    JSON.stringify({
-      zoom,
-      center: [expectedX, lat],
-    }),
+  await waitFor(() =>
+    expect(screen.getByTestId("map-view")).toHaveTextContent(
+      JSON.stringify({
+        zoom,
+        center: [expectedX, lat],
+      }),
+    ),
   );
 });
 
@@ -306,8 +316,10 @@ test("Custom bounding old map extent string", async () => {
   expect(mapDiv).toHaveStyle("width: 50%");
   expect(await screen.findByText("Map Ready")).toBeInTheDocument();
 
-  expect(await screen.findByTestId("map-view")).toHaveTextContent(
-    JSON.stringify({ zoom: 19.578127880157357, center: [20, 30] }),
+  await waitFor(() =>
+    expect(screen.getByTestId("map-view")).toHaveTextContent(
+      JSON.stringify({ zoom: 19.578127880157357, center: [20, 30] }),
+    ),
   );
 });
 
@@ -332,8 +344,10 @@ test("Custom bounding box map extent", async () => {
   expect(mapDiv).toHaveStyle("width: 50%");
   expect(await screen.findByText("Map Ready")).toBeInTheDocument();
 
-  expect(await screen.findByTestId("map-view")).toHaveTextContent(
-    JSON.stringify({ zoom: 19.578127880157357, center: [20, 30] }),
+  await waitFor(() =>
+    expect(screen.getByTestId("map-view")).toHaveTextContent(
+      JSON.stringify({ zoom: 19.578127880157357, center: [20, 30] }),
+    ),
   );
 });
 
@@ -361,8 +375,10 @@ test("Custom bounding box map extent with variable", async () => {
   expect(await screen.findByText("Map Ready")).toBeInTheDocument();
 
   await waitFor(async () => {
-    expect(await screen.findByTestId("map-view")).toHaveTextContent(
-      JSON.stringify({ zoom: 19.578127880157357, center: [20, 30] }),
+    await waitFor(() =>
+      expect(screen.getByTestId("map-view")).toHaveTextContent(
+        JSON.stringify({ zoom: 19.578127880157357, center: [20, 30] }),
+      ),
     );
   });
 

@@ -20,7 +20,7 @@ test("Layout loading", async () => {
           <Layout />
         </Loader>
       </ModalPriorityProvider>
-    </MemoryRouter>
+    </MemoryRouter>,
   );
 
   expect(await screen.findByText("Loading TethysDash...")).toBeInTheDocument();
@@ -35,7 +35,7 @@ test("Layout not found", async () => {
           <Layout />
         </Loader>
       </ModalPriorityProvider>
-    </MemoryRouter>
+    </MemoryRouter>,
   );
 
   expect(await screen.findByText("Page Not Found")).toBeInTheDocument();
@@ -49,7 +49,7 @@ test("Layout loading valid dashboard", async () => {
           <Layout />
         </Loader>
       </ModalPriorityProvider>
-    </MemoryRouter>
+    </MemoryRouter>,
   );
 
   expect(await screen.findByText("Loading TethysDash...")).toBeInTheDocument();
@@ -64,7 +64,7 @@ test("Layout loading invalid dashboard", async () => {
           <Layout />
         </Loader>
       </ModalPriorityProvider>
-    </MemoryRouter>
+    </MemoryRouter>,
   );
 
   expect(await screen.findByText("Loading TethysDash...")).toBeInTheDocument();

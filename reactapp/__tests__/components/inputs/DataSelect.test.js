@@ -18,7 +18,7 @@ it("DataSelect Creatable", async () => {
       selectedOption={selectedOption}
       onChange={onChange}
       options={options}
-    />
+    />,
   );
 
   const dropdown = await screen.findByRole("combobox");
@@ -60,7 +60,7 @@ it("DataSelect Not Creatable", async () => {
       onChange={onChange}
       options={options}
       creatable={false}
-    />
+    />,
   );
 
   const dropdown = await screen.findByRole("combobox");

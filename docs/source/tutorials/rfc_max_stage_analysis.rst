@@ -5,7 +5,7 @@ RFC Max Stage Analysis
 
 This tutorial walks through building a complete dashboard that combines a map of river gauges with dynamic time series and impact statements. Selecting a gauge on the map updates every other visualization on the dashboard — a common pattern for water-management dashboards that pull together data from multiple sources.
 
-**Finished product:** `demo.firo.aquaveo.com/apps/tethysdash/dashboard/07b80e6d-854b-4ca5-ae02-85fad139ee34 <https://demo.firo.aquaveo.com/apps/tethysdash/dashboard/07b80e6d-854b-4ca5-ae02-85fad139ee34>`_
+**Finished product:** `https://demo.tethysgeoscience.org/apps/tethysdash/dashboard/42cbbe40-140f-4b9b-965c-99199cbf2c57 <https://demo.tethysgeoscience.org/apps/tethysdash/dashboard/42cbbe40-140f-4b9b-965c-99199cbf2c57>`_
 
 .. image:: ../../images/tutorials/rfc_max_stage/15_gauge_selection_demo.png
    :align: center

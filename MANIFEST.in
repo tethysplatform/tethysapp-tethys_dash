@@ -1,0 +1,2 @@
+prune tethysapp/tethysdash/public/data
+recursive-exclude tethysapp/tethysdash/public/data *
