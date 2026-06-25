@@ -185,49 +185,51 @@ test("DatePicker initial variable", async () => {
 });
 
 test("DatePicker initial now+1D", async () => {
-  const mockOnChange = jest.fn();
+  const frozenNow = new Date("2026-06-15T14:13:00.000Z");
+  jest.useFakeTimers();
+  jest.setSystemTime(frozenNow);
 
-  render(
-    <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
-      <DatePicker
-        label="Test DatePicker"
-        value="now+1D"
-        onChange={mockOnChange}
-      />
-    </DataViewerModeContext.Provider>,
-  );
+  try {
+    const mockOnChange = jest.fn();
 
-  expect(await screen.findByText("Test DatePicker")).toBeInTheDocument();
+    render(
+      <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
+        <DatePicker
+          label="Test DatePicker"
+          value="now+1D"
+          onChange={mockOnChange}
+        />
+      </DataViewerModeContext.Provider>,
+    );
 
-  const input = screen.getByRole("textbox");
-  expect(input.value).toBe("now+1D");
+    expect(await screen.findByText("Test DatePicker")).toBeInTheDocument();
 
-  const calendarButton = screen.getByLabelText("Calendar Icon");
-  await userEvent.click(calendarButton);
+    const input = screen.getByRole("textbox");
+    expect(input.value).toBe("now+1D");
 
-  const datePicker = await screen.findByRole("dialog");
-  expect(datePicker).toBeInTheDocument();
-  const today = new Date();
-  const tomorrow = new Date(today);
-  tomorrow.setDate(today.getDate() + 1);
-  const weekday = tomorrow.toLocaleDateString("en-US", { weekday: "long" });
-  const month = tomorrow.toLocaleDateString("en-US", { month: "long" });
-  const day = tomorrow.getDate();
-  const ordinal = getOrdinal(day);
-  const year = tomorrow.getFullYear();
+    const calendarButton = screen.getByLabelText("Calendar Icon");
+    fireEvent.click(calendarButton);
 
-  const formatted = `Choose ${weekday}, ${month} ${day}${ordinal}, ${year}`;
-  const tomorrowCalendarItem = screen.getByLabelText(formatted);
-  expect(tomorrowCalendarItem).toHaveAttribute("aria-selected", "true");
+    const datePicker = await screen.findByRole("dialog");
+    expect(datePicker).toBeInTheDocument();
+    const tomorrow = new Date(frozenNow);
+    tomorrow.setDate(frozenNow.getDate() + 1);
+    const weekday = tomorrow.toLocaleDateString("en-US", { weekday: "long" });
+    const month = tomorrow.toLocaleDateString("en-US", { month: "long" });
+    const day = tomorrow.getDate();
+    const ordinal = getOrdinal(day);
+    const year = tomorrow.getFullYear();
 
-  const timeInput = screen.getByPlaceholderText("Time");
-  const timeString = today.toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-  expect(timeInput).toHaveValue(timeString);
-  expect(mockOnChange).toHaveBeenCalledTimes(0);
+    const formatted = `Choose ${weekday}, ${month} ${day}${ordinal}, ${year}`;
+    const tomorrowCalendarItem = screen.getByLabelText(formatted);
+    expect(tomorrowCalendarItem).toHaveAttribute("aria-selected", "true");
+
+    const timeInput = screen.getByPlaceholderText("Time");
+    expect(timeInput).toHaveValue(format(frozenNow, "HH:mm"));
+    expect(mockOnChange).toHaveBeenCalledTimes(0);
+  } finally {
+    jest.useRealTimers();
+  }
 });
 
 test("DatePicker select tomorrow date-hour", async () => {
