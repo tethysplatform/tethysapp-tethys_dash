@@ -363,7 +363,7 @@ const DashboardItem = () => {
   // order renders as fill; the rest fall back to normal grid sizing.
   const isFirstFillItem = (() => {
     if (!fillViewportRequested) return false;
-    const activeGridItems = getActiveTab?.()?.gridItems ?? [];
+    const activeGridItems = getActiveTab().gridItems;
     const firstFill = activeGridItems.find((gi) => {
       try {
         return JSON.parse(gi.metadata_string)?.fillViewport;
@@ -378,7 +378,7 @@ const DashboardItem = () => {
     fillViewportRequested && isFirstFillItem && !isEditing;
   // The tab bar (44px) is shown in view mode only when more than one tab exists.
   const fillSubtract =
-    (tabs?.length ?? 0) > 1
+    tabs.length > 1
       ? "var(--ts-header-height) + 44px"
       : "var(--ts-header-height)";
 
