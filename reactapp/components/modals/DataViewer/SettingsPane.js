@@ -170,6 +170,17 @@ function SettingsPane({
     });
   };
 
+  const onFillViewportChange = (checked) => {
+    setSettings((prev) => {
+      if (checked) {
+        return { ...prev, fillViewport: true };
+      } else {
+        const { fillViewport, ...rest } = prev;
+        return rest;
+      }
+    });
+  };
+
   const onEnforceAspectRatioChange = (checked) => {
     if (
       checked &&
@@ -226,6 +237,20 @@ function SettingsPane({
         onChange={onAttributionChange}
         divProps={{ style: { marginBottom: ".5rem" } }}
       />
+      <CheckboxInput
+        label="Fill Viewport"
+        type="checkbox"
+        value={!!settings.fillViewport}
+        onChange={onFillViewportChange}
+        divProps={{ style: { marginBottom: ".25rem" } }}
+      />
+      <small
+        className="no-caret"
+        style={{ display: "block", marginBottom: ".5rem", color: "#666" }}
+      >
+        Fills the screen below the navigation when viewed, on any screen size.
+        Covers other items on the tab.
+      </small>
       <CustomMessaging
         vizInputsValues={vizInputsValues}
         initialCustomMessaging={settings.customMessaging}
@@ -240,6 +265,7 @@ function SettingsPane({
                 type="checkbox"
                 value={!!settings.enforceAspectRatio}
                 onChange={onEnforceAspectRatioChange}
+                inputProps={{ disabled: !!settings.fillViewport }}
                 divProps={{ style: { marginBottom: "1rem" } }}
               />
             )}

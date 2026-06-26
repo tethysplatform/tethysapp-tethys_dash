@@ -194,6 +194,9 @@ const DashboardLayout = ({
           gridItemIndex: index,
           gridItemUUID: item.uuid,
           shouldLoad: shouldLoad,
+          // Fill-viewport only applies on the main dashboard surface, not when
+          // this layout is reused inside the popup modal / popup editor.
+          enableFillViewport: tabId !== "popup",
         }}
       >
         <DashboardItem />
