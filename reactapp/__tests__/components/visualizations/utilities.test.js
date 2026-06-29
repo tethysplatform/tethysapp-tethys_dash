@@ -355,6 +355,52 @@ test("getVisualization image caches result, skips repeat request, refresh bypass
   expect(type4.mock.calls[0][0]).toBe("loader");
 });
 
+test("getVisualization does not cache an image whose date arg is the 'latest' preset", async () => {
+  let requestCount = 0;
+  server.use(
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        requestCount += 1;
+        return res(
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            viz_type: "image",
+            data: "latest_path",
+          }),
+          ctx.set("Content-Type", "application/json"),
+        );
+      },
+    ),
+  );
+
+  const baseParams = (setVizType, setVizData) => ({
+    setVizType,
+    setVizData,
+    sourceType: "image",
+    sourceArgs: { DATETIME: "date" },
+    itemData: { source: "img_source" },
+    metadataString: "{}",
+    argsString: JSON.stringify({ DATETIME: "latest" }),
+    variableInputValues: {},
+  });
+
+  // First call hits the backend.
+  const type1 = jest.fn();
+  const data1 = jest.fn();
+  await getVisualization(baseParams(type1, data1));
+  expect(requestCount).toBe(1);
+
+  // Second identical call must NOT be served from cache — "latest" re-resolves,
+  // so the cache is neither read nor written for a sentinel-bearing date arg.
+  const type2 = jest.fn();
+  const data2 = jest.fn();
+  await getVisualization(baseParams(type2, data2));
+  expect(requestCount).toBe(2);
+  expect(type2.mock.calls.map((c) => c[0])).toEqual(["loader", "image"]);
+});
+
 test("buildImageVizCacheKey falls back to null for missing source/args", () => {
   // Both ?? null branches: nullish source and nullish args.
   expect(buildImageVizCacheKey({})).toBe(JSON.stringify({ s: null, a: null }));

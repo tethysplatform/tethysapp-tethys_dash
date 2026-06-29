@@ -1465,6 +1465,34 @@ describe("When inDataViewerMode", () => {
     );
   });
 
+  it("shows the Latest preset label in the date Example Output", async () => {
+    const dashboard = JSON.parse(JSON.stringify(userDashboard));
+    dashboard.tabs[0].gridItems = [mockedDateVariable];
+    const handleChange = jest.fn();
+    const varInputArgs = JSON.parse(mockedDateVariable.args_string);
+
+    render(
+      createLoadedComponent({
+        children: (
+          <VariableInput
+            variable_name={varInputArgs.variable_name}
+            initial_value="latest"
+            variable_options_source={varInputArgs.variable_options_source}
+            onChange={handleChange}
+          />
+        ),
+        options: {
+          dashboards: { dashboards: [dashboard] },
+          inDataViewerMode: true,
+        },
+      }),
+    );
+
+    // The preset sentinel renders as its human label, not "Invalid date format".
+    const preview = await screen.findByLabelText("Example Date Output Span");
+    expect(preview).toHaveTextContent("Latest");
+  });
+
   it("Creates a Number Input for a Variable Input", async () => {
     const user = userEvent.setup();
     const dashboard = JSON.parse(JSON.stringify(userDashboard));

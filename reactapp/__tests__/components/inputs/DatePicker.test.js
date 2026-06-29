@@ -485,3 +485,21 @@ test("DatePicker keeps an active Latest preset across a parent re-render", async
     "true",
   );
 });
+
+test("DatePicker passes a typed preset sentinel through verbatim", async () => {
+  const mockOnChange = jest.fn();
+
+  render(
+    <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
+      <DatePicker label="Test DatePicker" value="" onChange={mockOnChange} />
+    </DataViewerModeContext.Provider>,
+  );
+
+  const input = screen.getByRole("textbox");
+  // Typing the sentinel (not via the chip) must hit the onRawChange preset
+  // branch and emit the literal string, not attempt to parse it as a date.
+  fireEvent.change(input, { target: { value: "latest" } });
+
+  expect(mockOnChange).toHaveBeenLastCalledWith("latest");
+  expect(input.value).toBe("latest");
+});
