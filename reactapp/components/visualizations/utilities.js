@@ -28,13 +28,25 @@ export function buildImageVizCacheKey({ source, args }) {
 // on every load. A viz whose resolved args contain one bypasses the image
 // cache entirely — otherwise the stable sentinel arg yields a stable cache key
 // and a stale image is served instead of re-fetching.
-export function argsContainPreset(args) {
-  if (isPreset(args)) return true;
-  if (Array.isArray(args)) return args.some(argsContainPreset);
-  if (args && typeof args === "object") {
-    return Object.values(args).some(argsContainPreset);
+function valueContainsPreset(value) {
+  if (isPreset(value)) return true;
+  if (Array.isArray(value)) return value.some(valueContainsPreset);
+  if (value && typeof value === "object") {
+    return Object.values(value).some(valueContainsPreset);
   }
   return false;
+}
+
+export function argsContainPreset(args, sourceArgs = {}) {
+  if (!args || typeof args !== "object") return false;
+  // Only date-typed args can legitimately hold a preset sentinel. Scoping to
+  // them avoids disabling the cache when an unrelated arg's value happens to
+  // equal "latest". date-range endpoints are nested, so recurse into values.
+  return Object.entries(args).some(([key, value]) => {
+    const argType = sourceArgs[key];
+    if (typeof argType !== "string" || !argType.includes("date")) return false;
+    return valueContainsPreset(value);
+  });
 }
 
 // Exported for unit tests of the LRU read/evict logic; not part of the runtime
@@ -261,7 +273,7 @@ export async function getVisualization({
   // stored, so a hit is guaranteed to be an image. `refresh` (manual
   // refresh/retry) bypasses the cache and repopulates it below.
   const imageCacheKey = buildImageVizCacheKey(itemData);
-  const skipImageCache = argsContainPreset(itemData.args);
+  const skipImageCache = argsContainPreset(itemData.args, sourceArgs);
   if (!refresh && !skipImageCache) {
     const cachedImage = getCachedImageViz(imageCacheKey);
     if (cachedImage !== undefined) {

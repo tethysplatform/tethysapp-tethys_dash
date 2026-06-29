@@ -163,7 +163,8 @@ class TethysDashPlugin(base.DataSource):
 
         for kwarg_name, kwarg_value in kwargs.items():
             arg_type = self.args.get(kwarg_name)
-            if arg_type == "date" and kwarg_value not in DATE_PRESET_SENTINELS:
+            is_preset = isinstance(kwarg_value, str) and kwarg_value in DATE_PRESET_SENTINELS
+            if arg_type == "date" and not is_preset:
                 kwarg_value = parse(kwarg_value).replace(second=0, microsecond=0)
             setattr(self, kwarg_name, kwarg_value)
 

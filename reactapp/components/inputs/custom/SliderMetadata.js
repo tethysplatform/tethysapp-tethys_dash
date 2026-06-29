@@ -350,12 +350,14 @@ const SliderMetadata = ({ onChange, values }) => {
             label="Minimum"
             value={min}
             onChange={onMinChange}
+            showPresets={false}
             divProps={{ style: { marginTop: "1rem" } }}
           />
           <DatePicker
             label="Maximum"
             value={max}
             onChange={onMaxChange}
+            showPresets={false}
             divProps={{ style: { marginTop: "1rem" } }}
           />
           <FlexDiv>

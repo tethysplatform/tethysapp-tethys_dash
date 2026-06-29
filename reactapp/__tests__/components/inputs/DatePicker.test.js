@@ -451,3 +451,37 @@ test("DatePicker hides preset chips when showPresets is false", async () => {
     screen.queryByRole("button", { name: "Latest preset" }),
   ).not.toBeInTheDocument();
 });
+
+test("DatePicker keeps an active Latest preset across a parent re-render", async () => {
+  const mockOnChange = jest.fn();
+
+  const { rerender } = render(
+    <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
+      <DatePicker
+        label="Test DatePicker"
+        value="latest"
+        onChange={mockOnChange}
+      />
+    </DataViewerModeContext.Provider>,
+  );
+
+  expect(screen.getByRole("textbox").value).toBe("latest");
+
+  // A parent re-render must not let the value->rawInputValue effect clobber the
+  // active preset back into a formatted/blank date.
+  rerender(
+    <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
+      <DatePicker
+        label="Test DatePicker"
+        value="latest"
+        onChange={mockOnChange}
+      />
+    </DataViewerModeContext.Provider>,
+  );
+
+  expect(screen.getByRole("textbox").value).toBe("latest");
+  expect(screen.getByRole("button", { name: "Latest preset" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+});

@@ -364,22 +364,34 @@ test("buildImageVizCacheKey falls back to null for missing source/args", () => {
   );
 });
 
-test("argsContainPreset detects a preset sentinel among resolved args", () => {
-  expect(argsContainPreset({ DATETIME: "latest" })).toBe(true);
-  expect(argsContainPreset({ DATETIME: "2026-06-29T00:00:00", n: 1 })).toBe(
+test("argsContainPreset detects a preset only in date-typed args", () => {
+  // Sentinel in a date-typed arg -> true.
+  expect(argsContainPreset({ DATETIME: "latest" }, { DATETIME: "date" })).toBe(
+    true,
+  );
+  // Sentinel in a NON-date arg -> false (no spurious cache-disable collision).
+  expect(argsContainPreset({ region: "latest" }, { region: "text" })).toBe(
     false,
   );
+  // Concrete date -> false.
+  expect(
+    argsContainPreset(
+      { DATETIME: "2026-06-29T00:00:00" },
+      { DATETIME: "date" },
+    ),
+  ).toBe(false);
+  // Nested date-range endpoint sentinel -> true; array values handled too.
+  expect(
+    argsContainPreset(
+      { range: { "Start Date": "latest", "End Date": "x" } },
+      { range: "date-range" },
+    ),
+  ).toBe(true);
+  expect(argsContainPreset({ d: ["latest"] }, { d: "date" })).toBe(true);
+  // Without sourceArgs nothing is known to be date-typed -> false.
+  expect(argsContainPreset({ DATETIME: "latest" })).toBe(false);
   expect(argsContainPreset({})).toBe(false);
   expect(argsContainPreset(null)).toBe(false);
-  // Top-level string is not an args object; only sentinels nested in args count.
-  expect(argsContainPreset("latest")).toBe(true);
-  // Nested sentinels (e.g. inside a date-range object) are detected too.
-  expect(
-    argsContainPreset({ range: { "Start Date": "latest", "End Date": "x" } }),
-  ).toBe(true);
-  expect(
-    argsContainPreset({ range: { "Start Date": "x", "End Date": "y" } }),
-  ).toBe(false);
 });
 
 test("image cache evicts the least-recently-used entry past the limit", () => {
@@ -1154,6 +1166,20 @@ describe("updateObjectWithVariableInputs date arg resolution", () => {
       returnDatesAsLocalISO: true,
     });
     expect(result.d).toBe("latest");
+  });
+
+  it("passes a 'latest' sentinel through a date-range endpoint verbatim", () => {
+    const result = updateObjectWithVariableInputs({
+      args: { range: { "Start Date": "latest", "End Date": "now" } },
+      variableInputs: {},
+      variableInputDateFormats: {},
+      sourceArgs: { range: "date-range" },
+      returnDatesAsLocalISO: true,
+    });
+    expect(result.range["Start Date"]).toBe("latest");
+    expect(result.range["End Date"]).toBe(
+      convertDatesToLocalISO(parseDate("now")),
+    );
   });
 
   it("resolves both endpoints of a 'date-range' arg with relative values", () => {
