@@ -17,7 +17,11 @@ import { BsArrowClockwise } from "react-icons/bs";
 import Slider from "components/inputs/Slider";
 import CSVUploader from "components/inputs/CSVUploader";
 import { valuesEqual } from "components/modals/utilities";
-import { parseDate } from "components/inputs/dateUtils";
+import {
+  parseDate,
+  isPreset,
+  DATE_PRESET_LABELS,
+} from "components/inputs/dateUtils";
 import DataSelect from "components/inputs/DataSelect";
 
 const StyledDiv = styled.div`
@@ -225,11 +229,13 @@ const VariableInput = ({
   }
 
   function displayDateOuput() {
-    const parsedDate = parseDate(
-      value?.startDate || value,
-      updatedMetadata?.format,
-      true,
-    );
+    const dateValue = value?.startDate || value;
+    // Preset sentinels ('latest') aren't dates — show the human label instead
+    // of attempting to format them (which would read "Invalid date format").
+    if (isPreset(dateValue)) {
+      return DATE_PRESET_LABELS[dateValue];
+    }
+    const parsedDate = parseDate(dateValue, updatedMetadata?.format, true);
     if (!parsedDate) {
       return "Invalid date format";
     }

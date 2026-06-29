@@ -13,13 +13,33 @@ import {
   parseDateMath,
   checkForVariable,
   isRelativeInput,
+  isPreset,
   parseDate,
+  DATE_PRESETS,
+  DATE_PRESET_LABELS,
 } from "components/inputs/dateUtils";
 
 const Wrapper = styled.div`
   position: relative;
   display: inline-block;
   width: 100%;
+`;
+
+const PresetRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-bottom: 0.25rem;
+`;
+
+const PresetChip = styled.button`
+  font-size: 0.75rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 1rem;
+  border: 1px solid #adb5bd;
+  cursor: pointer;
+  background: ${(props) => (props.$active ? "#0d6efd" : "transparent")};
+  color: ${(props) => (props.$active ? "#ffffff" : "inherit")};
 `;
 
 const StyledInput = styled.input`
@@ -45,6 +65,7 @@ const DatePicker = ({
   divProps,
   dateFormat = dateHourFormat,
   showTimeInput = true,
+  showPresets = true,
 }) => {
   const { inDataViewerMode } = useContext(DataViewerModeContext);
 
@@ -67,7 +88,8 @@ const DatePicker = ({
       value !== dateHourFormattedRaw &&
       value !== dateOnlyFormattedRaw &&
       value !== dateFormattedRaw &&
-      !isRelativeInput(rawInputValue)
+      !isRelativeInput(rawInputValue) &&
+      !isPreset(rawInputValue)
     ) {
       try {
         setRawInputValue(
@@ -80,9 +102,10 @@ const DatePicker = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
-  // Derive selectedDate for calendar from value prop (only if not relative)
+  // Derive selectedDate for calendar from value prop (only if not relative,
+  // a variable reference, or a preset sentinel)
   let selectedDate = null;
-  if (!checkForVariable(value)) {
+  if (!checkForVariable(value) && !isPreset(value)) {
     selectedDate = parseDate(value, dateHourFormat);
   }
 
@@ -100,6 +123,12 @@ const DatePicker = ({
     }
 
     if (checkForVariable(val)) {
+      onChange(val);
+      return;
+    }
+
+    // Preset sentinel ('latest') — pass through verbatim to the plugin.
+    if (isPreset(val)) {
       onChange(val);
       return;
     }
@@ -127,12 +156,35 @@ const DatePicker = ({
     onChange(date);
   };
 
+  const onPresetClick = (preset) => {
+    // Toggle: clicking the active preset clears it back to an empty input.
+    const next = rawInputValue === preset ? "" : preset;
+    setRawInputValue(next);
+    onChange(next);
+  };
+
   return (
     <div {...divProps}>
       {label && (
         <label className="no-caret">
           <b>{label}</b>:
         </label>
+      )}
+      {showPresets && (
+        <PresetRow>
+          {DATE_PRESETS.map((preset) => (
+            <PresetChip
+              key={preset}
+              type="button"
+              aria-label={`${DATE_PRESET_LABELS[preset]} preset`}
+              aria-pressed={rawInputValue === preset}
+              $active={rawInputValue === preset}
+              onClick={() => onPresetClick(preset)}
+            >
+              {DATE_PRESET_LABELS[preset]}
+            </PresetChip>
+          ))}
+        </PresetRow>
       )}
       <div>
         <Wrapper>
@@ -181,6 +233,7 @@ DatePicker.propTypes = {
   divProps: PropTypes.object,
   dateFormat: PropTypes.string,
   showTimeInput: PropTypes.bool,
+  showPresets: PropTypes.bool,
 };
 
 export default memo(DatePicker);

@@ -75,6 +75,7 @@ export const DateRange = ({
             onChange={onStartDateChange}
             dateFormat={metadata?.format}
             {...props}
+            showPresets={false}
           />
         </FlexItem>
         <FlexItem>
@@ -84,6 +85,7 @@ export const DateRange = ({
             onChange={onEndDateChange}
             dateFormat={metadata?.format}
             {...props}
+            showPresets={false}
           />
         </FlexItem>
       </FlexWrap>

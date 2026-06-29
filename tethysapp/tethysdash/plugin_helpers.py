@@ -44,6 +44,15 @@ def get_plugin_prop(obj, name, default=None):
         return default
 
 
+# Date input preset sentinels. When a "date" arg carries one of these values it
+# is passed through to run() verbatim (NOT parsed into a datetime); the plugin
+# is responsible for resolving it (e.g. "latest" => discover the newest
+# available resource). MUST stay in sync with DATE_PRESETS in
+# reactapp/components/inputs/dateUtils.js — there is no shared FE/BE constants
+# mechanism, so a test enforces parity.
+DATE_PRESET_SENTINELS = {"latest"}
+
+
 valid_plugin_types = [
     "plotly",
     "table",
@@ -154,7 +163,7 @@ class TethysDashPlugin(base.DataSource):
 
         for kwarg_name, kwarg_value in kwargs.items():
             arg_type = self.args.get(kwarg_name)
-            if arg_type == "date":
+            if arg_type == "date" and kwarg_value not in DATE_PRESET_SENTINELS:
                 kwarg_value = parse(kwarg_value).replace(second=0, microsecond=0)
             setattr(self, kwarg_name, kwarg_value)
 

@@ -209,6 +209,45 @@ it("Creates a Date Range Input for a Variable Input", async () => {
   );
 });
 
+it("Selects the Latest preset on a Date Variable Input", async () => {
+  const dashboard = JSON.parse(JSON.stringify(userDashboard));
+  dashboard.tabs[0].gridItems = [mockedDateVariable];
+  const handleChange = jest.fn();
+  const varInputArgs = JSON.parse(mockedDateVariable.args_string);
+
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <VariableInput
+            variable_name={varInputArgs.variable_name}
+            initial_value={varInputArgs.initial_value}
+            variable_options_source={varInputArgs.variable_options_source}
+            onChange={handleChange}
+          />
+          <InputVariablePComponent />
+        </>
+      ),
+      options: { dashboards: { dashboards: [dashboard] } },
+    }),
+  );
+
+  expect(await screen.findByText("Test Variable")).toBeInTheDocument();
+
+  const chip = screen.getByRole("button", { name: "Latest preset" });
+  await userEvent.click(chip);
+
+  expect(handleChange).toHaveBeenLastCalledWith("latest");
+
+  const refreshButton = screen.getByLabelText("Refresh variable input");
+  await userEvent.click(refreshButton);
+
+  // The literal sentinel survives substitution into the shared variable input.
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({ "Test Variable": "latest" }),
+  );
+});
+
 it("Creates a Custom Dropdown Input for a Variable Input", async () => {
   const dashboard = JSON.parse(JSON.stringify(userDashboard));
   dashboard.tabs[0].gridItems = [mockedCustomDropdownVariable];

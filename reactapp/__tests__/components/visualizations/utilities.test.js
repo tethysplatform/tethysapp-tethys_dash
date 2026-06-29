@@ -17,6 +17,7 @@ import {
   getCachedImageViz,
   setCachedImageViz,
   buildImageVizCacheKey,
+  argsContainPreset,
   IMAGE_VIZ_CACHE_LIMIT,
 } from "components/visualizations/utilities";
 import { server } from "__tests__/utilities/server";
@@ -361,6 +362,24 @@ test("buildImageVizCacheKey falls back to null for missing source/args", () => {
   expect(buildImageVizCacheKey({ source: "img", args: { hour: "05" } })).toBe(
     JSON.stringify({ s: "img", a: { hour: "05" } }),
   );
+});
+
+test("argsContainPreset detects a preset sentinel among resolved args", () => {
+  expect(argsContainPreset({ DATETIME: "latest" })).toBe(true);
+  expect(argsContainPreset({ DATETIME: "2026-06-29T00:00:00", n: 1 })).toBe(
+    false,
+  );
+  expect(argsContainPreset({})).toBe(false);
+  expect(argsContainPreset(null)).toBe(false);
+  // Top-level string is not an args object; only sentinels nested in args count.
+  expect(argsContainPreset("latest")).toBe(true);
+  // Nested sentinels (e.g. inside a date-range object) are detected too.
+  expect(
+    argsContainPreset({ range: { "Start Date": "latest", "End Date": "x" } }),
+  ).toBe(true);
+  expect(
+    argsContainPreset({ range: { "Start Date": "x", "End Date": "y" } }),
+  ).toBe(false);
 });
 
 test("image cache evicts the least-recently-used entry past the limit", () => {
@@ -1111,6 +1130,30 @@ describe("updateObjectWithVariableInputs date arg resolution", () => {
     });
     expect(result.d).toBe(convertDatesToLocalISO(parseDate("now-1D")));
     expect(result.d).not.toBe("now-1D");
+  });
+
+  it("passes a 'latest' preset sentinel through a date arg verbatim", () => {
+    const result = updateObjectWithVariableInputs({
+      args: { d: "latest" },
+      variableInputs: {},
+      variableInputDateFormats: {},
+      sourceArgs: { d: "date" },
+      returnDatesAsLocalISO: true,
+    });
+    expect(result.d).toBe("latest");
+  });
+
+  it("passes a 'latest' preset through a shared date variable input", () => {
+    // AE3: a date-typed variable input set to 'latest' substitutes the literal
+    // string into the connected arg rather than formatting it to null.
+    const result = updateObjectWithVariableInputs({
+      args: { d: "${Forecast Date}" },
+      variableInputs: { "Forecast Date": "latest" },
+      variableInputDateFormats: { "Forecast Date": "MM/dd/yyyy h:mm aa" },
+      sourceArgs: { d: "date" },
+      returnDatesAsLocalISO: true,
+    });
+    expect(result.d).toBe("latest");
   });
 
   it("resolves both endpoints of a 'date-range' arg with relative values", () => {

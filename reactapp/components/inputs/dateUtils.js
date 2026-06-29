@@ -4,6 +4,18 @@ import { format, parse } from "date-fns";
 export const dateHourFormat = "MM/dd/yyyy h:mm aa";
 export const dateOnlyFormat = "MM/dd/yyyy";
 
+// Date input preset sentinels. When a date input holds one of these values it
+// is passed through verbatim (never parsed into a Date) all the way to the
+// plugin's run(), which resolves it itself (e.g. "latest" => newest available
+// file). MUST stay in sync with DATE_PRESET_SENTINELS in
+// tethysapp/tethysdash/plugin_helpers.py — there is no shared FE/BE constants
+// mechanism, so a test enforces parity.
+export const LATEST_PRESET = "latest";
+export const DATE_PRESETS = [LATEST_PRESET];
+
+// Human-facing label for each preset sentinel (chip text, previews).
+export const DATE_PRESET_LABELS = { [LATEST_PRESET]: "Latest" };
+
 export function toLocalISO(d) {
   const pad = (n) => String(n).padStart(2, "0");
   return (
@@ -128,6 +140,14 @@ export function isRelativeInput(val) {
   return /^now([+-]\d+[YMWDHmS])*$/.test(val);
 }
 
+/**
+ * Checks if a value is a date preset sentinel (e.g., 'latest').
+ */
+export function isPreset(val) {
+  if (typeof val !== "string") return false;
+  return DATE_PRESETS.includes(val);
+}
+
 export const parseDate = (
   rawDate,
   dateFormat = dateHourFormat,
@@ -136,6 +156,11 @@ export const parseDate = (
   if (!rawDate) return null;
   let selectedDate = rawDate;
   if (checkForVariable(rawDate)) {
+    return rawDate;
+  }
+  // Preset sentinels ('latest') are passed through verbatim — they are not
+  // dates and must survive to the plugin's run() unparsed.
+  if (isPreset(rawDate)) {
     return rawDate;
   }
 

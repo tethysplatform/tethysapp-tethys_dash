@@ -3,10 +3,12 @@ from tethysapp.tethysdash.plugin_helpers import (
     validate_geojson,
     send_websocket_message,
     TethysDashPlugin,
+    DATE_PRESET_SENTINELS,
 )
 import requests
 import pytest
 import re
+from pathlib import Path
 from datetime import datetime
 
 
@@ -1062,6 +1064,51 @@ def test_plugin_kwargs_are_set():
     plugin = MinimalPlugin(foo=123, fooDate="2023-01-01")
     assert plugin.foo == 123
     assert plugin.fooDate == datetime(2023, 1, 1, 0, 0)
+
+
+def test_date_preset_sentinel_passes_through_unparsed():
+    # A "date" arg holding the "latest" sentinel must reach run() as the raw
+    # string, not crash dateutil.parse or coerce to a datetime.
+    plugin = MinimalPlugin(foo=123, fooDate="latest")
+    assert plugin.fooDate == "latest"
+    assert isinstance(plugin.fooDate, str)
+
+
+def test_non_date_arg_equal_to_sentinel_is_unaffected():
+    # Only "date"-typed args are gated; a non-date arg whose value happens to
+    # equal the sentinel string is set verbatim (as it always was).
+    plugin = MinimalPlugin(foo="latest", fooDate="2023-01-01")
+    assert plugin.foo == "latest"
+    assert plugin.fooDate == datetime(2023, 1, 1, 0, 0)
+
+
+def test_date_preset_sentinels_match_frontend():
+    # Parity guard: the backend skip-parse set must match the frontend preset
+    # list. There is no shared FE/BE constants mechanism, so drift between
+    # DATE_PRESET_SENTINELS and DATE_PRESETS would silently break the feature.
+    repo_root = Path(__file__).resolve().parents[4]
+    date_utils = (
+        repo_root / "reactapp" / "components" / "inputs" / "dateUtils.js"
+    ).read_text()
+
+    array_match = re.search(r"export const DATE_PRESETS\s*=\s*\[([^\]]*)\]", date_utils)
+    assert array_match, "Could not find DATE_PRESETS in dateUtils.js"
+
+    # DATE_PRESETS references string constants (e.g. LATEST_PRESET); resolve them.
+    const_values = dict(
+        re.findall(r'export const (\w+)\s*=\s*"([^"]+)"', date_utils)
+    )
+    frontend_presets = set()
+    for token in array_match.group(1).split(","):
+        token = token.strip()
+        if not token:
+            continue
+        if token in const_values:
+            frontend_presets.add(const_values[token])
+        else:
+            frontend_presets.add(token.strip("\"'"))
+
+    assert frontend_presets == DATE_PRESET_SENTINELS
 
 
 # --- Runtime-capable plugin tests -------------------------------------------
