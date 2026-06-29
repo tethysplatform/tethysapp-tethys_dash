@@ -209,7 +209,7 @@ it("Creates a Date Range Input for a Variable Input", async () => {
   );
 });
 
-it("Selects the Latest preset on a Date Variable Input", async () => {
+it("passes a typed 'latest' sentinel through a Date Variable Input", async () => {
   const dashboard = JSON.parse(JSON.stringify(userDashboard));
   dashboard.tabs[0].gridItems = [mockedDateVariable];
   const handleChange = jest.fn();
@@ -234,8 +234,9 @@ it("Selects the Latest preset on a Date Variable Input", async () => {
 
   expect(await screen.findByText("Test Variable")).toBeInTheDocument();
 
-  const chip = screen.getByRole("button", { name: "Latest preset" });
-  await userEvent.click(chip);
+  // Typing the sentinel into the date field emits the literal string verbatim.
+  const input = screen.getByRole("textbox");
+  fireEvent.change(input, { target: { value: "latest" } });
 
   expect(handleChange).toHaveBeenLastCalledWith("latest");
 

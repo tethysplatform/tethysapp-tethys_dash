@@ -391,68 +391,7 @@ test("DatePicker relative date in dataviewer mode", async () => {
   }
 });
 
-test("DatePicker renders Latest preset chip and emits the sentinel on click", async () => {
-  const mockOnChange = jest.fn();
-
-  render(
-    <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
-      <DatePicker label="Test DatePicker" value="" onChange={mockOnChange} />
-    </DataViewerModeContext.Provider>,
-  );
-
-  const chip = await screen.findByRole("button", { name: "Latest preset" });
-  expect(chip).toBeInTheDocument();
-  expect(chip).toHaveAttribute("aria-pressed", "false");
-
-  await userEvent.click(chip);
-
-  expect(mockOnChange).toHaveBeenLastCalledWith("latest");
-});
-
-test("DatePicker shows the Latest chip as active when value is the sentinel", async () => {
-  const mockOnChange = jest.fn();
-
-  render(
-    <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
-      <DatePicker
-        label="Test DatePicker"
-        value="latest"
-        onChange={mockOnChange}
-      />
-    </DataViewerModeContext.Provider>,
-  );
-
-  const chip = await screen.findByRole("button", { name: "Latest preset" });
-  expect(chip).toHaveAttribute("aria-pressed", "true");
-  // The raw input reflects the sentinel rather than a formatted/blank date.
-  expect(screen.getByRole("textbox").value).toBe("latest");
-
-  // Clicking the active chip toggles it back off (clears the value).
-  await userEvent.click(chip);
-  expect(mockOnChange).toHaveBeenLastCalledWith("");
-});
-
-test("DatePicker hides preset chips when showPresets is false", async () => {
-  const mockOnChange = jest.fn();
-
-  render(
-    <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
-      <DatePicker
-        label="Test DatePicker"
-        value=""
-        onChange={mockOnChange}
-        showPresets={false}
-      />
-    </DataViewerModeContext.Provider>,
-  );
-
-  expect(await screen.findByText("Test DatePicker")).toBeInTheDocument();
-  expect(
-    screen.queryByRole("button", { name: "Latest preset" }),
-  ).not.toBeInTheDocument();
-});
-
-test("DatePicker keeps an active Latest preset across a parent re-render", async () => {
+test("DatePicker keeps a sentinel value across a parent re-render", async () => {
   const mockOnChange = jest.fn();
 
   const { rerender } = render(
@@ -468,7 +407,7 @@ test("DatePicker keeps an active Latest preset across a parent re-render", async
   expect(screen.getByRole("textbox").value).toBe("latest");
 
   // A parent re-render must not let the value->rawInputValue effect clobber the
-  // active preset back into a formatted/blank date.
+  // sentinel back into a formatted/blank date.
   rerender(
     <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
       <DatePicker
@@ -480,10 +419,6 @@ test("DatePicker keeps an active Latest preset across a parent re-render", async
   );
 
   expect(screen.getByRole("textbox").value).toBe("latest");
-  expect(screen.getByRole("button", { name: "Latest preset" })).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
 });
 
 test("DatePicker passes a typed preset sentinel through verbatim", async () => {

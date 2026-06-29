@@ -15,31 +15,12 @@ import {
   isRelativeInput,
   isPreset,
   parseDate,
-  DATE_PRESETS,
-  DATE_PRESET_LABELS,
 } from "components/inputs/dateUtils";
 
 const Wrapper = styled.div`
   position: relative;
   display: inline-block;
   width: 100%;
-`;
-
-const PresetRow = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem;
-  margin-bottom: 0.25rem;
-`;
-
-const PresetChip = styled.button`
-  font-size: 0.75rem;
-  padding: 0.1rem 0.5rem;
-  border-radius: 1rem;
-  border: 1px solid #adb5bd;
-  cursor: pointer;
-  background: ${(props) => (props.$active ? "#0d6efd" : "transparent")};
-  color: ${(props) => (props.$active ? "#ffffff" : "inherit")};
 `;
 
 const StyledInput = styled.input`
@@ -65,7 +46,6 @@ const DatePicker = ({
   divProps,
   dateFormat = dateHourFormat,
   showTimeInput = true,
-  showPresets = true,
 }) => {
   const { inDataViewerMode } = useContext(DataViewerModeContext);
 
@@ -156,35 +136,12 @@ const DatePicker = ({
     onChange(date);
   };
 
-  const onPresetClick = (preset) => {
-    // Toggle: clicking the active preset clears it back to an empty input.
-    const next = rawInputValue === preset ? "" : preset;
-    setRawInputValue(next);
-    onChange(next);
-  };
-
   return (
     <div {...divProps}>
       {label && (
         <label className="no-caret">
           <b>{label}</b>:
         </label>
-      )}
-      {showPresets && (
-        <PresetRow>
-          {DATE_PRESETS.map((preset) => (
-            <PresetChip
-              key={preset}
-              type="button"
-              aria-label={`${DATE_PRESET_LABELS[preset]} preset`}
-              aria-pressed={rawInputValue === preset}
-              $active={rawInputValue === preset}
-              onClick={() => onPresetClick(preset)}
-            >
-              {DATE_PRESET_LABELS[preset]}
-            </PresetChip>
-          ))}
-        </PresetRow>
       )}
       <div>
         <Wrapper>
@@ -233,7 +190,6 @@ DatePicker.propTypes = {
   divProps: PropTypes.object,
   dateFormat: PropTypes.string,
   showTimeInput: PropTypes.bool,
-  showPresets: PropTypes.bool,
 };
 
 export default memo(DatePicker);

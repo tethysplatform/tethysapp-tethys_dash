@@ -167,7 +167,6 @@ const PlotlySettings = ({ settings, setSettings }) => {
                 label="Date/Time"
                 value={verticalLineValue}
                 onChange={handleVerticalLineValueChange}
-                showPresets={false}
               />
             </PaddedDiv>
             <FlexDiv>
