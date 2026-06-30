@@ -1027,6 +1027,20 @@ def test_plugin_reserved_keys():
         ReservedArgs()
 
 
+def test_plugin_dotted_arg_names_rejected():
+    # "." is reserved as the nested-arg path delimiter, so a top-level arg name
+    # containing one would make get_arg()/sub_args() paths ambiguous.
+    class DottedArgs(TethysDashPlugin):
+        name = "n"
+        group = "g"
+        label = "l"
+        type = "plotly"
+        args = {"transect_location.location": "text"}
+
+    with pytest.raises(ValueError, match="path delimiter"):
+        DottedArgs()
+
+
 def test_plugin_run_not_implemented():
     class NoRun(TethysDashPlugin):
         name = "n"
@@ -1080,6 +1094,55 @@ def test_non_date_arg_equal_to_sentinel_is_unaffected():
     plugin = MinimalPlugin(foo="latest", fooDate="2023-01-01")
     assert plugin.foo == "latest"
     assert plugin.fooDate == datetime(2023, 1, 1, 0, 0)
+
+
+def test_get_arg_returns_flat_and_dotted_values():
+    plugin = MinimalPlugin(foo=123, **{"transect_location.location": "L"})
+    assert plugin.get_arg("foo") == 123
+    # Dotted keys are read reliably here even though attribute access cannot
+    # resolve them via self.transect_location.location.
+    assert plugin.get_arg("transect_location.location") == "L"
+    assert plugin.get_arg("missing") is None
+    assert plugin.get_arg("missing", "default") == "default"
+
+
+def test_received_args_reflects_parsed_dates():
+    plugin = MinimalPlugin(foo=1, fooDate="2023-01-01")
+    # Stored post-parse, so get_arg agrees with attribute access for date args.
+    assert plugin.received_args["fooDate"] == datetime(2023, 1, 1, 0, 0)
+    assert plugin.get_arg("fooDate") == datetime(2023, 1, 1, 0, 0)
+    assert plugin.received_args["foo"] == 1
+
+
+def test_sub_args_returns_immediate_children_only():
+    plugin = MinimalPlugin(
+        **{
+            "loc": "sel",
+            "loc.lat": 1,
+            "loc.lon": 2,
+            "loc.box.x": 3,  # deeper descendant — excluded
+            "other": 9,
+        }
+    )
+    assert plugin.sub_args("loc") == {"lat": 1, "lon": 2}
+    assert plugin.sub_args("missing") == {}
+
+
+def test_nested_arg_delimiter_matches_frontend():
+    # Parity guard: the frontend builds nested arg keys as
+    # `${parentKey}.${obj.name}` (VisualizationPane.js renderArgs). That "." is
+    # the same delimiter get_arg()/sub_args() split on. If the frontend changed
+    # the separator, nested-arg reads would silently break.
+    repo_root = Path(__file__).resolve().parents[4]
+    pane = (
+        repo_root
+        / "reactapp"
+        / "components"
+        / "modals"
+        / "DataViewer"
+        / "VisualizationPane.js"
+    ).read_text()
+    assert "${parentKey}.${obj.name}" in pane
 
 
 def test_date_preset_sentinels_match_frontend():

@@ -29,7 +29,7 @@ To set up a variable input:
    - **text:** Creates a text input with a refresh button.
    - **number:** Creates a number input with a refresh button.
    - **checkbox:** Creates a checkbox input.
-   - **date:** Creates a date picker input with a refresh button. Set a default by selecting a date.
+   - **date:** Creates a date picker input with a refresh button. Set a default by selecting a date. You can also type relative date math (``now``, ``now-7D``, ``now+30D``) or the preset ``latest`` directly into the field; ``latest`` always resolves to the newest available data for connected visualizations.
    - **dropdown:** Creates a dropdown input. Set the choices by entering values and pressing Add. Set a default by selecting a value.
    - **date-range:** Creates a date range picker input with a refresh button. Set a default by selecting a date range.
    - **slider:** Creates a slider input. Choose "Single Value" or "Range," set the data type (number or date), minimum and maximum values, step size, and initial/range values. Choose the output format.

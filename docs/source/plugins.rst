@@ -50,7 +50,7 @@ Properties:
     - **group**: (required) Used to group visualizations in the dashboard app.
     - **label**: (required) The display name for the visualization in the dashboard app.
     - **type**: (required) The type of visualization. Must be "plotly", "table", "image", "imageCollection", "card", "text", "variable_input", "map", "map_layer", or "custom". See the `Plugin Visualization Types <Plugin Visualization Types_>`_ section for details.
-    - **args**: Dictionary of function arguments as keys and data types as values. Used to dynamically create HTML inputs. Values can be `HTML Input Types <https://www.w3schools.com/html/html_form_input_types.asp>`_ or a list for dropdowns (e.g., `{"year": "number", "location": "text", "available_colors": ["red", "blue", "white"]}`). These args are set as attributes of the plugin class and can be used in the run method using self (e.g., `self.year`, `self.location`, `self.available_colors`).
+    - **args**: Dictionary of function arguments as keys and data types as values. Used to dynamically create HTML inputs. Values can be `HTML Input Types <https://www.w3schools.com/html/html_form_input_types.asp>`_ or a list for dropdowns (e.g., `{"year": "number", "location": "text", "available_colors": ["red", "blue", "white"]}`). Simple args are set as attributes of the plugin class and can be used in the run method using self (e.g., `self.year`, `self.location`, `self.available_colors`). Date args are parsed to ``datetime`` objects, and dropdown args may declare nested ``sub_args``. See `Accessing Arguments in run()`_ for how each kind reaches ``run()``. Argument names must not contain ``.`` (the reserved nested-argument path delimiter).
     - **tags**: List of tags for search and discovery.
     - **description**: Description of the visualization.
     - **restricted**: Boolean to restrict access to the plugin. If true, the plugin will only be visible to users with permissions. Defaults to false.
@@ -58,7 +58,74 @@ Properties:
     - **attribution**: Description of the data source for attribution purposes. Optional.
 Methods:
     - **run**: The main function to implement. The dashboard app calls this method and uses its results as the visualization data.
+    - **get_arg**: Read a single argument by its flat (possibly dotted) name, e.g. ``self.get_arg("transect_location.location")``. Returns ``None`` (or a supplied default) when the argument was not provided. Use this for nested args, which attribute access cannot reach. See `Accessing Arguments in run()`_.
+    - **sub_args**: Return the immediate child arguments of a nested (dropdown) arg as a ``{child_name: value}`` dictionary, e.g. ``self.sub_args("transect_location")``. See `Accessing Arguments in run()`_.
     - **send_update**: A method to send updates from the plugin to the dashboard app. Useful for long-running processes to provide progress updates. See the `Sending Progress Updates`_ section for more information.
+
+================================
+Accessing Arguments in run()
+================================
+
+Arguments configured for a plugin are made available on the plugin instance
+before ``run()`` is called. How you read an argument depends on its type.
+
+**Simple arguments** are set as attributes named after the argument key::
+
+    args = {"year": "number", "location": "text"}
+    # in run():  self.year, self.location
+
+**Date arguments** (``"date"``) are automatically parsed into ``datetime``
+objects before ``run()`` is called, so ``self.<arg>`` is a ``datetime`` rather
+than a string. Date inputs also accept special string values:
+
+    - Relative date math such as ``"now"``, ``"now-7D"``, or ``"now+30D"`` is
+      resolved to a ``datetime`` for you.
+    - ``"latest"`` is a **preset** meaning "the newest available data". Unlike
+      the values above it is **not** parsed — it reaches ``run()`` as the
+      literal string ``"latest"``, and the plugin is responsible for resolving
+      it (e.g. by discovering the most recent available file/resource).
+
+Detect the preset before treating the value as a date::
+
+    def run(self):
+        if self.get_arg("date") == "latest":
+            return self._resolve_latest()
+        # self.date is a datetime here
+        ...
+
+**Nested (dropdown) arguments.** A dropdown argument option may declare
+``sub_args`` — additional inputs revealed only when that option is selected.
+These arrive as a **flat map with dotted keys** joining the parent and child
+names (e.g. ``"transect_location.location"``), *not* as a nested dictionary.
+Because Python cannot resolve a dotted name through attribute access
+(``self.transect_location.location`` does **not** work), read them with the
+helper methods::
+
+    args = {
+        "transect_location": [
+            {
+                "value": "coast",
+                "label": "Coastal",
+                "sub_args": {"location": [{"value": "60.0_220.0", "label": "60.0N 140.0W"}]},
+            },
+        ],
+    }
+
+    def run(self):
+        transect = self.transect_location                      # "coast" (attribute access OK)
+        location = self.get_arg("transect_location.location")  # selected sub-value
+        # or read all immediate children at once:
+        options = self.sub_args("transect_location")           # {"location": ...}
+        ...
+
+``sub_args`` returns only the **immediate** children of a parent; descend one
+level at a time for deeper nesting (e.g. ``self.sub_args("transect_location.location")``).
+
+.. note::
+    Argument names must not contain ``.`` — it is reserved as the
+    nested-argument path delimiter. ``TethysDashPlugin`` raises a ``ValueError``
+    at instantiation if a top-level argument name contains one. Sub-arg names
+    declared inside dropdown options are subject to the same rule.
 
 ==========================
 Plugin Visualization Types
@@ -560,6 +627,14 @@ Displays a date picker. Optionally includes a time picker.
 **metadata fields:**
     - **format** (optional): Date format string using `date-fns <https://date-fns.org/docs/format>`_ tokens (e.g., ``"MM/dd/yyyy"``, ``"MM/dd/yyyy'T'HH:mm"``).
     - **showTimeInput** (optional): Set to ``True`` to show a time picker alongside the date. Defaults to ``True``.
+
+.. note::
+    In addition to picking a date, users can type relative date math
+    (``"now"``, ``"now-7D"``, ``"now+30D"``) or the preset ``latest`` directly
+    into the field. ``latest`` is shown with a "Latest" label and is passed to
+    consuming visualizations unparsed, so the plugin resolves it to the newest
+    available data. See `Accessing Arguments in run()`_ for how a plugin
+    consumes these values.
 
 **Date only example**: ::
 
