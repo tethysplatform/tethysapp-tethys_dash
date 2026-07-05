@@ -15,18 +15,18 @@ test("renders modal with title and content when showModal is true", async () => 
           setShowModal={jest.fn()}
         />
       ),
-    })
+    }),
   );
 
   expect(
-    await screen.findByText("Manage Visualization Permissions")
+    await screen.findByText("Manage Visualization Permissions"),
   ).toBeInTheDocument();
   expect(
-    screen.getByText(/Manage which users and groups have access/)
+    screen.getByText(/Manage which users and groups have access/),
   ).toBeInTheDocument();
   expect(screen.getByRole("button", { name: /Cancel/i })).toBeInTheDocument();
   expect(
-    screen.getByRole("button", { name: /Save Changes/i })
+    screen.getByRole("button", { name: /Save Changes/i }),
   ).toBeInTheDocument();
 });
 
@@ -39,11 +39,11 @@ test("does not render modal when showModal is false", () => {
           setShowModal={jest.fn()}
         />
       ),
-    })
+    }),
   );
 
   expect(
-    screen.queryByText("Manage Visualization Permissions")
+    screen.queryByText("Manage Visualization Permissions"),
   ).not.toBeInTheDocument();
 });
 
@@ -56,7 +56,7 @@ test("fetches and displays visualization permissions on modal open", async () =>
           setShowModal={jest.fn()}
         />
       ),
-    })
+    }),
   );
 
   // Wait for loading to complete and data to be fetched
@@ -86,7 +86,7 @@ test("expands accordion and shows visualization details", async () => {
           setShowModal={jest.fn()}
         />
       ),
-    })
+    }),
   );
 
   await waitFor(() => {
@@ -102,7 +102,7 @@ test("expands accordion and shows visualization details", async () => {
 
   // Check that input field and Add button are present
   expect(
-    screen.getAllByPlaceholderText("Enter username or group name")
+    screen.getAllByPlaceholderText("Enter username or group name"),
   ).toHaveLength(3);
   expect(screen.getAllByRole("button", { name: /Add/i })).toHaveLength(3);
 
@@ -138,7 +138,7 @@ test("adds a new user to visualization permissions", async () => {
           setShowModal={jest.fn()}
         />
       ),
-    })
+    }),
   );
 
   await waitFor(() => {
@@ -151,7 +151,7 @@ test("adds a new user to visualization permissions", async () => {
 
   // Find input field and Add dropdown
   const inputFields = screen.getAllByPlaceholderText(
-    "Enter username or group name"
+    "Enter username or group name",
   );
   const inputField = inputFields[2]; // Third accordion input
   const addDropdowns = screen.getAllByRole("button", { name: /Add/i });
@@ -187,7 +187,7 @@ test("adds a new group to visualization permissions", async () => {
           setShowModal={jest.fn()}
         />
       ),
-    })
+    }),
   );
 
   await waitFor(() => {
@@ -200,7 +200,7 @@ test("adds a new group to visualization permissions", async () => {
 
   // Find input field and Add dropdown
   const inputFields = screen.getAllByPlaceholderText(
-    "Enter username or group name"
+    "Enter username or group name",
   );
   const inputField = inputFields[2]; // Third accordion input
   const addDropdowns = screen.getAllByRole("button", { name: /Add/i });
@@ -233,7 +233,7 @@ test("shows error when trying to add empty username", async () => {
           setShowModal={jest.fn()}
         />
       ),
-    })
+    }),
   );
 
   await waitFor(() => {
@@ -266,7 +266,7 @@ test("shows error when trying to add empty group", async () => {
           setShowModal={jest.fn()}
         />
       ),
-    })
+    }),
   );
 
   await waitFor(() => {
@@ -299,7 +299,7 @@ test("shows error when trying to add duplicate user", async () => {
           setShowModal={jest.fn()}
         />
       ),
-    })
+    }),
   );
 
   await waitFor(() => {
@@ -312,7 +312,7 @@ test("shows error when trying to add duplicate user", async () => {
 
   // Find input field and Add dropdown
   const inputFields = screen.getAllByPlaceholderText(
-    "Enter username or group name"
+    "Enter username or group name",
   );
   const inputField = inputFields[0]; // First accordion input
   const addDropdowns = screen.getAllByRole("button", { name: /Add/i });
@@ -326,7 +326,7 @@ test("shows error when trying to add duplicate user", async () => {
 
   // Should show error message
   expect(
-    screen.getByText("This user already has access to this visualization.")
+    screen.getByText("This user already has access to this visualization."),
   ).toBeInTheDocument();
 });
 
@@ -341,7 +341,7 @@ test("shows error when trying to add duplicate group", async () => {
           setShowModal={jest.fn()}
         />
       ),
-    })
+    }),
   );
 
   await waitFor(() => {
@@ -354,7 +354,7 @@ test("shows error when trying to add duplicate group", async () => {
 
   // Find input field and Add dropdown
   const inputFields = screen.getAllByPlaceholderText(
-    "Enter username or group name"
+    "Enter username or group name",
   );
   const inputField = inputFields[0]; // First accordion input
   const addDropdowns = screen.getAllByRole("button", { name: /Add/i });
@@ -368,7 +368,7 @@ test("shows error when trying to add duplicate group", async () => {
 
   // Should show error message
   expect(
-    screen.getByText("This group already has access to this visualization.")
+    screen.getByText("This group already has access to this visualization."),
   ).toBeInTheDocument();
 });
 
@@ -383,7 +383,7 @@ test("removes user from visualization permissions", async () => {
           setShowModal={jest.fn()}
         />
       ),
-    })
+    }),
   );
 
   await waitFor(() => {
@@ -420,7 +420,7 @@ test("removes group from visualization permissions", async () => {
           setShowModal={jest.fn()}
         />
       ),
-    })
+    }),
   );
 
   await waitFor(() => {
@@ -457,7 +457,7 @@ test("shows message when no permissions are set", async () => {
           setShowModal={jest.fn()}
         />
       ),
-    })
+    }),
   );
 
   await waitFor(() => {
@@ -470,7 +470,7 @@ test("shows message when no permissions are set", async () => {
 
   // Should show no permissions message
   expect(
-    screen.getByText("No permissions set for this visualization.")
+    screen.getByText("No permissions set for this visualization."),
   ).toBeInTheDocument();
 });
 
@@ -486,10 +486,10 @@ test("saves permissions successfully", async () => {
         return res(
           ctx.status(200),
           ctx.json({ success: true }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   render(
@@ -500,7 +500,7 @@ test("saves permissions successfully", async () => {
           setShowModal={jest.fn()}
         />
       ),
-    })
+    }),
   );
 
   await waitFor(() => {
@@ -516,7 +516,7 @@ test("saves permissions successfully", async () => {
   // Should show success message
   await waitFor(() => {
     expect(
-      screen.getByText("Successfully updated visualization permissions")
+      screen.getByText("Successfully updated visualization permissions"),
     ).toBeInTheDocument();
   });
 
@@ -526,7 +526,7 @@ test("saves permissions successfully", async () => {
 
   // Error should be dismissed
   expect(
-    screen.queryByText("Successfully updated visualization permissions")
+    screen.queryByText("Successfully updated visualization permissions"),
   ).not.toBeInTheDocument();
 });
 
@@ -541,10 +541,10 @@ test("handles save error", async () => {
         return res(
           ctx.status(500),
           ctx.json({ error: "Internal server error" }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   render(
@@ -555,7 +555,7 @@ test("handles save error", async () => {
           setShowModal={jest.fn()}
         />
       ),
-    })
+    }),
   );
 
   await waitFor(() => {
@@ -570,7 +570,7 @@ test("handles save error", async () => {
   // Should show error message
   await waitFor(() => {
     expect(
-      screen.getByText("Failed to update visualization permissions")
+      screen.getByText("Failed to update visualization permissions"),
     ).toBeInTheDocument();
   });
 });
@@ -589,10 +589,10 @@ test("handles save failed with custom message", async () => {
             success: false,
             message: "Failed to update permissions",
           }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   render(
@@ -603,7 +603,7 @@ test("handles save failed with custom message", async () => {
           setShowModal={jest.fn()}
         />
       ),
-    })
+    }),
   );
 
   await waitFor(() => {
@@ -618,7 +618,7 @@ test("handles save failed with custom message", async () => {
   // Should show error message
   await waitFor(() => {
     expect(
-      screen.getByText("Failed to update permissions")
+      screen.getByText("Failed to update permissions"),
     ).toBeInTheDocument();
   });
 });
@@ -636,10 +636,10 @@ test("handles save failed", async () => {
           ctx.json({
             success: false,
           }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   render(
@@ -650,7 +650,7 @@ test("handles save failed", async () => {
           setShowModal={jest.fn()}
         />
       ),
-    })
+    }),
   );
 
   await waitFor(() => {
@@ -665,7 +665,7 @@ test("handles save failed", async () => {
   // Should show error message
   await waitFor(() => {
     expect(
-      screen.getByText("Failed to update visualization permissions")
+      screen.getByText("Failed to update visualization permissions"),
     ).toBeInTheDocument();
   });
 });
@@ -679,10 +679,10 @@ test("handles fetch permissions error", async () => {
         return res(
           ctx.status(500),
           ctx.json({ error: "Internal server error" }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   render(
@@ -693,13 +693,13 @@ test("handles fetch permissions error", async () => {
           setShowModal={jest.fn()}
         />
       ),
-    })
+    }),
   );
 
   // Should show error message
   await waitFor(() => {
     expect(
-      screen.getByText("Failed to load visualization permissions")
+      screen.getByText("Failed to load visualization permissions"),
     ).toBeInTheDocument();
   });
 });
@@ -712,10 +712,10 @@ test("handles fetch permissions failed with custom message", async () => {
         return res(
           ctx.status(200),
           ctx.json({ success: false, message: "custom fail message" }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   render(
@@ -726,7 +726,7 @@ test("handles fetch permissions failed with custom message", async () => {
           setShowModal={jest.fn()}
         />
       ),
-    })
+    }),
   );
 
   // Should show error message
@@ -743,10 +743,10 @@ test("handles fetch permissions failed", async () => {
         return res(
           ctx.status(200),
           ctx.json({ success: false }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   render(
@@ -757,13 +757,13 @@ test("handles fetch permissions failed", async () => {
           setShowModal={jest.fn()}
         />
       ),
-    })
+    }),
   );
 
   // Should show error message
   await waitFor(() => {
     expect(
-      screen.getByText("Failed to fetch visualization permissions")
+      screen.getByText("Failed to fetch visualization permissions"),
     ).toBeInTheDocument();
   });
 });
@@ -780,7 +780,7 @@ test("closes modal and resets state when Cancel is clicked", async () => {
           setShowModal={mockSetShowModal}
         />
       ),
-    })
+    }),
   );
 
   await waitFor(() => {
@@ -820,7 +820,7 @@ test("closes modal when close button (X) is clicked", async () => {
           setShowModal={mockSetShowModal}
         />
       ),
-    })
+    }),
   );
 
   await waitFor(() => {
@@ -846,7 +846,7 @@ test("dismisses error and success alerts", async () => {
           setShowModal={jest.fn()}
         />
       ),
-    })
+    }),
   );
 
   await waitFor(() => {
@@ -873,7 +873,7 @@ test("dismisses error and success alerts", async () => {
 
   // Error should be dismissed
   expect(
-    screen.queryByText("Username cannot be empty.")
+    screen.queryByText("Username cannot be empty."),
   ).not.toBeInTheDocument();
 });
 
@@ -889,10 +889,10 @@ test("shows loading state while saving", async () => {
           ctx.delay(100),
           ctx.status(200),
           ctx.json({ success: true }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   render(
@@ -903,7 +903,7 @@ test("shows loading state while saving", async () => {
           setShowModal={jest.fn()}
         />
       ),
-    })
+    }),
   );
 
   await waitFor(() => {

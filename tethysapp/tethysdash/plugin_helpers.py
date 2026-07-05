@@ -44,6 +44,15 @@ def get_plugin_prop(obj, name, default=None):
         return default
 
 
+# Date input preset sentinels. When a "date" arg carries one of these values it
+# is passed through to run() verbatim (NOT parsed into a datetime); the plugin
+# is responsible for resolving it (e.g. "latest" => discover the newest
+# available resource). MUST stay in sync with DATE_PRESETS in
+# reactapp/components/inputs/dateUtils.js — there is no shared FE/BE constants
+# mechanism, so a test enforces parity.
+DATE_PRESET_SENTINELS = {"latest"}
+
+
 valid_plugin_types = [
     "plotly",
     "table",
@@ -137,6 +146,17 @@ class TethysDashPlugin(base.DataSource):
                 f"Plugin args cannot contain reserved keys: {', '.join(reserved_keys)}"
             )  # noqa: E501
 
+        # "." is reserved as the nested-arg path delimiter (the frontend joins
+        # nested arg names as "parent.child"; see the dotted-key contract in
+        # CLAUDE.md). A literal "." in a top-level arg name makes those paths
+        # ambiguous, so reject it here.
+        dotted_arg_names = sorted(name for name in self.args if "." in name)
+        if dotted_arg_names:
+            raise ValueError(
+                "Plugin arg names cannot contain '.', which is reserved as the "
+                f"nested-arg path delimiter: {', '.join(dotted_arg_names)}"
+            )  # noqa: E501
+
         fetch_features_overridden = (
             type(self).fetch_features is not TethysDashPlugin.fetch_features
         )
@@ -152,11 +172,71 @@ class TethysDashPlugin(base.DataSource):
                 stacklevel=2,
             )
 
+        # Raw arg map keyed by the flat (possibly dotted) names the frontend
+        # sends. This is the reliable way to read args — attribute access via
+        # setattr() breaks for dotted keys, which Python cannot resolve with
+        # dot notation. Stores post-parse values so get_arg() agrees with
+        # attribute access for simple args. See get_arg()/sub_args().
+        self.received_args = {}
         for kwarg_name, kwarg_value in kwargs.items():
             arg_type = self.args.get(kwarg_name)
-            if arg_type == "date":
+            is_preset = (
+                isinstance(kwarg_value, str) and kwarg_value in DATE_PRESET_SENTINELS
+            )
+            if arg_type == "date" and not is_preset:
                 kwarg_value = parse(kwarg_value).replace(second=0, microsecond=0)
             setattr(self, kwarg_name, kwarg_value)
+            self.received_args[kwarg_name] = kwarg_value
+
+    def get_arg(self, name, default=None):
+        """Read a visualization arg by its flat (possibly dotted) name.
+
+        Args arrive from the frontend as a flat map whose keys encode nesting
+        with dots (e.g. ``"transect_location.location"``; see the dotted-key
+        contract in CLAUDE.md). Prefer this over attribute access: Python
+        cannot resolve a dotted attribute name via ``self.parent.child``, so
+        ``getattr``-style access on dotted keys silently fails.
+
+        Args:
+            name (str): The flat arg name, e.g. ``"url"`` or
+                ``"transect_location.location"``.
+            default: Value returned when ``name`` was not supplied
+                (default: None).
+
+        Returns:
+            The arg value (date args are already parsed to datetimes), or
+            ``default`` if the arg was not provided.
+        """
+        return self.received_args.get(name, default)
+
+    def sub_args(self, parent):
+        """Return the immediate child args of a nested (dropdown) arg.
+
+        Given a parent arg name, returns a ``{leaf_name: value}`` dict of its
+        direct children only — keys exactly one dot-level below ``parent``.
+        Deeper descendants (``parent.child.grandchild``) are excluded, matching
+        the frontend's per-level ``renderArgs`` recursion.
+
+        Example:
+            For received args ``{"loc": "sel", "loc.lat": 1, "loc.lon": 2,
+            "loc.box.x": 3}``, ``sub_args("loc")`` returns
+            ``{"lat": 1, "lon": 2}``.
+
+        Args:
+            parent (str): The parent arg name (without a trailing dot).
+
+        Returns:
+            dict: Immediate child args keyed by their leaf names. Empty when
+                the parent has no children.
+        """
+        prefix = f"{parent}."
+        result = {}
+        for key, value in self.received_args.items():
+            if key.startswith(prefix):
+                leaf = key[len(prefix):]
+                if "." not in leaf:
+                    result[leaf] = value
+        return result
 
     def run(self):
         """

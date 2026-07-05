@@ -4,8 +4,75 @@ import {
   parseDateMath,
   parseDate,
   convertDatesToLocalISO,
+  isPreset,
 } from "components/inputs/dateUtils";
 import { format } from "date-fns";
+
+// In-memory cache of resolved image-visualization results, keyed by the
+// request (source + resolved args). Image plugins are deterministic for a
+// given args set, so a slider scrubbing back over already-fetched values — or
+// a play-loop wrapping around — can reuse the prior result instead of
+// re-hitting the backend, mirroring how a browser caches by request URL.
+// Only `image`-type responses are stored; every other viz type still fetches
+// fresh. Values are short URL strings, so a generous entry cap is cheap.
+export const IMAGE_VIZ_CACHE_LIMIT = 2000;
+const imageVizCache = new Map();
+
+// Exported for unit tests of the null-coalescing branches; production code
+// reaches the cache only through getVisualization.
+export function buildImageVizCacheKey({ source, args }) {
+  return JSON.stringify({ s: source ?? null, a: args ?? null });
+}
+
+// Preset sentinels ('latest') must re-resolve to the newest available resource
+// on every load. A viz whose resolved args contain one bypasses the image
+// cache entirely — otherwise the stable sentinel arg yields a stable cache key
+// and a stale image is served instead of re-fetching.
+function valueContainsPreset(value) {
+  if (isPreset(value)) return true;
+  if (Array.isArray(value)) return value.some(valueContainsPreset);
+  if (value && typeof value === "object") {
+    return Object.values(value).some(valueContainsPreset);
+  }
+  return false;
+}
+
+export function argsContainPreset(args, sourceArgs = {}) {
+  if (!args || typeof args !== "object") return false;
+  // Only date-typed args can legitimately hold a preset sentinel. Scoping to
+  // them avoids disabling the cache when an unrelated arg's value happens to
+  // equal "latest". date-range endpoints are nested, so recurse into values.
+  return Object.entries(args).some(([key, value]) => {
+    const argType = sourceArgs[key];
+    if (typeof argType !== "string" || !argType.includes("date")) return false;
+    return valueContainsPreset(value);
+  });
+}
+
+// Exported for unit tests of the LRU read/evict logic; not part of the runtime
+// API (production code reaches the cache only through getVisualization).
+export function getCachedImageViz(key) {
+  if (!imageVizCache.has(key)) return undefined;
+  // Refresh recency so the LRU eviction below keeps hot frames.
+  const value = imageVizCache.get(key);
+  imageVizCache.delete(key);
+  imageVizCache.set(key, value);
+  return value;
+}
+
+export function setCachedImageViz(key, value) {
+  if (imageVizCache.has(key)) imageVizCache.delete(key);
+  imageVizCache.set(key, value);
+  if (imageVizCache.size > IMAGE_VIZ_CACHE_LIMIT) {
+    const oldest = imageVizCache.keys().next().value;
+    imageVizCache.delete(oldest);
+  }
+}
+
+/** Clears the image-visualization cache (used for test isolation). */
+export function clearImageVizCache() {
+  imageVizCache.clear();
+}
 
 /**
  * Returns an array of warning messages when any variable inputs referenced by a
@@ -108,6 +175,7 @@ export async function getVisualization({
   vizLoadingIcon = true,
   variableInputDateFormats = {},
   variableInputSliderMeta = {},
+  refresh = false,
 }) {
   const metadata = JSON.parse(metadataString);
   const emptyVariableWarnings = checkForEmptyVariableInputs({
@@ -192,10 +260,6 @@ export async function getVisualization({
     return;
   }
 
-  if (vizLoadingIcon && sourceType !== "map") {
-    setVizType("loader");
-  }
-
   itemData.args = updateObjectWithVariableInputs({
     args: JSON.parse(argsString),
     variableInputs: variableInputValues,
@@ -203,6 +267,29 @@ export async function getVisualization({
     sourceArgs,
     returnDatesAsLocalISO: true,
   });
+
+  // Serve a previously-resolved image straight from cache (skipping both the
+  // backend round-trip and the loader flash). Only image responses are ever
+  // stored, so a hit is guaranteed to be an image. `refresh` (manual
+  // refresh/retry) bypasses the cache and repopulates it below.
+  const imageCacheKey = buildImageVizCacheKey(itemData);
+  const skipImageCache = argsContainPreset(itemData.args, sourceArgs);
+  if (!refresh && !skipImageCache) {
+    const cachedImage = getCachedImageViz(imageCacheKey);
+    if (cachedImage !== undefined) {
+      setVizType("image");
+      setVizData({
+        source: cachedImage,
+        alt: itemData.source,
+        imageError: metadata.customMessaging?.error,
+      });
+      return;
+    }
+  }
+
+  if (vizLoadingIcon && sourceType !== "map") {
+    setVizType("loader");
+  }
 
   const apiResponse = await appAPI.getVisualizationData(itemData);
   if (apiResponse.success === true) {
@@ -228,6 +315,9 @@ export async function getVisualization({
         data: responseData.data,
         layout: responseData.layout,
         config: responseData.config,
+        // Plugin-driven subplot toggle opt-in (top-level figure keys).
+        toggle_subplots: responseData.toggle_subplots,
+        subplot_toggle: responseData.subplot_toggle,
       });
     } else if (apiResponse.viz_type === "card") {
       setVizType("card");
@@ -250,6 +340,9 @@ export async function getVisualization({
         alt: itemData.source,
         imageError: metadata.customMessaging?.error,
       });
+      if (!skipImageCache) {
+        setCachedImageViz(imageCacheKey, responseData);
+      }
     } else if (apiResponse.viz_type === "imageCollection") {
       setVizType("imageCollection");
       setVizData({
@@ -351,6 +444,12 @@ export function updateObjectWithVariableInputs({
     )) {
       const dateFormat = variableInputDateFormats[variableInputKey];
       if (dateFormat) {
+        // Preset sentinels ('latest') are not dates — pass through verbatim so
+        // the literal string survives substitution to the plugin's run().
+        if (isPreset(variableInputValue)) {
+          variableInputsCopy[variableInputKey] = variableInputValue;
+          continue;
+        }
         const updatedValue = parseDateMath({
           value: variableInputValue,
           dateFormat: dateFormat,

@@ -1,0 +1,74 @@
+name: test
+
+# Reusable workflow: runs the full frontend + backend test and lint suite.
+# Invoked by ci.yml (on pull requests) and release.yml (before publishing).
+on:
+  workflow_call:
+
+# Read-only by default. A workflow_call workflow inherits the caller's
+# permissions unless it declares its own, so pin it down here: the test
+# suite never needs write access, even when called from the release flow.
+permissions: {}
+
+# Keep these in sync with release.yml's build job so the package is built
+# under the same toolchain the tests ran on. 3.12 floor: the test suite uses
+# PEP 701 f-string syntax.
+env:
+  NODE_VERSION: "20"
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Format check
+        run: npm run pretty:check
+      - name: Test
+        run: npm run test
+
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements-ci.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-ci.txt
+          pip install -e .
+
+      - name: Lint (ruff)
+        run: ruff check .
+
+      # SQLite-first: configure the Tethys portal to use SQLite so no Postgres
+      # service container is needed. conftest.py only takes its SQLite branch
+      # when the engine is exactly django.db.backends.sqlite3. For a SQLite
+      # engine, `tethys db configure` runs only migrate + createsuperuser
+      # (no local Postgres server). See the plan's U3 execution note: if the
+      # suite turns out to have Postgres-specific behavior, add a Postgres
+      # service container here and point DATABASES at it instead.
+      - name: Configure Tethys portal (SQLite)
+        run: |
+          tethys gen portal_config
+          tethys settings \
+            --set DATABASES.default.ENGINE django.db.backends.sqlite3 \
+            --set DATABASES.default.NAME "$HOME/tethys_platform.sqlite"
+          tethys db migrate
+
+      - name: Test
+        env:
+          DJANGO_SETTINGS_MODULE: tethys_portal.settings
+        run: python -m pytest --reuse-db

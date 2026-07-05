@@ -209,6 +209,46 @@ it("Creates a Date Range Input for a Variable Input", async () => {
   );
 });
 
+it("passes a typed 'latest' sentinel through a Date Variable Input", async () => {
+  const dashboard = JSON.parse(JSON.stringify(userDashboard));
+  dashboard.tabs[0].gridItems = [mockedDateVariable];
+  const handleChange = jest.fn();
+  const varInputArgs = JSON.parse(mockedDateVariable.args_string);
+
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <VariableInput
+            variable_name={varInputArgs.variable_name}
+            initial_value={varInputArgs.initial_value}
+            variable_options_source={varInputArgs.variable_options_source}
+            onChange={handleChange}
+          />
+          <InputVariablePComponent />
+        </>
+      ),
+      options: { dashboards: { dashboards: [dashboard] } },
+    }),
+  );
+
+  expect(await screen.findByText("Test Variable")).toBeInTheDocument();
+
+  // Typing the sentinel into the date field emits the literal string verbatim.
+  const input = screen.getByRole("textbox");
+  fireEvent.change(input, { target: { value: "latest" } });
+
+  expect(handleChange).toHaveBeenLastCalledWith("latest");
+
+  const refreshButton = screen.getByLabelText("Refresh variable input");
+  await userEvent.click(refreshButton);
+
+  // The literal sentinel survives substitution into the shared variable input.
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({ "Test Variable": "latest" }),
+  );
+});
+
 it("Creates a Custom Dropdown Input for a Variable Input", async () => {
   const dashboard = JSON.parse(JSON.stringify(userDashboard));
   dashboard.tabs[0].gridItems = [mockedCustomDropdownVariable];
@@ -1424,6 +1464,34 @@ describe("When inDataViewerMode", () => {
     expect(await screen.findByTestId("input-variables")).toHaveTextContent(
       JSON.stringify({ "Test Variable": "" }),
     );
+  });
+
+  it("shows the Latest preset label in the date Example Output", async () => {
+    const dashboard = JSON.parse(JSON.stringify(userDashboard));
+    dashboard.tabs[0].gridItems = [mockedDateVariable];
+    const handleChange = jest.fn();
+    const varInputArgs = JSON.parse(mockedDateVariable.args_string);
+
+    render(
+      createLoadedComponent({
+        children: (
+          <VariableInput
+            variable_name={varInputArgs.variable_name}
+            initial_value="latest"
+            variable_options_source={varInputArgs.variable_options_source}
+            onChange={handleChange}
+          />
+        ),
+        options: {
+          dashboards: { dashboards: [dashboard] },
+          inDataViewerMode: true,
+        },
+      }),
+    );
+
+    // The preset sentinel renders as its human label, not "Invalid date format".
+    const preview = await screen.findByLabelText("Example Date Output Span");
+    expect(preview).toHaveTextContent("Latest");
   });
 
   it("Creates a Number Input for a Variable Input", async () => {

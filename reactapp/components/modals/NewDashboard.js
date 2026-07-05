@@ -35,7 +35,7 @@ function NewDashboardModal({ showModal, setShowModal }) {
 
     if (!name || !description) {
       setErrorMessage(
-        "All inputs must be filled out for creating a dashboard."
+        "All inputs must be filled out for creating a dashboard.",
       );
       return;
     }

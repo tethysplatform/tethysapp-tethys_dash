@@ -759,6 +759,88 @@ test("SettingsPane renders PlotlySettings when visualizationRef.current.el.class
   expect(await screen.findByText(/Vertical Line/i)).toBeInTheDocument();
 });
 
+test("Settings with fill viewport", async () => {
+  render(
+    createLoadedComponent({
+      children: <TestingComponent currentSettings={{}} />,
+      options: {
+        inDataViewerMode: true,
+      },
+    }),
+  );
+
+  // Renders for any viz type (no visualizationRef), unlike Enforce Aspect Ratio
+  // which is image-only.
+  const fillViewportCheckbox = await screen.findByLabelText(
+    "Fill Viewport Input",
+  );
+  expect(fillViewportCheckbox).toBeInTheDocument();
+  expect(fillViewportCheckbox.checked).toBe(false);
+
+  await userEvent.click(fillViewportCheckbox);
+
+  expect(await screen.findByTestId("settings")).toHaveTextContent(
+    JSON.stringify({ fillViewport: true }),
+  );
+  expect(fillViewportCheckbox.checked).toBe(true);
+
+  await userEvent.click(fillViewportCheckbox);
+
+  expect(await screen.findByTestId("settings")).toHaveTextContent(
+    JSON.stringify({}),
+  );
+  expect(fillViewportCheckbox.checked).toBe(false);
+});
+
+test("Fill viewport disables aspect ratio control without losing it", async () => {
+  render(
+    createLoadedComponent({
+      children: (
+        <TestingComponent
+          visualizationRefElement={{
+            tagName: "img",
+            naturalWidth: 1,
+            naturalHeight: 2,
+          }}
+          currentSettings={{ aspectRatio: 0.5, enforceAspectRatio: true }}
+        />
+      ),
+      options: {
+        inDataViewerMode: true,
+      },
+    }),
+  );
+
+  const enforceAspectRatioInput = await screen.findByLabelText(
+    "Enforce Aspect Ratio Input",
+  );
+  expect(enforceAspectRatioInput).toBeChecked();
+  expect(enforceAspectRatioInput).not.toBeDisabled();
+
+  const fillViewportCheckbox = await screen.findByLabelText(
+    "Fill Viewport Input",
+  );
+  await userEvent.click(fillViewportCheckbox);
+
+  // Aspect ratio control becomes disabled, and its stored keys are preserved.
+  expect(enforceAspectRatioInput).toBeDisabled();
+  expect(await screen.findByTestId("settings")).toHaveTextContent(
+    JSON.stringify({
+      aspectRatio: 0.5,
+      enforceAspectRatio: true,
+      fillViewport: true,
+    }),
+  );
+
+  // Turning fill off restores the prior aspect-ratio setting unchanged.
+  await userEvent.click(fillViewportCheckbox);
+  expect(enforceAspectRatioInput).not.toBeDisabled();
+  expect(enforceAspectRatioInput).toBeChecked();
+  expect(await screen.findByTestId("settings")).toHaveTextContent(
+    JSON.stringify({ aspectRatio: 0.5, enforceAspectRatio: true }),
+  );
+});
+
 TestingComponent.propTypes = {
   visualizationRefElement: PropTypes.object,
   currentSettings: PropTypes.object,

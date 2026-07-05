@@ -160,7 +160,11 @@ test("getStyleFields dynamic map layer", async () => {
   });
 
   const styleFields = await getStyleFields({
-    sourceProps: { type: "cw3e_geojson_layer", source: "open_cw3e_geojson_layer", args: {} },
+    sourceProps: {
+      type: "cw3e_geojson_layer",
+      source: "open_cw3e_geojson_layer",
+      args: {},
+    },
     layerProps: { name: "My Layer" },
     dashboard_uuid: "some-uuid",
     isDynamicMapLayer: true,
@@ -3663,7 +3667,10 @@ describe("rewriteArcGISExportUrlForAntimeridian", () => {
     // View spanning from one world-copy to the next (e.g., zoomed-out Pacific).
     const src = `${baseUrl}?BBOX=-22000000,-5000000,-18000000,5000000&BBOXSR=3857&IMAGESR=3857&f=image`;
     const rewritten = rewriteArcGISExportUrlForAntimeridian(src);
-    const bbox = new URL(rewritten).searchParams.get("BBOX").split(",").map(Number);
+    const bbox = new URL(rewritten).searchParams
+      .get("BBOX")
+      .split(",")
+      .map(Number);
     expect(bbox[0]).toBeCloseTo(-2000000, 3);
     expect(bbox[2]).toBeCloseTo(2000000, 3);
     expect(bbox[0]).toBeGreaterThan(-MERCATOR_HALF_WORLD);
@@ -3674,7 +3681,9 @@ describe("rewriteArcGISExportUrlForAntimeridian", () => {
     const src = `${baseUrl}?BBOX=-26121778,5687665,-25841122,5804555&f=image`;
     const rewritten = rewriteArcGISExportUrlForAntimeridian(src);
     const params = new URL(rewritten).searchParams;
-    expect(params.get("BBOXSR")).toContain("WGS_1984_Web_Mercator_Auxiliary_Sphere");
+    expect(params.get("BBOXSR")).toContain(
+      "WGS_1984_Web_Mercator_Auxiliary_Sphere",
+    );
     expect(params.get("IMAGESR")).toBe(params.get("BBOXSR"));
   });
 
@@ -3690,7 +3699,9 @@ describe("rewriteArcGISExportUrlForAntimeridian", () => {
   });
 
   test("does not throw on a non-URL string", () => {
-    expect(rewriteArcGISExportUrlForAntimeridian("not a url")).toBe("not a url");
+    expect(rewriteArcGISExportUrlForAntimeridian("not a url")).toBe(
+      "not a url",
+    );
   });
 });
 
@@ -3706,9 +3717,15 @@ describe("shiftEPSG3857ExtentAndPoint", () => {
   test("shifts the reported-bug Identify request into valid range", () => {
     // The failing request the user reported: a click at X=-50M with mapExtent
     // centered near -49M (~one world-width west of valid range).
-    const extent = [-52637618.236296296, 2336110.4530613935, -45490855.942076325, 5231583.279658552];
+    const extent = [
+      -52637618.236296296, 2336110.4530613935, -45490855.942076325,
+      5231583.279658552,
+    ];
     const point = [-50025564.70754065, 4660914.693464138];
-    const { extent: newExtent, point: newPoint } = shiftEPSG3857ExtentAndPoint(extent, point);
+    const { extent: newExtent, point: newPoint } = shiftEPSG3857ExtentAndPoint(
+      extent,
+      point,
+    );
 
     // After shifting by exactly one world width east, the working URL the
     // user verified has minX ≈ -12.5M and the click at ≈ -10M.
@@ -3730,10 +3747,14 @@ describe("shiftEPSG3857ExtentAndPoint", () => {
   test("preserves the click point's relative position within the extent", () => {
     const extent = [-52637618, 2336110, -45490855, 5231583];
     const point = [-50025564, 4660914];
-    const { extent: newExtent, point: newPoint } = shiftEPSG3857ExtentAndPoint(extent, point);
+    const { extent: newExtent, point: newPoint } = shiftEPSG3857ExtentAndPoint(
+      extent,
+      point,
+    );
 
     const origFraction = (point[0] - extent[0]) / (extent[2] - extent[0]);
-    const newFraction = (newPoint[0] - newExtent[0]) / (newExtent[2] - newExtent[0]);
+    const newFraction =
+      (newPoint[0] - newExtent[0]) / (newExtent[2] - newExtent[0]);
     expect(newFraction).toBeCloseTo(origFraction, 9);
   });
 

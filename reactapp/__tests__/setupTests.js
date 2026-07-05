@@ -3,13 +3,21 @@
 // expect(element).toHaveTextContent(/react/i)
 // learn more: https://github.com/testing-library/jest-dom
 import "@testing-library/jest-dom";
-import { cleanup } from "@testing-library/react";
+import { cleanup, configure } from "@testing-library/react";
 import { server } from "./utilities/server.js";
 
 // Mock `window.location` with Jest spies and extend expect
 import "jest-location-mock";
 import { createMocks } from "react-idle-timer";
 import { MockWebSocket } from "./utilities/mockWebSocket.js";
+
+// CI runs all suites in parallel on limited cores with coverage instrumentation,
+// which slows heavy async suites (e.g. the map) enough to trip Testing Library's
+// 1000ms default async timeout. Raise the async-util and per-test timeouts so
+// legitimate waits don't flake under CI load. These are ceilings, not delays —
+// fast machines still resolve immediately.
+configure({ asyncUtilTimeout: 10000 });
+jest.setTimeout(30000);
 
 // Make .env files accessible to tests (path relative to project root)
 const originalError = console.error.bind(console.error);

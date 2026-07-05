@@ -23,7 +23,7 @@ const PermissionGroupsSummaryModal = ({ showModal, setShowModal }) => {
   const [showManageModal, setShowManageModal] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState();
   const { permissionGroups, deletePermissionGroup } = useContext(
-    PermissionGroupContext
+    PermissionGroupContext,
   );
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -209,16 +209,16 @@ const PermissionGroupsManageModal = ({
 }) => {
   const { user } = useContext(AppContext);
   const { updatePermissionGroup, deletePermissionGroup } = useContext(
-    PermissionGroupContext
+    PermissionGroupContext,
   );
   const [newGroupName, setNewGroupName] = useState(selectedGroup?.name ?? "");
   const [newGroupDesc, setNewGroupDesc] = useState(
-    selectedGroup?.description ?? ""
+    selectedGroup?.description ?? "",
   );
   const [groupUsers, setGroupUsers] = useState(
     selectedGroup
       ? selectedGroup.members
-      : [{ username: user.username, permission: "admin" }]
+      : [{ username: user.username, permission: "admin" }],
   );
   const [usernameInput, setUsernameInput] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -248,11 +248,11 @@ const PermissionGroupsManageModal = ({
       }
       if (selectedGroup?.id) {
         setSuccessMessage(
-          `Permission group "${selectedGroup.name}" updated successfully.`
+          `Permission group "${selectedGroup.name}" updated successfully.`,
         );
       } else {
         setSuccessMessage(
-          `Permission group "${newGroupName}" created successfully.`
+          `Permission group "${newGroupName}" created successfully.`,
         );
       }
       setShowModal(false);
@@ -266,7 +266,7 @@ const PermissionGroupsManageModal = ({
     const deleteResponse = await deletePermissionGroup(selectedGroup.id);
     if (deleteResponse.success) {
       setSuccessMessage(
-        `Permission group "${selectedGroup.name}" deleted successfully.`
+        `Permission group "${selectedGroup.name}" deleted successfully.`,
       );
       setShowModal(false);
     } else {
@@ -294,7 +294,7 @@ const PermissionGroupsManageModal = ({
 
   const handlePermissionChange = (index, newPermission) => {
     const updated = groupUsers.map((perm, i) =>
-      i === index ? { ...perm, permission: newPermission } : perm
+      i === index ? { ...perm, permission: newPermission } : perm,
     );
     setGroupUsers(updated);
   };
@@ -526,7 +526,7 @@ PermissionGroupsManageModal.propTypes = {
       PropTypes.shape({
         username: PropTypes.string,
         permission: PropTypes.string.isRequired,
-      })
+      }),
     ).isRequired,
     owner: PropTypes.string.isRequired,
     user_permission: PropTypes.string.isRequired,

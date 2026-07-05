@@ -19,7 +19,7 @@ describe("Confirmation Component", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByText("Confirmation")).toBeInTheDocument();
     expect(
-      screen.getByText("Are you sure you want to continue?")
+      screen.getByText("Are you sure you want to continue?"),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /cancel/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /ok/i })).toBeInTheDocument();
@@ -27,7 +27,7 @@ describe("Confirmation Component", () => {
 
   test("renders with custom title", () => {
     render(
-      <Confirmation {...defaultProps} title="Custom Confirmation Title" />
+      <Confirmation {...defaultProps} title="Custom Confirmation Title" />,
     );
 
     expect(screen.getByText("Custom Confirmation Title")).toBeInTheDocument();
@@ -35,11 +35,11 @@ describe("Confirmation Component", () => {
 
   test("renders with custom button labels", () => {
     render(
-      <Confirmation {...defaultProps} okLabel="Confirm" cancelLabel="Abort" />
+      <Confirmation {...defaultProps} okLabel="Confirm" cancelLabel="Abort" />,
     );
 
     expect(
-      screen.getByRole("button", { name: /confirm/i })
+      screen.getByRole("button", { name: /confirm/i }),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /abort/i })).toBeInTheDocument();
   });
@@ -92,7 +92,7 @@ describe("Confirmation Component", () => {
     render(<Confirmation {...defaultProps} noCancel={true} />);
 
     expect(
-      screen.queryByRole("button", { name: /cancel/i })
+      screen.queryByRole("button", { name: /cancel/i }),
     ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /ok/i })).toBeInTheDocument();
   });
@@ -106,12 +106,12 @@ describe("Confirmation Component", () => {
     );
 
     render(
-      <Confirmation {...defaultProps} confirmation={customConfirmation} />
+      <Confirmation {...defaultProps} confirmation={customConfirmation} />,
     );
 
     expect(screen.getByText("Warning!")).toBeInTheDocument();
     expect(
-      screen.getByText("This action cannot be undone.")
+      screen.getByText("This action cannot be undone."),
     ).toBeInTheDocument();
   });
 
@@ -170,7 +170,7 @@ describe("Confirmation Component", () => {
     expect(screen.getByRole("button", { name: /delete/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /keep/i })).toBeInTheDocument();
     expect(
-      screen.getByText("This will permanently delete the item.")
+      screen.getByText("This will permanently delete the item."),
     ).toBeInTheDocument();
   });
 
@@ -180,7 +180,7 @@ describe("Confirmation Component", () => {
     // The OverflowBody is a styled Modal.Body component that contains the confirmation content
     // We can verify the confirmation content is rendered within the modal
     expect(
-      screen.getByText("Are you sure you want to continue?")
+      screen.getByText("Are you sure you want to continue?"),
     ).toBeInTheDocument();
   });
 

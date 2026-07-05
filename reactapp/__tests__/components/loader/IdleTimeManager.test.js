@@ -20,22 +20,22 @@ test("IdleTimerManager, user signed out", async () => {
           EXPIRE_AFTER: 10,
           WARN_AFTER: 3,
         }),
-        ctx.set("Content-Type", "application/json")
+        ctx.set("Content-Type", "application/json"),
       );
-    })
+    }),
   );
 
   render(
     <ModalPriorityProvider>
       <IdleTimerManager />
-    </ModalPriorityProvider>
+    </ModalPriorityProvider>,
   );
 
   expect(screen.queryByText("Are you still here?")).not.toBeInTheDocument();
 
   await waitFor(() => {
     expect(window.location.assign).toHaveBeenCalledWith(
-      "http://api.test/accounts/login?next=/"
+      "http://api.test/accounts/login?next=/",
     );
   });
 });
@@ -65,9 +65,9 @@ test("IdleTimerManager, check if user signed in", async () => {
           ctx.json({
             visualizations: availableVisualizations,
           }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
+      },
     ),
     rest.get("http://api.test/apps/tethysdash/ping/", (req, res, ctx) => {
       return res(
@@ -77,15 +77,15 @@ test("IdleTimerManager, check if user signed in", async () => {
           EXPIRE_AFTER: 10,
           WARN_AFTER: 3,
         }),
-        ctx.set("Content-Type", "application/json")
+        ctx.set("Content-Type", "application/json"),
       );
-    })
+    }),
   );
 
   const { rerender } = render(
     <ModalPriorityProvider>
       <IdleTimerManager />
-    </ModalPriorityProvider>
+    </ModalPriorityProvider>,
   );
 
   expect(screen.queryByText("Are you still here?")).not.toBeInTheDocument();
@@ -97,7 +97,7 @@ test("IdleTimerManager, check if user signed in", async () => {
   rerender(
     <ModalPriorityProvider>
       <IdleTimerManager />
-    </ModalPriorityProvider>
+    </ModalPriorityProvider>,
   );
   expect(screen.getByText("Are you still here?")).toBeInTheDocument();
 
@@ -111,7 +111,7 @@ test("IdleTimerManager, check if user signed in", async () => {
   rerender(
     <ModalPriorityProvider>
       <IdleTimerManager />
-    </ModalPriorityProvider>
+    </ModalPriorityProvider>,
   );
 
   expect(screen.queryByText("Are you still here?")).not.toBeInTheDocument();
@@ -129,14 +129,14 @@ test("IdleTimerManager, public session and continue", async () => {
       return res(
         ctx.status(401),
         ctx.json({ error: "Internal Server Error" }),
-        ctx.set("Content-Type", "application/json")
+        ctx.set("Content-Type", "application/json"),
       );
     }),
     rest.get("http://api.test/apps/tethysdash/dashboards/", (req, res, ctx) => {
       return res(
         ctx.status(200),
         ctx.json({ dashboards: [publicDashboard] }),
-        ctx.set("Content-Type", "application/json")
+        ctx.set("Content-Type", "application/json"),
       );
     }),
     rest.get("http://api.test/apps/tethysdash/ping/", (req, res, ctx) => {
@@ -147,9 +147,9 @@ test("IdleTimerManager, public session and continue", async () => {
           EXPIRE_AFTER: 0,
           WARN_AFTER: 0,
         }),
-        ctx.set("Content-Type", "application/json")
+        ctx.set("Content-Type", "application/json"),
       );
-    })
+    }),
   );
 
   delete window.location; // Remove existing location object
@@ -158,19 +158,19 @@ test("IdleTimerManager, public session and continue", async () => {
   render(
     <ModalPriorityProvider>
       <IdleTimerManager />
-    </ModalPriorityProvider>
+    </ModalPriorityProvider>,
   );
 
   expect(
     await screen.findByText(
-      "You are not signed in. Sign in to create and update dashboards."
-    )
+      "You are not signed in. Sign in to create and update dashboards.",
+    ),
   ).toBeInTheDocument();
 
   expect(
     await screen.findByText(
-      "If you'd like to continue, you will only have access to public dashboards"
-    )
+      "If you'd like to continue, you will only have access to public dashboards",
+    ),
   ).toBeInTheDocument();
 
   const continueButton = screen.getByRole("button", {
@@ -188,15 +188,15 @@ test("IdleTimerManager, failed ping", async () => {
       return res(
         ctx.status(500),
         ctx.json({ error: "Internal Server Error" }),
-        ctx.set("Content-Type", "application/json")
+        ctx.set("Content-Type", "application/json"),
       );
-    })
+    }),
   );
 
   render(
     <ModalPriorityProvider>
       <IdleTimerManager />
-    </ModalPriorityProvider>
+    </ModalPriorityProvider>,
   );
 
   expect(screen.queryByText("Are you still here?")).not.toBeInTheDocument();
@@ -225,17 +225,17 @@ test("IdleTimerManager, delays signing out if activity is detected", async () =>
           ctx.json({
             visualizations: availableVisualizations,
           }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   const { rerender } = render(
     <ModalPriorityProvider>
       <IdleTimerManager />
       <button>Click me</button>
-    </ModalPriorityProvider>
+    </ModalPriorityProvider>,
   );
 
   delete window.location; // Remove existing location object
@@ -253,7 +253,7 @@ test("IdleTimerManager, delays signing out if activity is detected", async () =>
     <ModalPriorityProvider>
       <IdleTimerManager />
       <button>Click me</button>
-    </ModalPriorityProvider>
+    </ModalPriorityProvider>,
   );
   expect(screen.queryByText("Are you still here?")).not.toBeInTheDocument();
 }, 30000);
@@ -264,9 +264,9 @@ test("IdleTimerManager, public session and no sign in prompt", async () => {
       return res(
         ctx.status(401),
         ctx.json({ error: "Internal Server Error" }),
-        ctx.set("Content-Type", "application/json")
+        ctx.set("Content-Type", "application/json"),
       );
-    })
+    }),
   );
   const localStorageMock = (function () {
     let store = { dontShowPublicLoginOnStart: true };
@@ -295,13 +295,13 @@ test("IdleTimerManager, public session and no sign in prompt", async () => {
   render(
     <ModalPriorityProvider>
       <IdleTimerManager />
-    </ModalPriorityProvider>
+    </ModalPriorityProvider>,
   );
 
   expect(
     screen.queryByText(
-      "You are not signed in. Sign in to create and update dashboards."
-    )
+      "You are not signed in. Sign in to create and update dashboards.",
+    ),
   ).not.toBeInTheDocument();
   localStorage.clear();
 });
@@ -312,9 +312,9 @@ test("IdleTimerManager, public session and sign in", async () => {
       return res(
         ctx.status(401),
         ctx.json({ error: "Internal Server Error" }),
-        ctx.set("Content-Type", "application/json")
+        ctx.set("Content-Type", "application/json"),
       );
-    })
+    }),
   );
   const localStorageMock = (function () {
     let store = {};
@@ -340,25 +340,25 @@ test("IdleTimerManager, public session and sign in", async () => {
   render(
     <ModalPriorityProvider>
       <IdleTimerManager />
-    </ModalPriorityProvider>
+    </ModalPriorityProvider>,
   );
 
   // Use reduced timeout for faster test
   expect(
     await screen.findByText(
-      "You are not signed in. Sign in to create and update dashboards."
-    )
+      "You are not signed in. Sign in to create and update dashboards.",
+    ),
   ).toBeInTheDocument();
 
   expect(
     await screen.findByText(
-      "If you'd like to continue, you will only have access to public dashboards"
-    )
+      "If you'd like to continue, you will only have access to public dashboards",
+    ),
   ).toBeInTheDocument();
 
   expect(localStorage.getItem("dontShowPublicLoginOnStart")).toEqual(null);
   const dontShowOnStartupInput = screen.getByLabelText(
-    "dont-show-public-user-on-startup"
+    "dont-show-public-user-on-startup",
   );
   fireEvent.click(dontShowOnStartupInput);
   expect(dontShowOnStartupInput).toBeChecked();
@@ -368,7 +368,7 @@ test("IdleTimerManager, public session and sign in", async () => {
   fireEvent.click(signInButton);
 
   expect(window.location.assign).toHaveBeenCalledWith(
-    "http://api.test/accounts/login?next=undefined"
+    "http://api.test/accounts/login?next=undefined",
   );
   localStorage.clear();
 });
@@ -379,19 +379,19 @@ test("IdleTimerManager, load session error", async () => {
       return res(
         ctx.status(500),
         ctx.json({ error: "Internal Server Error" }),
-        ctx.set("Content-Type", "application/json")
+        ctx.set("Content-Type", "application/json"),
       );
-    })
+    }),
   );
 
   render(
     <ModalPriorityProvider>
       <IdleTimerManager />
-    </ModalPriorityProvider>
+    </ModalPriorityProvider>,
   );
 
   // no error handling because that is done in AppLoader
   expect(
-    screen.queryByText("AxiosError: Request failed with status code 500")
+    screen.queryByText("AxiosError: Request failed with status code 500"),
   ).not.toBeInTheDocument();
 });

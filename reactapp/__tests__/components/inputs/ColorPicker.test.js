@@ -28,7 +28,7 @@ it("ColorPicker Hide Input", async () => {
       color="#ff0000"
       onChange={mockOnChange}
       hideInput={["rgb", "hsv"]}
-    />
+    />,
   );
 
   expect(screen.getByText("HEX")).toBeInTheDocument();

@@ -11,7 +11,7 @@ jest.mock(
   () =>
     function MockApp() {
       return null;
-    }
+    },
 );
 
 // Mock react-router-dom
@@ -146,7 +146,7 @@ describe("index.js", () => {
     // Check that addEventListener was called with 'DOMContentLoaded'
     expect(addEventListenerSpy).toHaveBeenCalledWith(
       "DOMContentLoaded",
-      expect.any(Function)
+      expect.any(Function),
     );
 
     addEventListenerSpy.mockRestore();

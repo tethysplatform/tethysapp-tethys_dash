@@ -5,6 +5,14 @@ GEOGLOWS Demo
 
 This tutorial walks through building a TethysDash dashboard that displays the GEOGLOWS Global Water Model river flowlines for China, with a user-selectable base map. By the end you will have a working dashboard equivalent to ``GEOGLOWS_China_TethysDash.json``.
 
+**Finished product:** `https://demo.tethysgeoscience.org/apps/tethysdash/dashboard/fe72fe22-eb5e-4795-9c13-cacee79e1b0d <https://demo.tethysgeoscience.org/apps/tethysdash/dashboard/fe72fe22-eb5e-4795-9c13-cacee79e1b0d>`_
+
+.. image:: ../../images/tutorials/geoglows_part1/01_final_dashboard.png
+   :align: center
+   :class: tutorial-image
+
+|
+
 What you will build
 -------------------
 
@@ -12,11 +20,6 @@ What you will build
 - Configured **attribute aliases** and a clean **popup** showing only the most useful fields.
 - A **Base Map** variable input so the user can switch the underlying base map at runtime without editing the dashboard.
 
-.. image:: ../../images/tutorials/geoglows_part1/01_final_dashboard.png
-   :align: center
-   :class: tutorial-image
-
-|
 
 Prerequisites
 -------------

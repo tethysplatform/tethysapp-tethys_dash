@@ -9,7 +9,7 @@ With the TethysDash dashboard builder, users can easily add, configure, and arra
 
 TethysDash provides a robust set of built-in visualization plugins and features for building effective dashboards and applications. Its true strength lies in flexibility and extensibility—dashboards can leverage preinstalled plugins to perform custom and complex analyses. For details on the plugin architecture and developing new plugins, see the :doc:`plugins` section.
 
-Try the TethysDash demo: `http://demo.firo.aquaveo.com/apps/tethysdash/ <http://demo.firo.aquaveo.com/apps/tethysdash/>`_
+Try the TethysDash demo: `https://demo.tethysgeoscience.org/apps/tethysdash/ <https://demo.tethysgeoscience.org/apps/tethysdash/>`_
 
 .. figure:: ../images/dashboard.png
    :align: center

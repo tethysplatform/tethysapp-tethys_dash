@@ -32,7 +32,7 @@ function IdleTimerManager() {
   const [count, setCount] = useState(0);
 
   const dontShowPublicLoginOnStart = localStorage.getItem(
-    "dontShowPublicLoginOnStart"
+    "dontShowPublicLoginOnStart",
   );
   const TETHYS_PORTAL_BASE = getTethysPortalBase();
 
@@ -77,7 +77,7 @@ function IdleTimerManager() {
     }
     // Then redirect to logout, which will then redirect to login
     window.location.assign(
-      `${TETHYS_PORTAL_BASE}/accounts/logout/?next=${TETHYS_PORTAL_BASE}/accounts/login?next=${window.location.pathname}`
+      `${TETHYS_PORTAL_BASE}/accounts/logout/?next=${TETHYS_PORTAL_BASE}/accounts/login?next=${window.location.pathname}`,
     );
     setShowActivePrompt(false);
   };
@@ -129,7 +129,7 @@ function IdleTimerManager() {
         if (response.status === -2) {
           // The user has been signed out
           window.location.assign(
-            `${TETHYS_PORTAL_BASE}/accounts/login?next=${window.location.pathname}`
+            `${TETHYS_PORTAL_BASE}/accounts/login?next=${window.location.pathname}`,
           );
         } else if (response.status === 2 || response.status === -1) {
           // (2) Pause the IdleTimer as it's not going to do anything for a public user
@@ -169,7 +169,7 @@ function IdleTimerManager() {
   const handlePublicUser = (confirmation) => {
     if (!confirmation) {
       window.location.assign(
-        `${TETHYS_PORTAL_BASE}/accounts/login?next=${window.location.pathname}`
+        `${TETHYS_PORTAL_BASE}/accounts/login?next=${window.location.pathname}`,
       );
       return;
     }

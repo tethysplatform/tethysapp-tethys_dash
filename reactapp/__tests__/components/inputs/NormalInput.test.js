@@ -15,20 +15,14 @@ describe("NormalInput Component", () => {
   });
 
   test("renders with label and value", () => {
-    render(
-      <NormalInput label="Name" value="hello" onChange={mockOnChange} />,
-    );
+    render(<NormalInput label="Name" value="hello" onChange={mockOnChange} />);
     expect(screen.getByText("Name")).toBeInTheDocument();
     expect(screen.getByLabelText("Name Input")).toHaveValue("hello");
   });
 
   test("renders without label", () => {
     render(
-      <NormalInput
-        ariaLabel="No Label"
-        value="test"
-        onChange={mockOnChange}
-      />,
+      <NormalInput ariaLabel="No Label" value="test" onChange={mockOnChange} />,
     );
     expect(screen.queryByRole("label")).not.toBeInTheDocument();
     expect(screen.getByLabelText("No Label")).toHaveValue("test");
@@ -36,12 +30,7 @@ describe("NormalInput Component", () => {
 
   test("text input calls onChange on any input", () => {
     render(
-      <NormalInput
-        label="Text"
-        type="text"
-        value=""
-        onChange={mockOnChange}
-      />,
+      <NormalInput label="Text" type="text" value="" onChange={mockOnChange} />,
     );
     const input = screen.getByLabelText("Text Input");
     fireEvent.change(input, { target: { value: "abc" } });
@@ -314,9 +303,7 @@ describe("NormalInput Component", () => {
   });
 
   test("Enter key is prevented from submitting form", () => {
-    render(
-      <NormalInput label="Text" value="" onChange={mockOnChange} />,
-    );
+    render(<NormalInput label="Text" value="" onChange={mockOnChange} />);
     const input = screen.getByLabelText("Text Input");
     const event = new KeyboardEvent("keydown", {
       key: "Enter",
@@ -353,13 +340,7 @@ describe("NormalInput Component", () => {
   });
 
   test("renders with undefined value for number input", () => {
-    render(
-      <NormalInput
-        label="Num"
-        type="number"
-        onChange={mockOnChange}
-      />,
-    );
+    render(<NormalInput label="Num" type="number" onChange={mockOnChange} />);
     const input = screen.getByLabelText("Num Input");
     expect(input).toHaveValue("");
   });

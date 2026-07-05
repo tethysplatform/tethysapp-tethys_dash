@@ -1,0 +1,110 @@
+name: Release
+
+# Triggered by pushing a v-prefixed version tag (e.g. v0.19.17). The project
+# adopts the `v` prefix going forward (earlier tags were unprefixed).
+#
+# Flow: re-run the full test suite, build the frontend + Python package
+# (version derived from the tag via setuptools_scm), publish to PyPI via
+# Trusted Publishing (OIDC), then create a GitHub Release.
+#
+# Supply-chain note: the third-party actions below are referenced by version
+# tag for readability. Pin them to full commit SHAs before relying on this in
+# production (see the plan's least-privilege/publishing decision).
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+
+# Keep these in sync with the versions in test.yml so the package is built
+# under the same toolchain the test suite ran on.
+env:
+  NODE_VERSION: "20"
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  # Gate: the publish must not proceed unless the full suite is green.
+  test:
+    uses: ./.github/workflows/test.yml
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history + tags so setuptools_scm derives the tag version.
+          fetch-depth: 0
+
+      - name: Verify tag is on main
+        run: |
+          # Fetch main with full history (no --depth) so merge-base can walk
+          # the parent graph; a shallow FETCH_HEAD makes --is-ancestor
+          # unreliable. The checkout above already used fetch-depth: 0.
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" FETCH_HEAD; then
+            echo "::error::Tagged commit is not an ancestor of main; refusing to publish." >&2
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Build frontend
+        run: |
+          npm ci
+          npm run build
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Build Python package
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    # Least privilege: only this job gets the OIDC token, and only via the
+    # protected `pypi` environment (configure a required reviewer in repo
+    # Settings -> Environments to gate the publish).
+    permissions:
+      id-token: write
+    environment: pypi
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Publish to PyPI (Trusted Publishing)
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          # Tolerate re-runs: if the version is already on PyPI (e.g. publish
+          # succeeded but github-release failed), skip rather than fail so the
+          # workflow can be safely retried.
+          skip-existing: true
+
+  github-release:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: dist/*

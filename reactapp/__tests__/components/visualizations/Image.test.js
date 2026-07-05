@@ -8,12 +8,7 @@ function initAndRender(props) {
   const user = userEvent.setup();
 
   const ImageRender = (props) => {
-    return (
-      <Image
-        source={props.source}
-        alt={props.alt}
-      />
-    );
+    return <Image source={props.source} alt={props.alt} />;
   };
 
   ImageRender.propTypes = {
@@ -26,24 +21,26 @@ function initAndRender(props) {
   return {
     user,
     ImageRender,
-    rerender
+    rerender,
   };
 }
 
 it("Creates an image with the correct source and alt", () => {
   initAndRender({
     source: "https://www.aquaveo.com/images/aquaveo_logo.svg",
-    alt: "Aquaveo Logo"
+    alt: "Aquaveo Logo",
   });
 
   expect(screen.getByAltText("Aquaveo Logo")).toBeInTheDocument();
-  expect(screen.getByAltText("Aquaveo Logo").src).toBe("https://www.aquaveo.com/images/aquaveo_logo.svg");
+  expect(screen.getByAltText("Aquaveo Logo").src).toBe(
+    "https://www.aquaveo.com/images/aquaveo_logo.svg",
+  );
 });
 
 it("Doesn't render an image if the source is invalid", () => {
   initAndRender({
     source: "http://localhost:3000/non-existent-image.png",
-    alt: "Invalid Logo"
+    alt: "Invalid Logo",
   });
 
   const image = screen.getByAltText("Invalid Logo");

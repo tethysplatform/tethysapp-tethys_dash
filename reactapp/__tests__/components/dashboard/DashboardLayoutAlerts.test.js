@@ -42,7 +42,7 @@ test("Dashboard Layout Alerts Shown", async () => {
         errorMessage={"error"}
         warningMessage={"warning"}
       />
-    </LayoutAlertContextProvider>
+    </LayoutAlertContextProvider>,
   );
 
   expect(await screen.findByText("success")).toBeInTheDocument();
@@ -54,7 +54,7 @@ test("Dashboard Layout Alerts not Shown", async () => {
   render(
     <LayoutAlertContextProvider>
       <TestingComponent />
-    </LayoutAlertContextProvider>
+    </LayoutAlertContextProvider>,
   );
 
   expect(screen.queryByText("success")).not.toBeInTheDocument();

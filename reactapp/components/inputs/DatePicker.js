@@ -13,6 +13,7 @@ import {
   parseDateMath,
   checkForVariable,
   isRelativeInput,
+  isPreset,
   parseDate,
 } from "components/inputs/dateUtils";
 
@@ -67,7 +68,8 @@ const DatePicker = ({
       value !== dateHourFormattedRaw &&
       value !== dateOnlyFormattedRaw &&
       value !== dateFormattedRaw &&
-      !isRelativeInput(rawInputValue)
+      !isRelativeInput(rawInputValue) &&
+      !isPreset(rawInputValue)
     ) {
       try {
         setRawInputValue(
@@ -80,9 +82,10 @@ const DatePicker = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
-  // Derive selectedDate for calendar from value prop (only if not relative)
+  // Derive selectedDate for calendar from value prop (only if not relative,
+  // a variable reference, or a preset sentinel)
   let selectedDate = null;
-  if (!checkForVariable(value)) {
+  if (!checkForVariable(value) && !isPreset(value)) {
     selectedDate = parseDate(value, dateHourFormat);
   }
 
@@ -100,6 +103,12 @@ const DatePicker = ({
     }
 
     if (checkForVariable(val)) {
+      onChange(val);
+      return;
+    }
+
+    // Preset sentinel ('latest') — pass through verbatim to the plugin.
+    if (isPreset(val)) {
       onChange(val);
       return;
     }

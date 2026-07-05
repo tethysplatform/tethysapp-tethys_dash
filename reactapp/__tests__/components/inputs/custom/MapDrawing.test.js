@@ -37,7 +37,7 @@ describe("MapDrawing Component", () => {
       <MapDrawing
         onChange={handleChange}
         values={{ options: ["LineString"], variable: "some value" }}
-      />
+      />,
     );
     const mapDrawing = screen.getByText("Map Drawing");
     fireEvent.click(mapDrawing);
@@ -63,7 +63,7 @@ describe("MapDrawing Component", () => {
       <MapDrawing
         onChange={handleChange}
         values={{ options: ["LineString"], limit: 2 }}
-      />
+      />,
     );
     const mapDrawing = screen.getByText("Map Drawing");
     fireEvent.click(mapDrawing);
@@ -93,7 +93,7 @@ describe("MapDrawing Component", () => {
           limit: 5,
           variable: "some value",
         }}
-      />
+      />,
     );
     const mapDrawing = screen.getByText("Map Drawing");
     fireEvent.click(mapDrawing);

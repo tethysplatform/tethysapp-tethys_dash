@@ -80,14 +80,14 @@ const WebsocketProvider = ({ children }) => {
   const getMessageForRequest = useCallback(
     (requestId) =>
       messagesByRequestId[requestId] && messagesByRequestId[requestId],
-    [messagesByRequestId]
+    [messagesByRequestId],
   );
 
   const getErrorMessageForRequest = useCallback(
     (requestId) =>
       errorMessagesByRequestId[requestId] &&
       errorMessagesByRequestId[requestId],
-    [errorMessagesByRequestId]
+    [errorMessagesByRequestId],
   );
 
   const onSend = useCallback(
@@ -96,7 +96,7 @@ const WebsocketProvider = ({ children }) => {
       ws.current.send(data);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [websocketReady]
+    [websocketReady],
   );
 
   const contextValue = useMemo(
@@ -115,7 +115,7 @@ const WebsocketProvider = ({ children }) => {
       getMessageForRequest,
       getErrorMessageForRequest,
       onSend,
-    ]
+    ],
   );
 
   if (hasWebSocketUrl && !websocketReady && !timeoutReached) {

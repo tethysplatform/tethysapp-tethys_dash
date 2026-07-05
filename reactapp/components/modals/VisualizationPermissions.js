@@ -65,7 +65,7 @@ function VisualizationPermissionsModal({ showModal, setShowModal }) {
           setVisualizationPermissions(response.visualization_permissions);
         } else {
           setErrorMessage(
-            response.message || "Failed to fetch visualization permissions"
+            response.message || "Failed to fetch visualization permissions",
           );
         }
       } catch (error) {
@@ -167,14 +167,14 @@ function VisualizationPermissionsModal({ showModal, setShowModal }) {
     try {
       const apiResponse = await appAPI.updateVisualizationPermissions(
         { permissions: visualizationPermissions },
-        csrf
+        csrf,
       );
 
       if (apiResponse.success) {
         setSuccessMessage("Successfully updated visualization permissions");
       } else {
         setErrorMessage(
-          apiResponse.message || "Failed to update visualization permissions"
+          apiResponse.message || "Failed to update visualization permissions",
         );
       }
     } catch (error) {
@@ -299,10 +299,10 @@ function VisualizationPermissionsModal({ showModal, setShowModal }) {
                             ))}
                             {currentPermissions.groups.map((groupName) => {
                               const group = permissionGroups.find(
-                                (g) => g.name === groupName
+                                (g) => g.name === groupName,
                               );
                               const userInGroup = group?.members.some(
-                                (m) => m.username === user.username
+                                (m) => m.username === user.username,
                               );
                               return (
                                 <tr key={`group-${groupName}`}>

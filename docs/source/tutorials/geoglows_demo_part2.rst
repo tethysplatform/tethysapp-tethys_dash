@@ -7,17 +7,20 @@ This tutorial picks up where :doc:`geoglows_demo` left off. You will extend the 
 
 For an alternative approach that opens the forecast plot in a floating popup modal instead of a permanent grid item, see :doc:`popup_modal_tutorial`.
 
-What you will build
--------------------
-
-- A ``river_id`` variable input that captures the ``comid`` of whichever river segment the user clicks on the map.
-- A **GeoGLOWS Forecast Plot** grid item that re-fetches whenever ``river_id`` changes, with a friendly placeholder shown before any river has been selected.
+**Finished product:** `https://demo.tethysgeoscience.org/apps/tethysdash/dashboard/6a74d783-3885-4c66-8b87-83dbf927d67f <https://demo.tethysgeoscience.org/apps/tethysdash/dashboard/6a74d783-3885-4c66-8b87-83dbf927d67f>`_
 
 .. image:: ../../images/tutorials/geoglows_part2/01_final_dashboard.png
    :align: center
    :class: tutorial-image
 
 |
+
+What you will build
+-------------------
+
+- A ``river_id`` variable input that captures the ``comid`` of whichever river segment the user clicks on the map.
+- A **GeoGLOWS Forecast Plot** grid item that re-fetches whenever ``river_id`` changes, with a friendly placeholder shown before any river has been selected.
+
 
 Prerequisites
 -------------

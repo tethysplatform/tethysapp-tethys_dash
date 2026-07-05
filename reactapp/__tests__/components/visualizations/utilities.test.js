@@ -13,6 +13,12 @@ import {
   checkForEmptyVariableInputs,
   findUnresolvedFeatureTokens,
   findUnresolvedVariableInputTokens,
+  clearImageVizCache,
+  getCachedImageViz,
+  setCachedImageViz,
+  buildImageVizCacheKey,
+  argsContainPreset,
+  IMAGE_VIZ_CACHE_LIMIT,
 } from "components/visualizations/utilities";
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
@@ -23,6 +29,12 @@ jest.mock("components/visualizations/Map", () => {
   const MockMapVisualization = () => <div>Map Mock</div>;
   MockMapVisualization.displayName = "MapVisualization"; // Set the display name to resolve the linting warning
   return MockMapVisualization;
+});
+
+// The image-viz cache is module-level state; reset it between tests so cached
+// results from one test don't short-circuit the backend call another expects.
+beforeEach(() => {
+  clearImageVizCache();
 });
 
 test("getVisualization bad response", async () => {
@@ -181,6 +193,52 @@ test("getVisualization plotly", async () => {
     data: {},
     layout: {},
     config: undefined,
+    toggle_subplots: undefined,
+    subplot_toggle: undefined,
+  });
+});
+
+test("getVisualization plotly passes through subplot toggle opt-in keys", async () => {
+  // Regression: the plotly branch must forward plugin-returned top-level
+  // `toggle_subplots`/`subplot_toggle` keys, not strip them to data/layout/config.
+  const plotData = {
+    data: [],
+    layout: {},
+    toggle_subplots: true,
+    subplot_toggle: { reflow: "vertical" },
+  };
+  server.use(
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({ success: true, viz_type: "plotly", data: plotData }),
+          ctx.set("Content-Type", "application/json"),
+        );
+      },
+    ),
+  );
+
+  const mockSetVizType = jest.fn();
+  const mockSetVizData = jest.fn();
+  await getVisualization({
+    setVizType: mockSetVizType,
+    setVizData: mockSetVizData,
+    sourceType: "plotly",
+    itemData: {},
+    visualizationRef: jest.fn(),
+    metadataString: "{}",
+    argsString: "{}",
+    variableInputValues: [],
+  });
+
+  expect(mockSetVizData.mock.calls[0][0]).toStrictEqual({
+    data: [],
+    layout: {},
+    config: undefined,
+    toggle_subplots: true,
+    subplot_toggle: { reflow: "vertical" },
   });
 });
 
@@ -223,6 +281,181 @@ test("getVisualization image", async () => {
     alt: "some_source",
     imageError: undefined,
   });
+});
+
+test("getVisualization image caches result, skips repeat request, refresh bypasses", async () => {
+  let requestCount = 0;
+  server.use(
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        requestCount += 1;
+        return res(
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            viz_type: "image",
+            data: "cached_path",
+          }),
+          ctx.set("Content-Type", "application/json"),
+        );
+      },
+    ),
+  );
+
+  const baseParams = (setVizType, setVizData) => ({
+    setVizType,
+    setVizData,
+    sourceType: "image",
+    itemData: { source: "img_source" },
+    metadataString: "{}",
+    argsString: JSON.stringify({ station: "ABC", hour: "05" }),
+    variableInputValues: {},
+  });
+
+  // First call: hits the backend and populates the cache.
+  const type1 = jest.fn();
+  const data1 = jest.fn();
+  await getVisualization(baseParams(type1, data1));
+  expect(requestCount).toBe(1);
+  expect(type1.mock.calls.map((c) => c[0])).toEqual(["loader", "image"]);
+  expect(data1.mock.calls[0][0]).toStrictEqual({
+    source: "cached_path",
+    alt: "img_source",
+    imageError: undefined,
+  });
+
+  // Second identical call: served from cache — no backend request, no loader.
+  const type2 = jest.fn();
+  const data2 = jest.fn();
+  await getVisualization(baseParams(type2, data2));
+  expect(requestCount).toBe(1);
+  expect(type2.mock.calls.map((c) => c[0])).toEqual(["image"]);
+  expect(data2.mock.calls[0][0]).toStrictEqual({
+    source: "cached_path",
+    alt: "img_source",
+    imageError: undefined,
+  });
+
+  // refresh: true bypasses the cache and re-fetches.
+  const type3 = jest.fn();
+  const data3 = jest.fn();
+  await getVisualization({ ...baseParams(type3, data3), refresh: true });
+  expect(requestCount).toBe(2);
+  expect(type3.mock.calls[0][0]).toBe("loader");
+
+  // Different args do not collide with the cached entry.
+  const type4 = jest.fn();
+  const data4 = jest.fn();
+  await getVisualization({
+    ...baseParams(type4, data4),
+    argsString: JSON.stringify({ station: "ABC", hour: "06" }),
+  });
+  expect(requestCount).toBe(3);
+  expect(type4.mock.calls[0][0]).toBe("loader");
+});
+
+test("getVisualization does not cache an image whose date arg is the 'latest' preset", async () => {
+  let requestCount = 0;
+  server.use(
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        requestCount += 1;
+        return res(
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            viz_type: "image",
+            data: "latest_path",
+          }),
+          ctx.set("Content-Type", "application/json"),
+        );
+      },
+    ),
+  );
+
+  const baseParams = (setVizType, setVizData) => ({
+    setVizType,
+    setVizData,
+    sourceType: "image",
+    sourceArgs: { DATETIME: "date" },
+    itemData: { source: "img_source" },
+    metadataString: "{}",
+    argsString: JSON.stringify({ DATETIME: "latest" }),
+    variableInputValues: {},
+  });
+
+  // First call hits the backend.
+  const type1 = jest.fn();
+  const data1 = jest.fn();
+  await getVisualization(baseParams(type1, data1));
+  expect(requestCount).toBe(1);
+
+  // Second identical call must NOT be served from cache — "latest" re-resolves,
+  // so the cache is neither read nor written for a sentinel-bearing date arg.
+  const type2 = jest.fn();
+  const data2 = jest.fn();
+  await getVisualization(baseParams(type2, data2));
+  expect(requestCount).toBe(2);
+  expect(type2.mock.calls.map((c) => c[0])).toEqual(["loader", "image"]);
+});
+
+test("buildImageVizCacheKey falls back to null for missing source/args", () => {
+  // Both ?? null branches: nullish source and nullish args.
+  expect(buildImageVizCacheKey({})).toBe(JSON.stringify({ s: null, a: null }));
+  // Truthy branches: both provided.
+  expect(buildImageVizCacheKey({ source: "img", args: { hour: "05" } })).toBe(
+    JSON.stringify({ s: "img", a: { hour: "05" } }),
+  );
+});
+
+test("argsContainPreset detects a preset only in date-typed args", () => {
+  // Sentinel in a date-typed arg -> true.
+  expect(argsContainPreset({ DATETIME: "latest" }, { DATETIME: "date" })).toBe(
+    true,
+  );
+  // Sentinel in a NON-date arg -> false (no spurious cache-disable collision).
+  expect(argsContainPreset({ region: "latest" }, { region: "text" })).toBe(
+    false,
+  );
+  // Concrete date -> false.
+  expect(
+    argsContainPreset(
+      { DATETIME: "2026-06-29T00:00:00" },
+      { DATETIME: "date" },
+    ),
+  ).toBe(false);
+  // Nested date-range endpoint sentinel -> true; array values handled too.
+  expect(
+    argsContainPreset(
+      { range: { "Start Date": "latest", "End Date": "x" } },
+      { range: "date-range" },
+    ),
+  ).toBe(true);
+  expect(argsContainPreset({ d: ["latest"] }, { d: "date" })).toBe(true);
+  // Without sourceArgs nothing is known to be date-typed -> false.
+  expect(argsContainPreset({ DATETIME: "latest" })).toBe(false);
+  expect(argsContainPreset({})).toBe(false);
+  expect(argsContainPreset(null)).toBe(false);
+});
+
+test("image cache evicts the least-recently-used entry past the limit", () => {
+  // LRU mechanics are pure, so exercise the eviction branch directly rather
+  // than driving thousands of slow getVisualization round-trips.
+  for (let i = 0; i < IMAGE_VIZ_CACHE_LIMIT; i += 1) {
+    setCachedImageViz(`k${i}`, `v${i}`);
+  }
+  // A read promotes k0 to most-recently-used, so the next eviction must drop
+  // k1 (now the oldest) instead.
+  expect(getCachedImageViz("k0")).toBe("v0");
+
+  // One more distinct entry overflows the cache and evicts the LRU entry.
+  setCachedImageViz("kOverflow", "vOverflow");
+
+  expect(getCachedImageViz("k1")).toBeUndefined(); // evicted
+  expect(getCachedImageViz("k0")).toBe("v0"); // promoted, survived
+  expect(getCachedImageViz("kOverflow")).toBe("vOverflow");
 });
 
 test("getVisualization, empty variable and no custom messaging", async () => {
@@ -955,6 +1188,44 @@ describe("updateObjectWithVariableInputs date arg resolution", () => {
     });
     expect(result.d).toBe(convertDatesToLocalISO(parseDate("now-1D")));
     expect(result.d).not.toBe("now-1D");
+  });
+
+  it("passes a 'latest' preset sentinel through a date arg verbatim", () => {
+    const result = updateObjectWithVariableInputs({
+      args: { d: "latest" },
+      variableInputs: {},
+      variableInputDateFormats: {},
+      sourceArgs: { d: "date" },
+      returnDatesAsLocalISO: true,
+    });
+    expect(result.d).toBe("latest");
+  });
+
+  it("passes a 'latest' preset through a shared date variable input", () => {
+    // AE3: a date-typed variable input set to 'latest' substitutes the literal
+    // string into the connected arg rather than formatting it to null.
+    const result = updateObjectWithVariableInputs({
+      args: { d: "${Forecast Date}" },
+      variableInputs: { "Forecast Date": "latest" },
+      variableInputDateFormats: { "Forecast Date": "MM/dd/yyyy h:mm aa" },
+      sourceArgs: { d: "date" },
+      returnDatesAsLocalISO: true,
+    });
+    expect(result.d).toBe("latest");
+  });
+
+  it("passes a 'latest' sentinel through a date-range endpoint verbatim", () => {
+    const result = updateObjectWithVariableInputs({
+      args: { range: { "Start Date": "latest", "End Date": "now" } },
+      variableInputs: {},
+      variableInputDateFormats: {},
+      sourceArgs: { range: "date-range" },
+      returnDatesAsLocalISO: true,
+    });
+    expect(result.range["Start Date"]).toBe("latest");
+    expect(result.range["End Date"]).toBe(
+      convertDatesToLocalISO(parseDate("now")),
+    );
   });
 
   it("resolves both endpoints of a 'date-range' arg with relative values", () => {
@@ -1824,9 +2095,10 @@ describe("findUnresolvedVariableInputTokens", () => {
   });
 
   test("finds tokens nested inside an array", () => {
-    expect(
-      findUnresolvedVariableInputTokens(["${A}", { b: "${B}" }]),
-    ).toEqual(["A", "B"]);
+    expect(findUnresolvedVariableInputTokens(["${A}", { b: "${B}" }])).toEqual([
+      "A",
+      "B",
+    ]);
   });
 
   test("deduplicates repeated tokens", () => {
@@ -1877,9 +2149,7 @@ describe("findUnresolvedVariableInputTokens", () => {
       layers: [
         {
           popupConfig: {
-            gridItems: [
-              { args_string: '{"start_time":"${Popup Var}"}' },
-            ],
+            gridItems: [{ args_string: '{"start_time":"${Popup Var}"}' }],
           },
         },
       ],

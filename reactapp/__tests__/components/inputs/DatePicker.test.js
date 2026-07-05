@@ -185,49 +185,51 @@ test("DatePicker initial variable", async () => {
 });
 
 test("DatePicker initial now+1D", async () => {
-  const mockOnChange = jest.fn();
+  const frozenNow = new Date("2026-06-15T14:13:00.000Z");
+  jest.useFakeTimers();
+  jest.setSystemTime(frozenNow);
 
-  render(
-    <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
-      <DatePicker
-        label="Test DatePicker"
-        value="now+1D"
-        onChange={mockOnChange}
-      />
-    </DataViewerModeContext.Provider>,
-  );
+  try {
+    const mockOnChange = jest.fn();
 
-  expect(await screen.findByText("Test DatePicker")).toBeInTheDocument();
+    render(
+      <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
+        <DatePicker
+          label="Test DatePicker"
+          value="now+1D"
+          onChange={mockOnChange}
+        />
+      </DataViewerModeContext.Provider>,
+    );
 
-  const input = screen.getByRole("textbox");
-  expect(input.value).toBe("now+1D");
+    expect(await screen.findByText("Test DatePicker")).toBeInTheDocument();
 
-  const calendarButton = screen.getByLabelText("Calendar Icon");
-  await userEvent.click(calendarButton);
+    const input = screen.getByRole("textbox");
+    expect(input.value).toBe("now+1D");
 
-  const datePicker = await screen.findByRole("dialog");
-  expect(datePicker).toBeInTheDocument();
-  const today = new Date();
-  const tomorrow = new Date(today);
-  tomorrow.setDate(today.getDate() + 1);
-  const weekday = tomorrow.toLocaleDateString("en-US", { weekday: "long" });
-  const month = tomorrow.toLocaleDateString("en-US", { month: "long" });
-  const day = tomorrow.getDate();
-  const ordinal = getOrdinal(day);
-  const year = tomorrow.getFullYear();
+    const calendarButton = screen.getByLabelText("Calendar Icon");
+    fireEvent.click(calendarButton);
 
-  const formatted = `Choose ${weekday}, ${month} ${day}${ordinal}, ${year}`;
-  const tomorrowCalendarItem = screen.getByLabelText(formatted);
-  expect(tomorrowCalendarItem).toHaveAttribute("aria-selected", "true");
+    const datePicker = await screen.findByRole("dialog");
+    expect(datePicker).toBeInTheDocument();
+    const tomorrow = new Date(frozenNow);
+    tomorrow.setDate(frozenNow.getDate() + 1);
+    const weekday = tomorrow.toLocaleDateString("en-US", { weekday: "long" });
+    const month = tomorrow.toLocaleDateString("en-US", { month: "long" });
+    const day = tomorrow.getDate();
+    const ordinal = getOrdinal(day);
+    const year = tomorrow.getFullYear();
 
-  const timeInput = screen.getByPlaceholderText("Time");
-  const timeString = today.toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-  expect(timeInput).toHaveValue(timeString);
-  expect(mockOnChange).toHaveBeenCalledTimes(0);
+    const formatted = `Choose ${weekday}, ${month} ${day}${ordinal}, ${year}`;
+    const tomorrowCalendarItem = screen.getByLabelText(formatted);
+    expect(tomorrowCalendarItem).toHaveAttribute("aria-selected", "true");
+
+    const timeInput = screen.getByPlaceholderText("Time");
+    expect(timeInput).toHaveValue(format(frozenNow, "HH:mm"));
+    expect(mockOnChange).toHaveBeenCalledTimes(0);
+  } finally {
+    jest.useRealTimers();
+  }
 });
 
 test("DatePicker select tomorrow date-hour", async () => {
@@ -387,4 +389,52 @@ test("DatePicker relative date in dataviewer mode", async () => {
   } finally {
     jest.useRealTimers();
   }
+});
+
+test("DatePicker keeps a sentinel value across a parent re-render", async () => {
+  const mockOnChange = jest.fn();
+
+  const { rerender } = render(
+    <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
+      <DatePicker
+        label="Test DatePicker"
+        value="latest"
+        onChange={mockOnChange}
+      />
+    </DataViewerModeContext.Provider>,
+  );
+
+  expect(screen.getByRole("textbox").value).toBe("latest");
+
+  // A parent re-render must not let the value->rawInputValue effect clobber the
+  // sentinel back into a formatted/blank date.
+  rerender(
+    <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
+      <DatePicker
+        label="Test DatePicker"
+        value="latest"
+        onChange={mockOnChange}
+      />
+    </DataViewerModeContext.Provider>,
+  );
+
+  expect(screen.getByRole("textbox").value).toBe("latest");
+});
+
+test("DatePicker passes a typed preset sentinel through verbatim", async () => {
+  const mockOnChange = jest.fn();
+
+  render(
+    <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
+      <DatePicker label="Test DatePicker" value="" onChange={mockOnChange} />
+    </DataViewerModeContext.Provider>,
+  );
+
+  const input = screen.getByRole("textbox");
+  // Typing the sentinel (not via the chip) must hit the onRawChange preset
+  // branch and emit the literal string, not attempt to parse it as a date.
+  fireEvent.change(input, { target: { value: "latest" } });
+
+  expect(mockOnChange).toHaveBeenLastCalledWith("latest");
+  expect(input.value).toBe("latest");
 });

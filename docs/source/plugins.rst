@@ -50,7 +50,7 @@ Properties:
     - **group**: (required) Used to group visualizations in the dashboard app.
     - **label**: (required) The display name for the visualization in the dashboard app.
     - **type**: (required) The type of visualization. Must be "plotly", "table", "image", "imageCollection", "card", "text", "variable_input", "map", "map_layer", or "custom". See the `Plugin Visualization Types <Plugin Visualization Types_>`_ section for details.
-    - **args**: Dictionary of function arguments as keys and data types as values. Used to dynamically create HTML inputs. Values can be `HTML Input Types <https://www.w3schools.com/html/html_form_input_types.asp>`_ or a list for dropdowns (e.g., `{"year": "number", "location": "text", "available_colors": ["red", "blue", "white"]}`). These args are set as attributes of the plugin class and can be used in the run method using self (e.g., `self.year`, `self.location`, `self.available_colors`).
+    - **args**: Dictionary of function arguments as keys and data types as values. Used to dynamically create HTML inputs. Values can be `HTML Input Types <https://www.w3schools.com/html/html_form_input_types.asp>`_ or a list for dropdowns (e.g., `{"year": "number", "location": "text", "available_colors": ["red", "blue", "white"]}`). Simple args are set as attributes of the plugin class and can be used in the run method using self (e.g., `self.year`, `self.location`, `self.available_colors`). Date args are parsed to ``datetime`` objects, and dropdown args may declare nested ``sub_args``. See `Accessing Arguments in run()`_ for how each kind reaches ``run()``. Argument names must not contain ``.`` (the reserved nested-argument path delimiter).
     - **tags**: List of tags for search and discovery.
     - **description**: Description of the visualization.
     - **restricted**: Boolean to restrict access to the plugin. If true, the plugin will only be visible to users with permissions. Defaults to false.
@@ -58,7 +58,74 @@ Properties:
     - **attribution**: Description of the data source for attribution purposes. Optional.
 Methods:
     - **run**: The main function to implement. The dashboard app calls this method and uses its results as the visualization data.
+    - **get_arg**: Read a single argument by its flat (possibly dotted) name, e.g. ``self.get_arg("transect_location.location")``. Returns ``None`` (or a supplied default) when the argument was not provided. Use this for nested args, which attribute access cannot reach. See `Accessing Arguments in run()`_.
+    - **sub_args**: Return the immediate child arguments of a nested (dropdown) arg as a ``{child_name: value}`` dictionary, e.g. ``self.sub_args("transect_location")``. See `Accessing Arguments in run()`_.
     - **send_update**: A method to send updates from the plugin to the dashboard app. Useful for long-running processes to provide progress updates. See the `Sending Progress Updates`_ section for more information.
+
+================================
+Accessing Arguments in run()
+================================
+
+Arguments configured for a plugin are made available on the plugin instance
+before ``run()`` is called. How you read an argument depends on its type.
+
+**Simple arguments** are set as attributes named after the argument key::
+
+    args = {"year": "number", "location": "text"}
+    # in run():  self.year, self.location
+
+**Date arguments** (``"date"``) are automatically parsed into ``datetime``
+objects before ``run()`` is called, so ``self.<arg>`` is a ``datetime`` rather
+than a string. Date inputs also accept special string values:
+
+    - Relative date math such as ``"now"``, ``"now-7D"``, or ``"now+30D"`` is
+      resolved to a ``datetime`` for you.
+    - ``"latest"`` is a **preset** meaning "the newest available data". Unlike
+      the values above it is **not** parsed — it reaches ``run()`` as the
+      literal string ``"latest"``, and the plugin is responsible for resolving
+      it (e.g. by discovering the most recent available file/resource).
+
+Detect the preset before treating the value as a date::
+
+    def run(self):
+        if self.get_arg("date") == "latest":
+            return self._resolve_latest()
+        # self.date is a datetime here
+        ...
+
+**Nested (dropdown) arguments.** A dropdown argument option may declare
+``sub_args`` — additional inputs revealed only when that option is selected.
+These arrive as a **flat map with dotted keys** joining the parent and child
+names (e.g. ``"transect_location.location"``), *not* as a nested dictionary.
+Because Python cannot resolve a dotted name through attribute access
+(``self.transect_location.location`` does **not** work), read them with the
+helper methods::
+
+    args = {
+        "transect_location": [
+            {
+                "value": "coast",
+                "label": "Coastal",
+                "sub_args": {"location": [{"value": "60.0_220.0", "label": "60.0N 140.0W"}]},
+            },
+        ],
+    }
+
+    def run(self):
+        transect = self.transect_location                      # "coast" (attribute access OK)
+        location = self.get_arg("transect_location.location")  # selected sub-value
+        # or read all immediate children at once:
+        options = self.sub_args("transect_location")           # {"location": ...}
+        ...
+
+``sub_args`` returns only the **immediate** children of a parent; descend one
+level at a time for deeper nesting (e.g. ``self.sub_args("transect_location.location")``).
+
+.. note::
+    Argument names must not contain ``.`` — it is reserved as the
+    nested-argument path delimiter. ``TethysDashPlugin`` raises a ``ValueError``
+    at instantiation if a top-level argument name contains one. Sub-arg names
+    declared inside dropdown options are subject to the same rule.
 
 ==========================
 Plugin Visualization Types
@@ -138,6 +205,87 @@ Displays a `Plotly <https://plotly.com/python/>`_ chart with the provided data, 
             config = {"displayModeBar": True}
 
             return {"data": data, "layout": layout, "config": config}
+
+|
+
+Subplot Show/Hide Toggle
+::::::::::::::::::::::::::
+
+For figures built from multiple subplots, a plugin can let viewers show and hide
+individual subplots from a control in the top-right corner of the plot. When a
+subplot is hidden, the remaining subplots **reflow** to fill the freed space.
+
+To opt in, return ``toggle_subplots: True`` as a top-level key alongside
+``data``/``layout``/``config``::
+
+    return {
+        "data": data,
+        "layout": layout,
+        "config": config,
+        "toggle_subplots": True,
+    }
+
+That single key is all that is required. The frontend discovers the subplots
+("panes") from the figure's axes:
+
+- Traces are grouped into a pane by their ``xaxis``/``yaxis`` assignment.
+  Secondary-y overlays (an axis with ``overlaying``) are folded into the pane of
+  the axis they overlay.
+- Each pane's checkbox label comes from its y-axis ``title`` → else the first
+  trace ``name`` → else ``"Subplot N"``.
+- Toggling a pane off hides its traces and its dedicated axes (axes shared with
+  another pane are never hidden), then recomputes the domains of the remaining
+  visible panes. Axes are only hidden and re-domained, never removed, so
+  ``matches``/zoom-linking is preserved.
+
+The toggle state is ephemeral (it resets on reload) and at least one pane always
+remains visible.
+
+**Reflow.** Reflow is only applied when the subplots form a single row-stack
+(shared x-domain, stacked y-domains) or column-strip (the mirror). Grids,
+insets, and non-cartesian subplots (polar/geo/3D) fall back to *visibility-only*
+— panes hide but the layout does not reflow. To override the auto-detection,
+return an optional hint::
+
+    "subplot_toggle": {"reflow": "vertical"}  # or "horizontal" or "none"
+
+**Checkbox labels.** By default each checkbox is labeled from the subplot's
+primary y-axis ``title`` → else the first trace ``name`` → else ``"Subplot N"``.
+If your y-axis titles are units (e.g. ``"°F"``, ``"m/s"``) the labels will be
+units and may repeat, so you can supply explicit labels keyed by axis reference
+(``"y"``, ``"y3"``, ...) or layout key (``"yaxis"``, ``"yaxis3"``, ...)::
+
+    "subplot_toggle": {
+        "labels": {"y": "Temperature", "y3": "Pressure", "y5": "Wind Speed"},
+    }
+
+You can build this from each subplot's primary axis (see ``get_subplot_axes``).
+Any pane without an explicit label uses the default fallback above.
+
+**Tying annotations, shapes, and images to a subplot.** So that titles,
+drawings, and images for a hidden subplot are hidden (and reflow) along with it,
+**anchor them to that subplot's axes** rather than to the paper. The frontend
+ties a layout item to a pane by resolving its ``xref``/``yref``:
+
+- **Drawings/shapes** that live in data coordinates already work — e.g. a shape
+  with ``"xref": "x3", "yref": "y5"`` is tied to that subplot, hides with it, and
+  follows reflow automatically.
+- **Subplot titles / annotations** should use the axis *domain* reference
+  instead of ``"paper"`` so they both hide and reflow with their subplot::
+
+      # Instead of an absolute paper position:
+      {"text": "Wind Speed", "xref": "paper", "yref": "paper", "x": 0, "y": 0.65}
+
+      # Anchor to the subplot's axes (here the Wind row uses x3 / y5):
+      {"text": "Wind Speed", "xref": "x3 domain", "yref": "y5 domain",
+       "x": 0, "y": 1, "xanchor": "left", "yanchor": "bottom"}
+
+- **Images** likewise: a paper-anchored logo stays put (often desired), while an
+  image anchored to a subplot's axis is tied to it.
+
+Items that cannot be tied to a single subplot (paper-anchored, spanning multiple
+panes, or anchored only to a shared axis) are left untouched — for example a
+full-height vertical line drawn across all subplots is never hidden.
 
 |
 
@@ -479,6 +627,14 @@ Displays a date picker. Optionally includes a time picker.
 **metadata fields:**
     - **format** (optional): Date format string using `date-fns <https://date-fns.org/docs/format>`_ tokens (e.g., ``"MM/dd/yyyy"``, ``"MM/dd/yyyy'T'HH:mm"``).
     - **showTimeInput** (optional): Set to ``True`` to show a time picker alongside the date. Defaults to ``True``.
+
+.. note::
+    In addition to picking a date, users can type relative date math
+    (``"now"``, ``"now-7D"``, ``"now+30D"``) or the preset ``latest`` directly
+    into the field. ``latest`` is shown with a "Latest" label and is passed to
+    consuming visualizations unparsed, so the plugin resolves it to the newest
+    available data. See `Accessing Arguments in run()`_ for how a plugin
+    consumes these values.
 
 **Date only example**: ::
 

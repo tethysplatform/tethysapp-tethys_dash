@@ -6,7 +6,7 @@ test("debug error", async () => {
     <DebugError
       error={"some_error"}
       errorInfo={{ componentStack: "some_info" }}
-    />
+    />,
   );
 
   expect(await screen.findByText("some_error")).toBeInTheDocument();

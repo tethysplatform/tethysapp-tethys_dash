@@ -112,7 +112,10 @@ describe("ImageCollection", () => {
 
   it("does not add duplicate url to error set on repeated error events", () => {
     renderCollection({
-      urls: ["https://example.com/broken.png", "https://example.com/broken.png"],
+      urls: [
+        "https://example.com/broken.png",
+        "https://example.com/broken.png",
+      ],
     });
 
     const [img0, img1] = screen.getAllByRole("img");

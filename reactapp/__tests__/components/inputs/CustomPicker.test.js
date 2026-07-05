@@ -13,7 +13,7 @@ it("CustomPicker", async () => {
       maxColCount={2}
       pickerOptions={pickerOptions}
       onSelect={onSelect}
-    />
+    />,
   );
 
   expect(screen.getByText("Pick 1")).toBeInTheDocument();

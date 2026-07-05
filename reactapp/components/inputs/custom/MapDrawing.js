@@ -40,7 +40,7 @@ export const MapDrawing = ({ onChange, values }) => {
   const [selected, setSelected] = useState(values?.options ?? []);
   const [featureLimit, setFeatureLimit] = useState(values?.limit ?? 0);
   const [geometryVariable, setGeometryVariable] = useState(
-    values?.variable ?? ""
+    values?.variable ?? "",
   );
 
   const handleToggle = (option) => {

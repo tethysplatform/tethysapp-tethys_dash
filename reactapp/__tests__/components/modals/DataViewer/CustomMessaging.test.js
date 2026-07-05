@@ -24,7 +24,7 @@ it("CustomMessaging", async () => {
   expect(screen.getByText("Custom Messaging")).toBeInTheDocument();
   expect(screen.getByText("On Error -")).toBeInTheDocument();
   expect(
-    screen.getByLabelText("error Custom Message Input")
+    screen.getByLabelText("error Custom Message Input"),
   ).toBeInTheDocument();
   expect(screen.getAllByRole("textbox").length).toBe(1);
 });
@@ -59,13 +59,13 @@ it("CustomMessaging with no dependent variable inputs", async () => {
           },
         },
       ]}
-    />
+    />,
   );
 
   expect(screen.getByText("Custom Messaging")).toBeInTheDocument();
   expect(screen.getByText("On Error -")).toBeInTheDocument();
   expect(
-    screen.getByLabelText("error Custom Message Input")
+    screen.getByLabelText("error Custom Message Input"),
   ).toBeInTheDocument();
   expect(screen.getAllByRole("textbox").length).toBe(1);
 });
@@ -84,7 +84,7 @@ it("CustomMessaging with dependent variable inputs", async () => {
           value: "${Checkbox}",
         },
       }}
-    />
+    />,
   );
 
   expect(screen.getByText("Custom Messaging")).toBeInTheDocument();
@@ -93,21 +93,21 @@ it("CustomMessaging with dependent variable inputs", async () => {
   expect(errorMessageInput).toBeInTheDocument();
   expect(screen.getByText("On Any Empty Variable -")).toBeInTheDocument();
   const anyEmptyVariableMessageInput = screen.getByLabelText(
-    "anyEmptyVariable Custom Message Input"
+    "anyEmptyVariable Custom Message Input",
   );
   expect(anyEmptyVariableMessageInput).toBeInTheDocument();
   expect(screen.getByText("On Empty Location Variable -")).toBeInTheDocument();
   const locationMessageInput = screen.getByLabelText(
-    "Location Custom Message Input"
+    "Location Custom Message Input",
   );
   expect(locationMessageInput).toBeInTheDocument();
   expect(screen.getByText("On Empty Time Variable -")).toBeInTheDocument();
   expect(
-    screen.getByLabelText("Time Custom Message Input")
+    screen.getByLabelText("Time Custom Message Input"),
   ).toBeInTheDocument();
   expect(screen.getByText("On Empty Checkbox Variable -")).toBeInTheDocument();
   expect(
-    screen.getByLabelText("Checkbox Custom Message Input")
+    screen.getByLabelText("Checkbox Custom Message Input"),
   ).toBeInTheDocument();
   expect(screen.getAllByRole("textbox").length).toBe(5);
 

@@ -601,11 +601,15 @@ const Slider = ({
     speeds.length > 0 ? speeds[0].value : 1000,
   );
 
-  // Debounced version of currentIdx for onChange calls
-  // During playback, reduce debounce to match speed so fast speeds aren't bottlenecked
-  const effectiveDebounce = playing
-    ? Math.min(debounceDelay, speed)
-    : debounceDelay;
+  // Debounced version of currentIdx for onChange calls.
+  // During playback, bypass the debounce entirely (delay 0) so every animation
+  // frame is emitted instead of being coalesced away — a trailing debounce
+  // whose delay is ~the tick interval keeps resetting before it can fire, which
+  // drops intermediate frames and makes fast playback "skip". Debounce still
+  // applies to manual dragging. Keeping a single debounced source (rather than
+  // a separate immediate path) means that on stop currentIdx is already stable,
+  // so debouncedCurrentIdx equals it with no backward flicker.
+  const effectiveDebounce = playing ? 0 : debounceDelay;
   const debouncedCurrentIdx = useDebounce(currentIdx, effectiveDebounce);
   const intervalRef = useRef(null);
   const prev = useRef({

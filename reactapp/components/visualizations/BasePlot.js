@@ -7,6 +7,7 @@ import {
   useCallback,
   memo,
   useContext,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -21,6 +22,11 @@ import {
   DataViewerModeContext,
 } from "components/contexts/Contexts";
 import { format } from "date-fns";
+import {
+  derivePanes,
+  applySubplotToggle,
+} from "components/visualizations/subplotToggle";
+import SubplotToggleControl from "components/visualizations/SubplotToggleControl";
 
 const Plotly = require("plotly.js-strict-dist-min");
 const Plot = createPlotlyComponent(Plotly);
@@ -367,16 +373,71 @@ const BasePlot = ({
     mode: verticalLineMode,
     value: verticalLineValue,
   } = plotlyVerticalLine;
-  const [plotLayout, setPlotLayout] = useState({
-    ...layout,
-    ...{
-      width: width,
-      height: height,
-    },
-  });
+
+  // --- Subplot show/hide (opt-in via metadata.toggle_subplots) ---
+  const subplotToggleEnabled = !!metadata.toggle_subplots;
+  const reflowOverride = metadata.subplot_toggle?.reflow;
+  const subplotLabels = metadata.subplot_toggle?.labels;
+
+  // Panes are derived from the PRISTINE figure; reflow always recomputes from
+  // these originals so toggling stays stateless/idempotent.
+  const panes = useMemo(
+    () =>
+      subplotToggleEnabled
+        ? derivePanes(data, layout, { labels: subplotLabels })
+        : [],
+    [subplotToggleEnabled, data, layout, subplotLabels],
+  );
+  const paneIdsKey = panes.map((p) => p.id).join("|");
+  const [visiblePaneIds, setVisiblePaneIds] = useState(() =>
+    panes.map((p) => p.id),
+  );
+  // Reset to all-visible whenever the underlying pane set changes (new data).
+  useEffect(() => {
+    setVisiblePaneIds(panes.map((p) => p.id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paneIdsKey]);
+
+  const { data: plotData, layout: toggledLayout } = useMemo(
+    () =>
+      applySubplotToggle(
+        data,
+        layout,
+        subplotToggleEnabled ? visiblePaneIds : null,
+        { panes, arrangement: reflowOverride },
+      ),
+    [data, layout, subplotToggleEnabled, visiblePaneIds, panes, reflowOverride],
+  );
+
+  // Vertical-line shapes are computed in the el-gated effect below. Subplot
+  // toggle geometry does NOT depend on the plot element, so it is applied here
+  // via the memo and therefore survives resize/re-render: the effect re-runs
+  // off `toggledLayout`, which already encodes the active toggles.
+  const [verticalLineShapes, setVerticalLineShapes] = useState(null);
+  const plotLayout = useMemo(() => {
+    const merged = { ...toggledLayout, width, height };
+    if (verticalLineShapes !== null) merged.shapes = verticalLineShapes;
+    return merged;
+  }, [toggledLayout, width, height, verticalLineShapes]);
 
   // Ref to track the original vertical line shape
   const verticalLineOriginalRef = useRef(null);
+
+  const handleSubplotToggle = useCallback(
+    (paneId, checked) => {
+      setVisiblePaneIds((prev) => {
+        const next = new Set(prev);
+        if (checked) {
+          next.add(paneId);
+        } else {
+          if (prev.length <= 1) return prev; // keep at least one pane visible
+          next.delete(paneId);
+        }
+        return panes.map((p) => p.id).filter((id) => next.has(id));
+      });
+    },
+    [panes],
+  );
 
   // istanbul ignore next - functons tested separately, this is just cleanup
   useEffect(() => {
@@ -385,9 +446,11 @@ const BasePlot = ({
 
     if (!plotElement.layout) return;
 
-    // remove current vertical line shape if it exists to prevent duplicates
-    let currentShapes = plotElement.layout?.shapes || [];
-    currentShapes = currentShapes.filter(
+    // Seed from the toggle-aware shapes (so subplot show/hide visibility is
+    // preserved) and strip any prior vertical line to prevent duplicates.
+    // `.filter` returns a fresh array, so the subsequent push never mutates
+    // `toggledLayout`.
+    let currentShapes = (toggledLayout.shapes || []).filter(
       (s) => s.meta?.createdBy !== "addVerticalLine",
     );
 
@@ -405,8 +468,8 @@ const BasePlot = ({
       // short-circuit accepts unchanged.
       let xValueResolved = verticalLineValue;
       try {
-        const rawValue = JSON.parse(gridItemMetadataString)
-          ?.plotlyVerticalLine?.value;
+        const rawValue = JSON.parse(gridItemMetadataString)?.plotlyVerticalLine
+          ?.value;
         const sourceVar = checkForVariable(rawValue);
         const dateFormat = sourceVar
           ? variableInputDateFormats?.[sourceVar]
@@ -437,20 +500,12 @@ const BasePlot = ({
       };
     }
 
-    setPlotLayout((prevLayout) => ({
-      ...prevLayout,
-      ...layout,
-      ...{
-        width: width,
-        height: height,
-      },
-      shapes: currentShapes,
-    }));
+    setVerticalLineShapes(currentShapes);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     width,
     height,
-    layout,
+    toggledLayout,
     plotlyVerticalLine,
     gridItemMetadataString,
     variableInputDateFormats,
@@ -475,14 +530,24 @@ const BasePlot = ({
   );
 
   return (
-    <div ref={ref} style={{ display: "flex", height: "100%" }}>
+    <div
+      ref={ref}
+      style={{ display: "flex", height: "100%", position: "relative" }}
+    >
       <StyledPlot
         ref={visualizationRef}
-        data={data}
+        data={plotData}
         layout={plotLayout}
         config={config}
         onRelayout={handleRelayout}
       />
+      {subplotToggleEnabled && (
+        <SubplotToggleControl
+          panes={panes}
+          visiblePaneIds={visiblePaneIds}
+          onToggle={handleSubplotToggle}
+        />
+      )}
     </div>
   );
 };

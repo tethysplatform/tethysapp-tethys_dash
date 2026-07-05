@@ -35,7 +35,7 @@ const renderWithContext = (props) => {
         visualizationRef={visualizationRef}
         {...props}
       />
-    </MapContext.Provider>
+    </MapContext.Provider>,
   );
 
   return { onChange, visualizationRef };
@@ -57,14 +57,14 @@ it("empty MapExtent", async () => {
           />
         </MapContextProvider>
       ),
-    })
+    }),
   );
 
   const mapExtent = await screen.findByText("Map Extent");
   fireEvent.click(mapExtent);
 
   expect(
-    await screen.findByText("Use the Previewed Map Extent")
+    await screen.findByText("Use the Previewed Map Extent"),
   ).toBeInTheDocument();
   expect(screen.getByText("Use a Custom Extent")).toBeInTheDocument();
   expect(screen.getByText("Custom Extent")).toBeInTheDocument();
@@ -104,14 +104,14 @@ it("existing Custom MapExtent with existing variable", async () => {
           />
         </MapContextProvider>
       ),
-    })
+    }),
   );
 
   const mapExtent = await screen.findByText("Map Extent");
   fireEvent.click(mapExtent);
 
   expect(
-    await screen.findByText("Use the Previewed Map Extent")
+    await screen.findByText("Use the Previewed Map Extent"),
   ).toBeInTheDocument();
   expect(screen.getByText("Use a Custom Extent")).toBeInTheDocument();
   expect(screen.getByText("Custom Extent")).toBeInTheDocument();
@@ -209,12 +209,12 @@ test("attaches event listeners when extentMode is mapExtent", async () => {
 
   // Switch to "mapExtent" mode
   fireEvent.click(
-    await screen.findByLabelText(/Use the Previewed Map Extent/i)
+    await screen.findByLabelText(/Use the Previewed Map Extent/i),
   );
 
   expect(mockMap.getView().on).toHaveBeenCalledWith(
     "change:resolution",
-    expect.any(Function)
+    expect.any(Function),
   );
 
   expect(mockMap.on).toHaveBeenCalledWith("moveend", expect.any(Function));
@@ -291,11 +291,13 @@ test("setMapExtent wraps an out-of-range center X for EPSG:3857 projections", as
         values={{ extent: "10,20,4" }}
         visualizationRef={visualizationRef}
       />
-    </MapContext.Provider>
+    </MapContext.Provider>,
   );
 
   fireEvent.click(screen.getByText("Map Extent"));
-  fireEvent.click(await screen.findByLabelText(/Use the Previewed Map Extent/i));
+  fireEvent.click(
+    await screen.findByLabelText(/Use the Previewed Map Extent/i),
+  );
 
   // -25,981,450 + 2 * MERCATOR_HALF_WORLD ≈ +14,093,566.69
   expect(onChange).toHaveBeenCalledWith({
@@ -330,11 +332,13 @@ test("setMapExtent leaves the raw center X unwrapped for non-EPSG:3857 projectio
         values={{ extent: "10,20,4" }}
         visualizationRef={visualizationRef}
       />
-    </MapContext.Provider>
+    </MapContext.Provider>,
   );
 
   fireEvent.click(screen.getByText("Map Extent"));
-  fireEvent.click(await screen.findByLabelText(/Use the Previewed Map Extent/i));
+  fireEvent.click(
+    await screen.findByLabelText(/Use the Previewed Map Extent/i),
+  );
 
   expect(onChange).toHaveBeenCalledWith({
     extent: "9999999999.00,987654.32,4.57",

@@ -83,7 +83,7 @@ test("Dashboard Editor Canvas edit and save", async () => {
       options: {
         initialDashboard: userDashboard,
       },
-    })
+    }),
   );
 
   const unrestrictedPlacement = await screen.findByLabelText("On");
@@ -116,16 +116,16 @@ test("Dashboard Editor Canvas edit and save", async () => {
       notes: "<p>Hello world!</p>",
       unrestrictedPlacement: true,
     },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
   );
   expect(
-    await screen.findByText("Successfully updated dashboard settings")
+    await screen.findByText("Successfully updated dashboard settings"),
   ).toBeInTheDocument();
 
   const closeAlertButton = await screen.findByLabelText("Close alert");
   fireEvent.click(closeAlertButton);
   expect(
-    screen.queryByText("Successfully updated dashboard settings")
+    screen.queryByText("Successfully updated dashboard settings"),
   ).not.toBeInTheDocument();
 
   expect(navigateMock).toHaveBeenCalledTimes(0);
@@ -156,7 +156,7 @@ test("Dashboard Editor Canvas edit desription only and save", async () => {
       options: {
         initialDashboard: userDashboard,
       },
-    })
+    }),
   );
 
   const descriptionInput = await screen.findByLabelText("Description Input");
@@ -183,16 +183,16 @@ test("Dashboard Editor Canvas edit desription only and save", async () => {
       notes: "<p>Hello world!</p>",
       unrestrictedPlacement: false,
     },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
   );
   expect(
-    await screen.findByText("Successfully updated dashboard settings")
+    await screen.findByText("Successfully updated dashboard settings"),
   ).toBeInTheDocument();
 
   const closeAlertButton = await screen.findByLabelText("Close alert");
   fireEvent.click(closeAlertButton);
   expect(
-    screen.queryByText("Successfully updated dashboard settings")
+    screen.queryByText("Successfully updated dashboard settings"),
   ).not.toBeInTheDocument();
 
   expect(navigateMock).toHaveBeenCalledTimes(0);
@@ -211,7 +211,7 @@ test("Dashboard Editor Canvas edit and save fail without message", async () => {
       options: {
         initialDashboard: userDashboard,
       },
-    })
+    }),
   );
 
   const descriptionInput = await screen.findByLabelText("Description Input");
@@ -227,12 +227,12 @@ test("Dashboard Editor Canvas edit and save fail without message", async () => {
       notes: "user_notes",
       unrestrictedPlacement: false,
     },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
   );
   expect(
     await screen.findByText(
-      "Failed to update dashboard settings. Check server logs."
-    )
+      "Failed to update dashboard settings. Check server logs.",
+    ),
   ).toBeInTheDocument();
 });
 
@@ -252,7 +252,7 @@ test("Dashboard Editor Canvas edit and save fail with message", async () => {
       options: {
         initialDashboard: userDashboard,
       },
-    })
+    }),
   );
 
   const descriptionInput = await screen.findByLabelText("Description Input");
@@ -268,7 +268,7 @@ test("Dashboard Editor Canvas edit and save fail with message", async () => {
       notes: "user_notes",
       unrestrictedPlacement: false,
     },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
   );
   expect(await screen.findByText("failed to update")).toBeInTheDocument();
 });
@@ -290,7 +290,7 @@ test("Dashboard Editor Canvas delete success", async () => {
       options: {
         initialDashboard: userDashboard,
       },
-    })
+    }),
   );
 
   const deleteButton = await screen.findByLabelText("Delete Dashboard Button");
@@ -317,7 +317,7 @@ test("Dashboard Editor Canvas delete fail", async () => {
       options: {
         initialDashboard: userDashboard,
       },
-    })
+    }),
   );
 
   const deleteButton = await screen.findByLabelText("Delete Dashboard Button");
@@ -326,13 +326,13 @@ test("Dashboard Editor Canvas delete fail", async () => {
   expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
   expect(await screen.findByText("yes show canvas")).toBeInTheDocument();
   expect(
-    await screen.findByText("Failed to delete dashboard")
+    await screen.findByText("Failed to delete dashboard"),
   ).toBeInTheDocument();
 
   const closeAlertButton = await screen.findByLabelText("Close alert");
   fireEvent.click(closeAlertButton);
   expect(
-    screen.queryByText("Failed to adelete dashboard. Check server logs.")
+    screen.queryByText("Failed to adelete dashboard. Check server logs."),
   ).not.toBeInTheDocument();
 
   expect(navigateMock).toHaveBeenCalledTimes(0);
@@ -351,7 +351,7 @@ test("Dashboard Editor Canvas delete not confirm", async () => {
       options: {
         initialDashboard: userDashboard,
       },
-    })
+    }),
   );
 
   const deleteButton = await screen.findByLabelText("Delete Dashboard Button");
@@ -387,14 +387,14 @@ test("Dashboard Editor Canvas copy and success", async () => {
       options: {
         initialDashboard: userDashboard,
       },
-    })
+    }),
   );
 
   const copyButton = await screen.findByLabelText("Copy Dashboard Button");
   await userEvent.click(copyButton);
   expect(mockCopyDashboard).toHaveBeenCalledWith(
     { id: userDashboard.id, newName: `${userDashboard.name} - Copy` },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
   );
 
   expect(navigateMock).toHaveBeenCalledWith("/dashboard/123456789");
@@ -416,17 +416,17 @@ test("Dashboard Editor Canvas copy and fail with message", async () => {
       options: {
         initialDashboard: userDashboard,
       },
-    })
+    }),
   );
 
   const copyButton = await screen.findByLabelText("Copy Dashboard Button");
   await userEvent.click(copyButton);
   expect(mockCopyDashboard).toHaveBeenCalledWith(
     { id: userDashboard.id, newName: `${userDashboard.name} - Copy` },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
   );
   expect(
-    await screen.findByText("failed to copy for some reason")
+    await screen.findByText("failed to copy for some reason"),
   ).toBeInTheDocument();
   expect(navigateMock).toHaveBeenCalledTimes(0);
 });
@@ -447,17 +447,17 @@ test("Dashboard Editor Canvas copy and fail without message", async () => {
       options: {
         initialDashboard: userDashboard,
       },
-    })
+    }),
   );
 
   const copyButton = await screen.findByLabelText("Copy Dashboard Button");
   await userEvent.click(copyButton);
   expect(mockCopyDashboard).toHaveBeenCalledWith(
     { id: userDashboard.id, newName: `${userDashboard.name} - Copy` },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
   );
   expect(
-    await screen.findByText("Failed to copy dashboard")
+    await screen.findByText("Failed to copy dashboard"),
   ).toBeInTheDocument();
   expect(navigateMock).toHaveBeenCalledTimes(0);
 });
@@ -479,11 +479,11 @@ test("Dashboard Editor Canvas show permissions modal", async () => {
       options: {
         initialDashboard: userDashboard,
       },
-    })
+    }),
   );
 
   const managePermissionsButton = await screen.findByLabelText(
-    "Manage Dashboard Permissions Button"
+    "Manage Dashboard Permissions Button",
   );
   await userEvent.click(managePermissionsButton);
 
@@ -497,25 +497,25 @@ test("Dashboard Editor Canvas non admin", async () => {
       options: {
         initialDashboard: publicDashboard,
       },
-    })
+    }),
   );
 
   expect(
-    screen.queryByLabelText("Unrestricted Grid Item Placement")
+    screen.queryByLabelText("Unrestricted Grid Item Placement"),
   ).not.toBeInTheDocument();
   expect(screen.queryByLabelText("Description Input")).not.toBeInTheDocument();
   expect(screen.queryByLabelText("Name Input")).not.toBeInTheDocument();
   expect(
-    screen.queryByLabelText("Save Dashboard Button")
+    screen.queryByLabelText("Save Dashboard Button"),
   ).not.toBeInTheDocument();
   expect(
-    screen.queryByLabelText("Delete Dashboard Button")
+    screen.queryByLabelText("Delete Dashboard Button"),
   ).not.toBeInTheDocument();
   expect(
-    await screen.findByLabelText("Copy Dashboard Button")
+    await screen.findByLabelText("Copy Dashboard Button"),
   ).toBeInTheDocument();
   expect(
-    screen.queryByLabelText("Manage Dashboard Permissions Button")
+    screen.queryByLabelText("Manage Dashboard Permissions Button"),
   ).not.toBeInTheDocument();
   expect(screen.queryByLabelText("textEditor")).not.toBeInTheDocument();
 

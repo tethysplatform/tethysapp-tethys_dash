@@ -59,6 +59,35 @@ const StyledDiv = styled.div`
         ? "0 4px 8px rgba(0, 0, 0, 0.1)"
         : "none"};
   position: relative;
+  /* Fill-viewport override: escape the react-grid-layout-positioned parent via
+     position:fixed so the item spans the content area below the fixed header
+     (and tab bar when shown), independent of screen size. Kept below Bootstrap
+     modal/backdrop z-index (1040) so modals from the visualization stay usable. */
+  ${(props) =>
+    props.$fillViewport &&
+    css`
+      position: fixed;
+      top: var(--ts-header-height);
+      left: 0;
+      width: 100vw;
+      height: calc(100vh - (${props.$fillSubtract}));
+      z-index: 1020;
+    `}
+`;
+
+const FillViewportBadge = styled.div`
+  position: absolute;
+  top: 0.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
+  background: rgba(0, 123, 255, 0.9);
+  color: #fff;
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 4px;
+  pointer-events: none;
+  white-space: nowrap;
 `;
 
 const InfoIconWrapper = styled.div`
@@ -166,9 +195,7 @@ export function validateGridItemBatch(items) {
       (key) => !Object.prototype.hasOwnProperty.call(item, key),
     );
     if (missingKeys.length > 0) {
-      errors.push(
-        `Item ${i + 1}: missing ${missingKeys.join(", ")}`,
-      );
+      errors.push(`Item ${i + 1}: missing ${missingKeys.join(", ")}`);
     }
   }
   return {
@@ -286,8 +313,13 @@ export const handleGridItemImport = async (gridItem, csrf, dashboard_uuid) => {
 };
 
 const DashboardItem = () => {
-  const { gridItemSource, gridItemI, gridItemMetadataString, gridItemIndex } =
-    useContext(GridItemContext);
+  const {
+    gridItemSource,
+    gridItemI,
+    gridItemMetadataString,
+    gridItemIndex,
+    enableFillViewport,
+  } = useContext(GridItemContext);
   const { isEditing, setIsEditing } = useContext(EditingContext);
   const [showDataViewerModal, setShowDataViewerModal] = useState(false);
   const [gridItemMessage, setGridItemMessage] = useState("");
@@ -297,7 +329,7 @@ const DashboardItem = () => {
   const [gridItemStyling, setGridItemStyling] = useState(
     JSON.parse(gridItemMetadataString),
   );
-  const { getActiveTab, updateTab } = useContext(TabContext);
+  const { getActiveTab, updateTab, tabs } = useContext(TabContext);
   const { variableInputValues, setVariableInputValues } = useContext(
     VariableInputsContext,
   );
@@ -321,6 +353,34 @@ const DashboardItem = () => {
     setGridItemStyling(JSON.parse(gridItemMetadataString));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gridItemMetadataString]);
+
+  // Fill-viewport: a single item can be configured to fill the content area
+  // below the header. Only applies on the main dashboard surface, in view mode.
+  const fillViewportRequested =
+    !!gridItemStyling?.fillViewport && !!enableFillViewport;
+
+  // When more than one item on the tab has fill on, only the first in grid
+  // order renders as fill; the rest fall back to normal grid sizing.
+  const isFirstFillItem = (() => {
+    if (!fillViewportRequested) return false;
+    const activeGridItems = getActiveTab().gridItems;
+    const firstFill = activeGridItems.find((gi) => {
+      try {
+        return JSON.parse(gi.metadata_string)?.fillViewport;
+      } catch {
+        return false;
+      }
+    });
+    return firstFill?.i === gridItemI;
+  })();
+
+  const fillViewportActive =
+    fillViewportRequested && isFirstFillItem && !isEditing;
+  // The tab bar (44px) is shown in view mode only when more than one tab exists.
+  const fillSubtract =
+    tabs.length > 1
+      ? "var(--ts-header-height) + 44px"
+      : "var(--ts-header-height)";
 
   async function deleteGridItem(e) {
     if (await confirm("Are you sure you want to delete the item?")) {
@@ -458,9 +518,17 @@ const DashboardItem = () => {
         $borderProps={gridItemStyling?.border}
         $backgroundColorProps={gridItemStyling?.backgroundColor}
         $boxShadowProps={gridItemStyling?.boxShadow}
+        $fillViewport={fillViewportActive}
+        $fillSubtract={fillSubtract}
         aria-label="gridItemDiv"
         className="no-caret"
       >
+        {isEditing && fillViewportRequested && (
+          <FillViewportBadge aria-label="fill-viewport-indicator">
+            Fill Viewport
+            {isFirstFillItem ? "" : " (inactive — another item fills)"}
+          </FillViewportBadge>
+        )}
         <StyledContainer
           fluid
           className="h-100 gridVisualization"

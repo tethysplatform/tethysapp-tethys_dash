@@ -17,7 +17,7 @@ test("Permission Groups Summary Modal", async () => {
           setShowModal={jest.fn()}
         />
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("Permission Groups")).toBeInTheDocument();
@@ -34,49 +34,49 @@ test("Permission Groups Summary Modal", async () => {
   // admin group 1
   expect(userRows[1].cells[0]).toHaveTextContent(permissionGroups[0].name);
   expect(userRows[1].cells[1]).toHaveTextContent(
-    permissionGroups[0].description
+    permissionGroups[0].description,
   );
   expect(userRows[1].cells[2]).toHaveTextContent(
-    permissionGroups[0].user_permission
+    permissionGroups[0].user_permission,
   );
   expect(
-    screen.getByLabelText(`Edit group ${permissionGroups[0].name}`)
+    screen.getByLabelText(`Edit group ${permissionGroups[0].name}`),
   ).toBeInTheDocument();
   expect(
-    screen.getByLabelText(`Delete group ${permissionGroups[0].name}`)
+    screen.getByLabelText(`Delete group ${permissionGroups[0].name}`),
   ).toBeInTheDocument();
 
   // admin group 2
   expect(userRows[2].cells[0]).toHaveTextContent(permissionGroups[1].name);
   expect(userRows[2].cells[1]).toHaveTextContent(
-    permissionGroups[1].description
+    permissionGroups[1].description,
   );
   expect(userRows[2].cells[2]).toHaveTextContent(
-    permissionGroups[1].user_permission
+    permissionGroups[1].user_permission,
   );
   expect(
-    screen.getByLabelText(`Edit group ${permissionGroups[1].name}`)
+    screen.getByLabelText(`Edit group ${permissionGroups[1].name}`),
   ).toBeInTheDocument();
   expect(
-    screen.getByLabelText(`Delete group ${permissionGroups[1].name}`)
+    screen.getByLabelText(`Delete group ${permissionGroups[1].name}`),
   ).toBeInTheDocument();
 
   // viewer group
   expect(userRows[3].cells[0]).toHaveTextContent(permissionGroups[2].name);
   expect(userRows[3].cells[1]).toHaveTextContent(
-    permissionGroups[2].description
+    permissionGroups[2].description,
   );
   expect(userRows[3].cells[2]).toHaveTextContent(
-    permissionGroups[2].user_permission
+    permissionGroups[2].user_permission,
   );
   expect(
-    screen.queryByLabelText(`Edit group ${permissionGroups[2].name}`)
+    screen.queryByLabelText(`Edit group ${permissionGroups[2].name}`),
   ).not.toBeInTheDocument();
   expect(
-    screen.queryByLabelText(`Delete group ${permissionGroups[2].name}`)
+    screen.queryByLabelText(`Delete group ${permissionGroups[2].name}`),
   ).not.toBeInTheDocument();
   expect(
-    screen.getByLabelText(`View group ${permissionGroups[2].name}`)
+    screen.getByLabelText(`View group ${permissionGroups[2].name}`),
   ).toBeInTheDocument();
 });
 
@@ -97,13 +97,13 @@ test("Permission Groups, delete success", async () => {
           setShowModal={jest.fn()}
         />
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("Permission Groups")).toBeInTheDocument();
 
   const deleteGroupButton = screen.getByLabelText(
-    `Delete group ${permissionGroups[0].name}`
+    `Delete group ${permissionGroups[0].name}`,
   );
   await userEvent.click(deleteGroupButton);
 
@@ -134,13 +134,13 @@ test("Permission Groups, delete fail", async () => {
           setShowModal={jest.fn()}
         />
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("Permission Groups")).toBeInTheDocument();
 
   const deleteGroupButton = screen.getByLabelText(
-    `Delete group ${permissionGroups[0].name}`
+    `Delete group ${permissionGroups[0].name}`,
   );
   await userEvent.click(deleteGroupButton);
 
@@ -162,17 +162,17 @@ test("Permission Groups, create", async () => {
           setShowModal={jest.fn()}
         />
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("Permission Groups")).toBeInTheDocument();
   const createGroupButton = screen.getByLabelText(
-    "Create new permission group"
+    "Create new permission group",
   );
   await userEvent.click(createGroupButton);
 
   expect(
-    await screen.findByText("Manage Permission Groups")
+    await screen.findByText("Manage Permission Groups"),
   ).toBeInTheDocument();
   const nameInput = screen.getByLabelText("Name Input");
   expect(nameInput.value).toBe("");
@@ -187,17 +187,17 @@ test("Permission Groups, edit", async () => {
           setShowModal={jest.fn()}
         />
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("Permission Groups")).toBeInTheDocument();
   const editGroupButton = screen.getByLabelText(
-    `Edit group ${permissionGroups[0].name}`
+    `Edit group ${permissionGroups[0].name}`,
   );
   await userEvent.click(editGroupButton);
 
   expect(
-    await screen.findByText("Manage Permission Groups")
+    await screen.findByText("Manage Permission Groups"),
   ).toBeInTheDocument();
   const nameInput = screen.getByLabelText("Name Input");
   expect(nameInput.value).toBe(permissionGroups[0].name);
@@ -214,7 +214,7 @@ test("Permission Groups, close", async () => {
           setShowModal={mockSetShowModal}
         />
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("Permission Groups")).toBeInTheDocument();
@@ -238,7 +238,7 @@ test("Permission Groups, no groups", async () => {
       options: {
         permissionGroups: [],
       },
-    })
+    }),
   );
 
   expect(await screen.findByText("Permission Groups")).toBeInTheDocument();
@@ -281,11 +281,11 @@ test("Permission Groups Manage Modal, new Group and save New User", async () => 
         />
       ),
       options: { user: { username: "jsmith" } },
-    })
+    }),
   );
 
   expect(
-    await screen.findByText("Manage Permission Groups")
+    await screen.findByText("Manage Permission Groups"),
   ).toBeInTheDocument();
 
   const nameInput = screen.getByLabelText("Name Input");
@@ -326,7 +326,7 @@ test("Permission Groups Manage Modal, new Group and save New User", async () => 
 
   expect(userRows[2].cells[0]).toHaveTextContent("newuser");
   const newuserPermissinDropdown = within(userRows[2]).getByLabelText(
-    "Permission level for newuser"
+    "Permission level for newuser",
   );
   expect(newuserPermissinDropdown.value).toBe("member");
   fireEvent.change(newuserPermissinDropdown, { target: { value: "admin" } });
@@ -338,11 +338,11 @@ test("Permission Groups Manage Modal, new Group and save New User", async () => 
       ...expectedPermissionGroup,
       id: null,
     },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
   );
 
   expect(mockSetSuccessMessage).toHaveBeenCalledWith(
-    'Permission group "New Group" created successfully.'
+    'Permission group "New Group" created successfully.',
   );
 });
 
@@ -351,7 +351,7 @@ test("Permission Groups Manage, admin and edit group", async () => {
   const mockSetSuccessMessage = jest.fn();
   const mockUpdatePermissionGroup = jest.fn();
   const expectedPermissionGroup = JSON.parse(
-    JSON.stringify(permissionGroups[1])
+    JSON.stringify(permissionGroups[1]),
   );
   expectedPermissionGroup.members = [
     {
@@ -380,11 +380,11 @@ test("Permission Groups Manage, admin and edit group", async () => {
         />
       ),
       options: { user: { username: "jsmith" } },
-    })
+    }),
   );
 
   expect(
-    await screen.findByText("Manage Permission Groups")
+    await screen.findByText("Manage Permission Groups"),
   ).toBeInTheDocument();
 
   const nameInput = screen.getByLabelText("Name Input");
@@ -407,11 +407,11 @@ test("Permission Groups Manage, admin and edit group", async () => {
 
   expect(mockUpdatePermissionGroup).toHaveBeenCalledWith(
     expectedPermissionGroup,
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
   );
 
   expect(mockSetSuccessMessage).toHaveBeenCalledWith(
-    `Permission group "${permissionGroups[1].name}" updated successfully.`
+    `Permission group "${permissionGroups[1].name}" updated successfully.`,
   );
 });
 
@@ -428,11 +428,11 @@ test("Permission Groups Manage, member and cant edit group", async () => {
           setSuccessMessage={jest.fn()}
         />
       ),
-    })
+    }),
   );
 
   expect(
-    await screen.findByText("Manage Permission Groups")
+    await screen.findByText("Manage Permission Groups"),
   ).toBeInTheDocument();
 
   expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
@@ -468,11 +468,11 @@ test("Permission Groups Manage Modal, save fail", async () => {
           setSuccessMessage={jest.fn()}
         />
       ),
-    })
+    }),
   );
 
   expect(
-    await screen.findByText("Manage Permission Groups")
+    await screen.findByText("Manage Permission Groups"),
   ).toBeInTheDocument();
 
   const createGroup = screen.getByLabelText("Create Group");
@@ -503,11 +503,11 @@ test("Permission Groups Manage Modal, delete", async () => {
           setSuccessMessage={mockSetSuccessMessage}
         />
       ),
-    })
+    }),
   );
 
   expect(
-    await screen.findByText("Manage Permission Groups")
+    await screen.findByText("Manage Permission Groups"),
   ).toBeInTheDocument();
 
   const deleteGroup = screen.getByLabelText("Delete Group");
@@ -516,7 +516,7 @@ test("Permission Groups Manage Modal, delete", async () => {
   await userEvent.click(deleteGroup);
 
   expect(mockSetSuccessMessage).toHaveBeenCalledWith(
-    `Permission group "${permissionGroups[1].name}" deleted successfully.`
+    `Permission group "${permissionGroups[1].name}" deleted successfully.`,
   );
 });
 
@@ -540,11 +540,11 @@ test("Permission Groups Manage Modal, delete fail", async () => {
           setSuccessMessage={jest.fn()}
         />
       ),
-    })
+    }),
   );
 
   expect(
-    await screen.findByText("Manage Permission Groups")
+    await screen.findByText("Manage Permission Groups"),
   ).toBeInTheDocument();
 
   const deleteGroup = screen.getByLabelText("Delete Group");
@@ -566,11 +566,11 @@ test("Permission Groups Manage Modal, add user fail", async () => {
           setSuccessMessage={jest.fn()}
         />
       ),
-    })
+    }),
   );
 
   expect(
-    await screen.findByText("Manage Permission Groups")
+    await screen.findByText("Manage Permission Groups"),
   ).toBeInTheDocument();
 
   const usernameInput = screen.getByLabelText("Username Input");
@@ -579,7 +579,7 @@ test("Permission Groups Manage Modal, add user fail", async () => {
   fireEvent.click(userButton);
 
   expect(
-    await screen.findByText("Username cannot be empty.")
+    await screen.findByText("Username cannot be empty."),
   ).toBeInTheDocument();
 
   const closeAlertButton = screen.getByLabelText("Close alert");
@@ -590,7 +590,7 @@ test("Permission Groups Manage Modal, add user fail", async () => {
   fireEvent.click(userButton);
 
   expect(
-    await screen.findByText("This user is already in the list.")
+    await screen.findByText("This user is already in the list."),
   ).toBeInTheDocument();
 });
 
@@ -607,11 +607,11 @@ test("Permission Groups Manage Modal, close", async () => {
           setSuccessMessage={jest.fn()}
         />
       ),
-    })
+    }),
   );
 
   expect(
-    await screen.findByText("Manage Permission Groups")
+    await screen.findByText("Manage Permission Groups"),
   ).toBeInTheDocument();
 
   const closeButton = screen.getByLabelText("Close");

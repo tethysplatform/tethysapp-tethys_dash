@@ -2,7 +2,6 @@ from logging.config import fileConfig
 import os
 
 from sqlalchemy import engine_from_config, create_engine, pool
-from sqlalchemy.exc import OperationalError
 
 from alembic import context
 
@@ -73,7 +72,7 @@ def run_migrations_online() -> None:
             prefix="sqlalchemy.",
             poolclass=pool.NullPool,
         )
-    except:
+    except Exception:
         # If the database is not available, create an engine with the URL directly
         connectable = create_engine(get_db_url())
 

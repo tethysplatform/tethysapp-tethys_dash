@@ -27,7 +27,8 @@ const Grid = styled.div`
 `;
 
 const ImageWrapper = styled.div`
-  flex: ${({ $columns }) => ($columns ? `0 0 calc(${100 / $columns}% - 8px)` : "1 1 200px")};
+  flex: ${({ $columns }) =>
+    $columns ? `0 0 calc(${100 / $columns}% - 8px)` : "1 1 200px"};
   display: flex;
   justify-content: center;
   align-items: center;
@@ -47,7 +48,13 @@ const ErrorText = styled.div`
   color: #888;
 `;
 
-const ImageCollection = ({ urls, title, columns, imageError, visualizationRef }) => {
+const ImageCollection = ({
+  urls,
+  title,
+  columns,
+  imageError,
+  visualizationRef,
+}) => {
   const [errorUrls, setErrorUrls] = useState(() => new Set());
 
   const onError = useCallback((url) => {

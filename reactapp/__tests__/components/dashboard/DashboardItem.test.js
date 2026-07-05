@@ -1651,6 +1651,367 @@ test("Dashboard attribution and not show", async () => {
   ).not.toBeInTheDocument();
 });
 
+test("Dashboard Item fill viewport fills the content area in view mode", async () => {
+  const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
+  const gridItem = mockedDashboard.tabs[0].gridItems[0];
+  gridItem.metadata_string = JSON.stringify({ fillViewport: true });
+
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <GridItemContext.Provider
+            value={{
+              gridItemSource: gridItem.source,
+              gridItemI: gridItem.i,
+              gridItemMetadataString: gridItem.metadata_string,
+              gridItemArgsString: gridItem.args_string,
+              gridItemIndex: 0,
+              enableFillViewport: true,
+            }}
+          >
+            <DashboardItem />
+          </GridItemContext.Provider>
+          <EditingPComponent />
+        </>
+      ),
+      options: {
+        initialDashboard: mockedDashboard,
+      },
+    }),
+  );
+
+  const dashboardGridItem = await screen.findByLabelText("gridItemDiv");
+  // position:fixed escapes the react-grid-layout-positioned parent so the item
+  // spans the content area independent of grid units / screen size.
+  await waitFor(() => {
+    expect(
+      window.getComputedStyle(dashboardGridItem).getPropertyValue("position"),
+    ).toBe("fixed");
+  });
+  const styles = window.getComputedStyle(dashboardGridItem);
+  // Spans the full content width; height is derived in pure CSS from the header
+  // variable (no screen-size math), so the size is screen-independent.
+  expect(styles.getPropertyValue("width")).toBe("100vw");
+  expect(styles.getPropertyValue("left")).toBe("0px");
+  expect(
+    screen.queryByLabelText("fill-viewport-indicator"),
+  ).not.toBeInTheDocument();
+});
+
+test("Dashboard Item fill viewport shows grid size with indicator while editing", async () => {
+  const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
+  const gridItem = mockedDashboard.tabs[0].gridItems[0];
+  gridItem.metadata_string = JSON.stringify({ fillViewport: true });
+
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <GridItemContext.Provider
+            value={{
+              gridItemSource: gridItem.source,
+              gridItemI: gridItem.i,
+              gridItemMetadataString: gridItem.metadata_string,
+              gridItemArgsString: gridItem.args_string,
+              gridItemIndex: 0,
+              enableFillViewport: true,
+            }}
+          >
+            <DashboardItem />
+          </GridItemContext.Provider>
+          <EditingPComponent />
+        </>
+      ),
+      options: {
+        initialDashboard: mockedDashboard,
+        inEditing: true,
+      },
+    }),
+  );
+
+  const dashboardGridItem = await screen.findByLabelText("gridItemDiv");
+  expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
+  // In edit mode the item keeps grid sizing (not fixed) so it stays editable.
+  expect(
+    window.getComputedStyle(dashboardGridItem).getPropertyValue("position"),
+  ).not.toBe("fixed");
+  // An indicator tells the creator the setting is active even though it is not
+  // rendered full-size while editing.
+  expect(
+    await screen.findByLabelText("fill-viewport-indicator"),
+  ).toBeInTheDocument();
+});
+
+test("Dashboard Item fill viewport suppressed when not enabled (popup reuse)", async () => {
+  const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
+  const gridItem = mockedDashboard.tabs[0].gridItems[0];
+  gridItem.metadata_string = JSON.stringify({ fillViewport: true });
+
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <GridItemContext.Provider
+            value={{
+              gridItemSource: gridItem.source,
+              gridItemI: gridItem.i,
+              gridItemMetadataString: gridItem.metadata_string,
+              gridItemArgsString: gridItem.args_string,
+              gridItemIndex: 0,
+              enableFillViewport: false,
+            }}
+          >
+            <DashboardItem />
+          </GridItemContext.Provider>
+          <EditingPComponent />
+        </>
+      ),
+      options: {
+        initialDashboard: mockedDashboard,
+      },
+    }),
+  );
+
+  const dashboardGridItem = await screen.findByLabelText("gridItemDiv");
+  // enableFillViewport=false (e.g. the popup modal / editor) must not fill.
+  expect(
+    window.getComputedStyle(dashboardGridItem).getPropertyValue("position"),
+  ).not.toBe("fixed");
+});
+
+test("Dashboard Item only the first fill item fills the viewport", async () => {
+  const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
+  mockedDashboard.tabs[0].gridItems = [
+    {
+      id: 1,
+      uuid: "some-uuid-1",
+      i: "1",
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "",
+      args_string: "{}",
+      metadata_string: JSON.stringify({ fillViewport: true }),
+    },
+    {
+      id: 2,
+      uuid: "some-uuid-2",
+      i: "2",
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "",
+      args_string: "{}",
+      metadata_string: JSON.stringify({ fillViewport: true }),
+    },
+  ];
+  const gridItem = mockedDashboard.tabs[0].gridItems[1];
+
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <GridItemContext.Provider
+            value={{
+              gridItemSource: gridItem.source,
+              gridItemI: gridItem.i,
+              gridItemMetadataString: gridItem.metadata_string,
+              gridItemArgsString: gridItem.args_string,
+              gridItemIndex: 1,
+              enableFillViewport: true,
+            }}
+          >
+            <DashboardItem />
+          </GridItemContext.Provider>
+          <EditingPComponent />
+        </>
+      ),
+      options: {
+        initialDashboard: mockedDashboard,
+      },
+    }),
+  );
+
+  const dashboardGridItem = await screen.findByLabelText("gridItemDiv");
+  // The second fill item falls back to grid sizing — only the first wins.
+  expect(
+    window.getComputedStyle(dashboardGridItem).getPropertyValue("position"),
+  ).not.toBe("fixed");
+});
+
+test("Dashboard Item fill viewport skips siblings with unparseable metadata", async () => {
+  const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
+  mockedDashboard.tabs[0].gridItems = [
+    {
+      id: 1,
+      uuid: "some-uuid-1",
+      i: "1",
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "",
+      args_string: "{}",
+      // Malformed metadata — the first-fill lookup must swallow the parse
+      // error and keep scanning rather than throwing.
+      metadata_string: "not valid json",
+    },
+    {
+      id: 2,
+      uuid: "some-uuid-2",
+      i: "2",
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "",
+      args_string: "{}",
+      metadata_string: JSON.stringify({ fillViewport: true }),
+    },
+  ];
+  const gridItem = mockedDashboard.tabs[0].gridItems[1];
+
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <GridItemContext.Provider
+            value={{
+              gridItemSource: gridItem.source,
+              gridItemI: gridItem.i,
+              gridItemMetadataString: gridItem.metadata_string,
+              gridItemArgsString: gridItem.args_string,
+              gridItemIndex: 1,
+              enableFillViewport: true,
+            }}
+          >
+            <DashboardItem />
+          </GridItemContext.Provider>
+          <EditingPComponent />
+        </>
+      ),
+      options: {
+        initialDashboard: mockedDashboard,
+      },
+    }),
+  );
+
+  const dashboardGridItem = await screen.findByLabelText("gridItemDiv");
+  // The unparseable first item is skipped; the valid fill item still fills.
+  await waitFor(() => {
+    expect(
+      window.getComputedStyle(dashboardGridItem).getPropertyValue("position"),
+    ).toBe("fixed");
+  });
+});
+
+test("Dashboard Item fill viewport still fills on a multi-tab dashboard", async () => {
+  const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
+  mockedDashboard.tabs[0].gridItems[0].metadata_string = JSON.stringify({
+    fillViewport: true,
+  });
+  // A second tab makes the tab bar visible in view mode, exercising the
+  // tab-bar-height branch of the fill-height calculation.
+  mockedDashboard.tabs.push({ id: 2, name: "Tab 2", gridItems: [] });
+  const gridItem = mockedDashboard.tabs[0].gridItems[0];
+
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <GridItemContext.Provider
+            value={{
+              gridItemSource: gridItem.source,
+              gridItemI: gridItem.i,
+              gridItemMetadataString: gridItem.metadata_string,
+              gridItemArgsString: gridItem.args_string,
+              gridItemIndex: 0,
+              enableFillViewport: true,
+            }}
+          >
+            <DashboardItem />
+          </GridItemContext.Provider>
+          <EditingPComponent />
+        </>
+      ),
+      options: {
+        initialDashboard: mockedDashboard,
+      },
+    }),
+  );
+
+  const dashboardGridItem = await screen.findByLabelText("gridItemDiv");
+  await waitFor(() => {
+    expect(
+      window.getComputedStyle(dashboardGridItem).getPropertyValue("position"),
+    ).toBe("fixed");
+  });
+});
+
+test("Dashboard Item fill viewport badge marks non-first items inactive while editing", async () => {
+  const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
+  mockedDashboard.tabs[0].gridItems = [
+    {
+      id: 1,
+      uuid: "some-uuid-1",
+      i: "1",
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "",
+      args_string: "{}",
+      metadata_string: JSON.stringify({ fillViewport: true }),
+    },
+    {
+      id: 2,
+      uuid: "some-uuid-2",
+      i: "2",
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "",
+      args_string: "{}",
+      metadata_string: JSON.stringify({ fillViewport: true }),
+    },
+  ];
+  const gridItem = mockedDashboard.tabs[0].gridItems[1];
+
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <GridItemContext.Provider
+            value={{
+              gridItemSource: gridItem.source,
+              gridItemI: gridItem.i,
+              gridItemMetadataString: gridItem.metadata_string,
+              gridItemArgsString: gridItem.args_string,
+              gridItemIndex: 1,
+              enableFillViewport: true,
+            }}
+          >
+            <DashboardItem />
+          </GridItemContext.Provider>
+          <EditingPComponent />
+        </>
+      ),
+      options: {
+        initialDashboard: mockedDashboard,
+        inEditing: true,
+      },
+    }),
+  );
+
+  // The second fill item shows the indicator marked inactive — the first wins.
+  const indicator = await screen.findByLabelText("fill-viewport-indicator");
+  expect(indicator).toHaveTextContent("inactive");
+});
+
 test("handleGridItemExport", async () => {
   const gridItem = {
     i: "1",
@@ -2364,7 +2725,11 @@ describe("detectImportFormat", () => {
   });
 
   test("detects array of grid items", () => {
-    const items = [validGridItem, { ...validGridItem, i: "2" }, { ...validGridItem, i: "3" }];
+    const items = [
+      validGridItem,
+      { ...validGridItem, i: "2" },
+      { ...validGridItem, i: "3" },
+    ];
     const result = detectImportFormat(items);
     expect(result.type).toBe("array");
     expect(result.gridItems).toEqual(items);
@@ -2373,7 +2738,10 @@ describe("detectImportFormat", () => {
   });
 
   test("detects single tab", () => {
-    const tab = { name: "MyTab", gridItems: [validGridItem, { ...validGridItem, i: "2" }] };
+    const tab = {
+      name: "MyTab",
+      gridItems: [validGridItem, { ...validGridItem, i: "2" }],
+    };
     const result = detectImportFormat(tab);
     expect(result.type).toBe("tab");
     expect(result.gridItems).toEqual([]);
@@ -2384,7 +2752,10 @@ describe("detectImportFormat", () => {
   test("detects full dashboard export", () => {
     const dashboard = {
       tabs: [
-        { name: "Tab A", gridItems: [validGridItem, { ...validGridItem, i: "2" }] },
+        {
+          name: "Tab A",
+          gridItems: [validGridItem, { ...validGridItem, i: "2" }],
+        },
         { name: "Tab B", gridItems: [validGridItem] },
       ],
     };
@@ -2407,7 +2778,9 @@ describe("detectImportFormat", () => {
     };
     const result = detectImportFormat(dashboard);
     expect(result.type).toBe("dashboard");
-    expect(result.summary).toBe("2 tabs: Unnamed tab (0 items), Named (1 items)");
+    expect(result.summary).toBe(
+      "2 tabs: Unnamed tab (0 items), Named (1 items)",
+    );
   });
 
   test("detects empty array", () => {
@@ -2453,7 +2826,10 @@ describe("validateGridItemBatch", () => {
   };
 
   test("passes for valid items", () => {
-    const result = validateGridItemBatch([validGridItem, { ...validGridItem, i: "2" }]);
+    const result = validateGridItemBatch([
+      validGridItem,
+      { ...validGridItem, i: "2" },
+    ]);
     expect(result.valid).toBe(true);
     expect(result.errors).toEqual([]);
   });

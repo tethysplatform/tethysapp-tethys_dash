@@ -3,7 +3,8 @@ omit =
    *app.py,
    */.tethys/*,
    */tests/*,
-   */alembic/*
+   */alembic/*,
+   */_version.py
 source = tethysapp/tethysdash
 
 [report]

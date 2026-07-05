@@ -82,11 +82,7 @@ function DashboardImportModal({ showModal, setShowModal, onImportGridItem }) {
 
     const processedGridItems = [];
     for (const item of allGridItems) {
-      const result = await handleGridItemImport(
-        item,
-        csrf,
-        layoutContext.uuid,
-      );
+      const result = await handleGridItemImport(item, csrf, layoutContext.uuid);
       if (!result.success) {
         setErrorMessage(result.message ?? "Failed to import grid item");
         return;
@@ -141,9 +137,7 @@ function DashboardImportModal({ showModal, setShowModal, onImportGridItem }) {
         );
       }
       const tabCount = processedTabs.length;
-      parts.push(
-        `${tabCount} tab${tabCount !== 1 ? "s" : ""}`,
-      );
+      parts.push(`${tabCount} tab${tabCount !== 1 ? "s" : ""}`);
       setSuccessMessage(`Successfully imported ${parts.join(" and ")}`);
       onImportGridItem({
         type: importFormat.type,
@@ -226,7 +220,10 @@ function DashboardImportModal({ showModal, setShowModal, onImportGridItem }) {
               `${tab.name || "Unnamed tab"} (${tab.gridItems?.length || 0} items)`,
           );
           mergedFormat = {
-            type: allTabs.length === 1 && parsedFiles.length === 1 ? "tab" : "dashboard",
+            type:
+              allTabs.length === 1 && parsedFiles.length === 1
+                ? "tab"
+                : "dashboard",
             gridItems: [],
             tabs: allTabs,
             summary:
@@ -247,7 +244,10 @@ function DashboardImportModal({ showModal, setShowModal, onImportGridItem }) {
         }
 
         setImportFormat(mergedFormat);
-        if (mergedFormat.type === "dashboard" || mergedFormat.type === "mixed") {
+        if (
+          mergedFormat.type === "dashboard" ||
+          mergedFormat.type === "mixed"
+        ) {
           setSelectedTabs(mergedFormat.tabs.map((_, i) => i));
         }
       })
@@ -259,9 +259,7 @@ function DashboardImportModal({ showModal, setShowModal, onImportGridItem }) {
 
   const handleTabToggle = (index) => {
     setSelectedTabs((prev) =>
-      prev.includes(index)
-        ? prev.filter((i) => i !== index)
-        : [...prev, index],
+      prev.includes(index) ? prev.filter((i) => i !== index) : [...prev, index],
     );
   };
 
@@ -270,10 +268,7 @@ function DashboardImportModal({ showModal, setShowModal, onImportGridItem }) {
       return !jsonContent;
     }
     if (!importFormat) return true;
-    if (
-      importFormat.type === "dashboard" &&
-      selectedTabs.length === 0
-    )
+    if (importFormat.type === "dashboard" && selectedTabs.length === 0)
       return true;
     return false;
   };

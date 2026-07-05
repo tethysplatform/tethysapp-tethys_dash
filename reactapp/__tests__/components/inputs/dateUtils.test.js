@@ -3,9 +3,12 @@ import {
   dateHourFormat,
   checkForVariable,
   isRelativeInput,
+  isPreset,
   parseDate,
   toLocalISO,
   convertDatesToLocalISO,
+  LATEST_PRESET,
+  DATE_PRESETS,
 } from "components/inputs/dateUtils";
 import { format } from "date-fns";
 
@@ -155,10 +158,40 @@ describe("isRelativeInput", () => {
   });
 });
 
+describe("isPreset", () => {
+  it("detects preset sentinels", () => {
+    expect(isPreset(LATEST_PRESET)).toBe(true);
+    expect(isPreset("latest")).toBe(true);
+  });
+
+  it("returns false for dates, relative inputs, and variables", () => {
+    expect(isPreset("2025-08-15T09:37:00")).toBe(false);
+    expect(isPreset("now-1D")).toBe(false);
+    expect(isPreset("${variable}")).toBe(false);
+    expect(isPreset("")).toBe(false);
+  });
+
+  it("returns false for non-string inputs", () => {
+    expect(isPreset(123)).toBe(false);
+    expect(isPreset(null)).toBe(false);
+    expect(isPreset(undefined)).toBe(false);
+    expect(isPreset({})).toBe(false);
+  });
+
+  it("exposes 'latest' as a preset", () => {
+    expect(DATE_PRESETS).toContain("latest");
+  });
+});
+
 describe("parseDate", () => {
   it("returns variable expressions unchanged", () => {
     // eslint-disable-next-line
     expect(parseDate("${variable}")).toBe("${variable}");
+  });
+
+  it("returns preset sentinels unchanged (not parsed to a date)", () => {
+    expect(parseDate("latest")).toBe("latest");
+    expect(parseDate("latest", dateHourFormat, true)).toBe("latest");
   });
 
   it("parses relative date inputs", () => {

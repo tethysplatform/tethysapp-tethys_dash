@@ -1,6 +1,6 @@
 import apiClient from "services/api/client";
 
-const APP_ROOT_URL = process.env.TETHYS_APP_ROOT_URL;
+const APP_ROOT_URL = process.env.TETHYS_APP_ROOT_URL ?? "/apps/tethysdash/";
 
 function replaceHtmlEntitiesInExpressions(obj) {
   const replacements = {

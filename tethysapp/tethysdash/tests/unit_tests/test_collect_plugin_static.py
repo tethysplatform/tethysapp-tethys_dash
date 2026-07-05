@@ -1,9 +1,11 @@
+import os
 import types
 import subprocess
 import importlib
 from pathlib import Path
 from unittest import mock
 import pytest
+import intake.source
 
 import tethysapp.tethysdash.collect_plugin_static
 from tethysapp.tethysdash.collect_plugin_static import (
@@ -11,6 +13,13 @@ from tethysapp.tethysdash.collect_plugin_static import (
     copy_plugin_static,
     main,
 )
+
+# NOTE: these tests monkeypatch importlib.import_module globally. Use
+# object-target monkeypatch.setattr (e.g. (os, "listdir", ...)) rather than
+# string targets ("os.listdir") for anything patched in the same test --
+# pytest resolves string targets via importlib.import_module, which would
+# resolve against the patched mock and fail under some pytest versions (seen
+# in CI but not locally).
 
 
 @pytest.fixture
@@ -63,7 +72,7 @@ def test_copy_plugin_static_image_found(
     monkeypatch.setattr(Path, "exists", lambda self: str(self) == str(image_file))
 
     # Patch os.listdir to include the data file
-    monkeypatch.setattr("os.listdir", lambda path: ["plugin_a.geojson"])
+    monkeypatch.setattr(os, "listdir", lambda path: ["plugin_a.geojson"])
 
     copy_plugin_static(
         plugin_modules, str(tmp_path / "static_out"), str(tmp_path / "data_out")
@@ -90,12 +99,9 @@ def test_copy_plugin_static_default_used(
     monkeypatch.setattr(Path, "exists", lambda self: False)
 
     fake_registry = {"plugin_x": mock.Mock(type="map")}
-    monkeypatch.setattr(
-        "tethysapp.tethysdash.collect_plugin_static.intake.source.registry",
-        fake_registry,
-    )
+    monkeypatch.setattr(intake.source, "registry", fake_registry)
 
-    monkeypatch.setattr("os.listdir", lambda path: [])
+    monkeypatch.setattr(os, "listdir", lambda path: [])
 
     copy_plugin_static(plugin_modules, tmp_path / "static_out", tmp_path / "data_out")
 
@@ -135,10 +141,7 @@ def test_copy_plugin_static_attribute_error(copy_mock, monkeypatch, capfd):
             raise AttributeError("No visualization_type attribute")
 
     fake_registry = {"plugin_bad": DummyPlugin()}
-    monkeypatch.setattr(
-        "tethysapp.tethysdash.collect_plugin_static.intake.source.registry",
-        fake_registry,
-    )
+    monkeypatch.setattr(intake.source, "registry", fake_registry)
 
     # Run copy_plugin_static
     copy_plugin_static(plugin_modules, "/tmp/static_out", "/tmp/data_out")
@@ -168,7 +171,7 @@ def test_copy_plugin_static_with_visualization_types(
     monkeypatch.setattr(Path, "exists", lambda self: False)
 
     # Simulate static dir path for os.listdir to avoid FileNotFoundError
-    monkeypatch.setattr("os.listdir", lambda path: [])
+    monkeypatch.setattr(os, "listdir", lambda path: [])
 
     # Replace visualization type logic
     visualization_types_and_images = {
@@ -185,10 +188,7 @@ def test_copy_plugin_static_with_visualization_types(
 
     for vis_type, expected_image in visualization_types_and_images.items():
         fake_registry = {"plugin_x": mock.Mock(type=vis_type)}
-        monkeypatch.setattr(
-            "tethysapp.tethysdash.collect_plugin_static.intake.source.registry",
-            fake_registry,
-        )
+        monkeypatch.setattr(intake.source, "registry", fake_registry)
 
         copyfile_mock.reset_mock()
 
@@ -211,10 +211,7 @@ def test_copy_plugin_static_unknown_type(copy_mock, print_mock, monkeypatch, bad
     monkeypatch.setattr(Path, "exists", lambda self: False)  # No files exist
 
     fake_registry = {"plugin_x": mock.Mock(visualization_type=bad_type)}
-    monkeypatch.setattr(
-        "tethysapp.tethysdash.collect_plugin_static.intake.source.registry",
-        fake_registry,
-    )
+    monkeypatch.setattr(intake.source, "registry", fake_registry)
 
     copy_plugin_static(plugin_modules, "/tmp/static_out", "/tmp/data_out")
 

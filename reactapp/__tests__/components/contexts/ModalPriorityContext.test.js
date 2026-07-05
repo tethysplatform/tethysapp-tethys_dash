@@ -49,16 +49,16 @@ describe("ModalPriorityContext", () => {
     render(
       <ModalPriorityProvider>
         <TestComponent />
-      </ModalPriorityProvider>
+      </ModalPriorityProvider>,
     );
     expect(screen.getByTestId("showingPublicUserModal").textContent).toBe(
-      "false"
+      "false",
     );
     expect(screen.getByTestId("publicUserModalChecked").textContent).toBe(
-      "false"
+      "false",
     );
     expect(screen.getByTestId("showingIdleTimeoutModal").textContent).toBe(
-      "false"
+      "false",
     );
     expect(screen.getByTestId("appInfoModalWasOpen").textContent).toBe("false");
   });
@@ -67,7 +67,7 @@ describe("ModalPriorityContext", () => {
     render(
       <ModalPriorityProvider>
         <TestComponent />
-      </ModalPriorityProvider>
+      </ModalPriorityProvider>,
     );
     screen.getByText("Show Public User Modal").click();
     screen.getByText("Check Public User Modal").click();
@@ -75,14 +75,14 @@ describe("ModalPriorityContext", () => {
     screen.getByText("Set AppInfo Modal Was Open").click();
     await waitFor(() => {
       expect(screen.getByTestId("showingPublicUserModal").textContent).toBe(
-        "true"
+        "true",
       );
     });
     expect(screen.getByTestId("publicUserModalChecked").textContent).toBe(
-      "true"
+      "true",
     );
     expect(screen.getByTestId("showingIdleTimeoutModal").textContent).toBe(
-      "true"
+      "true",
     );
     expect(screen.getByTestId("appInfoModalWasOpen").textContent).toBe("true");
   });
@@ -95,7 +95,7 @@ describe("ModalPriorityContext", () => {
       return null;
     }
     expect(() => render(<BadComponent />)).toThrow(
-      /useModalPriority must be used within a ModalPriorityProvider/
+      /useModalPriority must be used within a ModalPriorityProvider/,
     );
     spy.mockRestore();
   });
