@@ -4,6 +4,7 @@ import LayoutAlertContextProvider from "components/contexts/LayoutAlertContext";
 import { DashboardHeader } from "components/layout/Header";
 import PropTypes from "prop-types";
 import DashboardLoader from "components/loader/DashboardLoader";
+import FloatingChatbox from "components/chat/FloatingChatbox";
 
 function DashboardView(dashboardProps) {
   return (
@@ -13,6 +14,7 @@ function DashboardView(dashboardProps) {
           <DashboardHeader />
           <DashboardLayoutAlerts />
           <DashboardTabs />
+          <FloatingChatbox dashboardId={dashboardProps.id} />
         </LayoutAlertContextProvider>
       </DashboardLoader>
     </div>

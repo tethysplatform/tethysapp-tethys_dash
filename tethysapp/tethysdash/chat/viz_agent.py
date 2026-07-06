@@ -1,4 +1,4 @@
-from pydantic_ai import Agent, ModelSettings, RunContext
+from pydantic_ai import Agent, ModelSettings, RunContext, NativeOutput
 
 from .config import model
 from .plugins import format_catalog_for_llm
@@ -24,11 +24,13 @@ STATIC_INSTRUCTIONS = (
 
 grid_item_builder_agent = Agent(
     model,
-    output_type=str,
+    output_type=NativeOutput([add_visualization_from_plugin]),
     deps_type=ChatDeps,
     retries=3,
-    model_settings=ModelSettings(max_tokens=400),
-    tools=[add_visualization_from_plugin],
+    model_settings=ModelSettings(
+        max_tokens=400,
+        extra_body={"chat_template_kwargs": {"enable_thinking": False}},
+    ),
     instructions=STATIC_INSTRUCTIONS,
 )
 

@@ -18,6 +18,7 @@ export function useChatState({ dashboardId }) {
     try {
       const { text: reply } = await appAPI.sendChatBotMessage({ prompt: text, dashboardId, csrf });
       setMessages((m) => [...m, { role: "assistant", text: reply, id: crypto.randomUUID() }]);
+      window.dispatchEvent(new Event("tethysdash:agent-dashboard-refetch"));
     } catch (e) {
       setError(e.message);
     } finally {
