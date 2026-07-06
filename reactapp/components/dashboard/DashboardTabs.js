@@ -6,7 +6,7 @@ import DashboardLayout from "./DashboardLayout";
 import { BsX } from "react-icons/bs";
 import styled from "styled-components";
 import { confirm } from "components/inputs/DeleteConfirmation";
-import Chatbox from "components/chat/Chatbox";
+import FloatingChatbox from "components/chat/FloatingChatbox";
 
 const EditableTabTitle = styled.div`
   display: flex;
@@ -260,24 +260,26 @@ const DashboardTabs = () => {
   const shouldHideTabBar = tabs.length === 1 && !isEditing;
 
   return (
-    <StyledTabs
-      className="dashboard-tabs"
-      activeKey={activeTabId}
-      onSelect={handleTabSelect}
-      $shouldHideTabBar={shouldHideTabBar}
-    >
-      {tabs.map((tab) => (
-        <Tab eventKey={tab.id} title={renderTabTitle(tab)} key={tab.id}>
-          <Chatbox dashboardId={tab.id} />
-          <DashboardLayout
-            tabId={tab.id}
-            gridItems={tab.gridItems}
-            shouldLoad={tab.id === activeTabId}
-          />
-        </Tab>
-      ))}
-      {isEditing && <Tab eventKey="add-tab" title="+" aria-label="add-tab" />}
-    </StyledTabs>
+    <>
+      <StyledTabs
+        className="dashboard-tabs"
+        activeKey={activeTabId}
+        onSelect={handleTabSelect}
+        $shouldHideTabBar={shouldHideTabBar}
+      >
+        {tabs.map((tab) => (
+          <Tab eventKey={tab.id} title={renderTabTitle(tab)} key={tab.id}>
+            <DashboardLayout
+              tabId={tab.id}
+              gridItems={tab.gridItems}
+              shouldLoad={tab.id === activeTabId}
+            />
+          </Tab>
+        ))}
+        {isEditing && <Tab eventKey="add-tab" title="+" aria-label="add-tab" />}
+      </StyledTabs>
+      <FloatingChatbox dashboardId={activeTabId} />
+    </>
   );
 };
 export default memo(DashboardTabs);
