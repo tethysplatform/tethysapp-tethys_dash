@@ -32,7 +32,8 @@ dependencies = [
     "geoalchemy2==0.18.4",
     "tethys-platform>=4.5.0",
     "tethys-agents",
-    "python-dateutil"
+    "python-dateutil",
+    "pydantic-ai"
 ]
 classifiers = [
      "Environment :: Web Environment",

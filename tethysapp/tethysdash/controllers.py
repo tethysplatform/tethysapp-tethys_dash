@@ -1101,7 +1101,7 @@ def _build_agent_system_prompt() -> str:
     multi-step discovery patterns.
     """
     try:
-        from tethysapp.tethysdash.tools import list_available_plugins
+        from tethysapp.tethysdash.chat import list_available_plugins
         plugins_summary = list_available_plugins()
     except Exception:  # never block the chat if plugin enumeration fails
         plugins_summary = ""
@@ -1193,7 +1193,7 @@ def chat_agent(request):
     try:
         from tethys_agents.discover import discover
         from tethys_agents.react_agent import ReactAgent
-        from tethysapp.tethysdash.tools import current_dashboard
+        from tethysapp.tethysdash.chat import current_dashboard
     except ImportError as e:
         return JsonResponse(
             {

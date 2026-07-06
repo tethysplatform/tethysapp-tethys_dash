@@ -29,7 +29,7 @@ import pytest
 
 def test_add_visualization_returns_no_dashboard_when_context_unset():
     """With no contextvar set the tool returns a self-correcting string."""
-    from tethysapp.tethysdash.tools import (
+    from tethysapp.tethysdash.chat import (
         add_visualization_from_plugin,
         current_dashboard,
     )
@@ -43,7 +43,7 @@ def test_add_visualization_returns_no_dashboard_when_context_unset():
 
 def test_add_visualization_rejects_unknown_source():
     """Unknown plugin source returns the known-source list for self-correction."""
-    from tethysapp.tethysdash.tools import (
+    from tethysapp.tethysdash.chat import (
         add_visualization_from_plugin,
         current_dashboard,
     )
@@ -65,7 +65,7 @@ def test_add_visualization_rejects_unknown_source():
 
 def test_add_visualization_rejects_invalid_json():
     """Malformed args_json returns a parseable error, never raises."""
-    from tethysapp.tethysdash.tools import (
+    from tethysapp.tethysdash.chat import (
         add_visualization_from_plugin,
         current_dashboard,
     )
@@ -86,7 +86,7 @@ def test_add_visualization_rejects_invalid_json():
 
 def test_add_visualization_rejects_non_dict_json():
     """args_json that decodes to a list returns a clear type-mismatch message."""
-    from tethysapp.tethysdash.tools import (
+    from tethysapp.tethysdash.chat import (
         add_visualization_from_plugin,
         current_dashboard,
     )
@@ -116,7 +116,7 @@ def test_add_visualization_appends_tile_to_first_tab_and_persists():
     silently ignored, which would make the tool a no-op even though it
     returns success.
     """
-    from tethysapp.tethysdash.tools import (
+    from tethysapp.tethysdash.chat import (
         add_visualization_from_plugin,
         current_dashboard,
     )
@@ -207,7 +207,7 @@ def test_add_visualization_returns_error_when_dashboard_has_no_tabs():
     """If get_dashboards returns a dashboard with an empty tabs list, the
     tool returns a clear LLM-readable error rather than crashing on
     ``tabs[0]`` indexing."""
-    from tethysapp.tethysdash.tools import (
+    from tethysapp.tethysdash.chat import (
         add_visualization_from_plugin,
         current_dashboard,
     )
@@ -242,7 +242,7 @@ def test_add_visualization_returns_error_when_dashboard_has_no_tabs():
 
 def test_list_available_plugins_skips_non_visualization_drivers():
     """Generic intake drivers (csv, json, parquet, …) are filtered out."""
-    from tethysapp.tethysdash.tools import list_available_plugins
+    from tethysapp.tethysdash.chat import list_available_plugins
 
     csv_driver = MagicMock(spec=[])  # no visualization_type / type attrs
     viz_plugin = MagicMock()
@@ -267,7 +267,7 @@ def test_list_available_plugins_skips_non_visualization_drivers():
 
 def test_list_available_plugins_empty_registry():
     """With nothing installed the tool returns a clear empty message."""
-    from tethysapp.tethysdash.tools import list_available_plugins
+    from tethysapp.tethysdash.chat import list_available_plugins
     with patch("intake.source.registry", {}):
         result = list_available_plugins()
     assert "No visualization plugins" in result
@@ -277,7 +277,7 @@ def test_list_available_plugins_handles_legacy_attribute_names():
     """Plugins using short names (`type`, `args`, `description`) — per main's
     TethysDashPlugin base — surface the same way as legacy `visualization_*`
     aliases."""
-    from tethysapp.tethysdash.tools import list_available_plugins
+    from tethysapp.tethysdash.chat import list_available_plugins
 
     plugin = MagicMock(spec=["type", "args", "description"])
     plugin.type = "map"
