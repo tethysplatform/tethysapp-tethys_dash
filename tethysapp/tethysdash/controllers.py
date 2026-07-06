@@ -1279,7 +1279,7 @@ def chat_agent(request):
         # next request that lands on the same worker thread.
         current_dashboard.reset(token)
 
-
+api_view(["POST"])
 @controller(url="tethysdash/chat/message", login_required=True)
 def chat_message(request):
     """Pydantic-AI-backed chat endpoint. Frontend posts { prompt, dashboard_id }

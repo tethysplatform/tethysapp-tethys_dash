@@ -6,6 +6,7 @@ import DashboardLayout from "./DashboardLayout";
 import { BsX } from "react-icons/bs";
 import styled from "styled-components";
 import { confirm } from "components/inputs/DeleteConfirmation";
+import Chatbox from "components/chat/Chatbox";
 
 const EditableTabTitle = styled.div`
   display: flex;
@@ -267,6 +268,7 @@ const DashboardTabs = () => {
     >
       {tabs.map((tab) => (
         <Tab eventKey={tab.id} title={renderTabTitle(tab)} key={tab.id}>
+          <Chatbox dashboardId={tab.id} />
           <DashboardLayout
             tabId={tab.id}
             gridItems={tab.gridItems}
