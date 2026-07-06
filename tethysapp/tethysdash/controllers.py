@@ -1278,3 +1278,63 @@ def chat_agent(request):
         # Reset the contextvar so per-request state never leaks into the
         # next request that lands on the same worker thread.
         current_dashboard.reset(token)
+
+
+@controller(url="tethysdash/chat/message", login_required=True)
+def chat_message(request):
+    """Pydantic-AI-backed chat endpoint. Frontend posts { prompt, dashboard_id }
+    as JSON; response is { text }. Same permission gate as chat_agent.
+    """
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+
+    if not has_permission(request, "manage_visualizations"):
+        return JsonResponse(
+            {"error": "User does not have permission to use the chat."},
+            status=403,
+        )
+
+    try:
+        body = json.loads(request.body or b"{}")
+    except json.JSONDecodeError as exc:
+        return JsonResponse({"error": f"Invalid JSON body: {exc}"}, status=400)
+
+    prompt = (body.get("prompt") or "").strip()
+    if not prompt:
+        return JsonResponse({"error": "Missing or empty 'prompt' field."}, status=400)
+
+    dashboard_id_raw = body.get("dashboard_id")
+    if dashboard_id_raw is None:
+        return JsonResponse({"error": "dashboard_id is required."}, status=400)
+    try:
+        dashboard_id = int(dashboard_id_raw)
+    except (TypeError, ValueError):
+        return JsonResponse(
+            {"error": f"Invalid dashboard_id {dashboard_id_raw!r}; must be int."},
+            status=400,
+        )
+
+    try:
+        from asgiref.sync import async_to_sync
+        from tethysapp.tethysdash.chat.viz_agent import grid_item_builder_agent
+        from tethysapp.tethysdash.chat.validation import ChatDeps
+    except ImportError as e:
+        return JsonResponse(
+            {"error": f"Chat backend not installed: {e}"},
+            status=503,
+        )
+
+    deps = ChatDeps(user=request.user, dashboard_id=dashboard_id)
+    try:
+        result = async_to_sync(grid_item_builder_agent.run)(prompt, deps=deps)
+        return JsonResponse({"text": result.output, "dashboard_id_used": dashboard_id})
+    except Exception as e:
+        import traceback
+        print(
+            f"\n[chat_message] {type(e).__name__}: {e}\n"
+            f"Prompt: {prompt!r}\n"
+            f"Dashboard id: {dashboard_id}\n"
+            f"{traceback.format_exc()}"
+        )
+        err_msg = _get_error_message(e, "Chat backend error. Check server logs.")
+        return JsonResponse({"error": err_msg}, status=503)
