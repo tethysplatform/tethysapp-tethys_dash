@@ -124,18 +124,10 @@ const appAPI = {
     return jsonData;
   },
   sendChatBotMessage: async ({prompt, dashboardId, csrf}) => {
-    const res = await apiClient.post(`${APP_ROOT_URL}chat/message/`, {
-      headers: {
-        "Content-Type": "application/json",
-        "x- ": csrf,
-      },
-      body: JSON.stringify({ prompt, dashboard_id: dashboardId }),
-    });
-    if (!res.ok) {
-      const detail = await res.text().catch(() => "");
-      throw new Error(`Chat request failed (${res.status}): ${detail || res.statusText}`);
-    }
-    return res.json();
+    return await apiClient.post(`${APP_ROOT_URL}chat/message/`,
+      { prompt, dashboard_id: dashboardId }, 
+      {headers: { "x-csrftoken": csrf }
+     });
   }
 
 };
