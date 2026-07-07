@@ -54,55 +54,6 @@ def start_command(args):
     print("Starting Tethys Portal")
     subprocess.run(["tethys", "manage", "start"], check=True)
 
-
-def _resolve_dashboard_id(raw: str) -> int:
-    """Accept either an integer ID or a UUID string; return the integer ID.
-
-    Users see dashboard UUIDs in the browser URL (the chat banner prints
-    one too) so the CLI should accept that shape directly. Internally
-    Dashboard.id is an integer PK (model.py:64), so a UUID has to be
-    resolved through the Dashboard.uuid column.
-
-    Lazy-imports the SQLAlchemy session - module-load time predates
-    django.setup() in some entry points.
-    """
-    import sys
-    import uuid as _uuid
-
-    # Integer-first: cheapest path, no DB hit needed.
-    try:
-        return int(raw)
-    except (TypeError, ValueError):
-        pass
-
-    # UUID shape check before hitting the DB.
-    try:
-        _uuid.UUID(raw)
-    except (TypeError, ValueError, AttributeError):
-        sys.exit(
-            f"--dashboard must be an integer id or a UUID string, "
-            f"got {raw!r}."
-        )
-
-    from tethysapp.tethysdash.app import App
-    from tethysapp.tethysdash.model import Dashboard
-
-    Session = App.get_persistent_store_database(
-        "primary_db", as_sessionmaker=True
-    )
-    session = Session()
-    try:
-        row = session.query(Dashboard).filter(Dashboard.uuid == raw).first()
-        if row is None:
-            sys.exit(
-                f"No dashboard found with UUID {raw!r}. Check the URL "
-                "or list dashboards in the browser."
-            )
-        return row.id
-    finally:
-        session.close()
-
-
 def main():
     parser = argparse.ArgumentParser(description="TethysDash CLI")
     subparsers = parser.add_subparsers(title="Commands", dest="subcommand")
@@ -120,15 +71,6 @@ def main():
     )
     start_parser.set_defaults(func=start_command)
 
-    # Chat command (terminal REPL for the workshop chat agent)
-    chat_parser = subparsers.add_parser(
-        "chat",
-        help="Terminal REPL for the workshop chat agent.",
-    )
-    chat_parser.add_argument(
-        "--user", required=True, help="Django username to act as."
-    )
- 
 
     args = parser.parse_args()
     args.func(args)
