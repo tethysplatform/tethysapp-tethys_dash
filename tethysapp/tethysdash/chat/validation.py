@@ -28,7 +28,8 @@ class ChatDeps:
     Every tool receives this via ``ctx.deps.<field>``.
     """
     user: object 
-    dashboard_id: int 
+    dashboard_id: int
+    original_prompt: str = ""
 
 class GridItemPlacement(BaseModel):
     """LLM-produced placement + type for a new grid item.

@@ -5,10 +5,10 @@ from .validation import ChatDeps
 from .plugins import format_catalog_for_llm
 
 
-async def add_visualization(ctx: RunContext[ChatDeps], prompt: str) -> str:
+async def add_visualization(ctx: RunContext[ChatDeps]) -> str:
     """Delegate to the visualization-adder specialist. Use when the user
     asks to ADD, CREATE, or PLACE a visualization on the dashboard."""
-    result = await grid_item_builder_agent.run(prompt, deps=ctx.deps)
+    result = await grid_item_builder_agent.run(ctx.deps.original_prompt, deps=ctx.deps)
     return result.output
 
 
@@ -18,7 +18,7 @@ def list_available_plugins(ctx: RunContext[ChatDeps]) -> str:
     can add, or what plugins are available."""
     return format_catalog_for_llm()
 
-def out_of_scope_reply(ctx: RunContext[ChatDeps], reason: str) -> str:
+def out_of_scope_reply(ctx: RunContext[ChatDeps]) -> str:
     """Call this when the user's request is unrelated to adding visualizations
     or listing what's available. Reply politely explaining what you can help with."""
     return "I can only help with adding visualizations or listing what's available."

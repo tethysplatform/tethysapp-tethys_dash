@@ -34,5 +34,5 @@ grid_item_builder_agent = Agent(
 )
 
 @grid_item_builder_agent.instructions
-def avaialble_plugins(ctx: RunContext[ChatDeps]) -> str:
+def available_plugins(ctx: RunContext[ChatDeps]) -> str:
     return f"Available plugins on this server:\n{format_catalog_for_llm()}"
