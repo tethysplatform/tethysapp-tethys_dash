@@ -1316,7 +1316,7 @@ def chat_message(request):
 
     try:
         from asgiref.sync import async_to_sync
-        from tethysapp.tethysdash.chat.viz_agent import grid_item_builder_agent
+        from tethysapp.tethysdash.chat.router_agent import router_agent
         from tethysapp.tethysdash.chat.validation import ChatDeps
     except ImportError as e:
         return JsonResponse(
@@ -1326,7 +1326,7 @@ def chat_message(request):
 
     deps = ChatDeps(user=request.user, dashboard_id=dashboard_id)
     try:
-        result = async_to_sync(grid_item_builder_agent.run)(prompt, deps=deps)
+        result = async_to_sync(router_agent.run)(prompt, deps=deps)
         return JsonResponse({"text": result.output, "dashboard_id_used": dashboard_id})
     except Exception as e:
         import traceback

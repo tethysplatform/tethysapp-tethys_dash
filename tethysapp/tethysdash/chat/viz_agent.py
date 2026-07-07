@@ -21,7 +21,6 @@ STATIC_INSTRUCTIONS = (
     "Reply to the user with a one-sentence confirmation of what was added."
 )
 
-
 grid_item_builder_agent = Agent(
     model,
     output_type=NativeOutput([add_visualization_from_plugin]),
@@ -33,7 +32,6 @@ grid_item_builder_agent = Agent(
     ),
     instructions=STATIC_INSTRUCTIONS,
 )
-
 
 @grid_item_builder_agent.instructions
 def avaialble_plugins(ctx: RunContext[ChatDeps]) -> str:
