@@ -845,6 +845,34 @@ describe("matchesCondition", () => {
     expect(matchesCondition(-1, "isNotNull")).toBe(true);
     expect(matchesCondition("x", "isNotNull")).toBe(true);
   });
+
+  it("handles 'in' list membership (numeric coercion)", () => {
+    expect(matchesCondition(36, "in", "0, 36, 42")).toBe(true);
+    expect(matchesCondition("36", "in", "0, 36, 42")).toBe(true);
+    expect(matchesCondition(5, "in", "0, 36, 42")).toBe(false);
+  });
+
+  it("handles 'in' list membership (string values)", () => {
+    expect(matchesCondition("high", "in", "low, high")).toBe(true);
+    expect(matchesCondition("medium", "in", "low, high")).toBe(false);
+  });
+
+  it("handles 'notIn' list membership", () => {
+    expect(matchesCondition(5, "notIn", "0, 36, 42")).toBe(true);
+    expect(matchesCondition(36, "notIn", "0, 36, 42")).toBe(false);
+  });
+
+  it("returns false for an empty or whitespace-only list", () => {
+    expect(matchesCondition(1, "in", "")).toBe(false);
+    expect(matchesCondition(1, "in", "  ,  ")).toBe(false);
+    expect(matchesCondition(1, "notIn", "")).toBe(false);
+  });
+
+  it("returns false when the list value is not a string", () => {
+    expect(matchesCondition(1, "in", 1)).toBe(false);
+    expect(matchesCondition(1, "in", undefined)).toBe(false);
+    expect(matchesCondition(1, "notIn", null)).toBe(false);
+  });
 });
 
 describe("ruleMatches", () => {
@@ -892,6 +920,54 @@ describe("ruleMatches", () => {
   it("does not match when no conditions are defined", () => {
     expect(ruleMatches({}, { type: "a" })).toBe(false);
     expect(ruleMatches({ conditions: [] }, { type: "a" })).toBe(false);
+  });
+
+  it("ORs conditions when conditionCombinator is OR", () => {
+    const rule = {
+      conditionCombinator: "OR",
+      conditionField: "buildCat",
+      conditionType: "=",
+      conditionValue: "0",
+      conditions: [{ field: "buildCat", type: "=", value: "36" }],
+    };
+    expect(ruleMatches(rule, { buildCat: 0 })).toBe(true);
+    expect(ruleMatches(rule, { buildCat: 36 })).toBe(true);
+    expect(ruleMatches(rule, { buildCat: 5 })).toBe(false);
+  });
+
+  it("ORs conditions across different fields", () => {
+    const rule = {
+      conditionCombinator: "OR",
+      conditionField: "buildCat",
+      conditionType: "=",
+      conditionValue: "0",
+      conditions: [{ field: "risk", type: "=", value: "high" }],
+    };
+    expect(ruleMatches(rule, { buildCat: 5, risk: "high" })).toBe(true);
+    expect(ruleMatches(rule, { buildCat: 0, risk: "low" })).toBe(true);
+    expect(ruleMatches(rule, { buildCat: 5, risk: "low" })).toBe(false);
+  });
+
+  it("defaults to AND when conditionCombinator is unset or invalid", () => {
+    const rule = {
+      conditionCombinator: "bogus",
+      conditionField: "type",
+      conditionType: "=",
+      conditionValue: "a",
+      conditions: [{ field: "active", type: "=", value: "true" }],
+    };
+    expect(ruleMatches(rule, { type: "a", active: "true" })).toBe(true);
+    expect(ruleMatches(rule, { type: "a", active: "false" })).toBe(false);
+  });
+
+  it("matches a rule using the 'in' list operator", () => {
+    const rule = {
+      conditionField: "buildCat",
+      conditionType: "in",
+      conditionValue: "0, 36, 42",
+    };
+    expect(ruleMatches(rule, { buildCat: 36 })).toBe(true);
+    expect(ruleMatches(rule, { buildCat: 5 })).toBe(false);
   });
 
   it("skips malformed entries in conditions[]", () => {

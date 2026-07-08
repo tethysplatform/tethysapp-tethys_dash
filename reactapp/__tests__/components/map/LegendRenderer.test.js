@@ -1365,6 +1365,78 @@ test("LegendSymbol, linestring", async () => {
   expect(lineElement).not.toHaveAttribute("stroke-dasharray");
 });
 
+test("LegendRenderer; styleJSON rule label joins extra conditions with combinator", async () => {
+  const legend = {
+    styleJSON: {
+      rules: [
+        {
+          geometryType: "point",
+          conditionField: "buildCat",
+          conditionType: "=",
+          conditionValue: "0",
+          conditionCombinator: "OR",
+          conditions: [
+            { field: "risk", type: "=", value: "high" },
+            // Malformed extra condition (missing field/type) -> empty
+            // description, exercising the falsy branch that skips it.
+            { field: "", type: "" },
+          ],
+          fill: "#f50000",
+        },
+      ],
+      default: {
+        point: {
+          fill: "#00ff00",
+        },
+      },
+    },
+    title: "test",
+  };
+  render(<LegendRenderer legend={legend} />);
+
+  // Two items (default + rule) -> multi-item list render path.
+  const items = screen.queryAllByRole("listitem");
+  expect(items).toHaveLength(2);
+
+  // The rule's extra condition (from rule.conditions[]) is joined with the
+  // OR combinator into the legend label.
+  expect(
+    screen.getByText("Point: buildCat = 0 OR risk = high"),
+  ).toBeInTheDocument();
+});
+
+test("LegendRenderer; styleJSON rule label renders all condition operators", async () => {
+  const legend = {
+    styleJSON: {
+      rules: [
+        {
+          geometryType: "point",
+          conditionField: "buildCat",
+          conditionType: "in",
+          conditionValue: "0, 36",
+          conditions: [
+            { field: "risk", type: "notIn", value: "low" },
+            { field: "name", type: "isNull" },
+            { field: "code", type: "isNotNull" },
+          ],
+          fill: "#f50000",
+        },
+      ],
+      default: {
+        point: { fill: "#00ff00" },
+      },
+    },
+    title: "test",
+  };
+  render(<LegendRenderer legend={legend} />);
+
+  expect(
+    screen.getByText(
+      "Point: buildCat in 0, 36 AND risk not in low AND name is null/empty AND code is not null/empty",
+    ),
+  ).toBeInTheDocument();
+});
+
 test("LegendSymbol, linestring with strokeDash", async () => {
   render(<LegendSymbol symbol="linestring" color="blue" strokeDash="5,5" />);
 

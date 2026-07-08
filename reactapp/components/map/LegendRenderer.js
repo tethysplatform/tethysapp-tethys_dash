@@ -566,6 +566,34 @@ function LegendRenderer({ legend }) {
         });
       }
     }
+    // Build a readable description for a single condition.
+    const describeCondition = (field, type, value) => {
+      if (!field || !type) return "";
+      if (type === "isNull") return `${field} is null/empty`;
+      if (type === "isNotNull") return `${field} is not null/empty`;
+      if (type === "in") return `${field} in ${value}`;
+      if (type === "notIn") return `${field} not in ${value}`;
+      return `${field} ${type} ${value}`;
+    };
+    // Join a rule's conditions (flat + extra) with its combinator word.
+    const describeConditions = (rule) => {
+      const parts = [];
+      const first = describeCondition(
+        rule.conditionField,
+        rule.conditionType,
+        rule.conditionValue,
+      );
+      if (first) parts.push(first);
+      if (Array.isArray(rule.conditions)) {
+        for (const c of rule.conditions) {
+          const part = describeCondition(c.field, c.type, c.value);
+          if (part) parts.push(part);
+        }
+      }
+      const combinator = rule.conditionCombinator === "OR" ? "OR" : "AND";
+      return parts.join(` ${combinator} `);
+    };
+
     // Rules (merge with default for geometry type)
     for (const rule of rules) {
       const geom = rule.geometryType || "point";
@@ -579,11 +607,13 @@ function LegendRenderer({ legend }) {
       const hatchSpacing = merged.hatchSpacing;
       const strokeDash = merged.strokeDash;
       const strokeWidth = merged.strokeWidth;
+      const geomLabel = geom.charAt(0).toUpperCase() + geom.slice(1);
+      const conditionText = describeConditions(rule);
       let label = rule.name
         ? rule.name
-        : rule.conditionField && rule.conditionType && rule.conditionValue
-          ? `${geom.charAt(0).toUpperCase() + geom.slice(1)}: ${rule.conditionField} ${rule.conditionType} ${rule.conditionValue}`
-          : `${geom.charAt(0).toUpperCase() + geom.slice(1)} (Rule)`;
+        : conditionText
+          ? `${geomLabel}: ${conditionText}`
+          : `${geomLabel} (Rule)`;
       const hatchDirection = merged.hatchDirection;
       const dotSpacing = merged.dotSpacing;
       const dotRadius = merged.dotRadius;
