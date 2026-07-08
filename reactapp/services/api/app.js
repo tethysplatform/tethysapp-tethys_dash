@@ -123,11 +123,12 @@ const appAPI = {
     }
     return jsonData;
   },
-  sendChatBotMessage: async ({prompt, dashboardId, csrf}) => {
-    return await apiClient.post(`${APP_ROOT_URL}chat/message/`,
-      { prompt, dashboard_id: dashboardId }, 
-      {headers: { "x-csrftoken": csrf }
-     });
+  sendChatBotMessage: async ({ prompt, dashboardId, chatId, csrf }) => {
+    return await apiClient.post(
+      `${APP_ROOT_URL}chat/message/`,
+      { prompt, dashboard_id: dashboardId, chat_id: chatId },
+      { headers: { "x-csrftoken": csrf } },
+    );
   }
 
 };

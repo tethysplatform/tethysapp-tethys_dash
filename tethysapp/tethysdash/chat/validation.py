@@ -26,10 +26,14 @@ class GridItemAgentView(BaseModel):
 class ChatDeps:
     """Session context passed via ``agent.run(prompt, deps=ChatDeps(...))``.
     Every tool receives this via ``ctx.deps.<field>``.
+
+    ``chat_id`` is a per-request UUID from the frontend; tools use it as
+    the ``requestId`` when pushing progress messages over the WebSocket.
     """
-    user: object 
+    user: object
     dashboard_id: int
     original_prompt: str = ""
+    chat_id: str = ""
 
 class GridItemPlacement(BaseModel):
     """LLM-produced placement + type for a new grid item.

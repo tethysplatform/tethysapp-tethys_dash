@@ -1314,9 +1314,12 @@ def chat_message(request):
             status=400,
         )
 
+    chat_id = (body.get("chat_id") or "").strip()
+
     try:
         from asgiref.sync import async_to_sync
         from tethysapp.tethysdash.chat.router_agent import router_agent
+        from tethysapp.tethysdash.chat.streaming import emit_progress
         from tethysapp.tethysdash.chat.validation import ChatDeps
     except ImportError as e:
         return JsonResponse(
@@ -1324,8 +1327,14 @@ def chat_message(request):
             status=503,
         )
 
-    deps = ChatDeps(user=request.user, dashboard_id=dashboard_id)
+    deps = ChatDeps(
+        user=request.user,
+        dashboard_id=dashboard_id,
+        original_prompt=prompt,
+        chat_id=chat_id,
+    )
     try:
+        emit_progress(chat_id, "Understanding your request...")
         result = async_to_sync(router_agent.run)(prompt, deps=deps)
         return JsonResponse({"text": result.output, "dashboard_id_used": dashboard_id})
     except Exception as e:

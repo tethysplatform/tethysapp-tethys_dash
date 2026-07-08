@@ -5,7 +5,7 @@ from __future__ import annotations
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
-MODEL_NAME = "qwen3:0.6b"
+MODEL_NAME = "qwen3:1.7b"
 LLM_HOST =  "http://localhost:11434"
 
 

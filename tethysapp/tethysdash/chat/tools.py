@@ -1,36 +1,37 @@
 """Dashboard-manipulation tools for the chat agent."""
 import json
 import uuid as uuid_lib
+from typing import Any
 
 from pydantic_ai import RunContext, ModelRetry
 
 from tethysapp.tethysdash.model import get_dashboards, update_named_dashboard
 from .plugins import format_catalog_for_llm, get_plugin
+from .streaming import emit_progress
 from .validation import ChatDeps
 
 
 def add_visualization_from_plugin(
     ctx: RunContext[ChatDeps],
     source: str,
-    args_json: str,
+    args: dict[str, Any] | None = None,
 ) -> str:
     """Add a visualization tile to the active dashboard.
 
     Args:
         source: Registered intake plugin name. On an unknown value the
             error message lists every available option.
-        args_json: JSON-encoded dict of args the plugin expects. Pass "{}"
-            for plugins with no required args.
+        args: Plugin-specific argument object. Pass an empty object for
+            plugins that require no arguments. Keys and value types are
+            defined by the plugin's own arg schema.
     """
-    try:
-        args = json.loads(args_json or "{}")
-    except json.JSONDecodeError as exc:
-        raise ModelRetry(f"args_json must be valid JSON. Got {args_json!r}. {exc}")
+    args = args or {}
     if not isinstance(args, dict):
         raise ModelRetry(
-            f"args_json must decode to a JSON object, got {type(args).__name__}."
+            f"args must be an object, got {type(args).__name__}."
         )
 
+    emit_progress(ctx.deps.chat_id, f"Looking up plugin {source!r}...")
     spec = get_plugin(source)
     if spec is None:
         raise ModelRetry(
@@ -63,6 +64,7 @@ def add_visualization_from_plugin(
     }
     active_tab["gridItems"] = list(active_tab.get("gridItems", [])) + [new_tile]
     tabs[0] = active_tab
+    emit_progress(ctx.deps.chat_id, f"Placing {source!r} on dashboard {dashboard_id}...")
     update_named_dashboard(user, dashboard_id, {"tabs": tabs})
 
     return f"Added '{source}' ({spec.viz_type}) to dashboard {dashboard_id}."

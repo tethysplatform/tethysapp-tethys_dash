@@ -46,6 +46,7 @@
     "html-react-parser": "^5.1.18",
     "html2canvas": "^1.4.1",
     "json5": "^2.2.3",
+    "markdown-to-jsx": "^9.8.2",
     "ol": "10.4.0",
     "ol-mapbox-style": "12.4.0",
     "ol-pmtiles": "^2.0.2",

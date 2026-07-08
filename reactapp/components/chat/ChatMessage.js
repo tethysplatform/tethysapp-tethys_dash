@@ -1,4 +1,5 @@
 import styled from "styled-components";
+import Markdown from "markdown-to-jsx";
 
 const Row = styled.div`
   display: flex;
@@ -10,18 +11,41 @@ const Bubble = styled.div`
   max-width: 80%;
   padding: 8px 12px;
   border-radius: 12px;
-  white-space: pre-wrap;
   word-wrap: break-word;
   line-height: 1.4;
   font-size: 0.9rem;
   background: ${(p) => (p.$role === "user" ? "#4a90e2" : "#f1f3f5")};
   color: ${(p) => (p.$role === "user" ? "#fff" : "#212529")};
+  white-space: ${(p) => (p.$role === "user" ? "pre-wrap" : "normal")};
+
+  & > *:first-child {
+    margin-top: 0;
+  }
+  & > *:last-child {
+    margin-bottom: 0;
+  }
+  ul,
+  ol {
+    padding-left: 1.25em;
+    margin: 0.35em 0;
+  }
+  code {
+    background: rgba(0, 0, 0, 0.06);
+    padding: 0 4px;
+    border-radius: 4px;
+    font-size: 0.85em;
+  }
+  p {
+    margin: 0.35em 0;
+  }
 `;
 
 export default function ChatMessage({ role, text }) {
   return (
     <Row $role={role}>
-      <Bubble $role={role}>{text}</Bubble>
+      <Bubble $role={role}>
+        {role === "assistant" ? <Markdown>{text || ""}</Markdown> : text}
+      </Bubble>
     </Row>
   );
 }

@@ -38,12 +38,17 @@ def get_plugin(source: str) -> PluginSpec | None:
             return spec
     return None
 
-
 def format_catalog_for_llm() -> str:
     specs = list_visualization_plugins()
     if not specs:
         return "No visualization plugins are installed."
-    return "\n".join(
-        f"- {s.source} ({s.viz_type}) - args={list(s.args)} - {s.description[:80]}"
-        for s in specs
-    )
+    blocks = []
+    for s in specs:
+        args_line = ", ".join(s.args) if s.args else "(none)"
+        desc = s.description or "(no description)"
+        blocks.append(
+            f"**{s.source}** ({s.viz_type})\n"
+            f"  args: {args_line}\n"
+            f"  {desc}"
+        )
+    return "\n\n".join(blocks)
