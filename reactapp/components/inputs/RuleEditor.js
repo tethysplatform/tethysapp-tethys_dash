@@ -194,7 +194,6 @@ const VALUE_SOURCE_OPTIONS = [
   { value: "field", label: "Field" },
 ];
 
-
 const RULE_METADATA_KEYS = [
   "conditionField",
   "conditionType",
