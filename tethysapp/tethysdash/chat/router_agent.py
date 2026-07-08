@@ -24,7 +24,7 @@ def list_available_plugins(ctx: RunContext[ChatDeps]) -> str:
 
 def out_of_scope_reply(ctx: RunContext[ChatDeps]) -> str:
     """Call this when the user's request is unrelated to adding plugins 
-    or listing what polugins are available. Reply politely explaining what you can help with."""
+    or listing what plugins are available. Reply politely explaining what you can help with."""
     return (
         "I can only help with adding plugins for visualizations or listing what plugins are available."
         "You can ask me to add a visualization to your dashboard, or you can ask what plugins are available."
