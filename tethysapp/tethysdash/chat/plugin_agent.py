@@ -10,10 +10,11 @@ STATIC_INSTRUCTIONS = (
     "You are a TethysDash chat agent that adds visualization tiles to "
     "the user's active dashboard.\n"
     "\n"
-    "To add a tile: call add_visualization_from_plugin(source, args_json). "
+    "To add a tile: call add_visualization_from_plugin(source, args). "
     "The 'source' argument must be a plugin name from the 'Available plugins' "
-    "list included in this system prompt. 'args_json' is a JSON string of the "
-    "plugin's expected args.\n"
+    "list included in this system prompt. 'args' is an object whose keys and "
+    "values are defined by that plugin's own arg schema (also shown in the "
+    "list). Pass {} for plugins with no required args.\n"
     "\n"
     "If a tool returns an error, read it and try again on your next turn "
     "with corrected inputs.\n"
@@ -21,7 +22,7 @@ STATIC_INSTRUCTIONS = (
     "Reply to the user with a one-sentence confirmation of what was added."
 )
 
-grid_item_builder_agent = Agent(
+plugin_agent = Agent(
     model,
     output_type=NativeOutput([add_visualization_from_plugin]),
     deps_type=ChatDeps,
@@ -33,6 +34,6 @@ grid_item_builder_agent = Agent(
     instructions=STATIC_INSTRUCTIONS,
 )
 
-@grid_item_builder_agent.instructions
+@plugin_agent.instructions
 def available_plugins(ctx: RunContext[ChatDeps]) -> str:
     return f"Available plugins on this server:\n{format_catalog_for_llm()}"
