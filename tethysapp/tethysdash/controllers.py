@@ -1318,6 +1318,8 @@ def chat_message(request):
 
     try:
         from asgiref.sync import async_to_sync
+        from tethysapp.tethysdash.chat.actions import commit_proposal
+        from tethysapp.tethysdash.chat.pending import is_confirmation, pop_pending
         from tethysapp.tethysdash.chat.router_agent import router_agent
         from tethysapp.tethysdash.chat.streaming import emit_progress
         from tethysapp.tethysdash.chat.validation import ChatDeps
@@ -1326,6 +1328,29 @@ def chat_message(request):
             {"error": f"Chat backend not installed: {e}"},
             status=503,
         )
+
+    # Approval gate: if the prompt is a bare confirmation ("yes", "confirm",
+    # etc.) AND there's a pending proposal for this chat_id, commit it
+    # directly without invoking the LLM router. Any non-confirmation prompt
+    # falls through to the normal router flow (which may generate a fresh
+    # proposal, replacing the stashed one).
+    if chat_id and is_confirmation(prompt):
+        proposal = pop_pending(chat_id)
+        if proposal is not None:
+            try:
+                message = commit_proposal(request.user, proposal)
+                emit_progress(chat_id, message)
+                return JsonResponse(
+                    {"text": message, "dashboard_id_used": dashboard_id}
+                )
+            except Exception as e:
+                import traceback
+                print(
+                    f"\n[chat_message] commit failed: {type(e).__name__}: {e}\n"
+                    f"Proposal: {proposal!r}\n{traceback.format_exc()}"
+                )
+                err = _get_error_message(e, "Failed to commit the proposal.")
+                return JsonResponse({"error": err}, status=503)
 
     deps = ChatDeps(
         user=request.user,

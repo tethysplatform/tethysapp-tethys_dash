@@ -6,10 +6,9 @@ from typing import Any
 from pydantic_ai import RunContext, ModelRetry
 
 from tethysapp.tethysdash.model import get_dashboards, update_named_dashboard
-from .plugins import format_catalog_for_llm, get_plugin
-from .streaming import emit_progress
-from .validation import ChatDeps
-
+from ..plugins import format_catalog_for_llm, get_plugin
+from ..streaming import emit_progress
+from ..validation import ChatDeps
 
 def add_visualization_from_plugin(
     ctx: RunContext[ChatDeps],
