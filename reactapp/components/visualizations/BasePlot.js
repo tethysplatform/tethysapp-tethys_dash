@@ -388,6 +388,14 @@ const BasePlot = ({
         : [],
     [subplotToggleEnabled, data, layout, subplotLabels],
   );
+  // Only toggleable panes are offered in the control. Non-toggleable panes
+  // (e.g. an unlabeled go.Table footer) stay in `panes` — so they keep their
+  // own reserved band and are never grouped with a cartesian pane — but they
+  // are always visible and never appear as a checkbox.
+  const toggleablePanes = useMemo(
+    () => panes.filter((p) => p.toggleable),
+    [panes],
+  );
   const paneIdsKey = panes.map((p) => p.id).join("|");
   const [visiblePaneIds, setVisiblePaneIds] = useState(() =>
     panes.map((p) => p.id),
@@ -430,13 +438,18 @@ const BasePlot = ({
         if (checked) {
           next.add(paneId);
         } else {
-          if (prev.length <= 1) return prev; // keep at least one pane visible
+          // Keep at least one TOGGLEABLE pane visible. Counting only toggleable
+          // panes means an always-visible footer (e.g. a go.Table) can't stand
+          // in for the last subplot and let every heatmap be hidden.
+          const toggleableIds = new Set(toggleablePanes.map((p) => p.id));
+          const visibleToggleable = prev.filter((id) => toggleableIds.has(id));
+          if (visibleToggleable.length <= 1) return prev;
           next.delete(paneId);
         }
         return panes.map((p) => p.id).filter((id) => next.has(id));
       });
     },
-    [panes],
+    [panes, toggleablePanes],
   );
 
   // istanbul ignore next - functons tested separately, this is just cleanup
@@ -543,7 +556,7 @@ const BasePlot = ({
       />
       {subplotToggleEnabled && (
         <SubplotToggleControl
-          panes={panes}
+          panes={toggleablePanes}
           visiblePaneIds={visiblePaneIds}
           onToggle={handleSubplotToggle}
         />

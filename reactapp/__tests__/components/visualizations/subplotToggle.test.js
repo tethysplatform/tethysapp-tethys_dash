@@ -68,6 +68,35 @@ const grid2x2 = () => ({
   },
 });
 
+// Two vertically-stacked heatmaps (shared x-domain) + a go.Table footer that
+// positions itself with its own `domain`, mirroring the CW3E "MRR" figure.
+const verticalStackWithTable = () => ({
+  data: [
+    { name: "Reflectivity", type: "heatmap", xaxis: "x", yaxis: "y" }, // 0
+    { name: "Vertical Velocity", type: "heatmap", xaxis: "x", yaxis: "y3" }, // 1
+    {
+      name: "MRR Table",
+      type: "table",
+      domain: { x: [0, 1], y: [0, 0.16] }, // footer band
+      header: {},
+      cells: {},
+    }, // 2
+  ],
+  layout: {
+    xaxis: { domain: [0, 1], anchor: "y" },
+    yaxis: {
+      domain: [0.63, 1.0],
+      anchor: "x",
+      title: { text: "Reflectivity" },
+    },
+    yaxis3: {
+      domain: [0.25, 0.6],
+      anchor: "x",
+      title: { text: "Vertical Velocity" },
+    },
+  },
+});
+
 // --- Tests ---------------------------------------------------------------
 
 describe("axis ref helpers", () => {
@@ -367,6 +396,118 @@ describe("applySubplotToggle", () => {
   });
 });
 
+describe("domain-based traces (go.Table etc.)", () => {
+  it("classifies a go.Table as its own non-cartesian pane with the trace's domain", () => {
+    const { data, layout } = verticalStackWithTable();
+    const panes = derivePanes(data, layout);
+    expect(panes).toHaveLength(3);
+
+    const table = panes.find((p) => p.kind === "nonCartesian");
+    expect(table).toBeDefined();
+    // Its own pane — not grouped with the row-1 Reflectivity heatmap.
+    expect(table.traceIndices).toEqual([2]);
+    expect(table.id).toBe("np:domain:table:2");
+    // Rect read from the trace's own `domain`, not from `layout`.
+    expect(table.rect.y).toEqual([0, 0.16]);
+    // The Reflectivity pane keeps only its own trace.
+    const reflectivity = panes.find((p) => p.primaryYKey === "yaxis");
+    expect(reflectivity.traceIndices).toEqual([0]);
+  });
+
+  it("does not offer an unlabeled domain pane as a toggle, but labeled ones are", () => {
+    const { data, layout } = verticalStackWithTable();
+    const unlabeled = derivePanes(data, layout).find(
+      (p) => p.kind === "nonCartesian",
+    );
+    expect(unlabeled.toggleable).toBe(false);
+    // Cartesian panes stay toggleable.
+    expect(
+      derivePanes(data, layout)
+        .filter((p) => p.kind === "cartesian")
+        .every((p) => p.toggleable),
+    ).toBe(true);
+
+    // Labelled by trace type...
+    const byType = derivePanes(data, layout, {
+      labels: { table: "MRR Table" },
+    }).find((p) => p.kind === "nonCartesian");
+    expect(byType.toggleable).toBe(true);
+    expect(byType.label).toBe("MRR Table");
+
+    // ...or by pane id.
+    const byId = derivePanes(data, layout, {
+      labels: { "domain:table:2": "Footer" },
+    }).find((p) => p.kind === "nonCartesian");
+    expect(byId.toggleable).toBe(true);
+    expect(byId.label).toBe("Footer");
+  });
+
+  it("scene/geo panes stay toggleable regardless of labels", () => {
+    const panes = derivePanes([
+      { type: "scatter3d", scene: "scene" },
+      { type: "scattergeo", geo: "geo2" },
+    ]);
+    expect(panes.every((p) => p.toggleable)).toBe(true);
+  });
+
+  it("still classifies the cartesian stack as vertical, ignoring the table", () => {
+    const { data, layout } = verticalStackWithTable();
+    expect(classifyArrangement(derivePanes(data, layout))).toBe("vertical");
+  });
+
+  it("reflows only within the cartesian envelope, preserving the table band", () => {
+    const { data, layout } = verticalStackWithTable();
+    const panes = derivePanes(data, layout);
+    const reflectivity = panes.find((p) => p.primaryYKey === "yaxis");
+    const table = panes.find((p) => p.kind === "nonCartesian");
+    const tableTop = table.rect.y[1]; // 0.16
+
+    // Hide Vertical Velocity; keep Reflectivity (+ the always-visible table).
+    const domains = reflowDomains(
+      panes,
+      [reflectivity.id, table.id],
+      "vertical",
+    );
+    // The lone visible heatmap fills the cartesian envelope [0.25, 1.0], NOT
+    // [0, 1] — its bottom stays above the table band.
+    expect(domains.yaxis[0]).toBeCloseTo(0.25, 6);
+    expect(domains.yaxis[1]).toBeCloseTo(1.0, 6);
+    expect(domains.yaxis[0]).toBeGreaterThanOrEqual(tableTop);
+  });
+
+  it("keeps the table visible and unoverlapped when a heatmap is toggled off", () => {
+    const { data, layout } = verticalStackWithTable();
+    const panes = derivePanes(data, layout);
+    const reflectivity = panes.find((p) => p.primaryYKey === "yaxis");
+    const table = panes.find((p) => p.kind === "nonCartesian");
+
+    const out = applySubplotToggle(data, layout, [reflectivity.id, table.id]);
+    // Vertical Velocity hidden, Reflectivity + table still visible.
+    expect(out.data[1].visible).toBe(false);
+    expect(out.data[0].visible).toBe(true);
+    expect(out.data[2].visible).not.toBe(false); // table trace untouched
+    // Reflectivity expanded but not over the table.
+    expect(out.layout.yaxis.domain[0]).toBeCloseTo(0.25, 6);
+    expect(out.layout.yaxis.domain[0]).toBeGreaterThanOrEqual(table.rect.y[1]);
+  });
+
+  it("unions the bands of multiple domain traces", () => {
+    const data = [
+      { name: "H", type: "heatmap", xaxis: "x", yaxis: "y" },
+      { name: "T1", type: "table", domain: { x: [0, 0.5], y: [0, 0.15] } },
+      { name: "T2", type: "table", domain: { x: [0.5, 1], y: [0, 0.15] } },
+    ];
+    const layout = { xaxis: { domain: [0, 1] }, yaxis: { domain: [0.25, 1] } };
+    const panes = derivePanes(data, layout);
+    const tables = panes.filter((p) => p.kind === "nonCartesian");
+    expect(tables).toHaveLength(2); // distinct panes, distinct ids
+    expect(tables.map((p) => p.id)).toEqual([
+      "np:domain:table:1",
+      "np:domain:table:2",
+    ]);
+  });
+});
+
 describe("annotation / shape / image association", () => {
   // verticalStackWithOverlays + layout items anchored various ways.
   const withItems = () => {
@@ -524,6 +665,9 @@ describe("branch coverage", () => {
   });
 
   it("reflowDomains splits evenly when bands sum to ~0 (lines 287-290)", () => {
+    // Zero-width bands => zero-width cartesian envelope, so the even-split
+    // branch runs but there is no space to distribute; both collapse to the
+    // envelope point (here 0).
     const panes = [
       { id: "a", kind: "cartesian", primaryYKey: "yaxis", rect: { y: [0, 0] } },
       {
@@ -534,8 +678,8 @@ describe("branch coverage", () => {
       },
     ];
     const out = reflowDomains(panes, ["a", "b"], "vertical");
-    expect(out.yaxis).toEqual([0, 0.5]);
-    expect(out.yaxis3).toEqual([0.5, 1]);
+    expect(out.yaxis).toEqual([0, 0]);
+    expect(out.yaxis3).toEqual([0, 0]);
   });
 
   it("associateItemToPane prefers the x-axis for a horizontal strip (line 333)", () => {
