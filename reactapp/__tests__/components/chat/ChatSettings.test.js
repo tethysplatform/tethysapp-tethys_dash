@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import ChatSettings from "components/chat/ChatSettings";
+import ChatSettings from "components/chatbot/ChatSettings";
 import { AppContext } from "components/contexts/Contexts";
 import appAPI from "services/api/app";
 
