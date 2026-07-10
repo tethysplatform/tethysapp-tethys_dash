@@ -35,7 +35,7 @@ const XButton = styled.button`
   margin-right: 4px;
 `;
 
-const AndLabel = styled.span`
+const AndLabel = styled.button`
   font-weight: 600;
   font-size: 12px;
   color: #555;
@@ -43,6 +43,11 @@ const AndLabel = styled.span`
   border: 1px solid #ccc;
   border-radius: 4px;
   background: #eef;
+  cursor: pointer;
+  &:hover {
+    background: #dde;
+    border-color: #99a;
+  }
 `;
 
 const AddConditionButton = styled.button`
@@ -171,11 +176,18 @@ const CONDITION_OPTIONS = [
   { value: "<=", label: "≤" },
   { value: ">", label: ">" },
   { value: ">=", label: "≥" },
+  { value: "in", label: "is in" },
+  { value: "notIn", label: "is not in" },
   { value: "isNull", label: "is null/empty" },
   { value: "isNotNull", label: "is not null/empty" },
 ];
 
 const VALUELESS_CONDITIONS = ["isNull", "isNotNull"];
+
+// List operators take a comma-separated list of literals; a field reference
+// as the comparison value makes no sense for them, so the value source
+// selector is hidden and the value is always a plain literal string.
+const LIST_CONDITIONS = ["in", "notIn"];
 
 const VALUE_SOURCE_OPTIONS = [
   { value: "literal", label: "Literal" },
@@ -187,6 +199,7 @@ const RULE_METADATA_KEYS = [
   "conditionType",
   "conditionValue",
   "conditionValueIsField",
+  "conditionCombinator",
   "conditions",
   "geometryType",
   "iconUrl",
@@ -814,6 +827,7 @@ function ConditionRow({
   onChange,
 }) {
   const valueless = VALUELESS_CONDITIONS.includes(type);
+  const isList = LIST_CONDITIONS.includes(type);
   const source = valueIsField ? "field" : "literal";
 
   const emit = (next) =>
@@ -845,7 +859,17 @@ function ConditionRow({
         creatable={false}
         divProps={{ style: { marginBottom: 0 } }}
       />
-      {!valueless && (
+      {!valueless && isList && (
+        <NormalInput
+          label="Values"
+          value={value || ""}
+          type="text"
+          placeholder="0, 36, 42"
+          onChange={(e) => emit({ value: e.target.value })}
+          labelProps={{ style: { marginBottom: 0 } }}
+        />
+      )}
+      {!valueless && !isList && (
         <>
           <DataSelect
             label="Value Source"
@@ -905,26 +929,29 @@ const RuleConditionEditor = ({
   const conditionValue = rule.conditionValue || "";
   const ruleName = rule.name || "";
   const extraConditions = rule.conditions || [];
+  const combinator = rule.conditionCombinator === "OR" ? "OR" : "AND";
 
   const updateFirstCondition = (next) => {
     const valueless = VALUELESS_CONDITIONS.includes(next.type);
+    const isList = LIST_CONDITIONS.includes(next.type);
     onChange({
       ...rule,
       conditionField: next.field,
       conditionType: next.type,
       conditionValue: valueless ? "" : next.value,
-      conditionValueIsField: valueless ? false : !!next.valueIsField,
+      conditionValueIsField: valueless || isList ? false : !!next.valueIsField,
     });
   };
 
   const updateExtraCondition = (i, next) => {
     const valueless = VALUELESS_CONDITIONS.includes(next.type);
+    const isList = LIST_CONDITIONS.includes(next.type);
     const conditions = [...extraConditions];
     conditions[i] = {
       field: next.field,
       type: next.type,
       value: valueless ? "" : next.value,
-      valueIsField: valueless ? false : !!next.valueIsField,
+      valueIsField: valueless || isList ? false : !!next.valueIsField,
     };
     onChange({ ...rule, conditions });
   };
@@ -935,6 +962,13 @@ const RuleConditionEditor = ({
       { field: "", type: "=", value: "" },
     ];
     onChange({ ...rule, conditions });
+  };
+
+  const toggleCombinator = () => {
+    onChange({
+      ...rule,
+      conditionCombinator: combinator === "OR" ? "AND" : "OR",
+    });
   };
 
   const removeExtraCondition = (i) => {
@@ -982,7 +1016,14 @@ const RuleConditionEditor = ({
         </ConditionRowWrapper>
         {extraConditions.map((c, i) => (
           <ConditionRowWrapper key={i}>
-            <AndLabel>AND</AndLabel>
+            <AndLabel
+              type="button"
+              onClick={toggleCombinator}
+              aria-label={`Toggle match logic, currently ${combinator}`}
+              title="Click to toggle between AND and OR"
+            >
+              {combinator}
+            </AndLabel>
             <ConditionRow
               field={c.field || ""}
               type={c.type || "="}
@@ -1006,9 +1047,9 @@ const RuleConditionEditor = ({
           <AddConditionButton
             type="button"
             onClick={addExtraCondition}
-            aria-label="Add AND condition"
+            aria-label="Add condition"
           >
-            + AND condition
+            + condition
           </AddConditionButton>
         </ConditionRowWrapper>
       </Section>

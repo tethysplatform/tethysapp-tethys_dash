@@ -167,6 +167,7 @@ describe("isPreset", () => {
   it("returns false for dates, relative inputs, and variables", () => {
     expect(isPreset("2025-08-15T09:37:00")).toBe(false);
     expect(isPreset("now-1D")).toBe(false);
+    // eslint-disable-next-line
     expect(isPreset("${variable}")).toBe(false);
     expect(isPreset("")).toBe(false);
   });

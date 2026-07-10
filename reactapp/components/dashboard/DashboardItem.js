@@ -67,10 +67,10 @@ const StyledDiv = styled.div`
     props.$fillViewport &&
     css`
       position: fixed;
-      top: var(--ts-header-height);
+      top: calc(${props.$fillOffset});
       left: 0;
       width: 100vw;
-      height: calc(100vh - (${props.$fillSubtract}));
+      height: calc(100vh - (${props.$fillOffset}));
       z-index: 1020;
     `}
 `;
@@ -376,8 +376,11 @@ const DashboardItem = () => {
 
   const fillViewportActive =
     fillViewportRequested && isFirstFillItem && !isEditing;
-  // The tab bar (44px) is shown in view mode only when more than one tab exists.
-  const fillSubtract =
+  // Offset below the header, plus the tab bar (44px) when it is shown — which in
+  // view mode is only when more than one tab exists. Used for both the top edge
+  // (so the fill starts below the tab bar) and the height (so it does not
+  // overflow the bottom).
+  const fillOffset =
     tabs.length > 1
       ? "var(--ts-header-height) + 44px"
       : "var(--ts-header-height)";
@@ -519,7 +522,7 @@ const DashboardItem = () => {
         $backgroundColorProps={gridItemStyling?.backgroundColor}
         $boxShadowProps={gridItemStyling?.boxShadow}
         $fillViewport={fillViewportActive}
-        $fillSubtract={fillSubtract}
+        $fillOffset={fillOffset}
         aria-label="gridItemDiv"
         className="no-caret"
       >

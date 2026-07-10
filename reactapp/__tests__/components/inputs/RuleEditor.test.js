@@ -1084,7 +1084,7 @@ describe("RuleEditor", () => {
     );
   });
 
-  it("adds an extra AND condition when the + AND condition button is clicked", async () => {
+  it("adds an extra condition when the + condition button is clicked", async () => {
     const mockOnChange = jest.fn();
 
     render(
@@ -1100,7 +1100,7 @@ describe("RuleEditor", () => {
     );
 
     const addBtn = screen.getByRole("button", {
-      name: /add and condition/i,
+      name: /add condition/i,
     });
     fireEvent.click(addBtn);
 
@@ -1129,6 +1129,113 @@ describe("RuleEditor", () => {
         { field: "", type: "isNull", value: "", valueIsField: false },
       ],
     });
+  });
+
+  it("shows the AND/OR toggle only when a rule has extra conditions", async () => {
+    const { unmount } = render(
+      <TestingComponent
+        initialRule={{
+          geometryType: "point",
+          conditionField: "type",
+          conditionType: "=",
+          conditionValue: "gage",
+        }}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: /toggle match logic/i }),
+    ).not.toBeInTheDocument();
+    unmount();
+
+    render(
+      <TestingComponent
+        initialRule={{
+          geometryType: "point",
+          conditionField: "type",
+          conditionType: "=",
+          conditionValue: "gage",
+          conditions: [{ field: "active", type: "=", value: "true" }],
+        }}
+      />,
+    );
+
+    const toggle = screen.getByRole("button", { name: /toggle match logic/i });
+    expect(toggle).toBeInTheDocument();
+    expect(toggle).toHaveTextContent("AND");
+  });
+
+  it("toggles conditionCombinator when the AND/OR label is clicked", async () => {
+    const mockOnChange = jest.fn();
+
+    render(
+      <TestingComponent
+        initialRule={{
+          geometryType: "point",
+          conditionField: "type",
+          conditionType: "=",
+          conditionValue: "gage",
+          conditions: [{ field: "active", type: "=", value: "true" }],
+        }}
+        onRuleChange={mockOnChange}
+      />,
+    );
+
+    // Default is AND; clicking flips to OR.
+    fireEvent.click(
+      screen.getByRole("button", { name: /toggle match logic/i }),
+    );
+    expect(mockOnChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ conditionCombinator: "OR" }),
+    );
+
+    // Now showing OR; clicking flips back to AND.
+    const toggle = screen.getByRole("button", { name: /toggle match logic/i });
+    expect(toggle).toHaveTextContent("OR");
+    fireEvent.click(toggle);
+    expect(mockOnChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ conditionCombinator: "AND" }),
+    );
+  });
+
+  it("uses a list value input and clears valueIsField for the 'is in' operator", async () => {
+    const mockOnChange = jest.fn();
+
+    render(
+      <TestingComponent
+        initialRule={{
+          geometryType: "point",
+          conditionField: "buildCat",
+          conditionType: "=",
+          conditionValue: "",
+          conditionValueIsField: true,
+        }}
+        onRuleChange={mockOnChange}
+      />,
+    );
+
+    const condSelect = screen.getByRole("combobox", { name: /^Condition$/i });
+    await selectEvent.select(condSelect, "is in");
+
+    expect(mockOnChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        conditionType: "in",
+        conditionValueIsField: false,
+      }),
+    );
+
+    // Value Source selector is hidden; a plain list input is shown instead.
+    expect(screen.queryByLabelText(/valuesource/i)).not.toBeInTheDocument();
+    const listInput = screen.getByLabelText("Values Input");
+    fireEvent.change(listInput, { target: { value: "0, 36, 42" } });
+
+    expect(mockOnChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        conditionType: "in",
+        conditionValue: "0, 36, 42",
+        conditionValueIsField: false,
+      }),
+    );
   });
 
   it("hides the Value input when condition is isNull or isNotNull", async () => {

@@ -641,3 +641,37 @@ test("StylePane calls getStyleFields for URL-based GeoJSON (no early bail-out)",
 
   getStyleFieldsSpy.mockRestore();
 });
+
+test("StylePane round-trips conditionCombinator and 'in' operator rules", async () => {
+  const combinatorStyle = {
+    rules: [
+      {
+        geometryType: "point",
+        conditionCombinator: "OR",
+        conditionField: "BuildCat",
+        conditionType: "in",
+        conditionValue: "0, 36, 42",
+        conditions: [{ field: "risk", type: "=", value: "high" }],
+        fill: "#ff0000",
+      },
+    ],
+    default: {},
+  };
+
+  render(<TestingComponent sourceProps={{ type: "GeoJSON" }} />);
+  const textArea = screen.getByLabelText("style-text-area");
+  fireEvent.change(textArea, {
+    target: { value: JSON.stringify(combinatorStyle) },
+  });
+
+  // Switch to rules mode; the rule (including the new fields) must survive
+  // the parse -> state -> re-serialize round-trip unchanged.
+  const rulesRadio = await screen.findByLabelText("Rule-based Editor");
+  await userEvent.click(rulesRadio);
+
+  await waitFor(() => {
+    expect(JSON.parse(screen.getByTestId("style").textContent)).toStrictEqual(
+      combinatorStyle,
+    );
+  });
+});

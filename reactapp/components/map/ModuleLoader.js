@@ -417,12 +417,26 @@ export function matchesCondition(featureValue, type, conditionValue) {
     return a !== null && a !== undefined && a !== "";
   }
 
-  const b =
-    typeof conditionValue === "string" && !isNaN(conditionValue)
-      ? Number(conditionValue)
-      : conditionValue;
+  const coerce = (v) => (typeof v === "string" && !isNaN(v) ? Number(v) : v);
 
-  const av = typeof a === "string" && !isNaN(a) ? Number(a) : a;
+  const av = coerce(a);
+
+  // List membership: conditionValue is a comma-separated list of literals.
+  if (type === "in" || type === "notIn") {
+    const list =
+      typeof conditionValue === "string"
+        ? conditionValue
+            .split(",")
+            .map((s) => s.trim())
+            .filter((s) => s !== "")
+            .map(coerce)
+        : [];
+    if (list.length === 0) return false;
+    const found = list.includes(av);
+    return type === "in" ? found : !found;
+  }
+
+  const b = coerce(conditionValue);
 
   switch (type) {
     case "=":
@@ -492,7 +506,10 @@ export function ruleMatches(rule, properties) {
 
   if (conditions.length === 0) return false;
 
-  return conditions.every((c) => evaluateCondition(c, properties));
+  const combinator = rule.conditionCombinator === "OR" ? "OR" : "AND";
+  return combinator === "OR"
+    ? conditions.some((c) => evaluateCondition(c, properties))
+    : conditions.every((c) => evaluateCondition(c, properties));
 }
 
 export function resolveSize(feature, rules, defaultSize) {
