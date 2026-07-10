@@ -123,14 +123,35 @@ const appAPI = {
     }
     return jsonData;
   },
-  sendChatBotMessage: async ({ prompt, dashboardId, chatId, csrf }) => {
+  sendChatBotMessage: async ({ prompt, dashboardId, chatId, history, csrf }) => {
     return await apiClient.post(
       `${APP_ROOT_URL}chat/message/`,
-      { prompt, dashboard_id: dashboardId, chat_id: chatId },
+      {
+        prompt,
+        dashboard_id: dashboardId,
+        chat_id: chatId,
+        history: history ?? [],
+      },
       { headers: { "x-csrftoken": csrf } },
     );
-  }
-
+  },
+  getChatSettings: async () => {
+    return await apiClient.get(`${APP_ROOT_URL}chat/settings/`);
+  },
+  // NOTE: apiKey transits this request only; the backend stores it
+  // encrypted and never returns it. Do not cache or log it client-side.
+  saveChatSettings: async ({ provider, modelName, apiKey, clearKey, csrf }) => {
+    return await apiClient.post(
+      `${APP_ROOT_URL}chat/settings/`,
+      {
+        provider,
+        model_name: modelName,
+        api_key: apiKey || "",
+        clear_key: Boolean(clearKey),
+      },
+      { headers: { "x-csrftoken": csrf } },
+    );
+  },
 };
 
 export default appAPI;

@@ -1038,247 +1038,6 @@ def download_json(request, app_workspace):
         return JsonResponse({"success": False, "message": message})
 
 
-# ---------------------------------------------------------------------------
-# Chat agent - Python-native tool-use loop over plugin-contributed @tool
-# callables. Sourced from packages listed under AGENTS.PACKAGES in
-# portal_config.yaml's `settings:` block. See README "Chat agent" section.
-# ---------------------------------------------------------------------------
-
-DEFAULT_AGENT_MODEL = "qwen3:latest"
-
-
-def _resolve_agents_config() -> dict:
-    """Return the operator's AGENTS block as a dict (empty if unset)."""
-    raw = getattr(settings, "AGENTS", None)
-    return raw if isinstance(raw, dict) else {}
-
-
-def _resolve_agent_tool_packages():
-    """Return AGENTS.PACKAGES with a safe default.
-
-    When unset the agent comes up with zero tools - still callable, just
-    can't reach external data sources. Operators enable tools by adding
-    package names to ``AGENTS.PACKAGES`` in ``portal_config.yaml``'s
-    ``settings:`` block.
-    """
-    raw = _resolve_agents_config().get("PACKAGES")
-    if not raw:
-        return []
-    return [str(pkg).strip() for pkg in raw if str(pkg).strip()]
-
-
-def _resolve_default_model_entry() -> dict:
-    """Return the first AGENTS.MODELS entry as a dict (``{}`` if unset).
-
-    Each entry must be a mapping with at least a ``name:`` field and an
-    optional ``host:`` field (the LLM-backend URL). Per-model host lets
-    different models point at different backends (e.g. one local ollama,
-    one hosted endpoint) without a separate top-level setting.
-    """
-    models = _resolve_agents_config().get("MODELS") or []
-    first = models[0] if models else None
-    return first if isinstance(first, dict) else {}
-
-
-def _resolve_agent_model() -> str:
-    """First MODELS entry's ``name``; falls back to DEFAULT_AGENT_MODEL."""
-    name = _resolve_default_model_entry().get("name")
-    return str(name) if name else DEFAULT_AGENT_MODEL
-
-
-def _resolve_agent_host() -> str | None:
-    """First MODELS entry's ``host``; ``None`` if unset."""
-    host = _resolve_default_model_entry().get("host")
-    return str(host) if host else None
-
-
-def _build_agent_system_prompt() -> str:
-    """Return a system prompt that includes the available-plugins catalog.
-
-    Baking the plugin list into the system prompt saves one LLM round-trip
-    (the model doesn't have to call ``list_available_plugins`` separately
-    before its first action) and works for small models that drift on
-    multi-step discovery patterns.
-    """
-    try:
-        from tethysapp.tethysdash.chat import list_available_plugins
-        plugins_summary = list_available_plugins()
-    except Exception:  # never block the chat if plugin enumeration fails
-        plugins_summary = ""
-
-    base = (
-        "You are an assistant for TethysDash users. You can read data and "
-        "add visualization tiles to the user's active dashboard via the "
-        "available tools. When the user asks for a chart or map, use "
-        "add_visualization_from_plugin with the right `source` and a "
-        "JSON-encoded `args_json` matching the plugin's args schema."
-    )
-    if plugins_summary:
-        base += (
-            "\n\nVisualization plugins installed on this server:\n"
-            f"{plugins_summary}"
-        )
-    return base
-
-
-@controller(url="tethysdash/agent/chat", login_required=True)
-def chat_agent(request):
-    """
-    API controller for the Python-native chat agent.
-
-    Runs a single ReAct tool-use loop using @tool functions discovered from
-    the packages listed in ``settings.AGENTS.PACKAGES``. Gated on the
-    ``manage_visualizations`` permission (matches the chatbox sidebar's
-    editor/admin floor).
-
-    portal_config.yaml example::
-
-        settings:
-          AGENTS:
-            PACKAGES:
-              - tethysapp.tethysdash       # dashboard-manipulation tools
-              - geoglows_summit_example    # data-fetcher tools
-            MODELS:
-              - name: qwen3:latest
-                host: http://ollama:11434
-            MODE: single
-
-    Args:
-        request: Django HTTP request object with POST body containing:
-            - message: User prompt for the agent (required, non-empty)
-            - dashboard_id: Integer dashboard id the user is currently
-              viewing (optional). When present, tools like
-              ``add_visualization_from_plugin`` can mutate that dashboard.
-
-    Returns:
-        JsonResponse with:
-            - success: True + response: agent's final text +
-              dashboard_id_used: int (so the client knows whether to refetch)
-            - or success: False + message: error description
-    """
-    if not has_permission(request, "manage_visualizations"):
-        return JsonResponse(
-            {
-                "success": False,
-                "message": "User does not have permission to use the chat agent.",
-            },
-            status=403,
-        )
-
-    message = (request.POST.get("message") or "").strip()
-    if not message:
-        return JsonResponse(
-            {"success": False, "message": "Missing or empty 'message' field."},
-            status=400,
-        )
-
-    dashboard_id_raw = (request.POST.get("dashboard_id") or "").strip()
-    dashboard_id = None
-    if dashboard_id_raw:
-        try:
-            dashboard_id = int(dashboard_id_raw)
-        except ValueError:
-            return JsonResponse(
-                {
-                    "success": False,
-                    "message": (
-                        f"Invalid dashboard_id '{dashboard_id_raw}'; must be int."
-                    ),
-                },
-                status=400,
-            )
-
-    # Lazy imports keep the module importable even if tethys-agents
-    # somehow isn't installed in the environment
-    try:
-        from tethys_agents.discover import discover
-        from tethys_agents.react_agent import ReactAgent
-        from tethysapp.tethysdash.chat import current_dashboard
-    except ImportError as e:
-        return JsonResponse(
-            {
-                "success": False,
-                "message": f"Chat agent backend not installed: {e}",
-            },
-            status=503,
-        )
-
-    packages = _resolve_agent_tool_packages()
-    model = _resolve_agent_model()
-    # Per-model host (AGENTS.MODELS[0].host) wins over any pre-existing
-    # OLLAMA_HOST env var. The transport layer in tethys_agents._ollama
-    # reads OLLAMA_HOST from os.environ; setting it here is the seam.
-    host = _resolve_agent_host()
-    if host:
-        os.environ["OLLAMA_HOST"] = host
-    system_prompt = _build_agent_system_prompt()
-
-    # Set the dashboard contextvar BEFORE the agent runs so any tool calls
-    # inside agent.run() see the right user + dashboard for side effects.
-    # Setting to None when no dashboard_id is provided keeps the tools'
-    # "no active dashboard" guard intact.
-    ctx_value = (
-        {"user": request.user, "dashboard_id": dashboard_id}
-        if dashboard_id is not None
-        else None
-    )
-    token = current_dashboard.set(ctx_value)
-    try:
-        tools = discover(packages)
-        agent = ReactAgent(
-            tools=tools, model=model, system_prompt=system_prompt
-        )
-        response_text = agent.run(user_msg=message)
-
-        # ReactAgent.run() already pipes the trace through `graph-easy` (or
-        # falls back to DOT source) and prints it to the Django console. The
-        # UI only needs the final response text - no trace surfaced client-side.
-        return JsonResponse(
-            {
-                "success": True,
-                "response": response_text,
-                "dashboard_id_used": dashboard_id,
-            }
-        )
-    except ValueError as e:
-        # ReactAgent / tool validation rejected the request (e.g. empty
-        # message after sanitization, duplicate tool names in the
-        # constructor list). Dump a full traceback to the Django console
-        # so the operator can diagnose without re-running with a debugger.
-        import traceback
-        print(
-            f"\n[chat_agent] ValueError ({type(e).__name__}): {e}\n"
-            f"User message was: {message!r}\n"
-            f"Dashboard id: {dashboard_id}\n"
-            f"{traceback.format_exc()}"
-        )
-        return JsonResponse(
-            {"success": False, "message": str(e)},
-            status=400,
-        )
-    except Exception as e:
-        # Likewise: full traceback to the server console so the user can
-        # see exactly which layer failed (Ollama down, plugin crashed,
-        # tool persistence error, etc.) without a generic 503.
-        import traceback
-        print(
-            f"\n[chat_agent] {type(e).__name__}: {e}\n"
-            f"User message was: {message!r}\n"
-            f"Dashboard id: {dashboard_id}\n"
-            f"{traceback.format_exc()}"
-        )
-        err_msg = _get_error_message(
-            e, "Chat agent backend unavailable. Check server for logs."
-        )
-        return JsonResponse(
-            {"success": False, "message": err_msg},
-            status=503,
-        )
-    finally:
-        # Reset the contextvar so per-request state never leaks into the
-        # next request that lands on the same worker thread.
-        current_dashboard.reset(token)
-
 api_view(["POST"])
 @controller(url="tethysdash/chat/message", login_required=True)
 def chat_message(request):
@@ -1318,7 +1077,14 @@ def chat_message(request):
 
     try:
         from asgiref.sync import async_to_sync
-        from tethysapp.tethysdash.chat.router_agent import router_agent
+        from tethysapp.tethysdash.chat.config import (
+            ChatProviderError,
+            resolve_profile,
+        )
+        from tethysapp.tethysdash.chat.agents.router import (
+            ROUTER_CANDIDATES,
+            router_agent,
+        )
         from tethysapp.tethysdash.chat.streaming import emit_progress
         from tethysapp.tethysdash.chat.validation import ChatDeps
     except ImportError as e:
@@ -1327,15 +1093,30 @@ def chat_message(request):
             status=503,
         )
 
+    try:
+        profile = resolve_profile(request.user.username)
+    except ChatProviderError as e:
+        return JsonResponse({"text": str(e), "dashboard_id_used": dashboard_id})
+
+    from tethysapp.tethysdash.chat.history import sanitize_history
+
     deps = ChatDeps(
         user=request.user,
         dashboard_id=dashboard_id,
         original_prompt=prompt,
         chat_id=chat_id,
+        profile=profile,
+        history=sanitize_history(body.get("history")),
     )
     try:
         emit_progress(chat_id, "Understanding your request...")
-        result = async_to_sync(router_agent.run)(prompt, deps=deps)
+        result = async_to_sync(router_agent.run)(
+            prompt,
+            deps=deps,
+            model=profile.model,
+            model_settings=profile.model_settings,
+            output_type=profile.wrap_output(ROUTER_CANDIDATES),
+        )
         return JsonResponse({"text": result.output, "dashboard_id_used": dashboard_id})
     except Exception as e:
         import traceback
@@ -1347,3 +1128,60 @@ def chat_message(request):
         )
         err_msg = _get_error_message(e, "Chat backend error. Check server logs.")
         return JsonResponse({"error": err_msg}, status=503)
+
+
+api_view(["GET", "POST"])
+@controller(url="tethysdash/chat/settings", login_required=True)
+def chat_settings(request):
+    """Read/write the caller's chat LLM provider setting.
+
+    GET returns {provider, model_name, has_key} - the API key itself is
+    WRITE-ONLY and never appears in any response. POST accepts
+    {provider, model_name, api_key?, clear_key?}; an absent/empty
+    api_key leaves the stored key unchanged.
+    """
+    if not has_permission(request, "manage_visualizations"):
+        return JsonResponse(
+            {"error": "User does not have permission to use the chat."},
+            status=403,
+        )
+
+    from tethysapp.tethysdash.chat.config import encrypt_key
+    from tethysapp.tethysdash.model import (
+        get_chat_provider_setting,
+        upsert_chat_provider_setting,
+    )
+
+    if request.method == "GET":
+        row = get_chat_provider_setting(request.user.username) or {}
+        return JsonResponse({
+            "provider": row.get("provider", "local"),
+            "model_name": row.get("model_name") or "",
+            "has_key": bool(row.get("api_key_enc")),
+        })
+
+    try:
+        body = json.loads(request.body or b"{}")
+    except json.JSONDecodeError as exc:
+        return JsonResponse({"error": f"Invalid JSON body: {exc}"}, status=400)
+
+    provider = (body.get("provider") or "local").strip().lower()
+    if provider not in ("local", "anthropic", "openai"):
+        return JsonResponse({"error": f"Unknown provider {provider!r}."}, status=400)
+    model_name = (body.get("model_name") or "").strip() or None
+    api_key = (body.get("api_key") or "").strip()
+    clear_key = bool(body.get("clear_key"))
+
+    upsert_chat_provider_setting(
+        request.user.username,
+        provider,
+        model_name,
+        api_key_enc=encrypt_key(api_key) if api_key else ...,
+        clear_key=clear_key,
+    )
+    row = get_chat_provider_setting(request.user.username) or {}
+    return JsonResponse({
+        "provider": row.get("provider", "local"),
+        "model_name": row.get("model_name") or "",
+        "has_key": bool(row.get("api_key_enc")),
+    })

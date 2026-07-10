@@ -96,6 +96,14 @@ export function useChatState({ dashboardId }) {
       const chatId = crypto.randomUUID();
       activeChatIdRef.current = chatId;
 
+      // Last few completed turns, so the backend can resolve references
+      // like "the same id" against earlier messages. Captured BEFORE the
+      // new user message is appended.
+      const history = messages
+        .filter((m) => (m.text ?? "") !== "")
+        .slice(-6)
+        .map((m) => ({ role: m.role, text: m.text }));
+
       setError(null);
       setMessages((m) => [
         ...m,
@@ -108,6 +116,7 @@ export function useChatState({ dashboardId }) {
           prompt: text,
           dashboardId,
           chatId,
+          history,
           csrf,
         });
         setMessages((m) => {
@@ -123,7 +132,7 @@ export function useChatState({ dashboardId }) {
         activeChatIdRef.current = null;
       }
     },
-    [dashboardId, isLoading, csrf],
+    [dashboardId, isLoading, csrf, messages],
   );
 
   const clear = useCallback(() => {

@@ -2182,3 +2182,82 @@ def init_primary_db(engine, first_time, clean=True):
 
     if clean:
         cleanup_old_jsons()
+
+
+class ChatProviderSetting(Base):
+    """Per-user LLM provider selection for the chat agent.
+
+    ``api_key_enc`` is Fernet-encrypted (key derived from Django
+    SECRET_KEY) — see ``chat/config.py``. The plaintext key is never
+    stored, logged, or returned by any endpoint.
+    """
+
+    __tablename__ = "chat_provider_settings"
+
+    id = Column(Integer, primary_key=True)
+    username = Column(String, unique=True, nullable=False)
+    provider = Column(String, nullable=False, default="local")  # local|anthropic|openai
+    model_name = Column(String, nullable=True)
+    api_key_enc = Column(String, nullable=True)
+
+    def __repr__(self):  # never leak the key blob into logs
+        return f"<ChatProviderSetting user={self.username} provider={self.provider}>"
+
+
+def get_chat_provider_setting(username):
+    """Return {provider, model_name, api_key_enc} for a user, or None."""
+    from tethysapp.tethysdash.app import App
+
+    Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
+    session = Session()
+    try:
+        row = (
+            session.query(ChatProviderSetting)
+            .filter(ChatProviderSetting.username == username)
+            .first()
+        )
+        if row is None:
+            return None
+        return {
+            "provider": row.provider,
+            "model_name": row.model_name,
+            "api_key_enc": row.api_key_enc,
+        }
+    except (ProgrammingError, OperationalError):
+        # Table not migrated yet (pre-syncstores) — behave as "no
+        # setting": chat falls back to the local default profile.
+        return None
+    finally:
+        session.close()
+
+
+def upsert_chat_provider_setting(
+    username, provider, model_name, api_key_enc=..., clear_key=False
+):
+    """Create/update a user's provider setting.
+
+    ``api_key_enc=...`` (Ellipsis sentinel) means "leave the stored key
+    unchanged"; ``clear_key=True`` deletes it.
+    """
+    from tethysapp.tethysdash.app import App
+
+    Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
+    session = Session()
+    try:
+        row = (
+            session.query(ChatProviderSetting)
+            .filter(ChatProviderSetting.username == username)
+            .first()
+        )
+        if row is None:
+            row = ChatProviderSetting(username=username)
+            session.add(row)
+        row.provider = provider
+        row.model_name = model_name
+        if clear_key:
+            row.api_key_enc = None
+        elif api_key_enc is not ...:
+            row.api_key_enc = api_key_enc
+        session.commit()
+    finally:
+        session.close()

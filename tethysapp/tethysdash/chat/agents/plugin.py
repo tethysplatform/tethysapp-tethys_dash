@@ -1,9 +1,9 @@
 from pydantic_ai import Agent, ModelSettings, RunContext, NativeOutput
 
-from .config import model
-from .plugins import format_catalog_for_llm
-from .tools import add_visualization_from_plugin
-from .validation import ChatDeps
+from ..config import model
+from ..plugins import format_catalog_for_llm
+from ..tools import add_visualization_from_plugin
+from ..validation import ChatDeps
 
 
 STATIC_INSTRUCTIONS = (
@@ -22,14 +22,17 @@ STATIC_INSTRUCTIONS = (
     "Reply to the user with a one-sentence confirmation of what was added."
 )
 
+# Exported so run-time output overrides (per-provider NativeOutput vs
+# tool-based) can rewrap the same candidate list - see chat/config.py.
+PLUGIN_CANDIDATES = [add_visualization_from_plugin]
+
 plugin_agent = Agent(
     model,
-    output_type=NativeOutput([add_visualization_from_plugin]),
+    output_type=NativeOutput(PLUGIN_CANDIDATES),
     deps_type=ChatDeps,
     retries=3,
     model_settings=ModelSettings(
         max_tokens=400,
-        extra_body={"chat_template_kwargs": {"enable_thinking": False}},
     ),
     instructions=STATIC_INSTRUCTIONS,
 )
@@ -37,3 +40,9 @@ plugin_agent = Agent(
 @plugin_agent.instructions
 def available_plugins(ctx: RunContext[ChatDeps]) -> str:
     return f"Available plugins on this server:\n{format_catalog_for_llm()}"
+
+@plugin_agent.instructions
+def recent_conversation(ctx: RunContext[ChatDeps]) -> str:
+    from ..history import format_history_instruction
+
+    return format_history_instruction(ctx.deps.history)

@@ -4,9 +4,9 @@ These tools are discovered by tethys-agents via convention: any public,
 type-annotated function in `tethysapp.tethysdash.tools` becomes a tool the
 LLM can call. The two we ship are intentionally generic:
 
-* ``add_visualization_from_plugin(source, args_json)`` — works against any
+* ``add_visualization_from_plugin(source, args_json)`` - works against any
   intake-registered visualization plugin without per-plugin glue.
-* ``list_available_plugins()`` — surfaces the catalog the LLM should pick
+* ``list_available_plugins()`` - surfaces the catalog the LLM should pick
   ``source`` values from.
 
 Both rely on a ``contextvars.ContextVar`` (``current_dashboard``) that the
@@ -110,7 +110,7 @@ def test_add_visualization_appends_tile_to_first_tab_and_persists():
     and sends the full ``tabs`` structure to update_named_dashboard.
 
     Why ``tabs`` (not top-level ``gridItems``): update_named_dashboard
-    (model.py:801) only processes a known set of keys — ``name``,
+    (model.py:801) only processes a known set of keys - ``name``,
     ``description``, ``notes``, ``public``, ``unrestrictedPlacement``,
     ``permissions``, ``tabs``, ``image``. A top-level ``gridItems`` is
     silently ignored, which would make the tool a no-op even though it
@@ -241,7 +241,7 @@ def test_add_visualization_returns_error_when_dashboard_has_no_tabs():
 
 
 def test_list_available_plugins_skips_non_visualization_drivers():
-    """Generic intake drivers (csv, json, parquet, …) are filtered out."""
+    """Generic intake drivers (csv, json, parquet, ...) are filtered out."""
     from tethysapp.tethysdash.chat import list_available_plugins
 
     csv_driver = MagicMock(spec=[])  # no visualization_type / type attrs
@@ -274,8 +274,8 @@ def test_list_available_plugins_empty_registry():
 
 
 def test_list_available_plugins_handles_legacy_attribute_names():
-    """Plugins using short names (`type`, `args`, `description`) — per main's
-    TethysDashPlugin base — surface the same way as legacy `visualization_*`
+    """Plugins using short names (`type`, `args`, `description`) - per main's
+    TethysDashPlugin base - surface the same way as legacy `visualization_*`
     aliases."""
     from tethysapp.tethysdash.chat import list_available_plugins
 

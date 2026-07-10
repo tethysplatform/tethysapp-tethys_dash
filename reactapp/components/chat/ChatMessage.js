@@ -38,6 +38,37 @@ const Bubble = styled.div`
   p {
     margin: 0.35em 0;
   }
+  /* LLM answers arrive with arbitrary heading levels — render them at
+     chat-bubble scale instead of page scale. */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-weight: 600;
+    line-height: 1.3;
+    margin: 0.6em 0 0.25em;
+  }
+  h1 {
+    font-size: 1.05rem;
+  }
+  h2 {
+    font-size: 1rem;
+  }
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-size: 0.95rem;
+  }
+  li {
+    margin: 0.15em 0;
+  }
+  a {
+    color: #1c7ed6;
+    word-break: break-all;
+  }
 `;
 
 export default function ChatMessage({ role, text }) {

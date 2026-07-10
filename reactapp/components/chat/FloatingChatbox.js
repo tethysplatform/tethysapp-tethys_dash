@@ -1,6 +1,8 @@
 import { useState } from "react";
 import styled from "styled-components";
 import Chatbox from "./Chatbox";
+import ChatSettings from "./ChatSettings";
+import { FaRobot } from "react-icons/fa6";
 
 const Launcher = styled.button`
   position: fixed;
@@ -46,14 +48,24 @@ const Header = styled.div`
   font-weight: 600;
 `;
 
-const CloseBtn = styled.button`
+const HeaderButtons = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 2px;
+`;
+
+const IconBtn = styled.button`
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 1.4rem;
+  font-size: 1.1rem;
   color: #495057;
   padding: 0 4px;
   &:hover { color: #212529; }
+`;
+
+const CloseBtn = styled(IconBtn)`
+  font-size: 1.4rem;
 `;
 
 const Content = styled.div`
@@ -65,11 +77,12 @@ const Content = styled.div`
 
 export default function FloatingChatbox({ dashboardId }) {
   const [open, setOpen] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   if (!open) {
     return (
       <Launcher onClick={() => setOpen(true)} aria-label="Open chat">
-        Builder
+        <FaRobot /> Help
       </Launcher>
     );
   }
@@ -77,11 +90,24 @@ export default function FloatingChatbox({ dashboardId }) {
   return (
     <Panel>
       <Header>
-        <span>Chat</span>
-        <CloseBtn onClick={() => setOpen(false)} aria-label="Close chat">×</CloseBtn>
+        <span>{showSettings ? "Chat settings" : "Chat"}</span>
+        <HeaderButtons>
+          <IconBtn
+            onClick={() => setShowSettings((s) => !s)}
+            aria-label="Chat settings"
+            title="Provider settings"
+          >
+            ⚙
+          </IconBtn>
+          <CloseBtn onClick={() => setOpen(false)} aria-label="Close chat">×</CloseBtn>
+        </HeaderButtons>
       </Header>
       <Content>
-        <Chatbox dashboardId={dashboardId} />
+        {showSettings ? (
+          <ChatSettings onClose={() => setShowSettings(false)} />
+        ) : (
+          <Chatbox dashboardId={dashboardId} />
+        )}
       </Content>
     </Panel>
   );
