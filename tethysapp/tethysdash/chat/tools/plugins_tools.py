@@ -24,6 +24,16 @@ def add_visualization_from_plugin(
             plugins that require no arguments. Keys and value types are
             defined by the plugin's own arg schema.
     """
+    # Deterministic authorization gate - the router already hides this
+    # candidate from non-owners (UX steering), but the schema is not a
+    # security boundary; this check is. update_named_dashboard enforces
+    # editor/admin again at the model layer (defense in depth).
+    if not ctx.deps.can_add_visualizations:
+        return (
+            "Only the dashboard owner can add visualizations to this "
+            "dashboard."
+        )
+
     args = args or {}
     if not isinstance(args, dict):
         raise ModelRetry(

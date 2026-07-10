@@ -1082,7 +1082,7 @@ def chat_message(request):
             resolve_profile,
         )
         from tethysapp.tethysdash.chat.agents.router import (
-            ROUTER_CANDIDATES,
+            candidates_for,
             router_agent,
         )
         from tethysapp.tethysdash.chat.streaming import emit_progress
@@ -1091,6 +1091,17 @@ def chat_message(request):
         return JsonResponse(
             {"error": f"Chat backend not installed: {e}"},
             status=503,
+        )
+
+    # Ownership check: mutating chat actions (adding tiles) are gated to
+    # the dashboard owner. Computed server-side per request - never
+    # trusted from the frontend.
+    try:
+        dashboard_meta = get_dashboards(request.user, id=dashboard_id)
+        is_owner = dashboard_meta.get("owner") == request.user.username
+    except Exception:
+        return JsonResponse(
+            {"error": f"Dashboard {dashboard_id} not found."}, status=404
         )
 
     try:
@@ -1107,6 +1118,7 @@ def chat_message(request):
         chat_id=chat_id,
         profile=profile,
         history=sanitize_history(body.get("history")),
+        can_add_visualizations=is_owner,
     )
     try:
         emit_progress(chat_id, "Understanding your request...")
@@ -1115,7 +1127,7 @@ def chat_message(request):
             deps=deps,
             model=profile.model,
             model_settings=profile.model_settings,
-            output_type=profile.wrap_output(ROUTER_CANDIDATES),
+            output_type=profile.wrap_output(candidates_for(deps)),
         )
         return JsonResponse({"text": result.output, "dashboard_id_used": dashboard_id})
     except Exception as e:

@@ -90,6 +90,56 @@ ROUTER_CANDIDATES = [
     out_of_scope_reply,
 ]
 
+# Candidates that mutate the dashboard - available to the dashboard
+# OWNER only. Removing them from the per-run output schema is UX
+# steering (the model literally cannot select them); the authoritative
+# gate is the deterministic check inside the tool itself
+# (plugins_tools.add_visualization_from_plugin) plus the model layer's
+# own permission enforcement in update_named_dashboard.
+OWNER_ONLY_CANDIDATE_NAMES = {"add_visualization"}
+
+# One description per candidate, keyed by name, so the prose the model
+# reads always matches the schema it is given (a described-but-absent
+# candidate makes small models emit schema-invalid picks).
+_CANDIDATE_DESCRIPTIONS = {
+    # add vs docs have overlapping trigger words ("create", "add", "map") -
+    # each carries an explicit do-NOT clause pointing at the other, or the
+    # model fires the wrong one (mutual-exclusion pattern).
+    "add_visualization": (
+        "add_visualization: user COMMANDS adding a tile right now, giving "
+        "concrete values (e.g. 'add the forecast plugin for river 123'). "
+        "Do NOT use for questions - if the message asks HOW to do "
+        "something, use answer_docs_question."
+    ),
+    "answer_docs_question": (
+        "answer_docs_question: user asks a QUESTION about TethysDash - "
+        "how do I..., what is..., can I... This includes questions like "
+        "'how do I create a map?' - asking HOW is a documentation "
+        "question, NOT a command to add anything."
+    ),
+    "list_available_plugins": (
+        "list_available_plugins: user wants to KNOW what plugins exist."
+    ),
+    "out_of_scope_reply": "out_of_scope_reply: anything else.",
+}
+
+
+def candidates_for(deps: ChatDeps) -> list:
+    """The router candidates available to THIS request.
+
+    Owner-only candidates are dropped when the requester doesn't own
+    the dashboard. Used by the controller to build the per-run
+    output_type and by the dynamic instruction below, so schema and
+    prose can't drift.
+    """
+    if deps.can_add_visualizations:
+        return ROUTER_CANDIDATES
+    return [
+        c for c in ROUTER_CANDIDATES
+        if c.__name__ not in OWNER_ONLY_CANDIDATE_NAMES
+    ]
+
+
 router_agent = Agent(
     model,
     output_type=NativeOutput(ROUTER_CANDIDATES),
@@ -100,14 +150,27 @@ router_agent = Agent(
     ),
     instructions=(
         "You handle user requests about a TethysDash dashboard by producing "
-        "structured output that matches ONE of your available response schemas:\n"
-        "  - add_visualization: user wants to ADD a visualization tile.\n"
-        "  - answer_docs_question: user asks HOW or WHAT about TethysDash "
-        "features (how do I..., what is..., help with...).\n"
-        "  - list_available_plugins: user wants to KNOW what plugins exist.\n"
-        "  - out_of_scope_reply: anything else.\n"
+        "structured output that matches ONE of your available response "
+        "schemas, listed below."
     ),
 )
+
+
+@router_agent.instructions
+def available_actions(ctx: RunContext[ChatDeps]) -> str:
+    lines = [
+        f"  - {_CANDIDATE_DESCRIPTIONS[c.__name__]}"
+        for c in candidates_for(ctx.deps)
+    ]
+    note = ""
+    if not ctx.deps.can_add_visualizations:
+        note = (
+            "\nNote: this user is not the dashboard owner, so adding "
+            "visualizations is unavailable. If they ask to add one, use "
+            "out_of_scope_reply and explain that only the owner can add "
+            "visualizations."
+        )
+    return "Available response schemas:\n" + "\n".join(lines) + note
 
 
 @router_agent.instructions

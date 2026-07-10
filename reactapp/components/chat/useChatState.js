@@ -127,6 +127,11 @@ export function useChatState({ dashboardId }) {
         window.dispatchEvent(new Event("tethysdash:agent-dashboard-refetch"));
       } catch (e) {
         setError(e.message);
+        // Drop the in-flight assistant placeholder - otherwise the last
+        // WebSocket progress marker ("Looking up plugin...") is left
+        // standing as if it were a real reply, and persists to
+        // localStorage as fake history.
+        setMessages((m) => m.filter((msg) => msg.id !== chatId));
       } finally {
         setIsLoading(false);
         activeChatIdRef.current = null;
