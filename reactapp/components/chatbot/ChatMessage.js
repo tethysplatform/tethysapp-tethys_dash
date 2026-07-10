@@ -39,7 +39,7 @@ const Bubble = styled.div`
   p {
     margin: 0.35em 0;
   }
-  /* LLM answers arrive with arbitrary heading levels — render them at
+  /* LLM answers arrive with arbitrary heading levels - render them at
      chat-bubble scale instead of page scale. */
   h1,
   h2,

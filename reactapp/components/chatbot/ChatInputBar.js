@@ -50,8 +50,6 @@ export default function ChatInputBar({ onSend, disabled, draft }) {
   const inputRef = useRef(null);
 
   // Auto-grow: textareas don't track their content height natively.
-  // Collapse to auto first so the height also SHRINKS when lines are
-  // deleted; the CSS max-height caps growth and switches to scrolling.
   const autoResize = () => {
     const el = inputRef.current;
     if (!el) return;
