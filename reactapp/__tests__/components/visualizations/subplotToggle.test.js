@@ -5,6 +5,7 @@ import {
   derivePanes,
   classifyArrangement,
   reflowDomains,
+  reflowColorbar,
   applySubplotToggle,
   associateItemToPane,
 } from "components/visualizations/subplotToggle";
@@ -72,8 +73,22 @@ const grid2x2 = () => ({
 // positions itself with its own `domain`, mirroring the CW3E "MRR" figure.
 const verticalStackWithTable = () => ({
   data: [
-    { name: "Reflectivity", type: "heatmap", xaxis: "x", yaxis: "y" }, // 0
-    { name: "Vertical Velocity", type: "heatmap", xaxis: "x", yaxis: "y3" }, // 1
+    {
+      name: "Reflectivity",
+      type: "heatmap",
+      xaxis: "x",
+      yaxis: "y",
+      // Colorbar sized/positioned to the row-1 band [0.63, 1.0].
+      colorbar: { len: 0.37, y: 0.815, yanchor: "middle" },
+    }, // 0
+    {
+      name: "Vertical Velocity",
+      type: "heatmap",
+      xaxis: "x",
+      yaxis: "y3",
+      // Colorbar sized/positioned to the row-2 band [0.25, 0.6].
+      colorbar: { len: 0.35, y: 0.425, yanchor: "middle" },
+    }, // 1
     {
       name: "MRR Table",
       type: "table",
@@ -283,6 +298,63 @@ describe("reflowDomains", () => {
   });
 });
 
+describe("reflowColorbar", () => {
+  it("scales len and maps y for a per-subplot bar (middle anchor)", () => {
+    // Row-1 band [0.63, 1.0] (h 0.37) expands to the full envelope [0.25, 1.0].
+    const cb = { len: 0.37, y: 0.815, yanchor: "middle" };
+    const out = reflowColorbar(cb, [0.63, 1.0], [0.25, 1.0]);
+    expect(out.len).toBeCloseTo(0.75, 6); // fills the new band
+    expect(out.y).toBeCloseTo(0.625, 6); // recentred on [0.25, 1.0]
+    // Original untouched (new object).
+    expect(cb.len).toBe(0.37);
+  });
+
+  it("respects top and bottom anchors when testing containment", () => {
+    const top = reflowColorbar(
+      { len: 0.3, y: 1.0, yanchor: "top" }, // extent [0.7, 1.0]
+      [0.7, 1.0],
+      [0.5, 1.0],
+    );
+    expect(top.len).toBeCloseTo(0.5, 6); // 0.3 * (0.5 / 0.3) = 0.5
+    expect(top.y).toBeCloseTo(1.0, 6); // top edge maps to new top
+
+    const bottom = reflowColorbar(
+      { len: 0.3, y: 0.0, yanchor: "bottom" }, // extent [0, 0.3]
+      [0, 0.3],
+      [0, 0.6],
+    );
+    expect(bottom.len).toBeCloseTo(0.6, 6);
+    expect(bottom.y).toBeCloseTo(0.0, 6);
+  });
+
+  it("leaves a figure-wide shared bar alone (extent not within the band)", () => {
+    // Full-height bar (len 1, centred) doesn't belong to a 0.37-tall subplot.
+    expect(
+      reflowColorbar({ len: 1, y: 0.5 }, [0.63, 1.0], [0.25, 1.0]),
+    ).toBeNull();
+  });
+
+  it("ignores bars without both len and y, pixel lengths, and non-paper refs", () => {
+    expect(reflowColorbar({ len: 0.3 }, [0.63, 1], [0.25, 1])).toBeNull();
+    expect(reflowColorbar({ y: 0.8 }, [0.63, 1], [0.25, 1])).toBeNull();
+    expect(
+      reflowColorbar(
+        { len: 0.37, y: 0.815, lenmode: "pixels" },
+        [0.63, 1],
+        [0.25, 1],
+      ),
+    ).toBeNull();
+    expect(
+      reflowColorbar(
+        { len: 0.37, y: 0.815, yref: "container" },
+        [0.63, 1],
+        [0.25, 1],
+      ),
+    ).toBeNull();
+    expect(reflowColorbar(undefined, [0.63, 1], [0.25, 1])).toBeNull();
+  });
+});
+
 describe("applySubplotToggle", () => {
   it("is a no-op when all panes are visible", () => {
     const { data, layout } = verticalStackWithOverlays();
@@ -489,6 +561,18 @@ describe("domain-based traces (go.Table etc.)", () => {
     // Reflectivity expanded but not over the table.
     expect(out.layout.yaxis.domain[0]).toBeCloseTo(0.25, 6);
     expect(out.layout.yaxis.domain[0]).toBeGreaterThanOrEqual(table.rect.y[1]);
+    // The visible heatmap's colorbar grows to track the expanded band, and the
+    // table (no colorbar) is untouched.
+    expect(out.data[0].colorbar.len).toBeCloseTo(0.75, 6);
+    expect(out.data[0].colorbar.y).toBeCloseTo(0.625, 6);
+    expect(out.data[2].colorbar).toBeUndefined();
+  });
+
+  it("leaves colorbars untouched when the figure is not reflowed (all visible)", () => {
+    const { data, layout } = verticalStackWithTable();
+    const out = applySubplotToggle(data, layout, null);
+    expect(out.data).toBe(data); // pristine reference
+    expect(out.data[0].colorbar.len).toBe(0.37);
   });
 
   it("unions the bands of multiple domain traces", () => {

@@ -75,8 +75,20 @@ const figure = () => ({
 // own `domain` (mirrors the CW3E "MRR" figure).
 const figureWithTable = () => ({
   data: [
-    { name: "Reflectivity", type: "heatmap", xaxis: "x", yaxis: "y" }, // 0
-    { name: "Vertical Velocity", type: "heatmap", xaxis: "x", yaxis: "y3" }, // 1
+    {
+      name: "Reflectivity",
+      type: "heatmap",
+      xaxis: "x",
+      yaxis: "y",
+      colorbar: { len: 0.37, y: 0.815, yanchor: "middle" },
+    }, // 0
+    {
+      name: "Vertical Velocity",
+      type: "heatmap",
+      xaxis: "x",
+      yaxis: "y3",
+      colorbar: { len: 0.35, y: 0.425, yanchor: "middle" },
+    }, // 1
     {
       name: "MRR Table",
       type: "table",
@@ -238,6 +250,9 @@ describe("BasePlot subplot toggle", () => {
     // its bottom stays above the table band [0, 0.16] — no overlap.
     expect(layout.yaxis.domain[0]).toBeCloseTo(0.25, 6);
     expect(layout.yaxis.domain[0]).toBeGreaterThanOrEqual(0.16);
+    // Its colorbar grows to track the expanded band.
+    expect(data[0].colorbar.len).toBeCloseTo(0.75, 6);
+    expect(data[0].colorbar.y).toBeCloseTo(0.625, 6);
   });
 
   it("coexists with a vertical line without crashing", () => {

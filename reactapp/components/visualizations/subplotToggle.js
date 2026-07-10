@@ -369,6 +369,61 @@ export const reflowDomains = (panes, visibleIds, axis) => {
   return result;
 };
 
+// Tolerance for deciding a colorbar "belongs to" a pane's band (see
+// `reflowColorbar`). Loose enough to absorb the small overshoot plugins leave
+// between a colorbar and its subplot edge, tight enough to reject a
+// figure-wide shared bar.
+const CB_BAND_TOL = 0.02;
+
+/**
+ * The paper-y extent [lo, hi] a colorbar occupies, from its `len` (fraction
+ * mode), `y`, and `yanchor`. Returns null when `len`/`y` are not both explicit
+ * or the length is in pixels — in those cases the bar is not a rescalable
+ * per-subplot bar and must be left untouched.
+ */
+const colorbarYExtent = (cb) => {
+  if (typeof cb.len !== "number" || typeof cb.y !== "number") return null;
+  if (cb.lenmode === "pixels") return null; // absolute length: don't rescale
+  const anchor = cb.yanchor || "middle";
+  if (anchor === "top") return [cb.y - cb.len, cb.y];
+  if (anchor === "bottom") return [cb.y, cb.y + cb.len];
+  return [cb.y - cb.len / 2, cb.y + cb.len / 2]; // middle
+};
+
+/**
+ * Rescale/reposition a per-subplot colorbar (e.g. a heatmap's) so it tracks its
+ * pane's reflowed y-band. Vertical stacks only: a horizontal strip shares the
+ * y-domain, so colorbar length is unaffected by reflow.
+ *
+ * The colorbar's length scales with the band and its anchor `y` maps linearly
+ * from the old band into the new one, preserving the plugin's chosen alignment.
+ * Returns a NEW colorbar object, or null when the bar is not scoped to this
+ * pane (a figure-wide shared bar, a pixel-length bar, or one anchored to
+ * something other than the paper) and must be left untouched.
+ *
+ * @param {Object|undefined} cb - the trace's original `colorbar`
+ * @param {[number, number]} oldBand - the pane's original y-domain
+ * @param {[number, number]} newBand - the pane's reflowed y-domain
+ */
+export const reflowColorbar = (cb, oldBand, newBand) => {
+  if (!cb || typeof cb !== "object") return null;
+  if (cb.yref && cb.yref !== "paper") return null; // container-ref: out of scope
+  const extent = colorbarYExtent(cb);
+  if (!extent) return null;
+  const [o0, o1] = oldBand;
+  // Only touch a bar whose original extent sits within this pane's band; a
+  // figure-wide shared bar (extent ~[0,1]) is left alone.
+  if (extent[0] < o0 - CB_BAND_TOL || extent[1] > o1 + CB_BAND_TOL) return null;
+  const oldH = o1 - o0;
+  if (oldH < EPS) return null;
+  const scale = (newBand[1] - newBand[0]) / oldH;
+  return {
+    ...cb,
+    len: cb.len * scale,
+    y: newBand[0] + (cb.y - o0) * scale,
+  };
+};
+
 const cloneAxis = (layout, key, override) => ({
   ...(layout[key] || {}),
   ...override,
@@ -449,18 +504,55 @@ export const applySubplotToggle = (data, layout, visiblePaneIds, options) => {
 
   const isVisible = (p) => visibleSet.has(p.id);
 
-  // Per-trace visibility.
+  // Reflow (1-D arrangements only): compute the new base-axis domains up front
+  // so both the axis overrides and the colorbar reflow below can use them.
+  const reflowed = arrangement === "vertical" || arrangement === "horizontal";
+  const domains = reflowed
+    ? reflowDomains(
+        panes,
+        panes.filter(isVisible).map((p) => p.id),
+        arrangement,
+      )
+    : {};
+
+  // Per-trace colorbar overrides: a vertically-stacked heatmap's colorbar is
+  // sized/positioned to its subplot band, so when the band reflows the bar must
+  // be rescaled to keep tracking the (now larger) subplot — otherwise it stays
+  // at its original small height beside the expanded plot. Horizontal strips
+  // share the y-domain, so colorbar length is unaffected and left alone.
+  const traceColorbars = {};
+  if (arrangement === "vertical") {
+    panes.forEach((p) => {
+      if (p.kind !== "cartesian" || !isVisible(p)) return;
+      const newBand = domains[p.primaryYKey];
+      if (!newBand) return;
+      p.traceIndices.forEach((i) => {
+        const next = reflowColorbar(
+          data[i] && data[i].colorbar,
+          p.rect.y,
+          newBand,
+        );
+        if (next) traceColorbars[i] = next;
+      });
+    });
+  }
+
+  // Per-trace visibility (+ colorbar overrides).
   const traceVisible = {};
   panes.forEach((p) => {
     p.traceIndices.forEach((i) => {
       traceVisible[i] = isVisible(p);
     });
   });
-  const newData = data.map((t, i) =>
-    i in traceVisible && t.visible !== traceVisible[i]
-      ? { ...t, visible: traceVisible[i] }
-      : t,
-  );
+  const newData = data.map((t, i) => {
+    const flip = i in traceVisible && t.visible !== traceVisible[i];
+    const cb = traceColorbars[i];
+    if (!flip && !cb) return t;
+    const next = { ...t };
+    if (flip) next.visible = traceVisible[i];
+    if (cb) next.colorbar = cb;
+    return next;
+  });
 
   // Axis overrides: visibility for exclusive axes...
   const overrides = {};
@@ -472,10 +564,7 @@ export const applySubplotToggle = (data, layout, visiblePaneIds, options) => {
   });
 
   // ...and reflowed domains for visible panes (1-D arrangements only).
-  const reflowed = arrangement === "vertical" || arrangement === "horizontal";
   if (reflowed) {
-    const visibleIds = panes.filter(isVisible).map((p) => p.id);
-    const domains = reflowDomains(panes, visibleIds, arrangement);
     Object.entries(domains).forEach(([key, domain]) => {
       overrides[key] = { ...overrides[key], domain };
     });
