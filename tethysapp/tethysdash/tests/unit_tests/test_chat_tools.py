@@ -10,8 +10,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from pydantic_ai import ModelRetry
 
-from tethysapp.tethysdash.chat.tools import add_visualization_from_plugin
-from tethysapp.tethysdash.chat.validation import ChatDeps
+from tethysapp.tethysdash.chatbot.tools import add_visualization_from_plugin
+from tethysapp.tethysdash.chatbot.validation import ChatDeps
 
 
 @pytest.fixture(autouse=True)

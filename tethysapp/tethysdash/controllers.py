@@ -1077,16 +1077,16 @@ def chat_message(request):
 
     try:
         from asgiref.sync import async_to_sync
-        from tethysapp.tethysdash.chat.config import (
+        from tethysapp.tethysdash.chatbot.config import (
             ChatProviderError,
             resolve_profile,
         )
-        from tethysapp.tethysdash.chat.agents.router import (
+        from tethysapp.tethysdash.chatbot.agents.router import (
             candidates_for,
             router_agent,
         )
-        from tethysapp.tethysdash.chat.streaming import emit_progress
-        from tethysapp.tethysdash.chat.validation import ChatDeps
+        from tethysapp.tethysdash.chatbot.streaming import emit_progress
+        from tethysapp.tethysdash.chatbot.validation import ChatDeps
     except ImportError as e:
         return JsonResponse(
             {"error": f"Chat backend not installed: {e}"},
@@ -1109,7 +1109,7 @@ def chat_message(request):
     except ChatProviderError as e:
         return JsonResponse({"text": str(e), "dashboard_id_used": dashboard_id})
 
-    from tethysapp.tethysdash.chat.history import sanitize_history
+    from tethysapp.tethysdash.chatbot.history import sanitize_history
 
     deps = ChatDeps(
         user=request.user,
@@ -1158,7 +1158,7 @@ def chat_settings(request):
             status=403,
         )
 
-    from tethysapp.tethysdash.chat.config import encrypt_key
+    from tethysapp.tethysdash.chatbot.config import encrypt_key
     from tethysapp.tethysdash.model import (
         get_chat_provider_setting,
         upsert_chat_provider_setting,

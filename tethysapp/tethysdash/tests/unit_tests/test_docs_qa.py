@@ -5,14 +5,14 @@ fixture is overridden with a no-op below).
 """
 import pytest
 
-from tethysapp.tethysdash.chat.docs import (
+from tethysapp.tethysdash.chatbot.docs import (
     DOCS_BASE_URL,
     DOCS_ROOT,
     doc_url,
     retrieve_context,
     score_docs,
 )
-from tethysapp.tethysdash.chat.agents.router import ROUTER_CANDIDATES
+from tethysapp.tethysdash.chatbot.agents.router import ROUTER_CANDIDATES
 
 
 @pytest.fixture(autouse=True)

@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 from pydantic_ai import ModelSettings, NativeOutput
 
-from tethysapp.tethysdash.chat.config import (
+from tethysapp.tethysdash.chatbot.config import (
     ChatProviderError,
     LLMProfile,
     _decrypt_key,
@@ -115,9 +115,9 @@ def test_wrap_output_native_vs_tool_mode():
 # --------------------------------------------------------------------------
 
 def test_no_agent_carries_provider_specific_construction_settings():
-    from tethysapp.tethysdash.chat.agents.docs import docs_agent
-    from tethysapp.tethysdash.chat.agents.plugin import plugin_agent
-    from tethysapp.tethysdash.chat.agents.router import router_agent
+    from tethysapp.tethysdash.chatbot.agents.docs import docs_agent
+    from tethysapp.tethysdash.chatbot.agents.plugin import plugin_agent
+    from tethysapp.tethysdash.chatbot.agents.router import router_agent
 
     for agent in (router_agent, plugin_agent, docs_agent):
         settings = agent.model_settings or {}
