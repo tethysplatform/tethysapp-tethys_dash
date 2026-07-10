@@ -1,3 +1,4 @@
+import { useCallback, useState } from "react";
 import styled from "styled-components";
 import ChatLog from "./ChatLog";
 import ChatInputBar from "./ChatInputBar";
@@ -24,12 +25,30 @@ const ErrorBar = styled.div`
 
 export default function Chatbox({ dashboardId }) {
   const { messages, isLoading, error, send } = useChatState({ dashboardId });
+  // Wrapped in an object so picking the same template twice still
+  // triggers the input's effect (fresh identity per pick).
+  const [draft, setDraft] = useState(null);
+
+  const handleSuggestion = useCallback(
+    (text, mode) => {
+      if (mode === "prefill") {
+        setDraft({ text });
+      } else {
+        send(text);
+      }
+    },
+    [send],
+  );
 
   return (
     <Container>
-      <ChatLog messages={messages} isLoading={isLoading} />
+      <ChatLog
+        messages={messages}
+        isLoading={isLoading}
+        onSuggestion={handleSuggestion}
+      />
       {error && <ErrorBar>{error}</ErrorBar>}
-      <ChatInputBar onSend={send} disabled={isLoading} />
+      <ChatInputBar onSend={send} disabled={isLoading} draft={draft} />
     </Container>
   );
 }

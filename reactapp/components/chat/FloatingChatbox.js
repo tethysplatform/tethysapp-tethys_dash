@@ -97,7 +97,9 @@ export default function FloatingChatbox({ dashboardId }) {
             aria-label="Chat settings"
             title="Provider settings"
           >
-            ⚙
+            {/* U+FE0E forces monochrome text presentation - without it
+                some browsers render the gear as a colored emoji */}
+            {"⚙"}
           </IconBtn>
           <CloseBtn onClick={() => setOpen(false)} aria-label="Close chat">×</CloseBtn>
         </HeaderButtons>
