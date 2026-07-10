@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
+import PropTypes from "prop-types";
 
 const Bar = styled.form`
   display: flex;
@@ -104,3 +105,9 @@ export default function ChatInputBar({ onSend, disabled, draft }) {
     </Bar>
   );
 }
+
+ChatInputBar.propTypes = {
+  onSend: PropTypes.func.isRequired,
+  disabled: PropTypes.bool,
+  draft: PropTypes.shape({ text: PropTypes.string }),
+};

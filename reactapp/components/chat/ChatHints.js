@@ -1,4 +1,5 @@
 import styled from "styled-components";
+import PropTypes from "prop-types";
 
 // Keep in sync with the router's capabilities
 // (tethysapp/tethysdash/chat/agents/router.py ROUTER_CANDIDATES):
@@ -95,3 +96,7 @@ export default function ChatHints({ onPick }) {
     </Wrap>
   );
 }
+
+ChatHints.propTypes = {
+  onPick: PropTypes.func,
+};

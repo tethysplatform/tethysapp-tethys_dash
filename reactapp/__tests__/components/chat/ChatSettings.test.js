@@ -31,9 +31,9 @@ describe("ChatSettings", () => {
 
     renderSettings();
 
-    await waitFor(() =>
-      expect(screen.getByDisplayValue("claude-sonnet-4-6")).toBeInTheDocument(),
-    );
+    expect(
+      await screen.findByDisplayValue("claude-sonnet-4-6"),
+    ).toBeInTheDocument();
     // saved-key state is signalled by a masked placeholder, value stays empty
     const keyInput = screen.getByPlaceholderText(/a key is saved/);
     expect(keyInput).toHaveValue("");

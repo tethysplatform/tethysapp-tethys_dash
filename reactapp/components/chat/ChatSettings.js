@@ -2,6 +2,7 @@ import { useContext, useEffect, useState } from "react";
 import styled from "styled-components";
 import appAPI from "services/api/app";
 import { AppContext } from "components/contexts/Contexts";
+import PropTypes from "prop-types";
 
 const PROVIDERS = [
   { value: "local", label: "Local (Ollama)" },
@@ -162,3 +163,7 @@ export default function ChatSettings({ onClose }) {
     </Pane>
   );
 }
+
+ChatSettings.propTypes = {
+  onClose: PropTypes.func.isRequired,
+};

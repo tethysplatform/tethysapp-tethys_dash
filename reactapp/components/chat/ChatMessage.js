@@ -1,5 +1,6 @@
 import styled from "styled-components";
 import Markdown from "markdown-to-jsx";
+import PropTypes from "prop-types";
 
 const Row = styled.div`
   display: flex;
@@ -80,3 +81,8 @@ export default function ChatMessage({ role, text }) {
     </Row>
   );
 }
+
+ChatMessage.propTypes = {
+  role: PropTypes.string.isRequired,
+  text: PropTypes.string,
+};

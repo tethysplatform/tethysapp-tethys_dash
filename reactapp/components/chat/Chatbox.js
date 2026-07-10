@@ -3,6 +3,7 @@ import styled from "styled-components";
 import ChatLog from "./ChatLog";
 import ChatInputBar from "./ChatInputBar";
 import { useChatState } from "./useChatState";
+import PropTypes from "prop-types";
 
 const Container = styled.div`
   display: flex;
@@ -52,3 +53,7 @@ export default function Chatbox({ dashboardId }) {
     </Container>
   );
 }
+
+Chatbox.propTypes = {
+  dashboardId: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+};

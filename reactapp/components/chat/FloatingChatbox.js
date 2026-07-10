@@ -2,6 +2,7 @@ import { useState } from "react";
 import styled from "styled-components";
 import Chatbox from "./Chatbox";
 import ChatSettings from "./ChatSettings";
+import PropTypes from "prop-types";
 import { FaRobot } from "react-icons/fa6";
 
 const Launcher = styled.button`
@@ -114,3 +115,7 @@ export default function FloatingChatbox({ dashboardId }) {
     </Panel>
   );
 }
+
+FloatingChatbox.propTypes = {
+  dashboardId: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+};

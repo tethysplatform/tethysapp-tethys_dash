@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import styled from "styled-components";
 import ChatMessage from "./ChatMessage";
 import ChatHints from "./ChatHints";
+import PropTypes from "prop-types";
 
 const Log = styled.div`
   flex: 1;
@@ -39,3 +40,15 @@ export default function ChatLog({ messages, isLoading, onSuggestion }) {
     </Log>
   );
 }
+
+ChatLog.propTypes = {
+  messages: PropTypes.arrayOf(
+    PropTypes.shape({
+      id: PropTypes.string,
+      role: PropTypes.string,
+      text: PropTypes.string,
+    }),
+  ).isRequired,
+  isLoading: PropTypes.bool,
+  onSuggestion: PropTypes.func,
+};
