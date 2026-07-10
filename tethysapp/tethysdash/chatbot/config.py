@@ -25,7 +25,7 @@ from pydantic_ai import ModelSettings, NativeOutput
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
-MODEL_NAME = "qwen3:1.7b"
+MODEL_NAME = "qwen3.5:2b"
 LLM_HOST = "http://localhost:11434"
 DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-6"
 DEFAULT_OPENAI_MODEL = "gpt-5.2"
