@@ -90,7 +90,9 @@ export default function ChatSettings({ onClose }) {
         setModelName(data.model_name ?? "");
         setHasKey(Boolean(data.has_key));
       })
-      .catch(() => setStatus({ error: true, text: "Could not load settings." }));
+      .catch(() =>
+        setStatus({ error: true, text: "Could not load settings." }),
+      );
   }, []);
 
   const save = async () => {
@@ -105,7 +107,10 @@ export default function ChatSettings({ onClose }) {
       });
       setHasKey(Boolean(data.has_key));
       setApiKey("");
-      setStatus({ error: false, text: "Saved. Takes effect on your next message." });
+      setStatus({
+        error: false,
+        text: "Saved. Takes effect on your next message.",
+      });
     } catch (e) {
       setStatus({ error: true, text: e.message || "Save failed." });
     } finally {
@@ -144,12 +149,14 @@ export default function ChatSettings({ onClose }) {
             type="password"
             value={apiKey}
             autoComplete="off"
-            placeholder={hasKey ? "••••••••  (a key is saved)" : "paste your key"}
+            placeholder={
+              hasKey ? "••••••••  (a key is saved)" : "paste your key"
+            }
             onChange={(e) => setApiKey(e.target.value)}
           />
           <Hint>
-            Stored encrypted on the server; never shown again. Leave blank
-            to keep the saved key.
+            Stored encrypted on the server; never shown again. Leave blank to
+            keep the saved key.
           </Hint>
         </Row>
       )}

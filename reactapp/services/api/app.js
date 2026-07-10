@@ -123,7 +123,13 @@ const appAPI = {
     }
     return jsonData;
   },
-  sendChatBotMessage: async ({ prompt, dashboardId, chatId, history, csrf }) => {
+  sendChatBotMessage: async ({
+    prompt,
+    dashboardId,
+    chatId,
+    history,
+    csrf,
+  }) => {
     return await apiClient.post(
       `${APP_ROOT_URL}chat/message/`,
       {

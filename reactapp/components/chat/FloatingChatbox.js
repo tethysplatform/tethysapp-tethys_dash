@@ -20,7 +20,9 @@ const Launcher = styled.button`
   align-items: center;
   gap: 8px;
   font-weight: 500;
-  &:hover { background: #f8f9fa; }
+  &:hover {
+    background: #f8f9fa;
+  }
 `;
 
 const Panel = styled.div`
@@ -62,7 +64,9 @@ const IconBtn = styled.button`
   font-size: 1.1rem;
   color: #495057;
   padding: 0 4px;
-  &:hover { color: #212529; }
+  &:hover {
+    color: #212529;
+  }
 `;
 
 const CloseBtn = styled(IconBtn)`
@@ -102,7 +106,9 @@ export default function FloatingChatbox({ dashboardId }) {
                 some browsers render the gear as a colored emoji */}
             {"⚙"}
           </IconBtn>
-          <CloseBtn onClick={() => setOpen(false)} aria-label="Close chat">×</CloseBtn>
+          <CloseBtn onClick={() => setOpen(false)} aria-label="Close chat">
+            ×
+          </CloseBtn>
         </HeaderButtons>
       </Header>
       <Content>

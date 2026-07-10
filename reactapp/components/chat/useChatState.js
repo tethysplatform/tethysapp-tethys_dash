@@ -27,10 +27,7 @@ function saveMessages(dashboardId, messages) {
     const clean = messages.filter(
       (m) => !(m.role === "assistant" && (m.text ?? "") === ""),
     );
-    window.localStorage.setItem(
-      storageKey(dashboardId),
-      JSON.stringify(clean),
-    );
+    window.localStorage.setItem(storageKey(dashboardId), JSON.stringify(clean));
   } catch {
     /* quota exceeded or storage disabled - silently drop */
   }
@@ -67,7 +64,9 @@ export function useChatState({ dashboardId }) {
   // Latest WS progress payload for the in-flight chat, if any.
   const activeChatId = activeChatIdRef.current;
   const wsPayload =
-    activeChatId && getMessageForRequest ? getMessageForRequest(activeChatId) : null;
+    activeChatId && getMessageForRequest
+      ? getMessageForRequest(activeChatId)
+      : null;
 
   useEffect(() => {
     if (!wsPayload || !activeChatId) return;
@@ -82,7 +81,8 @@ export function useChatState({ dashboardId }) {
     if (typeof text !== "string" || !text) return;
     setMessages((m) => {
       const last = m[m.length - 1];
-      if (!last || last.role !== "assistant" || last.id !== activeChatId) return m;
+      if (!last || last.role !== "assistant" || last.id !== activeChatId)
+        return m;
       if (last.text === text) return m;
       return [...m.slice(0, -1), { ...last, text }];
     });
@@ -121,7 +121,8 @@ export function useChatState({ dashboardId }) {
         });
         setMessages((m) => {
           const last = m[m.length - 1];
-          if (!last || last.role !== "assistant" || last.id !== chatId) return m;
+          if (!last || last.role !== "assistant" || last.id !== chatId)
+            return m;
           return [...m.slice(0, -1), { ...last, text: reply }];
         });
         window.dispatchEvent(new Event("tethysdash:agent-dashboard-refetch"));
