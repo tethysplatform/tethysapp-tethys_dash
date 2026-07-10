@@ -13,7 +13,7 @@ import pytest
 
 from tethysapp.tethysdash.chatbot.streaming import emit_progress
 
-_SEND = "tethysapp.tethysdash.chat.streaming.send_websocket_message"
+_SEND = "tethysapp.tethysdash.chatbot.streaming.send_websocket_message"
 
 
 @pytest.fixture(autouse=True)

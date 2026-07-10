@@ -21,7 +21,7 @@ def truncate_tables():
 
 
 _GET_SETTING = "tethysapp.tethysdash.model.get_chat_provider_setting"
-_OLLAMA_UP = "tethysapp.tethysdash.chat.config._ollama_reachable"
+_OLLAMA_UP = "tethysapp.tethysdash.chatbot.config._ollama_reachable"
 
 
 # --------------------------------------------------------------------------

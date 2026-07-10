@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import os
 from dataclasses import dataclass
 from typing import Any
 
@@ -25,10 +26,14 @@ from pydantic_ai import ModelSettings, NativeOutput
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
-MODEL_NAME = "qwen3.5:2b"
-LLM_HOST = "http://localhost:11434"
-DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-6"
-DEFAULT_OPENAI_MODEL = "gpt-5.2"
+# Deployment knobs - override via environment without code changes.
+# Values are read once at import; restart Django after changing them.
+MODEL_NAME = os.getenv("TETHYSDASH_CHAT_LOCAL_MODEL", "qwen3.5:2b")
+LLM_HOST = os.getenv("TETHYSDASH_CHAT_LLM_HOST", "http://localhost:11434")
+DEFAULT_ANTHROPIC_MODEL = os.getenv(
+    "TETHYSDASH_CHAT_ANTHROPIC_MODEL", "claude-sonnet-4-6"
+)
+DEFAULT_OPENAI_MODEL = os.getenv("TETHYSDASH_CHAT_OPENAI_MODEL", "gpt-5.2")
 
 
 class ChatProviderError(Exception):

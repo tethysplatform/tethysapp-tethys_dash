@@ -61,7 +61,7 @@ def test_every_candidate_has_a_description():
 def test_tool_refuses_non_owner_even_if_schema_bypassed():
     ctx = SimpleNamespace(deps=_deps(owner=False))
     with patch(
-        "tethysapp.tethysdash.chat.tools.plugins_tools.update_named_dashboard"
+        "tethysapp.tethysdash.chatbot.tools.plugins_tools.update_named_dashboard"
     ) as update:
         reply = add_visualization_from_plugin(
             ctx, source="anything", args={"river_id": "1"}
@@ -78,11 +78,11 @@ def test_tool_allows_owner():
     plugin_cls.visualization_description = "d"
     with patch("intake.source.registry", {"p": plugin_cls}), \
          patch(
-            "tethysapp.tethysdash.chat.tools.plugins_tools.get_dashboards",
+            "tethysapp.tethysdash.chatbot.tools.plugins_tools.get_dashboards",
             return_value={"tabs": [{"gridItems": []}]},
          ), \
          patch(
-            "tethysapp.tethysdash.chat.tools.plugins_tools.update_named_dashboard"
+            "tethysapp.tethysdash.chatbot.tools.plugins_tools.update_named_dashboard"
          ) as update:
         reply = add_visualization_from_plugin(
             ctx, source="p", args={"river_id": "1"}
