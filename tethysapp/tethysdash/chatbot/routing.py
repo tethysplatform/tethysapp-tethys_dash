@@ -41,23 +41,30 @@ INTENT_OOS = "out_of_scope"
 
 # Curated example phrases per intent. Add examples here to fix a
 # misroute - it's the explicit, greppable "training set". Keep the
-# add/docs boundary sharp: commands with concrete targets vs HOW/WHAT
-# questions.
+# add/docs boundary sharp: COMMANDS to add a tile vs HOW/WHAT questions.
+#
+# Deliberately plugin-agnostic. Any plugin can be installed (geoglows is
+# just one example set), so examples anchor on the ADD command shape -
+# "add/create/place the <name> plugin [with <args>]" - not on any
+# specific plugin's vocabulary. A couple of concrete arg examples are
+# kept so real calls like "add the X plugin for id 123" still match.
 INTENT_EXAMPLES: dict[str, list[str]] = {
     INTENT_ADD: [
-        "add the geoglows_forecast_viewer plugin for river_id 610217883",
-        "add a forecast chart for river 12345",
-        "create a bias corrected visualization for river 999 station 002",
-        "place the retrospective plugin on the dashboard",
-        "put an observed discharge tile for station 0026247020",
-        "add the same plugin for the other river",
-        "add a table showing the forecast",
+        "add a visualization to my dashboard",
+        "add the forecast plugin to the dashboard",
+        "add the plugin named X with argument value 123",
+        "add the my_data_source plugin for id 12 and code 34",
+        "create a chart tile for my data",
+        "add a table showing the results",
+        "place the plugin on the dashboard with these arguments",
+        "put a plot on the dashboard for station 12345",
+        "add the same plugin again for a different value",
     ],
     INTENT_DOCS: [
         "how do I create a variable input?",
         "how do I create a map with a wms layer?",
         "what is a variable input?",
-        "how does bias correction work?",
+        "how do I add a plugin to my dashboard?",
         "can I share a dashboard with other users?",
         "how do I add a map layer?",
         "explain how plugins work",
