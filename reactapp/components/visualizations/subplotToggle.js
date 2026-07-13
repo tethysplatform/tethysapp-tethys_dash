@@ -525,6 +525,10 @@ export const applySubplotToggle = (data, layout, visiblePaneIds, options) => {
     panes.forEach((p) => {
       if (p.kind !== "cartesian" || !isVisible(p)) return;
       const newBand = domains[p.primaryYKey];
+      // Safety rail, unreachable today: reflowDomains assigns a domain to
+      // every visible cartesian pane (same visibility predicate, same key),
+      // so a missing band can only mean a refactor broke that invariant.
+      // istanbul ignore if
       if (!newBand) return;
       p.traceIndices.forEach((i) => {
         const next = reflowColorbar(

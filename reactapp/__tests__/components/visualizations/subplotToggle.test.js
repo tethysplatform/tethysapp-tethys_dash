@@ -876,6 +876,62 @@ describe("branch coverage", () => {
       )?.id,
     ).toBe(vPanes[1].id);
   });
+
+  it("defaults a domain-based trace's missing `domain` to the full paper (line 156)", () => {
+    // A go.Table with no explicit domain: `trace.domain || {}` falls back and
+    // the pane rect defaults to the whole paper.
+    const panes = derivePanes(
+      [{ type: "table" }],
+      {},
+      {
+        labels: { table: "Stats" },
+      },
+    );
+    expect(panes).toHaveLength(1);
+    expect(panes[0].kind).toBe("nonCartesian");
+    expect(panes[0].toggleable).toBe(true); // labeled by trace type
+    expect(panes[0].rect).toEqual({ x: [0, 1], y: [0, 1] });
+  });
+
+  it("classifyArrangement returns none for a missing panes list (line 294)", () => {
+    expect(classifyArrangement(null)).toBe("none");
+    expect(classifyArrangement(undefined)).toBe("none");
+  });
+
+  it("reflowColorbar leaves a bar on a zero-height band untouched (line 418)", () => {
+    // Degenerate original band [0.5, 0.5]: a tiny bar passes the band-tolerance
+    // check, but the scale factor is undefined (0/0) -> null, bar untouched.
+    expect(
+      reflowColorbar({ len: 0.02, y: 0.5 }, [0.5, 0.5], [0.2, 0.8]),
+    ).toBeNull();
+  });
+
+  it("applies a colorbar override without flipping an explicitly-visible trace (line 552)", () => {
+    // Vertical stack where the surviving pane's trace already carries
+    // `visible: true`: its visibility must NOT be rewritten (flip=false) while
+    // its colorbar still reflows with the expanded band (cb truthy).
+    const data = [
+      {
+        xaxis: "x",
+        yaxis: "y",
+        visible: true,
+        colorbar: { len: 0.28, y: 0.85 },
+      },
+      { xaxis: "x", yaxis: "y2" },
+    ];
+    const layout = {
+      xaxis: { domain: [0, 1] },
+      yaxis: { domain: [0.7, 1], anchor: "x" },
+      yaxis2: { domain: [0, 0.3], anchor: "x" },
+    };
+    const panes = derivePanes(data, layout);
+    const out = applySubplotToggle(data, layout, [panes[0].id]);
+    expect(out.data[0]).not.toBe(data[0]); // cloned for the colorbar override
+    expect(out.data[0].visible).toBe(true); // not flipped
+    // Band [0.7, 1] expands to the full envelope [0, 1] -> scale 1/0.3.
+    expect(out.data[0].colorbar.len).toBeCloseTo(0.28 / 0.3, 10);
+    expect(out.data[1].visible).toBe(false);
+  });
 });
 
 // Helper: id of the first pane for a figure (keeps the line-385 test terse).
