@@ -1158,9 +1158,7 @@ def test_date_preset_sentinels_match_frontend():
     assert array_match, "Could not find DATE_PRESETS in dateUtils.js"
 
     # DATE_PRESETS references string constants (e.g. LATEST_PRESET); resolve them.
-    const_values = dict(
-        re.findall(r'export const (\w+)\s*=\s*"([^"]+)"', date_utils)
-    )
+    const_values = dict(re.findall(r'export const (\w+)\s*=\s*"([^"]+)"', date_utils))
     frontend_presets = set()
     for token in array_match.group(1).split(","):
         token = token.strip()

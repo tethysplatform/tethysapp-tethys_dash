@@ -233,7 +233,7 @@ class TethysDashPlugin(base.DataSource):
         result = {}
         for key, value in self.received_args.items():
             if key.startswith(prefix):
-                leaf = key[len(prefix):]
+                leaf = key[len(prefix) :]
                 if "." not in leaf:
                     result[leaf] = value
         return result

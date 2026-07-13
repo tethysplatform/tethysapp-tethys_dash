@@ -11,7 +11,10 @@ from datetime import datetime, timedelta
 import types
 from tethysapp.tethysdash.exceptions import VisualizationError
 import uuid
-from tethysapp.tethysdash.controllers import VisualizationConsumer, _get_main_bundle_path
+from tethysapp.tethysdash.controllers import (
+    VisualizationConsumer,
+    _get_main_bundle_path,
+)
 from channels.layers import get_channel_layer
 
 
