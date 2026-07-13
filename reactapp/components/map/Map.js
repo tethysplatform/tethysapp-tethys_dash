@@ -65,6 +65,7 @@ const MapComponent = ({
   const onMapClickCurrent = useRef();
   const onMapHoverCurrent = useRef();
   const onMapMoveEndCurrent = useRef();
+  const onMapMoveEndPrimed = useRef(false);
   const [zoom, setZoom] = useState(4.5);
   const [lonLat, setLonLat] = useState([-10686671.12, 4721671.57]);
   const [projection, setProjection] = useState("EPSG:3857");
@@ -589,6 +590,16 @@ const MapComponent = ({
             onMapMoveEnd(visualizationRef.current);
           };
           visualizationRef.current.on("moveend", onMapMoveEndCurrent.current);
+          // Prime the cache for the initial view: this registration lives in
+          // an async layer-sync effect, so the map's first moveend fires
+          // before the handler is attached and snapping would stay inert
+          // until the first user pan. Guarded to run once per map instance —
+          // this block re-runs on every layer update and the handler issues
+          // real network fetches.
+          if (!onMapMoveEndPrimed.current) {
+            onMapMoveEndPrimed.current = true;
+            onMapMoveEndCurrent.current();
+          }
         }
 
         // update the layerControlUpdate so that the layer controls are triggered to rerender with the new layers
