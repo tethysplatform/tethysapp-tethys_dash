@@ -1056,6 +1056,12 @@ const MapVisualization = ({
       >
         {activeModalFeature ? (
           <PopupModalChrome
+            // Remount the body when the carousel switches entries. Different
+            // layers' popupConfigs reuse the same gridItem `i` keys ("1",
+            // "2", ...), so without a remount React reuses the embedded
+            // visualization instances — and their last-fetched state — across
+            // layers with different popup layouts.
+            key={`${activeModalLayer?.configuration?.props?.name ?? ""}:${safeActiveFeatureIndex}`}
             feature={activeModalFeature}
             popupConfig={activeModalPopupConfig}
           />
