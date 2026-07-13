@@ -12,7 +12,6 @@ from tethysapp.tethysdash.chatbot.docs import (
     retrieve_context,
     score_docs,
 )
-from tethysapp.tethysdash.chatbot.agents.router import ROUTER_CANDIDATES
 
 
 @pytest.fixture(autouse=True)
@@ -73,7 +72,8 @@ def test_plural_folding_matches_singular_question():
     assert "variable_inputs.rst" in top3
 
 
-def test_router_has_docs_candidate():
-    names = [c.__name__ for c in ROUTER_CANDIDATES]
-    assert "answer_docs_question" in names
-    assert len(names) == 4
+def test_docs_is_a_known_routing_intent():
+    from tethysapp.tethysdash.chatbot.routing import INTENT_DOCS, INTENT_EXAMPLES
+
+    assert INTENT_DOCS in INTENT_EXAMPLES
+    assert INTENT_EXAMPLES[INTENT_DOCS], "docs intent needs example prompts"

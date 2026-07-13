@@ -1,22 +1,20 @@
 """Owner-only gating for mutating chat actions.
 
 Two layers, both tested:
-1. UX steering - candidates_for drops owner-only candidates from the
-   per-run output schema, so the model cannot select them.
+1. Dispatch gate - run_intent refuses the add intent for non-owners
+   without ever invoking the specialist LLM.
 2. Enforcement - the tool itself refuses when ChatDeps says the
-   requester is not the owner (the schema is not a security boundary).
+   requester is not the owner (defense in depth; the dispatch gate is
+   not the only boundary).
 """
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
+from asgiref.sync import async_to_sync
 
-from tethysapp.tethysdash.chatbot.agents.router import (
-    OWNER_ONLY_CANDIDATE_NAMES,
-    ROUTER_CANDIDATES,
-    _CANDIDATE_DESCRIPTIONS,
-    candidates_for,
-)
+from tethysapp.tethysdash.chatbot.dispatch import run_intent
+from tethysapp.tethysdash.chatbot.routing import INTENT_ADD, INTENT_LIST
 from tethysapp.tethysdash.chatbot.tools import add_visualization_from_plugin
 from tethysapp.tethysdash.chatbot.validation import ChatDeps
 
@@ -33,32 +31,25 @@ def _deps(owner: bool) -> ChatDeps:
     )
 
 
-def test_owner_sees_all_candidates():
-    assert candidates_for(_deps(owner=True)) == ROUTER_CANDIDATES
+def test_dispatch_refuses_add_for_non_owner_without_running_specialist():
+    with patch(
+        "tethysapp.tethysdash.chatbot.dispatch.plugin_agent"
+    ) as plugin_agent:
+        reply = async_to_sync(run_intent)(INTENT_ADD, _deps(owner=False))
+    assert "owner" in reply.lower()
+    plugin_agent.run.assert_not_called()
 
 
-def test_non_owner_loses_exactly_the_mutating_candidates():
-    names = [c.__name__ for c in candidates_for(_deps(owner=False))]
-    assert "add_visualization" not in names
-    # nothing else is dropped
-    expected = [
-        c.__name__ for c in ROUTER_CANDIDATES
-        if c.__name__ not in OWNER_ONLY_CANDIDATE_NAMES
-    ]
-    assert names == expected
+def test_dispatch_allows_non_owner_to_list_plugins():
+    with patch(
+        "tethysapp.tethysdash.chatbot.dispatch.format_catalog_for_llm",
+        return_value="catalog",
+    ):
+        reply = async_to_sync(run_intent)(INTENT_LIST, _deps(owner=False))
+    assert reply == "catalog"
 
 
-def test_every_candidate_has_a_description():
-    """The dynamic instruction enumerates candidates from
-    _CANDIDATE_DESCRIPTIONS - a candidate without a description would
-    KeyError at request time, and a described-but-removed candidate
-    would desync prose from schema."""
-    assert {c.__name__ for c in ROUTER_CANDIDATES} == set(
-        _CANDIDATE_DESCRIPTIONS
-    )
-
-
-def test_tool_refuses_non_owner_even_if_schema_bypassed():
+def test_tool_refuses_non_owner_even_if_dispatch_bypassed():
     ctx = SimpleNamespace(deps=_deps(owner=False))
     with patch(
         "tethysapp.tethysdash.chatbot.tools.plugins_tools.update_named_dashboard"

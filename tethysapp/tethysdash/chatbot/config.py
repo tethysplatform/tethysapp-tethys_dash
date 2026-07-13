@@ -72,7 +72,7 @@ class LLMProfile:
 
 
 _LOCAL_SETTINGS = ModelSettings(
-    max_tokens=400,
+    max_tokens=600,
     extra_body={"chat_template_kwargs": {"enable_thinking": False}},  # Ollama-only
 )
 _PAID_SETTINGS = ModelSettings(max_tokens=800)

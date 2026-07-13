@@ -7,7 +7,7 @@ tool round-trips, so it works identically on small local models and
 paid providers.
 
 Output is plain ``str`` - no NativeOutput - so no per-provider output
-wrapping is needed; the router only threads model/model_settings.
+wrapping is needed; dispatch only threads model/model_settings.
 """
 from __future__ import annotations
 

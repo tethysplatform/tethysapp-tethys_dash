@@ -129,7 +129,7 @@ def retrieve_context(
     so one big file can't crowd the others out. Empty question / no
     matches → ('', ()) so the agent can answer 'not covered'.
 
-    lru_cache: the router delegate and the agent's dynamic instruction
+    lru_cache: the dispatch handler and the agent's dynamic instruction
     both call this with the same question in one request - the second
     call must be free and identical.
     """

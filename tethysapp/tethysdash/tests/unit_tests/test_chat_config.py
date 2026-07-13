@@ -117,9 +117,8 @@ def test_wrap_output_native_vs_tool_mode():
 def test_no_agent_carries_provider_specific_construction_settings():
     from tethysapp.tethysdash.chatbot.agents.docs import docs_agent
     from tethysapp.tethysdash.chatbot.agents.plugin import plugin_agent
-    from tethysapp.tethysdash.chatbot.agents.router import router_agent
 
-    for agent in (router_agent, plugin_agent, docs_agent):
+    for agent in (plugin_agent, docs_agent):
         settings = agent.model_settings or {}
         for forbidden in ("extra_body", "extra_headers"):
             assert forbidden not in settings, (

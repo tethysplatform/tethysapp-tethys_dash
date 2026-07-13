@@ -1081,9 +1081,10 @@ def chat_message(request):
             ChatProviderError,
             resolve_profile,
         )
-        from tethysapp.tethysdash.chatbot.agents.router import (
-            candidates_for,
-            router_agent,
+        from tethysapp.tethysdash.chatbot.dispatch import run_intent
+        from tethysapp.tethysdash.chatbot.routing import (
+            RoutingUnavailable,
+            classify,
         )
         from tethysapp.tethysdash.chatbot.streaming import emit_progress
         from tethysapp.tethysdash.chatbot.validation import ChatDeps
@@ -1122,14 +1123,16 @@ def chat_message(request):
     )
     try:
         emit_progress(chat_id, "Understanding your request...")
-        result = async_to_sync(router_agent.run)(
-            prompt,
-            deps=deps,
-            model=profile.model,
-            model_settings=profile.model_settings,
-            output_type=profile.wrap_output(candidates_for(deps)),
-        )
-        return JsonResponse({"text": result.output, "dashboard_id_used": dashboard_id})
+        # Deterministic routing: embeddings pick the capability, then the
+        # specialist LLM (if any) runs inside that rail.
+        try:
+            intent, _score = classify(prompt)
+        except RoutingUnavailable as e:
+            return JsonResponse(
+                {"text": str(e), "dashboard_id_used": dashboard_id}
+            )
+        reply = async_to_sync(run_intent)(intent, deps)
+        return JsonResponse({"text": reply, "dashboard_id_used": dashboard_id})
     except Exception as e:
         import traceback
         print(
