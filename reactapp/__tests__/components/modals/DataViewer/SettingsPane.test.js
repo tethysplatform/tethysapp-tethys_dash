@@ -36,6 +36,20 @@ const TestingComponent = ({
 
 TestingComponent.displayName = "TestingComponent";
 
+// Settings updates can land asynchronously after an interaction — most
+// notably ColorPicker debounces its onChange, so the state write outlives
+// the userEvent call that triggered it. Always retry the content assertion
+// instead of racing the re-render: a bare
+// `expect(await screen.findByTestId("settings"))` resolves as soon as the
+// element exists (it always does) and then asserts only once, which flaked
+// in CI whenever the machine was slow enough for the trailing debounce to
+// lose the race.
+const expectSettings = async (expectedText) => {
+  await waitFor(() => {
+    expect(screen.getByTestId("settings")).toHaveTextContent(expectedText);
+  });
+};
+
 test("Settings Pane", async () => {
   render(
     createLoadedComponent({
@@ -76,16 +90,14 @@ test("Settings Pane with visualizationRef Element", async () => {
   fireEvent.change(refreshRateInput, { target: { value: -2 } });
   expect(refreshRateInput.value).toBe("0");
 
-  expect(await screen.findByTestId("settings")).toHaveTextContent(
-    JSON.stringify({}),
-  );
+  await expectSettings(JSON.stringify({}));
 
   fireEvent.change(refreshRateInput, { target: { value: 2 } });
   await waitFor(() => {
     expect(refreshRateInput.value).toBe("2");
   });
 
-  expect(await screen.findByTestId("settings")).toHaveTextContent(
+  await expectSettings(
     JSON.stringify({
       refreshRate: 2,
     }),
@@ -128,7 +140,7 @@ test("Settings Pane with visualizationRef Image Element with current settings", 
   fireEvent.click(enforceAspectRationInput);
   expect(enforceAspectRationInput).toBeChecked();
 
-  expect(await screen.findByTestId("settings")).toHaveTextContent(
+  await expectSettings(
     JSON.stringify({
       refreshRate: 5,
       aspectRatio: 0.5,
@@ -158,9 +170,7 @@ test("Settings Pane with visualizationRef Image Element but no natural width", a
   );
   expect(enforceAspectRationInput).not.toBeInTheDocument();
 
-  expect(await screen.findByTestId("settings")).toHaveTextContent(
-    JSON.stringify({}),
-  );
+  await expectSettings(JSON.stringify({}));
 });
 
 test("Settings configure border", async () => {
@@ -173,9 +183,7 @@ test("Settings configure border", async () => {
     }),
   );
 
-  expect(await screen.findByTestId("settings")).toHaveTextContent(
-    JSON.stringify({}),
-  );
+  await expectSettings(JSON.stringify({}));
 
   const leftBorderButton = await screen.findByLabelText("left Border Button");
   expect(leftBorderButton).toBeInTheDocument();
@@ -209,7 +217,7 @@ test("Settings configure border", async () => {
 
   await userEvent.click(allBorderButton);
 
-  expect(await screen.findByTestId("settings")).toHaveTextContent(
+  await expectSettings(
     JSON.stringify({
       border: { border: `${defaultBorderWidth}px solid ${defaultBorderColor}` },
     }),
@@ -223,7 +231,7 @@ test("Settings configure border", async () => {
 
   await userEvent.click(leftBorderButton);
 
-  expect(await screen.findByTestId("settings")).toHaveTextContent(
+  await expectSettings(
     JSON.stringify({
       border: {
         "border-top": "1px solid black",
@@ -249,7 +257,7 @@ test("Settings with border", async () => {
     }),
   );
 
-  expect(await screen.findByTestId("settings")).toHaveTextContent(
+  await expectSettings(
     JSON.stringify({
       border: { border: "4px solid #ff6161" },
     }),
@@ -289,7 +297,7 @@ test("Settings with border", async () => {
     "#ff6161",
   );
 
-  expect(await screen.findByTestId("settings")).toHaveTextContent(
+  await expectSettings(
     JSON.stringify({
       border: { border: "4px solid #ff6161" },
     }),
@@ -311,7 +319,7 @@ test("Settings with border", async () => {
   expect(widthInput.value).toBe("4");
   fireEvent.change(widthInput, { target: { value: 20 } });
 
-  expect(await screen.findByTestId("settings")).toHaveTextContent(
+  await expectSettings(
     JSON.stringify({
       border: { border: "20px dashed #0000ff" },
     }),
@@ -319,9 +327,7 @@ test("Settings with border", async () => {
 
   await userEvent.click(removeBordersButton);
 
-  expect(await screen.findByTestId("settings")).toHaveTextContent(
-    JSON.stringify({}),
-  );
+  await expectSettings(JSON.stringify({}));
 });
 
 test("Settings with top and bottom border", async () => {
@@ -367,7 +373,7 @@ test("Settings with top and bottom border", async () => {
     "#ff6161",
   );
 
-  expect(await screen.findByTestId("settings")).toHaveTextContent(
+  await expectSettings(
     JSON.stringify({
       border: {
         "border-top": "2px solid #7fc066",
@@ -389,7 +395,7 @@ test("Settings with backgroundColor", async () => {
     }),
   );
 
-  expect(await screen.findByTestId("settings")).toHaveTextContent(
+  await expectSettings(
     JSON.stringify({
       backgroundColor: "#ff6161",
     }),
@@ -413,22 +419,18 @@ test("Settings with backgroundColor", async () => {
   await userEvent.type(hexInput, "#0000ff");
   await userEvent.tab();
 
-  await waitFor(async () => {
-    expect(await screen.findByTestId("settings")).toHaveTextContent(
-      JSON.stringify({
-        backgroundColor: "#0000ff",
-      }),
-    );
-  });
+  await expectSettings(
+    JSON.stringify({
+      backgroundColor: "#0000ff",
+    }),
+  );
 
   // change to transparent
   await userEvent.clear(hexInput);
   await userEvent.type(hexInput, "#00000000");
   await userEvent.tab();
 
-  expect(await screen.findByTestId("settings")).toHaveTextContent(
-    JSON.stringify({}),
-  );
+  await expectSettings(JSON.stringify({}));
 });
 
 test("Settings with box shadow", async () => {
@@ -448,7 +450,7 @@ test("Settings with box shadow", async () => {
 
   await userEvent.click(boxShadowCheckbox);
 
-  expect(await screen.findByTestId("settings")).toHaveTextContent(
+  await expectSettings(
     JSON.stringify({
       boxShadow: "0 4px 8px rgba(0, 0, 0, 0.1)",
     }),
@@ -456,9 +458,7 @@ test("Settings with box shadow", async () => {
 
   await userEvent.click(boxShadowCheckbox);
 
-  expect(await screen.findByTestId("settings")).toHaveTextContent(
-    JSON.stringify({}),
-  );
+  await expectSettings(JSON.stringify({}));
 });
 
 test("Settings with box shadow and border", async () => {
@@ -482,7 +482,7 @@ test("Settings with box shadow and border", async () => {
 
   await userEvent.click(boxShadowCheckbox);
 
-  expect(await screen.findByTestId("settings")).toHaveTextContent(
+  await expectSettings(
     JSON.stringify({
       border: { border: "4px solid #ff6161" },
       boxShadow: "0 4px 8px #ff6161",
@@ -491,7 +491,7 @@ test("Settings with box shadow and border", async () => {
 
   await userEvent.click(boxShadowCheckbox);
 
-  expect(await screen.findByTestId("settings")).toHaveTextContent(
+  await expectSettings(
     JSON.stringify({
       border: { border: "4px solid #ff6161" },
     }),
@@ -524,7 +524,7 @@ test("Settings with box shadow and top and bottom border", async () => {
 
   await userEvent.click(boxShadowCheckbox);
 
-  expect(await screen.findByTestId("settings")).toHaveTextContent(
+  await expectSettings(
     JSON.stringify({
       border: {
         "border-top": "2px solid #7fc066",
@@ -561,7 +561,7 @@ test("Settings with box shadow and left and right border", async () => {
 
   await userEvent.click(boxShadowCheckbox);
 
-  expect(await screen.findByTestId("settings")).toHaveTextContent(
+  await expectSettings(
     JSON.stringify({
       border: {
         "border-left": "2px solid #7fc066",
@@ -600,7 +600,7 @@ test("Settings with box shadow and change border", async () => {
 
   await userEvent.click(boxShadowCheckbox);
 
-  expect(await screen.findByTestId("settings")).toHaveTextContent(
+  await expectSettings(
     JSON.stringify({
       border: {
         "border-left": "2px solid #7fc066",
@@ -618,17 +618,15 @@ test("Settings with box shadow and change border", async () => {
   await userEvent.type(hexInput, "#FF0000");
   await userEvent.tab();
 
-  await waitFor(async () => {
-    expect(await screen.findByTestId("settings")).toHaveTextContent(
-      JSON.stringify({
-        border: {
-          "border-left": "2px solid #FF0000",
-          "border-right": "4px solid #ff6161",
-        },
-        boxShadow: "4px 0 8px #ff6161,-4px 0 8px #FF0000",
-      }),
-    );
-  });
+  await expectSettings(
+    JSON.stringify({
+      border: {
+        "border-left": "2px solid #FF0000",
+        "border-right": "4px solid #ff6161",
+      },
+      boxShadow: "4px 0 8px #ff6161,-4px 0 8px #FF0000",
+    }),
+  );
 });
 
 test("Settings with attribution", async () => {
@@ -649,16 +647,12 @@ test("Settings with attribution", async () => {
 
   await userEvent.click(attributionCheckbox);
 
-  expect(await screen.findByTestId("settings")).toHaveTextContent(
-    JSON.stringify({ attribution: false }),
-  );
+  await expectSettings(JSON.stringify({ attribution: false }));
   expect(attributionCheckbox.checked).toBe(false);
 
   await userEvent.click(attributionCheckbox);
 
-  expect(await screen.findByTestId("settings")).toHaveTextContent(
-    JSON.stringify({}),
-  );
+  await expectSettings(JSON.stringify({}));
   expect(attributionCheckbox.checked).toBe(true);
 });
 
@@ -676,16 +670,12 @@ test("Settings with existing attribution", async () => {
     "Show Attribution Input",
   );
   expect(attributionCheckbox).toBeInTheDocument();
-  expect(await screen.findByTestId("settings")).toHaveTextContent(
-    JSON.stringify({ attribution: false }),
-  );
+  await expectSettings(JSON.stringify({ attribution: false }));
   expect(attributionCheckbox.checked).toBe(false);
 
   await userEvent.click(attributionCheckbox);
 
-  expect(await screen.findByTestId("settings")).toHaveTextContent(
-    JSON.stringify({}),
-  );
+  await expectSettings(JSON.stringify({}));
   expect(attributionCheckbox.checked).toBe(true);
 });
 
@@ -705,7 +695,7 @@ test("Settings with custom messaging", async () => {
     }),
   );
 
-  expect(await screen.findByTestId("settings")).toHaveTextContent(
+  await expectSettings(
     JSON.stringify({
       customMessaging: { error: "some custom error message" },
     }),
@@ -719,7 +709,7 @@ test("Settings with custom messaging", async () => {
     target: { value: "a new custom message" },
   });
 
-  expect(await screen.findByTestId("settings")).toHaveTextContent(
+  await expectSettings(
     JSON.stringify({
       customMessaging: { error: "a new custom message" },
     }),
@@ -729,9 +719,7 @@ test("Settings with custom messaging", async () => {
     target: { value: "" },
   });
 
-  expect(await screen.findByTestId("settings")).toHaveTextContent(
-    JSON.stringify({}),
-  );
+  await expectSettings(JSON.stringify({}));
 });
 
 test("SettingsPane renders PlotlySettings when visualizationRef.current.el.className includes 'plotly'", async () => {
@@ -779,16 +767,12 @@ test("Settings with fill viewport", async () => {
 
   await userEvent.click(fillViewportCheckbox);
 
-  expect(await screen.findByTestId("settings")).toHaveTextContent(
-    JSON.stringify({ fillViewport: true }),
-  );
+  await expectSettings(JSON.stringify({ fillViewport: true }));
   expect(fillViewportCheckbox.checked).toBe(true);
 
   await userEvent.click(fillViewportCheckbox);
 
-  expect(await screen.findByTestId("settings")).toHaveTextContent(
-    JSON.stringify({}),
-  );
+  await expectSettings(JSON.stringify({}));
   expect(fillViewportCheckbox.checked).toBe(false);
 });
 
@@ -824,7 +808,7 @@ test("Fill viewport disables aspect ratio control without losing it", async () =
 
   // Aspect ratio control becomes disabled, and its stored keys are preserved.
   expect(enforceAspectRatioInput).toBeDisabled();
-  expect(await screen.findByTestId("settings")).toHaveTextContent(
+  await expectSettings(
     JSON.stringify({
       aspectRatio: 0.5,
       enforceAspectRatio: true,
@@ -836,7 +820,7 @@ test("Fill viewport disables aspect ratio control without losing it", async () =
   await userEvent.click(fillViewportCheckbox);
   expect(enforceAspectRatioInput).not.toBeDisabled();
   expect(enforceAspectRatioInput).toBeChecked();
-  expect(await screen.findByTestId("settings")).toHaveTextContent(
+  await expectSettings(
     JSON.stringify({ aspectRatio: 0.5, enforceAspectRatio: true }),
   );
 });
