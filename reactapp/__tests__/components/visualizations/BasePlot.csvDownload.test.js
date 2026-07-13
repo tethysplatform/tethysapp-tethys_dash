@@ -97,6 +97,89 @@ describe("buildCsvFromGraphDiv", () => {
     expect(buildCsvFromGraphDiv({})).toBe("");
     expect(buildCsvFromGraphDiv(undefined)).toBe("");
   });
+
+  it("includes both the cartesian and table sections for a mixed figure, separated by a blank line", () => {
+    const gd = {
+      data: [
+        { x: [1, 2], y: [10, 20], name: "A", type: "scatter" },
+        {
+          type: "table",
+          header: { values: ["col1", "col2"] },
+          cells: {
+            values: [
+              ["a", "b"],
+              ["1", "2"],
+            ],
+          },
+        },
+      ],
+    };
+    expect(buildCsvFromGraphDiv(gd)).toBe(
+      "x,A\n1,10\n2,20\n\ncol1,col2\na,1\nb,2",
+    );
+  });
+
+  it("emits long format (trace,x,y) preserving both y values when a trace has duplicate x", () => {
+    const gd = {
+      data: [{ x: [1, 1, 2], y: [10, 20, 30], name: "A", type: "scatter" }],
+    };
+    expect(buildCsvFromGraphDiv(gd)).toBe("trace,x,y\nA,1,10\nA,1,20\nA,2,30");
+  });
+
+  it("falls back the whole cartesian section to long format when only one of several traces has duplicate x (no partial wide/long mix)", () => {
+    const gd = {
+      data: [
+        { x: [1, 1, 2], y: [10, 20, 30], name: "A", type: "scatter" },
+        { x: [1, 2], y: [100, 200], name: "B", type: "scatter" },
+      ],
+    };
+    expect(buildCsvFromGraphDiv(gd)).toBe(
+      "trace,x,y\nA,1,10\nA,1,20\nA,2,30\nB,1,100\nB,2,200",
+    );
+  });
+
+  it("sorts wide-format rows numerically when x domains are interleaved across traces", () => {
+    const gd = {
+      data: [
+        { x: [1, 3], y: [10, 30], name: "A", type: "scatter" },
+        { x: [2, 4], y: [200, 400], name: "B", type: "scatter" },
+      ],
+    };
+    expect(buildCsvFromGraphDiv(gd)).toBe(
+      "x,A,B\n1,10,\n2,,200\n3,30,\n4,,400",
+    );
+  });
+
+  it("sorts wide-format rows chronologically when x values are date strings out of order", () => {
+    const gd = {
+      data: [
+        {
+          x: ["2020-01-03", "2020-01-01", "2020-01-02"],
+          y: [3, 1, 2],
+          name: "A",
+          type: "scatter",
+        },
+      ],
+    };
+    expect(buildCsvFromGraphDiv(gd)).toBe(
+      "x,A\n2020-01-01,1\n2020-01-02,2\n2020-01-03,3",
+    );
+  });
+
+  it("sorts wide-format rows lexicographically without throwing when x values are mixed types", () => {
+    const gd = {
+      data: [{ x: ["abc", 2, "1"], y: [1, 2, 3], name: "A", type: "scatter" }],
+    };
+    expect(() => buildCsvFromGraphDiv(gd)).not.toThrow();
+    expect(buildCsvFromGraphDiv(gd)).toBe("x,A\n1,3\n2,2\nabc,1");
+  });
+
+  it("sorts out-of-order numeric x with no duplicates (row order now sorted, not insertion order)", () => {
+    const gd = {
+      data: [{ x: [3, 1, 2], y: [30, 10, 20], name: "A", type: "scatter" }],
+    };
+    expect(buildCsvFromGraphDiv(gd)).toBe("x,A\n1,10\n2,20\n3,30");
+  });
 });
 
 describe("downloadCsvFromGraphDiv", () => {

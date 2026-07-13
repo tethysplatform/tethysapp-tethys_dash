@@ -75,34 +75,64 @@ const toArray = (v) => {
   return [];
 };
 
-export const buildCsvFromGraphDiv = (gd) => {
-  const traces = (gd?.data || []).filter(
-    (t) => t && t.visible !== false && t.visible !== "legendonly",
+// Serialize a single table trace (header/cells) to its own CSV section.
+const buildTableSection = (t) => {
+  const headers = (t.header?.values || []).map((h) =>
+    Array.isArray(h) ? h.join(" ") : h,
   );
-  if (!traces.length) return "";
+  const columns = (t.cells?.values || []).map(toArray);
+  const rowCount = columns.reduce((m, c) => Math.max(m, c.length), 0);
+  const lines = [headers.map(csvEscape).join(",")];
+  for (let r = 0; r < rowCount; r++) {
+    lines.push(columns.map((c) => csvEscape(c[r])).join(","));
+  }
+  return lines.join("\n");
+};
 
-  // Table traces (e.g. the exceedance table) carry header/cells, not x/y.
-  const tableTraces = traces.filter((t) => t.type === "table");
-  if (tableTraces.length) {
-    const lines = [];
-    tableTraces.forEach((t) => {
-      const headers = (t.header?.values || []).map((h) =>
-        Array.isArray(h) ? h.join(" ") : h,
-      );
-      const columns = (t.cells?.values || []).map(toArray);
-      const rowCount = columns.reduce((m, c) => Math.max(m, c.length), 0);
-      lines.push(headers.map(csvEscape).join(","));
-      for (let r = 0; r < rowCount; r++) {
-        lines.push(columns.map((c) => csvEscape(c[r])).join(","));
-      }
+// Choose a comparator for wide-format row keys (String(x) values): numeric if
+// every key is a finite number, else chronological if every key parses as a
+// date, else lexicographic. Falling back to lexicographic never throws.
+const compareRowKeys = (keys) => {
+  const isNumeric = keys.every(
+    (k) => k.trim() !== "" && Number.isFinite(Number(k)),
+  );
+  if (isNumeric) return (a, b) => Number(a) - Number(b);
+
+  const isDate = keys.every((k) => !Number.isNaN(Date.parse(k)));
+  if (isDate) return (a, b) => Date.parse(a) - Date.parse(b);
+
+  return (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+};
+
+// Serialize the cartesian (non-table) traces. Default is a wide table keyed
+// by x, sorted per compareRowKeys. If any trace has a duplicate x value, the
+// pivot would silently overwrite points (e.g. fill bands, vertical lines), so
+// the whole section instead emits in long format (trace,x,y) preserving every
+// point in per-trace order.
+const buildCartesianSection = (cartesianTraces) => {
+  const names = cartesianTraces.map((t, i) => t.name || `series_${i}`);
+
+  const hasDuplicateX = cartesianTraces.some((t) => {
+    const xs = toArray(t.x).map(String);
+    return new Set(xs).size !== xs.length;
+  });
+
+  if (hasDuplicateX) {
+    const lines = ["trace,x,y"];
+    cartesianTraces.forEach((t, i) => {
+      const xs = toArray(t.x);
+      const ys = toArray(t.y);
+      xs.forEach((xv, j) => {
+        lines.push(
+          [csvEscape(names[i]), csvEscape(xv), csvEscape(ys[j])].join(","),
+        );
+      });
     });
     return lines.join("\n");
   }
 
-  // Cartesian traces: wide table keyed by x, one column per trace.
-  const header = ["x", ...traces.map((t, i) => t.name || `series_${i}`)];
   const rowsByX = new Map();
-  traces.forEach((t, i) => {
+  cartesianTraces.forEach((t, i) => {
     const xs = toArray(t.x);
     const ys = toArray(t.y);
     xs.forEach((xv, j) => {
@@ -111,13 +141,42 @@ export const buildCsvFromGraphDiv = (gd) => {
       rowsByX.get(key)[i] = ys[j];
     });
   });
+
+  const sortedKeys = Array.from(rowsByX.keys()).sort(
+    compareRowKeys(Array.from(rowsByX.keys())),
+  );
+  const header = ["x", ...names];
   const lines = [header.map(csvEscape).join(",")];
-  for (const row of rowsByX.values()) {
+  for (const key of sortedKeys) {
+    const row = rowsByX.get(key);
     lines.push(
-      [csvEscape(row.x), ...traces.map((_, i) => csvEscape(row[i]))].join(","),
+      [
+        csvEscape(row.x),
+        ...cartesianTraces.map((_, i) => csvEscape(row[i])),
+      ].join(","),
     );
   }
   return lines.join("\n");
+};
+
+export const buildCsvFromGraphDiv = (gd) => {
+  const traces = (gd?.data || []).filter(
+    (t) => t && t.visible !== false && t.visible !== "legendonly",
+  );
+  if (!traces.length) return "";
+
+  // Table traces (e.g. the exceedance table) carry header/cells, not x/y;
+  // everything else is treated as cartesian (x/y) data.
+  const cartesianTraces = traces.filter((t) => t.type !== "table");
+  const tableTraces = traces.filter((t) => t.type === "table");
+
+  const sections = [];
+  if (cartesianTraces.length) {
+    sections.push(buildCartesianSection(cartesianTraces));
+  }
+  tableTraces.forEach((t) => sections.push(buildTableSection(t)));
+
+  return sections.join("\n\n");
 };
 
 export const downloadCsvFromGraphDiv = (gd) => {
