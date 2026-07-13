@@ -1,7 +1,7 @@
 import {
   buildCsvFromGraphDiv,
   downloadCsvFromGraphDiv,
-} from "components/visualizations/BasePlot";
+} from "components/visualizations/csvExport";
 
 jest.mock("plotly.js-strict-dist-min", () => ({
   relayout: jest.fn(),

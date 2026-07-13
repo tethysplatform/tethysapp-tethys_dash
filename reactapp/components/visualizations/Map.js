@@ -14,18 +14,21 @@ import {
   createHighlightLayer,
   addHighlightFeatures,
   createMarkerLayer,
-  createSnapLayer,
-  addSnapPreview,
-  buildSnapFeatureResult,
-  shouldSnapSelect,
-  fetchLayerVectorFeatures,
-  findBestSnap,
-  findSnapFeatures,
   configurationPropType,
   mapDrawingPropType,
   loadLayerJSONs,
   resolveTablePopupType,
 } from "components/map/utilities";
+import {
+  buildSnapFeatureResult,
+  shouldSnapSelect,
+  findBestSnap,
+  findSnapFeatures,
+} from "components/map/snapping";
+import useSnapping, {
+  SNAP_PIXELS,
+  GATHER_PIXELS,
+} from "components/visualizations/useSnapping";
 import PropTypes from "prop-types";
 import { COLOR_RAMPS } from "components/map/colorRamps";
 import { getBaseMapLayer } from "components/visualizations/utilities";
@@ -51,7 +54,6 @@ import "swiper/css/pagination";
 import "swiper/css/navigation";
 import { Pagination, Navigation } from "swiper/modules";
 import Overlay from "ol/Overlay";
-import VectorSource from "ol/source/Vector";
 import { FaTimes } from "react-icons/fa";
 
 const FixedTable = styled(Table)`
@@ -242,9 +244,6 @@ const MapVisualization = ({
   const [activeFeatureIndex, setActiveFeatureIndex] = useState(0);
   const markerLayer = useRef();
   const highlightLayer = useRef();
-  const snapLayer = useRef(null);
-  const snapCachesRef = useRef([]);
-  const snapRefreshId = useRef(0);
   const currentLayers = useRef([]);
   const currentBaseMap = useRef();
   const mapAttributeVariablesRef = useRef({});
@@ -623,119 +622,11 @@ const MapVisualization = ({
   };
 
   // --- Feature snapping (Approach A) -------------------------------------
-  // Maintain a hidden vector cache of snap-enabled layers' features for the
-  // current view, snap the cursor to the nearest one on hover, and on a snapped
-  // click select the river directly from that local feature (no ESRI /identify,
-  // which is slow on a cache miss and sometimes returns empty on-geometry).
-  const SNAP_PIXELS = 15;
-  // Wider radius (mirrors the old /identify tolerance) for gathering the
-  // connected reaches at a confluence into the click popup's swiper.
-  const GATHER_PIXELS = 35;
-
-  const ensureSnapLayer = (map) => {
-    if (!snapLayer.current) {
-      snapLayer.current = createSnapLayer();
-      map.addLayer(snapLayer.current);
-    } else if (!map.getLayers().getArray().includes(snapLayer.current)) {
-      // The layer-reconciliation sweep in map/Map.js removes OL layers absent
-      // from the configured list, so any layer-config rebuild detaches the
-      // preview while this ref still holds it — re-attach rather than leak it.
-      map.addLayer(snapLayer.current);
-    }
-    return snapLayer.current;
-  };
-
-  // Clears the snap preview and resets the pointer-cursor affordance — the one
-  // place snap visual state is torn down, so no clear path can leak the cursor.
-  const clearSnap = (map) => {
-    snapLayer.current?.getSource().clear();
-    const targetEl = map?.getTargetElement?.();
-    if (targetEl) targetEl.style.cursor = "";
-  };
-
-  // moveend handler: rebuild the vector cache for visible snap-enabled layers
-  // that are zoomed to their query level. Below that zoom snapping is off and
-  // the first click still auto-zooms via queryLayerFeatures.
-  const refreshSnapCaches = async (map) => {
-    // Generation token: a slower fetch from an earlier view must not overwrite
-    // a newer one (moveend can fire again before the async /query resolves).
-    const refreshId = (snapRefreshId.current += 1);
-    const olVisibility = new Map();
-    map
-      .getLayers()
-      .getArray()
-      .forEach((olLayer) => {
-        const name = olLayer.get("name");
-        if (name) olVisibility.set(name, olLayer.getVisible());
-      });
-    const zoom = map.getView().getZoom();
-    const snapLayers = layers.filter((item) => {
-      if (!item.configuration?.props?.snapToFeatures) return false;
-      const name = item.configuration?.props?.name;
-      if (name && olVisibility.has(name) && olVisibility.get(name) !== true) {
-        return false;
-      }
-      const minZoom = parseFloat(item.configuration.props.minZoomQuery ?? 0);
-      return zoom >= minZoom;
-    });
-    if (snapLayers.length === 0) {
-      snapCachesRef.current = [];
-      clearSnap(map);
-      return;
-    }
-    const caches = await Promise.all(
-      snapLayers.map(async (layer) => {
-        const source = new VectorSource();
-        source.addFeatures(await fetchLayerVectorFeatures(layer, map));
-        return { layerName: layer.configuration.props.name, source };
-      }),
-    );
-    // Discard if a newer refresh started while this one was in flight.
-    if (refreshId === snapRefreshId.current) {
-      snapCachesRef.current = caches;
-    }
-  };
-
-  // LayersControl toggles `olLayer.setVisible(...)` without firing moveend, so
-  // the cache can still hold features for a layer the user just hid. Filter
-  // against live OL visibility at use time instead of event-wiring the control.
-  const visibleSnapCaches = (map) => {
-    const olVisibility = new Map();
-    map
-      .getLayers()
-      .getArray()
-      .forEach((olLayer) => {
-        const name = olLayer.get("name");
-        if (name) olVisibility.set(name, olLayer.getVisible());
-      });
-    return (snapCachesRef.current ?? []).filter(
-      // Entries with no matching OL layer are retained on purpose: mid-rebuild
-      // the layer may not be mounted yet (matches refreshSnapCaches'
-      // benefit-of-the-doubt filter).
-      (cache) =>
-        !olVisibility.has(cache.layerName) ||
-        olVisibility.get(cache.layerName) === true,
-    );
-  };
-
-  // pointermove handler (synchronous, immediate so the highlight tracks the
-  // cursor): draw the snap preview + pointer cursor for the nearest feature.
-  // The click recomputes its own snap from the click coordinate, so this only
-  // drives the hover visual — it deliberately keeps no state the click reads.
-  const updateSnap = (map, coordinate) => {
-    const caches = visibleSnapCaches(map);
-    const best = caches.length
-      ? findBestSnap(caches, coordinate, map, SNAP_PIXELS)
-      : null;
-    if (!best) {
-      clearSnap(map);
-      return;
-    }
-    // Affordance: pointer cursor when a click would select a snapped river.
-    const targetEl = map.getTargetElement?.();
-    if (targetEl) targetEl.style.cursor = "pointer";
-    addSnapPreview(ensureSnapLayer(map), best.feature, best.coordinate);
-  };
+  // Snap orchestration (hidden vector caches, hover preview, live-visibility
+  // filtering, generation-tokened moveend refresh) lives in the useSnapping
+  // hook; the click/hover handlers below wire its returned callbacks in.
+  const { refreshSnapCaches, updateSnap, visibleSnapCaches, clearSnapPreview } =
+    useSnapping({ layers });
 
   const onMapClick = async (map, evt) => {
     // istanbul ignore next
@@ -794,7 +685,7 @@ const MapVisualization = ({
     const coordinate = clickSnap?.coordinate ?? evt.coordinate;
     const pixel = evt.pixel;
     // The click owns the selection highlight from here; drop the hover preview.
-    snapLayer.current?.getSource().clear();
+    clearSnapPreview();
 
     // istanbul ignore next
     if (spinnerOverlayRef.current) {

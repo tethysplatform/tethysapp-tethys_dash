@@ -19,10 +19,8 @@ import { applyStyle } from "ol-mapbox-style";
 import Point from "ol/geom/Point.js";
 import LineString from "ol/geom/LineString.js";
 import Feature from "ol/Feature.js";
-import {
-  queryLayerFeatures,
-  fetchLayerVectorFeatures,
-} from "components/map/utilities";
+import { queryLayerFeatures } from "components/map/utilities";
+import { fetchLayerVectorFeatures } from "components/map/snapping";
 import Overlay from "ol/Overlay";
 import {
   mockedTextVariable,
@@ -63,6 +61,13 @@ jest.mock("components/map/utilities", () => {
     ...originalModule,
     queryLayerFeatures: jest.fn(),
     swapVectorLayerFeatures: jest.fn(),
+  };
+});
+
+jest.mock("components/map/snapping", () => {
+  const originalModule = jest.requireActual("components/map/snapping");
+  return {
+    ...originalModule,
     fetchLayerVectorFeatures: jest.fn(),
   };
 });
