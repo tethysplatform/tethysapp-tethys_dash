@@ -1,4 +1,5 @@
 import { useState } from "react";
+import PropTypes from "prop-types";
 import { render, screen, fireEvent } from "@testing-library/react";
 import LayerPane from "components/modals/MapLayer/LayerPane";
 
@@ -11,6 +12,10 @@ const TestingComponent = ({ initialLayerProps = {} }) => {
       <p data-testid="layerProps">{JSON.stringify(layerProps)}</p>
     </>
   );
+};
+
+TestingComponent.propTypes = {
+  initialLayerProps: PropTypes.object,
 };
 
 test("LayerPane", async () => {
