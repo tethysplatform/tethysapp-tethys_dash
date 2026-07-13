@@ -216,6 +216,21 @@ export const layerPropertiesOptions = {
     placeholder:
       "The minimum view zoom level (inclusive) at which this layer can be queried. If the mp is clicked beyond the zoom level, then the map will zoom into the minZoomQuery value",
   },
+  clickTolerance: {
+    type: "number",
+    placeholder:
+      "Pixel tolerance for ESRI Image and Map Service identify (click) requests. Defaults to 10.",
+  },
+  snapToFeatures: {
+    type: "checkbox",
+    placeholder:
+      "Snap hover/click to the nearest feature of this ESRI Map Service layer (loads vector features for the current view).",
+  },
+  querySublayer: {
+    type: "number",
+    placeholder:
+      "MapServer sublayer used for snapping feature queries. Defaults to the first id in the LAYERS 'show:N' source param, else 0.",
+  },
 };
 
 /**
@@ -760,6 +775,21 @@ export function layerDefsToWhere(layerDefs, sublayer = 0) {
   return "1=1";
 }
 
+// Resolve the MapServer sublayer used for snap feature queries: an explicit
+// `querySublayer` prop always wins; otherwise derive it from the LAYERS
+// "show:N"/"include:N" source param (first id), mirroring the translation
+// the /identify path (getESRILayerFeatures) already does for its `layers`
+// param; falls back to 0 when neither is present/parseable.
+export function resolveQuerySublayer(props) {
+  if (props?.querySublayer !== null && props?.querySublayer !== undefined) {
+    return props.querySublayer;
+  }
+  const match = props?.source?.props?.params?.LAYERS?.match(
+    /^(show|include):\s*(\d+)/,
+  );
+  return match ? Number(match[2]) : 0;
+}
+
 // Query the MapServer sublayer for features intersecting the current map extent
 // and return them as OpenLayers Features in the map projection. Returns [] on
 // any failure so callers can degrade gracefully (e.g., fall back to /identify).
@@ -767,7 +797,7 @@ export async function fetchLayerVectorFeatures(layerInfo, map) {
   const props = layerInfo?.configuration?.props ?? {};
   const sourceUrl = props.source?.props?.url ?? "";
   if (!sourceUrl) return [];
-  const sublayer = props.querySublayer ?? 0;
+  const sublayer = resolveQuerySublayer(props);
   const where = layerDefsToWhere(
     props.source?.props?.params?.LAYERDEFS,
     sublayer,
@@ -1776,6 +1806,10 @@ export const configurationPropType = PropTypes.shape({
     layerId: PropTypes.string,
     // Optional; present on runtime-capable layers only.
     pluginSource: pluginSourcePropType,
+    // Optional; per-layer feature-query tuning (see layerPropertiesOptions).
+    clickTolerance: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    snapToFeatures: PropTypes.bool,
+    querySublayer: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
   }),
   type: PropTypes.string, // layer type
 });

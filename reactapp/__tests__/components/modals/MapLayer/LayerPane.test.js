@@ -2,8 +2,8 @@ import { useState } from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import LayerPane from "components/modals/MapLayer/LayerPane";
 
-const TestingComponent = () => {
-  const [layerProps, setLayerProps] = useState({});
+const TestingComponent = ({ initialLayerProps = {} }) => {
+  const [layerProps, setLayerProps] = useState(initialLayerProps);
 
   return (
     <>
@@ -60,5 +60,87 @@ test("LayerPane", async () => {
 
   expect(await screen.findByTestId("layerProps")).toHaveTextContent(
     JSON.stringify({ name: "some name", opacity: ".5" }),
+  );
+});
+
+test("LayerPane renders and edits clickTolerance, snapToFeatures, and querySublayer", async () => {
+  render(<TestingComponent />);
+
+  // rows render with spaceAndCapitalize labels
+  expect(await screen.findByText("Click Tolerance")).toBeInTheDocument();
+  expect(await screen.findByText("Snap To Features")).toBeInTheDocument();
+  expect(await screen.findByText("Query Sublayer")).toBeInTheDocument();
+
+  // clickTolerance is row 6 (opacity, minResolution, maxResolution, minZoom,
+  // maxZoom, minZoomQuery, clickTolerance, snapToFeatures, querySublayer)
+  const clickToleranceInput = await screen.findByLabelText("value Input 6");
+  fireEvent.change(clickToleranceInput, { target: { value: "25" } });
+  expect(await screen.findByTestId("layerProps")).toHaveTextContent(
+    JSON.stringify({ clickTolerance: "25" }),
+  );
+
+  const snapToFeaturesCheckbox = await screen.findByLabelText("value Input 7");
+  expect(snapToFeaturesCheckbox.checked).toBe(false);
+  fireEvent.click(snapToFeaturesCheckbox);
+  expect(await screen.findByTestId("layerProps")).toHaveTextContent(
+    JSON.stringify({ clickTolerance: "25", snapToFeatures: true }),
+  );
+
+  const querySublayerInput = await screen.findByLabelText("value Input 8");
+  fireEvent.change(querySublayerInput, { target: { value: "3" } });
+  expect(await screen.findByTestId("layerProps")).toHaveTextContent(
+    JSON.stringify({
+      clickTolerance: "25",
+      snapToFeatures: true,
+      querySublayer: "3",
+    }),
+  );
+});
+
+test("LayerPane round-trips existing clickTolerance/snapToFeatures/querySublayer values and preserves them when editing the name", async () => {
+  render(
+    <TestingComponent
+      initialLayerProps={{
+        name: "River Layer",
+        clickTolerance: 15,
+        snapToFeatures: true,
+        querySublayer: 2,
+      }}
+    />,
+  );
+
+  const clickToleranceInput = await screen.findByLabelText("value Input 6");
+  expect(clickToleranceInput.value).toBe("15");
+
+  const snapToFeaturesCheckbox = await screen.findByLabelText("value Input 7");
+  expect(snapToFeaturesCheckbox.checked).toBe(true);
+
+  const querySublayerInput = await screen.findByLabelText("value Input 8");
+  expect(querySublayerInput.value).toBe("2");
+
+  // editing the unrelated Name field must not clobber the other props
+  const nameInput = await screen.findByLabelText("Name Input");
+  fireEvent.change(nameInput, { target: { value: "Updated Name" } });
+
+  expect(await screen.findByTestId("layerProps")).toHaveTextContent(
+    JSON.stringify({
+      name: "Updated Name",
+      clickTolerance: 15,
+      snapToFeatures: true,
+      querySublayer: 2,
+    }),
+  );
+});
+
+test("LayerPane clearing Click Tolerance leaves it an empty string (no coercion to 0)", async () => {
+  render(<TestingComponent initialLayerProps={{ clickTolerance: 15 }} />);
+
+  const clickToleranceInput = await screen.findByLabelText("value Input 6");
+  expect(clickToleranceInput.value).toBe("15");
+
+  fireEvent.change(clickToleranceInput, { target: { value: "" } });
+
+  expect(await screen.findByTestId("layerProps")).toHaveTextContent(
+    JSON.stringify({ clickTolerance: "" }),
   );
 });

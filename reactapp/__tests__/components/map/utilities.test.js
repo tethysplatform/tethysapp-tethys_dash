@@ -20,6 +20,7 @@ import {
   shiftEPSG3857ExtentAndPoint,
   layerDefsToWhere,
   fetchLayerVectorFeatures,
+  resolveQuerySublayer,
   findSnapFeature,
   findBestSnap,
   findSnapFeatures,
@@ -3859,6 +3860,54 @@ describe("layerDefsToWhere", () => {
   });
 });
 
+describe("resolveQuerySublayer", () => {
+  test("explicit querySublayer wins over LAYERS show:N", () => {
+    const props = {
+      querySublayer: 1,
+      source: { props: { params: { LAYERS: "show:3" } } },
+    };
+    expect(resolveQuerySublayer(props)).toBe(1);
+  });
+
+  test("explicit querySublayer of 0 is respected (not treated as unset)", () => {
+    const props = {
+      querySublayer: 0,
+      source: { props: { params: { LAYERS: "show:3" } } },
+    };
+    expect(resolveQuerySublayer(props)).toBe(0);
+  });
+
+  test("derives the sublayer from LAYERS show:N when querySublayer is absent", () => {
+    const props = { source: { props: { params: { LAYERS: "show:3" } } } };
+    expect(resolveQuerySublayer(props)).toBe(3);
+  });
+
+  test("takes the first id from a multi-id LAYERS show list", () => {
+    const props = { source: { props: { params: { LAYERS: "show:2,4" } } } };
+    expect(resolveQuerySublayer(props)).toBe(2);
+  });
+
+  test("derives the sublayer from LAYERS include:N", () => {
+    const props = { source: { props: { params: { LAYERS: "include: 5" } } } };
+    expect(resolveQuerySublayer(props)).toBe(5);
+  });
+
+  test("defaults to 0 for a non-show/include LAYERS directive", () => {
+    const props = { source: { props: { params: { LAYERS: "visible" } } } };
+    expect(resolveQuerySublayer(props)).toBe(0);
+  });
+
+  test("defaults to 0 for garbage LAYERS", () => {
+    const props = { source: { props: { params: { LAYERS: "garbage" } } } };
+    expect(resolveQuerySublayer(props)).toBe(0);
+  });
+
+  test("defaults to 0 when there is no LAYERS or querySublayer", () => {
+    expect(resolveQuerySublayer({})).toBe(0);
+    expect(resolveQuerySublayer(undefined)).toBe(0);
+  });
+});
+
 describe("fetchLayerVectorFeatures", () => {
   const geojsonOneLine = {
     type: "FeatureCollection",
@@ -3977,6 +4026,71 @@ describe("fetchLayerVectorFeatures", () => {
       })),
     };
     expect(await fetchLayerVectorFeatures(layerInfo, map)).toEqual([]);
+  });
+
+  test("derives the sublayer from LAYERS show:N when querySublayer is not set", async () => {
+    global.fetch = jest.fn(() =>
+      Promise.resolve({ json: () => Promise.resolve(geojsonOneLine) }),
+    );
+    const map = {
+      getView: jest.fn(() => ({
+        getProjection: jest.fn(() => ({ getCode: jest.fn(() => "EPSG:4326") })),
+        calculateExtent: jest.fn(() => [-10, -10, 10, 10]),
+      })),
+    };
+    const layerInfoWithShow = {
+      configuration: {
+        props: {
+          source: {
+            props: {
+              url: "https://svc/MapServer",
+              params: {
+                LAYERS: "show:3",
+                LAYERDEFS: "3: rivercountry='Peru'",
+              },
+            },
+          },
+        },
+      },
+    };
+
+    await fetchLayerVectorFeatures(layerInfoWithShow, map);
+
+    const calledUrl = global.fetch.mock.calls[0][0];
+    expect(calledUrl).toContain("https://svc/MapServer/3/query?");
+    expect(calledUrl).toContain(
+      `where=${new URLSearchParams({ where: "rivercountry='Peru'" }).toString().slice("where=".length)}`,
+    );
+  });
+
+  test("an explicit querySublayer overrides LAYERS show:N", async () => {
+    global.fetch = jest.fn(() =>
+      Promise.resolve({ json: () => Promise.resolve(geojsonOneLine) }),
+    );
+    const map = {
+      getView: jest.fn(() => ({
+        getProjection: jest.fn(() => ({ getCode: jest.fn(() => "EPSG:4326") })),
+        calculateExtent: jest.fn(() => [-10, -10, 10, 10]),
+      })),
+    };
+    const layerInfoOverride = {
+      configuration: {
+        props: {
+          querySublayer: 1,
+          source: {
+            props: {
+              url: "https://svc/MapServer",
+              params: { LAYERS: "show:3" },
+            },
+          },
+        },
+      },
+    };
+
+    await fetchLayerVectorFeatures(layerInfoOverride, map);
+
+    const calledUrl = global.fetch.mock.calls[0][0];
+    expect(calledUrl).toContain("https://svc/MapServer/1/query?");
   });
 });
 
