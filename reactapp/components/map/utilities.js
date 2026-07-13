@@ -760,11 +760,29 @@ async function getESRILayerFeatures(
 // fixed pixel `clickTolerance` used by `/identify`, which behaves poorly across
 // zoom levels (too tight when zoomed out, too loose when zoomed in).
 
-// Parse an ArcGIS LAYERDEFS value ("<layerId>: <whereClause>", optionally
-// ";"-separated) into just the SQL WHERE clause for the given sublayer.
+// Parse an ArcGIS LAYERDEFS value into just the SQL WHERE clause for the
+// given sublayer. ArcGIS accepts two syntaxes: simple ("<layerId>: <where>",
+// optionally ";"-separated) and JSON (`{"<layerId>": "<where>"}`). We try the
+// JSON form first (via JSON5, already a dependency in this file) since a
+// valid simple-form string is not valid JSON5 and lands in the catch below.
 // Returns "1=1" when no matching filter is set so the query is unfiltered.
 export function layerDefsToWhere(layerDefs, sublayer = 0) {
   if (!layerDefs || typeof layerDefs !== "string") return "1=1";
+
+  try {
+    const parsed = JSON5.parse(layerDefs);
+    if (
+      parsed !== null &&
+      typeof parsed === "object" &&
+      !Array.isArray(parsed)
+    ) {
+      const clause = parsed[String(sublayer)];
+      return typeof clause === "string" && clause ? clause : "1=1";
+    }
+  } catch {
+    // Not JSON(5) — fall through to the simple "id: clause" form below.
+  }
+
   for (const entry of layerDefs.split(";")) {
     const idx = entry.indexOf(":");
     if (idx === -1) continue;
@@ -838,6 +856,22 @@ export async function fetchLayerVectorFeatures(layerInfo, map) {
     return [];
   }
   if (!geojson || !Array.isArray(geojson.features)) return [];
+
+  // ArcGIS truncates /query responses at the server's maxRecordCount and
+  // signals it via `exceededTransferLimit` — carried either as a top-level
+  // flag or under `properties`, depending on server version, in f=geojson
+  // responses. Using the partial feature set would make snapping select the
+  // nearest CACHED river instead of the nearest VISIBLE one, so degrade to an
+  // empty cache and let the click path fall back to ESRI /identify.
+  const exceededTransferLimit =
+    geojson.exceededTransferLimit === true ||
+    geojson.properties?.exceededTransferLimit === true;
+  if (exceededTransferLimit) {
+    console.warn(
+      `Vector feature query for ${sourceUrl} exceeded the server's maxRecordCount; snapping is disabled for this view.`,
+    );
+    return [];
+  }
 
   try {
     return new GeoJSONFormat().readFeatures(geojson, {

@@ -3858,6 +3858,28 @@ describe("layerDefsToWhere", () => {
     expect(layerDefsToWhere(undefined)).toBe("1=1");
     expect(layerDefsToWhere(123)).toBe("1=1");
   });
+
+  test("still parses the simple 'id: clause' form (not valid JSON5)", () => {
+    expect(layerDefsToWhere("0: x=1")).toBe("x=1");
+  });
+
+  test("parses JSON-form LAYERDEFS", () => {
+    expect(layerDefsToWhere('{"0": "rivercountry=\'Peru\'"}', 0)).toBe(
+      "rivercountry='Peru'",
+    );
+  });
+
+  test("parses JSON5 single-quoted JSON-form LAYERDEFS", () => {
+    expect(layerDefsToWhere("{'0': 'x=1'}", 0)).toBe("x=1");
+  });
+
+  test("returns 1=1 for JSON-form LAYERDEFS with no matching sublayer key", () => {
+    expect(layerDefsToWhere('{"1": "x=1"}', 0)).toBe("1=1");
+  });
+
+  test("returns 1=1 for a JSON array input", () => {
+    expect(layerDefsToWhere("[1,2]", 0)).toBe("1=1");
+  });
 });
 
 describe("resolveQuerySublayer", () => {
@@ -4091,6 +4113,74 @@ describe("fetchLayerVectorFeatures", () => {
 
     const calledUrl = global.fetch.mock.calls[0][0];
     expect(calledUrl).toContain("https://svc/MapServer/1/query?");
+  });
+
+  test("returns [] and warns when the top-level exceededTransferLimit flag is set", async () => {
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    global.fetch = jest.fn(() =>
+      Promise.resolve({
+        json: () =>
+          Promise.resolve({ ...geojsonOneLine, exceededTransferLimit: true }),
+      }),
+    );
+    const map = {
+      getView: jest.fn(() => ({
+        getProjection: jest.fn(() => ({ getCode: jest.fn(() => "EPSG:4326") })),
+        calculateExtent: jest.fn(() => [-10, -10, 10, 10]),
+      })),
+    };
+
+    const features = await fetchLayerVectorFeatures(layerInfo, map);
+
+    expect(features).toEqual([]);
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy.mock.calls[0][0]).toContain("https://svc/MapServer");
+    warnSpy.mockRestore();
+  });
+
+  test("returns [] and warns when properties.exceededTransferLimit is set", async () => {
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    global.fetch = jest.fn(() =>
+      Promise.resolve({
+        json: () =>
+          Promise.resolve({
+            ...geojsonOneLine,
+            properties: { exceededTransferLimit: true },
+          }),
+      }),
+    );
+    const map = {
+      getView: jest.fn(() => ({
+        getProjection: jest.fn(() => ({ getCode: jest.fn(() => "EPSG:4326") })),
+        calculateExtent: jest.fn(() => [-10, -10, 10, 10]),
+      })),
+    };
+
+    const features = await fetchLayerVectorFeatures(layerInfo, map);
+
+    expect(features).toEqual([]);
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy.mock.calls[0][0]).toContain("https://svc/MapServer");
+    warnSpy.mockRestore();
+  });
+
+  test("parses features as before when exceededTransferLimit is absent", async () => {
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    global.fetch = jest.fn(() =>
+      Promise.resolve({ json: () => Promise.resolve(geojsonOneLine) }),
+    );
+    const map = {
+      getView: jest.fn(() => ({
+        getProjection: jest.fn(() => ({ getCode: jest.fn(() => "EPSG:4326") })),
+        calculateExtent: jest.fn(() => [-10, -10, 10, 10]),
+      })),
+    };
+
+    const features = await fetchLayerVectorFeatures(layerInfo, map);
+
+    expect(features).toHaveLength(1);
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
   });
 });
 
