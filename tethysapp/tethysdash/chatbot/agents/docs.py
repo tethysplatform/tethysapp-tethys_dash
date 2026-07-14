@@ -25,7 +25,8 @@ docs_agent = Agent(
     deps_type=ChatDeps,
     retries=2,
     model_settings=ModelSettings(
-        max_tokens=600,
+        max_tokens=1024,
+        extra_body={"reasoning_effort": "none"},
     ),
     instructions=(
         "You answer questions about TethysDash using ONLY the "

@@ -53,6 +53,17 @@ def test_unknown_source_raises_model_retry_with_catalog():
     assert "known_plugin" in str(exc.value)
 
 
+def test_unknown_source_on_final_attempt_returns_message():
+    # retries exhausted on a bad source -> graceful ask, not a raise that
+    # would bubble up as "Exceeded maximum output retries" and a 503
+    with patch(_REGISTRY, {"known_plugin": _fake_plugin()}):
+        reply = add_visualization_from_plugin(
+            _ctx(retry=3, max_retries=3), source="text/plain", args={}
+        )
+    assert "text/plain" in reply and "known_plugin" in reply
+    assert "raise" not in reply.lower()  # it's a message, not an exception
+
+
 def test_non_dict_args_raises_model_retry():
     with pytest.raises(ModelRetry, match="object"):
         add_visualization_from_plugin(_ctx(), source="x", args=["not", "a", "dict"])

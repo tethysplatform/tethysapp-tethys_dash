@@ -89,6 +89,16 @@ def add_visualization_from_plugin(
     emit_progress(ctx.deps.chat_id, f"Looking up plugin {source!r}...")
     spec = get_plugin(source)
     if spec is None:
+        if ctx.retry >= ctx.max_retries:
+            # Retries exhausted - typically a weak model that keeps
+            # mangling the plugin name. Ask the user instead of raising,
+            # which would bubble up as "Exceeded maximum output retries"
+            # and a 503.
+            names = ", ".join(f"`{s.source}`" for s in list_visualization_plugins())
+            return (
+                f"I couldn't match {source!r} to an available plugin. "
+                f"You can add any of: {names}."
+            )
         raise ModelRetry(
             f"Unknown plugin source {source!r}. Choose one and retry:\n"
             f"{format_catalog_for_llm()}"

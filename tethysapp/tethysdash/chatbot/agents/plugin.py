@@ -12,7 +12,8 @@ plugin_agent = Agent(
     deps_type=ChatDeps,
     retries=3,
     model_settings=ModelSettings(
-        max_tokens=400,
+        max_tokens=512,
+        extra_body={"reasoning_effort": "none"},
     ),
     instructions=(
         "You are a TethysDash chat agent that adds visualization tiles to "
