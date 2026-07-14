@@ -69,24 +69,32 @@ def test_non_dict_args_raises_model_retry():
         add_visualization_from_plugin(_ctx(), source="x", args=["not", "a", "dict"])
 
 
-def test_missing_required_args_raises_model_retry_naming_them():
-    # retries remaining -> ModelRetry so the model can self-correct
-    with patch(_REGISTRY, {"p": _fake_plugin(args=("river_id", "station_id"))}):
-        with pytest.raises(ModelRetry) as exc:
-            add_visualization_from_plugin(
-                _ctx(retry=0), source="p", args={"river_id": "610217883"}
-            )
-    assert "station_id" in str(exc.value)
-
-
-def test_missing_args_on_final_attempt_returns_ask_message():
-    # retries exhausted -> graceful ask instead of raising / hallucinating
-    with patch(_REGISTRY, {"p": _fake_plugin(args=("river_id",))}):
+def test_missing_arg_asks_immediately_naming_them():
+    # missing arg -> ask the user right away (NOT ModelRetry, which would
+    # pressure a weak model into fabricating a bogus value that then slips
+    # through and creates a broken tile)
+    with patch(_REGISTRY, {"p": _fake_plugin(args=("river_id", "station_id"))}), \
+         patch(_UPDATE) as update:
         reply = add_visualization_from_plugin(
-            _ctx(retry=3, max_retries=3), source="p", args={}
+            _ctx(retry=0), source="p", args={"river_id": "610217883"}
         )
-    assert "needs" in reply and "river_id" in reply
-    assert "raise" not in reply.lower()  # it's a message, not an exception
+    assert "station_id" in reply and "needs" in reply
+    update.assert_not_called()  # nothing persisted
+
+
+def test_blank_arg_values_count_as_missing():
+    # weak models include the required key with an empty placeholder
+    # ("", whitespace, {}, []) instead of omitting it - still missing, so
+    # ask rather than persist a tile that fails at render time
+    for blank in ["", "   ", {}, []]:
+        with patch(_REGISTRY, {"p": _fake_plugin(args=("station_id",))}), \
+             patch(_GET, return_value={"tabs": [{"gridItems": []}]}), \
+             patch(_UPDATE) as update:
+            reply = add_visualization_from_plugin(
+                _ctx(retry=0), source="p", args={"station_id": blank}
+            )
+        assert "station_id" in reply and "needs" in reply, f"blank={blank!r}"
+        update.assert_not_called()
 
 
 def test_dashboard_without_tabs_raises_model_retry():

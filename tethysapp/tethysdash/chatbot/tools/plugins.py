@@ -59,6 +59,23 @@ def format_catalog_for_llm() -> str:
         )
     return "\n\n".join(blocks)
 
+def _arg_is_blank(value: Any) -> bool:
+    """True when a supplied arg carries no usable value.
+
+    Weak models often include a required key with an empty placeholder
+    (``""``, ``{}``, ``[]``, ``None``) instead of omitting it. That is
+    still a *missing* input - the user never provided it - so it must
+    trigger the ask-for-args flow rather than persist a broken tile.
+    """
+    if value is None:
+        return True
+    if isinstance(value, str):
+        return value.strip() == ""
+    if isinstance(value, (dict, list, tuple, set)):
+        return len(value) == 0
+    return False
+
+
 def add_visualization_from_plugin(
     ctx: RunContext[ChatDeps],
     source: str,
@@ -104,19 +121,17 @@ def add_visualization_from_plugin(
             f"{format_catalog_for_llm()}"
         )
 
-    missing = sorted(set(spec.args) - set(args))
+    # A required key that is absent OR present-but-blank both count as
+    # missing - the model has no real value for it either way.
+    missing = sorted(a for a in spec.args if _arg_is_blank(args.get(a)))
     if missing:
-        if ctx.retry >= ctx.max_retries:
-            example = next(iter(spec.args))
-            return (
-                f"The **{source}** plugin needs these arguments: "
-                f"{', '.join(f'`{a}`' for a in spec.args)}. "
-                f"Tell me the values and I'll add it - for example: "
-                f"*add {source} with {example} = <value>*."
-            )
-        raise ModelRetry(
-            f"Missing required args for {source!r}: {missing}. "
-            f"Expected: {sorted(spec.args)}. Got: {sorted(args)}."
+        # Ask the user directly - do NOT ModelRetry here.
+        example = missing[0]
+        return (
+            f"The **{source}** plugin needs these arguments: "
+            f"{', '.join(f'`{a}`' for a in spec.args)}. "
+            f"Tell me the values and I'll add it - for example: "
+            f"*add {source} with {example} = <value>*."
         )
 
     user = ctx.deps.user
