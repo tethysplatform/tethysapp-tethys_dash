@@ -6028,6 +6028,28 @@ describe("snap pipeline integration", () => {
     expect(mapRef.current.getTargetElement().style.cursor).toBe("");
   });
 
+  test("a hidden snap layer is excluded from the cache refresh itself (no refetch on moveend)", async () => {
+    mockedFetchLayerVectorFeatures.mockResolvedValue([
+      makeRiver("Test River", [
+        [0, 20],
+        [30, 20],
+      ]),
+    ]);
+
+    const mapRef = await mountSnapMap([riversLayer()]);
+    await waitFor(() => expect(findOlLayer(mapRef, "Rivers")).toBeDefined());
+    const fetchesAfterPrime = mockedFetchLayerVectorFeatures.mock.calls.length;
+
+    // Hide the layer, then complete a pan: refreshSnapCaches must filter the
+    // layer out at refresh time and issue no /query fetch for it.
+    findOlLayer(mapRef, "Rivers").setVisible(false);
+    await dispatch(mapRef, { type: "moveend" });
+
+    expect(mockedFetchLayerVectorFeatures.mock.calls.length).toBe(
+      fetchesAfterPrime,
+    );
+  });
+
   test("snap preview re-attaches after being removed from the map (reconciliation sweep)", async () => {
     mockedFetchLayerVectorFeatures.mockResolvedValue([
       makeRiver("Test River", [

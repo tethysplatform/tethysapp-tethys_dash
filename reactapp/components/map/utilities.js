@@ -714,7 +714,8 @@ async function getESRILayerFeatures(
   sourceParams,
   map,
   coordinate,
-  tolerance = 10,
+  // The caller (queryLayerFeatures) owns the default via `clickTolerance ?? 10`.
+  tolerance,
 ) {
   // setup fetch request with params
   const featureQueryUrl = sourceUrl + "/identify";

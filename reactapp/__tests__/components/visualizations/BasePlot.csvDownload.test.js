@@ -1,6 +1,7 @@
 import {
   buildCsvFromGraphDiv,
   downloadCsvFromGraphDiv,
+  csvDownloadButton,
 } from "components/visualizations/csvExport";
 
 jest.mock("plotly.js-strict-dist-min", () => ({
@@ -189,6 +190,15 @@ describe("buildCsvFromGraphDiv", () => {
   });
 });
 
+describe("buildCsvFromGraphDiv toArray fallback", () => {
+  it("emits empty cells for a trace whose y is missing (non-array value)", () => {
+    const gd = {
+      data: [{ x: [1, 2], name: "A", type: "scatter" }],
+    };
+    expect(buildCsvFromGraphDiv(gd)).toBe("x,A\n1,\n2,");
+  });
+});
+
 describe("downloadCsvFromGraphDiv", () => {
   let clickSpy;
 
@@ -222,5 +232,15 @@ describe("downloadCsvFromGraphDiv", () => {
     downloadCsvFromGraphDiv({ data: [] });
     expect(global.URL.createObjectURL).not.toHaveBeenCalled();
     expect(clickSpy).not.toHaveBeenCalled();
+  });
+
+  it("csvDownloadButton.click routes the graph div into the download", () => {
+    expect(csvDownloadButton.name).toBe("downloadCsv");
+    csvDownloadButton.click({
+      data: [{ x: [1], y: [2], name: "A", type: "scatter" }],
+      layout: { title: { text: "My Plot" } },
+    });
+    expect(global.URL.createObjectURL).toHaveBeenCalledTimes(1);
+    expect(clickSpy).toHaveBeenCalledTimes(1);
   });
 });

@@ -107,6 +107,10 @@ test("removeEmptyStringsFromObject", async () => {
   newValue = removeEmptyValues({ test: [1, " "] });
   expect(newValue).toStrictEqual({ test: [1] });
 
+  // truthy non-string, non-object values pass through untouched
+  newValue = removeEmptyValues({ num: 5, str: "keep" });
+  expect(newValue).toStrictEqual({ num: 5, str: "keep" });
+
   newValue = removeEmptyValues({ test: [""] });
   expect(newValue).toStrictEqual({});
 

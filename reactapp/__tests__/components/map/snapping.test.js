@@ -404,6 +404,31 @@ describe("fetchLayerVectorFeatures", () => {
     warnSpy.mockRestore();
   });
 
+  test("returns [] when the geojson features cannot be parsed", async () => {
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+    global.fetch = jest.fn(() =>
+      Promise.resolve({
+        json: () =>
+          // Valid JSON with a features array, but garbage feature content —
+          // GeoJSONFormat.readFeatures throws while parsing it.
+          Promise.resolve({ type: "FeatureCollection", features: [null] }),
+      }),
+    );
+    const map = {
+      getView: jest.fn(() => ({
+        getProjection: jest.fn(() => ({ getCode: jest.fn(() => "EPSG:4326") })),
+        calculateExtent: jest.fn(() => [-10, -10, 10, 10]),
+      })),
+    };
+
+    expect(await fetchLayerVectorFeatures(layerInfo, map)).toEqual([]);
+    expect(errorSpy).toHaveBeenCalledWith(
+      "Failed to parse vector features:",
+      expect.anything(),
+    );
+    errorSpy.mockRestore();
+  });
+
   test("warns only once per service URL across repeated truncated refreshes", async () => {
     const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
     global.fetch = jest.fn(() =>
