@@ -7,7 +7,9 @@ import re
 from functools import lru_cache
 from pathlib import Path
 
-DOCS_ROOT = Path(__file__).parents[3] / "docs" / "source"
+# __file__ = <repo>/tethysapp/tethysdash/chatbot/tools/docs.py
+# parents[4] is the repo root, which holds docs/source.
+DOCS_ROOT = Path(__file__).parents[4] / "docs" / "source"
 
 # Published Sphinx build of docs/source. The build preserves relative
 # paths and swaps .rst for .html (verified 2026-07-09 incl. tutorials/

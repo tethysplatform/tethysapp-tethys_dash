@@ -1,4 +1,4 @@
-"""Tests for chat/tools/plugins_tools.py - add_visualization_from_plugin.
+"""Tests for chat/tools/plugins.py - add_visualization_from_plugin.
 
 Current-API replacement for the deleted tethys-agents-era
 test_agent_tools.py: the tool now takes ``args: dict`` (not a JSON
@@ -39,8 +39,8 @@ def _fake_plugin(args=("river_id",)):
 
 
 _REGISTRY = "intake.source.registry"
-_GET = "tethysapp.tethysdash.chatbot.tools.plugins_tools.get_dashboards"
-_UPDATE = "tethysapp.tethysdash.chatbot.tools.plugins_tools.update_named_dashboard"
+_GET = "tethysapp.tethysdash.chatbot.tools.plugins.get_dashboards"
+_UPDATE = "tethysapp.tethysdash.chatbot.tools.plugins.update_named_dashboard"
 
 
 def test_unknown_source_raises_model_retry_with_catalog():
