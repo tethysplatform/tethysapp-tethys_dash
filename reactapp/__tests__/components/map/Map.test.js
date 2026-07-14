@@ -6,7 +6,10 @@ import MapContextProvider, {
   useMapContext,
 } from "components/contexts/MapContext";
 import { Map, View } from "ol";
-import { exampleStyle } from "__tests__/utilities/constants";
+import {
+  exampleStyle,
+  layerConfigGeoJSON,
+} from "__tests__/utilities/constants";
 import { VariableInputsContext } from "components/contexts/Contexts";
 import { wrapMercatorX } from "components/map/utilities";
 import * as olMapboxStyle from "ol-mapbox-style";
@@ -2477,7 +2480,10 @@ describe("onMapMoveEnd registration and mount-time prime", () => {
   // must un+on re-register (no handler pile-up) and the handler must be
   // primed exactly once per map instance so the snap cache exists before the
   // first user pan.
-  const renderMoveEndMap = (onMapMoveEnd) => {
+  const renderMoveEndMap = (
+    onMapMoveEnd,
+    initialLayers = [layerConfigGeoJSON.configuration],
+  ) => {
     let capturedRef;
     const RefCapture = ({ mapProps }) => {
       const ref = useRef();
@@ -2499,11 +2505,11 @@ describe("onMapMoveEnd registration and mount-time prime", () => {
         </MapContextProvider>
       </VariableInputsContext.Provider>
     );
-    const { rerender } = render(tree([]));
+    const { rerender } = render(tree(initialLayers));
     return {
       getMap: () => capturedRef.current,
       // A fresh array identity re-runs the [layers] effect → re-registration.
-      rerenderLayers: () => rerender(tree([])),
+      rerenderLayers: (layers = initialLayers) => rerender(tree([...layers])),
     };
   };
 
@@ -2559,5 +2565,20 @@ describe("onMapMoveEnd registration and mount-time prime", () => {
     // A real moveend still reaches the (re-registered) handler.
     getMap().dispatchEvent({ type: "moveend" });
     expect(onMapMoveEnd).toHaveBeenCalledTimes(2);
+  });
+
+  test("the prime waits for the first layers-bearing effect run", async () => {
+    const onMapMoveEnd = jest.fn();
+    // Mount with NO layers: the parent's layer state hasn't resolved on the
+    // first effect pass, and live-source snap caches (GeoJSON/Feature
+    // Service) need their OL layers mounted before the prime is useful.
+    const { rerenderLayers } = renderMoveEndMap(onMapMoveEnd, []);
+
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+    expect(onMapMoveEnd).not.toHaveBeenCalled();
+
+    // The first run that actually carries layers primes exactly once.
+    rerenderLayers([layerConfigGeoJSON.configuration]);
+    await waitFor(() => expect(onMapMoveEnd).toHaveBeenCalledTimes(1));
   });
 });

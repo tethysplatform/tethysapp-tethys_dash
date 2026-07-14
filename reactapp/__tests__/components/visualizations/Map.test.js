@@ -6145,19 +6145,11 @@ describe("snap pipeline integration", () => {
   // branch: the snap cache entry IS the GeoJSON layer's own live OL
   // VectorSource, populated directly here (no fetchLayerVectorFeatures
   // network fetch involved for this layer at all).
-  // NOTE on the extra `moveend` dispatch below: map/Map.js's mount-time
-  // auto-prime (the one-shot call documented at mountSnapMap above) fires
-  // during the FIRST layer-reconciliation pass, when MapComponent's `layers`
-  // prop is still the parent's initial `undefined` (its own `mapLayers`
-  // state hasn't resolved yet) — so at that instant the GeoJSON layer's OL
-  // VectorLayer doesn't exist yet, `getOlLayerByName` finds nothing, and the
-  // vector cache entry never gets built. The ESRI/fetch branch doesn't
-  // notice this because fetchLayerVectorFeatures doesn't depend on any OL
-  // layer existing; the new live-source branch does. Because the auto-prime
-  // guard only fires once, a real `moveend` (e.g. the user's first pan) is
-  // what actually populates the cache in practice, so each test below
-  // dispatches one right after confirming the OL layer is mounted to
-  // establish that baseline before exercising the live-source behavior.
+  // The mount-time prime in map/Map.js waits for the first layers-bearing
+  // effect run, so by the time the OL layers are mounted the live-source
+  // cache entry exists — no moveend is required before snapping works.
+  // (The hover assertions re-dispatch inside waitFor because the prime runs
+  // in the same async effect that mounted the layer.)
   test("R2: hover near a GeoJSON river draws the cyan preview and pointer cursor; singleclick snap-selects it locally without querying the layer", async () => {
     const layerName = "GeoJSON Rivers";
     jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
@@ -6170,11 +6162,10 @@ describe("snap pipeline integration", () => {
       },
     );
     await waitFor(() => expect(findOlLayer(mapRef, layerName)).toBeDefined());
-    await dispatch(mapRef, { type: "moveend" });
 
     // Populate the layer's real, live OL VectorSource directly — the cache
-    // entry built by refreshSnapCaches on that moveend IS this same source
-    // object, so it already reflects whatever features live on it.
+    // entry built by the mount-time prime IS this same source object, so it
+    // already reflects whatever features live on it.
     findOlLayer(mapRef, layerName)
       .getSource()
       .addFeatures([
@@ -6186,14 +6177,16 @@ describe("snap pipeline integration", () => {
 
     // Hover near the river: cyan preview (feature outline + snapped-point
     // dot = 2 features) and the pointer-cursor affordance.
-    await dispatch(mapRef, {
-      type: "pointermove",
-      coordinate: [12, 24],
-      pixel: [12, 24],
+    await waitFor(async () => {
+      await dispatch(mapRef, {
+        type: "pointermove",
+        coordinate: [12, 24],
+        pixel: [12, 24],
+      });
+      expect(
+        findOlLayer(mapRef, "Snap Preview")?.getSource().getFeatures(),
+      ).toHaveLength(2);
     });
-    const previewLayer = findOlLayer(mapRef, "Snap Preview");
-    expect(previewLayer).toBeDefined();
-    expect(previewLayer.getSource().getFeatures()).toHaveLength(2);
     expect(mapRef.current.getTargetElement().style.cursor).toBe("pointer");
 
     // Click 4 "pixels" off the river line (within SNAP_PIXELS = 15): local
@@ -6297,14 +6290,11 @@ describe("snap pipeline integration", () => {
       },
     );
     await waitFor(() => expect(findOlLayer(mapRef, layerName)).toBeDefined());
-    // Establish the baseline cache entry (see the note above the R2 test for
-    // why this one dispatch is needed before the live-source behavior below
-    // can be exercised at all).
-    await dispatch(mapRef, { type: "moveend" });
 
     // First hover: the live source is still empty (simulating features that
     // haven't loaded yet), so nothing snaps and the preview layer is never
-    // even created.
+    // even created. No moveend is dispatched anywhere in this test — the
+    // mount-time prime created the live-source cache entry.
     await dispatch(mapRef, {
       type: "pointermove",
       coordinate: [12, 24],
@@ -6313,8 +6303,8 @@ describe("snap pipeline integration", () => {
     expect(findOlLayer(mapRef, "Snap Preview")).toBeUndefined();
 
     // Simulate async feature loading landing directly on the live OL source
-    // — the cache entry IS this source object (U2), so NO FURTHER moveend is
-    // needed for the new features to become snappable.
+    // — the cache entry IS this source object (U2), so NO moveend is needed
+    // for the new features to become snappable.
     findOlLayer(mapRef, layerName)
       .getSource()
       .addFeatures([
@@ -6324,15 +6314,16 @@ describe("snap pipeline integration", () => {
         ]),
       ]);
 
-    await dispatch(mapRef, {
-      type: "pointermove",
-      coordinate: [12, 24],
-      pixel: [12, 24],
+    await waitFor(async () => {
+      await dispatch(mapRef, {
+        type: "pointermove",
+        coordinate: [12, 24],
+        pixel: [12, 24],
+      });
+      expect(
+        findOlLayer(mapRef, "Snap Preview")?.getSource().getFeatures(),
+      ).toHaveLength(2);
     });
-
-    const previewLayer = findOlLayer(mapRef, "Snap Preview");
-    expect(previewLayer).toBeDefined();
-    expect(previewLayer.getSource().getFeatures()).toHaveLength(2);
     expect(mapRef.current.getTargetElement().style.cursor).toBe("pointer");
   });
 
