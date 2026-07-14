@@ -18,6 +18,7 @@ import {
   buildShiftedMercatorWKT,
   rewriteArcGISExportUrlForAntimeridian,
   shiftEPSG3857ExtentAndPoint,
+  coerceOptionalNumber,
 } from "components/map/utilities";
 import VectorSource from "ol/source/Vector.js";
 import { LineString, Point, MultiPolygon, Polygon } from "ol/geom";
@@ -787,7 +788,39 @@ test("queryLayerFeatures GeoJSON coerces a string clickTolerance from the GUI to
   );
 });
 
-test.each(["", "abc"])(
+describe("coerceOptionalNumber", () => {
+  test("passes through finite numbers, including 0", () => {
+    expect(coerceOptionalNumber(15)).toBe(15);
+    expect(coerceOptionalNumber(0)).toBe(0);
+    expect(coerceOptionalNumber(2.5)).toBe(2.5);
+    expect(coerceOptionalNumber(-3)).toBe(-3);
+  });
+
+  test('coerces numeric strings, including "0" and padded values', () => {
+    expect(coerceOptionalNumber("15")).toBe(15);
+    expect(coerceOptionalNumber("0")).toBe(0);
+    expect(coerceOptionalNumber(" 7 ")).toBe(7);
+  });
+
+  test("treats null and undefined as unset", () => {
+    expect(coerceOptionalNumber(null)).toBeUndefined();
+    expect(coerceOptionalNumber(undefined)).toBeUndefined();
+  });
+
+  test("treats blank strings as unset (empty and whitespace-only)", () => {
+    expect(coerceOptionalNumber("")).toBeUndefined();
+    expect(coerceOptionalNumber(" ")).toBeUndefined();
+    expect(coerceOptionalNumber("\t\n")).toBeUndefined();
+  });
+
+  test("treats non-numeric values as unset", () => {
+    expect(coerceOptionalNumber("abc")).toBeUndefined();
+    expect(coerceOptionalNumber(NaN)).toBeUndefined();
+    expect(coerceOptionalNumber(Infinity)).toBeUndefined();
+  });
+});
+
+test.each(["", " ", "abc"])(
   "queryLayerFeatures GeoJSON treats an invalid clickTolerance %p as unset",
   async (invalidTolerance) => {
     const mockMap = {

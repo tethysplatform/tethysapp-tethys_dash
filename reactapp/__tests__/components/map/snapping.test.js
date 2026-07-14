@@ -103,6 +103,16 @@ describe("resolveSnapSublayer", () => {
     expect(resolveSnapSublayer({ snapSublayer: "abc" })).toBe(0);
   });
 
+  test("a whitespace-only snapSublayer is treated as unset (falls back to LAYERS)", () => {
+    expect(
+      resolveSnapSublayer({
+        snapSublayer: " ",
+        source: { props: { params: { LAYERS: "show:2" } } },
+      }),
+    ).toBe(2);
+    expect(resolveSnapSublayer({ snapSublayer: " " })).toBe(0);
+  });
+
   test("explicit snapSublayer of 0 is respected (not treated as unset)", () => {
     const props = {
       snapSublayer: 0,

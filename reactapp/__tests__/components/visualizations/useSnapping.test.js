@@ -294,4 +294,83 @@ describe("useSnapping vector-layer live-source snap caches (U2)", () => {
     // Excluded by the zoom gate entirely, so no snap and no preview layer.
     expect(map.addLayer).not.toHaveBeenCalled();
   });
+
+  test("snapping follows a rebuilt OL layer without a moveend", async () => {
+    // The reconciliation sweep in map/Map.js rebuilds VectorLayers on any
+    // layers change: the OL instance (and its VectorSource) is replaced while
+    // the configured name stays the same, and no moveend fires. Live entries
+    // must resolve the OL source at use time so snapping targets the NEW
+    // source immediately.
+    const oldSource = new VectorSource();
+    oldSource.addFeature(
+      new Feature({
+        geometry: new LineString([
+          [0, 0],
+          [0, 100],
+        ]),
+      }),
+    );
+    const olLayers = [makeStubOlLayer("Rivers", oldSource)];
+    const map = makeMapWithLayers(olLayers);
+    const { result } = renderHook(() =>
+      useSnapping({ layers: [geoJsonRiverLayerConfig] }),
+    );
+
+    await result.current.refreshSnapCaches(map);
+
+    // Rebuild: a NEW stub layer with the same name but a different
+    // VectorSource whose only feature sits at a new position.
+    const newSource = new VectorSource();
+    newSource.addFeature(
+      new Feature({
+        geometry: new LineString([
+          [500, 500],
+          [500, 600],
+        ]),
+      }),
+    );
+    olLayers.splice(0, 1, makeStubOlLayer("Rivers", newSource));
+
+    // No further refreshSnapCaches call — snap near the NEW feature.
+    result.current.updateSnap(map, [500 + SNAP_PIXELS - 5, 550]);
+    expect(map.addLayer).toHaveBeenCalledTimes(1);
+    const previewLayer = map.addLayer.mock.calls[0][0];
+    expect(previewLayer.getSource().getFeatures()).toHaveLength(2);
+
+    // And the OLD source's feature is no longer snappable — the stale
+    // reference is gone, not merely supplemented.
+    result.current.updateSnap(map, [SNAP_PIXELS - 5, 50]);
+    expect(previewLayer.getSource().getFeatures()).toHaveLength(0);
+  });
+
+  test("a snap layer that mounts after the refresh becomes snappable without another refresh", async () => {
+    // Late mount: the refresh (e.g. the one-shot prime) runs before the OL
+    // layer exists. The live marker entry is still recorded, so once the
+    // layer mounts, use-time resolution makes it snappable with no further
+    // refresh.
+    const olLayers = [];
+    const map = makeMapWithLayers(olLayers);
+    const { result } = renderHook(() =>
+      useSnapping({ layers: [geoJsonRiverLayerConfig] }),
+    );
+
+    await result.current.refreshSnapCaches(map);
+    expect(mockedFetch).not.toHaveBeenCalled();
+
+    const liveSource = new VectorSource();
+    liveSource.addFeature(
+      new Feature({
+        geometry: new LineString([
+          [0, 0],
+          [0, 100],
+        ]),
+      }),
+    );
+    olLayers.push(makeStubOlLayer("Rivers", liveSource));
+
+    result.current.updateSnap(map, [SNAP_PIXELS - 5, 50]);
+    expect(map.addLayer).toHaveBeenCalledTimes(1);
+    const previewLayer = map.addLayer.mock.calls[0][0];
+    expect(previewLayer.getSource().getFeatures()).toHaveLength(2);
+  });
 });

@@ -16,6 +16,20 @@ import { PMTiles } from "pmtiles";
 import { VectorTile } from "@mapbox/vector-tile";
 import Protobuf from "pbf";
 
+// Source types whose features live in a client-side OL VectorSource (vs
+// server-rendered services queried remotely).
+export const CLIENT_VECTOR_SOURCE_TYPES = ["GeoJSON", "ESRI Feature Service"];
+
+// Coerce an optional numeric layer prop: GUI inputs emit strings, so accept
+// any numeric value but treat null/undefined/blank/non-numeric as unset.
+export function coerceOptionalNumber(value) {
+  if (value === null || value === undefined) return undefined;
+  const str = String(value).trim();
+  if (str === "") return undefined;
+  const num = Number(str);
+  return Number.isFinite(num) ? num : undefined;
+}
+
 export const sourcePropertiesOptions = {
   "ESRI Image and Map Service": {
     required: {
@@ -595,19 +609,10 @@ export async function queryLayerFeatures(layerInfo, map, coordinate, pixel) {
         map,
         pixel,
       );
-    } else if (
-      sourceType === "GeoJSON" ||
-      sourceType === "ESRI Feature Service"
-    ) {
-      // GUI inputs emit strings; coerce and treat non-finite (including "") as unset
-      const rawClickTolerance = layerInfo.configuration.props.clickTolerance;
-      const clickTolerance =
-        rawClickTolerance !== null &&
-        rawClickTolerance !== undefined &&
-        rawClickTolerance !== "" &&
-        Number.isFinite(Number(rawClickTolerance))
-          ? Number(rawClickTolerance)
-          : undefined;
+    } else if (CLIENT_VECTOR_SOURCE_TYPES.includes(sourceType)) {
+      const clickTolerance = coerceOptionalNumber(
+        layerInfo.configuration.props.clickTolerance,
+      );
       features = await getGeoJSONLayerFeatures(
         map,
         pixel,

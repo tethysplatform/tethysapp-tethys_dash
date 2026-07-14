@@ -6,6 +6,7 @@ import {
   fetchLayerVectorFeatures,
   findBestSnap,
 } from "components/map/snapping";
+import { CLIENT_VECTOR_SOURCE_TYPES } from "components/map/utilities";
 
 // --- Feature snapping (Approach A) -------------------------------------
 // Maintain a hidden vector cache of snap-enabled layers' features for the
@@ -102,26 +103,21 @@ export default function useSnapping({ layers }) {
         snapLayers.map(async (layer) => {
           const layerName = layer.configuration.props.name;
           const sourceType = layer.configuration?.props?.source?.type;
-          if (
-            sourceType === "GeoJSON" ||
-            sourceType === "ESRI Feature Service"
-          ) {
+          if (CLIENT_VECTOR_SOURCE_TYPES.includes(sourceType)) {
             // Live source, not a snapshot: these layers' features already
-            // live in an OL VectorSource in the browser, so the cache entry
-            // IS that source — no fetch, no new VectorSource. This means the
-            // snap set always equals the rendered set (strictly better than
-            // the fetch path's approximation); features streaming in via the
-            // source's loading strategy become snappable as they load, with
-            // no moveend dependency; and the generation token above is
-            // irrelevant for these entries since there's nothing async to
-            // discard — they resolve synchronously below. Rebuilt every
-            // refresh so a layer rebuild re-resolves the OL instance.
-            const olLayer = getOlLayerByName(map, layerName);
-            const source = olLayer?.getSource?.();
-            // Unresolved OL instance (mid-rebuild) or a missing source:
-            // contribute nothing this cycle rather than throw — the next
-            // refresh picks it up.
-            return source ? { layerName, source } : null;
+            // live in an OL VectorSource in the browser, so no fetch and no
+            // new VectorSource — the snap set always equals the rendered set
+            // (strictly better than the fetch path's approximation), and
+            // features streaming in via the source's loading strategy become
+            // snappable as they load, with no moveend dependency. The entry
+            // is only a marker; the OL source is resolved at USE time
+            // (visibleSnapCaches) because (a) the reconciliation sweep in
+            // map/Map.js rebuilds VectorLayers on any layers change, so a
+            // reference captured here goes stale until the next moveend, and
+            // (b) use-time resolution also covers snap layers that mount
+            // after the one-shot prime. Nothing async here, so the
+            // generation token above is irrelevant for these entries.
+            return { layerName, live: true };
           }
           const source = new VectorSource();
           source.addFeatures(await fetchLayerVectorFeatures(layer, map));
@@ -141,13 +137,28 @@ export default function useSnapping({ layers }) {
   const visibleSnapCaches = (map) => {
     const olVisibility = getOlVisibilityMap(map);
     // snapCachesRef.current is initialized to [] and only ever assigned arrays.
-    return snapCachesRef.current.filter(
-      // Entries with no matching OL layer are retained on purpose: mid-rebuild
-      // the layer may not be mounted yet (matches refreshSnapCaches'
-      // benefit-of-the-doubt filter).
-      (cache) =>
-        !olVisibility.has(cache.layerName) ||
-        olVisibility.get(cache.layerName) === true,
+    return (
+      snapCachesRef.current
+        .filter(
+          // Entries with no matching OL layer pass the visibility check on
+          // purpose: mid-rebuild the layer may not be mounted yet (matches
+          // refreshSnapCaches' benefit-of-the-doubt filter).
+          (cache) =>
+            !olVisibility.has(cache.layerName) ||
+            olVisibility.get(cache.layerName) === true,
+        )
+        // Live entries resolve their OL source at use time so snapping always
+        // targets the currently-mounted VectorSource (the reconciliation
+        // sweep rebuilds VectorLayers on any layers change). When the OL
+        // layer/source isn't currently resolvable (mid-rebuild), the entry is
+        // dropped for this call — there is nothing to snap against — and the
+        // next call re-resolves it.
+        .map((cache) => {
+          if (!cache.live) return cache;
+          const source = getOlLayerByName(map, cache.layerName)?.getSource?.();
+          return source ? { layerName: cache.layerName, source } : null;
+        })
+        .filter(Boolean)
     );
   };
 
