@@ -1,25 +1,15 @@
-"""Deterministic embedding-based intent routing.
+"""EmbeddingIntentClassifier — accept/reject/margin logic.
 
-Cosine similarity is computed in pure Python; the only external call is
-the embedding request, which is mocked so these tests are fast and
-network-free. One integration-style test (marked, opt-in) can hit a
-real Ollama if present.
+SentenceTransformer is mocked with a deterministic toy embedder so
+these tests are fast and need neither torch nor a model download. One
+live test hits the real classifier and self-skips when the model can't
+be loaded (e.g. offline CI).
 """
-from unittest.mock import patch
-
+import numpy as np
 import pytest
 
-from tethysapp.tethysdash.chatbot import routing
-from tethysapp.tethysdash.chatbot.routing import (
-    CONFIDENCE_FLOOR,
-    INTENT_ADD,
-    INTENT_DOCS,
-    INTENT_EXAMPLES,
-    INTENT_LIST,
-    INTENT_OOS,
-    RoutingUnavailable,
-    classify,
-)
+from tethysapp.tethysdash.chatbot.agents import embedder as embedder_mod
+from tethysapp.tethysdash.chatbot.agents.embedder import EmbeddingIntentClassifier
 
 
 @pytest.fixture(autouse=True)
@@ -28,105 +18,101 @@ def truncate_tables():
     yield
 
 
-@pytest.fixture(autouse=True)
-def _reset_cache():
-    """Each test controls its own embedding stubs."""
-    routing._example_vectors = None
-    yield
-    routing._example_vectors = None
+# Three toy intents on three axes. An example/query tagged "[i] ..."
+# points fully along axis i; "[low] ..." points weakly; anything else is
+# uniform (equal to every prototype -> ~zero margin).
+_INTENTS = {
+    "alpha": ["[0] one", "[0] two"],
+    "beta": ["[1] one"],
+    "gamma": ["[2] one"],
+}
 
 
-def _fake_embedder():
-    """Deterministic toy embedder: one dimension per intent, so an
-    example/prompt tagged with an intent points fully along that axis.
-    Lets us assert routing logic without a real model."""
-    intents = list(INTENT_EXAMPLES)
+class _FakeST:
+    def __init__(self, *_a, **_k):
+        pass
 
-    def embed(texts):
-        out = []
+    def encode(self, texts, normalize_embeddings=False, convert_to_numpy=False):
+        rows = []
         for t in texts:
-            vec = [0.0] * len(intents)
-            for i, intent in enumerate(intents):
-                if t.startswith(f"[{intent}]"):
-                    vec[i] = 1.0
-            # unlabeled text -> uniform across axes so cosine vs any
-            # one-hot example is 1/sqrt(n) (~0.5 for 4 intents), which
-            # sits below CONFIDENCE_FLOOR. (A single-axis fallback would
-            # score 1.0 - cosine ignores magnitude.)
-            if sum(vec) == 0:
-                vec = [1.0] * len(intents)
-            out.append(vec)
-        return out
-
-    return embed
-
-
-def test_classify_picks_the_matching_intent():
-    labeled = {intent: [f"[{intent}] example"] for intent in INTENT_EXAMPLES}
-    with patch.object(routing, "INTENT_EXAMPLES", labeled), \
-         patch.object(routing, "_embed", _fake_embedder()):
-        for intent in (INTENT_ADD, INTENT_DOCS, INTENT_LIST, INTENT_OOS):
-            got, score = classify(f"[{intent}] please")
-            assert got == intent
-            assert score == pytest.approx(1.0)
+            v = np.zeros(3, dtype=np.float32)
+            if t.startswith("[0]"):
+                v[0] = 1.0
+            elif t.startswith("[1]"):
+                v[1] = 1.0
+            elif t.startswith("[2]"):
+                v[2] = 1.0
+            elif t.startswith("[low]"):
+                v[0] = 0.30  # aligned but small magnitude -> low score
+            else:
+                v[:] = 1.0 / np.sqrt(3)  # uniform -> equal to all prototypes
+            rows.append(v)
+        return np.vstack(rows)
 
 
-def test_low_confidence_falls_back_to_out_of_scope():
-    labeled = {intent: [f"[{intent}] example"] for intent in INTENT_EXAMPLES}
-    with patch.object(routing, "INTENT_EXAMPLES", labeled), \
-         patch.object(routing, "_embed", _fake_embedder()):
-        # unlabeled prompt -> ~0.01 similarity, below the floor
-        got, score = classify("completely unrelated gibberish")
-    assert got == INTENT_OOS
-    assert score < CONFIDENCE_FLOOR
+@pytest.fixture
+def classifier(monkeypatch):
+    monkeypatch.setattr(embedder_mod, "SentenceTransformer", _FakeST)
+    # Pin thresholds so this logic test is independent of production
+    # tuning (the toy embedder's values are designed for 0.40 / 0.05).
+    return EmbeddingIntentClassifier(
+        _INTENTS, minimum_score=0.40, minimum_margin=0.05
+    )
 
 
-def test_embedding_failure_raises_routing_unavailable():
-    def boom(_texts):
-        raise routing.RoutingUnavailable("no model")
-
-    with patch.object(routing, "_embed", boom):
-        with pytest.raises(RoutingUnavailable):
-            classify("anything")
+def test_requires_at_least_two_intents(monkeypatch):
+    monkeypatch.setattr(embedder_mod, "SentenceTransformer", _FakeST)
+    with pytest.raises(ValueError):
+        EmbeddingIntentClassifier({"only": ["[0] x"]})
 
 
-def test_example_vectors_computed_once():
-    calls = {"n": 0}
-    real = _fake_embedder()
-
-    def counting(texts):
-        calls["n"] += 1
-        return real(texts)
-
-    labeled = {intent: [f"[{intent}] ex"] for intent in INTENT_EXAMPLES}
-    with patch.object(routing, "INTENT_EXAMPLES", labeled), \
-         patch.object(routing, "_embed", counting):
-        classify("[add_visualization] a")
-        classify("[answer_docs_question] b")
-    # 1 batch call for examples + 1 per prompt = 3, not 4 (examples cached)
-    assert calls["n"] == 3
+def test_rejects_empty_examples(monkeypatch):
+    monkeypatch.setattr(embedder_mod, "SentenceTransformer", _FakeST)
+    with pytest.raises(ValueError):
+        EmbeddingIntentClassifier({"a": ["[0] x"], "b": []})
 
 
-def _embeddings_available() -> bool:
+def test_confident_match_is_accepted(classifier):
+    pred = classifier.classify("[0] please do the thing")
+    assert pred.intent == "alpha"
+    assert pred.accepted is True
+    assert pred.score == pytest.approx(1.0)
+    assert pred.margin >= classifier.minimum_margin
+
+
+def test_empty_text_returns_none(classifier):
+    pred = classifier.classify("   ")
+    assert pred.intent is None
+    assert pred.accepted is False
+
+
+def test_low_margin_is_rejected(classifier):
+    # uniform query is equidistant from every prototype -> margin ~0
+    pred = classifier.classify("totally ambiguous")
+    assert pred.intent is None
+    assert pred.margin < classifier.minimum_margin
+
+
+def test_low_score_is_rejected(classifier):
+    # aligned with alpha but weak magnitude -> best score below the floor
+    pred = classifier.classify("[low] weak signal")
+    assert pred.intent is None
+    assert pred.score < classifier.minimum_score
+
+
+def test_live_classifier_routes_hard_cases():
+    """Real model via bootstrap; skips if it can't be loaded (offline)."""
+    from tethysapp.tethysdash.chatbot.agents.embedding_data import (
+        INTENT_ADD,
+        INTENT_DOCS,
+    )
+
     try:
-        routing._embed(["ping"])
-        return True
-    except routing.RoutingUnavailable:
-        return False
+        from tethysapp.tethysdash.chatbot.bootstrap import get_classifier
 
+        clf = get_classifier()
+    except Exception as exc:  # noqa: BLE001 - model download/load may fail
+        pytest.skip(f"embedding model unavailable: {exc}")
 
-def test_real_embeddings_route_the_known_hard_cases():
-    """Requires a running Ollama with the embed model pulled; skips
-    automatically otherwise (e.g. in CI). Pins the prompts the SLM
-    router historically mis-routed."""
-    if not _embeddings_available():
-        pytest.skip("embedding model not available")
-    cases = {
-        "how do I create a map with a wms layer?": INTENT_DOCS,
-        "add the forecast plugin for river 610217883": INTENT_ADD,
-        "what plugins are available?": INTENT_LIST,
-        "how are you today?": INTENT_OOS,
-    }
-    for prompt, expected in cases.items():
-        got, _ = classify(prompt)
-        assert got == expected, f"{prompt!r} -> {got}, expected {expected}"
+    assert clf.classify("how do I create a map with a wms layer?").intent == INTENT_DOCS
+    assert clf.classify("add the rainfall plugin for gauge 55").intent == INTENT_ADD

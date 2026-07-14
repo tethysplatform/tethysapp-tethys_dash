@@ -20,9 +20,13 @@ def truncate_tables():
     yield
 
 
-def _ctx(dashboard_id=6):
+def _ctx(dashboard_id=6, retry=0, max_retries=3):
+    # retry/max_retries drive the missing-args behavior: raise ModelRetry
+    # while retries remain, return an ask message once exhausted.
     return SimpleNamespace(
-        deps=ChatDeps(user=MagicMock(), dashboard_id=dashboard_id, chat_id="")
+        deps=ChatDeps(user=MagicMock(), dashboard_id=dashboard_id, chat_id=""),
+        retry=retry,
+        max_retries=max_retries,
     )
 
 
@@ -55,12 +59,23 @@ def test_non_dict_args_raises_model_retry():
 
 
 def test_missing_required_args_raises_model_retry_naming_them():
+    # retries remaining -> ModelRetry so the model can self-correct
     with patch(_REGISTRY, {"p": _fake_plugin(args=("river_id", "station_id"))}):
         with pytest.raises(ModelRetry) as exc:
             add_visualization_from_plugin(
-                _ctx(), source="p", args={"river_id": "610217883"}
+                _ctx(retry=0), source="p", args={"river_id": "610217883"}
             )
     assert "station_id" in str(exc.value)
+
+
+def test_missing_args_on_final_attempt_returns_ask_message():
+    # retries exhausted -> graceful ask instead of raising / hallucinating
+    with patch(_REGISTRY, {"p": _fake_plugin(args=("river_id",))}):
+        reply = add_visualization_from_plugin(
+            _ctx(retry=3, max_retries=3), source="p", args={}
+        )
+    assert "needs" in reply and "river_id" in reply
+    assert "raise" not in reply.lower()  # it's a message, not an exception
 
 
 def test_dashboard_without_tabs_raises_model_retry():

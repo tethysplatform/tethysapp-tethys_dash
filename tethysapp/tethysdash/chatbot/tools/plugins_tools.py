@@ -51,6 +51,20 @@ def add_visualization_from_plugin(
 
     missing = sorted(set(spec.args) - set(args))
     if missing:
+        # Retry first, so the model can self-correct when the values WERE
+        # in the prompt but it under-extracted them. Once retries are
+        # exhausted, stop raising (which would crash / drive the model to
+        # hallucinate values) and return a user-facing ask instead. The
+        # argument names come from the plugin's real schema, so nothing
+        # is invented.
+        if ctx.retry >= ctx.max_retries:
+            example = next(iter(spec.args))
+            return (
+                f"The **{source}** plugin needs these arguments: "
+                f"{', '.join(f'`{a}`' for a in spec.args)}. "
+                f"Tell me the values and I'll add it - for example: "
+                f"*add {source} with {example} = <value>*."
+            )
         raise ModelRetry(
             f"Missing required args for {source!r}: {missing}. "
             f"Expected: {sorted(spec.args)}. Got: {sorted(args)}."

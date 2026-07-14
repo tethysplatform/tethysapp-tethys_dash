@@ -1,22 +1,25 @@
-"""Owner-only gating for mutating chat actions.
+"""Owner-only gating for adding visualizations.
 
 Two layers, both tested:
-1. Dispatch gate - run_intent refuses the add intent for non-owners
-   without ever invoking the specialist LLM.
+1. Router gate - LLMRouter.route refuses the add intent for non-owners
+   before running the specialist agent.
 2. Enforcement - the tool itself refuses when ChatDeps says the
-   requester is not the owner (defense in depth; the dispatch gate is
-   not the only boundary).
+   requester is not the owner (defense in depth at the DB layer).
 """
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from asgiref.sync import async_to_sync
 
-from tethysapp.tethysdash.chatbot.dispatch import run_intent
-from tethysapp.tethysdash.chatbot.routing import INTENT_ADD, INTENT_LIST
+from tethysapp.tethysdash.chatbot.agents.embedder import IntentPrediction
+from tethysapp.tethysdash.chatbot.agents.embedding_data import INTENT_ADD
 from tethysapp.tethysdash.chatbot.tools import add_visualization_from_plugin
-from tethysapp.tethysdash.chatbot.validation import ChatDeps
+from tethysapp.tethysdash.chatbot.validation import (
+    ChatDeps,
+    LLMRouter,
+    RoutedResponse,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -31,25 +34,50 @@ def _deps(owner: bool) -> ChatDeps:
     )
 
 
-def test_dispatch_refuses_add_for_non_owner_without_running_specialist():
-    with patch(
-        "tethysapp.tethysdash.chatbot.dispatch.plugin_agent"
-    ) as plugin_agent:
-        reply = async_to_sync(run_intent)(INTENT_ADD, _deps(owner=False))
-    assert "owner" in reply.lower()
-    plugin_agent.run.assert_not_called()
+class _FixedClassifier:
+    """Classifier stub that always predicts the add intent."""
+
+    def classify(self, _text):
+        return IntentPrediction(
+            intent=INTENT_ADD,
+            score=0.9,
+            second_best_score=0.1,
+            margin=0.8,
+            accepted=True,
+        )
 
 
-def test_dispatch_allows_non_owner_to_list_plugins():
-    with patch(
-        "tethysapp.tethysdash.chatbot.dispatch.format_catalog_for_llm",
-        return_value="catalog",
-    ):
-        reply = async_to_sync(run_intent)(INTENT_LIST, _deps(owner=False))
-    assert reply == "catalog"
+# --------------------------------------------------------------------------
+# Router-level gate
+# --------------------------------------------------------------------------
+
+def test_route_refuses_add_for_non_owner_without_running_agent():
+    registry = MagicMock()
+    router = LLMRouter(_FixedClassifier(), registry, _deps(owner=False))
+    reply = async_to_sync(router.route)("add a plugin")
+    assert isinstance(reply, str) and "owner" in reply.lower()
+    registry.get.assert_not_called()
 
 
-def test_tool_refuses_non_owner_even_if_dispatch_bypassed():
+def test_route_runs_agent_for_owner():
+    agent = MagicMock()
+    agent.run = AsyncMock(return_value=SimpleNamespace(output="Added."))
+    registry = MagicMock()
+    registry.get.return_value = agent
+
+    router = LLMRouter(_FixedClassifier(), registry, _deps(owner=True))
+    result = async_to_sync(router.route)("add a plugin")
+
+    registry.get.assert_called_once_with(INTENT_ADD)
+    assert isinstance(result, RoutedResponse)
+    assert result.response == "Added."
+
+
+# --------------------------------------------------------------------------
+# Tool-level enforcement (defense in depth)
+# --------------------------------------------------------------------------
+
+def test_tool_refuses_non_owner_even_if_router_bypassed():
     ctx = SimpleNamespace(deps=_deps(owner=False))
     with patch(
         "tethysapp.tethysdash.chatbot.tools.plugins_tools.update_named_dashboard"

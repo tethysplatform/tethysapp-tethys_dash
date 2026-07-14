@@ -73,7 +73,10 @@ def test_plural_folding_matches_singular_question():
 
 
 def test_docs_is_a_known_routing_intent():
-    from tethysapp.tethysdash.chatbot.routing import INTENT_DOCS, INTENT_EXAMPLES
+    from tethysapp.tethysdash.chatbot.agents.embedding_data import (
+        INTENT_DOCS,
+        INTENTS,
+    )
 
-    assert INTENT_DOCS in INTENT_EXAMPLES
-    assert INTENT_EXAMPLES[INTENT_DOCS], "docs intent needs example prompts"
+    assert INTENT_DOCS in INTENTS
+    assert INTENTS[INTENT_DOCS], "docs intent needs example prompts"

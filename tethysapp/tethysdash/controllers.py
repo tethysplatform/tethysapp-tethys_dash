@@ -1081,13 +1081,16 @@ def chat_message(request):
             ChatProviderError,
             resolve_profile,
         )
-        from tethysapp.tethysdash.chatbot.dispatch import run_intent
-        from tethysapp.tethysdash.chatbot.routing import (
-            RoutingUnavailable,
-            classify,
+        from tethysapp.tethysdash.chatbot.bootstrap import (
+            build_registry,
+            get_classifier,
         )
         from tethysapp.tethysdash.chatbot.streaming import emit_progress
-        from tethysapp.tethysdash.chatbot.validation import ChatDeps
+        from tethysapp.tethysdash.chatbot.validation import (
+            ChatDeps,
+            LLMRouter,
+            RoutedResponse,
+        )
     except ImportError as e:
         return JsonResponse(
             {"error": f"Chat backend not installed: {e}"},
@@ -1123,15 +1126,11 @@ def chat_message(request):
     )
     try:
         emit_progress(chat_id, "Understanding your request...")
-        # Deterministic routing: embeddings pick the capability, then the
-        # specialist LLM (if any) runs inside that rail.
-        try:
-            intent, _score = classify(prompt)
-        except RoutingUnavailable as e:
-            return JsonResponse(
-                {"text": str(e), "dashboard_id_used": dashboard_id}
-            )
-        reply = async_to_sync(run_intent)(intent, deps)
+        # Deterministic routing: the embedding classifier picks the
+        # capability, then the specialist LLM (if any) runs inside it.
+        router = LLMRouter(get_classifier(), build_registry(), deps)
+        result = async_to_sync(router.route)(prompt)
+        reply = result.response if isinstance(result, RoutedResponse) else result
         return JsonResponse({"text": reply, "dashboard_id_used": dashboard_id})
     except Exception as e:
         import traceback
