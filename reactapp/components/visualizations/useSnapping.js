@@ -32,6 +32,15 @@ const getOlVisibilityMap = (map) => {
   return olVisibility;
 };
 
+// Resolve a live OL layer instance by its configured `name` — same lookup
+// convention as getOlVisibilityMap. Returns undefined when no OL layer with
+// that name is currently mounted (e.g. mid-rebuild).
+const getOlLayerByName = (map, name) =>
+  map
+    .getLayers()
+    .getArray()
+    .find((olLayer) => olLayer.get("name") === name);
+
 export default function useSnapping({ layers }) {
   const snapLayer = useRef(null);
   const snapCachesRef = useRef([]);
@@ -88,13 +97,38 @@ export default function useSnapping({ layers }) {
       clearSnap(map);
       return;
     }
-    const caches = await Promise.all(
-      snapLayers.map(async (layer) => {
-        const source = new VectorSource();
-        source.addFeatures(await fetchLayerVectorFeatures(layer, map));
-        return { layerName: layer.configuration.props.name, source };
-      }),
-    );
+    const caches = (
+      await Promise.all(
+        snapLayers.map(async (layer) => {
+          const layerName = layer.configuration.props.name;
+          const sourceType = layer.configuration?.props?.source?.type;
+          if (
+            sourceType === "GeoJSON" ||
+            sourceType === "ESRI Feature Service"
+          ) {
+            // Live source, not a snapshot: these layers' features already
+            // live in an OL VectorSource in the browser, so the cache entry
+            // IS that source — no fetch, no new VectorSource. This means the
+            // snap set always equals the rendered set (strictly better than
+            // the fetch path's approximation); features streaming in via the
+            // source's loading strategy become snappable as they load, with
+            // no moveend dependency; and the generation token above is
+            // irrelevant for these entries since there's nothing async to
+            // discard — they resolve synchronously below. Rebuilt every
+            // refresh so a layer rebuild re-resolves the OL instance.
+            const olLayer = getOlLayerByName(map, layerName);
+            const source = olLayer?.getSource?.();
+            // Unresolved OL instance (mid-rebuild) or a missing source:
+            // contribute nothing this cycle rather than throw — the next
+            // refresh picks it up.
+            return source ? { layerName, source } : null;
+          }
+          const source = new VectorSource();
+          source.addFeatures(await fetchLayerVectorFeatures(layer, map));
+          return { layerName, source };
+        }),
+      )
+    ).filter(Boolean);
     // Discard if a newer refresh started while this one was in flight.
     if (refreshId === snapRefreshId.current) {
       snapCachesRef.current = caches;

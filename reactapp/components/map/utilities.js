@@ -224,7 +224,7 @@ export const layerPropertiesOptions = {
   snapToFeatures: {
     type: "checkbox",
     placeholder:
-      "Snap hover/click to the nearest feature of this ESRI Map Service layer (loads vector features for the current view).",
+      "Snap hover/click to the nearest feature of this layer (ESRI Map Service, GeoJSON, or ESRI Feature Service).",
   },
   snapSublayer: {
     type: "number",

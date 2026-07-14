@@ -1,6 +1,7 @@
 import { renderHook } from "@testing-library/react";
 import Feature from "ol/Feature";
 import { LineString } from "ol/geom";
+import VectorSource from "ol/source/Vector";
 import useSnapping, {
   SNAP_PIXELS,
 } from "components/visualizations/useSnapping";
@@ -33,6 +34,48 @@ const makeDetachedMap = () => ({
 const riverLayerConfig = {
   configuration: {
     props: { name: "Rivers", snapToFeatures: true },
+  },
+};
+
+// A map stand-in whose OL layers array is caller-supplied — used to exercise
+// the U2 live-source branch, which resolves the OL layer instance by name
+// from map.getLayers().getArray().
+const makeMapWithLayers = (olLayers, { zoom = 10 } = {}) => ({
+  getLayers: () => ({ getArray: () => olLayers }),
+  getView: () => ({ getZoom: () => zoom, getResolution: () => 1 }),
+  getPixelFromCoordinate: (c) => (c ? [...c] : null),
+  getTargetElement: () => null,
+  addLayer: jest.fn(),
+});
+
+// Minimal stub of an OL layer instance: only the surface refreshSnapCaches'
+// getOlLayerByName / getOlVisibilityMap lookups touch.
+const makeStubOlLayer = (name, source, visible = true) => ({
+  get: (key) => (key === "name" ? name : undefined),
+  getVisible: () => visible,
+  getSource: () => source,
+});
+
+const geoJsonRiverLayerConfig = {
+  configuration: {
+    props: {
+      name: "Rivers",
+      snapToFeatures: true,
+      source: { type: "GeoJSON" },
+    },
+  },
+};
+
+const mapServiceRiverLayerConfig = {
+  configuration: {
+    props: {
+      name: "MapServiceRivers",
+      snapToFeatures: true,
+      source: {
+        type: "ESRI Image and Map Service",
+        props: { url: "http://example.com/MapServer" },
+      },
+    },
   },
 };
 
@@ -74,5 +117,181 @@ describe("useSnapping with a detached map target element", () => {
     expect(map.addLayer).toHaveBeenCalledTimes(1);
     const previewLayer = map.addLayer.mock.calls[0][0];
     expect(previewLayer.getSource().getFeatures()).toHaveLength(2);
+  });
+});
+
+describe("useSnapping vector-layer live-source snap caches (U2)", () => {
+  afterEach(() => {
+    mockedFetch.mockReset();
+  });
+
+  test("a GeoJSON snap layer resolves to the live OL source with no fetch, and stays live after refresh", async () => {
+    const liveSource = new VectorSource();
+    liveSource.addFeature(
+      new Feature({
+        geometry: new LineString([
+          [0, 0],
+          [0, 100],
+        ]),
+      }),
+    );
+    const stubLayer = makeStubOlLayer("Rivers", liveSource);
+    const map = makeMapWithLayers([stubLayer]);
+    const { result } = renderHook(() =>
+      useSnapping({ layers: [geoJsonRiverLayerConfig] }),
+    );
+
+    await result.current.refreshSnapCaches(map);
+    result.current.updateSnap(map, [SNAP_PIXELS - 5, 50]);
+
+    expect(mockedFetch).not.toHaveBeenCalled();
+    expect(map.addLayer).toHaveBeenCalledTimes(1);
+    const previewLayer = map.addLayer.mock.calls[0][0];
+    expect(previewLayer.getSource().getFeatures()).toHaveLength(2);
+
+    // Mutate the live source AFTER refresh (no second refreshSnapCaches call)
+    // by adding a feature far from the first one. Only the new feature is
+    // within snap range of the next coordinate, so a drawn preview there
+    // proves the cache entry is a live reference to `liveSource`, not a copy
+    // taken at refresh time.
+    liveSource.addFeature(
+      new Feature({
+        geometry: new LineString([
+          [1000, 1000],
+          [1000, 1100],
+        ]),
+      }),
+    );
+    result.current.updateSnap(map, [1000 + SNAP_PIXELS - 5, 1050]);
+    const previewFeatures = previewLayer.getSource().getFeatures();
+    expect(previewFeatures).toHaveLength(2);
+  });
+
+  test("does not call fetchLayerVectorFeatures for a GeoJSON snap layer", async () => {
+    const liveSource = new VectorSource();
+    liveSource.addFeature(
+      new Feature({
+        geometry: new LineString([
+          [0, 0],
+          [0, 100],
+        ]),
+      }),
+    );
+    const stubLayer = makeStubOlLayer("Rivers", liveSource);
+    const map = makeMapWithLayers([stubLayer]);
+    const { result } = renderHook(() =>
+      useSnapping({ layers: [geoJsonRiverLayerConfig] }),
+    );
+
+    await result.current.refreshSnapCaches(map);
+
+    expect(mockedFetch).not.toHaveBeenCalled();
+  });
+
+  test("mixed map: fetch runs once for the Map Service layer while the GeoJSON layer resolves live, both snappable", async () => {
+    const liveSource = new VectorSource();
+    liveSource.addFeature(
+      new Feature({
+        geometry: new LineString([
+          [0, 0],
+          [0, 100],
+        ]),
+      }),
+    );
+    const stubLayer = makeStubOlLayer("Rivers", liveSource);
+    const map = makeMapWithLayers([stubLayer]);
+    mockedFetch.mockResolvedValue([
+      new Feature({
+        geometry: new LineString([
+          [1000, 1000],
+          [1000, 1100],
+        ]),
+      }),
+    ]);
+    const { result } = renderHook(() =>
+      useSnapping({
+        layers: [geoJsonRiverLayerConfig, mapServiceRiverLayerConfig],
+      }),
+    );
+
+    await result.current.refreshSnapCaches(map);
+
+    expect(mockedFetch).toHaveBeenCalledTimes(1);
+
+    // The GeoJSON layer's live feature is snappable.
+    result.current.updateSnap(map, [SNAP_PIXELS - 5, 50]);
+    expect(map.addLayer).toHaveBeenCalledTimes(1);
+    const previewLayer = map.addLayer.mock.calls[0][0];
+    expect(previewLayer.getSource().getFeatures()).toHaveLength(2);
+
+    // The Map Service layer's fetched feature is also snappable.
+    result.current.updateSnap(map, [1000 + SNAP_PIXELS - 5, 1050]);
+    expect(previewLayer.getSource().getFeatures()).toHaveLength(2);
+  });
+
+  test("a GeoJSON snap layer with no matching OL instance contributes no cache entry and does not throw", async () => {
+    // No stub layer named "Rivers" — simulates a layer mid-rebuild.
+    const map = makeMapWithLayers([]);
+    const { result } = renderHook(() =>
+      useSnapping({ layers: [geoJsonRiverLayerConfig] }),
+    );
+
+    await expect(result.current.refreshSnapCaches(map)).resolves.not.toThrow();
+    expect(mockedFetch).not.toHaveBeenCalled();
+
+    expect(() =>
+      result.current.updateSnap(map, [SNAP_PIXELS - 5, 50]),
+    ).not.toThrow();
+    // No cache entry means nothing to snap to and no preview layer created.
+    expect(map.addLayer).not.toHaveBeenCalled();
+  });
+
+  test("a GeoJSON snap layer whose OL instance's getSource() returns null is skipped without throwing", async () => {
+    const stubLayer = makeStubOlLayer("Rivers", null);
+    const map = makeMapWithLayers([stubLayer]);
+    const { result } = renderHook(() =>
+      useSnapping({ layers: [geoJsonRiverLayerConfig] }),
+    );
+
+    await expect(result.current.refreshSnapCaches(map)).resolves.not.toThrow();
+    expect(mockedFetch).not.toHaveBeenCalled();
+
+    expect(() =>
+      result.current.updateSnap(map, [SNAP_PIXELS - 5, 50]),
+    ).not.toThrow();
+    expect(map.addLayer).not.toHaveBeenCalled();
+  });
+
+  test("zoom gate: a GeoJSON snap layer below its minZoomQuery is excluded without fetching or resolving the OL instance", async () => {
+    const liveSource = new VectorSource();
+    liveSource.addFeature(
+      new Feature({
+        geometry: new LineString([
+          [0, 0],
+          [0, 100],
+        ]),
+      }),
+    );
+    const stubLayer = makeStubOlLayer("Rivers", liveSource);
+    // Map zoom (10, the makeMapWithLayers default) is below minZoomQuery (15).
+    const map = makeMapWithLayers([stubLayer], { zoom: 10 });
+    const zoomGatedConfig = {
+      configuration: {
+        props: {
+          ...geoJsonRiverLayerConfig.configuration.props,
+          minZoomQuery: 15,
+        },
+      },
+    };
+    const { result } = renderHook(() =>
+      useSnapping({ layers: [zoomGatedConfig] }),
+    );
+
+    await result.current.refreshSnapCaches(map);
+    expect(mockedFetch).not.toHaveBeenCalled();
+
+    result.current.updateSnap(map, [SNAP_PIXELS - 5, 50]);
+    // Excluded by the zoom gate entirely, so no snap and no preview layer.
+    expect(map.addLayer).not.toHaveBeenCalled();
   });
 });
