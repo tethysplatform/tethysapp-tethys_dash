@@ -1121,4 +1121,43 @@ describe("BasePlot plotConfig CSV download button merge", () => {
     expect(config.modeBarButtonsToAdd).toHaveLength(1);
     expect(config.modeBarButtonsToAdd[0].name).toBe("downloadCsv");
   });
+
+  it("appends downloadCsv as its own group when the plugin uses a full modeBarButtons override", () => {
+    // Plotly ignores modeBarButtonsToAdd when modeBarButtons is set (the
+    // cnrfc_hefs plugin curates its toolbar this way), so the button must be
+    // merged into the override itself.
+    renderWithConfig({
+      responsive: true,
+      modeBarButtons: [
+        ["toImage"],
+        ["zoom2d", "pan2d", "zoomIn2d", "zoomOut2d"],
+      ],
+    });
+    const { config } = global.__plotProps;
+    expect(config.responsive).toBe(true);
+    expect(config.modeBarButtonsToAdd).toBeUndefined();
+    expect(config.modeBarButtons).toHaveLength(3);
+    expect(config.modeBarButtons[0]).toEqual(["toImage"]);
+    expect(config.modeBarButtons[1]).toEqual([
+      "zoom2d",
+      "pan2d",
+      "zoomIn2d",
+      "zoomOut2d",
+    ]);
+    expect(config.modeBarButtons[2]).toHaveLength(1);
+    expect(config.modeBarButtons[2][0].name).toBe("downloadCsv");
+  });
+
+  it("does not duplicate downloadCsv inside a modeBarButtons override that already has it", () => {
+    const pluginConfig = {
+      modeBarButtons: [
+        ["toImage"],
+        [{ name: "downloadCsv", click: jest.fn() }],
+      ],
+    };
+    renderWithConfig(pluginConfig);
+    const { config } = global.__plotProps;
+    expect(config).toBe(pluginConfig);
+    expect(config.modeBarButtons).toHaveLength(2);
+  });
 });

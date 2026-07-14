@@ -433,6 +433,27 @@ const BasePlot = ({
   // config (plugins may send no config at all, e.g. geoglows plots).
   const plotConfig = useMemo(() => {
     const base = config || {};
+    // A full-toolbar override (modeBarButtons) makes plotly IGNORE
+    // modeBarButtonsToAdd (e.g. cnrfc_hefs curates its toolbar this way), so
+    // append the CSV button as its own group inside the override instead.
+    if (Array.isArray(base.modeBarButtons)) {
+      const hasCsv = base.modeBarButtons.some(
+        (group) =>
+          Array.isArray(group) &&
+          group.some(
+            (b) =>
+              b === csvDownloadButton.name ||
+              (b && b.name === csvDownloadButton.name),
+          ),
+      );
+      if (hasCsv) {
+        return base;
+      }
+      return {
+        ...base,
+        modeBarButtons: [...base.modeBarButtons, [csvDownloadButton]],
+      };
+    }
     const existing = Array.isArray(base.modeBarButtonsToAdd)
       ? base.modeBarButtonsToAdd
       : [];
