@@ -31,7 +31,6 @@ class ChatDeps:
     dashboard_id: int
     original_prompt: str = ""
     chat_id: str = ""
-    profile: object = None
     history: list = None
     can_add_visualizations: bool = True
 

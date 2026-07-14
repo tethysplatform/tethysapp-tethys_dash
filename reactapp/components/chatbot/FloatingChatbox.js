@@ -1,7 +1,6 @@
 import { useState } from "react";
 import styled from "styled-components";
 import Chatbox from "./Chatbox";
-import ChatSettings from "./ChatSettings";
 import PropTypes from "prop-types";
 import { FaRobot } from "react-icons/fa6";
 
@@ -51,12 +50,6 @@ const Header = styled.div`
   font-weight: 600;
 `;
 
-const HeaderButtons = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 2px;
-`;
-
 const IconBtn = styled.button`
   background: none;
   border: none;
@@ -82,7 +75,6 @@ const Content = styled.div`
 
 export default function FloatingChatbox({ dashboardId }) {
   const [open, setOpen] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
 
   if (!open) {
     return (
@@ -95,28 +87,13 @@ export default function FloatingChatbox({ dashboardId }) {
   return (
     <Panel>
       <Header>
-        <span>{showSettings ? "Chat settings" : "Chat"}</span>
-        <HeaderButtons>
-          <IconBtn
-            onClick={() => setShowSettings((s) => !s)}
-            aria-label="Chat settings"
-            title="Provider settings"
-          >
-            {/* U+FE0E forces monochrome text presentation - without it
-                some browsers render the gear as a colored emoji */}
-            {"⚙"}
-          </IconBtn>
-          <CloseBtn onClick={() => setOpen(false)} aria-label="Close chat">
-            ×
-          </CloseBtn>
-        </HeaderButtons>
+        <span>Chat</span>
+        <CloseBtn onClick={() => setOpen(false)} aria-label="Close chat">
+          ×
+        </CloseBtn>
       </Header>
       <Content>
-        {showSettings ? (
-          <ChatSettings onClose={() => setShowSettings(false)} />
-        ) : (
-          <Chatbox dashboardId={dashboardId} />
-        )}
+        <Chatbox dashboardId={dashboardId} />
       </Content>
     </Panel>
   );

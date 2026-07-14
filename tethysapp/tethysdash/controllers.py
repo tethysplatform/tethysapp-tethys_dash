@@ -1077,10 +1077,6 @@ def chat_message(request):
 
     try:
         from asgiref.sync import async_to_sync
-        from tethysapp.tethysdash.chatbot.config import (
-            ChatProviderError,
-            resolve_profile,
-        )
         from tethysapp.tethysdash.chatbot.bootstrap import (
             build_registry,
             get_classifier,
@@ -1108,11 +1104,6 @@ def chat_message(request):
             {"error": f"Dashboard {dashboard_id} not found."}, status=404
         )
 
-    try:
-        profile = resolve_profile(request.user.username)
-    except ChatProviderError as e:
-        return JsonResponse({"text": str(e), "dashboard_id_used": dashboard_id})
-
     from tethysapp.tethysdash.chatbot.history import sanitize_history
 
     deps = ChatDeps(
@@ -1120,7 +1111,6 @@ def chat_message(request):
         dashboard_id=dashboard_id,
         original_prompt=prompt,
         chat_id=chat_id,
-        profile=profile,
         history=sanitize_history(body.get("history")),
         can_add_visualizations=is_owner,
     )
@@ -1142,60 +1132,3 @@ def chat_message(request):
         )
         err_msg = _get_error_message(e, "Chat backend error. Check server logs.")
         return JsonResponse({"error": err_msg}, status=503)
-
-
-api_view(["GET", "POST"])
-@controller(url="tethysdash/chat/settings", login_required=True)
-def chat_settings(request):
-    """Read/write the caller's chat LLM provider setting.
-
-    GET returns {provider, model_name, has_key} - the API key itself is
-    WRITE-ONLY and never appears in any response. POST accepts
-    {provider, model_name, api_key?, clear_key?}; an absent/empty
-    api_key leaves the stored key unchanged.
-    """
-    if not has_permission(request, "manage_visualizations"):
-        return JsonResponse(
-            {"error": "User does not have permission to use the chat."},
-            status=403,
-        )
-
-    from tethysapp.tethysdash.chatbot.config import encrypt_key
-    from tethysapp.tethysdash.model import (
-        get_chat_provider_setting,
-        upsert_chat_provider_setting,
-    )
-
-    if request.method == "GET":
-        row = get_chat_provider_setting(request.user.username) or {}
-        return JsonResponse({
-            "provider": row.get("provider", "local"),
-            "model_name": row.get("model_name") or "",
-            "has_key": bool(row.get("api_key_enc")),
-        })
-
-    try:
-        body = json.loads(request.body or b"{}")
-    except json.JSONDecodeError as exc:
-        return JsonResponse({"error": f"Invalid JSON body: {exc}"}, status=400)
-
-    provider = (body.get("provider") or "local").strip().lower()
-    if provider not in ("local", "anthropic", "openai"):
-        return JsonResponse({"error": f"Unknown provider {provider!r}."}, status=400)
-    model_name = (body.get("model_name") or "").strip() or None
-    api_key = (body.get("api_key") or "").strip()
-    clear_key = bool(body.get("clear_key"))
-
-    upsert_chat_provider_setting(
-        request.user.username,
-        provider,
-        model_name,
-        api_key_enc=encrypt_key(api_key) if api_key else ...,
-        clear_key=clear_key,
-    )
-    row = get_chat_provider_setting(request.user.username) or {}
-    return JsonResponse({
-        "provider": row.get("provider", "local"),
-        "model_name": row.get("model_name") or "",
-        "has_key": bool(row.get("api_key_enc")),
-    })
