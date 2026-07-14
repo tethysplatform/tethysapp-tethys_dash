@@ -19,6 +19,16 @@ import {
   loadLayerJSONs,
   resolveTablePopupType,
 } from "components/map/utilities";
+import {
+  buildSnapFeatureResult,
+  shouldSnapSelect,
+  findBestSnap,
+  findSnapFeatures,
+} from "components/map/snapping";
+import useSnapping, {
+  SNAP_PIXELS,
+  GATHER_PIXELS,
+} from "components/visualizations/useSnapping";
 import PropTypes from "prop-types";
 import { COLOR_RAMPS } from "components/map/colorRamps";
 import { getBaseMapLayer } from "components/visualizations/utilities";
@@ -611,6 +621,13 @@ const MapVisualization = ({
     }
   };
 
+  // --- Feature snapping (Approach A) -------------------------------------
+  // Snap orchestration (hidden vector caches, hover preview, live-visibility
+  // filtering, generation-tokened moveend refresh) lives in the useSnapping
+  // hook; the click/hover handlers below wire its returned callbacks in.
+  const { refreshSnapCaches, updateSnap, visibleSnapCaches, clearSnapPreview } =
+    useSnapping({ layers });
+
   const onMapClick = async (map, evt) => {
     // istanbul ignore next
     if (drawing.current || isProcessing) return;
@@ -650,8 +667,25 @@ const MapVisualization = ({
 
     setIsProcessing(true);
 
-    const coordinate = evt.coordinate;
+    // Recompute the snap from the ACTUAL click coordinate rather than trusting
+    // the pointermove-maintained hover state: OL fires `singleclick` ~250ms
+    // after the click, and a stray pointermove in that window (e.g. the user
+    // moving off right after clicking) would otherwise clear the snap and force
+    // a slow, sometimes-empty /identify. Recomputing here is race-free.
+    const snapCaches = visibleSnapCaches(map);
+    const clickSnap = snapCaches.length
+      ? findBestSnap(snapCaches, evt.coordinate, map, SNAP_PIXELS)
+      : null;
+    // When a snap is active, gather the connected reaches within the wider
+    // radius (nearest-first) so a confluence click yields multiple popup
+    // entries the user can page between — restoring the pre-snap behavior.
+    const snapSiblings = clickSnap
+      ? findSnapFeatures(snapCaches, evt.coordinate, map, GATHER_PIXELS)
+      : [];
+    const coordinate = clickSnap?.coordinate ?? evt.coordinate;
     const pixel = evt.pixel;
+    // The click owns the selection highlight from here; drop the hover preview.
+    clearSnapPreview();
 
     // istanbul ignore next
     if (spinnerOverlayRef.current) {
@@ -730,12 +764,17 @@ const MapVisualization = ({
     // variables / omitted-attrs on that sub-layer.
     const queryCalls = queryableLayers.map(async (layer) => {
       try {
-        const features = await queryLayerFeatures(
-          layer,
-          map,
-          coordinate,
-          pixel,
-        );
+        // For a snap-enabled layer with an active snap, select the river from
+        // the already-loaded vector feature instead of an ESRI /identify. This
+        // is instant and reliable — /identify is slow on a cache miss and
+        // sometimes returns empty even for an exactly-on-geometry point.
+        // Other layers query at the TRUE click coordinate (evt.coordinate), not
+        // the snapped point, so the snap can't shift their identify results.
+        const features = shouldSnapSelect(layer, clickSnap)
+          ? snapSiblings
+              .filter((g) => g.layerName === layer.configuration.props.name)
+              .map((g) => buildSnapFeatureResult(g.feature, layer))
+          : await queryLayerFeatures(layer, map, evt.coordinate, pixel);
         if (!Array.isArray(features)) return features;
         return features.map((feature) =>
           feature && typeof feature === "object"
@@ -943,6 +982,10 @@ const MapVisualization = ({
       return;
     }
 
+    // Snap the preview to the nearest snap-enabled feature immediately (not
+    // debounced) so the highlight tracks the cursor responsively.
+    updateSnap(map, evt.coordinate);
+
     // Debounce: restart the timer on every move so the query only fires once
     // the cursor settles for HOVER_DEBOUNCE_MS. Capture coordinate/pixel by
     // value so the deferred call uses the LAST cursor position, not stale.
@@ -1027,6 +1070,9 @@ const MapVisualization = ({
         drawing={drawing}
         onMapClick={inDataViewerMode ? () => {} : onMapClick}
         onMapHover={inDataViewerMode ? () => {} : onMapHover}
+        onMapMoveEnd={
+          inDataViewerMode ? () => {} : (map) => refreshSnapCaches(map)
+        }
         visualizationRef={visualizationRef}
         data-testid="backlayer-map"
         dataviewerViz={dataviewerViz}

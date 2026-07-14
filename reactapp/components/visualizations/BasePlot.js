@@ -27,6 +27,7 @@ import {
   applySubplotToggle,
 } from "components/visualizations/subplotToggle";
 import SubplotToggleControl from "components/visualizations/SubplotToggleControl";
+import { csvDownloadButton } from "components/visualizations/csvExport";
 
 const Plotly = require("plotly.js-strict-dist-min");
 const Plot = createPlotlyComponent(Plotly);
@@ -428,6 +429,40 @@ const BasePlot = ({
     return merged;
   }, [toggledLayout, width, height, verticalLineShapes]);
 
+  // Merge the always-on "Download data as CSV" modebar button into the plugin's
+  // config (plugins may send no config at all, e.g. geoglows plots).
+  const plotConfig = useMemo(() => {
+    const base = config || {};
+    // A full-toolbar override (modeBarButtons) makes plotly IGNORE
+    // modeBarButtonsToAdd (e.g. cnrfc_hefs curates its toolbar this way), so
+    // append the CSV button as its own group inside the override instead.
+    if (Array.isArray(base.modeBarButtons)) {
+      const hasCsv = base.modeBarButtons.some(
+        (group) =>
+          Array.isArray(group) &&
+          group.some(
+            (b) =>
+              b === csvDownloadButton.name ||
+              (b && b.name === csvDownloadButton.name),
+          ),
+      );
+      if (hasCsv) {
+        return base;
+      }
+      return {
+        ...base,
+        modeBarButtons: [...base.modeBarButtons, [csvDownloadButton]],
+      };
+    }
+    const existing = Array.isArray(base.modeBarButtonsToAdd)
+      ? base.modeBarButtonsToAdd
+      : [];
+    if (existing.some((b) => b && b.name === csvDownloadButton.name)) {
+      return base;
+    }
+    return { ...base, modeBarButtonsToAdd: [...existing, csvDownloadButton] };
+  }, [config]);
+
   // Ref to track the original vertical line shape
   const verticalLineOriginalRef = useRef(null);
 
@@ -551,7 +586,7 @@ const BasePlot = ({
         ref={visualizationRef}
         data={plotData}
         layout={plotLayout}
-        config={config}
+        config={plotConfig}
         onRelayout={handleRelayout}
       />
       {subplotToggleEnabled && (

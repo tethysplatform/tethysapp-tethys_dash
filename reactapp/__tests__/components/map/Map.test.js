@@ -2471,3 +2471,93 @@ test("Runtime identity branch tolerates a missing OL layer (line 291 falsy)", as
     expect(olLayers.find((l) => l.get("layerId") === layerId)).toBeUndefined();
   });
 });
+
+describe("onMapMoveEnd registration and mount-time prime", () => {
+  // Registration lives in the async layer-sync effect: every layers update
+  // must un+on re-register (no handler pile-up) and the handler must be
+  // primed exactly once per map instance so the snap cache exists before the
+  // first user pan.
+  const renderMoveEndMap = (onMapMoveEnd) => {
+    let capturedRef;
+    const RefCapture = ({ mapProps }) => {
+      const ref = useRef();
+      capturedRef = ref;
+      return (
+        <>
+          <MapComponent visualizationRef={ref} {...mapProps} />
+          <p>{useMapContext()?.mapReady ? "Map Ready" : "Map Not Ready"}</p>
+        </>
+      );
+    };
+    RefCapture.propTypes = { mapProps: PropTypes.object };
+    const tree = (layers) => (
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <RefCapture mapProps={{ layers, onMapMoveEnd }} />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>
+    );
+    const { rerender } = render(tree([]));
+    return {
+      getMap: () => capturedRef.current,
+      // A fresh array identity re-runs the [layers] effect → re-registration.
+      rerenderLayers: () => rerender(tree([])),
+    };
+  };
+
+  test("moveend fires the handler once per event; re-registration on a layer update does not double-fire", async () => {
+    const onMapMoveEnd = jest.fn();
+    const { getMap, rerenderLayers } = renderMoveEndMap(onMapMoveEnd);
+
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+    // The only call so far is the mount-time prime.
+    await waitFor(() => expect(onMapMoveEnd).toHaveBeenCalledTimes(1));
+    // OL assigns `un` per instance (not on Map.prototype), so spy on the map.
+    const unSpy = jest.spyOn(getMap(), "un");
+
+    getMap().dispatchEvent({ type: "moveend" });
+    expect(onMapMoveEnd).toHaveBeenCalledTimes(2);
+    expect(onMapMoveEnd).toHaveBeenLastCalledWith(getMap());
+
+    // Re-run the layer effect; the old handler must be un-registered before
+    // the new one is attached.
+    rerenderLayers();
+    await waitFor(() =>
+      expect(unSpy.mock.calls.filter((c) => c[0] === "moveend")).toHaveLength(
+        1,
+      ),
+    );
+
+    // Exactly one live handler: one event → one additional call, not two.
+    getMap().dispatchEvent({ type: "moveend" });
+    expect(onMapMoveEnd).toHaveBeenCalledTimes(3);
+  });
+
+  test("onMapMoveEnd is primed exactly once on mount, and not again when the layer effect re-runs", async () => {
+    const onMapMoveEnd = jest.fn();
+    const { getMap, rerenderLayers } = renderMoveEndMap(onMapMoveEnd);
+
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+    // Fired once WITHOUT any dispatched moveend — the prime.
+    await waitFor(() => expect(onMapMoveEnd).toHaveBeenCalledTimes(1));
+    expect(onMapMoveEnd).toHaveBeenCalledWith(getMap());
+    // OL assigns `un` per instance (not on Map.prototype), so spy on the map.
+    const unSpy = jest.spyOn(getMap(), "un");
+
+    // The layer effect re-runs (re-registers) but must NOT re-prime: the
+    // handler issues real network fetches in production.
+    rerenderLayers();
+    await waitFor(() =>
+      expect(unSpy.mock.calls.filter((c) => c[0] === "moveend")).toHaveLength(
+        1,
+      ),
+    );
+    expect(onMapMoveEnd).toHaveBeenCalledTimes(1);
+
+    // A real moveend still reaches the (re-registered) handler.
+    getMap().dispatchEvent({ type: "moveend" });
+    expect(onMapMoveEnd).toHaveBeenCalledTimes(2);
+  });
+});

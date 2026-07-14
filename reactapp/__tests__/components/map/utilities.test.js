@@ -853,6 +853,49 @@ test("queryLayerFeatures ImageArcGISRest", async () => {
   global.fetch.mockRestore?.();
 });
 
+test("queryLayerFeatures ImageArcGISRest uses per-layer clickTolerance", async () => {
+  const mockArgisResults = [{ attributes: { name: "x" } }];
+  global.fetch = jest.fn(() =>
+    Promise.resolve({
+      json: () => Promise.resolve({ results: mockArgisResults }),
+    }),
+  );
+  const mockMap = {
+    getSize: jest.fn(() => [100, 200]),
+    getView: jest.fn(() => ({
+      calculateExtent: jest.fn(() => [1, 2, 3, 4]),
+      getResolution: jest.fn(() => 500),
+      getProjection: jest.fn(() => ({ getCode: jest.fn(() => "EPSG:4326") })),
+      getZoom: jest.fn(() => 10),
+    })),
+  };
+
+  const layerConfig = JSON.parse(JSON.stringify(layerConfigImageArcGISRest));
+  layerConfig.configuration.props.minZoomQuery = 0; // ensure identify runs
+  layerConfig.configuration.props.clickTolerance = 25;
+
+  await queryLayerFeatures(layerConfig, mockMap, [0, 0], [639, 366]);
+
+  const params = new URLSearchParams({
+    f: "json",
+    tolerance: 25,
+    returnGeometry: true,
+    geometryType: "esriGeometryPoint",
+    sr: "4326",
+    geometry: "0,0",
+    mapExtent: "1,2,3,4",
+    returnFieldName: true,
+    imageDisplay: "100, 200, 500",
+    layers: "visible",
+  });
+  const featureQueryUrl =
+    layerConfig.configuration.props.source.props.url + "/identify";
+  expect(global.fetch).toHaveBeenCalledWith(
+    `${featureQueryUrl}?${params.toString()}`,
+  );
+  global.fetch.mockRestore?.();
+});
+
 test("queryLayerFeatures ImageArcGISRest, show layer", async () => {
   const mockArgisResults = [
     {

@@ -25,6 +25,24 @@ jest.mock("plotly.js-strict-dist-min", () => {
   };
 });
 
+// Capture the props handed to the Plotly component so the plotConfig merge can
+// be asserted (mirrors the mock in BasePlot.subplotToggle.test.js — mock
+// factories may only reference globals, not module-scoped vars).
+jest.mock("react-plotly.js/factory", () => {
+  const React = require("react");
+  return {
+    __esModule: true,
+    default: () =>
+      function MockPlot(props) {
+        global.__plotProps = props;
+        return React.createElement("div", {
+          className: props.className,
+          "data-testid": "plot",
+        });
+      },
+  };
+});
+
 beforeEach(() => {
   delete window.ResizeObserver;
   if (global.mockRelayout) global.mockRelayout.mockClear();
@@ -1042,5 +1060,104 @@ describe("BasePlot handleEventData range update", () => {
     expect(global.mockRelayout).toHaveBeenCalledWith(plotElement, {
       "shapes[0].visible": false,
     });
+  });
+});
+
+describe("BasePlot plotConfig CSV download button merge", () => {
+  // The always-on "Download data as CSV" modebar button is merged into the
+  // plugin's config by the plotConfig memo. Assertions read the config that
+  // actually reaches the Plot component (captured by the factory mock above).
+  const renderWithConfig = (config) =>
+    render(
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <DataViewerModeContext.Provider value={{ mode: "default" }}>
+            <BasePlot
+              data={[{ x: [1, 2], y: [3, 4], type: "scatter" }]}
+              layout={{ title: "Test Plot" }}
+              config={config}
+              visualizationRef={createRef()}
+            />
+          </DataViewerModeContext.Provider>
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+
+  beforeEach(() => {
+    delete global.__plotProps;
+  });
+
+  it("adds exactly one downloadCsv modebar button when the plugin sends no config", () => {
+    renderWithConfig(undefined);
+    const { config } = global.__plotProps;
+    expect(config.modeBarButtonsToAdd).toHaveLength(1);
+    expect(config.modeBarButtonsToAdd[0].name).toBe("downloadCsv");
+  });
+
+  it("preserves plugin config keys and custom modebar buttons while appending downloadCsv", () => {
+    renderWithConfig({
+      displaylogo: false,
+      modeBarButtonsToAdd: [{ name: "custom" }],
+    });
+    const { config } = global.__plotProps;
+    expect(config.displaylogo).toBe(false);
+    expect(config.modeBarButtonsToAdd.map((button) => button.name)).toEqual([
+      "custom",
+      "downloadCsv",
+    ]);
+  });
+
+  it("does not duplicate a downloadCsv button the plugin already provides", () => {
+    const pluginConfig = {
+      modeBarButtonsToAdd: [{ name: "downloadCsv", click: jest.fn() }],
+    };
+    renderWithConfig(pluginConfig);
+    const { config } = global.__plotProps;
+    // The memo returns the plugin config untouched — same reference, no
+    // second downloadCsv appended.
+    expect(config).toBe(pluginConfig);
+    expect(config.modeBarButtonsToAdd).toHaveLength(1);
+    expect(config.modeBarButtonsToAdd[0].name).toBe("downloadCsv");
+  });
+
+  it("appends downloadCsv as its own group when the plugin uses a full modeBarButtons override", () => {
+    // Plotly ignores modeBarButtonsToAdd when modeBarButtons is set (the
+    // cnrfc_hefs plugin curates its toolbar this way), so the button must be
+    // merged into the override itself.
+    renderWithConfig({
+      responsive: true,
+      modeBarButtons: [
+        ["toImage"],
+        ["zoom2d", "pan2d", "zoomIn2d", "zoomOut2d"],
+      ],
+    });
+    const { config } = global.__plotProps;
+    expect(config.responsive).toBe(true);
+    expect(config.modeBarButtonsToAdd).toBeUndefined();
+    expect(config.modeBarButtons).toHaveLength(3);
+    expect(config.modeBarButtons[0]).toEqual(["toImage"]);
+    expect(config.modeBarButtons[1]).toEqual([
+      "zoom2d",
+      "pan2d",
+      "zoomIn2d",
+      "zoomOut2d",
+    ]);
+    expect(config.modeBarButtons[2]).toHaveLength(1);
+    expect(config.modeBarButtons[2][0].name).toBe("downloadCsv");
+  });
+
+  it("does not duplicate downloadCsv inside a modeBarButtons override that already has it", () => {
+    const pluginConfig = {
+      modeBarButtons: [
+        ["toImage"],
+        [{ name: "downloadCsv", click: jest.fn() }],
+      ],
+    };
+    renderWithConfig(pluginConfig);
+    const { config } = global.__plotProps;
+    expect(config).toBe(pluginConfig);
+    expect(config.modeBarButtons).toHaveLength(2);
   });
 });

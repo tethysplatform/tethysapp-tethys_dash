@@ -216,6 +216,21 @@ export const layerPropertiesOptions = {
     placeholder:
       "The minimum view zoom level (inclusive) at which this layer can be queried. If the mp is clicked beyond the zoom level, then the map will zoom into the minZoomQuery value",
   },
+  clickTolerance: {
+    type: "number",
+    placeholder:
+      "Pixel tolerance for ESRI Image and Map Service identify (click) requests. Defaults to 10.",
+  },
+  snapToFeatures: {
+    type: "checkbox",
+    placeholder:
+      "Snap hover/click to the nearest feature of this ESRI Map Service layer (loads vector features for the current view).",
+  },
+  snapSublayer: {
+    type: "number",
+    placeholder:
+      "MapServer sublayer used for snapping feature queries. Defaults to the first id in the LAYERS 'show:N' source param, else 0.",
+  },
 };
 
 /**
@@ -571,6 +586,7 @@ export async function queryLayerFeatures(layerInfo, map, coordinate, pixel) {
         sourceParams,
         map,
         coordinate,
+        layerInfo.configuration.props.clickTolerance ?? 10,
       );
     } else if (sourceType === "WMS") {
       features = await getImageWMSLayerFeatures(
@@ -693,7 +709,14 @@ function getVectorTileLayerFeatures(map, pixel) {
   return features;
 }
 
-async function getESRILayerFeatures(sourceUrl, sourceParams, map, coordinate) {
+async function getESRILayerFeatures(
+  sourceUrl,
+  sourceParams,
+  map,
+  coordinate,
+  // The caller (queryLayerFeatures) owns the default via `clickTolerance ?? 10`.
+  tolerance,
+) {
   // setup fetch request with params
   const featureQueryUrl = sourceUrl + "/identify";
   const view = map.getView();
@@ -705,7 +728,7 @@ async function getESRILayerFeatures(sourceUrl, sourceParams, map, coordinate) {
       : { extent: rawExtent, point: coordinate };
   const params = new URLSearchParams({
     f: "json",
-    tolerance: 10, // Pixel tolerance
+    tolerance, // Pixel tolerance (per-layer via clickTolerance prop, default 10)
     returnGeometry: true,
     geometryType: "esriGeometryPoint",
     sr: projectionCode.split(":")[1],
@@ -1538,6 +1561,10 @@ export const configurationPropType = PropTypes.shape({
     layerId: PropTypes.string,
     // Optional; present on runtime-capable layers only.
     pluginSource: pluginSourcePropType,
+    // Optional; per-layer feature-query tuning (see layerPropertiesOptions).
+    clickTolerance: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    snapToFeatures: PropTypes.bool,
+    snapSublayer: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
   }),
   type: PropTypes.string, // layer type
 });
