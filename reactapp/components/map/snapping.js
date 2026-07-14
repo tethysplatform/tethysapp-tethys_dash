@@ -20,6 +20,10 @@ import { shiftEPSG3857ExtentAndPoint } from "components/map/utilities";
 export const SNAP_PREVIEW_COLOR = "#00c2d1";
 export const SNAP_PREVIEW_LAYER_NAME = "Snap Preview";
 
+// Service URLs already warned about for maxRecordCount truncation, so the
+// per-moveend refresh doesn't repeat the same warning indefinitely.
+const warnedTruncatedUrls = new Set();
+
 // Parse an ArcGIS LAYERDEFS value into just the SQL WHERE clause for the
 // given sublayer. ArcGIS accepts two syntaxes: simple ("<layerId>: <where>",
 // optionally ";"-separated) and JSON (`{"<layerId>": "<where>"}`). We try the
@@ -59,8 +63,17 @@ export function layerDefsToWhere(layerDefs, sublayer = 0) {
 // the /identify path (getESRILayerFeatures) already does for its `layers`
 // param; falls back to 0 when neither is present/parseable.
 export function resolveQuerySublayer(props) {
-  if (props?.querySublayer !== null && props?.querySublayer !== undefined) {
-    return props.querySublayer;
+  const explicit = props?.querySublayer;
+  // GUI inputs emit strings, so accept any numeric value but treat anything
+  // non-numeric (including "") as unset rather than an explicit override —
+  // otherwise a cleared field would produce a malformed `//query` URL.
+  if (
+    explicit !== null &&
+    explicit !== undefined &&
+    explicit !== "" &&
+    Number.isFinite(Number(explicit))
+  ) {
+    return Number(explicit);
   }
   const match = props?.source?.props?.params?.LAYERS?.match(
     /^(show|include):\s*(\d+)/,
@@ -127,9 +140,15 @@ export async function fetchLayerVectorFeatures(layerInfo, map) {
     geojson.exceededTransferLimit === true ||
     geojson.properties?.exceededTransferLimit === true;
   if (exceededTransferLimit) {
-    console.warn(
-      `Vector feature query for ${sourceUrl} exceeded the server's maxRecordCount; snapping is disabled for this view.`,
-    );
+    // Warn once per service URL — this path re-runs on every moveend, and an
+    // unguarded warn would spam the console for as long as the view stays
+    // wide enough to truncate.
+    if (!warnedTruncatedUrls.has(sourceUrl)) {
+      warnedTruncatedUrls.add(sourceUrl);
+      console.warn(
+        `Vector feature query for ${sourceUrl} exceeded the server's maxRecordCount; snapping is disabled for this view.`,
+      );
+    }
     return [];
   }
 

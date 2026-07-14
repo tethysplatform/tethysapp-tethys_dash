@@ -6061,4 +6061,29 @@ describe("snap pipeline integration", () => {
     expect(reattached).toBe(previewLayer);
     expect(reattached.getSource().getFeatures()).toHaveLength(2);
   });
+
+  test("repeated hovers while the preview layer is attached never add a duplicate layer", async () => {
+    mockedFetchLayerVectorFeatures.mockResolvedValue([
+      makeRiver("Test River", [
+        [0, 20],
+        [30, 20],
+      ]),
+    ]);
+
+    const mapRef = await mountSnapMap([riversLayer()]);
+
+    for (const x of [12, 14, 16]) {
+      await dispatch(mapRef, {
+        type: "pointermove",
+        coordinate: [x, 24],
+        pixel: [x, 24],
+      });
+    }
+
+    const previewLayers = mapRef.current
+      .getLayers()
+      .getArray()
+      .filter((olLayer) => olLayer.get("name") === "Snap Preview");
+    expect(previewLayers).toHaveLength(1);
+  });
 });

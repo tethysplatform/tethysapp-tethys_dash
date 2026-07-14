@@ -119,6 +119,13 @@ describe("buildCsvFromGraphDiv", () => {
     );
   });
 
+  it("long format preserves per-trace point order for out-of-order duplicate x (no sorting)", () => {
+    const gd = {
+      data: [{ x: [2, 1, 1], y: [30, 10, 20], name: "A", type: "scatter" }],
+    };
+    expect(buildCsvFromGraphDiv(gd)).toBe("trace,x,y\nA,2,30\nA,1,10\nA,1,20");
+  });
+
   it("emits long format (trace,x,y) preserving both y values when a trace has duplicate x", () => {
     const gd = {
       data: [{ x: [1, 1, 2], y: [10, 20, 30], name: "A", type: "scatter" }],

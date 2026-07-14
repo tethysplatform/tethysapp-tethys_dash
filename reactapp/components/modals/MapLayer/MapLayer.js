@@ -31,6 +31,7 @@ import {
 import { buildGeoTIFFStyleColor } from "components/map/geoTIFFStyle";
 import {
   removeEmptyValues,
+  removeEmptyLayerProps,
   checkRequiredKeys,
 } from "components/modals/utilities";
 import {
@@ -232,7 +233,9 @@ const MapLayerModal = ({
 
     const { layerVisibility, ...layerProperties } = layerProps;
     const validSourceProps = removeEmptyValues(sourceProps.props);
-    const validLayerProps = removeEmptyValues(layerProperties);
+    // Layer props keep numeric 0 (querySublayer: 0 is an explicit override),
+    // which removeEmptyValues' truthy filter would silently strip on save.
+    const validLayerProps = removeEmptyLayerProps(layerProperties);
 
     if (!isRuntime) {
       const missingRequiredProps = checkRequiredKeys(

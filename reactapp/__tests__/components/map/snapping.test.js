@@ -77,6 +77,32 @@ describe("resolveQuerySublayer", () => {
     expect(resolveQuerySublayer(props)).toBe(1);
   });
 
+  test("a numeric-string querySublayer (GUI input) is accepted as a number", () => {
+    const props = {
+      querySublayer: "3",
+      source: { props: { params: { LAYERS: "show:1" } } },
+    };
+    expect(resolveQuerySublayer(props)).toBe(3);
+  });
+
+  test("an empty-string querySublayer is treated as unset, not an override", () => {
+    const props = {
+      querySublayer: "",
+      source: { props: { params: { LAYERS: "show:3" } } },
+    };
+    expect(resolveQuerySublayer(props)).toBe(3);
+  });
+
+  test("a non-numeric querySublayer is treated as unset", () => {
+    expect(
+      resolveQuerySublayer({
+        querySublayer: "abc",
+        source: { props: { params: { LAYERS: "show:2" } } },
+      }),
+    ).toBe(2);
+    expect(resolveQuerySublayer({ querySublayer: "abc" })).toBe(0);
+  });
+
   test("explicit querySublayer of 0 is respected (not treated as unset)", () => {
     const props = {
       querySublayer: 0,
@@ -301,6 +327,14 @@ describe("fetchLayerVectorFeatures", () => {
     expect(calledUrl).toContain("https://svc/MapServer/1/query?");
   });
 
+  // The truncation warning is deduped per service URL (module-level Set), so
+  // each truncation test uses its own URL to stay independent of test order.
+  const truncatedLayerInfo = (url) => {
+    const info = JSON.parse(JSON.stringify(layerInfo));
+    info.configuration.props.source.props.url = url;
+    return info;
+  };
+
   test("returns [] and warns when the top-level exceededTransferLimit flag is set", async () => {
     const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
     global.fetch = jest.fn(() =>
@@ -316,11 +350,16 @@ describe("fetchLayerVectorFeatures", () => {
       })),
     };
 
-    const features = await fetchLayerVectorFeatures(layerInfo, map);
+    const features = await fetchLayerVectorFeatures(
+      truncatedLayerInfo("https://svc-truncated-a/MapServer"),
+      map,
+    );
 
     expect(features).toEqual([]);
     expect(warnSpy).toHaveBeenCalledTimes(1);
-    expect(warnSpy.mock.calls[0][0]).toContain("https://svc/MapServer");
+    expect(warnSpy.mock.calls[0][0]).toContain(
+      "https://svc-truncated-a/MapServer",
+    );
     warnSpy.mockRestore();
   });
 
@@ -342,11 +381,39 @@ describe("fetchLayerVectorFeatures", () => {
       })),
     };
 
-    const features = await fetchLayerVectorFeatures(layerInfo, map);
+    const features = await fetchLayerVectorFeatures(
+      truncatedLayerInfo("https://svc-truncated-b/MapServer"),
+      map,
+    );
 
     expect(features).toEqual([]);
     expect(warnSpy).toHaveBeenCalledTimes(1);
-    expect(warnSpy.mock.calls[0][0]).toContain("https://svc/MapServer");
+    expect(warnSpy.mock.calls[0][0]).toContain(
+      "https://svc-truncated-b/MapServer",
+    );
+    warnSpy.mockRestore();
+  });
+
+  test("warns only once per service URL across repeated truncated refreshes", async () => {
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+    global.fetch = jest.fn(() =>
+      Promise.resolve({
+        json: () =>
+          Promise.resolve({ ...geojsonOneLine, exceededTransferLimit: true }),
+      }),
+    );
+    const map = {
+      getView: jest.fn(() => ({
+        getProjection: jest.fn(() => ({ getCode: jest.fn(() => "EPSG:4326") })),
+        calculateExtent: jest.fn(() => [-10, -10, 10, 10]),
+      })),
+    };
+    const info = truncatedLayerInfo("https://svc-truncated-c/MapServer");
+
+    expect(await fetchLayerVectorFeatures(info, map)).toEqual([]);
+    expect(await fetchLayerVectorFeatures(info, map)).toEqual([]);
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
     warnSpy.mockRestore();
   });
 

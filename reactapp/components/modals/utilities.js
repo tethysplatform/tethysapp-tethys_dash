@@ -121,6 +121,20 @@ export const removeEmptyValues = (values) => {
   );
 };
 
+// Layer properties are a flat map where a numeric 0 is meaningful — e.g.
+// querySublayer: 0 explicitly pins the snap query to sublayer 0, overriding
+// the LAYERS "show:N" derivation — so unlike removeEmptyValues this filter
+// keeps 0 while still dropping ""/null/undefined/false values.
+export const removeEmptyLayerProps = (values) =>
+  Object.fromEntries(
+    Object.entries(values)
+      .map(([key, value]) => [
+        key,
+        typeof value === "string" ? value.trim() : value,
+      ])
+      .filter(([_, value]) => value || value === 0),
+  );
+
 // Checks to see if required keys from an object are present in an another object
 export const checkRequiredKeys = (
   requiredKeysObj,
