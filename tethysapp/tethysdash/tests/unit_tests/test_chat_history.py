@@ -1,7 +1,7 @@
 """Tests for chat/history.py - recent-conversation sanitization + framing."""
 import pytest
 
-from tethysapp.tethysdash.chatbot.history import (
+from tethysapp.tethysdash.chatbot.messages.history import (
     MAX_CHARS_PER_TURN,
     MAX_TURNS,
     format_history_instruction,

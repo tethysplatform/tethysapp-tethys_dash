@@ -1052,7 +1052,6 @@ def chat_message(request):
             {"error": "User does not have permission to use the chat."},
             status=403,
         )
-
     try:
         body = json.loads(request.body or b"{}")
     except json.JSONDecodeError as exc:
@@ -1082,7 +1081,7 @@ def chat_message(request):
             get_classifier,
         )
         from tethysapp.tethysdash.chatbot.streaming import emit_progress
-        from tethysapp.tethysdash.chatbot.validation import (
+        from tethysapp.tethysdash.chatbot.models import (
             ChatDeps,
             LLMRouter,
             RoutedResponse,
@@ -1092,10 +1091,6 @@ def chat_message(request):
             {"error": f"Chat backend not installed: {e}"},
             status=503,
         )
-
-    # Ownership check: mutating chat actions (adding tiles) are gated to
-    # the dashboard owner. Computed server-side per request - never
-    # trusted from the frontend.
     try:
         dashboard_meta = get_dashboards(request.user, id=dashboard_id)
         is_owner = dashboard_meta.get("owner") == request.user.username
@@ -1104,7 +1099,7 @@ def chat_message(request):
             {"error": f"Dashboard {dashboard_id} not found."}, status=404
         )
 
-    from tethysapp.tethysdash.chatbot.history import sanitize_history
+    from tethysapp.tethysdash.chatbot.messages.history import sanitize_history
 
     deps = ChatDeps(
         user=request.user,

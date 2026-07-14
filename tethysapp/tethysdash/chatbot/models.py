@@ -1,6 +1,7 @@
+from __future__ import annotations
 from dataclasses import dataclass
 from .agents.registry import IntentName
-from typing import Literal
+from typing import Literal, Any
 from pydantic import BaseModel
 from .agents.embedder import EmbeddingIntentClassifier
 from .agents.registry import AgentRegistry
@@ -12,6 +13,13 @@ from .agents.embedding_data import (
     INTENT_OOS,
 )
 
+
+@dataclass(frozen=True)
+class PluginSpec:
+    source: str
+    viz_type: str
+    args: dict[str, Any]
+    description: str
 
 class RoutedResponse(BaseModel):
     intent: IntentName | Literal["fallback"]
@@ -55,9 +63,6 @@ class LLMRouter:
                 "listing the available plugins. Try one of those."
             )
 
-        # Owner gate: refuse the add intent upfront for non-owners, before
-        # spending an LLM call. The tool enforces this again at the DB
-        # layer (defense in depth).
         if (
             prediction.intent == INTENT_ADD
             and not self.deps.can_add_visualizations
@@ -69,9 +74,7 @@ class LLMRouter:
             )
 
         elif prediction.intent == INTENT_LIST:
-            # Lazy import: plugins_tools imports ChatDeps from this module,
-            # so a top-level import here would be a circular dependency.
-            from .tools.plugins_tools import format_catalog_for_llm
+            from .tools.plugins import format_catalog_for_llm
 
             emit_progress(self.deps.chat_id, "Fetching available plugins...")
             return format_catalog_for_llm()
@@ -84,7 +87,7 @@ class LLMRouter:
         response_text = result.output
 
         if selected_intent == INTENT_DOCS:
-            from .docs import retrieve_context
+            from .tools.docs import retrieve_context
 
             _, sources = retrieve_context(request)
             if sources:
@@ -100,4 +103,4 @@ class LLMRouter:
             response=response_text,
         )
 
-    
+ 

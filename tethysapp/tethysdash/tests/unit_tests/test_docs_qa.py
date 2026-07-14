@@ -5,7 +5,7 @@ fixture is overridden with a no-op below).
 """
 import pytest
 
-from tethysapp.tethysdash.chatbot.docs import (
+from tethysapp.tethysdash.chatbot.tools.docs import (
     DOCS_BASE_URL,
     DOCS_ROOT,
     doc_url,

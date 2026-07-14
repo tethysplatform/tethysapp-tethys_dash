@@ -3,7 +3,7 @@ from pydantic_ai import Agent, ModelSettings, RunContext, NativeOutput
 from ..config import model
 from ..plugins import format_catalog_for_llm
 from ..tools import add_visualization_from_plugin
-from ..validation import ChatDeps
+from ..models import ChatDeps
 
 
 plugin_agent = Agent(
@@ -38,6 +38,6 @@ def available_plugins(ctx: RunContext[ChatDeps]) -> str:
 
 @plugin_agent.instructions
 def recent_conversation(ctx: RunContext[ChatDeps]) -> str:
-    from ..history import format_history_instruction
+    from ..messages.history import format_history_instruction
 
     return format_history_instruction(ctx.deps.history)

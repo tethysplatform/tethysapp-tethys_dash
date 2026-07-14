@@ -1,14 +1,63 @@
 """Dashboard-manipulation tools for the chat agent."""
 import json
+import intake
 import uuid as uuid_lib
 from typing import Any
 
 from pydantic_ai import RunContext, ModelRetry
 
 from tethysapp.tethysdash.model import get_dashboards, update_named_dashboard
-from ..plugins import format_catalog_for_llm, get_plugin
 from ..streaming import emit_progress
-from ..validation import ChatDeps
+from ..models import ChatDeps, PluginSpec
+
+def _is_visualization_plugin(plugin_cls) -> bool:
+    """True for TethysDash visualization plugins; False for generic intake drivers."""
+    return hasattr(plugin_cls, "visualization_type") 
+
+
+def _plugin_attr(plugin_cls, name: str, default=None):
+    """Read a plugin attribute supporting both new (``args``) and legacy
+    (``visualization_args``) names."""
+    if hasattr(plugin_cls, f"visualization_{name}"):
+        return getattr(plugin_cls, f"visualization_{name}")
+    if hasattr(plugin_cls, name):
+        return getattr(plugin_cls, name)
+    return default
+
+def list_visualization_plugins() -> list[PluginSpec]:
+    specs = []
+    for name in sorted(intake.source.registry):
+        cls = intake.source.registry[name]
+        if not _is_visualization_plugin(cls):
+            continue
+        specs.append(PluginSpec(
+            source=name,
+            viz_type=str(_plugin_attr(cls, "type", "?")),
+            args=_plugin_attr(cls, "args", {}) or {},
+            description=(_plugin_attr(cls, "description", "") or "").strip(),
+        ))
+    return specs
+
+def get_plugin(source: str) -> PluginSpec | None:
+    for spec in list_visualization_plugins():
+        if spec.source == source:
+            return spec
+    return None
+
+def format_catalog_for_llm() -> str:
+    specs = list_visualization_plugins()
+    if not specs:
+        return "No visualization plugins are installed."
+    blocks = []
+    for s in specs:
+        args_line = ", ".join(s.args) if s.args else "(none)"
+        desc = s.description or "(no description)"
+        blocks.append(
+            f"**{s.source}** ({s.viz_type})\n"
+            f"  args: {args_line}\n"
+            f"  {desc}"
+        )
+    return "\n\n".join(blocks)
 
 def add_visualization_from_plugin(
     ctx: RunContext[ChatDeps],
@@ -24,11 +73,7 @@ def add_visualization_from_plugin(
             plugins that require no arguments. Keys and value types are
             defined by the plugin's own arg schema.
     """
-    # Deterministic authorization gate - dispatch.run_intent already
-    # refuses the add intent for non-owners, but that is not the only
-    # boundary; this check is defense in depth, and
-    # update_named_dashboard enforces editor/admin again at the model
-    # layer.
+
     if not ctx.deps.can_add_visualizations:
         return (
             "Only the dashboard owner can add visualizations to this "
@@ -51,12 +96,6 @@ def add_visualization_from_plugin(
 
     missing = sorted(set(spec.args) - set(args))
     if missing:
-        # Retry first, so the model can self-correct when the values WERE
-        # in the prompt but it under-extracted them. Once retries are
-        # exhausted, stop raising (which would crash / drive the model to
-        # hallucinate values) and return a user-facing ask instead. The
-        # argument names come from the plugin's real schema, so nothing
-        # is invented.
         if ctx.retry >= ctx.max_retries:
             example = next(iter(spec.args))
             return (

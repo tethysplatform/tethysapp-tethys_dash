@@ -1,8 +1,4 @@
 """Local LLM configuration for the chat agents.
-
-Agents are constructed once at import with the local Ollama model.
-Endpoint and model name are overridable via environment (read once at
-import; restart the server to change them).
 """
 from __future__ import annotations
 

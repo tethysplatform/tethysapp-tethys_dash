@@ -15,7 +15,7 @@ from asgiref.sync import async_to_sync
 from tethysapp.tethysdash.chatbot.agents.embedder import IntentPrediction
 from tethysapp.tethysdash.chatbot.agents.embedding_data import INTENT_ADD
 from tethysapp.tethysdash.chatbot.tools import add_visualization_from_plugin
-from tethysapp.tethysdash.chatbot.validation import (
+from tethysapp.tethysdash.chatbot.models import (
     ChatDeps,
     LLMRouter,
     RoutedResponse,

@@ -14,9 +14,9 @@ from __future__ import annotations
 from pydantic_ai import Agent, ModelSettings, RunContext
 
 from ..config import model
-from ..docs import retrieve_context
+from ..tools.docs import retrieve_context
 from ..streaming import emit_progress
-from ..validation import ChatDeps
+from ..models import ChatDeps
 
 
 docs_agent = Agent(
@@ -57,6 +57,6 @@ def documentation_excerpts(ctx: RunContext[ChatDeps]) -> str:
 
 @docs_agent.instructions
 def recent_conversation(ctx: RunContext[ChatDeps]) -> str:
-    from ..history import format_history_instruction
+    from ..messages.history import format_history_instruction
 
     return format_history_instruction(ctx.deps.history)

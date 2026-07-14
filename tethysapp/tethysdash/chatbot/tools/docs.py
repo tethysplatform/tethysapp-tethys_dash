@@ -1,11 +1,4 @@
 """Deterministic documentation retrieval for the docs Q&A agent.
-
-Poor-man's RAG without embeddings: rank the ~24 RST files under
-``docs/source`` by keyword overlap with the question (title hits count
-triple), then inject the top files' content into the agent's dynamic
-instructions. Reads live from disk on every question - nothing to
-index, nothing to go stale. At this corpus size (~170 KB) a full scan
-is ~2 ms; revisit embeddings only if the docs grow past ~100 files.
 """
 from __future__ import annotations
 

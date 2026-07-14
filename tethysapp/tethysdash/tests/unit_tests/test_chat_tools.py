@@ -11,7 +11,7 @@ import pytest
 from pydantic_ai import ModelRetry
 
 from tethysapp.tethysdash.chatbot.tools import add_visualization_from_plugin
-from tethysapp.tethysdash.chatbot.validation import ChatDeps
+from tethysapp.tethysdash.chatbot.models import ChatDeps
 
 
 @pytest.fixture(autouse=True)
