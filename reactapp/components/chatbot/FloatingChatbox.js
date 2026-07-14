@@ -79,7 +79,7 @@ export default function FloatingChatbox({ dashboardId }) {
   if (!open) {
     return (
       <Launcher onClick={() => setOpen(true)} aria-label="Open chat">
-        <FaRobot /> Help
+        <FaRobot /> Builder
       </Launcher>
     );
   }
