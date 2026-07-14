@@ -238,6 +238,17 @@ describe("fetchLayerVectorFeatures", () => {
     expect(calledUrl).toContain("geometry=1%2C2%2C3%2C4");
   });
 
+  test("returns [] and skips fetch for a missing/config-less layerInfo", async () => {
+    global.fetch = jest.fn();
+    expect(
+      await fetchLayerVectorFeatures(undefined, { getView: jest.fn() }),
+    ).toEqual([]);
+    expect(await fetchLayerVectorFeatures({}, { getView: jest.fn() })).toEqual(
+      [],
+    );
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
   test("returns [] and skips fetch when the source url is missing", async () => {
     global.fetch = jest.fn();
     const result = await fetchLayerVectorFeatures(
@@ -614,6 +625,49 @@ describe("findSnapFeatures", () => {
       findSnapFeatures([cacheWithLine("A", 0)], [5, 50], nullPixelMap, 35),
     ).toEqual([]);
   });
+
+  test("uses the default gather radius when none is given", () => {
+    // Feature 20px away sits inside the 35px default radius.
+    const hits = findSnapFeatures([cacheWithLine("A", 20)], [0, 50], gatherMap);
+    expect(hits).toHaveLength(1);
+  });
+
+  test("skips caches without a source and features without geometry or pixel", () => {
+    // Cache with no usable source is skipped entirely.
+    expect(
+      findSnapFeatures(
+        [{ layerName: "A", source: null }],
+        [5, 50],
+        gatherMap,
+        35,
+      ),
+    ).toEqual([]);
+
+    // A feature the extent scan yields but that has no geometry is skipped.
+    const noGeometrySource = {
+      forEachFeatureInExtent: (extent, cb) =>
+        cb({ getGeometry: () => undefined }),
+    };
+    expect(
+      findSnapFeatures(
+        [{ layerName: "A", source: noGeometrySource }],
+        [5, 50],
+        gatherMap,
+        35,
+      ),
+    ).toEqual([]);
+
+    // Cursor projects to a pixel but the snapped point does not (partial
+    // projection failure) — the candidate is excluded rather than throwing.
+    const cursorOnlyMap = {
+      getPixelFromCoordinate: (c) =>
+        c && c[0] === 5 && c[1] === 50 ? [5, 50] : null,
+      getView: () => ({ getResolution: () => 1 }),
+    };
+    expect(
+      findSnapFeatures([cacheWithLine("A", 0)], [5, 50], cursorOnlyMap, 35),
+    ).toEqual([]);
+  });
 });
 
 describe("createSnapLayer", () => {
@@ -717,6 +771,30 @@ describe("buildSnapFeatureResult", () => {
     const result = buildSnapFeatureResult(feature, geoglowsLayer);
     expect(result.geometry.type).toBe("MultiLineString");
     expect(result.geometry.coordinates).toHaveLength(2);
+  });
+
+  test("treats a non-object attributeVariables as absent", () => {
+    const feature = new Feature({
+      geometry: new LineString([
+        [0, 0],
+        [1, 1],
+      ]),
+      comid: 7,
+    });
+    const result = buildSnapFeatureResult(feature, {
+      attributeVariables: "not-an-object",
+      configuration: { props: { name: "Geoglows Streamflow" } },
+    });
+    expect(result.layerName).toBe("Geoglows Streamflow");
+  });
+
+  test("degrades to an empty layerName and null geometry", () => {
+    // Feature with no geometry, layer with neither attributeVariables nor a
+    // configured name — the result stays shape-compatible with /identify.
+    const result = buildSnapFeatureResult(new Feature({ comid: 3 }), {});
+    expect(result.layerName).toBe("");
+    expect(result.geometry).toBeNull();
+    expect(result.attributes).toEqual({ comid: 3 });
   });
 });
 

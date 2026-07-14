@@ -106,7 +106,8 @@ export default function useSnapping({ layers }) {
   // against live OL visibility at use time instead of event-wiring the control.
   const visibleSnapCaches = (map) => {
     const olVisibility = getOlVisibilityMap(map);
-    return (snapCachesRef.current ?? []).filter(
+    // snapCachesRef.current is initialized to [] and only ever assigned arrays.
+    return snapCachesRef.current.filter(
       // Entries with no matching OL layer are retained on purpose: mid-rebuild
       // the layer may not be mounted yet (matches refreshSnapCaches'
       // benefit-of-the-doubt filter).

@@ -69,7 +69,8 @@ const compareRowKeys = (keys) => {
   const isDate = keys.every((k) => !Number.isNaN(Date.parse(k)));
   if (isDate) return (a, b) => Date.parse(a) - Date.parse(b);
 
-  return (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+  // Keys are unique Map keys, so two compared keys can never be equal.
+  return (a, b) => (a < b ? -1 : 1);
 };
 
 // Serialize the cartesian (non-table) traces. Default is a wide table keyed

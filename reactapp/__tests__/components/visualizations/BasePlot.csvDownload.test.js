@@ -197,6 +197,37 @@ describe("buildCsvFromGraphDiv toArray fallback", () => {
     };
     expect(buildCsvFromGraphDiv(gd)).toBe("x,A\n1,\n2,");
   });
+
+  it("treats a bdata spec with an unknown dtype as empty", () => {
+    const gd = {
+      data: [
+        {
+          x: [1],
+          y: { dtype: "z9", bdata: "AAAA" },
+          name: "A",
+          type: "scatter",
+        },
+      ],
+    };
+    expect(buildCsvFromGraphDiv(gd)).toBe("x,A\n1,");
+  });
+
+  it("joins array-valued table headers and tolerates missing header/cells", () => {
+    // Multi-part header values (arrays) join with spaces.
+    const withArrayHeaders = {
+      data: [
+        {
+          type: "table",
+          header: { values: [["col", "1"], "col2"] },
+          cells: { values: [["a"], ["b"]] },
+        },
+      ],
+    };
+    expect(buildCsvFromGraphDiv(withArrayHeaders)).toBe("col 1,col2\na,b");
+
+    // A table trace with no header/cells degrades to an empty section.
+    expect(buildCsvFromGraphDiv({ data: [{ type: "table" }] })).toBe("");
+  });
 });
 
 describe("downloadCsvFromGraphDiv", () => {
@@ -232,6 +263,35 @@ describe("downloadCsvFromGraphDiv", () => {
     downloadCsvFromGraphDiv({ data: [] });
     expect(global.URL.createObjectURL).not.toHaveBeenCalled();
     expect(clickSpy).not.toHaveBeenCalled();
+  });
+
+  it("derives the filename from a plain-string title, and falls back to plot_data", () => {
+    const downloadNames = () =>
+      document.createElement.mock.results
+        .map((r) => r.value)
+        .filter((el) => el?.tagName === "A")
+        .map((el) => el.download);
+
+    // Plain string title (not the { text } object form), sanitized.
+    downloadCsvFromGraphDiv({
+      data: [{ x: [1], y: [2], name: "A", type: "scatter" }],
+      layout: { title: "My Plot/Name" },
+    });
+    // No layout at all -> default name.
+    downloadCsvFromGraphDiv({
+      data: [{ x: [1], y: [2], name: "A", type: "scatter" }],
+    });
+    // Title of only special characters sanitizes to empty -> default name.
+    downloadCsvFromGraphDiv({
+      data: [{ x: [1], y: [2], name: "A", type: "scatter" }],
+      layout: { title: { text: "///" } },
+    });
+
+    expect(downloadNames()).toEqual([
+      "My_Plot_Name.csv",
+      "plot_data.csv",
+      "plot_data.csv",
+    ]);
   });
 
   it("csvDownloadButton.click routes the graph div into the download", () => {
