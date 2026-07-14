@@ -122,12 +122,12 @@ test("removeEmptyStringsFromObject", async () => {
 });
 
 test("removeEmptyLayerProps keeps numeric 0 but drops empty/null/false values", async () => {
-  // querySublayer: 0 is an explicit override that removeEmptyValues' truthy
+  // snapSublayer: 0 is an explicit override that removeEmptyValues' truthy
   // filter would strip on save — the layer-props filter must preserve it.
   expect(
     removeEmptyLayerProps({
       name: "Rivers",
-      querySublayer: 0,
+      snapSublayer: 0,
       clickTolerance: 25,
       opacity: "",
       minZoom: null,
@@ -137,7 +137,7 @@ test("removeEmptyLayerProps keeps numeric 0 but drops empty/null/false values", 
     }),
   ).toStrictEqual({
     name: "Rivers",
-    querySublayer: 0,
+    snapSublayer: 0,
     clickTolerance: 25,
     padded: "trimmed",
   });

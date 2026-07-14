@@ -1,6 +1,6 @@
 import {
   layerDefsToWhere,
-  resolveQuerySublayer,
+  resolveSnapSublayer,
   fetchLayerVectorFeatures,
   findSnapFeature,
   findBestSnap,
@@ -68,77 +68,87 @@ describe("layerDefsToWhere", () => {
   });
 });
 
-describe("resolveQuerySublayer", () => {
-  test("explicit querySublayer wins over LAYERS show:N", () => {
+describe("resolveSnapSublayer", () => {
+  test("explicit snapSublayer wins over LAYERS show:N", () => {
     const props = {
-      querySublayer: 1,
+      snapSublayer: 1,
       source: { props: { params: { LAYERS: "show:3" } } },
     };
-    expect(resolveQuerySublayer(props)).toBe(1);
+    expect(resolveSnapSublayer(props)).toBe(1);
   });
 
-  test("a numeric-string querySublayer (GUI input) is accepted as a number", () => {
+  test("a numeric-string snapSublayer (GUI input) is accepted as a number", () => {
     const props = {
-      querySublayer: "3",
+      snapSublayer: "3",
       source: { props: { params: { LAYERS: "show:1" } } },
     };
-    expect(resolveQuerySublayer(props)).toBe(3);
+    expect(resolveSnapSublayer(props)).toBe(3);
   });
 
-  test("an empty-string querySublayer is treated as unset, not an override", () => {
+  test("an empty-string snapSublayer is treated as unset, not an override", () => {
     const props = {
-      querySublayer: "",
+      snapSublayer: "",
       source: { props: { params: { LAYERS: "show:3" } } },
     };
-    expect(resolveQuerySublayer(props)).toBe(3);
+    expect(resolveSnapSublayer(props)).toBe(3);
   });
 
-  test("a non-numeric querySublayer is treated as unset", () => {
+  test("a non-numeric snapSublayer is treated as unset", () => {
     expect(
-      resolveQuerySublayer({
-        querySublayer: "abc",
+      resolveSnapSublayer({
+        snapSublayer: "abc",
         source: { props: { params: { LAYERS: "show:2" } } },
       }),
     ).toBe(2);
-    expect(resolveQuerySublayer({ querySublayer: "abc" })).toBe(0);
+    expect(resolveSnapSublayer({ snapSublayer: "abc" })).toBe(0);
   });
 
-  test("explicit querySublayer of 0 is respected (not treated as unset)", () => {
+  test("explicit snapSublayer of 0 is respected (not treated as unset)", () => {
     const props = {
-      querySublayer: 0,
+      snapSublayer: 0,
       source: { props: { params: { LAYERS: "show:3" } } },
     };
-    expect(resolveQuerySublayer(props)).toBe(0);
+    expect(resolveSnapSublayer(props)).toBe(0);
   });
 
-  test("derives the sublayer from LAYERS show:N when querySublayer is absent", () => {
+  test("derives the sublayer from LAYERS show:N when snapSublayer is absent", () => {
     const props = { source: { props: { params: { LAYERS: "show:3" } } } };
-    expect(resolveQuerySublayer(props)).toBe(3);
+    expect(resolveSnapSublayer(props)).toBe(3);
   });
 
   test("takes the first id from a multi-id LAYERS show list", () => {
     const props = { source: { props: { params: { LAYERS: "show:2,4" } } } };
-    expect(resolveQuerySublayer(props)).toBe(2);
+    expect(resolveSnapSublayer(props)).toBe(2);
   });
 
   test("derives the sublayer from LAYERS include:N", () => {
     const props = { source: { props: { params: { LAYERS: "include: 5" } } } };
-    expect(resolveQuerySublayer(props)).toBe(5);
+    expect(resolveSnapSublayer(props)).toBe(5);
   });
 
   test("defaults to 0 for a non-show/include LAYERS directive", () => {
     const props = { source: { props: { params: { LAYERS: "visible" } } } };
-    expect(resolveQuerySublayer(props)).toBe(0);
+    expect(resolveSnapSublayer(props)).toBe(0);
   });
 
   test("defaults to 0 for garbage LAYERS", () => {
     const props = { source: { props: { params: { LAYERS: "garbage" } } } };
-    expect(resolveQuerySublayer(props)).toBe(0);
+    expect(resolveSnapSublayer(props)).toBe(0);
   });
 
-  test("defaults to 0 when there is no LAYERS or querySublayer", () => {
-    expect(resolveQuerySublayer({})).toBe(0);
-    expect(resolveQuerySublayer(undefined)).toBe(0);
+  test("defaults to 0 when there is no LAYERS or snapSublayer", () => {
+    expect(resolveSnapSublayer({})).toBe(0);
+    expect(resolveSnapSublayer(undefined)).toBe(0);
+  });
+
+  test("honors the legacy querySublayer key from the original feature branch", () => {
+    const props = {
+      querySublayer: 2,
+      source: { props: { params: { LAYERS: "show:3" } } },
+    };
+    expect(resolveSnapSublayer(props)).toBe(2);
+    // The new key wins when both are present.
+    expect(resolveSnapSublayer({ ...props, snapSublayer: 1 })).toBe(1);
   });
 });
 
@@ -163,7 +173,7 @@ describe("fetchLayerVectorFeatures", () => {
   const layerInfo = {
     configuration: {
       props: {
-        querySublayer: 0,
+        snapSublayer: 0,
         source: {
           props: {
             url: "https://svc/MapServer",
@@ -262,7 +272,7 @@ describe("fetchLayerVectorFeatures", () => {
     expect(await fetchLayerVectorFeatures(layerInfo, map)).toEqual([]);
   });
 
-  test("derives the sublayer from LAYERS show:N when querySublayer is not set", async () => {
+  test("derives the sublayer from LAYERS show:N when snapSublayer is not set", async () => {
     global.fetch = jest.fn(() =>
       Promise.resolve({ json: () => Promise.resolve(geojsonOneLine) }),
     );
@@ -297,7 +307,7 @@ describe("fetchLayerVectorFeatures", () => {
     );
   });
 
-  test("an explicit querySublayer overrides LAYERS show:N", async () => {
+  test("an explicit snapSublayer overrides LAYERS show:N", async () => {
     global.fetch = jest.fn(() =>
       Promise.resolve({ json: () => Promise.resolve(geojsonOneLine) }),
     );
@@ -310,7 +320,7 @@ describe("fetchLayerVectorFeatures", () => {
     const layerInfoOverride = {
       configuration: {
         props: {
-          querySublayer: 1,
+          snapSublayer: 1,
           source: {
             props: {
               url: "https://svc/MapServer",

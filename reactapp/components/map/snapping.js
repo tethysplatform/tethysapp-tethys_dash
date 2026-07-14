@@ -58,12 +58,13 @@ export function layerDefsToWhere(layerDefs, sublayer = 0) {
 }
 
 // Resolve the MapServer sublayer used for snap feature queries: an explicit
-// `querySublayer` prop always wins; otherwise derive it from the LAYERS
-// "show:N"/"include:N" source param (first id), mirroring the translation
-// the /identify path (getESRILayerFeatures) already does for its `layers`
-// param; falls back to 0 when neither is present/parseable.
-export function resolveQuerySublayer(props) {
-  const explicit = props?.querySublayer;
+// `snapSublayer` prop always wins (the legacy `querySublayer` key from the
+// original feature branch is honored as a fallback); otherwise derive it from
+// the LAYERS "show:N"/"include:N" source param (first id), mirroring the
+// translation the /identify path (getESRILayerFeatures) already does for its
+// `layers` param; falls back to 0 when neither is present/parseable.
+export function resolveSnapSublayer(props) {
+  const explicit = props?.snapSublayer ?? props?.querySublayer;
   // GUI inputs emit strings, so accept any numeric value but treat anything
   // non-numeric (including "") as unset rather than an explicit override —
   // otherwise a cleared field would produce a malformed `//query` URL.
@@ -88,7 +89,7 @@ export async function fetchLayerVectorFeatures(layerInfo, map) {
   const props = layerInfo?.configuration?.props ?? {};
   const sourceUrl = props.source?.props?.url ?? "";
   if (!sourceUrl) return [];
-  const sublayer = resolveQuerySublayer(props);
+  const sublayer = resolveSnapSublayer(props);
   const where = layerDefsToWhere(
     props.source?.props?.params?.LAYERDEFS,
     sublayer,

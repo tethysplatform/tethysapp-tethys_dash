@@ -115,7 +115,7 @@ Each plugin `run()` must return data in the format expected by its `type`:
 
 For long-running plugins, call `self.send_update(message, percentage_complete)` during `run()` to stream progress via WebSocket.
 
-`map`-type layer configs also support per-layer props (`configuration.props` on each layer) beyond the base `layers` shape — opacity, min/max resolution, min/max zoom, `minZoomQuery`, `clickTolerance`, `snapToFeatures`, and `querySublayer` — registered in `layerPropertiesOptions` (`reactapp/components/map/utilities.js`). That registry drives the MapLayer editor's "Layer Properties" GUI table, so any new layer prop must be added there to become editable in the GUI.
+`map`-type layer configs also support per-layer props (`configuration.props` on each layer) beyond the base `layers` shape — opacity, min/max resolution, min/max zoom, `minZoomQuery`, `clickTolerance`, `snapToFeatures`, and `snapSublayer` — registered in `layerPropertiesOptions` (`reactapp/components/map/utilities.js`). That registry drives the MapLayer editor's "Layer Properties" GUI table, so any new layer prop must be added there to become editable in the GUI.
 
 ## Key Conventions
 

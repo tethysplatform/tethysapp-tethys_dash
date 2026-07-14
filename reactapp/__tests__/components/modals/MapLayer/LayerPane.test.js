@@ -68,16 +68,16 @@ test("LayerPane", async () => {
   );
 });
 
-test("LayerPane renders and edits clickTolerance, snapToFeatures, and querySublayer", async () => {
+test("LayerPane renders and edits clickTolerance, snapToFeatures, and snapSublayer", async () => {
   render(<TestingComponent />);
 
   // rows render with spaceAndCapitalize labels
   expect(await screen.findByText("Click Tolerance")).toBeInTheDocument();
   expect(await screen.findByText("Snap To Features")).toBeInTheDocument();
-  expect(await screen.findByText("Query Sublayer")).toBeInTheDocument();
+  expect(await screen.findByText("Snap Sublayer")).toBeInTheDocument();
 
   // clickTolerance is row 6 (opacity, minResolution, maxResolution, minZoom,
-  // maxZoom, minZoomQuery, clickTolerance, snapToFeatures, querySublayer)
+  // maxZoom, minZoomQuery, clickTolerance, snapToFeatures, snapSublayer)
   const clickToleranceInput = await screen.findByLabelText("value Input 6");
   fireEvent.change(clickToleranceInput, { target: { value: "25" } });
   expect(await screen.findByTestId("layerProps")).toHaveTextContent(
@@ -91,25 +91,25 @@ test("LayerPane renders and edits clickTolerance, snapToFeatures, and querySubla
     JSON.stringify({ clickTolerance: "25", snapToFeatures: true }),
   );
 
-  const querySublayerInput = await screen.findByLabelText("value Input 8");
-  fireEvent.change(querySublayerInput, { target: { value: "3" } });
+  const snapSublayerInput = await screen.findByLabelText("value Input 8");
+  fireEvent.change(snapSublayerInput, { target: { value: "3" } });
   expect(await screen.findByTestId("layerProps")).toHaveTextContent(
     JSON.stringify({
       clickTolerance: "25",
       snapToFeatures: true,
-      querySublayer: "3",
+      snapSublayer: "3",
     }),
   );
 });
 
-test("LayerPane round-trips existing clickTolerance/snapToFeatures/querySublayer values and preserves them when editing the name", async () => {
+test("LayerPane round-trips existing clickTolerance/snapToFeatures/snapSublayer values and preserves them when editing the name", async () => {
   render(
     <TestingComponent
       initialLayerProps={{
         name: "River Layer",
         clickTolerance: 15,
         snapToFeatures: true,
-        querySublayer: 2,
+        snapSublayer: 2,
       }}
     />,
   );
@@ -120,8 +120,8 @@ test("LayerPane round-trips existing clickTolerance/snapToFeatures/querySublayer
   const snapToFeaturesCheckbox = await screen.findByLabelText("value Input 7");
   expect(snapToFeaturesCheckbox.checked).toBe(true);
 
-  const querySublayerInput = await screen.findByLabelText("value Input 8");
-  expect(querySublayerInput.value).toBe("2");
+  const snapSublayerInput = await screen.findByLabelText("value Input 8");
+  expect(snapSublayerInput.value).toBe("2");
 
   // editing the unrelated Name field must not clobber the other props
   const nameInput = await screen.findByLabelText("Name Input");
@@ -132,7 +132,7 @@ test("LayerPane round-trips existing clickTolerance/snapToFeatures/querySublayer
       name: "Updated Name",
       clickTolerance: 15,
       snapToFeatures: true,
-      querySublayer: 2,
+      snapSublayer: 2,
     }),
   );
 });

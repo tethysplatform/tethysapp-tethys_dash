@@ -233,7 +233,7 @@ const MapLayerModal = ({
 
     const { layerVisibility, ...layerProperties } = layerProps;
     const validSourceProps = removeEmptyValues(sourceProps.props);
-    // Layer props keep numeric 0 (querySublayer: 0 is an explicit override),
+    // Layer props keep numeric 0 (snapSublayer: 0 is an explicit override),
     // which removeEmptyValues' truthy filter would silently strip on save.
     const validLayerProps = removeEmptyLayerProps(layerProperties);
 

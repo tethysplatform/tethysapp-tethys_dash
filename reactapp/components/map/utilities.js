@@ -226,7 +226,7 @@ export const layerPropertiesOptions = {
     placeholder:
       "Snap hover/click to the nearest feature of this ESRI Map Service layer (loads vector features for the current view).",
   },
-  querySublayer: {
+  snapSublayer: {
     type: "number",
     placeholder:
       "MapServer sublayer used for snapping feature queries. Defaults to the first id in the LAYERS 'show:N' source param, else 0.",
@@ -1563,7 +1563,7 @@ export const configurationPropType = PropTypes.shape({
     // Optional; per-layer feature-query tuning (see layerPropertiesOptions).
     clickTolerance: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
     snapToFeatures: PropTypes.bool,
-    querySublayer: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    snapSublayer: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
   }),
   type: PropTypes.string, // layer type
 });
