@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 import pytest
 
-from tethysapp.tethysdash.chatbot.streaming import emit_progress
+from tethysapp.tethysdash.chatbot.utils import emit_progress
 
 _SEND = "tethysapp.tethysdash.chatbot.streaming.send_websocket_message"
 

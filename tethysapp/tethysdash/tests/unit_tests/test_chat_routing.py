@@ -108,7 +108,7 @@ def test_live_classifier_routes_hard_cases():
     )
 
     try:
-        from tethysapp.tethysdash.chatbot.bootstrap import get_classifier
+        from tethysapp.tethysdash.chatbot.utils import get_classifier
 
         clf = get_classifier()
     except Exception as exc:  # noqa: BLE001 - model download/load may fail

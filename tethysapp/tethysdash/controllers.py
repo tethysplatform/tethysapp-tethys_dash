@@ -1076,11 +1076,11 @@ def chat_message(request):
 
     try:
         from asgiref.sync import async_to_sync
-        from tethysapp.tethysdash.chatbot.bootstrap import (
+        from tethysapp.tethysdash.chatbot.utils import (
             build_registry,
             get_classifier,
         )
-        from tethysapp.tethysdash.chatbot.streaming import emit_progress
+        from tethysapp.tethysdash.chatbot.utils import emit_progress
         from tethysapp.tethysdash.chatbot.models import (
             ChatDeps,
             LLMRouter,

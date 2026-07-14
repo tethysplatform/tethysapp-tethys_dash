@@ -7,7 +7,7 @@ from typing import Any
 from pydantic_ai import RunContext, ModelRetry
 
 from tethysapp.tethysdash.model import get_dashboards, update_named_dashboard
-from ..streaming import emit_progress
+from ..utils import emit_progress
 from ..models import ChatDeps, PluginSpec
 
 def _is_visualization_plugin(plugin_cls) -> bool:

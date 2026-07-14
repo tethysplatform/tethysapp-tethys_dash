@@ -5,7 +5,7 @@ from typing import Literal, Any
 from pydantic import BaseModel
 from .agents.embedder import EmbeddingIntentClassifier
 from .agents.registry import AgentRegistry
-from .streaming import emit_progress
+from .utils import emit_progress
 from .agents.embedding_data import (
     INTENT_ADD,
     INTENT_DOCS,

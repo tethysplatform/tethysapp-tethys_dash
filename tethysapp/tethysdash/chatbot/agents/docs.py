@@ -15,7 +15,7 @@ from pydantic_ai import Agent, ModelSettings, RunContext
 
 from ..config import model
 from ..tools.docs import retrieve_context
-from ..streaming import emit_progress
+from ..utils import emit_progress
 from ..models import ChatDeps
 
 

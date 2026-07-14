@@ -1,7 +1,7 @@
 from pydantic_ai import Agent, ModelSettings, RunContext, NativeOutput
 
 from ..config import model
-from ..plugins import format_catalog_for_llm
+from ..tools.plugins import format_catalog_for_llm
 from ..tools import add_visualization_from_plugin
 from ..models import ChatDeps
 
