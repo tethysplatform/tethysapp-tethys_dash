@@ -39,7 +39,7 @@ import {
 } from "react-icons/bs";
 import { HiUserGroup } from "react-icons/hi";
 import { CiUndo } from "react-icons/ci";
-import { FaPlus } from "react-icons/fa6";
+import { FaPlus, FaRobot } from "react-icons/fa6";
 import { FaExpandArrowsAlt, FaLock, FaUnlock } from "react-icons/fa";
 import "components/buttons/HeaderButton.css";
 import { v4 as uuidv4 } from "uuid";
@@ -281,8 +281,14 @@ export const DashboardHeader = () => {
   );
   const [showInfoModal, setShowInfoModal] = useState(false);
   const { user } = useContext(AppContext);
-  const { name, editable, saveLayoutContext, unrestrictedPlacement } =
-    useContext(LayoutContext);
+  const {
+    name,
+    editable,
+    saveLayoutContext,
+    unrestrictedPlacement,
+    chatVisible,
+    setChatVisible,
+  } = useContext(LayoutContext);
   const { tabs, updateTab, importTabs, resetTabs, getActiveTab } =
     useContext(TabContext);
   const { isEditing, setIsEditing } = useContext(EditingContext);
@@ -522,6 +528,21 @@ export const DashboardHeader = () => {
                       disabled={isSaving}
                     >
                       <FaPlus size="1.5rem" />
+                    </TooltipButton>
+                    <TooltipButton
+                      tooltipPlacement="bottom"
+                      tooltipText={
+                        chatVisible ? "Hide Chatbot" : "Show Chatbot"
+                      }
+                      onClick={() => setChatVisible((v) => !v)}
+                      aria-label="toggleChatbotButton"
+                      className="toggleChatbotButton"
+                      disabled={isSaving}
+                    >
+                      <FaRobot
+                        size="1.5rem"
+                        style={{ opacity: chatVisible ? 1 : 0.4 }}
+                      />
                     </TooltipButton>
                     <TooltipButton
                       tooltipPlacement="bottom"

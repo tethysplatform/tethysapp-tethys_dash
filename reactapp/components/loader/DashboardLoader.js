@@ -50,6 +50,7 @@ const DashboardLoader = ({
   const [isEditing, setIsEditing] = useState(false);
   const [disabledEditingMovement, setDisabledEditingMovement] = useState(false);
   const [inDataViewerMode, setInDataViewerMode] = useState(false);
+  const [chatVisible, setChatVisible] = useState(true);
   const { updateDashboard } = useContext(AvailableDashboardsContext);
   const originalTabs = useRef({});
   const editable = ["admin", "editor"].includes(userPermission);
@@ -339,6 +340,8 @@ const DashboardLoader = ({
       unrestrictedPlacement,
       description,
       owner,
+      chatVisible,
+      setChatVisible,
     }),
     [
       saveLayoutContext,
@@ -353,6 +356,7 @@ const DashboardLoader = ({
       unrestrictedPlacement,
       description,
       owner,
+      chatVisible,
     ],
   );
   const editingContextValue = useMemo(

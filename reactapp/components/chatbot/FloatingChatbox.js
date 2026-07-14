@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useContext, useState } from "react";
 import styled from "styled-components";
 import Chatbox from "./Chatbox";
 import PropTypes from "prop-types";
 import { FaRobot } from "react-icons/fa6";
+import { EditingContext, LayoutContext } from "components/contexts/Contexts";
 
 const Launcher = styled.button`
   position: fixed;
@@ -74,12 +75,18 @@ const Content = styled.div`
 `;
 
 export default function FloatingChatbox({ dashboardId }) {
+  const { editable, chatVisible } = useContext(LayoutContext) || {};
+  const { isEditing } = useContext(EditingContext) || {};
   const [open, setOpen] = useState(false);
+
+  if (!editable || !isEditing || !chatVisible) {
+    return null;
+  }
 
   if (!open) {
     return (
       <Launcher onClick={() => setOpen(true)} aria-label="Open chat">
-        <FaRobot /> Builder
+        <FaRobot />
       </Launcher>
     );
   }
