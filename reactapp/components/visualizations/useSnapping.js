@@ -157,6 +157,17 @@ export default function useSnapping({ layers }) {
   // against live OL visibility at use time instead of event-wiring the control.
   const visibleSnapCaches = (map) => {
     const olVisibility = getOlVisibilityMap(map);
+    // The snap radius is re-read from the CURRENT layers prop at use time —
+    // the refresh-time value baked into the entry only serves as a fallback.
+    // Cache refreshes only run on moveend/prime, so a saved clickTolerance
+    // edit must not have to wait for the next pan to take effect.
+    const snapPxByName = new Map(
+      layers.map((item) => [
+        item.configuration?.props?.name,
+        coerceOptionalNumber(item.configuration?.props?.clickTolerance) ??
+          SNAP_PIXELS,
+      ]),
+    );
     // snapCachesRef.current is initialized to [] and only ever assigned arrays.
     return (
       snapCachesRef.current
@@ -175,11 +186,10 @@ export default function useSnapping({ layers }) {
         // dropped for this call — there is nothing to snap against — and the
         // next call re-resolves it.
         .map((cache) => {
-          if (!cache.live) return cache;
+          const snapPx = snapPxByName.get(cache.layerName) ?? cache.snapPx;
+          if (!cache.live) return { ...cache, snapPx };
           const source = getOlLayerByName(map, cache.layerName)?.getSource?.();
-          return source
-            ? { layerName: cache.layerName, source, snapPx: cache.snapPx }
-            : null;
+          return source ? { layerName: cache.layerName, source, snapPx } : null;
         })
         .filter(Boolean)
     );

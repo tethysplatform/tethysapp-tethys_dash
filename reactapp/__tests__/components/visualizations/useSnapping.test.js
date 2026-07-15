@@ -271,6 +271,50 @@ describe("useSnapping vector-layer live-source snap caches (U2)", () => {
     expect(tightMap.addLayer).not.toHaveBeenCalled();
   });
 
+  test("a clickTolerance edit takes effect immediately, without waiting for a cache refresh", async () => {
+    const liveSource = new VectorSource();
+    liveSource.addFeature(
+      new Feature({
+        geometry: new LineString([
+          [0, 0],
+          [0, 100],
+        ]),
+      }),
+    );
+    const stubLayer = makeStubOlLayer("Rivers", liveSource);
+    const map = makeMapWithLayers([stubLayer]);
+    const withTolerance = (clickTolerance) => [
+      {
+        configuration: {
+          props: {
+            name: "Rivers",
+            snapToFeatures: true,
+            clickTolerance,
+            source: { type: "GeoJSON" },
+          },
+        },
+      },
+    ];
+
+    const { result, rerender } = renderHook((props) => useSnapping(props), {
+      initialProps: { layers: withTolerance(30) },
+    });
+    await result.current.refreshSnapCaches(map);
+
+    // Baseline: 25px out snaps at tolerance 30.
+    result.current.updateSnap(map, [25, 50]);
+    expect(map.addLayer).toHaveBeenCalledTimes(1);
+    const previewLayer = map.addLayer.mock.calls[0][0];
+    expect(previewLayer.getSource().getFeatures()).toHaveLength(2);
+
+    // The user saves a tighter tolerance: the layers prop updates but NO
+    // refreshSnapCaches runs (that only happens on moveend/prime). The new
+    // radius must apply on the very next hover.
+    rerender({ layers: withTolerance(5) });
+    result.current.updateSnap(map, [25, 50]);
+    expect(previewLayer.getSource().getFeatures()).toHaveLength(0);
+  });
+
   test("snapping obeys the layer's min/max zoom bounds (renderer visibility, not just getVisible)", async () => {
     const liveSource = new VectorSource();
     liveSource.addFeature(
