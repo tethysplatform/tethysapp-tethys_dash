@@ -378,6 +378,20 @@ def test_layer_configuration_builder_build():
     }
 
 
+def test_layer_configuration_builder_snapping_props():
+    builder = LayerConfigurationBuilder("test", "ESRI Image and Map Service")
+    builder.set_source_properties(
+        url="https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer"  # noqa: E501
+    ).set_click_tolerance(20).set_snap_to_features(True).set_snap_sublayer(0)
+    config = builder.build()
+
+    props = config["configuration"]["props"]
+    assert props["clickTolerance"] == 20
+    assert props["snapToFeatures"] is True
+    # An explicit 0 is meaningful (pins sublayer 0) and must survive build.
+    assert props["snapSublayer"] == 0
+
+
 def test_layer_configuration_builder_build_required_fields():
     builder = LayerConfigurationBuilder(name="My Layer Name", layer_source="WMS")
     with pytest.raises(
