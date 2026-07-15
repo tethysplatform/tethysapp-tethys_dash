@@ -1,5 +1,6 @@
 import { useRef } from "react";
 import VectorSource from "ol/source/Vector";
+import { inView } from "ol/layer/Layer";
 import {
   createSnapLayer,
   addSnapPreview,
@@ -18,17 +19,27 @@ export const SNAP_PIXELS = 15;
 // connected reaches at a confluence into the click popup's swiper.
 export const GATHER_PIXELS = 35;
 
+// Effective per-layer visibility: the renderer's own test (visible flag plus
+// the layer's min/max zoom and resolution bounds) via ol's `inView` —
+// `getVisible()` alone reports true for layers the view has zoomed out of.
+// Falls back to the plain flag for layer objects without OL layer state.
+const isLayerShown = (olLayer, viewState) =>
+  viewState && olLayer.getLayerState
+    ? inView(olLayer.getLayerState(), viewState)
+    : olLayer.getVisible();
+
 // Live OL-layer visibility keyed by layer name — built fresh per call because
 // LayersControl mutates visibility directly on the OL layer without any React
 // state change this hook could subscribe to.
 const getOlVisibilityMap = (map) => {
   const olVisibility = new Map();
+  const viewState = map.getView().getState?.();
   map
     .getLayers()
     .getArray()
     .forEach((olLayer) => {
       const name = olLayer.get("name");
-      if (name) olVisibility.set(name, olLayer.getVisible());
+      if (name) olVisibility.set(name, isLayerShown(olLayer, viewState));
     });
   return olVisibility;
 };

@@ -6370,4 +6370,55 @@ describe("snap pipeline integration", () => {
     expect(previewLayer.getSource().getFeatures()).toHaveLength(0);
     expect(mapRef.current.getTargetElement().style.cursor).toBe("");
   });
+
+  test("snapping obeys the layer's min/max zoom: a zoom-hidden layer stops snapping without a refresh", async () => {
+    const layerName = "GeoJSON Rivers";
+    const mapRef = await mountSnapMap(
+      [geoJsonRiversLayer({ name: layerName })],
+      {
+        expectedFetches: 0,
+      },
+    );
+    await waitFor(() => expect(findOlLayer(mapRef, layerName)).toBeDefined());
+    await dispatch(mapRef, { type: "moveend" });
+    findOlLayer(mapRef, layerName)
+      .getSource()
+      .addFeatures([
+        makeRiver("Test River", [
+          [0, 20],
+          [30, 20],
+        ]),
+      ]);
+
+    // Positive control at the current view zoom.
+    await dispatch(mapRef, {
+      type: "pointermove",
+      coordinate: [12, 24],
+      pixel: [12, 24],
+    });
+    const previewLayer = findOlLayer(mapRef, "Snap Preview");
+    expect(previewLayer.getSource().getFeatures()).toHaveLength(2);
+
+    // Constrain the layer's maxZoom below the current view zoom: the layer
+    // stops rendering while getVisible() stays true — snapping must follow
+    // the renderer's visibility, immediately, with no cache refresh.
+    const viewZoom = mapRef.current.getView().getZoom();
+    findOlLayer(mapRef, layerName).setMaxZoom(viewZoom - 1);
+    await dispatch(mapRef, {
+      type: "pointermove",
+      coordinate: [12, 24],
+      pixel: [12, 24],
+    });
+    expect(previewLayer.getSource().getFeatures()).toHaveLength(0);
+    expect(mapRef.current.getTargetElement().style.cursor).toBe("");
+
+    // Lifting the constraint restores snapping, again with no refresh.
+    findOlLayer(mapRef, layerName).setMaxZoom(Infinity);
+    await dispatch(mapRef, {
+      type: "pointermove",
+      coordinate: [12, 24],
+      pixel: [12, 24],
+    });
+    expect(previewLayer.getSource().getFeatures()).toHaveLength(2);
+  });
 });

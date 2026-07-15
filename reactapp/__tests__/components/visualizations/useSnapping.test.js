@@ -229,6 +229,53 @@ describe("useSnapping vector-layer live-source snap caches (U2)", () => {
     expect(previewLayer.getSource().getFeatures()).toHaveLength(2);
   });
 
+  test("snapping obeys the layer's min/max zoom bounds (renderer visibility, not just getVisible)", async () => {
+    const liveSource = new VectorSource();
+    liveSource.addFeature(
+      new Feature({
+        geometry: new LineString([
+          [0, 0],
+          [0, 100],
+        ]),
+      }),
+    );
+    // getVisible() reports true, but the layer's own minZoom hides it at the
+    // current view zoom — snapping must follow the renderer, not the flag.
+    const zoomBoundLayer = (minZoom) => ({
+      ...makeStubOlLayer("Rivers", liveSource),
+      getLayerState: () => ({
+        visible: true,
+        minResolution: 0,
+        maxResolution: Infinity,
+        minZoom,
+        maxZoom: Infinity,
+      }),
+    });
+    const mapAtZoom = (olLayer, zoom) => ({
+      ...makeMapWithLayers([olLayer], { zoom }),
+      getView: () => ({
+        getZoom: () => zoom,
+        getResolution: () => 1,
+        getState: () => ({ zoom, resolution: 1 }),
+      }),
+    });
+
+    // View zoom 5 is NOT above the layer's minZoom 8 -> hidden -> no snap.
+    const hiddenMap = mapAtZoom(zoomBoundLayer(8), 5);
+    const { result } = renderHook(() =>
+      useSnapping({ layers: [geoJsonRiverLayerConfig] }),
+    );
+    await result.current.refreshSnapCaches(hiddenMap);
+    result.current.updateSnap(hiddenMap, [SNAP_PIXELS - 5, 50]);
+    expect(hiddenMap.addLayer).not.toHaveBeenCalled();
+
+    // Same layer shape within its zoom bounds -> snaps normally.
+    const shownMap = mapAtZoom(zoomBoundLayer(2), 5);
+    await result.current.refreshSnapCaches(shownMap);
+    result.current.updateSnap(shownMap, [SNAP_PIXELS - 5, 50]);
+    expect(shownMap.addLayer).toHaveBeenCalledTimes(1);
+  });
+
   test("a GeoJSON snap layer with no matching OL instance contributes no cache entry and does not throw", async () => {
     // No stub layer named "Rivers" — simulates a layer mid-rebuild.
     const map = makeMapWithLayers([]);
