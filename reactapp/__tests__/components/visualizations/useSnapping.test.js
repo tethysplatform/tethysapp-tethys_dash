@@ -315,6 +315,47 @@ describe("useSnapping vector-layer live-source snap caches (U2)", () => {
     expect(previewLayer.getSource().getFeatures()).toHaveLength(0);
   });
 
+  test("an entry whose layer left the layers prop falls back to its refresh-time radius", async () => {
+    const liveSource = new VectorSource();
+    liveSource.addFeature(
+      new Feature({
+        geometry: new LineString([
+          [0, 0],
+          [0, 100],
+        ]),
+      }),
+    );
+    const stubLayer = makeStubOlLayer("Rivers", liveSource);
+    const map = makeMapWithLayers([stubLayer]);
+    const riversWithTolerance = [
+      {
+        configuration: {
+          props: {
+            name: "Rivers",
+            snapToFeatures: true,
+            clickTolerance: 30,
+            source: { type: "GeoJSON" },
+          },
+        },
+      },
+    ];
+
+    const { result, rerender } = renderHook((props) => useSnapping(props), {
+      initialProps: { layers: riversWithTolerance },
+    });
+    await result.current.refreshSnapCaches(map);
+
+    // The layer config disappears from the layers prop (removed/renamed
+    // mid-edit) while its cache entry and OL layer are still present: the
+    // use-time tolerance lookup misses and the refresh-time radius (30)
+    // still applies until the next cache refresh drops the entry.
+    rerender({ layers: [] });
+    result.current.updateSnap(map, [25, 50]);
+    expect(map.addLayer).toHaveBeenCalledTimes(1);
+    const previewLayer = map.addLayer.mock.calls[0][0];
+    expect(previewLayer.getSource().getFeatures()).toHaveLength(2);
+  });
+
   test("snapping obeys the layer's min/max zoom bounds (renderer visibility, not just getVisible)", async () => {
     const liveSource = new VectorSource();
     liveSource.addFeature(
