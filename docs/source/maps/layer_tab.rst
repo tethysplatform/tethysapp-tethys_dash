@@ -40,6 +40,11 @@ Clicking exactly on a thin line or a small point is hard — especially on dense
 
 **Snap To Features** goes further: as the cursor approaches a feature, a highlighted preview traces the feature with a dot marking the exact snapped point, the cursor changes to a pointer, and a click selects that feature directly — no precise aim required. When several features run close together (for example, rivers meeting at a confluence), a click gathers all of the nearby features so the popup can page between them.
 
+.. image:: ../../images/snapping_example.png
+   :align: center
+
+|
+
 How snapping behaves:
 
 - **Where the features come from.** ``GeoJSON`` and ``ESRI Feature Service`` layers snap against the features already rendered in the browser — what you see is exactly what you can snap to, with no extra network requests. ``ESRI Image and Map Service`` layers load their features for the current view from the service's ``/query`` endpoint after each pan or zoom (respecting any ``LAYERDEFS`` filter, and the sublayer chosen by **snapSublayer**).
