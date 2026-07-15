@@ -995,6 +995,9 @@ from the plugin
             - **minZoom** (optional): The minimum view zoom level (exclusive) above which this layer will be visible.
             - **maxZoom** (optional): The maximum view zoom level (inclusive) at which this layer will be visible.
             - **minZoomQuery** (optional): The minimum view zoom level (inclusive) at which this layer can be queried. If the mp is clicked beyond the zoom level, then the map will zoom into the minZoomQuery value.
+            - **clickTolerance** (optional): Pixel tolerance for clicking and hovering features. For "ESRI Image and Map Service" sources this is the server identify tolerance (default 10); for "GeoJSON" and "ESRI Feature Service" sources it widens the on-screen hit area (default 0). Also sets the snap radius when snapToFeatures is enabled (default 15). See maps :ref:`feature_snapping` for details.
+            - **snapToFeatures** (optional): A boolean. When true, the cursor snaps to the nearest feature of this layer on hover and a click selects that feature directly. Supported for "ESRI Image and Map Service", "GeoJSON", and "ESRI Feature Service" sources. See maps :ref:`feature_snapping` for details.
+            - **snapSublayer** (optional): For "ESRI Image and Map Service" snap layers — the MapServer sublayer used to load snapping features. Defaults to the first id in the source's LAYERS "show:N" parameter, else 0.
         - **layerVisibility** (optional): A boolean indicating the default visibility of the layer. 
         - **style** (required): An object that contains the metadata for styling. See maps :ref:`style_tab` for more information.
     - **attributeVariables** (optional): An object that maps a layers name (key) with a nested object for the layers field and desired variable input. See maps :ref:`attributes_and_popups_tab` for more information.
@@ -1029,6 +1032,9 @@ from the plugin
     - ``set_min_zoom(int)`` / ``set_max_zoom(int)`` — Set zoom visibility bounds.
     - ``set_min_resolution(int)`` / ``set_max_resolution(int)`` — Set resolution visibility bounds.
     - ``set_min_zoom_query(int)`` — Minimum zoom level required to query the layer.
+    - ``set_click_tolerance(int)`` — Pixel tolerance for clicking/hovering features; doubles as the snap radius when snapping is enabled. See maps :ref:`feature_snapping`.
+    - ``set_snap_to_features(bool)`` — Snap the cursor to the layer's nearest feature on hover and select it on click. See maps :ref:`feature_snapping`.
+    - ``set_snap_sublayer(int)`` — MapServer sublayer used to load snapping features (ESRI Image and Map Service sources only).
     - ``set_geojson(dict)`` — Attach a GeoJSON object (for GeoJSON source type only).
     - ``set_plugin_source(source, args)`` — Mark the layer as a dynamic ``map_layer`` and bind it to a plugin that will be invoked at render time via ``fetch_features()``. GeoJSON source only. See `Dynamic map_layer plugins`_.
     - ``set_legend(dict | "default" | None)`` — Set the legend configuration.

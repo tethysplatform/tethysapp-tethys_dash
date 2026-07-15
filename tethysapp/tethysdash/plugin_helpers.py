@@ -796,6 +796,55 @@ class LayerConfigurationBuilder:
         self.config["configuration"]["props"]["minZoomQuery"] = min_zoom_query
         return self
 
+    def set_click_tolerance(self, click_tolerance: int):
+        """
+        Set the pixel tolerance for clicking and hovering the layer's features.
+        For "ESRI Image and Map Service" sources this is the server identify
+        tolerance (default 10); for "GeoJSON" and "ESRI Feature Service"
+        sources it widens the on-screen hit area (default 0, exact hit). When
+        snapping is enabled (see set_snap_to_features), this value also sets
+        the snap radius (default 15).
+
+        Args:
+            click_tolerance (int)
+
+        Returns:
+            LayerConfigurationBuilder: self (for chaining)
+        """
+        self.config["configuration"]["props"]["clickTolerance"] = click_tolerance
+        return self
+
+    def set_snap_to_features(self, snap_to_features: bool):
+        """
+        Enable feature snapping for the layer: hovering near a feature shows a
+        snapped highlight with a pointer cursor, and a click selects that
+        feature directly. Supported for "ESRI Image and Map Service",
+        "GeoJSON", and "ESRI Feature Service" sources.
+
+        Args:
+            snap_to_features (bool)
+
+        Returns:
+            LayerConfigurationBuilder: self (for chaining)
+        """
+        self.config["configuration"]["props"]["snapToFeatures"] = snap_to_features
+        return self
+
+    def set_snap_sublayer(self, snap_sublayer: int):
+        """
+        Set the MapServer sublayer used to load snapping features ("ESRI Image
+        and Map Service" sources only). Defaults to the first id in the
+        source's LAYERS "show:N" parameter, else 0.
+
+        Args:
+            snap_sublayer (int)
+
+        Returns:
+            LayerConfigurationBuilder: self (for chaining)
+        """
+        self.config["configuration"]["props"]["snapSublayer"] = snap_sublayer
+        return self
+
     def set_source_properties(self, **kwargs):
         """
         Set arbitrary properties on the layer's data source.
