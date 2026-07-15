@@ -579,6 +579,16 @@ describe("findBestSnap", () => {
     expect(findBestSnap(caches, [50, 50], identityMap, 15)).toBeNull();
   });
 
+  test("a cache entry's own snapPx overrides the shared radius", () => {
+    // Entry radius wider than the call's default: 20px away still snaps.
+    const wide = { ...makeCache("A", 0), snapPx: 30 };
+    expect(findBestSnap([wide], [20, 50], identityMap, 15)).not.toBeNull();
+
+    // Entry radius tighter than the call's default: 10px away does not.
+    const tight = { ...makeCache("A", 0), snapPx: 5 };
+    expect(findBestSnap([tight], [10, 50], identityMap, 15)).toBeNull();
+  });
+
   test("returns null for empty / missing caches", () => {
     expect(findBestSnap([], [4, 50], identityMap)).toBeNull();
     expect(findBestSnap(null, [4, 50], identityMap)).toBeNull();
@@ -634,6 +644,17 @@ describe("findSnapFeatures", () => {
     expect(
       findSnapFeatures([cacheWithLine("A", 0)], [5, 50], nullPixelMap, 35),
     ).toEqual([]);
+  });
+
+  test("an entry snapPx wider than the gather radius widens that entry's gather", () => {
+    // Feature 50px away: outside the default 35px gather, but the entry's
+    // snapPx of 60 widens its gather to max(35, 60) = 60.
+    const cache = { ...cacheWithLine("A", 50), snapPx: 60 };
+    expect(findSnapFeatures([cache], [0, 50], gatherMap, 35)).toHaveLength(1);
+    // Without the entry radius the same feature is out of gather range.
+    expect(
+      findSnapFeatures([cacheWithLine("A", 50)], [0, 50], gatherMap, 35),
+    ).toHaveLength(0);
   });
 
   test("uses the default gather radius when none is given", () => {

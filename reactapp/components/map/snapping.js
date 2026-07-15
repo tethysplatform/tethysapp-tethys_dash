@@ -192,12 +192,19 @@ export function findSnapFeature(vectorSource, coordinate, map, snapPx = 15) {
 }
 
 // Snap across multiple cached vector sources, returning the closest qualifying
-// feature. `caches` is an array of { layerName, source }. Returns
+// feature. `caches` is an array of { layerName, source, snapPx? } — an entry's
+// own snapPx (derived from the layer's clickTolerance, so one setting governs
+// hit-testing AND snap reach) overrides the shared default. Returns
 // { layerName, feature, coordinate, pixelDistance } or null when nothing snaps.
 export function findBestSnap(caches, coordinate, map, snapPx = 15) {
   let best = null;
   for (const cache of caches ?? []) {
-    const hit = findSnapFeature(cache?.source, coordinate, map, snapPx);
+    const hit = findSnapFeature(
+      cache?.source,
+      coordinate,
+      map,
+      cache?.snapPx ?? snapPx,
+    );
     if (hit && (!best || hit.pixelDistance < best.pixelDistance)) {
       best = { ...hit, layerName: cache.layerName };
     }
@@ -215,23 +222,27 @@ export function findSnapFeatures(caches, coordinate, map, gatherPx = 35) {
   const cursorPixel = map.getPixelFromCoordinate(coordinate);
   const resolution = map.getView().getResolution();
   if (!cursorPixel || !resolution) return [];
-  const r = gatherPx * resolution;
-  const extent = [
-    coordinate[0] - r,
-    coordinate[1] - r,
-    coordinate[0] + r,
-    coordinate[1] + r,
-  ];
   const results = [];
   for (const cache of caches ?? []) {
     const source = cache?.source;
     if (!source?.forEachFeatureInExtent) continue;
+    // A layer's own snap radius (from clickTolerance) can exceed the shared
+    // gather default — the gather must never be narrower than the snap
+    // itself, or a confluence click would page fewer reaches than it snaps.
+    const cacheGatherPx = Math.max(gatherPx, cache?.snapPx ?? 0);
+    const r = cacheGatherPx * resolution;
+    const extent = [
+      coordinate[0] - r,
+      coordinate[1] - r,
+      coordinate[0] + r,
+      coordinate[1] + r,
+    ];
     source.forEachFeatureInExtent(extent, (feature) => {
       const geometry = feature.getGeometry?.();
       if (!geometry) return;
       const snapped = geometry.getClosestPoint(coordinate);
       const pixelDistance = pixelDistanceBetween(map, coordinate, snapped);
-      if (pixelDistance !== null && pixelDistance <= gatherPx) {
+      if (pixelDistance !== null && pixelDistance <= cacheGatherPx) {
         results.push({
           feature,
           coordinate: snapped,

@@ -233,7 +233,7 @@ export const layerPropertiesOptions = {
   clickTolerance: {
     type: "number",
     placeholder:
-      "Pixel tolerance for ESRI Image and Map Service identify (click) requests (default 10) and for GeoJSON / ESRI Feature Service feature queries (default 0).",
+      "Pixel tolerance for ESRI Image and Map Service identify (click) requests (default 10) and for GeoJSON / ESRI Feature Service feature queries (default 0). Also sets the snap radius when Snap To Features is on (default 15).",
   },
   snapToFeatures: {
     type: "checkbox",

@@ -229,6 +229,48 @@ describe("useSnapping vector-layer live-source snap caches (U2)", () => {
     expect(previewLayer.getSource().getFeatures()).toHaveLength(2);
   });
 
+  test("a layer's clickTolerance overrides the default snap radius in both directions", async () => {
+    const liveSource = new VectorSource();
+    liveSource.addFeature(
+      new Feature({
+        geometry: new LineString([
+          [0, 0],
+          [0, 100],
+        ]),
+      }),
+    );
+    const stubLayer = makeStubOlLayer("Rivers", liveSource);
+    const withTolerance = (clickTolerance) => ({
+      configuration: {
+        props: {
+          name: "Rivers",
+          snapToFeatures: true,
+          clickTolerance,
+          source: { type: "GeoJSON" },
+        },
+      },
+    });
+
+    // Wider than the default: a cursor 25px out (beyond SNAP_PIXELS = 15)
+    // still snaps when the layer sets clickTolerance 30.
+    const wideMap = makeMapWithLayers([stubLayer]);
+    const wide = renderHook(() =>
+      useSnapping({ layers: [withTolerance(30)] }),
+    ).result;
+    await wide.current.refreshSnapCaches(wideMap);
+    wide.current.updateSnap(wideMap, [25, 50]);
+    expect(wideMap.addLayer).toHaveBeenCalledTimes(1);
+
+    // Tighter than the default: 10px out does NOT snap at clickTolerance 5.
+    const tightMap = makeMapWithLayers([stubLayer]);
+    const tight = renderHook(() =>
+      useSnapping({ layers: [withTolerance(5)] }),
+    ).result;
+    await tight.current.refreshSnapCaches(tightMap);
+    tight.current.updateSnap(tightMap, [10, 50]);
+    expect(tightMap.addLayer).not.toHaveBeenCalled();
+  });
+
   test("snapping obeys the layer's min/max zoom bounds (renderer visibility, not just getVisible)", async () => {
     const liveSource = new VectorSource();
     liveSource.addFeature(

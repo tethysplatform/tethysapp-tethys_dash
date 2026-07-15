@@ -7,13 +7,18 @@ import {
   fetchLayerVectorFeatures,
   findBestSnap,
 } from "components/map/snapping";
-import { CLIENT_VECTOR_SOURCE_TYPES } from "components/map/utilities";
+import {
+  CLIENT_VECTOR_SOURCE_TYPES,
+  coerceOptionalNumber,
+} from "components/map/utilities";
 
 // --- Feature snapping (Approach A) -------------------------------------
 // Maintain a hidden vector cache of snap-enabled layers' features for the
 // current view, snap the cursor to the nearest one on hover, and on a snapped
 // click select the river directly from that local feature (no ESRI /identify,
 // which is slow on a cache miss and sometimes returns empty on-geometry).
+// Default hover-snap radius; a layer's clickTolerance overrides it per layer
+// (one setting governs hit-testing, hover popups, and snap reach).
 export const SNAP_PIXELS = 15;
 // Wider radius (mirrors the old /identify tolerance) for gathering the
 // connected reaches at a confluence into the click popup's swiper.
@@ -114,6 +119,11 @@ export default function useSnapping({ layers }) {
         snapLayers.map(async (layer) => {
           const layerName = layer.configuration.props.name;
           const sourceType = layer.configuration?.props?.source?.type;
+          // The layer's clickTolerance doubles as its snap radius so one
+          // setting governs all pointer interaction with the layer.
+          const snapPx =
+            coerceOptionalNumber(layer.configuration.props.clickTolerance) ??
+            SNAP_PIXELS;
           if (CLIENT_VECTOR_SOURCE_TYPES.includes(sourceType)) {
             // Live source, not a snapshot: these layers' features already
             // live in an OL VectorSource in the browser, so no fetch and no
@@ -128,11 +138,11 @@ export default function useSnapping({ layers }) {
             // (b) use-time resolution also covers snap layers that mount
             // after the one-shot prime. Nothing async here, so the
             // generation token above is irrelevant for these entries.
-            return { layerName, live: true };
+            return { layerName, live: true, snapPx };
           }
           const source = new VectorSource();
           source.addFeatures(await fetchLayerVectorFeatures(layer, map));
-          return { layerName, source };
+          return { layerName, source, snapPx };
         }),
       )
     ).filter(Boolean);
@@ -167,7 +177,9 @@ export default function useSnapping({ layers }) {
         .map((cache) => {
           if (!cache.live) return cache;
           const source = getOlLayerByName(map, cache.layerName)?.getSource?.();
-          return source ? { layerName: cache.layerName, source } : null;
+          return source
+            ? { layerName: cache.layerName, source, snapPx: cache.snapPx }
+            : null;
         })
         .filter(Boolean)
     );
