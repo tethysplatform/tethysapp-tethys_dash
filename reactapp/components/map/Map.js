@@ -595,8 +595,11 @@ const MapComponent = ({
           // before the handler is attached and snapping would stay inert
           // until the first user pan. Guarded to run once per map instance —
           // this block re-runs on every layer update and the handler issues
-          // real network fetches.
-          if (!onMapMoveEndPrimed.current) {
+          // real network fetches. The prime waits for the first run that
+          // actually carries layers: the very first effect pass runs before
+          // the parent's layer state resolves, and live-source snap caches
+          // (GeoJSON/Feature Service) need their OL layers mounted to resolve.
+          if (!onMapMoveEndPrimed.current && (layers?.length ?? 0) > 0) {
             onMapMoveEndPrimed.current = true;
             onMapMoveEndCurrent.current();
           }

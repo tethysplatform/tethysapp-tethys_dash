@@ -5775,6 +5775,37 @@ describe("snap pipeline integration", () => {
   const makeRiver = (name, coords) =>
     new Feature({ geometry: new LineString(coords), river_name: name });
 
+  // A GeoJSON/VectorLayer fixture whose features live in a real OL
+  // VectorSource (built by the component's normal ModuleLoader path from an
+  // empty FeatureCollection, then populated directly via
+  // findOlLayer(...).getSource().addFeatures(...) once mounted). Covers U2's
+  // live-source snap-cache branch (source.type "GeoJSON") and U1's
+  // clickTolerance-on-vector-layers branch, as opposed to riversLayer()'s
+  // ESRI Image and Map Service fetch-based cache.
+  const geoJsonRiversLayer = ({
+    name = "GeoJSON Rivers",
+    snapToFeatures = true,
+    clickTolerance,
+  } = {}) => ({
+    configuration: {
+      type: "VectorLayer",
+      props: {
+        name,
+        ...(snapToFeatures ? { snapToFeatures } : {}),
+        ...(clickTolerance !== undefined ? { clickTolerance } : {}),
+        source: {
+          type: "GeoJSON",
+          props: {},
+          geojson: {
+            type: "FeatureCollection",
+            features: [],
+            crs: { type: "name", properties: { name: "EPSG:3857" } },
+          },
+        },
+      },
+    },
+  });
+
   const SnapHarness = ({ mapRef, layers }) => {
     const { mapReady } = useMapContext();
     return (
@@ -6107,5 +6138,287 @@ describe("snap pipeline integration", () => {
       .getArray()
       .filter((olLayer) => olLayer.get("name") === "Snap Preview");
     expect(previewLayers).toHaveLength(1);
+  });
+
+  // --- Vector (GeoJSON) snap layers — U3 integration coverage -------------
+  // These mirror the ESRI-cache tests above but exercise the U2 live-source
+  // branch: the snap cache entry IS the GeoJSON layer's own live OL
+  // VectorSource, populated directly here (no fetchLayerVectorFeatures
+  // network fetch involved for this layer at all).
+  // The mount-time prime in map/Map.js waits for the first layers-bearing
+  // effect run, so by the time the OL layers are mounted the live-source
+  // cache entry exists — no moveend is required before snapping works.
+  // (The hover assertions re-dispatch inside waitFor because the prime runs
+  // in the same async effect that mounted the layer.)
+  test("R2: hover near a GeoJSON river draws the cyan preview and pointer cursor; singleclick snap-selects it locally without querying the layer", async () => {
+    const layerName = "GeoJSON Rivers";
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+    const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
+
+    const mapRef = await mountSnapMap(
+      [geoJsonRiversLayer({ name: layerName })],
+      {
+        expectedFetches: 0,
+      },
+    );
+    await waitFor(() => expect(findOlLayer(mapRef, layerName)).toBeDefined());
+
+    // Populate the layer's real, live OL VectorSource directly — the cache
+    // entry built by the mount-time prime IS this same source object, so it
+    // already reflects whatever features live on it.
+    findOlLayer(mapRef, layerName)
+      .getSource()
+      .addFeatures([
+        makeRiver("Test River", [
+          [0, 20],
+          [30, 20],
+        ]),
+      ]);
+
+    // Hover near the river: cyan preview (feature outline + snapped-point
+    // dot = 2 features) and the pointer-cursor affordance.
+    await waitFor(async () => {
+      await dispatch(mapRef, {
+        type: "pointermove",
+        coordinate: [12, 24],
+        pixel: [12, 24],
+      });
+      expect(
+        findOlLayer(mapRef, "Snap Preview")?.getSource().getFeatures(),
+      ).toHaveLength(2);
+    });
+    expect(mapRef.current.getTargetElement().style.cursor).toBe("pointer");
+
+    // Click 4 "pixels" off the river line (within SNAP_PIXELS = 15): local
+    // snapped selection, popup anchored at the SNAPPED coordinate.
+    await dispatch(mapRef, {
+      type: "singleclick",
+      coordinate: [12, 24],
+      pixel: [12, 24],
+    });
+    await waitFor(() => expect(popSetPosition).toHaveBeenCalledWith([12, 20]));
+
+    // The click resolved entirely from the local live source — no /identify
+    // (queryLayerFeatures) call for this (or any) layer.
+    expect(mockedQueryLayerFeatures).not.toHaveBeenCalled();
+    expect(await screen.findByText(layerName)).toBeInTheDocument();
+    expect(await screen.findByText("Test River")).toBeInTheDocument();
+  });
+
+  test("R3: fetchLayerVectorFeatures is never invoked for a GeoJSON snap layer across prime, moveend, hover, and click", async () => {
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+    const layerName = "GeoJSON Rivers";
+
+    const mapRef = await mountSnapMap(
+      [geoJsonRiversLayer({ name: layerName })],
+      {
+        expectedFetches: 0,
+      },
+    );
+    await waitFor(() => expect(findOlLayer(mapRef, layerName)).toBeDefined());
+    // Mount-time prime already ran above; confirm it issued no fetch.
+    expect(mockedFetchLayerVectorFeatures).not.toHaveBeenCalled();
+
+    findOlLayer(mapRef, layerName)
+      .getSource()
+      .addFeatures([
+        makeRiver("Test River", [
+          [0, 20],
+          [30, 20],
+        ]),
+      ]);
+
+    await dispatch(mapRef, { type: "moveend" });
+    await dispatch(mapRef, {
+      type: "pointermove",
+      coordinate: [12, 24],
+      pixel: [12, 24],
+    });
+    await dispatch(mapRef, {
+      type: "singleclick",
+      coordinate: [12, 24],
+      pixel: [12, 24],
+    });
+
+    expect(mockedFetchLayerVectorFeatures).not.toHaveBeenCalled();
+  });
+
+  test("R1 (integration): clickTolerance on a non-snap GeoJSON layer widens forEachFeatureAtPixel's hitTolerance during the click pipeline", async () => {
+    // queryLayerFeatures is module-mocked at the top of this file; restore
+    // the REAL implementation for this test only so getGeoJSONLayerFeatures'
+    // forEachFeatureAtPixel({ hitTolerance }) call actually runs.
+    mockedQueryLayerFeatures.mockImplementation(
+      jest.requireActual("components/map/utilities").queryLayerFeatures,
+    );
+    const forEachSpy = jest.spyOn(Map.prototype, "forEachFeatureAtPixel");
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+
+    const layerName = "GeoJSON Other (tolerant)";
+    const layer = geoJsonRiversLayer({
+      name: layerName,
+      snapToFeatures: false,
+      clickTolerance: 20,
+    });
+
+    try {
+      const mapRef = await mountSnapMap([layer], { expectedFetches: 0 });
+      await waitFor(() => expect(findOlLayer(mapRef, layerName)).toBeDefined());
+
+      await dispatch(mapRef, {
+        type: "singleclick",
+        coordinate: [12, 24],
+        pixel: [12, 24],
+      });
+
+      await waitFor(() => expect(forEachSpy).toHaveBeenCalled());
+      const callWithTolerance = forEachSpy.mock.calls.find(
+        (call) => call[2]?.hitTolerance === 20,
+      );
+      expect(callWithTolerance).toBeDefined();
+    } finally {
+      forEachSpy.mockRestore();
+      mockedQueryLayerFeatures.mockReset();
+    }
+  });
+
+  test("features added to the live GeoJSON source after mount are snappable on the next hover without any moveend", async () => {
+    const layerName = "GeoJSON Rivers";
+    const mapRef = await mountSnapMap(
+      [geoJsonRiversLayer({ name: layerName })],
+      {
+        expectedFetches: 0,
+      },
+    );
+    await waitFor(() => expect(findOlLayer(mapRef, layerName)).toBeDefined());
+
+    // First hover: the live source is still empty (simulating features that
+    // haven't loaded yet), so nothing snaps and the preview layer is never
+    // even created. No moveend is dispatched anywhere in this test — the
+    // mount-time prime created the live-source cache entry.
+    await dispatch(mapRef, {
+      type: "pointermove",
+      coordinate: [12, 24],
+      pixel: [12, 24],
+    });
+    expect(findOlLayer(mapRef, "Snap Preview")).toBeUndefined();
+
+    // Simulate async feature loading landing directly on the live OL source
+    // — the cache entry IS this source object (U2), so NO moveend is needed
+    // for the new features to become snappable.
+    findOlLayer(mapRef, layerName)
+      .getSource()
+      .addFeatures([
+        makeRiver("Late River", [
+          [0, 20],
+          [30, 20],
+        ]),
+      ]);
+
+    await waitFor(async () => {
+      await dispatch(mapRef, {
+        type: "pointermove",
+        coordinate: [12, 24],
+        pixel: [12, 24],
+      });
+      expect(
+        findOlLayer(mapRef, "Snap Preview")?.getSource().getFeatures(),
+      ).toHaveLength(2);
+    });
+    expect(mapRef.current.getTargetElement().style.cursor).toBe("pointer");
+  });
+
+  test("hiding a GeoJSON snap layer's OL layer stops the hover preview (visibleSnapCaches extends to live vector sources)", async () => {
+    const layerName = "GeoJSON Rivers";
+    const mapRef = await mountSnapMap(
+      [geoJsonRiversLayer({ name: layerName })],
+      {
+        expectedFetches: 0,
+      },
+    );
+    await waitFor(() => expect(findOlLayer(mapRef, layerName)).toBeDefined());
+    await dispatch(mapRef, { type: "moveend" });
+    findOlLayer(mapRef, layerName)
+      .getSource()
+      .addFeatures([
+        makeRiver("Test River", [
+          [0, 20],
+          [30, 20],
+        ]),
+      ]);
+
+    // Positive control: hovering near the river draws the preview and sets
+    // the pointer-cursor affordance.
+    await dispatch(mapRef, {
+      type: "pointermove",
+      coordinate: [12, 24],
+      pixel: [12, 24],
+    });
+    const previewLayer = findOlLayer(mapRef, "Snap Preview");
+    expect(previewLayer).toBeDefined();
+    expect(previewLayer.getSource().getFeatures()).toHaveLength(2);
+    expect(mapRef.current.getTargetElement().style.cursor).toBe("pointer");
+
+    // Hide the layer the way LayersControl does: OL visibility only, no
+    // moveend — the stale cache entry must be filtered out at use time.
+    findOlLayer(mapRef, layerName).setVisible(false);
+
+    await dispatch(mapRef, {
+      type: "pointermove",
+      coordinate: [12, 24],
+      pixel: [12, 24],
+    });
+    expect(previewLayer.getSource().getFeatures()).toHaveLength(0);
+    expect(mapRef.current.getTargetElement().style.cursor).toBe("");
+  });
+
+  test("snapping obeys the layer's min/max zoom: a zoom-hidden layer stops snapping without a refresh", async () => {
+    const layerName = "GeoJSON Rivers";
+    const mapRef = await mountSnapMap(
+      [geoJsonRiversLayer({ name: layerName })],
+      {
+        expectedFetches: 0,
+      },
+    );
+    await waitFor(() => expect(findOlLayer(mapRef, layerName)).toBeDefined());
+    await dispatch(mapRef, { type: "moveend" });
+    findOlLayer(mapRef, layerName)
+      .getSource()
+      .addFeatures([
+        makeRiver("Test River", [
+          [0, 20],
+          [30, 20],
+        ]),
+      ]);
+
+    // Positive control at the current view zoom.
+    await dispatch(mapRef, {
+      type: "pointermove",
+      coordinate: [12, 24],
+      pixel: [12, 24],
+    });
+    const previewLayer = findOlLayer(mapRef, "Snap Preview");
+    expect(previewLayer.getSource().getFeatures()).toHaveLength(2);
+
+    // Constrain the layer's maxZoom below the current view zoom: the layer
+    // stops rendering while getVisible() stays true — snapping must follow
+    // the renderer's visibility, immediately, with no cache refresh.
+    const viewZoom = mapRef.current.getView().getZoom();
+    findOlLayer(mapRef, layerName).setMaxZoom(viewZoom - 1);
+    await dispatch(mapRef, {
+      type: "pointermove",
+      coordinate: [12, 24],
+      pixel: [12, 24],
+    });
+    expect(previewLayer.getSource().getFeatures()).toHaveLength(0);
+    expect(mapRef.current.getTargetElement().style.cursor).toBe("");
+
+    // Lifting the constraint restores snapping, again with no refresh.
+    findOlLayer(mapRef, layerName).setMaxZoom(Infinity);
+    await dispatch(mapRef, {
+      type: "pointermove",
+      coordinate: [12, 24],
+      pixel: [12, 24],
+    });
+    expect(previewLayer.getSource().getFeatures()).toHaveLength(2);
   });
 });
