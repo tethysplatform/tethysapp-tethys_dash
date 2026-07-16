@@ -1,10 +1,13 @@
 [build-system]
-requires = ["setuptools>=45", "setuptools_scm[toml]>=6.2"]
+requires = ["setuptools>=45"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "tethysdash"
-dynamic = ["version"]
+# Static version -- bump this when cutting a release, then tag the commit with
+# the matching v-prefixed tag (e.g. version = "0.19.25" -> tag v0.19.25). The
+# release workflow verifies the tag matches this value before publishing.
+version = "0.19.25"
 description = "A Tethys App for no code/low code web application development app"
 authors = [{ name = "Corey Krewson", email = "ckrewson@aquaveo.com" }]
 license-files = ["LICENSE"]
@@ -53,10 +56,6 @@ include-package-data = true
 include = ["tethysapp*"]
 exclude = ["docs*", "tests*", "reactapp*", "claude*"]
 
-[tool.setuptools_scm]
-write_to = "tethysapp/tethysdash/_version.py"
-local_scheme = "no-local-version"
-fallback_version = "0.0.0"
 
 [tool.setuptools.package-data]
 # The key "" applies to all packages
@@ -87,8 +86,6 @@ django_find_project = false
 # The test suite uses 3.12+ f-string syntax (PEP 701), so 3.12 is the real
 # floor for running tests even though packaging classifiers still list 3.10.
 target-version = "py312"
-# setuptools_scm generates this file; never lint it.
-extend-exclude = ["tethysapp/tethysdash/_version.py"]
 
 [tool.ruff.lint]
 # Starter ruleset: pyflakes (F) + the pycodestyle errors ruff enables by
