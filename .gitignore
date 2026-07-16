@@ -23,6 +23,7 @@ build
 dist
 docs/brainstorms/
 docs/plans/
+v2_env
 
 
 tethysapp/tethysdash/public/images/plugins/*
