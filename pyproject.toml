@@ -7,7 +7,7 @@ name = "tethysdash"
 # Static version -- bump this when cutting a release, then tag the commit with
 # the matching v-prefixed tag (e.g. version = "0.19.25" -> tag v0.19.25). The
 # release workflow verifies the tag matches this value before publishing.
-version = "0.19.25"
+version = "0.19.26"
 description = "A Tethys App for no code/low code web application development app"
 authors = [{ name = "Corey Krewson", email = "ckrewson@aquaveo.com" }]
 license-files = ["LICENSE"]
