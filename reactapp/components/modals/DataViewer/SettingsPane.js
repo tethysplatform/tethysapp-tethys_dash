@@ -249,7 +249,8 @@ function SettingsPane({
         style={{ display: "block", marginBottom: ".5rem", color: "#666" }}
       >
         Fills the screen below the navigation when viewed, on any screen size.
-        Covers other items on the tab.
+        Stacking follows item order — items placed in front of it stay visible;
+        reorder from the item menu where available.
       </small>
       <CustomMessaging
         vizInputsValues={vizInputsValues}
