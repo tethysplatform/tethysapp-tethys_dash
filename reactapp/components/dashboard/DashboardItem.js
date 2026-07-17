@@ -61,8 +61,12 @@ const StyledDiv = styled.div`
   position: relative;
   /* Fill-viewport override: escape the react-grid-layout-positioned parent via
      position:fixed so the item spans the content area below the fixed header
-     (and tab bar when shown), independent of screen size. Kept below Bootstrap
-     modal/backdrop z-index (1040) so modals from the visualization stay usable. */
+     (and tab bar when shown), independent of screen size. No explicit z-index:
+     a fixed element with z-index:auto still paints in DOM/tree order with the
+     other z-index:auto grid tiles, so the fill item stacks by its position in
+     the gridItems array. Items ordered after it stay visible on top; items
+     ordered before it sit behind. Positive-z-index chrome (modals 1040+,
+     alerts 1000/1081) paints above it automatically. */
   ${(props) =>
     props.$fillViewport &&
     css`
@@ -71,7 +75,6 @@ const StyledDiv = styled.div`
       left: 0;
       width: 100vw;
       height: calc(100vh - (${props.$fillOffset}));
-      z-index: 1020;
     `}
 `;
 
