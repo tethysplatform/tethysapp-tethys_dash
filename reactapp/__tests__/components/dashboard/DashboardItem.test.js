@@ -1742,9 +1742,7 @@ test("Dashboard Item fill viewport does not force a z-index (stacks by grid orde
   });
   // Not just "not 1020" — the fill item must carry no explicit stacking value
   // at all, so it participates in DOM-order painting.
-  expect(
-    ["", "auto"],
-  ).toContain(
+  expect(["", "auto"]).toContain(
     window.getComputedStyle(dashboardGridItem).getPropertyValue("z-index"),
   );
 });
