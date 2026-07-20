@@ -99,11 +99,15 @@ def home(request):
     Returns:
         Rendered HTML response containing the React application
     """
-    # The index.html template loads the React frontend
+    # The index.html template loads the React frontend and injects the runtime
+    # config as a json_script element the frontend reads before rendering.
     return App.render(
         request,
         "index.html",
-        context={"main_bundle_path": _get_main_bundle_path(request)},
+        context={
+            "main_bundle_path": _get_main_bundle_path(request),
+            "frontend_config": build_frontend_config(request),
+        },
     )
 
 
@@ -155,19 +159,6 @@ def build_frontend_config(request):
         "debug": bool(getattr(settings, "DEBUG", False)),
         "contractVersion": FRONTEND_CONTRACT_VERSION,
     }
-
-
-@controller(url="tethysdash/config.json", login_required=False)
-def config_json(request):
-    """Serve the runtime config the frontend fetches at boot.
-
-    Unauthenticated by design and served with ``Cache-Control: no-store`` so a
-    stale cached copy cannot defeat the frontend's contract-version check. Only
-    non-secret deployment settings appear here (contract field allowlist).
-    """
-    response = JsonResponse(build_frontend_config(request))
-    response["Cache-Control"] = "no-store"
-    return response
 
 
 @api_view(["GET"])

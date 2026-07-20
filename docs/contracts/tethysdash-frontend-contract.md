@@ -11,12 +11,15 @@ The frontend declares the contract version it targets (`contractVersion` in its
 build); a backend advertises its version in `config.json`. A mismatch is a
 detectable break, not a silent one (see Invariants).
 
-## config.json
+## Runtime config (injected)
 
-A static JSON document served at the **frontend bundle base** — the same
-directory as `main.<hash>.js`. The frontend derives its URL from
-`document.currentScript.src` at boot, so it resolves from any client-side route
-(a relative fetch would break on deep-linked routes under a catch-all server).
+The backend injects the runtime config into `index.html` as a
+`<script id="tethysdash-config" type="application/json">` element (Django
+`json_script`), which the frontend parses before it renders. Injection is
+chosen over a fetched file because it is route-independent (the SPA shell is
+served on every route), carries per-request runtime values, needs no extra
+round-trip, and keeps the frontend backend-agnostic — it reads a DOM node, never
+a backend-specific endpoint. Both backends inject into their own `index.html`.
 
 Fields (keys are consumed verbatim by the frontend config singleton):
 
@@ -86,14 +89,16 @@ These are load-bearing; violating any silently breaks the frontend.
   `manage_visualizations`); a backend using a different codename shape
   (colon- vs dot-delimited app label) must expose the bare codename the
   frontend matches on.
-- **`config.json` served with `Cache-Control: no-store`.** The filename carries
-  no content hash, so a cached stale copy would defeat the version check and
-  raise a false mismatch on a correctly-deployed app.
-- **`config.json` field allowlist.** The document is served unauthenticated;
-  never include secret settings, credentials, or tokens — only the fields above.
+- **Config is injected into the per-request `index.html`, not a separately
+  cacheable resource.** This sidesteps stale-cache drift — there is no
+  standalone config document a CDN could serve stale against a new build. The
+  `contractVersion` field plus the boot-time check remain the drift guard.
+- **Config field allowlist.** `index.html` is served unauthenticated; the
+  injected config must never include secret settings, credentials, or tokens —
+  only the fields above.
 
 ## Milestone status
 
-- Tethys backend: conforms (auth surface already matches; `config.json`
-  generated at the static base).
+- Tethys backend: conforms (auth surface already matches; runtime config
+  injected into `index.html`).
 - Standalone Django backend: deferred — implements this same contract natively.

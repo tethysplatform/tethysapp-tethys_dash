@@ -4,13 +4,15 @@
 // flow through this module so one compiled build can serve any backend. App
 // modules read `getConfig()` instead of `process.env` directly.
 //
-// Milestone 1 bridge: until `setConfig()` is called, `getConfig()` derives its
-// values live from `process.env`, so current build-time behavior is preserved
-// and existing tests that mutate `process.env` keep working. The boot-split
-// unit calls `setConfig()` with a `config.json` fetched before the app module
-// evaluates (production), and tests call `setConfig()` to seed values; once an
-// override is set it wins. A later unit removes the `process.env` fallback so
-// the runtime path reads config only.
+// Source precedence:
+//   1. `setConfig()` override — used by tests and any explicit seed.
+//   2. Injected config — the backend renders the config into a
+//      `<script id="tethysdash-config" type="application/json">` element in
+//      index.html (Django `json_script`), parsed before the app renders. This
+//      is the production path: route-independent and backend-agnostic (the
+//      frontend reads a DOM node, never a backend-specific endpoint).
+//   3. `process.env` bridge — dev/test fallback only; never reached in a
+//      served build where the injected element is always present.
 
 const DEFAULTS = {
   // Portal origin for the API base. "" → derive from window.location.origin.
@@ -32,9 +34,26 @@ const DEFAULTS = {
   supportGithub: undefined,
   // Show React error stack traces.
   debug: false,
-  // Canonical-contract version this build targets against the backend.
+  // Canonical-contract version the backend advertises.
   contractVersion: null,
 };
+
+// The canonical-contract version this frontend build targets. Compared against
+// the backend-advertised contractVersion at boot (see checkContractVersion).
+export const TARGET_CONTRACT_VERSION = "1.0";
+
+function fromInjected() {
+  if (typeof document === "undefined") return null;
+  const el = document.getElementById("tethysdash-config");
+  if (el && el.textContent) {
+    try {
+      return JSON.parse(el.textContent);
+    } catch {
+      // Malformed injection — fall through to the bridge/defaults.
+    }
+  }
+  return null;
+}
 
 function fromEnv() {
   return {
@@ -54,22 +73,37 @@ function fromEnv() {
 
 let override = null;
 
-// Replace the entire runtime config. Called by the boot fetch (production) and
-// by test setup. Once set, the override wins over the env bridge. Missing keys
-// fall back to documented defaults.
+// Replace the entire runtime config. Called by test setup. Missing keys fall
+// back to documented defaults.
 export function setConfig(values) {
   override = { ...DEFAULTS, ...(values || {}) };
   return override;
 }
 
-// Read the current runtime config. Returns the override if one has been set,
-// otherwise a live env-derived view (Milestone 1 bridge).
+// Read the current runtime config. Always returns a fully-populated object.
 export function getConfig() {
-  return override ?? { ...DEFAULTS, ...fromEnv() };
+  return override ?? { ...DEFAULTS, ...(fromInjected() ?? fromEnv()) };
 }
 
-// Clear any override so `getConfig()` falls back to the env bridge. Used by
-// test teardown to keep tests isolated.
+// Clear any override so `getConfig()` falls back to injection/env. Used by test
+// teardown to keep tests isolated.
 export function clearConfig() {
   override = null;
+}
+
+// Compare the backend-advertised contract version against this build's target.
+// Returns "ok" | "mismatch" | "unknown"; logs a clear error on mismatch so a
+// drifting backend is detectable rather than surfacing as an opaque failure.
+export function checkContractVersion() {
+  const advertised = getConfig().contractVersion;
+  if (advertised == null) return "unknown";
+  if (advertised !== TARGET_CONTRACT_VERSION) {
+    // eslint-disable-next-line no-console
+    console.error(
+      `TethysDash contract mismatch: frontend targets ${TARGET_CONTRACT_VERSION}, ` +
+        `backend advertises ${advertised}. The frontend build and backend may be out of sync.`,
+    );
+    return "mismatch";
+  }
+  return "ok";
 }

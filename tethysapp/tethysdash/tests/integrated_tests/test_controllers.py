@@ -67,18 +67,6 @@ def test_build_frontend_config(mock_app, rf):
 
 
 @pytest.mark.django_db
-def test_config_json_served_no_store(client, mock_app):
-    app = mock_app("tethysapp.tethysdash.controllers.App")
-    app.get_custom_setting.return_value = ""
-    url = reverse("tethysdash:config_json")
-    response = client.get(url)
-
-    assert response.status_code == 200
-    assert response["Cache-Control"] == "no-store"
-    assert response.json()["contractVersion"] == "1.0"
-
-
-@pytest.mark.django_db
 def test_data_failed(client, mock_app, mocker):
     mock_app("tethysapp.tethysdash.controllers.App")
     url = reverse("tethysdash:visualization")
