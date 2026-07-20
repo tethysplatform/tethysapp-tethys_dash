@@ -42,18 +42,29 @@ const DEFAULTS = {
 // the backend-advertised contractVersion at boot (see checkContractVersion).
 export const TARGET_CONTRACT_VERSION = "1.0";
 
+function isPlainObject(value) {
+  return (
+    typeof value === "object" && value !== null && !Array.isArray(value)
+  );
+}
+
 function fromInjected() {
   if (typeof document === "undefined") return null;
   const el = document.getElementById("tethysdash-config");
   if (el && el.textContent) {
     try {
-      return JSON.parse(el.textContent);
+      const parsed = JSON.parse(el.textContent);
+      // Guard against a non-object payload (array/string/number) being spread
+      // into the config and producing garbage keys.
+      if (isPlainObject(parsed)) return parsed;
     } catch {
       // Malformed injection — fall through to the bridge/defaults.
     }
   }
   return null;
 }
+
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
 
 function fromEnv() {
   return {
@@ -81,8 +92,13 @@ export function setConfig(values) {
 }
 
 // Read the current runtime config. Always returns a fully-populated object.
+// A production build never falls back to the `process.env` bridge: if the
+// injected element is missing, it resolves to DEFAULTS rather than silently
+// resurrecting build-time-inlined dev values (e.g. ws://localhost:8000).
 export function getConfig() {
-  return override ?? { ...DEFAULTS, ...(fromInjected() ?? fromEnv()) };
+  if (override) return override;
+  const source = fromInjected() ?? (IS_PRODUCTION ? {} : fromEnv());
+  return { ...DEFAULTS, ...source };
 }
 
 // Clear any override so `getConfig()` falls back to injection/env. Used by test
@@ -96,7 +112,18 @@ export function clearConfig() {
 // drifting backend is detectable rather than surfacing as an opaque failure.
 export function checkContractVersion() {
   const advertised = getConfig().contractVersion;
-  if (advertised == null) return "unknown";
+  if (advertised == null) {
+    // In production a null version means no config was injected — the app
+    // booted on defaults. Surface it loudly rather than as silent "unknown".
+    if (IS_PRODUCTION && fromInjected() === null) {
+      // eslint-disable-next-line no-console
+      console.error(
+        "TethysDash: no runtime config was injected — the app booted on " +
+          "defaults. The backend may not be serving the injected config element.",
+      );
+    }
+    return "unknown";
+  }
   if (advertised !== TARGET_CONTRACT_VERSION) {
     // eslint-disable-next-line no-console
     console.error(

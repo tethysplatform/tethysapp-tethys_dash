@@ -2,7 +2,8 @@ import apiClient from "services/api/client";
 import { getConfig } from "services/config";
 
 // App root read from runtime config at call time (not frozen at module-eval).
-const appRoot = () => getConfig().appRootUrl ?? "/apps/tethysdash/";
+// getConfig() guarantees appRootUrl from DEFAULTS, so no local fallback needed.
+const appRoot = () => getConfig().appRootUrl;
 
 function replaceHtmlEntitiesInExpressions(obj) {
   const replacements = {

@@ -31,6 +31,34 @@ describe("config singleton", () => {
     }
   });
 
+  test("ignores a malformed injected element and falls back", () => {
+    const el = document.createElement("script");
+    el.id = "tethysdash-config";
+    el.type = "application/json";
+    el.textContent = "{not valid json";
+    document.body.appendChild(el);
+    try {
+      expect(getConfig().appRootUrl).toBe("/apps/tethysdash/");
+    } finally {
+      document.body.removeChild(el);
+    }
+  });
+
+  test("ignores a non-object injected payload", () => {
+    const el = document.createElement("script");
+    el.id = "tethysdash-config";
+    el.type = "application/json";
+    el.textContent = JSON.stringify(["not", "an", "object"]);
+    document.body.appendChild(el);
+    try {
+      const cfg = getConfig();
+      expect(cfg.appRootUrl).toBe("/apps/tethysdash/");
+      expect(cfg["0"]).toBeUndefined();
+    } finally {
+      document.body.removeChild(el);
+    }
+  });
+
   describe("checkContractVersion", () => {
     test("ok when versions match", () => {
       setConfig({ contractVersion: TARGET_CONTRACT_VERSION });

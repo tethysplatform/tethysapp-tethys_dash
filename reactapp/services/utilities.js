@@ -35,7 +35,7 @@ export function getTethysPortalBase() {
 }
 
 export function getTethysAppRoot() {
-  let tethys_app_root_url = getConfig().appRootUrl ?? "/apps/tethysdash/";
+  let tethys_app_root_url = getConfig().appRootUrl;
   let tethys_prefix_url = (getConfig().prefixUrl || "").replace(
     /^\/|\/$/g,
     "",

@@ -66,6 +66,36 @@ def test_build_frontend_config(mock_app, rf):
     )
 
 
+@override_settings(DEBUG=True, PREFIX_URL="proxy")
+def test_build_frontend_config_secure_prefixed_debug(mock_app, rf):
+    app = mock_app("tethysapp.tethysdash.controllers.App")
+    app.get_custom_setting.return_value = ""
+    from tethysapp.tethysdash.controllers import build_frontend_config
+
+    config = build_frontend_config(
+        rf.get("/apps/tethysdash/config.json", secure=True)
+    )
+
+    assert config["debug"] is True
+    assert config["prefixUrl"] == "proxy"
+    assert config["websocketUrl"].startswith("wss://")
+    assert (
+        "/proxy/apps/app_root/visualizations/notifications/ws/"
+        in config["websocketUrl"]
+    )
+
+
+def test_build_frontend_config_custom_setting_error_fallback(mock_app, rf):
+    app = mock_app("tethysapp.tethysdash.controllers.App")
+    app.get_custom_setting.side_effect = Exception("not configured")
+    from tethysapp.tethysdash.controllers import build_frontend_config
+
+    config = build_frontend_config(rf.get("/apps/tethysdash/config.json"))
+
+    assert config["supportEmail"] == ""
+    assert config["supportGithub"] == ""
+
+
 @pytest.mark.django_db
 def test_data_failed(client, mock_app, mocker):
     mock_app("tethysapp.tethysdash.controllers.App")

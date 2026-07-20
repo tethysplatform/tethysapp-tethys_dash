@@ -70,7 +70,7 @@ All POSTs carry the CSRF token as the `x-csrftoken` request header.
 ## WebSocket channel
 
 Progress notifications stream over the WebSocket at `websocketUrl` (Tethys
-default path `tethysdash/visualizations/notifications/`). Messages are JSON
+default path `tethysdash/visualizations/notifications/ws/`). Messages are JSON
 carrying at least `percentage_complete` for a `requestId`, plus error messages
 keyed by `requestId`. The path and message shape are part of the contract — the
 frontend carries no Tethys-specific WebSocket assumption beyond this.
