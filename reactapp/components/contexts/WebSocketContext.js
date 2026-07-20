@@ -8,6 +8,7 @@ import {
 } from "react";
 import LoadingAnimation from "components/loader/LoadingAnimation";
 import PropTypes from "prop-types";
+import { getConfig } from "services/config";
 
 export const WebsocketContext = createContext();
 
@@ -18,12 +19,12 @@ const WebsocketProvider = ({ children }) => {
   const [timeoutReached, setTimeoutReached] = useState(false);
   const ws = useRef(null);
 
-  const hasWebSocketUrl = Boolean(process.env.REDIS_WS_URL);
+  const hasWebSocketUrl = Boolean(getConfig().websocketUrl);
 
   useEffect(() => {
     if (!hasWebSocketUrl) return;
 
-    const socket = new WebSocket(process.env.REDIS_WS_URL);
+    const socket = new WebSocket(getConfig().websocketUrl);
 
     socket.onopen = () => setWebsocketReady(true);
     socket.onclose = () => setWebsocketReady(false);

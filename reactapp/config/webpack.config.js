@@ -7,17 +7,11 @@ const { WebpackManifestPlugin } = require("webpack-manifest-plugin");
 module.exports = (env, argv) => {
   const dotEnvPath = `./reactapp/config/${argv.mode}.env`;
   require("dotenv").config({ path: dotEnvPath });
-  if (process.env.TETHYS_PREFIX_URL) {
-    tethys_prefix_url = `/${process.env.TETHYS_PREFIX_URL}`;
-  } else {
-    tethys_prefix_url = "";
-  }
 
   const isProd = argv.mode === "production";
 
   console.log(`Building in ${argv.mode} mode...`);
   console.log(`=> Using .env config at "${dotEnvPath}"`);
-  console.log(`=> Using prefix "${tethys_prefix_url}"`);
   return {
     entry: ["./reactapp"],
     output: {
@@ -27,7 +21,10 @@ module.exports = (env, argv) => {
       ),
       filename: isProd ? "[name].[contenthash].js" : "[name].js",
       chunkFilename: isProd ? "[name].[contenthash].js" : "[name].js",
-      publicPath: `${tethys_prefix_url}/static/tethysdash/frontend/`,
+      // "auto" derives the public path from the entry script's URL at runtime,
+      // so one build serves any static prefix (same-origin). A cross-origin/CDN
+      // base is handled later by a runtime __webpack_public_path__ override.
+      publicPath: "auto",
       clean: isProd ? { keep: /\.gitkeep$/ } : false,
     },
     resolve: {

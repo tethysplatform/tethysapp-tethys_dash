@@ -7,9 +7,10 @@ import { useIdleTimer } from "react-idle-timer";
 import appAPI from "services/api/app";
 import tethysAPI from "services/api/tethys";
 import { useModalPriority } from "components/contexts/ModalPriorityContext";
+import { getConfig } from "services/config";
 
 // This controls how often the API is called for activity
-const SESSION_PING_FREQUENCY = process.env.REACT_SESSION_PING_FREQUENCY;
+const SESSION_PING_FREQUENCY = getConfig().sessionPingFrequency;
 
 function IdleTimerManager() {
   const {

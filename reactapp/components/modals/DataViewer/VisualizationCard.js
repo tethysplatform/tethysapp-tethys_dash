@@ -1,5 +1,6 @@
 import PropTypes from "prop-types";
 import { memo, useRef, useState } from "react";
+import { getConfig } from "services/config";
 import Card from "react-bootstrap/Card";
 import styled from "styled-components";
 import Overlay from "react-bootstrap/Overlay";
@@ -88,7 +89,7 @@ const VisualizationCard = ({
   const cardRef = useRef();
   const [showPopover, setShowPopover] = useState(false);
 
-  const prefixUrlSegment = (process.env.TETHYS_PREFIX_URL || "").replace(
+  const prefixUrlSegment = (getConfig().prefixUrl || "").replace(
     /(^\/+|\/+?$)/g,
     "",
   );

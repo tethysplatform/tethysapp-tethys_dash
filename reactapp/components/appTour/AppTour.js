@@ -2,12 +2,13 @@ import Joyride, { ACTIONS, EVENTS, STATUS } from "react-joyride";
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import { FaRegUserCircle } from "react-icons/fa";
 import { BsPeopleFill } from "react-icons/bs";
+import { getConfig } from "services/config";
 
 const AppTour = () => {
   const { appTourStep, setAppTourStep, activeAppTour, setActiveAppTour } =
     useAppTourContext();
 
-  const prefixUrlSegment = (process.env.TETHYS_PREFIX_URL || "").replace(
+  const prefixUrlSegment = (getConfig().prefixUrl || "").replace(
     /(^\/+|\/+?$)/g,
     "",
   );

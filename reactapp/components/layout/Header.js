@@ -1,5 +1,6 @@
 import PropTypes from "prop-types";
 import { useContext, useState, useEffect } from "react";
+import { getConfig } from "services/config";
 import { useNavigate } from "react-router-dom";
 import Container from "react-bootstrap/Container";
 import Navbar from "react-bootstrap/Navbar";
@@ -118,7 +119,7 @@ export const LandingPageHeader = () => {
     Array.isArray(userAppPermissions) &&
     userAppPermissions.includes("manage_visualizations");
 
-  const prefixUrlSegment = (process.env.TETHYS_PREFIX_URL || "").replace(
+  const prefixUrlSegment = (getConfig().prefixUrl || "").replace(
     /(^\/+|\/+?$)/g,
     "",
   );

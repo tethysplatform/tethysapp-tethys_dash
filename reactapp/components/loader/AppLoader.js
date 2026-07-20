@@ -26,11 +26,12 @@ import {
 import IdleTimerManager from "components/loader/IdleTimerManager";
 import WebsocketProvider from "components/contexts/WebSocketContext";
 import { v4 as uuidv4 } from "uuid";
+import { getConfig } from "services/config";
 
-const APP_ID = process.env.TETHYS_APP_ID;
-const LOADER_DELAY = process.env.TETHYS_LOADER_DELAY;
-const contactUsEmail = process.env.TETHYSDASH_SUPPORT_EMAIL;
-const contactUsGitHub = process.env.TETHYSDASH_SUPPORT_GITHUB;
+const APP_ID = getConfig().appId;
+const LOADER_DELAY = getConfig().loaderDelay;
+const contactUsEmail = getConfig().supportEmail;
+const contactUsGitHub = getConfig().supportGithub;
 
 function setupRoutes(dashboards) {
   const PATH_HOME = "/";

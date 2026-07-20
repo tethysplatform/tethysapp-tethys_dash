@@ -3,6 +3,7 @@ import React from "react";
 
 import DebugError from "components/error/DebugError";
 import GenericError from "components/error/GenericError";
+import { getConfig } from "services/config";
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -25,7 +26,7 @@ class ErrorBoundary extends React.Component {
   }
 
   render() {
-    const DEBUG_MODE = process.env.TETHYS_DEBUG_MODE === "true";
+    const DEBUG_MODE = getConfig().debug;
     if (this.state.hasError) {
       return !DEBUG_MODE ? (
         <GenericError />
