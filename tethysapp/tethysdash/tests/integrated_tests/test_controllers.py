@@ -36,6 +36,48 @@ def test_home_logged_in(client, admin_user, mock_app):
     assert response.status_code == 200
 
 
+def test_build_frontend_config(mock_app, rf):
+    app = mock_app("tethysapp.tethysdash.controllers.App")
+    app.get_custom_setting.return_value = "support@example.com"
+    from tethysapp.tethysdash.controllers import build_frontend_config
+
+    config = build_frontend_config(rf.get("/apps/tethysdash/config.json"))
+
+    assert set(config) == {
+        "portalHost",
+        "prefixUrl",
+        "appRootUrl",
+        "websocketUrl",
+        "appId",
+        "loaderDelay",
+        "sessionPingFrequency",
+        "supportEmail",
+        "supportGithub",
+        "debug",
+        "contractVersion",
+    }
+    assert config["contractVersion"] == "1.0"
+    assert config["appRootUrl"] == "/apps/app_root/"
+    assert config["appId"] == "app_root"
+    assert config["supportEmail"] == "support@example.com"
+    assert config["websocketUrl"].startswith("ws://")
+    assert config["websocketUrl"].endswith(
+        "/apps/app_root/visualizations/notifications/ws/"
+    )
+
+
+@pytest.mark.django_db
+def test_config_json_served_no_store(client, mock_app):
+    app = mock_app("tethysapp.tethysdash.controllers.App")
+    app.get_custom_setting.return_value = ""
+    url = reverse("tethysdash:config_json")
+    response = client.get(url)
+
+    assert response.status_code == 200
+    assert response["Cache-Control"] == "no-store"
+    assert response.json()["contractVersion"] == "1.0"
+
+
 @pytest.mark.django_db
 def test_data_failed(client, mock_app, mocker):
     mock_app("tethysapp.tethysdash.controllers.App")

@@ -107,6 +107,69 @@ def home(request):
     )
 
 
+# Canonical frontend contract version this backend satisfies.
+# Keep in sync with docs/contracts/tethysdash-frontend-contract.md and the
+# frontend's declared contractVersion.
+FRONTEND_CONTRACT_VERSION = "1.0"
+
+
+def _get_custom_setting(name):
+    """Read an optional custom setting, tolerating unconfigured installs."""
+    try:
+        return App.get_custom_setting(name) or ""
+    except Exception:
+        return ""
+
+
+def build_frontend_config(request):
+    """Assemble the runtime config the backend-blind frontend fetches at boot.
+
+    Field sources (see docs/contracts/tethysdash-frontend-contract.md):
+    ``portalHost`` empty (frontend derives same-origin); ``prefixUrl`` from the
+    portal ``PREFIX_URL`` setting; ``appRootUrl`` from the app root; ``appId``
+    the app url name the ``/api/apps/<id>/`` endpoint expects; support links
+    from custom settings; ``debug`` from the server ``DEBUG`` flag (replacing
+    the previously always-on build-time value); ``loaderDelay`` and
+    ``sessionPingFrequency`` reproduce today's build defaults. ``websocketUrl``
+    is derived from the request host + app root rather than the baked
+    ``ws://localhost:8000`` dev literal.
+    """
+    prefix = (getattr(settings, "PREFIX_URL", "") or "").strip("/")
+    app_root = f"/apps/{App.root_url}/"
+    ws_scheme = "wss" if request.is_secure() else "ws"
+    ws_prefix = f"/{prefix}" if prefix else ""
+    websocket_url = (
+        f"{ws_scheme}://{request.get_host()}"
+        f"{ws_prefix}{app_root}visualizations/notifications/ws/"
+    )
+    return {
+        "portalHost": "",
+        "prefixUrl": prefix,
+        "appRootUrl": app_root,
+        "websocketUrl": websocket_url,
+        "appId": App.root_url,
+        "loaderDelay": 500,
+        "sessionPingFrequency": 2,
+        "supportEmail": _get_custom_setting("support_email"),
+        "supportGithub": _get_custom_setting("support_github"),
+        "debug": bool(getattr(settings, "DEBUG", False)),
+        "contractVersion": FRONTEND_CONTRACT_VERSION,
+    }
+
+
+@controller(url="tethysdash/config.json", login_required=False)
+def config_json(request):
+    """Serve the runtime config the frontend fetches at boot.
+
+    Unauthenticated by design and served with ``Cache-Control: no-store`` so a
+    stale cached copy cannot defeat the frontend's contract-version check. Only
+    non-secret deployment settings appear here (contract field allowlist).
+    """
+    response = JsonResponse(build_frontend_config(request))
+    response["Cache-Control"] = "no-store"
+    return response
+
+
 @api_view(["GET"])
 @controller(url="tethysdash/app/permissions", login_required=False)
 def permissions(request):
