@@ -1,6 +1,8 @@
 import apiClient from "services/api/client";
+import { getConfig } from "services/config";
 
-const APP_ROOT_URL = process.env.TETHYS_APP_ROOT_URL ?? "/apps/tethysdash/";
+// App root read from runtime config at call time (not frozen at module-eval).
+const appRoot = () => getConfig().appRootUrl ?? "/apps/tethysdash/";
 
 function replaceHtmlEntitiesInExpressions(obj) {
   const replacements = {
@@ -34,18 +36,18 @@ function replaceHtmlEntitiesInExpressions(obj) {
 
 const appAPI = {
   getUserAppPermissions: () => {
-    return apiClient.get(`${APP_ROOT_URL}app/permissions/`);
+    return apiClient.get(`${appRoot()}app/permissions/`);
   },
   getActivityData: (activity) => {
-    return apiClient.get(`${APP_ROOT_URL}ping/`, { params: activity });
+    return apiClient.get(`${appRoot()}ping/`, { params: activity });
   },
   getVisualizationData: (itemData) => {
-    return apiClient.get(`${APP_ROOT_URL}visualizations/get/`, {
+    return apiClient.get(`${appRoot()}visualizations/get/`, {
       params: itemData,
     });
   },
   getVisualizationFeatures: ({ source, args, requestId, cancelToken }) => {
-    return apiClient.get(`${APP_ROOT_URL}visualizations/get/`, {
+    return apiClient.get(`${appRoot()}visualizations/get/`, {
       params: {
         source,
         args: typeof args === "string" ? args : JSON.stringify(args ?? {}),
@@ -56,14 +58,14 @@ const appAPI = {
     });
   },
   listVisualizations: () => {
-    return apiClient.get(`${APP_ROOT_URL}visualizations/list/`);
+    return apiClient.get(`${appRoot()}visualizations/list/`);
   },
   listVisualizationPermissions: () => {
-    return apiClient.get(`${APP_ROOT_URL}visualizations/permissions/list/`);
+    return apiClient.get(`${appRoot()}visualizations/permissions/list/`);
   },
   updateVisualizationPermissions: (data, csrf) => {
     return apiClient.post(
-      `${APP_ROOT_URL}visualizations/permissions/update/`,
+      `${appRoot()}visualizations/permissions/update/`,
       data,
       {
         headers: { "x-csrftoken": csrf },
@@ -71,50 +73,50 @@ const appAPI = {
     );
   },
   getDashboard: ({ id }) => {
-    return apiClient.get(`${APP_ROOT_URL}dashboards/get/`, {
+    return apiClient.get(`${appRoot()}dashboards/get/`, {
       params: { id },
     });
   },
   listDashboards: () => {
-    return apiClient.get(`${APP_ROOT_URL}dashboards/list/`);
+    return apiClient.get(`${appRoot()}dashboards/list/`);
   },
   addDashboard: (data, csrf) => {
-    return apiClient.post(`${APP_ROOT_URL}dashboards/add/`, data, {
+    return apiClient.post(`${appRoot()}dashboards/add/`, data, {
       headers: { "x-csrftoken": csrf },
     });
   },
   copyDashboard: (data, csrf) => {
-    return apiClient.post(`${APP_ROOT_URL}dashboards/copy/`, data, {
+    return apiClient.post(`${appRoot()}dashboards/copy/`, data, {
       headers: { "x-csrftoken": csrf },
     });
   },
   deleteDashboard: (data, csrf) => {
-    return apiClient.post(`${APP_ROOT_URL}dashboards/delete/`, data, {
+    return apiClient.post(`${appRoot()}dashboards/delete/`, data, {
       headers: { "x-csrftoken": csrf },
     });
   },
   updateDashboard: (data, csrf) => {
-    return apiClient.post(`${APP_ROOT_URL}dashboards/update/`, data, {
+    return apiClient.post(`${appRoot()}dashboards/update/`, data, {
       headers: { "x-csrftoken": csrf },
     });
   },
   updatePermissionGroup: (data, csrf) => {
-    return apiClient.post(`${APP_ROOT_URL}permission_groups/update/`, data, {
+    return apiClient.post(`${appRoot()}permission_groups/update/`, data, {
       headers: { "x-csrftoken": csrf },
     });
   },
   deletePermissionGroup: (data, csrf) => {
-    return apiClient.post(`${APP_ROOT_URL}permission_groups/delete/`, data, {
+    return apiClient.post(`${appRoot()}permission_groups/delete/`, data, {
       headers: { "x-csrftoken": csrf },
     });
   },
   uploadJSON: (data, csrf) => {
-    return apiClient.post(`${APP_ROOT_URL}json/upload/`, data, {
+    return apiClient.post(`${appRoot()}json/upload/`, data, {
       headers: { "x-csrftoken": csrf },
     });
   },
   downloadJSON: async (data) => {
-    let jsonData = await apiClient.get(`${APP_ROOT_URL}json/download/`, {
+    let jsonData = await apiClient.get(`${appRoot()}json/download/`, {
       params: data,
     });
 

@@ -1,7 +1,9 @@
-export function getTethysPortalHost() {
-  let tethys_portal_host = process.env.TETHYS_PORTAL_HOST;
+import { getConfig } from "services/config";
 
-  // If the .env property is not set, derive from current location
+export function getTethysPortalHost() {
+  let tethys_portal_host = getConfig().portalHost;
+
+  // If not configured, derive from current location
   if (!tethys_portal_host || !tethys_portal_host.length) {
     let currLocation = window.location.href;
     let url = new URL(currLocation);
@@ -19,7 +21,7 @@ export const getPublicUrl = (uuid) => {
 
 export function getTethysPortalBase() {
   let tethys_portal_host = getTethysPortalHost();
-  let tethys_prefix_url = (process.env.TETHYS_PREFIX_URL || "").replace(
+  let tethys_prefix_url = (getConfig().prefixUrl || "").replace(
     /^\/|\/$/g,
     "",
   );
@@ -33,9 +35,8 @@ export function getTethysPortalBase() {
 }
 
 export function getTethysAppRoot() {
-  let tethys_app_root_url =
-    process.env.TETHYS_APP_ROOT_URL ?? "/apps/tethysdash/";
-  let tethys_prefix_url = (process.env.TETHYS_PREFIX_URL || "").replace(
+  let tethys_app_root_url = getConfig().appRootUrl ?? "/apps/tethysdash/";
+  let tethys_prefix_url = (getConfig().prefixUrl || "").replace(
     /^\/|\/$/g,
     "",
   );
