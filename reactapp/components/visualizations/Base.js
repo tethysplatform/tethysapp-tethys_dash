@@ -309,6 +309,13 @@ const BaseVisualization = () => {
     variableInputSliderMeta,
   } = useContext(VariableInputsContext);
   const gridItemArgsWithVariableInputs = useRef(0);
+  // Source of the last fetch, tracked alongside the args above. Args alone
+  // under-identify a request: when this component instance is reused for a
+  // different source (popup gridItems share RGL `i` keys across layers) two
+  // plugins can resolve to deep-equal args — e.g. colocated popup layers
+  // whose plots share {station, start_time, end_time} — and the fetch would
+  // be skipped, leaving the previous source's data on screen.
+  const gridItemSourceFetched = useRef(null);
   const gridItemMetadataWithVariableInputs = useRef(0);
   const customMessages = useRef({});
   const [refreshCount, setRefreshCount] = useState(0);
@@ -426,6 +433,7 @@ const BaseVisualization = () => {
             gridItemArgsWithVariableInputs.current,
             updatedGridItemArgs,
           ) ||
+            gridItemSourceFetched.current !== gridItemSource ||
             !valuesEqual(customMessages.current, customMessaging)))) &&
       shouldLoad
     ) {
@@ -435,6 +443,7 @@ const BaseVisualization = () => {
       itemData.args = updatedGridItemArgs;
       itemData.requestId = requestId.current;
       gridItemArgsWithVariableInputs.current = updatedGridItemArgs;
+      gridItemSourceFetched.current = gridItemSource;
       customMessages.current = customMessaging;
 
       // Edit-time gate: when args reference `${feature.<key>}` and no

@@ -1819,3 +1819,67 @@ describe("featurePending placeholder", () => {
     spyGetVisualization.mockRestore();
   });
 });
+
+describe("source change with identical resolved args", () => {
+  // Regression test: popup gridItems from different map layers share RGL `i`
+  // keys, so a BaseVisualization instance can be reused for a different
+  // source whose resolved args are deep-equal (e.g. colocated stations whose
+  // plots share {station, start_time, end_time}). The fetch guard must treat
+  // the source as part of the request identity, or the previous source's
+  // data stays on screen.
+  it("BaseVisualization re-fetches when only the source changes", async () => {
+    const spyGetVisualization = jest
+      .spyOn(utilities, "getVisualization")
+      .mockImplementation(() => Promise.resolve());
+
+    const buildGridItemValue = (source) => ({
+      gridItemSource: source,
+      gridItemArgsString: JSON.stringify({
+        station: "CFC",
+        start_time: "01/13/2025T00:00",
+        end_time: "01/15/2025T00:00",
+      }),
+      gridItemMetadataString: JSON.stringify({}),
+      gridItemUUID: "source-swap-1",
+      shouldLoad: true,
+    });
+
+    const { rerender } = render(
+      createLoadedComponent({
+        children: (
+          <GridItemContext.Provider value={buildGridItemValue("mrr_plot")}>
+            <BaseVisualization />
+          </GridItemContext.Provider>
+        ),
+      }),
+    );
+
+    await waitFor(() => expect(spyGetVisualization).toHaveBeenCalled());
+    const callsBefore = spyGetVisualization.mock.calls.length;
+    expect(spyGetVisualization.mock.calls.at(-1)[0].itemData.source).toBe(
+      "mrr_plot",
+    );
+
+    rerender(
+      createLoadedComponent({
+        children: (
+          <GridItemContext.Provider
+            value={buildGridItemValue("disdrometer_plot")}
+          >
+            <BaseVisualization />
+          </GridItemContext.Provider>
+        ),
+      }),
+    );
+
+    await waitFor(() =>
+      expect(spyGetVisualization.mock.calls.length).toBeGreaterThan(
+        callsBefore,
+      ),
+    );
+    expect(spyGetVisualization.mock.calls.at(-1)[0].itemData.source).toBe(
+      "disdrometer_plot",
+    );
+    spyGetVisualization.mockRestore();
+  });
+});

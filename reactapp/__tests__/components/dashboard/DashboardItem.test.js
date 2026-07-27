@@ -1699,6 +1699,54 @@ test("Dashboard Item fill viewport fills the content area in view mode", async (
   ).not.toBeInTheDocument();
 });
 
+test("Dashboard Item fill viewport does not force a z-index (stacks by grid order)", async () => {
+  const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
+  const gridItem = mockedDashboard.tabs[0].gridItems[0];
+  gridItem.metadata_string = JSON.stringify({ fillViewport: true });
+
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <GridItemContext.Provider
+            value={{
+              gridItemSource: gridItem.source,
+              gridItemI: gridItem.i,
+              gridItemMetadataString: gridItem.metadata_string,
+              gridItemArgsString: gridItem.args_string,
+              gridItemIndex: 0,
+              enableFillViewport: true,
+            }}
+          >
+            <DashboardItem />
+          </GridItemContext.Provider>
+          <EditingPComponent />
+        </>
+      ),
+      options: {
+        initialDashboard: mockedDashboard,
+      },
+    }),
+  );
+
+  const dashboardGridItem = await screen.findByLabelText("gridItemDiv");
+  // Regression lock: the fill item must stay position:fixed (so it still fills
+  // the viewport) but must NOT carry the old fixed z-index:1020. With
+  // z-index:auto it paints in DOM/array order, so items ordered after it stay
+  // visible on top. The actual paint stacking is verified in-browser (jsdom
+  // does no layout/paint); this guards against re-introducing the override.
+  await waitFor(() => {
+    expect(
+      window.getComputedStyle(dashboardGridItem).getPropertyValue("position"),
+    ).toBe("fixed");
+  });
+  // Not just "not 1020" — the fill item must carry no explicit stacking value
+  // at all, so it participates in DOM-order painting.
+  expect(["", "auto"]).toContain(
+    window.getComputedStyle(dashboardGridItem).getPropertyValue("z-index"),
+  );
+});
+
 test("Dashboard Item fill viewport shows grid size with indicator while editing", async () => {
   const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
   const gridItem = mockedDashboard.tabs[0].gridItems[0];

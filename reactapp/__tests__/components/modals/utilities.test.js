@@ -3,6 +3,7 @@ import {
   spaceAndCapitalize,
   valuesEqual,
   removeEmptyValues,
+  removeEmptyLayerProps,
   checkRequiredKeys,
 } from "components/modals/utilities";
 import { addHours } from "date-fns";
@@ -106,6 +107,10 @@ test("removeEmptyStringsFromObject", async () => {
   newValue = removeEmptyValues({ test: [1, " "] });
   expect(newValue).toStrictEqual({ test: [1] });
 
+  // truthy non-string, non-object values pass through untouched
+  newValue = removeEmptyValues({ num: 5, str: "keep" });
+  expect(newValue).toStrictEqual({ num: 5, str: "keep" });
+
   newValue = removeEmptyValues({ test: [""] });
   expect(newValue).toStrictEqual({});
 
@@ -118,6 +123,31 @@ test("removeEmptyStringsFromObject", async () => {
   expect(newValue).toStrictEqual({
     "Max Status - Forecast Trend": { WFO: "Test" },
   });
+});
+
+test("removeEmptyLayerProps keeps numeric 0 but drops empty/null/false values", async () => {
+  // snapSublayer: 0 is an explicit override that removeEmptyValues' truthy
+  // filter would strip on save — the layer-props filter must preserve it.
+  expect(
+    removeEmptyLayerProps({
+      name: "Rivers",
+      snapSublayer: 0,
+      clickTolerance: 25,
+      opacity: "",
+      minZoom: null,
+      snapToFeatures: false,
+      maxZoom: undefined,
+      padded: "  trimmed  ",
+    }),
+  ).toStrictEqual({
+    name: "Rivers",
+    snapSublayer: 0,
+    clickTolerance: 25,
+    padded: "trimmed",
+  });
+
+  // A string that trims to empty is dropped, matching removeEmptyValues.
+  expect(removeEmptyLayerProps({ blank: "   " })).toStrictEqual({});
 });
 
 test("checkRequiredKeys", async () => {

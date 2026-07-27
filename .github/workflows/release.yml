@@ -4,8 +4,9 @@ name: Release
 # adopts the `v` prefix going forward (earlier tags were unprefixed).
 #
 # Flow: re-run the full test suite, build the frontend + Python package
-# (version derived from the tag via setuptools_scm), publish to PyPI via
-# Trusted Publishing (OIDC), then create a GitHub Release.
+# (version is the static `version` in pyproject.toml; the build verifies the
+# pushed tag matches it), publish to PyPI via Trusted Publishing (OIDC), then
+# create a GitHub Release.
 #
 # Supply-chain note: the third-party actions below are referenced by version
 # tag for readability. Pin them to full commit SHAs before relying on this in
@@ -35,7 +36,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # Full history + tags so setuptools_scm derives the tag version.
+          # Full history so the "tag is on main" ancestry check below can walk
+          # the parent graph.
           fetch-depth: 0
 
       - name: Verify tag is on main
@@ -61,6 +63,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+      - name: Verify tag matches package version
+        run: |
+          # Static versioning: the pushed tag must match pyproject's version so
+          # the published artifact's version can never drift from the tag.
+          tag="${GITHUB_REF_NAME#v}"
+          pkg="$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")"
+          if [ "$tag" != "$pkg" ]; then
+            echo "::error::Release tag ${GITHUB_REF_NAME} (${tag}) does not match pyproject.toml version ${pkg}. Bump the version and re-tag." >&2
+            exit 1
+          fi
       - name: Build Python package
         run: |
           python -m pip install --upgrade pip build
@@ -108,3 +120,42 @@ jobs:
         with:
           generate_release_notes: true
           files: dist/*
+
+  # Trigger a Read the Docs build for this release. RTD's push webhook does not
+  # reliably discover/build new tags on this project (the GitHub App connection
+  # is incomplete), so we drive it explicitly via the RTD API. The repo is
+  # public, so RTD can clone and build without the App.
+  #
+  # Requires an RTD API token (RTD account -> API Tokens) stored as the RTD_TOKEN
+  # repo secret. Project slug is `tethysdash`; host is app.readthedocs.org (the
+  # current RTD platform).
+  trigger-rtd:
+    needs: github-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Read the Docs build
+        env:
+          RTD_TOKEN: ${{ secrets.RTD_TOKEN }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          api="https://app.readthedocs.org/api/v3/projects/tethysdash"
+          auth="Authorization: Token ${RTD_TOKEN}"
+
+          # 1. Build `latest` (default branch) and `stable` (newest semver tag).
+          #    These clone the repo and sync the version list, so RTD discovers
+          #    the just-pushed tag. `latest` refreshes the main-branch docs;
+          #    `stable` moves to point at this release. Tolerate failure: the
+          #    sync side-effect is the goal, not these builds succeeding.
+          curl -sf -X POST -H "$auth" "${api}/versions/latest/builds/" || true
+          curl -sf -X POST -H "$auth" "${api}/versions/stable/builds/" || true
+
+          # 2. Give the sync a moment to register the new version before we
+          #    reference it (the PATCH 404s if the version isn't known yet).
+          sleep 45
+
+          # 3. Activate the tagged version so it gets its own /en/<tag>/ docs.
+          #    Activation (inactive->active) auto-triggers a build on RTD, so we
+          #    do NOT issue a separate build call here -- that would duplicate it.
+          #    Each release is a fresh tag, so this transition always fires.
+          curl -sf -X PATCH -H "$auth" -H "Content-Type: application/json" \
+            -d '{"active": true, "hidden": false}' "${api}/versions/${VERSION}/"

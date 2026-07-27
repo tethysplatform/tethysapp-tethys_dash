@@ -71,6 +71,66 @@ const figure = () => ({
   },
 });
 
+// Two stacked heatmaps (shared x-domain) + a go.Table footer positioned by its
+// own `domain` (mirrors the CW3E "MRR" figure).
+const figureWithTable = () => ({
+  data: [
+    {
+      name: "Reflectivity",
+      type: "heatmap",
+      xaxis: "x",
+      yaxis: "y",
+      colorbar: { len: 0.37, y: 0.815, yanchor: "middle" },
+    }, // 0
+    {
+      name: "Vertical Velocity",
+      type: "heatmap",
+      xaxis: "x",
+      yaxis: "y3",
+      colorbar: { len: 0.35, y: 0.425, yanchor: "middle" },
+    }, // 1
+    {
+      name: "MRR Table",
+      type: "table",
+      domain: { x: [0, 1], y: [0, 0.16] },
+      header: {},
+      cells: {},
+    }, // 2
+  ],
+  layout: {
+    xaxis: { domain: [0, 1], anchor: "y" },
+    yaxis: {
+      domain: [0.63, 1.0],
+      anchor: "x",
+      title: { text: "Reflectivity" },
+    },
+    yaxis3: {
+      domain: [0.25, 0.6],
+      anchor: "x",
+      title: { text: "Vertical Velocity" },
+    },
+  },
+});
+
+const renderFigure = ({ data, layout }, metadata) =>
+  render(
+    <VariableInputsContext.Provider
+      value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+    >
+      <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+        <DataViewerModeContext.Provider value={{ mode: "default" }}>
+          <BasePlot
+            data={data}
+            layout={layout}
+            config={{ responsive: true }}
+            visualizationRef={createRef()}
+            metadata={metadata}
+          />
+        </DataViewerModeContext.Provider>
+      </GridItemContext.Provider>
+    </VariableInputsContext.Provider>,
+  );
+
 const renderPlot = (metadata) => {
   const { data, layout } = figure();
   return render(
@@ -169,6 +229,30 @@ describe("BasePlot subplot toggle", () => {
 
     // Wind cannot be hidden — its traces remain visible.
     expect(global.__plotProps.data[4].visible).toBe(true);
+  });
+
+  it("does not overlap a go.Table footer when a heatmap is toggled off", () => {
+    renderFigure(figureWithTable(), { toggle_subplots: true });
+    fireEvent.click(screen.getByLabelText("Toggle subplots"));
+
+    // Only the two heatmaps are offered — the unlabeled table is not.
+    expect(screen.getByLabelText("Reflectivity")).toBeInTheDocument();
+    expect(screen.getByLabelText("Vertical Velocity")).toBeInTheDocument();
+    expect(screen.queryByLabelText("MRR Table")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText("Vertical Velocity")); // hide it
+
+    const { data, layout } = global.__plotProps;
+    expect(data[1].visible).toBe(false); // Vertical Velocity hidden
+    expect(data[0].visible).toBe(true); // Reflectivity still shown
+    expect(data[2].visible).not.toBe(false); // table trace never hidden
+    // The remaining heatmap expands to the cartesian envelope [0.25, 1.0] and
+    // its bottom stays above the table band [0, 0.16] — no overlap.
+    expect(layout.yaxis.domain[0]).toBeCloseTo(0.25, 6);
+    expect(layout.yaxis.domain[0]).toBeGreaterThanOrEqual(0.16);
+    // Its colorbar grows to track the expanded band.
+    expect(data[0].colorbar.len).toBeCloseTo(0.75, 6);
+    expect(data[0].colorbar.y).toBeCloseTo(0.625, 6);
   });
 
   it("coexists with a vertical line without crashing", () => {

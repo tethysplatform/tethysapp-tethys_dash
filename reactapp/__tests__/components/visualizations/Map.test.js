@@ -1,5 +1,11 @@
 import { useRef, useEffect, useState } from "react";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import {
+  render,
+  screen,
+  waitFor,
+  fireEvent,
+  act,
+} from "@testing-library/react";
 import createLoadedComponent, {
   InputVariablePComponent,
 } from "__tests__/utilities/customRender";
@@ -11,7 +17,10 @@ import { Vector as VectorSource } from "ol/source.js";
 import appAPI from "services/api/app";
 import { applyStyle } from "ol-mapbox-style";
 import Point from "ol/geom/Point.js";
+import LineString from "ol/geom/LineString.js";
+import Feature from "ol/Feature.js";
 import { queryLayerFeatures } from "components/map/utilities";
+import { fetchLayerVectorFeatures } from "components/map/snapping";
 import Overlay from "ol/Overlay";
 import {
   mockedTextVariable,
@@ -54,7 +63,16 @@ jest.mock("components/map/utilities", () => {
     swapVectorLayerFeatures: jest.fn(),
   };
 });
+
+jest.mock("components/map/snapping", () => {
+  const originalModule = jest.requireActual("components/map/snapping");
+  return {
+    ...originalModule,
+    fetchLayerVectorFeatures: jest.fn(),
+  };
+});
 const mockedQueryLayerFeatures = jest.mocked(queryLayerFeatures);
+const mockedFetchLayerVectorFeatures = jest.mocked(fetchLayerVectorFeatures);
 
 const exampleGeoJSON = {
   type: "FeatureCollection",
@@ -5705,3 +5723,702 @@ TestingComponent.propTypes = {
   onMapZoom: PropTypes.bool,
   clickCoordinates: PropTypes.arrayOf(PropTypes.number),
 };
+
+describe("snap pipeline integration", () => {
+  // The real findBestSnap/findSnapFeatures implementations compare
+  // screen-pixel distances via map.getPixelFromCoordinate, which returns null
+  // in jsdom (the map div has no size, so OL never builds a frameState).
+  // Mapping coordinates 1:1 to pixels keeps the genuine snap math running:
+  // distances in map units ARE the pixel distances the thresholds compare
+  // against (SNAP_PIXELS = 15, GATHER_PIXELS = 35).
+  let pixelSpy;
+
+  beforeEach(() => {
+    pixelSpy = jest
+      .spyOn(Map.prototype, "getPixelFromCoordinate")
+      .mockImplementation((coordinate) =>
+        coordinate ? [coordinate[0], coordinate[1]] : null,
+      );
+  });
+
+  afterEach(() => {
+    pixelSpy.mockRestore();
+  });
+
+  const riversLayer = () => ({
+    configuration: {
+      type: "ImageLayer",
+      props: {
+        name: "Rivers",
+        snapToFeatures: true,
+        source: {
+          type: "ESRI Image and Map Service",
+          props: { url: "rivers_url" },
+        },
+      },
+    },
+  });
+
+  const otherLayer = () => ({
+    configuration: {
+      type: "ImageLayer",
+      props: {
+        name: "Other Layer",
+        source: {
+          type: "ESRI Image and Map Service",
+          props: { url: "other_url" },
+        },
+      },
+    },
+  });
+
+  const makeRiver = (name, coords) =>
+    new Feature({ geometry: new LineString(coords), river_name: name });
+
+  // A GeoJSON/VectorLayer fixture whose features live in a real OL
+  // VectorSource (built by the component's normal ModuleLoader path from an
+  // empty FeatureCollection, then populated directly via
+  // findOlLayer(...).getSource().addFeatures(...) once mounted). Covers U2's
+  // live-source snap-cache branch (source.type "GeoJSON") and U1's
+  // clickTolerance-on-vector-layers branch, as opposed to riversLayer()'s
+  // ESRI Image and Map Service fetch-based cache.
+  const geoJsonRiversLayer = ({
+    name = "GeoJSON Rivers",
+    snapToFeatures = true,
+    clickTolerance,
+  } = {}) => ({
+    configuration: {
+      type: "VectorLayer",
+      props: {
+        name,
+        ...(snapToFeatures ? { snapToFeatures } : {}),
+        ...(clickTolerance !== undefined ? { clickTolerance } : {}),
+        source: {
+          type: "GeoJSON",
+          props: {},
+          geojson: {
+            type: "FeatureCollection",
+            features: [],
+            crs: { type: "name", properties: { name: "EPSG:3857" } },
+          },
+        },
+      },
+    },
+  });
+
+  const SnapHarness = ({ mapRef, layers }) => {
+    const { mapReady } = useMapContext();
+    return (
+      <div>
+        <MapVisualization
+          visualizationRef={mapRef}
+          mapConfig={{}}
+          viewConfig={{}}
+          layers={layers}
+          baseMap={null}
+          layerControl={false}
+        />
+        <p>{mapReady ? "Map Ready" : "Map Not Ready"}</p>
+      </div>
+    );
+  };
+  SnapHarness.propTypes = {
+    mapRef: PropTypes.object,
+    layers: PropTypes.array,
+  };
+
+  // Mount the map and wait for the mount-time moveend prime to build the
+  // snap cache (registration in map/Map.js invokes the handler once, so no
+  // moveend dispatch is needed for the initial view — review #17).
+  const mountSnapMap = async (layers, { expectedFetches = 1 } = {}) => {
+    const mapRef = { current: null };
+    const LoadedComponent = createLoadedComponent({
+      children: (
+        <MapContextProvider>
+          <SnapHarness mapRef={mapRef} layers={layers} />
+        </MapContextProvider>
+      ),
+    });
+    render(LoadedComponent);
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(mockedFetchLayerVectorFeatures).toHaveBeenCalledTimes(
+        expectedFetches,
+      ),
+    );
+    // Flush the refreshSnapCaches continuation that stores the cache (a
+    // macrotask runs after all pending microtasks).
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    return mapRef;
+  };
+
+  const dispatch = (mapRef, evt) =>
+    act(async () => {
+      mapRef.current.dispatchEvent(evt);
+    });
+
+  const findOlLayer = (mapRef, name) =>
+    mapRef.current
+      .getLayers()
+      .getArray()
+      .find((olLayer) => olLayer.get("name") === name);
+
+  test("singleclick near a cached feature snap-selects locally; non-snap layers still identify at the true click coordinate", async () => {
+    mockedFetchLayerVectorFeatures.mockResolvedValue([
+      makeRiver("Test River", [
+        [0, 20],
+        [30, 20],
+      ]),
+    ]);
+    mockedQueryLayerFeatures.mockResolvedValue([
+      {
+        attributes: { other_field: "other value" },
+        geometry: {
+          paths: [
+            [
+              [0, 0],
+              [0, 1],
+            ],
+          ],
+        },
+        layerName: "Other Layer",
+      },
+    ]);
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+    const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
+
+    const mapRef = await mountSnapMap([riversLayer(), otherLayer()]);
+
+    // Click 4 "pixels" off the river line (within SNAP_PIXELS = 15).
+    await dispatch(mapRef, {
+      type: "singleclick",
+      coordinate: [12, 24],
+      pixel: [12, 24],
+    });
+
+    // The popup anchors at the SNAPPED coordinate on the line, not the raw
+    // click — proof the click resolved through the snap cache.
+    await waitFor(() => expect(popSetPosition).toHaveBeenCalledWith([12, 20]));
+
+    // /identify ran ONLY for the non-snap layer, at the TRUE click coordinate
+    // (evt.coordinate), so the snap cannot shift its identify results.
+    expect(mockedQueryLayerFeatures).toHaveBeenCalledTimes(1);
+    const [identifiedLayer, , identifyCoordinate] =
+      mockedQueryLayerFeatures.mock.calls[0];
+    expect(identifiedLayer.configuration.props.name).toBe("Other Layer");
+    expect(identifyCoordinate).toEqual([12, 24]);
+
+    // The popup contains the locally-snapped river's attributes AND the
+    // identified feature from the sibling layer.
+    expect(await screen.findByText("Rivers")).toBeInTheDocument();
+    expect(await screen.findByText("Test River")).toBeInTheDocument();
+    expect(await screen.findByText("other value")).toBeInTheDocument();
+  });
+
+  test("singleclick with an empty snap cache falls back to /identify for the snap layer", async () => {
+    mockedFetchLayerVectorFeatures.mockResolvedValue([]);
+    mockedQueryLayerFeatures.mockResolvedValue([
+      {
+        attributes: { field1: "identified value" },
+        geometry: {
+          paths: [
+            [
+              [0, 0],
+              [0, 1],
+            ],
+          ],
+        },
+        layerName: "Rivers Sub",
+      },
+    ]);
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+
+    const mapRef = await mountSnapMap([riversLayer()]);
+
+    await dispatch(mapRef, {
+      type: "singleclick",
+      coordinate: [12, 24],
+      pixel: [12, 24],
+    });
+
+    await waitFor(() =>
+      expect(mockedQueryLayerFeatures).toHaveBeenCalledTimes(1),
+    );
+    const [identifiedLayer, , identifyCoordinate] =
+      mockedQueryLayerFeatures.mock.calls[0];
+    expect(identifiedLayer.configuration.props.name).toBe("Rivers");
+    expect(identifyCoordinate).toEqual([12, 24]);
+    expect(await screen.findByText("identified value")).toBeInTheDocument();
+  });
+
+  test("a stale snap-cache fetch resolving after a newer one is discarded (generation token)", async () => {
+    let resolveFirst;
+    let resolveSecond;
+    mockedFetchLayerVectorFeatures
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirst = resolve;
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveSecond = resolve;
+          }),
+      );
+    mockedQueryLayerFeatures.mockResolvedValue([]);
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+
+    const mapRef = { current: null };
+    const LoadedComponent = createLoadedComponent({
+      children: (
+        <MapContextProvider>
+          <SnapHarness mapRef={mapRef} layers={[riversLayer()]} />
+        </MapContextProvider>
+      ),
+    });
+    render(LoadedComponent);
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+    // Refresh #1: the mount-time prime (fetch left pending).
+    await waitFor(() =>
+      expect(mockedFetchLayerVectorFeatures).toHaveBeenCalledTimes(1),
+    );
+    // Refresh #2: a pan/zoom moveend while refresh #1 is still in flight.
+    await dispatch(mapRef, { type: "moveend" });
+    await waitFor(() =>
+      expect(mockedFetchLayerVectorFeatures).toHaveBeenCalledTimes(2),
+    );
+
+    // Resolve OUT OF ORDER: the newer view's fetch lands first, then the
+    // stale one. Without the generation token, River A (the stale view)
+    // would overwrite River B in the cache.
+    await act(async () => {
+      resolveSecond([
+        makeRiver("River B", [
+          [0, 20],
+          [30, 20],
+        ]),
+      ]);
+    });
+    await act(async () => {
+      resolveFirst([
+        makeRiver("River A", [
+          [0, 1000],
+          [30, 1000],
+        ]),
+      ]);
+    });
+
+    // Click on River B's geometry: the cache reflects the SECOND view, so
+    // the click snap-selects River B locally with no /identify at all.
+    await dispatch(mapRef, {
+      type: "singleclick",
+      coordinate: [12, 24],
+      pixel: [12, 24],
+    });
+    expect(await screen.findByText("River B")).toBeInTheDocument();
+    expect(mockedQueryLayerFeatures).not.toHaveBeenCalled();
+  });
+
+  test("hiding a snap layer's OL layer stops the hover preview and pointer cursor", async () => {
+    mockedFetchLayerVectorFeatures.mockResolvedValue([
+      makeRiver("Test River", [
+        [0, 20],
+        [30, 20],
+      ]),
+    ]);
+
+    const mapRef = await mountSnapMap([riversLayer()]);
+    // The visibility filter reads the mounted OL layer, so wait for it.
+    await waitFor(() => expect(findOlLayer(mapRef, "Rivers")).toBeDefined());
+
+    // Positive control: hovering near the river draws the preview (feature
+    // outline + snapped-point dot) and sets the pointer-cursor affordance.
+    await dispatch(mapRef, {
+      type: "pointermove",
+      coordinate: [12, 24],
+      pixel: [12, 24],
+    });
+    const previewLayer = findOlLayer(mapRef, "Snap Preview");
+    expect(previewLayer).toBeDefined();
+    expect(previewLayer.getSource().getFeatures()).toHaveLength(2);
+    expect(mapRef.current.getTargetElement().style.cursor).toBe("pointer");
+
+    // Hide the layer the way LayersControl does: OL visibility only, no
+    // moveend — the stale cache entry must be filtered out at use time.
+    findOlLayer(mapRef, "Rivers").setVisible(false);
+
+    await dispatch(mapRef, {
+      type: "pointermove",
+      coordinate: [12, 24],
+      pixel: [12, 24],
+    });
+    expect(previewLayer.getSource().getFeatures()).toHaveLength(0);
+    expect(mapRef.current.getTargetElement().style.cursor).toBe("");
+  });
+
+  test("a hidden snap layer is excluded from the cache refresh itself (no refetch on moveend)", async () => {
+    mockedFetchLayerVectorFeatures.mockResolvedValue([
+      makeRiver("Test River", [
+        [0, 20],
+        [30, 20],
+      ]),
+    ]);
+
+    const mapRef = await mountSnapMap([riversLayer()]);
+    await waitFor(() => expect(findOlLayer(mapRef, "Rivers")).toBeDefined());
+    const fetchesAfterPrime = mockedFetchLayerVectorFeatures.mock.calls.length;
+
+    // Hide the layer, then complete a pan: refreshSnapCaches must filter the
+    // layer out at refresh time and issue no /query fetch for it.
+    findOlLayer(mapRef, "Rivers").setVisible(false);
+    await dispatch(mapRef, { type: "moveend" });
+
+    expect(mockedFetchLayerVectorFeatures.mock.calls.length).toBe(
+      fetchesAfterPrime,
+    );
+  });
+
+  test("snap preview re-attaches after being removed from the map (reconciliation sweep)", async () => {
+    mockedFetchLayerVectorFeatures.mockResolvedValue([
+      makeRiver("Test River", [
+        [0, 20],
+        [30, 20],
+      ]),
+    ]);
+
+    const mapRef = await mountSnapMap([riversLayer()]);
+
+    await dispatch(mapRef, {
+      type: "pointermove",
+      coordinate: [12, 24],
+      pixel: [12, 24],
+    });
+    const previewLayer = findOlLayer(mapRef, "Snap Preview");
+    expect(previewLayer).toBeDefined();
+
+    // Simulate the layer-reconciliation sweep in map/Map.js detaching the
+    // preview layer while the component ref still holds it.
+    mapRef.current.removeLayer(previewLayer);
+    expect(findOlLayer(mapRef, "Snap Preview")).toBeUndefined();
+
+    await dispatch(mapRef, {
+      type: "pointermove",
+      coordinate: [14, 24],
+      pixel: [14, 24],
+    });
+    const reattached = findOlLayer(mapRef, "Snap Preview");
+    // Same instance re-added (not a duplicate layer), with the preview drawn.
+    expect(reattached).toBe(previewLayer);
+    expect(reattached.getSource().getFeatures()).toHaveLength(2);
+  });
+
+  test("repeated hovers while the preview layer is attached never add a duplicate layer", async () => {
+    mockedFetchLayerVectorFeatures.mockResolvedValue([
+      makeRiver("Test River", [
+        [0, 20],
+        [30, 20],
+      ]),
+    ]);
+
+    const mapRef = await mountSnapMap([riversLayer()]);
+
+    for (const x of [12, 14, 16]) {
+      await dispatch(mapRef, {
+        type: "pointermove",
+        coordinate: [x, 24],
+        pixel: [x, 24],
+      });
+    }
+
+    const previewLayers = mapRef.current
+      .getLayers()
+      .getArray()
+      .filter((olLayer) => olLayer.get("name") === "Snap Preview");
+    expect(previewLayers).toHaveLength(1);
+  });
+
+  // --- Vector (GeoJSON) snap layers — U3 integration coverage -------------
+  // These mirror the ESRI-cache tests above but exercise the U2 live-source
+  // branch: the snap cache entry IS the GeoJSON layer's own live OL
+  // VectorSource, populated directly here (no fetchLayerVectorFeatures
+  // network fetch involved for this layer at all).
+  // The mount-time prime in map/Map.js waits for the first layers-bearing
+  // effect run, so by the time the OL layers are mounted the live-source
+  // cache entry exists — no moveend is required before snapping works.
+  // (The hover assertions re-dispatch inside waitFor because the prime runs
+  // in the same async effect that mounted the layer.)
+  test("R2: hover near a GeoJSON river draws the cyan preview and pointer cursor; singleclick snap-selects it locally without querying the layer", async () => {
+    const layerName = "GeoJSON Rivers";
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+    const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
+
+    const mapRef = await mountSnapMap(
+      [geoJsonRiversLayer({ name: layerName })],
+      {
+        expectedFetches: 0,
+      },
+    );
+    await waitFor(() => expect(findOlLayer(mapRef, layerName)).toBeDefined());
+
+    // Populate the layer's real, live OL VectorSource directly — the cache
+    // entry built by the mount-time prime IS this same source object, so it
+    // already reflects whatever features live on it.
+    findOlLayer(mapRef, layerName)
+      .getSource()
+      .addFeatures([
+        makeRiver("Test River", [
+          [0, 20],
+          [30, 20],
+        ]),
+      ]);
+
+    // Hover near the river: cyan preview (feature outline + snapped-point
+    // dot = 2 features) and the pointer-cursor affordance.
+    await waitFor(async () => {
+      await dispatch(mapRef, {
+        type: "pointermove",
+        coordinate: [12, 24],
+        pixel: [12, 24],
+      });
+      expect(
+        findOlLayer(mapRef, "Snap Preview")?.getSource().getFeatures(),
+      ).toHaveLength(2);
+    });
+    expect(mapRef.current.getTargetElement().style.cursor).toBe("pointer");
+
+    // Click 4 "pixels" off the river line (within SNAP_PIXELS = 15): local
+    // snapped selection, popup anchored at the SNAPPED coordinate.
+    await dispatch(mapRef, {
+      type: "singleclick",
+      coordinate: [12, 24],
+      pixel: [12, 24],
+    });
+    await waitFor(() => expect(popSetPosition).toHaveBeenCalledWith([12, 20]));
+
+    // The click resolved entirely from the local live source — no /identify
+    // (queryLayerFeatures) call for this (or any) layer.
+    expect(mockedQueryLayerFeatures).not.toHaveBeenCalled();
+    expect(await screen.findByText(layerName)).toBeInTheDocument();
+    expect(await screen.findByText("Test River")).toBeInTheDocument();
+  });
+
+  test("R3: fetchLayerVectorFeatures is never invoked for a GeoJSON snap layer across prime, moveend, hover, and click", async () => {
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+    const layerName = "GeoJSON Rivers";
+
+    const mapRef = await mountSnapMap(
+      [geoJsonRiversLayer({ name: layerName })],
+      {
+        expectedFetches: 0,
+      },
+    );
+    await waitFor(() => expect(findOlLayer(mapRef, layerName)).toBeDefined());
+    // Mount-time prime already ran above; confirm it issued no fetch.
+    expect(mockedFetchLayerVectorFeatures).not.toHaveBeenCalled();
+
+    findOlLayer(mapRef, layerName)
+      .getSource()
+      .addFeatures([
+        makeRiver("Test River", [
+          [0, 20],
+          [30, 20],
+        ]),
+      ]);
+
+    await dispatch(mapRef, { type: "moveend" });
+    await dispatch(mapRef, {
+      type: "pointermove",
+      coordinate: [12, 24],
+      pixel: [12, 24],
+    });
+    await dispatch(mapRef, {
+      type: "singleclick",
+      coordinate: [12, 24],
+      pixel: [12, 24],
+    });
+
+    expect(mockedFetchLayerVectorFeatures).not.toHaveBeenCalled();
+  });
+
+  test("R1 (integration): clickTolerance on a non-snap GeoJSON layer widens forEachFeatureAtPixel's hitTolerance during the click pipeline", async () => {
+    // queryLayerFeatures is module-mocked at the top of this file; restore
+    // the REAL implementation for this test only so getGeoJSONLayerFeatures'
+    // forEachFeatureAtPixel({ hitTolerance }) call actually runs.
+    mockedQueryLayerFeatures.mockImplementation(
+      jest.requireActual("components/map/utilities").queryLayerFeatures,
+    );
+    const forEachSpy = jest.spyOn(Map.prototype, "forEachFeatureAtPixel");
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+
+    const layerName = "GeoJSON Other (tolerant)";
+    const layer = geoJsonRiversLayer({
+      name: layerName,
+      snapToFeatures: false,
+      clickTolerance: 20,
+    });
+
+    try {
+      const mapRef = await mountSnapMap([layer], { expectedFetches: 0 });
+      await waitFor(() => expect(findOlLayer(mapRef, layerName)).toBeDefined());
+
+      await dispatch(mapRef, {
+        type: "singleclick",
+        coordinate: [12, 24],
+        pixel: [12, 24],
+      });
+
+      await waitFor(() => expect(forEachSpy).toHaveBeenCalled());
+      const callWithTolerance = forEachSpy.mock.calls.find(
+        (call) => call[2]?.hitTolerance === 20,
+      );
+      expect(callWithTolerance).toBeDefined();
+    } finally {
+      forEachSpy.mockRestore();
+      mockedQueryLayerFeatures.mockReset();
+    }
+  });
+
+  test("features added to the live GeoJSON source after mount are snappable on the next hover without any moveend", async () => {
+    const layerName = "GeoJSON Rivers";
+    const mapRef = await mountSnapMap(
+      [geoJsonRiversLayer({ name: layerName })],
+      {
+        expectedFetches: 0,
+      },
+    );
+    await waitFor(() => expect(findOlLayer(mapRef, layerName)).toBeDefined());
+
+    // First hover: the live source is still empty (simulating features that
+    // haven't loaded yet), so nothing snaps and the preview layer is never
+    // even created. No moveend is dispatched anywhere in this test — the
+    // mount-time prime created the live-source cache entry.
+    await dispatch(mapRef, {
+      type: "pointermove",
+      coordinate: [12, 24],
+      pixel: [12, 24],
+    });
+    expect(findOlLayer(mapRef, "Snap Preview")).toBeUndefined();
+
+    // Simulate async feature loading landing directly on the live OL source
+    // — the cache entry IS this source object (U2), so NO moveend is needed
+    // for the new features to become snappable.
+    findOlLayer(mapRef, layerName)
+      .getSource()
+      .addFeatures([
+        makeRiver("Late River", [
+          [0, 20],
+          [30, 20],
+        ]),
+      ]);
+
+    await waitFor(async () => {
+      await dispatch(mapRef, {
+        type: "pointermove",
+        coordinate: [12, 24],
+        pixel: [12, 24],
+      });
+      expect(
+        findOlLayer(mapRef, "Snap Preview")?.getSource().getFeatures(),
+      ).toHaveLength(2);
+    });
+    expect(mapRef.current.getTargetElement().style.cursor).toBe("pointer");
+  });
+
+  test("hiding a GeoJSON snap layer's OL layer stops the hover preview (visibleSnapCaches extends to live vector sources)", async () => {
+    const layerName = "GeoJSON Rivers";
+    const mapRef = await mountSnapMap(
+      [geoJsonRiversLayer({ name: layerName })],
+      {
+        expectedFetches: 0,
+      },
+    );
+    await waitFor(() => expect(findOlLayer(mapRef, layerName)).toBeDefined());
+    await dispatch(mapRef, { type: "moveend" });
+    findOlLayer(mapRef, layerName)
+      .getSource()
+      .addFeatures([
+        makeRiver("Test River", [
+          [0, 20],
+          [30, 20],
+        ]),
+      ]);
+
+    // Positive control: hovering near the river draws the preview and sets
+    // the pointer-cursor affordance.
+    await dispatch(mapRef, {
+      type: "pointermove",
+      coordinate: [12, 24],
+      pixel: [12, 24],
+    });
+    const previewLayer = findOlLayer(mapRef, "Snap Preview");
+    expect(previewLayer).toBeDefined();
+    expect(previewLayer.getSource().getFeatures()).toHaveLength(2);
+    expect(mapRef.current.getTargetElement().style.cursor).toBe("pointer");
+
+    // Hide the layer the way LayersControl does: OL visibility only, no
+    // moveend — the stale cache entry must be filtered out at use time.
+    findOlLayer(mapRef, layerName).setVisible(false);
+
+    await dispatch(mapRef, {
+      type: "pointermove",
+      coordinate: [12, 24],
+      pixel: [12, 24],
+    });
+    expect(previewLayer.getSource().getFeatures()).toHaveLength(0);
+    expect(mapRef.current.getTargetElement().style.cursor).toBe("");
+  });
+
+  test("snapping obeys the layer's min/max zoom: a zoom-hidden layer stops snapping without a refresh", async () => {
+    const layerName = "GeoJSON Rivers";
+    const mapRef = await mountSnapMap(
+      [geoJsonRiversLayer({ name: layerName })],
+      {
+        expectedFetches: 0,
+      },
+    );
+    await waitFor(() => expect(findOlLayer(mapRef, layerName)).toBeDefined());
+    await dispatch(mapRef, { type: "moveend" });
+    findOlLayer(mapRef, layerName)
+      .getSource()
+      .addFeatures([
+        makeRiver("Test River", [
+          [0, 20],
+          [30, 20],
+        ]),
+      ]);
+
+    // Positive control at the current view zoom.
+    await dispatch(mapRef, {
+      type: "pointermove",
+      coordinate: [12, 24],
+      pixel: [12, 24],
+    });
+    const previewLayer = findOlLayer(mapRef, "Snap Preview");
+    expect(previewLayer.getSource().getFeatures()).toHaveLength(2);
+
+    // Constrain the layer's maxZoom below the current view zoom: the layer
+    // stops rendering while getVisible() stays true — snapping must follow
+    // the renderer's visibility, immediately, with no cache refresh.
+    const viewZoom = mapRef.current.getView().getZoom();
+    findOlLayer(mapRef, layerName).setMaxZoom(viewZoom - 1);
+    await dispatch(mapRef, {
+      type: "pointermove",
+      coordinate: [12, 24],
+      pixel: [12, 24],
+    });
+    expect(previewLayer.getSource().getFeatures()).toHaveLength(0);
+    expect(mapRef.current.getTargetElement().style.cursor).toBe("");
+
+    // Lifting the constraint restores snapping, again with no refresh.
+    findOlLayer(mapRef, layerName).setMaxZoom(Infinity);
+    await dispatch(mapRef, {
+      type: "pointermove",
+      coordinate: [12, 24],
+      pixel: [12, 24],
+    });
+    expect(previewLayer.getSource().getFeatures()).toHaveLength(2);
+  });
+});

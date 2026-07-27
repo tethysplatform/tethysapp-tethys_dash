@@ -18,6 +18,7 @@ import {
   buildShiftedMercatorWKT,
   rewriteArcGISExportUrlForAntimeridian,
   shiftEPSG3857ExtentAndPoint,
+  coerceOptionalNumber,
 } from "components/map/utilities";
 import VectorSource from "ol/source/Vector.js";
 import { LineString, Point, MultiPolygon, Polygon } from "ol/geom";
@@ -721,6 +722,243 @@ test("queryLayerFeatures Valid GeoJSON GeometryCollection Found No Points Close 
   expect(features).toStrictEqual([]);
 });
 
+test("queryLayerFeatures GeoJSON clickTolerance is forwarded as hitTolerance", async () => {
+  const mockMap = {
+    getView: jest.fn(() => ({
+      getResolution: jest.fn(() => 100),
+      getZoom: jest.fn(() => 10),
+    })),
+    forEachFeatureAtPixel: jest.fn(),
+  };
+  const coordinate = [0, 0];
+  const pixel = [639, 366];
+
+  const layerConfig = JSON.parse(JSON.stringify(layerConfigGeoJSON));
+  layerConfig.configuration.props.clickTolerance = 15;
+
+  await queryLayerFeatures(layerConfig, mockMap, coordinate, pixel);
+
+  expect(mockMap.forEachFeatureAtPixel).toHaveBeenCalledWith(
+    pixel,
+    expect.any(Function),
+    { hitTolerance: 15 },
+  );
+});
+
+test("queryLayerFeatures GeoJSON with no clickTolerance passes hitTolerance 0", async () => {
+  const mockMap = {
+    getView: jest.fn(() => ({
+      getResolution: jest.fn(() => 100),
+      getZoom: jest.fn(() => 10),
+    })),
+    forEachFeatureAtPixel: jest.fn(),
+  };
+  const coordinate = [0, 0];
+  const pixel = [639, 366];
+
+  await queryLayerFeatures(layerConfigGeoJSON, mockMap, coordinate, pixel);
+
+  expect(mockMap.forEachFeatureAtPixel).toHaveBeenCalledWith(
+    pixel,
+    expect.any(Function),
+    { hitTolerance: 0 },
+  );
+});
+
+test("queryLayerFeatures GeoJSON coerces a string clickTolerance from the GUI to a number", async () => {
+  const mockMap = {
+    getView: jest.fn(() => ({
+      getResolution: jest.fn(() => 100),
+      getZoom: jest.fn(() => 10),
+    })),
+    forEachFeatureAtPixel: jest.fn(),
+  };
+  const coordinate = [0, 0];
+  const pixel = [639, 366];
+
+  const layerConfig = JSON.parse(JSON.stringify(layerConfigGeoJSON));
+  layerConfig.configuration.props.clickTolerance = "15";
+
+  await queryLayerFeatures(layerConfig, mockMap, coordinate, pixel);
+
+  expect(mockMap.forEachFeatureAtPixel).toHaveBeenCalledWith(
+    pixel,
+    expect.any(Function),
+    { hitTolerance: 15 },
+  );
+});
+
+describe("coerceOptionalNumber", () => {
+  test("passes through finite numbers, including 0", () => {
+    expect(coerceOptionalNumber(15)).toBe(15);
+    expect(coerceOptionalNumber(0)).toBe(0);
+    expect(coerceOptionalNumber(2.5)).toBe(2.5);
+    expect(coerceOptionalNumber(-3)).toBe(-3);
+  });
+
+  test('coerces numeric strings, including "0" and padded values', () => {
+    expect(coerceOptionalNumber("15")).toBe(15);
+    expect(coerceOptionalNumber("0")).toBe(0);
+    expect(coerceOptionalNumber(" 7 ")).toBe(7);
+  });
+
+  test("treats null and undefined as unset", () => {
+    expect(coerceOptionalNumber(null)).toBeUndefined();
+    expect(coerceOptionalNumber(undefined)).toBeUndefined();
+  });
+
+  test("treats blank strings as unset (empty and whitespace-only)", () => {
+    expect(coerceOptionalNumber("")).toBeUndefined();
+    expect(coerceOptionalNumber(" ")).toBeUndefined();
+    expect(coerceOptionalNumber("\t\n")).toBeUndefined();
+  });
+
+  test("treats non-numeric values as unset", () => {
+    expect(coerceOptionalNumber("abc")).toBeUndefined();
+    expect(coerceOptionalNumber(NaN)).toBeUndefined();
+    expect(coerceOptionalNumber(Infinity)).toBeUndefined();
+  });
+});
+
+test.each(["", " ", "abc"])(
+  "queryLayerFeatures GeoJSON treats an invalid clickTolerance %p as unset",
+  async (invalidTolerance) => {
+    const mockMap = {
+      getView: jest.fn(() => ({
+        getResolution: jest.fn(() => 100),
+        getZoom: jest.fn(() => 10),
+      })),
+      forEachFeatureAtPixel: jest.fn(),
+    };
+    const coordinate = [0, 0];
+    const pixel = [639, 366];
+
+    const layerConfig = JSON.parse(JSON.stringify(layerConfigGeoJSON));
+    layerConfig.configuration.props.clickTolerance = invalidTolerance;
+
+    await queryLayerFeatures(layerConfig, mockMap, coordinate, pixel);
+
+    expect(mockMap.forEachFeatureAtPixel).toHaveBeenCalledWith(
+      pixel,
+      expect.any(Function),
+      { hitTolerance: 0 },
+    );
+  },
+);
+
+test("queryLayerFeatures GeoJSON GeometryCollection sub-geometry included when within a custom clickTolerance", async () => {
+  const mockMap = {
+    getView: jest.fn(() => ({
+      getResolution: jest.fn(() => 1),
+      getZoom: jest.fn(() => 10),
+    })),
+    forEachFeatureAtPixel: jest.fn((pixel, callback) => {
+      // Simulate a GeometryCollection feature whose LineString sub-geometry
+      // sits 15 map units (== 15px at resolution 1) from the clicked coordinate
+      const mockFeature = {
+        getId: () => "feature-123",
+        getProperties: () => ({
+          geometry: {
+            getType: jest.fn(() => "GeometryCollection"),
+            getGeometries: jest.fn(() => [
+              {
+                getType: jest.fn(() => "LineString"),
+                getCoordinates: jest.fn(() => [
+                  [1, 2],
+                  [3, 4],
+                ]),
+                getClosestPoint: jest.fn(() => [15, 0]),
+              },
+            ]),
+          },
+        }),
+      }; // Mocked feature object
+      const mockLayer = {
+        get: jest.fn(() => "GeoJSON Layer"),
+        getProperties: () => ({
+          name: "GeoJSON Layer",
+        }),
+      };
+      callback(mockFeature, mockLayer); // Call the callback with the mock feature
+    }),
+  };
+  const coordinate = [0, 0];
+  const pixel = [639, 366];
+
+  const layerConfig = JSON.parse(JSON.stringify(layerConfigGeoJSON));
+  layerConfig.configuration.props.clickTolerance = 20;
+
+  const features = await queryLayerFeatures(
+    layerConfig,
+    mockMap,
+    coordinate,
+    pixel,
+  );
+
+  expect(features).toStrictEqual([
+    {
+      layerName: "GeoJSON Layer",
+      attributes: {},
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          [1, 2],
+          [3, 4],
+        ],
+      },
+    },
+  ]);
+});
+
+test("queryLayerFeatures GeoJSON GeometryCollection sub-geometry excluded beyond the default inner threshold when no clickTolerance is set", async () => {
+  const mockMap = {
+    getView: jest.fn(() => ({
+      getResolution: jest.fn(() => 1),
+      getZoom: jest.fn(() => 10),
+    })),
+    forEachFeatureAtPixel: jest.fn((pixel, callback) => {
+      // Same 15 map-unit (15px) offset as the custom-tolerance test above,
+      // but with no clickTolerance the default inner threshold of 10 excludes it
+      const mockFeature = {
+        getId: () => "feature-123",
+        getProperties: () => ({
+          geometry: {
+            getType: jest.fn(() => "GeometryCollection"),
+            getGeometries: jest.fn(() => [
+              {
+                getType: jest.fn(() => "LineString"),
+                getCoordinates: jest.fn(() => [
+                  [1, 2],
+                  [3, 4],
+                ]),
+                getClosestPoint: jest.fn(() => [15, 0]),
+              },
+            ]),
+          },
+        }),
+      }; // Mocked feature object
+      const mockLayer = {
+        get: jest.fn(() => "GeoJSON Layer"),
+        getProperties: () => ({
+          name: "GeoJSON Layer",
+        }),
+      };
+      callback(mockFeature, mockLayer); // Call the callback with the mock feature
+    }),
+  };
+  const coordinate = [0, 0];
+  const pixel = [639, 366];
+
+  const features = await queryLayerFeatures(
+    layerConfigGeoJSON,
+    mockMap,
+    coordinate,
+    pixel,
+  );
+
+  expect(features).toStrictEqual([]);
+});
+
 test("queryLayerFeatures ImageArcGISRest", async () => {
   const mockArgisResults = [
     {
@@ -850,6 +1088,49 @@ test("queryLayerFeatures ImageArcGISRest", async () => {
   );
   expect(features).toStrictEqual(mockArgisResults);
 
+  global.fetch.mockRestore?.();
+});
+
+test("queryLayerFeatures ImageArcGISRest uses per-layer clickTolerance", async () => {
+  const mockArgisResults = [{ attributes: { name: "x" } }];
+  global.fetch = jest.fn(() =>
+    Promise.resolve({
+      json: () => Promise.resolve({ results: mockArgisResults }),
+    }),
+  );
+  const mockMap = {
+    getSize: jest.fn(() => [100, 200]),
+    getView: jest.fn(() => ({
+      calculateExtent: jest.fn(() => [1, 2, 3, 4]),
+      getResolution: jest.fn(() => 500),
+      getProjection: jest.fn(() => ({ getCode: jest.fn(() => "EPSG:4326") })),
+      getZoom: jest.fn(() => 10),
+    })),
+  };
+
+  const layerConfig = JSON.parse(JSON.stringify(layerConfigImageArcGISRest));
+  layerConfig.configuration.props.minZoomQuery = 0; // ensure identify runs
+  layerConfig.configuration.props.clickTolerance = 25;
+
+  await queryLayerFeatures(layerConfig, mockMap, [0, 0], [639, 366]);
+
+  const params = new URLSearchParams({
+    f: "json",
+    tolerance: 25,
+    returnGeometry: true,
+    geometryType: "esriGeometryPoint",
+    sr: "4326",
+    geometry: "0,0",
+    mapExtent: "1,2,3,4",
+    returnFieldName: true,
+    imageDisplay: "100, 200, 500",
+    layers: "visible",
+  });
+  const featureQueryUrl =
+    layerConfig.configuration.props.source.props.url + "/identify";
+  expect(global.fetch).toHaveBeenCalledWith(
+    `${featureQueryUrl}?${params.toString()}`,
+  );
   global.fetch.mockRestore?.();
 });
 

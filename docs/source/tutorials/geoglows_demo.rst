@@ -126,6 +126,10 @@ Step 3 — Add the map layer
 
    See the :doc:`../maps/layer_tab` for all layer-level options.
 
+.. tip::
+
+   Thin flowlines are hard to click exactly. To make them easier to select, also set **Click Tolerance** to ``20`` and check **Snap To Features** — hovering near a river then highlights the nearest reach with a snapped marker, and a click selects it without precise aim. See :ref:`feature_snapping` for how snapping behaves.
+
 Step 4 — Edit the layer source
 ------------------------------
 

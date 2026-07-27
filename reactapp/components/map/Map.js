@@ -54,6 +54,7 @@ const MapComponent = ({
   drawing,
   onMapClick,
   onMapHover,
+  onMapMoveEnd,
   visualizationRef,
   dataviewerViz,
   runtimeLayerState,
@@ -63,6 +64,8 @@ const MapComponent = ({
   const mapDivRef = useRef();
   const onMapClickCurrent = useRef();
   const onMapHoverCurrent = useRef();
+  const onMapMoveEndCurrent = useRef();
+  const onMapMoveEndPrimed = useRef(false);
   const [zoom, setZoom] = useState(4.5);
   const [lonLat, setLonLat] = useState([-10686671.12, 4721671.57]);
   const [projection, setProjection] = useState("EPSG:3857");
@@ -577,6 +580,31 @@ const MapComponent = ({
           visualizationRef.current.on("pointermove", onMapHoverCurrent.current);
         }
 
+        // Mirror the hover registration for the map's moveend so the snapping
+        // feature cache can refresh when the view changes (pan/zoom).
+        if (onMapMoveEnd) {
+          if (onMapMoveEndCurrent.current) {
+            visualizationRef.current.un("moveend", onMapMoveEndCurrent.current);
+          }
+          onMapMoveEndCurrent.current = function () {
+            onMapMoveEnd(visualizationRef.current);
+          };
+          visualizationRef.current.on("moveend", onMapMoveEndCurrent.current);
+          // Prime the cache for the initial view: this registration lives in
+          // an async layer-sync effect, so the map's first moveend fires
+          // before the handler is attached and snapping would stay inert
+          // until the first user pan. Guarded to run once per map instance —
+          // this block re-runs on every layer update and the handler issues
+          // real network fetches. The prime waits for the first run that
+          // actually carries layers: the very first effect pass runs before
+          // the parent's layer state resolves, and live-source snap caches
+          // (GeoJSON/Feature Service) need their OL layers mounted to resolve.
+          if (!onMapMoveEndPrimed.current && (layers?.length ?? 0) > 0) {
+            onMapMoveEndPrimed.current = true;
+            onMapMoveEndCurrent.current();
+          }
+        }
+
         // update the layerControlUpdate so that the layer controls are triggered to rerender with the new layers
         setLayerControlUpdate(!layerControlUpdate);
 
@@ -678,6 +706,7 @@ MapComponent.propTypes = {
   layerControl: PropTypes.bool, // deterimines if a layer control menu should be present
   onMapClick: PropTypes.func, // function for when user click on the map
   onMapHover: PropTypes.func, // function for when user moves the cursor over the map
+  onMapMoveEnd: PropTypes.func, // function for when the map view finishes moving (pan/zoom)
   visualizationRef: PropTypes.shape({ current: PropTypes.any }), // react ref pointing to the ol Map
   dataviewerViz: PropTypes.bool, // determines if the map is in the dataviewer so that it doesnt affect the main map
   mapDrawing: mapDrawingPropType,

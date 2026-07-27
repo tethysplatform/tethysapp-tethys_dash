@@ -16,6 +16,20 @@ import { PMTiles } from "pmtiles";
 import { VectorTile } from "@mapbox/vector-tile";
 import Protobuf from "pbf";
 
+// Source types whose features live in a client-side OL VectorSource (vs
+// server-rendered services queried remotely).
+export const CLIENT_VECTOR_SOURCE_TYPES = ["GeoJSON", "ESRI Feature Service"];
+
+// Coerce an optional numeric layer prop: GUI inputs emit strings, so accept
+// any numeric value but treat null/undefined/blank/non-numeric as unset.
+export function coerceOptionalNumber(value) {
+  if (value === null || value === undefined) return undefined;
+  const str = String(value).trim();
+  if (str === "") return undefined;
+  const num = Number(str);
+  return Number.isFinite(num) ? num : undefined;
+}
+
 export const sourcePropertiesOptions = {
   "ESRI Image and Map Service": {
     required: {
@@ -215,6 +229,21 @@ export const layerPropertiesOptions = {
     type: "number",
     placeholder:
       "The minimum view zoom level (inclusive) at which this layer can be queried. If the mp is clicked beyond the zoom level, then the map will zoom into the minZoomQuery value",
+  },
+  clickTolerance: {
+    type: "number",
+    placeholder:
+      "Pixel tolerance for ESRI Image and Map Service identify (click) requests (default 10) and for GeoJSON / ESRI Feature Service feature queries (default 0). Also sets the snap radius when Snap To Features is on (default 15).",
+  },
+  snapToFeatures: {
+    type: "checkbox",
+    placeholder:
+      "Snap hover/click to the nearest feature of this layer (ESRI Map Service, GeoJSON, or ESRI Feature Service).",
+  },
+  snapSublayer: {
+    type: "number",
+    placeholder:
+      "MapServer sublayer used for snapping feature queries. Defaults to the first id in the LAYERS 'show:N' source param, else 0.",
   },
 };
 
@@ -571,6 +600,7 @@ export async function queryLayerFeatures(layerInfo, map, coordinate, pixel) {
         sourceParams,
         map,
         coordinate,
+        layerInfo.configuration.props.clickTolerance ?? 10,
       );
     } else if (sourceType === "WMS") {
       features = await getImageWMSLayerFeatures(
@@ -579,15 +609,16 @@ export async function queryLayerFeatures(layerInfo, map, coordinate, pixel) {
         map,
         pixel,
       );
-    } else if (
-      sourceType === "GeoJSON" ||
-      sourceType === "ESRI Feature Service"
-    ) {
+    } else if (CLIENT_VECTOR_SOURCE_TYPES.includes(sourceType)) {
+      const clickTolerance = coerceOptionalNumber(
+        layerInfo.configuration.props.clickTolerance,
+      );
       features = await getGeoJSONLayerFeatures(
         map,
         pixel,
         coordinate,
         LayerName,
+        clickTolerance,
       );
     } else if (sourceType === "PMTiles Vector") {
       features = getVectorTileLayerFeatures(map, pixel);
@@ -693,7 +724,14 @@ function getVectorTileLayerFeatures(map, pixel) {
   return features;
 }
 
-async function getESRILayerFeatures(sourceUrl, sourceParams, map, coordinate) {
+async function getESRILayerFeatures(
+  sourceUrl,
+  sourceParams,
+  map,
+  coordinate,
+  // The caller (queryLayerFeatures) owns the default via `clickTolerance ?? 10`.
+  tolerance,
+) {
   // setup fetch request with params
   const featureQueryUrl = sourceUrl + "/identify";
   const view = map.getView();
@@ -705,7 +743,7 @@ async function getESRILayerFeatures(sourceUrl, sourceParams, map, coordinate) {
       : { extent: rawExtent, point: coordinate };
   const params = new URLSearchParams({
     f: "json",
-    tolerance: 10, // Pixel tolerance
+    tolerance, // Pixel tolerance (per-layer via clickTolerance prop, default 10)
     returnGeometry: true,
     geometryType: "esriGeometryPoint",
     sr: projectionCode.split(":")[1],
@@ -798,78 +836,88 @@ async function getImageWMSLayerFeatures(sourceUrl, sourceParams, map, pixel) {
   return features;
 }
 
-async function getGeoJSONLayerFeatures(map, pixel, coordinate, LayerName) {
+async function getGeoJSONLayerFeatures(
+  map,
+  pixel,
+  coordinate,
+  LayerName,
+  tolerance,
+) {
   const features = [];
 
   // loop through the feature layers that are found at the clicked pixel
-  map.forEachFeatureAtPixel(pixel, function (feature, layer) {
-    // dont get any features that are highlights or markers
-    if (layer.get("name") !== LayerName) {
-      return;
-    }
-
-    if (feature) {
-      let clickedGeometries = [];
-      const { geometry, ...properties } = feature.getProperties();
-
-      // if a feature is a collection of geometries, then check each individual item in the collection and check if it was clicked
-      if (
-        geometry.getType() === "GeometryCollection" ||
-        geometry.getType() === "MultiGeometry"
-      ) {
-        const resolution = map.getView().getResolution();
-
-        // loop through each individual geometry in the collection
-        geometry.getGeometries().forEach((geom) => {
-          const type = geom.getType();
-
-          // if the geometry is a point or string (not a polygon) then see how close the click was to the feature
-          if (
-            type === "Point" ||
-            type === "LineString" ||
-            type === "MultiLineString"
-          ) {
-            // get the closest feature point to the clicked coordinate
-            const closestPoint = geom.getClosestPoint(coordinate);
-
-            // calculate the distance from the closest point to the clicked coordinate and convert from coordinate unit to pixel
-            const distance =
-              Math.sqrt(
-                Math.pow(closestPoint[0] - coordinate[0], 2) +
-                  Math.pow(closestPoint[1] - coordinate[1], 2),
-              ) / resolution;
-
-            // if the closest point distance is less than the threshold, count it as being clicked
-            const threshold = 10; // pixel threshold
-            if (distance < threshold) {
-              clickedGeometries.push(geom);
-            }
-          } else {
-            // check to see if the geometry intersects with the coordinate
-            if (geom.intersectsCoordinate(coordinate)) {
-              clickedGeometries.push(geom);
-            }
-          }
-        });
-      } else {
-        clickedGeometries.push(geometry);
+  map.forEachFeatureAtPixel(
+    pixel,
+    function (feature, layer) {
+      // dont get any features that are highlights or markers
+      if (layer.get("name") !== LayerName) {
+        return;
       }
 
-      // for each geometry that was clicked or within a threshold of clicking, add it feature and attributes
-      if (clickedGeometries.length > 0) {
-        clickedGeometries.forEach((clickedGeometry) => {
-          features.push({
-            layerName: layer.getProperties().name,
-            attributes: properties,
-            geometry: {
-              type: clickedGeometry.getType(),
-              coordinates: clickedGeometry.getCoordinates(),
-            },
+      if (feature) {
+        let clickedGeometries = [];
+        const { geometry, ...properties } = feature.getProperties();
+
+        // if a feature is a collection of geometries, then check each individual item in the collection and check if it was clicked
+        if (
+          geometry.getType() === "GeometryCollection" ||
+          geometry.getType() === "MultiGeometry"
+        ) {
+          const resolution = map.getView().getResolution();
+
+          // loop through each individual geometry in the collection
+          geometry.getGeometries().forEach((geom) => {
+            const type = geom.getType();
+
+            // if the geometry is a point or string (not a polygon) then see how close the click was to the feature
+            if (
+              type === "Point" ||
+              type === "LineString" ||
+              type === "MultiLineString"
+            ) {
+              // get the closest feature point to the clicked coordinate
+              const closestPoint = geom.getClosestPoint(coordinate);
+
+              // calculate the distance from the closest point to the clicked coordinate and convert from coordinate unit to pixel
+              const distance =
+                Math.sqrt(
+                  Math.pow(closestPoint[0] - coordinate[0], 2) +
+                    Math.pow(closestPoint[1] - coordinate[1], 2),
+                ) / resolution;
+
+              // if the closest point distance is less than the threshold, count it as being clicked
+              const threshold = tolerance ?? 10; // pixel threshold
+              if (distance < threshold) {
+                clickedGeometries.push(geom);
+              }
+            } else {
+              // check to see if the geometry intersects with the coordinate
+              if (geom.intersectsCoordinate(coordinate)) {
+                clickedGeometries.push(geom);
+              }
+            }
           });
-        });
+        } else {
+          clickedGeometries.push(geometry);
+        }
+
+        // for each geometry that was clicked or within a threshold of clicking, add it feature and attributes
+        if (clickedGeometries.length > 0) {
+          clickedGeometries.forEach((clickedGeometry) => {
+            features.push({
+              layerName: layer.getProperties().name,
+              attributes: properties,
+              geometry: {
+                type: clickedGeometry.getType(),
+                coordinates: clickedGeometry.getCoordinates(),
+              },
+            });
+          });
+        }
       }
-    }
-  });
+    },
+    { hitTolerance: tolerance ?? 0 },
+  );
 
   return features;
 }
@@ -1538,6 +1586,10 @@ export const configurationPropType = PropTypes.shape({
     layerId: PropTypes.string,
     // Optional; present on runtime-capable layers only.
     pluginSource: pluginSourcePropType,
+    // Optional; per-layer feature-query tuning (see layerPropertiesOptions).
+    clickTolerance: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    snapToFeatures: PropTypes.bool,
+    snapSublayer: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
   }),
   type: PropTypes.string, // layer type
 });

@@ -5,6 +5,7 @@ import {
   derivePanes,
   classifyArrangement,
   reflowDomains,
+  reflowColorbar,
   applySubplotToggle,
   associateItemToPane,
 } from "components/visualizations/subplotToggle";
@@ -65,6 +66,49 @@ const grid2x2 = () => ({
     yaxis2: { domain: [0.55, 1] },
     yaxis3: { domain: [0, 0.45] },
     yaxis4: { domain: [0, 0.45] },
+  },
+});
+
+// Two vertically-stacked heatmaps (shared x-domain) + a go.Table footer that
+// positions itself with its own `domain`, mirroring the CW3E "MRR" figure.
+const verticalStackWithTable = () => ({
+  data: [
+    {
+      name: "Reflectivity",
+      type: "heatmap",
+      xaxis: "x",
+      yaxis: "y",
+      // Colorbar sized/positioned to the row-1 band [0.63, 1.0].
+      colorbar: { len: 0.37, y: 0.815, yanchor: "middle" },
+    }, // 0
+    {
+      name: "Vertical Velocity",
+      type: "heatmap",
+      xaxis: "x",
+      yaxis: "y3",
+      // Colorbar sized/positioned to the row-2 band [0.25, 0.6].
+      colorbar: { len: 0.35, y: 0.425, yanchor: "middle" },
+    }, // 1
+    {
+      name: "MRR Table",
+      type: "table",
+      domain: { x: [0, 1], y: [0, 0.16] }, // footer band
+      header: {},
+      cells: {},
+    }, // 2
+  ],
+  layout: {
+    xaxis: { domain: [0, 1], anchor: "y" },
+    yaxis: {
+      domain: [0.63, 1.0],
+      anchor: "x",
+      title: { text: "Reflectivity" },
+    },
+    yaxis3: {
+      domain: [0.25, 0.6],
+      anchor: "x",
+      title: { text: "Vertical Velocity" },
+    },
   },
 });
 
@@ -254,6 +298,63 @@ describe("reflowDomains", () => {
   });
 });
 
+describe("reflowColorbar", () => {
+  it("scales len and maps y for a per-subplot bar (middle anchor)", () => {
+    // Row-1 band [0.63, 1.0] (h 0.37) expands to the full envelope [0.25, 1.0].
+    const cb = { len: 0.37, y: 0.815, yanchor: "middle" };
+    const out = reflowColorbar(cb, [0.63, 1.0], [0.25, 1.0]);
+    expect(out.len).toBeCloseTo(0.75, 6); // fills the new band
+    expect(out.y).toBeCloseTo(0.625, 6); // recentred on [0.25, 1.0]
+    // Original untouched (new object).
+    expect(cb.len).toBe(0.37);
+  });
+
+  it("respects top and bottom anchors when testing containment", () => {
+    const top = reflowColorbar(
+      { len: 0.3, y: 1.0, yanchor: "top" }, // extent [0.7, 1.0]
+      [0.7, 1.0],
+      [0.5, 1.0],
+    );
+    expect(top.len).toBeCloseTo(0.5, 6); // 0.3 * (0.5 / 0.3) = 0.5
+    expect(top.y).toBeCloseTo(1.0, 6); // top edge maps to new top
+
+    const bottom = reflowColorbar(
+      { len: 0.3, y: 0.0, yanchor: "bottom" }, // extent [0, 0.3]
+      [0, 0.3],
+      [0, 0.6],
+    );
+    expect(bottom.len).toBeCloseTo(0.6, 6);
+    expect(bottom.y).toBeCloseTo(0.0, 6);
+  });
+
+  it("leaves a figure-wide shared bar alone (extent not within the band)", () => {
+    // Full-height bar (len 1, centred) doesn't belong to a 0.37-tall subplot.
+    expect(
+      reflowColorbar({ len: 1, y: 0.5 }, [0.63, 1.0], [0.25, 1.0]),
+    ).toBeNull();
+  });
+
+  it("ignores bars without both len and y, pixel lengths, and non-paper refs", () => {
+    expect(reflowColorbar({ len: 0.3 }, [0.63, 1], [0.25, 1])).toBeNull();
+    expect(reflowColorbar({ y: 0.8 }, [0.63, 1], [0.25, 1])).toBeNull();
+    expect(
+      reflowColorbar(
+        { len: 0.37, y: 0.815, lenmode: "pixels" },
+        [0.63, 1],
+        [0.25, 1],
+      ),
+    ).toBeNull();
+    expect(
+      reflowColorbar(
+        { len: 0.37, y: 0.815, yref: "container" },
+        [0.63, 1],
+        [0.25, 1],
+      ),
+    ).toBeNull();
+    expect(reflowColorbar(undefined, [0.63, 1], [0.25, 1])).toBeNull();
+  });
+});
+
 describe("applySubplotToggle", () => {
   it("is a no-op when all panes are visible", () => {
     const { data, layout } = verticalStackWithOverlays();
@@ -364,6 +465,130 @@ describe("applySubplotToggle", () => {
     // Visible panes keep original domains despite being a stack.
     expect(out.layout.yaxis.domain).toEqual([0.7, 1.0]);
     expect(out.layout.yaxis5.domain).toEqual([0, 0.3]);
+  });
+});
+
+describe("domain-based traces (go.Table etc.)", () => {
+  it("classifies a go.Table as its own non-cartesian pane with the trace's domain", () => {
+    const { data, layout } = verticalStackWithTable();
+    const panes = derivePanes(data, layout);
+    expect(panes).toHaveLength(3);
+
+    const table = panes.find((p) => p.kind === "nonCartesian");
+    expect(table).toBeDefined();
+    // Its own pane — not grouped with the row-1 Reflectivity heatmap.
+    expect(table.traceIndices).toEqual([2]);
+    expect(table.id).toBe("np:domain:table:2");
+    // Rect read from the trace's own `domain`, not from `layout`.
+    expect(table.rect.y).toEqual([0, 0.16]);
+    // The Reflectivity pane keeps only its own trace.
+    const reflectivity = panes.find((p) => p.primaryYKey === "yaxis");
+    expect(reflectivity.traceIndices).toEqual([0]);
+  });
+
+  it("does not offer an unlabeled domain pane as a toggle, but labeled ones are", () => {
+    const { data, layout } = verticalStackWithTable();
+    const unlabeled = derivePanes(data, layout).find(
+      (p) => p.kind === "nonCartesian",
+    );
+    expect(unlabeled.toggleable).toBe(false);
+    // Cartesian panes stay toggleable.
+    expect(
+      derivePanes(data, layout)
+        .filter((p) => p.kind === "cartesian")
+        .every((p) => p.toggleable),
+    ).toBe(true);
+
+    // Labelled by trace type...
+    const byType = derivePanes(data, layout, {
+      labels: { table: "MRR Table" },
+    }).find((p) => p.kind === "nonCartesian");
+    expect(byType.toggleable).toBe(true);
+    expect(byType.label).toBe("MRR Table");
+
+    // ...or by pane id.
+    const byId = derivePanes(data, layout, {
+      labels: { "domain:table:2": "Footer" },
+    }).find((p) => p.kind === "nonCartesian");
+    expect(byId.toggleable).toBe(true);
+    expect(byId.label).toBe("Footer");
+  });
+
+  it("scene/geo panes stay toggleable regardless of labels", () => {
+    const panes = derivePanes([
+      { type: "scatter3d", scene: "scene" },
+      { type: "scattergeo", geo: "geo2" },
+    ]);
+    expect(panes.every((p) => p.toggleable)).toBe(true);
+  });
+
+  it("still classifies the cartesian stack as vertical, ignoring the table", () => {
+    const { data, layout } = verticalStackWithTable();
+    expect(classifyArrangement(derivePanes(data, layout))).toBe("vertical");
+  });
+
+  it("reflows only within the cartesian envelope, preserving the table band", () => {
+    const { data, layout } = verticalStackWithTable();
+    const panes = derivePanes(data, layout);
+    const reflectivity = panes.find((p) => p.primaryYKey === "yaxis");
+    const table = panes.find((p) => p.kind === "nonCartesian");
+    const tableTop = table.rect.y[1]; // 0.16
+
+    // Hide Vertical Velocity; keep Reflectivity (+ the always-visible table).
+    const domains = reflowDomains(
+      panes,
+      [reflectivity.id, table.id],
+      "vertical",
+    );
+    // The lone visible heatmap fills the cartesian envelope [0.25, 1.0], NOT
+    // [0, 1] — its bottom stays above the table band.
+    expect(domains.yaxis[0]).toBeCloseTo(0.25, 6);
+    expect(domains.yaxis[1]).toBeCloseTo(1.0, 6);
+    expect(domains.yaxis[0]).toBeGreaterThanOrEqual(tableTop);
+  });
+
+  it("keeps the table visible and unoverlapped when a heatmap is toggled off", () => {
+    const { data, layout } = verticalStackWithTable();
+    const panes = derivePanes(data, layout);
+    const reflectivity = panes.find((p) => p.primaryYKey === "yaxis");
+    const table = panes.find((p) => p.kind === "nonCartesian");
+
+    const out = applySubplotToggle(data, layout, [reflectivity.id, table.id]);
+    // Vertical Velocity hidden, Reflectivity + table still visible.
+    expect(out.data[1].visible).toBe(false);
+    expect(out.data[0].visible).toBe(true);
+    expect(out.data[2].visible).not.toBe(false); // table trace untouched
+    // Reflectivity expanded but not over the table.
+    expect(out.layout.yaxis.domain[0]).toBeCloseTo(0.25, 6);
+    expect(out.layout.yaxis.domain[0]).toBeGreaterThanOrEqual(table.rect.y[1]);
+    // The visible heatmap's colorbar grows to track the expanded band, and the
+    // table (no colorbar) is untouched.
+    expect(out.data[0].colorbar.len).toBeCloseTo(0.75, 6);
+    expect(out.data[0].colorbar.y).toBeCloseTo(0.625, 6);
+    expect(out.data[2].colorbar).toBeUndefined();
+  });
+
+  it("leaves colorbars untouched when the figure is not reflowed (all visible)", () => {
+    const { data, layout } = verticalStackWithTable();
+    const out = applySubplotToggle(data, layout, null);
+    expect(out.data).toBe(data); // pristine reference
+    expect(out.data[0].colorbar.len).toBe(0.37);
+  });
+
+  it("unions the bands of multiple domain traces", () => {
+    const data = [
+      { name: "H", type: "heatmap", xaxis: "x", yaxis: "y" },
+      { name: "T1", type: "table", domain: { x: [0, 0.5], y: [0, 0.15] } },
+      { name: "T2", type: "table", domain: { x: [0.5, 1], y: [0, 0.15] } },
+    ];
+    const layout = { xaxis: { domain: [0, 1] }, yaxis: { domain: [0.25, 1] } };
+    const panes = derivePanes(data, layout);
+    const tables = panes.filter((p) => p.kind === "nonCartesian");
+    expect(tables).toHaveLength(2); // distinct panes, distinct ids
+    expect(tables.map((p) => p.id)).toEqual([
+      "np:domain:table:1",
+      "np:domain:table:2",
+    ]);
   });
 });
 
@@ -524,6 +749,9 @@ describe("branch coverage", () => {
   });
 
   it("reflowDomains splits evenly when bands sum to ~0 (lines 287-290)", () => {
+    // Zero-width bands => zero-width cartesian envelope, so the even-split
+    // branch runs but there is no space to distribute; both collapse to the
+    // envelope point (here 0).
     const panes = [
       { id: "a", kind: "cartesian", primaryYKey: "yaxis", rect: { y: [0, 0] } },
       {
@@ -534,8 +762,8 @@ describe("branch coverage", () => {
       },
     ];
     const out = reflowDomains(panes, ["a", "b"], "vertical");
-    expect(out.yaxis).toEqual([0, 0.5]);
-    expect(out.yaxis3).toEqual([0.5, 1]);
+    expect(out.yaxis).toEqual([0, 0]);
+    expect(out.yaxis3).toEqual([0, 0]);
   });
 
   it("associateItemToPane prefers the x-axis for a horizontal strip (line 333)", () => {
@@ -647,6 +875,62 @@ describe("branch coverage", () => {
         "vertical",
       )?.id,
     ).toBe(vPanes[1].id);
+  });
+
+  it("defaults a domain-based trace's missing `domain` to the full paper (line 156)", () => {
+    // A go.Table with no explicit domain: `trace.domain || {}` falls back and
+    // the pane rect defaults to the whole paper.
+    const panes = derivePanes(
+      [{ type: "table" }],
+      {},
+      {
+        labels: { table: "Stats" },
+      },
+    );
+    expect(panes).toHaveLength(1);
+    expect(panes[0].kind).toBe("nonCartesian");
+    expect(panes[0].toggleable).toBe(true); // labeled by trace type
+    expect(panes[0].rect).toEqual({ x: [0, 1], y: [0, 1] });
+  });
+
+  it("classifyArrangement returns none for a missing panes list (line 294)", () => {
+    expect(classifyArrangement(null)).toBe("none");
+    expect(classifyArrangement(undefined)).toBe("none");
+  });
+
+  it("reflowColorbar leaves a bar on a zero-height band untouched (line 418)", () => {
+    // Degenerate original band [0.5, 0.5]: a tiny bar passes the band-tolerance
+    // check, but the scale factor is undefined (0/0) -> null, bar untouched.
+    expect(
+      reflowColorbar({ len: 0.02, y: 0.5 }, [0.5, 0.5], [0.2, 0.8]),
+    ).toBeNull();
+  });
+
+  it("applies a colorbar override without flipping an explicitly-visible trace (line 552)", () => {
+    // Vertical stack where the surviving pane's trace already carries
+    // `visible: true`: its visibility must NOT be rewritten (flip=false) while
+    // its colorbar still reflows with the expanded band (cb truthy).
+    const data = [
+      {
+        xaxis: "x",
+        yaxis: "y",
+        visible: true,
+        colorbar: { len: 0.28, y: 0.85 },
+      },
+      { xaxis: "x", yaxis: "y2" },
+    ];
+    const layout = {
+      xaxis: { domain: [0, 1] },
+      yaxis: { domain: [0.7, 1], anchor: "x" },
+      yaxis2: { domain: [0, 0.3], anchor: "x" },
+    };
+    const panes = derivePanes(data, layout);
+    const out = applySubplotToggle(data, layout, [panes[0].id]);
+    expect(out.data[0]).not.toBe(data[0]); // cloned for the colorbar override
+    expect(out.data[0].visible).toBe(true); // not flipped
+    // Band [0.7, 1] expands to the full envelope [0, 1] -> scale 1/0.3.
+    expect(out.data[0].colorbar.len).toBeCloseTo(0.28 / 0.3, 10);
+    expect(out.data[1].visible).toBe(false);
   });
 });
 
