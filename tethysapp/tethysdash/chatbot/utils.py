@@ -31,13 +31,11 @@ def get_classifier() -> EmbeddingIntentClassifier:
 
 def build_registry():
     """Registry mapping intents to their specialist agents."""
-    from .agents.docs import docs_agent
     from .agents.plugin import plugin_agent
     from .agents.registry import AgentRegistry
 
     return AgentRegistry(
         add_plugin=plugin_agent,
-        answer_docs_question=docs_agent,
     )
 
 

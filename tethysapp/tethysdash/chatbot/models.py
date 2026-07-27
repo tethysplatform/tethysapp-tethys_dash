@@ -8,7 +8,6 @@ from .agents.registry import AgentRegistry
 from .utils import emit_progress
 from .agents.embedding_data import (
     INTENT_ADD,
-    INTENT_DOCS,
     INTENT_LIST,
     INTENT_OOS,
 )
@@ -87,15 +86,6 @@ class LLMRouter:
         result = await selected_agent.run(request, deps=self.deps)
         response_text = result.output
 
-        if selected_intent == INTENT_DOCS:
-            from .tools.docs import retrieve_context
-
-            _, sources = retrieve_context(request)
-            if sources:
-                links = " · ".join(
-                    f"[{s['title']}]({s['url']})" for s in sources
-                )
-                response_text = f"{response_text}\n\n**Sources:** {links}"
 
         return RoutedResponse(
             intent=public_intent,

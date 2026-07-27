@@ -70,13 +70,3 @@ def test_plural_folding_matches_singular_question():
     # 'input' (question) must match 'inputs' (filename/headings)
     top3 = [p.name for p, _ in score_docs("variable input")[:3]]
     assert "variable_inputs.rst" in top3
-
-
-def test_docs_is_a_known_routing_intent():
-    from tethysapp.tethysdash.chatbot.agents.embedding_data import (
-        INTENT_DOCS,
-        INTENTS,
-    )
-
-    assert INTENT_DOCS in INTENTS
-    assert INTENTS[INTENT_DOCS], "docs intent needs example prompts"

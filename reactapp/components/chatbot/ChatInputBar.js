@@ -93,7 +93,7 @@ export default function ChatInputBar({ onSend, disabled, draft }) {
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder="Ask the docs, add a visualization, or list plugins..."
+        placeholder="Add a visualization, or list plugins..."
         disabled={disabled}
         rows={1}
       />

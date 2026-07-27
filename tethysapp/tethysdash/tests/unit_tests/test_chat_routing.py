@@ -104,7 +104,6 @@ def test_live_classifier_routes_hard_cases():
     """Real model via bootstrap; skips if it can't be loaded (offline)."""
     from tethysapp.tethysdash.chatbot.agents.embedding_data import (
         INTENT_ADD,
-        INTENT_DOCS,
     )
 
     try:
@@ -114,5 +113,4 @@ def test_live_classifier_routes_hard_cases():
     except Exception as exc:  # noqa: BLE001 - model download/load may fail
         pytest.skip(f"embedding model unavailable: {exc}")
 
-    assert clf.classify("how do I create a map with a wms layer?").intent == INTENT_DOCS
     assert clf.classify("add the rainfall plugin for gauge 55").intent == INTENT_ADD

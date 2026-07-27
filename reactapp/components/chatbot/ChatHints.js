@@ -12,11 +12,6 @@ import PropTypes from "prop-types";
 //                  a canned add)
 const HINTS = [
   {
-    title: "Ask the documentation",
-    example: "How do I create a variable input?",
-    mode: "send",
-  },
-  {
     title: "List available plugins",
     example: "What plugins are available?",
     mode: "send",
