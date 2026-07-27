@@ -31,6 +31,7 @@ def list_visualization_plugins() -> list[PluginSpec]:
         if not _is_visualization_plugin(cls):
             continue
         specs.append(PluginSpec(
+            name = str(_plugin_attr(cls, "visualization_label", name)),
             source=name,
             viz_type=str(_plugin_attr(cls, "type", "?")),
             args=_plugin_attr(cls, "args", {}) or {},
@@ -41,6 +42,8 @@ def list_visualization_plugins() -> list[PluginSpec]:
 def get_plugin(source: str) -> PluginSpec | None:
     for spec in list_visualization_plugins():
         if spec.source == source:
+            return spec
+        elif spec.name == source:
             return spec
     return None
 
@@ -53,8 +56,8 @@ def format_catalog_for_llm() -> str:
         args_line = ", ".join(s.args) if s.args else "(none)"
         desc = s.description or "(no description)"
         blocks.append(
-            f"**{s.source}** ({s.viz_type})\n"
-            f"  args: {args_line}\n"
+            f"**{s.name}** ({s.viz_type})\n"
+            f" `{s.source}` - `args: {args_line}` \n\n"
             f"  {desc}"
         )
     return "\n\n".join(blocks)

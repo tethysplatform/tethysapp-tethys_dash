@@ -16,6 +16,7 @@ from .agents.embedding_data import (
 
 @dataclass(frozen=True)
 class PluginSpec:
+    name: str
     source: str
     viz_type: str
     args: dict[str, Any]
