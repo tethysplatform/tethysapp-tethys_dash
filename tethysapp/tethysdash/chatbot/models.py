@@ -21,6 +21,14 @@ class PluginSpec:
     args: dict[str, Any]
     description: str
 
+
+class PluginRequest(BaseModel):
+    """A single plugin to add: its catalog source name and argument object."""
+
+    source: str
+    args: dict[str, Any] = {}
+
+
 class RoutedResponse(BaseModel):
     intent: IntentName | Literal["fallback"]
     similarity: float
@@ -55,7 +63,6 @@ class LLMRouter:
 
     async def route(self, request: str) -> RoutedResponse | str:
         prediction = self.classifier.classify(request)
-
         if prediction.intent is None or prediction.intent == INTENT_OOS:
             return (
                 "I can help with two things: adding a visualization to your "
@@ -72,7 +79,7 @@ class LLMRouter:
             )
 
         elif prediction.intent == INTENT_LIST:
-            from .tools.plugins import format_catalog_for_llm
+            from .tools.catalog import format_catalog_for_llm
 
             emit_progress(self.deps.chat_id, "Fetching available plugins...")
             return format_catalog_for_llm()

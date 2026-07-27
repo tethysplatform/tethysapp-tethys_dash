@@ -14,10 +14,11 @@ from asgiref.sync import async_to_sync
 
 from tethysapp.tethysdash.chatbot.agents.embedder import IntentPrediction
 from tethysapp.tethysdash.chatbot.agents.embedding_data import INTENT_ADD
-from tethysapp.tethysdash.chatbot.tools import add_visualization_from_plugin
+from tethysapp.tethysdash.chatbot.tools import add_visualizations_from_plugin
 from tethysapp.tethysdash.chatbot.models import (
     ChatDeps,
     LLMRouter,
+    PluginRequest,
     RoutedResponse,
 )
 
@@ -82,8 +83,8 @@ def test_tool_refuses_non_owner_even_if_router_bypassed():
     with patch(
         "tethysapp.tethysdash.chatbot.tools.plugins.update_named_dashboard"
     ) as update:
-        reply = add_visualization_from_plugin(
-            ctx, source="anything", args={"river_id": "1"}
+        reply = add_visualizations_from_plugin(
+            ctx, [PluginRequest(source="anything", args={"river_id": "1"})]
         )
     assert "owner" in reply.lower()
     update.assert_not_called()
@@ -103,8 +104,8 @@ def test_tool_allows_owner():
          patch(
             "tethysapp.tethysdash.chatbot.tools.plugins.update_named_dashboard"
          ) as update:
-        reply = add_visualization_from_plugin(
-            ctx, source="p", args={"river_id": "1"}
+        reply = add_visualizations_from_plugin(
+            ctx, [PluginRequest(source="p", args={"river_id": "1"})]
         )
     assert "Added" in reply
     update.assert_called_once()

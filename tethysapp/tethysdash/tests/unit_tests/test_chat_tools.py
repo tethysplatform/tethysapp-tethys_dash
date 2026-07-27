@@ -1,17 +1,12 @@
-"""Tests for chat/tools/plugins.py - add_visualization_from_plugin.
-
-Current-API replacement for the deleted tethys-agents-era
-test_agent_tools.py: the tool now takes ``args: dict`` (not a JSON
-string) and session context via ``ChatDeps`` (not a contextvar).
-"""
+"""Tests for chatbot/tools/plugins.py - add_visualizations_from_plugin."""
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
 from pydantic_ai import ModelRetry
 
-from tethysapp.tethysdash.chatbot.tools import add_visualization_from_plugin
-from tethysapp.tethysdash.chatbot.models import ChatDeps
+from tethysapp.tethysdash.chatbot.models import ChatDeps, PluginRequest
+from tethysapp.tethysdash.chatbot.tools import add_visualizations_from_plugin
 
 
 @pytest.fixture(autouse=True)
@@ -21,8 +16,7 @@ def truncate_tables():
 
 
 def _ctx(dashboard_id=6, retry=0, max_retries=3):
-    # retry/max_retries drive the missing-args behavior: raise ModelRetry
-    # while retries remain, return an ask message once exhausted.
+    """Build a RunContext-like stub with ChatDeps and retry counters."""
     return SimpleNamespace(
         deps=ChatDeps(user=MagicMock(), dashboard_id=dashboard_id, chat_id=""),
         retry=retry,
@@ -31,11 +25,17 @@ def _ctx(dashboard_id=6, retry=0, max_retries=3):
 
 
 def _fake_plugin(args=("river_id",)):
-    cls = MagicMock()
-    cls.visualization_type = "plotly"
-    cls.visualization_args = {a: "text" for a in args}
-    cls.visualization_description = "A test plugin."
-    return cls
+    """Build a stub visualization plugin exposing the visualization_* attributes."""
+    return SimpleNamespace(
+        visualization_type="plotly",
+        visualization_args={a: "text" for a in args},
+        visualization_description="A test plugin.",
+    )
+
+
+def _reqs(*pairs):
+    """Build a list of PluginRequest from (source, args) pairs."""
+    return [PluginRequest(source=source, args=args) for source, args in pairs]
 
 
 _REGISTRY = "intake.source.registry"
@@ -46,77 +46,72 @@ _UPDATE = "tethysapp.tethysdash.chatbot.tools.plugins.update_named_dashboard"
 def test_unknown_source_raises_model_retry_with_catalog():
     with patch(_REGISTRY, {"known_plugin": _fake_plugin()}):
         with pytest.raises(ModelRetry) as exc:
-            add_visualization_from_plugin(_ctx(), source="made_up_plugin", args={})
-    # the retry message must let the LLM self-correct: name the bad value
-    # and list what IS available
+            add_visualizations_from_plugin(_ctx(), _reqs(("made_up_plugin", {})))
     assert "made_up_plugin" in str(exc.value)
     assert "known_plugin" in str(exc.value)
 
 
 def test_unknown_source_on_final_attempt_returns_message():
-    # retries exhausted on a bad source -> graceful ask, not a raise that
-    # would bubble up as "Exceeded maximum output retries" and a 503
     with patch(_REGISTRY, {"known_plugin": _fake_plugin()}):
-        reply = add_visualization_from_plugin(
-            _ctx(retry=3, max_retries=3), source="text/plain", args={}
+        reply = add_visualizations_from_plugin(
+            _ctx(retry=3, max_retries=3), _reqs(("text/plain", {}))
         )
     assert "text/plain" in reply and "known_plugin" in reply
-    assert "raise" not in reply.lower()  # it's a message, not an exception
+    assert "raise" not in reply.lower()
 
 
-def test_non_dict_args_raises_model_retry():
-    with pytest.raises(ModelRetry, match="object"):
-        add_visualization_from_plugin(_ctx(), source="x", args=["not", "a", "dict"])
+def test_empty_visualizations_raises_model_retry():
+    with pytest.raises(ModelRetry, match="at least one"):
+        add_visualizations_from_plugin(_ctx(), [])
 
 
 def test_missing_arg_asks_immediately_naming_them():
-    # missing arg -> ask the user right away (NOT ModelRetry, which would
-    # pressure a weak model into fabricating a bogus value that then slips
-    # through and creates a broken tile)
-    with patch(_REGISTRY, {"p": _fake_plugin(args=("river_id", "station_id"))}), \
-         patch(_UPDATE) as update:
-        reply = add_visualization_from_plugin(
-            _ctx(retry=0), source="p", args={"river_id": "610217883"}
+    with (
+        patch(_REGISTRY, {"p": _fake_plugin(args=("river_id", "station_id"))}),
+        patch(_UPDATE) as update,
+    ):
+        reply = add_visualizations_from_plugin(
+            _ctx(retry=0), _reqs(("p", {"river_id": "610217883"}))
         )
-    assert "station_id" in reply and "needs" in reply
-    update.assert_not_called()  # nothing persisted
+    assert "station_id" in reply and "need" in reply
+    update.assert_not_called()
 
 
 def test_blank_arg_values_count_as_missing():
-    # weak models include the required key with an empty placeholder
-    # ("", whitespace, {}, []) instead of omitting it - still missing, so
-    # ask rather than persist a tile that fails at render time
     for blank in ["", "   ", {}, []]:
-        with patch(_REGISTRY, {"p": _fake_plugin(args=("station_id",))}), \
-             patch(_GET, return_value={"tabs": [{"gridItems": []}]}), \
-             patch(_UPDATE) as update:
-            reply = add_visualization_from_plugin(
-                _ctx(retry=0), source="p", args={"station_id": blank}
+        with (
+            patch(_REGISTRY, {"p": _fake_plugin(args=("station_id",))}),
+            patch(_GET, return_value={"tabs": [{"gridItems": []}]}),
+            patch(_UPDATE) as update,
+        ):
+            reply = add_visualizations_from_plugin(
+                _ctx(retry=0), _reqs(("p", {"station_id": blank}))
             )
-        assert "station_id" in reply and "needs" in reply, f"blank={blank!r}"
+        assert "station_id" in reply and "need" in reply, f"blank={blank!r}"
         update.assert_not_called()
 
 
 def test_dashboard_without_tabs_raises_model_retry():
-    with patch(_REGISTRY, {"p": _fake_plugin()}), \
-         patch(_GET, return_value={"tabs": []}), \
-         patch(_UPDATE) as update:
+    with (
+        patch(_REGISTRY, {"p": _fake_plugin()}),
+        patch(_GET, return_value={"tabs": []}),
+        patch(_UPDATE) as update,
+    ):
         with pytest.raises(ModelRetry, match="no tabs"):
-            add_visualization_from_plugin(
-                _ctx(), source="p", args={"river_id": "1"}
-            )
+            add_visualizations_from_plugin(_ctx(), _reqs(("p", {"river_id": "1"})))
     update.assert_not_called()
 
 
 def test_happy_path_appends_tile_and_persists():
     dashboard = {"tabs": [{"gridItems": [{"i": "existing"}]}]}
-    with patch(_REGISTRY, {"p": _fake_plugin()}), \
-         patch(_GET, return_value=dashboard), \
-         patch(_UPDATE) as update:
-        reply = add_visualization_from_plugin(
-            _ctx(dashboard_id=42), source="p", args={"river_id": "610217883"}
+    with (
+        patch(_REGISTRY, {"p": _fake_plugin()}),
+        patch(_GET, return_value=dashboard),
+        patch(_UPDATE) as update,
+    ):
+        reply = add_visualizations_from_plugin(
+            _ctx(dashboard_id=42), _reqs(("p", {"river_id": "610217883"}))
         )
-
     assert "p" in reply and "42" in reply
     update.assert_called_once()
     _user, dashboard_id, payload = update.call_args[0]
@@ -129,10 +124,49 @@ def test_happy_path_appends_tile_and_persists():
     assert tile["uuid"] and tile["i"]
 
 
-def test_none_args_treated_as_empty_for_no_arg_plugins():
+def test_multiple_plugins_persist_in_one_write_with_own_args():
     dashboard = {"tabs": [{"gridItems": []}]}
-    with patch(_REGISTRY, {"p": _fake_plugin(args=())}), \
-         patch(_GET, return_value=dashboard), \
-         patch(_UPDATE):
-        reply = add_visualization_from_plugin(_ctx(), source="p", args=None)
+    registry = {
+        "a": _fake_plugin(args=("river_id",)),
+        "b": _fake_plugin(args=("station_id",)),
+    }
+    with (
+        patch(_REGISTRY, registry),
+        patch(_GET, return_value=dashboard),
+        patch(_UPDATE) as update,
+    ):
+        reply = add_visualizations_from_plugin(
+            _ctx(dashboard_id=7),
+            _reqs(("a", {"river_id": "1"}), ("b", {"station_id": "2"})),
+        )
+    update.assert_called_once()
+    _user, _id, payload = update.call_args[0]
+    items = payload["tabs"][0]["gridItems"]
+    assert [t["source"] for t in items] == ["a", "b"]
+    assert '"river_id"' in items[0]["args_string"]
+    assert '"station_id"' in items[1]["args_string"]
+    assert "'a'" in reply and "'b'" in reply
+
+
+def test_one_unknown_source_blocks_all_before_persisting():
+    with (
+        patch(_REGISTRY, {"a": _fake_plugin(args=())}),
+        patch(_UPDATE) as update,
+    ):
+        with pytest.raises(ModelRetry):
+            add_visualizations_from_plugin(
+                _ctx(retry=0), _reqs(("a", {}), ("nope", {}))
+            )
+    update.assert_not_called()
+
+
+def test_no_arg_plugin_added_with_empty_args():
+    dashboard = {"tabs": [{"gridItems": []}]}
+    with (
+        patch(_REGISTRY, {"p": _fake_plugin(args=())}),
+        patch(_GET, return_value=dashboard),
+        patch(_UPDATE) as update,
+    ):
+        reply = add_visualizations_from_plugin(_ctx(), _reqs(("p", {})))
     assert "p" in reply
+    update.assert_called_once()
