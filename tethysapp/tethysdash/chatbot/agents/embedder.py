@@ -28,11 +28,6 @@ class EmbeddingIntentClassifier:
     def __init__(
         self,
         intents: Mapping[str, list[str]],
-        # bge-base separates this domain better than MiniLM (0 misroutes
-        # vs 3 on the eval set); ~418 MB weights, loaded once. Thresholds
-        # calibrated against the held-out eval set with max-over-examples
-        # scoring - low score floor is fine because the margin gate is
-        # what rejects out-of-scope (ambiguous prompts have small margins).
         model_name: str = "BAAI/bge-base-en-v1.5",
         minimum_score: float = 0.25,
         minimum_margin: float = 0.03,
@@ -47,10 +42,6 @@ class EmbeddingIntentClassifier:
         self.intents = dict(intents)
         self.minimum_score = minimum_score
         self.minimum_margin = minimum_margin
-        # local_files_only skips the Hub network check (and its
-        # "unauthenticated requests to the HF Hub" warning) when the model
-        # is already cached; fall back to a downloading load on a machine
-        # that doesn't have it yet.
         try:
             self.model = SentenceTransformer(model_name, local_files_only=True)
         except Exception:
@@ -97,8 +88,6 @@ class EmbeddingIntentClassifier:
             convert_to_numpy=True,
         )[0].astype(np.float32)
 
-        # Normalized vectors -> dot == cosine. Score each intent by its
-        # nearest single example (max over that intent's examples).
         scores = np.array(
             [
                 float((matrix @ query_embedding).max())

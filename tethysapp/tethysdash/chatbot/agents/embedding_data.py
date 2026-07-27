@@ -11,8 +11,6 @@ INTENTS: dict[str, list[str]] = {
         "add a tile using the rainfall plugin for gauge 55",
         "add a visualization to my dashboard",
         "add the same plugin again for a different value",
-        # real intake-driver name shapes (snake_case domain tokens) so
-        # actual plugin references match, not just generic placeholders
         "add the usgs_water_services plugin for site 09380000",
         "add the cw3e_surface_meterology plugin",
         "add the hydroserver_plot plugin for datastream 5",

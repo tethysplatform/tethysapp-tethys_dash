@@ -14,7 +14,6 @@ def _is_visualization_plugin(plugin_cls) -> bool:
     """True for TethysDash visualization plugins; False for generic intake drivers."""
     return hasattr(plugin_cls, "visualization_type") 
 
-
 def _plugin_attr(plugin_cls, name: str, default=None):
     """Read a plugin attribute supporting both new (``args``) and legacy
     (``visualization_args``) names."""
@@ -62,7 +61,7 @@ def format_catalog_for_llm() -> str:
         )
     return "\n\n".join(blocks)
 
-def _arg_is_blank(value: Any) -> bool:
+def arg_is_blank(value: Any) -> bool:
     """True when a supplied arg carries no usable value.
 
     Weak models often include a required key with an empty placeholder
@@ -77,7 +76,6 @@ def _arg_is_blank(value: Any) -> bool:
     if isinstance(value, (dict, list, tuple, set)):
         return len(value) == 0
     return False
-
 
 def add_visualization_from_plugin(
     ctx: RunContext[ChatDeps],
@@ -110,10 +108,6 @@ def add_visualization_from_plugin(
     spec = get_plugin(source)
     if spec is None:
         if ctx.retry >= ctx.max_retries:
-            # Retries exhausted - typically a weak model that keeps
-            # mangling the plugin name. Ask the user instead of raising,
-            # which would bubble up as "Exceeded maximum output retries"
-            # and a 503.
             names = ", ".join(f"`{s.source}`" for s in list_visualization_plugins())
             return (
                 f"I couldn't match {source!r} to an available plugin. "
@@ -126,7 +120,7 @@ def add_visualization_from_plugin(
 
     # A required key that is absent OR present-but-blank both count as
     # missing - the model has no real value for it either way.
-    missing = sorted(a for a in spec.args if _arg_is_blank(args.get(a)))
+    missing = sorted(a for a in spec.args if arg_is_blank(args.get(a)))
     if missing:
         # Ask the user directly - do NOT ModelRetry here.
         example = missing[0]

@@ -12,7 +12,7 @@ IntentName = Literal[
 
 @dataclass
 class AgentRegistry:
-    add_plugin: Agent  # INTENT_ADD
+    add_plugin: Agent
 
     def get(self, intent: IntentName) -> Agent:
         return getattr(self, intent)
