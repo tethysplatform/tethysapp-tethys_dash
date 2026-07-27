@@ -29,16 +29,19 @@ def _describe_tile(number: int, tile) -> str:
     return f"{number}. {tile.get('source', '?')} - args: {args_line or '(none)'}"
 
 
-def format_dashboard_state_for_llm(user, dashboard_id) -> str:
-    """Render the dashboard's current tiles as a 1-indexed list for the model."""
-    tiles = list_tiles(load_dashboard_tabs(user, dashboard_id))
+def _format_tiles(tiles) -> str:
+    """Render a list of ``(tab, item, tile)`` as a 1-indexed Markdown list."""
     if not tiles:
         return "The dashboard has no visualizations yet."
-    lines = [
+    return "\n".join(
         _describe_tile(number, tile)
         for number, (_tab, _item, tile) in enumerate(tiles, start=1)
-    ]
-    return "\n".join(lines)
+    )
+
+
+def format_dashboard_state_for_llm(user, dashboard_id) -> str:
+    """Render the dashboard's current tiles as a 1-indexed list for the model."""
+    return _format_tiles(list_tiles(load_dashboard_tabs(user, dashboard_id)))
 
 
 def _invalid_arg_names(source, args) -> list[str]:
@@ -80,6 +83,17 @@ def _apply_arg_changes(tile, args) -> None:
     tile["args_string"] = json.dumps({**_tile_args(tile), **args})
 
 
+def _is_noop(tile, args) -> bool:
+    """True when every supplied value already equals the tile's current value.
+
+    Weak models sometimes echo a tile's current argument (copied from the
+    'Current visualizations' list) instead of the user's new value; treating
+    that as a no-op avoids a misleading 'Updated' confirmation.
+    """
+    current = _tile_args(tile)
+    return all(str(current.get(key)) == str(value) for key, value in args.items())
+
+
 def patch_visualization(
     ctx: RunContext[ChatDeps],
     target: int,
@@ -113,6 +127,12 @@ def patch_visualization(
     invalid = _invalid_arg_names(source, args)
     if invalid:
         return _invalid_args_reply(source, invalid)
+    if _is_noop(tile, args):
+        pairs = ", ".join(f"{key}={value!r}" for key, value in args.items())
+        return (
+            f"{source} (#{target}) already has {pairs}, so nothing changed. If "
+            "you meant a different value, tell me the new one."
+        )
 
     emit_progress(ctx.deps.chat_id, f"Updating visualization {target}...")
     _apply_arg_changes(tile, args)
@@ -141,8 +161,8 @@ def ask_which_visualization(
             f"between 1 and {len(tiles)}."
         )
     numbers = " or ".join(str(number) for number in valid)
-    lines = "\n".join(_describe_tile(number, tiles[number - 1][2]) for number in valid)
     return (
-        f"{reason} Which one did you mean - {numbers}? Reply with the number and "
-        f"the change (for example 'change {valid[0]} to <arg> = <value>'):\n{lines}"
+        f"{reason} Which one did you mean - {numbers}? All visualizations on the "
+        f"dashboard are listed below; reply with the number and the change (for "
+        f"example 'change {valid[0]} to <arg> = <value>'):\n{_format_tiles(tiles)}"
     )

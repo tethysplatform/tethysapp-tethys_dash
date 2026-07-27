@@ -134,6 +134,21 @@ def test_happy_path_merges_and_persists():
     assert "geoglows" in reply and "river_id=9" in reply
 
 
+def test_noop_when_value_matches_current_is_flagged_not_updated():
+    dash = _dashboard(_tile("geoglows", {"river_id": "610448527"}))
+    with (
+        patch(_REGISTRY, {"geoglows": _fake_plugin(args=("river_id",))}),
+        patch(_GET, return_value=dash),
+        patch(_UPDATE) as update,
+    ):
+        reply = patch_visualization(
+            _ctx(), target=1, args={"river_id": "610448527"}
+        )
+    assert "already has" in reply.lower()
+    assert "nothing changed" in reply.lower()
+    update.assert_not_called()
+
+
 def test_index_targets_correct_tile_across_tabs():
     dash = {
         "tabs": [
@@ -167,17 +182,19 @@ def test_dashboard_state_empty():
     assert "no visualizations" in state.lower()
 
 
-def test_ask_which_visualization_echoes_numbered_candidates():
+def test_ask_which_visualization_lists_all_tiles_not_only_candidates():
     dash = _dashboard(
-        _tile("geoglows", {"river_id": 8}),
-        _tile("geoglows", {"river_id": 15}),
+        _tile("geoglows_forecast_viewer", {"river_id": 8}),
+        _tile("geoglows_retrospective_from_cache", {"river_id": 99}),
+        _tile("geoglows_forecast_viewer", {"river_id": 15}),
     )
     with patch(_GET, return_value=dash):
         reply = ask_which_visualization(
-            _ctx(), candidates=[1, 2], reason="There are two geoglows tiles."
+            _ctx(), candidates=[1, 3], reason="Two forecast viewers match."
         )
-    assert "1 or 2" in reply
-    assert "river_id=8" in reply and "river_id=15" in reply
+    assert "1 or 3" in reply
+    assert "2. geoglows_retrospective_from_cache" in reply
+    assert "river_id=99" in reply
     assert "which one" in reply.lower()
 
 
