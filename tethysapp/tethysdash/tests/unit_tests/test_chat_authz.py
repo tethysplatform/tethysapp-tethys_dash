@@ -48,6 +48,19 @@ class _FixedClassifier:
         )
 
 
+class _FallbackClassifier:
+    """Classifier stub that finds no confident intent."""
+
+    def classify(self, _text):
+        return IntentPrediction(
+            intent=None,
+            score=0.1,
+            second_best_score=0.05,
+            margin=0.05,
+            accepted=False,
+        )
+
+
 # --------------------------------------------------------------------------
 # Router-level gate
 # --------------------------------------------------------------------------
@@ -72,6 +85,24 @@ def test_route_runs_agent_for_owner():
     registry.get.assert_called_once_with(INTENT_ADD)
     assert isinstance(result, RoutedResponse)
     assert result.response == "Added."
+
+
+def test_route_runs_chat_agent_when_no_confident_intent():
+    chat_agent = MagicMock()
+    chat_agent.run = AsyncMock(
+        return_value=SimpleNamespace(output="Here is some help.")
+    )
+    registry = MagicMock()
+    registry.chat_agent = chat_agent
+
+    router = LLMRouter(_FallbackClassifier(), registry, _deps(owner=True))
+    result = async_to_sync(router.route)("how does tethysdash work?")
+
+    chat_agent.run.assert_awaited_once()
+    registry.get.assert_not_called()
+    assert isinstance(result, RoutedResponse)
+    assert result.intent == "fallback"
+    assert result.response == "Here is some help."
 
 
 # --------------------------------------------------------------------------

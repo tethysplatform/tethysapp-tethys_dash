@@ -64,9 +64,13 @@ class LLMRouter:
     async def route(self, request: str) -> RoutedResponse | str:
         prediction = self.classifier.classify(request)
         if prediction.intent is None or prediction.intent == INTENT_OOS:
-            return (
-                "I can help with two things: adding a visualization to your "
-                "dashboard, or listing the available plugins. Try one of those."
+            emit_progress(self.deps.chat_id, "Thinking...")
+            result = await self.agents.chat_agent.run(request, deps=self.deps)
+            return RoutedResponse(
+                intent="fallback",
+                similarity=prediction.score,
+                margin=prediction.margin,
+                response=result.output,
             )
 
         if (

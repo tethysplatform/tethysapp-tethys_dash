@@ -30,12 +30,14 @@ def get_classifier() -> EmbeddingIntentClassifier:
 
 
 def build_registry():
-    """Registry mapping intents to their specialist agents."""
+    """Registry of specialist agents plus the general fallback agent."""
+    from .agents.chat import chat_agent
     from .agents.plugin import plugin_agent
     from .agents.registry import AgentRegistry
 
     return AgentRegistry(
         add_plugin=plugin_agent,
+        chat_agent=chat_agent,
     )
 
 
