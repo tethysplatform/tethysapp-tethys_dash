@@ -1,5 +1,6 @@
 INTENT_ADD = "add_plugin"
 INTENT_LIST = "list_plugins"
+INTENT_PATCH = "patch_visualization"
 INTENT_OOS = "out_of_scope"
 
 INTENTS: dict[str, list[str]] = {
@@ -24,6 +25,14 @@ INTENTS: dict[str, list[str]] = {
         "what plugins can I add to my dashboard?",
         "show me the plugin catalog",
         "which plugins are installed?",
+    ],
+    INTENT_PATCH: [
+        "change argument a to 9",
+        "update the river_id to 610217883",
+        "set the station argument to 12345",
+        "modify the gauge value to 55 on the second visualization",
+        "edit visualization 1 to use river_id 5",
+        "change the first tile's argument value to 8",
     ],
     INTENT_OOS: [
         "how are you?",

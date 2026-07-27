@@ -39,8 +39,8 @@ def _reqs(*pairs):
 
 
 _REGISTRY = "intake.source.registry"
-_GET = "tethysapp.tethysdash.chatbot.tools.plugins.get_dashboards"
-_UPDATE = "tethysapp.tethysdash.chatbot.tools.plugins.update_named_dashboard"
+_GET = "tethysapp.tethysdash.chatbot.tools.dashboard.get_dashboards"
+_UPDATE = "tethysapp.tethysdash.chatbot.tools.dashboard.update_named_dashboard"
 
 
 def test_unknown_source_raises_model_retry_with_catalog():

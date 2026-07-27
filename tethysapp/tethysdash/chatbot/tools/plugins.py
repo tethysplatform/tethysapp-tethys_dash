@@ -5,10 +5,10 @@ from typing import Any, List
 
 from pydantic_ai import ModelRetry, RunContext
 
-from tethysapp.tethysdash.model import get_dashboards, update_named_dashboard
 from ..models import ChatDeps, PluginRequest, PluginSpec
 from ..utils import emit_progress
 from .catalog import format_catalog_for_llm, get_plugin, list_visualization_plugins
+from .dashboard import load_dashboard_tabs, save_dashboard_tabs
 
 
 def arg_is_blank(value: Any) -> bool:
@@ -53,14 +53,13 @@ def append_tiles_to_dashboard(user, dashboard_id: int, tiles: list[dict]) -> Non
     Raises:
         ModelRetry: when the dashboard has no tabs to place tiles on.
     """
-    dashboard = get_dashboards(user, id=dashboard_id, dashboard_view=True)
-    tabs = list(dashboard.get("tabs", []))
+    tabs = load_dashboard_tabs(user, dashboard_id)
     if not tabs:
         raise ModelRetry(f"Dashboard {dashboard_id} has no tabs; cannot add a tile.")
     active_tab = dict(tabs[0])
     active_tab["gridItems"] = list(active_tab.get("gridItems", [])) + tiles
     tabs[0] = active_tab
-    update_named_dashboard(user, dashboard_id, {"tabs": tabs})
+    save_dashboard_tabs(user, dashboard_id, tabs)
 
 
 def _resolve_requests(requests: List[PluginRequest]):

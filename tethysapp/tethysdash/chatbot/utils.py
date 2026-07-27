@@ -13,11 +13,6 @@ if TYPE_CHECKING:  # runtime import would form a cycle (see below)
 classifier: EmbeddingIntentClassifier | None = None
 
 
-# The agent modules (agents/docs.py, agents/plugin.py -> tools/plugins.py)
-# import ``emit_progress`` from THIS module. Importing them at module scope
-# would form a circular import (utils -> agents -> utils, hit before
-# emit_progress is defined), so both builders import lazily at call time,
-# once utils is fully initialized.
 def get_classifier() -> EmbeddingIntentClassifier:
     """Return the process-wide intent classifier, building it once."""
     global classifier
@@ -32,11 +27,13 @@ def get_classifier() -> EmbeddingIntentClassifier:
 def build_registry():
     """Registry of specialist agents plus the general fallback agent."""
     from .agents.chat import chat_agent
+    from .agents.patch import patch_agent
     from .agents.plugin import plugin_agent
     from .agents.registry import AgentRegistry
 
     return AgentRegistry(
         add_plugin=plugin_agent,
+        patch_visualization=patch_agent,
         chat_agent=chat_agent,
     )
 

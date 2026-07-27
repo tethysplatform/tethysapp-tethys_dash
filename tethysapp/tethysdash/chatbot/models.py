@@ -3,12 +3,14 @@ from dataclasses import dataclass
 from .agents.registry import IntentName
 from typing import Literal, Any
 from pydantic import BaseModel
+from pydantic_ai.exceptions import UnexpectedModelBehavior
 from .agents.embedder import EmbeddingIntentClassifier
 from .agents.registry import AgentRegistry
 from .utils import emit_progress
 from .agents.embedding_data import (
     INTENT_ADD,
     INTENT_LIST,
+    INTENT_PATCH,
     INTENT_OOS,
 )
 
@@ -50,6 +52,13 @@ class ChatDeps:
     history: list = None
     can_add_visualizations: bool = True
 
+_RETRY_EXHAUSTED_MESSAGE = (
+    "I couldn't complete that request - the model kept producing an invalid "
+    "action. Please rephrase or add detail (for example, name the plugin and "
+    "the argument values)."
+)
+
+
 class LLMRouter:
     def __init__(
         self,
@@ -61,25 +70,33 @@ class LLMRouter:
         self.agents = agents
         self.deps = deps
 
+    async def _run_agent(self, agent, request: str) -> str:
+        """Run a specialist agent, returning a graceful message on retry exhaustion."""
+        try:
+            result = await agent.run(request, deps=self.deps)
+            return result.output
+        except UnexpectedModelBehavior:
+            return _RETRY_EXHAUSTED_MESSAGE
+
     async def route(self, request: str) -> RoutedResponse | str:
         prediction = self.classifier.classify(request)
         if prediction.intent is None or prediction.intent == INTENT_OOS:
             emit_progress(self.deps.chat_id, "Thinking...")
-            result = await self.agents.chat_agent.run(request, deps=self.deps)
+            response_text = await self._run_agent(self.agents.chat_agent, request)
             return RoutedResponse(
                 intent="fallback",
                 similarity=prediction.score,
                 margin=prediction.margin,
-                response=result.output,
+                response=response_text,
             )
 
         if (
-            prediction.intent == INTENT_ADD
+            prediction.intent in (INTENT_ADD, INTENT_PATCH)
             and not self.deps.can_add_visualizations
         ):
             return (
-                "Only the dashboard owner can add visualizations to this "
-                "dashboard. I can still list the available plugins."
+                "Only the dashboard owner can add or change visualizations on "
+                "this dashboard. I can still list the available plugins."
             )
 
         elif prediction.intent == INTENT_LIST:
@@ -92,9 +109,7 @@ class LLMRouter:
             public_intent = selected_intent
 
         selected_agent = self.agents.get(selected_intent)
-        result = await selected_agent.run(request, deps=self.deps)
-        response_text = result.output
-
+        response_text = await self._run_agent(selected_agent, request)
 
         return RoutedResponse(
             intent=public_intent,

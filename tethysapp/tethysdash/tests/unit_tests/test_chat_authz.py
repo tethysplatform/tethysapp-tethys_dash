@@ -13,7 +13,7 @@ import pytest
 from asgiref.sync import async_to_sync
 
 from tethysapp.tethysdash.chatbot.agents.embedder import IntentPrediction
-from tethysapp.tethysdash.chatbot.agents.embedding_data import INTENT_ADD
+from tethysapp.tethysdash.chatbot.agents.embedding_data import INTENT_ADD, INTENT_PATCH
 from tethysapp.tethysdash.chatbot.tools import add_visualizations_from_plugin
 from tethysapp.tethysdash.chatbot.models import (
     ChatDeps,
@@ -61,6 +61,19 @@ class _FallbackClassifier:
         )
 
 
+class _PatchClassifier:
+    """Classifier stub that always predicts the patch intent."""
+
+    def classify(self, _text):
+        return IntentPrediction(
+            intent=INTENT_PATCH,
+            score=0.9,
+            second_best_score=0.1,
+            margin=0.8,
+            accepted=True,
+        )
+
+
 # --------------------------------------------------------------------------
 # Router-level gate
 # --------------------------------------------------------------------------
@@ -85,6 +98,30 @@ def test_route_runs_agent_for_owner():
     registry.get.assert_called_once_with(INTENT_ADD)
     assert isinstance(result, RoutedResponse)
     assert result.response == "Added."
+
+
+def test_route_refuses_patch_for_non_owner_without_running_agent():
+    registry = MagicMock()
+    router = LLMRouter(_PatchClassifier(), registry, _deps(owner=False))
+    reply = async_to_sync(router.route)("change arg a to 9")
+    assert isinstance(reply, str) and "owner" in reply.lower()
+    registry.get.assert_not_called()
+
+
+def test_route_returns_graceful_message_when_agent_exhausts_retries():
+    from pydantic_ai.exceptions import UnexpectedModelBehavior
+
+    agent = MagicMock()
+    agent.run = AsyncMock(side_effect=UnexpectedModelBehavior("Exceeded maximum output retries (3)"))
+    registry = MagicMock()
+    registry.get.return_value = agent
+
+    router = LLMRouter(_FixedClassifier(), registry, _deps(owner=True))
+    result = async_to_sync(router.route)("add something")
+
+    assert isinstance(result, RoutedResponse)
+    assert "couldn't complete" in result.response.lower()
+    assert "rephrase" in result.response.lower()
 
 
 def test_route_runs_chat_agent_when_no_confident_intent():
@@ -112,7 +149,7 @@ def test_route_runs_chat_agent_when_no_confident_intent():
 def test_tool_refuses_non_owner_even_if_router_bypassed():
     ctx = SimpleNamespace(deps=_deps(owner=False))
     with patch(
-        "tethysapp.tethysdash.chatbot.tools.plugins.update_named_dashboard"
+        "tethysapp.tethysdash.chatbot.tools.dashboard.update_named_dashboard"
     ) as update:
         reply = add_visualizations_from_plugin(
             ctx, [PluginRequest(source="anything", args={"river_id": "1"})]
@@ -129,11 +166,11 @@ def test_tool_allows_owner():
     plugin_cls.visualization_description = "d"
     with patch("intake.source.registry", {"p": plugin_cls}), \
          patch(
-            "tethysapp.tethysdash.chatbot.tools.plugins.get_dashboards",
+            "tethysapp.tethysdash.chatbot.tools.dashboard.get_dashboards",
             return_value={"tabs": [{"gridItems": []}]},
          ), \
          patch(
-            "tethysapp.tethysdash.chatbot.tools.plugins.update_named_dashboard"
+            "tethysapp.tethysdash.chatbot.tools.dashboard.update_named_dashboard"
          ) as update:
         reply = add_visualizations_from_plugin(
             ctx, [PluginRequest(source="p", args={"river_id": "1"})]
