@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from typing import Mapping
 
 import numpy as np
 from numpy.typing import NDArray
-from sentence_transformers import SentenceTransformer
+
+# Silence the HF weight-loading progress bar. Must be set before
+# sentence_transformers imports huggingface_hub.
+os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
+
+from sentence_transformers import SentenceTransformer  # noqa: E402
 
 FloatArray = NDArray[np.float32]
 
@@ -41,7 +47,14 @@ class EmbeddingIntentClassifier:
         self.intents = dict(intents)
         self.minimum_score = minimum_score
         self.minimum_margin = minimum_margin
-        self.model = SentenceTransformer(model_name)
+        # local_files_only skips the Hub network check (and its
+        # "unauthenticated requests to the HF Hub" warning) when the model
+        # is already cached; fall back to a downloading load on a machine
+        # that doesn't have it yet.
+        try:
+            self.model = SentenceTransformer(model_name, local_files_only=True)
+        except Exception:
+            self.model = SentenceTransformer(model_name)
 
         self._intent_names = list(self.intents)
         self.intent_embeddings = self._build_intent_embeddings()
