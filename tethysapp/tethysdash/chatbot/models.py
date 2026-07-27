@@ -58,9 +58,8 @@ class LLMRouter:
 
         if prediction.intent is None or prediction.intent == INTENT_OOS:
             return (
-                "I can help with three things: answering questions about TethysDash "
-                "from the documentation, adding a visualization to your dashboard, or "
-                "listing the available plugins. Try one of those."
+                "I can help with two things: adding a visualization to your "
+                "dashboard, or listing the available plugins. Try one of those."
             )
 
         if (
@@ -69,8 +68,7 @@ class LLMRouter:
         ):
             return (
                 "Only the dashboard owner can add visualizations to this "
-                "dashboard. I can still answer documentation questions or "
-                "list the available plugins."
+                "dashboard. I can still list the available plugins."
             )
 
         elif prediction.intent == INTENT_LIST:
