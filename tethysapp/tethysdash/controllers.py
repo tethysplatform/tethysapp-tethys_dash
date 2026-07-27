@@ -326,6 +326,13 @@ class VisualizationConsumer(AsyncWebsocketConsumer):
 
         Adds the connection to the 'dashboard_updates' group and accepts the connection.
         """
+        # required for InMemoryChannelLayer, harmless for Redis
+        import asyncio
+
+        from tethysapp.tethysdash.plugin_helpers import set_server_event_loop
+
+        set_server_event_loop(asyncio.get_running_loop())
+
         # Add to groups
         await self.channel_layer.group_add("dashboard_updates", self.channel_name)
 

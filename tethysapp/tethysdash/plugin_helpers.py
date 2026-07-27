@@ -51,7 +51,7 @@ def get_plugin_prop(obj, name, default=None):
 # reactapp/components/inputs/dateUtils.js — there is no shared FE/BE constants
 # mechanism, so a test enforces parity.
 DATE_PRESET_SENTINELS = {"latest"}
-
+SERVER_EVENT_LOOP = None
 
 valid_plugin_types = [
     "plotly",
@@ -341,6 +341,23 @@ class TethysDashPlugin(base.DataSource):
         )
 
 
+# The ASGI server's event loop, captured by the WebSocket consumer on
+# connect. Progress messages are emitted from worker/daemon threads (chat via
+# a daemon thread, viz via a sync-view thread); InMemoryChannelLayer only
+# delivers within a single event loop, so those sends must be scheduled ONTO
+# this loop. Redis-backed layers work cross-loop regardless.
+
+def set_server_event_loop(loop):
+    """Record the ASGI server's running loop (called from the WS consumer's
+    ``connect``) so ``send_websocket_message`` can deliver onto it."""
+    global SERVER_EVENT_LOOP
+    SERVER_EVENT_LOOP = loop
+
+
+def get_server_event_loop():
+    return SERVER_EVENT_LOOP
+
+
 # General helper for sending messages via Django Channels
 def send_websocket_message(
     request_id,
@@ -397,13 +414,19 @@ def send_websocket_message(
             websocket_message["layerId"] = layer_id
 
         channel_layer = get_channel_layer()
-        async_to_sync(channel_layer.group_send)(
-            "dashboard_updates",
-            {
-                "type": "send_message",
-                "message": websocket_message,
-            },
-        )
+        group_message = {"type": "send_message", "message": websocket_message}
+        server_loop = get_server_event_loop()
+        if server_loop is not None and server_loop.is_running():
+            import asyncio
+
+            asyncio.run_coroutine_threadsafe(
+                channel_layer.group_send("dashboard_updates", group_message),
+                server_loop,
+            )
+        else:
+            async_to_sync(channel_layer.group_send)(
+                "dashboard_updates", group_message
+            )
     except Exception as e:
         # Optionally log or handle errors here
         print(f"WebSocket message send failed: {e}")
