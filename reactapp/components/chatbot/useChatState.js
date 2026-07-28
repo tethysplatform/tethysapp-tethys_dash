@@ -40,6 +40,42 @@ function clearMessages(dashboardId) {
   }
 }
 
+// The last few non-empty turns, sent to the backend for reference resolution.
+function recentHistory(messages) {
+  return messages
+    .filter((m) => (m.text ?? "") !== "")
+    .slice(-6)
+    .map((m) => ({ role: m.role, text: m.text }));
+}
+
+// Stream handler for one send: delta events append to the assistant bubble,
+// progress milestones show only until the first token, done sets the final text.
+function streamIntoBubble(setMessages, chatId) {
+  let answer = "";
+  let streaming = false;
+  const setBubbleText = (text) =>
+    setMessages((m) => {
+      const index = m.findIndex((msg) => msg.id === chatId);
+      if (index < 0) return m;
+      const next = m.slice();
+      next[index] = { ...next[index], text };
+      return next;
+    });
+  return (event) => {
+    if (event.type === "delta") {
+      streaming = true;
+      answer += event.text;
+      setBubbleText(answer);
+    } else if (event.type === "progress") {
+      if (!streaming) setBubbleText(event.text);
+    } else if (event.type === "done") {
+      setBubbleText(event.text || answer);
+    } else if (event.type === "error") {
+      throw new Error(event.text);
+    }
+  };
+}
+
 export function useChatState({ dashboardId }) {
   const [messages, setMessages] = useState(() => loadMessages(dashboardId));
   const [isLoading, setIsLoading] = useState(false);
@@ -57,20 +93,7 @@ export function useChatState({ dashboardId }) {
       if (!text || isLoading) return;
 
       const chatId = crypto.randomUUID();
-      const history = messages
-        .filter((m) => (m.text ?? "") !== "")
-        .slice(-6)
-        .map((m) => ({ role: m.role, text: m.text }));
-
-      // Overwrite the in-flight assistant bubble as streamed events arrive.
-      const setBubbleText = (newText) =>
-        setMessages((m) => {
-          const index = m.findIndex((msg) => msg.id === chatId);
-          if (index < 0) return m;
-          const next = m.slice();
-          next[index] = { ...next[index], text: newText };
-          return next;
-        });
+      const history = recentHistory(messages);
 
       setError(null);
       setMessages((m) => [
@@ -79,10 +102,6 @@ export function useChatState({ dashboardId }) {
         { role: "assistant", text: "", id: chatId },
       ]);
       setIsLoading(true);
-      // Accumulates streamed answer tokens; progress milestones show only
-      // until the first token arrives, then the answer takes over.
-      let answer = "";
-      let streaming = false;
       try {
         await appAPI.streamChatBotMessage({
           prompt: text,
@@ -90,19 +109,7 @@ export function useChatState({ dashboardId }) {
           chatId,
           history,
           csrf,
-          onEvent: (event) => {
-            if (event.type === "delta") {
-              streaming = true;
-              answer += event.text;
-              setBubbleText(answer);
-            } else if (event.type === "progress") {
-              if (!streaming) setBubbleText(event.text);
-            } else if (event.type === "done") {
-              setBubbleText(event.text || answer);
-            } else if (event.type === "error") {
-              throw new Error(event.text);
-            }
-          },
+          onEvent: streamIntoBubble(setMessages, chatId),
         });
         window.dispatchEvent(new Event("tethysdash:agent-dashboard-refetch"));
       } catch (e) {

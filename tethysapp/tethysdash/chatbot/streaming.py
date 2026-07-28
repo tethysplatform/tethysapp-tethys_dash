@@ -10,7 +10,8 @@ import traceback
 
 from django.http import StreamingHttpResponse
 
-from .models import LLMRouter, RoutedResponse
+from .models import RoutedResponse
+from .routing import LLMRouter
 from .utils import (
     build_registry,
     emit_progress,

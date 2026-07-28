@@ -7,6 +7,7 @@ from ..tools.patch import (
     format_dashboard_state_for_llm,
     patch_visualization,
 )
+from .instructions import recent_conversation
 
 
 patch_agent = Agent(
@@ -53,9 +54,4 @@ def dashboard_state(ctx: RunContext[ChatDeps]) -> str:
     )
 
 
-@patch_agent.instructions
-def recent_conversation(ctx: RunContext[ChatDeps]) -> str:
-    """Provide recent conversation history for reference resolution."""
-    from ..messages.history import format_history_instruction
-
-    return format_history_instruction(ctx.deps.history)
+patch_agent.instructions(recent_conversation)

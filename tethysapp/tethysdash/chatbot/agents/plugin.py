@@ -1,8 +1,9 @@
-from pydantic_ai import Agent, ModelSettings, RunContext, NativeOutput
+from pydantic_ai import Agent, ModelSettings, NativeOutput
 
 from ..config import model
-from ..tools import add_visualizations_from_plugin, format_catalog_for_llm
+from ..tools import add_visualizations_from_plugin
 from ..models import ChatDeps
+from .instructions import available_plugins, recent_conversation
 
 
 plugin_agent = Agent(
@@ -33,12 +34,5 @@ plugin_agent = Agent(
 )
 
 
-@plugin_agent.instructions
-def available_plugins(ctx: RunContext[ChatDeps]) -> str:
-    return f"Available plugins on this server:\n{format_catalog_for_llm()}"
-
-@plugin_agent.instructions
-def recent_conversation(ctx: RunContext[ChatDeps]) -> str:
-    from ..messages.history import format_history_instruction
-
-    return format_history_instruction(ctx.deps.history)
+plugin_agent.instructions(available_plugins)
+plugin_agent.instructions(recent_conversation)

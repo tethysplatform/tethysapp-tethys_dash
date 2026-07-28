@@ -16,10 +16,10 @@ from tethysapp.tethysdash.chatbot.agents.registry import INTENT_ADD, INTENT_PATC
 from tethysapp.tethysdash.chatbot.tools import add_visualizations_from_plugin
 from tethysapp.tethysdash.chatbot.models import (
     ChatDeps,
-    LLMRouter,
     PluginRequest,
     RoutedResponse,
 )
+from tethysapp.tethysdash.chatbot.routing import LLMRouter
 
 
 @pytest.fixture(autouse=True)

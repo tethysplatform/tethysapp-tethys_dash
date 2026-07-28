@@ -8,16 +8,18 @@ schema keeps that decision deterministic.
 from typing import Literal
 
 from pydantic import BaseModel
-from pydantic_ai import Agent, ModelSettings, RunContext
+from pydantic_ai import Agent, ModelSettings
 
 from ..config import model
 from ..models import ChatDeps
+from .instructions import recent_conversation
+from .registry import INTENT_ADD, INTENT_CHAT, INTENT_LIST, INTENT_PATCH
 
 
 class Route(BaseModel):
     """The single capability that should handle the user's message."""
 
-    intent: Literal["add_plugin", "patch_visualization", "list_plugins", "chat"]
+    intent: Literal[INTENT_ADD, INTENT_PATCH, INTENT_LIST, INTENT_CHAT]
 
 
 router_agent = Agent(
@@ -45,9 +47,4 @@ router_agent = Agent(
 )
 
 
-@router_agent.instructions
-def recent_conversation(ctx: RunContext[ChatDeps]) -> str:
-    """Provide recent conversation history so follow-up messages route correctly."""
-    from ..messages.history import format_history_instruction
-
-    return format_history_instruction(ctx.deps.history)
+router_agent.instructions(recent_conversation)

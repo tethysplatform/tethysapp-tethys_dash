@@ -5,6 +5,8 @@ from dataclasses import dataclass
 INTENT_ADD = "add_plugin"
 INTENT_LIST = "list_plugins"
 INTENT_PATCH = "patch_visualization"
+INTENT_CHAT = "chat"
+INTENT_FALLBACK = "fallback"
 
 
 IntentName = Literal[

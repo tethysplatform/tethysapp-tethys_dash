@@ -1,8 +1,8 @@
-from pydantic_ai import Agent, ModelSettings, RunContext
+from pydantic_ai import Agent, ModelSettings
 
 from ..config import model
 from ..models import ChatDeps
-from ..tools import format_catalog_for_llm
+from .instructions import available_plugins, recent_conversation
 
 
 chat_agent = Agent(
@@ -27,15 +27,5 @@ chat_agent = Agent(
 )
 
 
-@chat_agent.instructions
-def available_plugins(ctx: RunContext[ChatDeps]) -> str:
-    """Expose the installed plugin catalog so the assistant can answer about it."""
-    return f"Available plugins on this server:\n{format_catalog_for_llm()}"
-
-
-@chat_agent.instructions
-def recent_conversation(ctx: RunContext[ChatDeps]) -> str:
-    """Provide recent conversation history for reference resolution."""
-    from ..messages.history import format_history_instruction
-
-    return format_history_instruction(ctx.deps.history)
+chat_agent.instructions(available_plugins)
+chat_agent.instructions(recent_conversation)
