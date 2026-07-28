@@ -6,11 +6,7 @@ from pydantic import BaseModel
 from pydantic_ai.exceptions import UnexpectedModelBehavior
 from .agents.registry import AgentRegistry
 from .utils import emit_progress
-from .agents.embedding_data import (
-    INTENT_ADD,
-    INTENT_LIST,
-    INTENT_PATCH,
-)
+from .agents.registry import INTENT_ADD, INTENT_LIST, INTENT_PATCH
 
 
 @dataclass(frozen=True)

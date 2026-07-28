@@ -1,27 +1,9 @@
-"""Singletons for the chat router.
-"""
+"""Factory and helpers for the chat router."""
 
 from __future__ import annotations
 import threading
-from typing import TYPE_CHECKING
 
 from tethysapp.tethysdash.plugin_helpers import send_websocket_message
-
-if TYPE_CHECKING:  # runtime import would form a cycle (see below)
-    from .agents.embedder import EmbeddingIntentClassifier
-
-classifier: EmbeddingIntentClassifier | None = None
-
-
-def get_classifier() -> EmbeddingIntentClassifier:
-    """Return the process-wide intent classifier, building it once."""
-    global classifier
-    from .agents.embedder import EmbeddingIntentClassifier
-    from .agents.embedding_data import INTENTS
-
-    if classifier is None:
-        classifier = EmbeddingIntentClassifier(INTENTS)
-    return classifier
 
 
 def build_registry():

@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from asgiref.sync import async_to_sync
 
-from tethysapp.tethysdash.chatbot.agents.embedding_data import INTENT_ADD, INTENT_PATCH
+from tethysapp.tethysdash.chatbot.agents.registry import INTENT_ADD, INTENT_PATCH
 from tethysapp.tethysdash.chatbot.tools import add_visualizations_from_plugin
 from tethysapp.tethysdash.chatbot.models import (
     ChatDeps,

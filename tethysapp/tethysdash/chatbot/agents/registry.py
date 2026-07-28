@@ -1,7 +1,10 @@
 from typing import Literal
 from pydantic_ai import Agent
 from dataclasses import dataclass
-from .embedding_data import INTENT_ADD, INTENT_LIST, INTENT_PATCH
+
+INTENT_ADD = "add_plugin"
+INTENT_LIST = "list_plugins"
+INTENT_PATCH = "patch_visualization"
 
 
 IntentName = Literal[
