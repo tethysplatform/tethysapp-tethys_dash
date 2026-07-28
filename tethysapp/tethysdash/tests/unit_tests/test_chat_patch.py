@@ -180,6 +180,33 @@ def test_auto_selects_tile_whose_current_value_is_named_in_prompt():
     assert "Updated" in reply
 
 
+def test_auto_select_ignores_new_value_that_collides_with_other_tiles():
+    # New value 441057380 already exists on other tiles; selector is 710462910.
+    dash = _dashboard(
+        _tile("geoglows_forecast_viewer", {"river_id": "160064246"}),
+        _tile("geoglows_forecast_viewer", {"river_id": "710462910"}),
+        _tile("geoglows_forecast_viewer", {"river_id": "441057380"}),
+        _tile("geoglows_forecast_viewer", {"river_id": "441057380"}),
+    )
+    ctx = _ctx()
+    ctx.deps.original_prompt = (
+        "change the geoglows_forecast_viewer with river_id 710462910 to 441057380"
+    )
+    with (
+        patch(_REGISTRY, {"geoglows_forecast_viewer": _fake_plugin(("river_id",))}),
+        patch(_GET, return_value=dash),
+        patch(_UPDATE) as update,
+    ):
+        reply = patch_visualization(
+            ctx, source="geoglows_forecast_viewer", args={"river_id": "441057380"}
+        )
+    _user, _id, payload = update.call_args[0]
+    saved = [json.loads(g["args_string"]) for g in payload["tabs"][0]["gridItems"]]
+    assert saved[1] == {"river_id": "441057380"}  # the 710462910 tile was updated
+    assert saved[0] == {"river_id": "160064246"}  # others untouched
+    assert "Updated" in reply
+
+
 def test_where_matching_nothing_reports_and_lists_tiles():
     dash = _dashboard(
         _tile("geoglows_forecast_viewer", {"river_id": "111"}),

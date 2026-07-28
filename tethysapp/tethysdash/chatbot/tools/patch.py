@@ -87,19 +87,26 @@ def _filter_by_where(matches, where):
     ]
 
 
-def _auto_select(matches, prompt):
-    """Return the one match whose a current arg value appears in the prompt.
+def _auto_select(matches, prompt, exclude=()):
+    """Return the one match whose current value the user named in the prompt.
 
     Resolves the common disambiguation case without a follow-up: when the user
-    already named a distinguishing current value (e.g. a river id), exactly one
-    same-source tile carries it. Returns None when zero or several tiles match.
+    named a distinguishing current value (e.g. a river id), exactly one
+    same-source tile carries it. Values in ``exclude`` (the new values being
+    set) are ignored, so a new value that happens to equal other tiles' current
+    values does not count as a selector. Returns None when zero or several
+    tiles match.
     """
     if not prompt:
         return None
+    skip = {str(value) for value in exclude}
     hits = [
         entry
         for entry in matches
-        if any(str(v) and str(v) in prompt for v in _tile_args(entry[2]).values())
+        if any(
+            str(v) and str(v) in prompt and str(v) not in skip
+            for v in _tile_args(entry[2]).values()
+        )
     ]
     return hits[0] if len(hits) == 1 else None
 
@@ -205,7 +212,7 @@ def patch_visualization(
                 f"Its tiles are:\n{_format_tiles(_matching_tiles(tiles, source))}"
             )
     if len(matches) > 1:
-        auto = _auto_select(matches, ctx.deps.original_prompt)
+        auto = _auto_select(matches, ctx.deps.original_prompt, args.values())
         matches = [auto] if auto is not None else matches
     if len(matches) > 1:
         return _disambiguation_reply(source, matches)
