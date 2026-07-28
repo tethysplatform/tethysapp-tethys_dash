@@ -13,16 +13,17 @@ from pydantic_ai import Agent, ModelSettings
 from ..config import model
 from ..models import ChatDeps
 from .instructions import recent_conversation
+from .registry import IntentName
 
 
 class Route(BaseModel):
     """The single capability that should handle the user's message.
 
-    String literals (not the INTENT_* constants) because PEP 586 requires
-    literal values inside Literal[...]; keep in sync with agents/registry.py.
+    Reuses IntentName (the action intents) and adds the catch-all 'chat', so the
+    intent set stays single-sourced in agents/registry.py.
     """
 
-    intent: Literal["add_plugin", "patch_visualization", "list_plugins", "chat"]
+    intent: IntentName | Literal["chat"]
 
 
 router_agent = Agent(

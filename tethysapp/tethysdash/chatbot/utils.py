@@ -22,6 +22,21 @@ def unregister_progress_sink(chat_id: str) -> None:
         _PROGRESS_SINKS.pop(chat_id, None)
 
 
+def log_chat_error(where: str, exc: Exception) -> None:
+    """Print the real exception behind a graceful chat fallback, for the server log.
+
+    The chat paths fail open (fall through to a safe reply rather than 500ing);
+    this is the one place the swallowed error is surfaced, so a fallback never
+    hides a real bug entirely.
+    """
+    import traceback
+
+    print(
+        f"[chat] {where}: {type(exc).__name__}: {exc}\n{traceback.format_exc()}",
+        flush=True,
+    )
+
+
 def build_registry():
     """Registry of specialist agents plus the router and general fallback agents."""
     from .agents.chat import chat_agent

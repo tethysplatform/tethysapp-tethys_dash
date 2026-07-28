@@ -30,16 +30,15 @@ from .tile_ops import (
 __all__ = ["patch_visualization", "format_dashboard_state_for_llm"]
 
 
-def _clear_matching_pending(deps, patched_source) -> None:
-    """Clear a pending disambiguation only if it was about the just-patched source.
+def _clear_matching_pending(deps, patched_id) -> None:
+    """Clear a pending disambiguation only if it targeted the just-patched tile.
 
-    A successful, unrelated patch should not silently discard a pending "which
-    one?" question for a different source that the user has not answered yet.
+    Scoped to the exact ``(tab, item)`` identity, not a fuzzy source-name match:
+    a successful patch of ``chart_widget`` must not discard an unanswered "which
+    one?" question about a different, substring-related source like ``chart``.
     """
     record = get_pending(deps.dashboard_id, deps.user)
-    if record is not None and _matching_tiles(
-        [(0, 0, {"source": patched_source})], record.source
-    ):
+    if record is not None and list(patched_id) in record.candidates:
         clear_pending(deps.dashboard_id, deps.user)
 
 
@@ -101,7 +100,7 @@ def patch_visualization(
         )
         return _disambiguation_reply(source, matches)
 
-    _tab, _item, tile = matches[0]
+    tab, item, tile = matches[0]
     real_source = tile.get("source")
     err = check_args(real_source, args)
     if err:
@@ -115,5 +114,5 @@ def patch_visualization(
     emit_progress(ctx.deps.chat_id, f"Updating {real_source}...")
     _apply_arg_changes(tile, args)
     save_dashboard_tabs(ctx.deps.user, ctx.deps.dashboard_id, tabs)
-    _clear_matching_pending(ctx.deps, real_source)
+    _clear_matching_pending(ctx.deps, (tab, item))
     return f"Updated {real_source}: {_pairs(args)}."

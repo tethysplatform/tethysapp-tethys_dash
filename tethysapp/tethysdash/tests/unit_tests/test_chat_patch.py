@@ -268,12 +268,15 @@ def test_successful_patch_keeps_unrelated_pending_record():
         set_pending,
     )
 
-    dash = _dashboard(_tile("geoglows", {"river_id": "111"}))
+    dash = _dashboard(
+        _tile("geoglows", {"river_id": "111"}),
+        _tile("other_plugin", {"a": "9"}),
+    )
     ctx = _ctx()
     set_pending(
         ctx.deps.dashboard_id,
         ctx.deps.user,
-        PendingDisambiguation("other_plugin", {"a": "1"}, [[0, 0]], "v"),
+        PendingDisambiguation("other_plugin", {"a": "1"}, [[0, 1]], "v"),
     )
     with (
         patch(_REGISTRY, {"geoglows": _fake_plugin(("river_id",))}),

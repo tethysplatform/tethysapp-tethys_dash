@@ -283,3 +283,19 @@ def test_no_arg_plugin_added_with_empty_args():
         reply = add_visualizations_from_plugin(_ctx(), _reqs(("p", {})))
     assert "p" in reply
     update.assert_called_once()
+
+
+def test_add_path_reads_dashboard_exactly_once():
+    """The TOCTOU fix collapses dedupe + write into a single dashboard read.
+
+    A regression to the old two-read pattern (a separate dedupe read plus an
+    append read) would reopen the race, so pin the read count at one.
+    """
+    dash = {"tabs": [{"gridItems": []}]}
+    with (
+        patch(_REGISTRY, {"geoglows": _fake_plugin(("river_id",))}),
+        patch(_GET, return_value=dash) as get,
+        patch(_UPDATE),
+    ):
+        add_visualizations_from_plugin(_ctx(), _reqs(("geoglows", {"river_id": "1"})))
+    assert get.call_count == 1

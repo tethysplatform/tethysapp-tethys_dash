@@ -1143,12 +1143,10 @@ def chat_message(request):
     try:
         pending_reply = resolve_pending(deps, parsed.prompt)
     except Exception as exc:
-        import traceback
+        from tethysapp.tethysdash.chatbot.utils import log_chat_error
 
-        print(
-            f"\n[chat_message] resolve_pending failed: {type(exc).__name__}: {exc}\n"
-            f"{traceback.format_exc()}",
-            flush=True,
+        log_chat_error(
+            f"resolve_pending failed (dashboard {parsed.dashboard_id})", exc
         )
         pending_reply = None
     if pending_reply is not None:

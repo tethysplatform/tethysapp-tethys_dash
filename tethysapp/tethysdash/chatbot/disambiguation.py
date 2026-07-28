@@ -55,20 +55,34 @@ def set_pending(dashboard_id, user, record: PendingDisambiguation) -> None:
 
 
 def get_pending(dashboard_id, user) -> PendingDisambiguation | None:
-    """Return the pending record for this dashboard+user, or None."""
+    """Return the pending record for this dashboard+user, or None.
+
+    A cached record with a stale field shape (from a prior deploy) fails to
+    rehydrate; that key is dropped and treated as absent rather than raising.
+    """
     data = cache.get(_key(dashboard_id, user))
     if not data:
         return None
     try:
         return PendingDisambiguation(**data)
     except TypeError:
-        clear_pending(dashboard_id, user)  # stale shape from a prior deploy
+        clear_pending(dashboard_id, user)
         return None
 
 
 def clear_pending(dashboard_id, user) -> None:
-    """Drop the pending record (safe when none exists)."""
-    cache.delete(_key(dashboard_id, user))
+    """Drop the pending record, best-effort (safe when none exists).
+
+    Called after a save has already applied the change, so a cache-delete
+    failure must never propagate - that would let the caller fall through and
+    replay the selection through the router against an already-patched tile.
+    """
+    try:
+        cache.delete(_key(dashboard_id, user))
+    except Exception as exc:
+        from .utils import log_chat_error
+
+        log_chat_error("clear_pending failed", exc)
 
 
 def _classify(message: str):
@@ -117,7 +131,7 @@ def resolve_pending(deps, message: str) -> str | None:
     if kind is None:
         return None
     if not _ask_was_last_turn(deps.history):
-        return None  # a stray selection long after the ask; don't hijack it
+        return None
 
     if kind == "cancel":
         clear_pending(deps.dashboard_id, deps.user)

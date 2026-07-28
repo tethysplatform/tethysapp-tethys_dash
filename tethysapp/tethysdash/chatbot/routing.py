@@ -15,23 +15,13 @@ from .agents.registry import (
     AgentRegistry,
 )
 from .models import ChatDeps, RoutedResponse
-from .utils import emit_delta, emit_progress
+from .utils import emit_delta, emit_progress, log_chat_error
 
 _RETRY_EXHAUSTED_MESSAGE = (
     "I couldn't complete that request - the model kept producing an invalid "
     "action. Please rephrase or add detail (for example, name the plugin and "
     "the argument values)."
 )
-
-
-def _log_llm_error(where: str, exc: Exception) -> None:
-    """Log the real model error a graceful fallback would otherwise hide."""
-    import traceback
-
-    print(
-        f"[chat] {where}: {type(exc).__name__}: {exc}\n{traceback.format_exc()}",
-        flush=True,
-    )
 
 
 class LLMRouter:
@@ -50,7 +40,7 @@ class LLMRouter:
             result = await self.agents.router_agent.run(request, deps=self.deps)
             return result.output.intent
         except UnexpectedModelBehavior as exc:
-            _log_llm_error("router classification failed", exc)
+            log_chat_error("router classification failed", exc)
             return INTENT_CHAT
 
     async def _run_agent(self, agent, request: str) -> str:
@@ -59,7 +49,7 @@ class LLMRouter:
             result = await agent.run(request, deps=self.deps)
             return result.output
         except UnexpectedModelBehavior as exc:
-            _log_llm_error("specialist agent retry exhausted", exc)
+            log_chat_error("specialist agent retry exhausted", exc)
             return _RETRY_EXHAUSTED_MESSAGE
 
     async def _stream_chat(self, request: str) -> str:
@@ -79,7 +69,7 @@ class LLMRouter:
                     emit_delta(self.deps.chat_id, delta)
             return "".join(parts)
         except UnexpectedModelBehavior as exc:
-            _log_llm_error("chat stream retry exhausted", exc)
+            log_chat_error("chat stream retry exhausted", exc)
             return _RETRY_EXHAUSTED_MESSAGE
 
     async def route(self, request: str) -> RoutedResponse | str:

@@ -340,3 +340,72 @@ def test_invalid_pending_args_fail_closed():
         reply = resolve_pending(d, "2")
     assert "bogus" in reply
     update.assert_not_called()
+
+
+def test_all_returns_error_when_a_matched_tile_rejects_the_args():
+    """The 'all' branch validates every tile, not just the first.
+
+    Two fuzzy-matched tiles have different real sources with different arg
+    schemas; the args are valid for the first but not the second, so 'all' must
+    surface the error and save nothing.
+    """
+    d = _deps()
+    dash = _dash(
+        _tile("geoglows_a", {"river_id": "1"}),
+        _tile("geoglows_b", {"other": "2"}),
+    )
+    _seed_record(d, dash, "geoglows", {"river_id": "9"})
+    with (
+        patch(
+            _REGISTRY,
+            {
+                "geoglows_a": _fake_plugin(("river_id",)),
+                "geoglows_b": _fake_plugin(("other",)),
+            },
+        ),
+        patch(_GET, return_value=dash),
+        patch(_UPDATE) as update,
+    ):
+        reply = resolve_pending(d, "all")
+    assert "river_id" in reply and "no argument" in reply.lower()
+    update.assert_not_called()
+    assert get_pending(d.dashboard_id, d.user) is None
+
+
+def test_resolve_detects_uuid_swap_and_reasks():
+    """candidate_signature includes each tile's uuid, so a delete-plus-identical
+    -add swap (same source/args, new uuid) is detected as drift and re-asked."""
+    d = _deps()
+    dash = _dash(
+        _tile("geoglows", {"river_id": "111"}),
+        _tile("geoglows", {"river_id": "222"}),
+    )
+    _seed_record(d, dash, "geoglows", {"river_id": "9"})
+    swapped = _dash(
+        {
+            "uuid": "swapped",
+            "i": "i",
+            "source": "geoglows",
+            "args_string": json.dumps({"river_id": "111"}),
+        },
+        _tile("geoglows", {"river_id": "222"}),
+    )
+    with (
+        patch(_REGISTRY, {"geoglows": _fake_plugin(("river_id",))}),
+        patch(_GET, return_value=swapped),
+        patch(_UPDATE) as update,
+    ):
+        reply = resolve_pending(d, "1")
+    assert reply.startswith("The dashboard changed")
+    update.assert_not_called()
+
+
+def test_get_pending_drops_stale_shape_record():
+    """A cached record from a prior deploy whose fields no longer rehydrate is
+    treated as absent and its poisoned key is cleared."""
+    from tethysapp.tethysdash.chatbot.disambiguation import _key
+
+    user = MagicMock()
+    cache.set(_key(6, user), {"unexpected_field": 1}, 600)
+    assert get_pending(6, user) is None
+    assert cache.get(_key(6, user)) is None

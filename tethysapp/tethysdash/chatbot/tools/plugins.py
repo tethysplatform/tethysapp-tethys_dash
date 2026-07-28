@@ -10,6 +10,7 @@ from ..models import ChatDeps, PluginRequest, PluginSpec
 from ..utils import emit_progress
 from .catalog import format_catalog_for_llm, get_plugin, list_visualization_plugins
 from .dashboard import load_dashboard_tabs, save_dashboard_tabs
+from .tile_ops import _tile_args
 
 
 def arg_is_blank(value: Any) -> bool:
@@ -57,10 +58,13 @@ def _normalize_arg_value(value: Any, declared_type: Any) -> Any:
 
     A weak model may send the same logical value two ways (``441057380`` and
     ``"441057380"``); storing per the plugin's declared arg type gives one
-    canonical representation. Types the plugin does not declare are left as-is.
+    canonical representation. Only scalars are canonicalized - dicts and lists
+    (e.g. date-range) are returned untouched, as are types the plugin does not
+    declare. Non-finite numbers (NaN/Infinity) are stringified so they cannot
+    serialize to invalid JSON and break the dashboard load.
     """
     if not isinstance(value, (str, int, float, bool)):
-        return value  # only canonicalize scalars; leave dicts/lists (e.g. date-range) intact
+        return value
     kind = str(declared_type).strip().lower()
     if kind in _STRING_ARG_TYPES:
         return value if isinstance(value, str) else str(value)
@@ -70,7 +74,7 @@ def _normalize_arg_value(value: Any, declared_type: Any) -> Any:
         except (TypeError, ValueError):
             return value
         if not math.isfinite(number):
-            return value  # NaN/Infinity would serialize to invalid JSON and break the load
+            return str(value)
         return int(number) if number.is_integer() else number
     return value
 
@@ -85,15 +89,6 @@ def _normalize_args(spec: PluginSpec | None, args: dict) -> dict:
     }
 
 
-def _safe_tile_args(tile: dict) -> dict:
-    """Parse a stored tile's ``args_string`` into a dict, empty on any problem."""
-    try:
-        parsed = json.loads(tile.get("args_string") or "{}")
-    except (TypeError, ValueError):
-        return {}
-    return parsed if isinstance(parsed, dict) else {}
-
-
 def _dedup_key(source: str, args: dict) -> tuple:
     """A source + canonical-args key for detecting duplicate tiles."""
     return (source, json.dumps(args, sort_keys=True))
@@ -103,15 +98,21 @@ def _existing_tile_key(tile: dict) -> tuple:
     """Dedup key for a tile already stored on the dashboard (type-normalized)."""
     source = tile.get("source")
     spec = get_plugin(source) if source else None
-    return _dedup_key(source, _normalize_args(spec, _safe_tile_args(tile)))
+    return _dedup_key(source, _normalize_args(spec, _tile_args(tile)))
 
 
-def append_new_tiles(user, dashboard_id: int, candidates):
+def append_new_tiles(
+    user: object,
+    dashboard_id: int,
+    candidates: list[tuple[PluginSpec, dict]],
+) -> tuple[list[PluginSpec], list[PluginSpec]]:
     """Append candidate ``(spec, tile)`` pairs, skipping duplicates, in one read.
 
-    Dedupe and the read-modify-write share a single load so a concurrent change
-    cannot slip a duplicate past a stale read. Returns ``(added, skipped)`` spec
-    lists.
+    Dedupe and the read-modify-write share a single load so this request cannot
+    slip a duplicate past its own stale read. It is not a cross-request lock:
+    two concurrent writers (or a chat turn racing a manual edit) can still
+    interleave, since the underlying save replaces the whole tab. Returns
+    ``(added, skipped)`` spec lists.
 
     Raises:
         ModelRetry: when the dashboard has no tabs to place a tile on.
@@ -124,7 +125,7 @@ def append_new_tiles(user, dashboard_id: int, candidates):
     seen = {_existing_tile_key(tile) for tile in existing}
     added, skipped, new_tiles = [], [], []
     for spec, tile in candidates:
-        key = _dedup_key(spec.source, _safe_tile_args(tile))
+        key = _dedup_key(spec.source, _tile_args(tile))
         if key in seen:
             skipped.append(spec)
         else:
