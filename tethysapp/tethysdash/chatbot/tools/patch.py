@@ -1,7 +1,13 @@
-"""Chat tool for changing the arguments of an existing dashboard visualization."""
+"""Chat tool for changing the arguments of an existing dashboard visualization.
+
+Tiles are targeted by their plugin ``source`` name, not by a number. Weak models
+reliably extract the source and the new value from a request but cannot map a
+description to a 1-based index or judge ambiguity, so matching and
+disambiguation are done here in deterministic code - the model never counts.
+"""
 import json
 import re
-from typing import Any, List
+from typing import Any
 
 from pydantic_ai import ModelRetry, RunContext
 
@@ -22,26 +28,91 @@ def _tile_args(tile) -> dict:
     return parsed if isinstance(parsed, dict) else {}
 
 
-def _describe_tile(number: int, tile) -> str:
-    """Format one numbered tile line: its number, source, and current args."""
+def _normalize(name) -> str:
+    """Reduce a source name to comparable letters/digits (drop case, _, spaces)."""
+    return re.sub(r"[^a-z0-9]", "", str(name).lower())
+
+
+def _describe_tile(tile) -> str:
+    """Format one tile as its source and current args (no index number)."""
     args = _tile_args(tile)
     args_line = ", ".join(f"{key}={value!r}" for key, value in args.items())
-    return f"{number}. {tile.get('source', '?')} - args: {args_line or '(none)'}"
+    return f"{tile.get('source', '?')} - args: {args_line or '(none)'}"
 
 
 def _format_tiles(tiles) -> str:
-    """Render a list of ``(tab, item, tile)`` as a 1-indexed Markdown list."""
+    """Render tiles as a bullet list of source and current args."""
     if not tiles:
         return "The dashboard has no visualizations yet."
-    return "\n".join(
-        _describe_tile(number, tile)
-        for number, (_tab, _item, tile) in enumerate(tiles, start=1)
-    )
+    return "\n".join(f"- {_describe_tile(tile)}" for _tab, _item, tile in tiles)
 
 
 def format_dashboard_state_for_llm(user, dashboard_id) -> str:
-    """Render the dashboard's current tiles as a 1-indexed list for the model."""
+    """Render the dashboard's current tiles as a source-keyed list for the model."""
     return _format_tiles(list_tiles(load_dashboard_tabs(user, dashboard_id)))
+
+
+def _matching_tiles(tiles, source):
+    """Return the ``(tab, item, tile)`` entries whose source matches ``source``."""
+    query = _normalize(source)
+    if not query:
+        return []
+    matches = []
+    for entry in tiles:
+        candidate = _normalize(entry[2].get("source"))
+        if candidate and (query == candidate or query in candidate or candidate in query):
+            matches.append(entry)
+    return matches
+
+
+def _distinct_sources(tiles) -> str:
+    """Comma-list the distinct source names currently on the dashboard."""
+    seen = []
+    for _tab, _item, tile in tiles:
+        source = tile.get("source")
+        if source and source not in seen:
+            seen.append(source)
+    return ", ".join(f"`{source}`" for source in seen) or "(none)"
+
+
+def _filter_by_where(matches, where):
+    """Keep matches whose current args equal every key/value in ``where``."""
+    return [
+        entry
+        for entry in matches
+        if all(
+            str(_tile_args(entry[2]).get(key)) == str(value)
+            for key, value in where.items()
+        )
+    ]
+
+
+def _auto_select(matches, prompt):
+    """Return the one match whose a current arg value appears in the prompt.
+
+    Resolves the common disambiguation case without a follow-up: when the user
+    already named a distinguishing current value (e.g. a river id), exactly one
+    same-source tile carries it. Returns None when zero or several tiles match.
+    """
+    if not prompt:
+        return None
+    hits = [
+        entry
+        for entry in matches
+        if any(str(v) and str(v) in prompt for v in _tile_args(entry[2]).values())
+    ]
+    return hits[0] if len(hits) == 1 else None
+
+
+def _disambiguation_reply(source, matches) -> str:
+    """Ask the user to pick among same-source tiles by a current arg value."""
+    lines = "\n".join(f"- {_describe_tile(tile)}" for _tab, _item, tile in matches)
+    return (
+        f"There are {len(matches)} {source} visualizations. Which one did you "
+        "mean? Tell me by one of its current argument values (for example, the "
+        "one whose current value you named):\n"
+        f"{lines}"
+    )
 
 
 def _invalid_arg_names(source, args) -> list[str]:
@@ -68,11 +139,10 @@ def _invalid_args_reply(source, invalid) -> str:
     spec = get_plugin(source)
     valid = ", ".join(f"`{name}`" for name in spec.args) if spec else "(unknown)"
     if _looks_like_corruption(invalid):
-        example = next(iter(spec.args), "<arg>") if spec else "<arg>"
         return (
             f"I couldn't read the arguments for {source}. Please restate the "
-            f"change, for example: *change #<number> {example} = <value>*. "
-            f"Its arguments are: {valid}."
+            f"change naming the argument and its new value. Its arguments "
+            f"are: {valid}."
         )
     listed = ", ".join(f"`{name}`" for name in invalid)
     return f"{source} has no argument(s) {listed}. Its arguments are: {valid}."
@@ -96,16 +166,20 @@ def _is_noop(tile, args) -> bool:
 
 def patch_visualization(
     ctx: RunContext[ChatDeps],
-    target: int,
+    source: str,
     args: dict[str, Any],
+    where: dict[str, Any] | None = None,
 ) -> str:
-    """Change the arguments of one visualization already on the dashboard.
+    """Change the arguments of a visualization already on the dashboard.
 
     Args:
-        target: The 1-based number of the tile to change, as shown in the
+        source: The plugin source name of the tile to change, taken from the
             'Current visualizations' list in this system prompt.
-        args: The argument values to set, merged into the tile's existing
-            arguments; arguments not listed here are left unchanged.
+        args: The NEW argument values to set, merged into the tile's existing
+            arguments; arguments not listed here are left unchanged. Only put
+            the values the user asked for - never copy a tile's current values.
+        where: Optional current argument values used to pick a single tile when
+            several tiles share the same source.
     """
     if not ctx.deps.can_add_visualizations:
         return "Only the dashboard owner can change visualizations on this dashboard."
@@ -114,55 +188,42 @@ def patch_visualization(
     tiles = list_tiles(tabs)
     if not tiles:
         return "There are no visualizations on the dashboard to change yet."
-    if not isinstance(target, int) or not 1 <= target <= len(tiles):
-        raise ModelRetry(
-            f"'target' must be a number between 1 and {len(tiles)} "
-            "(see the 'Current visualizations' list)."
-        )
     if not args:
         raise ModelRetry("Provide the argument values to set in 'args'.")
 
-    _tab, _item, tile = tiles[target - 1]
-    source = tile.get("source")
-    invalid = _invalid_arg_names(source, args)
+    matches = _matching_tiles(tiles, source)
+    if not matches:
+        raise ModelRetry(
+            f"No visualization named '{source}'. The dashboard has: "
+            f"{_distinct_sources(tiles)}."
+        )
+    if where:
+        matches = _filter_by_where(matches, where)
+        if not matches:
+            return (
+                f"No {source} visualization matches those current values. "
+                f"Its tiles are:\n{_format_tiles(_matching_tiles(tiles, source))}"
+            )
+    if len(matches) > 1:
+        auto = _auto_select(matches, ctx.deps.original_prompt)
+        matches = [auto] if auto is not None else matches
+    if len(matches) > 1:
+        return _disambiguation_reply(source, matches)
+
+    _tab, _item, tile = matches[0]
+    real_source = tile.get("source")
+    invalid = _invalid_arg_names(real_source, args)
     if invalid:
-        return _invalid_args_reply(source, invalid)
+        return _invalid_args_reply(real_source, invalid)
     if _is_noop(tile, args):
         pairs = ", ".join(f"{key}={value!r}" for key, value in args.items())
         return (
-            f"{source} (#{target}) already has {pairs}, so nothing changed. If "
-            "you meant a different value, tell me the new one."
+            f"{real_source} already has {pairs}, so nothing changed. If you "
+            "meant a different value, tell me the new one."
         )
 
-    emit_progress(ctx.deps.chat_id, f"Updating visualization {target}...")
+    emit_progress(ctx.deps.chat_id, f"Updating {real_source}...")
     _apply_arg_changes(tile, args)
     save_dashboard_tabs(ctx.deps.user, ctx.deps.dashboard_id, tabs)
     changed = ", ".join(f"{key}={value!r}" for key, value in args.items())
-    return f"Updated {source} (#{target}): {changed}."
-
-
-def ask_which_visualization(
-    ctx: RunContext[ChatDeps],
-    candidates: List[int],
-    reason: str,
-) -> str:
-    """Ask the user which visualization they meant when a description is ambiguous.
-
-    Args:
-        candidates: The 1-based numbers of the visualizations that match the
-            user's description, from the 'Current visualizations' list.
-        reason: A short explanation of why the choice is ambiguous.
-    """
-    tiles = list_tiles(load_dashboard_tabs(ctx.deps.user, ctx.deps.dashboard_id))
-    valid = [n for n in candidates if isinstance(n, int) and 1 <= n <= len(tiles)]
-    if len(valid) < 2:
-        raise ModelRetry(
-            "ask_which_visualization needs at least two valid candidate numbers "
-            f"between 1 and {len(tiles)}."
-        )
-    numbers = " or ".join(str(number) for number in valid)
-    return (
-        f"{reason} Which one did you mean - {numbers}? All visualizations on the "
-        f"dashboard are listed below; reply with the number and the change (for "
-        f"example 'change {valid[0]} to <arg> = <value>'):\n{_format_tiles(tiles)}"
-    )
+    return f"Updated {real_source}: {changed}."
