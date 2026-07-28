@@ -38,11 +38,21 @@ def build_registry():
     )
 
 
-def emit_progress(chat_id: str, message: str) -> None:
-    """Push a progress line onto the request's stream, if one is listening."""
+def _emit(chat_id: str, event: dict) -> None:
+    """Put an event on the request's stream sink, if one is listening."""
     if not chat_id:
         return
     with _PROGRESS_LOCK:
         sink = _PROGRESS_SINKS.get(chat_id)
     if sink is not None:
-        sink.put({"type": "progress", "text": message})
+        sink.put(event)
+
+
+def emit_progress(chat_id: str, message: str) -> None:
+    """Push a progress milestone (replaces the bubble text) onto the stream."""
+    _emit(chat_id, {"type": "progress", "text": message})
+
+
+def emit_delta(chat_id: str, text: str) -> None:
+    """Append a streamed answer token to the request's stream."""
+    _emit(chat_id, {"type": "delta", "text": text})

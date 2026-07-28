@@ -53,6 +53,25 @@ describe("useChatState streaming send", () => {
     expect(result.current.error).toBeNull();
   });
 
+  test("appends delta tokens into the assistant bubble", async () => {
+    appAPI.streamChatBotMessage.mockImplementation(async ({ onEvent }) => {
+      onEvent({ type: "progress", text: "Thinking..." });
+      onEvent({ type: "delta", text: "Hel" });
+      onEvent({ type: "delta", text: "lo!" });
+      onEvent({ type: "done", text: "Hello!" });
+    });
+
+    const { result } = renderHook(() => useChatState({ dashboardId: 7 }), {
+      wrapper,
+    });
+    await act(async () => {
+      await result.current.send("hi");
+    });
+
+    expect(lastAssistant(result.current.messages).text).toBe("Hello!");
+    expect(result.current.error).toBeNull();
+  });
+
   test("surfaces an error event and drops the assistant placeholder", async () => {
     appAPI.streamChatBotMessage.mockImplementation(async ({ onEvent }) => {
       onEvent({ type: "error", text: "backend boom" });

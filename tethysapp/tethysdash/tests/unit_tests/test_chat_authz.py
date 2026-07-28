@@ -43,6 +43,36 @@ def _registry_routing_to(intent: str) -> MagicMock:
     return registry
 
 
+class _FakeStreamResult:
+    """Stand-in for a pydantic-ai StreamedRunResult yielding one text delta."""
+
+    def __init__(self, text):
+        self._text = text
+
+    async def stream_text(self, delta=True):
+        yield self._text
+
+
+class _FakeRunStream:
+    """Async context manager returned by a stubbed ``agent.run_stream``."""
+
+    def __init__(self, text):
+        self._text = text
+
+    async def __aenter__(self):
+        return _FakeStreamResult(self._text)
+
+    async def __aexit__(self, *exc):
+        return False
+
+
+def _streaming_chat_agent(text):
+    """Chat-agent stub whose run_stream streams `text` as a single delta."""
+    agent = MagicMock()
+    agent.run_stream = MagicMock(return_value=_FakeRunStream(text))
+    return agent
+
+
 # --------------------------------------------------------------------------
 # Router-level gate
 # --------------------------------------------------------------------------
@@ -96,10 +126,7 @@ def test_route_returns_graceful_message_when_agent_exhausts_retries():
 def test_route_falls_back_to_chat_when_router_errors():
     from pydantic_ai.exceptions import UnexpectedModelBehavior
 
-    chat_agent = MagicMock()
-    chat_agent.run = AsyncMock(
-        return_value=SimpleNamespace(output="Here is some help.")
-    )
+    chat_agent = _streaming_chat_agent("Here is some help.")
     registry = MagicMock()
     registry.router_agent.run = AsyncMock(
         side_effect=UnexpectedModelBehavior("Exceeded maximum output retries (3)")
@@ -109,7 +136,7 @@ def test_route_falls_back_to_chat_when_router_errors():
     router = LLMRouter(registry, _deps(owner=True))
     result = async_to_sync(router.route)("how does tethysdash work?")
 
-    chat_agent.run.assert_awaited_once()
+    chat_agent.run_stream.assert_called_once()
     registry.get.assert_not_called()
     assert isinstance(result, RoutedResponse)
     assert result.intent == "fallback"
@@ -117,17 +144,14 @@ def test_route_falls_back_to_chat_when_router_errors():
 
 
 def test_route_runs_chat_agent_when_router_picks_chat():
-    chat_agent = MagicMock()
-    chat_agent.run = AsyncMock(
-        return_value=SimpleNamespace(output="Here is some help.")
-    )
+    chat_agent = _streaming_chat_agent("Here is some help.")
     registry = _registry_routing_to("chat")
     registry.chat_agent = chat_agent
 
     router = LLMRouter(registry, _deps(owner=True))
     result = async_to_sync(router.route)("how does tethysdash work?")
 
-    chat_agent.run.assert_awaited_once()
+    chat_agent.run_stream.assert_called_once()
     registry.get.assert_not_called()
     assert isinstance(result, RoutedResponse)
     assert result.intent == "fallback"

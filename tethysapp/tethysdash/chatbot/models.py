@@ -5,7 +5,7 @@ from typing import Literal, Any
 from pydantic import BaseModel
 from pydantic_ai.exceptions import UnexpectedModelBehavior
 from .agents.registry import AgentRegistry
-from .utils import emit_progress
+from .utils import emit_progress, emit_delta
 from .agents.registry import INTENT_ADD, INTENT_LIST, INTENT_PATCH
 
 
@@ -77,12 +77,31 @@ class LLMRouter:
         except UnexpectedModelBehavior:
             return _RETRY_EXHAUSTED_MESSAGE
 
+    async def _stream_chat(self, request: str) -> str:
+        """Stream the chat agent's reply token-by-token, returning the full text.
+
+        Each delta is pushed onto the request's stream as it arrives so the UI
+        shows the answer building up; the joined text is still returned as the
+        final reply for the ``done`` event.
+        """
+        parts: list[str] = []
+        try:
+            async with self.agents.chat_agent.run_stream(
+                request, deps=self.deps
+            ) as result:
+                async for delta in result.stream_text(delta=True):
+                    parts.append(delta)
+                    emit_delta(self.deps.chat_id, delta)
+            return "".join(parts)
+        except UnexpectedModelBehavior:
+            return _RETRY_EXHAUSTED_MESSAGE
+
     async def route(self, request: str) -> RoutedResponse | str:
         intent = await self._classify(request)
 
         if intent == "chat":
             emit_progress(self.deps.chat_id, "Thinking...")
-            response_text = await self._run_agent(self.agents.chat_agent, request)
+            response_text = await self._stream_chat(request)
             return RoutedResponse(intent="fallback", response=response_text)
 
         if (

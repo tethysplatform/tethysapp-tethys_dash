@@ -79,6 +79,10 @@ export function useChatState({ dashboardId }) {
         { role: "assistant", text: "", id: chatId },
       ]);
       setIsLoading(true);
+      // Accumulates streamed answer tokens; progress milestones show only
+      // until the first token arrives, then the answer takes over.
+      let answer = "";
+      let streaming = false;
       try {
         await appAPI.streamChatBotMessage({
           prompt: text,
@@ -88,8 +92,14 @@ export function useChatState({ dashboardId }) {
           csrf,
           onEvent: (event) => {
             console.log("[chat] onEvent", event);
-            if (event.type === "progress" || event.type === "done") {
-              setBubbleText(event.text);
+            if (event.type === "delta") {
+              streaming = true;
+              answer += event.text;
+              setBubbleText(answer);
+            } else if (event.type === "progress") {
+              if (!streaming) setBubbleText(event.text);
+            } else if (event.type === "done") {
+              setBubbleText(event.text || answer);
             } else if (event.type === "error") {
               throw new Error(event.text);
             }
