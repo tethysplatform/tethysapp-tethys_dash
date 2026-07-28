@@ -47,6 +47,68 @@ def build_tile(source: str, args: dict) -> dict:
     }
 
 
+_STRING_ARG_TYPES = {"text", "dropdown", "date", "date-range", "csv-uploader", "textarea"}
+_NUMBER_ARG_TYPES = {"number", "slider"}
+
+
+def _normalize_arg_value(value: Any, declared_type: Any) -> Any:
+    """Coerce one arg value to its plugin-declared type so equal values store alike.
+
+    A weak model may send the same logical value two ways (``441057380`` and
+    ``"441057380"``); storing per the plugin's declared arg type gives one
+    canonical representation. Types the plugin does not declare are left as-is.
+    """
+    if value is None:
+        return value
+    kind = str(declared_type).strip().lower()
+    if kind in _STRING_ARG_TYPES:
+        return value if isinstance(value, str) else str(value)
+    if kind in _NUMBER_ARG_TYPES:
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return value
+        return int(number) if number.is_integer() else number
+    return value
+
+
+def _normalize_args(spec: PluginSpec | None, args: dict) -> dict:
+    """Return args with each value coerced to its plugin-declared type."""
+    if not spec:
+        return dict(args)
+    return {
+        name: (_normalize_arg_value(value, spec.args[name]) if name in spec.args else value)
+        for name, value in args.items()
+    }
+
+
+def _safe_tile_args(tile: dict) -> dict:
+    """Parse a stored tile's ``args_string`` into a dict, empty on any problem."""
+    try:
+        parsed = json.loads(tile.get("args_string") or "{}")
+    except (TypeError, ValueError):
+        return {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _dedup_key(source: str, args: dict) -> tuple:
+    """A source + canonical-args key for detecting duplicate tiles."""
+    return (source, json.dumps(args, sort_keys=True))
+
+
+def _existing_active_tab_keys(user, dashboard_id: int) -> set:
+    """Dedup keys for tiles already on the dashboard's active tab (type-normalized)."""
+    tabs = load_dashboard_tabs(user, dashboard_id)
+    keys = set()
+    if not tabs:
+        return keys
+    for tile in tabs[0].get("gridItems", []):
+        source = tile.get("source")
+        spec = get_plugin(source) if source else None
+        keys.add(_dedup_key(source, _normalize_args(spec, _safe_tile_args(tile))))
+    return keys
+
+
 def append_tiles_to_dashboard(user, dashboard_id: int, tiles: list[dict]) -> None:
     """Append tiles to the dashboard's first tab in one read-modify-write.
 
@@ -114,10 +176,16 @@ def _missing_args_reply(needing: list[tuple[PluginSpec, list[str]]]) -> str:
     return "Some plugins still need arguments before I can add them:\n" + "\n".join(lines)
 
 
-def _added_summary(resolved, dashboard_id: int) -> str:
-    """Build the confirmation message listing the visualizations that were added."""
-    added = ", ".join(f"'{spec.source}' ({spec.viz_type})" for spec, _ in resolved)
-    return f"Added {added} to dashboard {dashboard_id}."
+def _added_summary(to_add, skipped, dashboard_id: int) -> str:
+    """Confirm what was added and name any duplicates that were skipped."""
+    parts = []
+    if to_add:
+        added = ", ".join(f"'{spec.source}' ({spec.viz_type})" for spec, _ in to_add)
+        parts.append(f"Added {added} to dashboard {dashboard_id}.")
+    if skipped:
+        names = ", ".join(f"'{spec.source}'" for spec in skipped)
+        parts.append(f"Skipped {names} - already on the dashboard.")
+    return " ".join(parts) or f"Nothing to add to dashboard {dashboard_id}."
 
 
 def add_visualizations_from_plugin(
@@ -145,10 +213,24 @@ def add_visualizations_from_plugin(
     if needing:
         return _missing_args_reply(needing)
 
-    tiles = [build_tile(spec.source, args) for spec, args in resolved]
+    normalized = [(spec, _normalize_args(spec, args)) for spec, args in resolved]
+    seen = _existing_active_tab_keys(ctx.deps.user, ctx.deps.dashboard_id)
+    to_add, skipped = [], []
+    for spec, args in normalized:
+        key = _dedup_key(spec.source, args)
+        if key in seen:
+            skipped.append(spec)
+        else:
+            seen.add(key)
+            to_add.append((spec, args))
+
+    if not to_add:
+        return _added_summary(to_add, skipped, ctx.deps.dashboard_id)
+
+    tiles = [build_tile(spec.source, args) for spec, args in to_add]
     emit_progress(
         ctx.deps.chat_id,
         f"Placing {len(tiles)} visualization(s) on dashboard {ctx.deps.dashboard_id}...",
     )
     append_tiles_to_dashboard(ctx.deps.user, ctx.deps.dashboard_id, tiles)
-    return _added_summary(resolved, ctx.deps.dashboard_id)
+    return _added_summary(to_add, skipped, ctx.deps.dashboard_id)

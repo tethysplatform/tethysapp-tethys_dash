@@ -160,6 +160,79 @@ def test_one_unknown_source_blocks_all_before_persisting():
     update.assert_not_called()
 
 
+def test_add_normalizes_int_arg_to_declared_text_type():
+    import json
+
+    dashboard = {"tabs": [{"gridItems": []}]}
+    with (
+        patch(_REGISTRY, {"p": _fake_plugin()}),
+        patch(_GET, return_value=dashboard),
+        patch(_UPDATE) as update,
+    ):
+        add_visualizations_from_plugin(_ctx(), _reqs(("p", {"river_id": 441057380})))
+    _user, _id, payload = update.call_args[0]
+    saved = json.loads(payload["tabs"][0]["gridItems"][-1]["args_string"])
+    assert saved == {"river_id": "441057380"}
+
+
+def test_dedupe_skips_identical_tile():
+    existing = {"source": "p", "args_string": '{"river_id": "441057380"}'}
+    dashboard = {"tabs": [{"gridItems": [existing]}]}
+    with (
+        patch(_REGISTRY, {"p": _fake_plugin()}),
+        patch(_GET, return_value=dashboard),
+        patch(_UPDATE) as update,
+    ):
+        reply = add_visualizations_from_plugin(
+            _ctx(), _reqs(("p", {"river_id": "441057380"}))
+        )
+    assert "already" in reply.lower()
+    update.assert_not_called()
+
+
+def test_dedupe_matches_across_int_and_str_via_normalization():
+    existing = {"source": "p", "args_string": '{"river_id": 441057380}'}  # stored int
+    dashboard = {"tabs": [{"gridItems": [existing]}]}
+    with (
+        patch(_REGISTRY, {"p": _fake_plugin()}),
+        patch(_GET, return_value=dashboard),
+        patch(_UPDATE) as update,
+    ):
+        reply = add_visualizations_from_plugin(
+            _ctx(), _reqs(("p", {"river_id": 441057380}))  # int input
+        )
+    assert "already" in reply.lower()
+    update.assert_not_called()
+
+
+def test_batch_duplicate_added_only_once():
+    dashboard = {"tabs": [{"gridItems": []}]}
+    with (
+        patch(_REGISTRY, {"p": _fake_plugin()}),
+        patch(_GET, return_value=dashboard),
+        patch(_UPDATE) as update,
+    ):
+        reply = add_visualizations_from_plugin(
+            _ctx(), _reqs(("p", {"river_id": "1"}), ("p", {"river_id": "1"}))
+        )
+    _user, _id, payload = update.call_args[0]
+    assert len(payload["tabs"][0]["gridItems"]) == 1
+    assert "already" in reply.lower()
+
+
+def test_new_value_not_treated_as_duplicate():
+    existing = {"source": "p", "args_string": '{"river_id": "111"}'}
+    dashboard = {"tabs": [{"gridItems": [existing]}]}
+    with (
+        patch(_REGISTRY, {"p": _fake_plugin()}),
+        patch(_GET, return_value=dashboard),
+        patch(_UPDATE) as update,
+    ):
+        add_visualizations_from_plugin(_ctx(), _reqs(("p", {"river_id": "222"})))
+    _user, _id, payload = update.call_args[0]
+    assert len(payload["tabs"][0]["gridItems"]) == 2
+
+
 def test_no_arg_plugin_added_with_empty_args():
     dashboard = {"tabs": [{"gridItems": []}]}
     with (
