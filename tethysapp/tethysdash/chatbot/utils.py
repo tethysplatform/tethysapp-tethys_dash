@@ -1,9 +1,25 @@
 """Factory and helpers for the chat router."""
 
 from __future__ import annotations
+import queue
 import threading
 
-from tethysapp.tethysdash.plugin_helpers import send_websocket_message
+_PROGRESS_SINKS: dict[str, "queue.Queue"] = {}
+_PROGRESS_LOCK = threading.Lock()
+
+
+def register_progress_sink(chat_id: str, sink: "queue.Queue") -> None:
+    """Route a request's progress events to `sink` until it is unregistered."""
+    if not chat_id:
+        return
+    with _PROGRESS_LOCK:
+        _PROGRESS_SINKS[chat_id] = sink
+
+
+def unregister_progress_sink(chat_id: str) -> None:
+    """Stop routing progress once a request's stream has finished."""
+    with _PROGRESS_LOCK:
+        _PROGRESS_SINKS.pop(chat_id, None)
 
 
 def build_registry():
@@ -23,10 +39,10 @@ def build_registry():
 
 
 def emit_progress(chat_id: str, message: str) -> None:
+    """Push a progress line onto the request's stream, if one is listening."""
     if not chat_id:
         return
-    threading.Thread(
-        target=send_websocket_message,
-        kwargs={"request_id": chat_id, "message": message},
-        daemon=True,
-    ).start()
+    with _PROGRESS_LOCK:
+        sink = _PROGRESS_SINKS.get(chat_id)
+    if sink is not None:
+        sink.put({"type": "progress", "text": message})

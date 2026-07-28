@@ -1113,21 +1113,56 @@ def chat_message(request):
         history=sanitize_history(body.get("history")),
         can_add_visualizations=is_owner,
     )
-    try:
-        emit_progress(chat_id, "Understanding your request...")
-        # Deterministic routing: the router agent picks the capability from a
-        # fixed intent set, then the specialist LLM (if any) runs inside it.
-        router = LLMRouter(build_registry(), deps)
-        result = async_to_sync(router.route)(prompt)
-        reply = result.response if isinstance(result, RoutedResponse) else result
-        return JsonResponse({"text": reply, "dashboard_id_used": dashboard_id})
-    except Exception as e:
-        import traceback
-        print(
-            f"\n[chat_message] {type(e).__name__}: {e}\n"
-            f"Prompt: {prompt!r}\n"
-            f"Dashboard id: {dashboard_id}\n"
-            f"{traceback.format_exc()}"
-        )
-        err_msg = _get_error_message(e, "Chat backend error. Check server logs.")
-        return JsonResponse({"error": err_msg}, status=503)
+    from django.http import StreamingHttpResponse
+    import queue as progress_queue
+    import threading as progress_threading
+    from tethysapp.tethysdash.chatbot.utils import (
+        register_progress_sink,
+        unregister_progress_sink,
+    )
+
+    # Progress and the final reply stream back on this request over NDJSON;
+    # the agent runs in a worker thread and funnels events through a queue.
+    sink = progress_queue.Queue()
+    register_progress_sink(chat_id, sink)
+    router = LLMRouter(build_registry(), deps)
+
+    def _run_router():
+        """Run the router in a worker thread, pushing events onto the stream."""
+        try:
+            emit_progress(chat_id, "Understanding your request...")
+            result = async_to_sync(router.route)(prompt)
+            reply = result.response if isinstance(result, RoutedResponse) else result
+            sink.put({"type": "done", "text": reply})
+        except Exception as e:
+            import traceback
+            print(
+                f"\n[chat_message] {type(e).__name__}: {e}\n"
+                f"Prompt: {prompt!r}\n"
+                f"Dashboard id: {dashboard_id}\n"
+                f"{traceback.format_exc()}"
+            )
+            err_msg = _get_error_message(e, "Chat backend error. Check server logs.")
+            sink.put({"type": "error", "text": err_msg})
+        finally:
+            sink.put(None)
+
+    progress_threading.Thread(target=_run_router, daemon=True).start()
+
+    def _event_stream():
+        """Yield newline-delimited JSON events until the worker signals done."""
+        try:
+            while True:
+                event = sink.get()
+                if event is None:
+                    break
+                yield json.dumps(event) + "\n"
+        finally:
+            unregister_progress_sink(chat_id)
+
+    response = StreamingHttpResponse(
+        _event_stream(), content_type="application/x-ndjson"
+    )
+    response["Cache-Control"] = "no-cache"
+    response["X-Accel-Buffering"] = "no"
+    return response

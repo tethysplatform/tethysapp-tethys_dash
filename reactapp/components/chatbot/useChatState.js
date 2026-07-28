@@ -1,7 +1,6 @@
 import { useCallback, useContext, useEffect, useState } from "react";
 import appAPI from "services/api/app";
 import { AppContext } from "components/contexts/Contexts";
-import { WebsocketContext } from "components/contexts/WebSocketContext";
 
 const STORAGE_PREFIX = "tethysdash:chat:v1:";
 
@@ -41,45 +40,16 @@ function clearMessages(dashboardId) {
   }
 }
 
-export function withLiveProgress(messages, getMessageForRequest) {
-  const last = messages[messages.length - 1];
-  if (
-    !last ||
-    last.role !== "assistant" ||
-    last.text ||
-    !getMessageForRequest
-  ) {
-    return messages;
-  }
-  const payload = getMessageForRequest(last.id);
-  if (!payload) return messages;
-  let parsed;
-  try {
-    parsed = JSON.parse(payload);
-  } catch {
-    return messages;
-  }
-  const text = parsed.message;
-  if (parsed.requestId !== last.id || typeof text !== "string" || !text) {
-    return messages;
-  }
-  return [...messages.slice(0, -1), { ...last, text }];
-}
-
 export function useChatState({ dashboardId }) {
   const [messages, setMessages] = useState(() => loadMessages(dashboardId));
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const { csrf } = useContext(AppContext);
-  const { getMessageForRequest } = useContext(WebsocketContext) || {};
 
   // Persist on every messages change (dashboardId is read here, so it's a dep).
   useEffect(() => {
     saveMessages(dashboardId, messages);
   }, [messages, dashboardId]);
-
-  // Live progress is derived during render, not copied into state.
-  const displayMessages = withLiveProgress(messages, getMessageForRequest);
 
   const send = useCallback(
     async (prompt) => {
@@ -92,6 +62,16 @@ export function useChatState({ dashboardId }) {
         .slice(-6)
         .map((m) => ({ role: m.role, text: m.text }));
 
+      // Overwrite the in-flight assistant bubble as streamed events arrive.
+      const setBubbleText = (newText) =>
+        setMessages((m) => {
+          const index = m.findIndex((msg) => msg.id === chatId);
+          if (index < 0) return m;
+          const next = m.slice();
+          next[index] = { ...next[index], text: newText };
+          return next;
+        });
+
       setError(null);
       setMessages((m) => [
         ...m,
@@ -100,18 +80,19 @@ export function useChatState({ dashboardId }) {
       ]);
       setIsLoading(true);
       try {
-        const { text: reply } = await appAPI.sendChatBotMessage({
+        await appAPI.streamChatBotMessage({
           prompt: text,
           dashboardId,
           chatId,
           history,
           csrf,
-        });
-        setMessages((m) => {
-          const last = m[m.length - 1];
-          if (!last || last.role !== "assistant" || last.id !== chatId)
-            return m;
-          return [...m.slice(0, -1), { ...last, text: reply }];
+          onEvent: (event) => {
+            if (event.type === "progress" || event.type === "done") {
+              setBubbleText(event.text);
+            } else if (event.type === "error") {
+              throw new Error(event.text);
+            }
+          },
         });
         window.dispatchEvent(new Event("tethysdash:agent-dashboard-refetch"));
       } catch (e) {
@@ -130,5 +111,5 @@ export function useChatState({ dashboardId }) {
     clearMessages(dashboardId);
   }, [dashboardId]);
 
-  return { messages: displayMessages, isLoading, error, send, clear };
+  return { messages, isLoading, error, send, clear };
 }
