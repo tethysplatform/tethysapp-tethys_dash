@@ -99,32 +99,43 @@ def _dedup_key(source: str, args: dict) -> tuple:
     return (source, json.dumps(args, sort_keys=True))
 
 
-def _existing_active_tab_keys(user, dashboard_id: int) -> set:
-    """Dedup keys for tiles already on the dashboard's active tab (type-normalized)."""
-    tabs = load_dashboard_tabs(user, dashboard_id)
-    keys = set()
-    if not tabs:
-        return keys
-    for tile in tabs[0].get("gridItems", []):
-        source = tile.get("source")
-        spec = get_plugin(source) if source else None
-        keys.add(_dedup_key(source, _normalize_args(spec, _safe_tile_args(tile))))
-    return keys
+def _existing_tile_key(tile: dict) -> tuple:
+    """Dedup key for a tile already stored on the dashboard (type-normalized)."""
+    source = tile.get("source")
+    spec = get_plugin(source) if source else None
+    return _dedup_key(source, _normalize_args(spec, _safe_tile_args(tile)))
 
 
-def append_tiles_to_dashboard(user, dashboard_id: int, tiles: list[dict]) -> None:
-    """Append tiles to the dashboard's first tab in one read-modify-write.
+def append_new_tiles(user, dashboard_id: int, candidates):
+    """Append candidate ``(spec, tile)`` pairs, skipping duplicates, in one read.
+
+    Dedupe and the read-modify-write share a single load so a concurrent change
+    cannot slip a duplicate past a stale read. Returns ``(added, skipped)`` spec
+    lists.
 
     Raises:
-        ModelRetry: when the dashboard has no tabs to place tiles on.
+        ModelRetry: when the dashboard has no tabs to place a tile on.
     """
     tabs = load_dashboard_tabs(user, dashboard_id)
     if not tabs:
         raise ModelRetry(f"Dashboard {dashboard_id} has no tabs; cannot add a tile.")
     active_tab = dict(tabs[0])
-    active_tab["gridItems"] = list(active_tab.get("gridItems", [])) + tiles
-    tabs[0] = active_tab
-    save_dashboard_tabs(user, dashboard_id, tabs)
+    existing = list(active_tab.get("gridItems", []))
+    seen = {_existing_tile_key(tile) for tile in existing}
+    added, skipped, new_tiles = [], [], []
+    for spec, tile in candidates:
+        key = _dedup_key(spec.source, _safe_tile_args(tile))
+        if key in seen:
+            skipped.append(spec)
+        else:
+            seen.add(key)
+            added.append(spec)
+            new_tiles.append(tile)
+    if new_tiles:
+        active_tab["gridItems"] = existing + new_tiles
+        tabs[0] = active_tab
+        save_dashboard_tabs(user, dashboard_id, tabs)
+    return added, skipped
 
 
 def _resolve_requests(requests: List[PluginRequest]):
@@ -179,12 +190,12 @@ def _missing_args_reply(needing: list[tuple[PluginSpec, list[str]]]) -> str:
     return "Some plugins still need arguments before I can add them:\n" + "\n".join(lines)
 
 
-def _added_summary(to_add, skipped, dashboard_id: int) -> str:
+def _added_summary(added, skipped, dashboard_id: int) -> str:
     """Confirm what was added and name any duplicates that were skipped."""
     parts = []
-    if to_add:
-        added = ", ".join(f"'{spec.source}' ({spec.viz_type})" for spec, _ in to_add)
-        parts.append(f"Added {added} to dashboard {dashboard_id}.")
+    if added:
+        names = ", ".join(f"'{spec.source}' ({spec.viz_type})" for spec in added)
+        parts.append(f"Added {names} to dashboard {dashboard_id}.")
     if skipped:
         names = ", ".join(f"'{spec.source}'" for spec in skipped)
         parts.append(f"Skipped {names} - already on the dashboard.")
@@ -216,24 +227,13 @@ def add_visualizations_from_plugin(
     if needing:
         return _missing_args_reply(needing)
 
-    normalized = [(spec, _normalize_args(spec, args)) for spec, args in resolved]
-    seen = _existing_active_tab_keys(ctx.deps.user, ctx.deps.dashboard_id)
-    to_add, skipped = [], []
-    for spec, args in normalized:
-        key = _dedup_key(spec.source, args)
-        if key in seen:
-            skipped.append(spec)
-        else:
-            seen.add(key)
-            to_add.append((spec, args))
-
-    if not to_add:
-        return _added_summary(to_add, skipped, ctx.deps.dashboard_id)
-
-    tiles = [build_tile(spec.source, args) for spec, args in to_add]
+    candidates = [
+        (spec, build_tile(spec.source, _normalize_args(spec, args)))
+        for spec, args in resolved
+    ]
     emit_progress(
         ctx.deps.chat_id,
-        f"Placing {len(tiles)} visualization(s) on dashboard {ctx.deps.dashboard_id}...",
+        f"Placing visualization(s) on dashboard {ctx.deps.dashboard_id}...",
     )
-    append_tiles_to_dashboard(ctx.deps.user, ctx.deps.dashboard_id, tiles)
-    return _added_summary(to_add, skipped, ctx.deps.dashboard_id)
+    added, skipped = append_new_tiles(ctx.deps.user, ctx.deps.dashboard_id, candidates)
+    return _added_summary(added, skipped, ctx.deps.dashboard_id)

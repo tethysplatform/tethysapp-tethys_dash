@@ -238,7 +238,7 @@ def test_auto_select_ignores_value_that_is_substring_of_new_value():
     update.assert_not_called()
 
 
-def test_successful_patch_clears_stale_pending_record():
+def test_successful_patch_clears_matching_pending_record():
     from tethysapp.tethysdash.chatbot.disambiguation import (
         PendingDisambiguation,
         get_pending,
@@ -250,7 +250,7 @@ def test_successful_patch_clears_stale_pending_record():
     set_pending(
         ctx.deps.dashboard_id,
         ctx.deps.user,
-        PendingDisambiguation("stale_source", {"a": "1"}, [[0, 0]], "v"),
+        PendingDisambiguation("geoglows", {"river_id": "1"}, [[0, 0]], "v"),
     )
     with (
         patch(_REGISTRY, {"geoglows": _fake_plugin(("river_id",))}),
@@ -259,6 +259,29 @@ def test_successful_patch_clears_stale_pending_record():
     ):
         patch_visualization(ctx, source="geoglows", args={"river_id": "222"})
     assert get_pending(ctx.deps.dashboard_id, ctx.deps.user) is None
+
+
+def test_successful_patch_keeps_unrelated_pending_record():
+    from tethysapp.tethysdash.chatbot.disambiguation import (
+        PendingDisambiguation,
+        get_pending,
+        set_pending,
+    )
+
+    dash = _dashboard(_tile("geoglows", {"river_id": "111"}))
+    ctx = _ctx()
+    set_pending(
+        ctx.deps.dashboard_id,
+        ctx.deps.user,
+        PendingDisambiguation("other_plugin", {"a": "1"}, [[0, 0]], "v"),
+    )
+    with (
+        patch(_REGISTRY, {"geoglows": _fake_plugin(("river_id",))}),
+        patch(_GET, return_value=dash),
+        patch(_UPDATE),
+    ):
+        patch_visualization(ctx, source="geoglows", args={"river_id": "222"})
+    assert get_pending(ctx.deps.dashboard_id, ctx.deps.user) is not None
 
 
 def test_where_matching_nothing_reports_and_lists_tiles():

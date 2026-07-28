@@ -16,7 +16,8 @@ from tethysapp.tethysdash.chatbot.disambiguation import (
 )
 from tethysapp.tethysdash.chatbot.models import ChatDeps
 from tethysapp.tethysdash.chatbot.tools.dashboard import list_tiles
-from tethysapp.tethysdash.chatbot.tools.patch import (
+from tethysapp.tethysdash.chatbot.tools.tile_ops import (
+    DISAMBIGUATION_MARKER,
     _filter_by_where,
     _matching_tiles,
     candidate_signature,
@@ -31,11 +32,19 @@ def truncate_tables():
     cache.clear()
 
 
-def _deps(dashboard_id=6, owner=True):
+def _deps(dashboard_id=6, owner=True, after_ask=True):
+    # after_ask=True means the previous assistant turn was a disambiguation prompt,
+    # which is required for a selection reply to be honored.
+    history = (
+        [{"role": "assistant", "text": f"Which one? {DISAMBIGUATION_MARKER}:\n1. a"}]
+        if after_ask
+        else None
+    )
     return ChatDeps(
         user=MagicMock(),
         dashboard_id=dashboard_id,
         chat_id="",
+        history=history,
         can_add_visualizations=owner,
     )
 
@@ -176,6 +185,61 @@ def test_all_updates_every_candidate():
     assert get_pending(d.dashboard_id, d.user) is None
 
 
+def test_all_updates_only_non_noop_tiles_with_count():
+    d = _deps()
+    dash = _dash(
+        _tile("geoglows_forecast_viewer", {"river_id": "999"}),  # already target -> noop
+        _tile("geoglows_forecast_viewer", {"river_id": "111"}),
+        _tile("geoglows_forecast_viewer", {"river_id": "333"}),
+    )
+    _seed_record(d, dash, "geoglows_forecast_viewer", {"river_id": "999"})
+    with (
+        patch(_REGISTRY, {"geoglows_forecast_viewer": _fake_plugin()}),
+        patch(_GET, return_value=dash),
+        patch(_UPDATE) as update,
+    ):
+        reply = resolve_pending(d, "all")
+    saved = [
+        json.loads(g["args_string"])
+        for g in update.call_args[0][2]["tabs"][0]["gridItems"]
+    ]
+    assert saved == [{"river_id": "999"}] * 3
+    assert "all 2" in reply.lower()  # only the 2 non-noop tiles counted
+
+
+def test_where_filter_narrows_candidates_in_resolve():
+    d = _deps()
+    dash = _dash(
+        _tile("geoglows_forecast_viewer", {"river_id": "111", "kind": "a"}),
+        _tile("geoglows_forecast_viewer", {"river_id": "333", "kind": "a"}),
+        _tile("geoglows_forecast_viewer", {"river_id": "555", "kind": "b"}),
+    )
+    _seed_record(
+        d, dash, "geoglows_forecast_viewer", {"river_id": "999"}, where={"kind": "a"}
+    )
+    with (
+        patch(_REGISTRY, {"geoglows_forecast_viewer": _fake_plugin(("river_id", "kind"))}),
+        patch(_GET, return_value=dash),
+        patch(_UPDATE) as update,
+    ):
+        reply = resolve_pending(d, "2")
+    saved = [
+        json.loads(g["args_string"])
+        for g in update.call_args[0][2]["tabs"][0]["gridItems"]
+    ]
+    assert saved[1] == {"river_id": "999", "kind": "a"}  # 2nd of the kind=a subset
+    assert saved[2] == {"river_id": "555", "kind": "b"}  # kind=b untouched
+    assert "#2" in reply
+
+
+def test_set_pending_supersedes_previous():
+    d = _deps()
+    set_pending(d.dashboard_id, d.user, PendingDisambiguation("first", {"a": "1"}, [[0, 0]], "v1"))
+    set_pending(d.dashboard_id, d.user, PendingDisambiguation("second", {"b": "2"}, [[0, 0]], "v2"))
+    record = get_pending(d.dashboard_id, d.user)
+    assert record.source == "second" and record.args == {"b": "2"}
+
+
 def test_cancel_clears_and_writes_nothing():
     d = _deps()
     dash = _dash(_tile("p", {"river_id": "111"}), _tile("p", {"river_id": "333"}))
@@ -208,6 +272,15 @@ def test_non_selection_falls_through_and_keeps_record():
 
 def test_no_record_returns_none():
     assert resolve_pending(_deps(), "2") is None
+
+
+def test_selection_ignored_when_ask_was_not_the_previous_turn():
+    # A bare number long after an abandoned ask must not hijack the stale record.
+    d = _deps(after_ask=False)
+    dash = _dash(_tile("p", {"river_id": "111"}), _tile("p", {"river_id": "333"}))
+    _seed_record(d, dash, "p", {"river_id": "999"})
+    assert resolve_pending(d, "2") is None
+    assert get_pending(d.dashboard_id, d.user) is not None  # left for TTL, not applied
 
 
 def test_dashboard_drift_reasks_and_refreshes_record():

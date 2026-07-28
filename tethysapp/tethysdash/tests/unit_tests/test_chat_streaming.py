@@ -65,6 +65,24 @@ def test_unregister_stops_delivery():
     assert sink.empty()
 
 
+def test_stream_immediate_emits_single_done_ndjson_event():
+    import asyncio
+    import json
+
+    from tethysapp.tethysdash.chatbot.streaming import stream_immediate
+
+    resp = stream_immediate("hello there")
+
+    async def collect():
+        return [chunk async for chunk in resp.streaming_content]
+
+    chunks = asyncio.run(collect())
+    assert len(chunks) == 1
+    line = chunks[0].decode() if isinstance(chunks[0], (bytes, bytearray)) else chunks[0]
+    assert json.loads(line.strip()) == {"type": "done", "text": "hello there"}
+    assert resp.headers["Content-Type"].startswith("application/x-ndjson")
+
+
 def test_sink_is_duck_typed_on_put():
     """The controller registers an asyncio-bridging sink, not a queue.Queue -
     anything with a put(event) method works."""

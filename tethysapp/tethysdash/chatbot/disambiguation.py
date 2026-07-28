@@ -3,13 +3,27 @@
 When patch finds several same-source tiles it stores a short-lived pending record
 (Django cache, keyed by dashboard+user). The next user turn is resolved here - a
 numbered pick, 'all', or 'cancel' - deterministically, before the router/LLM, so
-the weak model never has to handle a number. Numbers are generated in patch.py
-and resolved here against the record's ordered candidate identities.
+the weak model never has to handle a number. A selection is only honored when the
+disambiguation ask was the immediately-preceding turn, so a stray number sent
+long after an abandoned ask cannot hijack a stale pending change.
 """
 import re
 from dataclasses import asdict, dataclass, field
 
 from django.core.cache import cache
+
+from .tools.dashboard import list_tiles, load_dashboard_tabs, save_dashboard_tabs
+from .tools.tile_ops import (
+    DISAMBIGUATION_MARKER,
+    _apply_arg_changes,
+    _disambiguation_reply,
+    _filter_by_where,
+    _is_noop,
+    _matching_tiles,
+    _pairs,
+    candidate_signature,
+    check_args,
+)
 
 _TTL_SECONDS = 600
 _ALL_WORDS = {"all", "all of them", "both", "every", "everything"}
@@ -78,6 +92,18 @@ def _classify(message: str):
     return None, None
 
 
+def _ask_was_last_turn(history) -> bool:
+    """True when the most recent assistant turn was a disambiguation prompt.
+
+    Bounds a selection reply to the turn right after the ask so a stray number
+    sent later (answering something else) cannot resolve a stale pending record.
+    """
+    for turn in reversed(history or []):
+        if turn.get("role") == "assistant":
+            return DISAMBIGUATION_MARKER in (turn.get("text") or "")
+    return False
+
+
 def resolve_pending(deps, message: str) -> str | None:
     """Resolve a follow-up to a pending disambiguation, or None to fall through.
 
@@ -90,6 +116,8 @@ def resolve_pending(deps, message: str) -> str | None:
     kind, number = _classify(message)
     if kind is None:
         return None
+    if not _ask_was_last_turn(deps.history):
+        return None  # a stray selection long after the ask; don't hijack it
 
     if kind == "cancel":
         clear_pending(deps.dashboard_id, deps.user)
@@ -98,18 +126,6 @@ def resolve_pending(deps, message: str) -> str | None:
     if not deps.can_add_visualizations:
         clear_pending(deps.dashboard_id, deps.user)
         return "Only the dashboard owner can change visualizations on this dashboard."
-
-    from .tools.dashboard import list_tiles, load_dashboard_tabs, save_dashboard_tabs
-    from .tools.patch import (
-        _apply_arg_changes,
-        _disambiguation_reply,
-        _filter_by_where,
-        _is_noop,
-        _matching_tiles,
-        _pairs,
-        candidate_signature,
-        check_args,
-    )
 
     tabs = load_dashboard_tabs(deps.user, deps.dashboard_id)
     matches = _matching_tiles(list_tiles(tabs), record.source)

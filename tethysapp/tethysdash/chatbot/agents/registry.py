@@ -9,11 +9,9 @@ INTENT_CHAT = "chat"
 INTENT_FALLBACK = "fallback"
 
 
-IntentName = Literal[
-    INTENT_ADD,
-    INTENT_LIST,
-    INTENT_PATCH,
-]
+# String literals (not the constants) because PEP 586 requires literal values
+# inside Literal[...]; keep these in sync with the INTENT_* constants above.
+IntentName = Literal["add_plugin", "list_plugins", "patch_visualization"]
 
 
 @dataclass

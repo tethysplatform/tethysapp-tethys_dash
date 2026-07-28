@@ -4,7 +4,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 
-from .agents.registry import INTENT_FALLBACK, IntentName
+from .agents.registry import IntentName
 
 
 @dataclass(frozen=True)
@@ -26,7 +26,7 @@ class PluginRequest(BaseModel):
 class RoutedResponse(BaseModel):
     """The router's reply: the capability that handled it and the text to show."""
 
-    intent: IntentName | Literal[INTENT_FALLBACK]
+    intent: IntentName | Literal["fallback"]
     response: str
 
 
