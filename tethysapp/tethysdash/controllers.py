@@ -1,6 +1,7 @@
 from django.http import JsonResponse
 import json
 import os
+from typing import NamedTuple
 import shutil
 import nh3
 from rest_framework.decorators import api_view
@@ -1045,141 +1046,93 @@ def download_json(request, app_workspace):
         return JsonResponse({"success": False, "message": message})
 
 
-api_view(["POST"])
-@controller(url="tethysdash/chat/message", login_required=True)
-def chat_message(request):
-    """Pydantic-AI-backed chat endpoint. Frontend posts { prompt, dashboard_id }
-    as JSON; response is { text }. Same permission gate as chat_agent.
-    """
-    if request.method != "POST":
-        return JsonResponse({"error": "POST required"}, status=405)
+class _ChatRequestError(Exception):
+    """A malformed chat request; carries an HTTP status and user-facing message."""
 
+    def __init__(self, status, message):
+        super().__init__(message)
+        self.status = status
+        self.message = message
+
+
+class _ChatRequest(NamedTuple):
+    """The validated fields of a chat POST body."""
+
+    prompt: str
+    dashboard_id: int
+    chat_id: str
+    raw_history: object
+
+
+def _parse_chat_request(request):
+    """Validate the chat POST and return its fields, or raise _ChatRequestError."""
+    if request.method != "POST":
+        raise _ChatRequestError(405, "POST required")
     if not has_permission(request, "manage_visualizations"):
-        return JsonResponse(
-            {"error": "User does not have permission to use the chat."},
-            status=403,
+        raise _ChatRequestError(
+            403, "User does not have permission to use the chat."
         )
     try:
         body = json.loads(request.body or b"{}")
     except json.JSONDecodeError as exc:
-        return JsonResponse({"error": f"Invalid JSON body: {exc}"}, status=400)
+        raise _ChatRequestError(400, f"Invalid JSON body: {exc}") from exc
 
     prompt = (body.get("prompt") or "").strip()
     if not prompt:
-        return JsonResponse({"error": "Missing or empty 'prompt' field."}, status=400)
+        raise _ChatRequestError(400, "Missing or empty 'prompt' field.")
 
     dashboard_id_raw = body.get("dashboard_id")
     if dashboard_id_raw is None:
-        return JsonResponse({"error": "dashboard_id is required."}, status=400)
+        raise _ChatRequestError(400, "dashboard_id is required.")
     try:
         dashboard_id = int(dashboard_id_raw)
-    except (TypeError, ValueError):
-        return JsonResponse(
-            {"error": f"Invalid dashboard_id {dashboard_id_raw!r}; must be int."},
-            status=400,
-        )
+    except (TypeError, ValueError) as exc:
+        raise _ChatRequestError(
+            400, f"Invalid dashboard_id {dashboard_id_raw!r}; must be int."
+        ) from exc
 
     chat_id = (body.get("chat_id") or "").strip()
+    return _ChatRequest(prompt, dashboard_id, chat_id, body.get("history"))
 
-    try:
-        from tethysapp.tethysdash.chatbot.utils import build_registry
-        from tethysapp.tethysdash.chatbot.utils import emit_progress
-        from tethysapp.tethysdash.chatbot.models import (
-            ChatDeps,
-            LLMRouter,
-            RoutedResponse,
-        )
-    except ImportError as e:
-        return JsonResponse(
-            {"error": f"Chat backend not installed: {e}"},
-            status=503,
-        )
-    try:
-        dashboard_meta = get_dashboards(request.user, id=dashboard_id)
-        is_owner = dashboard_meta.get("owner") == request.user.username
-    except Exception:
-        return JsonResponse(
-            {"error": f"Dashboard {dashboard_id} not found."}, status=404
-        )
 
+def _build_chat_deps(request, parsed):
+    """Assemble ChatDeps, resolving dashboard ownership, or raise _ChatRequestError."""
     from tethysapp.tethysdash.chatbot.messages.history import sanitize_history
+    from tethysapp.tethysdash.chatbot.models import ChatDeps
 
-    deps = ChatDeps(
+    try:
+        dashboard_meta = get_dashboards(request.user, id=parsed.dashboard_id)
+    except Exception as exc:
+        raise _ChatRequestError(
+            404, f"Dashboard {parsed.dashboard_id} not found."
+        ) from exc
+
+    return ChatDeps(
         user=request.user,
-        dashboard_id=dashboard_id,
-        original_prompt=prompt,
-        chat_id=chat_id,
-        history=sanitize_history(body.get("history")),
-        can_add_visualizations=is_owner,
-    )
-    import asyncio
-    from django.http import StreamingHttpResponse
-    from tethysapp.tethysdash.chatbot.utils import (
-        register_progress_sink,
-        unregister_progress_sink,
+        dashboard_id=parsed.dashboard_id,
+        original_prompt=parsed.prompt,
+        chat_id=parsed.chat_id,
+        history=sanitize_history(parsed.raw_history),
+        can_add_visualizations=(
+            dashboard_meta.get("owner") == request.user.username
+        ),
     )
 
-    router = LLMRouter(build_registry(), deps)
 
-    class _AsyncSink:
-        """Bridge sync emit_progress/emit_delta calls onto an asyncio queue."""
+@controller(url="tethysdash/chat/message", login_required=True)
+def chat_message(request):
+    """Stream a pydantic-AI chat reply as NDJSON, gated on manage_visualizations."""
+    try:
+        parsed = _parse_chat_request(request)
+        deps = _build_chat_deps(request, parsed)
+        from tethysapp.tethysdash.chatbot.streaming import stream_chat_response
+    except _ChatRequestError as exc:
+        return JsonResponse({"error": exc.message}, status=exc.status)
+    except ImportError as exc:
+        return JsonResponse(
+            {"error": f"Chat backend not installed: {exc}"}, status=503
+        )
 
-        def __init__(self, loop, aqueue):
-            self._loop = loop
-            self._aqueue = aqueue
-
-        def put(self, event):
-            self._loop.call_soon_threadsafe(self._aqueue.put_nowait, event)
-
-    # Progress and the reply stream back on this request as NDJSON. The
-    # generator MUST be async: under ASGI, Django buffers sync generators until
-    # they finish but streams async ones chunk-by-chunk.
-    async def _event_stream():
-        loop = asyncio.get_running_loop()
-        aqueue = asyncio.Queue()
-        register_progress_sink(chat_id, _AsyncSink(loop, aqueue))
-
-        async def _run():
-            try:
-                emit_progress(chat_id, "Understanding your request...")
-                result = await router.route(prompt)
-                reply = (
-                    result.response
-                    if isinstance(result, RoutedResponse)
-                    else result
-                )
-                await aqueue.put({"type": "done", "text": reply})
-            except Exception as e:
-                import traceback
-                print(
-                    f"\n[chat_message] {type(e).__name__}: {e}\n"
-                    f"Prompt: {prompt!r}\n"
-                    f"Dashboard id: {dashboard_id}\n"
-                    f"{traceback.format_exc()}"
-                )
-                err_msg = _get_error_message(
-                    e, "Chat backend error. Check server logs."
-                )
-                await aqueue.put({"type": "error", "text": err_msg})
-            finally:
-                await aqueue.put(None)
-
-        task = asyncio.ensure_future(_run())
-        try:
-            while True:
-                event = await aqueue.get()
-                if event is None:
-                    break
-                yield json.dumps(event) + "\n"
-        finally:
-            unregister_progress_sink(chat_id)
-            task.cancel()
-
-    response = StreamingHttpResponse(
-        _event_stream(), content_type="application/x-ndjson"
-    )
-    response["Cache-Control"] = "no-cache"
-    response["X-Accel-Buffering"] = "no"
-    return response
+    return stream_chat_response(deps, parsed.prompt)
 
 
