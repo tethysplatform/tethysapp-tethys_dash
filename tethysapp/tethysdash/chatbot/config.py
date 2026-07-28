@@ -7,7 +7,7 @@ import os
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
-MODEL_NAME = os.getenv("TETHYSDASH_CHAT_LOCAL_MODEL", "qwen3.5:2b")
+MODEL_NAME = os.getenv("TETHYSDASH_CHAT_LOCAL_MODEL", "ornith:latest")
 LLM_HOST = os.getenv("TETHYSDASH_CHAT_LLM_HOST", "http://localhost:11434")
 
 

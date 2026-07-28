@@ -4,7 +4,9 @@ The router agent picks the intent from a fixed set, then the specialist LLM (or
 the plugin catalog) handles it. On retry exhaustion each path returns a graceful
 message and logs the real error rather than surfacing a 500.
 """
+from pydantic_ai import capture_run_messages
 from pydantic_ai.exceptions import UnexpectedModelBehavior
+from pydantic_ai.messages import RetryPromptPart
 
 from .agents.registry import (
     INTENT_ADD,
@@ -22,6 +24,21 @@ _RETRY_EXHAUSTED_MESSAGE = (
     "action. Please rephrase or add detail (for example, name the plugin and "
     "the argument values)."
 )
+
+
+def _last_retry_detail(messages) -> str | None:
+    """Return the most recent tool-retry text from a captured agent run.
+
+    Each ModelRetry a specialist tool raises becomes a RetryPromptPart whose
+    string content is that human-facing message; the last one is why the run
+    finally gave up. Non-string content (raw schema-validation errors) is left
+    to the generic fallback, since it is not written for a user to read.
+    """
+    for message in reversed(messages):
+        for part in reversed(getattr(message, "parts", ())):
+            if isinstance(part, RetryPromptPart) and isinstance(part.content, str):
+                return part.content
+    return None
 
 
 class LLMRouter:
@@ -44,13 +61,20 @@ class LLMRouter:
             return INTENT_CHAT
 
     async def _run_agent(self, agent, request: str) -> str:
-        """Run a specialist agent, returning a graceful message on retry exhaustion."""
-        try:
-            result = await agent.run(request, deps=self.deps)
-            return result.output
-        except UnexpectedModelBehavior as exc:
-            log_chat_error("specialist agent retry exhausted", exc)
-            return _RETRY_EXHAUSTED_MESSAGE
+        """Run a specialist agent, returning a graceful message on retry exhaustion.
+
+        On exhaustion the raised UnexpectedModelBehavior carries only a generic
+        "exceeded retries" note; the specialist tool's own actionable message
+        (e.g. "No visualization named X. The dashboard has: ...") survives only
+        as a RetryPromptPart in the captured run, so recover and surface that.
+        """
+        with capture_run_messages() as messages:
+            try:
+                result = await agent.run(request, deps=self.deps)
+                return result.output
+            except UnexpectedModelBehavior as exc:
+                log_chat_error("specialist agent retry exhausted", exc)
+                return _last_retry_detail(messages) or _RETRY_EXHAUSTED_MESSAGE
 
     async def _stream_chat(self, request: str) -> str:
         """Stream the chat agent's reply token-by-token, returning the full text.

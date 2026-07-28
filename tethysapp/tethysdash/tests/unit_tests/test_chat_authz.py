@@ -123,6 +123,31 @@ def test_route_returns_graceful_message_when_agent_exhausts_retries():
     assert "rephrase" in result.response.lower()
 
 
+def test_route_surfaces_tool_retry_detail_when_agent_exhausts_retries():
+    """An exhausted specialist surfaces its last actionable tool-retry message,
+    not the generic fallback, so the user sees why the action failed."""
+    from pydantic_ai import Agent, ModelRetry
+    from pydantic_ai.models.test import TestModel
+
+    def reject(name: str) -> str:
+        """Output function that always rejects with an actionable message."""
+        raise ModelRetry(
+            "No visualization named 'ideadm_observed'. The dashboard has: "
+            "`geoglows_forecast_viewer`"
+        )
+
+    agent = Agent(TestModel(), output_type=reject, retries=1)
+    registry = _registry_routing_to(INTENT_ADD)
+    registry.get.return_value = agent
+
+    router = LLMRouter(registry, _deps(owner=True))
+    result = async_to_sync(router.route)("add ideadm_observed")
+
+    assert isinstance(result, RoutedResponse)
+    assert "No visualization named 'ideadm_observed'" in result.response
+    assert "geoglows_forecast_viewer" in result.response
+
+
 def test_route_falls_back_to_chat_when_router_errors():
     from pydantic_ai.exceptions import UnexpectedModelBehavior
 
