@@ -87,6 +87,7 @@ export function useChatState({ dashboardId }) {
           history,
           csrf,
           onEvent: (event) => {
+            console.log("[chat] onEvent", event);
             if (event.type === "progress" || event.type === "done") {
               setBubbleText(event.text);
             } else if (event.type === "error") {

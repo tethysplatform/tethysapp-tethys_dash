@@ -150,6 +150,9 @@ const appAPI = {
     csrf,
     onEvent,
   }) => {
+    const t0 = Date.now();
+    const ms = () => `+${Date.now() - t0}ms`;
+    console.log("[chat-stream] POST sent", { chatId });
     const response = await fetch(`${APP_ROOT_URL}chat/message/`, {
       method: "POST",
       headers: {
@@ -164,6 +167,16 @@ const appAPI = {
         history: history ?? [],
       }),
     });
+    console.log(
+      "[chat-stream] response",
+      ms(),
+      "status=",
+      response.status,
+      "ok=",
+      response.ok,
+      "hasBody=",
+      !!response.body,
+    );
     if (!response.ok || !response.body) {
       throw new Error(`Chat request failed (${response.status})`);
     }
@@ -172,11 +185,15 @@ const appAPI = {
     let buffer = "";
     const handleLine = (line) => {
       const trimmed = line.trim();
-      if (trimmed) onEvent(JSON.parse(trimmed));
+      if (trimmed) {
+        console.log("[chat-stream] line", ms(), trimmed);
+        onEvent(JSON.parse(trimmed));
+      }
     };
     for (;;) {
       const { value, done } = await reader.read();
       if (done) break;
+      console.log("[chat-stream] chunk", ms(), value?.length ?? 0, "bytes");
       buffer += decoder.decode(value, { stream: true });
       let newlineIndex;
       while ((newlineIndex = buffer.indexOf("\n")) >= 0) {
@@ -185,6 +202,7 @@ const appAPI = {
       }
     }
     handleLine(buffer);
+    console.log("[chat-stream] stream closed", ms());
   },
 };
 

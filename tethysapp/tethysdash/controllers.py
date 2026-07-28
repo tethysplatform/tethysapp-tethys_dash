@@ -1151,11 +1151,14 @@ def chat_message(request):
 
     def _event_stream():
         """Yield newline-delimited JSON events until the worker signals done."""
+        import time
+
         try:
             while True:
                 event = sink.get()
                 if event is None:
                     break
+                print(f"[chat-stream] yield @{time.time():.3f} {event}", flush=True)
                 yield json.dumps(event) + "\n"
         finally:
             unregister_progress_sink(chat_id)
