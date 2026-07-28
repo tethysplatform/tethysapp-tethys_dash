@@ -1138,8 +1138,19 @@ def chat_message(request):
         )
 
     # A reply to a prior "which one?" is resolved deterministically here, before
-    # the router/LLM; anything else falls through to the normal chat stream.
-    pending_reply = resolve_pending(deps, parsed.prompt)
+    # the router/LLM; anything else falls through to the normal chat stream. Any
+    # failure falls through rather than 500-ing, matching the streamed path.
+    try:
+        pending_reply = resolve_pending(deps, parsed.prompt)
+    except Exception as exc:
+        import traceback
+
+        print(
+            f"\n[chat_message] resolve_pending failed: {type(exc).__name__}: {exc}\n"
+            f"{traceback.format_exc()}",
+            flush=True,
+        )
+        pending_reply = None
     if pending_reply is not None:
         return stream_immediate(pending_reply)
 
