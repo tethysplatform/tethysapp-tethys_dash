@@ -91,7 +91,6 @@ export function useChatState({ dashboardId }) {
           history,
           csrf,
           onEvent: (event) => {
-            console.log("[chat] onEvent", event);
             if (event.type === "delta") {
               streaming = true;
               answer += event.text;
