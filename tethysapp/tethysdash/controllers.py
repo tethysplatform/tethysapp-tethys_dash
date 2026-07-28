@@ -1125,13 +1125,23 @@ def chat_message(request):
     try:
         parsed = _parse_chat_request(request)
         deps = _build_chat_deps(request, parsed)
-        from tethysapp.tethysdash.chatbot.streaming import stream_chat_response
+        from tethysapp.tethysdash.chatbot.disambiguation import resolve_pending
+        from tethysapp.tethysdash.chatbot.streaming import (
+            stream_chat_response,
+            stream_immediate,
+        )
     except _ChatRequestError as exc:
         return JsonResponse({"error": exc.message}, status=exc.status)
     except ImportError as exc:
         return JsonResponse(
             {"error": f"Chat backend not installed: {exc}"}, status=503
         )
+
+    # A reply to a prior "which one?" is resolved deterministically here, before
+    # the router/LLM; anything else falls through to the normal chat stream.
+    pending_reply = resolve_pending(deps, parsed.prompt)
+    if pending_reply is not None:
+        return stream_immediate(pending_reply)
 
     return stream_chat_response(deps, parsed.prompt)
 

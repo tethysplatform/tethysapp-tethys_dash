@@ -5,6 +5,7 @@ reliably extract the source and the new value from a request but cannot map a
 description to a 1-based index or judge ambiguity, so matching and
 disambiguation are done here in deterministic code - the model never counts.
 """
+import hashlib
 import json
 import re
 from typing import Any
@@ -112,14 +113,30 @@ def _auto_select(matches, prompt, exclude=()):
 
 
 def _disambiguation_reply(source, matches) -> str:
-    """Ask the user to pick among same-source tiles by a current arg value."""
-    lines = "\n".join(f"- {_describe_tile(tile)}" for _tab, _item, tile in matches)
+    """Ask the user to pick among same-source tiles by number, 'all', or 'cancel'."""
+    lines = "\n".join(
+        f"{number}. {_describe_tile(tile)}"
+        for number, (_tab, _item, tile) in enumerate(matches, start=1)
+    )
     return (
         f"There are {len(matches)} {source} visualizations. Which one did you "
-        "mean? Tell me by one of its current argument values (for example, the "
-        "one whose current value you named):\n"
+        "mean? Reply with the number, 'all', or 'cancel':\n"
         f"{lines}"
     )
+
+
+def candidate_signature(matches) -> tuple[list, str]:
+    """Ordered ``(tab, item)`` identities plus a content hash for matched tiles.
+
+    The identities let a follow-up resolve a numbered pick to the exact tile; the
+    hash lets the resolver detect that the dashboard changed since the ask.
+    """
+    ids = [[tab, item] for tab, item, _tile in matches]
+    blob = json.dumps(
+        [[t.get("source"), t.get("args_string")] for _tab, _item, t in matches],
+        sort_keys=True,
+    )
+    return ids, hashlib.sha1(blob.encode()).hexdigest()
 
 
 def _invalid_arg_names(source, args) -> list[str]:
@@ -153,6 +170,17 @@ def _invalid_args_reply(source, invalid) -> str:
         )
     listed = ", ".join(f"`{name}`" for name in invalid)
     return f"{source} has no argument(s) {listed}. Its arguments are: {valid}."
+
+
+def check_args(source, args) -> str | None:
+    """Return an error reply if args are invalid/corrupt for the source, else None."""
+    invalid = _invalid_arg_names(source, args)
+    return _invalid_args_reply(source, invalid) if invalid else None
+
+
+def _pairs(args) -> str:
+    """Format an args dict as a human-readable ``k=v, ...`` string."""
+    return ", ".join(f"{key}={value!r}" for key, value in args.items())
 
 
 def _apply_arg_changes(tile, args) -> None:
@@ -215,22 +243,37 @@ def patch_visualization(
         auto = _auto_select(matches, ctx.deps.original_prompt, args.values())
         matches = [auto] if auto is not None else matches
     if len(matches) > 1:
+        from ..disambiguation import PendingDisambiguation, set_pending
+
+        candidates, version = candidate_signature(matches)
+        set_pending(
+            ctx.deps.dashboard_id,
+            ctx.deps.user,
+            PendingDisambiguation(
+                source=source,
+                args=args,
+                candidates=candidates,
+                version=version,
+                where=where or {},
+            ),
+        )
         return _disambiguation_reply(source, matches)
 
     _tab, _item, tile = matches[0]
     real_source = tile.get("source")
-    invalid = _invalid_arg_names(real_source, args)
-    if invalid:
-        return _invalid_args_reply(real_source, invalid)
+    err = check_args(real_source, args)
+    if err:
+        return err
     if _is_noop(tile, args):
-        pairs = ", ".join(f"{key}={value!r}" for key, value in args.items())
         return (
-            f"{real_source} already has {pairs}, so nothing changed. If you "
-            "meant a different value, tell me the new one."
+            f"{real_source} already has {_pairs(args)}, so nothing changed. If "
+            "you meant a different value, tell me the new one."
         )
 
     emit_progress(ctx.deps.chat_id, f"Updating {real_source}...")
     _apply_arg_changes(tile, args)
     save_dashboard_tabs(ctx.deps.user, ctx.deps.dashboard_id, tabs)
-    changed = ", ".join(f"{key}={value!r}" for key, value in args.items())
-    return f"Updated {real_source}: {changed}."
+    from ..disambiguation import clear_pending
+
+    clear_pending(ctx.deps.dashboard_id, ctx.deps.user)
+    return f"Updated {real_source}: {_pairs(args)}."

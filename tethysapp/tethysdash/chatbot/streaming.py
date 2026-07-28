@@ -94,3 +94,21 @@ def stream_chat_response(deps, prompt):
     response["Cache-Control"] = "no-cache"
     response["X-Accel-Buffering"] = "no"
     return response
+
+
+def stream_immediate(text, event_type="done"):
+    """Stream a single pre-computed NDJSON event.
+
+    Used for deterministic pre-check results (a resolved disambiguation) that
+    bypass the router but must still reach the frontend over the same envelope.
+    """
+
+    async def _one_event():
+        yield json.dumps({"type": event_type, "text": text}) + "\n"
+
+    response = StreamingHttpResponse(
+        _one_event(), content_type="application/x-ndjson"
+    )
+    response["Cache-Control"] = "no-cache"
+    response["X-Accel-Buffering"] = "no"
+    return response

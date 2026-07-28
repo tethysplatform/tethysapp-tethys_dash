@@ -16,7 +16,11 @@ from tethysapp.tethysdash.chatbot.tools.patch import (
 @pytest.fixture(autouse=True)
 def truncate_tables():
     """Override the conftest DB fixture - DB helpers are mocked here."""
+    from django.core.cache import cache
+
+    cache.clear()  # isolate the pending-disambiguation record between tests
     yield
+    cache.clear()
 
 
 def _ctx(dashboard_id=6, owner=True):
@@ -123,18 +127,25 @@ def test_source_match_targets_correct_tile_across_tabs():
     assert json.loads(payload["tabs"][0]["gridItems"][0]["args_string"]) == {"x": 1}
 
 
-def test_multiple_same_source_asks_to_narrow_by_value():
+def test_multiple_same_source_asks_with_numbered_list():
+    from tethysapp.tethysdash.chatbot.disambiguation import get_pending
+
     dash = _dashboard(
         _tile("geoglows_forecast_viewer", {"river_id": "111"}),
         _tile("geoglows_forecast_viewer", {"river_id": "333"}),
     )
     with patch(_GET, return_value=dash), patch(_UPDATE) as update:
+        ctx = _ctx()
         reply = patch_visualization(
-            _ctx(), source="geoglows_forecast_viewer", args={"river_id": 9}
+            ctx, source="geoglows_forecast_viewer", args={"river_id": "999"}
         )
-    assert "which one" in reply.lower()
+    assert "which one" in reply.lower() and "number" in reply.lower()
+    assert "1. geoglows_forecast_viewer" in reply and "2. geoglows_forecast_viewer" in reply
     assert "river_id='111'" in reply and "river_id='333'" in reply
     update.assert_not_called()
+    record = get_pending(ctx.deps.dashboard_id, ctx.deps.user)
+    assert record is not None
+    assert record.args == {"river_id": "999"} and len(record.candidates) == 2
 
 
 def test_where_selects_one_among_same_source():
