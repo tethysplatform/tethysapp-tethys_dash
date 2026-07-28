@@ -13,11 +13,12 @@ IntentName = Literal[
 
 @dataclass
 class AgentRegistry:
-    """Specialist agents keyed by intent, plus the general fallback agent."""
+    """Specialist agents keyed by intent, plus the router and fallback agents."""
 
     add_plugin: Agent
     patch_visualization: Agent
     chat_agent: Agent
+    router_agent: Agent
 
     def get(self, intent: IntentName) -> Agent:
         """Return the specialist agent registered for an intent."""

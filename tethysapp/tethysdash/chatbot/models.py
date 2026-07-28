@@ -4,14 +4,12 @@ from .agents.registry import IntentName
 from typing import Literal, Any
 from pydantic import BaseModel
 from pydantic_ai.exceptions import UnexpectedModelBehavior
-from .agents.embedder import EmbeddingIntentClassifier
 from .agents.registry import AgentRegistry
 from .utils import emit_progress
 from .agents.embedding_data import (
     INTENT_ADD,
     INTENT_LIST,
     INTENT_PATCH,
-    INTENT_OOS,
 )
 
 
@@ -33,8 +31,6 @@ class PluginRequest(BaseModel):
 
 class RoutedResponse(BaseModel):
     intent: IntentName | Literal["fallback"]
-    similarity: float
-    margin: float
     response: str
 
 @dataclass
@@ -60,15 +56,22 @@ _RETRY_EXHAUSTED_MESSAGE = (
 
 
 class LLMRouter:
-    def __init__(
-        self,
-        classifier: EmbeddingIntentClassifier,
-        agents: AgentRegistry,
-        deps: ChatDeps,
-    ) -> None:
-        self.classifier = classifier
+    def __init__(self, agents: AgentRegistry, deps: ChatDeps) -> None:
         self.agents = agents
         self.deps = deps
+
+    async def _classify(self, request: str) -> str:
+        """Ask the router agent which capability should handle the message.
+
+        The router's output type is a fixed set of intents, so it can only
+        pick a capability the router dispatches. On retry exhaustion, fall
+        back to free-form chat rather than surfacing an error.
+        """
+        try:
+            result = await self.agents.router_agent.run(request, deps=self.deps)
+            return result.output.intent
+        except UnexpectedModelBehavior:
+            return "chat"
 
     async def _run_agent(self, agent, request: str) -> str:
         """Run a specialist agent, returning a graceful message on retry exhaustion."""
@@ -79,19 +82,15 @@ class LLMRouter:
             return _RETRY_EXHAUSTED_MESSAGE
 
     async def route(self, request: str) -> RoutedResponse | str:
-        prediction = self.classifier.classify(request)
-        if prediction.intent is None or prediction.intent == INTENT_OOS:
+        intent = await self._classify(request)
+
+        if intent == "chat":
             emit_progress(self.deps.chat_id, "Thinking...")
             response_text = await self._run_agent(self.agents.chat_agent, request)
-            return RoutedResponse(
-                intent="fallback",
-                similarity=prediction.score,
-                margin=prediction.margin,
-                response=response_text,
-            )
+            return RoutedResponse(intent="fallback", response=response_text)
 
         if (
-            prediction.intent in (INTENT_ADD, INTENT_PATCH)
+            intent in (INTENT_ADD, INTENT_PATCH)
             and not self.deps.can_add_visualizations
         ):
             return (
@@ -99,23 +98,13 @@ class LLMRouter:
                 "this dashboard. I can still list the available plugins."
             )
 
-        elif prediction.intent == INTENT_LIST:
+        if intent == INTENT_LIST:
             from .tools.catalog import format_catalog_for_llm
 
             emit_progress(self.deps.chat_id, "Fetching available plugins...")
             return format_catalog_for_llm()
-        else:
-            selected_intent = prediction.intent  # type: ignore[assignment]
-            public_intent = selected_intent
 
-        selected_agent = self.agents.get(selected_intent)
-        response_text = await self._run_agent(selected_agent, request)
-
-        return RoutedResponse(
-            intent=public_intent,
-            similarity=prediction.score,
-            margin=prediction.margin,
-            response=response_text,
-        )
+        response_text = await self._run_agent(self.agents.get(intent), request)
+        return RoutedResponse(intent=intent, response=response_text)
 
  

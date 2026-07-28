@@ -1083,10 +1083,7 @@ def chat_message(request):
 
     try:
         from asgiref.sync import async_to_sync
-        from tethysapp.tethysdash.chatbot.utils import (
-            build_registry,
-            get_classifier,
-        )
+        from tethysapp.tethysdash.chatbot.utils import build_registry
         from tethysapp.tethysdash.chatbot.utils import emit_progress
         from tethysapp.tethysdash.chatbot.models import (
             ChatDeps,
@@ -1118,9 +1115,9 @@ def chat_message(request):
     )
     try:
         emit_progress(chat_id, "Understanding your request...")
-        # Deterministic routing: the embedding classifier picks the
-        # capability, then the specialist LLM (if any) runs inside it.
-        router = LLMRouter(get_classifier(), build_registry(), deps)
+        # Deterministic routing: the router agent picks the capability from a
+        # fixed intent set, then the specialist LLM (if any) runs inside it.
+        router = LLMRouter(build_registry(), deps)
         result = async_to_sync(router.route)(prompt)
         reply = result.response if isinstance(result, RoutedResponse) else result
         return JsonResponse({"text": reply, "dashboard_id_used": dashboard_id})

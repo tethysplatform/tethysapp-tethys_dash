@@ -12,7 +12,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from asgiref.sync import async_to_sync
 
-from tethysapp.tethysdash.chatbot.agents.embedder import IntentPrediction
 from tethysapp.tethysdash.chatbot.agents.embedding_data import INTENT_ADD, INTENT_PATCH
 from tethysapp.tethysdash.chatbot.tools import add_visualizations_from_plugin
 from tethysapp.tethysdash.chatbot.models import (
@@ -35,43 +34,13 @@ def _deps(owner: bool) -> ChatDeps:
     )
 
 
-class _FixedClassifier:
-    """Classifier stub that always predicts the add intent."""
-
-    def classify(self, _text):
-        return IntentPrediction(
-            intent=INTENT_ADD,
-            score=0.9,
-            second_best_score=0.1,
-            margin=0.8,
-            accepted=True,
-        )
-
-
-class _FallbackClassifier:
-    """Classifier stub that finds no confident intent."""
-
-    def classify(self, _text):
-        return IntentPrediction(
-            intent=None,
-            score=0.1,
-            second_best_score=0.05,
-            margin=0.05,
-            accepted=False,
-        )
-
-
-class _PatchClassifier:
-    """Classifier stub that always predicts the patch intent."""
-
-    def classify(self, _text):
-        return IntentPrediction(
-            intent=INTENT_PATCH,
-            score=0.9,
-            second_best_score=0.1,
-            margin=0.8,
-            accepted=True,
-        )
+def _registry_routing_to(intent: str) -> MagicMock:
+    """Registry stub whose router agent classifies every message to `intent`."""
+    registry = MagicMock()
+    registry.router_agent.run = AsyncMock(
+        return_value=SimpleNamespace(output=SimpleNamespace(intent=intent))
+    )
+    return registry
 
 
 # --------------------------------------------------------------------------
@@ -79,8 +48,8 @@ class _PatchClassifier:
 # --------------------------------------------------------------------------
 
 def test_route_refuses_add_for_non_owner_without_running_agent():
-    registry = MagicMock()
-    router = LLMRouter(_FixedClassifier(), registry, _deps(owner=False))
+    registry = _registry_routing_to(INTENT_ADD)
+    router = LLMRouter(registry, _deps(owner=False))
     reply = async_to_sync(router.route)("add a plugin")
     assert isinstance(reply, str) and "owner" in reply.lower()
     registry.get.assert_not_called()
@@ -89,10 +58,10 @@ def test_route_refuses_add_for_non_owner_without_running_agent():
 def test_route_runs_agent_for_owner():
     agent = MagicMock()
     agent.run = AsyncMock(return_value=SimpleNamespace(output="Added."))
-    registry = MagicMock()
+    registry = _registry_routing_to(INTENT_ADD)
     registry.get.return_value = agent
 
-    router = LLMRouter(_FixedClassifier(), registry, _deps(owner=True))
+    router = LLMRouter(registry, _deps(owner=True))
     result = async_to_sync(router.route)("add a plugin")
 
     registry.get.assert_called_once_with(INTENT_ADD)
@@ -101,8 +70,8 @@ def test_route_runs_agent_for_owner():
 
 
 def test_route_refuses_patch_for_non_owner_without_running_agent():
-    registry = MagicMock()
-    router = LLMRouter(_PatchClassifier(), registry, _deps(owner=False))
+    registry = _registry_routing_to(INTENT_PATCH)
+    router = LLMRouter(registry, _deps(owner=False))
     reply = async_to_sync(router.route)("change arg a to 9")
     assert isinstance(reply, str) and "owner" in reply.lower()
     registry.get.assert_not_called()
@@ -113,10 +82,10 @@ def test_route_returns_graceful_message_when_agent_exhausts_retries():
 
     agent = MagicMock()
     agent.run = AsyncMock(side_effect=UnexpectedModelBehavior("Exceeded maximum output retries (3)"))
-    registry = MagicMock()
+    registry = _registry_routing_to(INTENT_ADD)
     registry.get.return_value = agent
 
-    router = LLMRouter(_FixedClassifier(), registry, _deps(owner=True))
+    router = LLMRouter(registry, _deps(owner=True))
     result = async_to_sync(router.route)("add something")
 
     assert isinstance(result, RoutedResponse)
@@ -124,15 +93,38 @@ def test_route_returns_graceful_message_when_agent_exhausts_retries():
     assert "rephrase" in result.response.lower()
 
 
-def test_route_runs_chat_agent_when_no_confident_intent():
+def test_route_falls_back_to_chat_when_router_errors():
+    from pydantic_ai.exceptions import UnexpectedModelBehavior
+
     chat_agent = MagicMock()
     chat_agent.run = AsyncMock(
         return_value=SimpleNamespace(output="Here is some help.")
     )
     registry = MagicMock()
+    registry.router_agent.run = AsyncMock(
+        side_effect=UnexpectedModelBehavior("Exceeded maximum output retries (3)")
+    )
     registry.chat_agent = chat_agent
 
-    router = LLMRouter(_FallbackClassifier(), registry, _deps(owner=True))
+    router = LLMRouter(registry, _deps(owner=True))
+    result = async_to_sync(router.route)("how does tethysdash work?")
+
+    chat_agent.run.assert_awaited_once()
+    registry.get.assert_not_called()
+    assert isinstance(result, RoutedResponse)
+    assert result.intent == "fallback"
+    assert result.response == "Here is some help."
+
+
+def test_route_runs_chat_agent_when_router_picks_chat():
+    chat_agent = MagicMock()
+    chat_agent.run = AsyncMock(
+        return_value=SimpleNamespace(output="Here is some help.")
+    )
+    registry = _registry_routing_to("chat")
+    registry.chat_agent = chat_agent
+
+    router = LLMRouter(registry, _deps(owner=True))
     result = async_to_sync(router.route)("how does tethysdash work?")
 
     chat_agent.run.assert_awaited_once()

@@ -25,16 +25,18 @@ def get_classifier() -> EmbeddingIntentClassifier:
 
 
 def build_registry():
-    """Registry of specialist agents plus the general fallback agent."""
+    """Registry of specialist agents plus the router and general fallback agents."""
     from .agents.chat import chat_agent
     from .agents.patch import patch_agent
     from .agents.plugin import plugin_agent
+    from .agents.router import router_agent
     from .agents.registry import AgentRegistry
 
     return AgentRegistry(
         add_plugin=plugin_agent,
         patch_visualization=patch_agent,
         chat_agent=chat_agent,
+        router_agent=router_agent,
     )
 
 
