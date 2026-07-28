@@ -218,6 +218,49 @@ def test_auto_select_ignores_new_value_that_collides_with_other_tiles():
     assert "Updated" in reply
 
 
+def test_auto_select_ignores_value_that_is_substring_of_new_value():
+    # New value "3005" contains tile #1's current value "300"; that must NOT
+    # count as a selector, so the request stays ambiguous instead of silently
+    # patching the wrong tile.
+    dash = _dashboard(
+        _tile("gauge", {"threshold": "300"}),
+        _tile("gauge", {"threshold": "999"}),
+    )
+    ctx = _ctx()
+    ctx.deps.original_prompt = "change the gauge threshold to 3005"
+    with (
+        patch(_REGISTRY, {"gauge": _fake_plugin(("threshold",))}),
+        patch(_GET, return_value=dash),
+        patch(_UPDATE) as update,
+    ):
+        reply = patch_visualization(ctx, source="gauge", args={"threshold": "3005"})
+    assert "which one" in reply.lower()
+    update.assert_not_called()
+
+
+def test_successful_patch_clears_stale_pending_record():
+    from tethysapp.tethysdash.chatbot.disambiguation import (
+        PendingDisambiguation,
+        get_pending,
+        set_pending,
+    )
+
+    dash = _dashboard(_tile("geoglows", {"river_id": "111"}))
+    ctx = _ctx()
+    set_pending(
+        ctx.deps.dashboard_id,
+        ctx.deps.user,
+        PendingDisambiguation("stale_source", {"a": "1"}, [[0, 0]], "v"),
+    )
+    with (
+        patch(_REGISTRY, {"geoglows": _fake_plugin(("river_id",))}),
+        patch(_GET, return_value=dash),
+        patch(_UPDATE),
+    ):
+        patch_visualization(ctx, source="geoglows", args={"river_id": "222"})
+    assert get_pending(ctx.deps.dashboard_id, ctx.deps.user) is None
+
+
 def test_where_matching_nothing_reports_and_lists_tiles():
     dash = _dashboard(
         _tile("geoglows_forecast_viewer", {"river_id": "111"}),

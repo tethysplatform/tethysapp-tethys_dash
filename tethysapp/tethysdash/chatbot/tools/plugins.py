@@ -1,5 +1,6 @@
 """Chat tool for adding visualization tiles to the active dashboard."""
 import json
+import math
 import uuid as uuid_lib
 from typing import Any, List
 
@@ -58,8 +59,8 @@ def _normalize_arg_value(value: Any, declared_type: Any) -> Any:
     ``"441057380"``); storing per the plugin's declared arg type gives one
     canonical representation. Types the plugin does not declare are left as-is.
     """
-    if value is None:
-        return value
+    if not isinstance(value, (str, int, float, bool)):
+        return value  # only canonicalize scalars; leave dicts/lists (e.g. date-range) intact
     kind = str(declared_type).strip().lower()
     if kind in _STRING_ARG_TYPES:
         return value if isinstance(value, str) else str(value)
@@ -68,6 +69,8 @@ def _normalize_arg_value(value: Any, declared_type: Any) -> Any:
             number = float(value)
         except (TypeError, ValueError):
             return value
+        if not math.isfinite(number):
+            return value  # NaN/Infinity would serialize to invalid JSON and break the load
         return int(number) if number.is_integer() else number
     return value
 

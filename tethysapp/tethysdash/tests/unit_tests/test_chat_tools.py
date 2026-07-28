@@ -175,6 +175,46 @@ def test_add_normalizes_int_arg_to_declared_text_type():
     assert saved == {"river_id": "441057380"}
 
 
+def test_number_arg_nan_string_not_coerced_to_invalid_json():
+    import json
+
+    dashboard = {"tabs": [{"gridItems": []}]}
+    plug = SimpleNamespace(
+        visualization_type="plotly",
+        visualization_args={"threshold": "number"},
+        visualization_description="d",
+    )
+    with (
+        patch(_REGISTRY, {"p": plug}),
+        patch(_GET, return_value=dashboard),
+        patch(_UPDATE) as update,
+    ):
+        add_visualizations_from_plugin(_ctx(), _reqs(("p", {"threshold": "nan"})))
+    args_string = update.call_args[0][2]["tabs"][0]["gridItems"][-1]["args_string"]
+    assert "NaN" not in args_string  # bare NaN token would break the frontend JSON.parse
+    assert json.loads(args_string) == {"threshold": "nan"}
+
+
+def test_date_range_dict_value_passed_through_unchanged():
+    import json
+
+    dashboard = {"tabs": [{"gridItems": []}]}
+    plug = SimpleNamespace(
+        visualization_type="plotly",
+        visualization_args={"range": "date-range"},
+        visualization_description="d",
+    )
+    date_range = {"start": "2023-01-01", "end": "2023-02-01"}
+    with (
+        patch(_REGISTRY, {"p": plug}),
+        patch(_GET, return_value=dashboard),
+        patch(_UPDATE) as update,
+    ):
+        add_visualizations_from_plugin(_ctx(), _reqs(("p", {"range": date_range})))
+    saved = json.loads(update.call_args[0][2]["tabs"][0]["gridItems"][-1]["args_string"])
+    assert saved == {"range": date_range}
+
+
 def test_dedupe_skips_identical_tile():
     existing = {"source": "p", "args_string": '{"river_id": "441057380"}'}
     dashboard = {"tabs": [{"gridItems": [existing]}]}

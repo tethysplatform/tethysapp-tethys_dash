@@ -43,7 +43,13 @@ def set_pending(dashboard_id, user, record: PendingDisambiguation) -> None:
 def get_pending(dashboard_id, user) -> PendingDisambiguation | None:
     """Return the pending record for this dashboard+user, or None."""
     data = cache.get(_key(dashboard_id, user))
-    return PendingDisambiguation(**data) if data else None
+    if not data:
+        return None
+    try:
+        return PendingDisambiguation(**data)
+    except TypeError:
+        clear_pending(dashboard_id, user)  # stale shape from a prior deploy
+        return None
 
 
 def clear_pending(dashboard_id, user) -> None:
@@ -139,12 +145,12 @@ def resolve_pending(deps, message: str) -> str | None:
         return f"Updated #{number} ({tile.get('source')}): {_pairs(record.args)}."
 
     source = matches[0][2].get("source")
-    err = check_args(source, record.args)
-    if err:
-        clear_pending(deps.dashboard_id, deps.user)
-        return err
     applied = 0
     for _tab, _item, tile in matches:
+        err = check_args(tile.get("source"), record.args)
+        if err:
+            clear_pending(deps.dashboard_id, deps.user)
+            return err
         if not _is_noop(tile, record.args):
             _apply_arg_changes(tile, record.args)
             applied += 1

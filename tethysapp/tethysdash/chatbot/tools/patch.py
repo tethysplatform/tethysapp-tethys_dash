@@ -100,12 +100,14 @@ def _auto_select(matches, prompt, exclude=()):
     """
     if not prompt:
         return None
-    skip = {str(value) for value in exclude}
+    new_values = [str(value) for value in exclude]
     hits = [
         entry
         for entry in matches
         if any(
-            str(v) and str(v) in prompt and str(v) not in skip
+            str(v)
+            and str(v) in prompt
+            and not any(str(v) in new_value for new_value in new_values)
             for v in _tile_args(entry[2]).values()
         )
     ]
@@ -133,7 +135,7 @@ def candidate_signature(matches) -> tuple[list, str]:
     """
     ids = [[tab, item] for tab, item, _tile in matches]
     blob = json.dumps(
-        [[t.get("source"), t.get("args_string")] for _tab, _item, t in matches],
+        [[t.get("uuid"), t.get("source"), t.get("args_string")] for _tab, _item, t in matches],
         sort_keys=True,
     )
     return ids, hashlib.sha1(blob.encode()).hexdigest()
