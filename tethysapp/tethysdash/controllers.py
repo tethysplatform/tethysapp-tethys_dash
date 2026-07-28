@@ -1082,7 +1082,6 @@ def chat_message(request):
     chat_id = (body.get("chat_id") or "").strip()
 
     try:
-        from asgiref.sync import async_to_sync
         from tethysapp.tethysdash.chatbot.utils import build_registry
         from tethysapp.tethysdash.chatbot.utils import emit_progress
         from tethysapp.tethysdash.chatbot.models import (
@@ -1113,55 +1112,68 @@ def chat_message(request):
         history=sanitize_history(body.get("history")),
         can_add_visualizations=is_owner,
     )
+    import asyncio
     from django.http import StreamingHttpResponse
-    import queue as progress_queue
-    import threading as progress_threading
     from tethysapp.tethysdash.chatbot.utils import (
         register_progress_sink,
         unregister_progress_sink,
     )
 
-    # Progress and the final reply stream back on this request over NDJSON;
-    # the agent runs in a worker thread and funnels events through a queue.
-    sink = progress_queue.Queue()
-    register_progress_sink(chat_id, sink)
     router = LLMRouter(build_registry(), deps)
 
-    def _run_router():
-        """Run the router in a worker thread, pushing events onto the stream."""
-        try:
-            emit_progress(chat_id, "Understanding your request...")
-            result = async_to_sync(router.route)(prompt)
-            reply = result.response if isinstance(result, RoutedResponse) else result
-            sink.put({"type": "done", "text": reply})
-        except Exception as e:
-            import traceback
-            print(
-                f"\n[chat_message] {type(e).__name__}: {e}\n"
-                f"Prompt: {prompt!r}\n"
-                f"Dashboard id: {dashboard_id}\n"
-                f"{traceback.format_exc()}"
-            )
-            err_msg = _get_error_message(e, "Chat backend error. Check server logs.")
-            sink.put({"type": "error", "text": err_msg})
-        finally:
-            sink.put(None)
+    class _AsyncSink:
+        """Bridge sync emit_progress/emit_delta calls onto an asyncio queue."""
 
-    progress_threading.Thread(target=_run_router, daemon=True).start()
+        def __init__(self, loop, aqueue):
+            self._loop = loop
+            self._aqueue = aqueue
 
-    def _event_stream():
-        """Yield newline-delimited JSON events until the worker signals done."""
-        import time
+        def put(self, event):
+            self._loop.call_soon_threadsafe(self._aqueue.put_nowait, event)
 
+    # Progress and the reply stream back on this request as NDJSON. The
+    # generator MUST be async: under ASGI, Django buffers sync generators until
+    # they finish but streams async ones chunk-by-chunk.
+    async def _event_stream():
+        loop = asyncio.get_running_loop()
+        aqueue = asyncio.Queue()
+        register_progress_sink(chat_id, _AsyncSink(loop, aqueue))
+
+        async def _run():
+            try:
+                emit_progress(chat_id, "Understanding your request...")
+                result = await router.route(prompt)
+                reply = (
+                    result.response
+                    if isinstance(result, RoutedResponse)
+                    else result
+                )
+                await aqueue.put({"type": "done", "text": reply})
+            except Exception as e:
+                import traceback
+                print(
+                    f"\n[chat_message] {type(e).__name__}: {e}\n"
+                    f"Prompt: {prompt!r}\n"
+                    f"Dashboard id: {dashboard_id}\n"
+                    f"{traceback.format_exc()}"
+                )
+                err_msg = _get_error_message(
+                    e, "Chat backend error. Check server logs."
+                )
+                await aqueue.put({"type": "error", "text": err_msg})
+            finally:
+                await aqueue.put(None)
+
+        task = asyncio.ensure_future(_run())
         try:
             while True:
-                event = sink.get()
+                event = await aqueue.get()
                 if event is None:
                     break
-                print(f"[chat-stream] yield @{time.time():.3f} {event}", flush=True)
                 yield json.dumps(event) + "\n"
         finally:
             unregister_progress_sink(chat_id)
+            task.cancel()
 
     response = StreamingHttpResponse(
         _event_stream(), content_type="application/x-ndjson"
@@ -1169,3 +1181,5 @@ def chat_message(request):
     response["Cache-Control"] = "no-cache"
     response["X-Accel-Buffering"] = "no"
     return response
+
+
