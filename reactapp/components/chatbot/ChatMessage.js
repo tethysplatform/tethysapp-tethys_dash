@@ -1,6 +1,7 @@
 import styled from "styled-components";
 import Markdown from "markdown-to-jsx";
 import PropTypes from "prop-types";
+import { colors, radii } from "./styles";
 
 const Row = styled.div`
   display: flex;
@@ -11,12 +12,14 @@ const Row = styled.div`
 const Bubble = styled.div`
   max-width: 80%;
   padding: 8px 12px;
-  border-radius: 12px;
+  border-radius: ${radii.lg};
   word-wrap: break-word;
   line-height: 1.4;
   font-size: 0.9rem;
-  background: ${(p) => (p.$role === "user" ? "#4a90e2" : "#f1f3f5")};
-  color: ${(p) => (p.$role === "user" ? "#fff" : "#212529")};
+  background: ${(p) => (p.$role === "user" ? colors.accent : colors.bubbleAssistant)};
+  color: ${(p) => (p.$role === "user" ? colors.surface : colors.text)};
+  border: 1px solid
+    ${(p) => (p.$role === "user" ? "transparent" : colors.border)};
   white-space: ${(p) => (p.$role === "user" ? "pre-wrap" : "normal")};
 
   & > *:first-child {
@@ -67,7 +70,7 @@ const Bubble = styled.div`
     margin: 0.15em 0;
   }
   a {
-    color: #1c7ed6;
+    color: ${colors.link};
     word-break: break-all;
   }
 `;

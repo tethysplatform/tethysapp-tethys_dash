@@ -3,21 +3,24 @@ import styled from "styled-components";
 import ChatMessage from "./ChatMessage";
 import ChatHints from "./ChatHints";
 import PropTypes from "prop-types";
+import { colors, TypingDots } from "./styles";
 
 const Log = styled.div`
   flex: 1;
   overflow-y: auto;
   padding: 12px;
-  background: #fff;
+  background: ${colors.surface};
   display: flex;
   flex-direction: column;
 `;
 
 const Thinking = styled.div`
-  color: #868e96;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: ${colors.textFaint};
   font-size: 0.85rem;
   padding: 4px 8px;
-  font-style: italic;
 `;
 
 export default function ChatLog({ messages, isLoading, onSuggestion }) {
@@ -28,14 +31,19 @@ export default function ChatLog({ messages, isLoading, onSuggestion }) {
   }, [messages, isLoading]);
 
   return (
-    <Log>
+    <Log role="log" aria-live="polite" aria-label="Conversation">
       {messages.length === 0 && !isLoading && (
         <ChatHints onPick={onSuggestion} />
       )}
       {messages.map((m) => (
         <ChatMessage key={m.id} role={m.role} text={m.text} />
       ))}
-      {isLoading && <Thinking>Thinking...</Thinking>}
+      {isLoading && (
+        <Thinking>
+          Thinking
+          <TypingDots />
+        </Thinking>
+      )}
       <div ref={bottomRef} />
     </Log>
   );

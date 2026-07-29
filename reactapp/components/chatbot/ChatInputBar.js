@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import styled from "styled-components";
 import PropTypes from "prop-types";
+import { colors, radii } from "./styles";
 
 const Bar = styled.form`
   display: flex;
@@ -9,8 +10,8 @@ const Bar = styled.form`
   align-items: flex-end;
   gap: 8px;
   padding: 8px 12px;
-  border-top: 1px solid #dee2e6;
-  background: #f8f9fa;
+  border-top: 1px solid ${colors.border};
+  background: ${colors.surfaceMuted};
 `;
 
 const Input = styled.textarea`
@@ -20,27 +21,47 @@ const Input = styled.textarea`
   max-height: 120px;
   overflow-y: auto;
   padding: 8px 10px;
-  border: 1px solid #ced4da;
-  border-radius: 6px;
+  border: 1px solid ${colors.borderStrong};
+  border-radius: ${radii.sm};
   font: inherit;
   line-height: 1.4;
+  color: ${colors.text};
+  background: ${colors.surface};
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+  &::placeholder {
+    color: ${colors.textFaint};
+  }
   &:focus {
     outline: none;
-    border-color: #4a90e2;
+    border-color: ${colors.accent};
+    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.2);
   }
 `;
 
 const SendButton = styled.button`
   height: 36px;
   padding: 0 14px;
-  background: #4a90e2;
-  color: #fff;
+  background: ${colors.accent};
+  color: ${colors.surface};
   border: none;
-  border-radius: 6px;
+  border-radius: ${radii.sm};
   cursor: pointer;
   font-weight: 500;
+  transition: background 0.15s ease;
+  &:hover:not(:disabled) {
+    background: ${colors.accentHover};
+  }
+  &:active:not(:disabled) {
+    background: ${colors.accentActive};
+  }
+  &:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.4);
+  }
   &:disabled {
-    background: #ced4da;
+    background: ${colors.borderStrong};
     cursor: not-allowed;
   }
 `;
