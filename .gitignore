@@ -23,7 +23,11 @@ build
 dist
 docs/brainstorms/
 docs/plans/
-v2_env
+.env-test
+.context/
+# Python virtualenvs (developer-local, not committed)
+.venv/
+venv/v2_env
 
 
 tethysapp/tethysdash/public/images/plugins/*

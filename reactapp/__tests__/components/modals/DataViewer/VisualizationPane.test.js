@@ -1255,7 +1255,12 @@ test("Visualization Pane Use Existing Args Viz with True checkbox", async () => 
     "Cell updated to show plugin_label",
   );
   expect(mockSetVizType).toHaveBeenCalledWith("loader");
-  expect(mockSetVizType).toHaveBeenLastCalledWith("plotly");
+  // The final "plotly" type is set after the async data load resolves; under
+  // heavy parallel-test CPU load that can lag past a synchronous assertion, so
+  // wait for it rather than reading the intermediate "loader" state.
+  await waitFor(() =>
+    expect(mockSetVizType).toHaveBeenLastCalledWith("plotly"),
+  );
   expect(mockSetVizData).toHaveBeenLastCalledWith({});
   expect(await screen.findByTestId("viz-input-values")).toHaveTextContent(
     JSON.stringify({ plugin_arg: true }),
@@ -1489,7 +1494,10 @@ test("Visualization Pane Use Existing Subs Args", async () => {
   expect(mockSetGridItemMessage).toHaveBeenLastCalledWith(
     "Cell updated to show plugin_label",
   );
-  expect(mockSetVizType).toHaveBeenLastCalledWith("plotly");
+  // Final type is set after the async load resolves; wait rather than race it.
+  await waitFor(() =>
+    expect(mockSetVizType).toHaveBeenLastCalledWith("plotly"),
+  );
   expect(mockSetVizData).toHaveBeenLastCalledWith({});
   expect(await screen.findByTestId("viz-input-values")).toHaveTextContent(
     JSON.stringify({

@@ -21,6 +21,11 @@ import {
 } from "components/contexts/Contexts";
 import Error from "components/error/Error";
 import errorImage from "assets/error404.png";
+// Inlined from the (removed) SimpleAgentChat component. The listener
+// below stays active so any future surface (CLI auto-refresh via
+// WebSocket, a re-skinned chat UI, etc.) can dispatch this event to
+// trigger an in-place dashboard refetch without a full page reload.
+const DASHBOARD_REFETCH_EVENT = "tethysdash:agent-dashboard-refetch";
 
 const DashboardLoader = ({
   children,
@@ -45,12 +50,13 @@ const DashboardLoader = ({
   const [isEditing, setIsEditing] = useState(false);
   const [disabledEditingMovement, setDisabledEditingMovement] = useState(false);
   const [inDataViewerMode, setInDataViewerMode] = useState(false);
+  const [chatVisible, setChatVisible] = useState(true);
   const { updateDashboard } = useContext(AvailableDashboardsContext);
   const originalTabs = useRef({});
   const editable = ["admin", "editor"].includes(userPermission);
 
-  useEffect(() => {
-    const fetchDashboard = async () => {
+  const fetchDashboard = useCallback(
+    async ({ preserveActiveTab = false } = {}) => {
       try {
         const response = await appAPI.getDashboard({ id });
         if (response.success) {
@@ -58,7 +64,9 @@ const DashboardLoader = ({
           originalTabs.current = response.dashboard.tabs;
           setNotes(response.dashboard.notes);
           setTabs(response.dashboard.tabs);
-          setActiveTabId(response.dashboard.tabs[0].id);
+          if (!preserveActiveTab) {
+            setActiveTabId(response.dashboard.tabs[0].id);
+          }
           setIsLoaded(true);
         } else {
           setLoadError(true);
@@ -66,11 +74,24 @@ const DashboardLoader = ({
       } catch (error) {
         setLoadError(true);
       }
-    };
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [id],
+  );
 
+  useEffect(() => {
     fetchDashboard();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Refetch when the chat agent emits the refetch event (e.g. after a tool
+  // call mutated grid items server-side). Keeps the active tab so the user
+  // doesn't get bounced back to tab 0 when a tile lands.
+  useEffect(() => {
+    const handler = () => fetchDashboard({ preserveActiveTab: true });
+    window.addEventListener(DASHBOARD_REFETCH_EVENT, handler);
+    return () => window.removeEventListener(DASHBOARD_REFETCH_EVENT, handler);
+  }, [fetchDashboard]);
 
   useEffect(() => {
     if (!isEditing) {
@@ -319,6 +340,8 @@ const DashboardLoader = ({
       unrestrictedPlacement,
       description,
       owner,
+      chatVisible,
+      setChatVisible,
     }),
     [
       saveLayoutContext,
@@ -333,6 +356,7 @@ const DashboardLoader = ({
       unrestrictedPlacement,
       description,
       owner,
+      chatVisible,
     ],
   );
   const editingContextValue = useMemo(

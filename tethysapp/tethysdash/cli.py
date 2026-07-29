@@ -54,7 +54,6 @@ def start_command(args):
     print("Starting Tethys Portal")
     subprocess.run(["tethys", "manage", "start"], check=True)
 
-
 def main():
     parser = argparse.ArgumentParser(description="TethysDash CLI")
     subparsers = parser.add_subparsers(title="Commands", dest="subcommand")
@@ -71,6 +70,7 @@ def main():
         "start", help="Start the TethysDash application"
     )
     start_parser.set_defaults(func=start_command)
+
 
     args = parser.parse_args()
     args.func(args)

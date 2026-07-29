@@ -1,0 +1,42 @@
+# TethysDash portal config for the docker-compose stack.
+#
+# DATABASES is intentionally omitted: tethys-uvx's portal-config.sh injects it
+# from TETHYS_DB_ENGINE (sqlite here) + SECRET_KEY at container start. This file
+# owns the pieces the base does not touch: the Valkey-backed channel layer +
+# cache, the open-portal flags, and branding.
+version: 2.0
+name: TethysDash
+apps: {}
+
+settings:
+  DEBUG: true
+
+  ALLOWED_HOSTS:
+    - localhost
+    - 127.0.0.1
+
+  # Visualization-progress WebSocket fan-out (VisualizationConsumer /
+  # plugin send_update). Must be shared once more than one ASGI worker runs;
+  # Valkey is a drop-in Redis replacement.
+  CHANNEL_LAYERS:
+    default:
+      BACKEND: channels_redis.core.RedisChannelLayer
+      CONFIG:
+        hosts:
+          - redis://valkey:6379/0
+
+  # Shared cache for the chatbot's pending-disambiguation record (per-process
+  # LocMemCache would drop it across workers).
+  CACHES:
+    default:
+      BACKEND: django_redis.cache.RedisCache
+      LOCATION: redis://valkey:6379/1
+
+  TETHYS_PORTAL_CONFIG:
+    ENABLE_OPEN_PORTAL: true
+    BYPASS_TETHYS_HOME_PAGE: true
+
+site_settings:
+  GENERAL_SETTINGS:
+    SITE_TITLE: TethysDash
+    BRAND_TEXT: TethysDash

@@ -1,0 +1,23 @@
+# Keep the Docker build context small and clean. node_modules alone is ~850 MB
+# on the host and is rebuilt inside the image, so it must never be copied in.
+.git
+.github
+node_modules
+**/node_modules
+.venv
+**/.venv
+__pycache__
+**/__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+htmlcov
+.coverage
+coverage
+.context
+claude*
+docs/brainstorms
+docs/plans
+docs/solutions
+*.sqlite
+*.sqlite3

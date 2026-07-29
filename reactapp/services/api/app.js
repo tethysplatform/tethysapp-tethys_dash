@@ -58,6 +58,9 @@ const appAPI = {
   listVisualizations: () => {
     return apiClient.get(`${APP_ROOT_URL}visualizations/list/`);
   },
+  getChatConfig: () => {
+    return apiClient.get(`${APP_ROOT_URL}chat/config/`);
+  },
   listVisualizationPermissions: () => {
     return apiClient.get(`${APP_ROOT_URL}visualizations/permissions/list/`);
   },
@@ -122,6 +125,69 @@ const appAPI = {
       jsonData.data = replaceHtmlEntitiesInExpressions(jsonData.data);
     }
     return jsonData;
+  },
+  sendChatBotMessage: async ({
+    prompt,
+    dashboardId,
+    chatId,
+    history,
+    csrf,
+  }) => {
+    return await apiClient.post(
+      `${APP_ROOT_URL}chat/message/`,
+      {
+        prompt,
+        dashboard_id: dashboardId,
+        chat_id: chatId,
+        history: history ?? [],
+      },
+      { headers: { "x-csrftoken": csrf } },
+    );
+  },
+
+  streamChatBotMessage: async ({
+    prompt,
+    dashboardId,
+    chatId,
+    history,
+    csrf,
+    onEvent,
+  }) => {
+    const response = await fetch(`${APP_ROOT_URL}chat/message/`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": csrf,
+      },
+      credentials: "same-origin",
+      body: JSON.stringify({
+        prompt,
+        dashboard_id: dashboardId,
+        chat_id: chatId,
+        history: history ?? [],
+      }),
+    });
+    if (!response.ok || !response.body) {
+      throw new Error(`Chat request failed (${response.status})`);
+    }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    const handleLine = (line) => {
+      const trimmed = line.trim();
+      if (trimmed) onEvent(JSON.parse(trimmed));
+    };
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let newlineIndex;
+      while ((newlineIndex = buffer.indexOf("\n")) >= 0) {
+        handleLine(buffer.slice(0, newlineIndex));
+        buffer = buffer.slice(newlineIndex + 1);
+      }
+    }
+    handleLine(buffer);
   },
 };
 

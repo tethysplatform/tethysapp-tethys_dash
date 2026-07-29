@@ -1,6 +1,7 @@
 from django.http import JsonResponse
 import json
 import os
+from typing import NamedTuple
 import shutil
 import nh3
 from rest_framework.decorators import api_view
@@ -326,6 +327,13 @@ class VisualizationConsumer(AsyncWebsocketConsumer):
 
         Adds the connection to the 'dashboard_updates' group and accepts the connection.
         """
+        # required for InMemoryChannelLayer, harmless for Redis
+        import asyncio
+
+        from tethysapp.tethysdash.plugin_helpers import set_server_event_loop
+
+        set_server_event_loop(asyncio.get_running_loop())
+
         # Add to groups
         await self.channel_layer.group_add("dashboard_updates", self.channel_name)
 
@@ -1036,3 +1044,122 @@ def download_json(request, app_workspace):
             e, "Failed to download the json. Check server for logs."
         )
         return JsonResponse({"success": False, "message": message})
+
+
+class _ChatRequestError(Exception):
+    """A malformed chat request; carries an HTTP status and user-facing message."""
+
+    def __init__(self, status, message):
+        super().__init__(message)
+        self.status = status
+        self.message = message
+
+
+class _ChatRequest(NamedTuple):
+    """The validated fields of a chat POST body."""
+
+    prompt: str
+    dashboard_id: int
+    chat_id: str
+    raw_history: object
+
+
+def _parse_chat_request(request):
+    """Validate the chat POST and return its fields, or raise _ChatRequestError."""
+    if request.method != "POST":
+        raise _ChatRequestError(405, "POST required")
+    if not has_permission(request, "manage_visualizations"):
+        raise _ChatRequestError(
+            403, "User does not have permission to use the chat."
+        )
+    try:
+        body = json.loads(request.body or b"{}")
+    except json.JSONDecodeError as exc:
+        raise _ChatRequestError(400, f"Invalid JSON body: {exc}") from exc
+
+    prompt = (body.get("prompt") or "").strip()
+    if not prompt:
+        raise _ChatRequestError(400, "Missing or empty 'prompt' field.")
+
+    dashboard_id_raw = body.get("dashboard_id")
+    if dashboard_id_raw is None:
+        raise _ChatRequestError(400, "dashboard_id is required.")
+    try:
+        dashboard_id = int(dashboard_id_raw)
+    except (TypeError, ValueError) as exc:
+        raise _ChatRequestError(
+            400, f"Invalid dashboard_id {dashboard_id_raw!r}; must be int."
+        ) from exc
+
+    chat_id = (body.get("chat_id") or "").strip()
+    return _ChatRequest(prompt, dashboard_id, chat_id, body.get("history"))
+
+
+def _build_chat_deps(request, parsed):
+    """Assemble ChatDeps, resolving dashboard ownership, or raise _ChatRequestError."""
+    from tethysapp.tethysdash.chatbot.messages.history import sanitize_history
+    from tethysapp.tethysdash.chatbot.models import ChatDeps
+
+    try:
+        dashboard_meta = get_dashboards(request.user, id=parsed.dashboard_id)
+    except Exception as exc:
+        raise _ChatRequestError(
+            404, f"Dashboard {parsed.dashboard_id} not found."
+        ) from exc
+
+    return ChatDeps(
+        user=request.user,
+        dashboard_id=parsed.dashboard_id,
+        original_prompt=parsed.prompt,
+        chat_id=parsed.chat_id,
+        history=sanitize_history(parsed.raw_history),
+        can_add_visualizations=(
+            dashboard_meta.get("owner") == request.user.username
+        ),
+    )
+
+
+@controller(url="tethysdash/chat/message", login_required=True)
+def chat_message(request):
+    """Stream a pydantic-AI chat reply as NDJSON, gated on manage_visualizations."""
+    try:
+        parsed = _parse_chat_request(request)
+        deps = _build_chat_deps(request, parsed)
+        from tethysapp.tethysdash.chatbot.disambiguation import resolve_pending
+        from tethysapp.tethysdash.chatbot.streaming import (
+            stream_chat_response,
+            stream_immediate,
+        )
+    except _ChatRequestError as exc:
+        return JsonResponse({"error": exc.message}, status=exc.status)
+    except ImportError as exc:
+        return JsonResponse(
+            {"error": f"Chat backend not installed: {exc}"}, status=503
+        )
+
+    # A reply to a prior "which one?" is resolved deterministically here, before
+    # the router/LLM; anything else falls through to the normal chat stream. Any
+    # failure falls through rather than 500-ing, matching the streamed path.
+    try:
+        pending_reply = resolve_pending(deps, parsed.prompt)
+    except Exception as exc:
+        from tethysapp.tethysdash.chatbot.utils import log_chat_error
+
+        log_chat_error(
+            f"resolve_pending failed (dashboard {parsed.dashboard_id})", exc
+        )
+        pending_reply = None
+    if pending_reply is not None:
+        return stream_immediate(pending_reply, changed=deps.dashboard_changed)
+
+    return stream_chat_response(deps, parsed.prompt)
+
+
+@controller(url="tethysdash/chat/config", login_required=True)
+def chat_config(request):
+    """Return the chat backend's current model name, for display in the chat UI."""
+    from tethysapp.tethysdash.chatbot.config import MODEL_NAME
+
+    return JsonResponse({"model": MODEL_NAME})
+
+
