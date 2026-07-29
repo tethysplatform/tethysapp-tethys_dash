@@ -1,9 +1,3 @@
-// Slash-command templates for the chat input. Selecting one prefills the input
-// with the plugin name (add) or the target tile (patch) and its argument keys,
-// so the user only fills in the values. The deterministic backend resolver maps
-// the name to the right plugin, and its disambiguation flow handles any tile
-// tie the `where` anchor doesn't break.
-
 export const SLASH_TRIGGER = "/";
 
 // Read-only actions that are safe to prefill as a whole prompt.
