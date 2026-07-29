@@ -2,8 +2,9 @@ import { useContext, useState } from "react";
 import styled from "styled-components";
 import Chatbox from "./Chatbox";
 import PropTypes from "prop-types";
-import { FaRobot } from "react-icons/fa6";
+import { FaRobot, FaBroom } from "react-icons/fa6";
 import { EditingContext, LayoutContext } from "components/contexts/Contexts";
+import { useChatState } from "./useChatState";
 import { BetaBadge, colors, focusRing, radii } from "./styles";
 
 const Launcher = styled.button`
@@ -70,7 +71,13 @@ const Title = styled.div`
   color: ${colors.text};
 `;
 
-const CloseBtn = styled.button`
+const Actions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 2px;
+`;
+
+const IconBtn = styled.button`
   display: flex;
   align-items: center;
   justify-content: center;
@@ -80,15 +87,63 @@ const CloseBtn = styled.button`
   border: none;
   border-radius: ${radii.sm};
   cursor: pointer;
-  font-size: 1.4rem;
   line-height: 1;
   color: ${colors.textMuted};
   transition: background 0.15s ease;
-  &:hover {
+  &:hover:not(:disabled) {
     background: ${colors.border};
     color: ${colors.text};
   }
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
   ${focusRing}
+`;
+
+const CloseBtn = styled(IconBtn)`
+  font-size: 1.4rem;
+`;
+
+const ConfirmBar = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 14px;
+  background: ${colors.errorBg};
+  border-bottom: 1px solid ${colors.errorBorder};
+  font-size: 0.82rem;
+  color: ${colors.text};
+`;
+
+const ConfirmActions = styled.div`
+  display: flex;
+  gap: 6px;
+`;
+
+const GhostBtn = styled.button`
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 0.8rem;
+  background: none;
+  border: 1px solid ${colors.borderStrong};
+  border-radius: ${radii.sm};
+  color: ${colors.textMuted};
+  cursor: pointer;
+  &:hover {
+    background: ${colors.surface};
+  }
+  ${focusRing}
+`;
+
+const DangerBtn = styled(GhostBtn)`
+  border-color: ${colors.errorBorder};
+  background: ${colors.errorText};
+  color: ${colors.surface};
+  &:hover {
+    background: #b02525;
+  }
 `;
 
 const Content = styled.div`
@@ -102,6 +157,10 @@ export default function FloatingChatbox({ dashboardId }) {
   const { editable, chatVisible } = useContext(LayoutContext) || {};
   const { isEditing } = useContext(EditingContext) || {};
   const [open, setOpen] = useState(false);
+  const [confirmingClear, setConfirmingClear] = useState(false);
+  const { messages, isLoading, error, send, clear } = useChatState({
+    dashboardId,
+  });
 
   if (!editable || !isEditing || !chatVisible) {
     return null;
@@ -117,6 +176,11 @@ export default function FloatingChatbox({ dashboardId }) {
     );
   }
 
+  const confirmClear = () => {
+    clear();
+    setConfirmingClear(false);
+  };
+
   return (
     <Panel role="dialog" aria-label="Chat assistant (beta)">
       <Header>
@@ -125,12 +189,41 @@ export default function FloatingChatbox({ dashboardId }) {
           Chat
           <BetaBadge>Beta</BetaBadge>
         </Title>
-        <CloseBtn onClick={() => setOpen(false)} aria-label="Close chat">
-          ×
-        </CloseBtn>
+        <Actions>
+          {messages.length > 0 && (
+            <IconBtn
+              onClick={() => setConfirmingClear(true)}
+              aria-label="Clear conversation"
+              title="Clear conversation"
+            >
+              <FaBroom aria-hidden="true" style={{ fontSize: "1rem" }} />
+            </IconBtn>
+          )}
+          <CloseBtn onClick={() => setOpen(false)} aria-label="Close chat">
+            ×
+          </CloseBtn>
+        </Actions>
       </Header>
+      {confirmingClear && (
+        <ConfirmBar role="alertdialog" aria-label="Clear conversation">
+          <span>Clear this conversation?</span>
+          <ConfirmActions>
+            <GhostBtn type="button" onClick={() => setConfirmingClear(false)}>
+              Cancel
+            </GhostBtn>
+            <DangerBtn type="button" onClick={confirmClear}>
+              Clear
+            </DangerBtn>
+          </ConfirmActions>
+        </ConfirmBar>
+      )}
       <Content>
-        <Chatbox dashboardId={dashboardId} />
+        <Chatbox
+          messages={messages}
+          isLoading={isLoading}
+          error={error}
+          send={send}
+        />
       </Content>
     </Panel>
   );

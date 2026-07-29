@@ -2,7 +2,6 @@ import { useCallback, useState } from "react";
 import styled from "styled-components";
 import ChatLog from "./ChatLog";
 import ChatInputBar from "./ChatInputBar";
-import { useChatState } from "./useChatState";
 import PropTypes from "prop-types";
 import { colors, radii } from "./styles";
 
@@ -25,8 +24,7 @@ const ErrorBar = styled.div`
   font-size: 0.85rem;
 `;
 
-export default function Chatbox({ dashboardId }) {
-  const { messages, isLoading, error, send } = useChatState({ dashboardId });
+export default function Chatbox({ messages, isLoading, error, send }) {
   // Wrapped in an object so picking the same template twice still
   // triggers the input's effect (fresh identity per pick).
   const [draft, setDraft] = useState(null);
@@ -56,5 +54,8 @@ export default function Chatbox({ dashboardId }) {
 }
 
 Chatbox.propTypes = {
-  dashboardId: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+  messages: PropTypes.array.isRequired,
+  isLoading: PropTypes.bool,
+  error: PropTypes.string,
+  send: PropTypes.func.isRequired,
 };
