@@ -50,7 +50,9 @@ function recentHistory(messages) {
 
 // Stream handler for one send: delta events append to the assistant bubble,
 // progress milestones show only until the first token, done sets the final text.
-function streamIntoBubble(setMessages, chatId) {
+// The `done` event's `changed` flag is recorded on `state` so the caller can
+// refetch the dashboard only when the agent actually mutated it.
+function streamIntoBubble(setMessages, chatId, state) {
   let answer = "";
   let streaming = false;
   const setBubbleText = (text) =>
@@ -70,6 +72,7 @@ function streamIntoBubble(setMessages, chatId) {
       if (!streaming) setBubbleText(event.text);
     } else if (event.type === "done") {
       setBubbleText(event.text || answer);
+      state.changed = Boolean(event.changed);
     } else if (event.type === "error") {
       throw new Error(event.text);
     }
@@ -102,6 +105,7 @@ export function useChatState({ dashboardId }) {
         { role: "assistant", text: "", id: chatId },
       ]);
       setIsLoading(true);
+      const streamState = { changed: false };
       try {
         await appAPI.streamChatBotMessage({
           prompt: text,
@@ -109,9 +113,11 @@ export function useChatState({ dashboardId }) {
           chatId,
           history,
           csrf,
-          onEvent: streamIntoBubble(setMessages, chatId),
+          onEvent: streamIntoBubble(setMessages, chatId, streamState),
         });
-        window.dispatchEvent(new Event("tethysdash:agent-dashboard-refetch"));
+        if (streamState.changed) {
+          window.dispatchEvent(new Event("tethysdash:agent-dashboard-refetch"));
+        }
       } catch (e) {
         setError(e.message);
         setMessages((m) => m.filter((msg) => msg.id !== chatId));

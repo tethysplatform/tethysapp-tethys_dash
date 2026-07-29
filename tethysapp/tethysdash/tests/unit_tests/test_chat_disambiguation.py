@@ -147,6 +147,7 @@ def test_number_picks_nth_and_applies():
     assert saved[1] == {"river_id": "999"} and saved[0] == {"river_id": "111"}
     assert "#2" in reply
     assert get_pending(d.dashboard_id, d.user) is None
+    assert d.dashboard_changed is True
 
 
 def test_number_resolves_identical_tiles():
@@ -249,6 +250,7 @@ def test_cancel_clears_and_writes_nothing():
     assert "didn't change" in reply.lower()
     update.assert_not_called()
     assert get_pending(d.dashboard_id, d.user) is None
+    assert d.dashboard_changed is False
 
 
 def test_out_of_range_number_reasks_and_keeps_record():

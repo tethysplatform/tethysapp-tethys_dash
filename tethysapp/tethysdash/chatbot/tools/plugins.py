@@ -249,4 +249,6 @@ def add_visualizations_from_plugin(
         f"Placing visualization(s) on dashboard {ctx.deps.dashboard_id}...",
     )
     added, skipped = append_new_tiles(ctx.deps.user, ctx.deps.dashboard_id, candidates)
+    if added:
+        ctx.deps.dashboard_changed = True
     return _added_summary(added, skipped, ctx.deps.dashboard_id)

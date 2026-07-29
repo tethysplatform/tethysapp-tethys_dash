@@ -171,6 +171,7 @@ def resolve_pending(deps, message: str) -> str | None:
             return f"#{number} ({tile.get('source')}) already has {_pairs(record.args)}; nothing changed."
         _apply_arg_changes(tile, record.args)
         save_dashboard_tabs(deps.user, deps.dashboard_id, tabs)
+        deps.dashboard_changed = True
         clear_pending(deps.dashboard_id, deps.user)
         return f"Updated #{number} ({tile.get('source')}): {_pairs(record.args)}."
 
@@ -186,6 +187,7 @@ def resolve_pending(deps, message: str) -> str | None:
             applied += 1
     if applied:
         save_dashboard_tabs(deps.user, deps.dashboard_id, tabs)
+        deps.dashboard_changed = True
     clear_pending(deps.dashboard_id, deps.user)
     if not applied:
         return f"All {len(matches)} {source} tiles already have {_pairs(record.args)}; nothing changed."

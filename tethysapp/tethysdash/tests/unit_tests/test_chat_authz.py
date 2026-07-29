@@ -222,6 +222,25 @@ def test_tool_allows_owner():
         )
     assert "Added" in reply
     update.assert_called_once()
+    assert ctx.deps.dashboard_changed is True
+
+
+def test_tool_leaves_dashboard_unchanged_when_plugin_unresolved():
+    """A "did you mean" reply writes nothing, so no dashboard refetch is signalled."""
+    ctx = SimpleNamespace(deps=_deps(owner=True))
+    plugin_cls = MagicMock()
+    plugin_cls.visualization_type = "plotly"
+    plugin_cls.visualization_args = {"river_id": "text"}
+    plugin_cls.visualization_description = "d"
+    with patch("intake.source.registry", {"real_plugin": plugin_cls}), \
+         patch(
+            "tethysapp.tethysdash.chatbot.tools.dashboard.update_named_dashboard"
+         ) as update:
+        add_visualizations_from_plugin(
+            ctx, [PluginRequest(source="totally_unknown", args={})]
+        )
+    update.assert_not_called()
+    assert ctx.deps.dashboard_changed is False
 
 
 # --------------------------------------------------------------------------

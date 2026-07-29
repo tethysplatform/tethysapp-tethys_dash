@@ -79,8 +79,29 @@ def test_stream_immediate_emits_single_done_ndjson_event():
     chunks = asyncio.run(collect())
     assert len(chunks) == 1
     line = chunks[0].decode() if isinstance(chunks[0], (bytes, bytearray)) else chunks[0]
-    assert json.loads(line.strip()) == {"type": "done", "text": "hello there"}
+    assert json.loads(line.strip()) == {
+        "type": "done",
+        "text": "hello there",
+        "changed": False,
+    }
     assert resp.headers["Content-Type"].startswith("application/x-ndjson")
+
+
+def test_stream_immediate_carries_changed_flag():
+    """A disambiguation that applied a change flags the done event so the UI
+    refetches; the default (e.g. a cancel) leaves it False."""
+    import asyncio
+    import json
+
+    from tethysapp.tethysdash.chatbot.streaming import stream_immediate
+
+    async def collect(resp):
+        return [chunk async for chunk in resp.streaming_content]
+
+    changed_resp = stream_immediate("Updated #1 (chart).", changed=True)
+    line = asyncio.run(collect(changed_resp))[0]
+    line = line.decode() if isinstance(line, (bytes, bytearray)) else line
+    assert json.loads(line.strip())["changed"] is True
 
 
 def test_sink_is_duck_typed_on_put():

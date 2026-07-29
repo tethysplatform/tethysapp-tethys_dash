@@ -349,6 +349,31 @@ def test_noop_when_value_matches_current_is_flagged_not_updated():
     update.assert_not_called()
 
 
+def test_successful_patch_flags_dashboard_changed():
+    """A patch that saves flags deps so the UI refetches; a no-op leaves it False."""
+    dash = _dashboard(_tile("geoglows", {"river_id": "111"}))
+    ctx = _ctx()
+    with (
+        patch(_REGISTRY, {"geoglows": _fake_plugin(("river_id",))}),
+        patch(_GET, return_value=dash),
+        patch(_UPDATE),
+    ):
+        patch_visualization(ctx, source="geoglows", args={"river_id": 999})
+    assert ctx.deps.dashboard_changed is True
+
+
+def test_noop_patch_leaves_dashboard_changed_false():
+    dash = _dashboard(_tile("geoglows", {"river_id": "610448527"}))
+    ctx = _ctx()
+    with (
+        patch(_REGISTRY, {"geoglows": _fake_plugin(("river_id",))}),
+        patch(_GET, return_value=dash),
+        patch(_UPDATE),
+    ):
+        patch_visualization(ctx, source="geoglows", args={"river_id": "610448527"})
+    assert ctx.deps.dashboard_changed is False
+
+
 def test_dashboard_state_lists_sources_without_index_numbers():
     dash = _dashboard(_tile("a_plugin", {"x": 1}), _tile("b_plugin", {}))
     with patch(_GET, return_value=dash):

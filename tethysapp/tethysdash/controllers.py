@@ -1150,7 +1150,7 @@ def chat_message(request):
         )
         pending_reply = None
     if pending_reply is not None:
-        return stream_immediate(pending_reply)
+        return stream_immediate(pending_reply, changed=deps.dashboard_changed)
 
     return stream_chat_response(deps, parsed.prompt)
 

@@ -94,6 +94,67 @@ describe("useChatState streaming send", () => {
     );
   });
 
+  test("refetches the dashboard only when the done event is flagged changed", async () => {
+    const refetch = jest.fn();
+    window.addEventListener("tethysdash:agent-dashboard-refetch", refetch);
+    try {
+      appAPI.streamChatBotMessage.mockImplementation(async ({ onEvent }) => {
+        onEvent({ type: "done", text: "Added the map.", changed: true });
+      });
+      const { result } = renderHook(() => useChatState({ dashboardId: 7 }), {
+        wrapper,
+      });
+      await act(async () => {
+        await result.current.send("add the map");
+      });
+      expect(refetch).toHaveBeenCalledTimes(1);
+    } finally {
+      window.removeEventListener("tethysdash:agent-dashboard-refetch", refetch);
+    }
+  });
+
+  test("does not refetch when the agent changed nothing (plain Q&A)", async () => {
+    const refetch = jest.fn();
+    window.addEventListener("tethysdash:agent-dashboard-refetch", refetch);
+    try {
+      appAPI.streamChatBotMessage.mockImplementation(async ({ onEvent }) => {
+        onEvent({
+          type: "done",
+          text: "Bolivia is in South America.",
+          changed: false,
+        });
+      });
+      const { result } = renderHook(() => useChatState({ dashboardId: 7 }), {
+        wrapper,
+      });
+      await act(async () => {
+        await result.current.send("where is Bolivia?");
+      });
+      expect(refetch).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener("tethysdash:agent-dashboard-refetch", refetch);
+    }
+  });
+
+  test("does not refetch when done omits the changed flag", async () => {
+    const refetch = jest.fn();
+    window.addEventListener("tethysdash:agent-dashboard-refetch", refetch);
+    try {
+      appAPI.streamChatBotMessage.mockImplementation(async ({ onEvent }) => {
+        onEvent({ type: "done", text: "Here is some help." });
+      });
+      const { result } = renderHook(() => useChatState({ dashboardId: 7 }), {
+        wrapper,
+      });
+      await act(async () => {
+        await result.current.send("how does this work?");
+      });
+      expect(refetch).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener("tethysdash:agent-dashboard-refetch", refetch);
+    }
+  });
+
   test("ignores empty prompts", async () => {
     const { result } = renderHook(() => useChatState({ dashboardId: 7 }), {
       wrapper,

@@ -37,6 +37,11 @@ class ChatDeps:
     Every tool receives this via ``ctx.deps.<field>``. ``chat_id`` is the
     per-request UUID from the frontend; ``emit_progress`` and ``emit_delta`` use
     it to route streamed events onto this request's NDJSON response.
+
+    ``dashboard_changed`` starts False and is set True by any tool that actually
+    persists a grid-item change (add, patch, disambiguation apply). It drives the
+    ``changed`` flag on the ``done`` event so the frontend refetches the
+    dashboard only when something really changed - a plain Q&A leaves it False.
     """
 
     user: object
@@ -45,3 +50,4 @@ class ChatDeps:
     chat_id: str = ""
     history: list | None = None
     can_add_visualizations: bool = True
+    dashboard_changed: bool = False

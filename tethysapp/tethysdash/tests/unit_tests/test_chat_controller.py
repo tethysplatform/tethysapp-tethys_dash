@@ -47,9 +47,28 @@ def test_resolved_pending_reply_bypasses_the_router():
     ):
         result = chat_message(_request("2"))
     resolve.assert_called_once()
-    immediate.assert_called_once_with("resolved reply")
+    immediate.assert_called_once_with("resolved reply", changed=False)
     stream.assert_not_called()
     assert result == "IMMEDIATE"
+
+
+def test_resolved_pending_that_changed_the_dashboard_flags_the_reply():
+    """When resolve_pending applied a change, the immediate reply carries
+    changed=True so the frontend refetches the dashboard."""
+
+    def _apply(deps, _prompt):
+        deps.dashboard_changed = True
+        return "Updated #1 (chart)."
+
+    with (
+        patch(_HASPERM, return_value=True),
+        patch(_GETDASH, return_value={"owner": "alice"}),
+        patch(_RESOLVE, side_effect=_apply),
+        patch(_IMMEDIATE, return_value="IMMEDIATE") as immediate,
+        patch(_STREAM),
+    ):
+        chat_message(_request("2"))
+    immediate.assert_called_once_with("Updated #1 (chart).", changed=True)
 
 
 def test_no_pending_falls_through_to_the_stream():

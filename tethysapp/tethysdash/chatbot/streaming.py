@@ -55,7 +55,13 @@ async def _run_router(router, deps, prompt, aqueue):
     try:
         emit_progress(deps.chat_id, "Understanding your request...")
         result = await router.route(prompt)
-        await aqueue.put({"type": "done", "text": _reply_text(result)})
+        await aqueue.put(
+            {
+                "type": "done",
+                "text": _reply_text(result),
+                "changed": deps.dashboard_changed,
+            }
+        )
     except Exception as exc:
         _log_request_error(exc, prompt, deps.dashboard_id)
         await aqueue.put({"type": "error", "text": _ERROR_REPLY})
@@ -96,15 +102,17 @@ def stream_chat_response(deps, prompt):
     return response
 
 
-def stream_immediate(text, event_type="done"):
+def stream_immediate(text, event_type="done", changed=False):
     """Stream a single pre-computed NDJSON event.
 
     Used for deterministic pre-check results (a resolved disambiguation) that
     bypass the router but must still reach the frontend over the same envelope.
+    ``changed`` mirrors the router path's ``done`` flag so a disambiguation that
+    applied a change triggers a dashboard refetch, while a cancel does not.
     """
 
     async def _one_event():
-        yield json.dumps({"type": event_type, "text": text}) + "\n"
+        yield json.dumps({"type": event_type, "text": text, "changed": changed}) + "\n"
 
     response = StreamingHttpResponse(
         _one_event(), content_type="application/x-ndjson"

@@ -114,5 +114,6 @@ def patch_visualization(
     emit_progress(ctx.deps.chat_id, f"Updating {real_source}...")
     _apply_arg_changes(tile, args)
     save_dashboard_tabs(ctx.deps.user, ctx.deps.dashboard_id, tabs)
+    ctx.deps.dashboard_changed = True
     _clear_matching_pending(ctx.deps, (tab, item))
     return f"Updated {real_source}: {_pairs(args)}."
