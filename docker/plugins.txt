@@ -1,0 +1,14 @@
+# TethysDash plugins to install into the image - THIS is where you choose them.
+#
+# Each line is a pip requirement (PyPI name or a git+https URL). Every plugin is
+# a normal pip package that self-registers as an intake driver via its setup.py
+# entry-points, so TethysDash discovers it at runtime with no code change. Add,
+# remove, or pin lines here, then rebuild:  docker compose build
+#
+# Lines starting with '#' are ignored. An all-comment file installs nothing.
+#
+# Examples (uncomment / edit to taste):
+# git+https://github.com/FIRO-Tethys/nwmp_plugins.git@main
+# git+https://github.com/FIRO-Tethys/tethysdash_plugin_cnrfc.git@main
+# git+https://github.com/FIRO-Tethys/tethysdash_examples.git@main
+# git+https://github.com/FIRO-Tethys/RFC-Plugins.git@main

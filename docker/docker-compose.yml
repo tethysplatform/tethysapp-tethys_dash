@@ -1,0 +1,93 @@
+# TethysDash local stack: SQLite (no Postgres), Valkey, and Ollama.
+#
+#   valkey                - channel layer (viz-progress WS) + chatbot cache
+#   ollama                - serves the local chat model
+#   ollama-pull           - one-shot: pulls the model, then exits
+#   tethysdash-provision  - one-shot: migrate + sqlite persistent store + superuser
+#   tethysdash            - the web app (uvicorn / dev server), waits on the above
+#
+# Usage:  cp docker/.env.example docker/.env  &&  edit  &&  docker compose -f docker/docker-compose.yml up --build
+name: tethysdash
+
+services:
+  valkey:
+    image: valkey/valkey:8-alpine
+    restart: unless-stopped
+    volumes:
+      - valkey-data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - ollama-models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    # --- GPU (NVIDIA): uncomment to give Ollama the GPU ---
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  ollama-pull:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: "http://ollama:11434"
+    entrypoint: ["/bin/sh", "-c", "ollama pull ${TETHYSDASH_CHAT_LOCAL_MODEL:-ornith:9b}"]
+    restart: "no"
+
+  tethysdash-provision:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: tethysdash-portal:local
+    command: ["/usr/local/bin/provision.sh"]
+    env_file: [.env]
+    environment: &tethys_env
+      TETHYS_DB_ENGINE: django.db.backends.sqlite3
+      TETHYS_DEBUG: "${TETHYS_DEBUG:-true}"
+      TETHYSDASH_CHAT_LLM_HOST: "http://ollama:11434"
+      TETHYSDASH_CHAT_LOCAL_MODEL: "${TETHYSDASH_CHAT_LOCAL_MODEL:-ornith:9b}"
+      PORTAL_ALLOWED_HOSTS: "${PORTAL_ALLOWED_HOSTS:-localhost,127.0.0.1}"
+    depends_on:
+      valkey:
+        condition: service_healthy
+    volumes:
+      - tethys-persist:/home/tethys/persist
+    restart: "no"
+
+  tethysdash:
+    image: tethysdash-portal:local
+    depends_on:
+      tethysdash-provision:
+        condition: service_completed_successfully
+      ollama-pull:
+        condition: service_completed_successfully
+      valkey:
+        condition: service_healthy
+    env_file: [.env]
+    environment: *tethys_env
+    ports:
+      - "${TETHYSDASH_HOST_PORT:-8000}:8000"
+    volumes:
+      - tethys-persist:/home/tethys/persist
+    restart: unless-stopped
+
+volumes:
+  valkey-data:
+  ollama-models:
+  tethys-persist:
