@@ -1,6 +1,7 @@
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import PropTypes from "prop-types";
+import { FaArrowUp } from "react-icons/fa6";
 import { TabContext } from "components/contexts/Contexts";
 import { colors, radii } from "./styles";
 import SlashMenu from "./SlashMenu";
@@ -14,57 +15,74 @@ import {
 
 const Bar = styled.form`
   position: relative;
-  display: flex;
-  /* pin the button to the bottom instead of stretching it to match
-     the auto-growing textarea */
-  align-items: flex-end;
-  gap: 8px;
-  padding: 8px 12px;
+  padding: 8px 12px 10px;
   border-top: 1px solid ${colors.border};
   background: ${colors.surfaceMuted};
 `;
 
-const Input = styled.textarea`
-  flex: 1;
-  resize: none;
-  min-height: 36px;
-  max-height: 120px;
-  overflow-y: auto;
-  padding: 8px 10px;
-  border: 1px solid ${colors.borderStrong};
-  border-radius: ${radii.sm};
-  font: inherit;
-  line-height: 1.4;
-  color: ${colors.text};
+/* One rounded composer holds the textarea and the send action; the border and
+   focus ring live here (focus-within) so the whole box reads as a single field
+   the way Linear / Notion / ChatGPT composers do. */
+const Composer = styled.div`
+  display: flex;
+  /* pin the send button to the bottom as the textarea grows upward */
+  align-items: flex-end;
+  gap: 6px;
+  padding: 6px 6px 6px 12px;
   background: ${colors.surface};
+  border: 1px solid ${colors.borderStrong};
+  border-radius: ${radii.lg};
   transition:
     border-color 0.15s ease,
     box-shadow 0.15s ease;
-  &::placeholder {
-    color: ${colors.textFaint};
-  }
-  &:focus {
-    outline: none;
+  &:focus-within {
     border-color: ${colors.accent};
     box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.2);
   }
 `;
 
+const Input = styled.textarea`
+  flex: 1;
+  resize: none;
+  min-height: 30px;
+  max-height: 120px;
+  overflow-y: auto;
+  padding: 5px 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  line-height: 1.4;
+  color: ${colors.text};
+  &::placeholder {
+    color: ${colors.textFaint};
+  }
+`;
+
+/* Compact circular send. Icon-only is the familiar chat affordance and frees
+   width in the 380px panel; the accessible name lives on aria-label. */
 const SendButton = styled.button`
-  height: 36px;
-  padding: 0 14px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
   background: ${colors.accent};
   color: ${colors.surface};
   border: none;
-  border-radius: ${radii.sm};
+  border-radius: ${radii.pill};
   cursor: pointer;
-  font-weight: 500;
-  transition: background 0.15s ease;
+  font-size: 0.8rem;
+  transition:
+    background 0.15s ease,
+    transform 0.1s ease;
   &:hover:not(:disabled) {
     background: ${colors.accentHover};
   }
   &:active:not(:disabled) {
     background: ${colors.accentActive};
+    transform: scale(0.94);
   }
   &:focus-visible {
     outline: none;
@@ -72,6 +90,7 @@ const SendButton = styled.button`
   }
   &:disabled {
     background: ${colors.borderStrong};
+    color: ${colors.surfaceMuted};
     cursor: not-allowed;
   }
 `;
@@ -187,28 +206,35 @@ export default function ChatInputBar({ onSend, disabled, draft }) {
           listId={LIST_ID}
         />
       )}
-      <Input
-        ref={inputRef}
-        value={value}
-        onChange={(e) => {
-          setValue(e.target.value);
-          setDismissed(false);
-        }}
-        onKeyDown={handleKeyDown}
-        placeholder="Message, or type / for templates..."
-        disabled={disabled}
-        rows={1}
-        role="combobox"
-        aria-expanded={menuOpen}
-        aria-controls={LIST_ID}
-        aria-autocomplete="list"
-        aria-activedescendant={
-          menuOpen ? `${LIST_ID}-opt-${highlight}` : undefined
-        }
-      />
-      <SendButton type="submit" disabled={disabled || !value.trim()}>
-        Send
-      </SendButton>
+      <Composer>
+        <Input
+          ref={inputRef}
+          value={value}
+          onChange={(e) => {
+            setValue(e.target.value);
+            setDismissed(false);
+          }}
+          onKeyDown={handleKeyDown}
+          placeholder="Message, or type / for templates..."
+          disabled={disabled}
+          rows={1}
+          role="combobox"
+          aria-expanded={menuOpen}
+          aria-controls={LIST_ID}
+          aria-autocomplete="list"
+          aria-activedescendant={
+            menuOpen ? `${LIST_ID}-opt-${highlight}` : undefined
+          }
+        />
+        <SendButton
+          type="submit"
+          disabled={disabled || !value.trim()}
+          aria-label="Send message"
+          title="Send"
+        >
+          <FaArrowUp aria-hidden="true" />
+        </SendButton>
+      </Composer>
     </Bar>
   );
 }

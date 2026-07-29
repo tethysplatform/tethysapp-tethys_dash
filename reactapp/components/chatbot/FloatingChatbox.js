@@ -5,6 +5,7 @@ import PropTypes from "prop-types";
 import { FaRobot, FaBroom } from "react-icons/fa6";
 import { EditingContext, LayoutContext } from "components/contexts/Contexts";
 import { useChatState } from "./useChatState";
+import { useChatModel } from "./useChatModel";
 import { BetaBadge, colors, focusRing, radii } from "./styles";
 
 const Launcher = styled.button`
@@ -65,10 +66,24 @@ const Header = styled.div`
 
 const Title = styled.div`
   display: flex;
+  flex-direction: column;
+  gap: 1px;
+`;
+
+const TitleRow = styled.div`
+  display: flex;
   align-items: center;
   gap: 8px;
   font-weight: 600;
   color: ${colors.text};
+`;
+
+const ModelLine = styled.div`
+  padding-left: 24px;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.68rem;
+  color: ${colors.textFaint};
 `;
 
 const Actions = styled.div`
@@ -161,6 +176,7 @@ export default function FloatingChatbox({ dashboardId }) {
   const { messages, isLoading, error, send, clear } = useChatState({
     dashboardId,
   });
+  const model = useChatModel();
 
   if (!editable || !isEditing || !chatVisible) {
     return null;
@@ -185,9 +201,12 @@ export default function FloatingChatbox({ dashboardId }) {
     <Panel role="dialog" aria-label="Chat assistant (beta)">
       <Header>
         <Title>
-          <FaRobot aria-hidden="true" color={colors.accent} />
-          Chat
-          <BetaBadge>Beta</BetaBadge>
+          <TitleRow>
+            <FaRobot aria-hidden="true" color={colors.accent} />
+            Chat
+            <BetaBadge>Beta</BetaBadge>
+          </TitleRow>
+          {model && <ModelLine title="Chat model">{model}</ModelLine>}
         </Title>
         <Actions>
           {messages.length > 0 && (

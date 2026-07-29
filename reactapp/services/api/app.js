@@ -58,6 +58,9 @@ const appAPI = {
   listVisualizations: () => {
     return apiClient.get(`${APP_ROOT_URL}visualizations/list/`);
   },
+  getChatConfig: () => {
+    return apiClient.get(`${APP_ROOT_URL}chat/config/`);
+  },
   listVisualizationPermissions: () => {
     return apiClient.get(`${APP_ROOT_URL}visualizations/permissions/list/`);
   },

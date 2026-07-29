@@ -1155,3 +1155,11 @@ def chat_message(request):
     return stream_chat_response(deps, parsed.prompt)
 
 
+@controller(url="tethysdash/chat/config", login_required=True)
+def chat_config(request):
+    """Return the chat backend's current model name, for display in the chat UI."""
+    from tethysapp.tethysdash.chatbot.config import MODEL_NAME
+
+    return JsonResponse({"model": MODEL_NAME})
+
+
