@@ -171,11 +171,6 @@ export default function FloatingChatbox({ dashboardId }) {
   const { editable, chatVisible } = useContext(LayoutContext) || {};
   const { isEditing } = useContext(EditingContext) || {};
   const [open, setOpen] = useState(false);
-  const [confirmingClear, setConfirmingClear] = useState(false);
-  const { messages, isLoading, error, send, clear } = useChatState({
-    dashboardId,
-  });
-  const model = useChatModel();
 
   if (!editable || !isEditing || !chatVisible) {
     return null;
@@ -193,6 +188,18 @@ export default function FloatingChatbox({ dashboardId }) {
       </Launcher>
     );
   }
+
+  return <ChatPanel dashboardId={dashboardId} onClose={() => setOpen(false)} />;
+}
+
+// Mounted only while the panel is open, so the chat hooks (localStorage load,
+// model fetch, AppContext for CSRF) don't run for every dashboard view.
+function ChatPanel({ dashboardId, onClose }) {
+  const [confirmingClear, setConfirmingClear] = useState(false);
+  const { messages, isLoading, error, send, clear } = useChatState({
+    dashboardId,
+  });
+  const model = useChatModel();
 
   const confirmClear = () => {
     clear();
@@ -220,7 +227,7 @@ export default function FloatingChatbox({ dashboardId }) {
               <FaBroom aria-hidden="true" style={{ fontSize: "1rem" }} />
             </IconBtn>
           )}
-          <CloseBtn onClick={() => setOpen(false)} aria-label="Close chat">
+          <CloseBtn onClick={onClose} aria-label="Close chat">
             ×
           </CloseBtn>
         </Actions>
@@ -252,4 +259,9 @@ export default function FloatingChatbox({ dashboardId }) {
 
 FloatingChatbox.propTypes = {
   dashboardId: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+};
+
+ChatPanel.propTypes = {
+  dashboardId: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+  onClose: PropTypes.func.isRequired,
 };
