@@ -9,6 +9,7 @@ import json
 import re
 
 from .catalog import get_plugin
+from .catalog import normalize_identifier as _normalize
 from .dashboard import list_tiles, load_dashboard_tabs
 
 _ARG_NAME_RE = re.compile(r"^[A-Za-z0-9_.]+$")
@@ -25,11 +26,6 @@ def _tile_args(tile) -> dict:
     except (TypeError, ValueError):
         return {}
     return parsed if isinstance(parsed, dict) else {}
-
-
-def _normalize(name) -> str:
-    """Reduce a source name to comparable letters/digits (drop case, _, spaces)."""
-    return re.sub(r"[^a-z0-9]", "", str(name).lower())
 
 
 def _describe_tile(tile) -> str:

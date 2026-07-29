@@ -43,12 +43,12 @@ _GET = "tethysapp.tethysdash.chatbot.tools.dashboard.get_dashboards"
 _UPDATE = "tethysapp.tethysdash.chatbot.tools.dashboard.update_named_dashboard"
 
 
-def test_unknown_source_raises_model_retry_with_catalog():
+def test_unknown_source_returns_did_you_mean_with_catalog():
+    """An unresolvable identifier is reported (with the catalog) - not guessed."""
     with patch(_REGISTRY, {"known_plugin": _fake_plugin()}):
-        with pytest.raises(ModelRetry) as exc:
-            add_visualizations_from_plugin(_ctx(), _reqs(("made_up_plugin", {})))
-    assert "made_up_plugin" in str(exc.value)
-    assert "known_plugin" in str(exc.value)
+        reply = add_visualizations_from_plugin(_ctx(), _reqs(("made_up_plugin", {})))
+    assert "made_up_plugin" in reply
+    assert "known_plugin" in reply
 
 
 def test_unknown_source_on_final_attempt_returns_message():
@@ -153,10 +153,10 @@ def test_one_unknown_source_blocks_all_before_persisting():
         patch(_REGISTRY, {"a": _fake_plugin(args=())}),
         patch(_UPDATE) as update,
     ):
-        with pytest.raises(ModelRetry):
-            add_visualizations_from_plugin(
-                _ctx(retry=0), _reqs(("a", {}), ("nope", {}))
-            )
+        reply = add_visualizations_from_plugin(
+            _ctx(retry=0), _reqs(("a", {}), ("nope", {}))
+        )
+    assert "nope" in reply
     update.assert_not_called()
 
 
@@ -299,3 +299,50 @@ def test_add_path_reads_dashboard_exactly_once():
     ):
         add_visualizations_from_plugin(_ctx(), _reqs(("geoglows", {"river_id": "1"})))
     assert get.call_count == 1
+
+
+def _viz(label, args):
+    """A stub plugin whose display label differs from its registry source."""
+    return SimpleNamespace(
+        visualization_type="plotly",
+        visualization_args={a: "text" for a in args},
+        visualization_description="d",
+        visualization_label=label,
+    )
+
+
+def test_add_resolves_display_name_to_the_right_source():
+    """A user naming the plugin by its display name adds the correct source."""
+    import json
+
+    dashboard = {"tabs": [{"gridItems": []}]}
+    registry = {"nwmp_reaches_series": _viz("NWMP Reaches Time Series", ("reach_id",))}
+    with (
+        patch(_REGISTRY, registry),
+        patch(_GET, return_value=dashboard),
+        patch(_UPDATE) as update,
+    ):
+        add_visualizations_from_plugin(
+            _ctx(), _reqs(("NWMP Reaches Time Series", {"reach_id": "8075804"}))
+        )
+    _user, _id, payload = update.call_args[0]
+    tile = payload["tabs"][0]["gridItems"][-1]
+    assert tile["source"] == "nwmp_reaches_series"
+    assert json.loads(tile["args_string"]) == {"reach_id": "8075804"}
+
+
+def test_add_offers_candidates_and_adds_nothing_when_ambiguous():
+    registry = {
+        "nwmp_reaches_v1": _viz("NWMP Reaches One", ("reach_id",)),
+        "nwmp_reaches_v2": _viz("NWMP Reaches Two", ("reach_id",)),
+    }
+    with (
+        patch(_REGISTRY, registry),
+        patch(_GET, return_value={"tabs": [{"gridItems": []}]}),
+        patch(_UPDATE) as update,
+    ):
+        reply = add_visualizations_from_plugin(
+            _ctx(), _reqs(("NWMP Reaches", {"reach_id": "1"}))
+        )
+    assert "nwmp_reaches_v1" in reply and "nwmp_reaches_v2" in reply
+    update.assert_not_called()

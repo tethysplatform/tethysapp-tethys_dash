@@ -8,7 +8,7 @@ from pydantic_ai import ModelRetry, RunContext
 
 from ..models import ChatDeps, PluginRequest, PluginSpec
 from ..utils import emit_progress
-from .catalog import format_catalog_for_llm, get_plugin, list_visualization_plugins
+from .catalog import format_catalog_for_llm, get_plugin, resolve_plugin
 from .dashboard import load_dashboard_tabs, save_dashboard_tabs
 from .tile_ops import _tile_args
 
@@ -140,32 +140,44 @@ def append_new_tiles(
 
 
 def _resolve_requests(requests: List[PluginRequest]):
-    """Split requests into resolved ``(spec, args)`` pairs and unknown source names."""
-    resolved = []
-    unknown = []
-    for req in requests:
-        spec = get_plugin(req.source)
-        if spec is None:
-            unknown.append(req.source)
-        else:
-            resolved.append((spec, req.args or {}))
-    return resolved, unknown
+    """Split requests into resolved ``(spec, args)`` pairs and unresolved ones.
 
-
-def _unknown_sources_reply(ctx: RunContext[ChatDeps], unknown: list[str]) -> str:
-    """Respond to unrecognised plugin sources.
-
-    Raises:
-        ModelRetry: while retries remain, so the model can self-correct the names.
+    Each request's ``source`` (a name or source, possibly mistyped) is resolved
+    deterministically against the catalog. Unresolved entries are returned as
+    ``(identifier, candidates)`` so the caller can offer "did you mean" options
+    instead of the model guessing a source that does not exist.
     """
-    listed = ", ".join(f"{source!r}" for source in unknown)
-    if ctx.retry >= ctx.max_retries:
-        names = ", ".join(f"`{spec.source}`" for spec in list_visualization_plugins())
-        return f"I couldn't match {listed} to an available plugin. You can add any of: {names}."
-    raise ModelRetry(
-        f"Unknown plugin source(s): {listed}. Choose from the catalog and retry:\n"
-        f"{format_catalog_for_llm()}"
-    )
+    resolved = []
+    unresolved = []
+    for req in requests:
+        match = resolve_plugin(req.source)
+        if match.spec is not None:
+            resolved.append((match.spec, req.args or {}))
+        else:
+            unresolved.append((req.source, match.candidates))
+    return resolved, unresolved
+
+
+def _unresolved_plugins_reply(unresolved) -> str:
+    """Ask the user to confirm which plugin they meant; never add a guessed one.
+
+    Each entry is ``(identifier, candidates)``: when there are close matches they
+    are offered as "did you mean" options; when nothing is close the full catalog
+    is shown so the user can pick a real plugin.
+    """
+    lines = []
+    show_catalog = False
+    for identifier, candidates in unresolved:
+        if candidates:
+            options = "; ".join(f"`{spec.source}` ({spec.name})" for spec in candidates)
+            lines.append(f'- I couldn\'t match "{identifier}". Did you mean: {options}?')
+        else:
+            show_catalog = True
+            lines.append(f'- I couldn\'t match "{identifier}" to any installed plugin.')
+    reply = "I need a clearer plugin name before adding:\n" + "\n".join(lines)
+    if show_catalog:
+        reply += "\n\nInstalled plugins:\n" + format_catalog_for_llm()
+    return reply
 
 
 def _plugins_needing_args(resolved) -> list[tuple[PluginSpec, list[str]]]:
@@ -220,9 +232,9 @@ def add_visualizations_from_plugin(
         raise ModelRetry("Provide at least one plugin to add in 'visualizations'.")
 
     emit_progress(ctx.deps.chat_id, "Looking up plugins...")
-    resolved, unknown = _resolve_requests(visualizations)
-    if unknown:
-        return _unknown_sources_reply(ctx, unknown)
+    resolved, unresolved = _resolve_requests(visualizations)
+    if unresolved:
+        return _unresolved_plugins_reply(unresolved)
 
     needing = _plugins_needing_args(resolved)
     if needing:
