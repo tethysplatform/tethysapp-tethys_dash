@@ -48,8 +48,7 @@ const Kbd = styled.kbd`
   min-width: 24px;
   height: 24px;
   padding: 0 6px;
-  font-family:
-    ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.9rem;
   color: ${colors.link};
   background: ${colors.surface};
@@ -97,7 +96,9 @@ export default function ChatHints({ onPick }) {
         <Kbd>/</Kbd>
         <CardBody>
           <CardText>Type / for quick templates</CardText>
-          <CardSub>add a plugin, change a tile, or list what's available</CardSub>
+          <CardSub>
+            add a plugin, change a tile, or list what's available
+          </CardSub>
         </CardBody>
       </SlashCard>
       <OrLine>or just ask a question in your own words</OrLine>

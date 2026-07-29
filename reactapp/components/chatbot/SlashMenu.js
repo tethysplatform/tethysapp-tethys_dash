@@ -67,7 +67,9 @@ export default function SlashMenu({
         lastGroup = item.group;
         return (
           <div key={item.key}>
-            {showGroup && <GroupLabel aria-hidden="true">{item.group}</GroupLabel>}
+            {showGroup && (
+              <GroupLabel aria-hidden="true">{item.group}</GroupLabel>
+            )}
             <Option
               role="option"
               id={`${listId}-opt-${i}`}

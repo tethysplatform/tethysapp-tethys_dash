@@ -9,7 +9,11 @@ import {
 describe("buildAddItems", () => {
   it("prefills the plugin name and arg keys with empty values", () => {
     const [item] = buildAddItems([
-      { source: "nwmp_reaches_series", label: "NWMP Reaches Time Series", args: ["reach_id"] },
+      {
+        source: "nwmp_reaches_series",
+        label: "NWMP Reaches Time Series",
+        args: ["reach_id"],
+      },
     ]);
     expect(item.insert).toBe("Add NWMP Reaches Time Series with reach_id = ");
     expect(item.subtitle).toBe("reach_id");
@@ -30,7 +34,10 @@ describe("buildAddItems", () => {
 describe("buildPatchItems", () => {
   it("pins the tile with a current value and blanks only the new value", () => {
     const [item] = buildPatchItems([
-      { source: "geoglows_forecast_viewer", args_string: '{"river_id":"8075804"}' },
+      {
+        source: "geoglows_forecast_viewer",
+        args_string: '{"river_id":"8075804"}',
+      },
     ]);
     expect(item.insert).toBe(
       "Change geoglows_forecast_viewer where river_id is 8075804 to river_id = ",
@@ -44,7 +51,9 @@ describe("buildPatchItems", () => {
       { source: "viz", args_string: '{"river_id":"111","color":""}' },
     ]);
     const colorItem = items.find((i) => i.subtitle.startsWith("color"));
-    expect(colorItem.insert).toBe("Change viz where river_id is 111 to color = ");
+    expect(colorItem.insert).toBe(
+      "Change viz where river_id is 111 to color = ",
+    );
   });
 
   it("skips tiles with no args", () => {
@@ -55,8 +64,16 @@ describe("buildPatchItems", () => {
 describe("filterSlashItems", () => {
   const items = buildSlashItems({
     catalog: [
-      { source: "nwmp_reaches_series", label: "NWMP Reaches Time Series", args: ["reach_id"] },
-      { source: "nwmp_gauges_series", label: "NWMP Gauges Time Series", args: ["gauge_id"] },
+      {
+        source: "nwmp_reaches_series",
+        label: "NWMP Reaches Time Series",
+        args: ["reach_id"],
+      },
+      {
+        source: "nwmp_gauges_series",
+        label: "NWMP Gauges Time Series",
+        args: ["gauge_id"],
+      },
     ],
     tiles: [],
   });

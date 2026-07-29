@@ -80,8 +80,7 @@ const TitleRow = styled.div`
 
 const ModelLine = styled.div`
   padding-left: 24px;
-  font-family:
-    ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.68rem;
   color: ${colors.textFaint};
 `;
@@ -184,7 +183,10 @@ export default function FloatingChatbox({ dashboardId }) {
 
   if (!open) {
     return (
-      <Launcher onClick={() => setOpen(true)} aria-label="Open chat assistant (beta)">
+      <Launcher
+        onClick={() => setOpen(true)}
+        aria-label="Open chat assistant (beta)"
+      >
         <LauncherIcon aria-hidden="true" />
         Chat
         <BetaBadge>Beta</BetaBadge>

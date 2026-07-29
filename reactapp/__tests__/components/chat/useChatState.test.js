@@ -20,7 +20,9 @@ const lastAssistant = (messages) =>
 beforeAll(() => {
   if (typeof globalThis.crypto?.randomUUID !== "function") {
     Object.defineProperty(globalThis, "crypto", {
-      value: { randomUUID: () => `uuid-${Math.random().toString(16).slice(2)}` },
+      value: {
+        randomUUID: () => `uuid-${Math.random().toString(16).slice(2)}`,
+      },
       configurable: true,
     });
   }
@@ -33,11 +35,13 @@ beforeEach(() => {
 
 describe("useChatState streaming send", () => {
   test("streams progress then the final reply into the assistant bubble", async () => {
-    appAPI.streamChatBotMessage.mockImplementation(async ({ onEvent, csrf }) => {
-      expect(csrf).toBe("test-csrf");
-      onEvent({ type: "progress", text: "Understanding your request..." });
-      onEvent({ type: "done", text: "All set." });
-    });
+    appAPI.streamChatBotMessage.mockImplementation(
+      async ({ onEvent, csrf }) => {
+        expect(csrf).toBe("test-csrf");
+        onEvent({ type: "progress", text: "Understanding your request..." });
+        onEvent({ type: "done", text: "All set." });
+      },
+    );
 
     const { result } = renderHook(() => useChatState({ dashboardId: 7 }), {
       wrapper,

@@ -16,7 +16,8 @@ const Bubble = styled.div`
   word-wrap: break-word;
   line-height: 1.4;
   font-size: 0.9rem;
-  background: ${(p) => (p.$role === "user" ? colors.accent : colors.bubbleAssistant)};
+  background: ${(p) =>
+    p.$role === "user" ? colors.accent : colors.bubbleAssistant};
   color: ${(p) => (p.$role === "user" ? colors.surface : colors.text)};
   border: 1px solid
     ${(p) => (p.$role === "user" ? "transparent" : colors.border)};

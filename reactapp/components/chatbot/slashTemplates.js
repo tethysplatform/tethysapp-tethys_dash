@@ -78,7 +78,11 @@ export function buildPatchItems(tiles) {
 }
 
 export function buildSlashItems({ catalog, tiles }) {
-  return [...STATIC_ITEMS, ...buildAddItems(catalog), ...buildPatchItems(tiles)];
+  return [
+    ...STATIC_ITEMS,
+    ...buildAddItems(catalog),
+    ...buildPatchItems(tiles),
+  ];
 }
 
 // Substring-of-every-token filter over the visible fields. Deterministic:
