@@ -26,6 +26,18 @@ services:
     restart: unless-stopped
     volumes:
       - ollama-models:/root/.ollama
+    environment:
+      # Keep the model resident so a cold reload (~8s for the 5.6GB model) never
+      # lands on a chat prompt. -1 = never unload; a duration like 24h self-frees
+      # after a long idle. This is the single biggest latency win for a demo.
+      OLLAMA_KEEP_ALIVE: "${OLLAMA_KEEP_ALIVE:-24h}"
+      # ornith defaults to a 256K context; sizing the KV cache to that is a large
+      # memory + compute tax that chat never needs. Cap it (plenty for chat + a
+      # trimmed catalog). Raise via .env if a prompt ever needs more.
+      OLLAMA_CONTEXT_LENGTH: "${OLLAMA_CONTEXT_LENGTH:-8192}"
+      # Faster attention + a quantized KV cache (less memory, more speed on CPU).
+      OLLAMA_FLASH_ATTENTION: "${OLLAMA_FLASH_ATTENTION:-1}"
+      OLLAMA_KV_CACHE_TYPE: "${OLLAMA_KV_CACHE_TYPE:-q8_0}"
     healthcheck:
       test: ["CMD", "ollama", "list"]
       interval: 5s
@@ -47,7 +59,16 @@ services:
         condition: service_healthy
     environment:
       OLLAMA_HOST: "http://ollama:11434"
-    entrypoint: ["/bin/sh", "-c", "ollama pull ${TETHYSDASH_CHAT_LOCAL_MODEL:-ornith:9b}"]
+    # Pull the model, then warm it with a throwaway generation so it is already
+    # resident (paired with OLLAMA_KEEP_ALIVE) before the first real prompt. A
+    # pull failure still exits non-zero (blocks the web start); only the warmup
+    # is best-effort.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >
+        ollama pull ${TETHYSDASH_CHAT_LOCAL_MODEL:-ornith:9b} &&
+        (ollama run ${TETHYSDASH_CHAT_LOCAL_MODEL:-ornith:9b} "ok" >/dev/null 2>&1 || true)
     restart: "no"
 
   tethysdash-provision:

@@ -45,6 +45,28 @@ docker compose -f docker/docker-compose.yml build tethysdash
 - **Port already in use** (e.g. a local `tethys manage start` on 8000): set
   `TETHYSDASH_HOST_PORT` in `.env` to a free port.
 
+## Chat performance
+
+The dominant chat latency is Ollama loading the ~5.6 GB model, so the stack is
+tuned to pay that cost once, up front:
+
+- **GPU** is the biggest lever. If the host has an NVIDIA GPU, uncomment the
+  `deploy.resources` block on the `ollama` service (needs the NVIDIA Container
+  Toolkit). Everything below helps on CPU too.
+- **Keep the model resident:** `OLLAMA_KEEP_ALIVE` (default `24h`) stops Ollama
+  from unloading the model between prompts, which otherwise re-adds the ~8 s cold
+  load. Set `-1` to never unload.
+- **Warm start:** the `ollama-pull` step runs one throwaway generation after the
+  pull, so the model is already in memory before the first real prompt.
+- **Capped context:** `OLLAMA_CONTEXT_LENGTH` (default `8192`) avoids sizing the
+  KV cache to `ornith`'s 256K default, a big memory/compute saving. Raise it only
+  if a prompt needs more room.
+- **Flash attention + quantized KV cache:** `OLLAMA_FLASH_ATTENTION=1` and
+  `OLLAMA_KV_CACHE_TYPE=q8_0` (the latter needs flash attention) speed attention
+  and shrink cache memory, which helps most on CPU.
+- **Smaller / more quantized model:** set `TETHYSDASH_CHAT_LOCAL_MODEL` to a
+  lighter tag (e.g. a smaller `ornith`/`qwen` build) for faster tokens on CPU.
+
 ## Troubleshooting
 
 - **`ollama-pull` fails with `412: requires a newer version of Ollama`:** your
