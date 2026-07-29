@@ -1,9 +1,19 @@
-import { useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import PropTypes from "prop-types";
+import { TabContext } from "components/contexts/Contexts";
 import { colors, radii } from "./styles";
+import SlashMenu from "./SlashMenu";
+import { usePluginCatalog } from "./usePluginCatalog";
+import {
+  SLASH_TRIGGER,
+  buildSlashItems,
+  caretForInsert,
+  filterSlashItems,
+} from "./slashTemplates";
 
 const Bar = styled.form`
+  position: relative;
   display: flex;
   /* pin the button to the bottom instead of stretching it to match
      the auto-growing textarea */
@@ -66,22 +76,51 @@ const SendButton = styled.button`
   }
 `;
 
+const LIST_ID = "chat-slash-menu";
+
 export default function ChatInputBar({ onSend, disabled, draft }) {
   const [value, setValue] = useState("");
+  const [dismissed, setDismissed] = useState(false);
+  const [highlight, setHighlight] = useState(0);
+  const [pendingCaret, setPendingCaret] = useState(null);
   const inputRef = useRef(null);
 
-  // Auto-grow: textareas don't track their content height natively.
-  const autoResize = () => {
+  const catalog = usePluginCatalog();
+  const tabCtx = useContext(TabContext);
+  const getActiveTab = tabCtx?.getActiveTab;
+  const tiles = useMemo(
+    () => getActiveTab?.()?.gridItems || [],
+    [getActiveTab],
+  );
+
+  const items = useMemo(
+    () => buildSlashItems({ catalog, tiles }),
+    [catalog, tiles],
+  );
+  const isSlash = value.startsWith(SLASH_TRIGGER);
+  const filtered = useMemo(
+    () => (isSlash ? filterSlashItems(items, value.slice(1)) : []),
+    [isSlash, items, value],
+  );
+  const menuOpen = isSlash && !dismissed && filtered.length > 0;
+
+  // Auto-grow the textarea, and apply a queued caret position after a template
+  // insert (textareas don't track content height or caret across a value swap).
+  useEffect(() => {
     const el = inputRef.current;
     if (!el) return;
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight}px`;
-  };
+    if (pendingCaret != null) {
+      el.focus();
+      el.setSelectionRange(pendingCaret, pendingCaret);
+      setPendingCaret(null);
+    }
+  }, [value, pendingCaret]);
 
-  // Runs after every render where value changed (typing, prefill,
-  // post-send reset) so height always matches content.
+  // Keep the highlighted option in range as the filtered list changes.
   useEffect(() => {
-    autoResize();
+    setHighlight(0);
   }, [value]);
 
   // Suggestion chips with mode "prefill" (see ChatHints) put a template
@@ -93,14 +132,44 @@ export default function ChatInputBar({ onSend, disabled, draft }) {
     }
   }, [draft]);
 
+  const selectItem = (item) => {
+    if (!item) return;
+    setValue(item.insert);
+    setPendingCaret(caretForInsert(item.insert));
+    setDismissed(true);
+  };
+
   const submit = (e) => {
     e.preventDefault();
     if (!value.trim() || disabled) return;
     onSend(value);
     setValue("");
+    setDismissed(false);
   };
 
   const handleKeyDown = (e) => {
+    if (menuOpen) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setHighlight((h) => (h + 1) % filtered.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setHighlight((h) => (h - 1 + filtered.length) % filtered.length);
+        return;
+      }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        selectItem(filtered[highlight]);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setDismissed(true);
+        return;
+      }
+    }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       submit(e);
@@ -109,14 +178,33 @@ export default function ChatInputBar({ onSend, disabled, draft }) {
 
   return (
     <Bar onSubmit={submit}>
+      {menuOpen && (
+        <SlashMenu
+          items={filtered}
+          highlight={highlight}
+          onSelect={selectItem}
+          onHighlight={setHighlight}
+          listId={LIST_ID}
+        />
+      )}
       <Input
         ref={inputRef}
         value={value}
-        onChange={(e) => setValue(e.target.value)}
+        onChange={(e) => {
+          setValue(e.target.value);
+          setDismissed(false);
+        }}
         onKeyDown={handleKeyDown}
-        placeholder="Add a visualization, or list plugins..."
+        placeholder="Message, or type / for templates..."
         disabled={disabled}
         rows={1}
+        role="combobox"
+        aria-expanded={menuOpen}
+        aria-controls={LIST_ID}
+        aria-autocomplete="list"
+        aria-activedescendant={
+          menuOpen ? `${LIST_ID}-opt-${highlight}` : undefined
+        }
       />
       <SendButton type="submit" disabled={disabled || !value.trim()}>
         Send
