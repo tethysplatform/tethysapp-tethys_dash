@@ -138,6 +138,24 @@ def resolve_plugin(identifier: str) -> PluginMatch:
     return PluginMatch(None, candidates)
 
 
+def format_catalog_brief() -> str:
+    """Render the catalog as one compact line per plugin, no descriptions.
+
+    Enough for the add agent to pick a plugin and its argument names; the fuzzy
+    resolver (:func:`resolve_plugin`) tolerates near-miss names, so descriptions
+    are omitted to keep that agent's prompt small. The full
+    :func:`format_catalog_for_llm` is reserved for the user-facing plugin list.
+    """
+    specs = list_visualization_plugins()
+    if not specs:
+        return "No visualization plugins are installed."
+    return "\n".join(
+        f"- {spec.name} (`{spec.source}`) - args: "
+        f"{', '.join(spec.args) if spec.args else 'none'}"
+        for spec in specs
+    )
+
+
 def format_catalog_for_llm() -> str:
     """Render the installed plugin catalog as Markdown for inclusion in a prompt."""
     specs = list_visualization_plugins()

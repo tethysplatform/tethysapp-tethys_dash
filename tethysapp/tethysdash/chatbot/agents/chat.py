@@ -2,7 +2,7 @@ from pydantic_ai import Agent, ModelSettings
 
 from ..config import model
 from ..models import ChatDeps
-from .instructions import available_plugins, recent_conversation
+from .instructions import recent_conversation
 
 
 chat_agent = Agent(
@@ -27,5 +27,7 @@ chat_agent = Agent(
 )
 
 
-chat_agent.instructions(available_plugins)
+# The Q&A agent performs no actions and the plugin list is served
+# deterministically (see routing.INTENT_LIST), so it does not carry the plugin
+# catalog - that keeps the most common message type's prompt small.
 chat_agent.instructions(recent_conversation)

@@ -4,6 +4,8 @@ The router agent picks the intent from a fixed set, then the specialist LLM (or
 the plugin catalog) handles it. On retry exhaustion each path returns a graceful
 message and logs the real error rather than surfacing a 500.
 """
+import re
+
 from pydantic_ai import capture_run_messages
 from pydantic_ai.exceptions import UnexpectedModelBehavior
 from pydantic_ai.messages import RetryPromptPart
@@ -41,6 +43,37 @@ def _last_retry_detail(messages) -> str | None:
     return None
 
 
+# High-precision intent patterns, keyed to the shapes the slash-template menu
+# emits ("Add <name> with <arg> = ...", "Change <src> where <arg> is <v> to
+# <arg> = ...", "What/which/list ... plugins ..."). They match the template
+# grammar, not loose keywords, so free-typed prose (e.g. "add more detail about
+# the forecast") does not match and is deferred to the LLM router.
+_ADD_RE = re.compile(r"^\s*add\b.+\bwith\b.+=", re.IGNORECASE | re.DOTALL)
+_PATCH_RE = re.compile(
+    r"^\s*change\b.+\bwhere\b.+\bto\b.+=", re.IGNORECASE | re.DOTALL
+)
+_LIST_RE = re.compile(r"^\s*(what|which|list)\b.{0,40}\bplugins?\b", re.IGNORECASE)
+
+
+def deterministic_route(message: str) -> str | None:
+    """Classify a message by the slash-template grammar, or None to defer.
+
+    Precision over recall: it only returns an intent for the unambiguous shapes
+    the template menu generates, so a wrong guess is near-impossible. Everything
+    else returns None and falls through to the LLM router. Even a misroute is
+    self-correcting downstream - add/patch with no resolvable target return a
+    "did you mean" / no-op reply, never a wrong action.
+    """
+    text = (message or "").strip()
+    if _ADD_RE.match(text):
+        return INTENT_ADD
+    if _PATCH_RE.match(text):
+        return INTENT_PATCH
+    if _LIST_RE.match(text):
+        return INTENT_LIST
+    return None
+
+
 class LLMRouter:
     def __init__(self, agents: AgentRegistry, deps: ChatDeps) -> None:
         self.agents = agents
@@ -49,10 +82,15 @@ class LLMRouter:
     async def _classify(self, request: str) -> str:
         """Ask the router agent which capability should handle the message.
 
-        The router's output type is a fixed set of intents, so it can only pick
-        a capability the router dispatches. On retry exhaustion, fall back to
-        free-form chat rather than surfacing an error.
+        A deterministic pre-check handles the unambiguous template shapes with
+        no inference; only what it defers reaches the router agent. Its output
+        type is a fixed set of intents, so it can only pick a capability the
+        router dispatches. On retry exhaustion, fall back to free-form chat
+        rather than surfacing an error.
         """
+        hit = deterministic_route(request)
+        if hit is not None:
+            return hit
         try:
             result = await self.agents.router_agent.run(request, deps=self.deps)
             return result.output.intent

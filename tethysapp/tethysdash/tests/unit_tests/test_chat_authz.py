@@ -12,14 +12,18 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from asgiref.sync import async_to_sync
 
-from tethysapp.tethysdash.chatbot.agents.registry import INTENT_ADD, INTENT_PATCH
+from tethysapp.tethysdash.chatbot.agents.registry import (
+    INTENT_ADD,
+    INTENT_LIST,
+    INTENT_PATCH,
+)
 from tethysapp.tethysdash.chatbot.tools import add_visualizations_from_plugin
 from tethysapp.tethysdash.chatbot.models import (
     ChatDeps,
     PluginRequest,
     RoutedResponse,
 )
-from tethysapp.tethysdash.chatbot.routing import LLMRouter
+from tethysapp.tethysdash.chatbot.routing import LLMRouter, deterministic_route
 
 
 @pytest.fixture(autouse=True)
@@ -218,3 +222,55 @@ def test_tool_allows_owner():
         )
     assert "Added" in reply
     update.assert_called_once()
+
+
+# --------------------------------------------------------------------------
+# Deterministic pre-router (#3): high-precision, template-grammar routing
+# --------------------------------------------------------------------------
+
+@pytest.mark.parametrize(
+    "message,expected",
+    [
+        # Slash-template shapes -> deterministic intent (no LLM call).
+        ("Add NWMP Reaches Time Series with reach_id = 8075804", INTENT_ADD),
+        ("add X with a = ", INTENT_ADD),
+        (
+            "Change geoglows_forecast_viewer where river_id is 8075804 to river_id = 999",
+            INTENT_PATCH,
+        ),
+        ("What plugins are available?", INTENT_LIST),
+        ("which plugins can I add", INTENT_LIST),
+        ("list plugins", INTENT_LIST),
+        # Free-typed prose -> deferred to the LLM router (None), never misrouted.
+        ("where is Bolivia?", None),
+        ("add more detail about the forecast", None),  # "add" but no "with ... ="
+        ("change my mind", None),
+        ("how do I use this dashboard?", None),
+        ("", None),
+    ],
+)
+def test_deterministic_route_matches_templates_and_defers_prose(message, expected):
+    assert deterministic_route(message) == expected
+
+
+def test_classify_short_circuits_without_calling_the_router_llm():
+    # A template-shaped message must be classified with no inference: the router
+    # agent's run() would raise if the deterministic pre-check didn't catch it.
+    agent = MagicMock()
+    agent.run = AsyncMock(side_effect=AssertionError("router LLM should not run"))
+    registry = MagicMock()
+    registry.router_agent = agent
+
+    router = LLMRouter(registry, _deps(owner=True))
+    intent = async_to_sync(router._classify)("What plugins are available?")
+
+    assert intent == INTENT_LIST
+    agent.run.assert_not_called()
+
+
+def test_classify_falls_through_to_the_router_llm_for_prose():
+    registry = _registry_routing_to(INTENT_ADD)
+    router = LLMRouter(registry, _deps(owner=True))
+    intent = async_to_sync(router._classify)("please help me add something nice")
+    registry.router_agent.run.assert_called_once()
+    assert intent == INTENT_ADD

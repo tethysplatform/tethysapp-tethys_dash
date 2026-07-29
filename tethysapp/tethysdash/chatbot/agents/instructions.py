@@ -9,10 +9,16 @@ from ..models import ChatDeps
 
 
 def available_plugins(ctx: RunContext[ChatDeps]) -> str:
-    """Expose the installed plugin catalog so the agent can answer about it."""
-    from ..tools import format_catalog_for_llm
+    """Expose a compact plugin catalog (names + arg keys) to the add agent.
 
-    return f"Available plugins on this server:\n{format_catalog_for_llm()}"
+    Brief, not the full descriptioned list: the add agent only needs to pick a
+    plugin and its args, and the deterministic resolver forgives near-miss
+    names, so keeping this small trims the prompt. The full catalog is served
+    verbatim by the deterministic ``list_plugins`` reply.
+    """
+    from ..tools import format_catalog_brief
+
+    return f"Available plugins on this server:\n{format_catalog_brief()}"
 
 
 def recent_conversation(ctx: RunContext[ChatDeps]) -> str:

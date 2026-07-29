@@ -10,7 +10,11 @@ from unittest.mock import patch
 
 import pytest
 
-from tethysapp.tethysdash.chatbot.tools.catalog import resolve_plugin
+from tethysapp.tethysdash.chatbot.tools.catalog import (
+    format_catalog_brief,
+    format_catalog_for_llm,
+    resolve_plugin,
+)
 
 _REGISTRY = "intake.source.registry"
 
@@ -82,3 +86,43 @@ def test_empty_registry_resolves_nothing():
     with patch(_REGISTRY, {}):
         match = resolve_plugin("anything")
     assert match.spec is None and match.candidates == ()
+
+
+def _viz_desc(label, args, description):
+    """A stub plugin with an explicit description, for catalog-format tests."""
+    return SimpleNamespace(
+        visualization_type="plotly",
+        visualization_args={a: "text" for a in args},
+        visualization_description=description,
+        visualization_label=label,
+    )
+
+
+def test_brief_catalog_omits_descriptions_but_full_keeps_them():
+    registry = {
+        "nwmp_reaches_series": _viz_desc(
+            "NWMP Reaches Time Series", ("reach_id",), "SENTINEL_DESCRIPTION"
+        )
+    }
+    with patch(_REGISTRY, registry):
+        brief = format_catalog_brief()
+        full = format_catalog_for_llm()
+    # Brief carries name, source, and arg keys...
+    assert "NWMP Reaches Time Series" in brief
+    assert "nwmp_reaches_series" in brief
+    assert "reach_id" in brief
+    # ...but not the (potentially long) description.
+    assert "SENTINEL_DESCRIPTION" not in brief
+    assert brief.count("\n") == 0  # one plugin -> one line
+    # The full catalog (used for the user-facing list) keeps descriptions.
+    assert "SENTINEL_DESCRIPTION" in full
+
+
+def test_brief_catalog_shows_none_for_argless_plugin():
+    with patch(_REGISTRY, {"map_x": _viz_desc("Map X", (), "d")}):
+        assert "args: none" in format_catalog_brief()
+
+
+def test_brief_catalog_handles_empty_registry():
+    with patch(_REGISTRY, {}):
+        assert "No visualization plugins" in format_catalog_brief()
