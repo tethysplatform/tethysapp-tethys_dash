@@ -5,6 +5,8 @@ import createLoadedComponent, {
 import DashboardTabs from "components/dashboard/DashboardTabs";
 import { userDashboard } from "__tests__/utilities/constants";
 import userEvent from "@testing-library/user-event";
+import { useContext } from "react";
+import { TabContext } from "components/contexts/Contexts";
 import { confirm } from "components/inputs/DeleteConfirmation";
 jest.mock("components/inputs/DeleteConfirmation", () => {
   return {
@@ -12,6 +14,14 @@ jest.mock("components/inputs/DeleteConfirmation", () => {
   };
 });
 const mockedConfirm = jest.mocked(confirm);
+
+// Stands in for the header's "Add Tab" button (components/layout/Header.js),
+// which is the only way to add a tab while the bar is hidden.
+const AddTabButton = () => {
+  const { addTab } = useContext(TabContext);
+
+  return <button onClick={addTab}>add tab</button>;
+};
 
 test("Dashboard Tabs, single tab and not editing", async () => {
   render(
@@ -113,14 +123,43 @@ test("Dashboard Tabs, single tab and editing", async () => {
 
   expect(await screen.findByLabelText("gridItemDiv")).toBeInTheDocument();
 
-  // Find the tab lists
-  const tablist = screen.getByRole("tablist");
+  const tablist = screen.queryByRole("tablist", { hidden: true });
 
-  // Assert that it's in the document and visible
+  // A single tab means no tab bar, even in edit mode.
   expect(tablist).toBeInTheDocument();
-  expect(tablist).toBeVisible();
+  expect(tablist).not.toBeVisible();
 
-  expect(screen.queryAllByRole("tabpanel")).toHaveLength(2); // includes add tab
+  expect(screen.queryAllByRole("tabpanel", { hidden: true })).toHaveLength(2); // includes add tab
+});
+
+test("Dashboard Tabs, adding a tab while editing reveals the tab bar", async () => {
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <DashboardTabs />
+          <AddTabButton />
+          <TabsPComponent />
+        </>
+      ),
+      options: {
+        inEditing: true,
+      },
+    }),
+  );
+
+  expect(await screen.findByLabelText("gridItemDiv")).toBeInTheDocument();
+  expect(screen.queryByRole("tablist", { hidden: true })).not.toBeVisible();
+
+  await userEvent.click(screen.getByText("add tab"));
+
+  await waitFor(() => {
+    expect(screen.getByRole("tablist")).toBeVisible();
+  });
+  expect(screen.getByText("Tab 2")).toBeInTheDocument();
+  expect(JSON.parse(screen.getByTestId("tabs-context").textContent)).toEqual(
+    expect.objectContaining({ activeTabId: "Tab 2" }),
+  );
 });
 
 test("Dashboard Tabs, multiple tab and editing", async () => {
@@ -325,6 +364,12 @@ test("Dashboard Tabs, rename tab", async () => {
 });
 
 test("Dashboard Tabs, add tab", async () => {
+  // Seeded with two tabs so the tab bar — and with it the "+" tab — is visible.
+  const expectedDashboard = JSON.parse(JSON.stringify(userDashboard));
+  expectedDashboard.tabs = [
+    { id: 1, name: "Tab 1", gridItems: [] },
+    { id: 2, name: "Tab 2", gridItems: [] },
+  ];
   render(
     createLoadedComponent({
       children: (
@@ -334,6 +379,7 @@ test("Dashboard Tabs, add tab", async () => {
         </>
       ),
       options: {
+        dashboards: { dashboards: [expectedDashboard] },
         inEditing: true,
       },
     }),
@@ -342,42 +388,47 @@ test("Dashboard Tabs, add tab", async () => {
   let addTabTab = await screen.findByRole("tab", {
     name: "+",
   });
-  expect(screen.queryByText("Tab 2")).not.toBeInTheDocument();
+  expect(screen.queryByText("Tab 3")).not.toBeInTheDocument();
   expect(addTabTab).toBeInTheDocument();
   await userEvent.click(addTabTab);
 
   await waitFor(() => {
-    expect(screen.getAllByRole("tabpanel")).toHaveLength(3);
+    expect(screen.getAllByRole("tabpanel")).toHaveLength(4);
   });
   expect(screen.getByText("Tab 1")).toBeInTheDocument();
   expect(screen.getByText("Tab 2")).toBeInTheDocument();
+  expect(screen.getByText("Tab 3")).toBeInTheDocument();
   expect(screen.getByText("+")).toBeInTheDocument();
 
   const tabButtons = await screen.findAllByRole("tab");
   const tab1Button = tabButtons.find((btn) =>
     btn.textContent.includes("Tab 1"),
   );
-  const tab2Button = tabButtons.find((btn) =>
-    btn.textContent.includes("Tab 2"),
+  const tab3Button = tabButtons.find((btn) =>
+    btn.textContent.includes("Tab 3"),
   );
-  expect(tab2Button).toBeInTheDocument();
-  expect(tab2Button).toHaveTextContent("Tab 2");
+  expect(tab3Button).toBeInTheDocument();
+  expect(tab3Button).toHaveTextContent("Tab 3");
 
   expect(tab1Button).toHaveAttribute("aria-selected", "false");
-  expect(tab2Button).toHaveAttribute("aria-selected", "true");
+  expect(tab3Button).toHaveAttribute("aria-selected", "true");
   await userEvent.click(tab1Button);
 
-  expect(tab2Button).toHaveAttribute("aria-selected", "false");
+  expect(tab3Button).toHaveAttribute("aria-selected", "false");
   expect(tab1Button).toHaveAttribute("aria-selected", "true");
-  await userEvent.click(tab2Button);
+  await userEvent.click(tab3Button);
 
   expect(tab1Button).toHaveAttribute("aria-selected", "false");
-  expect(tab2Button).toHaveAttribute("aria-selected", "true");
+  expect(tab3Button).toHaveAttribute("aria-selected", "true");
 });
 
 test("handleTabNameKeyDown: Enter renames tab and exits edit mode", async () => {
   const expectedDashboard = JSON.parse(JSON.stringify(userDashboard));
-  expectedDashboard.tabs = [{ id: 1, name: "Tab 1", gridItems: [] }];
+  // Two tabs so the tab bar is visible; a lone tab renders no bar to click.
+  expectedDashboard.tabs = [
+    { id: 1, name: "Tab 1", gridItems: [] },
+    { id: 2, name: "Tab 2", gridItems: [] },
+  ];
   render(
     createLoadedComponent({
       children: (
@@ -408,7 +459,11 @@ test("handleTabNameKeyDown: Enter renames tab and exits edit mode", async () => 
 
 test("handleTabNameKeyDown: other key does not exit edit mode or change tab name", async () => {
   const expectedDashboard = JSON.parse(JSON.stringify(userDashboard));
-  expectedDashboard.tabs = [{ id: 1, name: "Tab 1", gridItems: [] }];
+  // Two tabs so the tab bar is visible; a lone tab renders no bar to click.
+  expectedDashboard.tabs = [
+    { id: 1, name: "Tab 1", gridItems: [] },
+    { id: 2, name: "Tab 2", gridItems: [] },
+  ];
   render(
     createLoadedComponent({
       children: (
@@ -442,7 +497,11 @@ test("handleTabNameKeyDown: other key does not exit edit mode or change tab name
 
 test("handleTabNameKeyDown: Escape cancels edit mode", async () => {
   const expectedDashboard = JSON.parse(JSON.stringify(userDashboard));
-  expectedDashboard.tabs = [{ id: 1, name: "Tab 1", gridItems: [] }];
+  // Two tabs so the tab bar is visible; a lone tab renders no bar to click.
+  expectedDashboard.tabs = [
+    { id: 1, name: "Tab 1", gridItems: [] },
+    { id: 2, name: "Tab 2", gridItems: [] },
+  ];
   render(
     createLoadedComponent({
       children: (
@@ -782,7 +841,11 @@ test("handleDragOver does not set drop target when draggedTabId equals tabId", a
 
 test("TabTitleInput onClick and onDragStart stop propagation and preserve edit mode", async () => {
   const expectedDashboard = JSON.parse(JSON.stringify(userDashboard));
-  expectedDashboard.tabs = [{ id: 1, name: "Tab 1", gridItems: [] }];
+  // Two tabs so the tab bar is visible; a lone tab renders no bar to click.
+  expectedDashboard.tabs = [
+    { id: 1, name: "Tab 1", gridItems: [] },
+    { id: 2, name: "Tab 2", gridItems: [] },
+  ];
   render(
     createLoadedComponent({
       children: (
@@ -844,7 +907,11 @@ test("handleTabNameClick does not enter edit mode when tabId is not activeTabId"
 
 test("handleTabNameChange does not call updateTab when newName is only spaces", async () => {
   const expectedDashboard = JSON.parse(JSON.stringify(userDashboard));
-  expectedDashboard.tabs = [{ id: 1, name: "Tab 1", gridItems: [] }];
+  // Two tabs so the tab bar is visible; a lone tab renders no bar to click.
+  expectedDashboard.tabs = [
+    { id: 1, name: "Tab 1", gridItems: [] },
+    { id: 2, name: "Tab 2", gridItems: [] },
+  ];
 
   render(
     createLoadedComponent({

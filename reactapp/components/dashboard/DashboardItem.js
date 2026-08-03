@@ -379,10 +379,8 @@ const DashboardItem = () => {
 
   const fillViewportActive =
     fillViewportRequested && isFirstFillItem && !isEditing;
-  // Offset below the header, plus the tab bar (44px) when it is shown — which in
-  // view mode is only when more than one tab exists. Used for both the top edge
-  // (so the fill starts below the tab bar) and the height (so it does not
-  // overflow the bottom).
+  // Offset below the header, plus the tab bar (44px) when it is shown — which is
+  // whenever more than one tab exists, in both view and edit mode.
   const fillOffset =
     tabs.length > 1
       ? "var(--ts-header-height) + 44px"

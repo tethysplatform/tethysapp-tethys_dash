@@ -255,8 +255,9 @@ const DashboardTabs = () => {
     );
   };
 
-  // Hide tab bar when there's only one tab and not editing
-  const shouldHideTabBar = tabs.length === 1 && !isEditing;
+  // Hide the tab bar when there is only one tab; tabs are only meaningful when
+  // there is more than one.
+  const shouldHideTabBar = tabs.length === 1;
 
   return (
     <StyledTabs

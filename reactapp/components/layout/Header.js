@@ -36,6 +36,7 @@ import {
   BsPencilSquare,
   BsFillPersonFill,
   BsUpload,
+  BsWindowPlus,
 } from "react-icons/bs";
 import { HiUserGroup } from "react-icons/hi";
 import { CiUndo } from "react-icons/ci";
@@ -283,7 +284,7 @@ export const DashboardHeader = () => {
   const { user } = useContext(AppContext);
   const { name, editable, saveLayoutContext, unrestrictedPlacement } =
     useContext(LayoutContext);
-  const { tabs, updateTab, importTabs, resetTabs, getActiveTab } =
+  const { tabs, addTab, updateTab, importTabs, resetTabs, getActiveTab } =
     useContext(TabContext);
   const { isEditing, setIsEditing } = useContext(EditingContext);
   const [isSaving, setIsSaving] = useState(false);
@@ -522,6 +523,16 @@ export const DashboardHeader = () => {
                       disabled={isSaving}
                     >
                       <FaPlus size="1.5rem" />
+                    </TooltipButton>
+                    <TooltipButton
+                      tooltipPlacement="bottom"
+                      tooltipText="Add Tab"
+                      onClick={addTab}
+                      aria-label="addTabButton"
+                      className="addTabButton"
+                      disabled={isSaving}
+                    >
+                      <BsWindowPlus size="1.5rem" />
                     </TooltipButton>
                     <TooltipButton
                       tooltipPlacement="bottom"
