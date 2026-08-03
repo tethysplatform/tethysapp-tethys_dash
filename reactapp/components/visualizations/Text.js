@@ -37,6 +37,7 @@ const linkifyOptions = {
 const StyledDiv = styled.div`
   height: 100%;
   overflow-y: auto;
+  padding: 1rem;
 `;
 
 const PreWrapDiv = styled.div`
