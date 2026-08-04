@@ -16,6 +16,20 @@ const TestingComponent = () => {
   );
 };
 
+test("New Dashboard Modal limits the name length", async () => {
+  render(
+    createLoadedComponent({
+      children: <TestingComponent />,
+    }),
+  );
+
+  // Capped so a name wraps to at most two lines on the landing page card.
+  expect(await screen.findByLabelText("Name Input")).toHaveAttribute(
+    "maxlength",
+    "40",
+  );
+});
+
 test("New Dashboard Modal add dashboard success", async () => {
   server.use(
     rest.post(

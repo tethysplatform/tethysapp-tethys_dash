@@ -6,6 +6,7 @@ import { useAppTourContext } from "components/contexts/AppTourContext";
 import { useState, useContext } from "react";
 import TextArea from "components/inputs/TextArea";
 import NormalInput from "components/inputs/NormalInput";
+import { DASHBOARD_NAME_MAX_LENGTH } from "components/modals/utilities";
 import Spinner from "react-bootstrap/Spinner";
 import PropTypes from "prop-types";
 import styled from "styled-components";
@@ -89,6 +90,7 @@ function NewDashboardModal({ showModal, setShowModal }) {
               onChange={(e) => onNameInput(e.target.value)}
               value={name}
               type={"text"}
+              maxLength={DASHBOARD_NAME_MAX_LENGTH}
             />
           </PaddedDiv>
           <TextArea
