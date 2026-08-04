@@ -9,6 +9,7 @@ import zarr
 from rasterio.io import MemoryFile
 
 from tethysapp.tethysdash.floodmap import (
+    NODATA,
     FloodmapError,
     build_storm_cog,
     read_metadata,
@@ -16,7 +17,6 @@ from tethysapp.tethysdash.floodmap import (
 
 CRS = "EPSG:3857"
 TRANSFORM = [5.0, 0.0, -100.0, 0.0, -5.0, 200.0]  # 5 m pixels, origin (-100, 200)
-NODATA = -9999.0
 
 
 def _make_group():
@@ -41,10 +41,11 @@ def test_build_storm_cog_is_valid_georeferenced_cog():
         assert ds.crs.to_string() == CRS
         assert (ds.width, ds.height) == (5, 4)
         assert ds.transform.a == 5.0 and ds.transform.e == -5.0
+        assert ds.nodata == NODATA
         band = ds.read(1)
     assert band[0, 0] == pytest.approx(2.5)   # wet preserved
-    assert np.isnan(band[1, 1])               # dry -> transparent
-    assert np.isnan(band[2, 2])               # source nodata -> transparent
+    assert band[1, 1] == NODATA               # dry -> nodata (maskable)
+    assert band[2, 2] == NODATA               # source nodata -> nodata
 
 
 def test_storm_out_of_range_raises():

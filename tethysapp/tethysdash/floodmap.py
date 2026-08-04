@@ -21,6 +21,11 @@ from rio_cogeo.profiles import cog_profiles
 
 DEFAULT_VARIABLE = "depth"
 STORM_DIM = 0  # arrays are [storm, y, x]; storms are the leading dimension
+# Dry/no-data cells get this concrete nodata value. We deliberately avoid NaN:
+# OpenLayers masks cells with `value == nodata`, and `NaN == NaN` is always
+# false, so NaN dry cells would never render transparent. Depth is always >= 0,
+# so a negative sentinel is unambiguous.
+NODATA = -9999.0
 
 
 class FloodmapError(Exception):
@@ -103,14 +108,15 @@ def build_storm_cog(group, variable=DEFAULT_VARIABLE, storm=0):
     source_nodata = attrs.get("source_nodata")
 
     arr = np.asarray(arr_z[storm], dtype="float32")
+    dry = arr <= threshold
     if source_nodata is not None:
-        arr = np.where(arr == np.float32(source_nodata), np.nan, arr)
-    arr = np.where(arr <= threshold, np.nan, arr).astype("float32")
+        dry = dry | (arr == np.float32(source_nodata))
+    arr = np.where(dry, NODATA, arr).astype("float32")
 
     profile = {
         "driver": "GTiff", "dtype": "float32", "count": 1,
         "height": arr.shape[0], "width": arr.shape[1],
-        "crs": crs, "transform": transform, "nodata": float("nan"),
+        "crs": crs, "transform": transform, "nodata": NODATA,
     }
     with MemoryFile() as src_mem:
         with src_mem.open(**profile) as src_ds:
