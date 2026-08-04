@@ -12,6 +12,7 @@ import styled from "styled-components";
 import PropTypes from "prop-types";
 import TextEditor from "components/inputs/TextEditor";
 import NormalInput from "components/inputs/NormalInput";
+import { DASHBOARD_NAME_MAX_LENGTH } from "components/modals/utilities";
 import Text from "components/visualizations/Text";
 import { confirm } from "components/inputs/DeleteConfirmation";
 import { useNavigate } from "react-router-dom";
@@ -191,6 +192,7 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
                 label={"Name"}
                 type={"text"}
                 value={localName}
+                maxLength={DASHBOARD_NAME_MAX_LENGTH}
                 onChange={(e) => {
                   setLocalName(e.target.value);
                 }}

@@ -6,6 +6,7 @@ import { useAppTourContext } from "components/contexts/AppTourContext";
 import { useState, useContext } from "react";
 import TextArea from "components/inputs/TextArea";
 import NormalInput from "components/inputs/NormalInput";
+import { DASHBOARD_NAME_MAX_LENGTH } from "components/modals/utilities";
 import Spinner from "react-bootstrap/Spinner";
 import PropTypes from "prop-types";
 import styled from "styled-components";
@@ -33,10 +34,10 @@ function NewDashboardModal({ showModal, setShowModal }) {
     event.preventDefault();
     setErrorMessage(null);
 
-    if (!name || !description) {
-      setErrorMessage(
-        "All inputs must be filled out for creating a dashboard.",
-      );
+    // Description is optional; the backend already defaults it to an empty
+    // string when it is not supplied.
+    if (!name) {
+      setErrorMessage("A name is required for creating a dashboard.");
       return;
     }
     setIsSubmitting(true);
@@ -89,6 +90,7 @@ function NewDashboardModal({ showModal, setShowModal }) {
               onChange={(e) => onNameInput(e.target.value)}
               value={name}
               type={"text"}
+              maxLength={DASHBOARD_NAME_MAX_LENGTH}
             />
           </PaddedDiv>
           <TextArea
@@ -96,6 +98,7 @@ function NewDashboardModal({ showModal, setShowModal }) {
             value={description}
             onChange={(e) => onDescriptionInput(e.target.value)}
             maxLength={500}
+            optional
           />
         </Modal.Body>
         <Modal.Footer>

@@ -14,6 +14,7 @@ import DashboardItem, {
   detectImportFormat,
   validateGridItemBatch,
 } from "components/dashboard/DashboardItem";
+import DashboardLayoutAlerts from "components/dashboard/DashboardLayoutAlerts";
 import { mockedDashboards, userDashboard } from "__tests__/utilities/constants";
 import { confirm } from "components/inputs/DeleteConfirmation";
 import createLoadedComponent, {
@@ -1313,6 +1314,9 @@ test("Dashboard Item export fail", async () => {
           }}
         >
           <DashboardItem />
+          {/* Cell messages surface through the shared layout alerts now, not
+              inside the cell, so this has to render to observe them. */}
+          <DashboardLayoutAlerts />
         </GridItemContext.Provider>
       ),
       options: {

@@ -1058,6 +1058,39 @@ test("DashboardHeader, editable, edit and cancel", async () => {
   });
 });
 
+test("DashboardHeader, editable, add tab reveals the tab bar", async () => {
+  render(
+    createLoadedComponent({
+      children: (
+        <MemoryRouter initialEntries={["/dashboard/user/editable"]}>
+          <LayoutAlertContextProvider>
+            <DashboardHeader />
+            <DashboardTabs />
+          </LayoutAlertContextProvider>
+        </MemoryRouter>
+      ),
+    }),
+  );
+
+  const editButton = await screen.findByLabelText("editButton");
+
+  // A single tab renders no tab bar, in view mode or edit mode.
+  expect(screen.queryByRole("tablist", { hidden: true })).not.toBeVisible();
+  expect(screen.queryByLabelText("addTabButton")).not.toBeInTheDocument();
+
+  await userEvent.click(editButton);
+
+  const addTabButton = await screen.findByLabelText("addTabButton");
+  expect(screen.queryByRole("tablist", { hidden: true })).not.toBeVisible();
+
+  await userEvent.click(addTabButton);
+
+  await waitFor(() => {
+    expect(screen.getByRole("tablist")).toBeVisible();
+  });
+  expect(screen.getByText("Tab 2")).toBeInTheDocument();
+});
+
 test("DashboardHeader, editable, edit, save and error with unrestricted movement", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
   updatedMockedDashboards.dashboards[0].unrestrictedPlacement = true;

@@ -20,6 +20,28 @@ describe("NormalInput Component", () => {
     expect(screen.getByLabelText("Name Input")).toHaveValue("hello");
   });
 
+  test("passes maxLength through to the input", () => {
+    render(
+      <NormalInput
+        label="Name"
+        value="hello"
+        onChange={mockOnChange}
+        maxLength={40}
+      />,
+    );
+    expect(screen.getByLabelText("Name Input")).toHaveAttribute(
+      "maxlength",
+      "40",
+    );
+  });
+
+  test("omits maxLength when not given", () => {
+    render(<NormalInput label="Name" value="hello" onChange={mockOnChange} />);
+    expect(screen.getByLabelText("Name Input")).not.toHaveAttribute(
+      "maxlength",
+    );
+  });
+
   test("renders without label", () => {
     render(
       <NormalInput ariaLabel="No Label" value="test" onChange={mockOnChange} />,

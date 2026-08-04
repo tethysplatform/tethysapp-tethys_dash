@@ -1,7 +1,7 @@
 import Form from "react-bootstrap/Form";
 import PropTypes from "prop-types";
 
-const TextArea = ({ label, onChange, value, maxLength }) => {
+const TextArea = ({ label, onChange, value, maxLength, optional }) => {
   return (
     <div>
       <Form.Label>
@@ -14,7 +14,11 @@ const TextArea = ({ label, onChange, value, maxLength }) => {
         onChange={onChange}
         value={value}
         maxLength={maxLength}
-        placeholder={`Enter up to ${maxLength} characters`}
+        placeholder={
+          optional
+            ? `Optional. Up to ${maxLength} characters`
+            : `Enter up to ${maxLength} characters`
+        }
       />
     </div>
   );
@@ -26,6 +30,7 @@ TextArea.propTypes = {
   value: PropTypes.oneOfType([PropTypes.number, PropTypes.string]), // state for input value
   type: PropTypes.string, // type of input to use
   maxLength: PropTypes.number,
+  optional: PropTypes.bool, // signal in the placeholder that it can be left empty
 };
 
 export default TextArea;

@@ -22,7 +22,10 @@ import {
   downloadJSONFile,
   findVisualizationBySource,
 } from "components/visualizations/utilities";
-import CustomAlert from "components/dashboard/CustomAlert";
+import {
+  useLayoutSuccessAlertContext,
+  useLayoutWarningAlertContext,
+} from "components/contexts/LayoutAlertContext";
 import { loadLayerJSONs, saveLayerJSON } from "components/map/utilities";
 import { valuesEqual } from "components/modals/utilities";
 import { v4 as uuidv4 } from "uuid";
@@ -325,10 +328,14 @@ const DashboardItem = () => {
   } = useContext(GridItemContext);
   const { isEditing, setIsEditing } = useContext(EditingContext);
   const [showDataViewerModal, setShowDataViewerModal] = useState(false);
-  const [gridItemMessage, setGridItemMessage] = useState("");
-  const [showGridItemMessage, setShowGridItemMessage] = useState(false);
-  const [gridItemWarning, setGridItemWarning] = useState("");
-  const [showGridItemWarning, setShowGridItemWarning] = useState(false);
+  // Cell-level messages go through the shared layout alerts rather than being
+  // rendered inside the cell, so a cell save and a dashboard save report in the
+  // same place. DashboardLayoutAlerts renders them; the context handles the
+  // auto-dismiss.
+  const { setSuccessMessage, setShowSuccessMessage } =
+    useLayoutSuccessAlertContext();
+  const { setWarningMessage, setShowWarningMessage } =
+    useLayoutWarningAlertContext();
   const [gridItemStyling, setGridItemStyling] = useState(
     JSON.parse(gridItemMetadataString),
   );
@@ -379,13 +386,11 @@ const DashboardItem = () => {
 
   const fillViewportActive =
     fillViewportRequested && isFirstFillItem && !isEditing;
-  // Offset below the header, plus the tab bar (44px) when it is shown — which in
-  // view mode is only when more than one tab exists. Used for both the top edge
-  // (so the fill starts below the tab bar) and the height (so it does not
-  // overflow the bottom).
+  // Offset below the header, plus the tab bar when it is shown — which is
+  // whenever more than one tab exists, in both view and edit mode.
   const fillOffset =
     tabs.length > 1
-      ? "var(--ts-header-height) + 44px"
+      ? "var(--ts-header-height) + var(--ts-tab-bar-height)"
       : "var(--ts-header-height)";
 
   async function deleteGridItem(e) {
@@ -446,8 +451,8 @@ const DashboardItem = () => {
     try {
       downloadJSONFile(exportedGridItem, "TethysDashGridItem.json");
     } catch (err) {
-      setShowGridItemWarning(true);
-      setGridItemWarning("Failed to export grid item.");
+      setShowWarningMessage(true);
+      setWarningMessage("Failed to export grid item.");
     }
   }
 
@@ -540,18 +545,6 @@ const DashboardItem = () => {
           className="h-100 gridVisualization"
           aria-label="gridItem"
         >
-          <CustomAlert
-            alertType={"success"}
-            showAlert={showGridItemMessage}
-            setShowAlert={setShowGridItemMessage}
-            alertMessage={gridItemMessage}
-          />
-          <CustomAlert
-            alertType={"warning"}
-            showAlert={showGridItemWarning}
-            setShowAlert={setGridItemWarning}
-            alertMessage={gridItemWarning}
-          />
           <BaseVisualization key={gridItemI} />
         </StyledContainer>
         {gridItemStyling?.attribution !== false && attribution && (
@@ -578,8 +571,8 @@ const DashboardItem = () => {
           <DataViewerModal
             showModal={showDataViewerModal}
             handleModalClose={hideDataViewerModal}
-            setGridItemMessage={setGridItemMessage}
-            setShowGridItemMessage={setShowGridItemMessage}
+            setGridItemMessage={setSuccessMessage}
+            setShowGridItemMessage={setShowSuccessMessage}
           />
         )}
       </StyledDiv>

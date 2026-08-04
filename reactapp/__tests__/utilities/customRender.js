@@ -13,6 +13,7 @@ import {
 } from "components/contexts/Contexts";
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import { ModalPriorityProvider } from "components/contexts/ModalPriorityContext";
+import LayoutAlertContextProvider from "components/contexts/LayoutAlertContext";
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
 
@@ -136,7 +137,11 @@ const createLoadedComponent = ({ children, options = {} }) => {
     <ModalPriorityProvider>
       <Loader>
         <DashboardLoader {...initialDashboard}>
-          <TestingComponent options={options}>{children}</TestingComponent>
+          {/* Mirrors views/Dashboard.js, where this provider wraps the whole
+              dashboard tree. DashboardItem reports cell messages through it. */}
+          <LayoutAlertContextProvider>
+            <TestingComponent options={options}>{children}</TestingComponent>
+          </LayoutAlertContextProvider>
         </DashboardLoader>
       </Loader>
     </ModalPriorityProvider>

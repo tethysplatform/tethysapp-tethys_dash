@@ -20,6 +20,7 @@ const NormalInput = ({
   labelProps,
   min,
   max,
+  maxLength,
   allowEmpty = false,
 }) => {
   const isNumber = type === "number";
@@ -101,6 +102,7 @@ const NormalInput = ({
         placeholder={placeholder}
         min={min !== undefined ? min : null}
         max={max !== undefined ? max : null}
+        maxLength={maxLength}
       />
     </div>
   );
@@ -117,6 +119,7 @@ NormalInput.propTypes = {
   labelProps: PropTypes.object, // additional props to pass to the label
   min: PropTypes.number, // minimum value for the input
   max: PropTypes.number, // maximum value for the input
+  maxLength: PropTypes.number, // maximum number of characters accepted
   allowEmpty: PropTypes.bool, // propagate empty-string / "-" / "$" values to the parent. Off by default to preserve last-valid-value during mid-edit typing
 };
 

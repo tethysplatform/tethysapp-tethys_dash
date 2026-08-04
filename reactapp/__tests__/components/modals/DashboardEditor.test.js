@@ -65,6 +65,26 @@ const TestingComponent = () => {
   );
 };
 
+test("Dashboard Editor Canvas limits the name length", async () => {
+  const navigateMock = jest.fn();
+  useNavigate.mockReturnValue(navigateMock);
+
+  render(
+    createLoadedComponent({
+      children: <TestingComponent />,
+      options: {
+        initialDashboard: userDashboard,
+      },
+    }),
+  );
+
+  // Capped so a name wraps to at most two lines on the landing page card.
+  expect(await screen.findByLabelText("Name Input")).toHaveAttribute(
+    "maxlength",
+    "40",
+  );
+});
+
 test("Dashboard Editor Canvas edit and save", async () => {
   const navigateMock = jest.fn();
   useNavigate.mockReturnValue(navigateMock);
