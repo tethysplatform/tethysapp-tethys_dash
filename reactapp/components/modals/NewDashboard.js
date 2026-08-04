@@ -34,10 +34,10 @@ function NewDashboardModal({ showModal, setShowModal }) {
     event.preventDefault();
     setErrorMessage(null);
 
-    if (!name || !description) {
-      setErrorMessage(
-        "All inputs must be filled out for creating a dashboard.",
-      );
+    // Description is optional; the backend already defaults it to an empty
+    // string when it is not supplied.
+    if (!name) {
+      setErrorMessage("A name is required for creating a dashboard.");
       return;
     }
     setIsSubmitting(true);
@@ -98,6 +98,7 @@ function NewDashboardModal({ showModal, setShowModal }) {
             value={description}
             onChange={(e) => onDescriptionInput(e.target.value)}
             maxLength={500}
+            optional
           />
         </Modal.Body>
         <Modal.Footer>
