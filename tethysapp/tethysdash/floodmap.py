@@ -1,0 +1,123 @@
+"""On-demand EF5 floodmap reading and conversion.
+
+Opens a public Zarr flood-depth store, slices one storm scenario, and converts
+it to a Cloud-Optimized GeoTIFF (COG) entirely in memory -- nothing is written
+to disk or S3. Kept free of Django so the conversion logic is unit-testable in
+isolation; ``controllers.py`` wraps these functions with request handling.
+
+The public store is read over HTTPS via fsspec (see EF5_FLOODMAPS_SPEC.md 3.4);
+we intentionally avoid s3fs so no AWS stack or credentials are required.
+"""
+
+from __future__ import annotations
+
+import numpy as np
+import zarr
+from zarr.storage import FsspecStore
+from rasterio.io import MemoryFile
+from rasterio.transform import Affine
+from rio_cogeo.cogeo import cog_translate
+from rio_cogeo.profiles import cog_profiles
+
+DEFAULT_VARIABLE = "depth"
+STORM_DIM = 0  # arrays are [storm, y, x]; storms are the leading dimension
+
+
+class FloodmapError(Exception):
+    """A floodmap store could not be read or converted."""
+
+
+def open_store(src):
+    """Open the Zarr group at ``src`` (a public https URL) read-only."""
+    try:
+        return zarr.open_group(FsspecStore.from_url(src), mode="r")
+    except Exception as e:  # surface a clean message to the API layer
+        raise FloodmapError(f"could not open zarr store: {e}") from e
+
+
+# EF5 stores served over HTTP can't be listed (no directory enumeration), so we
+# probe these known array names by direct access when listing returns nothing.
+CANDIDATE_VARIABLES = ("depth", "extent", "magnitude_mm", "storm_id")
+
+
+def _get_array(group, name):
+    """Return array ``name`` by direct access, or None. Direct access works over
+    HTTP-backed stores, which cannot enumerate their members."""
+    try:
+        return group[name]
+    except KeyError:
+        return None
+
+
+def _discover_variables(group):
+    """Array names; falls back to probing known candidates when the store cannot
+    be listed (HTTP-backed stores)."""
+    names = list(group.array_keys())
+    if names:
+        return names
+    return [n for n in CANDIDATE_VARIABLES if _get_array(group, n) is not None]
+
+
+def read_metadata(group):
+    """Return selectable metadata: variables, storm count, crs, extent, grid."""
+    variables = _discover_variables(group)
+    if not variables:
+        raise FloodmapError("store has no readable arrays")
+    attrs = dict(group.attrs)
+    ref_name = DEFAULT_VARIABLE if DEFAULT_VARIABLE in variables else variables[0]
+    ref = group[ref_name]
+    n_storms = int(ref.shape[STORM_DIM])
+    height, width = int(ref.shape[1]), int(ref.shape[2])
+    transform = Affine(*attrs["transform"])
+    minx, top = transform.c, transform.f
+    maxx = minx + transform.a * width
+    bottom = top + transform.e * height  # e is negative -> bottom < top
+    return {
+        "variables": variables,
+        "storm_count": n_storms,
+        "crs": attrs.get("crs"),
+        "grid_shape": [height, width],
+        "extent": [minx, min(top, bottom), maxx, max(top, bottom)],
+    }
+
+
+def build_storm_cog(group, variable=DEFAULT_VARIABLE, storm=0):
+    """Slice one storm from ``variable`` and return COG bytes (in memory).
+
+    Dry cells (depth <= the store's ``extent_threshold_m``) and the source
+    nodata value are set to NaN so they render transparent.
+    """
+    arr_z = _get_array(group, variable)
+    if arr_z is None:
+        raise FloodmapError(f"variable '{variable}' not found")
+    n = int(arr_z.shape[STORM_DIM])
+    if not (0 <= storm < n):
+        raise FloodmapError(f"storm {storm} out of range 0..{n - 1}")
+
+    attrs = dict(group.attrs)
+    if "crs" not in attrs or "transform" not in attrs:
+        raise FloodmapError("store missing 'crs'/'transform' attrs; cannot georeference")
+    crs = attrs["crs"]
+    transform = Affine(*attrs["transform"])
+    threshold = float(attrs.get("extent_threshold_m", 0.0))
+    source_nodata = attrs.get("source_nodata")
+
+    arr = np.asarray(arr_z[storm], dtype="float32")
+    if source_nodata is not None:
+        arr = np.where(arr == np.float32(source_nodata), np.nan, arr)
+    arr = np.where(arr <= threshold, np.nan, arr).astype("float32")
+
+    profile = {
+        "driver": "GTiff", "dtype": "float32", "count": 1,
+        "height": arr.shape[0], "width": arr.shape[1],
+        "crs": crs, "transform": transform, "nodata": float("nan"),
+    }
+    with MemoryFile() as src_mem:
+        with src_mem.open(**profile) as src_ds:
+            src_ds.write(arr, 1)
+        with MemoryFile() as dst_mem:
+            cog_translate(
+                src_mem.name, dst_mem.name, cog_profiles.get("deflate"),
+                in_memory=True, quiet=True,
+            )
+            return dst_mem.read()

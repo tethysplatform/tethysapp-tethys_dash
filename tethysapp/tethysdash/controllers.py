@@ -1,4 +1,4 @@
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 import json
 import os
 import shutil
@@ -36,6 +36,13 @@ from tethysapp.tethysdash.visualizations import (
 )
 from tethysapp.tethysdash.exceptions import VisualizationError
 from tethysapp.tethysdash.plugin_helpers import send_websocket_message
+from tethysapp.tethysdash.floodmap import (
+    DEFAULT_VARIABLE,
+    FloodmapError,
+    build_storm_cog,
+    open_store,
+)
+from tethysapp.tethysdash.url_safety import UnsafeURLError, validate_public_url
 from channels.generic.websocket import AsyncWebsocketConsumer
 from tethys_sdk.routing import consumer
 from asgiref.sync import sync_to_async
@@ -1036,3 +1043,54 @@ def download_json(request, app_workspace):
             e, "Failed to download the json. Check server for logs."
         )
         return JsonResponse({"success": False, "message": message})
+
+
+@controller(url="tethysdash/floodmap/cog", login_required=False)
+def floodmap_cog(request):
+    """Stream one storm's flood depth from a public Zarr store as a COG.
+
+    Reads the caller-supplied Zarr store on demand, slices the requested storm,
+    and returns a Cloud-Optimized GeoTIFF generated in memory (nothing is
+    persisted). The frontend GeoTIFF map layer consumes this URL directly.
+
+    Args:
+        request: Django HTTP request with query parameters:
+            - src: Public https URL of the Zarr flood-depth store (required)
+            - variable: Array name to read (default "depth")
+            - storm: Integer storm index (default 0)
+
+    Returns:
+        image/tiff COG (HttpResponse) on success; otherwise a JsonResponse with
+        an ``error`` and status 400 (bad request), 422 (unsafe URL), 500
+        (conversion failure), or 502 (store unreachable).
+    """
+    src = request.GET.get("src")
+    variable = request.GET.get("variable", DEFAULT_VARIABLE)
+    if not src:
+        return JsonResponse({"error": "missing required 'src' parameter"}, status=400)
+    try:
+        storm = int(request.GET.get("storm", "0"))
+    except (TypeError, ValueError):
+        return JsonResponse({"error": "'storm' must be an integer"}, status=400)
+
+    try:
+        validate_public_url(src)
+    except UnsafeURLError as e:
+        return JsonResponse({"error": str(e)}, status=422)
+
+    try:
+        group = open_store(src)
+    except FloodmapError:
+        return JsonResponse({"error": "could not open floodmap store"}, status=502)
+
+    try:
+        cog_bytes = build_storm_cog(group, variable, storm)
+    except FloodmapError as e:
+        return JsonResponse({"error": str(e)}, status=400)
+    except Exception as e:  # unexpected conversion failure
+        print(f"floodmap conversion failed: {e}")
+        return JsonResponse({"error": "failed to convert floodmap"}, status=500)
+
+    response = HttpResponse(cog_bytes, content_type="image/tiff")
+    response["Cache-Control"] = "public, max-age=300"
+    return response

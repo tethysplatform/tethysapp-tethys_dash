@@ -1,0 +1,74 @@
+"""Unit tests for the Django-free floodmap zarr->COG conversion logic.
+
+Hermetic: each test builds a fresh in-memory Zarr v3 group (no network, no S3).
+"""
+
+import numpy as np
+import pytest
+import zarr
+from rasterio.io import MemoryFile
+
+from tethysapp.tethysdash.floodmap import (
+    FloodmapError,
+    build_storm_cog,
+    read_metadata,
+)
+
+CRS = "EPSG:3857"
+TRANSFORM = [5.0, 0.0, -100.0, 0.0, -5.0, 200.0]  # 5 m pixels, origin (-100, 200)
+NODATA = -9999.0
+
+
+def _make_group():
+    """Build an in-memory Zarr v3 group: 3 storms, 4x5 depth grid."""
+    g = zarr.open_group(store=zarr.storage.MemoryStore(), mode="w")
+    g.attrs["crs"] = CRS
+    g.attrs["transform"] = TRANSFORM
+    g.attrs["extent_threshold_m"] = 0.05
+    g.attrs["source_nodata"] = NODATA
+    data = np.zeros((3, 4, 5), dtype="float32")
+    data[0, 0, 0] = 2.5       # wet
+    data[0, 1, 1] = 0.01      # dry (below threshold)
+    data[0, 2, 2] = NODATA    # nodata
+    arr = g.create_array("depth", shape=(3, 4, 5), dtype="float32")
+    arr[:] = data
+    return g
+
+
+def test_build_storm_cog_is_valid_georeferenced_cog():
+    cog_bytes = build_storm_cog(_make_group(), "depth", 0)
+    with MemoryFile(cog_bytes) as mem, mem.open() as ds:
+        assert ds.crs.to_string() == CRS
+        assert (ds.width, ds.height) == (5, 4)
+        assert ds.transform.a == 5.0 and ds.transform.e == -5.0
+        band = ds.read(1)
+    assert band[0, 0] == pytest.approx(2.5)   # wet preserved
+    assert np.isnan(band[1, 1])               # dry -> transparent
+    assert np.isnan(band[2, 2])               # source nodata -> transparent
+
+
+def test_storm_out_of_range_raises():
+    with pytest.raises(FloodmapError, match="out of range"):
+        build_storm_cog(_make_group(), "depth", 99)
+
+
+def test_unknown_variable_raises():
+    with pytest.raises(FloodmapError, match="not found"):
+        build_storm_cog(_make_group(), "nope", 0)
+
+
+def test_missing_georeference_attrs_raises():
+    g = _make_group()
+    del g.attrs["transform"]
+    with pytest.raises(FloodmapError, match="georeference"):
+        build_storm_cog(g, "depth", 0)
+
+
+def test_read_metadata_reports_storms_and_extent():
+    meta = read_metadata(_make_group())
+    assert meta["variables"] == ["depth"]
+    assert meta["storm_count"] == 3
+    assert meta["crs"] == CRS
+    assert meta["grid_shape"] == [4, 5]
+    # extent = [minx, miny, maxx, maxy]; 5 cols x 5m = 25 wide, 4 rows x 5m = 20 tall
+    assert meta["extent"] == [-100.0, 180.0, -75.0, 200.0]
