@@ -87,8 +87,8 @@ const StyledTabs = styled(Tabs)`
     text-align: center;
     width: 100%;
     min-width: 0;
-    min-height: 44px;
-    max-height: 44px;
+    min-height: var(--ts-tab-bar-height);
+    max-height: var(--ts-tab-bar-height);
     overflow: hidden;
     background-color: #e3f2fd;
     border: 1px solid #d0d0d0;
