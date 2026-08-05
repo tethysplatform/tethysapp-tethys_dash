@@ -73,3 +73,14 @@ def test_read_metadata_reports_storms_and_extent():
     assert meta["grid_shape"] == [4, 5]
     # extent = [minx, miny, maxx, maxy]; 5 cols x 5m = 25 wide, 4 rows x 5m = 20 tall
     assert meta["extent"] == [-100.0, 180.0, -75.0, 200.0]
+    # no magnitude_mm array -> labels fall back to storm indices
+    assert meta["storm_labels"] == ["0", "1", "2"]
+
+
+def test_read_metadata_uses_magnitude_labels_when_present():
+    g = _make_group()
+    mag = g.create_array("magnitude_mm", shape=(3,), dtype="float32")
+    mag[:] = np.array([10.0, 20.0, 30.0], dtype="float32")
+    meta = read_metadata(g)
+    assert meta["storm_labels"] == ["10 mm", "20 mm", "30 mm"]
+    assert set(meta["variables"]) == {"depth", "magnitude_mm"}

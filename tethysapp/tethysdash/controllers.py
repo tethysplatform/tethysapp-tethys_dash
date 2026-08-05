@@ -41,6 +41,7 @@ from tethysapp.tethysdash.floodmap import (
     FloodmapError,
     build_storm_cog,
     open_store,
+    read_metadata,
 )
 from tethysapp.tethysdash.url_safety import UnsafeURLError, validate_public_url
 from channels.generic.websocket import AsyncWebsocketConsumer
@@ -1094,3 +1095,41 @@ def floodmap_cog(request):
     response = HttpResponse(cog_bytes, content_type="image/tiff")
     response["Cache-Control"] = "public, max-age=300"
     return response
+
+
+@controller(url="tethysdash/floodmap/meta", login_required=False)
+def floodmap_meta(request):
+    """Return selectable metadata for a public Zarr floodmap store.
+
+    Lets the frontend populate a storm/variable selector without downloading
+    any raster data.
+
+    Args:
+        request: Django HTTP request with query parameter:
+            - src: Public https URL of the Zarr flood-depth store (required)
+
+    Returns:
+        JsonResponse with {variables, storm_count, storm_labels, crs, extent,
+        grid_shape} on success; otherwise an ``error`` with status 400 (bad
+        request), 422 (unsafe URL), or 502 (store unreachable).
+    """
+    src = request.GET.get("src")
+    if not src:
+        return JsonResponse({"error": "missing required 'src' parameter"}, status=400)
+
+    try:
+        validate_public_url(src)
+    except UnsafeURLError as e:
+        return JsonResponse({"error": str(e)}, status=422)
+
+    try:
+        group = open_store(src)
+    except FloodmapError:
+        return JsonResponse({"error": "could not open floodmap store"}, status=502)
+
+    try:
+        meta = read_metadata(group)
+    except FloodmapError as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+    return JsonResponse(meta)

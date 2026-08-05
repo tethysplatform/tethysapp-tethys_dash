@@ -63,6 +63,15 @@ def _discover_variables(group):
     return [n for n in CANDIDATE_VARIABLES if _get_array(group, n) is not None]
 
 
+def _storm_labels(group, n_storms):
+    """Human-readable per-storm labels for the selector: rainfall magnitude when
+    a ``magnitude_mm`` array is present, else the storm index as a string."""
+    mag = _get_array(group, "magnitude_mm")
+    if mag is not None and int(mag.shape[0]) == n_storms:
+        return [f"{float(v):.0f} mm" for v in np.asarray(mag[:])]
+    return [str(i) for i in range(n_storms)]
+
+
 def read_metadata(group):
     """Return selectable metadata: variables, storm count, crs, extent, grid."""
     variables = _discover_variables(group)
@@ -80,6 +89,7 @@ def read_metadata(group):
     return {
         "variables": variables,
         "storm_count": n_storms,
+        "storm_labels": _storm_labels(group, n_storms),
         "crs": attrs.get("crs"),
         "grid_shape": [height, width],
         "extent": [minx, min(top, bottom), maxx, max(top, bottom)],
