@@ -16,6 +16,50 @@ const TestingComponent = () => {
   );
 };
 
+test("New Dashboard Modal limits the name length", async () => {
+  render(
+    createLoadedComponent({
+      children: <TestingComponent />,
+    }),
+  );
+
+  // Capped so a name wraps to at most two lines on the landing page card.
+  expect(await screen.findByLabelText("Name Input")).toHaveAttribute(
+    "maxlength",
+    "40",
+  );
+});
+
+test("New Dashboard Modal creates a dashboard with no description", async () => {
+  const mockAddDashboard = jest.fn();
+  jest.spyOn(appAPI, "addDashboard").mockImplementation(mockAddDashboard);
+  mockAddDashboard.mockResolvedValue({ success: true });
+
+  render(
+    createLoadedComponent({
+      children: <TestingComponent />,
+    }),
+  );
+
+  const dashboardNameInput = await screen.findByLabelText("Name Input");
+  fireEvent.change(dashboardNameInput, { target: { value: "new_name" } });
+
+  // Description deliberately left empty.
+  await userEvent.click(
+    await screen.findByLabelText("Create Dashboard Button"),
+  );
+
+  await waitFor(() => {
+    expect(mockAddDashboard).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "new_name", description: "" }),
+      expect.anything(),
+    );
+  });
+  expect(
+    screen.queryByText("A name is required for creating a dashboard."),
+  ).not.toBeInTheDocument();
+});
+
 test("New Dashboard Modal add dashboard success", async () => {
   server.use(
     rest.post(
@@ -71,20 +115,19 @@ test("New Dashboard Modal add dashboard success", async () => {
   expect(await screen.findByText("Create a new dashboard")).toBeInTheDocument();
   expect(await screen.findByText("Name")).toBeInTheDocument();
 
-  const dashboardNameInput = await screen.findByLabelText("Name Input");
-  fireEvent.change(dashboardNameInput, { target: { value: "new_name" } });
-
   const createDashboardInput = await screen.findByLabelText(
     "Create Dashboard Button",
   );
   expect(screen.getByText("Create")).toBeInTheDocument();
-  await userEvent.click(createDashboardInput);
 
+  // Name is the only required field.
+  await userEvent.click(createDashboardInput);
   expect(
-    await screen.findByText(
-      "All inputs must be filled out for creating a dashboard.",
-    ),
+    await screen.findByText("A name is required for creating a dashboard."),
   ).toBeInTheDocument();
+
+  const dashboardNameInput = await screen.findByLabelText("Name Input");
+  fireEvent.change(dashboardNameInput, { target: { value: "new_name" } });
 
   const descriptionInput = await screen.findByLabelText("Description Input");
   fireEvent.change(descriptionInput, { target: { value: "some description" } });
@@ -158,18 +201,18 @@ test("New Dashboard Modal add dashboard success with app tour", async () => {
   expect(await screen.findByText("Create a new dashboard")).toBeInTheDocument();
   expect(await screen.findByText("Name")).toBeInTheDocument();
 
-  const dashboardNameInput = await screen.findByLabelText("Name Input");
-  fireEvent.change(dashboardNameInput, { target: { value: "new_name" } });
-
   const createDashboardInput = await screen.findByLabelText(
     "Create Dashboard Button",
   );
+
+  // Name is the only required field.
   await userEvent.click(createDashboardInput);
   expect(
-    await screen.findByText(
-      "All inputs must be filled out for creating a dashboard.",
-    ),
+    await screen.findByText("A name is required for creating a dashboard."),
   ).toBeInTheDocument();
+
+  const dashboardNameInput = await screen.findByLabelText("Name Input");
+  fireEvent.change(dashboardNameInput, { target: { value: "new_name" } });
 
   const descriptionInput = await screen.findByLabelText("Description Input");
   fireEvent.change(descriptionInput, { target: { value: "some description" } });

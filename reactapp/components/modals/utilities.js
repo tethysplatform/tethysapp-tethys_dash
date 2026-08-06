@@ -1,3 +1,8 @@
+// Dashboard names wrap to at most two lines on the landing page card at this
+// length, which is what the card header is sized to show in full. Raising it
+// means re-checking CardHeader's max-height in landingPage/DashboardCard.js.
+export const DASHBOARD_NAME_MAX_LENGTH = 40;
+
 export function getInitialInputValue(value) {
   let inputValue;
   if (value === "text") {

@@ -18,6 +18,7 @@ import { FaRegUserCircle } from "react-icons/fa";
 import ContextMenu from "components/landingPage/ContextMenu";
 import DashboardThumbnailModal from "components/modals/DashboardThumbnail";
 import PermissionsModal from "components/modals/Permissions";
+import { DASHBOARD_NAME_MAX_LENGTH } from "components/modals/utilities";
 
 const StyledBsPeopleFill = styled(BsPeopleFill)`
   margin-left: 0.3rem;
@@ -79,7 +80,11 @@ const CardHeader = styled(Card.Header)`
   justify-content: space-between;
   align-items: center;
   min-height: 3rem;
-  max-height: 4.5rem;
+  /* Two lines of the h5 title is the worst case at DASHBOARD_NAME_MAX_LENGTH
+     characters: 2 x (1.25rem font x 1.2 line-height) = 3rem, plus 1rem of
+     Card.Header padding and CardTitleDiv's 0.2rem margin = 4.2rem. Rounded up
+     for headroom so neither line is ever cut off. */
+  max-height: 5rem;
 `;
 
 const NewDashboardDiv = styled.div`
@@ -93,7 +98,10 @@ const NewDashboardDiv = styled.div`
 
 const CardTitleDiv = styled.div`
   height: 100%;
-  overflow-y: auto;
+  /* No overflow scrolling here on purpose. This used to be overflow-y: auto,
+     which is what cut off long titles: content that overflows a flex container
+     centred with align-items: center spills past both edges, and the top edge is
+     unreachable by scrolling. The header is sized to fit the title instead. */
   margin: 0.1rem;
   display: flex;
   align-items: center;
@@ -136,6 +144,16 @@ const EditableTextarea = styled.textarea`
 const CardTitle = styled.h5`
   margin: 0;
   width: 100%;
+  /* A name at the character limit with no spaces in it still has to wrap instead
+     of running off the side of the card. */
+  overflow-wrap: anywhere;
+  /* Names saved before the limit existed can still exceed two lines, since the
+     limit only governs new input. Clamp those rather than letting them overflow
+     the header and push into the thumbnail. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
 `;
 
 const StyledAlert = styled(Alert)`
@@ -359,6 +377,7 @@ const DashboardCard = ({
                 onKeyDown={(e) =>
                   handleKeyDown(e, "name", setTitle, setIsEditingTitle)
                 }
+                maxLength={DASHBOARD_NAME_MAX_LENGTH}
                 aria-label="Title Input"
               />
             ) : (

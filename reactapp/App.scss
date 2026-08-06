@@ -2,6 +2,11 @@
 
 :root {
   --ts-header-height: 56px;
+  /* Height of the dashboard tab bar when it is showing, i.e. when a dashboard
+     has more than one tab. Consumed by DashboardTabs (which sets it on the tab
+     buttons), and by anything that has to sit clear of the bar: DashboardItem's
+     fill-viewport offset and DashboardLayoutAlerts' top offset. */
+  --ts-tab-bar-height: 44px;
 }
 
 html,

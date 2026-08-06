@@ -24,6 +24,7 @@ dist
 docs/brainstorms/
 docs/plans/
 v2_env
+test_env
 
 
 tethysapp/tethysdash/public/images/plugins/*

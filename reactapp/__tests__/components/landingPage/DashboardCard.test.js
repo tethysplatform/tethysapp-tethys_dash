@@ -103,6 +103,8 @@ test("DashboardCard editable, open and edit name", async () => {
   expect(screen.queryByLabelText("Title Input")).not.toBeInTheDocument();
   await userEvent.click(renameOption);
   const titleInput = await screen.findByLabelText("Title Input");
+  // Capped so a name wraps to at most two lines in the card header.
+  expect(titleInput).toHaveAttribute("maxlength", "40");
   expect(screen.queryByText("some dashboard")).not.toBeInTheDocument();
 
   // double click shouldnt work when editing
