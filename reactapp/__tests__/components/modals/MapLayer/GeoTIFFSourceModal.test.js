@@ -128,6 +128,7 @@ test("GeoTIFFSourceModal typing a URL and clicking Save calls onSave with all fi
   await user.type(screen.getByLabelText("Bands Input"), "1,2,3");
   await user.type(screen.getByLabelText("Min Input"), "10");
   await user.type(screen.getByLabelText("Max Input"), "255");
+  await user.clear(screen.getByLabelText("Nodata Input"));
   await user.type(screen.getByLabelText("Nodata Input"), "0");
   await user.type(screen.getByLabelText("Projection Input"), "EPSG:4326");
 
@@ -245,6 +246,7 @@ test("GeoTIFFSourceModal preserves string '0' in min on save (not coerced to num
   );
   await user.type(screen.getByLabelText("Min Input"), "0");
   await user.type(screen.getByLabelText("Max Input"), "0");
+  await user.clear(screen.getByLabelText("Nodata Input"));
   await user.type(screen.getByLabelText("Nodata Input"), "0");
 
   await user.click(
@@ -394,4 +396,10 @@ test("GeoTIFFSourceModal returns focus to returnFocusRef element on close", asyn
     },
     { timeout: 2000 },
   );
+});
+
+test("new GeoTIFF source defaults Nodata to -9999", async () => {
+  render(<Harness />);
+  expect(await screen.findByText("Add GeoTIFF Source")).toBeInTheDocument();
+  expect(screen.getByLabelText("Nodata Input")).toHaveValue("-9999");
 });

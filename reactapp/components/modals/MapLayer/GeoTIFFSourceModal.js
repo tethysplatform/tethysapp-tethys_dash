@@ -20,7 +20,7 @@ const emptyState = () => ({
   bands: "",
   min: "",
   max: "",
-  nodata: "",
+  nodata: "-9999",
   projection: "",
   overviews: "",
 });
