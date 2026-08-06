@@ -188,7 +188,8 @@ const SliderMetadata = ({ onChange, values }) => {
     setMax(null);
     setStep(null);
     setInitialValue(null);
-    setOutputFormat("");
+    // Number sliders get a default format so Output Format isn't required.
+    setOutputFormat(selected?.value === "Number" ? "{{n}}" : "");
     onChange(null);
   };
 
