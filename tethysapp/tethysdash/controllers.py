@@ -39,9 +39,11 @@ from tethysapp.tethysdash.plugin_helpers import send_websocket_message
 from tethysapp.tethysdash.floodmap import (
     DEFAULT_VARIABLE,
     FloodmapError,
-    build_storm_cog,
+    StoreOpenError,
     open_store,
+    parse_byte_range,
     read_metadata,
+    read_storm_cog,
 )
 from tethysapp.tethysdash.url_safety import UnsafeURLError, validate_public_url
 from channels.generic.websocket import AsyncWebsocketConsumer
@@ -1080,19 +1082,27 @@ def floodmap_cog(request):
         return JsonResponse({"error": str(e)}, status=422)
 
     try:
-        group = open_store(src)
-    except FloodmapError:
+        cog_bytes = read_storm_cog(src, variable, storm)
+    except StoreOpenError:
         return JsonResponse({"error": "could not open floodmap store"}, status=502)
-
-    try:
-        cog_bytes = build_storm_cog(group, variable, storm)
     except FloodmapError as e:
         return JsonResponse({"error": str(e)}, status=400)
     except Exception as e:  # unexpected conversion failure
         print(f"floodmap conversion failed: {e}")
         return JsonResponse({"error": "failed to convert floodmap"}, status=500)
 
-    response = HttpResponse(cog_bytes, content_type="image/tiff")
+    # The COG reader fetches byte ranges and needs 206 partial content, not the full file.
+    total = len(cog_bytes)
+    byte_range = parse_byte_range(request.META.get("HTTP_RANGE", ""), total)
+    if byte_range is not None:
+        start, end = byte_range
+        response = HttpResponse(
+            cog_bytes[start : end + 1], status=206, content_type="image/tiff"
+        )
+        response["Content-Range"] = f"bytes {start}-{end}/{total}"
+    else:
+        response = HttpResponse(cog_bytes, content_type="image/tiff")
+    response["Accept-Ranges"] = "bytes"
     response["Cache-Control"] = "public, max-age=300"
     return response
 

@@ -11,6 +11,9 @@ we intentionally avoid s3fs so no AWS stack or credentials are required.
 
 from __future__ import annotations
 
+import time
+from functools import lru_cache
+
 import numpy as np
 import zarr
 from zarr.storage import FsspecStore
@@ -32,12 +35,31 @@ class FloodmapError(Exception):
     """A floodmap store could not be read or converted."""
 
 
+class StoreOpenError(FloodmapError):
+    """The store URL could not be opened (network/URL error, not a read error)."""
+
+
+def _retry(fn, attempts=3, base_delay=0.25):
+    """Call ``fn`` and retry on any exception, with linear backoff. The remote
+    store is read live over HTTP, so a single range read occasionally fails
+    transiently; retrying re-issues it rather than failing the whole request."""
+    last = None
+    for i in range(attempts):
+        try:
+            return fn()
+        except Exception as e:
+            last = e
+            if i < attempts - 1:
+                time.sleep(base_delay * (i + 1))
+    raise last
+
+
 def open_store(src):
     """Open the Zarr group at ``src`` (a public https URL) read-only."""
     try:
-        return zarr.open_group(FsspecStore.from_url(src), mode="r")
+        return _retry(lambda: zarr.open_group(FsspecStore.from_url(src), mode="r"))
     except Exception as e:  # surface a clean message to the API layer
-        raise FloodmapError(f"could not open zarr store: {e}") from e
+        raise StoreOpenError(f"could not open zarr store: {e}") from e
 
 
 # EF5 stores served over HTTP can't be listed (no directory enumeration), so we
@@ -117,7 +139,7 @@ def build_storm_cog(group, variable=DEFAULT_VARIABLE, storm=0):
     threshold = float(attrs.get("extent_threshold_m", 0.0))
     source_nodata = attrs.get("source_nodata")
 
-    arr = np.asarray(arr_z[storm], dtype="float32")
+    arr = _retry(lambda: np.asarray(arr_z[storm], dtype="float32"))
     dry = arr <= threshold
     if source_nodata is not None:
         dry = dry | (arr == np.float32(source_nodata))
@@ -137,3 +159,40 @@ def build_storm_cog(group, variable=DEFAULT_VARIABLE, storm=0):
                 in_memory=True, quiet=True,
             )
             return dst_mem.read()
+
+
+@lru_cache(maxsize=64)
+def read_storm_cog(src, variable=DEFAULT_VARIABLE, storm=0):
+    """COG bytes for one storm, cached by (src, variable, storm). A map layer
+    reads a COG via several HTTP range requests; caching means those don't each
+    re-open the store and rebuild the file."""
+    return build_storm_cog(open_store(src), variable, storm)
+
+
+def parse_byte_range(range_header, total):
+    """Parse an HTTP ``Range`` header against a ``total``-byte payload.
+
+    Returns an inclusive ``(start, end)`` clamped to the payload, or ``None``
+    when there is no usable byte range (the caller then sends the full body).
+    """
+    if not range_header or not range_header.startswith("bytes="):
+        return None
+    spec = range_header[len("bytes=") :].split(",", 1)[0].strip()
+    start_s, sep, end_s = spec.partition("-")
+    if not sep:
+        return None
+    try:
+        if start_s == "":  # suffix range: final N bytes
+            n = int(end_s)
+            if n <= 0:
+                return None
+            start, end = max(0, total - n), total - 1
+        else:
+            start = int(start_s)
+            end = int(end_s) if end_s else total - 1
+    except ValueError:
+        return None
+    end = min(end, total - 1)
+    if start < 0 or start > end or start >= total:
+        return None
+    return (start, end)

@@ -8,6 +8,7 @@ import pytest
 import zarr
 from rasterio.io import MemoryFile
 
+import tethysapp.tethysdash.floodmap as fm
 from tethysapp.tethysdash.floodmap import (
     NODATA,
     FloodmapError,
@@ -84,3 +85,45 @@ def test_read_metadata_uses_magnitude_labels_when_present():
     meta = read_metadata(g)
     assert meta["storm_labels"] == ["10 mm", "20 mm", "30 mm"]
     assert set(meta["variables"]) == {"depth", "magnitude_mm"}
+
+
+def test_retry_recovers_after_transient_failures(monkeypatch):
+    monkeypatch.setattr(fm.time, "sleep", lambda _s: None)
+    calls = {"n": 0}
+
+    def flaky():
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise ConnectionError("transient")
+        return "ok"
+
+    assert fm._retry(flaky) == "ok"
+    assert calls["n"] == 3
+
+
+def test_retry_raises_after_exhausting_attempts(monkeypatch):
+    monkeypatch.setattr(fm.time, "sleep", lambda _s: None)
+
+    def always_fail():
+        raise ConnectionError("boom")
+
+    with pytest.raises(ConnectionError, match="boom"):
+        fm._retry(always_fail, attempts=2)
+
+
+@pytest.mark.parametrize(
+    "header,total,expected",
+    [
+        ("", 100, None),
+        (None, 100, None),
+        ("items=0-10", 100, None),  # wrong unit
+        ("bytes=abc", 100, None),  # malformed
+        ("bytes=0-49", 100, (0, 49)),
+        ("bytes=0-65536", 100, (0, 99)),  # end clamped to EOF
+        ("bytes=50-", 100, (50, 99)),  # open-ended
+        ("bytes=-10", 100, (90, 99)),  # suffix
+        ("bytes=200-300", 100, None),  # start past EOF
+    ],
+)
+def test_parse_byte_range(header, total, expected):
+    assert fm.parse_byte_range(header, total) == expected
