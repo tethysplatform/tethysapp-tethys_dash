@@ -75,7 +75,6 @@ const MapComponent = ({
   const isFirstRender = useRef(true);
   const mapExtentVariableEvent = useRef();
   const currentLayers = useRef([]);
-  const reconcileToken = useRef(0); // guards against overlapping reconciliations
   const { setVariableInputValues } = useContext(VariableInputsContext);
 
   const defaultMapConfig = {
@@ -198,7 +197,6 @@ const MapComponent = ({
     setErrorMessage(null);
     const updateLayers = async () => {
       const map = visualizationRef.current;
-      const myToken = ++reconcileToken.current;
       const currentMapLayers = map.getLayers().getArray();
 
       // Clean up layers: determine which to keep and which to remove
@@ -378,17 +376,6 @@ const MapComponent = ({
 
             map.addLayer(newLayer);
 
-            // hide the outgoing layer until the replacement's tiles load
-            if (
-              replacesExisting &&
-              layerConfig.type === "WebGLTile" &&
-              layerConfig.props?.source?.type === "GeoTIFF"
-            ) {
-              layersToRemove
-                .filter((old) => old.get("name") === name)
-                .forEach((old) => old.setVisible(false));
-            }
-
             if (
               layerConfig.type === "WebGLTile" &&
               layerConfig.props?.source?.type === "GeoTIFF"
@@ -548,8 +535,6 @@ const MapComponent = ({
       if (layerLoadPromises.length > 0) {
         await Promise.all(layerLoadPromises);
       }
-
-      if (myToken !== reconcileToken.current) return; // a newer run took over
 
       // Remove layers that are no longer needed
       layersToRemove.forEach((layer) => {
