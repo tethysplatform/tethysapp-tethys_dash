@@ -278,7 +278,16 @@ function VisualizationPane({
 
   function checkAllInputs() {
     if (selectedVizTypeOption) {
-      const allFilled = Object.values(vizInputsValues).every(
+      // slider's initial value comes from the preview, so don't gate on it
+      const skipInitialValueCheck = ["slider", "csv-uploader"].includes(
+        vizInputsValues.variable_options_source,
+      );
+      const inputsToCheck = skipInitialValueCheck
+        ? Object.entries(vizInputsValues)
+            .filter(([key]) => key !== "initial_value")
+            .map(([, value]) => value)
+        : Object.values(vizInputsValues);
+      const allFilled = inputsToCheck.every(
         (value) => !["", null].includes(value),
       );
       const isEmptyArgs =
@@ -306,7 +315,7 @@ function VisualizationPane({
       args: Object.fromEntries(
         Object.entries(vizInputsValues).map(([key, val]) => [
           key,
-          val.value ?? val,
+          val?.value ?? val,
         ]),
       ),
     };
