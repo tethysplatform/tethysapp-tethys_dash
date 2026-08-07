@@ -32,12 +32,6 @@ const RampRow = styled.button`
   }
 `;
 
-const RampLabel = styled.span`
-  min-width: 90px;
-  font-size: 0.9rem;
-  font-weight: 500;
-`;
-
 const GradientSwatch = styled.span`
   flex: 1;
   height: 20px;
@@ -68,7 +62,6 @@ const RampPicker = ({ selectedRamp, onChange }) => {
             $selected={isSelected}
             onClick={() => onChange(name)}
           >
-            <RampLabel>{name}</RampLabel>
             <GradientSwatch
               aria-hidden="true"
               data-testid={`ramp-swatch-${name}`}

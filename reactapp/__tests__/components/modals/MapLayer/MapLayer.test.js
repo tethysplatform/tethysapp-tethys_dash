@@ -2354,12 +2354,14 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
     expect(savedStyle.color[3]).toBe(0);
     // Last stop pair ends at rampMax.
     expect(savedStyle.color[savedStyle.color.length - 2]).toBe(100);
+    // Explicit range = raw band values, so the source is not normalized.
+    expect(savedConfig.configuration.props.source.props.normalize).toBe(false);
 
     // Most important regression guard: the backend upload was NOT called.
     expect(uploadSpy).not.toHaveBeenCalled();
   });
 
-  test("GeoTIFF without a ramp name saves with no style key", async () => {
+  test("GeoTIFF with no explicit range gets a normalized style (turbo default)", async () => {
     const uploadSpy = jest
       .spyOn(appAPI, "uploadJSON")
       .mockResolvedValue({ success: true, filename: "x.json" });
@@ -2395,11 +2397,18 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
     });
 
     const savedConfig = addMapLayer.mock.calls[0][0];
-    expect(savedConfig.configuration.style).toBeUndefined();
+    const savedStyle = savedConfig.configuration.style;
+    // Turbo default + normalized [0,1] interpolate; no persisted range.
+    expect(Array.isArray(savedStyle.color)).toBe(true);
+    expect(savedStyle.color[0]).toBe("interpolate");
+    expect(savedStyle.color[savedStyle.color.length - 2]).toBe(1);
+    expect(savedConfig.configuration.props.source.rampName).toBe("turbo");
+    expect(savedConfig.configuration.props.source.rampMin).toBeUndefined();
+    expect(savedConfig.configuration.props.source.props.normalize).toBe(true);
     expect(uploadSpy).not.toHaveBeenCalled();
   });
 
-  test("GeoTIFF with rampName but empty rampMin/rampMax does not generate a style", async () => {
+  test("GeoTIFF with rampName and empty range gets a normalized style", async () => {
     const uploadSpy = jest
       .spyOn(appAPI, "uploadJSON")
       .mockResolvedValue({ success: true, filename: "x.json" });
@@ -2407,7 +2416,7 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
     const handleModalClose = jest.fn();
     const addMapLayer = jest.fn();
     const layerInfo = {
-      layerProps: { name: "Incomplete Ramp GeoTIFF" },
+      layerProps: { name: "Auto Ramp GeoTIFF" },
       sourceProps: {
         type: "GeoTIFF",
         rampName: "viridis",
@@ -2438,7 +2447,12 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
     });
 
     const savedConfig = addMapLayer.mock.calls[0][0];
-    expect(savedConfig.configuration.style).toBeUndefined();
+    const savedStyle = savedConfig.configuration.style;
+    expect(Array.isArray(savedStyle.color)).toBe(true);
+    expect(savedStyle.color[0]).toBe("interpolate");
+    expect(savedStyle.color[savedStyle.color.length - 2]).toBe(1);
+    expect(savedConfig.configuration.props.source.rampMin).toBeUndefined();
+    expect(savedConfig.configuration.props.source.props.normalize).toBe(true);
     expect(uploadSpy).not.toHaveBeenCalled();
   });
 

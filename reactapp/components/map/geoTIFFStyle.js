@@ -12,18 +12,25 @@ export function buildGeoTIFFStyleColor({
     throw new Error(`Unknown color ramp: ${rampName}`);
   }
 
-  // Reject empty strings up front — `Number("")` silently returns 0, which
-  // would otherwise pass the isFinite check and produce a degenerate expression
-  // that doesn't match the user's (missing) intent.
-  const minIsEmpty = typeof rampMin === "string" && rampMin.trim() === "";
-  const maxIsEmpty = typeof rampMax === "string" && rampMax.trim() === "";
-  const min = minIsEmpty ? NaN : Number(rampMin);
-  const max = maxIsEmpty ? NaN : Number(rampMax);
+  const minIsEmpty =
+    rampMin == null || (typeof rampMin === "string" && rampMin.trim() === "");
+  const maxIsEmpty =
+    rampMax == null || (typeof rampMax === "string" && rampMax.trim() === "");
 
-  if (!Number.isFinite(min) || !Number.isFinite(max)) {
-    throw new Error(
-      `rampMin and rampMax must be finite numbers (got rampMin=${rampMin}, rampMax=${rampMax})`,
-    );
+  let min;
+  let max;
+  if (minIsEmpty && maxIsEmpty) {
+    // Normalized mode: OL scales band 1 to [0,1] from the file's statistics.
+    min = 0;
+    max = 1;
+  } else {
+    min = minIsEmpty ? NaN : Number(rampMin);
+    max = maxIsEmpty ? NaN : Number(rampMax);
+    if (!Number.isFinite(min) || !Number.isFinite(max)) {
+      throw new Error(
+        `rampMin and rampMax must both be set or both empty (got rampMin=${rampMin}, rampMax=${rampMax})`,
+      );
+    }
   }
 
   const steps = colors.length;
@@ -44,7 +51,7 @@ export function buildGeoTIFFStyleColor({
 
 buildGeoTIFFStyleColor.propTypes = {
   rampName: PropTypes.string.isRequired,
-  rampMin: PropTypes.oneOfType([PropTypes.number, PropTypes.string]).isRequired,
-  rampMax: PropTypes.oneOfType([PropTypes.number, PropTypes.string]).isRequired,
+  rampMin: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+  rampMax: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
   hasNodata: PropTypes.bool,
 };

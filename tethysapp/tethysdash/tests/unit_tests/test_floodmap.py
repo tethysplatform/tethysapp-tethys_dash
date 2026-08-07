@@ -127,3 +127,12 @@ def test_retry_raises_after_exhausting_attempts(monkeypatch):
 )
 def test_parse_byte_range(header, total, expected):
     assert fm.parse_byte_range(header, total) == expected
+
+
+def test_build_storm_cog_embeds_band_statistics():
+    cog_bytes = build_storm_cog(_make_group(), "depth", 0)
+    with MemoryFile(cog_bytes) as mem, mem.open() as ds:
+        tags = ds.tags(1)
+        # storm 0's only wet cell is 2.5 (see _make_group), so min == max == 2.5
+        assert float(tags["STATISTICS_MINIMUM"]) == pytest.approx(2.5)
+        assert float(tags["STATISTICS_MAXIMUM"]) == pytest.approx(2.5)

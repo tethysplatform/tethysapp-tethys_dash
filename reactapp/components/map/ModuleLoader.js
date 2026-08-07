@@ -187,7 +187,12 @@ const resolveProps = async (props, mapProjection) => {
     }
   }
 
-  if (props.sources && Array.isArray(props.sources)) {
+  if (
+    props.sources &&
+    Array.isArray(props.sources) &&
+    props.normalize === undefined
+  ) {
+    // Default raw band values unless the layer explicitly asked to normalize.
     resolvedProps.normalize = false;
   }
 

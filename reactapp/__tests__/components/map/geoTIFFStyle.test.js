@@ -125,7 +125,18 @@ describe("buildGeoTIFFStyleColor", () => {
         rampMin: "not-a-number",
         rampMax: 100,
       }),
-    ).toThrow(/finite numbers/);
+    ).toThrow(/both be set or both empty/);
+  });
+
+  test("empty rampMin and rampMax build a normalized [0,1] interpolate", () => {
+    const expr = buildGeoTIFFStyleColor({
+      rampName: "viridis",
+      rampMin: "",
+      rampMax: "",
+    });
+    expect(expr[0]).toBe("interpolate");
+    expect(expr[3]).toBe(0); // first stop at 0
+    expect(expr[expr.length - 2]).toBe(1); // last stop at 1
   });
 
   test("hasNodata wraps the interpolate in a `case` against band 2 with a transparent fallback", () => {
@@ -157,7 +168,7 @@ describe("buildGeoTIFFStyleColor", () => {
         rampMin: 0,
         rampMax: "",
       }),
-    ).toThrow(/finite numbers/);
+    ).toThrow(/both be set or both empty/);
   });
 
   test("treats an empty-string rampMin as NaN (covers the minIsEmpty true branch)", () => {
@@ -170,7 +181,7 @@ describe("buildGeoTIFFStyleColor", () => {
         rampMin: "",
         rampMax: 100,
       }),
-    ).toThrow(/finite numbers/);
+    ).toThrow(/both be set or both empty/);
   });
 
   test("steps === 1 short-circuits to t=0 (single-entry ramp covers the steps===1 branch)", () => {

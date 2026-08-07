@@ -400,16 +400,16 @@ const MapLayerModal = ({
 
     if (sourceProps.type === "GeoTIFF") {
       const { rampName, rampMin, rampMax } = sourceProps;
-      const hasRamp =
-        typeof rampName === "string" &&
-        rampName.trim() !== "" &&
+      const hasRampName =
+        typeof rampName === "string" && rampName.trim() !== "";
+      const hasRange =
         typeof rampMin === "string" &&
         rampMin.trim() !== "" &&
         typeof rampMax === "string" &&
         rampMax.trim() !== "" &&
         Number.isFinite(Number(rampMin)) &&
         Number.isFinite(Number(rampMax));
-      if (hasRamp) {
+      if (hasRampName) {
         const hasNodata = validSourceProps.sources.some(
           (s) => s?.nodata !== undefined && s.nodata !== "",
         );
@@ -421,8 +421,13 @@ const MapLayerModal = ({
         });
         mapConfiguration.configuration.style = { color };
         mapConfiguration.configuration.props.source.rampName = rampName;
-        mapConfiguration.configuration.props.source.rampMin = rampMin;
-        mapConfiguration.configuration.props.source.rampMax = rampMax;
+        // Raw range styles raw band values; auto mode normalizes band 1 from stats.
+        mapConfiguration.configuration.props.source.props.normalize = !hasRange;
+        // Persist an explicit range only when set; empty = per-storm auto.
+        if (hasRange) {
+          mapConfiguration.configuration.props.source.rampMin = rampMin;
+          mapConfiguration.configuration.props.source.rampMax = rampMax;
+        }
       }
     } else if (style && style !== "{}") {
       const apiResponse = await saveLayerJSON({

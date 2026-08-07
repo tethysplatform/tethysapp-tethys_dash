@@ -122,7 +122,7 @@ def build_storm_cog(group, variable=DEFAULT_VARIABLE, storm=0):
     """Slice one storm from ``variable`` and return COG bytes (in memory).
 
     Dry cells (depth <= the store's ``extent_threshold_m``) and the source
-    nodata value are set to NaN so they render transparent.
+    nodata value are set to ``NODATA`` (-9999) so they render transparent.
     """
     arr_z = _get_array(group, variable)
     if arr_z is None:
@@ -145,6 +145,12 @@ def build_storm_cog(group, variable=DEFAULT_VARIABLE, storm=0):
         dry = dry | (arr == np.float32(source_nodata))
     arr = np.where(dry, NODATA, arr).astype("float32")
 
+    # Embed the storm's wet-cell range as band statistics so the map layer can
+    # normalize the color ramp to this storm (OpenLayers reads STATISTICS_*).
+    valid = arr[arr != NODATA]
+    vmin = float(valid.min()) if valid.size else 0.0
+    vmax = float(valid.max()) if valid.size else 0.0
+
     profile = {
         "driver": "GTiff", "dtype": "float32", "count": 1,
         "height": arr.shape[0], "width": arr.shape[1],
@@ -153,10 +159,13 @@ def build_storm_cog(group, variable=DEFAULT_VARIABLE, storm=0):
     with MemoryFile() as src_mem:
         with src_mem.open(**profile) as src_ds:
             src_ds.write(arr, 1)
+            src_ds.update_tags(
+                1, STATISTICS_MINIMUM=repr(vmin), STATISTICS_MAXIMUM=repr(vmax)
+            )
         with MemoryFile() as dst_mem:
             cog_translate(
                 src_mem.name, dst_mem.name, cog_profiles.get("deflate"),
-                in_memory=True, quiet=True,
+                in_memory=True, quiet=True, forward_band_tags=True,
             )
             return dst_mem.read()
 
