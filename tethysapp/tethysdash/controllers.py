@@ -36,14 +36,13 @@ from tethysapp.tethysdash.visualizations import (
 )
 from tethysapp.tethysdash.exceptions import VisualizationError
 from tethysapp.tethysdash.plugin_helpers import send_websocket_message
-from tethysapp.tethysdash.floodmap import (
-    DEFAULT_VARIABLE,
-    FloodmapError,
+from tethysapp.tethysdash.zarr_utils import (
+    ZarrCogError,
     StoreOpenError,
     open_store,
     parse_byte_range,
+    read_cog,
     read_metadata,
-    read_storm_cog,
 )
 from tethysapp.tethysdash.url_safety import UnsafeURLError, validate_public_url
 from channels.generic.websocket import AsyncWebsocketConsumer
@@ -1068,7 +1067,7 @@ def floodmap_cog(request):
         (conversion failure), or 502 (store unreachable).
     """
     src = request.GET.get("src")
-    variable = request.GET.get("variable", DEFAULT_VARIABLE)
+    variable = request.GET.get("variable", "depth")
     if not src:
         return JsonResponse({"error": "missing required 'src' parameter"}, status=400)
     try:
@@ -1082,10 +1081,10 @@ def floodmap_cog(request):
         return JsonResponse({"error": str(e)}, status=422)
 
     try:
-        cog_bytes = read_storm_cog(src, variable, storm)
+        cog_bytes = read_cog(src, variable, storm)
     except StoreOpenError:
         return JsonResponse({"error": "could not open floodmap store"}, status=502)
-    except FloodmapError as e:
+    except ZarrCogError as e:
         return JsonResponse({"error": str(e)}, status=400)
     except Exception as e:  # unexpected conversion failure
         print(f"floodmap conversion failed: {e}")
@@ -1134,12 +1133,25 @@ def floodmap_meta(request):
 
     try:
         group = open_store(src)
-    except FloodmapError:
+    except ZarrCogError:
         return JsonResponse({"error": "could not open floodmap store"}, status=502)
 
     try:
-        meta = read_metadata(group)
-    except FloodmapError as e:
+        meta = read_metadata(
+            group,
+            candidates=("depth", "extent", "magnitude_mm", "storm_id"),
+            label_var="magnitude_mm",
+        )
+    except ZarrCogError as e:
         return JsonResponse({"error": str(e)}, status=400)
 
-    return JsonResponse(meta)
+    return JsonResponse(
+        {
+            "variables": meta["variables"],
+            "storm_count": meta["slice_count"],
+            "storm_labels": meta["slice_labels"],
+            "crs": meta["crs"],
+            "grid_shape": meta["grid_shape"],
+            "extent": meta["extent"],
+        }
+    )
