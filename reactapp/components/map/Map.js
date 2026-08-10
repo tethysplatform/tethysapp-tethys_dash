@@ -75,7 +75,32 @@ const MapComponent = ({
   const isFirstRender = useRef(true);
   const mapExtentVariableEvent = useRef();
   const currentLayers = useRef([]);
+  const layerSyncToken = useRef(0);
+  const activeFadeRef = useRef(null);
   const { setVariableInputValues } = useContext(VariableInputsContext);
+
+  // Fade the incoming layers in over `duration` ms, then remove the outgoing
+  // ones, so a storm swap dissolves instead of flashing. Any running fade is
+  // finalized first so overlapping swaps don't leave a layer mid-fade.
+  const crossfadeLayers = (map, incoming, outgoing, duration) => {
+    if (activeFadeRef.current) activeFadeRef.current();
+    const start = Date.now();
+    let rafId = null;
+    const finalize = () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      incoming.forEach(({ layer, opacity }) => layer.setOpacity(opacity));
+      outgoing.forEach((layer) => map.removeLayer(layer));
+      activeFadeRef.current = null;
+    };
+    const step = () => {
+      const t = Math.min(1, (Date.now() - start) / duration);
+      incoming.forEach(({ layer, opacity }) => layer.setOpacity(opacity * t));
+      if (t < 1) rafId = requestAnimationFrame(step);
+      else finalize();
+    };
+    activeFadeRef.current = finalize;
+    rafId = requestAnimationFrame(step);
+  };
 
   const defaultMapConfig = {
     className: "ol-map",
@@ -123,6 +148,7 @@ const MapComponent = ({
     return () => {
       // istanbul ignore next
       if (visualizationRef.current) {
+        if (activeFadeRef.current) activeFadeRef.current();
         visualizationRef.current.setTarget(undefined);
         visualizationRef.current = null;
       }
@@ -198,6 +224,9 @@ const MapComponent = ({
     const updateLayers = async () => {
       const map = visualizationRef.current;
       const currentMapLayers = map.getLayers().getArray();
+      // Identify this run so a newer frame can supersede it mid-load.
+      layerSyncToken.current += 1;
+      const myToken = layerSyncToken.current;
 
       // Clean up layers: determine which to keep and which to remove
       const layersToKeep = [];
@@ -303,6 +332,8 @@ const MapComponent = ({
       // setup constants for handling new layers
       const customLayers = layers ?? [];
       let failedLayers = [];
+      // Replacement layers added hidden until painted, then revealed on swap.
+      const buffered = [];
 
       // Add or update layers in parallel
       const layerLoadPromises = [];
@@ -371,6 +402,11 @@ const MapComponent = ({
                   setTimeout(done, 5000);
                 });
                 layerLoadPromises.push(loadPromise);
+                // Hide via opacity, not visibility: an invisible layer never
+                // renders, so it would never load its tiles. Opacity 0 keeps
+                // it loading; we restore the real opacity once it has painted.
+                buffered.push({ layer: newLayer, opacity: newLayer.getOpacity() });
+                newLayer.setOpacity(0);
               }
             }
 
@@ -536,10 +572,19 @@ const MapComponent = ({
         await Promise.all(layerLoadPromises);
       }
 
-      // Remove layers that are no longer needed
-      layersToRemove.forEach((layer) => {
-        map.removeLayer(layer);
-      });
+      // Reveal painted replacements, then drop old layers in one frame.
+      // A superseded run keeps the old layer and discards its unshown buffers,
+      // so fast playback skips frames instead of flashing or stalling.
+      const superseded = myToken !== layerSyncToken.current;
+      if (buffered.length > 0 && superseded) {
+        buffered.forEach(({ layer }) => map.removeLayer(layer));
+      } else if (buffered.length > 0) {
+        crossfadeLayers(map, buffered, layersToRemove, 250);
+      } else {
+        layersToRemove.forEach((layer) => {
+          map.removeLayer(layer);
+        });
+      }
 
       if (failedLayers.length > 0) {
         setErrorMessage(
@@ -620,7 +665,11 @@ const MapComponent = ({
         isFirstRender.current = false;
       }
 
-      currentLayers.current = layers ?? [];
+      // Only the winning run records the rendered layers, so a slow superseded
+      // run can't overwrite it with a stale config.
+      if (!superseded) {
+        currentLayers.current = layers ?? [];
+      }
     };
 
     updateLayers();
