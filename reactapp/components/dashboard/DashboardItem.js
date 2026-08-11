@@ -65,11 +65,9 @@ const StyledDiv = styled.div`
   /* Fill-viewport override: escape the react-grid-layout-positioned parent via
      position:fixed so the item spans the content area below the fixed header
      (and tab bar when shown), independent of screen size. No explicit z-index:
-     a fixed element with z-index:auto still paints in DOM/tree order with the
-     other z-index:auto grid tiles, so the fill item stacks by its position in
-     the gridItems array. Items ordered after it stay visible on top; items
-     ordered before it sit behind. Positive-z-index chrome (modals 1040+,
-     alerts 1000/1081) paints above it automatically. */
+     items ordered before it sit behind by tree order, and items ordered after
+     it are lifted above by DashboardLayout, which puts the z-index on the whole
+     grid item so react-grid-layout's resize handles are lifted with it. */
   ${(props) =>
     props.$fillViewport &&
     css`
@@ -369,20 +367,23 @@ const DashboardItem = () => {
   const fillViewportRequested =
     !!gridItemStyling?.fillViewport && !!enableFillViewport;
 
-  // When more than one item on the tab has fill on, only the first in grid
-  // order renders as fill; the rest fall back to normal grid sizing.
-  const isFirstFillItem = (() => {
-    if (!fillViewportRequested) return false;
-    const activeGridItems = getActiveTab().gridItems;
-    const firstFill = activeGridItems.find((gi) => {
+  // Index of the item that fills, if any: the first on the tab in grid order.
+  const firstFillIndex = (() => {
+    if (!enableFillViewport) return -1;
+    return getActiveTab().gridItems.findIndex((gi) => {
       try {
         return JSON.parse(gi.metadata_string)?.fillViewport;
       } catch {
         return false;
       }
     });
-    return firstFill?.i === gridItemI;
   })();
+
+  // When more than one item on the tab has fill on, only the first in grid
+  // order renders as fill; the rest fall back to normal grid sizing.
+  const isFirstFillItem =
+    fillViewportRequested &&
+    getActiveTab().gridItems[firstFillIndex]?.i === gridItemI;
 
   /* Applies while editing too, so the creator sees the result the moment the
      cell is saved rather than having to leave edit mode to find out. It also
@@ -580,22 +581,30 @@ const DashboardItem = () => {
             setShowGridItemMessage={setShowSuccessMessage}
           />
         )}
+        {/* Inside the item rather than beside it, so it is positioned against
+            the item itself. As a sibling it anchored to the react-grid-layout
+            wrapper instead, which left it stranded at the old grid position
+            when a fill-viewport item moved to cover the content area - and left
+            it behind the item on any cell lifted above a fill item, since the
+            lift applies to the item and would not have carried its sibling.
+            Visually identical otherwise: the item fills the wrapper, so
+            absolute positioning resolves to the same box either way. */}
+        {isEditing && (
+          <StyledButtonDiv>
+            <DashboardItemDropdown
+              gridItemIndex={gridItemIndex}
+              deleteGridItem={deleteGridItem}
+              editGridItem={editGridItem}
+              exportGridItem={exportGridItem}
+              copyGridItem={copyGridItem}
+              bringGridItemtoFront={bringGridItemtoFront}
+              bringGridItemForward={bringGridItemForward}
+              sendGridItemtoBack={sendGridItemtoBack}
+              sendGridItembackward={sendGridItembackward}
+            />
+          </StyledButtonDiv>
+        )}
       </StyledDiv>
-      {isEditing && (
-        <StyledButtonDiv>
-          <DashboardItemDropdown
-            gridItemIndex={gridItemIndex}
-            deleteGridItem={deleteGridItem}
-            editGridItem={editGridItem}
-            exportGridItem={exportGridItem}
-            copyGridItem={copyGridItem}
-            bringGridItemtoFront={bringGridItemtoFront}
-            bringGridItemForward={bringGridItemForward}
-            sendGridItemtoBack={sendGridItemtoBack}
-            sendGridItembackward={sendGridItembackward}
-          />
-        </StyledButtonDiv>
-      )}
     </>
   );
 };

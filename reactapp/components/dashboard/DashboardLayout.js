@@ -75,19 +75,61 @@ const DashboardLayout = ({
   const gridItemsUpdated = useRef();
   gridItemsUpdated.current = gridItems;
 
+  /* Index of the item filling the content area, if any - the first with the
+     setting, matching DashboardItem. Fill-viewport does not apply on the popup
+     surface, where this layout is reused. */
+  const firstFillIndex = useMemo(
+    () =>
+      tabId === "popup"
+        ? -1
+        : gridItems.findIndex((item) => {
+            try {
+              return JSON.parse(item.metadata_string)?.fillViewport;
+            } catch {
+              return false;
+            }
+          }),
+    [gridItems, tabId],
+  );
+
   // Memoize layout from gridItems
   const layout = useMemo(
     () =>
-      gridItems.map((griditem) => ({
-        h: griditem.h,
-        i: griditem.i,
-        w: griditem.w,
-        x: griditem.x,
-        y: griditem.y,
-        isDraggable: isWideBreakpoint && isEditing && !disabledEditingMovement,
-        isResizable: isWideBreakpoint && isEditing && !disabledEditingMovement,
-      })),
-    [gridItems, isEditing, disabledEditingMovement, isWideBreakpoint],
+      gridItems.map((griditem, index) => {
+        /* The filling item takes its position and size from the viewport rather
+           than the grid, so dragging and resizing it do nothing visible. Both
+           are turned off, which is also what hides the resize handle:
+           react-grid-layout marks a non-resizable item react-resizable-hide,
+           and its stylesheet hides the handle inside it. Leaving the handle
+           would have stranded it at the item's old grid position anyway, since
+           it is a sibling of the item's content and does not follow it once the
+           item goes position:fixed.
+
+           Derived from the item's metadata every render, so clearing the
+           setting restores dragging and the handle immediately. */
+        const isFillItem = index === firstFillIndex;
+        const movable =
+          isWideBreakpoint &&
+          isEditing &&
+          !disabledEditingMovement &&
+          !isFillItem;
+        return {
+          h: griditem.h,
+          i: griditem.i,
+          w: griditem.w,
+          x: griditem.x,
+          y: griditem.y,
+          isDraggable: movable,
+          isResizable: movable,
+        };
+      }),
+    [
+      gridItems,
+      isEditing,
+      disabledEditingMovement,
+      isWideBreakpoint,
+      firstFillIndex,
+    ],
   );
 
   // Responsive layouts (only computed when responsive=true).
@@ -182,8 +224,25 @@ const DashboardLayout = ({
     useCSSTransforms: false,
   };
 
+  /* Items after the fill item get lifted above it. Paint order among the grid's
+     tiles is otherwise decided by tree order alone, which is enough on screen
+     but is not reproduced when a DOM-to-image library captures the dashboard: a
+     fill item is position:fixed, meaningless in the detached clone the library
+     renders from, so it gets repositioned and can paint over tiles that belong
+     above it.
+
+     The lift goes on the grid item itself rather than anything inside it, so
+     that react-grid-layout's own resize handles - siblings of this component's
+     output within the item - are carried above the fill item as well. */
   const children = parsedGridItems.map((item, index) => (
-    <div key={item.i}>
+    <div
+      key={item.i}
+      style={
+        firstFillIndex >= 0 && index > firstFillIndex
+          ? { zIndex: 1 }
+          : undefined
+      }
+    >
       <GridItemContext.Provider
         value={{
           gridItemId: item.id,

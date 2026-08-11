@@ -2918,3 +2918,41 @@ describe("validateGridItemBatch", () => {
     expect(result.errors).toEqual([]);
   });
 });
+
+// A fill item is position:fixed, and a DOM-to-image library has to reposition it
+// to render it, which does not preserve where it sat among its siblings. Items
+// meant to stay on top therefore say so with a z-index instead of relying on
+// tree order, so a captured thumbnail matches the screen.
+test("Dashboard Item context menu lives inside the item, not beside it", async () => {
+  const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
+  const gridItem = mockedDashboard.tabs[0].gridItems[0];
+
+  render(
+    createLoadedComponent({
+      children: (
+        <GridItemContext.Provider
+          value={{
+            gridItemSource: gridItem.source,
+            gridItemI: gridItem.i,
+            gridItemMetadataString: gridItem.metadata_string,
+            gridItemArgsString: gridItem.args_string,
+            gridItemIndex: 0,
+            enableFillViewport: true,
+          }}
+        >
+          <DashboardItem />
+        </GridItemContext.Provider>
+      ),
+      options: { initialDashboard: mockedDashboard, inEditing: true },
+    }),
+  );
+
+  const dashboardGridItem = await screen.findByLabelText("gridItemDiv");
+  const dropdownToggle = await screen.findByLabelText(
+    "dashboard-item-dropdown-toggle",
+  );
+  /* As a sibling it was positioned against the react-grid-layout wrapper, so it
+     stayed at the old grid position when a fill-viewport item moved to cover the
+     content area, and it did not follow a cell lifted above a fill item. */
+  expect(dashboardGridItem).toContainElement(dropdownToggle);
+});
