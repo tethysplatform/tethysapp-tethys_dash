@@ -365,7 +365,7 @@ const DashboardItem = () => {
   }, [gridItemMetadataString]);
 
   // Fill-viewport: a single item can be configured to fill the content area
-  // below the header. Only applies on the main dashboard surface, in view mode.
+  // below the header. Only applies on the main dashboard surface.
   const fillViewportRequested =
     !!gridItemStyling?.fillViewport && !!enableFillViewport;
 
@@ -384,8 +384,13 @@ const DashboardItem = () => {
     return firstFill?.i === gridItemI;
   })();
 
-  const fillViewportActive =
-    fillViewportRequested && isFirstFillItem && !isEditing;
+  /* Applies while editing too, so the creator sees the result the moment the
+     cell is saved rather than having to leave edit mode to find out. It also
+     means the item and whatever it contains — a map's canvas in particular —
+     have been at their final size since long before a save, instead of being
+     resized by the exit from edit mode and captured mid-resize by the dashboard
+     thumbnail. */
+  const fillViewportActive = fillViewportRequested && isFirstFillItem;
   // Offset below the header, plus the tab bar when it is shown — which is
   // whenever more than one tab exists, in both view and edit mode.
   const fillOffset =

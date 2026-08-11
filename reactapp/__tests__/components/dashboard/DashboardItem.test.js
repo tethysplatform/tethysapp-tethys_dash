@@ -1751,7 +1751,7 @@ test("Dashboard Item fill viewport does not force a z-index (stacks by grid orde
   );
 });
 
-test("Dashboard Item fill viewport shows grid size with indicator while editing", async () => {
+test("Dashboard Item fill viewport fills the content area while editing too", async () => {
   const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
   const gridItem = mockedDashboard.tabs[0].gridItems[0];
   gridItem.metadata_string = JSON.stringify({ fillViewport: true });
@@ -1784,12 +1784,17 @@ test("Dashboard Item fill viewport shows grid size with indicator while editing"
 
   const dashboardGridItem = await screen.findByLabelText("gridItemDiv");
   expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
-  // In edit mode the item keeps grid sizing (not fixed) so it stays editable.
-  expect(
-    window.getComputedStyle(dashboardGridItem).getPropertyValue("position"),
-  ).not.toBe("fixed");
-  // An indicator tells the creator the setting is active even though it is not
-  // rendered full-size while editing.
+  /* Filling applies while editing as well, so the creator sees the result as
+     soon as the cell is saved instead of having to leave edit mode. It also
+     keeps the item at its final size continuously: when filling was gated on
+     view mode, leaving edit mode resized the item and a map's canvas inside it
+     was still at grid size when the dashboard thumbnail was captured. */
+  await waitFor(() => {
+    expect(
+      window.getComputedStyle(dashboardGridItem).getPropertyValue("position"),
+    ).toBe("fixed");
+  });
+  // The indicator still labels the setting while editing.
   expect(
     await screen.findByLabelText("fill-viewport-indicator"),
   ).toBeInTheDocument();

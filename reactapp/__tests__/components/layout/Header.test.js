@@ -24,7 +24,13 @@ jest.mock("uuid", () => ({
   v4: () => "12345678",
 }));
 
-jest.mock("html2canvas");
+/* jsdom has no layout and no real canvas, so the capture itself cannot run
+   here - it is stubbed out to a no-op. Whether a thumbnail actually renders
+   correctly can only be verified in a real browser. */
+jest.mock("components/layout/captureThumbnail", () => ({
+  __esModule: true,
+  default: jest.fn().mockResolvedValue(null),
+}));
 
 jest.mock("react-router-dom", () => ({
   ...jest.requireActual("react-router-dom"),

@@ -47,6 +47,75 @@ export function withAntimeridianFix(type, props) {
   };
 }
 
+const ISOLATED_LAYER_TYPES = new Set(["ImageLayer", "TileLayer"]);
+let isolatedLayerCount = 0;
+
+export function withIsolatedCanvas(type, props) {
+  if (!ISOLATED_LAYER_TYPES.has(type)) return props;
+  if (props?.className) return props;
+  isolatedLayerCount += 1;
+  return {
+    ...props,
+    className: `ol-layer tethysdash-layer-${isolatedLayerCount}`,
+  };
+}
+
+const CORS_PROBED_SOURCE_TYPES = new Set([
+  "ESRI Image and Map Service",
+  "WMS",
+  "Static Image",
+]);
+
+const CORS_PROBE_TIMEOUT_MS = 4000;
+const corsSupportByOrigin = new Map();
+
+async function serverAllowsCors(url) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), CORS_PROBE_TIMEOUT_MS);
+  try {
+    await fetch(url, {
+      method: "HEAD",
+      mode: "cors",
+      signal: controller.signal,
+    });
+    return true;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function cachedCorsSupport(url) {
+  let origin;
+  try {
+    origin = new URL(url, window.location.href).origin;
+  } catch {
+    return Promise.resolve(false);
+  }
+  if (!corsSupportByOrigin.has(origin)) {
+    corsSupportByOrigin.set(origin, serverAllowsCors(url));
+  }
+  return corsSupportByOrigin.get(origin);
+}
+
+export async function withAutoCrossOrigin(type, props) {
+  if (!CORS_PROBED_SOURCE_TYPES.has(type)) return props;
+  // An explicit choice in the layer editor wins over detection.
+  if (props?.crossOrigin !== undefined) return props;
+  if (typeof props?.url !== "string" || props.url === "") return props;
+  return (await cachedCorsSupport(props.url))
+    ? { ...props, crossOrigin: "anonymous" }
+    : props;
+}
+
+async function prepareProps(type, props) {
+  return withIsolatedCanvas(
+    type,
+    await withAutoCrossOrigin(type, withAntimeridianFix(type, props)),
+  );
+}
+
 const moduleLoader = async (config, mapProjection) => {
   if (
     config.type === "Static Image" &&
@@ -92,7 +161,7 @@ const moduleLoader = async (config, mapProjection) => {
         if (type === "KML") {
           resolvedProps.format = new KML();
         }
-        return new moduleCache[type](withAntimeridianFix(type, resolvedProps));
+        return new moduleCache[type](await prepareProps(type, resolvedProps));
       }
     }
     const importModule = getModuleImporter(type);
@@ -126,7 +195,7 @@ const moduleLoader = async (config, mapProjection) => {
     } else if (type === "ESRI Feature Service") {
       return loadESRIJSON(config);
     } else {
-      return new ModuleConstructor(withAntimeridianFix(type, resolvedProps));
+      return new ModuleConstructor(await prepareProps(type, resolvedProps));
     }
   } catch (error) {
     console.error(`Failed to load module '${type}':`, error);
@@ -156,6 +225,13 @@ const resolveProps = async (props, mapProjection) => {
       continue;
     }
     if (key === "projection" && value === "") {
+      continue;
+    }
+
+    if (key === "crossOrigin") {
+      if (value === true || value === "true" || value === "anonymous") {
+        resolvedProps[key] = "anonymous";
+      }
       continue;
     }
     if (key === "overviews" && Array.isArray(value) && value.length === 0) {

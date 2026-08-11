@@ -38,6 +38,11 @@ export const sourcePropertiesOptions = {
       },
     },
     optional: {
+      crossOrigin: {
+        type: "checkbox",
+        placeholder:
+          "Force CORS on this layer's requests so it can be captured in the dashboard thumbnail. Normally detected automatically, so leave this unchecked unless the layer still renders blank in thumbnails. Only enable if the server sends Access-Control-Allow-Origin - if it does not, the layer will fail to load entirely.",
+      },
       attributions: {
         placeholder: "Attributions",
       },
@@ -72,6 +77,11 @@ export const sourcePropertiesOptions = {
       },
     },
     optional: {
+      crossOrigin: {
+        type: "checkbox",
+        placeholder:
+          "Force CORS on this layer's requests so it can be captured in the dashboard thumbnail. Normally detected automatically, so leave this unchecked unless the layer still renders blank in thumbnails. Only enable if the server sends Access-Control-Allow-Origin - if it does not, the layer will fail to load entirely.",
+      },
       attributions: {
         placeholder: "Attributions",
       },
@@ -196,6 +206,11 @@ export const sourcePropertiesOptions = {
       imageExtent: { placeholder: "minX,minY,maxX,maxY" },
     },
     optional: {
+      crossOrigin: {
+        type: "checkbox",
+        placeholder:
+          "Force CORS on this layer's requests so it can be captured in the dashboard thumbnail. Normally detected automatically, so leave this unchecked unless the layer still renders blank in thumbnails. Only enable if the server sends Access-Control-Allow-Origin - if it does not, the layer will fail to load entirely.",
+      },
       attributions: {
         placeholder: "Attributions",
       },
