@@ -647,7 +647,9 @@ def add_dashboard(request, app_media):
             - description: Optional string description
             - notes: Optional string notes
             - public: Optional boolean for public access
-            - unrestrictedPlacement: Optional boolean for placement restrictions
+            - unrestrictedPlacement: Optional boolean for placement restrictions,
+              defaulting to True. Existing dashboards keep whatever they were
+              created with; this only sets the starting point for new ones.
             - gridItems: Optional list of grid items
         app_media: Tethys app media directory for storing dashboard images
 
@@ -663,7 +665,7 @@ def add_dashboard(request, app_media):
     description = dashboard_metadata.get("description", "")
     notes = dashboard_metadata.get("notes", "")
     public = dashboard_metadata.get("public", False)
-    unrestricted_placement = dashboard_metadata.get("unrestrictedPlacement", False)
+    unrestricted_placement = dashboard_metadata.get("unrestrictedPlacement", True)
     tabs = dashboard_metadata.get("tabs", [])
     grid_items = dashboard_metadata.get("gridItems", [])
     owner = request.user

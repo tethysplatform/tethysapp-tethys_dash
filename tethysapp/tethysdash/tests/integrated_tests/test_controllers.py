@@ -514,7 +514,8 @@ def test_add_dashboard(
         "name": "some_new_dashboard_name",
         "image": "/media/tethysdash/app/123e4567-e89b-12d3-a456-426614174000.png",
         "uuid": "123e4567-e89b-12d3-a456-426614174000",
-        "unrestrictedPlacement": False,
+        # itemData omits unrestrictedPlacement, so this pins the creation default.
+        "unrestrictedPlacement": True,
         "owner": test_admin_user.username,
         "permissions": [{"permission": "admin", "username": test_admin_user.username}],
         "publicDashboard": False,
