@@ -222,12 +222,12 @@ def build_cog(
 
 
 @lru_cache(maxsize=64)
-def read_cog(src, variable, index=0):
-    """COG bytes for one slice, cached by (src, variable, index). A map layer
-    reads a COG via several HTTP range requests; caching means those don't each
-    re-open the store and rebuild the file. Masking follows the store's declared
-    attrs (see ``build_cog``)."""
-    return build_cog(open_store(src), variable, index)
+def read_cog(src, variable, index=0, mask_below=None):
+    """COG bytes for one slice, cached by (src, variable, index, mask_below). A
+    map layer reads a COG via several HTTP range requests; caching means those
+    don't each re-open the store and rebuild the file. Masking otherwise follows
+    the store's declared attrs (see ``build_cog``)."""
+    return build_cog(open_store(src), variable, index, mask_below=mask_below)
 
 
 def parse_byte_range(range_header, total):

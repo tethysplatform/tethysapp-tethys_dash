@@ -1047,50 +1047,9 @@ def download_json(request, app_workspace):
         return JsonResponse({"success": False, "message": message})
 
 
-@controller(url="tethysdash/floodmap/cog", login_required=False)
-def floodmap_cog(request):
-    """Stream one storm's flood depth from a public Zarr store as a COG.
-
-    Reads the caller-supplied Zarr store on demand, slices the requested storm,
-    and returns a Cloud-Optimized GeoTIFF generated in memory (nothing is
-    persisted). The frontend GeoTIFF map layer consumes this URL directly.
-
-    Args:
-        request: Django HTTP request with query parameters:
-            - src: Public https URL of the Zarr flood-depth store (required)
-            - variable: Array name to read (default "depth")
-            - storm: Integer storm index (default 0)
-
-    Returns:
-        image/tiff COG (HttpResponse) on success; otherwise a JsonResponse with
-        an ``error`` and status 400 (bad request), 422 (unsafe URL), 500
-        (conversion failure), or 502 (store unreachable).
-    """
-    src = request.GET.get("src")
-    variable = request.GET.get("variable", "depth")
-    if not src:
-        return JsonResponse({"error": "missing required 'src' parameter"}, status=400)
-    try:
-        storm = int(request.GET.get("storm", "0"))
-    except (TypeError, ValueError):
-        return JsonResponse({"error": "'storm' must be an integer"}, status=400)
-
-    try:
-        validate_public_url(src)
-    except UnsafeURLError as e:
-        return JsonResponse({"error": str(e)}, status=422)
-
-    try:
-        cog_bytes = read_cog(src, variable, storm)
-    except StoreOpenError:
-        return JsonResponse({"error": "could not open floodmap store"}, status=502)
-    except ZarrCogError as e:
-        return JsonResponse({"error": str(e)}, status=400)
-    except Exception as e:  # unexpected conversion failure
-        print(f"floodmap conversion failed: {e}")
-        return JsonResponse({"error": "failed to convert floodmap"}, status=500)
-
-    # The COG reader fetches byte ranges and needs 206 partial content, not the full file.
+def _cog_response(request, cog_bytes):
+    """Serve COG bytes, honoring an HTTP Range header with 206 partial content
+    so a COG reader can fetch byte ranges instead of the whole file."""
     total = len(cog_bytes)
     byte_range = parse_byte_range(request.META.get("HTTP_RANGE", ""), total)
     if byte_range is not None:
@@ -1106,25 +1065,95 @@ def floodmap_cog(request):
     return response
 
 
-@controller(url="tethysdash/floodmap/meta", login_required=False)
-def floodmap_meta(request):
-    """Return selectable metadata for a public Zarr floodmap store.
+@controller(url="tethysdash/zarr/cog", login_required=False)
+def zarr_cog(request):
+    """Stream one 2-D slice of a public Zarr store as a Cloud-Optimized GeoTIFF.
 
-    Lets the frontend populate a storm/variable selector without downloading
-    any raster data.
+    Reads the caller-supplied store on demand, slices the requested grid, and
+    returns a COG generated in memory (nothing is persisted). A frontend GeoTIFF
+    map layer consumes this URL directly.
 
     Args:
-        request: Django HTTP request with query parameter:
-            - src: Public https URL of the Zarr flood-depth store (required)
+        request: Django HTTP request with query parameters:
+            - src: Public http(s)/s3 URL of the Zarr store (required)
+            - variable: Array name to read (required)
+            - index: Integer slice index along the leading dimension (default 0)
+            - mask_below: Optional float; cells <= it render transparent
 
     Returns:
-        JsonResponse with {variables, storm_count, storm_labels, crs, extent,
-        grid_shape} on success; otherwise an ``error`` with status 400 (bad
-        request), 422 (unsafe URL), or 502 (store unreachable).
+        image/tiff COG (HttpResponse) on success; otherwise a JsonResponse with
+        an ``error`` and status 400 (bad request), 422 (unsafe URL), 500
+        (conversion failure), or 502 (store unreachable).
+    """
+    src = request.GET.get("src")
+    variable = request.GET.get("variable")
+    if not src:
+        return JsonResponse({"error": "missing required 'src' parameter"}, status=400)
+    if not variable:
+        return JsonResponse(
+            {"error": "missing required 'variable' parameter"}, status=400
+        )
+    try:
+        index = int(request.GET.get("index", "0"))
+    except (TypeError, ValueError):
+        return JsonResponse({"error": "'index' must be an integer"}, status=400)
+    mask_below = request.GET.get("mask_below")
+    if mask_below is not None:
+        try:
+            mask_below = float(mask_below)
+        except (TypeError, ValueError):
+            return JsonResponse({"error": "'mask_below' must be a number"}, status=400)
+
+    try:
+        validate_public_url(src)
+    except UnsafeURLError as e:
+        return JsonResponse({"error": str(e)}, status=422)
+
+    try:
+        cog_bytes = read_cog(src, variable, index, mask_below)
+    except StoreOpenError:
+        return JsonResponse({"error": "could not open store"}, status=502)
+    except ZarrCogError as e:
+        return JsonResponse({"error": str(e)}, status=400)
+    except Exception as e:  # unexpected conversion failure
+        print(f"zarr->cog conversion failed: {e}")
+        return JsonResponse({"error": "failed to convert store"}, status=500)
+
+    return _cog_response(request, cog_bytes)
+
+
+@controller(url="tethysdash/zarr/meta", login_required=False)
+def zarr_meta(request):
+    """Return selectable metadata for a public Zarr store.
+
+    Lets the frontend populate a variable/slice selector without downloading any
+    raster data.
+
+    Args:
+        request: Django HTTP request with query parameters:
+            - src: Public http(s)/s3 URL of the Zarr store (required)
+            - variable: Reference array (optional; else the first griddable one)
+            - candidates: Comma-separated array names to probe on non-listable
+              stores (optional)
+            - label_var: 1-D array whose values label each slice (optional)
+
+    Returns:
+        JsonResponse with {variables, slice_count, slice_labels, crs, grid_shape,
+        extent} on success; otherwise an ``error`` with status 400 (bad request),
+        422 (unsafe URL), or 502 (store unreachable).
     """
     src = request.GET.get("src")
     if not src:
         return JsonResponse({"error": "missing required 'src' parameter"}, status=400)
+
+    variable = request.GET.get("variable") or None
+    candidates = request.GET.get("candidates")
+    candidates = (
+        tuple(c.strip() for c in candidates.split(",") if c.strip())
+        if candidates
+        else None
+    )
+    label_var = request.GET.get("label_var") or None
 
     try:
         validate_public_url(src)
@@ -1134,24 +1163,13 @@ def floodmap_meta(request):
     try:
         group = open_store(src)
     except ZarrCogError:
-        return JsonResponse({"error": "could not open floodmap store"}, status=502)
+        return JsonResponse({"error": "could not open store"}, status=502)
 
     try:
         meta = read_metadata(
-            group,
-            candidates=("depth", "extent", "magnitude_mm", "storm_id"),
-            label_var="magnitude_mm",
+            group, variable=variable, candidates=candidates, label_var=label_var
         )
     except ZarrCogError as e:
         return JsonResponse({"error": str(e)}, status=400)
 
-    return JsonResponse(
-        {
-            "variables": meta["variables"],
-            "storm_count": meta["slice_count"],
-            "storm_labels": meta["slice_labels"],
-            "crs": meta["crs"],
-            "grid_shape": meta["grid_shape"],
-            "extent": meta["extent"],
-        }
-    )
+    return JsonResponse(meta)
