@@ -414,7 +414,8 @@ const MapComponent = ({
 
             if (
               layerConfig.type === "WebGLTile" &&
-              layerConfig.props?.source?.type === "GeoTIFF"
+              (layerConfig.props?.source?.type === "GeoTIFF" ||
+                layerConfig.props?.source?.type === "Zarr")
             ) {
               const geoTIFFSource = newLayer.getSource();
 
