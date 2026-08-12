@@ -11,4 +11,3 @@ This section will provide information on configuring and working with maps withi
 
    create_map
    layer_configuration
-   zarr_cog

@@ -246,6 +246,39 @@ The GeoTIFF source overlays a Cloud-Optimized GeoTIFF (COG) on the map at its na
 
 ------------------------------------------------------------------------------------------------------------------------
 
+++++
+Zarr
+++++
+
+The Zarr source renders a raster layer from a public `Zarr <https://zarr.dev/>`_ store with no pre-processing. TethysDash reads the chosen variable slice on demand, converts it to a Cloud-Optimized GeoTIFF in memory, and draws it — so you supply a store URL and a variable rather than a prepared COG. It is styled and queried like a GeoTIFF layer: pick a color ramp on the :ref:`style_tab` and click the map for pixel values.
+
+**Layer Properties:**
+    - **url:** (required) Public URL of the Zarr store (an ``https`` bucket or ``s3://`` URL).
+    - **variable:** (required) Array name to read (e.g. ``depth``).
+    - **index:** (optional) Slice index along the store's leading dimension for stacked ``[n, y, x]`` data (default ``0``). Bind it to a :ref:`variable input <variableinputs>` with ``${Variable Name}`` to switch slices on the fly — for example, drive it with a slider to animate.
+    - **mask_below:** (optional) Sample values at or below this number render transparent. Leave blank to use the store's own threshold, if it declares one.
+
+**Example JSON Configuration:**
+
+::
+
+    {
+        "type": "WebGLTile",
+        "props": {
+            "name": "Flood Depth",
+            "source": {
+                "type": "Zarr",
+                "props": {
+                    "url": "https://example.com/floodmaps.zarr",
+                    "variable": "depth",
+                    "index": "${Storm}"
+                }
+            }
+        }
+    }
+
+------------------------------------------------------------------------------------------------------------------------
+
 +++++++++++++
 Custom Layers
 +++++++++++++
