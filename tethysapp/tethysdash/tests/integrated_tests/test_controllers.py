@@ -557,7 +557,7 @@ def test_add_dashboard_failed(client, admin_user, mock_app, mocker, tmp_path):
         itemData["description"],
         "",
         False,
-        False,
+        True,
         [],
         [],
     )
@@ -596,7 +596,7 @@ def test_add_dashboard_failed_unknown_exception(
         itemData["description"],
         "",
         False,
-        False,
+        True,
         [],
         [],
     )
