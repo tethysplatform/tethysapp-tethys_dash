@@ -13,6 +13,7 @@ authors = [{ name = "Corey Krewson", email = "ckrewson@aquaveo.com" }]
 license-files = ["LICENSE"]
 keywords = [""]
 readme = "README.md"
+requires-python = ">=3.12"
 dependencies = [
     "hjson==3.1",
     "nh3==0.2.21",
