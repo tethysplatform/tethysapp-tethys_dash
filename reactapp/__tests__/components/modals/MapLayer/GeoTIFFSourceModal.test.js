@@ -398,8 +398,8 @@ test("GeoTIFFSourceModal returns focus to returnFocusRef element on close", asyn
   );
 });
 
-test("new GeoTIFF source defaults Nodata to -9999", async () => {
+test("new GeoTIFF source leaves Nodata empty (no assumed sentinel)", async () => {
   render(<Harness />);
   expect(await screen.findByText("Add GeoTIFF Source")).toBeInTheDocument();
-  expect(screen.getByLabelText("Nodata Input")).toHaveValue("-9999");
+  expect(screen.getByLabelText("Nodata Input")).toHaveValue("");
 });
