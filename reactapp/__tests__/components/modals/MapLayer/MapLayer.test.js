@@ -2408,6 +2408,53 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
     expect(uploadSpy).not.toHaveBeenCalled();
   });
 
+  test("Zarr source saves as a WebGLTile layer with a normalized turbo ramp", async () => {
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "Flood Depth" },
+      sourceProps: {
+        type: "Zarr",
+        props: {
+          url: "https://x/store.zarr",
+          variable: "depth",
+          index: "5",
+        },
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalledTimes(1);
+    });
+
+    const savedConfig = addMapLayer.mock.calls[0][0];
+    // WebGLTile layer with the Zarr source and its fields preserved for editing.
+    expect(savedConfig.configuration.type).toBe("WebGLTile");
+    const source = savedConfig.configuration.props.source;
+    expect(source.type).toBe("Zarr");
+    expect(source.props.url).toBe("https://x/store.zarr");
+    expect(source.props.variable).toBe("depth");
+    expect(source.props.index).toBe("5");
+    // Turbo default + per-slice auto-scaling (normalized ramp). Zarr COGs always
+    // carry a -9999 nodata sentinel, so the ramp is wrapped in a transparency
+    // `case` expression (a GeoTIFF with no nodata set would be bare interpolate).
+    const color = savedConfig.configuration.style.color;
+    expect(color[0]).toBe("case");
+    expect(JSON.stringify(color)).toContain("interpolate");
+    expect(source.rampName).toBe("turbo");
+    expect(source.props.normalize).toBe(true);
+  });
+
   test("GeoTIFF with rampName and empty range gets a normalized style", async () => {
     const uploadSpy = jest
       .spyOn(appAPI, "uploadJSON")
@@ -3792,6 +3839,10 @@ describe("normalizeAttributePropsForLayer", () => {
 describe("getLayerType", () => {
   test("GeoTIFF short-circuits to WebGLTile before substring checks", () => {
     expect(getLayerType("GeoTIFF")).toBe("WebGLTile");
+  });
+
+  test("Zarr maps to WebGLTile (renders as a COG)", () => {
+    expect(getLayerType("Zarr")).toBe("WebGLTile");
   });
 
   test("Vector source types map to VectorTileLayer", () => {

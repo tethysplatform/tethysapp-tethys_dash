@@ -541,6 +541,14 @@ test("StylePane defaults a GeoTIFF source's ramp to turbo when none is set", asy
   });
 });
 
+test("StylePane renders the Color Ramp section and defaults to turbo for a Zarr source", async () => {
+  render(<GeoTIFFTestHarness initialSourceProps={{ type: "Zarr" }} />);
+  expect(await screen.findByText("Color Ramp")).toBeInTheDocument();
+  await waitFor(() => {
+    expect(screen.getByTestId("rampName")).toHaveTextContent("turbo");
+  });
+});
+
 test("StylePane pre-fills GeoTIFF ramp min/max from statistics, and clearing sticks", async () => {
   fromUrl.mockReset();
   fromUrl.mockResolvedValue({

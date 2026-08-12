@@ -126,6 +126,17 @@ export const sourcePropertiesOptions = {
     required: {},
     optional: {},
   },
+  Zarr: {
+    required: {
+      url: { placeholder: "Zarr store URL (https or s3 bucket)" },
+      variable: { placeholder: "Variable / array name (e.g. depth)" },
+    },
+    optional: {
+      // eslint-disable-next-line no-template-curly-in-string
+      index: { placeholder: "Slice index or a variable, e.g. ${Storm}" },
+      mask_below: { placeholder: "Mask values at or below this" },
+    },
+  },
   "Vector Tile": {
     required: {
       urls: {
@@ -624,7 +635,7 @@ export async function queryLayerFeatures(layerInfo, map, coordinate, pixel) {
       features = getVectorTileLayerFeatures(map, pixel);
     } else if (sourceType === "KML") {
       features = getKMLLayerFeatures(map, pixel, coordinate, LayerName);
-    } else if (sourceType === "GeoTIFF") {
+    } else if (sourceType === "GeoTIFF" || sourceType === "Zarr") {
       features = getGeoTIFFPixelValues(
         map,
         pixel,

@@ -108,7 +108,7 @@ const StylePane = ({
 
   useEffect(() => {
     if (
-      sourceProps.type === "GeoTIFF" &&
+      (sourceProps.type === "GeoTIFF" || sourceProps.type === "Zarr") &&
       !sourceProps.rampName &&
       setSourceProps
     ) {
@@ -253,7 +253,7 @@ const StylePane = ({
     }
   }
 
-  if (sourceProps.type === "GeoTIFF") {
+  if (sourceProps.type === "GeoTIFF" || sourceProps.type === "Zarr") {
     const selectedRamp = sourceProps.rampName ?? null;
     const rampMin = sourceProps.rampMin ?? "";
     const rampMax = sourceProps.rampMax ?? "";

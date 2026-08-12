@@ -1922,6 +1922,23 @@ test("queryLayerFeatures GeoTIFF returns band values at pixel", async () => {
   expect(features[0].geometry).toEqual({ type: "Point", coordinates: [0, 0] });
 });
 
+test("queryLayerFeatures Zarr dispatches to GeoTIFF pixel extraction", async () => {
+  const { map } = mockGeoTIFFMap({ getDataReturn: new Float32Array([42.5]) });
+  const zarrConfig = {
+    configuration: {
+      type: "WebGLTile",
+      props: {
+        name: "Test GeoTIFF Layer",
+        source: { type: "Zarr", props: { url: "https://x", variable: "depth" } },
+      },
+    },
+  };
+  const features = await queryLayerFeatures(zarrConfig, map, [0, 0], [400, 300]);
+
+  expect(features).toHaveLength(1);
+  expect(features[0].attributes["Band 1"]).toBeCloseTo(42.5, 4);
+});
+
 test("queryLayerFeatures GeoTIFF reports multi-band values", async () => {
   const { map } = mockGeoTIFFMap({
     getDataReturn: new Uint8Array([12, 34, 56]),

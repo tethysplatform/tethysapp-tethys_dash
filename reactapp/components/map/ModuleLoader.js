@@ -47,7 +47,35 @@ export function withAntimeridianFix(type, props) {
   };
 }
 
+// A "Zarr" source is sugar over the zarr/cog endpoint: the author supplies a
+// store URL + variable (+ optional index/mask_below) and we assemble the COG
+// URL, then render it as an ordinary GeoTIFF source. Variable inputs in the
+// fields (e.g. index="${Storm}") are already substituted before this runs.
+const ZARR_APP_ROOT = process.env.TETHYS_APP_ROOT_URL ?? "/apps/tethysdash/";
+export function zarrSourceToGeoTIFF(config) {
+  const { url, variable, index, mask_below, normalize } = config.props ?? {};
+  const params = new URLSearchParams({
+    src: url ?? "",
+    variable: variable ?? "",
+    index: index ?? "0",
+  });
+  if (mask_below !== undefined && mask_below !== "") {
+    params.set("mask_below", mask_below);
+  }
+  return {
+    ...config,
+    type: "GeoTIFF",
+    props: {
+      sources: [{ url: `${ZARR_APP_ROOT}zarr/cog/?${params.toString()}` }],
+      normalize: normalize ?? true,
+    },
+  };
+}
+
 const moduleLoader = async (config, mapProjection) => {
+  if (config.type === "Zarr") {
+    config = zarrSourceToGeoTIFF(config);
+  }
   if (
     config.type === "Static Image" &&
     typeof config.props?.imageExtent === "string"

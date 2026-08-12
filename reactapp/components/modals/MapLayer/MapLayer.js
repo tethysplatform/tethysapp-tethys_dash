@@ -128,7 +128,7 @@ export function renameLayerInAttributeProps(attributeProps, oldName, newName) {
 }
 
 export const getLayerType = (sourceType) => {
-  if (sourceType === "GeoTIFF") return "WebGLTile";
+  if (sourceType === "GeoTIFF" || sourceType === "Zarr") return "WebGLTile";
   if (sourceType.includes("Vector")) return "VectorTileLayer";
   if (sourceType.includes("Raster")) return "WebGLTile";
   if (sourceType.includes("Tile")) return "TileLayer";
@@ -398,7 +398,7 @@ const MapLayerModal = ({
       }
     }
 
-    if (sourceProps.type === "GeoTIFF") {
+    if (sourceProps.type === "GeoTIFF" || sourceProps.type === "Zarr") {
       const { rampName, rampMin, rampMax } = sourceProps;
       const hasRampName =
         typeof rampName === "string" && rampName.trim() !== "";
@@ -410,9 +410,14 @@ const MapLayerModal = ({
         Number.isFinite(Number(rampMin)) &&
         Number.isFinite(Number(rampMax));
       if (hasRampName) {
-        const hasNodata = validSourceProps.sources.some(
-          (s) => s?.nodata !== undefined && s.nodata !== "",
-        );
+        // Zarr COGs always carry a -9999 nodata sentinel; GeoTIFF depends on
+        // whether the author set one on any source.
+        const hasNodata =
+          sourceProps.type === "Zarr"
+            ? true
+            : validSourceProps.sources.some(
+                (s) => s?.nodata !== undefined && s.nodata !== "",
+              );
         const color = buildGeoTIFFStyleColor({
           rampName,
           rampMin,
