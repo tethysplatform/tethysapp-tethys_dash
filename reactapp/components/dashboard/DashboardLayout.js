@@ -115,7 +115,7 @@ const DashboardLayout = ({
           !isFillItem;
         return {
           h: griditem.h,
-          i: griditem.i,
+          i: griditem.uuid ?? griditem.i,
           w: griditem.w,
           x: griditem.x,
           y: griditem.y,
@@ -155,7 +155,7 @@ const DashboardLayout = ({
     const updatedGridItems = [];
     for (let lay of newLayout) {
       const result = gridItems.find((obj) => {
-        return obj.i === lay.i;
+        return (obj.uuid ?? obj.i) === lay.i;
       });
 
       updatedGridItems.push({
@@ -178,7 +178,7 @@ const DashboardLayout = ({
   const handleResize = useCallback(
     (l, oldLayoutItem, layoutItem, placeholder) => {
       const result = gridItemsUpdated.current.find((obj) => {
-        return obj.i === layoutItem.i;
+        return (obj.uuid ?? obj.i) === layoutItem.i;
       });
       const metadata = JSON.parse(result.metadata_string);
       const enforceAspectRatio = metadata.enforceAspectRatio;
@@ -236,7 +236,7 @@ const DashboardLayout = ({
      output within the item - are carried above the fill item as well. */
   const children = parsedGridItems.map((item, index) => (
     <div
-      key={item.i}
+      key={item.uuid ?? item.i}
       style={
         firstFillIndex >= 0 && index > firstFillIndex
           ? { zIndex: 1 }

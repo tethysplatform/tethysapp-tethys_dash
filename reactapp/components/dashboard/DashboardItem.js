@@ -320,6 +320,7 @@ const DashboardItem = () => {
   const {
     gridItemSource,
     gridItemI,
+    gridItemUUID,
     gridItemMetadataString,
     gridItemIndex,
     enableFillViewport,
@@ -551,7 +552,7 @@ const DashboardItem = () => {
           className="h-100 gridVisualization"
           aria-label="gridItem"
         >
-          <BaseVisualization key={gridItemI} />
+          <BaseVisualization key={gridItemUUID ?? gridItemI} />
         </StyledContainer>
         {gridItemStyling?.attribution !== false && attribution && (
           <InfoIconWrapper
@@ -581,14 +582,6 @@ const DashboardItem = () => {
             setShowGridItemMessage={setShowSuccessMessage}
           />
         )}
-        {/* Inside the item rather than beside it, so it is positioned against
-            the item itself. As a sibling it anchored to the react-grid-layout
-            wrapper instead, which left it stranded at the old grid position
-            when a fill-viewport item moved to cover the content area - and left
-            it behind the item on any cell lifted above a fill item, since the
-            lift applies to the item and would not have carried its sibling.
-            Visually identical otherwise: the item fills the wrapper, so
-            absolute positioning resolves to the same box either way. */}
         {isEditing && (
           <StyledButtonDiv>
             <DashboardItemDropdown
