@@ -31,6 +31,7 @@ const DashboardLoader = ({
   userPermission,
   permissions,
   unrestrictedPlacement,
+  autoThumbnail = true,
   description,
   owner,
 }) => {
@@ -317,6 +318,7 @@ const DashboardLoader = ({
       userPermission,
       permissions,
       unrestrictedPlacement,
+      autoThumbnail,
       description,
       owner,
     }),
@@ -331,6 +333,7 @@ const DashboardLoader = ({
       userPermission,
       permissions,
       unrestrictedPlacement,
+      autoThumbnail,
       description,
       owner,
     ],
@@ -392,6 +395,7 @@ DashboardLoader.propTypes = {
   publicDashboard: PropTypes.bool,
   description: PropTypes.string,
   unrestrictedPlacement: PropTypes.bool,
+  autoThumbnail: PropTypes.bool,
   uuid: PropTypes.string,
   userPermission: PropTypes.string,
   permissions: PropTypes.arrayOf(

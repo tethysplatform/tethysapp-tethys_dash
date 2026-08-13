@@ -283,8 +283,13 @@ export const DashboardHeader = () => {
   );
   const [showInfoModal, setShowInfoModal] = useState(false);
   const { user } = useContext(AppContext);
-  const { name, editable, saveLayoutContext, unrestrictedPlacement } =
-    useContext(LayoutContext);
+  const {
+    name,
+    editable,
+    saveLayoutContext,
+    unrestrictedPlacement,
+    autoThumbnail,
+  } = useContext(LayoutContext);
   const { tabs, addTab, updateTab, importTabs, resetTabs, getActiveTab } =
     useContext(TabContext);
   const { isEditing, setIsEditing } = useContext(EditingContext);
@@ -303,6 +308,14 @@ export const DashboardHeader = () => {
   useEffect(() => {
     if (!thumbnailPending || isEditing || thumbnailInFlight.current) return;
 
+    // Off once a thumbnail has been uploaded by hand, so a save cannot
+    // overwrite it. Cleared here rather than skipped earlier so the pending
+    // flag does not stay set.
+    if (autoThumbnail === false) {
+      setThumbnailPending(false);
+      return;
+    }
+
     thumbnailInFlight.current = true;
     (async () => {
       try {
@@ -315,7 +328,7 @@ export const DashboardHeader = () => {
         setThumbnailPending(false);
       }
     })();
-  }, [thumbnailPending, isEditing, saveLayoutContext]);
+  }, [thumbnailPending, isEditing, saveLayoutContext, autoThumbnail]);
 
   // Only show AppInfoModal on startup after public user modal check is complete and modal is dismissed
   useEffect(() => {

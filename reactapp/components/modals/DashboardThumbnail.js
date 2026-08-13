@@ -1,4 +1,5 @@
 import Button from "react-bootstrap/Button";
+import Form from "react-bootstrap/Form";
 import Modal from "react-bootstrap/Modal";
 import { useState } from "react";
 import PropTypes from "prop-types";
@@ -12,8 +13,10 @@ function DashboardThumbnailModal({
   showModal,
   setShowModal,
   onUpdateThumbnail,
+  autoThumbnail = true,
 }) {
   const [imageSrc, setImageSrc] = useState(null);
+  const [autoUpdate, setAutoUpdate] = useState(autoThumbnail);
 
   const handleModalClose = () => {
     setShowModal(false);
@@ -27,6 +30,9 @@ function DashboardThumbnailModal({
         setImageSrc(reader.result);
       };
       reader.readAsDataURL(file);
+      // Turning this off is the point of uploading one - otherwise the next
+      // save overwrites it. Flipped visibly rather than silently on save.
+      setAutoUpdate(false);
     }
   };
 
@@ -42,6 +48,15 @@ function DashboardThumbnailModal({
         <Modal.Title>Update Dashboard Thumbnail</Modal.Title>
       </Modal.Header>
       <Modal.Body>
+        <Form.Check
+          type="switch"
+          id="auto-thumbnail-switch"
+          label="Update thumbnail on save"
+          checked={autoUpdate}
+          onChange={(event) => setAutoUpdate(event.target.checked)}
+          aria-label="Update Thumbnail On Save Toggle"
+          className="mb-3"
+        />
         <input
           type="file"
           accept="image/*"
@@ -68,9 +83,9 @@ function DashboardThumbnailModal({
         </Button>
         <Button
           variant="success"
-          onClick={() => onUpdateThumbnail(imageSrc)}
+          onClick={() => onUpdateThumbnail(imageSrc, autoUpdate)}
           aria-label={"Update Thumbnail Button"}
-          disabled={!imageSrc}
+          disabled={!imageSrc && autoUpdate === autoThumbnail}
         >
           Update
         </Button>
@@ -83,6 +98,7 @@ DashboardThumbnailModal.propTypes = {
   showModal: PropTypes.bool,
   setShowModal: PropTypes.func,
   onUpdateThumbnail: PropTypes.func,
+  autoThumbnail: PropTypes.bool,
 };
 
 export default DashboardThumbnailModal;

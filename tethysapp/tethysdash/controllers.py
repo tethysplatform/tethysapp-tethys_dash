@@ -698,12 +698,8 @@ def add_dashboard(request, app_media):
             tabs,
         )
 
-        dashboard_image = os.path.join(
-            os.path.dirname(__file__), "default_dashboard.png"
-        )
-        shutil.copyfile(
-            dashboard_image, os.path.join(app_media.path, f"{dashboard_uuid}.png")
-        )
+        # No placeholder image is written: a dashboard has no thumbnail until one
+        # is captured on save or uploaded by hand.
         new_dashboard = get_dashboards(owner, id=new_dashboard_id)
         print(f"Successfully created the dashboard named {name}")
 

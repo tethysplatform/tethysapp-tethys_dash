@@ -414,6 +414,7 @@ def test_update_named_dashboard_grid_items(
             "public": True,
             "tabs": tabs,
             "unrestrictedPlacement": True,
+            "autoThumbnail": True,
             "permissions": [
                 {"permission": "admin", "username": test_owner_user.username},
             ],
@@ -525,7 +526,7 @@ def test_update_named_dashboard_image(
     )
     assert (
         existing_dashboard[0]["image"]
-        == "/static/tethysdash/images/default_dashboard.png"
+        is None
     )
 
     example_image = os.path.join(
@@ -733,7 +734,8 @@ def test_get_dashboards_all(
                 {"permission": "viewer", "group": permission_group["name"]},
             ],
             "unrestrictedPlacement": dashboard.unrestricted_placement,
-            "image": "/static/tethysdash/images/default_dashboard.png",
+            "autoThumbnail": True,
+            "image": None,
             "owner": test_owner_user.username,
         },
         {
@@ -747,7 +749,8 @@ def test_get_dashboards_all(
                 {"permission": "admin", "username": public_dashboard.owner}
             ],
             "unrestrictedPlacement": public_dashboard.unrestricted_placement,
-            "image": "/static/tethysdash/images/default_dashboard.png",
+            "autoThumbnail": True,
+            "image": None,
             "owner": public_dashboard.owner,
         },
     ]
@@ -776,9 +779,10 @@ def test_get_dashboards_specific_dashboard_view(
         "description": dashboard.description,
         "notes": dashboard.notes,
         "tabs": [],
-        "image": "/static/tethysdash/images/default_dashboard.png",
+        "image": None,
         "uuid": "some_user_dashboard_uuid",
         "unrestrictedPlacement": False,
+        "autoThumbnail": True,
         "owner": test_owner_user.username,
         "permissions": [
             {"permission": "admin", "username": test_owner_user.username},
@@ -809,9 +813,10 @@ def test_get_dashboards_specific_landing_page_view(
         "id": dashboard.id,
         "name": dashboard.name,
         "description": dashboard.description,
-        "image": "/static/tethysdash/images/default_dashboard.png",
+        "image": None,
         "uuid": "some_user_dashboard_uuid",
         "unrestrictedPlacement": False,
+        "autoThumbnail": True,
         "owner": test_owner_user.username,
         "permissions": [
             {"permission": "admin", "username": test_owner_user.username},
@@ -932,8 +937,9 @@ def test_parse_db_dashboard_landing_page_view(
         "uuid": dashboard.uuid,
         "name": dashboard.name,
         "description": dashboard.description,
-        "image": "/static/tethysdash/images/default_dashboard.png",
+        "image": None,
         "unrestrictedPlacement": False,
+        "autoThumbnail": True,
         "owner": test_owner_user.username,
         "permissions": [
             {"permission": "admin", "username": test_owner_user.username},
@@ -972,6 +978,7 @@ def test_parse_db_dashboard_landing_page_view_with_prefix(
         "description": dashboard.description,
         "image": "/test/media/tethysdash/app/some_user_dashboard_uuid.png",
         "unrestrictedPlacement": False,
+        "autoThumbnail": True,
         "owner": test_owner_user.username,
         "permissions": [
             {"permission": "admin", "username": test_owner_user.username},
@@ -1006,10 +1013,11 @@ def test_parse_db_dashboard_dashboard_view(
         "uuid": dashboard.uuid,
         "name": dashboard.name,
         "description": dashboard.description,
-        "image": "/static/tethysdash/images/default_dashboard.png",
+        "image": None,
         "notes": dashboard.notes,
         "tabs": [],
         "unrestrictedPlacement": False,
+        "autoThumbnail": True,
         "owner": test_owner_user.username,
         "permissions": [
             {"permission": "admin", "username": test_owner_user.username},
@@ -2230,3 +2238,21 @@ def test_init_primary_db_moves_json_and_geojson_files(
         set_main_option_calls, any_order=True
     )
     mock_command.ensure_version.assert_called_once()
+
+
+def test_update_named_dashboard_auto_thumbnail(
+    db_session, dashboard, mock_app_get_ps_db, mocker, tmp_path, test_owner_user
+):
+    """The toggle behind "Update thumbnail on save"."""
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
+    mock_get_app_media.return_value = MagicMock(path=tmp_path)
+    assert dashboard.auto_thumbnail is True
+
+    update_named_dashboard(test_owner_user, dashboard.id, {"autoThumbnail": False})
+    db_session.refresh(dashboard)
+    assert dashboard.auto_thumbnail is False
+
+    update_named_dashboard(test_owner_user, dashboard.id, {"autoThumbnail": True})
+    db_session.refresh(dashboard)
+    assert dashboard.auto_thumbnail is True

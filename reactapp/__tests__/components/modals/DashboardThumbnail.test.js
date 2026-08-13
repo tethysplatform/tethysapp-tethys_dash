@@ -5,7 +5,7 @@ import DashboardThumbnailModal from "components/modals/DashboardThumbnail";
 import createLoadedComponent from "__tests__/utilities/customRender";
 import PropTypes from "prop-types";
 
-const TestingComponent = ({ onUpdateThumbnail }) => {
+const TestingComponent = ({ onUpdateThumbnail, autoThumbnail }) => {
   const [showModal, setShowModal] = useState(true);
 
   return (
@@ -14,6 +14,7 @@ const TestingComponent = ({ onUpdateThumbnail }) => {
         showModal={showModal}
         setShowModal={setShowModal}
         onUpdateThumbnail={onUpdateThumbnail}
+        autoThumbnail={autoThumbnail}
       />
     </div>
   );
@@ -56,8 +57,11 @@ test("DashboardThumbnailModal", async () => {
   await userEvent.click(updateThumbnailButton);
 
   await waitFor(async () => {
+    // Uploading turns auto-update off; leaving it on would let the next save
+    // overwrite the image that was just chosen.
     expect(onUpdateThumbnail).toHaveBeenCalledWith(
       "data:image/png;base64,testImage",
+      false,
     );
   });
 });
@@ -120,4 +124,85 @@ test("DashboardThumbnailModal close", async () => {
 
 TestingComponent.propTypes = {
   onUpdateThumbnail: PropTypes.func,
+  autoThumbnail: PropTypes.bool,
 };
+
+test("DashboardThumbnailModal toggle reflects the saved setting", async () => {
+  render(
+    createLoadedComponent({
+      children: (
+        <TestingComponent onUpdateThumbnail={jest.fn()} autoThumbnail={false} />
+      ),
+    }),
+  );
+
+  const toggle = await screen.findByLabelText(
+    "Update Thumbnail On Save Toggle",
+  );
+  expect(toggle).not.toBeChecked();
+  // Nothing has changed yet, so there is nothing to save.
+  expect(screen.getByLabelText("Update Thumbnail Button")).toBeDisabled();
+});
+
+test("DashboardThumbnailModal toggle can be changed without a file", async () => {
+  const onUpdateThumbnail = jest.fn();
+
+  render(
+    createLoadedComponent({
+      children: (
+        <TestingComponent
+          onUpdateThumbnail={onUpdateThumbnail}
+          autoThumbnail={false}
+        />
+      ),
+    }),
+  );
+
+  const toggle = await screen.findByLabelText(
+    "Update Thumbnail On Save Toggle",
+  );
+  await userEvent.click(toggle);
+  expect(toggle).toBeChecked();
+
+  const updateButton = screen.getByLabelText("Update Thumbnail Button");
+  expect(updateButton).toBeEnabled();
+  await userEvent.click(updateButton);
+
+  // No image: turning auto-update back on is a change in its own right.
+  await waitFor(() => {
+    expect(onUpdateThumbnail).toHaveBeenCalledWith(null, true);
+  });
+});
+
+test("DashboardThumbnailModal uploading a file clears the toggle", async () => {
+  global.FileReader = class {
+    readAsDataURL() {
+      this.onloadend();
+    }
+    onloadend = jest.fn();
+    result = "data:image/png;base64,testImage";
+  };
+
+  render(
+    createLoadedComponent({
+      children: (
+        <TestingComponent onUpdateThumbnail={jest.fn()} autoThumbnail={true} />
+      ),
+    }),
+  );
+
+  const toggle = await screen.findByLabelText(
+    "Update Thumbnail On Save Toggle",
+  );
+  expect(toggle).toBeChecked();
+
+  await userEvent.upload(
+    screen.getByTestId("file-input"),
+    new File(["dummy"], "test-image.png", { type: "image/png" }),
+  );
+
+  // Flipped visibly rather than silently on save.
+  await waitFor(() => {
+    expect(toggle).not.toBeChecked();
+  });
+});
