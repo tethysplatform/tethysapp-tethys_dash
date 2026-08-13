@@ -303,7 +303,12 @@ const StylePane = ({
     );
   }
 
-  const supportedTypes = ["GeoJSON", "ESRI Feature Service", "PMTiles Vector"];
+  const supportedTypes = [
+    "GeoJSON",
+    "ESRI Feature Service",
+    "PMTiles Vector",
+    "GeoParquet",
+  ];
   const isDynamicMapLayer = findSelectOptionByValue(
     dynamicMapLayers,
     sourceProps.type,

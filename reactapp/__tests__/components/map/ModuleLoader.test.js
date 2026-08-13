@@ -12,6 +12,7 @@ import moduleLoader, {
   buildPolygonFill,
   withAntimeridianFix,
   zarrSourceToGeoTIFF,
+  geoParquetToGeoJSON,
 } from "components/map/ModuleLoader";
 import WebGLTile from "ol/layer/WebGLTile.js";
 import ImageLayer from "ol/layer/Image.js";
@@ -1985,5 +1986,24 @@ describe("zarrSourceToGeoTIFF", () => {
     const url = out.props.sources[0].url;
     expect(url).toContain("index=0");
     expect(url).toContain("mask_below=0.5");
+  });
+});
+
+describe("geoParquetToGeoJSON", () => {
+  test("assembles the geoparquet/geojson endpoint URL from the source url", () => {
+    const out = geoParquetToGeoJSON({
+      type: "GeoParquet",
+      props: { url: "https://x/data.parquet" },
+    });
+    expect(out.type).toBe("GeoJSON");
+    expect(out.props).toEqual({});
+    expect(out.geojson).toContain("/apps/tethysdash/geoparquet/geojson/?");
+    expect(out.geojson).toContain("src=https%3A%2F%2Fx%2Fdata.parquet");
+  });
+
+  test("handles a missing url without throwing", () => {
+    const out = geoParquetToGeoJSON({ type: "GeoParquet", props: {} });
+    expect(out.type).toBe("GeoJSON");
+    expect(out.geojson).toContain("geoparquet/geojson/?src=");
   });
 });

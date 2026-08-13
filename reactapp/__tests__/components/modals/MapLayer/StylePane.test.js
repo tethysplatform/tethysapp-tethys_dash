@@ -264,12 +264,23 @@ test("StylePane Updating Existing GeoJSON", async () => {
 
 test("StylePane Styling not available", async () => {
   render(<TestingComponent sourceProps={{ type: "NotGeoJSON" }} />);
-  const supportedTypes = ["GeoJSON", "ESRI Feature Service", "PMTiles Vector"];
+  const supportedTypes = [
+    "GeoJSON",
+    "ESRI Feature Service",
+    "PMTiles Vector",
+    "GeoParquet",
+  ];
   expect(
     await screen.findByText(
       `Custom Styling is only available for ${supportedTypes.join(", ")} layers.`,
     ),
   ).toBeInTheDocument();
+});
+
+test("StylePane offers vector styling for a GeoParquet source", async () => {
+  render(<TestingComponent sourceProps={{ type: "GeoParquet" }} />);
+  // Supported vector source -> styling controls, not the "not available" notice.
+  expect(await screen.findByLabelText("Rule-based Editor")).toBeInTheDocument();
 });
 
 test("StylePane switches to rules mode and syncs rules/defaultStyle from JSON", async () => {

@@ -3845,6 +3845,10 @@ describe("getLayerType", () => {
     expect(getLayerType("Zarr")).toBe("WebGLTile");
   });
 
+  test("GeoParquet falls through to VectorLayer", () => {
+    expect(getLayerType("GeoParquet")).toBe("VectorLayer");
+  });
+
   test("Vector source types map to VectorTileLayer", () => {
     expect(getLayerType("Vector Tile")).toBe("VectorTileLayer");
     expect(getLayerType("Vector")).toBe("VectorTileLayer");
