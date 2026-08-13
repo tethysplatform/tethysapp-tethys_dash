@@ -45,6 +45,11 @@ from tethysapp.tethysdash.zarr_utils import (
     read_metadata,
 )
 from tethysapp.tethysdash.url_safety import UnsafeURLError, validate_public_url
+from tethysapp.tethysdash.geoparquet import (
+    FileOpenError,
+    GeoParquetError,
+    read_geojson,
+)
 from channels.generic.websocket import AsyncWebsocketConsumer
 from tethys_sdk.routing import consumer
 from asgiref.sync import sync_to_async
@@ -1173,3 +1178,40 @@ def zarr_meta(request):
         return JsonResponse({"error": str(e)}, status=400)
 
     return JsonResponse(meta)
+
+
+@controller(url="tethysdash/geoparquet/geojson", login_required=False)
+def geoparquet_geojson(request):
+    """Read a public GeoParquet file and return it as GeoJSON (EPSG:4326).
+
+    The frontend GeoParquet vector source consumes this URL directly.
+
+    Args:
+        request: Django HTTP request with query parameters:
+            - src: Public http(s)/s3 URL of the GeoParquet file (required)
+
+    Returns:
+        application/geo+json (HttpResponse) on success; otherwise a JsonResponse
+        with an error and status 400 (bad request), 422 (unsafe URL), 500
+        (conversion failure), or 502 (file unreachable).
+    """
+    src = request.GET.get("src")
+    if not src:
+        return JsonResponse({"error": "missing required 'src' parameter"}, status=400)
+
+    try:
+        validate_public_url(src)
+    except UnsafeURLError as e:
+        return JsonResponse({"error": str(e)}, status=422)
+
+    try:
+        geojson = read_geojson(src)
+    except FileOpenError:
+        return JsonResponse({"error": "could not open geoparquet file"}, status=502)
+    except GeoParquetError as e:
+        return JsonResponse({"error": str(e)}, status=400)
+    except Exception as e:  # unexpected conversion failure
+        print(f"geoparquet conversion failed: {e}")
+        return JsonResponse({"error": "failed to convert geoparquet"}, status=500)
+
+    return HttpResponse(geojson, content_type="application/geo+json")

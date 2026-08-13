@@ -16,9 +16,11 @@ from tethysapp.tethysdash.controllers import (
     _get_main_bundle_path,
     zarr_cog,
     zarr_meta,
+    geoparquet_geojson,
 )
 from tethysapp.tethysdash.zarr_utils import StoreOpenError, ZarrCogError
 from tethysapp.tethysdash.url_safety import UnsafeURLError
+from tethysapp.tethysdash.geoparquet import FileOpenError, GeoParquetError
 from channels.layers import get_channel_layer
 
 
@@ -2666,3 +2668,57 @@ def test_zarr_meta_unsafe_url_422(mocker):
     )
     request = RequestFactory().get("/zarr/meta", {"src": "http://169.254.169.254"})
     assert zarr_meta(request).status_code == 422
+
+
+def test_geoparquet_geojson_happy_path(mocker):
+    mocker.patch("tethysapp.tethysdash.controllers.validate_public_url")
+    fc = '{"type": "FeatureCollection", "features": []}'
+    mock_read = mocker.patch(
+        "tethysapp.tethysdash.controllers.read_geojson", return_value=fc
+    )
+    request = RequestFactory().get(
+        "/geoparquet/geojson", {"src": "https://x/data.parquet"}
+    )
+    response = geoparquet_geojson(request)
+    assert response.status_code == 200
+    assert response["Content-Type"] == "application/geo+json"
+    assert response.content.decode() == fc
+    mock_read.assert_called_once_with("https://x/data.parquet")
+
+
+def test_geoparquet_geojson_requires_src():
+    r = geoparquet_geojson(RequestFactory().get("/geoparquet/geojson"))
+    assert r.status_code == 400 and "src" in json.loads(r.content)["error"]
+
+
+def test_geoparquet_geojson_unsafe_url_422(mocker):
+    mocker.patch(
+        "tethysapp.tethysdash.controllers.validate_public_url",
+        side_effect=UnsafeURLError("bad host"),
+    )
+    request = RequestFactory().get(
+        "/geoparquet/geojson", {"src": "http://169.254.169.254"}
+    )
+    assert geoparquet_geojson(request).status_code == 422
+
+
+def test_geoparquet_geojson_file_open_error_502(mocker):
+    mocker.patch("tethysapp.tethysdash.controllers.validate_public_url")
+    mocker.patch(
+        "tethysapp.tethysdash.controllers.read_geojson",
+        side_effect=FileOpenError("unreachable"),
+    )
+    request = RequestFactory().get("/geoparquet/geojson", {"src": "https://x"})
+    assert geoparquet_geojson(request).status_code == 502
+
+
+def test_geoparquet_geojson_parse_error_400(mocker):
+    mocker.patch("tethysapp.tethysdash.controllers.validate_public_url")
+    mocker.patch(
+        "tethysapp.tethysdash.controllers.read_geojson",
+        side_effect=GeoParquetError("could not read geoparquet: boom"),
+    )
+    request = RequestFactory().get("/geoparquet/geojson", {"src": "https://x"})
+    response = geoparquet_geojson(request)
+    assert response.status_code == 400
+    assert "could not read" in json.loads(response.content)["error"]
