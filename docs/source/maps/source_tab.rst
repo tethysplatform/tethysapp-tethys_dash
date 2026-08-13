@@ -279,6 +279,37 @@ The Zarr source renders a raster layer from a public `Zarr <https://zarr.dev/>`_
 
 ------------------------------------------------------------------------------------------------------------------------
 
+++++++++++
+GeoParquet
+++++++++++
+
+The GeoParquet source renders a **vector** layer from a public `GeoParquet <https://geoparquet.org/>`_ file. TethysDash reads the file on demand, converts it to GeoJSON (reprojected to EPSG:4326) in memory, and draws it — so you supply a file URL rather than a prepared GeoJSON. It is styled and queried like a GeoJSON layer.
+
+**Layer Properties:**
+    - **url:** (required) Public URL of the GeoParquet file (an ``https`` bucket or ``s3://`` URL).
+
+.. note::
+    The whole file is converted to GeoJSON and sent to the browser, so this suits moderate feature counts; very large files may be slow to load.
+
+**Example JSON Configuration:**
+
+::
+
+    {
+        "type": "VectorLayer",
+        "props": {
+            "name": "Buildings",
+            "source": {
+                "type": "GeoParquet",
+                "props": {
+                    "url": "https://example.com/buildings.parquet"
+                }
+            }
+        }
+    }
+
+------------------------------------------------------------------------------------------------------------------------
+
 +++++++++++++
 Custom Layers
 +++++++++++++
