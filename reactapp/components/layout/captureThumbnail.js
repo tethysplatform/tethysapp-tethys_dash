@@ -1,4 +1,5 @@
 import { snapdom } from "@zumer/snapdom";
+import { getTethysAppRoot } from "services/utilities";
 
 const THUMBNAIL_WIDTH = 640;
 
@@ -8,6 +9,70 @@ const EXCLUDED_SELECTORS = [
   ".navbar.fixed-top",
   '[data-testid="layout-alerts"]',
 ];
+
+const IMAGE_PROXY = `${getTethysAppRoot()}images/proxy/?url=`;
+
+function isCrossOrigin(url) {
+  if (!url || /^(data|blob):/i.test(url)) return false;
+  try {
+    return new URL(url, window.location.href).origin !== window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error("Could not read the image"));
+    reader.readAsDataURL(blob);
+  });
+}
+
+/**
+ * Swap every cross-origin <img> for an inline copy fetched through our own
+ * origin, and return a function that puts the originals back.
+ */
+async function inlineCrossOriginImages() {
+  const images = Array.from(document.querySelectorAll("img")).filter((image) =>
+    isCrossOrigin(image.currentSrc || image.src),
+  );
+  const originals = [];
+
+  await Promise.all(
+    images.map(async (image) => {
+      const source = image.currentSrc || image.src;
+      const proxied = `${IMAGE_PROXY}${encodeURIComponent(source)}`;
+      try {
+        const response = await fetch(proxied, { credentials: "include" });
+        const contentType = response.headers.get("Content-Type") || "";
+
+        /* An unauthenticated request is answered with a redirect to the login
+           page. */
+        if (!response.ok || !contentType.startsWith("image/")) {
+          console.warn(
+            `Thumbnail: proxy returned ${response.status} ${contentType} for ${source} - leaving it as it is`,
+          );
+          return;
+        }
+
+        const dataUrl = await blobToDataUrl(await response.blob());
+        originals.push([image, image.getAttribute("src")]);
+        image.setAttribute("src", dataUrl);
+      } catch (error) {
+        console.warn(`Thumbnail: could not fetch ${proxied}:`, error);
+      }
+    }),
+  );
+
+  return () => {
+    for (const [image, source] of originals) {
+      if (source === null) image.removeAttribute("src");
+      else image.setAttribute("src", source);
+    }
+  };
+}
 
 function getHeaderHeight() {
   const raw = getComputedStyle(document.documentElement).getPropertyValue(
@@ -73,6 +138,7 @@ function getScrollContainer(element) {
 export default async function captureThumbnail() {
   let scroller = null;
   let previousScrollTop = 0;
+  let restoreImages = null;
 
   try {
     const grid = getActiveGrid();
@@ -85,6 +151,8 @@ export default async function captureThumbnail() {
       previousScrollTop = scroller.scrollTop;
       scroller.scrollTop = 0;
     }
+
+    restoreImages = await inlineCrossOriginImages();
 
     const result = await snapdom(document.body, {
       clip: "viewport",
@@ -107,6 +175,7 @@ export default async function captureThumbnail() {
     console.error("Dashboard thumbnail capture failed:", error);
     return null;
   } finally {
+    restoreImages?.();
     if (scroller) scroller.scrollTop = previousScrollTop;
   }
 }

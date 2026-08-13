@@ -14,7 +14,12 @@ import uuid
 from tethysapp.tethysdash.controllers import (
     VisualizationConsumer,
     _get_main_bundle_path,
+    _is_blocked_image_host,
+    _connected_peer_is_blocked,
+    _is_blocked_address,
 )
+import requests
+import socket
 from channels.layers import get_channel_layer
 
 
@@ -2524,3 +2529,379 @@ def test_get_main_bundle_path_returns_hashed_from_manifest():
     manifest = json.dumps({"main.js": "main.abc123.js"})
     with patch("builtins.open", mock_open(read_data=manifest)):
         assert _get_main_bundle_path(request) == "frontend/main.abc123.js"
+
+
+@pytest.mark.django_db
+def test_image_proxy_returns_the_image(client, admin_user, mock_app, mocker):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mocker.patch(
+        "tethysapp.tethysdash.controllers._is_blocked_image_host", return_value=False
+    )
+    mocker.patch(
+        "tethysapp.tethysdash.controllers._connected_peer_is_blocked",
+        return_value=False,
+    )
+    mock_get = mocker.patch("tethysapp.tethysdash.controllers.requests.get")
+    upstream = mock_get.return_value
+    upstream.raise_for_status.return_value = None
+    upstream.is_redirect = False
+    upstream.headers = {"Content-Type": "image/png; charset=binary"}
+    upstream.raw.read.return_value = b"\x89PNG-bytes"
+
+    client.force_login(admin_user)
+    response = client.get(
+        reverse("tethysdash:image_proxy"), {"url": "https://example.com/logo.png"}
+    )
+
+    assert response.status_code == 200
+    assert response["Content-Type"] == "image/png"
+    assert response.content == b"\x89PNG-bytes"
+
+    # The body is written by whoever controls the remote host but served from
+    # our origin, so it is pinned down as tightly as an image allows. An SVG can
+    # carry script, and "attachment" is what stops a top-level visit rendering
+    # it as this origin.
+    assert response["X-Content-Type-Options"] == "nosniff"
+    assert response["Content-Security-Policy"] == "default-src 'none'; sandbox"
+    assert response["Content-Disposition"] == "attachment"
+    # The capture is same-origin, so no CORS header is needed - and a wildcard
+    # is refused alongside credentialed requests anyway.
+    assert not response.has_header("Access-Control-Allow-Origin")
+
+
+@pytest.mark.django_db
+def test_image_proxy_requires_login(client, mock_app):
+    """Unauthenticated access would make this an open server-side fetcher."""
+    mock_app("tethysapp.tethysdash.controllers.App")
+    response = client.get(
+        reverse("tethysdash:image_proxy"), {"url": "https://example.com/logo.png"}
+    )
+    assert response.status_code in (302, 401, 403)
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "url",
+    [
+        "file:///etc/passwd",
+        "ftp://example.com/logo.png",
+        "not-a-url",
+        "",
+    ],
+)
+def test_image_proxy_rejects_non_http_urls(client, admin_user, mock_app, url):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    client.force_login(admin_user)
+    response = client.get(reverse("tethysdash:image_proxy"), {"url": url})
+    assert response.status_code == 400
+
+
+@pytest.mark.django_db
+def test_image_proxy_blocks_internal_hosts(client, admin_user, mock_app, mocker):
+    """Without this the endpoint is a server-side request forgery primitive."""
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mock_get = mocker.patch("tethysapp.tethysdash.controllers.requests.get")
+    client.force_login(admin_user)
+
+    response = client.get(
+        reverse("tethysdash:image_proxy"),
+        {"url": "http://169.254.169.254/latest/meta-data/"},
+    )
+
+    assert response.status_code == 403
+    # Blocked before any request leaves the server.
+    mock_get.assert_not_called()
+
+
+@pytest.mark.django_db
+def test_image_proxy_reports_an_unreachable_host(client, admin_user, mock_app, mocker):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mocker.patch(
+        "tethysapp.tethysdash.controllers._is_blocked_image_host", return_value=False
+    )
+    mocker.patch(
+        "tethysapp.tethysdash.controllers._connected_peer_is_blocked",
+        return_value=False,
+    )
+    mocker.patch(
+        "tethysapp.tethysdash.controllers.requests.get",
+        side_effect=requests.exceptions.ConnectionError("boom"),
+    )
+
+    client.force_login(admin_user)
+    response = client.get(
+        reverse("tethysdash:image_proxy"), {"url": "https://example.com/logo.png"}
+    )
+    assert response.status_code == 502
+
+
+@pytest.mark.django_db
+def test_image_proxy_refuses_a_non_image(client, admin_user, mock_app, mocker):
+    """An error page answering 200 must not be passed off as an image."""
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mocker.patch(
+        "tethysapp.tethysdash.controllers._is_blocked_image_host", return_value=False
+    )
+    mocker.patch(
+        "tethysapp.tethysdash.controllers._connected_peer_is_blocked",
+        return_value=False,
+    )
+    mock_get = mocker.patch("tethysapp.tethysdash.controllers.requests.get")
+    mock_get.return_value.raise_for_status.return_value = None
+    mock_get.return_value.is_redirect = False
+    mock_get.return_value.headers = {"Content-Type": "text/html"}
+
+    client.force_login(admin_user)
+    response = client.get(
+        reverse("tethysdash:image_proxy"), {"url": "https://example.com/oops"}
+    )
+    assert response.status_code == 415
+
+
+@pytest.mark.django_db
+def test_image_proxy_rejects_an_oversized_image(client, admin_user, mock_app, mocker):
+    """Size is capped by reading, not by trusting Content-Length."""
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mocker.patch(
+        "tethysapp.tethysdash.controllers._is_blocked_image_host", return_value=False
+    )
+    mocker.patch(
+        "tethysapp.tethysdash.controllers._connected_peer_is_blocked",
+        return_value=False,
+    )
+    mocker.patch("tethysapp.tethysdash.controllers.IMAGE_PROXY_MAX_BYTES", 10)
+    mock_get = mocker.patch("tethysapp.tethysdash.controllers.requests.get")
+    upstream = mock_get.return_value
+    upstream.raise_for_status.return_value = None
+    upstream.is_redirect = False
+    upstream.headers = {"Content-Type": "image/png"}
+    upstream.raw.read.return_value = b"x" * 11
+
+    client.force_login(admin_user)
+    response = client.get(
+        reverse("tethysdash:image_proxy"), {"url": "https://example.com/huge.png"}
+    )
+    assert response.status_code == 413
+
+
+def test_is_blocked_image_host_allows_a_public_address(mocker):
+    mocker.patch(
+        "tethysapp.tethysdash.controllers.socket.getaddrinfo",
+        return_value=[(None, None, None, None, ("93.184.216.34", 0))],
+    )
+    assert _is_blocked_image_host("example.com") is False
+
+
+@pytest.mark.parametrize(
+    "address",
+    ["127.0.0.1", "10.0.0.5", "192.168.1.10", "169.254.169.254", "0.0.0.0"],
+)
+def test_is_blocked_image_host_blocks_internal_addresses(mocker, address):
+    mocker.patch(
+        "tethysapp.tethysdash.controllers.socket.getaddrinfo",
+        return_value=[(None, None, None, None, (address, 0))],
+    )
+    assert _is_blocked_image_host(address) is True
+
+
+def test_is_blocked_image_host_blocks_a_name_that_will_not_resolve(mocker):
+    """Fail closed: an unresolvable name is refused rather than attempted."""
+    mocker.patch(
+        "tethysapp.tethysdash.controllers.socket.getaddrinfo",
+        side_effect=socket.gaierror("nope"),
+    )
+    assert _is_blocked_image_host("nowhere.invalid") is True
+
+
+def _redirect_to(location):
+    """An upstream response that redirects, as requests would report it."""
+    hop = MagicMock()
+    hop.is_redirect = True
+    hop.headers = {"Location": location}
+    return hop
+
+
+@pytest.mark.django_db
+def test_image_proxy_rechecks_the_host_on_every_redirect(
+    client, admin_user, mock_app, mocker
+):
+    """A permitted public URL must not be able to bounce us onto an internal one.
+
+    Following redirects automatically is a complete bypass of the address
+    checks: only the first URL is ever inspected, so a public host answering
+    with a Location of 127.0.0.1 gets the server to fetch it anyway.
+    """
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mocker.patch(
+        "tethysapp.tethysdash.controllers._connected_peer_is_blocked",
+        return_value=False,
+    )
+    mocker.patch(
+        "tethysapp.tethysdash.controllers._is_blocked_image_host",
+        side_effect=lambda host: host != "public.example.com",
+    )
+    mock_get = mocker.patch("tethysapp.tethysdash.controllers.requests.get")
+    mock_get.return_value = _redirect_to("http://169.254.169.254/latest/meta-data/")
+
+    client.force_login(admin_user)
+    response = client.get(
+        reverse("tethysdash:image_proxy"),
+        {"url": "https://public.example.com/innocent.png"},
+    )
+
+    assert response.status_code == 403
+    # The internal address was never requested, only the permitted first hop.
+    assert mock_get.call_count == 1
+
+
+@pytest.mark.django_db
+def test_image_proxy_follows_a_redirect_to_a_permitted_host(
+    client, admin_user, mock_app, mocker
+):
+    """Image CDNs redirect routinely, so permitted hops must still be followed."""
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mocker.patch(
+        "tethysapp.tethysdash.controllers._is_blocked_image_host", return_value=False
+    )
+    mocker.patch(
+        "tethysapp.tethysdash.controllers._connected_peer_is_blocked",
+        return_value=False,
+    )
+    final = MagicMock()
+    final.is_redirect = False
+    final.raise_for_status.return_value = None
+    final.headers = {"Content-Type": "image/png"}
+    final.raw.read.return_value = b"\x89PNG"
+    mock_get = mocker.patch("tethysapp.tethysdash.controllers.requests.get")
+    mock_get.side_effect = [_redirect_to("https://cdn.example.com/real.png"), final]
+
+    client.force_login(admin_user)
+    response = client.get(
+        reverse("tethysdash:image_proxy"), {"url": "https://example.com/start.png"}
+    )
+
+    assert response.status_code == 200
+    assert response.content == b"\x89PNG"
+
+
+@pytest.mark.django_db
+def test_image_proxy_gives_up_on_a_redirect_loop(client, admin_user, mock_app, mocker):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mocker.patch(
+        "tethysapp.tethysdash.controllers._is_blocked_image_host", return_value=False
+    )
+    mock_get = mocker.patch("tethysapp.tethysdash.controllers.requests.get")
+    mock_get.return_value = _redirect_to("https://example.com/round-again.png")
+
+    client.force_login(admin_user)
+    response = client.get(
+        reverse("tethysdash:image_proxy"), {"url": "https://example.com/start.png"}
+    )
+
+    assert response.status_code == 502
+    assert mock_get.call_count == 4  # the first request plus MAX_REDIRECTS hops
+
+
+@pytest.mark.django_db
+def test_image_proxy_blocks_a_peer_that_resolved_somewhere_else(
+    client, admin_user, mock_app, mocker
+):
+    """Guards against DNS rebinding: the socket, not a second lookup, decides.
+
+    The hostname check resolves the name, and requests resolves it again when
+    it connects. A hostile DNS server is free to answer those two differently.
+    """
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mocker.patch(
+        "tethysapp.tethysdash.controllers._is_blocked_image_host", return_value=False
+    )
+    mocker.patch(
+        "tethysapp.tethysdash.controllers._connected_peer_is_blocked", return_value=True
+    )
+    upstream = MagicMock()
+    upstream.is_redirect = False
+    mocker.patch(
+        "tethysapp.tethysdash.controllers.requests.get", return_value=upstream
+    )
+
+    client.force_login(admin_user)
+    response = client.get(
+        reverse("tethysdash:image_proxy"), {"url": "https://rebind.example.com/x.png"}
+    )
+
+    assert response.status_code == 403
+    # Refused before any of the body was read.
+    upstream.raw.read.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "peer,expected",
+    [("93.184.216.34", False), ("127.0.0.1", True), ("169.254.169.254", True)],
+)
+def test_connected_peer_is_blocked_reads_the_socket(peer, expected):
+    response = MagicMock()
+    response.raw._connection.sock.getpeername.return_value = (peer, 443)
+    assert _connected_peer_is_blocked(response) is expected
+
+
+def test_connected_peer_is_blocked_fails_closed():
+    """An unverifiable connection is refused rather than trusted.
+
+    urllib3 releases the connection once a body is read, so this can genuinely
+    happen; losing one image from a thumbnail is the right price.
+    """
+    response = MagicMock()
+    response.raw._connection = None
+    assert _connected_peer_is_blocked(response) is True
+
+
+def test_is_blocked_address_rejects_something_that_is_not_an_address():
+    """Fail closed on anything unparseable rather than letting it through."""
+    assert _is_blocked_address("not-an-address") is True
+
+
+@pytest.mark.django_db
+def test_image_proxy_handles_a_redirect_with_no_location(
+    client, admin_user, mock_app, mocker
+):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mocker.patch(
+        "tethysapp.tethysdash.controllers._is_blocked_image_host", return_value=False
+    )
+    hop = MagicMock()
+    hop.is_redirect = True
+    hop.headers = {}
+    mocker.patch("tethysapp.tethysdash.controllers.requests.get", return_value=hop)
+
+    client.force_login(admin_user)
+    response = client.get(
+        reverse("tethysdash:image_proxy"), {"url": "https://example.com/x.png"}
+    )
+    assert response.status_code == 502
+
+
+@pytest.mark.django_db
+def test_image_proxy_reports_an_upstream_error_status(
+    client, admin_user, mock_app, mocker
+):
+    """A 404 from the far end is an upstream failure, not a broken thumbnail."""
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mocker.patch(
+        "tethysapp.tethysdash.controllers._is_blocked_image_host", return_value=False
+    )
+    mocker.patch(
+        "tethysapp.tethysdash.controllers._connected_peer_is_blocked",
+        return_value=False,
+    )
+    upstream = MagicMock()
+    upstream.is_redirect = False
+    upstream.raise_for_status.side_effect = requests.exceptions.HTTPError("404")
+    mocker.patch(
+        "tethysapp.tethysdash.controllers.requests.get", return_value=upstream
+    )
+
+    client.force_login(admin_user)
+    response = client.get(
+        reverse("tethysdash:image_proxy"), {"url": "https://example.com/missing.png"}
+    )
+    assert response.status_code == 502
