@@ -31,6 +31,7 @@ import useSnapping, {
 } from "components/visualizations/useSnapping";
 import PropTypes from "prop-types";
 import { COLOR_RAMPS } from "components/map/colorRamps";
+import { applyAutoRamp } from "components/map/ModuleLoader";
 import { getBaseMapLayer } from "components/visualizations/utilities";
 import useRuntimeLayerFetcher from "components/visualizations/runtimeLayerFetcher";
 import {
@@ -478,20 +479,32 @@ const MapVisualization = ({
 
         for (const layer of layers) {
           await loadLayerJSONs(layer, uuid);
+          // Resolve a Zarr layer's auto ramp before the legend is built so the
+          // colorbar can label the slice's real range. Re-runs with `layers` on
+          // every slice change, so the labels track the ramp.
+          await applyAutoRamp(layer.configuration);
           if (layer.legend) {
             if (layer.legend === "default") {
               const rampSource = layer.configuration?.props?.source;
+              // Zarr renders through a GeoTIFF source, so it gets the same
+              // colorbar. In auto mode the range comes from the resolved
+              // stats rather than author-entered values.
+              const rampMin =
+                rampSource?.rampMin ?? rampSource?.resolvedRampMin;
+              const rampMax =
+                rampSource?.rampMax ?? rampSource?.resolvedRampMax;
               if (
-                rampSource?.type === "GeoTIFF" &&
+                (rampSource?.type === "GeoTIFF" ||
+                  rampSource?.type === "Zarr") &&
                 typeof rampSource.rampName === "string" &&
                 COLOR_RAMPS[rampSource.rampName] &&
-                rampSource.rampMin !== undefined &&
-                rampSource.rampMax !== undefined
+                rampMin !== undefined &&
+                rampMax !== undefined
               ) {
                 newMapLegend.push({
                   rampColors: COLOR_RAMPS[rampSource.rampName],
-                  rampMin: rampSource.rampMin,
-                  rampMax: rampSource.rampMax,
+                  rampMin,
+                  rampMax,
                   title: layer.configuration?.props?.name,
                 });
                 newMapLayers.push(layer.configuration);

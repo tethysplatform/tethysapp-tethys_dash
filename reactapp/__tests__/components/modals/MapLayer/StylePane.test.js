@@ -6,6 +6,9 @@ import PropTypes from "prop-types";
 import userEvent from "@testing-library/user-event";
 import { LayoutContext, AppContext } from "components/contexts/Contexts";
 import * as utilities from "components/map/utilities";
+import { fromUrl } from "geotiff";
+
+jest.mock("geotiff", () => ({ fromUrl: jest.fn() }));
 
 const exampleStyle = {
   version: 8,
@@ -529,6 +532,65 @@ test("StylePane renders Color Ramp section for GeoTIFF source type", async () =>
   // Min and Max inputs render.
   expect(screen.getByLabelText("Ramp Min")).toBeInTheDocument();
   expect(screen.getByLabelText("Ramp Max")).toBeInTheDocument();
+});
+
+test("StylePane defaults a GeoTIFF source's ramp to turbo when none is set", async () => {
+  render(<GeoTIFFTestHarness initialSourceProps={{ type: "GeoTIFF" }} />);
+  await waitFor(() => {
+    expect(screen.getByTestId("rampName")).toHaveTextContent("turbo");
+  });
+});
+
+test("StylePane renders the Color Ramp section and defaults to turbo for a Zarr source", async () => {
+  render(<GeoTIFFTestHarness initialSourceProps={{ type: "Zarr" }} />);
+  expect(await screen.findByText("Color Ramp")).toBeInTheDocument();
+  await waitFor(() => {
+    expect(screen.getByTestId("rampName")).toHaveTextContent("turbo");
+  });
+});
+
+test("StylePane leaves GeoTIFF ramp min/max empty so the ramp fits each file", async () => {
+  // The ramp range is resolved at render time from the file's statistics (see
+  // applyAutoRamp), which lets it refit when a variable input swaps the URL.
+  // StylePane must not pre-fill the fields, since a filled range reads as the
+  // author pinning the scale and would freeze the ramp on the first file.
+  fromUrl.mockReset();
+
+  render(
+    <GeoTIFFTestHarness
+      initialSourceProps={{
+        type: "GeoTIFF",
+        rampName: "turbo",
+        props: { sources: [{ url: "http://example.com/cog.tif" }] },
+      }}
+    />,
+  );
+
+  await screen.findByText("Color Ramp");
+  expect(screen.getByTestId("rampMin")).toHaveTextContent("");
+  expect(screen.getByTestId("rampMax")).toHaveTextContent("");
+  expect(fromUrl).not.toHaveBeenCalled();
+});
+
+test("StylePane keeps an author-entered GeoTIFF range untouched", async () => {
+  fromUrl.mockReset();
+
+  render(
+    <GeoTIFFTestHarness
+      initialSourceProps={{
+        type: "GeoTIFF",
+        rampName: "turbo",
+        rampMin: "0",
+        rampMax: "50",
+        props: { sources: [{ url: "http://example.com/cog.tif" }] },
+      }}
+    />,
+  );
+
+  await screen.findByText("Color Ramp");
+  expect(screen.getByTestId("rampMin")).toHaveTextContent("0");
+  expect(screen.getByTestId("rampMax")).toHaveTextContent("50");
+  expect(fromUrl).not.toHaveBeenCalled();
 });
 
 test("StylePane does NOT render Color Ramp section for non-GeoTIFF sources", async () => {

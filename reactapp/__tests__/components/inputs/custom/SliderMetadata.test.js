@@ -595,3 +595,46 @@ test("SliderMetadata includes alignSteps and alignOffset in onChange when enable
     }),
   );
 });
+
+test("Number slider defaults Output Format to {{n}} when left empty", async () => {
+  const mockOnChange = jest.fn();
+
+  render(
+    <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
+      <VariableInputsContext.Provider value={{ variableInputValues: {} }}>
+        <SliderMetadata
+          onChange={mockOnChange}
+          values={{}}
+          visualizationRef={null}
+        />
+      </VariableInputsContext.Provider>
+    </DataViewerModeContext.Provider>,
+  );
+
+  await selectEvent.select(screen.getByLabelText("Data Type Input"), "Number");
+  fireEvent.change(screen.getByLabelText("Minimum Input"), {
+    target: { value: "0" },
+  });
+  fireEvent.change(screen.getByLabelText("Maximum Input"), {
+    target: { value: "100" },
+  });
+  fireEvent.change(screen.getByLabelText("Step Input"), {
+    target: { value: "1" },
+  });
+
+  selectEvent.openMenu(screen.getByLabelText("Initial Value"));
+  fireEvent.click(await screen.findByText("50"));
+
+  // Output Format was never typed by the user -> defaulted to {{n}}, so the
+  // metadata is emitted and the save gate isn't blocked.
+  expect(mockOnChange).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      dataType: "Number",
+      min: 0,
+      max: 100,
+      step: 1,
+      initialValue: 50,
+      outputFormat: "{{n}}",
+    }),
+  );
+});

@@ -1710,391 +1710,57 @@ test("MapLayerModal falls back to EPSG:3857 when visualizationRef is null", asyn
 });
 
 describe("MapLayerModal GeoTIFF save path", () => {
-  test("preserves string '0' min/max on a single GeoTIFF source", async () => {
-    const handleModalClose = jest.fn();
-    const addMapLayer = jest.fn();
-    const layerInfo = {
-      layerProps: { name: "GeoTIFF Layer" },
-      sourceProps: {
-        type: "GeoTIFF",
-        props: {
-          sources: [{ url: "a.tif", min: "0", max: "100" }],
-        },
-      },
-    };
-
+  const renderModal = (props, addMapLayer, extra = {}) => {
     render(
       <TestingComponent
         showModal={true}
-        handleModalClose={handleModalClose}
+        handleModalClose={jest.fn()}
         addMapLayer={addMapLayer}
-        layerInfo={layerInfo}
+        layerInfo={{
+          layerProps: { name: "GeoTIFF Layer" },
+          sourceProps: { type: "GeoTIFF", props },
+        }}
+        {...extra}
       />,
     );
+  };
 
-    const createLayerButton = await screen.findByLabelText(
-      "Create Layer Button",
-    );
-    fireEvent.click(createLayerButton);
-
-    await waitFor(() => {
-      expect(addMapLayer).toHaveBeenCalledTimes(1);
-    });
-
-    const savedConfig = addMapLayer.mock.calls[0][0];
-    const savedSources = savedConfig.configuration.props.source.props.sources;
-    expect(savedSources).toHaveLength(1);
-    expect(savedSources[0].url).toBe("a.tif");
-    expect(savedSources[0].min).toBe("0");
-    expect(savedSources[0].max).toBe("100");
-    // Regression guard: min must not be coerced to number or dropped.
-    expect(savedSources[0].min).not.toBe(0);
-    expect(savedSources[0].min).not.toBeUndefined();
-    expect(savedSources[0].min).not.toBe("");
-    expect(savedConfig.configuration.type).toBe("WebGLTile");
-  });
-
-  test("preserves multiple sources in original order", async () => {
-    const handleModalClose = jest.fn();
+  test("saves the flat url/nodata/projection fields", async () => {
     const addMapLayer = jest.fn();
-    const layerInfo = {
-      layerProps: { name: "RGB GeoTIFF" },
-      sourceProps: {
-        type: "GeoTIFF",
-        props: {
-          sources: [
-            { url: "red.tif", bands: "[1]" },
-            { url: "green.tif", bands: "[1]" },
-            { url: "blue.tif", bands: "[1]" },
-          ],
-        },
-      },
-    };
-
-    render(
-      <TestingComponent
-        showModal={true}
-        handleModalClose={handleModalClose}
-        addMapLayer={addMapLayer}
-        layerInfo={layerInfo}
-      />,
-    );
-
-    const createLayerButton = await screen.findByLabelText(
-      "Create Layer Button",
-    );
-    fireEvent.click(createLayerButton);
-
-    await waitFor(() => {
-      expect(addMapLayer).toHaveBeenCalledTimes(1);
-    });
-
-    const savedSources =
-      addMapLayer.mock.calls[0][0].configuration.props.source.props.sources;
-    expect(savedSources).toHaveLength(3);
-    expect(savedSources.map((s) => s.url)).toEqual([
-      "red.tif",
-      "green.tif",
-      "blue.tif",
-    ]);
-  });
-
-  test("preserves string '0' across all numeric SourceInfo fields", async () => {
-    const handleModalClose = jest.fn();
-    const addMapLayer = jest.fn();
-    const layerInfo = {
-      layerProps: { name: "Zero Fields Layer" },
-      sourceProps: {
-        type: "GeoTIFF",
-        props: {
-          sources: [{ url: "zero.tif", min: "0", max: "0", nodata: "0" }],
-        },
-      },
-    };
-
-    render(
-      <TestingComponent
-        showModal={true}
-        handleModalClose={handleModalClose}
-        addMapLayer={addMapLayer}
-        layerInfo={layerInfo}
-      />,
-    );
-
-    const createLayerButton = await screen.findByLabelText(
-      "Create Layer Button",
-    );
-    fireEvent.click(createLayerButton);
-
-    await waitFor(() => {
-      expect(addMapLayer).toHaveBeenCalledTimes(1);
-    });
-
-    const savedSource =
-      addMapLayer.mock.calls[0][0].configuration.props.source.props.sources[0];
-    expect(savedSource.min).toBe("0");
-    expect(savedSource.max).toBe("0");
-    expect(savedSource.nodata).toBe("0");
-  });
-
-  test("blocks save and surfaces error when sources array is empty", async () => {
-    const handleModalClose = jest.fn();
-    const addMapLayer = jest.fn();
-    const layerInfo = {
-      layerProps: { name: "Empty Sources Layer" },
-      sourceProps: {
-        type: "GeoTIFF",
-        props: {
-          sources: [],
-        },
-      },
-    };
-
-    render(
-      <TestingComponent
-        showModal={true}
-        handleModalClose={handleModalClose}
-        addMapLayer={addMapLayer}
-        layerInfo={layerInfo}
-      />,
-    );
-
-    const createLayerButton = await screen.findByLabelText(
-      "Create Layer Button",
-    );
-    fireEvent.click(createLayerButton);
-
-    expect(
-      await screen.findByText(
-        "Add at least one source with a URL before saving.",
-      ),
-    ).toBeInTheDocument();
-    expect(addMapLayer).not.toHaveBeenCalled();
-  });
-
-  test("blocks save when every source row has an empty or whitespace URL", async () => {
-    const handleModalClose = jest.fn();
-    const addMapLayer = jest.fn();
-    const layerInfo = {
-      layerProps: { name: "Whitespace Layer" },
-      sourceProps: {
-        type: "GeoTIFF",
-        props: {
-          sources: [
-            { url: "", min: "0" },
-            { url: "   ", max: "100" },
-          ],
-        },
-      },
-    };
-
-    render(
-      <TestingComponent
-        showModal={true}
-        handleModalClose={handleModalClose}
-        addMapLayer={addMapLayer}
-        layerInfo={layerInfo}
-      />,
-    );
-
-    const createLayerButton = await screen.findByLabelText(
-      "Create Layer Button",
-    );
-    fireEvent.click(createLayerButton);
-
-    expect(
-      await screen.findByText(
-        "Add at least one source with a URL before saving.",
-      ),
-    ).toBeInTheDocument();
-    expect(addMapLayer).not.toHaveBeenCalled();
-  });
-
-  test("drops empty-URL rows but keeps valid rows when mixed", async () => {
-    const handleModalClose = jest.fn();
-    const addMapLayer = jest.fn();
-    const layerInfo = {
-      layerProps: { name: "Mixed Layer" },
-      sourceProps: {
-        type: "GeoTIFF",
-        props: {
-          sources: [
-            { url: "a.tif", min: "0", max: "100" },
-            { url: "", min: "5", max: "10" },
-          ],
-        },
-      },
-    };
-
-    render(
-      <TestingComponent
-        showModal={true}
-        handleModalClose={handleModalClose}
-        addMapLayer={addMapLayer}
-        layerInfo={layerInfo}
-      />,
-    );
-
-    const createLayerButton = await screen.findByLabelText(
-      "Create Layer Button",
-    );
-    fireEvent.click(createLayerButton);
-
-    await waitFor(() => {
-      expect(addMapLayer).toHaveBeenCalledTimes(1);
-    });
-
-    const savedSources =
-      addMapLayer.mock.calls[0][0].configuration.props.source.props.sources;
-    expect(savedSources).toHaveLength(1);
-    expect(savedSources[0].url).toBe("a.tif");
-    expect(savedSources[0].min).toBe("0");
-    expect(savedSources[0].max).toBe("100");
-  });
-
-  test("drops empty bands/projection/overviews from saved SourceInfo", async () => {
-    // Regression: empty UI fields (bands="", projection="", overviews=[])
-    // used to persist in the saved config and cause ol/source/GeoTIFF to
-    // throw "Unsupported data format/bitsPerSample" at tile-decode time.
-    const handleModalClose = jest.fn();
-    const addMapLayer = jest.fn();
-    const layerInfo = {
-      layerProps: { name: "Clean GeoTIFF" },
-      sourceProps: {
-        type: "GeoTIFF",
-        props: {
-          sources: [
-            {
-              url: "clean.tif",
-              bands: "",
-              min: "277",
-              max: "300",
-              nodata: "-32768",
-              projection: "",
-              overviews: [],
-            },
-          ],
-        },
-      },
-    };
-
-    render(
-      <TestingComponent
-        showModal={true}
-        handleModalClose={handleModalClose}
-        addMapLayer={addMapLayer}
-        layerInfo={layerInfo}
-      />,
-    );
-
-    const createLayerButton = await screen.findByLabelText(
-      "Create Layer Button",
-    );
-    fireEvent.click(createLayerButton);
-
-    await waitFor(() => {
-      expect(addMapLayer).toHaveBeenCalledTimes(1);
-    });
-
-    const savedSources =
-      addMapLayer.mock.calls[0][0].configuration.props.source.props.sources;
-    expect(savedSources).toHaveLength(1);
-    const saved = savedSources[0];
-    // Kept: url + non-empty numeric strings
-    expect(saved.url).toBe("clean.tif");
-    expect(saved.min).toBe("277");
-    expect(saved.max).toBe("300");
-    expect(saved.nodata).toBe("-32768");
-    // Dropped: empty fields
-    expect(saved).not.toHaveProperty("bands");
-    expect(saved).not.toHaveProperty("projection");
-    expect(saved).not.toHaveProperty("overviews");
-  });
-
-  test("preserves non-empty projection and overviews on the cleaned SourceInfo", async () => {
-    // Companion to the empty-fields test above. Covers the truthy branches
-    // of the projection (line 199) and overviews (line 202) cleanup checks
-    // — the existing tests only exercised their false branches.
-    const handleModalClose = jest.fn();
-    const addMapLayer = jest.fn();
-    const layerInfo = {
-      layerProps: { name: "Reprojected GeoTIFF" },
-      sourceProps: {
-        type: "GeoTIFF",
-        props: {
-          sources: [
-            {
-              url: "main.tif",
-              projection: "EPSG:4326",
-              overviews: [
-                "https://example.com/main.ovr",
-                "https://example.com/main2.ovr",
-              ],
-            },
-          ],
-        },
-      },
-    };
-
-    render(
-      <TestingComponent
-        showModal={true}
-        handleModalClose={handleModalClose}
-        addMapLayer={addMapLayer}
-        layerInfo={layerInfo}
-      />,
+    renderModal(
+      { url: "https://example.com/a.tif", projection: "EPSG:32615" },
+      addMapLayer,
     );
 
     fireEvent.click(await screen.findByLabelText("Create Layer Button"));
-    await waitFor(() => {
-      expect(addMapLayer).toHaveBeenCalledTimes(1);
-    });
+    await waitFor(() => expect(addMapLayer).toHaveBeenCalledTimes(1));
 
-    const saved =
-      addMapLayer.mock.calls[0][0].configuration.props.source.props.sources[0];
-    expect(saved.url).toBe("main.tif");
-    expect(saved.projection).toBe("EPSG:4326");
-    expect(saved.overviews).toEqual([
-      "https://example.com/main.ovr",
-      "https://example.com/main2.ovr",
-    ]);
+    const saved = addMapLayer.mock.calls[0][0];
+    expect(saved.configuration.type).toBe("WebGLTile");
+    // No `sources` array in the saved config — ModuleLoader builds OL's shape.
+    expect(saved.configuration.props.source.props).toEqual(
+      expect.objectContaining({
+        url: "https://example.com/a.tif",
+        projection: "EPSG:32615",
+      }),
+    );
+    expect(saved.configuration.props.source.props.sources).toBeUndefined();
+  });
+
+  test("blocks save when the required url is missing", async () => {
+    const addMapLayer = jest.fn();
+    renderModal({}, addMapLayer);
+
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+    });
+    expect(addMapLayer).not.toHaveBeenCalled();
   });
 });
 
 describe("MapLayerModal save-path nullish fallbacks and sub-modal zIndex", () => {
-  test("GeoTIFF save with no `sources` key at all uses the [] fallback and blocks save", async () => {
-    // Covers the right side of `sourceProps.props?.sources ?? []` at line
-    // 182. The existing empty-array test passes `sources: []` (truthy, the
-    // ?? falls through); this one omits the key entirely so the optional
-    // chain returns undefined and the [] fallback fires.
-    const handleModalClose = jest.fn();
-    const addMapLayer = jest.fn();
-    const layerInfo = {
-      layerProps: { name: "Sourceless GeoTIFF" },
-      sourceProps: {
-        type: "GeoTIFF",
-        props: {}, // no `sources` key
-      },
-    };
-
-    render(
-      <TestingComponent
-        showModal={true}
-        handleModalClose={handleModalClose}
-        addMapLayer={addMapLayer}
-        layerInfo={layerInfo}
-      />,
-    );
-
-    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
-    expect(
-      await screen.findByText(
-        "Add at least one source with a URL before saving.",
-      ),
-    ).toBeInTheDocument();
-    expect(addMapLayer).not.toHaveBeenCalled();
-  });
-
   test("GeoJSON save with no `geojson` key falls back to '' and stores empty string", async () => {
     // Covers the right side of `(sourceProps.geojson ?? "").trim()` at
     // line 282. With geojson undefined, geoStr is "", isJsonBody is false,
@@ -2128,20 +1794,16 @@ describe("MapLayerModal save-path nullish fallbacks and sub-modal zIndex", () =>
     ).toBe("");
   });
 
-  test("ramp-styled GeoTIFF with nodata flips hasNodata true (covers && right side)", async () => {
-    // Covers the right side of `s?.nodata !== undefined && s.nodata !== ""`
-    // at line 334. Existing ramp tests don't set nodata, so the left
-    // operand is always false and the right operand never evaluates.
-    // Pairing a ramp config with a nodata-bearing source forces it.
+  test("a ramp-styled GeoTIFF always guards the alpha band", async () => {
+    // Exercises the right side of the hasNodata predicate: other ramp tests
+    // leave nodata unset, so only the Zarr short-circuit is covered there.
     const handleModalClose = jest.fn();
     const addMapLayer = jest.fn();
     const layerInfo = {
       layerProps: { name: "Nodata Ramp GeoTIFF" },
       sourceProps: {
         type: "GeoTIFF",
-        props: {
-          sources: [{ url: "x.tif", min: "0", max: "100", nodata: "-9999" }],
-        },
+        props: { url: "x.tif" },
         rampName: "viridis",
         rampMin: "0",
         rampMax: "100",
@@ -2166,44 +1828,6 @@ describe("MapLayerModal save-path nullish fallbacks and sub-modal zIndex", () =>
     const color = addMapLayer.mock.calls[0][0].configuration.style.color;
     expect(color[0]).toBe("case");
     expect(color[1]).toEqual(["==", ["band", 2], 0]);
-  });
-
-  test("Modal style uses zIndex 1050 while a GeoTIFF sub-modal is open", async () => {
-    // Covers the `: showingSubModal ? { zIndex: 1050 } : undefined` ternary
-    // at line 422. Default state has showingSubModal=false (ternary takes
-    // undefined). Clicking "Add source" inside the GeoTIFF SourcePane
-    // toggles it true via onSubModalToggle, raising the modal's zIndex.
-    const handleModalClose = jest.fn();
-    const addMapLayer = jest.fn();
-    const layerInfo = {
-      layerProps: { name: "Sub-modal GeoTIFF" },
-      sourceProps: {
-        type: "GeoTIFF",
-        props: { sources: [] },
-      },
-    };
-
-    render(
-      <TestingComponent
-        showModal={true}
-        handleModalClose={handleModalClose}
-        addMapLayer={addMapLayer}
-        layerInfo={layerInfo}
-      />,
-    );
-
-    // Switch to the Source tab so the GeoTIFF SourcePane (with the "Add
-    // source" button) is rendered.
-    fireEvent.click(screen.getByText("Source"));
-    fireEvent.click(await screen.findByText("Add source"));
-
-    // The outer modal's role=dialog node now carries zIndex:1050 inline.
-    const dialogs = screen.getAllByRole("dialog");
-    const outer = dialogs.find((d) => d.className.includes("map-layer"));
-    await waitFor(() => {
-      expect(outer).toBeTruthy();
-    });
-    expect(outer.style.zIndex).toBe("1050");
   });
 });
 
@@ -2258,9 +1882,7 @@ describe("MapLayerModal GeoTIFF ramp round-trip persistence", () => {
       layerProps: { name: "Ramped Round-Trip" },
       sourceProps: {
         type: "GeoTIFF",
-        props: {
-          sources: [{ url: "rt.tif", min: "277", max: "300" }],
-        },
+        props: { url: "rt.tif" },
         rampName: "RdYlBu",
         rampMin: "277",
         rampMax: "300",
@@ -2285,9 +1907,10 @@ describe("MapLayerModal GeoTIFF ramp round-trip persistence", () => {
     expect(savedSource.rampMin).toBe("277");
     expect(savedSource.rampMax).toBe("300");
     // The generated color expression still lands on configuration.style.
-    expect(addMapLayer.mock.calls[0][0].configuration.style.color[0]).toBe(
-      "interpolate",
-    );
+    // Always guarded now: both raster types end up with a nodata value.
+    const rtColor = addMapLayer.mock.calls[0][0].configuration.style.color;
+    expect(rtColor[0]).toBe("case");
+    expect(rtColor[3][0]).toBe("interpolate");
   });
 });
 
@@ -2314,7 +1937,7 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
         rampMin: "0",
         rampMax: "100",
         props: {
-          sources: [{ url: "a.tif" }],
+          url: "a.tif",
         },
       },
     };
@@ -2348,18 +1971,23 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
     expect(Array.isArray(savedStyle.color)).toBe(true);
 
     // The expression header confirms it's a WebGLTile interpolate expression.
-    expect(savedStyle.color[0]).toBe("interpolate");
-    expect(savedStyle.color[1]).toEqual(["linear"]);
-    expect(savedStyle.color[2]).toEqual(["band", 1]);
-    expect(savedStyle.color[3]).toBe(0);
+    // ["case", <alpha guard>, <transparent>, <interpolate>]
+    expect(savedStyle.color[0]).toBe("case");
+    const interp = savedStyle.color[3];
+    expect(interp[0]).toBe("interpolate");
+    expect(interp[1]).toEqual(["linear"]);
+    expect(interp[2]).toEqual(["band", 1]);
+    expect(interp[3]).toBe(0);
     // Last stop pair ends at rampMax.
-    expect(savedStyle.color[savedStyle.color.length - 2]).toBe(100);
+    expect(interp[interp.length - 2]).toBe(100);
+    // Explicit range = raw band values, so the source is not normalized.
+    expect(savedConfig.configuration.props.source.props.normalize).toBe(false);
 
     // Most important regression guard: the backend upload was NOT called.
     expect(uploadSpy).not.toHaveBeenCalled();
   });
 
-  test("GeoTIFF without a ramp name saves with no style key", async () => {
+  test("GeoTIFF with no explicit range gets a normalized style (turbo default)", async () => {
     const uploadSpy = jest
       .spyOn(appAPI, "uploadJSON")
       .mockResolvedValue({ success: true, filename: "x.json" });
@@ -2371,7 +1999,7 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
       sourceProps: {
         type: "GeoTIFF",
         props: {
-          sources: [{ url: "a.tif" }],
+          url: "a.tif",
         },
       },
     };
@@ -2395,11 +2023,66 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
     });
 
     const savedConfig = addMapLayer.mock.calls[0][0];
-    expect(savedConfig.configuration.style).toBeUndefined();
+    const savedStyle = savedConfig.configuration.style;
+    // Turbo default + normalized [0,1] interpolate; no persisted range.
+    expect(Array.isArray(savedStyle.color)).toBe(true);
+    expect(savedStyle.color[0]).toBe("case");
+    expect(savedStyle.color[3][0]).toBe("interpolate");
+    expect(savedStyle.color[3][savedStyle.color[3].length - 2]).toBe(1);
+    expect(savedConfig.configuration.props.source.rampName).toBe("turbo");
+    expect(savedConfig.configuration.props.source.rampMin).toBeUndefined();
+    expect(savedConfig.configuration.props.source.props.normalize).toBe(true);
     expect(uploadSpy).not.toHaveBeenCalled();
   });
 
-  test("GeoTIFF with rampName but empty rampMin/rampMax does not generate a style", async () => {
+  test("Zarr source saves as a WebGLTile layer with a normalized turbo ramp", async () => {
+    const handleModalClose = jest.fn();
+    const addMapLayer = jest.fn();
+    const layerInfo = {
+      layerProps: { name: "Flood Depth" },
+      sourceProps: {
+        type: "Zarr",
+        props: {
+          url: "https://x/store.zarr",
+          variable: "depth",
+          index: "5",
+        },
+      },
+    };
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={handleModalClose}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+    await waitFor(() => {
+      expect(addMapLayer).toHaveBeenCalledTimes(1);
+    });
+
+    const savedConfig = addMapLayer.mock.calls[0][0];
+    // WebGLTile layer with the Zarr source and its fields preserved for editing.
+    expect(savedConfig.configuration.type).toBe("WebGLTile");
+    const source = savedConfig.configuration.props.source;
+    expect(source.type).toBe("Zarr");
+    expect(source.props.url).toBe("https://x/store.zarr");
+    expect(source.props.variable).toBe("depth");
+    expect(source.props.index).toBe("5");
+    // Turbo default + per-slice auto-scaling (normalized ramp). Zarr COGs always
+    // carry a -9999 nodata sentinel, so the ramp is wrapped in a transparency
+    // `case` expression (a GeoTIFF with no nodata set would be bare interpolate).
+    const color = savedConfig.configuration.style.color;
+    expect(color[0]).toBe("case");
+    expect(JSON.stringify(color)).toContain("interpolate");
+    expect(source.rampName).toBe("turbo");
+    expect(source.props.normalize).toBe(true);
+  });
+
+  test("GeoTIFF with rampName and empty range gets a normalized style", async () => {
     const uploadSpy = jest
       .spyOn(appAPI, "uploadJSON")
       .mockResolvedValue({ success: true, filename: "x.json" });
@@ -2407,14 +2090,14 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
     const handleModalClose = jest.fn();
     const addMapLayer = jest.fn();
     const layerInfo = {
-      layerProps: { name: "Incomplete Ramp GeoTIFF" },
+      layerProps: { name: "Auto Ramp GeoTIFF" },
       sourceProps: {
         type: "GeoTIFF",
         rampName: "viridis",
         rampMin: "",
         rampMax: "",
         props: {
-          sources: [{ url: "a.tif" }],
+          url: "a.tif",
         },
       },
     };
@@ -2438,8 +2121,54 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
     });
 
     const savedConfig = addMapLayer.mock.calls[0][0];
-    expect(savedConfig.configuration.style).toBeUndefined();
+    const savedStyle = savedConfig.configuration.style;
+    expect(Array.isArray(savedStyle.color)).toBe(true);
+    expect(savedStyle.color[0]).toBe("case");
+    expect(savedStyle.color[3][0]).toBe("interpolate");
+    expect(savedStyle.color[3][savedStyle.color[3].length - 2]).toBe(1);
+    expect(savedConfig.configuration.props.source.rampMin).toBeUndefined();
+    expect(savedConfig.configuration.props.source.props.normalize).toBe(true);
     expect(uploadSpy).not.toHaveBeenCalled();
+  });
+
+  test("saves a half-pinned ramp range without throwing", async () => {
+    // Only one bound entered. buildGeoTIFFStyleColor rejects a partial range,
+    // so the save has to store the normalized placeholder and keep the bound
+    // that was set — applyAutoRamp completes the other at render time.
+    jest
+      .spyOn(appAPI, "uploadJSON")
+      .mockResolvedValue({ success: true, filename: "x.json" });
+
+    const addMapLayer = jest.fn();
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={jest.fn()}
+        addMapLayer={addMapLayer}
+        layerInfo={{
+          layerProps: { name: "Half Pinned GeoTIFF" },
+          sourceProps: {
+            type: "GeoTIFF",
+            rampName: "viridis",
+            rampMin: "0",
+            rampMax: "",
+            props: { url: "a.tif" },
+          },
+        }}
+      />,
+    );
+
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+    await waitFor(() => expect(addMapLayer).toHaveBeenCalledTimes(1));
+
+    const savedConfig = addMapLayer.mock.calls[0][0];
+    const savedSource = savedConfig.configuration.props.source;
+    // The pinned bound survives; the empty one stays absent so it gets resolved.
+    expect(savedSource.rampMin).toBe("0");
+    expect(savedSource.rampMax).toBeUndefined();
+    // Placeholder style until the render-time resolve lands.
+    expect(savedConfig.configuration.style.color[0]).toBe("case");
+    expect(savedSource.props.normalize).toBe(true);
   });
 
   test("switching ramps on resave regenerates the color expression", async () => {
@@ -2456,7 +2185,7 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
         rampName: "viridis",
         rampMin: "0",
         rampMax: "100",
-        props: { sources: [{ url: "a.tif" }] },
+        props: { url: "a.tif" },
       },
     };
 
@@ -2485,7 +2214,7 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
         rampName: "turbo",
         rampMin: "0",
         rampMax: "100",
-        props: { sources: [{ url: "a.tif" }] },
+        props: { url: "a.tif" },
       },
     };
 
@@ -2505,10 +2234,10 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
 
     // Same structure, but the color hex strings differ between the ramps.
     expect(viridisColor).toHaveLength(turboColor.length);
-    // Compare the first color stop (index 4 = first color after the header +
-    // first value). Viridis starts near dark-purple; turbo starts near dark-red
-    // — they should not match.
-    expect(viridisColor[4]).not.toBe(turboColor[4]);
+    // The interpolate sits inside the `case` guard, so reach through index 3.
+    // Index 4 there is the first color stop: viridis starts near dark-purple,
+    // turbo near dark-red — they must not match.
+    expect(viridisColor[3][4]).not.toBe(turboColor[3][4]);
   });
 
   test("non-GeoTIFF vector layer with a style still uploads via saveLayerJSON", async () => {
@@ -2567,7 +2296,7 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
         rampName: "viridis",
         rampMin: "50",
         rampMax: "50",
-        props: { sources: [{ url: "a.tif" }] },
+        props: { url: "a.tif" },
       },
     };
 
@@ -2588,8 +2317,9 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
     const savedStyle = addMapLayer.mock.calls[0][0].configuration.style;
     expect(savedStyle).toHaveProperty("color");
     // All stop values collapse to 50, colors still vary.
-    expect(savedStyle.color[3]).toBe(50);
-    expect(savedStyle.color[savedStyle.color.length - 2]).toBe(50);
+    // Degenerate range: every stop collapses onto the same value.
+    expect(savedStyle.color[3][3]).toBe(50);
+    expect(savedStyle.color[3][savedStyle.color[3].length - 2]).toBe(50);
   });
 });
 
@@ -3778,6 +3508,10 @@ describe("normalizeAttributePropsForLayer", () => {
 describe("getLayerType", () => {
   test("GeoTIFF short-circuits to WebGLTile before substring checks", () => {
     expect(getLayerType("GeoTIFF")).toBe("WebGLTile");
+  });
+
+  test("Zarr maps to WebGLTile (renders as a COG)", () => {
+    expect(getLayerType("Zarr")).toBe("WebGLTile");
   });
 
   test("Vector source types map to VectorTileLayer", () => {

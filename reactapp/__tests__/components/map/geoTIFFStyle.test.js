@@ -125,7 +125,88 @@ describe("buildGeoTIFFStyleColor", () => {
         rampMin: "not-a-number",
         rampMax: 100,
       }),
-    ).toThrow(/finite numbers/);
+    ).toThrow(/both be set or both empty/);
+  });
+
+  test("empty rampMin and rampMax build a normalized [0,1] interpolate", () => {
+    const expr = buildGeoTIFFStyleColor({
+      rampName: "viridis",
+      rampMin: "",
+      rampMax: "",
+    });
+    expect(expr[0]).toBe("interpolate");
+    expect(expr[3]).toBe(0); // first stop at 0
+    expect(expr[expr.length - 2]).toBe(1); // last stop at 1
+  });
+
+  test("maskBelow adds a transparent branch for cells at or below the threshold", () => {
+    const expr = buildGeoTIFFStyleColor({
+      rampName: "viridis",
+      rampMin: 0,
+      rampMax: 10,
+      maskBelow: "0.05",
+    });
+
+    expect(expr[0]).toBe("case");
+    expect(expr[1]).toEqual(["<=", ["band", 1], 0.05]);
+    expect(expr[2]).toEqual([0, 0, 0, 0]);
+    expect(expr[3][0]).toBe("interpolate");
+  });
+
+  test("maskBelow and hasNodata produce both guards, nodata first", () => {
+    const expr = buildGeoTIFFStyleColor({
+      rampName: "viridis",
+      rampMin: 0,
+      rampMax: 10,
+      hasNodata: true,
+      maskBelow: 2,
+    });
+
+    expect(expr[0]).toBe("case");
+    expect(expr[1]).toEqual(["==", ["band", 2], 0]);
+    expect(expr[3]).toEqual(["<=", ["band", 1], 2]);
+    expect(expr[5][0]).toBe("interpolate");
+  });
+
+  test("a maskBelow of 0 still masks, rather than reading as unset", () => {
+    const expr = buildGeoTIFFStyleColor({
+      rampName: "viridis",
+      rampMin: 0,
+      rampMax: 10,
+      maskBelow: 0,
+    });
+
+    expect(expr[0]).toBe("case");
+    expect(expr[1]).toEqual(["<=", ["band", 1], 0]);
+  });
+
+  test.each([
+    ["undefined", undefined],
+    ["null", null],
+    ["empty string", ""],
+    ["non-numeric", "abc"],
+  ])("ignores a maskBelow of %s", (_label, maskBelow) => {
+    const expr = buildGeoTIFFStyleColor({
+      rampName: "viridis",
+      rampMin: 0,
+      rampMax: 10,
+      maskBelow,
+    });
+
+    expect(expr[0]).toBe("interpolate");
+  });
+
+  test("skips maskBelow in normalized mode, where band 1 is not a raw value", () => {
+    // Both bounds empty means OL scales band 1 to 0-1, so a raw threshold
+    // cannot be compared against it and there is no range to convert with.
+    const expr = buildGeoTIFFStyleColor({
+      rampName: "viridis",
+      rampMin: "",
+      rampMax: "",
+      maskBelow: 0.05,
+    });
+
+    expect(expr[0]).toBe("interpolate");
   });
 
   test("hasNodata wraps the interpolate in a `case` against band 2 with a transparent fallback", () => {
@@ -157,7 +238,7 @@ describe("buildGeoTIFFStyleColor", () => {
         rampMin: 0,
         rampMax: "",
       }),
-    ).toThrow(/finite numbers/);
+    ).toThrow(/both be set or both empty/);
   });
 
   test("treats an empty-string rampMin as NaN (covers the minIsEmpty true branch)", () => {
@@ -170,7 +251,7 @@ describe("buildGeoTIFFStyleColor", () => {
         rampMin: "",
         rampMax: 100,
       }),
-    ).toThrow(/finite numbers/);
+    ).toThrow(/both be set or both empty/);
   });
 
   test("steps === 1 short-circuits to t=0 (single-entry ramp covers the steps===1 branch)", () => {

@@ -95,6 +95,16 @@ const StylePane = ({
   }, [sourceProps, layerProps, uuid, dynamicMapLayers]);
 
   useEffect(() => {
+    if (
+      (sourceProps.type === "GeoTIFF" || sourceProps.type === "Zarr") &&
+      !sourceProps.rampName &&
+      setSourceProps
+    ) {
+      setSourceProps((prev) => ({ ...prev, rampName: "turbo" }));
+    }
+  }, [sourceProps.type, sourceProps.rampName, setSourceProps]);
+
+  useEffect(() => {
     const fetchJSON = async () => {
       if (style.includes("/")) {
         const response = await fetch(style);
@@ -183,7 +193,7 @@ const StylePane = ({
     }
   }
 
-  if (sourceProps.type === "GeoTIFF") {
+  if (sourceProps.type === "GeoTIFF" || sourceProps.type === "Zarr") {
     const selectedRamp = sourceProps.rampName ?? null;
     const rampMin = sourceProps.rampMin ?? "";
     const rampMax = sourceProps.rampMax ?? "";
@@ -337,6 +347,9 @@ StylePane.propTypes = {
     rampMin: PropTypes.string,
     rampMax: PropTypes.string,
     geojson: PropTypes.oneOfType([PropTypes.string, PropTypes.object]),
+    props: PropTypes.shape({
+      sources: PropTypes.arrayOf(PropTypes.shape({ url: PropTypes.string })),
+    }),
   }),
   setSourceProps: PropTypes.func,
   layerProps: PropTypes.shape({

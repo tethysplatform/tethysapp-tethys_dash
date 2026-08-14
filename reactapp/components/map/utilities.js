@@ -123,8 +123,24 @@ export const sourcePropertiesOptions = {
     optional: {},
   },
   GeoTIFF: {
-    required: {},
-    optional: {},
+    required: {
+      url: { placeholder: "Cloud Optimized GeoTIFF URL" },
+    },
+    optional: {
+      projection: { placeholder: "EPSG:<Code>" },
+      mask_below: { placeholder: "Mask values at or below this" },
+    },
+  },
+  Zarr: {
+    required: {
+      url: { placeholder: "Zarr store URL (https or s3 bucket)" },
+      variable: { placeholder: "Variable / array name (e.g. depth)" },
+    },
+    optional: {
+      // eslint-disable-next-line no-template-curly-in-string
+      index: { placeholder: "Slice index or a variable, e.g. ${Storm}" },
+      mask_below: { placeholder: "Mask values at or below this" },
+    },
   },
   "Vector Tile": {
     required: {
@@ -624,7 +640,7 @@ export async function queryLayerFeatures(layerInfo, map, coordinate, pixel) {
       features = getVectorTileLayerFeatures(map, pixel);
     } else if (sourceType === "KML") {
       features = getKMLLayerFeatures(map, pixel, coordinate, LayerName);
-    } else if (sourceType === "GeoTIFF") {
+    } else if (sourceType === "GeoTIFF" || sourceType === "Zarr") {
       features = getGeoTIFFPixelValues(
         map,
         pixel,
@@ -673,11 +689,12 @@ function getGeoTIFFPixelValues(map, pixel, LayerName, layerInfo, coordinate) {
   const data = targetLayer.getData(pixel);
   if (!data || data.length === 0) return [];
 
-  const configuredSources =
-    layerInfo?.configuration?.props?.source?.props?.sources ?? [];
-  const anySourceHasNodata = configuredSources.some(
-    (s) => s?.nodata !== undefined && s.nodata !== null && s.nodata !== "",
-  );
+  // OL appends an alpha band whenever a nodata value is in play, and that band
+  // is a mask rather than data. Both raster types always end up with one: a Zarr
+  // COG carries the -9999 sentinel, and a GeoTIFF gets the author's value, the
+  // file's own tag, or the NaN default (see resolveNodata in ModuleLoader).
+  const sourceType = layerInfo?.configuration?.props?.source?.type;
+  const anySourceHasNodata = sourceType === "Zarr" || sourceType === "GeoTIFF";
 
   if (anySourceHasNodata && data.length >= 2 && data[data.length - 1] === 0) {
     return [

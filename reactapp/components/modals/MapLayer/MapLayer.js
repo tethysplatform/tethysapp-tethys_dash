@@ -128,7 +128,7 @@ export function renameLayerInAttributeProps(attributeProps, oldName, newName) {
 }
 
 export const getLayerType = (sourceType) => {
-  if (sourceType === "GeoTIFF") return "WebGLTile";
+  if (sourceType === "GeoTIFF" || sourceType === "Zarr") return "WebGLTile";
   if (sourceType.includes("Vector")) return "VectorTileLayer";
   if (sourceType.includes("Raster")) return "WebGLTile";
   if (sourceType.includes("Tile")) return "TileLayer";
@@ -156,7 +156,6 @@ const MapLayerModal = ({
   const [popupConfig, setPopupConfig] = useState(layerInfo.popupConfig ?? null);
   const [selectedOption, setSelectedOption] = useState(null);
   const [hiddenForExtentDraw, setHiddenForExtentDraw] = useState(false);
-  const [showingSubModal, setShowingSubModal] = useState(false);
   const [showLayoutEditor, setShowLayoutEditor] = useState(false);
   const legendContainerRef = useRef(null);
   const styleContainerRef = useRef(null);
@@ -252,34 +251,6 @@ const MapLayerModal = ({
       if (sourceProps.type === "Vector Tile") {
         validSourceProps.urls = validSourceProps.urls.split(",");
       }
-    }
-
-    if (sourceProps.type === "GeoTIFF") {
-      const rawSources = sourceProps.props?.sources ?? [];
-      const cleanSourceInfo = (s) => {
-        const out = { url: s.url };
-        if (typeof s.bands === "string" && s.bands.trim() !== "") {
-          out.bands = s.bands;
-        }
-        if (s.min !== undefined && s.min !== "") out.min = s.min;
-        if (s.max !== undefined && s.max !== "") out.max = s.max;
-        if (s.nodata !== undefined && s.nodata !== "") out.nodata = s.nodata;
-        if (typeof s.projection === "string" && s.projection.trim() !== "") {
-          out.projection = s.projection;
-        }
-        if (Array.isArray(s.overviews) && s.overviews.length > 0) {
-          out.overviews = s.overviews;
-        }
-        return out;
-      };
-      const restoredSources = rawSources
-        .filter((s) => typeof s?.url === "string" && s.url.trim() !== "")
-        .map(cleanSourceInfo);
-      if (restoredSources.length === 0) {
-        setErrorMessage("Add at least one source with a URL before saving.");
-        return;
-      }
-      validSourceProps.sources = restoredSources;
     }
 
     let mapConfiguration;
@@ -398,31 +369,45 @@ const MapLayerModal = ({
       }
     }
 
-    if (sourceProps.type === "GeoTIFF") {
+    if (sourceProps.type === "GeoTIFF" || sourceProps.type === "Zarr") {
       const { rampName, rampMin, rampMax } = sourceProps;
-      const hasRamp =
-        typeof rampName === "string" &&
-        rampName.trim() !== "" &&
-        typeof rampMin === "string" &&
-        rampMin.trim() !== "" &&
-        typeof rampMax === "string" &&
-        rampMax.trim() !== "" &&
-        Number.isFinite(Number(rampMin)) &&
-        Number.isFinite(Number(rampMax));
-      if (hasRamp) {
-        const hasNodata = validSourceProps.sources.some(
-          (s) => s?.nodata !== undefined && s.nodata !== "",
-        );
+      const hasRampName =
+        typeof rampName === "string" && rampName.trim() !== "";
+      // Each bound is independent: a set one pins that end of the ramp, an
+      // empty one is resolved from the file's statistics at render time.
+      const isBoundSet = (v) =>
+        typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v));
+      const hasMin = isBoundSet(rampMin);
+      const hasMax = isBoundSet(rampMax);
+      const hasRange = hasMin && hasMax;
+      if (hasRampName) {
+        // buildGeoTIFFStyleColor needs both bounds or neither. When only one is
+        // set, save the normalized placeholder — applyAutoRamp rebuilds the
+        // style at render time once it has resolved the missing bound.
+        //
+        // Both raster types end up with a nodata value at render time (a Zarr
+        // COG's -9999 sentinel, or the GeoTIFF's own tag / the NaN default), so
+        // OL always appends an alpha band for the style to guard.
         const color = buildGeoTIFFStyleColor({
           rampName,
-          rampMin,
-          rampMax,
-          hasNodata,
+          rampMin: hasRange ? rampMin : "",
+          rampMax: hasRange ? rampMax : "",
+          hasNodata: true,
+          maskBelow: validSourceProps.mask_below,
         });
         mapConfiguration.configuration.style = { color };
         mapConfiguration.configuration.props.source.rampName = rampName;
-        mapConfiguration.configuration.props.source.rampMin = rampMin;
-        mapConfiguration.configuration.props.source.rampMax = rampMax;
+        // Raw range styles raw band values; anything less than a full range
+        // normalizes band 1 from stats until the render-time resolve lands.
+        mapConfiguration.configuration.props.source.props.normalize = !hasRange;
+        // Persist each bound that is set. A missing one means "resolve it from
+        // the file", so a half-pinned range has to survive the save.
+        if (hasMin) {
+          mapConfiguration.configuration.props.source.rampMin = rampMin;
+        }
+        if (hasMax) {
+          mapConfiguration.configuration.props.source.rampMax = rampMax;
+        }
       }
     } else if (style && style !== "{}") {
       const apiResponse = await saveLayerJSON({
@@ -584,7 +569,7 @@ const MapLayerModal = ({
         style={
           hiddenForExtentDraw
             ? { visibility: "hidden" }
-            : showingSubModal || showLayoutEditor
+            : showLayoutEditor
               ? { zIndex: 1050 }
               : undefined
         }
@@ -625,7 +610,6 @@ const MapLayerModal = ({
                 setErrorMessage={setErrorMessage}
                 onRequestHideModal={onRequestHideModal}
                 onFetchPluginDefaults={fetchPluginDefaults}
-                onSubModalToggle={setShowingSubModal}
               />
             </Tab>
             <Tab

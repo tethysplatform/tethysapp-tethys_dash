@@ -40,13 +40,18 @@ jest.mock("components/map/ModuleLoader", () => {
     __esModule: true,
     default: actual.default, // use the real default export
     createJsonStyleFunction: jest.fn(), // mock only this function
+    applyAutoRamp: actual.applyAutoRamp, // real: drives the Zarr legend
   };
 });
+
+jest.mock("geotiff", () => ({ fromUrl: jest.fn() }));
 
 // eslint-disable-next-line
 import MapVisualization, { Popup } from "components/visualizations/Map";
 // eslint-disable-next-line
 import { createJsonStyleFunction } from "components/map/ModuleLoader";
+// eslint-disable-next-line
+import { fromUrl } from "geotiff";
 
 global.ResizeObserver = require("resize-observer-polyfill");
 
@@ -623,7 +628,7 @@ test("Map GeoTIFF with default legend emits a ramp colorbar from sourceProps met
         source: {
           type: "GeoTIFF",
           props: {
-            sources: [{ url: "https://example.com/ramp.tif" }],
+            url: "https://example.com/ramp.tif",
           },
           rampName: "viridis",
           rampMin: "0",
@@ -674,6 +679,129 @@ test("Map GeoTIFF with default legend emits a ramp colorbar from sourceProps met
   // Layer name is used as the legend title for the colorbar entry
   // (line 357: `title: layer.configuration?.props?.name`).
   expect(screen.getByText("Ramp Raster Layer")).toBeInTheDocument();
+});
+
+const zarrRampLayer = (source = {}) => ({
+  configuration: {
+    type: "WebGLTile",
+    props: {
+      name: "Flood Depth",
+      source: {
+        type: "Zarr",
+        rampName: "viridis",
+        props: { url: "https://example.com/store.zarr", variable: "depth" },
+        ...source,
+      },
+    },
+  },
+  legend: "default",
+});
+
+const renderMapWithLayers = (layers) => {
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent
+          mapProps={{
+            mapConfig: {},
+            viewConfig: {},
+            layers,
+            baseMap: null,
+            layerControl: false,
+          }}
+        />
+      </MapContextProvider>
+    ),
+  });
+  render(LoadedComponent);
+};
+
+test("Map Zarr with default legend labels the colorbar with the resolved slice range", async () => {
+  // A Zarr layer in auto mode persists no rampMin/rampMax — the range comes
+  // from the COG's STATISTICS_* tags, resolved before the legend is built.
+  fromUrl.mockResolvedValue({
+    getImage: jest.fn().mockResolvedValue({
+      getGDALMetadata: jest.fn(() => ({
+        STATISTICS_MINIMUM: "0",
+        STATISTICS_MAXIMUM: "17",
+      })),
+    }),
+  });
+
+  renderMapWithLayers([zarrRampLayer()]);
+  fireEvent.click(await screen.findByLabelText("Show Legend Control"));
+
+  expect(
+    await screen.findByLabelText("Color ramp from 0 to 17"),
+  ).toBeInTheDocument();
+  expect(screen.getByText("Flood Depth")).toBeInTheDocument();
+});
+
+test("Map Zarr with default legend prefers an author-pinned range over the stats", async () => {
+  fromUrl.mockResolvedValue({
+    getImage: jest.fn().mockResolvedValue({
+      getGDALMetadata: jest.fn(() => ({
+        STATISTICS_MINIMUM: "0",
+        STATISTICS_MAXIMUM: "17",
+      })),
+    }),
+  });
+
+  renderMapWithLayers([zarrRampLayer({ rampMin: "0", rampMax: "50" })]);
+  fireEvent.click(await screen.findByLabelText("Show Legend Control"));
+
+  expect(
+    await screen.findByLabelText("Color ramp from 0 to 50"),
+  ).toBeInTheDocument();
+});
+
+test("Map Zarr with default legend omits the colorbar when stats are unavailable", async () => {
+  // Unreadable header: the layer still renders (normalized), but there is no
+  // real range to label, so no colorbar is emitted.
+  fromUrl.mockRejectedValue(new Error("network"));
+
+  renderMapWithLayers([zarrRampLayer()]);
+  fireEvent.click(await screen.findByLabelText("Show Legend Control"));
+
+  expect(screen.queryByLabelText(/^Color ramp from/)).not.toBeInTheDocument();
+});
+
+test("Map GeoTIFF with an empty range auto-fits the legend to the file statistics", async () => {
+  // No persisted rampMin/rampMax: the colorbar range comes from the file's
+  // STATISTICS_* tags, so it refits when a variable input swaps the URL.
+  fromUrl.mockResolvedValue({
+    getImage: jest.fn().mockResolvedValue({
+      getGDALMetadata: jest.fn(() => ({
+        STATISTICS_MINIMUM: "0.05",
+        STATISTICS_MAXIMUM: "11.732",
+      })),
+      getGDALNoData: jest.fn(() => null),
+    }),
+  });
+
+  renderMapWithLayers([
+    {
+      configuration: {
+        type: "WebGLTile",
+        props: {
+          name: "Depth Raster",
+          source: {
+            type: "GeoTIFF",
+            rampName: "viridis",
+            props: { url: "https://example.com/depth.tif" },
+          },
+        },
+      },
+      legend: "default",
+    },
+  ]);
+  fireEvent.click(await screen.findByLabelText("Show Legend Control"));
+
+  // Rounded to 2 decimals by formatRampBound.
+  expect(
+    await screen.findByLabelText("Color ramp from 0.05 to 11.73"),
+  ).toBeInTheDocument();
+  expect(screen.getByText("Depth Raster")).toBeInTheDocument();
 });
 
 test("Map ESRI with default legend", async () => {

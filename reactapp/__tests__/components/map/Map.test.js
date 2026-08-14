@@ -1260,7 +1260,90 @@ test("Double-buffering done() is idempotent when called twice", async () => {
   jest.useRealTimers();
 });
 
-test("GeoTIFF with empty sources is silently skipped (not a failed layer)", async () => {
+const tileLayer = (url) => [
+  {
+    type: "WebGLTile",
+    props: {
+      source: { type: "Image Tile", props: { url } },
+      name: "buf_layer",
+      zIndex: 0,
+    },
+  },
+];
+
+const wrapLayers = (layers) => (
+  <VariableInputsContext.Provider value={{ setVariableInputValues: jest.fn() }}>
+    <MapContextProvider>
+      <TestingComponent mapProps={{ layers }} />
+    </MapContextProvider>
+  </VariableInputsContext.Provider>
+);
+
+test("replacement tile layer stays hidden until painted, then reveals on swap", async () => {
+  const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+  const removeLayerSpy = jest.spyOn(Map.prototype, "removeLayer");
+
+  const { rerender } = render(
+    wrapLayers(tileLayer("https://example.com/a/{z}/{y}/{x}")),
+  );
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  await waitFor(() => expect(addLayerSpy.mock.calls.length).toBe(1));
+
+  rerender(wrapLayers(tileLayer("https://example.com/b/{z}/{y}/{x}")));
+  await waitFor(() => expect(addLayerSpy.mock.calls.length).toBe(2));
+
+  const newLayer = addLayerSpy.mock.calls[1][0];
+  // Hidden via opacity (still loading) while the old layer is still present.
+  expect(newLayer.getOpacity()).toBe(0);
+  expect(removeLayerSpy.mock.calls.length).toBe(0);
+
+  newLayer.getSource().dispatchEvent("tileloadend");
+
+  await waitFor(() => expect(removeLayerSpy.mock.calls.length).toBe(1));
+  // Revealed on the swap; the old layer is the one removed.
+  expect(newLayer.getOpacity()).toBe(1);
+  expect(removeLayerSpy.mock.calls[0][0].values_.name).toBe("buf_layer");
+});
+
+test("superseded frame is discarded; only the newest replacement reveals", async () => {
+  const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+  const removeLayerSpy = jest.spyOn(Map.prototype, "removeLayer");
+
+  const { rerender } = render(
+    wrapLayers(tileLayer("https://example.com/a/{z}/{y}/{x}")),
+  );
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  await waitFor(() => expect(addLayerSpy.mock.calls.length).toBe(1));
+
+  // Two rerenders before any tiles paint: the middle frame is superseded.
+  rerender(wrapLayers(tileLayer("https://example.com/b/{z}/{y}/{x}")));
+  await waitFor(() => expect(addLayerSpy.mock.calls.length).toBe(2));
+  rerender(wrapLayers(tileLayer("https://example.com/c/{z}/{y}/{x}")));
+  await waitFor(() => expect(addLayerSpy.mock.calls.length).toBe(3));
+
+  const layerA = addLayerSpy.mock.calls[0][0];
+  const layerB = addLayerSpy.mock.calls[1][0];
+  const layerC = addLayerSpy.mock.calls[2][0];
+
+  // Both replacements are still hidden (opacity 0); the original is untouched.
+  expect(layerA.getOpacity()).toBe(1);
+  expect(layerB.getOpacity()).toBe(0);
+  expect(layerC.getOpacity()).toBe(0);
+
+  // The newest frame paints first: it reveals and the old layer is dropped.
+  layerC.getSource().dispatchEvent("tileloadend");
+  await waitFor(() => expect(layerC.getOpacity()).toBe(1));
+  expect(removeLayerSpy.mock.calls.map((c) => c[0])).toContain(layerA);
+
+  // The superseded middle frame paints late: discarded, never revealed.
+  layerB.getSource().dispatchEvent("tileloadend");
+  await waitFor(() =>
+    expect(removeLayerSpy.mock.calls.map((c) => c[0])).toContain(layerB),
+  );
+  expect(layerB.getOpacity()).toBe(0);
+});
+
+test("GeoTIFF with no url is silently skipped (not a failed layer)", async () => {
   const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
   const layers = [
     {
@@ -1269,9 +1352,7 @@ test("GeoTIFF with empty sources is silently skipped (not a failed layer)", asyn
         name: "In-progress GeoTIFF",
         source: {
           type: "GeoTIFF",
-          props: {
-            sources: [],
-          },
+          props: {},
         },
         zIndex: 0,
       },
@@ -1309,7 +1390,7 @@ test("GeoTIFF with empty sources is silently skipped (not a failed layer)", asyn
   });
   expect(addLayerSpy.mock.calls[0][0].values_.name).toBe("Other Layer");
 
-  // The empty-sources GeoTIFF is NOT surfaced in the failedLayers warning.
+  // The url-less GeoTIFF is NOT surfaced in the failedLayers warning.
   expect(
     screen.queryByText(/Failed to load the "In-progress GeoTIFF"/),
   ).not.toBeInTheDocument();
@@ -1457,7 +1538,7 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
           source: {
             type: "GeoTIFF",
             props: {
-              sources: [{ url: "https://example.com/test.tif" }],
+              url: "https://example.com/test.tif",
             },
           },
           name: "Auto-fit GeoTIFF Layer",
@@ -1547,7 +1628,7 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
         props: {
           source: {
             type: "GeoTIFF",
-            props: { sources: [{ url: "https://example.com/test.tif" }] },
+            props: { url: "https://example.com/test.tif" },
           },
           name: "Failing GeoTIFF",
           zIndex: 0,
@@ -1597,7 +1678,7 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
         props: {
           source: {
             type: "GeoTIFF",
-            props: { sources: [{ url: "https://example.com/test.tif" }] },
+            props: { url: "https://example.com/test.tif" },
           },
           name: "Format-Bad GeoTIFF",
           zIndex: 0,
@@ -1661,7 +1742,7 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
         props: {
           source: {
             type: "GeoTIFF",
-            props: { sources: [{ url: "https://example.com/test.tif" }] },
+            props: { url: "https://example.com/test.tif" },
           },
           name: "Auto-fit Sized",
           zIndex: 0,
@@ -1727,7 +1808,7 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
         props: {
           source: {
             type: "GeoTIFF",
-            props: { sources: [{ url: "https://example.com/test.tif" }] },
+            props: { url: "https://example.com/test.tif" },
           },
           name: "Pacific GeoTIFF",
           zIndex: 0,
@@ -1769,7 +1850,7 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
         props: {
           source: {
             type: "GeoTIFF",
-            props: { sources: [{ url: "https://example.com/test.tif" }] },
+            props: { url: "https://example.com/test.tif" },
           },
           name: "Top-level Message GeoTIFF",
           zIndex: 0,
@@ -1822,7 +1903,7 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
         props: {
           source: {
             type: "GeoTIFF",
-            props: { sources: [{ url: "https://example.com/test.tif" }] },
+            props: { url: "https://example.com/test.tif" },
           },
           name: "Empty-event GeoTIFF",
           zIndex: 0,
@@ -1882,7 +1963,7 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
         props: {
           source: {
             type: "GeoTIFF",
-            props: { sources: [{ url: "https://example.com/test.tif" }] },
+            props: { url: "https://example.com/test.tif" },
           },
           name: "Bare-projection GeoTIFF",
           zIndex: 0,
@@ -1934,7 +2015,7 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
       props: {
         source: {
           type: "GeoTIFF",
-          props: { sources: [{ url: "https://example.com/test.tif" }] },
+          props: { url: "https://example.com/test.tif" },
         },
         name: "Non-array-getExtent GeoTIFF",
         zIndex: 0,
@@ -1997,7 +2078,7 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
         props: {
           source: {
             type: "GeoTIFF",
-            props: { sources: [{ url: "https://example.com/test.tif" }] },
+            props: { url: "https://example.com/test.tif" },
           },
           name: "NaN-Transform GeoTIFF",
           zIndex: 0,
@@ -2143,7 +2224,7 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
         props: {
           source: {
             type: "GeoTIFF",
-            props: { sources: [{ url: "https://example.com/test.tif" }] },
+            props: { url: "https://example.com/test.tif" },
           },
           name: "Non-finite Prev GeoTIFF",
           zIndex: 0,
@@ -2188,7 +2269,7 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
         props: {
           source: {
             type: "GeoTIFF",
-            props: { sources: [{ url: "https://example.com/test.tif" }] },
+            props: { url: "https://example.com/test.tif" },
           },
           name: "Bomber",
           zIndex: 0,
