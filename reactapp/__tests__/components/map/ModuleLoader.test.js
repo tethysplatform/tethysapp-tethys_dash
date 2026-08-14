@@ -1966,12 +1966,13 @@ describe("applyAutoRamp", () => {
   // geotiff.js: getGDALMetadata(0) returns items tagged for sample 0, while
   // getGDALMetadata(null) returns the dataset-level items. Writers put
   // STATISTICS_* in either place, so the mock has to tell them apart.
-  const mockGDALMetadata = ({ band = {}, dataset = {} }) =>
+  const mockGDALMetadata = ({ band = {}, dataset = {}, fileNodata = null }) =>
     fromUrl.mockResolvedValue({
       getImage: jest.fn().mockResolvedValue({
         getGDALMetadata: jest.fn((sample) =>
           sample === null ? dataset : band,
         ),
+        getGDALNoData: jest.fn(() => fileNodata),
       }),
     });
 
@@ -2055,12 +2056,14 @@ describe("applyAutoRamp", () => {
   });
 
   test("honors an author-pinned range instead of auto-fitting", async () => {
+    mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "99" });
     const config = zarrLayer({ rampMin: "0", rampMax: "5" });
 
     await applyAutoRamp(config);
 
-    expect(fromUrl).not.toHaveBeenCalled();
-    expect(config.props.source.props.normalize).toBeUndefined();
+    // The file's 0-99 range is ignored; the ramp keeps the author's 0-5.
+    const interpolate = config.style.color[3];
+    expect(interpolate[interpolate.length - 2]).toBe(5);
     expect(config.props.source.rampMax).toBe("5");
   });
 
@@ -2089,8 +2092,11 @@ describe("applyAutoRamp", () => {
 
     await applyAutoRamp(config);
 
+    // No usable range, so raw-value styling is not switched on...
     expect(config.props.source.props.normalize).toBeUndefined();
-    expect(config.style).toBeUndefined();
+    // ...but the style is still rebuilt so nodata cells stay transparent.
+    expect(config.style.color[0]).toBe("case");
+    expect(config.style.color[3][0]).toBe("interpolate");
   });
 
   test("falls back to normalized rendering when the header cannot be read", async () => {
@@ -2100,7 +2106,7 @@ describe("applyAutoRamp", () => {
     await expect(applyAutoRamp(config)).resolves.toBeTruthy();
 
     expect(config.props.source.props.normalize).toBeUndefined();
-    expect(config.style).toBeUndefined();
+    expect(config.props.source.resolvedRampMin).toBeUndefined();
   });
 
   test("reads dataset-level STATISTICS_* when the band carries none", async () => {
@@ -2157,14 +2163,18 @@ describe("applyAutoRamp", () => {
     expect(config.props.source.resolvedRampMax).toBe(20);
   });
 
-  test("does not resolve when both bounds are pinned", async () => {
+  test("still reads the header when both bounds are pinned, to settle nodata", async () => {
+    // The header also carries GDAL_NODATA, and a pinned layer needs its
+    // transparency right just as much as an auto-fitted one.
     mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "17" });
     const config = zarrLayer({ rampMin: "1", rampMax: "5" });
 
     await applyAutoRamp(config);
 
-    expect(fromUrl).not.toHaveBeenCalled();
-    expect(config.props.source.resolvedRampMin).toBeUndefined();
+    expect(fromUrl).toHaveBeenCalledTimes(1);
+    // Pinned bounds are not overwritten by the resolved ones.
+    expect(config.props.source.resolvedRampMin).toBe(1);
+    expect(config.props.source.resolvedRampMax).toBe(5);
   });
 
   test("treats a pinned min of 0 as set, not as empty", async () => {
@@ -2185,7 +2195,7 @@ describe("applyAutoRamp", () => {
     await applyAutoRamp(config);
 
     expect(config.props.source.props.normalize).toBeUndefined();
-    expect(config.style).toBeUndefined();
+    expect(config.props.source.resolvedRampMin).toBeUndefined();
   });
 
   test("bails when a pinned bound is not a number", async () => {
@@ -2194,7 +2204,8 @@ describe("applyAutoRamp", () => {
 
     await applyAutoRamp(config);
 
-    expect(config.style).toBeUndefined();
+    expect(config.props.source.props.normalize).toBeUndefined();
+    expect(config.props.source.resolvedRampMin).toBeUndefined();
   });
 
   test("lifts a resolved min to the mask threshold", async () => {
@@ -2260,6 +2271,7 @@ describe("applyAutoRamp", () => {
     fromUrl.mockResolvedValue({
       getImage: jest.fn().mockResolvedValue({
         getGDALMetadata: jest.fn(() => null),
+        getGDALNoData: jest.fn(() => null),
       }),
     });
     const config = zarrLayer();
@@ -2267,7 +2279,7 @@ describe("applyAutoRamp", () => {
     await expect(applyAutoRamp(config)).resolves.toBeTruthy();
 
     expect(config.props.source.props.normalize).toBeUndefined();
-    expect(config.style).toBeUndefined();
+    expect(config.props.source.resolvedRampMin).toBeUndefined();
   });
 
   describe("GeoTIFF sources", () => {
@@ -2296,23 +2308,67 @@ describe("applyAutoRamp", () => {
       expect(config.props.source.resolvedRampMax).toBeCloseTo(11.7, 4);
     });
 
-    test("omits the band-2 guard when no source declares nodata", async () => {
+    test("guards band 2 even when neither author nor file declares nodata", async () => {
+      // A NaN default is applied, so OL adds an alpha band regardless.
       mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "10" });
       const config = geotiffLayer();
 
       await applyAutoRamp(config);
 
-      // No alpha band, so the style is a bare interpolate, not a `case`.
-      expect(config.style.color[0]).toBe("interpolate");
+      expect(config.style.color[0]).toBe("case");
+      expect(Number.isNaN(config.props.source.props.nodata)).toBe(true);
     });
 
-    test("guards band 2 when a source declares nodata", async () => {
-      mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "10" });
+    test("discovers nodata from the file when the author left it blank", async () => {
+      mockGDALMetadata({
+        band: { STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "10" },
+        fileNodata: 255,
+      });
+      const config = geotiffLayer();
+
+      await applyAutoRamp(config);
+
+      expect(config.props.source.props.nodata).toBe(255);
+      expect(config.style.color[0]).toBe("case");
+    });
+
+    test("an author-entered nodata overrides the file's own value", async () => {
+      mockGDALMetadata({
+        band: { STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "10" },
+        fileNodata: 255,
+      });
       const config = geotiffLayer({}, { nodata: "-9999" });
 
       await applyAutoRamp(config);
 
+      expect(config.props.source.props.nodata).toBe("-9999");
+    });
+
+    test("a NaN nodata declared by the file is kept, not replaced", async () => {
+      mockGDALMetadata({
+        band: { STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "1" },
+        fileNodata: NaN,
+      });
+      const config = geotiffLayer();
+
+      await applyAutoRamp(config);
+
+      expect(Number.isNaN(config.props.source.props.nodata)).toBe(true);
+    });
+
+    test("guards band 2 when the file has nodata but no statistics", async () => {
+      // Common for COGs without STATISTICS_*: the ramp cannot be fitted, but
+      // nodata cells must still be transparent rather than painted at band 1 = 0.
+      mockGDALMetadata({ fileNodata: 255 });
+      const config = geotiffLayer();
+
+      await applyAutoRamp(config);
+
+      expect(config.props.source.props.nodata).toBe(255);
       expect(config.style.color[0]).toBe("case");
+      // Normalized mode: the ramp still spans OL's 0-1 scaled band.
+      expect(config.style.color[3][0]).toBe("interpolate");
+      expect(config.props.source.props.normalize).toBeUndefined();
     });
 
     test("refits when a variable input swaps the URL", async () => {

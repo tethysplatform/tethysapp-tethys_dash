@@ -110,12 +110,22 @@ function autoRampStatsUrl(source) {
   return typeof url === "string" && /^https?:\/\//i.test(url) ? url : null;
 }
 
-// Whether OL will append an alpha band, which decides if the style has to guard
-// band 2. Mirrors the predicate in MapLayer.
-function autoRampHasNodata(source) {
-  if (source.type === "Zarr") return true; // COGs always carry -9999
-  const nodata = source.props?.nodata;
-  return nodata !== undefined && nodata !== null && nodata !== "";
+// Settle which nodata value a GeoTIFF renders with, given what the file itself
+// declares. OL treats a source-level `nodata` as an override and otherwise falls
+// back to the file's GDAL_NODATA tag, so most files need no author input at all.
+//
+// When nothing declares one, default to NaN: OL has a dedicated NaN branch
+// (plain equality would never match, since NaN !== NaN), and NaN is never
+// meaningful data, so masking it cannot hide a real value. Returning a value in
+// every case means OL always appends an alpha band, so the style always has a
+// band 2 to guard.
+function resolveNodata(source, fileNodata) {
+  const authored = source.props?.nodata;
+  if (authored !== undefined && authored !== null && authored !== "") {
+    return authored;
+  }
+  if (fileNodata !== null && fileNodata !== undefined) return fileNodata;
+  return NaN;
 }
 
 // Fit a ramp-styled raster layer's color ramp to the file's real value range.
@@ -146,8 +156,9 @@ export async function applyAutoRamp(layerConfig) {
   const { rampName, rampMin, rampMax } = source ?? {};
   const hasMin = (rampMin ?? "") !== "";
   const hasMax = (rampMax ?? "") !== "";
-  // Both pinned: the author fixed the scale across files, nothing to resolve.
-  if (!rampName || (hasMin && hasMax)) return layerConfig;
+  // The header is read even when both bounds are pinned, because it also
+  // settles nodata — a pinned layer still needs its transparency right.
+  if (!rampName) return layerConfig;
 
   // Keyed on the URL so this is safe to call from more than one place per
   // render, while still re-resolving when the source points at another file.
@@ -163,6 +174,29 @@ export async function applyAutoRamp(layerConfig) {
     // them at dataset level -- so check the band first, then fall back.
     const meta = image.getGDALMetadata(0) ?? {};
     const dataset = image.getGDALMetadata(null) ?? {};
+
+    // Settle nodata first: it is independent of the ramp range, and a file with
+    // nodata but no statistics still needs its transparency handled. Zarr COGs
+    // are built by us and always carry the -9999 sentinel already.
+    if (source.type !== "Zarr") {
+      source.props = {
+        ...(source.props ?? {}),
+        nodata: resolveNodata(source, image.getGDALNoData()),
+      };
+    }
+    // Every path below leaves the source with a nodata value, so OL appends an
+    // alpha band and the style always has a band 2 to guard.
+    const styleFor = (rampMinValue, rampMaxValue) => ({
+      ...(layerConfig.style ?? {}),
+      color: buildGeoTIFFStyleColor({
+        rampName,
+        rampMin: rampMinValue,
+        rampMax: rampMaxValue,
+        hasNodata: true,
+        maskBelow: source.props?.mask_below,
+      }),
+    });
+
     // A pinned bound wins; only the empty one comes from the statistics.
     let lo = hasMin
       ? Number(rampMin)
@@ -171,6 +205,10 @@ export async function applyAutoRamp(layerConfig) {
       ? Number(rampMax)
       : parseFloat(meta.STATISTICS_MAXIMUM ?? dataset.STATISTICS_MAXIMUM);
     if (!Number.isFinite(lo) || !Number.isFinite(hi) || hi <= lo) {
+      // No usable range, so rendering stays normalized — but rebuild the style
+      // anyway so nodata cells are transparent rather than painted at band 1 = 0,
+      // which is what the zero-filled tile array leaves them as.
+      layerConfig.style = styleFor("", "");
       return layerConfig;
     }
 
@@ -192,16 +230,7 @@ export async function applyAutoRamp(layerConfig) {
     }
 
     source.props = { ...(source.props ?? {}), normalize: false };
-    layerConfig.style = {
-      ...(layerConfig.style ?? {}),
-      color: buildGeoTIFFStyleColor({
-        rampName,
-        rampMin: lo,
-        rampMax: hi,
-        hasNodata: autoRampHasNodata(source),
-        maskBelow: source.props?.mask_below,
-      }),
-    };
+    layerConfig.style = styleFor(lo, hi);
     // Published for the colorbar legend. Kept in separate fields so the
     // author's own (empty) rampMin/rampMax keep meaning "auto" — writing back
     // onto those would read as a pinned range and freeze the ramp.

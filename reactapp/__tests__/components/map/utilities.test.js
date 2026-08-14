@@ -1904,7 +1904,11 @@ const mockGeoTIFFMap = ({
 };
 
 test("queryLayerFeatures GeoTIFF returns band values at pixel", async () => {
-  const { map } = mockGeoTIFFMap({ getDataReturn: new Float32Array([285.3]) });
+  // A GeoTIFF always ends up with a nodata value (author, file, or the NaN
+  // default), so OL appends an alpha band: real output is [value, 255].
+  const { map } = mockGeoTIFFMap({
+    getDataReturn: new Float32Array([285.3, 255]),
+  });
   const features = await queryLayerFeatures(
     geoTIFFLayerConfig(),
     map,
@@ -1973,10 +1977,10 @@ test("queryLayerFeatures GeoTIFF reports multi-band values", async () => {
     [400, 300],
   );
 
+  // Two data bands plus the alpha mask, which is not reported as a band.
   expect(features[0].attributes).toEqual({
     "Band 1": 12,
     "Band 2": 34,
-    "Band 3": 56,
   });
 });
 
@@ -3832,16 +3836,14 @@ test("updateOlLayerProps is a no-op when olLayer or newProps is null", () => {
   expect(() => updateOlLayerProps(olLayer, null)).not.toThrow();
 });
 
-test("queryLayerFeatures GeoTIFF tolerates missing source.props.sources (covers `?? []` fallback)", async () => {
-  // The configuredSources expression in getGeoTIFFPixelValues uses
-  // `layerInfo?.configuration?.props?.source?.props?.sources ?? []` —
-  // when the optional chain returns undefined (e.g. an in-progress
-  // authoring state where `sources` hasn't been written yet), the
-  // fallback `[]` should kick in instead of throwing.
+test("queryLayerFeatures GeoTIFF strips the alpha band with no nodata authored", async () => {
+  // The author left nodata blank, so nothing in the config declares one — the
+  // alpha band must still be stripped, since the file's own tag or the NaN
+  // default gives OL a reason to append it.
   const layerName = "Sourceless GeoTIFF";
   const targetLayer = {
     get: jest.fn((key) => (key === "name" ? layerName : undefined)),
-    getData: jest.fn(() => new Float32Array([42])),
+    getData: jest.fn(() => new Float32Array([42, 255])),
   };
   const map = {
     getView: jest.fn(() => ({
@@ -3851,26 +3853,22 @@ test("queryLayerFeatures GeoTIFF tolerates missing source.props.sources (covers 
     getLayers: jest.fn(() => ({ getArray: jest.fn(() => [targetLayer]) })),
   };
 
-  const layerInfo = {
-    configuration: {
-      type: "WebGLTile",
-      props: {
-        name: layerName,
-        source: {
-          type: "GeoTIFF",
-          props: {
-            // No `sources` key — the optional chain resolves to undefined
-            // and the `?? []` branch fires.
-          },
+  const features = await queryLayerFeatures(
+    {
+      configuration: {
+        type: "WebGLTile",
+        props: {
+          name: layerName,
+          source: { type: "GeoTIFF", props: { url: "https://x/a.tif" } },
         },
       },
     },
-  };
+    map,
+    [0, 0],
+    [400, 300],
+  );
 
-  const features = await queryLayerFeatures(layerInfo, map, [0, 0], [10, 10]);
-  expect(features).toHaveLength(1);
-  expect(features[0].layerName).toBe(layerName);
-  expect(features[0].attributes["Band 1"]).toBeCloseTo(42, 4);
+  expect(features[0].attributes).toEqual({ "Band 1": 42 });
 });
 
 test("loadGeoJSON returns the URL untouched when keep_urls is true", async () => {

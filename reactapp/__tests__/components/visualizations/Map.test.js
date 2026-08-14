@@ -775,6 +775,7 @@ test("Map GeoTIFF with an empty range auto-fits the legend to the file statistic
         STATISTICS_MINIMUM: "0.05",
         STATISTICS_MAXIMUM: "11.732",
       })),
+      getGDALNoData: jest.fn(() => null),
     }),
   });
 

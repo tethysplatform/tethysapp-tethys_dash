@@ -489,6 +489,11 @@ The two source types apply the mask at different stages, which is worth knowing 
 compare them: Zarr masks server-side before its statistics are computed, while a GeoTIFF is
 masked as it is drawn.
 
+Masking low values is separate from **nodata**, which marks cells that hold no measurement at
+all. A GeoTIFF's nodata value is read from the file automatically, and ``NaN`` cells are
+masked even when the file declares nothing, so nodata cells are transparent without any
+configuration.
+
 .. note::
     Auto-fit needs ``STATISTICS_MINIMUM`` / ``STATISTICS_MAXIMUM`` band tags in the file.
     TethysDash writes these into every COG it generates for a Zarr source. If a GeoTIFF

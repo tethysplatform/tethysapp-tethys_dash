@@ -690,14 +690,12 @@ function getGeoTIFFPixelValues(map, pixel, LayerName, layerInfo, coordinate) {
   const data = targetLayer.getData(pixel);
   if (!data || data.length === 0) return [];
 
-  // OL appends an alpha band whenever the source declares nodata, and that band
-  // is a mask rather than data. Zarr COGs always carry the -9999 sentinel, so
-  // they always have one (matches MapLayer's style predicate).
-  const source = layerInfo?.configuration?.props?.source;
-  const nodata = source?.props?.nodata;
-  const anySourceHasNodata =
-    source?.type === "Zarr" ||
-    (nodata !== undefined && nodata !== null && nodata !== "");
+  // OL appends an alpha band whenever a nodata value is in play, and that band
+  // is a mask rather than data. Both raster types always end up with one: a Zarr
+  // COG carries the -9999 sentinel, and a GeoTIFF gets the author's value, the
+  // file's own tag, or the NaN default (see resolveNodata in ModuleLoader).
+  const sourceType = layerInfo?.configuration?.props?.source?.type;
+  const anySourceHasNodata = sourceType === "Zarr" || sourceType === "GeoTIFF";
 
   if (anySourceHasNodata && data.length >= 2 && data[data.length - 1] === 0) {
     return [
