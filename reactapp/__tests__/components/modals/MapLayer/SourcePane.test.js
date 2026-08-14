@@ -39,7 +39,6 @@ const TestingComponent = ({
   initialSourceProps,
   setErrorMessage,
   onRequestHideModal,
-  onSubModalToggle,
   sourcePropsSpy,
   dynamicMapLayers = [],
   onFetchPluginDefaults,
@@ -76,7 +75,6 @@ const TestingComponent = ({
             setAttributeProps={setAttributeProps}
             setErrorMessage={setErrorMessage}
             onRequestHideModal={onRequestHideModal}
-            onSubModalToggle={onSubModalToggle}
             onFetchPluginDefaults={onFetchPluginDefaults}
           />
           <p data-testid="sourceProps">{JSON.stringify(sourceProps)}</p>
@@ -1340,7 +1338,6 @@ TestingComponent.propTypes = {
   initialSourceProps: PropTypes.object,
   setErrorMessage: PropTypes.func,
   onRequestHideModal: PropTypes.func,
-  onSubModalToggle: PropTypes.func,
   sourcePropsSpy: PropTypes.func,
   dynamicMapLayers: PropTypes.array,
   onFetchPluginDefaults: PropTypes.func,
