@@ -2006,12 +2006,19 @@ describe("applyAutoRamp", () => {
     },
   });
 
-  const mockStats = (meta) =>
+  // geotiff.js: getGDALMetadata(0) returns items tagged for sample 0, while
+  // getGDALMetadata(null) returns the dataset-level items. Writers put
+  // STATISTICS_* in either place, so the mock has to tell them apart.
+  const mockGDALMetadata = ({ band = {}, dataset = {} }) =>
     fromUrl.mockResolvedValue({
       getImage: jest.fn().mockResolvedValue({
-        getGDALMetadata: jest.fn(() => meta),
+        getGDALMetadata: jest.fn((sample) =>
+          sample === null ? dataset : band,
+        ),
       }),
     });
+
+  const mockStats = (meta) => mockGDALMetadata({ band: meta });
 
   beforeEach(() => {
     fromUrl.mockReset();
@@ -2131,6 +2138,49 @@ describe("applyAutoRamp", () => {
 
   test("falls back to normalized rendering when the header cannot be read", async () => {
     fromUrl.mockRejectedValue(new Error("network"));
+    const config = zarrLayer();
+
+    await expect(applyAutoRamp(config)).resolves.toBeTruthy();
+
+    expect(config.props.source.props.normalize).toBeUndefined();
+    expect(config.style).toBeUndefined();
+  });
+
+  test("reads dataset-level STATISTICS_* when the band carries none", async () => {
+    // GDAL and MATLAB's Mapping Toolbox write STATISTICS_* at dataset level, so
+    // a band-only lookup finds nothing and the layer renders flat.
+    mockGDALMetadata({
+      band: {},
+      dataset: { STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "1" },
+    });
+    const config = zarrLayer();
+
+    await applyAutoRamp(config);
+
+    expect(config.props.source.props.normalize).toBe(false);
+    expect(config.props.source.resolvedRampMin).toBe(0);
+    expect(config.props.source.resolvedRampMax).toBe(1);
+  });
+
+  test("prefers band-level STATISTICS_* over dataset-level", async () => {
+    mockGDALMetadata({
+      band: { STATISTICS_MINIMUM: "2", STATISTICS_MAXIMUM: "8" },
+      dataset: { STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "100" },
+    });
+    const config = zarrLayer();
+
+    await applyAutoRamp(config);
+
+    expect(config.props.source.resolvedRampMin).toBe(2);
+    expect(config.props.source.resolvedRampMax).toBe(8);
+  });
+
+  test("tolerates getGDALMetadata returning null for a file with no GDAL tags", async () => {
+    fromUrl.mockResolvedValue({
+      getImage: jest.fn().mockResolvedValue({
+        getGDALMetadata: jest.fn(() => null),
+      }),
+    });
     const config = zarrLayer();
 
     await expect(applyAutoRamp(config)).resolves.toBeTruthy();

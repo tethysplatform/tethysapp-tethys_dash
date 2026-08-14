@@ -141,9 +141,18 @@ export async function applyAutoRamp(layerConfig) {
   try {
     const { fromUrl } = await import("geotiff");
     const image = await (await fromUrl(statsUrl)).getImage();
-    const meta = image.getGDALMetadata(0);
-    const lo = parseFloat(meta?.STATISTICS_MINIMUM);
-    const hi = parseFloat(meta?.STATISTICS_MAXIMUM);
+    // getGDALMetadata(0) returns items tagged for sample 0 only; passing null
+    // returns the dataset-level items. Writers differ -- rio-cogeo attaches
+    // STATISTICS_* to the band, while GDAL and MATLAB's Mapping Toolbox write
+    // them at dataset level -- so check the band first, then fall back.
+    const meta = image.getGDALMetadata(0) ?? {};
+    const dataset = image.getGDALMetadata(null) ?? {};
+    const lo = parseFloat(
+      meta.STATISTICS_MINIMUM ?? dataset.STATISTICS_MINIMUM,
+    );
+    const hi = parseFloat(
+      meta.STATISTICS_MAXIMUM ?? dataset.STATISTICS_MAXIMUM,
+    );
     if (!Number.isFinite(lo) || !Number.isFinite(hi) || hi <= lo) {
       return layerConfig;
     }
