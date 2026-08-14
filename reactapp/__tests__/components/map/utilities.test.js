@@ -1929,11 +1929,19 @@ test("queryLayerFeatures Zarr dispatches to GeoTIFF pixel extraction", async () 
       type: "WebGLTile",
       props: {
         name: "Test GeoTIFF Layer",
-        source: { type: "Zarr", props: { url: "https://x", variable: "depth" } },
+        source: {
+          type: "Zarr",
+          props: { url: "https://x", variable: "depth" },
+        },
       },
     },
   };
-  const features = await queryLayerFeatures(zarrConfig, map, [0, 0], [400, 300]);
+  const features = await queryLayerFeatures(
+    zarrConfig,
+    map,
+    [0, 0],
+    [400, 300],
+  );
 
   expect(features).toHaveLength(1);
   expect(features[0].attributes["Band 1"]).toBeCloseTo(42.5, 4);

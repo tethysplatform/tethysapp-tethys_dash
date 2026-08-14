@@ -2,7 +2,10 @@ import { useEffect, useContext } from "react";
 import PropTypes from "prop-types";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import DataViewerModal from "components/modals/DataViewer/DataViewer";
-import { userDashboard, mockedDateRangeVariable } from "__tests__/utilities/constants";
+import {
+  userDashboard,
+  mockedDateRangeVariable,
+} from "__tests__/utilities/constants";
 import createLoadedComponent, {
   InputVariablePComponent,
 } from "__tests__/utilities/customRender";
