@@ -81,14 +81,15 @@ export function zarrSourceToGeoTIFF(config) {
   };
 }
 
-// A GeoTIFF source is authored as flat fields (url + optional nodata /
-// projection), like every other source type. OpenLayers wants a `sources` array
-// with the per-file options inside it and the projection alongside, so assemble
-// that here rather than making authors write it.
+// A GeoTIFF source is authored as flat fields (url + optional projection),
+// like every other source type. OpenLayers wants a `sources` array with the
+// per-file options inside it and the projection alongside, so assemble that here
+// rather than making authors write it. `nodata` is not authored — applyAutoRamp
+// puts the raster's own value here before this runs.
 export function geotiffSourceToOL(config) {
   const { url, nodata, projection, mask_below, ...rest } = config.props ?? {};
   const sourceInfo = { url };
-  if (nodata !== undefined && nodata !== "") sourceInfo.nodata = nodata;
+  if (nodata !== undefined) sourceInfo.nodata = nodata;
   const props = { ...rest, sources: [sourceInfo] };
   if (projection !== undefined && projection !== "") {
     props.projection = projection;
@@ -110,22 +111,17 @@ function autoRampStatsUrl(source) {
   return typeof url === "string" && /^https?:\/\//i.test(url) ? url : null;
 }
 
-// Settle which nodata value a GeoTIFF renders with, given what the file itself
-// declares. OL treats a source-level `nodata` as an override and otherwise falls
-// back to the file's GDAL_NODATA tag, so most files need no author input at all.
+// Settle which nodata value a GeoTIFF renders with. Authors do not set this:
+// the value is the raster's own business, read from its GDAL_NODATA tag. To hide
+// a range of real values, `mask_below` is the control.
 //
-// When nothing declares one, default to NaN: OL has a dedicated NaN branch
+// When the file declares nothing, default to NaN: OL has a dedicated NaN branch
 // (plain equality would never match, since NaN !== NaN), and NaN is never
 // meaningful data, so masking it cannot hide a real value. Returning a value in
 // every case means OL always appends an alpha band, so the style always has a
 // band 2 to guard.
-function resolveNodata(source, fileNodata) {
-  const authored = source.props?.nodata;
-  if (authored !== undefined && authored !== null && authored !== "") {
-    return authored;
-  }
-  if (fileNodata !== null && fileNodata !== undefined) return fileNodata;
-  return NaN;
+function resolveNodata(fileNodata) {
+  return fileNodata === null || fileNodata === undefined ? NaN : fileNodata;
 }
 
 // Fit a ramp-styled raster layer's color ramp to the file's real value range.
@@ -181,7 +177,7 @@ export async function applyAutoRamp(layerConfig) {
     if (source.type !== "Zarr") {
       source.props = {
         ...(source.props ?? {}),
-        nodata: resolveNodata(source, image.getGDALNoData()),
+        nodata: resolveNodata(image.getGDALNoData()),
       };
     }
     // Every path below leaves the source with a nodata value, so OL appends an

@@ -1263,15 +1263,16 @@ test("SourcePane switching from GeoTIFF to WMS renders InputTable", async () => 
   expect(screen.queryByText("mask_below")).not.toBeInTheDocument();
 });
 
-test("SourcePane GeoTIFF renders the shared InputTable with its url/nodata fields", async () => {
+test("SourcePane GeoTIFF renders the shared InputTable with its own fields", async () => {
   // GeoTIFF now uses the same required/optional properties table as every other
   // source type, instead of a bespoke sources list plus sub-modal.
   render(<TestingComponent initialSourceProps={{ type: "GeoTIFF" }} />);
 
   expect(await screen.findByText("Source Properties")).toBeInTheDocument();
   expect(screen.getByText("*url")).toBeInTheDocument();
-  expect(screen.getByText("nodata")).toBeInTheDocument();
   expect(screen.getByText("projection")).toBeInTheDocument();
+  // nodata is not authored — it comes from the raster's own tag.
+  expect(screen.queryByText("nodata")).not.toBeInTheDocument();
   expect(screen.getByText("mask_below")).toBeInTheDocument();
   // The sources sub-modal is gone.
   expect(

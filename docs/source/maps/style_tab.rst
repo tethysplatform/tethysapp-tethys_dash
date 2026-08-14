@@ -489,10 +489,11 @@ The two source types apply the mask at different stages, which is worth knowing 
 compare them: Zarr masks server-side before its statistics are computed, while a GeoTIFF is
 masked as it is drawn.
 
-Masking low values is separate from **nodata**, which marks cells that hold no measurement at
-all. A GeoTIFF's nodata value is read from the file automatically, and ``NaN`` cells are
-masked even when the file declares nothing, so nodata cells are transparent without any
-configuration.
+Masking low values is separate from nodata, which marks cells that hold no measurement at
+all. Nodata needs no configuration: a GeoTIFF's value is read from the file automatically and
+``NaN`` cells are masked even when the file declares nothing. **Mask Below** is the control
+for hiding real values you do not want drawn — for example the zero-probability cells that
+would otherwise fill the bottom of the ramp.
 
 .. note::
     Auto-fit needs ``STATISTICS_MINIMUM`` / ``STATISTICS_MAXIMUM`` band tags in the file.

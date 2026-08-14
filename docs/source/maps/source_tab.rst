@@ -205,9 +205,12 @@ The GeoTIFF source overlays a Cloud-Optimized GeoTIFF (COG) on the map at its na
 
 **Properties:**
     - **url:** (required) URL to the COG file. Must be publicly accessible. Supports variable inputs, e.g. ``https://example.com/${Storm}/depth.tif`` — the layer reloads and its color ramp refits whenever the variable changes.
-    - **nodata:** (optional) Sample value to render transparent, e.g. ``-9999``. Usually unnecessary — the value embedded in the file is read automatically, and ``NaN`` cells are masked even when the file declares nothing. Set this only to override what the file says.
     - **projection:** (optional) Source projection (e.g. ``EPSG:4326``). Defaults to the file's embedded metadata.
     - **mask_below:** (optional) Cells at or below this value render transparent. See :ref:`raster_color_ramp` for how it interacts with the ramp.
+
+There is no nodata setting. A raster's nodata value is its own business and is read from the
+file's ``GDAL_NODATA`` tag automatically; ``NaN`` cells are masked even when the file declares
+nothing. Use **mask_below** to hide a range of real values, such as zero-probability cells.
 
 Pick a color ramp for the layer on the :ref:`style_tab`.
 

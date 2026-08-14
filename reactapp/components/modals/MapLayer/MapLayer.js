@@ -381,20 +381,18 @@ const MapLayerModal = ({
       const hasMax = isBoundSet(rampMax);
       const hasRange = hasMin && hasMax;
       if (hasRampName) {
-        // Zarr COGs always carry a -9999 nodata sentinel; GeoTIFF depends on
-        // whether the author set one on any source.
-        const hasNodata =
-          sourceProps.type === "Zarr" ||
-          (validSourceProps.nodata !== undefined &&
-            validSourceProps.nodata !== "");
         // buildGeoTIFFStyleColor needs both bounds or neither. When only one is
         // set, save the normalized placeholder — applyAutoRamp rebuilds the
         // style at render time once it has resolved the missing bound.
+        //
+        // Both raster types end up with a nodata value at render time (a Zarr
+        // COG's -9999 sentinel, or the GeoTIFF's own tag / the NaN default), so
+        // OL always appends an alpha band for the style to guard.
         const color = buildGeoTIFFStyleColor({
           rampName,
           rampMin: hasRange ? rampMin : "",
           rampMax: hasRange ? rampMax : "",
-          hasNodata,
+          hasNodata: true,
           maskBelow: validSourceProps.mask_below,
         });
         mapConfiguration.configuration.style = { color };

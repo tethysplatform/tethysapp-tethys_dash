@@ -1728,11 +1728,7 @@ describe("MapLayerModal GeoTIFF save path", () => {
   test("saves the flat url/nodata/projection fields", async () => {
     const addMapLayer = jest.fn();
     renderModal(
-      {
-        url: "https://example.com/a.tif",
-        nodata: "-9999",
-        projection: "EPSG:32615",
-      },
+      { url: "https://example.com/a.tif", projection: "EPSG:32615" },
       addMapLayer,
     );
 
@@ -1745,25 +1741,10 @@ describe("MapLayerModal GeoTIFF save path", () => {
     expect(saved.configuration.props.source.props).toEqual(
       expect.objectContaining({
         url: "https://example.com/a.tif",
-        nodata: "-9999",
         projection: "EPSG:32615",
       }),
     );
     expect(saved.configuration.props.source.props.sources).toBeUndefined();
-  });
-
-  test("keeps a nodata of '0' rather than stripping it as empty", async () => {
-    // removeEmptyValues filters on truthiness, so a falsy-looking bound is the
-    // regression to guard: "0" is a legitimate nodata value.
-    const addMapLayer = jest.fn();
-    renderModal({ url: "https://example.com/a.tif", nodata: "0" }, addMapLayer);
-
-    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
-    await waitFor(() => expect(addMapLayer).toHaveBeenCalledTimes(1));
-
-    expect(
-      addMapLayer.mock.calls[0][0].configuration.props.source.props.nodata,
-    ).toBe("0");
   });
 
   test("blocks save when the required url is missing", async () => {
@@ -1813,7 +1794,7 @@ describe("MapLayerModal save-path nullish fallbacks and sub-modal zIndex", () =>
     ).toBe("");
   });
 
-  test("ramp-styled GeoTIFF with nodata flips hasNodata true (covers && right side)", async () => {
+  test("a ramp-styled GeoTIFF always guards the alpha band", async () => {
     // Exercises the right side of the hasNodata predicate: other ramp tests
     // leave nodata unset, so only the Zarr short-circuit is covered there.
     const handleModalClose = jest.fn();
@@ -1822,7 +1803,7 @@ describe("MapLayerModal save-path nullish fallbacks and sub-modal zIndex", () =>
       layerProps: { name: "Nodata Ramp GeoTIFF" },
       sourceProps: {
         type: "GeoTIFF",
-        props: { url: "x.tif", nodata: "-9999" },
+        props: { url: "x.tif" },
         rampName: "viridis",
         rampMin: "0",
         rampMax: "100",
@@ -1926,9 +1907,10 @@ describe("MapLayerModal GeoTIFF ramp round-trip persistence", () => {
     expect(savedSource.rampMin).toBe("277");
     expect(savedSource.rampMax).toBe("300");
     // The generated color expression still lands on configuration.style.
-    expect(addMapLayer.mock.calls[0][0].configuration.style.color[0]).toBe(
-      "interpolate",
-    );
+    // Always guarded now: both raster types end up with a nodata value.
+    const rtColor = addMapLayer.mock.calls[0][0].configuration.style.color;
+    expect(rtColor[0]).toBe("case");
+    expect(rtColor[3][0]).toBe("interpolate");
   });
 });
 
@@ -1989,12 +1971,15 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
     expect(Array.isArray(savedStyle.color)).toBe(true);
 
     // The expression header confirms it's a WebGLTile interpolate expression.
-    expect(savedStyle.color[0]).toBe("interpolate");
-    expect(savedStyle.color[1]).toEqual(["linear"]);
-    expect(savedStyle.color[2]).toEqual(["band", 1]);
-    expect(savedStyle.color[3]).toBe(0);
+    // ["case", <alpha guard>, <transparent>, <interpolate>]
+    expect(savedStyle.color[0]).toBe("case");
+    const interp = savedStyle.color[3];
+    expect(interp[0]).toBe("interpolate");
+    expect(interp[1]).toEqual(["linear"]);
+    expect(interp[2]).toEqual(["band", 1]);
+    expect(interp[3]).toBe(0);
     // Last stop pair ends at rampMax.
-    expect(savedStyle.color[savedStyle.color.length - 2]).toBe(100);
+    expect(interp[interp.length - 2]).toBe(100);
     // Explicit range = raw band values, so the source is not normalized.
     expect(savedConfig.configuration.props.source.props.normalize).toBe(false);
 
@@ -2041,8 +2026,9 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
     const savedStyle = savedConfig.configuration.style;
     // Turbo default + normalized [0,1] interpolate; no persisted range.
     expect(Array.isArray(savedStyle.color)).toBe(true);
-    expect(savedStyle.color[0]).toBe("interpolate");
-    expect(savedStyle.color[savedStyle.color.length - 2]).toBe(1);
+    expect(savedStyle.color[0]).toBe("case");
+    expect(savedStyle.color[3][0]).toBe("interpolate");
+    expect(savedStyle.color[3][savedStyle.color[3].length - 2]).toBe(1);
     expect(savedConfig.configuration.props.source.rampName).toBe("turbo");
     expect(savedConfig.configuration.props.source.rampMin).toBeUndefined();
     expect(savedConfig.configuration.props.source.props.normalize).toBe(true);
@@ -2137,8 +2123,9 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
     const savedConfig = addMapLayer.mock.calls[0][0];
     const savedStyle = savedConfig.configuration.style;
     expect(Array.isArray(savedStyle.color)).toBe(true);
-    expect(savedStyle.color[0]).toBe("interpolate");
-    expect(savedStyle.color[savedStyle.color.length - 2]).toBe(1);
+    expect(savedStyle.color[0]).toBe("case");
+    expect(savedStyle.color[3][0]).toBe("interpolate");
+    expect(savedStyle.color[3][savedStyle.color[3].length - 2]).toBe(1);
     expect(savedConfig.configuration.props.source.rampMin).toBeUndefined();
     expect(savedConfig.configuration.props.source.props.normalize).toBe(true);
     expect(uploadSpy).not.toHaveBeenCalled();
@@ -2180,7 +2167,7 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
     expect(savedSource.rampMin).toBe("0");
     expect(savedSource.rampMax).toBeUndefined();
     // Placeholder style until the render-time resolve lands.
-    expect(savedConfig.configuration.style.color[0]).toBe("interpolate");
+    expect(savedConfig.configuration.style.color[0]).toBe("case");
     expect(savedSource.props.normalize).toBe(true);
   });
 
@@ -2247,10 +2234,10 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
 
     // Same structure, but the color hex strings differ between the ramps.
     expect(viridisColor).toHaveLength(turboColor.length);
-    // Compare the first color stop (index 4 = first color after the header +
-    // first value). Viridis starts near dark-purple; turbo starts near dark-red
-    // — they should not match.
-    expect(viridisColor[4]).not.toBe(turboColor[4]);
+    // The interpolate sits inside the `case` guard, so reach through index 3.
+    // Index 4 there is the first color stop: viridis starts near dark-purple,
+    // turbo near dark-red — they must not match.
+    expect(viridisColor[3][4]).not.toBe(turboColor[3][4]);
   });
 
   test("non-GeoTIFF vector layer with a style still uploads via saveLayerJSON", async () => {
@@ -2330,8 +2317,9 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
     const savedStyle = addMapLayer.mock.calls[0][0].configuration.style;
     expect(savedStyle).toHaveProperty("color");
     // All stop values collapse to 50, colors still vary.
-    expect(savedStyle.color[3]).toBe(50);
-    expect(savedStyle.color[savedStyle.color.length - 2]).toBe(50);
+    // Degenerate range: every stop collapses onto the same value.
+    expect(savedStyle.color[3][3]).toBe(50);
+    expect(savedStyle.color[3][savedStyle.color[3].length - 2]).toBe(50);
   });
 });
 

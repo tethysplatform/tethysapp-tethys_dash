@@ -127,7 +127,6 @@ export const sourcePropertiesOptions = {
       url: { placeholder: "Cloud Optimized GeoTIFF URL" },
     },
     optional: {
-      nodata: { placeholder: "Value to render transparent, e.g. -9999" },
       projection: { placeholder: "EPSG:<Code>" },
       mask_below: { placeholder: "Mask values at or below this" },
     },

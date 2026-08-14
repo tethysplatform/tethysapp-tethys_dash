@@ -257,11 +257,16 @@ describe("GeoTIFF source", () => {
     expect(args.sources[0]).not.toHaveProperty("projection");
   });
 
-  test("empty nodata and projection are dropped", async () => {
-    await moduleLoader(geoTIFFLayerConfig({ nodata: "", projection: "" }));
-    const args = lastCtorArgs();
-    expect(args.sources[0]).not.toHaveProperty("nodata");
-    expect(args).not.toHaveProperty("projection");
+  test("an empty projection is dropped", async () => {
+    await moduleLoader(geoTIFFLayerConfig({ projection: "" }));
+    expect(lastCtorArgs()).not.toHaveProperty("projection");
+  });
+
+  test("nodata is omitted when applyAutoRamp has not resolved one", async () => {
+    // A layer with no ramp never reaches applyAutoRamp, so nothing sets nodata
+    // and OL falls back to the file's own tag — which is the right default.
+    await moduleLoader(geoTIFFLayerConfig());
+    expect(lastCtorArgs().sources[0]).not.toHaveProperty("nodata");
   });
 
   test("normalize passes through to the constructor", async () => {
@@ -2330,18 +2335,6 @@ describe("applyAutoRamp", () => {
 
       expect(config.props.source.props.nodata).toBe(255);
       expect(config.style.color[0]).toBe("case");
-    });
-
-    test("an author-entered nodata overrides the file's own value", async () => {
-      mockGDALMetadata({
-        band: { STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "10" },
-        fileNodata: 255,
-      });
-      const config = geotiffLayer({}, { nodata: "-9999" });
-
-      await applyAutoRamp(config);
-
-      expect(config.props.source.props.nodata).toBe("-9999");
     });
 
     test("a NaN nodata declared by the file is kept, not replaced", async () => {
