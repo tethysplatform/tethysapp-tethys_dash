@@ -126,6 +126,7 @@ function autoRampHasNodata(source) {
 // fetch, so the browser serves OL's own header read from cache. Any failure is
 // non-fatal: the config is left untouched and rendering falls back to
 // normalized mode.
+//
 // Each bound is independent: whichever the author left empty is resolved from
 // the file, and whichever they set is honored as a pinned end of the ramp. So a
 // min of 0 with an empty max gives a ramp anchored at 0 that still grows to fit
@@ -153,7 +154,7 @@ export async function applyAutoRamp(layerConfig) {
     const meta = image.getGDALMetadata(0) ?? {};
     const dataset = image.getGDALMetadata(null) ?? {};
     // A pinned bound wins; only the empty one comes from the statistics.
-    const lo = hasMin
+    let lo = hasMin
       ? Number(rampMin)
       : parseFloat(meta.STATISTICS_MINIMUM ?? dataset.STATISTICS_MINIMUM);
     const hi = hasMax
@@ -161,6 +162,23 @@ export async function applyAutoRamp(layerConfig) {
       : parseFloat(meta.STATISTICS_MAXIMUM ?? dataset.STATISTICS_MAXIMUM);
     if (!Number.isFinite(lo) || !Number.isFinite(hi) || hi <= lo) {
       return layerConfig;
+    }
+
+    // Lift a resolved min to the mask threshold so the visible data spans the
+    // whole ramp. A GeoTIFF is masked in the style, after the statistics were
+    // written, so its stats still describe the values the mask hides. Zarr masks
+    // server-side before writing stats, so its min already clears the threshold
+    // and this is a no-op. A pinned min is the author's call and is left alone.
+    // Skipped when the threshold covers the whole range: clamping there would
+    // invert it, and the mask alone correctly renders everything transparent.
+    const maskValue = Number(source.props?.mask_below);
+    if (
+      !hasMin &&
+      Number.isFinite(maskValue) &&
+      maskValue > lo &&
+      maskValue < hi
+    ) {
+      lo = maskValue;
     }
 
     source.props = { ...(source.props ?? {}), normalize: false };
@@ -171,6 +189,7 @@ export async function applyAutoRamp(layerConfig) {
         rampMin: lo,
         rampMax: hi,
         hasNodata: autoRampHasNodata(source),
+        maskBelow: source.props?.mask_below,
       }),
     };
     // Published for the colorbar legend. Kept in separate fields so the

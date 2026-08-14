@@ -791,6 +791,56 @@ describe("SourcePane GeoTIFF row rendering edge cases", () => {
     // Type was preserved alongside the newly-built `props` object.
     expect(lastSetProps.type).toBe("GeoTIFF");
   });
+
+  test("Mask Below writes mask_below onto the GeoTIFF source props", async () => {
+    // Same prop name Zarr uses, so one key masks both source types.
+    let lastSetProps;
+    render(
+      <TestingComponent
+        initialSourceProps={{
+          type: "GeoTIFF",
+          props: { sources: [{ url: "https://example.com/a.tif" }] },
+        }}
+        sourcePropsSpy={(next) => {
+          lastSetProps = next;
+        }}
+      />,
+    );
+
+    fireEvent.change(await screen.findByLabelText("Mask Below"), {
+      target: { value: "0.05" },
+    });
+
+    await waitFor(() => {
+      expect(lastSetProps?.props?.mask_below).toBe("0.05");
+    });
+    // Existing source list is untouched by the mask edit.
+    expect(lastSetProps.props.sources).toEqual([
+      { url: "https://example.com/a.tif" },
+    ]);
+  });
+
+  test("Mask Below shows an existing value and is absent for non-GeoTIFF types", async () => {
+    const { unmount } = render(
+      <TestingComponent
+        initialSourceProps={{
+          type: "GeoTIFF",
+          props: {
+            sources: [{ url: "https://example.com/a.tif" }],
+            mask_below: "2.5",
+          },
+        }}
+      />,
+    );
+    // NormalInput renders numeric fields as type="text" to allow mid-edit
+    // states, so the DOM value is a string.
+    expect(await screen.findByLabelText("Mask Below")).toHaveValue("2.5");
+    unmount();
+
+    // Zarr declares mask_below through its own source-properties table.
+    render(<TestingComponent initialSourceProps={{ type: "GeoJSON" }} />);
+    expect(screen.queryByLabelText("Mask Below")).not.toBeInTheDocument();
+  });
 });
 
 describe("SourcePane Dynamic Map Layer", () => {

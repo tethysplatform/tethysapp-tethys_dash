@@ -474,6 +474,21 @@ Pin the range instead when you need colors to be **comparable across files**. Un
 a 5 mm event and a 300 mm event both render across the full ramp, so the same color means
 different values in different frames.
 
+Masking low values
+~~~~~~~~~~~~~~~~~~
+
+Both source types accept an optional **Mask Below** threshold — on the :ref:`source_tab`
+for GeoTIFF, and as the ``mask_below`` source property for Zarr. Cells at or below it render
+transparent, which is the usual way to hide dry ground or sub-threshold noise.
+
+When the ramp minimum is auto-fitted it starts at the threshold rather than the file's
+minimum, so the visible data spans the whole ramp instead of wasting its lower end on
+pixels that are never drawn. A minimum you enter yourself is always respected as-is.
+
+The two source types apply the mask at different stages, which is worth knowing if you
+compare them: Zarr masks server-side before its statistics are computed, while a GeoTIFF is
+masked as it is drawn.
+
 .. note::
     Auto-fit needs ``STATISTICS_MINIMUM`` / ``STATISTICS_MAXIMUM`` band tags in the file.
     TethysDash writes these into every COG it generates for a Zarr source. If a GeoTIFF

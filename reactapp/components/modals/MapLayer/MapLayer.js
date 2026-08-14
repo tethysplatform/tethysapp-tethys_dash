@@ -426,6 +426,7 @@ const MapLayerModal = ({
           rampMin: hasRange ? rampMin : "",
           rampMax: hasRange ? rampMax : "",
           hasNodata,
+          maskBelow: validSourceProps.mask_below,
         });
         mapConfiguration.configuration.style = { color };
         mapConfiguration.configuration.props.source.rampName = rampName;

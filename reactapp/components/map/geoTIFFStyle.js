@@ -6,6 +6,7 @@ export function buildGeoTIFFStyleColor({
   rampMin,
   rampMax,
   hasNodata = false,
+  maskBelow,
 }) {
   const colors = COLOR_RAMPS[rampName];
   if (!colors) {
@@ -16,6 +17,8 @@ export function buildGeoTIFFStyleColor({
     rampMin == null || (typeof rampMin === "string" && rampMin.trim() === "");
   const maxIsEmpty =
     rampMax == null || (typeof rampMax === "string" && rampMax.trim() === "");
+
+  const isNormalized = minIsEmpty && maxIsEmpty;
 
   let min;
   let max;
@@ -44,9 +47,25 @@ export function buildGeoTIFFStyleColor({
     interpolateExpr.push(value, colors[i]);
   }
 
-  if (!hasNodata) return interpolateExpr;
+  const TRANSPARENT = [0, 0, 0, 0];
+  const branches = [];
+  if (hasNodata) {
+    branches.push(["==", ["band", 2], 0], TRANSPARENT);
+  }
 
-  return ["case", ["==", ["band", 2], 0], [0, 0, 0, 0], interpolateExpr];
+  // `maskBelow` is a raw data value, so it only means something when the ramp
+  // spans raw values. In normalized mode band 1 carries 0-1 scaled bytes and
+  // there is no range on hand to convert the threshold with, so it is skipped —
+  // the render-time resolve rebuilds this style with a real range anyway.
+  const maskValue = Number(maskBelow);
+  const maskIsSet =
+    maskBelow !== undefined && maskBelow !== null && maskBelow !== "";
+  if (!isNormalized && maskIsSet && Number.isFinite(maskValue)) {
+    branches.push(["<=", ["band", 1], maskValue], TRANSPARENT);
+  }
+
+  if (branches.length === 0) return interpolateExpr;
+  return ["case", ...branches, interpolateExpr];
 }
 
 buildGeoTIFFStyleColor.propTypes = {
@@ -54,4 +73,6 @@ buildGeoTIFFStyleColor.propTypes = {
   rampMin: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
   rampMax: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
   hasNodata: PropTypes.bool,
+  // Cells at or below this raw value render transparent.
+  maskBelow: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
 };

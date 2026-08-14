@@ -515,6 +515,18 @@ const SourcePane = ({
     }));
   }
 
+  // Same prop name Zarr uses, so both source types are masked through one key.
+  function handleMaskBelowChange(e) {
+    const value = e.target.value;
+    setSourceProps((previousSourceProps) => ({
+      ...previousSourceProps,
+      props: {
+        ...(previousSourceProps?.props ?? {}),
+        mask_below: value,
+      },
+    }));
+  }
+
   function handleOpenAddGeoTIFFSource() {
     pendingReturnFocusRef.current = { current: addButtonRef.current };
     setEditingIndex(null);
@@ -653,6 +665,19 @@ const SourcePane = ({
             without a color ramp. Pick one in the Style tab.
           </GeoTIFFHint>
         )}
+        <NormalInput
+          label="Mask Below"
+          value={sourceProps?.props?.mask_below ?? ""}
+          type="number"
+          onChange={handleMaskBelowChange}
+          ariaLabel="Mask Below"
+          allowEmpty
+        />
+        <GeoTIFFHint role="note">
+          Optional. Cells at or below this value render transparent — useful for
+          hiding dry or below-threshold areas. The color ramp starts at this
+          value so the visible data uses the full ramp.
+        </GeoTIFFHint>
         <GeoTIFFSourceModal
           show={subModalOpen}
           onHide={handleGeoTIFFSubModalHide}

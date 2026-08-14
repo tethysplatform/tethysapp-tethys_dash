@@ -2240,6 +2240,65 @@ describe("applyAutoRamp", () => {
     expect(config.style).toBeUndefined();
   });
 
+  test("lifts a resolved min to the mask threshold", async () => {
+    // A GeoTIFF is masked in the style, after its statistics were written, so
+    // the stats still describe values the mask hides. Without this the bottom of
+    // the ramp would be spent on invisible pixels.
+    mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "1" });
+    const config = zarrLayer();
+    config.props.source.props.mask_below = "0.05";
+
+    await applyAutoRamp(config);
+
+    expect(config.props.source.resolvedRampMin).toBeCloseTo(0.05, 6);
+    expect(config.props.source.resolvedRampMax).toBe(1);
+  });
+
+  test("passes the mask threshold into the style as a transparent branch", async () => {
+    mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "1" });
+    const config = zarrLayer();
+    config.props.source.props.mask_below = "0.05";
+
+    await applyAutoRamp(config);
+
+    // Zarr sets hasNodata, so nodata is guard 1 and the mask is guard 2.
+    expect(config.style.color[3]).toEqual(["<=", ["band", 1], 0.05]);
+  });
+
+  test("leaves a pinned min alone even when a mask threshold is higher", async () => {
+    mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "1" });
+    const config = zarrLayer({ rampMin: "0" });
+    config.props.source.props.mask_below = "0.05";
+
+    await applyAutoRamp(config);
+
+    expect(config.props.source.resolvedRampMin).toBe(0);
+  });
+
+  test("does not lift the min when the mask is below the file minimum", async () => {
+    mockStats({ STATISTICS_MINIMUM: "3", STATISTICS_MAXIMUM: "9" });
+    const config = zarrLayer();
+    config.props.source.props.mask_below = "1";
+
+    await applyAutoRamp(config);
+
+    expect(config.props.source.resolvedRampMin).toBe(3);
+  });
+
+  test("does not lift the min when the mask covers the whole range", async () => {
+    // Clamping here would invert the range and bail out; instead keep the ramp
+    // and let the mask render every cell transparent.
+    mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "1" });
+    const config = zarrLayer();
+    config.props.source.props.mask_below = "5";
+
+    await applyAutoRamp(config);
+
+    expect(config.props.source.resolvedRampMin).toBe(0);
+    expect(config.props.source.resolvedRampMax).toBe(1);
+    expect(config.style.color[3]).toEqual(["<=", ["band", 1], 5]);
+  });
+
   test("tolerates getGDALMetadata returning null for a file with no GDAL tags", async () => {
     fromUrl.mockResolvedValue({
       getImage: jest.fn().mockResolvedValue({
