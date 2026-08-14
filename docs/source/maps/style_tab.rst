@@ -437,3 +437,41 @@ MapLibre Style JSON Example::
             },
             "layers": [...]
         }
+
+
+.. _raster_color_ramp:
+
+++++++++++++++++++
+Raster Color Ramps
+++++++++++++++++++
+
+GeoTIFF and Zarr layers are styled with a color ramp instead of rules. Pick a ramp, then
+choose how its value range is set:
+
+.. list-table::
+    :header-rows: 1
+    :widths: 25 75
+
+    * - Ramp Min / Max
+      - Behavior
+    * - Left empty (default)
+      - **Auto-fit.** The range is read from the raster's embedded band statistics each time
+        the layer renders, so the ramp always spans that file's actual minimum and maximum.
+        The legend labels update to match.
+    * - Filled in
+      - **Pinned.** The ramp spans exactly the values you enter, for every file the layer
+        loads.
+
+Auto-fit matters when a variable input is bound to the source — a Zarr slice index, or a
+URL containing ``${...}``. Each storm or timestep is a different raster with a different
+range, and auto-fit refits the ramp to each one.
+
+Pin the range instead when you need colors to be **comparable across files**. Under auto-fit
+a 5 mm event and a 300 mm event both render across the full ramp, so the same color means
+different values in different frames.
+
+.. note::
+    Auto-fit needs ``STATISTICS_MINIMUM`` / ``STATISTICS_MAXIMUM`` band tags in the file.
+    TethysDash writes these into every COG it generates for a Zarr source. If a GeoTIFF
+    lacks them, the layer still renders and clicking still reports values, but no colorbar
+    legend is produced — enter a range manually in that case.

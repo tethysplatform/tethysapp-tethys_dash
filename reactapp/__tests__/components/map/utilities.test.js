@@ -1922,22 +1922,27 @@ test("queryLayerFeatures GeoTIFF returns band values at pixel", async () => {
   expect(features[0].geometry).toEqual({ type: "Point", coordinates: [0, 0] });
 });
 
-test("queryLayerFeatures Zarr dispatches to GeoTIFF pixel extraction", async () => {
-  const { map } = mockGeoTIFFMap({ getDataReturn: new Float32Array([42.5]) });
-  const zarrConfig = {
-    configuration: {
-      type: "WebGLTile",
-      props: {
-        name: "Test GeoTIFF Layer",
-        source: {
-          type: "Zarr",
-          props: { url: "https://x", variable: "depth" },
-        },
+const zarrLayerConfig = () => ({
+  configuration: {
+    type: "WebGLTile",
+    props: {
+      name: "Test GeoTIFF Layer",
+      source: {
+        type: "Zarr",
+        props: { url: "https://x", variable: "depth" },
       },
     },
-  };
+  },
+});
+
+test("queryLayerFeatures Zarr dispatches to GeoTIFF pixel extraction", async () => {
+  // A Zarr COG always carries the -9999 nodata sentinel, so OL appends an alpha
+  // band: real getData output is [value, 255] for a valid pixel.
+  const { map } = mockGeoTIFFMap({
+    getDataReturn: new Float32Array([42.5, 255]),
+  });
   const features = await queryLayerFeatures(
-    zarrConfig,
+    zarrLayerConfig(),
     map,
     [0, 0],
     [400, 300],
@@ -1945,6 +1950,20 @@ test("queryLayerFeatures Zarr dispatches to GeoTIFF pixel extraction", async () 
 
   expect(features).toHaveLength(1);
   expect(features[0].attributes["Band 1"]).toBeCloseTo(42.5, 4);
+  // The alpha band is a mask, not data — it must not be reported as a band.
+  expect(features[0].attributes["Band 2"]).toBeUndefined();
+});
+
+test("queryLayerFeatures Zarr reports No data when the alpha band is 0", async () => {
+  const { map } = mockGeoTIFFMap({ getDataReturn: new Float32Array([0, 0]) });
+  const features = await queryLayerFeatures(
+    zarrLayerConfig(),
+    map,
+    [0, 0],
+    [400, 300],
+  );
+
+  expect(features[0].attributes).toEqual({ "Band 1": "No data" });
 });
 
 test("queryLayerFeatures GeoTIFF reports multi-band values", async () => {

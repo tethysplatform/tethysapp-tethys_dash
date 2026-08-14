@@ -1,6 +1,7 @@
 import { memo, useEffect, useState, useRef, useContext } from "react";
 import { Map, View } from "ol";
 import moduleLoader, {
+  applyAutoRamp,
   createJsonStyleFunction,
 } from "components/map/ModuleLoader";
 import LayersControl from "components/map/LayersControl";
@@ -345,6 +346,10 @@ const MapComponent = ({
           }
 
           try {
+            // Resolve a Zarr layer's ramp from the slice's real value range
+            // before the source is built — `normalize` is read at construction.
+            await applyAutoRamp(layerConfig);
+
             const newLayer = await moduleLoader(
               layerConfig,
               map.getView().getProjection().getCode(),

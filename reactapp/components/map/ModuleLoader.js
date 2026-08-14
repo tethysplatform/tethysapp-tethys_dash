@@ -27,6 +27,7 @@ import {
   defaultDotRadius,
 } from "components/inputs/RuleEditor.js";
 import { rewriteArcGISExportUrlForAntimeridian } from "components/map/utilities";
+import { buildGeoTIFFStyleColor } from "components/map/geoTIFFStyle";
 
 const moduleCache = {};
 const styleCache = new Map();
@@ -52,8 +53,11 @@ export function withAntimeridianFix(type, props) {
 // URL, then render it as an ordinary GeoTIFF source. Variable inputs in the
 // fields (e.g. index="${Storm}") are already substituted before this runs.
 const ZARR_APP_ROOT = process.env.TETHYS_APP_ROOT_URL ?? "/apps/tethysdash/";
-export function zarrSourceToGeoTIFF(config) {
-  const { url, variable, index, mask_below, normalize } = config.props ?? {};
+
+// Single place that turns Zarr source props into a COG URL, so the layer's
+// source and the stats pre-read below can never disagree about the slice.
+export function zarrCogUrl(sourceProps) {
+  const { url, variable, index, mask_below } = sourceProps ?? {};
   const params = new URLSearchParams({
     src: url ?? "",
     variable: variable ?? "",
@@ -62,14 +66,108 @@ export function zarrSourceToGeoTIFF(config) {
   if (mask_below !== undefined && mask_below !== "") {
     params.set("mask_below", mask_below);
   }
+  return `${ZARR_APP_ROOT}zarr/cog/?${params.toString()}`;
+}
+
+export function zarrSourceToGeoTIFF(config) {
+  const { normalize } = config.props ?? {};
   return {
     ...config,
     type: "GeoTIFF",
     props: {
-      sources: [{ url: `${ZARR_APP_ROOT}zarr/cog/?${params.toString()}` }],
+      sources: [{ url: zarrCogUrl(config.props) }],
       normalize: normalize ?? true,
     },
   };
+}
+
+// Where to read STATISTICS_* for a ramp-styled raster source, or null when the
+// source is not a candidate for an auto-fitted ramp.
+//
+// A GeoTIFF may declare several sources (e.g. three single-band files composited
+// as RGB, see SourcePane). A one-band ramp has no meaning there, so only a lone
+// source qualifies. Its URL is author-supplied, so it is restricted to http(s):
+// file:/blob:/data:/protocol-relative must not be fetched. The Zarr endpoint is
+// app-relative and built by us, so it skips that check.
+function autoRampStatsUrl(source) {
+  if (source?.type === "Zarr") return zarrCogUrl(source.props);
+  if (source?.type !== "GeoTIFF") return null;
+
+  const sources = source.props?.sources;
+  if (!Array.isArray(sources) || sources.length !== 1) return null;
+  const url = sources[0]?.url;
+  return typeof url === "string" && /^https?:\/\//i.test(url) ? url : null;
+}
+
+// Whether OL will append an alpha band, which decides if the style has to guard
+// band 2. Mirrors the predicate in MapLayer.
+function autoRampHasNodata(source) {
+  if (source.type === "Zarr") return true; // COGs always carry -9999
+  return (source.props?.sources ?? []).some(
+    (s) => s?.nodata !== undefined && s.nodata !== null && s.nodata !== "",
+  );
+}
+
+// Fit a ramp-styled raster layer's color ramp to the file's real value range.
+//
+// Left alone, such a layer renders with `normalize: true`, which makes OL scale
+// the band into a Uint8Array from the file's STATISTICS_* tags (min -> 0,
+// max -> 255). The ramp auto-fits, but `layer.getData()` hands back those
+// normalized bytes, so a click reports 0-255 instead of a real value.
+//
+// Reading the same tags here lets us style raw values instead: `normalize` goes
+// off (tile data stays float32) and the ramp is rebuilt over the file's actual
+// [min, max]. Same auto-fit behavior, true values on click, and a legend that
+// can label real units.
+//
+// This matters most when the URL carries a variable input — a new storm or
+// timestep is a different file with a different range, and the ramp refits to
+// each one. The stats live in the header of the very URL the source is about to
+// fetch, so the browser serves OL's own header read from cache. Any failure is
+// non-fatal: the config is left untouched and rendering falls back to
+// normalized mode.
+export async function applyAutoRamp(layerConfig) {
+  const source = layerConfig?.props?.source;
+  const { rampName, rampMin, rampMax } = source ?? {};
+  // An explicit range is the author pinning the scale across files; honor it.
+  const hasRange = (rampMin ?? "") !== "" && (rampMax ?? "") !== "";
+  if (!rampName || hasRange) return layerConfig;
+
+  // Keyed on the URL so this is safe to call from more than one place per
+  // render, while still re-resolving when the source points at another file.
+  const statsUrl = autoRampStatsUrl(source);
+  if (!statsUrl || source.resolvedRampUrl === statsUrl) return layerConfig;
+
+  try {
+    const { fromUrl } = await import("geotiff");
+    const image = await (await fromUrl(statsUrl)).getImage();
+    const meta = image.getGDALMetadata(0);
+    const lo = parseFloat(meta?.STATISTICS_MINIMUM);
+    const hi = parseFloat(meta?.STATISTICS_MAXIMUM);
+    if (!Number.isFinite(lo) || !Number.isFinite(hi) || hi <= lo) {
+      return layerConfig;
+    }
+
+    source.props = { ...(source.props ?? {}), normalize: false };
+    layerConfig.style = {
+      ...(layerConfig.style ?? {}),
+      color: buildGeoTIFFStyleColor({
+        rampName,
+        rampMin: lo,
+        rampMax: hi,
+        hasNodata: autoRampHasNodata(source),
+      }),
+    };
+    // Published for the colorbar legend. Kept in separate fields so the
+    // author's own (empty) rampMin/rampMax keep meaning "auto" — writing back
+    // onto those would read as a pinned range and freeze the ramp.
+    source.resolvedRampUrl = statsUrl;
+    source.resolvedRampMin = lo;
+    source.resolvedRampMax = hi;
+  } catch {
+    // No stats, unreachable file, or an unreadable header: keep normalized mode.
+  }
+  return layerConfig;
 }
 
 const moduleLoader = async (config, mapProjection) => {

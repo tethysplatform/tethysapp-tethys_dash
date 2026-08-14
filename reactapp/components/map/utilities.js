@@ -686,9 +686,15 @@ function getGeoTIFFPixelValues(map, pixel, LayerName, layerInfo, coordinate) {
 
   const configuredSources =
     layerInfo?.configuration?.props?.source?.props?.sources ?? [];
-  const anySourceHasNodata = configuredSources.some(
-    (s) => s?.nodata !== undefined && s.nodata !== null && s.nodata !== "",
-  );
+  // A Zarr layer's config holds url/variable, not a `sources` array — that is
+  // assembled later by zarrSourceToGeoTIFF — so sniffing `sources` would always
+  // miss. Zarr COGs always carry the -9999 nodata sentinel, hence the alpha
+  // band, so treat them as having nodata (matches MapLayer's style predicate).
+  const anySourceHasNodata =
+    layerInfo?.configuration?.props?.source?.type === "Zarr" ||
+    configuredSources.some(
+      (s) => s?.nodata !== undefined && s.nodata !== null && s.nodata !== "",
+    );
 
   if (anySourceHasNodata && data.length >= 2 && data[data.length - 1] === 0) {
     return [

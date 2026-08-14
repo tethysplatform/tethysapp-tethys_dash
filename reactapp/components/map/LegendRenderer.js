@@ -361,6 +361,16 @@ export const LegendSymbol = ({
   );
 };
 
+// Colorbar bounds come from author-typed strings or from a raster's embedded
+// statistics, which can carry full float precision (e.g. 17.453779). Round to
+// at most 2 decimals for display -- trailing zeros are not padded, so "100"
+// stays "100". Non-numeric values pass through untouched.
+export function formatRampBound(value) {
+  const n = Number(value);
+  if (value === "" || value === null || !Number.isFinite(n)) return value;
+  return Math.round(n * 100) / 100;
+}
+
 function LegendRenderer({ legend }) {
   const [wmsImages, setWmsImages] = useState([]);
   const [esriItems, setEsriItems] = useState([]);
@@ -462,19 +472,21 @@ function LegendRenderer({ legend }) {
   if (!legend) return null;
 
   if (Array.isArray(legend.rampColors) && legend.rampColors.length > 0) {
+    const rampMin = formatRampBound(legend.rampMin);
+    const rampMax = formatRampBound(legend.rampMax);
     return (
       <LegendWrapper>
         {legend.title && <LegendTitle>{legend.title}</LegendTitle>}
         <RampGradient
           role="img"
-          aria-label={`Color ramp from ${legend.rampMin} to ${legend.rampMax}`}
+          aria-label={`Color ramp from ${rampMin} to ${rampMax}`}
           style={{
             background: `linear-gradient(to right, ${legend.rampColors.join(",")})`,
           }}
         />
         <RampScale>
-          <span>{legend.rampMin}</span>
-          <span>{legend.rampMax}</span>
+          <span>{rampMin}</span>
+          <span>{rampMax}</span>
         </RampScale>
       </LegendWrapper>
     );

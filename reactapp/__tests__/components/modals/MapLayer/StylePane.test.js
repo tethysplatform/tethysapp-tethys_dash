@@ -549,17 +549,12 @@ test("StylePane renders the Color Ramp section and defaults to turbo for a Zarr 
   });
 });
 
-test("StylePane pre-fills GeoTIFF ramp min/max from statistics, and clearing sticks", async () => {
+test("StylePane leaves GeoTIFF ramp min/max empty so the ramp fits each file", async () => {
+  // The ramp range is resolved at render time from the file's statistics (see
+  // applyAutoRamp), which lets it refit when a variable input swaps the URL.
+  // StylePane must not pre-fill the fields, since a filled range reads as the
+  // author pinning the scale and would freeze the ramp on the first file.
   fromUrl.mockReset();
-  fromUrl.mockResolvedValue({
-    getImage: async () => ({
-      getGDALMetadata: () => ({
-        STATISTICS_MINIMUM: "0.05",
-        STATISTICS_MAXIMUM: "11.7",
-      }),
-    }),
-  });
-  const user = userEvent.setup();
 
   render(
     <GeoTIFFTestHarness
@@ -571,19 +566,13 @@ test("StylePane pre-fills GeoTIFF ramp min/max from statistics, and clearing sti
     />,
   );
 
-  await waitFor(() =>
-    expect(screen.getByTestId("rampMax")).toHaveTextContent("12"),
-  );
-  expect(screen.getByTestId("rampMin")).toHaveTextContent("0");
-  expect(fromUrl).toHaveBeenCalledTimes(1);
-
-  // Clearing the fields must not re-fetch/refill (opts into per-storm auto).
-  await user.clear(screen.getByLabelText("Ramp Min"));
-  await user.clear(screen.getByLabelText("Ramp Max"));
-  expect(fromUrl).toHaveBeenCalledTimes(1);
+  await screen.findByText("Color Ramp");
+  expect(screen.getByTestId("rampMin")).toHaveTextContent("");
+  expect(screen.getByTestId("rampMax")).toHaveTextContent("");
+  expect(fromUrl).not.toHaveBeenCalled();
 });
 
-test("StylePane skips the stats fetch when ramp min/max are already set", async () => {
+test("StylePane keeps an author-entered GeoTIFF range untouched", async () => {
   fromUrl.mockReset();
 
   render(
@@ -599,23 +588,8 @@ test("StylePane skips the stats fetch when ramp min/max are already set", async 
   );
 
   await screen.findByText("Color Ramp");
-  expect(fromUrl).not.toHaveBeenCalled();
-});
-
-test("StylePane does not fetch stats for a non-http source URL", async () => {
-  fromUrl.mockReset();
-
-  render(
-    <GeoTIFFTestHarness
-      initialSourceProps={{
-        type: "GeoTIFF",
-        rampName: "turbo",
-        props: { sources: [{ url: "file:///etc/passwd" }] },
-      }}
-    />,
-  );
-
-  await screen.findByText("Color Ramp");
+  expect(screen.getByTestId("rampMin")).toHaveTextContent("0");
+  expect(screen.getByTestId("rampMax")).toHaveTextContent("50");
   expect(fromUrl).not.toHaveBeenCalled();
 });
 

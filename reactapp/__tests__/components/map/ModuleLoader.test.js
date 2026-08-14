@@ -12,7 +12,9 @@ import moduleLoader, {
   buildPolygonFill,
   withAntimeridianFix,
   zarrSourceToGeoTIFF,
+  applyAutoRamp,
 } from "components/map/ModuleLoader";
+import { fromUrl } from "geotiff";
 import WebGLTile from "ol/layer/WebGLTile.js";
 import ImageLayer from "ol/layer/Image.js";
 import VectorTileLayer from "ol/layer/VectorTile.js";
@@ -48,6 +50,8 @@ import {
   defaultStroke,
   defaultStrokeWidth,
 } from "components/inputs/RuleEditor.js";
+
+jest.mock("geotiff", () => ({ fromUrl: jest.fn() }));
 
 jest.mock("ol/source/GeoTIFF.js", () => {
   const ActualSource = jest.requireActual("ol/source/Source.js").default;
@@ -1985,5 +1989,253 @@ describe("zarrSourceToGeoTIFF", () => {
     const url = out.props.sources[0].url;
     expect(url).toContain("index=0");
     expect(url).toContain("mask_below=0.5");
+  });
+});
+
+describe("applyAutoRamp", () => {
+  const zarrLayer = (source = {}) => ({
+    type: "WebGLTile",
+    props: {
+      name: "flood",
+      source: {
+        type: "Zarr",
+        rampName: "turbo",
+        props: { url: "https://x/store.zarr", variable: "depth", index: "7" },
+        ...source,
+      },
+    },
+  });
+
+  const mockStats = (meta) =>
+    fromUrl.mockResolvedValue({
+      getImage: jest.fn().mockResolvedValue({
+        getGDALMetadata: jest.fn(() => meta),
+      }),
+    });
+
+  beforeEach(() => {
+    fromUrl.mockReset();
+  });
+
+  test("styles raw values over the slice range and turns normalize off", async () => {
+    mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "17.45" });
+    const config = zarrLayer();
+
+    await applyAutoRamp(config);
+
+    // normalize off => OL keeps float32 tile data, so getData reports depths.
+    expect(config.props.source.props.normalize).toBe(false);
+    expect(config.props.source.resolvedRampMin).toBe(0);
+    expect(config.props.source.resolvedRampMax).toBeCloseTo(17.45, 4);
+    // The author's own fields stay empty so the ramp keeps meaning "auto".
+    expect(config.props.source.rampMin).toBeUndefined();
+    expect(config.props.source.rampMax).toBeUndefined();
+
+    const color = config.style.color;
+    // hasNodata wraps the interpolate in a `case` against the alpha band.
+    expect(color[0]).toBe("case");
+    const interpolate = color[3];
+    expect(interpolate[0]).toBe("interpolate");
+    expect(interpolate[3]).toBe(0);
+    expect(interpolate[interpolate.length - 2]).toBeCloseTo(17.45, 4);
+  });
+
+  test("reads stats from the same zarr/cog URL the source will fetch", async () => {
+    mockStats({ STATISTICS_MINIMUM: "1", STATISTICS_MAXIMUM: "2" });
+    const config = zarrLayer();
+
+    await applyAutoRamp(config);
+
+    const requested = fromUrl.mock.calls[0][0];
+    expect(requested).toBe(
+      zarrSourceToGeoTIFF(config.props.source).props.sources[0].url,
+    );
+  });
+
+  test("does not refetch for a slice it already resolved", async () => {
+    mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "9" });
+    const config = zarrLayer();
+
+    // Safe to call from both the legend build and the layer build in one render.
+    await applyAutoRamp(config);
+    await applyAutoRamp(config);
+
+    expect(fromUrl).toHaveBeenCalledTimes(1);
+    expect(config.props.source.resolvedRampMax).toBe(9);
+  });
+
+  test("re-resolves when the slice index moves", async () => {
+    mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "9" });
+    const config = zarrLayer();
+    await applyAutoRamp(config);
+
+    // A new storm: same layer object, different slice — the ramp must refit.
+    mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "300" });
+    config.props.source.props.index = "8";
+    await applyAutoRamp(config);
+
+    expect(fromUrl).toHaveBeenCalledTimes(2);
+    expect(config.props.source.resolvedRampMax).toBe(300);
+  });
+
+  test("leaves non-Zarr layers alone", async () => {
+    const config = {
+      type: "WebGLTile",
+      props: { source: { type: "GeoTIFF", rampName: "turbo", props: {} } },
+    };
+
+    await applyAutoRamp(config);
+
+    expect(fromUrl).not.toHaveBeenCalled();
+    expect(config.style).toBeUndefined();
+  });
+
+  test("honors an author-pinned range instead of auto-fitting", async () => {
+    const config = zarrLayer({ rampMin: "0", rampMax: "5" });
+
+    await applyAutoRamp(config);
+
+    expect(fromUrl).not.toHaveBeenCalled();
+    expect(config.props.source.props.normalize).toBeUndefined();
+    expect(config.props.source.rampMax).toBe("5");
+  });
+
+  test("does nothing without a ramp style", async () => {
+    const config = zarrLayer({ rampName: undefined });
+
+    await applyAutoRamp(config);
+
+    expect(fromUrl).not.toHaveBeenCalled();
+    expect(config.style).toBeUndefined();
+  });
+
+  test.each([
+    ["missing stats", {}],
+    [
+      "unparseable stats",
+      { STATISTICS_MINIMUM: "n/a", STATISTICS_MAXIMUM: "x" },
+    ],
+    [
+      "a degenerate range",
+      { STATISTICS_MINIMUM: "5", STATISTICS_MAXIMUM: "5" },
+    ],
+  ])("falls back to normalized rendering on %s", async (_label, meta) => {
+    mockStats(meta);
+    const config = zarrLayer();
+
+    await applyAutoRamp(config);
+
+    expect(config.props.source.props.normalize).toBeUndefined();
+    expect(config.style).toBeUndefined();
+  });
+
+  test("falls back to normalized rendering when the header cannot be read", async () => {
+    fromUrl.mockRejectedValue(new Error("network"));
+    const config = zarrLayer();
+
+    await expect(applyAutoRamp(config)).resolves.toBeTruthy();
+
+    expect(config.props.source.props.normalize).toBeUndefined();
+    expect(config.style).toBeUndefined();
+  });
+
+  describe("GeoTIFF sources", () => {
+    const geotiffLayer = (source = {}, sources) => ({
+      type: "WebGLTile",
+      props: {
+        name: "depth",
+        source: {
+          type: "GeoTIFF",
+          rampName: "turbo",
+          props: {
+            sources: sources ?? [{ url: "https://example.com/depth.tif" }],
+          },
+          ...source,
+        },
+      },
+    });
+
+    test("fits the ramp to the file's stats and turns normalize off", async () => {
+      mockStats({ STATISTICS_MINIMUM: "0.05", STATISTICS_MAXIMUM: "11.7" });
+      const config = geotiffLayer();
+
+      await applyAutoRamp(config);
+
+      expect(fromUrl).toHaveBeenCalledWith("https://example.com/depth.tif");
+      expect(config.props.source.props.normalize).toBe(false);
+      expect(config.props.source.resolvedRampMin).toBeCloseTo(0.05, 4);
+      expect(config.props.source.resolvedRampMax).toBeCloseTo(11.7, 4);
+    });
+
+    test("omits the band-2 guard when no source declares nodata", async () => {
+      mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "10" });
+      const config = geotiffLayer();
+
+      await applyAutoRamp(config);
+
+      // No alpha band, so the style is a bare interpolate, not a `case`.
+      expect(config.style.color[0]).toBe("interpolate");
+    });
+
+    test("guards band 2 when a source declares nodata", async () => {
+      mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "10" });
+      const config = geotiffLayer({}, [
+        { url: "https://example.com/depth.tif", nodata: "-9999" },
+      ]);
+
+      await applyAutoRamp(config);
+
+      expect(config.style.color[0]).toBe("case");
+    });
+
+    test("refits when a variable input swaps the URL", async () => {
+      mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "10" });
+      const config = geotiffLayer();
+      await applyAutoRamp(config);
+
+      mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "250" });
+      config.props.source.props.sources = [
+        { url: "https://example.com/depth-storm2.tif" },
+      ];
+      await applyAutoRamp(config);
+
+      expect(fromUrl).toHaveBeenCalledTimes(2);
+      expect(config.props.source.resolvedRampMax).toBe(250);
+    });
+
+    test("skips multi-source composites, where a one-band ramp is meaningless", async () => {
+      const config = geotiffLayer({}, [
+        { url: "https://example.com/r.tif", bands: "1" },
+        { url: "https://example.com/g.tif", bands: "1" },
+        { url: "https://example.com/b.tif", bands: "1" },
+      ]);
+
+      await applyAutoRamp(config);
+
+      expect(fromUrl).not.toHaveBeenCalled();
+      expect(config.style).toBeUndefined();
+    });
+
+    test.each([
+      ["file:", "file:///etc/passwd"],
+      ["blob:", "blob:http://x/abc"],
+      ["data:", "data:image/tiff;base64,AAA"],
+      ["protocol-relative", "//example.com/depth.tif"],
+    ])("refuses to fetch a %s URL", async (_label, url) => {
+      const config = geotiffLayer({}, [{ url }]);
+
+      await applyAutoRamp(config);
+
+      expect(fromUrl).not.toHaveBeenCalled();
+      expect(config.style).toBeUndefined();
+    });
+
+    test("skips a source with no sources array", async () => {
+      const config = geotiffLayer({}, []);
+
+      await applyAutoRamp(config);
+
+      expect(fromUrl).not.toHaveBeenCalled();
+    });
   });
 });
