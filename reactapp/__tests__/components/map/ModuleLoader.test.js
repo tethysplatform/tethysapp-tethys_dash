@@ -2175,6 +2175,71 @@ describe("applyAutoRamp", () => {
     expect(config.props.source.resolvedRampMax).toBe(8);
   });
 
+  test("resolves only the max when the author pinned the min", async () => {
+    mockStats({ STATISTICS_MINIMUM: "0.4", STATISTICS_MAXIMUM: "17.45" });
+    const config = zarrLayer({ rampMin: "0" });
+
+    await applyAutoRamp(config);
+
+    // Pinned min is honored; the file's minimum of 0.4 is ignored.
+    expect(config.props.source.resolvedRampMin).toBe(0);
+    expect(config.props.source.resolvedRampMax).toBeCloseTo(17.45, 4);
+    expect(config.props.source.props.normalize).toBe(false);
+    const interpolate = config.style.color[3];
+    expect(interpolate[3]).toBe(0);
+    expect(interpolate[interpolate.length - 2]).toBeCloseTo(17.45, 4);
+  });
+
+  test("resolves only the min when the author pinned the max", async () => {
+    mockStats({ STATISTICS_MINIMUM: "0.4", STATISTICS_MAXIMUM: "17.45" });
+    const config = zarrLayer({ rampMax: "20" });
+
+    await applyAutoRamp(config);
+
+    expect(config.props.source.resolvedRampMin).toBeCloseTo(0.4, 4);
+    expect(config.props.source.resolvedRampMax).toBe(20);
+  });
+
+  test("does not resolve when both bounds are pinned", async () => {
+    mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "17" });
+    const config = zarrLayer({ rampMin: "1", rampMax: "5" });
+
+    await applyAutoRamp(config);
+
+    expect(fromUrl).not.toHaveBeenCalled();
+    expect(config.props.source.resolvedRampMin).toBeUndefined();
+  });
+
+  test("treats a pinned min of 0 as set, not as empty", async () => {
+    // A falsy-but-valid bound must not be mistaken for "resolve me".
+    mockStats({ STATISTICS_MINIMUM: "5", STATISTICS_MAXIMUM: "9" });
+    const config = zarrLayer({ rampMin: 0 });
+
+    await applyAutoRamp(config);
+
+    expect(config.props.source.resolvedRampMin).toBe(0);
+    expect(config.props.source.resolvedRampMax).toBe(9);
+  });
+
+  test("bails when a pinned min exceeds the file's maximum", async () => {
+    mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "1" });
+    const config = zarrLayer({ rampMin: "50" });
+
+    await applyAutoRamp(config);
+
+    expect(config.props.source.props.normalize).toBeUndefined();
+    expect(config.style).toBeUndefined();
+  });
+
+  test("bails when a pinned bound is not a number", async () => {
+    mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "1" });
+    const config = zarrLayer({ rampMin: "abc" });
+
+    await applyAutoRamp(config);
+
+    expect(config.style).toBeUndefined();
+  });
+
   test("tolerates getGDALMetadata returning null for a file with no GDAL tags", async () => {
     fromUrl.mockResolvedValue({
       getImage: jest.fn().mockResolvedValue({

@@ -402,13 +402,13 @@ const MapLayerModal = ({
       const { rampName, rampMin, rampMax } = sourceProps;
       const hasRampName =
         typeof rampName === "string" && rampName.trim() !== "";
-      const hasRange =
-        typeof rampMin === "string" &&
-        rampMin.trim() !== "" &&
-        typeof rampMax === "string" &&
-        rampMax.trim() !== "" &&
-        Number.isFinite(Number(rampMin)) &&
-        Number.isFinite(Number(rampMax));
+      // Each bound is independent: a set one pins that end of the ramp, an
+      // empty one is resolved from the file's statistics at render time.
+      const isBoundSet = (v) =>
+        typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v));
+      const hasMin = isBoundSet(rampMin);
+      const hasMax = isBoundSet(rampMax);
+      const hasRange = hasMin && hasMax;
       if (hasRampName) {
         // Zarr COGs always carry a -9999 nodata sentinel; GeoTIFF depends on
         // whether the author set one on any source.
@@ -418,19 +418,26 @@ const MapLayerModal = ({
             : validSourceProps.sources.some(
                 (s) => s?.nodata !== undefined && s.nodata !== "",
               );
+        // buildGeoTIFFStyleColor needs both bounds or neither. When only one is
+        // set, save the normalized placeholder — applyAutoRamp rebuilds the
+        // style at render time once it has resolved the missing bound.
         const color = buildGeoTIFFStyleColor({
           rampName,
-          rampMin,
-          rampMax,
+          rampMin: hasRange ? rampMin : "",
+          rampMax: hasRange ? rampMax : "",
           hasNodata,
         });
         mapConfiguration.configuration.style = { color };
         mapConfiguration.configuration.props.source.rampName = rampName;
-        // Raw range styles raw band values; auto mode normalizes band 1 from stats.
+        // Raw range styles raw band values; anything less than a full range
+        // normalizes band 1 from stats until the render-time resolve lands.
         mapConfiguration.configuration.props.source.props.normalize = !hasRange;
-        // Persist an explicit range only when set; empty = per-storm auto.
-        if (hasRange) {
+        // Persist each bound that is set. A missing one means "resolve it from
+        // the file", so a half-pinned range has to survive the save.
+        if (hasMin) {
           mapConfiguration.configuration.props.source.rampMin = rampMin;
+        }
+        if (hasMax) {
           mapConfiguration.configuration.props.source.rampMax = rampMax;
         }
       }

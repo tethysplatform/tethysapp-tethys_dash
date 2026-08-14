@@ -461,6 +461,10 @@ choose how its value range is set:
     * - Filled in
       - **Pinned.** The ramp spans exactly the values you enter, for every file the layer
         loads.
+    * - One filled, one empty
+      - **Half-pinned.** The bound you enter is fixed; the empty one is read from the
+        file. Entering a min of ``0`` and leaving the max empty gives a ramp anchored at
+        zero that still grows to fit each file's peak.
 
 Auto-fit matters when a variable input is bound to the source — a Zarr slice index, or a
 URL containing ``${...}``. Each storm or timestep is a different raster with a different

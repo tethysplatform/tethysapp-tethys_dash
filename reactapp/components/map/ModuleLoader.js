@@ -126,12 +126,17 @@ function autoRampHasNodata(source) {
 // fetch, so the browser serves OL's own header read from cache. Any failure is
 // non-fatal: the config is left untouched and rendering falls back to
 // normalized mode.
+// Each bound is independent: whichever the author left empty is resolved from
+// the file, and whichever they set is honored as a pinned end of the ramp. So a
+// min of 0 with an empty max gives a ramp anchored at 0 that still grows to fit
+// each file's peak.
 export async function applyAutoRamp(layerConfig) {
   const source = layerConfig?.props?.source;
   const { rampName, rampMin, rampMax } = source ?? {};
-  // An explicit range is the author pinning the scale across files; honor it.
-  const hasRange = (rampMin ?? "") !== "" && (rampMax ?? "") !== "";
-  if (!rampName || hasRange) return layerConfig;
+  const hasMin = (rampMin ?? "") !== "";
+  const hasMax = (rampMax ?? "") !== "";
+  // Both pinned: the author fixed the scale across files, nothing to resolve.
+  if (!rampName || (hasMin && hasMax)) return layerConfig;
 
   // Keyed on the URL so this is safe to call from more than one place per
   // render, while still re-resolving when the source points at another file.
@@ -147,12 +152,13 @@ export async function applyAutoRamp(layerConfig) {
     // them at dataset level -- so check the band first, then fall back.
     const meta = image.getGDALMetadata(0) ?? {};
     const dataset = image.getGDALMetadata(null) ?? {};
-    const lo = parseFloat(
-      meta.STATISTICS_MINIMUM ?? dataset.STATISTICS_MINIMUM,
-    );
-    const hi = parseFloat(
-      meta.STATISTICS_MAXIMUM ?? dataset.STATISTICS_MAXIMUM,
-    );
+    // A pinned bound wins; only the empty one comes from the statistics.
+    const lo = hasMin
+      ? Number(rampMin)
+      : parseFloat(meta.STATISTICS_MINIMUM ?? dataset.STATISTICS_MINIMUM);
+    const hi = hasMax
+      ? Number(rampMax)
+      : parseFloat(meta.STATISTICS_MAXIMUM ?? dataset.STATISTICS_MAXIMUM);
     if (!Number.isFinite(lo) || !Number.isFinite(hi) || hi <= lo) {
       return layerConfig;
     }

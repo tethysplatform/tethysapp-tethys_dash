@@ -2503,6 +2503,46 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
     expect(uploadSpy).not.toHaveBeenCalled();
   });
 
+  test("saves a half-pinned ramp range without throwing", async () => {
+    // Only one bound entered. buildGeoTIFFStyleColor rejects a partial range,
+    // so the save has to store the normalized placeholder and keep the bound
+    // that was set — applyAutoRamp completes the other at render time.
+    jest
+      .spyOn(appAPI, "uploadJSON")
+      .mockResolvedValue({ success: true, filename: "x.json" });
+
+    const addMapLayer = jest.fn();
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={jest.fn()}
+        addMapLayer={addMapLayer}
+        layerInfo={{
+          layerProps: { name: "Half Pinned GeoTIFF" },
+          sourceProps: {
+            type: "GeoTIFF",
+            rampName: "viridis",
+            rampMin: "0",
+            rampMax: "",
+            props: { sources: [{ url: "a.tif" }] },
+          },
+        }}
+      />,
+    );
+
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+    await waitFor(() => expect(addMapLayer).toHaveBeenCalledTimes(1));
+
+    const savedConfig = addMapLayer.mock.calls[0][0];
+    const savedSource = savedConfig.configuration.props.source;
+    // The pinned bound survives; the empty one stays absent so it gets resolved.
+    expect(savedSource.rampMin).toBe("0");
+    expect(savedSource.rampMax).toBeUndefined();
+    // Placeholder style until the render-time resolve lands.
+    expect(savedConfig.configuration.style.color[0]).toBe("interpolate");
+    expect(savedSource.props.normalize).toBe(true);
+  });
+
   test("switching ramps on resave regenerates the color expression", async () => {
     jest
       .spyOn(appAPI, "uploadJSON")
