@@ -1343,7 +1343,7 @@ test("superseded frame is discarded; only the newest replacement reveals", async
   expect(layerB.getOpacity()).toBe(0);
 });
 
-test("GeoTIFF with empty sources is silently skipped (not a failed layer)", async () => {
+test("GeoTIFF with no url is silently skipped (not a failed layer)", async () => {
   const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
   const layers = [
     {
@@ -1352,9 +1352,7 @@ test("GeoTIFF with empty sources is silently skipped (not a failed layer)", asyn
         name: "In-progress GeoTIFF",
         source: {
           type: "GeoTIFF",
-          props: {
-            sources: [],
-          },
+          props: {},
         },
         zIndex: 0,
       },
@@ -1392,7 +1390,7 @@ test("GeoTIFF with empty sources is silently skipped (not a failed layer)", asyn
   });
   expect(addLayerSpy.mock.calls[0][0].values_.name).toBe("Other Layer");
 
-  // The empty-sources GeoTIFF is NOT surfaced in the failedLayers warning.
+  // The url-less GeoTIFF is NOT surfaced in the failedLayers warning.
   expect(
     screen.queryByText(/Failed to load the "In-progress GeoTIFF"/),
   ).not.toBeInTheDocument();
@@ -1540,7 +1538,7 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
           source: {
             type: "GeoTIFF",
             props: {
-              sources: [{ url: "https://example.com/test.tif" }],
+              url: "https://example.com/test.tif",
             },
           },
           name: "Auto-fit GeoTIFF Layer",
@@ -1630,7 +1628,7 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
         props: {
           source: {
             type: "GeoTIFF",
-            props: { sources: [{ url: "https://example.com/test.tif" }] },
+            props: { url: "https://example.com/test.tif" },
           },
           name: "Failing GeoTIFF",
           zIndex: 0,
@@ -1680,7 +1678,7 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
         props: {
           source: {
             type: "GeoTIFF",
-            props: { sources: [{ url: "https://example.com/test.tif" }] },
+            props: { url: "https://example.com/test.tif" },
           },
           name: "Format-Bad GeoTIFF",
           zIndex: 0,
@@ -1744,7 +1742,7 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
         props: {
           source: {
             type: "GeoTIFF",
-            props: { sources: [{ url: "https://example.com/test.tif" }] },
+            props: { url: "https://example.com/test.tif" },
           },
           name: "Auto-fit Sized",
           zIndex: 0,
@@ -1810,7 +1808,7 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
         props: {
           source: {
             type: "GeoTIFF",
-            props: { sources: [{ url: "https://example.com/test.tif" }] },
+            props: { url: "https://example.com/test.tif" },
           },
           name: "Pacific GeoTIFF",
           zIndex: 0,
@@ -1852,7 +1850,7 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
         props: {
           source: {
             type: "GeoTIFF",
-            props: { sources: [{ url: "https://example.com/test.tif" }] },
+            props: { url: "https://example.com/test.tif" },
           },
           name: "Top-level Message GeoTIFF",
           zIndex: 0,
@@ -1905,7 +1903,7 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
         props: {
           source: {
             type: "GeoTIFF",
-            props: { sources: [{ url: "https://example.com/test.tif" }] },
+            props: { url: "https://example.com/test.tif" },
           },
           name: "Empty-event GeoTIFF",
           zIndex: 0,
@@ -1965,7 +1963,7 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
         props: {
           source: {
             type: "GeoTIFF",
-            props: { sources: [{ url: "https://example.com/test.tif" }] },
+            props: { url: "https://example.com/test.tif" },
           },
           name: "Bare-projection GeoTIFF",
           zIndex: 0,
@@ -2017,7 +2015,7 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
       props: {
         source: {
           type: "GeoTIFF",
-          props: { sources: [{ url: "https://example.com/test.tif" }] },
+          props: { url: "https://example.com/test.tif" },
         },
         name: "Non-array-getExtent GeoTIFF",
         zIndex: 0,
@@ -2080,7 +2078,7 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
         props: {
           source: {
             type: "GeoTIFF",
-            props: { sources: [{ url: "https://example.com/test.tif" }] },
+            props: { url: "https://example.com/test.tif" },
           },
           name: "NaN-Transform GeoTIFF",
           zIndex: 0,
@@ -2226,7 +2224,7 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
         props: {
           source: {
             type: "GeoTIFF",
-            props: { sources: [{ url: "https://example.com/test.tif" }] },
+            props: { url: "https://example.com/test.tif" },
           },
           name: "Non-finite Prev GeoTIFF",
           zIndex: 0,
@@ -2271,7 +2269,7 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
         props: {
           source: {
             type: "GeoTIFF",
-            props: { sources: [{ url: "https://example.com/test.tif" }] },
+            props: { url: "https://example.com/test.tif" },
           },
           name: "Bomber",
           zIndex: 0,

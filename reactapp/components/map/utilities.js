@@ -123,8 +123,14 @@ export const sourcePropertiesOptions = {
     optional: {},
   },
   GeoTIFF: {
-    required: {},
-    optional: {},
+    required: {
+      url: { placeholder: "Cloud Optimized GeoTIFF URL" },
+    },
+    optional: {
+      nodata: { placeholder: "Value to render transparent, e.g. -9999" },
+      projection: { placeholder: "EPSG:<Code>" },
+      mask_below: { placeholder: "Mask values at or below this" },
+    },
   },
   Zarr: {
     required: {
@@ -684,17 +690,14 @@ function getGeoTIFFPixelValues(map, pixel, LayerName, layerInfo, coordinate) {
   const data = targetLayer.getData(pixel);
   if (!data || data.length === 0) return [];
 
-  const configuredSources =
-    layerInfo?.configuration?.props?.source?.props?.sources ?? [];
-  // A Zarr layer's config holds url/variable, not a `sources` array — that is
-  // assembled later by zarrSourceToGeoTIFF — so sniffing `sources` would always
-  // miss. Zarr COGs always carry the -9999 nodata sentinel, hence the alpha
-  // band, so treat them as having nodata (matches MapLayer's style predicate).
+  // OL appends an alpha band whenever the source declares nodata, and that band
+  // is a mask rather than data. Zarr COGs always carry the -9999 sentinel, so
+  // they always have one (matches MapLayer's style predicate).
+  const source = layerInfo?.configuration?.props?.source;
+  const nodata = source?.props?.nodata;
   const anySourceHasNodata =
-    layerInfo?.configuration?.props?.source?.type === "Zarr" ||
-    configuredSources.some(
-      (s) => s?.nodata !== undefined && s.nodata !== null && s.nodata !== "",
-    );
+    source?.type === "Zarr" ||
+    (nodata !== undefined && nodata !== null && nodata !== "");
 
   if (anySourceHasNodata && data.length >= 2 && data[data.length - 1] === 0) {
     return [

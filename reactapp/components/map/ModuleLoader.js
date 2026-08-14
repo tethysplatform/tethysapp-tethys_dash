@@ -81,21 +81,32 @@ export function zarrSourceToGeoTIFF(config) {
   };
 }
 
+// A GeoTIFF source is authored as flat fields (url + optional nodata /
+// projection), like every other source type. OpenLayers wants a `sources` array
+// with the per-file options inside it and the projection alongside, so assemble
+// that here rather than making authors write it.
+export function geotiffSourceToOL(config) {
+  const { url, nodata, projection, mask_below, ...rest } = config.props ?? {};
+  const sourceInfo = { url };
+  if (nodata !== undefined && nodata !== "") sourceInfo.nodata = nodata;
+  const props = { ...rest, sources: [sourceInfo] };
+  if (projection !== undefined && projection !== "") {
+    props.projection = projection;
+  }
+  return { ...config, props };
+}
+
 // Where to read STATISTICS_* for a ramp-styled raster source, or null when the
 // source is not a candidate for an auto-fitted ramp.
 //
-// A GeoTIFF may declare several sources (e.g. three single-band files composited
-// as RGB, see SourcePane). A one-band ramp has no meaning there, so only a lone
-// source qualifies. Its URL is author-supplied, so it is restricted to http(s):
+// The GeoTIFF URL is author-supplied, so it is restricted to http(s):
 // file:/blob:/data:/protocol-relative must not be fetched. The Zarr endpoint is
 // app-relative and built by us, so it skips that check.
 function autoRampStatsUrl(source) {
   if (source?.type === "Zarr") return zarrCogUrl(source.props);
   if (source?.type !== "GeoTIFF") return null;
 
-  const sources = source.props?.sources;
-  if (!Array.isArray(sources) || sources.length !== 1) return null;
-  const url = sources[0]?.url;
+  const url = source.props?.url;
   return typeof url === "string" && /^https?:\/\//i.test(url) ? url : null;
 }
 
@@ -103,9 +114,8 @@ function autoRampStatsUrl(source) {
 // band 2. Mirrors the predicate in MapLayer.
 function autoRampHasNodata(source) {
   if (source.type === "Zarr") return true; // COGs always carry -9999
-  return (source.props?.sources ?? []).some(
-    (s) => s?.nodata !== undefined && s.nodata !== null && s.nodata !== "",
-  );
+  const nodata = source.props?.nodata;
+  return nodata !== undefined && nodata !== null && nodata !== "";
 }
 
 // Fit a ramp-styled raster layer's color ramp to the file's real value range.
@@ -206,7 +216,13 @@ export async function applyAutoRamp(layerConfig) {
 
 const moduleLoader = async (config, mapProjection) => {
   if (config.type === "Zarr") {
+    // Already yields OL's `sources` shape, so it skips the GeoTIFF branch below.
     config = zarrSourceToGeoTIFF(config);
+  } else if (config.type === "GeoTIFF") {
+    if (!config.props?.url) {
+      throw new Error("GeoTIFFEmptySources");
+    }
+    config = geotiffSourceToOL(config);
   }
   if (
     config.type === "Static Image" &&
@@ -215,14 +231,6 @@ const moduleLoader = async (config, mapProjection) => {
     config.props.imageExtent = config.props.imageExtent
       .split(",")
       .map((v) => parseFloat(v.trim()));
-  }
-
-  if (
-    config.type === "GeoTIFF" &&
-    Array.isArray(config.props?.sources) &&
-    config.props.sources.length === 0
-  ) {
-    throw new Error("GeoTIFFEmptySources");
   }
 
   if (config.type.includes("ESRI")) {

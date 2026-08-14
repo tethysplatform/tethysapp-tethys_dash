@@ -628,7 +628,7 @@ test("Map GeoTIFF with default legend emits a ramp colorbar from sourceProps met
         source: {
           type: "GeoTIFF",
           props: {
-            sources: [{ url: "https://example.com/ramp.tif" }],
+            url: "https://example.com/ramp.tif",
           },
           rampName: "viridis",
           rampMin: "0",
@@ -787,7 +787,7 @@ test("Map GeoTIFF with an empty range auto-fits the legend to the file statistic
           source: {
             type: "GeoTIFF",
             rampName: "viridis",
-            props: { sources: [{ url: "https://example.com/depth.tif" }] },
+            props: { url: "https://example.com/depth.tif" },
           },
         },
       },

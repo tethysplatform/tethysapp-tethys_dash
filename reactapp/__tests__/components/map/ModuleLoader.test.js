@@ -208,116 +208,73 @@ test("KML Layer Instance", async () => {
 });
 
 describe("GeoTIFF source", () => {
-  const geoTIFFLayerConfig = () => ({
+  const geoTIFFLayerConfig = (props = {}) => ({
     type: "WebGLTile",
     props: {
       name: "GeoTIFF Layer",
       source: {
         type: "GeoTIFF",
-        props: {
-          sources: [
-            {
-              url: "https://example.com/cog.tif",
-              bands: "1,2,3",
-              min: "0",
-              max: "255",
-              nodata: "0",
-            },
-          ],
-        },
+        props: { url: "https://example.com/cog.tif", ...props },
       },
       zIndex: 0,
     },
   });
 
+  const lastCtorArgs = () => {
+    const calls = GeoTIFF.constructorSpy.mock.calls;
+    return calls[calls.length - 1][0];
+  };
+
   test("GeoTIFF type resolves to the ol/source/GeoTIFF module", async () => {
-    const config = geoTIFFLayerConfig();
-    const layerInstance = await moduleLoader(config);
+    const layerInstance = await moduleLoader(geoTIFFLayerConfig());
     expect(layerInstance instanceof WebGLTile).toBe(true);
     expect(GeoTIFF.constructorSpy).toHaveBeenCalled();
   });
 
-  test("GeoTIFF sources array passes through to constructor", async () => {
-    const config = geoTIFFLayerConfig();
-    // Drop bands so this test focuses on plain URL + numeric string pass-through.
-    config.props.source.props.sources = [
-      { url: "https://example.com/a.tif", min: "0", max: "255" },
-    ];
-    await moduleLoader(config);
-    const calls = GeoTIFF.constructorSpy.mock.calls;
-    const callArgs = calls[calls.length - 1][0];
-    expect(Array.isArray(callArgs.sources)).toBe(true);
-    expect(callArgs.sources).toHaveLength(1);
-    expect(callArgs.sources[0].url).toBe("https://example.com/a.tif");
-    // numeric strings should be cast by convertType before hitting the ctor
-    expect(callArgs.sources[0].min).toBe(0);
-    expect(callArgs.sources[0].max).toBe(255);
-  });
-
-  test("GeoTIFF bands CSV string is parsed to a number array", async () => {
-    const config = geoTIFFLayerConfig();
-    config.props.source.props.sources = [
-      { url: "https://example.com/b.tif", bands: "1,2,3" },
-    ];
-    await moduleLoader(config);
-    const calls = GeoTIFF.constructorSpy.mock.calls;
-    const callArgs = calls[calls.length - 1][0];
-    expect(callArgs.sources[0].bands).toEqual([1, 2, 3]);
-  });
-
-  test("GeoTIFF empty bands string is dropped (not passed as [])", async () => {
-    // Regression: `bands: ""` from the UI used to parse to `[]`, which tells
-    // ol/source/GeoTIFF to read ZERO bands and throws
-    // "Unsupported data format/bitsPerSample" at tile-decode time. Empty
-    // bands must be dropped so OL falls back to reading all bands.
-    const config = geoTIFFLayerConfig();
-    config.props.source.props.sources = [
-      { url: "https://example.com/c.tif", bands: "" },
-    ];
-    await moduleLoader(config);
-    const calls = GeoTIFF.constructorSpy.mock.calls;
-    const callArgs = calls[calls.length - 1][0];
-    expect(callArgs.sources[0]).not.toHaveProperty("bands");
-    expect(callArgs.sources[0].url).toBe("https://example.com/c.tif");
-  });
-
-  test("GeoTIFF empty projection and empty overviews are dropped", async () => {
-    const config = geoTIFFLayerConfig();
-    config.props.source.props.sources = [
-      {
-        url: "https://example.com/d.tif",
-        projection: "",
-        overviews: [],
-      },
-    ];
-    await moduleLoader(config);
-    const calls = GeoTIFF.constructorSpy.mock.calls;
-    const callArgs = calls[calls.length - 1][0];
-    expect(callArgs.sources[0]).not.toHaveProperty("projection");
-    expect(callArgs.sources[0]).not.toHaveProperty("overviews");
-  });
-
-  test("GeoTIFF empty sources throws GeoTIFFEmptySources", async () => {
-    const config = geoTIFFLayerConfig();
-    config.props.source.props.sources = [];
-    const callCountBefore = GeoTIFF.constructorSpy.mock.calls.length;
-    await expect(moduleLoader(config)).rejects.toThrow("GeoTIFFEmptySources");
-    // The GeoTIFF constructor must not have been invoked for this call.
-    expect(GeoTIFF.constructorSpy.mock.calls.length).toBe(callCountBefore);
-  });
-
-  test("GeoTIFF minimum config (url only) instantiates", async () => {
-    const config = geoTIFFLayerConfig();
-    config.props.source.props.sources = [
-      { url: "https://example.com/minimal.tif" },
-    ];
-    const layerInstance = await moduleLoader(config);
-    expect(layerInstance instanceof WebGLTile).toBe(true);
-    const calls = GeoTIFF.constructorSpy.mock.calls;
-    const callArgs = calls[calls.length - 1][0];
-    expect(callArgs.sources).toEqual([
-      { url: "https://example.com/minimal.tif" },
+  test("a flat url becomes OpenLayers' single-entry sources array", async () => {
+    await moduleLoader(geoTIFFLayerConfig());
+    expect(lastCtorArgs().sources).toEqual([
+      { url: "https://example.com/cog.tif" },
     ]);
+  });
+
+  test("nodata rides inside the source entry, cast to a number", async () => {
+    // OL compares `sourceValue !== nodata` strictly, so a string would never
+    // match and the mask would silently do nothing.
+    await moduleLoader(geoTIFFLayerConfig({ nodata: "-9999" }));
+    expect(lastCtorArgs().sources[0].nodata).toBe(-9999);
+  });
+
+  test("a nodata of 0 is kept, not treated as unset", async () => {
+    await moduleLoader(geoTIFFLayerConfig({ nodata: "0" }));
+    expect(lastCtorArgs().sources[0].nodata).toBe(0);
+  });
+
+  test("projection sits at the source options level, not in the entry", async () => {
+    await moduleLoader(geoTIFFLayerConfig({ projection: "EPSG:32615" }));
+    const args = lastCtorArgs();
+    expect(args.projection).toBe("EPSG:32615");
+    expect(args.sources[0]).not.toHaveProperty("projection");
+  });
+
+  test("empty nodata and projection are dropped", async () => {
+    await moduleLoader(geoTIFFLayerConfig({ nodata: "", projection: "" }));
+    const args = lastCtorArgs();
+    expect(args.sources[0]).not.toHaveProperty("nodata");
+    expect(args).not.toHaveProperty("projection");
+  });
+
+  test("normalize passes through to the constructor", async () => {
+    await moduleLoader(geoTIFFLayerConfig({ normalize: false }));
+    expect(lastCtorArgs().normalize).toBe(false);
+  });
+
+  test("a missing url throws GeoTIFFEmptySources", async () => {
+    const config = geoTIFFLayerConfig();
+    delete config.props.source.props.url;
+    const before = GeoTIFF.constructorSpy.mock.calls.length;
+    await expect(moduleLoader(config)).rejects.toThrow("GeoTIFFEmptySources");
+    expect(GeoTIFF.constructorSpy.mock.calls.length).toBe(before);
   });
 });
 
@@ -2314,16 +2271,14 @@ describe("applyAutoRamp", () => {
   });
 
   describe("GeoTIFF sources", () => {
-    const geotiffLayer = (source = {}, sources) => ({
+    const geotiffLayer = (source = {}, props = {}) => ({
       type: "WebGLTile",
       props: {
         name: "depth",
         source: {
           type: "GeoTIFF",
           rampName: "turbo",
-          props: {
-            sources: sources ?? [{ url: "https://example.com/depth.tif" }],
-          },
+          props: { url: "https://example.com/depth.tif", ...props },
           ...source,
         },
       },
@@ -2353,9 +2308,7 @@ describe("applyAutoRamp", () => {
 
     test("guards band 2 when a source declares nodata", async () => {
       mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "10" });
-      const config = geotiffLayer({}, [
-        { url: "https://example.com/depth.tif", nodata: "-9999" },
-      ]);
+      const config = geotiffLayer({}, { nodata: "-9999" });
 
       await applyAutoRamp(config);
 
@@ -2368,21 +2321,15 @@ describe("applyAutoRamp", () => {
       await applyAutoRamp(config);
 
       mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "250" });
-      config.props.source.props.sources = [
-        { url: "https://example.com/depth-storm2.tif" },
-      ];
+      config.props.source.props.url = "https://example.com/depth-storm2.tif";
       await applyAutoRamp(config);
 
       expect(fromUrl).toHaveBeenCalledTimes(2);
       expect(config.props.source.resolvedRampMax).toBe(250);
     });
 
-    test("skips multi-source composites, where a one-band ramp is meaningless", async () => {
-      const config = geotiffLayer({}, [
-        { url: "https://example.com/r.tif", bands: "1" },
-        { url: "https://example.com/g.tif", bands: "1" },
-        { url: "https://example.com/b.tif", bands: "1" },
-      ]);
+    test("skips a source with a blank url", async () => {
+      const config = geotiffLayer({}, { url: "" });
 
       await applyAutoRamp(config);
 
@@ -2396,7 +2343,7 @@ describe("applyAutoRamp", () => {
       ["data:", "data:image/tiff;base64,AAA"],
       ["protocol-relative", "//example.com/depth.tif"],
     ])("refuses to fetch a %s URL", async (_label, url) => {
-      const config = geotiffLayer({}, [{ url }]);
+      const config = geotiffLayer({}, { url });
 
       await applyAutoRamp(config);
 
@@ -2404,8 +2351,8 @@ describe("applyAutoRamp", () => {
       expect(config.style).toBeUndefined();
     });
 
-    test("skips a source with no sources array", async () => {
-      const config = geotiffLayer({}, []);
+    test("skips a source with no url at all", async () => {
+      const config = geotiffLayer({}, { url: undefined });
 
       await applyAutoRamp(config);
 

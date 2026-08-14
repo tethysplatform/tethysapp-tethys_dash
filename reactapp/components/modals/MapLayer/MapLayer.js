@@ -156,7 +156,6 @@ const MapLayerModal = ({
   const [popupConfig, setPopupConfig] = useState(layerInfo.popupConfig ?? null);
   const [selectedOption, setSelectedOption] = useState(null);
   const [hiddenForExtentDraw, setHiddenForExtentDraw] = useState(false);
-  const [showingSubModal, setShowingSubModal] = useState(false);
   const [showLayoutEditor, setShowLayoutEditor] = useState(false);
   const legendContainerRef = useRef(null);
   const styleContainerRef = useRef(null);
@@ -252,34 +251,6 @@ const MapLayerModal = ({
       if (sourceProps.type === "Vector Tile") {
         validSourceProps.urls = validSourceProps.urls.split(",");
       }
-    }
-
-    if (sourceProps.type === "GeoTIFF") {
-      const rawSources = sourceProps.props?.sources ?? [];
-      const cleanSourceInfo = (s) => {
-        const out = { url: s.url };
-        if (typeof s.bands === "string" && s.bands.trim() !== "") {
-          out.bands = s.bands;
-        }
-        if (s.min !== undefined && s.min !== "") out.min = s.min;
-        if (s.max !== undefined && s.max !== "") out.max = s.max;
-        if (s.nodata !== undefined && s.nodata !== "") out.nodata = s.nodata;
-        if (typeof s.projection === "string" && s.projection.trim() !== "") {
-          out.projection = s.projection;
-        }
-        if (Array.isArray(s.overviews) && s.overviews.length > 0) {
-          out.overviews = s.overviews;
-        }
-        return out;
-      };
-      const restoredSources = rawSources
-        .filter((s) => typeof s?.url === "string" && s.url.trim() !== "")
-        .map(cleanSourceInfo);
-      if (restoredSources.length === 0) {
-        setErrorMessage("Add at least one source with a URL before saving.");
-        return;
-      }
-      validSourceProps.sources = restoredSources;
     }
 
     let mapConfiguration;
@@ -413,11 +384,9 @@ const MapLayerModal = ({
         // Zarr COGs always carry a -9999 nodata sentinel; GeoTIFF depends on
         // whether the author set one on any source.
         const hasNodata =
-          sourceProps.type === "Zarr"
-            ? true
-            : validSourceProps.sources.some(
-                (s) => s?.nodata !== undefined && s.nodata !== "",
-              );
+          sourceProps.type === "Zarr" ||
+          (validSourceProps.nodata !== undefined &&
+            validSourceProps.nodata !== "");
         // buildGeoTIFFStyleColor needs both bounds or neither. When only one is
         // set, save the normalized placeholder — applyAutoRamp rebuilds the
         // style at render time once it has resolved the missing bound.
@@ -602,7 +571,7 @@ const MapLayerModal = ({
         style={
           hiddenForExtentDraw
             ? { visibility: "hidden" }
-            : showingSubModal || showLayoutEditor
+            : showLayoutEditor
               ? { zIndex: 1050 }
               : undefined
         }
@@ -643,7 +612,6 @@ const MapLayerModal = ({
                 setErrorMessage={setErrorMessage}
                 onRequestHideModal={onRequestHideModal}
                 onFetchPluginDefaults={fetchPluginDefaults}
-                onSubModalToggle={setShowingSubModal}
               />
             </Tab>
             <Tab

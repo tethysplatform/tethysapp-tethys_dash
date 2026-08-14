@@ -1873,12 +1873,8 @@ const geoTIFFLayerConfig = ({ nodata } = {}) => ({
       source: {
         type: "GeoTIFF",
         props: {
-          sources: [
-            {
-              url: "https://example.com/test.tif",
-              ...(nodata !== undefined ? { nodata } : {}),
-            },
-          ],
+          url: "https://example.com/test.tif",
+          ...(nodata !== undefined ? { nodata } : {}),
         },
       },
     },

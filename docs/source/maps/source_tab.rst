@@ -199,23 +199,17 @@ GeoTIFF
 
 **Openlayers Class:** `WebGLTile <https://openlayers.org/en/latest/apidoc/module-ol_layer_WebGLTile-WebGLTileLayer.html>`_
 
-The GeoTIFF source overlays a Cloud-Optimized GeoTIFF (COG) on the map at its native projection; the dashboard view re-projects on the fly. Files **must** be Cloud-Optimized GeoTIFFs — plain GeoTIFFs will not render. A single GeoTIFF layer accepts one or more sources (one per band channel) which are combined in the Style tab.
+The GeoTIFF source overlays a Cloud-Optimized GeoTIFF (COG) on the map at its native projection; the dashboard view re-projects on the fly. Files **must** be Cloud-Optimized GeoTIFFs — plain strip-based GeoTIFFs, and some compression/predictor combinations, may fail silently. Convert with::
 
-**Per-source Properties:**
-    - **url:** (required) URL to the COG file. Must be publicly accessible.
-    - **bands:** (optional) Comma-separated 1-based band indices to read from this source. Defaults to all bands.
-    - **min:** (optional) Minimum sample value used for normalization.
-    - **max:** (optional) Maximum sample value used for normalization.
-    - **nodata:** (optional) Sample value to treat as transparent.
+    gdal_translate -of COG -co COMPRESS=DEFLATE -co PREDICTOR=YES input.tif output.tif
+
+**Properties:**
+    - **url:** (required) URL to the COG file. Must be publicly accessible. Supports variable inputs, e.g. ``https://example.com/${Storm}/depth.tif`` — the layer reloads and its color ramp refits whenever the variable changes.
+    - **nodata:** (optional) Sample value to render transparent, e.g. ``-9999``. Overrides any nodata value in the file's own metadata.
     - **projection:** (optional) Source projection (e.g. ``EPSG:4326``). Defaults to the file's embedded metadata.
-    - **overviews:** (optional) One overview URL per line, used for lower-zoom rendering.
+    - **mask_below:** (optional) Cells at or below this value render transparent. See :ref:`raster_color_ramp` for how it interacts with the ramp.
 
-**Adding GeoTIFF sources:**
-
-1. Choose ``GeoTIFF`` as the source type. The Source tab will show an empty sources list and an **Add GeoTIFF Source** button.
-2. Click **Add GeoTIFF Source** to open the entry modal, fill in the URL (and any optional fields), and click **Save**.
-3. Repeat to add additional sources (for example one per R/G/B band). Each row in the sources list can be edited or removed independently.
-4. Configure per-band color (R/G/B/Alpha or single-band ramp) on the :ref:`style_tab`.
+Pick a color ramp for the layer on the :ref:`style_tab`.
 
 **Example JSON Configuration:**
 
@@ -228,25 +222,18 @@ The GeoTIFF source overlays a Cloud-Optimized GeoTIFF (COG) on the map at its na
             "source": {
                 "type": "GeoTIFF",
                 "props": {
-                    "sources": [
-                        {
-                            "url": "https://example.com/elevation.tif",
-                            "bands": "1",
-                            "min": 0,
-                            "max": 4000,
-                            "nodata": -9999,
-                            "projection": "EPSG:4326",
-                            "overviews": []
-                        }
-                    ]
-                }
+                    "url": "https://example.com/elevation.tif",
+                    "nodata": "-9999",
+                    "projection": "EPSG:4326"
+                },
+                "rampName": "turbo"
             }
         }
     }
 
-------------------------------------------------------------------------------------------------------------------------
+.. note::
+    A GeoTIFF layer reads one file. OpenLayers can composite several files as separate band channels, but that is not exposed here — if you need it, the layer JSON can still be authored by hand.
 
-++++
 Zarr
 ++++
 
