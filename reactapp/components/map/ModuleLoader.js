@@ -124,6 +124,32 @@ function resolveNodata(fileNodata) {
   return fileNodata === null || fileNodata === undefined ? NaN : fileNodata;
 }
 
+// GDAL often keeps statistics in a PAM sidecar (`<file>.aux.xml`) instead of the
+// TIFF -- `gdalinfo -stats` writes there by default. geotiff.js only reads the
+// TIFF, so those files look statistics-less and get no fitted ramp or legend.
+// Read the sidecar as a fallback. A 404 is the normal case for files that embed
+// their statistics, so every failure here is silent.
+async function fetchSidecarStats(url) {
+  try {
+    const response = await fetch(`${url}.aux.xml`);
+    if (!response.ok) return {};
+    const doc = new DOMParser().parseFromString(
+      await response.text(),
+      "application/xml",
+    );
+    // Scope to the first band; a multi-band PAM file repeats these keys.
+    const band = doc.querySelector("PAMRasterBand") ?? doc;
+    const stats = {};
+    band.querySelectorAll("MDI").forEach((item) => {
+      const key = item.getAttribute("key");
+      if (key) stats[key] = item.textContent;
+    });
+    return stats;
+  } catch {
+    return {};
+  }
+}
+
 // Fit a ramp-styled raster layer's color ramp to the file's real value range.
 //
 // Left alone, such a layer renders with `normalize: true`, which makes OL scale
@@ -193,13 +219,23 @@ export async function applyAutoRamp(layerConfig) {
       }),
     });
 
+    let statsMin = meta.STATISTICS_MINIMUM ?? dataset.STATISTICS_MINIMUM;
+    let statsMax = meta.STATISTICS_MAXIMUM ?? dataset.STATISTICS_MAXIMUM;
+    // Only worth a sidecar request when a bound actually needs resolving and the
+    // file embedded nothing. A Zarr COG is built by us and always embeds its
+    // statistics, and its URL carries a query string, so it never applies.
+    const needsStats =
+      (!hasMin && statsMin === undefined) ||
+      (!hasMax && statsMax === undefined);
+    if (needsStats && source.type === "GeoTIFF") {
+      const sidecar = await fetchSidecarStats(statsUrl);
+      statsMin = statsMin ?? sidecar.STATISTICS_MINIMUM;
+      statsMax = statsMax ?? sidecar.STATISTICS_MAXIMUM;
+    }
+
     // A pinned bound wins; only the empty one comes from the statistics.
-    let lo = hasMin
-      ? Number(rampMin)
-      : parseFloat(meta.STATISTICS_MINIMUM ?? dataset.STATISTICS_MINIMUM);
-    const hi = hasMax
-      ? Number(rampMax)
-      : parseFloat(meta.STATISTICS_MAXIMUM ?? dataset.STATISTICS_MAXIMUM);
+    let lo = hasMin ? Number(rampMin) : parseFloat(statsMin);
+    const hi = hasMax ? Number(rampMax) : parseFloat(statsMax);
     if (!Number.isFinite(lo) || !Number.isFinite(hi) || hi <= lo) {
       // No usable range, so rendering stays normalized — but rebuild the style
       // anyway so nodata cells are transparent rather than painted at band 1 = 0,

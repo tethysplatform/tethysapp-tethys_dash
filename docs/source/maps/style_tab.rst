@@ -496,7 +496,9 @@ for hiding real values you do not want drawn — for example the zero-probabilit
 would otherwise fill the bottom of the ramp.
 
 .. note::
-    Auto-fit needs ``STATISTICS_MINIMUM`` / ``STATISTICS_MAXIMUM`` band tags in the file.
+    Auto-fit needs ``STATISTICS_MINIMUM`` / ``STATISTICS_MAXIMUM`` statistics. These are read
+    from the file, or from a GDAL ``.aux.xml`` sidecar next to it when the file embeds none —
+    ``gdalinfo -stats`` writes to the sidecar by default.
     TethysDash writes these into every COG it generates for a Zarr source. If a GeoTIFF
     lacks them, the layer still renders and clicking still reports values, but no colorbar
     legend is produced — enter a range manually in that case.

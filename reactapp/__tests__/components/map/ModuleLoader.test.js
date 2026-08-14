@@ -2349,6 +2349,79 @@ describe("applyAutoRamp", () => {
       expect(Number.isNaN(config.props.source.props.nodata)).toBe(true);
     });
 
+    const mockSidecar = (xml, ok = true) => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok,
+        text: jest.fn().mockResolvedValue(xml),
+      });
+    };
+
+    const PAM_XML = `<PAMDataset><PAMRasterBand band="1"><Metadata>
+        <MDI key="STATISTICS_MINIMUM">0</MDI>
+        <MDI key="STATISTICS_MAXIMUM">2</MDI>
+      </Metadata></PAMRasterBand></PAMDataset>`;
+
+    test("falls back to the .aux.xml sidecar when the TIFF embeds no statistics", async () => {
+      // gdalinfo -stats writes STATISTICS_* to a PAM sidecar rather than the
+      // file, and geotiff.js cannot see it.
+      mockGDALMetadata({ fileNodata: 255 });
+      mockSidecar(PAM_XML);
+      const config = geotiffLayer();
+
+      await applyAutoRamp(config);
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "https://example.com/depth.tif.aux.xml",
+      );
+      expect(config.props.source.resolvedRampMin).toBe(0);
+      expect(config.props.source.resolvedRampMax).toBe(2);
+    });
+
+    test("does not request a sidecar when the TIFF already embeds statistics", async () => {
+      mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "10" });
+      global.fetch = jest.fn();
+      const config = geotiffLayer();
+
+      await applyAutoRamp(config);
+
+      expect(global.fetch).not.toHaveBeenCalled();
+      expect(config.props.source.resolvedRampMax).toBe(10);
+    });
+
+    test("does not request a sidecar when both bounds are pinned", async () => {
+      mockGDALMetadata({ fileNodata: 255 });
+      global.fetch = jest.fn();
+      const config = geotiffLayer({ rampMin: "0", rampMax: "2" });
+
+      await applyAutoRamp(config);
+
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    test("tolerates a 404 from the sidecar", async () => {
+      // The normal case for files that embed their statistics.
+      mockGDALMetadata({ fileNodata: 255 });
+      mockSidecar("", false);
+      const config = geotiffLayer();
+
+      await expect(applyAutoRamp(config)).resolves.toBeTruthy();
+
+      expect(config.props.source.resolvedRampMin).toBeUndefined();
+      // Nodata still resolved, so the style still guards the alpha band.
+      expect(config.props.source.props.nodata).toBe(255);
+      expect(config.style.color[0]).toBe("case");
+    });
+
+    test("tolerates an unreachable or unparseable sidecar", async () => {
+      mockGDALMetadata({ fileNodata: 255 });
+      global.fetch = jest.fn().mockRejectedValue(new Error("network"));
+      const config = geotiffLayer();
+
+      await expect(applyAutoRamp(config)).resolves.toBeTruthy();
+
+      expect(config.props.source.resolvedRampMin).toBeUndefined();
+    });
+
     test("guards band 2 when the file has nodata but no statistics", async () => {
       // Common for COGs without STATISTICS_*: the ramp cannot be fitted, but
       // nodata cells must still be transparent rather than painted at band 1 = 0.
