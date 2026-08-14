@@ -80,8 +80,9 @@ const StylePane = ({
   const { uuid } = useContext(LayoutContext);
   const [availableFields, setAvailableFields] = useState([]);
   const { dynamicMapLayers } = useContext(AppContext);
-  const variableInputValues =
-    useContext(VariableInputsContext)?.variableInputValues;
+  const variableInputValues = useContext(
+    VariableInputsContext,
+  )?.variableInputValues;
   const geotiffUrl = sourceProps?.props?.sources?.[0]?.url;
   const prefilledUrlRef = useRef(null);
 
@@ -117,7 +118,8 @@ const StylePane = ({
   }, [sourceProps.type, sourceProps.rampName, setSourceProps]);
 
   useEffect(() => {
-    if (sourceProps.type !== "GeoTIFF" || !setSourceProps || !geotiffUrl) return;
+    if (sourceProps.type !== "GeoTIFF" || !setSourceProps || !geotiffUrl)
+      return;
     // Auto-fill at most once per source URL, so clearing the fields sticks.
     if (prefilledUrlRef.current === geotiffUrl) return;
     const hasRange =

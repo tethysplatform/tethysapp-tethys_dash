@@ -254,7 +254,9 @@ function DataViewerModal({
             return;
           } else if (
             variableInputValue == null &&
-            !["checkbox", "csv-uploader", "slider"].includes(variableInputSource)
+            !["checkbox", "csv-uploader", "slider"].includes(
+              variableInputSource,
+            )
           ) {
             setAlertMessage("Initial value must be selected in the dropdown");
             setShowAlert(true);

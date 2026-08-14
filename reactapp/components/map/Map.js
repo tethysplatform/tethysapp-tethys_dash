@@ -405,7 +405,10 @@ const MapComponent = ({
                 // Hide via opacity, not visibility: an invisible layer never
                 // renders, so it would never load its tiles. Opacity 0 keeps
                 // it loading; we restore the real opacity once it has painted.
-                buffered.push({ layer: newLayer, opacity: newLayer.getOpacity() });
+                buffered.push({
+                  layer: newLayer,
+                  opacity: newLayer.getOpacity(),
+                });
                 newLayer.setOpacity(0);
               }
             }
