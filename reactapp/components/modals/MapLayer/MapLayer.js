@@ -396,6 +396,9 @@ const MapLayerModal = ({
           }),
         };
         savedSource.props.normalize = false;
+        // Nearest neighbor: interpolating class labels is meaningless and
+        // fringes nodata boundaries with the fallback color.
+        savedSource.props.interpolate = false;
         savedSource.styleMode = "categorical";
         savedSource.classes = usableClasses;
         if (fallbackColor) savedSource.fallbackColor = fallbackColor;

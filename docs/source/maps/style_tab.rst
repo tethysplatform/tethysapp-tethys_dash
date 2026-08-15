@@ -497,6 +497,11 @@ unset. Setting ``legend`` to ``default`` produces one swatch per class rather th
     leaving it out of the table is no longer enough — for example masking the 0 class of a
     land-cover raster where 0 means "background".
 
+A categorical layer is resampled with nearest-neighbor rather than the usual linear
+interpolation, since a value halfway between two class labels is not a class. Without it every
+nodata boundary picks up a fringe of the "Other values" color, because the interpolated value
+matches no class while the blended transparency stops reading as nodata.
+
 Only the class values matter for rendering, so a categorical layer needs no statistics and
 ignores Ramp Min / Ramp Max. The ramp selection is still remembered, so switching back to
 Continuous does not lose it.

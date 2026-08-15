@@ -1914,6 +1914,8 @@ describe("MapLayerModal categorical raster save path", () => {
     expect(source.fallbackColor).toBe("#999999");
     // Raw band values are required for the match to line up.
     expect(source.props.normalize).toBe(false);
+    // Nearest neighbor: interpolated class labels fringe nodata boundaries.
+    expect(source.props.interpolate).toBe(false);
     expect(saved.configuration.style.color[3][0]).toBe("match");
     // The ramp name survives so switching back does not lose the palette.
     expect(source.rampName).toBe("turbo");

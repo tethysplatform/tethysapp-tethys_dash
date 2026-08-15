@@ -232,7 +232,17 @@ export async function applyAutoRamp(layerConfig) {
     if (isCategorical) {
       // No statistics needed: the class values are the scale. Raw band values
       // are required though, so normalization goes off unconditionally.
-      source.props = { ...(source.props ?? {}), normalize: false };
+      //
+      // Nearest-neighbor resampling too. OL interpolates by default, which is
+      // meaningless for class labels -- halfway between class 1 and 2 is not a
+      // class -- and it fringes every nodata boundary: band 1 blends into a
+      // value matching no class (so it takes the fallback color) while band 2
+      // blends off 0 (so the nodata guard stops firing).
+      source.props = {
+        ...(source.props ?? {}),
+        normalize: false,
+        interpolate: false,
+      };
       layerConfig.style = {
         ...(layerConfig.style ?? {}),
         color: buildCategoricalStyleColor({

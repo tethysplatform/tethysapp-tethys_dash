@@ -2314,6 +2314,9 @@ describe("applyAutoRamp", () => {
       // normalize must be off or band 1 would carry 0-255 scaled bytes and the
       // match would never line up with the class values.
       expect(config.props.source.props.normalize).toBe(false);
+      // Nearest neighbor, or resampling blends band 1 into values matching no
+      // class and blends band 2 off 0, fringing every nodata boundary.
+      expect(config.props.source.props.interpolate).toBe(false);
       expect(config.style.color[0]).toBe("case");
       expect(config.style.color[3]).toEqual([
         "match",
