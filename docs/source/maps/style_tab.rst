@@ -474,6 +474,31 @@ Pin the range instead when you need colors to be **comparable across files**. Un
 a 5 mm event and a 300 mm event both render across the full ramp, so the same color means
 different values in different frames.
 
+Categorical rasters
+~~~~~~~~~~~~~~~~~~~
+
+Some rasters hold **labels rather than magnitudes** — land cover, hazard class, a
+classification code. A color ramp misrepresents those: a gradient implies that class ``1`` sits
+halfway between ``0`` and ``2``, which is meaningless. Switch the Color Ramp section to
+**Categorical** to color by exact value instead.
+
+Each class is a value, a color, and an optional label. New rows are seeded with a color from
+the selected ramp, so a usable style appears before you pick anything by hand. The label is
+what the legend shows; without one the legend falls back to the raw value.
+
+Values matching no class use the **Other values** color, or render transparent when it is left
+unset. Setting ``legend`` to ``default`` produces one swatch per class rather than a colorbar.
+
+.. note::
+    **Mask Below is checked first**, so a class at or below the threshold stays hidden even
+    though it has a color. That is how you hide a class once an "Other values" color means
+    leaving it out of the table is no longer enough — for example masking the 0 class of a
+    land-cover raster where 0 means "background".
+
+Only the class values matter for rendering, so a categorical layer needs no statistics and
+ignores Ramp Min / Ramp Max. The ramp selection is still remembered, so switching back to
+Continuous does not lose it.
+
 Masking low values
 ~~~~~~~~~~~~~~~~~~
 

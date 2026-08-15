@@ -88,8 +88,16 @@ const TestingComponent = ({
   );
 };
 
-const GeoTIFFTestHarness = ({ initialSourceProps }) => {
+const GeoTIFFTestHarness = ({ initialSourceProps, sourcePropsSpy }) => {
   const [sourceProps, setSourceProps] = useState(initialSourceProps);
+
+  const spyingSetSourceProps = (updater) => {
+    setSourceProps((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      if (typeof sourcePropsSpy === "function") sourcePropsSpy(next);
+      return next;
+    });
+  };
 
   return (
     <AppContext.Provider value={{ dynamicMapLayers: [] }}>
@@ -99,7 +107,7 @@ const GeoTIFFTestHarness = ({ initialSourceProps }) => {
           setStyle={() => {}}
           setErrorMessage={() => {}}
           sourceProps={sourceProps}
-          setSourceProps={setSourceProps}
+          setSourceProps={spyingSetSourceProps}
         />
         <p data-testid="rampName">{sourceProps.rampName ?? ""}</p>
         <p data-testid="rampMin">{sourceProps.rampMin ?? ""}</p>
@@ -510,6 +518,7 @@ TestingComponent.propTypes = {
 
 GeoTIFFTestHarness.propTypes = {
   initialSourceProps: PropTypes.object,
+  sourcePropsSpy: PropTypes.func,
 };
 
 test("StylePane renders Color Ramp section for GeoTIFF source type", async () => {
@@ -735,5 +744,112 @@ test("StylePane round-trips conditionCombinator and 'in' operator rules", async 
     expect(JSON.parse(screen.getByTestId("style").textContent)).toStrictEqual(
       combinatorStyle,
     );
+  });
+});
+
+describe("StylePane categorical raster styling", () => {
+  const renderPane = (sourceProps, spy) =>
+    render(
+      <GeoTIFFTestHarness
+        initialSourceProps={{
+          type: "GeoTIFF",
+          rampName: "turbo",
+          props: { url: "lu.tif" },
+          ...sourceProps,
+        }}
+        sourcePropsSpy={spy}
+      />,
+    );
+
+  test("Categorical mode swaps the range inputs for a class table", async () => {
+    renderPane({ styleMode: "categorical", classes: [] });
+
+    expect(await screen.findByText("Color Ramp")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Add class" }),
+    ).toBeInTheDocument();
+    // The continuous range inputs are gone.
+    expect(screen.queryByLabelText("Ramp Min")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Ramp Max")).not.toBeInTheDocument();
+  });
+
+  test("Continuous mode keeps the range inputs and hides the class table", async () => {
+    renderPane({});
+
+    expect(await screen.findByLabelText("Ramp Min")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Add class" }),
+    ).not.toBeInTheDocument();
+  });
+
+  test("switching to Categorical records the mode", async () => {
+    let last;
+    renderPane({}, (next) => {
+      last = next;
+    });
+
+    const radios = await screen.findAllByRole("radio");
+    // [0] Continuous, [1] Categorical
+    fireEvent.click(radios[1]);
+
+    await waitFor(() => expect(last?.styleMode).toBe("categorical"));
+  });
+
+  test("Add class appends a row seeded with a ramp color", async () => {
+    let last;
+    renderPane({ styleMode: "categorical", classes: [] }, (next) => {
+      last = next;
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Add class" }));
+
+    await waitFor(() => expect(last?.classes).toHaveLength(1));
+    // Seeded so a usable style exists without picking colors by hand.
+    expect(last.classes[0].color).toMatch(/^#/);
+    expect(last.classes[0].value).toBe("");
+  });
+
+  test("editing a class value and label writes them back", async () => {
+    let last;
+    renderPane(
+      {
+        styleMode: "categorical",
+        classes: [{ value: "", color: "#aaa", label: "" }],
+      },
+      (next) => {
+        last = next;
+      },
+    );
+
+    fireEvent.change(await screen.findByLabelText("Class 1 Value"), {
+      target: { value: "2" },
+    });
+    await waitFor(() => expect(last?.classes[0].value).toBe("2"));
+
+    fireEvent.change(screen.getByLabelText("Class 1 Label"), {
+      target: { value: "Urban" },
+    });
+    await waitFor(() => expect(last?.classes[0].label).toBe("Urban"));
+  });
+
+  test("removing a class drops just that row", async () => {
+    let last;
+    renderPane(
+      {
+        styleMode: "categorical",
+        classes: [
+          { value: "0", color: "#aaa" },
+          { value: "1", color: "#bbb" },
+        ],
+      },
+      (next) => {
+        last = next;
+      },
+    );
+
+    fireEvent.click(await screen.findByLabelText("Remove class 1"));
+
+    await waitFor(() => expect(last?.classes).toHaveLength(1));
+    expect(last.classes[0].value).toBe("1");
   });
 });

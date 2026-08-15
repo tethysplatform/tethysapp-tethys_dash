@@ -28,7 +28,11 @@ import {
   saveLayerJSON,
   resolveTablePopupType,
 } from "components/map/utilities";
-import { buildGeoTIFFStyleColor } from "components/map/geoTIFFStyle";
+import {
+  buildGeoTIFFStyleColor,
+  buildCategoricalStyleColor,
+  isUsableClass,
+} from "components/map/geoTIFFStyle";
 import {
   removeEmptyValues,
   removeEmptyLayerProps,
@@ -370,9 +374,34 @@ const MapLayerModal = ({
     }
 
     if (sourceProps.type === "GeoTIFF" || sourceProps.type === "Zarr") {
-      const { rampName, rampMin, rampMax } = sourceProps;
+      const { rampName, rampMin, rampMax, styleMode, classes, fallbackColor } =
+        sourceProps;
       const hasRampName =
         typeof rampName === "string" && rampName.trim() !== "";
+
+      // A categorical layer colors by exact value, so it carries a class list
+      // instead of a range. Raw band values are required for the match to line
+      // up, so normalization is off from the start rather than at render time.
+      const usableClasses = (classes ?? []).filter(isUsableClass);
+      const isCategorical =
+        styleMode === "categorical" && usableClasses.length > 0;
+      if (isCategorical) {
+        const savedSource = mapConfiguration.configuration.props.source;
+        mapConfiguration.configuration.style = {
+          color: buildCategoricalStyleColor({
+            classes: usableClasses,
+            hasNodata: true,
+            maskBelow: validSourceProps.mask_below,
+            fallbackColor,
+          }),
+        };
+        savedSource.props.normalize = false;
+        savedSource.styleMode = "categorical";
+        savedSource.classes = usableClasses;
+        if (fallbackColor) savedSource.fallbackColor = fallbackColor;
+        // Kept so switching back to a ramp does not lose the chosen palette.
+        if (hasRampName) savedSource.rampName = rampName;
+      }
       // Each bound is independent: a set one pins that end of the ramp, an
       // empty one is resolved from the file's statistics at render time.
       const isBoundSet = (v) =>
@@ -380,7 +409,7 @@ const MapLayerModal = ({
       const hasMin = isBoundSet(rampMin);
       const hasMax = isBoundSet(rampMax);
       const hasRange = hasMin && hasMax;
-      if (hasRampName) {
+      if (hasRampName && !isCategorical) {
         // buildGeoTIFFStyleColor needs both bounds or neither. When only one is
         // set, save the normalized placeholder — applyAutoRamp rebuilds the
         // style at render time once it has resolved the missing bound.

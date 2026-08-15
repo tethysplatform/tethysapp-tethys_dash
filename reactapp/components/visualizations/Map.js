@@ -486,6 +486,23 @@ const MapVisualization = ({
           if (layer.legend) {
             if (layer.legend === "default") {
               const rampSource = layer.configuration?.props?.source;
+              // A categorical raster gets one swatch per class rather than a
+              // colorbar — a gradient would imply a continuum between classes.
+              if (
+                rampSource?.styleMode === "categorical" &&
+                rampSource?.classes?.length
+              ) {
+                newMapLegend.push({
+                  title: layer.configuration?.props?.name,
+                  items: rampSource.classes.map((entry) => ({
+                    color: entry.color,
+                    label: entry.label || String(entry.value),
+                    symbol: "square",
+                  })),
+                });
+                newMapLayers.push(layer.configuration);
+                continue;
+              }
               // Zarr renders through a GeoTIFF source, so it gets the same
               // colorbar. In auto mode the range comes from the resolved
               // stats rather than author-entered values.

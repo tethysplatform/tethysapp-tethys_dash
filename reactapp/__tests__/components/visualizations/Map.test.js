@@ -804,6 +804,47 @@ test("Map GeoTIFF with an empty range auto-fits the legend to the file statistic
   expect(screen.getByText("Depth Raster")).toBeInTheDocument();
 });
 
+test("Map categorical raster emits discrete legend items, not a colorbar", async () => {
+  // A gradient would imply a continuum between land classes that does not exist.
+  fromUrl.mockResolvedValue({
+    getImage: jest.fn().mockResolvedValue({
+      getGDALMetadata: jest.fn(() => null),
+      getGDALNoData: jest.fn(() => 255),
+    }),
+  });
+
+  renderMapWithLayers([
+    {
+      configuration: {
+        type: "WebGLTile",
+        props: {
+          name: "Land Use",
+          source: {
+            type: "GeoTIFF",
+            styleMode: "categorical",
+            rampName: "viridis",
+            classes: [
+              { value: "0", color: "#aaaaaa", label: "Bare" },
+              { value: "1", color: "#bbbbbb", label: "Crop" },
+              { value: "2", color: "#cccccc" },
+            ],
+            props: { url: "https://example.com/landuse.tif" },
+          },
+        },
+      },
+      legend: "default",
+    },
+  ]);
+  fireEvent.click(await screen.findByLabelText("Show Legend Control"));
+
+  expect(await screen.findByText("Bare")).toBeInTheDocument();
+  expect(screen.getByText("Crop")).toBeInTheDocument();
+  // A class with no label falls back to its value.
+  expect(screen.getByText("2")).toBeInTheDocument();
+  // No colorbar for a categorical layer.
+  expect(screen.queryByLabelText(/^Color ramp from/)).not.toBeInTheDocument();
+});
+
 test("Map ESRI with default legend", async () => {
   const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
   const layer = layerConfigImageArcGISRest;

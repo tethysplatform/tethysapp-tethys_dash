@@ -2287,6 +2287,102 @@ describe("applyAutoRamp", () => {
     expect(config.props.source.resolvedRampMin).toBeUndefined();
   });
 
+  describe("categorical layers", () => {
+    const categoricalLayer = (source = {}) => ({
+      type: "WebGLTile",
+      props: {
+        name: "land use",
+        source: {
+          type: "GeoTIFF",
+          styleMode: "categorical",
+          classes: [
+            { value: "0", color: "#aaa", label: "Bare" },
+            { value: "1", color: "#bbb", label: "Crop" },
+          ],
+          props: { url: "https://example.com/landuse.tif" },
+          ...source,
+        },
+      },
+    });
+
+    test("styles by class and forces raw band values", async () => {
+      mockGDALMetadata({ fileNodata: 255 });
+      const config = categoricalLayer();
+
+      await applyAutoRamp(config);
+
+      // normalize must be off or band 1 would carry 0-255 scaled bytes and the
+      // match would never line up with the class values.
+      expect(config.props.source.props.normalize).toBe(false);
+      expect(config.style.color[0]).toBe("case");
+      expect(config.style.color[3]).toEqual([
+        "match",
+        ["band", 1],
+        0,
+        "#aaa",
+        1,
+        "#bbb",
+        [0, 0, 0, 0],
+      ]);
+    });
+
+    test("still discovers nodata", async () => {
+      mockGDALMetadata({ fileNodata: 255 });
+      const config = categoricalLayer();
+
+      await applyAutoRamp(config);
+
+      expect(config.props.source.props.nodata).toBe(255);
+    });
+
+    test("needs no statistics and never requests a sidecar", async () => {
+      // The class values are the scale, so there is no range to resolve.
+      mockGDALMetadata({ fileNodata: 255 });
+      global.fetch = jest.fn();
+      const config = categoricalLayer();
+
+      await applyAutoRamp(config);
+
+      expect(global.fetch).not.toHaveBeenCalled();
+      expect(config.props.source.resolvedRampMin).toBeUndefined();
+    });
+
+    test("applies the fallback color and the mask guard", async () => {
+      mockGDALMetadata({ fileNodata: 255 });
+      const config = categoricalLayer({ fallbackColor: "#999999" });
+      config.props.source.props.mask_below = "0";
+
+      await applyAutoRamp(config);
+
+      expect(config.style.color[3]).toEqual(["<=", ["band", 1], 0]);
+      const match = config.style.color[5];
+      expect(match[match.length - 1]).toBe("#999999");
+    });
+
+    test("ignores a categorical mode with no usable class", async () => {
+      // A half-filled table must not take over the style.
+      mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "2" });
+      const config = categoricalLayer({
+        classes: [{ value: "", color: "#aaa" }],
+        rampName: "turbo",
+      });
+
+      await applyAutoRamp(config);
+
+      expect(config.style.color[3][0]).toBe("interpolate");
+      expect(config.props.source.resolvedRampMax).toBe(2);
+    });
+
+    test("does nothing when neither a ramp nor classes are set", async () => {
+      const config = categoricalLayer({ styleMode: undefined, classes: [] });
+
+      await applyAutoRamp(config);
+
+      expect(fromUrl).not.toHaveBeenCalled();
+      expect(config.style).toBeUndefined();
+    });
+  });
+
   describe("GeoTIFF sources", () => {
     const geotiffLayer = (source = {}, props = {}) => ({
       type: "WebGLTile",

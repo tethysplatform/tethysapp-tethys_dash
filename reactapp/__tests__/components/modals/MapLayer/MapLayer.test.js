@@ -1871,6 +1871,90 @@ describe("MapLayerModal GeoJSON URL/filename path", () => {
   });
 });
 
+describe("MapLayerModal categorical raster save path", () => {
+  const renderCategorical = (sourceProps, addMapLayer) =>
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={jest.fn()}
+        addMapLayer={addMapLayer}
+        layerInfo={{
+          layerProps: { name: "Land Use" },
+          sourceProps: {
+            type: "GeoTIFF",
+            rampName: "turbo",
+            props: { url: "lu.tif" },
+            ...sourceProps,
+          },
+        }}
+      />,
+    );
+
+  test("saves a match style, the class list, and normalize off", async () => {
+    const addMapLayer = jest.fn();
+    renderCategorical(
+      {
+        styleMode: "categorical",
+        classes: [
+          { value: "0", color: "#aaa", label: "Bare" },
+          { value: "1", color: "#bbb", label: "Crop" },
+        ],
+        fallbackColor: "#999999",
+      },
+      addMapLayer,
+    );
+
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+    await waitFor(() => expect(addMapLayer).toHaveBeenCalledTimes(1));
+
+    const saved = addMapLayer.mock.calls[0][0];
+    const source = saved.configuration.props.source;
+    expect(source.styleMode).toBe("categorical");
+    expect(source.classes).toHaveLength(2);
+    expect(source.fallbackColor).toBe("#999999");
+    // Raw band values are required for the match to line up.
+    expect(source.props.normalize).toBe(false);
+    expect(saved.configuration.style.color[3][0]).toBe("match");
+    // The ramp name survives so switching back does not lose the palette.
+    expect(source.rampName).toBe("turbo");
+  });
+
+  test("drops half-filled class rows rather than saving them as class 0", async () => {
+    const addMapLayer = jest.fn();
+    renderCategorical(
+      {
+        styleMode: "categorical",
+        classes: [
+          { value: "2", color: "#ccc" },
+          { value: "", color: "#ddd" },
+        ],
+      },
+      addMapLayer,
+    );
+
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+    await waitFor(() => expect(addMapLayer).toHaveBeenCalledTimes(1));
+
+    const source = addMapLayer.mock.calls[0][0].configuration.props.source;
+    expect(source.classes).toEqual([{ value: "2", color: "#ccc" }]);
+  });
+
+  test("falls back to the ramp when no class is usable", async () => {
+    const addMapLayer = jest.fn();
+    renderCategorical(
+      { styleMode: "categorical", classes: [{ value: "", color: "#aaa" }] },
+      addMapLayer,
+    );
+
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+    await waitFor(() => expect(addMapLayer).toHaveBeenCalledTimes(1));
+
+    const saved = addMapLayer.mock.calls[0][0];
+    expect(saved.configuration.props.source.styleMode).toBeUndefined();
+    expect(saved.configuration.style.color[3][0]).toBe("interpolate");
+  });
+});
+
 describe("MapLayerModal GeoTIFF ramp round-trip persistence", () => {
   test("persists rampName/rampMin/rampMax on configuration.props.source", async () => {
     // Regression: without this, re-opening a ramp-styled GeoTIFF layer in the
