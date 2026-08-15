@@ -854,6 +854,7 @@ const MapVisualization = ({
       );
 
       const nonEmptyLayerAttributes = tableOverlayFeatures.filter((item) => {
+        if (!item || typeof item !== "object") return false;
         if (!item.attributes || Object.keys(item.attributes).length === 0) {
           return false;
         }
@@ -975,9 +976,13 @@ const MapVisualization = ({
     });
     const results = await Promise.all(queryCalls);
 
+    // Drop non-object entries as well as empty results. The map above passes
+    // non-objects through unwrapped, and Popup dereferences every entry, so a
+    // stray null would crash the overlay rather than render nothing.
     const nonEmpty = results
-      .filter((arr) => Array.isArray(arr) && arr.length > 0)
-      .flat();
+      .filter((arr) => Array.isArray(arr))
+      .flat()
+      .filter((feature) => feature && typeof feature === "object");
 
     if (nonEmpty.length > 0) {
       setPopupContent(nonEmpty);
