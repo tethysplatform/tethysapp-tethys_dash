@@ -1,5 +1,11 @@
 import { useState } from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import StylePane from "components/modals/MapLayer/StylePane";
 import appAPI from "services/api/app";
 import PropTypes from "prop-types";
@@ -764,19 +770,27 @@ describe("StylePane categorical raster styling", () => {
   test("Categorical mode swaps the range inputs for a class table", async () => {
     renderPane({ styleMode: "categorical", classes: [] });
 
-    expect(await screen.findByText("Color Ramp")).toBeInTheDocument();
+    // Heading follows the mode; "Color Ramp" would misdescribe a class table.
+    expect(await screen.findByText("Classes")).toBeInTheDocument();
+    expect(screen.queryByText("Color Ramp")).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Add class" }),
     ).toBeInTheDocument();
-    // The continuous range inputs are gone.
+    // The continuous controls are gone: range inputs and the ramp picker.
     expect(screen.queryByLabelText("Ramp Min")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Ramp Max")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("radiogroup", { name: "Color ramp picker" }),
+    ).not.toBeInTheDocument();
   });
 
   test("Continuous mode keeps the range inputs and hides the class table", async () => {
     renderPane({});
 
     expect(await screen.findByLabelText("Ramp Min")).toBeInTheDocument();
+    expect(
+      screen.getByRole("radiogroup", { name: "Color ramp picker" }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Add class" }),
     ).not.toBeInTheDocument();
@@ -788,9 +802,11 @@ describe("StylePane categorical raster styling", () => {
       last = next;
     });
 
-    const radios = await screen.findAllByRole("radio");
-    // [0] Continuous, [1] Categorical
-    fireEvent.click(radios[1]);
+    const modeGroup = await screen.findByRole("radiogroup", {
+      name: "Raster Style Mode",
+    });
+    // Scoped: the ramp picker is a radiogroup too.
+    fireEvent.click(within(modeGroup).getAllByRole("radio")[1]);
 
     await waitFor(() => expect(last?.styleMode).toBe("categorical"));
   });

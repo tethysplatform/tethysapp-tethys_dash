@@ -482,9 +482,11 @@ classification code. A color ramp misrepresents those: a gradient implies that c
 halfway between ``0`` and ``2``, which is meaningless. Switch the Color Ramp section to
 **Categorical** to color by exact value instead.
 
-Each class is a value, a color, and an optional label. New rows are seeded with a color from
-the selected ramp, so a usable style appears before you pick anything by hand. The label is
-what the legend shows; without one the legend falls back to the raw value.
+Each class is a value, a color, and an optional label. The ramp picker is hidden in this mode —
+a gradient has no meaning for discrete classes, and each class carries its own color — though
+new rows are still seeded from the last ramp you had selected so a usable style appears before
+you pick anything by hand. The label is what the legend shows; without one the legend falls
+back to the raw value.
 
 Values matching no class use the **Other values** color, or render transparent when it is left
 unset. Setting ``legend`` to ``default`` produces one swatch per class rather than a colorbar.

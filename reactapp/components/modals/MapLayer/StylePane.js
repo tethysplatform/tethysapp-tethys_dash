@@ -278,7 +278,9 @@ const StylePane = ({
 
     return (
       <GeoTIFFSection>
-        <SectionHeading>Color Ramp</SectionHeading>
+        <SectionHeading>
+          {isCategorical ? "Classes" : "Color Ramp"}
+        </SectionHeading>
         <ModeRow role="radiogroup" aria-label="Raster Style Mode">
           <label>
             <input
@@ -300,7 +302,12 @@ const StylePane = ({
           </label>
         </ModeRow>
 
-        <RampPicker selectedRamp={selectedRamp} onChange={handleRampSelect} />
+        {/* A ramp has no meaning for discrete classes; each class carries its
+            own color. The selection is still kept so switching back to
+            Continuous restores it, and it seeds new class colors. */}
+        {!isCategorical && (
+          <RampPicker selectedRamp={selectedRamp} onChange={handleRampSelect} />
+        )}
 
         {isCategorical ? (
           <>
