@@ -1,4 +1,7 @@
-import { buildGeoTIFFStyleColor } from "components/map/geoTIFFStyle";
+import {
+  buildGeoTIFFStyleColor,
+  buildCategoricalStyleColor,
+} from "components/map/geoTIFFStyle";
 import { COLOR_RAMPS, RAMP_STOPS } from "components/map/colorRamps";
 
 afterEach(() => {
@@ -275,5 +278,88 @@ describe("buildGeoTIFFStyleColor", () => {
     } finally {
       COLOR_RAMPS.viridis = original;
     }
+  });
+});
+
+describe("buildCategoricalStyleColor", () => {
+  const classes = [
+    { value: 0, color: "#aaa", label: "Bare" },
+    { value: 1, color: "#bbb", label: "Crop" },
+    { value: 2, color: "#ccc", label: "Urban" },
+  ];
+
+  test("matches each class value to its color", () => {
+    const expr = buildCategoricalStyleColor({ classes });
+
+    expect(expr).toEqual([
+      "match",
+      ["band", 1],
+      0,
+      "#aaa",
+      1,
+      "#bbb",
+      2,
+      "#ccc",
+      [0, 0, 0, 0],
+    ]);
+  });
+
+  test("unmatched values take the fallback color when given", () => {
+    const expr = buildCategoricalStyleColor({
+      classes,
+      fallbackColor: "#999999",
+    });
+
+    expect(expr[expr.length - 1]).toBe("#999999");
+  });
+
+  test("unmatched values are transparent without a fallback", () => {
+    const expr = buildCategoricalStyleColor({ classes });
+
+    expect(expr[expr.length - 1]).toEqual([0, 0, 0, 0]);
+  });
+
+  test("nodata and mask guards run before the class lookup", () => {
+    // Order matters: a masked cell must never reach the match, which is how a
+    // listed class gets hidden once a fallback color makes omission moot.
+    const expr = buildCategoricalStyleColor({
+      classes,
+      hasNodata: true,
+      maskBelow: 0,
+    });
+
+    expect(expr[0]).toBe("case");
+    expect(expr[1]).toEqual(["==", ["band", 2], 0]);
+    expect(expr[3]).toEqual(["<=", ["band", 1], 0]);
+    expect(expr[5][0]).toBe("match");
+  });
+
+  test("string class values are coerced to numbers for the match", () => {
+    // The GUI emits strings; OL compares against the raw band value.
+    const expr = buildCategoricalStyleColor({
+      classes: [{ value: "2", color: "#ccc" }],
+    });
+
+    expect(expr[2]).toBe(2);
+  });
+
+  test("drops rows with no value or no color", () => {
+    const expr = buildCategoricalStyleColor({
+      classes: [
+        { value: 0, color: "#aaa" },
+        { value: "", color: "#bbb" },
+        { value: 5 },
+        { value: "nope", color: "#ccc" },
+      ],
+    });
+
+    expect(expr).toEqual(["match", ["band", 1], 0, "#aaa", [0, 0, 0, 0]]);
+  });
+
+  test("throws when no class is usable", () => {
+    expect(() => buildCategoricalStyleColor({ classes: [] })).toThrow(
+      /at least one class/i,
+    );
+    expect(() => buildCategoricalStyleColor({})).toThrow(/at least one class/i);
   });
 });

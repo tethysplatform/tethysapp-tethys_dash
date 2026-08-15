@@ -27,7 +27,11 @@ import {
   defaultDotRadius,
 } from "components/inputs/RuleEditor.js";
 import { rewriteArcGISExportUrlForAntimeridian } from "components/map/utilities";
-import { buildGeoTIFFStyleColor } from "components/map/geoTIFFStyle";
+import {
+  buildGeoTIFFStyleColor,
+  buildCategoricalStyleColor,
+  isUsableClass,
+} from "components/map/geoTIFFStyle";
 
 const moduleCache = {};
 const styleCache = new Map();
@@ -178,9 +182,15 @@ export async function applyAutoRamp(layerConfig) {
   const { rampName, rampMin, rampMax } = source ?? {};
   const hasMin = (rampMin ?? "") !== "";
   const hasMax = (rampMax ?? "") !== "";
+  // A categorical layer colors by exact class value, so it needs no range at
+  // all — but it still needs the header read to settle nodata, and it must
+  // style raw values rather than OL's normalized bytes for the match to line up.
+  const isCategorical =
+    source?.styleMode === "categorical" &&
+    (source?.classes ?? []).some(isUsableClass);
   // The header is read even when both bounds are pinned, because it also
   // settles nodata — a pinned layer still needs its transparency right.
-  if (!rampName) return layerConfig;
+  if (!rampName && !isCategorical) return layerConfig;
 
   // Keyed on the URL so this is safe to call from more than one place per
   // render, while still re-resolving when the source points at another file.
@@ -218,6 +228,33 @@ export async function applyAutoRamp(layerConfig) {
         maskBelow: source.props?.mask_below,
       }),
     });
+
+    if (isCategorical) {
+      // No statistics needed: the class values are the scale. Raw band values
+      // are required though, so normalization goes off unconditionally.
+      //
+      // Nearest-neighbor resampling too. OL interpolates by default, which is
+      // meaningless for class labels -- halfway between class 1 and 2 is not a
+      // class -- and it fringes every nodata boundary: band 1 blends into a
+      // value matching no class (so it takes the fallback color) while band 2
+      // blends off 0 (so the nodata guard stops firing).
+      source.props = {
+        ...(source.props ?? {}),
+        normalize: false,
+        interpolate: false,
+      };
+      layerConfig.style = {
+        ...(layerConfig.style ?? {}),
+        color: buildCategoricalStyleColor({
+          classes: source.classes,
+          hasNodata: true,
+          maskBelow: source.props?.mask_below,
+          fallbackColor: source.fallbackColor,
+        }),
+      };
+      source.resolvedRampUrl = statsUrl;
+      return layerConfig;
+    }
 
     let statsMin = meta.STATISTICS_MINIMUM ?? dataset.STATISTICS_MINIMUM;
     let statsMax = meta.STATISTICS_MAXIMUM ?? dataset.STATISTICS_MAXIMUM;

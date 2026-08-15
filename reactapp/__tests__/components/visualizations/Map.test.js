@@ -804,6 +804,47 @@ test("Map GeoTIFF with an empty range auto-fits the legend to the file statistic
   expect(screen.getByText("Depth Raster")).toBeInTheDocument();
 });
 
+test("Map categorical raster emits discrete legend items, not a colorbar", async () => {
+  // A gradient would imply a continuum between land classes that does not exist.
+  fromUrl.mockResolvedValue({
+    getImage: jest.fn().mockResolvedValue({
+      getGDALMetadata: jest.fn(() => null),
+      getGDALNoData: jest.fn(() => 255),
+    }),
+  });
+
+  renderMapWithLayers([
+    {
+      configuration: {
+        type: "WebGLTile",
+        props: {
+          name: "Land Use",
+          source: {
+            type: "GeoTIFF",
+            styleMode: "categorical",
+            rampName: "viridis",
+            classes: [
+              { value: "0", color: "#aaaaaa", label: "Bare" },
+              { value: "1", color: "#bbbbbb", label: "Crop" },
+              { value: "2", color: "#cccccc" },
+            ],
+            props: { url: "https://example.com/landuse.tif" },
+          },
+        },
+      },
+      legend: "default",
+    },
+  ]);
+  fireEvent.click(await screen.findByLabelText("Show Legend Control"));
+
+  expect(await screen.findByText("Bare")).toBeInTheDocument();
+  expect(screen.getByText("Crop")).toBeInTheDocument();
+  // A class with no label falls back to its value.
+  expect(screen.getByText("2")).toBeInTheDocument();
+  // No colorbar for a categorical layer.
+  expect(screen.queryByLabelText(/^Color ramp from/)).not.toBeInTheDocument();
+});
+
 test("Map ESRI with default legend", async () => {
   const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
   const layer = layerConfigImageArcGISRest;
@@ -3317,35 +3358,14 @@ test("Map hover early-bails when no hover-tagged layers exist", async () => {
   expect(mockedQueryLayerFeatures).not.toHaveBeenCalled();
 });
 
-test("Map hover .map() false branch — null elements are passed through verbatim", async () => {
-  // Covers the L848 false branch of the ternary in runHoverQuery's
-  // queryCalls.map:
-  //   feature && typeof feature === "object"
-  //     ? { ...feature, __wrapperLayer: layer }
-  //     : feature
-  // When an element is falsy/non-object, it is returned verbatim. The
-  // synchronous handler then sets popupContent to that array and
-  // positions the overlay at the hover coordinate — which is the
-  // observable signal that the false branch executed.
-  //
-  // Caveat: the downstream popupContent useEffect tries to read
-  // selectedFeature.layerName and CRASHES on the null element. The
-  // crash is async (fires after the React commit). The synchronous
-  // path completes first, so the assertion below sees the setPosition
-  // call before the crash. We suppress the resulting uncaught error so
-  // it doesn't fail the test.
-  const consoleErrorSpy = jest
-    .spyOn(console, "error")
-    .mockImplementation(() => {});
-  const errorHandler = (e) => {
-    e.preventDefault?.();
-  };
-  // jsdom emits an "error" event on window for uncaught exceptions; the
-  // listener prevents Jest's test runner from treating it as a failure.
-  window.addEventListener("error", errorHandler);
-
+test("Map hover drops a null element instead of handing it to the popup", async () => {
+  // A query result may contain a non-object element; runHoverQuery's map passes
+  // it through verbatim. Popup dereferences every entry it receives, so letting
+  // one reach popupContent threw "Cannot read properties of null (reading
+  // 'layerName')" from a useEffect — asynchronously, after the commit, which
+  // meant the uncaught error could surface inside an unrelated later test.
+  // Non-objects are now filtered out before the popup ever sees them.
   mockedQueryLayerFeatures.mockResolvedValue([null]);
-  jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
   const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
 
   const layers = [
@@ -3386,20 +3406,16 @@ test("Map hover .map() false branch — null elements are passed through verbati
   expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
   expect(await screen.findByText("Map Ready")).toBeInTheDocument();
 
-  // The .map() callback ran with [null], took the false branch, and
-  // returned [null] verbatim. nonEmpty was [null] (length 1), so the
-  // handler called setPosition with the hover coordinate.
-  await waitFor(() => {
-    expect(popSetPosition).toHaveBeenCalledWith(hoverCoords);
-  });
-
-  // Give the (suppressed) downstream useEffect crash a chance to fire
-  // before we tear down listeners, so it lands in our handler not the
-  // next test.
+  // Let the debounced query and its continuation settle before asserting an
+  // absence — otherwise the assertion outruns the async chain and passes
+  // whether or not the null was filtered.
+  await waitFor(() => expect(mockedQueryLayerFeatures).toHaveBeenCalled());
   await new Promise((resolve) => setTimeout(resolve, 50));
 
-  window.removeEventListener("error", errorHandler);
-  consoleErrorSpy.mockRestore();
+  // The null contributes nothing, so no popup is opened at the hover
+  // coordinate and nothing downstream dereferences it.
+  expect(popSetPosition).not.toHaveBeenCalledWith(hoverCoords);
+  expect(screen.getByText("Map Ready")).toBeInTheDocument();
 });
 
 test("Map hover debounce restarts on a second pointermove, dropping the first", async () => {
