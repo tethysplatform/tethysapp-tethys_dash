@@ -848,6 +848,29 @@ describe("StylePane categorical raster styling", () => {
     await waitFor(() => expect(last?.classes[0].label).toBe("Urban"));
   });
 
+  test("class swatches carry no visible label but stay named for a11y", async () => {
+    // The table already has a Color column header, so "Class 1:" beside each
+    // swatch was redundant. The accessible name must survive.
+    renderPane({
+      styleMode: "categorical",
+      classes: [{ value: "0", color: "#aaa" }],
+    });
+
+    expect(
+      await screen.findByLabelText("Class 1 color popover square"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Class 1")).not.toBeInTheDocument();
+  });
+
+  test("the Other values swatch keeps its visible label", async () => {
+    renderPane({
+      styleMode: "categorical",
+      classes: [{ value: "0", color: "#aaa" }],
+    });
+
+    expect(await screen.findByText("Other values")).toBeInTheDocument();
+  });
+
   test("removing a class drops just that row", async () => {
     let last;
     renderPane(

@@ -79,15 +79,6 @@ const ClassTable = styled.table`
   }
 `;
 
-const Hint = styled.div`
-  padding: 0.5rem 0.75rem;
-  margin-top: 0.75rem;
-  border-left: 3px solid #0d6efd;
-  background: #e7f1ff;
-  font-size: 0.85rem;
-  color: #0a4b8c;
-`;
-
 const StylePane = ({
   style,
   setStyle,
@@ -337,6 +328,7 @@ const StylePane = ({
                     <td>
                       <ColorPickerPopOver
                         label={`Class ${index + 1}`}
+                        hideLabel
                         color={entry.color}
                         onChange={(color) => updateClass(index, { color })}
                         containerRef={containerRef}
@@ -384,12 +376,6 @@ const StylePane = ({
                 />
               </RangeCell>
             </RangeRow>
-            <Hint role="note">
-              Values matching no class use the &quot;Other values&quot; color,
-              or render transparent when it is unset. Mask Below still applies
-              and is checked first, so a class at or below the threshold stays
-              hidden.
-            </Hint>
           </>
         ) : (
           <RangeRow>
