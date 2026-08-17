@@ -30,7 +30,7 @@ import useSnapping, {
   GATHER_PIXELS,
 } from "components/visualizations/useSnapping";
 import PropTypes from "prop-types";
-import { COLOR_RAMPS } from "components/map/colorRamps";
+import { COLOR_RAMPS, resolveRamp } from "components/map/colorRamps";
 import { applyAutoRamp } from "components/map/ModuleLoader";
 import { getBaseMapLayer } from "components/visualizations/utilities";
 import useRuntimeLayerFetcher from "components/visualizations/runtimeLayerFetcher";
@@ -519,7 +519,10 @@ const MapVisualization = ({
                 rampMax !== undefined
               ) {
                 newMapLegend.push({
-                  rampColors: COLOR_RAMPS[rampSource.rampName],
+                  rampColors: resolveRamp(
+                    rampSource.rampName,
+                    rampSource.rampReverse === true,
+                  ),
                   rampMin,
                   rampMax,
                   title: layer.configuration?.props?.name,

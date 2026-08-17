@@ -15,17 +15,16 @@ describe("RampPicker", () => {
     }
   });
 
-  test("shows each group's heading and its ramps' names as text", () => {
-    // With fourteen ramps the picker is no longer self-explanatory from
-    // swatches alone, so each row is labelled and grouped by family.
+  test("shows each group's heading", () => {
+    // Fourteen swatches need family headings to stay navigable. The rows
+    // themselves carry no visible text -- the swatch is the label, with the
+    // ramp name exposed only to assistive tech.
     render(<RampPicker selectedRamp={null} onChange={() => {}} />);
 
     for (const group of RAMP_GROUPS) {
       expect(screen.getByText(group.label)).toBeInTheDocument();
       for (const name of group.names) {
-        expect(screen.getByTestId(`ramp-option-${name}`)).toHaveTextContent(
-          name,
-        );
+        expect(screen.getByTestId(`ramp-option-${name}`)).toHaveTextContent("");
       }
     }
   });

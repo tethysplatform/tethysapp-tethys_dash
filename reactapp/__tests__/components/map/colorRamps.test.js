@@ -3,6 +3,7 @@ import {
   RAMP_GROUPS,
   RAMP_NAMES,
   RAMP_STOPS,
+  resolveRamp,
   _internal,
 } from "components/map/colorRamps";
 
@@ -107,6 +108,39 @@ describe("COLOR_RAMPS", () => {
       expect(mid).toBeGreaterThan(luminance(ramp[ramp.length - 1]));
     },
   );
+
+  describe("resolveRamp", () => {
+    test.each(RAMP_NAMES)("%s unreversed is the registered array", (name) => {
+      expect(resolveRamp(name, false)).toBe(COLOR_RAMPS[name]);
+      expect(resolveRamp(name)).toBe(COLOR_RAMPS[name]);
+    });
+
+    test.each(RAMP_NAMES)("%s reversed is end-to-end flipped", (name) => {
+      const forward = COLOR_RAMPS[name];
+      const reversed = resolveRamp(name, true);
+      expect(reversed).toHaveLength(forward.length);
+      expect(reversed[0]).toBe(forward[forward.length - 1]);
+      expect(reversed[reversed.length - 1]).toBe(forward[0]);
+    });
+
+    test("reversing does not mutate the registered ramp", () => {
+      // resolveRamp returns the shared array when unreversed, so an in-place
+      // reverse would corrupt every other consumer of that ramp.
+      const before = [...COLOR_RAMPS.viridis];
+      resolveRamp("viridis", true);
+      expect(COLOR_RAMPS.viridis).toEqual(before);
+    });
+
+    test("reversing twice returns to the original order", () => {
+      const once = resolveRamp("magma", true);
+      expect([...once].reverse()).toEqual(COLOR_RAMPS.magma);
+    });
+
+    test("an unknown ramp resolves to undefined either way", () => {
+      expect(resolveRamp("nope")).toBeUndefined();
+      expect(resolveRamp("nope", true)).toBeUndefined();
+    });
+  });
 
   test("grayscale starts black and ends white", () => {
     expect(COLOR_RAMPS.grayscale[0]).toBe("#000000");

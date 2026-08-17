@@ -1,7 +1,7 @@
 import { Fragment } from "react";
 import PropTypes from "prop-types";
 import styled from "styled-components";
-import { COLOR_RAMPS, RAMP_GROUPS } from "components/map/colorRamps";
+import { RAMP_GROUPS, resolveRamp } from "components/map/colorRamps";
 
 const PickerList = styled.div`
   display: flex;
@@ -25,12 +25,6 @@ const GroupLabel = styled.div`
   &:first-child {
     margin-top: 0;
   }
-`;
-
-const RampLabel = styled.span`
-  flex: 0 0 5.5rem;
-  font-size: 0.8rem;
-  color: #212529;
 `;
 
 const RampRow = styled.button`
@@ -68,14 +62,15 @@ const GradientSwatch = styled.span`
 const buildGradient = (colors) =>
   `linear-gradient(to right, ${colors.join(", ")})`;
 
-const RampPicker = ({ selectedRamp, onChange }) => {
+const RampPicker = ({ selectedRamp, onChange, reversed }) => {
   return (
     <PickerList role="radiogroup" aria-label="Color ramp picker">
       {RAMP_GROUPS.map((group) => (
         <Fragment key={group.label}>
           <GroupLabel aria-hidden="true">{group.label}</GroupLabel>
           {group.names.map((name) => {
-            const colors = COLOR_RAMPS[name];
+            // Swatches preview the reversed direction, so the picker matches the map.
+            const colors = resolveRamp(name, reversed);
             const isSelected = selectedRamp === name;
             return (
               <RampRow
@@ -89,7 +84,6 @@ const RampPicker = ({ selectedRamp, onChange }) => {
                 $selected={isSelected}
                 onClick={() => onChange(name)}
               >
-                <RampLabel>{name}</RampLabel>
                 <GradientSwatch
                   aria-hidden="true"
                   data-testid={`ramp-swatch-${name}`}
@@ -107,10 +101,12 @@ const RampPicker = ({ selectedRamp, onChange }) => {
 RampPicker.propTypes = {
   selectedRamp: PropTypes.string,
   onChange: PropTypes.func.isRequired,
+  reversed: PropTypes.bool,
 };
 
 RampPicker.defaultProps = {
   selectedRamp: null,
+  reversed: false,
 };
 
 export default RampPicker;

@@ -224,6 +224,7 @@ export async function applyAutoRamp(layerConfig) {
         rampName,
         rampMin: rampMinValue,
         rampMax: rampMaxValue,
+        rampReverse: source.rampReverse === true,
         hasNodata: true,
         maskBelow: source.props?.mask_below,
       }),

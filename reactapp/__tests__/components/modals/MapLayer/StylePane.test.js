@@ -118,6 +118,9 @@ const GeoTIFFTestHarness = ({ initialSourceProps, sourcePropsSpy }) => {
         <p data-testid="rampName">{sourceProps.rampName ?? ""}</p>
         <p data-testid="rampMin">{sourceProps.rampMin ?? ""}</p>
         <p data-testid="rampMax">{sourceProps.rampMax ?? ""}</p>
+        <p data-testid="rampReverse">
+          {String(sourceProps.rampReverse ?? false)}
+        </p>
       </LayoutContext.Provider>
     </AppContext.Provider>
   );
@@ -157,6 +160,42 @@ test("StylePane GeoTIFF ramp/min/max handlers no-op when setSourceProps is missi
   expect(() =>
     fireEvent.change(maxInput, { target: { value: "100" } }),
   ).not.toThrow();
+
+  // Reverse checkbox → handleReverseToggle short-circuits too.
+  const reverse = screen.getByLabelText("Reverse Color Ramp");
+  expect(() => fireEvent.click(reverse)).not.toThrow();
+});
+
+test("StylePane reverse checkbox toggles sourceProps.rampReverse", async () => {
+  render(<GeoTIFFTestHarness initialSourceProps={{ type: "GeoTIFF" }} />);
+
+  const reverse = await screen.findByLabelText("Reverse Color Ramp");
+  expect(reverse).not.toBeChecked();
+  expect(screen.getByTestId("rampReverse")).toHaveTextContent("false");
+
+  await userEvent.click(reverse);
+  expect(screen.getByTestId("rampReverse")).toHaveTextContent("true");
+  expect(await screen.findByLabelText("Reverse Color Ramp")).toBeChecked();
+
+  await userEvent.click(screen.getByLabelText("Reverse Color Ramp"));
+  expect(screen.getByTestId("rampReverse")).toHaveTextContent("false");
+});
+
+test("StylePane hides the reverse checkbox in categorical mode", async () => {
+  // A discrete class list has no ramp direction to flip.
+  render(
+    <GeoTIFFTestHarness
+      initialSourceProps={{
+        type: "GeoTIFF",
+        rampName: "turbo",
+        styleMode: "categorical",
+        classes: [{ value: "1", color: "#123456", label: "One" }],
+      }}
+    />,
+  );
+
+  expect(await screen.findByText("Classes")).toBeInTheDocument();
+  expect(screen.queryByLabelText("Reverse Color Ramp")).not.toBeInTheDocument();
 });
 
 test("StylePane json Input", async () => {

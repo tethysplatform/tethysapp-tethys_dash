@@ -308,5 +308,20 @@ export const RAMP_GROUPS = [
 // Canonical display order in the picker UI.
 export const RAMP_NAMES = RAMP_GROUPS.flatMap((group) => group.names);
 
+/**
+ * A ramp's colors, optionally reversed.
+ *
+ * The single place reversal happens, so the raster style, the editor preview and
+ * the map legend cannot disagree about which end is which. Returns a copy when
+ * reversed and the shared array otherwise, so callers must not mutate it.
+ *
+ * Returns undefined for an unknown name; callers decide whether that throws.
+ */
+export function resolveRamp(rampName, reverse = false) {
+  const colors = COLOR_RAMPS[rampName];
+  if (!colors) return undefined;
+  return reverse ? [...colors].reverse() : colors;
+}
+
 // Exported for unit testing.
 export const _internal = { interpolateRamp, rgbToHex, hexToRgb01 };

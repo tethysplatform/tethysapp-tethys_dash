@@ -374,8 +374,15 @@ const MapLayerModal = ({
     }
 
     if (sourceProps.type === "GeoTIFF" || sourceProps.type === "Zarr") {
-      const { rampName, rampMin, rampMax, styleMode, classes, fallbackColor } =
-        sourceProps;
+      const {
+        rampName,
+        rampMin,
+        rampMax,
+        rampReverse,
+        styleMode,
+        classes,
+        fallbackColor,
+      } = sourceProps;
       const hasRampName =
         typeof rampName === "string" && rampName.trim() !== "";
 
@@ -404,6 +411,7 @@ const MapLayerModal = ({
         if (fallbackColor) savedSource.fallbackColor = fallbackColor;
         // Kept so switching back to a ramp does not lose the chosen palette.
         if (hasRampName) savedSource.rampName = rampName;
+        if (rampReverse === true) savedSource.rampReverse = true;
       }
       // Each bound is independent: a set one pins that end of the ramp, an
       // empty one is resolved from the file's statistics at render time.
@@ -424,11 +432,17 @@ const MapLayerModal = ({
           rampName,
           rampMin: hasRange ? rampMin : "",
           rampMax: hasRange ? rampMax : "",
+          rampReverse: rampReverse === true,
           hasNodata: true,
           maskBelow: validSourceProps.mask_below,
         });
         mapConfiguration.configuration.style = { color };
         mapConfiguration.configuration.props.source.rampName = rampName;
+        // Persisted only when set, so an unreversed layer's config is unchanged
+        // from before this option existed.
+        if (rampReverse === true) {
+          mapConfiguration.configuration.props.source.rampReverse = true;
+        }
         // Raw range styles raw band values; anything less than a full range
         // normalizes band 1 from stats until the render-time resolve lands.
         mapConfiguration.configuration.props.source.props.normalize = !hasRange;
