@@ -14,12 +14,16 @@ import { Map } from "ol";
 import ImageArcGISRest from "ol/source/ImageArcGISRest.js";
 import VariableInput from "components/visualizations/VariableInput";
 import { Vector as VectorSource } from "ol/source.js";
+import { GridItemContext } from "components/contexts/Contexts";
 import appAPI from "services/api/app";
 import { applyStyle } from "ol-mapbox-style";
 import Point from "ol/geom/Point.js";
 import LineString from "ol/geom/LineString.js";
 import Feature from "ol/Feature.js";
-import { queryLayerFeatures } from "components/map/utilities";
+import {
+  queryLayerFeatures,
+  swapVectorLayerFeatures,
+} from "components/map/utilities";
 import { fetchLayerVectorFeatures } from "components/map/snapping";
 import Overlay from "ol/Overlay";
 import {
@@ -77,6 +81,7 @@ jest.mock("components/map/snapping", () => {
   };
 });
 const mockedQueryLayerFeatures = jest.mocked(queryLayerFeatures);
+const mockedSwapVectorLayerFeatures = jest.mocked(swapVectorLayerFeatures);
 const mockedFetchLayerVectorFeatures = jest.mocked(fetchLayerVectorFeatures);
 
 const exampleGeoJSON = {
@@ -4220,6 +4225,92 @@ test("Map runtime layer swap dismisses popup overlay (no prior click)", async ()
   // No click happened, so highlightLayer.current is still undefined and the
   // optional-chain guard short-circuits — VectorSource.clear must not run.
   expect(vectorClearSpy).not.toHaveBeenCalled();
+});
+
+test("Map runtime layer hands features to the swap and identifies its grid item", async () => {
+  // End-to-end guard for two separate failures that each left a dynamic layer
+  // silently blank on dashboard load:
+  //   1. the fetch resolving before Map.js finished building the OL layer, and
+  //   2. the requestId carrying "undefined" for the grid item, because the hook
+  //      destructured gridItemUuid while the caller passes gridItemUUID.
+  // Neither showed up in the hook's own tests: those pass the map and the prop
+  // name the hook expects, so the race and the casing mismatch were invisible.
+  const mockGetVisualizationFeatures = jest
+    .spyOn(appAPI, "getVisualizationFeatures")
+    .mockResolvedValue({
+      success: true,
+      viz_type: "features",
+      data: {
+        type: "FeatureCollection",
+        features: [
+          {
+            type: "Feature",
+            properties: { peligro: 3, nivel: "Alto" },
+            geometry: {
+              type: "Polygon",
+              coordinates: [
+                [
+                  [-90.54, 14.48],
+                  [-90.53, 14.48],
+                  [-90.53, 14.49],
+                  [-90.54, 14.48],
+                ],
+              ],
+            },
+          },
+        ],
+        crs: { type: "name", properties: { name: "EPSG:4326" } },
+      },
+    });
+  mockedSwapVectorLayerFeatures.mockClear();
+
+  const layers = [JSON.parse(JSON.stringify(dynamicMapLayer))];
+  const layerId = layers[0].configuration.props.layerId;
+
+  render(
+    createLoadedComponent({
+      children: (
+        <GridItemContext.Provider value={{ gridItemUUID: "grid-uuid-1" }}>
+          <MapContextProvider>
+            <TestingComponent
+              mapProps={{
+                mapConfig: {},
+                viewConfig: {},
+                layers,
+                baseMap: null,
+                layerControl: false,
+                refreshCount: 0,
+              }}
+            />
+          </MapContextProvider>
+        </GridItemContext.Provider>
+      ),
+    }),
+  );
+
+  expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  await waitFor(() => {
+    expect(mockGetVisualizationFeatures).toHaveBeenCalledTimes(1);
+  });
+
+  const { requestId } = mockGetVisualizationFeatures.mock.calls[0][0];
+  expect(requestId).not.toContain("undefined");
+  expect(requestId).toContain(":grid-uuid-1:");
+  expect(requestId.endsWith(`:${layerId}`)).toBe(true);
+
+  // The payload reaches the swap, aimed at the OL layer carrying this layerId.
+  // components/map/utilities is mocked in this file, so this asserts the
+  // hand-off rather than OpenLayers' own parsing; the deferred path -- when the
+  // fetch wins the race against layer construction -- is covered by
+  // runtimeLayerFetcher.test.js.
+  await waitFor(() => {
+    expect(mockedSwapVectorLayerFeatures).toHaveBeenCalledTimes(1);
+  });
+  const [targetLayer, collection] = mockedSwapVectorLayerFeatures.mock.calls[0];
+  expect(targetLayer.get("layerId")).toBe(layerId);
+  expect(collection.features).toHaveLength(1);
+  expect(collection.features[0].properties.nivel).toBe("Alto");
 });
 
 test("Map runtime layer swap dismisses popup and clears highlight after click", async () => {

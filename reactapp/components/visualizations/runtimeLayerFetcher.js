@@ -5,9 +5,54 @@ import { swapVectorLayerFeatures } from "components/map/utilities";
 import appAPI from "services/api/app";
 import { valuesEqual } from "components/modals/utilities";
 
+/** Find the OL layer carrying a runtime layer's identity tag. */
+function findOlLayer(map, layerId) {
+  return map
+    .getLayers()
+    .getArray()
+    .find((l) => l.get("layerId") === layerId);
+}
+
+/** Drop any listener left waiting for this layer to appear. */
+function cancelPendingSwap(state) {
+  if (state.pendingSwap) {
+    state.pendingSwap();
+    state.pendingSwap = null;
+  }
+}
+
+/**
+ * Hold a fetched FeatureCollection until its OL layer exists on the map.
+ *
+ * Map.js constructs layers asynchronously, so the first fetch of a dashboard can
+ * return before the layer it belongs to has been added. Discarding the payload
+ * left the layer permanently blank: performFetch records the resolved args
+ * before requesting, so the reconciliation effect then saw `argsUnchanged` and
+ * never refetched -- the features only appeared once an argument genuinely
+ * changed.
+ */
+function swapWhenLayerAppears(
+  state,
+  map,
+  layerId,
+  featureCollection,
+  mapProjection,
+) {
+  const collection = map.getLayers();
+  cancelPendingSwap(state);
+  const onAdd = () => {
+    const olLayer = findOlLayer(map, layerId);
+    if (!olLayer) return;
+    cancelPendingSwap(state);
+    swapVectorLayerFeatures(olLayer, featureCollection, mapProjection);
+  };
+  state.pendingSwap = () => collection.un("add", onAdd);
+  collection.on("add", onAdd);
+}
+
 export default function useRuntimeLayerFetcher({
   layers,
-  gridItemUuid,
+  gridItemUUID,
   sessionNonce,
   mapRef,
   variableInputValues,
@@ -32,6 +77,7 @@ export default function useRuntimeLayerFetcher({
         if (state.cancelTokenSource) {
           state.cancelTokenSource.cancel("unmount");
         }
+        cancelPendingSwap(state);
       });
       stateMap.clear();
     };
@@ -76,11 +122,13 @@ export default function useRuntimeLayerFetcher({
       if (state.cancelTokenSource) {
         state.cancelTokenSource.cancel("superseded");
       }
+      // A newer fetch replaces whatever an older one was still waiting to paint.
+      cancelPendingSwap(state);
       const cancelTokenSource = axios.CancelToken.source();
       state.cancelTokenSource = cancelTokenSource;
       state.lastResolvedArgs = resolvedArgs;
 
-      const requestId = `${sessionNonce}:${gridItemUuid}:${layerId}`;
+      const requestId = `${sessionNonce}:${gridItemUUID}:${layerId}`;
 
       return appAPI
         .getVisualizationFeatures({
@@ -106,16 +154,23 @@ export default function useRuntimeLayerFetcher({
             onBeforeSwap(layerId);
           }
           const map = mapRef?.current;
-          if (!map) return;
-          const olLayer = map
-            .getLayers()
-            .getArray()
-            .find((l) => l.get("layerId") === layerId);
+          if (!map) {
+            // No map to paint into yet. Forget the args so the next
+            // reconciliation refetches rather than treating this as done.
+            state.lastResolvedArgs = undefined;
+            return;
+          }
+          const featureCollection = response?.data ?? null;
+          const mapProjection = map.getView().getProjection().getCode();
+          const olLayer = findOlLayer(map, layerId);
           if (olLayer) {
-            const mapProjection = map.getView().getProjection().getCode();
-            swapVectorLayerFeatures(
-              olLayer,
-              response?.data ?? null,
+            swapVectorLayerFeatures(olLayer, featureCollection, mapProjection);
+          } else {
+            swapWhenLayerAppears(
+              state,
+              map,
+              layerId,
+              featureCollection,
               mapProjection,
             );
           }
@@ -130,7 +185,7 @@ export default function useRuntimeLayerFetcher({
           });
         });
     },
-    [sessionNonce, gridItemUuid, mapRef, onBeforeSwap, setError, clearError],
+    [sessionNonce, gridItemUUID, mapRef, onBeforeSwap, setError, clearError],
   );
 
   const scheduleFetch = useCallback(
@@ -163,6 +218,7 @@ export default function useRuntimeLayerFetcher({
           cancelTokenSource: null,
           debounceTimer: null,
           lastResolvedArgs: undefined,
+          pendingSwap: null,
         });
       }
       const state = perLayerStateRef.current.get(layerId);
@@ -196,6 +252,7 @@ export default function useRuntimeLayerFetcher({
       if (!currentLayerIds.has(layerId)) {
         if (state.debounceTimer) clearTimeout(state.debounceTimer);
         if (state.cancelTokenSource) state.cancelTokenSource.cancel("removed");
+        cancelPendingSwap(state);
         perLayerStateRef.current.delete(layerId);
       }
     });
@@ -209,6 +266,7 @@ export default function useRuntimeLayerFetcher({
           cancelTokenSource: null,
           debounceTimer: null,
           lastResolvedArgs: undefined,
+          pendingSwap: null,
         });
         // First appearance — always fetch (subject to debounce).
         scheduleFetch(layerId, pluginSource, resolvedArgs);
