@@ -1,12 +1,13 @@
 import {
   COLOR_RAMPS,
+  RAMP_GROUPS,
   RAMP_NAMES,
   RAMP_STOPS,
   _internal,
 } from "components/map/colorRamps";
 
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
-const RAMP_KEYS = ["viridis", "turbo", "RdYlBu", "grayscale"];
+const RAMP_KEYS = RAMP_NAMES;
 
 describe("COLOR_RAMPS", () => {
   test.each(RAMP_KEYS)(
@@ -36,9 +37,76 @@ describe("COLOR_RAMPS", () => {
     },
   );
 
-  test("RAMP_NAMES exposes the four canonical names in order", () => {
-    expect(RAMP_NAMES).toEqual(["viridis", "turbo", "RdYlBu", "grayscale"]);
+  test("RAMP_NAMES is the groups flattened, in display order", () => {
+    expect(RAMP_NAMES).toEqual([
+      "viridis",
+      "magma",
+      "inferno",
+      "plasma",
+      "cividis",
+      "turbo",
+      "Blues",
+      "YlGnBu",
+      "YlOrRd",
+      "grayscale",
+      "RdYlBu",
+      "RdBu",
+      "Spectral",
+      "BrBG",
+    ]);
   });
+
+  test("groups and COLOR_RAMPS cover exactly the same names", () => {
+    // A ramp defined but never grouped is unreachable in the picker; a grouped
+    // name with no ramp renders an empty gradient.
+    expect([...RAMP_NAMES].sort()).toEqual(Object.keys(COLOR_RAMPS).sort());
+  });
+
+  test("no ramp is listed in two groups", () => {
+    expect(new Set(RAMP_NAMES).size).toBe(RAMP_NAMES.length);
+  });
+
+  test("every group has a label and at least one ramp", () => {
+    for (const group of RAMP_GROUPS) {
+      expect(typeof group.label).toBe("string");
+      expect(group.label.length).toBeGreaterThan(0);
+      expect(group.names.length).toBeGreaterThan(0);
+    }
+  });
+
+  // Relative luminance (Rec. 709). Used below to assert the shape of each
+  // family, which is what a mis-sampled or mis-pasted colormap table breaks.
+  const luminance = (hex) => {
+    const n = parseInt(hex.slice(1), 16);
+    const r = ((n >> 16) & 0xff) / 255;
+    const g = ((n >> 8) & 0xff) / 255;
+    const b = (n & 0xff) / 255;
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+
+  test.each(["viridis", "magma", "inferno", "plasma", "cividis"])(
+    "%s increases in luminance from end to end",
+    (rampName) => {
+      // The defining property of this family: lightness rises monotonically, so
+      // the ramp reads as an ordered scale even in greyscale print.
+      const lums = COLOR_RAMPS[rampName].map(luminance);
+      for (let i = 1; i < lums.length; i++) {
+        expect(lums[i]).toBeGreaterThan(lums[i - 1]);
+      }
+    },
+  );
+
+  test.each(["RdYlBu", "RdBu", "Spectral", "BrBG"])(
+    "%s is lightest at its midpoint",
+    (rampName) => {
+      // Diverging maps pivot through a pale neutral; both ends must be darker
+      // than the centre or the midpoint stops reading as the neutral value.
+      const ramp = COLOR_RAMPS[rampName];
+      const mid = luminance(ramp[Math.floor(ramp.length / 2)]);
+      expect(mid).toBeGreaterThan(luminance(ramp[0]));
+      expect(mid).toBeGreaterThan(luminance(ramp[ramp.length - 1]));
+    },
+  );
 
   test("grayscale starts black and ends white", () => {
     expect(COLOR_RAMPS.grayscale[0]).toBe("#000000");

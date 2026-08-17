@@ -2,16 +2,43 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import RampPicker from "components/modals/MapLayer/RampPicker";
 
-const RAMP_NAMES = ["viridis", "turbo", "RdYlBu", "grayscale"];
+import { RAMP_GROUPS, RAMP_NAMES } from "components/map/colorRamps";
 
 describe("RampPicker", () => {
-  test("renders all four ramp options by name", () => {
+  test("renders every registered ramp option by name", () => {
     render(<RampPicker selectedRamp={null} onChange={() => {}} />);
 
     for (const name of RAMP_NAMES) {
       expect(
         screen.getByRole("radio", { name: `Select ${name} ramp` }),
       ).toBeInTheDocument();
+    }
+  });
+
+  test("shows each group's heading and its ramps' names as text", () => {
+    // With fourteen ramps the picker is no longer self-explanatory from
+    // swatches alone, so each row is labelled and grouped by family.
+    render(<RampPicker selectedRamp={null} onChange={() => {}} />);
+
+    for (const group of RAMP_GROUPS) {
+      expect(screen.getByText(group.label)).toBeInTheDocument();
+      for (const name of group.names) {
+        expect(screen.getByTestId(`ramp-option-${name}`)).toHaveTextContent(
+          name,
+        );
+      }
+    }
+  });
+
+  test("every ramp is reachable and selectable", async () => {
+    const onChange = jest.fn();
+    render(<RampPicker selectedRamp={null} onChange={onChange} />);
+
+    expect(screen.getAllByRole("radio")).toHaveLength(RAMP_NAMES.length);
+    for (const name of RAMP_NAMES) {
+      onChange.mockClear();
+      await userEvent.click(screen.getByTestId(`ramp-option-${name}`));
+      expect(onChange).toHaveBeenCalledWith(name);
     }
   });
 
