@@ -27,6 +27,71 @@ describe("buildGeoTIFFStyleColor", () => {
     expect(expr).toHaveLength(3 + RAMP_STOPS * 2);
   });
 
+  describe("rampReverse", () => {
+    const stopsOf = (expr) => {
+      // Strip the 3-element operator header, then take every other entry.
+      const body = expr.slice(3);
+      return body.filter((_, i) => i % 2 === 1);
+    };
+
+    test("flips the colors while leaving the value stops in place", () => {
+      const forward = buildGeoTIFFStyleColor({
+        rampName: "viridis",
+        rampMin: 0,
+        rampMax: 100,
+      });
+      const reversed = buildGeoTIFFStyleColor({
+        rampName: "viridis",
+        rampMin: 0,
+        rampMax: 100,
+        rampReverse: true,
+      });
+
+      // Same length and same numeric breakpoints -- only the palette turns around.
+      expect(reversed).toHaveLength(forward.length);
+      const values = (expr) => expr.slice(3).filter((_, i) => i % 2 === 0);
+      expect(values(reversed)).toEqual(values(forward));
+      expect(stopsOf(reversed)).toEqual([...stopsOf(forward)].reverse());
+    });
+
+    test("the low end of the range takes the ramp's last color", () => {
+      const reversed = buildGeoTIFFStyleColor({
+        rampName: "viridis",
+        rampMin: 0,
+        rampMax: 100,
+        rampReverse: true,
+      });
+      expect(reversed[3]).toBe(0);
+      expect(reversed[4]).toBe(
+        COLOR_RAMPS.viridis[COLOR_RAMPS.viridis.length - 1],
+      );
+      expect(reversed[reversed.length - 1]).toBe(COLOR_RAMPS.viridis[0]);
+    });
+
+    test("omitting rampReverse matches passing false", () => {
+      const args = { rampName: "turbo", rampMin: -5, rampMax: 5 };
+      expect(buildGeoTIFFStyleColor(args)).toEqual(
+        buildGeoTIFFStyleColor({ ...args, rampReverse: false }),
+      );
+    });
+
+    test("reversing survives the transparency guards being prepended", () => {
+      const reversed = buildGeoTIFFStyleColor({
+        rampName: "Blues",
+        rampMin: 0,
+        rampMax: 1,
+        rampReverse: true,
+        hasNodata: true,
+      });
+      expect(reversed[0]).toBe("case");
+      const interpolateExpr = reversed[reversed.length - 1];
+      expect(interpolateExpr[0]).toBe("interpolate");
+      expect(interpolateExpr[4]).toBe(
+        COLOR_RAMPS.Blues[COLOR_RAMPS.Blues.length - 1],
+      );
+    });
+  });
+
   test("starts with the first ramp color and ends with the last", () => {
     const expr = buildGeoTIFFStyleColor({
       rampName: "viridis",

@@ -88,7 +88,12 @@ test("Settings Pane with visualizationRef Element", async () => {
   );
   expect(refreshRateInput).toBeInTheDocument();
   fireEvent.change(refreshRateInput, { target: { value: -2 } });
-  expect(refreshRateInput.value).toBe("0");
+  // onRefreshRateChange rejects negatives rather than clamping them, so the
+  // setting is left alone while the box keeps what was typed. This previously
+  // asserted "0", which only held because the mount effect happened to flush
+  // after this change and overwrite the entry -- a timing artifact of the test,
+  // not the behaviour a user sees once the component has mounted.
+  expect(refreshRateInput.value).toBe("-2");
 
   await expectSettings(JSON.stringify({}));
 

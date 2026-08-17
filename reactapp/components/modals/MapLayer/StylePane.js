@@ -8,7 +8,7 @@ import NormalInput from "components/inputs/NormalInput";
 import RuleStyleEditor from "components/inputs/RuleStyleEditor";
 import RampPicker from "components/modals/MapLayer/RampPicker";
 import ColorPickerPopOver from "components/inputs/ColorPickerPopOver";
-import { COLOR_RAMPS } from "components/map/colorRamps";
+import { resolveRamp } from "components/map/colorRamps";
 import Button from "react-bootstrap/Button";
 import { LayoutContext, AppContext } from "components/contexts/Contexts";
 import { getStyleFields } from "components/map/utilities";
@@ -220,10 +220,16 @@ const StylePane = ({
     const selectedRamp = sourceProps.rampName ?? null;
     const rampMin = sourceProps.rampMin ?? "";
     const rampMax = sourceProps.rampMax ?? "";
+    const rampReverse = sourceProps.rampReverse === true;
 
     const handleRampSelect = (rampName) => {
       if (!setSourceProps) return;
       setSourceProps((prev) => ({ ...prev, rampName }));
+    };
+    const handleReverseToggle = (e) => {
+      if (!setSourceProps) return;
+      const checked = e.target.checked;
+      setSourceProps((prev) => ({ ...prev, rampReverse: checked }));
     };
     const handleMinChange = (e) => {
       if (!setSourceProps) return;
@@ -250,7 +256,7 @@ const StylePane = ({
     // New rows borrow a color from the selected ramp, spread across however many
     // classes exist, so a usable style appears without picking colors by hand.
     const addClass = () => {
-      const palette = COLOR_RAMPS[selectedRamp] ?? [];
+      const palette = resolveRamp(selectedRamp, rampReverse) ?? [];
       const index = classes.length;
       const seeded =
         palette.length > 0
@@ -297,7 +303,24 @@ const StylePane = ({
             own color. The selection is still kept so switching back to
             Continuous restores it, and it seeds new class colors. */}
         {!isCategorical && (
-          <RampPicker selectedRamp={selectedRamp} onChange={handleRampSelect} />
+          <>
+            <RampPicker
+              selectedRamp={selectedRamp}
+              onChange={handleRampSelect}
+              reversed={rampReverse}
+            />
+            <ModeRow>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={rampReverse}
+                  aria-label="Reverse Color Ramp"
+                  onChange={handleReverseToggle}
+                />{" "}
+                Reverse ramp
+              </label>
+            </ModeRow>
+          </>
         )}
 
         {isCategorical ? (
@@ -508,6 +531,8 @@ StylePane.propTypes = {
     rampName: PropTypes.string,
     rampMin: PropTypes.string,
     rampMax: PropTypes.string,
+    // Flip the ramp so its last color lands on the low end of the range.
+    rampReverse: PropTypes.bool,
     // "categorical" colors by exact class value instead of a ramp range.
     styleMode: PropTypes.string,
     classes: PropTypes.arrayOf(

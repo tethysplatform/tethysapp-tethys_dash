@@ -860,6 +860,62 @@ it("Creates a Number Input for a Variable Input", async () => {
   );
 });
 
+it("Keeps the decimals of a Number Input", async () => {
+  // parseInt truncated every fraction to its integer part, so a threshold of
+  // 0.15 silently became 0 and the box snapped back to "0" mid-typing.
+  const user = userEvent.setup();
+  const dashboard = JSON.parse(JSON.stringify(userDashboard));
+  // DashboardLoader seeds the context straight from the grid item's args, so the
+  // stored initial_value has to be fractional too -- not just the prop.
+  const varInputArgs = {
+    ...JSON.parse(mockedNumberVariable.args_string),
+    initial_value: "0.3",
+  };
+  dashboard.tabs[0].gridItems = [
+    { ...mockedNumberVariable, args_string: JSON.stringify(varInputArgs) },
+  ];
+  const handleChange = jest.fn();
+
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <VariableInput
+            variable_name={varInputArgs.variable_name}
+            initial_value={varInputArgs.initial_value}
+            variable_options_source={varInputArgs.variable_options_source}
+            onChange={handleChange}
+          />
+          <InputVariablePComponent />
+        </>
+      ),
+      options: { dashboards: { dashboards: [dashboard] } },
+    }),
+  );
+
+  // A fractional initial_value survives mount and reaches the context.
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({ "Test Variable": 0.3 }),
+  );
+
+  const variableInput = await screen.findByRole("textbox");
+
+  // Set the value outright rather than clear-then-type: NormalInput swallows an
+  // empty number input on purpose (allowEmpty is false), so user.clear() leaves
+  // the parent's value untouched and the resync effect can restore "0.3",
+  // appending the typed digits to it.
+  fireEvent.change(variableInput, { target: { value: "0.15" } });
+
+  // The fraction survives instead of being truncated to 0.
+  expect(variableInput).toHaveValue("0.15");
+  expect(handleChange).toHaveBeenLastCalledWith(0.15);
+
+  await user.click(screen.getByRole("button"));
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({ "Test Variable": 0.15 }),
+  );
+});
+
 it("Creates a Checkbox Input for a Variable Input", async () => {
   const user = userEvent.setup();
   const dashboard = JSON.parse(JSON.stringify(userDashboard));

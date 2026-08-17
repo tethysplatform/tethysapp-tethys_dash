@@ -1,4 +1,4 @@
-import { COLOR_RAMPS } from "./colorRamps";
+import { resolveRamp } from "./colorRamps";
 import PropTypes from "prop-types";
 
 const TRANSPARENT = [0, 0, 0, 0];
@@ -83,10 +83,11 @@ export function buildGeoTIFFStyleColor({
   rampName,
   rampMin,
   rampMax,
+  rampReverse = false,
   hasNodata = false,
   maskBelow,
 }) {
-  const colors = COLOR_RAMPS[rampName];
+  const colors = resolveRamp(rampName, rampReverse);
   if (!colors) {
     throw new Error(`Unknown color ramp: ${rampName}`);
   }
@@ -134,6 +135,8 @@ buildGeoTIFFStyleColor.propTypes = {
   rampName: PropTypes.string.isRequired,
   rampMin: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
   rampMax: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+  // Flip the ramp so its last color lands on the low end of the range.
+  rampReverse: PropTypes.bool,
   hasNodata: PropTypes.bool,
   // Cells at or below this raw value render transparent.
   maskBelow: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),

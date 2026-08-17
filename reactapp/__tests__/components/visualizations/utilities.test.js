@@ -1664,6 +1664,69 @@ test("checkForEmptyVariableInputs", async () => {
   expect(emptyVariableWarnings).toStrictEqual(null);
 });
 
+describe("checkForEmptyVariableInputs treats 0 and false as set", () => {
+  // A truthiness test used to report a numeric 0 or an unchecked checkbox as
+  // "empty", which made every fractional threshold unusable once parseFloat
+  // started preserving them.
+  // eslint-disable-next-line no-template-curly-in-string
+  const argsString = JSON.stringify({ threshold: "${Threshold}" });
+  const metadataString = JSON.stringify({});
+  const check = (variableInputValues) =>
+    checkForEmptyVariableInputs({
+      metadataString,
+      argsString,
+      variableInputValues,
+    });
+
+  test.each([
+    ["numeric zero", 0],
+    ["a fraction", 0.15],
+    ["boolean false", false],
+    ["the string zero", "0"],
+  ])("%s is not empty", (_label, value) => {
+    expect(check({ Threshold: value })).toStrictEqual(null);
+  });
+
+  test.each([
+    ["undefined", undefined],
+    ["null", null],
+    ["an empty string", ""],
+  ])("%s is empty", (_label, value) => {
+    expect(check({ Threshold: value })).toStrictEqual([
+      "Threshold variable is empty",
+    ]);
+  });
+
+  test("a missing key is still empty", () => {
+    expect(check({})).toStrictEqual(["Threshold variable is empty"]);
+  });
+});
+
+test("updateObjectWithVariableInputs preserves 0 and false", () => {
+  // The exact-match branch used `|| ""`, so a zero threshold reached the plugin
+  // as an empty string and silently fell back to the plugin's own default.
+  const result = updateObjectWithVariableInputs({
+    args: {
+      // eslint-disable-next-line no-template-curly-in-string
+      zero: "${Zero}",
+      // eslint-disable-next-line no-template-curly-in-string
+      fraction: "${Fraction}",
+      // eslint-disable-next-line no-template-curly-in-string
+      off: "${Off}",
+      // eslint-disable-next-line no-template-curly-in-string
+      missing: "${Missing}",
+    },
+    variableInputs: { Zero: 0, Fraction: 0.15, Off: false },
+  });
+
+  expect(result).toStrictEqual({
+    zero: 0,
+    fraction: 0.15,
+    off: false,
+    missing: "",
+  });
+});
+
 test("checkForEmptyVariableInputs skips feature.* keys", () => {
   // feature.* keys are scoped/unbinding-by-design; they should never
   // produce a warning regardless of whether the value is set.

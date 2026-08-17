@@ -21,11 +21,32 @@ function fakeOlLayer(layerId) {
 }
 
 function fakeOlMap(olLayers) {
+  // The layer collection must be a stable object with working on/un, because a
+  // fetch that lands before its layer exists waits on the collection's "add"
+  // event rather than discarding the payload.
+  const addListeners = [];
+  const collection = {
+    getArray: () => olLayers,
+    on: (type, fn) => {
+      if (type === "add") addListeners.push(fn);
+    },
+    un: (type, fn) => {
+      if (type !== "add") return;
+      const i = addListeners.indexOf(fn);
+      if (i !== -1) addListeners.splice(i, 1);
+    },
+  };
   return {
-    getLayers: () => ({ getArray: () => olLayers }),
+    getLayers: () => collection,
     getView: () => ({
       getProjection: () => ({ getCode: () => "EPSG:3857" }),
     }),
+    // Mimics Map.js finishing its async layer construction.
+    addLayerLate: (layer) => {
+      olLayers.push(layer);
+      addListeners.slice().forEach((fn) => fn());
+    },
+    pendingAddListeners: () => addListeners.length,
   };
 }
 
@@ -99,7 +120,7 @@ describe("useRuntimeLayerFetcher", () => {
     renderHook(() =>
       useRuntimeLayerFetcher({
         layers,
-        gridItemUuid: "grid-a",
+        gridItemUUID: "grid-a",
         sessionNonce: "nonce",
         mapRef,
         variableInputValues: {},
@@ -140,7 +161,7 @@ describe("useRuntimeLayerFetcher", () => {
       ({ variableInputValues }) =>
         useRuntimeLayerFetcher({
           layers,
-          gridItemUuid: "g",
+          gridItemUUID: "g",
           sessionNonce: "n",
           mapRef,
           variableInputValues,
@@ -174,7 +195,7 @@ describe("useRuntimeLayerFetcher", () => {
       ({ variableInputValues }) =>
         useRuntimeLayerFetcher({
           layers,
-          gridItemUuid: "g",
+          gridItemUUID: "g",
           sessionNonce: "n",
           mapRef,
           variableInputValues,
@@ -212,7 +233,7 @@ describe("useRuntimeLayerFetcher", () => {
     renderHook(() =>
       useRuntimeLayerFetcher({
         layers,
-        gridItemUuid: "g",
+        gridItemUUID: "g",
         sessionNonce: "n",
         mapRef,
         variableInputValues: { X: 1 },
@@ -245,7 +266,7 @@ describe("useRuntimeLayerFetcher", () => {
     const { result } = renderHook(() =>
       useRuntimeLayerFetcher({
         layers,
-        gridItemUuid: "g",
+        gridItemUUID: "g",
         sessionNonce: "n",
         mapRef,
         variableInputValues: {},
@@ -288,7 +309,7 @@ describe("useRuntimeLayerFetcher", () => {
     const { result } = renderHook(() =>
       useRuntimeLayerFetcher({
         layers,
-        gridItemUuid: "g",
+        gridItemUUID: "g",
         sessionNonce: "n",
         mapRef,
         variableInputValues: {},
@@ -325,7 +346,7 @@ describe("useRuntimeLayerFetcher", () => {
     const { result } = renderHook(() =>
       useRuntimeLayerFetcher({
         layers,
-        gridItemUuid: "g",
+        gridItemUUID: "g",
         sessionNonce: "n",
         mapRef,
         variableInputValues: {},
@@ -380,7 +401,7 @@ describe("useRuntimeLayerFetcher", () => {
     const { result } = renderHook(() =>
       useRuntimeLayerFetcher({
         layers,
-        gridItemUuid: "g",
+        gridItemUUID: "g",
         sessionNonce: "n",
         mapRef,
         variableInputValues: {},
@@ -431,7 +452,7 @@ describe("useRuntimeLayerFetcher", () => {
     const { unmount } = renderHook(() =>
       useRuntimeLayerFetcher({
         layers,
-        gridItemUuid: "g",
+        gridItemUUID: "g",
         sessionNonce: "n",
         mapRef,
         variableInputValues: {},
@@ -472,7 +493,7 @@ describe("useRuntimeLayerFetcher", () => {
     renderHook(() =>
       useRuntimeLayerFetcher({
         layers,
-        gridItemUuid: "g",
+        gridItemUUID: "g",
         sessionNonce: "n",
         mapRef: { current: fakeOlMap([]) },
         variableInputValues: {},
@@ -497,7 +518,7 @@ describe("useRuntimeLayerFetcher", () => {
       ({ refreshTick }) =>
         useRuntimeLayerFetcher({
           layers,
-          gridItemUuid: "g",
+          gridItemUUID: "g",
           sessionNonce: "n",
           mapRef,
           variableInputValues: {},
@@ -540,7 +561,7 @@ describe("useRuntimeLayerFetcher", () => {
     const { unmount } = renderHook(() =>
       useRuntimeLayerFetcher({
         layers,
-        gridItemUuid: "g",
+        gridItemUUID: "g",
         sessionNonce: "n",
         mapRef,
         variableInputValues: {},
@@ -572,7 +593,7 @@ describe("useRuntimeLayerFetcher", () => {
     renderHook(() =>
       useRuntimeLayerFetcher({
         layers,
-        gridItemUuid: "g",
+        gridItemUUID: "g",
         sessionNonce: "n",
         mapRef,
         variableInputValues: {},
@@ -607,7 +628,7 @@ describe("useRuntimeLayerFetcher", () => {
     const { result } = renderHook(() =>
       useRuntimeLayerFetcher({
         layers,
-        gridItemUuid: "g",
+        gridItemUUID: "g",
         sessionNonce: "n",
         mapRef,
         variableInputValues: {},
@@ -638,7 +659,7 @@ describe("useRuntimeLayerFetcher", () => {
     const { result } = renderHook(() =>
       useRuntimeLayerFetcher({
         layers,
-        gridItemUuid: "g",
+        gridItemUUID: "g",
         sessionNonce: "n",
         mapRef,
         variableInputValues: {},
@@ -676,7 +697,7 @@ describe("useRuntimeLayerFetcher", () => {
       ({ layers }) =>
         useRuntimeLayerFetcher({
           layers,
-          gridItemUuid: "g",
+          gridItemUUID: "g",
           sessionNonce: "n",
           mapRef,
           variableInputValues: {},
@@ -720,7 +741,7 @@ describe("useRuntimeLayerFetcher", () => {
       ({ layers }) =>
         useRuntimeLayerFetcher({
           layers,
-          gridItemUuid: "g",
+          gridItemUUID: "g",
           sessionNonce: "n",
           mapRef,
           variableInputValues: {},
@@ -751,7 +772,7 @@ describe("useRuntimeLayerFetcher", () => {
     const { result } = renderHook(() =>
       useRuntimeLayerFetcher({
         layers,
-        gridItemUuid: "g",
+        gridItemUUID: "g",
         sessionNonce: "n",
         mapRef: null,
         variableInputValues: {},
@@ -770,30 +791,87 @@ describe("useRuntimeLayerFetcher", () => {
     expect(result.current.errorsByLayerId).toEqual({});
   });
 
-  test("OL map without a matching layerId skips the swap", async () => {
-    const otherLayer = fakeOlLayer("other-layer");
-    const mapRef = { current: fakeOlMap([otherLayer]) };
-    const layers = [runtimeLayerConfig({ layerId: "layer-1" })];
+  describe("when the fetch lands before its OL layer exists", () => {
+    // Map.js builds layers asynchronously, so on a dashboard load the first
+    // fetch can win the race. The payload must be held rather than dropped:
+    // performFetch records the resolved args before requesting, so a discarded
+    // payload was never refetched and the layer stayed blank until an argument
+    // actually changed.
+    const setup = () => {
+      const otherLayer = fakeOlLayer("other-layer");
+      const map = fakeOlMap([otherLayer]);
+      const layers = [runtimeLayerConfig({ layerId: "layer-1" })];
+      const view = renderHook(() =>
+        useRuntimeLayerFetcher({
+          layers,
+          gridItemUUID: "g",
+          sessionNonce: "n",
+          mapRef: { current: map },
+          variableInputValues: {},
+          variableInputDateFormats: {},
+        }),
+      );
+      return { map, layers, view };
+    };
 
-    renderHook(() =>
-      useRuntimeLayerFetcher({
-        layers,
-        gridItemUuid: "g",
-        sessionNonce: "n",
-        mapRef,
-        variableInputValues: {},
-        variableInputDateFormats: {},
-      }),
-    );
+    const settle = async () => {
+      await act(async () => {
+        jest.advanceTimersByTime(250);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+    };
 
-    await act(async () => {
-      jest.advanceTimersByTime(250);
-      await Promise.resolve();
-      await Promise.resolve();
+    test("paints as soon as the layer is added", async () => {
+      const { map } = setup();
+      await settle();
+
+      expect(getFeaturesMock).toHaveBeenCalledTimes(1);
+      expect(swapSpy).not.toHaveBeenCalled();
+      expect(map.pendingAddListeners()).toBe(1);
+
+      const late = fakeOlLayer("layer-1");
+      await act(async () => {
+        map.addLayerLate(late);
+      });
+
+      expect(swapSpy).toHaveBeenCalledTimes(1);
+      expect(swapSpy.mock.calls[0][0]).toBe(late);
+      // No refetch was needed to get the features onto the map.
+      expect(getFeaturesMock).toHaveBeenCalledTimes(1);
+      // The listener is released once it has fired.
+      expect(map.pendingAddListeners()).toBe(0);
     });
 
-    expect(getFeaturesMock).toHaveBeenCalledTimes(1);
-    expect(swapSpy).not.toHaveBeenCalled();
+    test("an unrelated layer arriving does not consume the pending swap", async () => {
+      const { map } = setup();
+      await settle();
+
+      await act(async () => {
+        map.addLayerLate(fakeOlLayer("someone-else"));
+      });
+      expect(swapSpy).not.toHaveBeenCalled();
+      expect(map.pendingAddListeners()).toBe(1);
+
+      await act(async () => {
+        map.addLayerLate(fakeOlLayer("layer-1"));
+      });
+      expect(swapSpy).toHaveBeenCalledTimes(1);
+    });
+
+    test("unmounting releases the pending listener", async () => {
+      const { map, view } = setup();
+      await settle();
+      expect(map.pendingAddListeners()).toBe(1);
+
+      view.unmount();
+      expect(map.pendingAddListeners()).toBe(0);
+
+      await act(async () => {
+        map.addLayerLate(fakeOlLayer("layer-1"));
+      });
+      expect(swapSpy).not.toHaveBeenCalled();
+    });
   });
 
   test("success: false with empty data falls back to 'Unknown error'", async () => {
@@ -806,7 +884,7 @@ describe("useRuntimeLayerFetcher", () => {
     const { result } = renderHook(() =>
       useRuntimeLayerFetcher({
         layers,
-        gridItemUuid: "g",
+        gridItemUUID: "g",
         sessionNonce: "n",
         mapRef,
         variableInputValues: {},
@@ -841,7 +919,7 @@ describe("useRuntimeLayerFetcher", () => {
     const { result } = renderHook(() =>
       useRuntimeLayerFetcher({
         layers,
-        gridItemUuid: "g",
+        gridItemUUID: "g",
         sessionNonce: "n",
         mapRef,
         variableInputValues: {},
@@ -870,7 +948,7 @@ describe("useRuntimeLayerFetcher", () => {
     const { result } = renderHook(() =>
       useRuntimeLayerFetcher({
         layers,
-        gridItemUuid: "g",
+        gridItemUUID: "g",
         sessionNonce: "n",
         mapRef,
         variableInputValues: {},
@@ -910,7 +988,7 @@ describe("useRuntimeLayerFetcher", () => {
     const { unmount } = renderHook(() =>
       useRuntimeLayerFetcher({
         layers,
-        gridItemUuid: "g",
+        gridItemUUID: "g",
         sessionNonce: "n",
         mapRef,
         variableInputValues: {},
@@ -955,7 +1033,7 @@ describe("useRuntimeLayerFetcher", () => {
     const { unmount } = renderHook(() =>
       useRuntimeLayerFetcher({
         layers,
-        gridItemUuid: "g",
+        gridItemUUID: "g",
         sessionNonce: "n",
         mapRef,
         variableInputValues: {},
@@ -989,7 +1067,7 @@ describe("useRuntimeLayerFetcher", () => {
     const { result } = renderHook(() =>
       useRuntimeLayerFetcher({
         layers,
-        gridItemUuid: "g",
+        gridItemUUID: "g",
         sessionNonce: "n",
         mapRef,
         variableInputValues: {},
@@ -1030,7 +1108,7 @@ describe("useRuntimeLayerFetcher", () => {
     const { result } = renderHook(() =>
       useRuntimeLayerFetcher({
         layers,
-        gridItemUuid: "g",
+        gridItemUUID: "g",
         sessionNonce: "n",
         mapRef: { current: fakeOlMap([]) },
         variableInputValues: {},
@@ -1058,7 +1136,7 @@ describe("useRuntimeLayerFetcher", () => {
     const { result } = renderHook(() =>
       useRuntimeLayerFetcher({
         layers: undefined,
-        gridItemUuid: "g",
+        gridItemUUID: "g",
         sessionNonce: "n",
         mapRef: { current: fakeOlMap([]) },
         variableInputValues: {},
@@ -1102,7 +1180,7 @@ describe("useRuntimeLayerFetcher", () => {
     renderHook(() =>
       useRuntimeLayerFetcher({
         layers,
-        gridItemUuid: "g",
+        gridItemUUID: "g",
         sessionNonce: "n",
         mapRef,
         // exercises `variableInputValues ?? {}`.
@@ -1130,7 +1208,7 @@ describe("useRuntimeLayerFetcher", () => {
     renderHook(() =>
       useRuntimeLayerFetcher({
         layers,
-        gridItemUuid: "g",
+        gridItemUUID: "g",
         sessionNonce: "n",
         mapRef,
         variableInputValues: {},
@@ -1159,7 +1237,7 @@ describe("useRuntimeLayerFetcher", () => {
       ({ layers }) =>
         useRuntimeLayerFetcher({
           layers,
-          gridItemUuid: "g",
+          gridItemUUID: "g",
           sessionNonce: "n",
           mapRef,
           variableInputValues: {},

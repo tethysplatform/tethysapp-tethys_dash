@@ -75,6 +75,30 @@ export function clearImageVizCache() {
 }
 
 /**
+ * A number variable input's value as a number, or "" when it does not parse.
+ *
+ * parseFloat, not parseInt: a number input must accept decimals, and parseInt
+ * turned every fractional value into its integer part (0.15 -> 0). NaN would
+ * defeat hasVariableInputValue -- it is neither null nor "" -- so an unparseable
+ * entry becomes "" instead, letting the empty-variable check report it.
+ */
+export function toNumberOrEmpty(value) {
+  const parsed = parseFloat(value);
+  return Number.isNaN(parsed) ? "" : parsed;
+}
+
+/**
+ * True when a variable input actually holds a value.
+ *
+ * Deliberately not a truthiness test. `0` and `false` are legitimate values for
+ * number and checkbox inputs, and treating them as unset made a threshold of 0
+ * report as "variable is empty" while substituting "" into the args.
+ */
+export function hasVariableInputValue(value) {
+  return value !== undefined && value !== null && value !== "";
+}
+
+/**
  * Returns an array of warning messages when any variable inputs referenced by a
  * visualization's args have no value, or null if all inputs are populated.
  * Respects custom messaging configured in the grid item metadata.
@@ -102,9 +126,13 @@ export function checkForEmptyVariableInputs({
   );
   let warnings = [];
 
-  if (!dependentVariableInputs.every((key) => variableInputValues[key])) {
+  if (
+    !dependentVariableInputs.every((key) =>
+      hasVariableInputValue(variableInputValues[key]),
+    )
+  ) {
     for (const dependentVariableInput of dependentVariableInputs) {
-      if (!variableInputValues[dependentVariableInput]) {
+      if (!hasVariableInputValue(variableInputValues[dependentVariableInput])) {
         warnings.push(
           metadata.customMessaging?.[dependentVariableInput] ??
             `${dependentVariableInput} variable is empty`,
@@ -496,7 +524,10 @@ export function updateObjectWithVariableInputs({
       ) {
         updatedValuesWithVariableInputs = value;
       } else {
-        updatedValuesWithVariableInputs = variableInputsCopy[key] || "";
+        // Nullish, not falsy: this branch exists to PRESERVE the value's type,
+        // so a numeric 0 or a false checkbox must survive rather than collapse
+        // to "". Matches the `?? ""` in the inline-replacement branch below.
+        updatedValuesWithVariableInputs = variableInputsCopy[key] ?? "";
       }
     } else {
       // Value contains one or more inline ${variableName} placeholders mixed
