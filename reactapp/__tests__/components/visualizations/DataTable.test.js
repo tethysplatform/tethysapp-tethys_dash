@@ -68,6 +68,28 @@ it("Creates a Data Table with the provided data", () => {
   expect(occupationData3).toBeInTheDocument();
 });
 
+it("Omits the heading entirely when a plugin returns no title", () => {
+  // title is optional in the `table` return shape. Rendering it unguarded left
+  // an empty <h2> -- a heading's worth of blank space above the table -- for any
+  // plugin that returns only `data`.
+  const { title, ...withoutTitle } = mockedTableData;
+  initAndRender(withoutTitle);
+
+  expect(screen.queryByRole("heading")).not.toBeInTheDocument();
+  // The table itself still renders.
+  expect(screen.getByText("Name")).toBeInTheDocument();
+  expect(screen.getByText("Alice Johnson")).toBeInTheDocument();
+});
+
+it("Still renders the heading when a title is provided", () => {
+  const { subtitle, ...withTitle } = mockedTableData;
+  initAndRender({ ...withTitle, title: "User Information" });
+
+  expect(
+    screen.getByRole("heading", { name: "User Information" }),
+  ).toBeInTheDocument();
+});
+
 it("Creates a Data Table with subtitle with the provided data", () => {
   mockedTableData.subtitle = "some subtitle";
   initAndRender(mockedTableData);
