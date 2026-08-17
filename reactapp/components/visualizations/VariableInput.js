@@ -10,6 +10,8 @@ import {
 import {
   nonDropDownVariableInputTypes,
   findSelectOptionByValue,
+  hasVariableInputValue,
+  toNumberOrEmpty,
   updateObjectWithVariableInputs,
 } from "components/visualizations/utilities";
 import TooltipButton from "components/buttons/TooltipButton";
@@ -160,8 +162,10 @@ const VariableInput = ({
       }
 
       if (variable_options_source === "number") {
-        // If the variable_options_source is a number, it parses the int value from initial_value
-        initialVariableValue = parseInt(initial_value);
+        // parseFloat, not parseInt: a number input must accept decimals.
+        // parseInt turned every fractional initial value into its integer part
+        // (0.15 -> 0), and 0 then read as unset everywhere downstream.
+        initialVariableValue = toNumberOrEmpty(initial_value);
         variableValue = initialVariableValue;
       } else if (
         variable_options_source === "checkbox" &&
@@ -186,7 +190,9 @@ const VariableInput = ({
     if (Array.isArray(type) && type.length > 0) {
       newValue = findSelectOptionByValue(type, newValue);
     }
-    if (newValue && value !== newValue) {
+    // hasVariableInputValue, not truthiness, so a 0 or false arriving from the
+    // context still syncs into local state.
+    if (hasVariableInputValue(newValue) && value !== newValue) {
       setValue(newValue);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -196,7 +202,7 @@ const VariableInput = ({
     (e) => {
       let inputValue = e;
       if (variable_options_source === "number") {
-        inputValue = parseInt(e);
+        inputValue = toNumberOrEmpty(e);
       }
       setValue(inputValue);
       onChange(inputValue);

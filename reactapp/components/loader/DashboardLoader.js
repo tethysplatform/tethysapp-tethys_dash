@@ -19,6 +19,7 @@ import {
   AvailableDashboardsContext,
   TabContext,
 } from "components/contexts/Contexts";
+import { toNumberOrEmpty } from "components/visualizations/utilities";
 import Error from "components/error/Error";
 import errorImage from "assets/error404.png";
 
@@ -129,6 +130,14 @@ const DashboardLoader = ({
                 initialValue === null
               ) {
                 initialValue = false;
+              }
+
+              // Seed the same type VariableInput itself publishes. Without this
+              // the boot-time seed is the raw string ("0.3") while the mount
+              // effect publishes a number (0.3), so the context value's type
+              // depended on which landed last.
+              if (args.variable_options_source === "number") {
+                initialValue = toNumberOrEmpty(initialValue);
               }
 
               if (args.variable_options_source.includes("date")) {
