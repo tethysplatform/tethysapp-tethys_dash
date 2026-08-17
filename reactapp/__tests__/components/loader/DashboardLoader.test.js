@@ -1025,6 +1025,151 @@ test("DashboardLoader updateTab name", async () => {
   );
 });
 
+describe("updateTab gridItems and variable inputs on other tabs", () => {
+  // Regression: updateTab passed only the changed tab to the rebuild, which
+  // replaces the variable-input map wholesale. Any value declared on another tab
+  // was dropped, so resizing a grid item on one tab left dependent
+  // visualizations elsewhere reporting "<name> variable is empty".
+  const variableInput = (i, name, initial) => ({
+    ...JSON.parse(JSON.stringify(mockedTextVariable)),
+    i,
+    id: Number(i),
+    uuid: `uuid-${i}`,
+    args_string: JSON.stringify({
+      variable_name: name,
+      show_label: true,
+      variable_options_source: "text",
+      initial_value: initial,
+    }),
+  });
+
+  const twoTabDashboard = (secondTabItems) => {
+    const dash = JSON.parse(JSON.stringify(userDashboard));
+    dash.tabs = [
+      {
+        ...userDashboard.tabs[0],
+        id: 1,
+        name: "Main",
+        order: 0,
+        gridItems: [variableInput("1", "Base Map", "imagery")],
+      },
+      {
+        ...userDashboard.tabs[0],
+        id: 2,
+        name: "Peligro",
+        order: 1,
+        gridItems: secondTabItems,
+      },
+    ];
+    return dash;
+  };
+
+  const renderWith = (dash, onClickProps) => {
+    server.use(
+      rest.get(
+        "http://api.test/apps/tethysdash/dashboards/get/",
+        (req, res, ctx) =>
+          res(
+            ctx.status(200),
+            ctx.json({ success: true, dashboard: dash }),
+            ctx.set("Content-Type", "application/json"),
+          ),
+      ),
+    );
+
+    render(
+      <AvailableDashboardsContext.Provider
+        value={{ updateDashboard: jest.fn() }}
+      >
+        <DashboardLoader {...dash}>
+          <TabContext.Consumer>
+            {({ updateTab }) => (
+              <button
+                data-testid="update"
+                onClick={() => updateTab(...onClickProps)}
+              >
+                update
+              </button>
+            )}
+          </TabContext.Consumer>
+          <InputVariablePComponent />
+        </DashboardLoader>
+      </AvailableDashboardsContext.Provider>,
+    );
+  };
+
+  const shownValues = async () =>
+    JSON.parse((await screen.findByTestId("input-variables")).textContent);
+
+  test("a resize on one tab keeps the other tab's values", async () => {
+    const dash = twoTabDashboard([variableInput("2", "Umbral Bajo", "0.3")]);
+    // What DashboardLayout.updateLayout sends on resize: the active tab's grid
+    // items, args_string intact, only x/y/w/h changed.
+    const resized = [{ ...dash.tabs[0].gridItems[0], w: 30, h: 12 }];
+    renderWith(dash, [1, { gridItems: resized }]);
+
+    expect(await shownValues()).toEqual({
+      "Base Map": "imagery",
+      "Umbral Bajo": "0.3",
+    });
+
+    await userEvent.click(screen.getByTestId("update"));
+
+    expect(await shownValues()).toEqual({
+      "Base Map": "imagery",
+      "Umbral Bajo": "0.3",
+    });
+  });
+
+  test("several variable inputs on another tab all survive", async () => {
+    const dash = twoTabDashboard([
+      variableInput("2", "Umbral Bajo", "0.3"),
+      variableInput("3", "Umbral Medio", "0.2"),
+      variableInput("4", "Umbral Alto", "0.1"),
+      variableInput("5", "Umbral Severo", "0.15"),
+    ]);
+    renderWith(dash, [1, { gridItems: dash.tabs[0].gridItems }]);
+
+    await userEvent.click(await screen.findByTestId("update"));
+
+    expect(await shownValues()).toEqual({
+      "Base Map": "imagery",
+      "Umbral Bajo": "0.3",
+      "Umbral Medio": "0.2",
+      "Umbral Alto": "0.1",
+      "Umbral Severo": "0.15",
+    });
+  });
+
+  test("deleting a Variable Input still prunes its value", async () => {
+    // The wholesale replace is what prunes; it must keep working now that the
+    // rebuild sees every tab.
+    const dash = twoTabDashboard([variableInput("2", "Umbral Bajo", "0.3")]);
+    renderWith(dash, [2, { gridItems: [] }]);
+
+    expect(await shownValues()).toEqual({
+      "Base Map": "imagery",
+      "Umbral Bajo": "0.3",
+    });
+
+    await userEvent.click(screen.getByTestId("update"));
+
+    expect(await shownValues()).toEqual({ "Base Map": "imagery" });
+  });
+
+  test("an updateTab without gridItems leaves values untouched", async () => {
+    const dash = twoTabDashboard([variableInput("2", "Umbral Bajo", "0.3")]);
+    renderWith(dash, [1, { name: "Renamed" }]);
+
+    await userEvent.click(await screen.findByTestId("update"));
+
+    expect(await shownValues()).toEqual({
+      "Base Map": "imagery",
+      "Umbral Bajo": "0.3",
+    });
+  });
+});
+
 test("DashboardLoader updateTab gridItems", async () => {
   const mockUpdateDashboard = jest.fn();
 

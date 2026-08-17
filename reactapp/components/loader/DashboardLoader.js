@@ -181,7 +181,19 @@ const DashboardLoader = ({
         ),
       );
       if ("gridItems" in updatedProperties) {
-        updateVariableInputValuesWithGridItems([updatedProperties]);
+        // Every tab, with this one's changes merged in -- not just the changed
+        // tab on its own. updateVariableInputValuesWithGridItems rebuilds the
+        // variable-input map from scratch and replaces it wholesale, so handing
+        // it a single tab dropped every value declared on the others. Resizing a
+        // grid item on one tab then left dependent visualizations on another
+        // reporting "<name> variable is empty".
+        //
+        // The whole-map replace is deliberate: it is what prunes values whose
+        // Variable Input has been deleted. It just needs the complete picture.
+        const updatedTabs = tabs.map((tab) =>
+          tab.id === tabId ? { ...tab, ...updatedProperties } : tab,
+        );
+        updateVariableInputValuesWithGridItems(updatedTabs);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
