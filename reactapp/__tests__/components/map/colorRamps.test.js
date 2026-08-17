@@ -45,8 +45,12 @@ describe("COLOR_RAMPS", () => {
       "inferno",
       "plasma",
       "cividis",
-      "turbo",
       "Blues",
+      "Greens",
+      "Oranges",
+      "Purples",
+      "Reds",
+      "turbo",
       "YlGnBu",
       "YlOrRd",
       "grayscale",
@@ -96,6 +100,45 @@ describe("COLOR_RAMPS", () => {
       }
     },
   );
+
+  test.each(["Blues", "Greens", "Oranges", "Purples", "Reds"])(
+    "%s runs light to dark without reversing",
+    (rampName) => {
+      // The point of the single-hue family: luminance falls monotonically, so
+      // the darkest colour is always the highest value. A mis-sampled table
+      // shows up here as a bump.
+      const lums = COLOR_RAMPS[rampName].map(luminance);
+      for (let i = 1; i < lums.length; i++) {
+        expect(lums[i]).toBeLessThan(lums[i - 1]);
+      }
+      expect(lums[0]).toBeGreaterThan(0.9);
+    },
+  );
+
+  // Channel ranking at the darkest stop, where a single-hue ramp is most
+  // saturated. Every invariant above holds for any light-to-dark ramp, so
+  // without this a table wired to the wrong hue passes silently.
+  const channels = (hex) => {
+    const n = parseInt(hex.slice(1), 16);
+    return { r: (n >> 16) & 0xff, g: (n >> 8) & 0xff, b: n & 0xff };
+  };
+  const rankedChannels = (hex) => {
+    const c = channels(hex);
+    return Object.keys(c)
+      .sort((a, b) => c[b] - c[a])
+      .join("");
+  };
+
+  test.each([
+    ["Blues", "bgr"],
+    ["Greens", "gbr"],
+    ["Oranges", "rgb"],
+    ["Purples", "brg"],
+    ["Reds", "rbg"],
+  ])("%s is actually in its named hue", (rampName, expected) => {
+    const ramp = COLOR_RAMPS[rampName];
+    expect(rankedChannels(ramp[ramp.length - 1])).toBe(expected);
+  });
 
   test.each(["RdYlBu", "RdBu", "Spectral", "BrBG"])(
     "%s is lightest at its midpoint",
