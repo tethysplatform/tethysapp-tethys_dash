@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import {
   publicDashboard,
   mockedDashboards,
@@ -119,6 +120,139 @@ describe("LandingPage", () => {
     ).not.toBeInTheDocument();
     expect(screen.queryByTitle("You are the owner")).not.toBeInTheDocument();
     expect(screen.getAllByTitle("Public dashboard")).toHaveLength(1);
+  });
+
+  describe("search", () => {
+    // Purpose-built records: one description repeats "the" so a stopword-only
+    // query has something it could wrongly match, and neither name contains it.
+    const searchDashboards = [
+      {
+        ...JSON.parse(JSON.stringify(mockedDashboards.dashboards[0])),
+        id: 1,
+        name: "Flood Depth",
+        description: "Shows the flood depth across the basin",
+      },
+      {
+        ...JSON.parse(JSON.stringify(mockedDashboards.dashboards[1])),
+        id: 2,
+        name: "Reservoir Storage",
+        description: "Willamette reservoir storage and forecasts",
+      },
+    ];
+
+    const renderLandingPage = (availableDashboards = searchDashboards) =>
+      render(
+        <MemoryRouter initialEntries={["/"]}>
+          <ModalPriorityProvider>
+            <AppContext.Provider
+              value={{
+                user: { username: "admin" },
+                tethysApp: { exitUrl: "/home" },
+              }}
+            >
+              <PermissionGroupContext.Provider value={{ permissionGroups: [] }}>
+                <AvailableDashboardsContext.Provider
+                  value={{
+                    availableDashboards,
+                    deleteDashboard: jest.fn(),
+                    copyDashboard: jest.fn(),
+                    updateDashboard: jest.fn(),
+                  }}
+                >
+                  <AppTourContextProvider>
+                    <LandingPage />
+                  </AppTourContextProvider>
+                </AvailableDashboardsContext.Provider>
+              </PermissionGroupContext.Provider>
+            </AppContext.Provider>
+          </ModalPriorityProvider>
+        </MemoryRouter>,
+      );
+
+    const searchInput = () => screen.getByLabelText("Dashboard Search Input");
+
+    it("shows every dashboard before anything is typed", () => {
+      renderLandingPage();
+
+      expect(screen.getByText("Flood Depth")).toBeInTheDocument();
+      expect(screen.getByText("Reservoir Storage")).toBeInTheDocument();
+      expect(screen.queryByText(/dashboards$/)).not.toBeInTheDocument();
+    });
+
+    it("filters on a partial name", async () => {
+      renderLandingPage();
+
+      await userEvent.type(searchInput(), "flood");
+
+      expect(screen.getByText("Flood Depth")).toBeInTheDocument();
+      expect(screen.queryByText("Reservoir Storage")).not.toBeInTheDocument();
+      expect(screen.getByText("1 of 2 dashboards")).toBeInTheDocument();
+    });
+
+    it("filters on a word that only appears in the description", async () => {
+      renderLandingPage();
+
+      await userEvent.type(searchInput(), "willamette");
+
+      expect(screen.getByText("Reservoir Storage")).toBeInTheDocument();
+      expect(screen.queryByText("Flood Depth")).not.toBeInTheDocument();
+    });
+
+    it("ignores an insignificant word rather than matching descriptions on it", async () => {
+      // "the" appears twice in the Flood Depth description and in neither name.
+      renderLandingPage();
+
+      await userEvent.type(searchInput(), "the");
+
+      expect(screen.queryByText("Flood Depth")).not.toBeInTheDocument();
+      expect(screen.queryByText("Reservoir Storage")).not.toBeInTheDocument();
+      expect(
+        screen.getByText(/No dashboards match/, { exact: false }),
+      ).toBeInTheDocument();
+      expect(screen.getByText("0 of 2 dashboards")).toBeInTheDocument();
+    });
+
+    it("still matches significant words when stopwords are typed alongside", async () => {
+      renderLandingPage();
+
+      await userEvent.type(searchInput(), "the basin");
+
+      expect(screen.getByText("Flood Depth")).toBeInTheDocument();
+      expect(screen.getByText("1 of 2 dashboards")).toBeInTheDocument();
+    });
+
+    it("hides the New Dashboard tile while filtering and restores it after", async () => {
+      renderLandingPage();
+      expect(screen.getByText("Create a New Dashboard")).toBeInTheDocument();
+
+      await userEvent.type(searchInput(), "flood");
+      expect(
+        screen.queryByText("Create a New Dashboard"),
+      ).not.toBeInTheDocument();
+
+      await userEvent.click(screen.getByLabelText("Clear Dashboard Search"));
+      expect(screen.getByText("Create a New Dashboard")).toBeInTheDocument();
+    });
+
+    it("clearing the box restores every dashboard", async () => {
+      renderLandingPage();
+
+      await userEvent.type(searchInput(), "flood");
+      expect(screen.queryByText("Reservoir Storage")).not.toBeInTheDocument();
+
+      await userEvent.click(screen.getByLabelText("Clear Dashboard Search"));
+      expect(searchInput()).toHaveValue("");
+      expect(screen.getByText("Flood Depth")).toBeInTheDocument();
+      expect(screen.getByText("Reservoir Storage")).toBeInTheDocument();
+    });
+
+    it("omits the search box entirely when there is nothing to search", () => {
+      renderLandingPage([]);
+
+      expect(
+        screen.queryByLabelText("Dashboard Search Input"),
+      ).not.toBeInTheDocument();
+    });
   });
 
   it("Doesn't show Create new Dashboard when signed in as public with no dashboards", () => {
