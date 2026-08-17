@@ -217,6 +217,69 @@ const YL_OR_RD_KEYSTOPS = toKeystops([
   [1.0, [0.501961, 0.0, 0.14902]],
 ]);
 
+// The ColorBrewer single-hue sequential family, completing the set that Blues
+// already belonged to. Each runs light to dark, so the darkest colour is the
+// highest value and the ramp still reads correctly in greyscale.
+const GREENS_KEYSTOPS = toKeystops([
+  [0.0, [0.968627, 0.988235, 0.960784]],
+  [0.0909, [0.917693, 0.968428, 0.901361]],
+  [0.1818, [0.845905, 0.939931, 0.822822]],
+  [0.2727, [0.755848, 0.903391, 0.729043]],
+  [0.3636, [0.643645, 0.856148, 0.619792]],
+  [0.4545, [0.51857, 0.798339, 0.515094]],
+  [0.5455, [0.382745, 0.733256, 0.427374]],
+  [0.6364, [0.245213, 0.660254, 0.356955]],
+  [0.7273, [0.156632, 0.565767, 0.28609]],
+  [0.8182, [0.060823, 0.479585, 0.215994]],
+  [0.9091, [0.0, 0.382684, 0.153987]],
+  [1.0, [0.0, 0.266667, 0.105882]],
+]);
+
+const ORANGES_KEYSTOPS = toKeystops([
+  [0.0, [1.0, 0.960784, 0.921569]],
+  [0.0909, [0.99717, 0.918339, 0.839508]],
+  [0.1818, [0.994341, 0.863729, 0.73138]],
+  [0.2727, [0.992157, 0.793725, 0.599769]],
+  [0.3636, [0.992157, 0.693333, 0.43737]],
+  [0.4545, [0.992157, 0.599631, 0.301792]],
+  [0.5455, [0.975179, 0.502007, 0.177286]],
+  [0.6364, [0.937347, 0.401107, 0.068697]],
+  [0.7273, [0.866482, 0.303668, 0.015548]],
+  [0.8182, [0.739608, 0.243045, 0.008289]],
+  [0.9091, [0.608397, 0.195386, 0.012857]],
+  [1.0, [0.498039, 0.152941, 0.015686]],
+]);
+
+const PURPLES_KEYSTOPS = toKeystops([
+  [0.0, [0.988235, 0.984314, 0.992157]],
+  [0.0909, [0.951449, 0.944698, 0.969519]],
+  [0.1818, [0.900761, 0.896394, 0.943406]],
+  [0.2727, [0.835525, 0.836171, 0.91188]],
+  [0.3636, [0.746943, 0.750542, 0.867589]],
+  [0.4545, [0.662053, 0.653441, 0.812611]],
+  [0.5455, [0.577163, 0.562891, 0.764506]],
+  [0.6364, [0.494856, 0.475986, 0.721984]],
+  [0.7273, [0.429896, 0.346067, 0.654072]],
+  [0.8182, [0.367643, 0.225928, 0.59554]],
+  [0.9091, [0.306482, 0.110358, 0.54113]],
+  [1.0, [0.247059, 0.0, 0.490196]],
+]);
+
+const REDS_KEYSTOPS = toKeystops([
+  [0.0, [1.0, 0.960784, 0.941176]],
+  [0.0909, [0.99717, 0.901361, 0.856286]],
+  [0.1818, [0.992603, 0.814133, 0.738378]],
+  [0.2727, [0.988235, 0.706851, 0.601015]],
+  [0.3636, [0.988235, 0.58579, 0.462238]],
+  [0.4545, [0.985729, 0.47228, 0.34679]],
+  [0.5455, [0.967336, 0.349189, 0.247751]],
+  [0.6364, [0.925629, 0.220069, 0.167705]],
+  [0.7273, [0.819331, 0.116724, 0.123414]],
+  [0.8182, [0.713095, 0.074464, 0.096255]],
+  [0.9091, [0.579362, 0.042445, 0.073618]],
+  [1.0, [0.403922, 0.0, 0.05098]],
+]);
+
 // Diverging maps, for values read against a meaningful midpoint -- anomalies,
 // differences, change between two dates.
 const RD_BU_KEYSTOPS = toKeystops([
@@ -276,6 +339,10 @@ export const COLOR_RAMPS = {
   cividis: interpolateRamp(CIVIDIS_KEYSTOPS, RAMP_STOPS),
   turbo: interpolateRamp(TURBO_KEYSTOPS, RAMP_STOPS),
   Blues: interpolateRamp(BLUES_KEYSTOPS, RAMP_STOPS),
+  Greens: interpolateRamp(GREENS_KEYSTOPS, RAMP_STOPS),
+  Oranges: interpolateRamp(ORANGES_KEYSTOPS, RAMP_STOPS),
+  Purples: interpolateRamp(PURPLES_KEYSTOPS, RAMP_STOPS),
+  Reds: interpolateRamp(REDS_KEYSTOPS, RAMP_STOPS),
   YlGnBu: interpolateRamp(YL_GN_BU_KEYSTOPS, RAMP_STOPS),
   YlOrRd: interpolateRamp(YL_OR_RD_KEYSTOPS, RAMP_STOPS),
   grayscale: interpolateRamp(GRAYSCALE_KEYSTOPS, RAMP_STOPS),
@@ -294,10 +361,17 @@ export const RAMP_GROUPS = [
     names: ["viridis", "magma", "inferno", "plasma", "cividis"],
   },
   {
+    // Light to dark in one hue. Easiest to read a magnitude off, and the safest
+    // choice when a raster is drawn under coloured vector features.
+    label: "Single hue",
+    names: ["Blues", "Greens", "Oranges", "Purples", "Reds"],
+  },
+  {
     // turbo is a rainbow rather than perceptually uniform -- high contrast and
-    // popular, but it invents edges that are not in the data.
+    // popular, but it invents edges that are not in the data. grayscale runs
+    // dark to light, the opposite of the single-hue maps above.
     label: "Sequential",
-    names: ["turbo", "Blues", "YlGnBu", "YlOrRd", "grayscale"],
+    names: ["turbo", "YlGnBu", "YlOrRd", "grayscale"],
   },
   {
     label: "Diverging",
