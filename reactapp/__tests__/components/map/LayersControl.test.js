@@ -251,3 +251,24 @@ describe("parseProgress", () => {
     expect(parseProgress(message)).toBeNull();
   });
 });
+
+test("LayersControl flags itself only while expanded", async () => {
+  render(
+    <LayersControl updater={null} visualizationRef={{ current: undefined }} />,
+  );
+
+  expect(screen.getByLabelText("Layers Control")).not.toHaveAttribute(
+    "data-map-control-open",
+  );
+
+  fireEvent.click(await screen.findByLabelText("Show Layers Control"));
+  expect(screen.getByLabelText("Layers Control")).toHaveAttribute(
+    "data-map-control-open",
+    "true",
+  );
+
+  fireEvent.click(await screen.findByLabelText("Close Layers Control"));
+  expect(screen.getByLabelText("Layers Control")).not.toHaveAttribute(
+    "data-map-control-open",
+  );
+});

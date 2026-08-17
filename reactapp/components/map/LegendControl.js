@@ -55,6 +55,7 @@ const LegendControl = ({ legendItems }) => {
           <LegendControlContainer
             $isexpanded={isexpanded}
             aria-label="Legend Control"
+            data-map-control-open={isexpanded ? "true" : undefined}
             className="legend-control"
           >
             {isexpanded ? (
