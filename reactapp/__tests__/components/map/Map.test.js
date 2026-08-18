@@ -1545,6 +1545,31 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
           zIndex: 0,
         },
       },
+      // A vector layer alongside it: its features are parsed into the map's
+      // projection when added, so the auto-fit has to move them with the view
+      // or they are left holding the outgoing projection's numbers.
+      {
+        type: "VectorLayer",
+        props: {
+          name: "Vector Alongside",
+          zIndex: 1,
+          source: {
+            type: "GeoJSON",
+            props: {},
+            geojson: {
+              type: "FeatureCollection",
+              crs: { type: "name", properties: { name: "EPSG:4326" } },
+              features: [
+                {
+                  type: "Feature",
+                  properties: {},
+                  geometry: { type: "Point", coordinates: [-90.54, 14.48] },
+                },
+              ],
+            },
+          },
+        },
+      },
     ];
 
     render(
@@ -1573,6 +1598,33 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
         ?.getCode();
       expect(projCode).toBe("EPSG:4326");
     });
+
+    // And the vector features moved with it. Parsed into EPSG:3857 when the
+    // layer was added, they would otherwise still hold metres (~-1e7) while the
+    // view now reads degrees -- far off screen, which is what stranded the
+    // dynamic layers on a dashboard whose rasters are UTM.
+    const findVector = () =>
+      capturedRef.current
+        .getLayers()
+        .getArray()
+        .find((l) => l.get("name") === "Vector Alongside");
+    await waitFor(() => {
+      expect(findVector()).toBeDefined();
+    });
+    await waitFor(() => {
+      const [x] = findVector()
+        .getSource()
+        .getFeatures()[0]
+        .getGeometry()
+        .getCoordinates();
+      expect(Math.abs(x - -90.54)).toBeLessThan(0.01);
+    });
+    const [, y] = findVector()
+      .getSource()
+      .getFeatures()[0]
+      .getGeometry()
+      .getCoordinates();
+    expect(Math.abs(y - 14.48)).toBeLessThan(0.01);
   });
 
   test("WebGLTile layer without a style does not apply a ramp expression or call applyStyle", async () => {

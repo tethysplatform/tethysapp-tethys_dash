@@ -31,20 +31,18 @@ function cancelPendingSwap(state) {
  * never refetched -- the features only appeared once an argument genuinely
  * changed.
  */
-function swapWhenLayerAppears(
-  state,
-  map,
-  layerId,
-  featureCollection,
-  mapProjection,
-) {
+function swapWhenLayerAppears(state, map, layerId, featureCollection) {
   const collection = map.getLayers();
   cancelPendingSwap(state);
   const onAdd = () => {
     const olLayer = findOlLayer(map, layerId);
     if (!olLayer) return;
     cancelPendingSwap(state);
-    swapVectorLayerFeatures(olLayer, featureCollection, mapProjection);
+    // Read the projection now rather than when the fetch resolved: a GeoTIFF
+    // auto-fit can change the view in between, and parsing into a projection
+    // the map has already left strands the features off screen.
+    const projection = map.getView().getProjection().getCode();
+    swapVectorLayerFeatures(olLayer, featureCollection, projection);
   };
   state.pendingSwap = () => collection.un("add", onAdd);
   collection.on("add", onAdd);
@@ -166,13 +164,7 @@ export default function useRuntimeLayerFetcher({
           if (olLayer) {
             swapVectorLayerFeatures(olLayer, featureCollection, mapProjection);
           } else {
-            swapWhenLayerAppears(
-              state,
-              map,
-              layerId,
-              featureCollection,
-              mapProjection,
-            );
+            swapWhenLayerAppears(state, map, layerId, featureCollection);
           }
           clearError(layerId);
         })

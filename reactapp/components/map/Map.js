@@ -12,6 +12,7 @@ import {
   legendPropType,
   configurationPropType,
   mapDrawingPropType,
+  reprojectVectorFeatures,
   updateOlLayerProps,
   wrapMercatorX,
 } from "components/map/utilities";
@@ -530,7 +531,16 @@ const MapComponent = ({
                 if (targetExtent && haveMapSize) {
                   newView.fit(targetExtent, { size: mapSize });
                 }
+                // Features already on the map were parsed into the outgoing
+                // projection, so adopting the raster's leaves them holding the
+                // wrong numbers -- a UTM raster over Guatemala left Web
+                // Mercator coordinates being read as UTM metres, stranding the
+                // dynamic layers off screen while still reporting the right
+                // feature count. Move them with the view.
+                const previousCode = prevProjection.getCode();
+                const adoptedCode = newView.getProjection().getCode();
                 map.setView(newView);
+                reprojectVectorFeatures(map, previousCode, adoptedCode);
               } catch (err) {
                 console.warn(
                   `GeoTIFF auto-fit failed for layer "${name}":`,
