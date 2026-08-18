@@ -48,6 +48,40 @@ it("Creates a Card with a Title and Description", () => {
   expect(screen.getByText("Fake Description")).toBeInTheDocument();
 });
 
+it("Omits the header entirely when a plugin returns neither title nor description", async () => {
+  // Both are optional in the `card` return shape. Rendering them unguarded left
+  // an empty heading, an empty paragraph and Header's 1.5rem margin above the
+  // stats for any plugin that returns only `data`.
+  const { data } = mockedCardData;
+  initAndRender({ data });
+
+  // The stats render behind Suspense, so wait for them before concluding the
+  // header is absent rather than merely not painted yet.
+  expect(await screen.findByText("Total Sales")).toBeInTheDocument();
+  expect(screen.getByText("1,500")).toBeInTheDocument();
+  expect(screen.queryByRole("heading")).not.toBeInTheDocument();
+  // Not merely empty: the wrapper itself must go, or its 1.5rem margin stays.
+  expect(screen.queryByTestId("card-header")).not.toBeInTheDocument();
+});
+
+it("Renders only the title when no description is given", () => {
+  initAndRender({ title: "Fake Title", data: [] });
+
+  expect(
+    screen.getByRole("heading", { name: "Fake Title" }),
+  ).toBeInTheDocument();
+  expect(screen.queryByText("Fake Description")).not.toBeInTheDocument();
+});
+
+it("Renders only the description when no title is given", () => {
+  // The case the inner title guard exists for: the header is rendered because a
+  // description is present, so without the guard an empty <h3> comes with it.
+  initAndRender({ description: "Fake Description", data: [] });
+
+  expect(screen.getByText("Fake Description")).toBeInTheDocument();
+  expect(screen.queryByRole("heading")).not.toBeInTheDocument();
+});
+
 it("Creates a Card with actual data", async () => {
   const { title, data } = mockedCardData;
   initAndRender({

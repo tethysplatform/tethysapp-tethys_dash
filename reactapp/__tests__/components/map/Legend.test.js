@@ -44,3 +44,21 @@ test("LegendControl", async () => {
   fireEvent.click(closeLegendButton);
   expect(screen.queryByText("Some New Title")).not.toBeInTheDocument();
 });
+
+test("LegendControl flags itself only while expanded", async () => {
+  // The flag is what DashboardItem's fill-viewport rule keys off to raise the
+  // whole tile. Raising the tile is the only lever available: position:fixed
+  // makes it a stacking context, so no z-index on the control can escape it.
+  render(<LegendControl legendItems={[legendItems]} />);
+
+  fireEvent.click(await screen.findByLabelText("Show Legend Control"));
+  expect(await screen.findByLabelText("Legend Control")).toHaveAttribute(
+    "data-map-control-open",
+    "true",
+  );
+
+  fireEvent.click(await screen.findByLabelText("Close Legend Control"));
+  expect(screen.getByLabelText("Legend Control")).not.toHaveAttribute(
+    "data-map-control-open",
+  );
+});

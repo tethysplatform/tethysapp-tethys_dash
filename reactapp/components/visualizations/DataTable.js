@@ -47,7 +47,10 @@ const DataTable = ({ data, title, subtitle, visualizationRef }) => {
 
   return (
     <StyledDiv>
-      <h2>{title}</h2>
+      {/* Guarded like the subtitle below it: title is optional in the `table`
+          return shape, and rendering an empty <h2> left a heading's worth of
+          blank space above the table for any plugin that omits one. */}
+      {title && <h2>{title}</h2>}
       {subtitle && <h4>{subtitle}</h4>}
       <Table striped bordered hover ref={visualizationRef}>
         <TableHead />

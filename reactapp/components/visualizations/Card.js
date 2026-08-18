@@ -89,10 +89,15 @@ const StatItemGroup = ({ item, index }) => {
 const Card = ({ title, description, data, visualizationRef }) => {
   return (
     <CardContainer ref={visualizationRef}>
-      <Header>
-        <h3>{title}</h3>
-        <p>{description}</p>
-      </Header>
+      {/* Both are optional in the `card` return shape. Rendering them unguarded
+          left an empty heading and paragraph, and Header's own 1.5rem margin,
+          above the stats for any plugin that returns only `data`. */}
+      {(title || description) && (
+        <Header data-testid="card-header">
+          {title && <h3>{title}</h3>}
+          {description && <p>{description}</p>}
+        </Header>
+      )}
       {data.length === 0 ? (
         <StatItemGroup />
       ) : (

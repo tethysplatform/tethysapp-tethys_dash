@@ -5,6 +5,7 @@ import {
   within,
   fireEvent,
   waitFor,
+  cleanup,
 } from "@testing-library/react";
 import DashboardItem, {
   handleGridItemExport,
@@ -1653,6 +1654,97 @@ test("Dashboard attribution and not show", async () => {
   expect(
     screen.queryByLabelText("attribution-info-icon"),
   ).not.toBeInTheDocument();
+});
+
+// jsdom's computed style does not resolve :has(), so the raise cannot be read
+// back through getComputedStyle. Inspecting the injected rule is the next best
+// thing: it pins that the rule ships, what it raises to, and that it is scoped to
+// the fill-viewport branch rather than applied to every grid item.
+const injectedCss = () =>
+  Array.from(document.styleSheets)
+    .flatMap((sheet) => {
+      try {
+        return Array.from(sheet.cssRules).map((rule) => rule.cssText);
+      } catch {
+        return [];
+      }
+    })
+    .join("\n");
+
+const raiseRule = () =>
+  injectedCss()
+    .split("\n")
+    .find((rule) => rule.includes('data-map-control-open="true"'));
+
+// The class styled-components generated for the fill-viewport block. Asserting
+// class membership on the element is order-independent, unlike asserting the rule
+// is absent from the stylesheet -- styled-components keeps injected rules for the
+// whole test file, so a rule from an earlier test is still present.
+const raiseRuleClass = () => {
+  const rule = raiseRule();
+  const match = rule && rule.match(/^\.([\w-]+)/);
+  return match ? match[1] : null;
+};
+
+const renderGridItem = ({ fillViewport }) => {
+  const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
+  const gridItem = mockedDashboard.tabs[0].gridItems[0];
+  gridItem.metadata_string = JSON.stringify(
+    fillViewport ? { fillViewport: true } : {},
+  );
+
+  return render(
+    createLoadedComponent({
+      children: (
+        <GridItemContext.Provider
+          value={{
+            gridItemSource: gridItem.source,
+            gridItemI: gridItem.i,
+            gridItemMetadataString: gridItem.metadata_string,
+            gridItemArgsString: gridItem.args_string,
+            gridItemIndex: 0,
+            enableFillViewport: true,
+          }}
+        >
+          <DashboardItem />
+        </GridItemContext.Provider>
+      ),
+      options: { initialDashboard: mockedDashboard },
+    }),
+  );
+};
+
+test("Dashboard Item fill viewport raises the tile for an open map control", async () => {
+  // position:fixed seals the item into its own stacking context, so a map's
+  // legend or layer control cannot paint above a later grid item on its own.
+  renderGridItem({ fillViewport: true });
+  const item = await screen.findByLabelText("gridItemDiv");
+
+  const rule = raiseRule();
+  expect(rule).toBeDefined();
+  expect(rule).toMatch(/z-index:\s*1029/);
+  // Below the fixed header and every modal layer, so a modal still covers the map.
+  expect(rule).not.toMatch(/z-index:\s*10[4-9]\d/);
+  // And the rule actually applies to this item.
+  expect(item.classList.contains(raiseRuleClass())).toBe(true);
+});
+
+test("Dashboard Item without fill viewport is not covered by the raise rule", async () => {
+  // A non-fill item is position:relative / z-index:auto, so it is not a stacking
+  // context and the control's own z-index already escapes. Scoping the rule to
+  // the fill branch keeps that path untouched.
+  renderGridItem({ fillViewport: true });
+  await screen.findByLabelText("gridItemDiv");
+  const fillClass = raiseRuleClass();
+  expect(fillClass).not.toBeNull();
+  cleanup();
+
+  renderGridItem({ fillViewport: false });
+  const item = await screen.findByLabelText("gridItemDiv");
+  expect(window.getComputedStyle(item).getPropertyValue("position")).toBe(
+    "relative",
+  );
+  expect(item.classList.contains(fillClass)).toBe(false);
 });
 
 test("Dashboard Item fill viewport fills the content area in view mode", async () => {

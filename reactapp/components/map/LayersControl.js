@@ -160,7 +160,11 @@ const LayersControl = ({ updater, visualizationRef, runtimeLayerState }) => {
 
   return (
     <ControlWrapper>
-      <LayerControlContainer $isexpanded={isexpanded}>
+      <LayerControlContainer
+        $isexpanded={isexpanded}
+        aria-label="Layers Control"
+        data-map-control-open={isexpanded ? "true" : undefined}
+      >
         {isexpanded ? (
           <>
             <b>Map Layers</b>
