@@ -1,4 +1,5 @@
 import {
+  reprojectVectorFeatures,
   createMarkerLayer,
   createHighlightLayer,
   addHighlightFeatures,
@@ -21,6 +22,7 @@ import {
   coerceOptionalNumber,
 } from "components/map/utilities";
 import VectorSource from "ol/source/Vector.js";
+import Feature from "ol/Feature.js";
 import { LineString, Point, MultiPolygon, Polygon } from "ol/geom";
 import VectorLayer from "ol/layer/Vector.js";
 import {
@@ -4085,5 +4087,104 @@ describe("shiftEPSG3857ExtentAndPoint", () => {
     const newCenterX = (newExtent[0] + newExtent[2]) / 2;
     expect(newCenterX).toBeGreaterThan(-MERCATOR_HALF_WORLD);
     expect(newCenterX).toBeLessThan(MERCATOR_HALF_WORLD);
+  });
+});
+
+describe("reprojectVectorFeatures", () => {
+  // Features are parsed into the map's projection when added, so a later change
+  // of view projection leaves them holding the old projection's numbers. A
+  // GeoTIFF auto-fit does exactly that: adopting a UTM raster's projection left
+  // Web Mercator coordinates being read as UTM metres, stranding the dynamic
+  // layers off screen while the layer still reported the right feature count.
+  const SANTA_INES_3857 = [-10078522, 1629726];
+  const SANTA_INES_32615 = [765498, 1602608];
+
+  const mapWith = (layers) => ({
+    getLayers: () => ({ getArray: () => layers }),
+  });
+
+  const vectorLayer = (coords) => {
+    const source = new VectorSource({
+      features: coords.map((c) => new Feature(new Point(c))),
+    });
+    return { getSource: () => source, _source: source };
+  };
+
+  test("moves features from the old projection into the new one", () => {
+    const layer = vectorLayer([SANTA_INES_3857]);
+    const moved = reprojectVectorFeatures(
+      mapWith([layer]),
+      "EPSG:3857",
+      "EPSG:32615",
+    );
+
+    expect(moved).toBe(1);
+    const [x, y] = layer._source
+      .getFeatures()[0]
+      .getGeometry()
+      .getCoordinates();
+    // Within a metre of the known UTM position of the site.
+    expect(Math.abs(x - SANTA_INES_32615[0])).toBeLessThan(1);
+    expect(Math.abs(y - SANTA_INES_32615[1])).toBeLessThan(1);
+  });
+
+  test("is a no-op when the projection has not changed", () => {
+    const layer = vectorLayer([SANTA_INES_3857]);
+    const moved = reprojectVectorFeatures(
+      mapWith([layer]),
+      "EPSG:3857",
+      "EPSG:3857",
+    );
+
+    expect(moved).toBe(0);
+    expect(
+      layer._source.getFeatures()[0].getGeometry().getCoordinates(),
+    ).toEqual(SANTA_INES_3857);
+  });
+
+  test("leaves tile layers alone", () => {
+    // A tile source has no getFeatures; touching it would throw.
+    const tileLayer = { getSource: () => ({ getTileGrid: () => ({}) }) };
+    const layer = vectorLayer([SANTA_INES_3857]);
+
+    expect(() =>
+      reprojectVectorFeatures(
+        mapWith([tileLayer, layer]),
+        "EPSG:3857",
+        "EPSG:32615",
+      ),
+    ).not.toThrow();
+    expect(
+      reprojectVectorFeatures(mapWith([tileLayer]), "EPSG:3857", "EPSG:32615"),
+    ).toBe(0);
+  });
+
+  test("survives a feature with no geometry", () => {
+    const source = new VectorSource({ features: [new Feature()] });
+    const layer = { getSource: () => source };
+
+    expect(
+      reprojectVectorFeatures(mapWith([layer]), "EPSG:3857", "EPSG:32615"),
+    ).toBe(0);
+  });
+
+  test("guards missing arguments", () => {
+    expect(reprojectVectorFeatures(null, "EPSG:3857", "EPSG:32615")).toBe(0);
+    expect(reprojectVectorFeatures(mapWith([]), null, "EPSG:32615")).toBe(0);
+    expect(reprojectVectorFeatures(mapWith([]), "EPSG:3857", null)).toBe(0);
+  });
+
+  test("a round trip returns the original coordinates", () => {
+    const layer = vectorLayer([SANTA_INES_3857]);
+    const map = mapWith([layer]);
+    reprojectVectorFeatures(map, "EPSG:3857", "EPSG:32615");
+    reprojectVectorFeatures(map, "EPSG:32615", "EPSG:3857");
+
+    const [x, y] = layer._source
+      .getFeatures()[0]
+      .getGeometry()
+      .getCoordinates();
+    expect(Math.abs(x - SANTA_INES_3857[0])).toBeLessThan(1);
+    expect(Math.abs(y - SANTA_INES_3857[1])).toBeLessThan(1);
   });
 });

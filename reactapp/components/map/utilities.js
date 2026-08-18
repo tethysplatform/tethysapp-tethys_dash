@@ -264,6 +264,38 @@ export const layerPropertiesOptions = {
 };
 
 /**
+ * Re-project every vector feature already on the map.
+ *
+ * Features are parsed into the map's projection when they are added, so a later
+ * change of view projection leaves them holding the old projection's numbers.
+ * A GeoTIFF auto-fit does exactly that: adopting a UTM raster's projection left
+ * Web Mercator coordinates being read as UTM metres, putting the features far
+ * off screen while the layer still reported the right feature count.
+ *
+ * Only sources that actually hold features are touched; tile sources have no
+ * geometry to move. Returns the number of geometries transformed.
+ */
+export function reprojectVectorFeatures(map, from, to) {
+  if (!map || !from || !to || from === to) return 0;
+  let transformed = 0;
+  map
+    .getLayers()
+    .getArray()
+    .forEach((layer) => {
+      const source = layer.getSource?.();
+      if (typeof source?.getFeatures !== "function") return;
+      source.getFeatures().forEach((feature) => {
+        const geometry = feature.getGeometry?.();
+        if (!geometry) return;
+        geometry.transform(from, to);
+        transformed += 1;
+      });
+      source.changed?.();
+    });
+  return transformed;
+}
+
+/**
  * Swap the features on a preserved OpenLayers VectorLayer in place.
  *
  * Used by the runtimeLayerFetcher (Unit 5) when a dynamic_map_layer plugin
