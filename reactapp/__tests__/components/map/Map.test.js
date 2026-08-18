@@ -2201,6 +2201,15 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
 
     expect(await screen.findByText("Map Ready")).toBeInTheDocument();
     expect(await screen.findByLabelText("Map Legend")).toBeInTheDocument();
+
+    // The control itself must sit outside the map div. A fill-viewport tile is
+    // position:fixed, which seals its subtree into a stacking context that no
+    // descendant z-index can escape -- so a control rendered inside the map
+    // cannot paint above a grid item overlapping it, whatever its z-index.
+    const mapDiv = await screen.findByLabelText("Map Div");
+    const control = await screen.findByLabelText("Show Legend Control");
+    expect(mapDiv).not.toContainElement(control);
+    expect(document.body).toContainElement(control);
   });
 
   test("Auto-fit skips inner extent block when clampedPrev is non-finite", async () => {

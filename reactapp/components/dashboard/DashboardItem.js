@@ -78,29 +78,6 @@ const StyledDiv = styled.div`
       left: 0;
       width: 100vw;
       height: calc(100vh - (${props.$fillOffset}));
-
-      /* position:fixed creates a stacking context even at z-index:auto, which
-         seals everything inside this item in. A map's legend, layer control,
-         error alert and coordinate readout all set z-index:1000, but that only
-         orders them against each other, never against another grid item -- the
-         item paints as one unit in gridItems order, so a tile ordered after this
-         one covered the map's own controls. In edit mode the bug disappears
-         because fillViewportActive is gated on !isEditing, leaving the item
-         position:relative and therefore not a stacking context.
-
-         Raising the item while a control is open is the only way out: no
-         descendant z-index can escape a stacking context, so lifting the whole
-         subtree is the lever available. The trade is that an overlapping tile
-         ordered after this one is hidden for as long as the control is open. It
-         reverts on close, so the DOM-order layering described above still holds
-         the rest of the time.
-
-         1029 clears dropdowns (1000) and sticky (1020) but stays below the fixed
-         header (1030) and all modal chrome (backdrop 1040, modal 1050, popover
-         1070, tooltip 1080, app alerts 1081), so a modal still covers the map. */
-      &:has([data-map-control-open="true"]) {
-        z-index: 1029;
-      }
     `}
 `;
 

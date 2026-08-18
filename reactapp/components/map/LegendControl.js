@@ -1,14 +1,20 @@
 import { useState } from "react";
 import styled from "styled-components";
 import LegendRenderer from "components/map/LegendRenderer";
+import FloatingMapControl from "components/map/FloatingMapControl";
 import { FaTimes, FaListUl } from "react-icons/fa";
 import PropTypes from "prop-types";
 
-const LegendWrapper = styled.div`
+// Positioning stays here, on the anchor FloatingMapControl leaves behind, so
+// the corner is defined in one place. The control itself is portalled to the
+// body: a fill-viewport tile is position:fixed and seals its subtree into a
+// stacking context, which no descendant z-index can escape.
+const LegendWrapper = styled(FloatingMapControl)`
   position: absolute;
   bottom: 1rem;
   left: 1rem;
 `;
+const LEGEND_EDGES = ["bottom", "left"];
 
 const LegendControlContainer = styled.div`
   background-color: white;
@@ -51,11 +57,10 @@ const LegendControl = ({ legendItems }) => {
   return (
     <div aria-label="Map Legend">
       {legendItems.filter((item) => item !== null).length > 0 && (
-        <LegendWrapper>
+        <LegendWrapper edges={LEGEND_EDGES}>
           <LegendControlContainer
             $isexpanded={isexpanded}
             aria-label="Legend Control"
-            data-map-control-open={isexpanded ? "true" : undefined}
             className="legend-control"
           >
             {isexpanded ? (
