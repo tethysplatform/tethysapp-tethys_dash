@@ -5,6 +5,7 @@ import moduleLoader, {
   createJsonStyleFunction,
 } from "components/map/ModuleLoader";
 import LayersControl from "components/map/LayersControl";
+import FloatingMapControl from "components/map/FloatingMapControl";
 import LegendControl from "components/map/LegendControl";
 import DrawInteractions from "components/map/DrawInteractions";
 import ExtentInteraction from "components/map/ExtentInteraction";
@@ -27,12 +28,18 @@ import { VariableInputsContext } from "components/contexts/Contexts";
 import GeoJSON from "ol/format/GeoJSON";
 import { valuesEqual } from "components/modals/utilities";
 
-const StyledAlert = styled(Alert)`
+// Pinned on both sides, so the anchor spans the map's width and the floated copy
+// inherits it. Same stacking-context escape as the legend and layer control.
+const AlertAnchor = styled(FloatingMapControl)`
   position: absolute;
   top: 1rem;
   left: 1rem;
   right: 1rem;
-  z-index: 1000;
+`;
+const ALERT_EDGES = ["top", "left", "right"];
+
+const StyledAlert = styled(Alert)`
+  margin: 0;
 `;
 
 const InfoDiv = styled.div`
@@ -715,14 +722,16 @@ const MapComponent = ({
     <>
       <div aria-label="Map Div" ref={mapDivRef} {...customMapConfig}>
         {errorMessage && (
-          <StyledAlert
-            key="failure"
-            variant="danger"
-            dismissible={true}
-            onClose={() => setErrorMessage("")}
-          >
-            {errorMessage}
-          </StyledAlert>
+          <AlertAnchor edges={ALERT_EDGES}>
+            <StyledAlert
+              key="failure"
+              variant="danger"
+              dismissible={true}
+              onClose={() => setErrorMessage("")}
+            >
+              {errorMessage}
+            </StyledAlert>
+          </AlertAnchor>
         )}
         {dataviewerViz && (
           <InfoDiv id="info" aria-label="Info Div">

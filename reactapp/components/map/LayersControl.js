@@ -8,12 +8,16 @@ import {
   FaRedo,
 } from "react-icons/fa";
 import { WebsocketContext } from "components/contexts/WebSocketContext";
+import FloatingMapControl from "components/map/FloatingMapControl";
 
-const ControlWrapper = styled.div`
+// See LegendControl: the positioning lives on the anchor, the control itself is
+// portalled out of the map tile's stacking context.
+const ControlWrapper = styled(FloatingMapControl)`
   position: absolute;
   bottom: 1rem;
   right: 1rem;
 `;
+const LAYERS_EDGES = ["bottom", "right"];
 
 const ProgressBar = styled.div`
   height: 4px;
@@ -159,11 +163,10 @@ const LayersControl = ({ updater, visualizationRef, runtimeLayerState }) => {
   }
 
   return (
-    <ControlWrapper>
+    <ControlWrapper edges={LAYERS_EDGES}>
       <LayerControlContainer
         $isexpanded={isexpanded}
         aria-label="Layers Control"
-        data-map-control-open={isexpanded ? "true" : undefined}
       >
         {isexpanded ? (
           <>
