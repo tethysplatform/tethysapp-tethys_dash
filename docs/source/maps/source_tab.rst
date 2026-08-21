@@ -269,6 +269,39 @@ The Zarr source renders a raster layer from a public `Zarr <https://zarr.dev/>`_
 
 ------------------------------------------------------------------------------------------------------------------------
 
+++++++++++
+GeoPackage
+++++++++++
+
+The GeoPackage source renders **vector** layers from a public `GeoPackage <https://www.geopackage.org/>`_ (``.gpkg``) file. A GeoPackage is an OGC SQLite database that may hold several feature tables, so you supply a file URL **and** the table (layer) name — one map layer per table. TethysDash reads the file entirely in the browser and reprojects it to the map projection, so no server-side conversion is involved. Layers are styled and queried like a GeoJSON layer.
+
+**Layer Properties:**
+    - **url:** (required) Public URL of the GeoPackage file (an ``https`` URL, or an ``s3://`` URL which is translated to its public ``https`` form). The host must allow cross-origin (CORS) reads.
+    - **layer:** (required) Name of the feature table within the GeoPackage to render.
+
+.. note::
+    The file is downloaded and parsed in the browser, so this suits moderate feature counts; very large tables may be slow to render. Feature tables in projected CRSs (e.g. UTM) are reprojected automatically; other custom CRSs may not be supported.
+
+**Example JSON Configuration:**
+
+::
+
+    {
+        "type": "VectorLayer",
+        "props": {
+            "name": "Buildings",
+            "source": {
+                "type": "GeoPackage",
+                "props": {
+                    "url": "https://example.com/flood_event.gpkg",
+                    "layer": "buildings"
+                }
+            }
+        }
+    }
+
+------------------------------------------------------------------------------------------------------------------------
+
 +++++++++++++
 Custom Layers
 +++++++++++++

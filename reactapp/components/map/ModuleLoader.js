@@ -32,6 +32,9 @@ import {
   buildCategoricalStyleColor,
   isUsableClass,
 } from "components/map/geoTIFFStyle";
+import proj4 from "proj4";
+import { register as registerProj4 } from "ol/proj/proj4.js";
+import sqlWasmUrl from "sql.js/dist/sql-wasm.wasm";
 
 const moduleCache = {};
 const styleCache = new Map();
@@ -313,7 +316,93 @@ export async function applyAutoRamp(layerConfig) {
   return layerConfig;
 }
 
+export class GeoPackageError extends Error {}
+
+// s3://bucket/key -> virtual-hosted https so the browser can fetch it directly.
+export function s3UrlToHttps(url, defaultRegion = "us-east-1") {
+  if (typeof url !== "string" || !url.startsWith("s3://")) return url;
+  const rest = url.slice(5);
+  const slash = rest.indexOf("/");
+  const bucket = slash === -1 ? rest : rest.slice(0, slash);
+  const key = slash === -1 ? "" : rest.slice(slash + 1);
+  const region =
+    bucket.match(/(us|eu|ap|sa|ca|me|af)-[a-z]+-\d+/)?.[0] ?? defaultRegion;
+  return `https://${bucket}.s3.${region}.amazonaws.com/${key}`;
+}
+
+// Register proj4 + all WGS84 UTM zones so ol can reproject projected GeoPackages.
+let projectionsRegistered = false;
+export function registerGeoPackageProjections() {
+  if (projectionsRegistered) return;
+  for (let zone = 1; zone <= 60; zone++) {
+    proj4.defs(
+      `EPSG:${32600 + zone}`,
+      `+proj=utm +zone=${zone} +datum=WGS84 +units=m +no_defs +type=crs`,
+    );
+    proj4.defs(
+      `EPSG:${32700 + zone}`,
+      `+proj=utm +zone=${zone} +south +datum=WGS84 +units=m +no_defs +type=crs`,
+    );
+  }
+  registerProj4(proj4);
+  projectionsRegistered = true;
+}
+
+// Lazy-load ol-load-geopackage and init the sql.js wasm loader once.
+let geoPackageLib = null;
+async function getGeoPackageLib() {
+  if (!geoPackageLib) {
+    const lib = await import("ol-load-geopackage");
+    lib.initSqlJsWasm(sqlWasmUrl.replace(/\/sql-wasm\.wasm$/, ""));
+    geoPackageLib = lib;
+  }
+  return geoPackageLib;
+}
+
+// Cache parsed gpkg per url+projection; one file often backs several layers.
+const geoPackageCache = new Map();
+
+// Read one GeoPackage table in-browser as a reprojected OL vector source.
+export async function loadGeoPackage(config, mapProjection) {
+  const rawUrl = config.props?.url;
+  const table = config.props?.layer;
+  if (!rawUrl) {
+    throw new GeoPackageError("GeoPackage source requires a file URL");
+  }
+  if (!table) {
+    throw new GeoPackageError("GeoPackage source requires a table name");
+  }
+
+  const url = s3UrlToHttps(rawUrl);
+  registerGeoPackageProjections();
+  const { loadGpkg } = await getGeoPackageLib();
+
+  const cacheKey = `${url}::${mapProjection}`;
+  if (!geoPackageCache.has(cacheKey)) {
+    geoPackageCache.set(cacheKey, loadGpkg(url, mapProjection));
+  }
+  let dataByTable;
+  try {
+    [dataByTable] = await geoPackageCache.get(cacheKey);
+  } catch (error) {
+    geoPackageCache.delete(cacheKey);
+    throw error;
+  }
+
+  const source = dataByTable[table];
+  if (!source) {
+    throw new GeoPackageError(
+      `Table "${table}" not found in GeoPackage. Available tables: ` +
+        Object.keys(dataByTable).join(", "),
+    );
+  }
+  return source;
+}
+
 const moduleLoader = async (config, mapProjection) => {
+  if (config.type === "GeoPackage") {
+    return loadGeoPackage(config, mapProjection);
+  }
   if (config.type === "Zarr") {
     // Already yields OL's `sources` shape, so it skips the GeoTIFF branch below.
     config = zarrSourceToGeoTIFF(config);

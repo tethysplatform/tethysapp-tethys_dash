@@ -35,6 +35,8 @@ module.exports = (env, argv) => {
         path.resolve(__dirname, "../"),
         path.resolve(__dirname, "../../node_modules"),
       ],
+      // sql.js references node core modules in its node path; stub for browser.
+      fallback: { fs: false, path: false, crypto: false },
     },
     plugins: [
       new Dotenv({
@@ -109,6 +111,12 @@ module.exports = (env, argv) => {
               },
             },
           ],
+        },
+        {
+          // Emit sql-wasm.wasm verbatim so ol-load-geopackage can fetch it.
+          test: /sql-wasm\.wasm$/,
+          type: "asset/resource",
+          generator: { filename: "sql-wasm.wasm" },
         },
       ],
     },

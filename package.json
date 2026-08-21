@@ -48,10 +48,12 @@
     "html2canvas": "^1.4.1",
     "json5": "^2.2.3",
     "ol": "10.4.0",
+    "ol-load-geopackage": "^2.3.1",
     "ol-mapbox-style": "12.4.0",
     "ol-pmtiles": "^2.0.2",
     "plotly.js-strict-dist-min": "^2.35.2",
     "prismjs": "^1.28.0",
+    "proj4": "^2.21.0",
     "rc-slider": "^11.1.8",
     "react": "^18.3.1",
     "react-bootstrap": "^2.10.2",
@@ -73,6 +75,7 @@
     "sass": "^1.49.0",
     "sass-loader": "^12.3.0",
     "simple-xml-to-json": "^1.2.3",
+    "sql.js": "1.13.0",
     "style-loader": "^3.3.1",
     "styled-components": "^6.3.9",
     "swiper": "^11.2.1",
@@ -219,7 +222,7 @@
       "<rootDir>/node_modules"
     ],
     "moduleNameMapper": {
-      "\\.(jpg|jpeg|png|gif|eot|otf|webp|svg|ttf|woff|woff2|mp4|webm|wav|mp3|m4a|aac|oga)$": "<rootDir>/reactapp/__tests__/utilities/fileMock.js",
+      "\\.(jpg|jpeg|png|gif|eot|otf|webp|svg|ttf|woff|woff2|mp4|webm|wav|mp3|m4a|aac|oga|wasm)$": "<rootDir>/reactapp/__tests__/utilities/fileMock.js",
       "^.+\\.module\\.(css|sass|scss|less)$": "identity-obj-proxy",
       "\\.(css|less|scss|sss|styl)$": "<rootDir>/node_modules/jest-css-modules"
     },

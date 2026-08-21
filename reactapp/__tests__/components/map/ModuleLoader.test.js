@@ -13,6 +13,10 @@ import moduleLoader, {
   withAntimeridianFix,
   zarrSourceToGeoTIFF,
   applyAutoRamp,
+  loadGeoPackage,
+  s3UrlToHttps,
+  registerGeoPackageProjections,
+  GeoPackageError,
 } from "components/map/ModuleLoader";
 import { fromUrl } from "geotiff";
 import WebGLTile from "ol/layer/WebGLTile.js";
@@ -50,8 +54,17 @@ import {
   defaultStroke,
   defaultStrokeWidth,
 } from "components/inputs/RuleEditor.js";
+import { get as getProjection } from "ol/proj";
+import proj4 from "proj4";
+import { loadGpkg } from "ol-load-geopackage";
 
 jest.mock("geotiff", () => ({ fromUrl: jest.fn() }));
+
+jest.mock("ol-load-geopackage", () => ({
+  __esModule: true,
+  initSqlJsWasm: jest.fn(),
+  loadGpkg: jest.fn(),
+}));
 
 jest.mock("ol/source/GeoTIFF.js", () => {
   const ActualSource = jest.requireActual("ol/source/Source.js").default;
@@ -2579,5 +2592,148 @@ describe("applyAutoRamp", () => {
 
       expect(fromUrl).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("s3UrlToHttps", () => {
+  test("passes an https url through unchanged", () => {
+    expect(s3UrlToHttps("https://x/y.gpkg")).toBe("https://x/y.gpkg");
+  });
+
+  test("returns non-string input unchanged", () => {
+    expect(s3UrlToHttps(undefined)).toBeUndefined();
+  });
+
+  test("converts s3:// to a virtual-hosted https url, sniffing the region", () => {
+    expect(
+      s3UrlToHttps("s3://cog-s3-test-1234-us-east-1-an/Guatemala_IBF/f.gpkg"),
+    ).toBe(
+      "https://cog-s3-test-1234-us-east-1-an.s3.us-east-1.amazonaws.com/Guatemala_IBF/f.gpkg",
+    );
+  });
+
+  test("honors a region embedded in the bucket name", () => {
+    expect(s3UrlToHttps("s3://data-eu-west-2-x/k.gpkg")).toBe(
+      "https://data-eu-west-2-x.s3.eu-west-2.amazonaws.com/k.gpkg",
+    );
+  });
+
+  test("defaults the region when none is in the bucket name", () => {
+    expect(s3UrlToHttps("s3://my-bucket/a/b.gpkg")).toBe(
+      "https://my-bucket.s3.us-east-1.amazonaws.com/a/b.gpkg",
+    );
+  });
+
+  test("handles an s3 url with no key", () => {
+    expect(s3UrlToHttps("s3://plain-bucket")).toBe(
+      "https://plain-bucket.s3.us-east-1.amazonaws.com/",
+    );
+  });
+});
+
+describe("registerGeoPackageProjections", () => {
+  test("registers WGS84 UTM zones with proj4 and OpenLayers", () => {
+    registerGeoPackageProjections();
+    expect(proj4.defs("EPSG:32615")).toBeTruthy();
+    expect(proj4.defs("EPSG:32715")).toBeTruthy();
+    expect(getProjection("EPSG:32615")).not.toBeNull();
+  });
+
+  test("is idempotent", () => {
+    expect(() => {
+      registerGeoPackageProjections();
+      registerGeoPackageProjections();
+    }).not.toThrow();
+  });
+});
+
+describe("loadGeoPackage", () => {
+  test("returns the requested table's vector source", async () => {
+    const src = new VectorSource();
+    loadGpkg.mockResolvedValue([{ roads: src }, {}]);
+    const out = await loadGeoPackage(
+      { props: { url: "https://h/t1.gpkg", layer: "roads" } },
+      "EPSG:3857",
+    );
+    expect(out).toBe(src);
+    expect(loadGpkg).toHaveBeenCalledWith("https://h/t1.gpkg", "EPSG:3857");
+  });
+
+  test("translates an s3:// url before loading", async () => {
+    loadGpkg.mockResolvedValue([{ t: new VectorSource() }, {}]);
+    await loadGeoPackage(
+      { props: { url: "s3://b-us-east-1-x/t2.gpkg", layer: "t" } },
+      "EPSG:3857",
+    );
+    expect(loadGpkg).toHaveBeenCalledWith(
+      "https://b-us-east-1-x.s3.us-east-1.amazonaws.com/t2.gpkg",
+      "EPSG:3857",
+    );
+  });
+
+  test("rejects when the url is missing", async () => {
+    await expect(
+      loadGeoPackage({ props: { layer: "t" } }, "EPSG:3857"),
+    ).rejects.toThrow(GeoPackageError);
+    expect(loadGpkg).not.toHaveBeenCalled();
+  });
+
+  test("rejects when the table name is missing", async () => {
+    await expect(
+      loadGeoPackage({ props: { url: "https://h/t3.gpkg" } }, "EPSG:3857"),
+    ).rejects.toThrow(GeoPackageError);
+  });
+
+  test("rejects an unknown table, listing the available ones", async () => {
+    loadGpkg.mockResolvedValue([
+      { roads: new VectorSource(), bldgs: new VectorSource() },
+      {},
+    ]);
+    await expect(
+      loadGeoPackage(
+        { props: { url: "https://h/t4.gpkg", layer: "nope" } },
+        "EPSG:3857",
+      ),
+    ).rejects.toThrow(/roads|bldgs/);
+  });
+
+  test("parses a file only once across layers (cache by url+projection)", async () => {
+    loadGpkg.mockResolvedValue([{ t: new VectorSource() }, {}]);
+    const cfg = { props: { url: "https://h/t5.gpkg", layer: "t" } };
+    await loadGeoPackage(cfg, "EPSG:3857");
+    await loadGeoPackage(cfg, "EPSG:3857");
+    expect(loadGpkg).toHaveBeenCalledTimes(1);
+  });
+
+  test("does not cache a failed load", async () => {
+    loadGpkg
+      .mockRejectedValueOnce(new Error("boom"))
+      .mockResolvedValue([{ t: new VectorSource() }, {}]);
+    const cfg = { props: { url: "https://h/t6.gpkg", layer: "t" } };
+    await expect(loadGeoPackage(cfg, "EPSG:3857")).rejects.toThrow("boom");
+    const out = await loadGeoPackage(cfg, "EPSG:3857");
+    expect(out).toBeInstanceOf(VectorSource);
+    expect(loadGpkg).toHaveBeenCalledTimes(2);
+  });
+
+  test("caches separately per display projection", async () => {
+    loadGpkg.mockResolvedValue([{ t: new VectorSource() }, {}]);
+    const cfg = { props: { url: "https://h/t7.gpkg", layer: "t" } };
+    await loadGeoPackage(cfg, "EPSG:3857");
+    await loadGeoPackage(cfg, "EPSG:4326");
+    expect(loadGpkg).toHaveBeenCalledTimes(2);
+  });
+
+  test("moduleLoader routes a GeoPackage config to loadGeoPackage", async () => {
+    const src = new VectorSource();
+    loadGpkg.mockResolvedValue([{ roads: src }, {}]);
+    const out = await moduleLoader(
+      {
+        type: "GeoPackage",
+        props: { url: "https://h/t8.gpkg", layer: "roads" },
+      },
+      "EPSG:3857",
+    );
+    expect(out).toBe(src);
   });
 });
