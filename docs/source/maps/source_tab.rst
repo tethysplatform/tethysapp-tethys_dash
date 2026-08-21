@@ -338,6 +338,37 @@ The GeoPackage source renders **vector** layers from a public `GeoPackage <https
 
 ------------------------------------------------------------------------------------------------------------------------
 
+++++++++++
+GeoParquet
+++++++++++
+
+The GeoParquet source renders a **vector** layer from a public `GeoParquet <https://geoparquet.org/>`_ file. TethysDash reads the file entirely in the browser, decodes its geometry, and reprojects it to the map projection — so you supply a file URL rather than a prepared GeoJSON. It is styled and queried like a GeoJSON layer.
+
+**Layer Properties:**
+    - **url:** (required) Public URL of the GeoParquet file (an ``https`` URL, or an ``s3://`` URL which is translated to its public ``https`` form). The host must allow cross-origin (CORS) reads.
+
+.. note::
+    The file is downloaded and parsed in the browser, so this suits moderate feature counts; very large files may be slow to render. Files in a projected CRS (e.g. UTM) are reprojected automatically; other custom CRSs may not be supported. GeoParquet's default CRS (OGC:CRS84 / WGS84 lon-lat) is always supported.
+
+**Example JSON Configuration:**
+
+::
+
+    {
+        "type": "VectorLayer",
+        "props": {
+            "name": "Buildings",
+            "source": {
+                "type": "GeoParquet",
+                "props": {
+                    "url": "https://example.com/buildings.parquet"
+                }
+            }
+        }
+    }
+
+------------------------------------------------------------------------------------------------------------------------
+
 +++++++++++++
 Custom Layers
 +++++++++++++

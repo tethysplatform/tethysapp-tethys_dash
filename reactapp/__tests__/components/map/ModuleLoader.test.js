@@ -19,6 +19,10 @@ import moduleLoader, {
   s3UrlToHttps,
   registerGeoPackageProjections,
   GeoPackageError,
+  loadGeoParquet,
+  geoParquetCRSToProjection,
+  readGeoParquetGeoMetadata,
+  GeoParquetError,
 } from "components/map/ModuleLoader";
 import { fromUrl } from "geotiff";
 import WebGLTile from "ol/layer/WebGLTile.js";
@@ -59,6 +63,11 @@ import {
 import { get as getProjection } from "ol/proj";
 import proj4 from "proj4";
 import { loadGpkg } from "ol-load-geopackage";
+import {
+  asyncBufferFromUrl,
+  parquetMetadataAsync,
+  parquetReadObjects,
+} from "hyparquet";
 
 jest.mock("geotiff", () => ({ fromUrl: jest.fn() }));
 
@@ -67,6 +76,20 @@ jest.mock("ol-load-geopackage", () => ({
   initSqlJsWasm: jest.fn(),
   loadGpkg: jest.fn(),
 }));
+
+jest.mock(
+  "hyparquet",
+  () => ({
+    __esModule: true,
+    asyncBufferFromUrl: jest.fn(),
+    parquetMetadataAsync: jest.fn(),
+    parquetReadObjects: jest.fn(),
+  }),
+  { virtual: true },
+);
+jest.mock("hyparquet-compressors", () => ({ compressors: { __mock: true } }), {
+  virtual: true,
+});
 
 jest.mock("ol/source/GeoTIFF.js", () => {
   const ActualSource = jest.requireActual("ol/source/Source.js").default;
@@ -2937,5 +2960,182 @@ describe("matchesCondition — a field the feature does not carry", () => {
       matchesCondition(f.POP2020, "!=", 0),
     );
     expect(matched).toHaveLength(0);
+  });
+});
+
+describe("geoParquetCRSToProjection", () => {
+  test("treats null/undefined CRS as WGS84 (spec default)", () => {
+    expect(geoParquetCRSToProjection(null)).toBe("EPSG:4326");
+    expect(geoParquetCRSToProjection(undefined)).toBe("EPSG:4326");
+  });
+
+  test("resolves a PROJJSON id to its projection code", () => {
+    expect(
+      geoParquetCRSToProjection({ id: { authority: "EPSG", code: 3857 } }),
+    ).toBe("EPSG:3857");
+  });
+
+  test("falls back to the first entry of an ids array", () => {
+    expect(
+      geoParquetCRSToProjection({ ids: [{ authority: "EPSG", code: 32615 }] }),
+    ).toBe("EPSG:32615");
+  });
+});
+
+describe("readGeoParquetGeoMetadata", () => {
+  test("defaults to 'geometry' + WGS84 when there is no geo key", () => {
+    expect(readGeoParquetGeoMetadata({})).toEqual({
+      geometryColumn: "geometry",
+      dataProjection: "EPSG:4326",
+    });
+  });
+
+  test("reads primary_column and its CRS from the geo metadata", () => {
+    const geo = JSON.stringify({
+      primary_column: "geom",
+      columns: {
+        geom: {
+          encoding: "WKB",
+          crs: { id: { authority: "EPSG", code: 32615 } },
+        },
+      },
+    });
+    const meta = { key_value_metadata: [{ key: "geo", value: geo }] };
+    expect(readGeoParquetGeoMetadata(meta)).toEqual({
+      geometryColumn: "geom",
+      dataProjection: "EPSG:32615",
+    });
+  });
+});
+
+describe("loadGeoParquet", () => {
+  const pointRows = [
+    { geometry: { type: "Point", coordinates: [-100, 40] }, name: "A" },
+    { geometry: { type: "Point", coordinates: [-90, 35] }, name: "B" },
+  ];
+  const noGeoMeta = { key_value_metadata: undefined };
+
+  test("reads a GeoParquet file into an OL VectorSource of features", async () => {
+    asyncBufferFromUrl.mockResolvedValue({});
+    parquetMetadataAsync.mockResolvedValue(noGeoMeta);
+    parquetReadObjects.mockResolvedValue(pointRows);
+
+    const source = await loadGeoParquet(
+      { type: "GeoParquet", props: { url: "https://x/data.parquet" } },
+      "EPSG:3857",
+    );
+    expect(source).toBeInstanceOf(VectorSource);
+    const features = source.getFeatures();
+    expect(features).toHaveLength(2);
+    expect(features[0].get("name")).toBe("A");
+    expect(features[0].getGeometry().getType()).toBe("Point");
+    // -100 lon in EPSG:3857 is a large negative metre value: reprojection ran.
+    expect(features[0].getGeometry().getCoordinates()[0]).toBeCloseTo(
+      -11131949.08,
+      0,
+    );
+  });
+
+  test("passes the extended codecs and geoparquet flag to the reader", async () => {
+    asyncBufferFromUrl.mockResolvedValue({});
+    parquetMetadataAsync.mockResolvedValue(noGeoMeta);
+    parquetReadObjects.mockResolvedValue([]);
+
+    await loadGeoParquet(
+      { type: "GeoParquet", props: { url: "https://x/data.parquet" } },
+      "EPSG:3857",
+    );
+    expect(parquetReadObjects).toHaveBeenCalledWith(
+      expect.objectContaining({
+        compressors: { __mock: true },
+        geoparquet: true,
+      }),
+    );
+  });
+
+  test("coerces BigInt property values to Number", async () => {
+    asyncBufferFromUrl.mockResolvedValue({});
+    parquetMetadataAsync.mockResolvedValue(noGeoMeta);
+    parquetReadObjects.mockResolvedValue([
+      { geometry: { type: "Point", coordinates: [0, 0] }, id: 42n },
+    ]);
+    const source = await loadGeoParquet(
+      { type: "GeoParquet", props: { url: "https://x/d.parquet" } },
+      "EPSG:3857",
+    );
+    expect(source.getFeatures()[0].get("id")).toBe(42);
+  });
+
+  test("drops rows with no geometry", async () => {
+    asyncBufferFromUrl.mockResolvedValue({});
+    parquetMetadataAsync.mockResolvedValue(noGeoMeta);
+    parquetReadObjects.mockResolvedValue([
+      { geometry: { type: "Point", coordinates: [0, 0] }, name: "keep" },
+      { geometry: null, name: "drop" },
+    ]);
+    const source = await loadGeoParquet(
+      { type: "GeoParquet", props: { url: "https://x/d.parquet" } },
+      "EPSG:3857",
+    );
+    expect(source.getFeatures()).toHaveLength(1);
+    expect(source.getFeatures()[0].get("name")).toBe("keep");
+  });
+
+  test("uses the primary geometry column from geo metadata", async () => {
+    asyncBufferFromUrl.mockResolvedValue({});
+    parquetMetadataAsync.mockResolvedValue({
+      key_value_metadata: [
+        {
+          key: "geo",
+          value: JSON.stringify({
+            primary_column: "geom",
+            columns: { geom: { encoding: "WKB", crs: null } },
+          }),
+        },
+      ],
+    });
+    parquetReadObjects.mockResolvedValue([
+      { geom: { type: "Point", coordinates: [0, 0] }, name: "A" },
+    ]);
+    const source = await loadGeoParquet(
+      { type: "GeoParquet", props: { url: "https://x/d.parquet" } },
+      "EPSG:3857",
+    );
+    expect(source.getFeatures()).toHaveLength(1);
+    expect(source.getFeatures()[0].getGeometry().getType()).toBe("Point");
+  });
+
+  test("translates an s3:// url before fetching", async () => {
+    asyncBufferFromUrl.mockResolvedValue({});
+    parquetMetadataAsync.mockResolvedValue(noGeoMeta);
+    parquetReadObjects.mockResolvedValue([]);
+    await loadGeoParquet(
+      { type: "GeoParquet", props: { url: "s3://b-us-east-1-x/d.parquet" } },
+      "EPSG:3857",
+    );
+    expect(asyncBufferFromUrl).toHaveBeenCalledWith({
+      url: "https://b-us-east-1-x.s3.us-east-1.amazonaws.com/d.parquet",
+    });
+  });
+
+  test("rejects a missing url without touching the network", async () => {
+    await expect(
+      loadGeoParquet({ type: "GeoParquet", props: {} }, "EPSG:3857"),
+    ).rejects.toThrow(GeoParquetError);
+    expect(asyncBufferFromUrl).not.toHaveBeenCalled();
+  });
+
+  test("moduleLoader routes a GeoParquet config to loadGeoParquet", async () => {
+    asyncBufferFromUrl.mockResolvedValue({});
+    parquetMetadataAsync.mockResolvedValue(noGeoMeta);
+    parquetReadObjects.mockResolvedValue([
+      { geometry: { type: "Point", coordinates: [0, 0] }, name: "A" },
+    ]);
+    const source = await moduleLoader(
+      { type: "GeoParquet", props: { url: "https://x/d.parquet" } },
+      "EPSG:3857",
+    );
+    expect(source).toBeInstanceOf(VectorSource);
+    expect(source.getFeatures()).toHaveLength(1);
   });
 });
