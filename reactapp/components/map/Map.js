@@ -4,6 +4,12 @@ import moduleLoader, {
   applyAutoRamp,
   createJsonStyleFunction,
 } from "components/map/ModuleLoader";
+// Importing this registers the coordinate reference systems that layers name by
+// code. Module evaluation completes before any render, so registration is in
+// place before the layer effect below constructs a single source -- which
+// matters, because layers are constructed concurrently and a registration that
+// waited on anything async would race them.
+import { isNativelyResolvable } from "components/map/projections";
 import LayersControl from "components/map/LayersControl";
 import FloatingMapControl from "components/map/FloatingMapControl";
 import LegendControl from "components/map/LegendControl";
@@ -546,8 +552,24 @@ const MapComponent = ({
                 // feature count. Move them with the view.
                 const previousCode = prevProjection.getCode();
                 const adoptedCode = newView.getProjection().getCode();
-                map.setView(newView);
-                reprojectVectorFeatures(map, previousCode, adoptedCode);
+
+                // Adopt the raster's projection as the view projection only when
+                // OpenLayers resolves it on its own. Registering a definition
+                // makes a previously-unresolvable raster render, but it must not
+                // also start changing the view: setView publishes the adopted
+                // code into the map-extent variable other visualizations consume,
+                // and saved center/zoom values would be reinterpreted in the new
+                // projection's units. Widening this is its own change, verified
+                // against live dashboards. Such a raster still renders here --
+                // by reprojection rather than natively.
+                if (!isNativelyResolvable(adoptedCode)) {
+                  console.warn(
+                    `Not adopting "${adoptedCode}" as the view projection for layer "${name}": it resolves from a registered definition rather than natively. The layer renders by reprojection.`,
+                  );
+                } else {
+                  map.setView(newView);
+                  reprojectVectorFeatures(map, previousCode, adoptedCode);
+                }
               } catch (err) {
                 console.warn(
                   `GeoTIFF auto-fit failed for layer "${name}":`,
