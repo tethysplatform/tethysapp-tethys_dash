@@ -1,4 +1,5 @@
 import PropTypes from "prop-types";
+import { useShapefileDiscovery } from "components/modals/MapLayer/shapefileDiscovery";
 import Modal from "react-bootstrap/Modal";
 import styled from "styled-components";
 import Button from "react-bootstrap/Button";
@@ -175,6 +176,20 @@ const MapLayerModal = ({
     VariableInputsContext,
   );
   const mapContext = useMapContext();
+
+  // Field discovery for a shapefile source, held here rather than in either pane
+  // because both read from it. The modal already hoists every pane's state, so a
+  // new context would buy nothing -- and one read serves both panes instead of
+  // each paying for its own download.
+  const shapefileDiscovery = useShapefileDiscovery({
+    sourceProps,
+    layerName: layerProps?.name,
+    variableInputValues,
+    variableInputDateFormats,
+    style,
+    attributeProps,
+    popupConfig,
+  });
 
   const onRequestHideModal = useCallback(() => {
     setHiddenForExtentDraw(true);
@@ -662,6 +677,7 @@ const MapLayerModal = ({
                 setErrorMessage={setErrorMessage}
                 onRequestHideModal={onRequestHideModal}
                 onFetchPluginDefaults={fetchPluginDefaults}
+                shapefileDiscovery={shapefileDiscovery}
               />
             </Tab>
             <Tab
@@ -679,6 +695,7 @@ const MapLayerModal = ({
                   layerProps={layerProps}
                   sourceProps={sourceProps}
                   setSourceProps={setSourceProps}
+                  shapefileDiscovery={shapefileDiscovery}
                 />
               </div>
             </Tab>
@@ -709,6 +726,7 @@ const MapLayerModal = ({
                 sourceProps={sourceProps}
                 layerProps={layerProps}
                 tabKey={tabKey}
+                shapefileDiscovery={shapefileDiscovery}
               />
             </Tab>
             <Tab

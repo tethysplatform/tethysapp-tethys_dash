@@ -71,6 +71,7 @@ const AttributesPane = ({
   sourceProps,
   layerProps,
   tabKey,
+  shapefileDiscovery,
 }) => {
   const [warningMessage, setWarningMessage] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
@@ -152,6 +153,23 @@ const AttributesPane = ({
 
         if (isUrlGeoJSON) {
           applyLayerAttributes(null);
+          return;
+        }
+
+        // A shapefile's fields come from the shared, author-triggered read in
+        // the Source tab, so opening this tab must not start a multi-megabyte
+        // download of its own. Whatever that read found is applied below.
+        if (shapefileDiscovery?.isShapefile) {
+          applyLayerAttributes(
+            shapefileDiscovery.state === "ready"
+              ? {
+                  [layerProps.name]: shapefileDiscovery.fields.map((field) => ({
+                    name: field,
+                    alias: field,
+                  })),
+                }
+              : null,
+          );
           return;
         }
 
@@ -664,6 +682,13 @@ const AttributesPane = ({
 };
 
 AttributesPane.propTypes = {
+  // Shared, author-triggered field discovery for a shapefile source. Supplied by
+  // the modal so this pane and the Style pane read one result between them.
+  shapefileDiscovery: PropTypes.shape({
+    isShapefile: PropTypes.bool,
+    state: PropTypes.string,
+    fields: PropTypes.arrayOf(PropTypes.string),
+  }),
   attributeProps: attributePropsPropType, // react state that tracks attribute properties
   setAttributeProps: PropTypes.func, // state setter for attributeProps
   sourceProps: sourcePropType, // configuration and properties for openlayers layer source
