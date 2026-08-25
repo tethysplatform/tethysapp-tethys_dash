@@ -306,3 +306,159 @@ describe("useShapefileDiscovery", () => {
     expect(result.current.failure).toBeNull();
   });
 });
+
+describe("useShapefileDiscovery — reads that overlap or are abandoned", () => {
+  it("passes an abort signal so a read can be cancelled at all", async () => {
+    // There was no signal here, so a multi-megabyte read kept running after the
+    // author moved on, with its result still bound for state.
+    let captured;
+    acquireComponents.mockImplementation((_url, options) => {
+      captured = options?.signal;
+      return Promise.resolve({ components: { shp: new Uint8Array() } });
+    });
+    const { result } = setup();
+
+    await act(async () => {
+      await result.current.load();
+    });
+
+    expect(captured).toBeInstanceOf(AbortSignal);
+  });
+
+  it("aborts the previous read when a new one starts", async () => {
+    const signals = [];
+    acquireComponents.mockImplementation((_url, options) => {
+      signals.push(options.signal);
+      return new Promise(() => {});
+    });
+    const { result } = setup();
+
+    act(() => {
+      result.current.load();
+    });
+    act(() => {
+      result.current.load();
+    });
+
+    expect(signals).toHaveLength(2);
+    expect(signals[0].aborted).toBe(true);
+    expect(signals[1].aborted).toBe(false);
+  });
+
+  it("does not let a superseded read report its own fields", async () => {
+    // Whichever read settled last was winning, regardless of which url it was
+    // for -- so a slow read of the previous url could overwrite a fast read of
+    // the current one.
+    let settleFirst;
+    acquireComponents
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            settleFirst = resolve;
+          }),
+      )
+      .mockResolvedValueOnce({ components: { shp: new Uint8Array() } });
+    // Ordered by completion, not by which read started first: read one is
+    // parked in acquireComponents, so read two reaches interpretShapefile first
+    // and consumes the leading mock.
+    interpretShapefile
+      .mockResolvedValueOnce(collection([{ FRESH: 1 }]))
+      .mockResolvedValueOnce(collection([{ STALE: 1 }]));
+
+    const { result } = setup();
+    act(() => {
+      result.current.load();
+    });
+    await act(async () => {
+      await result.current.load();
+    });
+    expect(result.current.fields).toEqual(["FRESH"]);
+
+    // The first read lands late. It must stay silent.
+    await act(async () => {
+      settleFirst({ components: { shp: new Uint8Array() } });
+      await Promise.resolve();
+    });
+
+    expect(result.current.fields).toEqual(["FRESH"]);
+  });
+
+  it("aborts an in-flight read on unmount", async () => {
+    let captured;
+    acquireComponents.mockImplementation((_url, options) => {
+      captured = options.signal;
+      return new Promise(() => {});
+    });
+    const { result, unmount } = setup();
+
+    act(() => {
+      result.current.load();
+    });
+    expect(captured.aborted).toBe(false);
+
+    unmount();
+    expect(captured.aborted).toBe(true);
+  });
+
+  it("reports a thrown failure rather than staying on loading", async () => {
+    // The pipeline reports failures as values, but its dynamic imports can
+    // reject -- and the pane stayed on "loading" with the read button disabled
+    // and nothing said.
+    interpretShapefile.mockRejectedValue(new Error("Loading chunk 44 failed"));
+    const { result } = setup();
+
+    await act(async () => {
+      await result.current.load();
+    });
+
+    expect(result.current.state).toBe("error");
+    expect(result.current.failure.detail).toMatch(/Loading chunk 44 failed/);
+  });
+});
+
+describe("useShapefileDiscovery — superseded during the parse", () => {
+  it("does not report a read that was superseded after its fetch finished", async () => {
+    // The guard after the fetch is not enough on its own: a read can clear it,
+    // then sit in the parse -- which takes no signal and cannot be cancelled --
+    // while the author starts another. Only a second check, after the parse,
+    // stops the older read from reporting.
+    let settleParse;
+    acquireComponents.mockResolvedValue({
+      components: { shp: new Uint8Array() },
+    });
+    interpretShapefile
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            settleParse = resolve;
+          }),
+      )
+      .mockResolvedValueOnce(collection([{ FRESH: 1 }]));
+
+    const { result } = setup();
+
+    // Read one clears the post-fetch guard and parks in the parse.
+    act(() => {
+      result.current.load();
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(interpretShapefile).toHaveBeenCalledTimes(1);
+
+    // Read two supersedes it and finishes.
+    await act(async () => {
+      await result.current.load();
+    });
+    expect(result.current.fields).toEqual(["FRESH"]);
+
+    // Read one's parse lands last. It must not report.
+    await act(async () => {
+      settleParse(collection([{ STALE: 1 }]));
+      await Promise.resolve();
+    });
+
+    expect(result.current.fields).toEqual(["FRESH"]);
+    expect(result.current.state).toBe("ready");
+  });
+});

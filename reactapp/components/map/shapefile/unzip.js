@@ -186,11 +186,15 @@ export function unzipShapefileComponents(buffer, { maxBytes }) {
   try {
     unzip.push(buffer, true);
   } catch (error) {
+    // The magic-number check above already passed, so this did begin as a zip
+    // and stopped being readable partway through -- which is what a dropped
+    // connection looks like, not a file the author chose wrongly. Reported as a
+    // transfer failure so a retry is offered rather than blaming the URL.
     return {
       error: {
         stage: "parse",
-        reason: "unreadable_archive",
-        detail: `The source could not be read as a zip archive: ${error.message}`,
+        reason: "incomplete_archive",
+        detail: `The archive did not arrive completely: ${error.message}. A transfer cut short is the usual cause.`,
       },
     };
   }

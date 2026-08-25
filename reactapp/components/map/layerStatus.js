@@ -45,6 +45,15 @@ export const ERROR_KIND = {
 /** Failure kinds where re-running the same request could plausibly succeed. */
 const RETRYABLE = [ERROR_KIND.FETCH];
 
+// Failures that surface at the parse stage but are really about the transfer.
+// A portal that answers with an HTML error page under a success status, and an
+// archive whose bytes stopped arriving partway through, are both transient
+// conditions of the host or the connection -- the most retryable things that
+// can happen. Classifying them by the stage they were noticed at reported them
+// as the author's file being wrong and withheld the retry that would have
+// fixed them.
+const TRANSFER_REASONS = ["wrong_content_type", "incomplete_archive"];
+
 /**
  * Whether a retry affordance should be offered for a failure of this kind.
  *
@@ -73,5 +82,6 @@ export function errorKindFor(failure) {
   ) {
     return ERROR_KIND.PROJECTION;
   }
+  if (TRANSFER_REASONS.includes(failure?.reason)) return ERROR_KIND.FETCH;
   return failure?.stage === "parse" ? ERROR_KIND.PARSE : ERROR_KIND.FETCH;
 }

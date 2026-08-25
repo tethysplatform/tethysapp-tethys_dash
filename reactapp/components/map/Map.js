@@ -31,6 +31,7 @@ import PropTypes from "prop-types";
 import { useMapContext } from "components/contexts/MapContext";
 import { fromExtent } from "ol/geom/Polygon";
 import { transformExtent } from "ol/proj";
+import { unByKey } from "ol/Observable";
 import { VariableInputsContext } from "components/contexts/Contexts";
 import GeoJSON from "ol/format/GeoJSON";
 import { valuesEqual } from "components/modals/utilities";
@@ -113,15 +114,33 @@ function watchShapefileLoad(olLayer, layerName, setStatus) {
     }));
   };
 
-  source.on("featuresloadstart", sync);
-  source.on("featuresloadend", sync);
-  source.on("featuresloaderror", sync);
+  // Kept on the layer so teardown can find them. The status map is keyed by
+  // layer name, and a rebuilt layer reuses the name -- so a source that outlives
+  // its layer with these still attached is able to write under a name a
+  // different source now owns.
+  olLayer.set("shapefileLoadKeys", [
+    source.on("featuresloadstart", sync),
+    source.on("featuresloadend", sync),
+    source.on("featuresloaderror", sync),
+  ]);
 }
 
-// Stop an in-flight shapefile load. Called when the layer is going away, so the
-// fetch and decompression do not keep running for a layer nobody will see.
+// Detach a shapefile source's load listeners. Paired with every abort: the
+// loader already declines to report anything once superseded, and this closes
+// the other half by making sure nothing is listening if it ever did.
+function detachShapefileLoad(olLayer) {
+  const keys = olLayer?.get?.("shapefileLoadKeys");
+  if (!keys) return;
+  unByKey(keys);
+  olLayer.unset("shapefileLoadKeys");
+}
+
+// Stop an in-flight shapefile load and stop listening to it. Called when the
+// layer is going away, so the fetch and decompression do not keep running for a
+// layer nobody will see.
 function abortShapefileLoad(olLayer, reason) {
   olLayer?.getSource?.()?.get?.("shapefileController")?.abort?.(reason);
+  detachShapefileLoad(olLayer);
 }
 
 const MapComponent = ({
@@ -441,12 +460,21 @@ const MapComponent = ({
             currentLayer?.props?.source?.type === "Shapefile" &&
             currentLayer.type === "VectorLayer"
           ) {
+            // The whole source is compared, not just the url. `projection` is
+            // the only way to place a shapefile that carries no .prj, and
+            // matching on url alone made editing it a silent no-op -- the layer
+            // was preserved, so nothing re-read or re-interpreted it. Comparing
+            // the source object also covers whatever props it gains next, and
+            // the component cache keeps the resulting rebuild cheap when only a
+            // non-url prop changed.
             const incoming = (layers ?? []).find(
               (candidate) =>
                 candidate?.props?.source?.type === "Shapefile" &&
                 candidate?.props?.name === currentLayer.props.name &&
-                candidate?.props?.source?.props?.url ===
-                  currentLayer.props.source?.props?.url,
+                valuesEqual(
+                  candidate?.props?.source,
+                  currentLayer.props.source,
+                ),
             );
             if (incoming) {
               layersToKeep.push(incoming.props.name);

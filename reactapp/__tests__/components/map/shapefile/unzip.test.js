@@ -322,3 +322,30 @@ describe("unzipShapefileComponents — selecting the shapefile's own parts", () 
     expect(result.error).toBeUndefined();
   });
 });
+
+describe("unzipShapefileComponents — a transfer that did not finish", () => {
+  it("distinguishes a truncated archive from a file that is not one", () => {
+    // A dropped connection is the most retryable failure there is, and it was
+    // reported with the same reason as "this is not a zip" -- permanent, no
+    // retry offered, and worded as though the author had picked the wrong URL.
+    // The body has to be big enough that the cut lands inside the .shp's own
+    // stream. MINIMAL's members are a few bytes each and .shp comes first, so a
+    // cut past it leaves a complete .shp with its optional siblings merely
+    // absent -- which is a success, correctly.
+    const body = new Uint8Array(200 * 1024);
+    for (let i = 0; i < body.length; i += 1) body[i] = (i * 31) % 251;
+    const full = zipSync({ "basins.shp": body, "basins.dbf": body });
+    const truncated = full.slice(0, Math.floor(full.length * 0.5));
+
+    const result = unzipShapefileComponents(truncated, { maxBytes: MB });
+
+    expect(result.error.reason).toBe("incomplete_archive");
+    expect(result.error.detail).toMatch(/did not arrive completely/);
+  });
+
+  it("still reports a payload that never was an archive as unreadable", () => {
+    const html = bytes("<!doctype html><title>404</title>");
+    const result = unzipShapefileComponents(html, { maxBytes: MB });
+    expect(result.error.reason).toBe("unreadable_archive");
+  });
+});

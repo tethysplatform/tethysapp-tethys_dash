@@ -37,13 +37,17 @@ const COLLECTION = {
 
 function shapefileLayer({
   url = "https://example.org/basins.zip",
+  projection,
   style,
 } = {}) {
   return {
     type: "VectorLayer",
     props: {
       name: "Basins",
-      source: { type: "Shapefile", props: { url } },
+      source: {
+        type: "Shapefile",
+        props: { url, ...(projection === undefined ? {} : { projection }) },
+      },
     },
     ...(style === undefined ? {} : { style }),
   };
@@ -241,5 +245,82 @@ describe("shapefile load cancellation", () => {
     await waitFor(() => {
       expect(capturedSignal.aborted).toBe(true);
     });
+  });
+});
+
+describe("shapefile preservation and the source's other props", () => {
+  it("loads again when the author changes the projection", async () => {
+    // `projection` is the only way to place a shapefile carrying no .prj.
+    // Preservation matched on the url alone, so editing it preserved the layer
+    // and re-read nothing -- the author changed the field, saved, and the map
+    // did not move.
+    await mount([shapefileLayer()]);
+    await drive();
+    expect(acquireComponents).toHaveBeenCalledTimes(1);
+    const original = shapefileLayers()[0];
+
+    setLayers([shapefileLayer({ projection: "EPSG:5070" })]);
+    await reconciled(() => expect(shapefileLayers()[0]).not.toBe(original));
+    await drive();
+
+    expect(acquireComponents.mock.calls.length).toBeGreaterThan(1);
+    expect(interpretShapefile).toHaveBeenLastCalledWith(expect.anything(), {
+      fallbackProjection: "EPSG:5070",
+    });
+  });
+
+  it("still preserves the layer when nothing about the source changed", async () => {
+    await mount([shapefileLayer({ projection: "EPSG:5070" })]);
+    await drive();
+    const original = shapefileLayers()[0];
+
+    setLayers([
+      shapefileLayer({ projection: "EPSG:5070" }),
+      otherLayer({ opacity: 0.4 }),
+    ]);
+    await reconciled(() =>
+      expect(layerNamed("Basemap").getOpacity()).toBeCloseTo(0.4),
+    );
+    await drive();
+
+    expect(acquireComponents).toHaveBeenCalledTimes(1);
+    expect(shapefileLayers()[0]).toBe(original);
+  });
+});
+
+describe("shapefile load listeners", () => {
+  it("stops listening to a removed layer's source", async () => {
+    await mount([shapefileLayer()]);
+    await drive();
+    const source = shapefileLayers()[0].getSource();
+    expect(source.getListeners("featuresloadend")?.length ?? 0).toBeGreaterThan(
+      0,
+    );
+
+    setLayers([otherLayer()]);
+    await reconciled(() => expect(shapefileLayers()).toHaveLength(0));
+
+    // Load status is kept per layer *name*, and a rebuilt layer reuses the
+    // name -- so a dead source still being listened to can report under a name
+    // a different source now owns.
+    expect(source.getListeners("featuresloadend")?.length ?? 0).toBe(0);
+    expect(source.getListeners("featuresloaderror")?.length ?? 0).toBe(0);
+  });
+
+  it("listens to the replacement after a rebuild", async () => {
+    await mount([shapefileLayer()]);
+    await drive();
+    const original = shapefileLayers()[0].getSource();
+
+    setLayers([shapefileLayer({ url: "https://example.org/gages.zip" })]);
+    await reconciled(() =>
+      expect(shapefileLayers()[0].getSource()).not.toBe(original),
+    );
+
+    expect(original.getListeners("featuresloadend")?.length ?? 0).toBe(0);
+    expect(
+      shapefileLayers()[0].getSource().getListeners("featuresloadend")
+        ?.length ?? 0,
+    ).toBeGreaterThan(0);
   });
 });

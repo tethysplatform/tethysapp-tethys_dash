@@ -39,12 +39,27 @@ describe("errorKindFor", () => {
     [{ stage: "fetch", reason: "unsupported_scheme" }, ERROR_KIND.FETCH],
     [{ stage: "fetch", reason: "component_status" }, ERROR_KIND.FETCH],
     [{ stage: "parse", reason: "unreadable_archive" }, ERROR_KIND.PARSE],
-    [{ stage: "parse", reason: "wrong_content_type" }, ERROR_KIND.PARSE],
     [{ stage: "parse", reason: "unreadable_geometry" }, ERROR_KIND.PARSE],
     [{ stage: "parse", reason: "ambiguous_archive" }, ERROR_KIND.PARSE],
   ])("maps %o to %s", (failure, expected) => {
     expect(errorKindFor(failure)).toBe(expected);
   });
+
+  it.each([
+    [{ stage: "parse", reason: "wrong_content_type" }],
+    [{ stage: "parse", reason: "incomplete_archive" }],
+  ])(
+    "treats %o as a transfer failure even though it surfaced at the parse stage",
+    (failure) => {
+      // A portal answering with an HTML error page under a 200, and an archive
+      // whose bytes stopped arriving, are conditions of the host and the
+      // connection -- the most retryable things that can happen. This case
+      // previously asserted PARSE, which withheld the retry that would have
+      // fixed it and told the author their file was wrong.
+      expect(errorKindFor(failure)).toBe(ERROR_KIND.FETCH);
+      expect(isRetryable(errorKindFor(failure))).toBe(true);
+    },
+  );
 
   it("gives the size ceiling its own kind regardless of stage", () => {
     // The pipeline reports this on the fetch stage, but a viewer must not be

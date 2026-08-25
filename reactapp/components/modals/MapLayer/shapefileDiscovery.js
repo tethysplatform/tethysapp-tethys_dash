@@ -1,8 +1,12 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { updateObjectWithVariableInputs } from "components/visualizations/utilities";
 import { acquireComponents } from "components/map/shapefile/acquire";
 import { interpretShapefile } from "components/map/shapefile/index";
-import { errorKindFor, ERROR_KIND } from "components/map/layerStatus";
+import {
+  errorKindFor,
+  ERROR_KIND,
+  CANCEL_REASON,
+} from "components/map/layerStatus";
 
 // How long a pending read may run before the message escalates. A shapefile can
 // take many seconds legitimately, and an indicator that never changes reads as a
@@ -113,6 +117,15 @@ export function useShapefileDiscovery({
   const [fields, setFields] = useState([]);
   const [failure, setFailure] = useState(null);
   const byUrl = useRef(new Map());
+  const inFlight = useRef(null);
+
+  // A read the author has moved off is abandoned rather than raced. It had no
+  // signal at all before, so closing the editor or retyping the url left a
+  // multi-megabyte fetch running with its result still bound for state.
+  useEffect(
+    () => () => inFlight.current?.controller.abort(CANCEL_REASON.UNMOUNT),
+    [],
+  );
 
   const isShapefile = sourceProps?.type === "Shapefile";
   const resolvedUrl = isShapefile
@@ -134,10 +147,20 @@ export function useShapefileDiscovery({
       return;
     }
 
+    inFlight.current?.controller.abort(CANCEL_REASON.SUPERSEDED);
+    const controller = new AbortController();
+    inFlight.current = { controller };
+    // Only the read that is still current may write. Two reads overlap whenever
+    // the author clicks twice or edits the url mid-read, and the one that
+    // settles last was winning regardless of which url it was for.
+    const current = () => inFlight.current?.controller === controller;
+
     setState("loading");
     setSlow(false);
     setFailure(null);
-    const slowTimer = setTimeout(() => setSlow(true), SLOW_LOAD_MS);
+    const slowTimer = setTimeout(() => {
+      if (current()) setSlow(true);
+    }, SLOW_LOAD_MS);
 
     const report = (error) => {
       const kind = errorKindFor(error);
@@ -152,7 +175,10 @@ export function useShapefileDiscovery({
     };
 
     try {
-      const acquired = await acquireComponents(resolvedUrl);
+      const acquired = await acquireComponents(resolvedUrl, {
+        signal: controller.signal,
+      });
+      if (!current()) return;
       if (acquired.cancelled) {
         setState("idle");
         return;
@@ -165,6 +191,7 @@ export function useShapefileDiscovery({
       const interpreted = await interpretShapefile(acquired.components, {
         fallbackProjection: sourceProps?.props?.projection,
       });
+      if (!current()) return;
       if (interpreted.error) {
         report(interpreted.error);
         return;
@@ -180,9 +207,22 @@ export function useShapefileDiscovery({
       byUrl.current.set(resolvedUrl, discovered);
       setFields(discovered);
       setState("ready");
+    } catch (error) {
+      // The pipeline reports failures as values, but its dynamic imports can
+      // still reject -- and without this the pane stays on "loading" with the
+      // read button disabled and nothing said.
+      if (!current()) return;
+      report({
+        stage: "fetch",
+        reason: "unexpected",
+        detail: `The shapefile could not be read: ${error?.message ?? error}`,
+      });
     } finally {
       clearTimeout(slowTimer);
-      setSlow(false);
+      if (current()) {
+        setSlow(false);
+        inFlight.current = null;
+      }
     }
   }, [resolvedUrl, sourceProps?.props?.projection]);
 
