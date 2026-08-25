@@ -428,7 +428,15 @@ const StylePane = ({
     );
   }
 
-  const supportedTypes = ["GeoJSON", "ESRI Feature Service", "PMTiles Vector"];
+  // Absent from this list, the Style tab renders a dead-end "not available for
+  // this source type" panel instead of the rule editor -- so styling a shapefile
+  // layer would be impossible regardless of what field discovery returned.
+  const supportedTypes = [
+    "GeoJSON",
+    "ESRI Feature Service",
+    "PMTiles Vector",
+    "Shapefile",
+  ];
   const isDynamicMapLayer = findSelectOptionByValue(
     dynamicMapLayers,
     sourceProps.type,

@@ -1,4 +1,6 @@
 import PropTypes from "prop-types";
+import { acquireComponents } from "components/map/shapefile/acquire";
+import { interpretShapefile } from "components/map/shapefile/index";
 import { convertXML } from "simple-xml-to-json";
 import { transform } from "ol/proj";
 import Feature from "ol/Feature";
@@ -18,7 +20,15 @@ import Protobuf from "pbf";
 
 // Source types whose features live in a client-side OL VectorSource (vs
 // server-rendered services queried remotely).
-export const CLIENT_VECTOR_SOURCE_TYPES = ["GeoJSON", "ESRI Feature Service"];
+// Source types whose features live in a client-side vector source, so a click or
+// a snap can read them straight off the map rather than querying a service.
+// A type missing from here does not error -- the snap path falls through to the
+// feature-service query, which returns nothing -- so the failure is silent.
+export const CLIENT_VECTOR_SOURCE_TYPES = [
+  "GeoJSON",
+  "ESRI Feature Service",
+  "Shapefile",
+];
 
 // Coerce an optional numeric layer prop: GUI inputs emit strings, so accept
 // any numeric value but treat null/undefined/blank/non-numeric as unset.
@@ -264,12 +274,12 @@ export const layerPropertiesOptions = {
   clickTolerance: {
     type: "number",
     placeholder:
-      "Pixel tolerance for ESRI Image and Map Service identify (click) requests (default 10) and for GeoJSON / ESRI Feature Service feature queries (default 0). Also sets the snap radius when Snap To Features is on (default 15).",
+      "Pixel tolerance for ESRI Image and Map Service identify (click) requests (default 10) and for GeoJSON / ESRI Feature Service / Shapefile feature queries (default 0). Also sets the snap radius when Snap To Features is on (default 15).",
   },
   snapToFeatures: {
     type: "checkbox",
     placeholder:
-      "Snap hover/click to the nearest feature of this layer (ESRI Map Service, GeoJSON, or ESRI Feature Service).",
+      "Snap hover/click to the nearest feature of this layer (ESRI Map Service, GeoJSON, ESRI Feature Service, or Shapefile).",
   },
   snapSublayer: {
     type: "number",
@@ -1012,7 +1022,15 @@ export async function getStyleFields({
   isDynamicMapLayer = false,
 }) {
   let fields = [];
-  if (isDynamicMapLayer || sourceProps.type === "PMTiles Vector") {
+  // Shapefile joins the delegating branch rather than getting a second
+  // implementation. Attribute discovery and style-field discovery are otherwise
+  // independent trees, and registering in only one gives working fields in one
+  // pane and an empty list in the other.
+  if (
+    isDynamicMapLayer ||
+    sourceProps.type === "PMTiles Vector" ||
+    sourceProps.type === "Shapefile"
+  ) {
     const attributes = await getLayerAttributes({
       sourceProps,
       layerName: layerProps?.name ?? "",
@@ -1125,11 +1143,46 @@ export async function getLayerAttributes({
     attributes = await getKMLLayerAttributes(sourceUrl, layerName);
   } else if (sourceType === "PMTiles Vector") {
     attributes = await getPMTilesVectorLayerAttributes(sourceUrl);
+  } else if (sourceType === "Shapefile") {
+    attributes = await getShapefileLayerAttributes(
+      sourceUrl,
+      sourceProps?.props?.projection,
+      layerName,
+    );
   } else {
     throw Error(`${sourceType} is not currently configured to be queried`);
   }
 
   return attributes;
+}
+
+// Field names come from the .dbf, which means reading the source. Acquisition is
+// cached against the resolved URL, so the style pane and the attributes pane
+// reading in turn cost one fetch between them.
+async function getShapefileLayerAttributes(
+  sourceUrl,
+  fallbackProjection,
+  layerName,
+) {
+  const acquired = await acquireComponents(sourceUrl);
+  if (acquired.error || acquired.cancelled) return { [layerName]: [] };
+
+  const interpreted = await interpretShapefile(acquired.components, {
+    fallbackProjection,
+  });
+  if (interpreted.error) return { [layerName]: [] };
+
+  const fieldNames = new Set(
+    (interpreted.featureCollection.features ?? []).flatMap((feature) =>
+      Object.keys(feature.properties ?? {}),
+    ),
+  );
+  return {
+    [layerName]: Array.from(fieldNames).map((field) => ({
+      name: field,
+      alias: field,
+    })),
+  };
 }
 
 async function getPMTilesVectorLayerAttributes(sourceUrl) {
