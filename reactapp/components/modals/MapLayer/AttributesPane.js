@@ -177,8 +177,17 @@ const AttributesPane = ({
         queryLayerAttributes().then(applyLayerAttributes);
       }
     }
+    // shapefileDiscovery is a dependency because the read is triggered from the
+    // Source tab: an author who opens Attributes first, then goes back and reads
+    // the fields, would otherwise never see them here -- the transition to
+    // "ready" is not a sourceProps change. StylePane's effect already lists it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tabKey, sourceProps]);
+  }, [
+    tabKey,
+    sourceProps,
+    shapefileDiscovery?.state,
+    shapefileDiscovery?.fields,
+  ]);
 
   useEffect(() => {
     if (!valuesEqual(previousAttributeProps.current, attributeProps)) {

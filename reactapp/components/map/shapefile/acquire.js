@@ -25,6 +25,13 @@ export const DEFAULT_MAX_BYTES = 25 * 1024 * 1024;
 const FETCH_STAGE_CAUSES =
   "The likely causes are missing cross-origin headers on the host, an unreachable host, a URL that no longer exists, or an expired signature on a signed URL.";
 
+// Components whose absence cannot change how the layer draws: the encoding
+// falls back to a sniff of the .dbf itself, and the record index is never read.
+// Hosts disagree on what a missing object is -- an S3 bucket without
+// ListBucket returns 403, not 404 -- so for these two, any client error means
+// "not published" rather than failing a layer over a file it did not need.
+const INCONSEQUENTIAL_COMPONENTS = ["cpg", "shx"];
+
 function fetchFailure(reason, detail, extra = {}) {
   return { error: { stage: "fetch", reason, detail, ...extra } };
 }
@@ -118,22 +125,27 @@ async function acquireSiblings(url, signal, maxBytes) {
       return fetched;
     }
 
-    if (fetched.status === 404) {
-      // Absence is only meaningful for the optional components. What matters is
-      // that absence and failure stay distinguishable: a transient 403 routed
-      // into the "no projection supplied" fallback would render features at the
-      // wrong location with no error at all.
+    if (fetched.status >= 400) {
+      // The .shp is required; there is nothing to draw without it.
       if (extension === "shp") {
         return fetchFailure(
           "unreachable",
           `No shapefile was found at ${derived.shp}. ${FETCH_STAGE_CAUSES}`,
-          { status: 404 },
+          { status: fetched.status },
         );
       }
-      continue;
-    }
 
-    if (fetched.status >= 400) {
+      // For the components that do change how the layer draws, absence and
+      // failure stay distinguishable: a transient 403 on a .prj routed into the
+      // "no projection supplied" fallback would render features at the wrong
+      // location with no error at all. Only a 404 is absence for those.
+      if (
+        fetched.status === 404 ||
+        INCONSEQUENTIAL_COMPONENTS.includes(extension)
+      ) {
+        continue;
+      }
+
       return {
         error: {
           stage: "fetch",

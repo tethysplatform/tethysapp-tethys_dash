@@ -115,9 +115,33 @@ describe("deriveSiblingUrls", () => {
     expect(derived.dbf).toBe("https://example.org/shp.archive/basins.dbf");
   });
 
-  it("normalizes the derived extension to lower case from an upper-case source", () => {
+  it("spells the siblings the way the author spelled the source", () => {
+    // This previously asserted lower-cased siblings, describing it as
+    // normalization. It is not normalizable: the host decides, most are
+    // case-sensitive, and an author who wrote ".SHP" is describing a host that
+    // spells it that way. Lower-casing 404s every sibling.
     const derived = deriveSiblingUrls("https://example.org/BASINS.SHP");
-    expect(derived.dbf).toBe("https://example.org/BASINS.dbf");
+    expect(derived.dbf).toBe("https://example.org/BASINS.DBF");
+    expect(derived.prj).toBe("https://example.org/BASINS.PRJ");
+    expect(derived.cpg).toBe("https://example.org/BASINS.CPG");
+  });
+
+  it("requests the component the author named at exactly the url they gave", () => {
+    // The .shp is fetched from this table too, so rebuilding its name is how a
+    // lower-cased derivation 404s the one component that is required.
+    expect(deriveSiblingUrls("https://example.org/BASINS.SHP").shp).toBe(
+      "https://example.org/BASINS.SHP",
+    );
+    expect(deriveSiblingUrls("https://example.org/basins.shp").shp).toBe(
+      "https://example.org/basins.shp",
+    );
+  });
+
+  it("keeps a mixed-case extension as the author wrote it", () => {
+    // Only an all-upper extension implies an upper-case host convention.
+    const derived = deriveSiblingUrls("https://example.org/basins.Shp");
+    expect(derived.shp).toBe("https://example.org/basins.Shp");
+    expect(derived.dbf).toBe("https://example.org/basins.dbf");
   });
 
   it("handles a filename containing dots", () => {

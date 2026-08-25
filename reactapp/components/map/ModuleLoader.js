@@ -32,6 +32,7 @@ import {
 } from "components/map/utilities";
 import { acquireComponents } from "components/map/shapefile/acquire";
 import { interpretShapefile } from "components/map/shapefile/index";
+import { CANCEL_REASON } from "components/map/layerStatus";
 import {
   buildGeoTIFFStyleColor,
   buildCategoricalStyleColor,
@@ -579,7 +580,11 @@ export const loadShapefile = (config, mapProjection, getMapProjection) => {
   const source = new VectorSource();
 
   source.setLoader(async (extent, resolution, projection, success, onError) => {
-    abortController = new AbortController();
+    // Held locally as well as on the closure. The closure slot is what `abort`
+    // and a second invocation write to, so comparing the two is how this run
+    // learns it is no longer the current one.
+    const controller = new AbortController();
+    abortController = controller;
     status = "loading";
     failure = null;
 
@@ -589,40 +594,66 @@ export const loadShapefile = (config, mapProjection, getMapProjection) => {
       abortController = null;
     };
 
-    const acquired = await acquireComponents(url, {
-      signal: abortController.signal,
-    });
-    if (acquired.cancelled) {
-      finish("idle");
-      onError?.();
-      return;
-    }
-    if (acquired.error) {
-      finish("error", acquired.error);
-      onError?.();
-      return;
-    }
+    // Aborting stops the fetch, but the parse that follows it is CPU-bound and
+    // runs to completion regardless. A run that is no longer current must write
+    // nothing at all: its layer may already be gone, and because status is kept
+    // per layer *name*, a late success would land under whichever source owns
+    // that name now -- erasing a live error and leaving a blank layer that
+    // reports nothing. Staying silent is also why neither callback fires here:
+    // the events they raise are still wired to this dead source.
+    const superseded = () => abortController !== controller;
 
-    const interpreted = await interpretShapefile(acquired.components, {
-      fallbackProjection,
-    });
-    if (interpreted.error) {
-      finish("error", interpreted.error);
-      onError?.();
-      return;
-    }
+    try {
+      const acquired = await acquireComponents(url, {
+        signal: controller.signal,
+      });
+      if (superseded()) return;
+      if (acquired.cancelled) {
+        finish("idle");
+        onError?.();
+        return;
+      }
+      if (acquired.error) {
+        finish("error", acquired.error);
+        onError?.();
+        return;
+      }
 
-    // Read against the view as it stands now, not as it stood when the fetch
-    // was issued.
-    const targetProjection =
-      getMapProjection?.() ?? projection?.getCode?.() ?? mapProjection;
-    const features = readFeatureCollection(
-      interpreted.featureCollection,
-      targetProjection,
-    );
-    source.addFeatures(features);
-    finish("ready");
-    success?.(features);
+      const interpreted = await interpretShapefile(acquired.components, {
+        fallbackProjection,
+      });
+      if (superseded()) return;
+      if (interpreted.error) {
+        finish("error", interpreted.error);
+        onError?.();
+        return;
+      }
+
+      // Read against the view as it stands now, not as it stood when the fetch
+      // was issued.
+      const targetProjection =
+        getMapProjection?.() ?? projection?.getCode?.() ?? mapProjection;
+      const features = readFeatureCollection(
+        interpreted.featureCollection,
+        targetProjection,
+      );
+      source.addFeatures(features);
+      finish("ready");
+      success?.(features);
+    } catch (error) {
+      // Both stages above report failures as values, so nothing here throws by
+      // design. A dynamic import still can -- a deploy invalidates the chunk a
+      // stale tab asks for -- and OpenLayers calls the loader without a catch of
+      // its own, so an escaping rejection would leave the layer reporting
+      // "loading" forever, with no error shown and no retry offered.
+      if (superseded()) return;
+      finish("error", {
+        stage: "fetch",
+        reason: "unexpected",
+        detail: `The shapefile could not be loaded: ${error?.message ?? error}`,
+      });
+      onError?.();
+    }
   });
 
   source.set("shapefileController", {
@@ -640,6 +671,14 @@ export const loadShapefile = (config, mapProjection, getMapProjection) => {
     // renderer short-circuits its frame on an unchanged layer revision -- which
     // is how a retry button ends up doing nothing while its test passes.
     reset: () => {
+      // Abort first. Nothing disables the retry affordance while a load runs,
+      // and `refresh` exists to force the loader to run again, so two runs can
+      // otherwise overlap -- the second replacing the first's controller and
+      // leaving it uncancellable.
+      if (abortController) {
+        abortController.abort(CANCEL_REASON.SUPERSEDED);
+        abortController = null;
+      }
       status = "idle";
       failure = null;
       source.refresh();

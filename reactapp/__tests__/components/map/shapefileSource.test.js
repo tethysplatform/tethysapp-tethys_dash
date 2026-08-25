@@ -290,3 +290,124 @@ describe("moduleLoader dispatch", () => {
     ).rejects.toThrow("ShapefileEmptySources");
   });
 });
+
+// A real tick boundary rather than a fixed count of microtasks: the pipeline
+// awaits two mocked stages, and counting `Promise.resolve()`s to match is the
+// kind of coupling that breaks the moment a stage is added.
+const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+describe("loadShapefile — a run that throws", () => {
+  it("reports an error instead of reporting 'loading' forever", async () => {
+    // Both pipeline stages report failures as return values, so nothing throws
+    // by design. A dynamic import still can, when a deploy invalidates the
+    // chunk a stale tab asks for -- and OpenLayers calls the loader without a
+    // catch of its own, so the rejection escaped and the layer sat on
+    // "loading" with no error shown and no retry offered.
+    interpretShapefile.mockRejectedValue(new Error("Loading chunk 283 failed"));
+    const source = loadShapefile(config(), "EPSG:3857");
+    const controller = source.get("shapefileController");
+
+    drive(source);
+    await flush();
+
+    expect(controller.getStatus()).toBe("error");
+    expect(controller.getError().detail).toMatch(/Loading chunk 283 failed/);
+  });
+
+  it("offers a retry for it, since a transient import failure clears", async () => {
+    const { isRetryable, errorKindFor } = require("components/map/layerStatus");
+    interpretShapefile.mockRejectedValue(new Error("network"));
+    const source = loadShapefile(config(), "EPSG:3857");
+    const controller = source.get("shapefileController");
+
+    drive(source);
+    await flush();
+
+    expect(isRetryable(errorKindFor(controller.getError()))).toBe(true);
+  });
+});
+
+describe("loadShapefile — a run that is no longer current", () => {
+  function deferred() {
+    let settle;
+    const promise = new Promise((resolve) => {
+      settle = resolve;
+    });
+    return { promise, settle };
+  }
+
+  it("adds no features and writes no status once aborted", async () => {
+    // Aborting stops the fetch, but the parse after it is CPU-bound and runs to
+    // completion regardless. Status is kept per layer name, so a late success
+    // from a discarded source lands under whichever source owns that name now.
+    const parse = deferred();
+    interpretShapefile.mockReturnValue(parse.promise);
+    const source = loadShapefile(config(), "EPSG:3857");
+    const controller = source.get("shapefileController");
+
+    drive(source);
+    await flush();
+
+    controller.abort("removed");
+    parse.settle({
+      featureCollection: COLLECTION,
+      projectionCode: "EPSG:4326",
+    });
+    await flush();
+
+    expect(source.getFeatures()).toHaveLength(0);
+    expect(controller.getStatus()).toBe("idle");
+  });
+
+  it("does not let a superseded run overwrite a newer run's outcome", async () => {
+    // Nothing disables retry while a load runs, and refresh() exists to force
+    // the loader to run again -- so two runs overlap, and the first must not
+    // report anything when it finally finishes.
+    const first = deferred();
+    interpretShapefile.mockReturnValueOnce(first.promise);
+    const source = loadShapefile(config(), "EPSG:3857");
+    const controller = source.get("shapefileController");
+
+    drive(source);
+    await flush();
+    expect(controller.getStatus()).toBe("loading");
+
+    // In the browser, reset()'s refresh() makes the renderer re-invoke the
+    // loader on its next frame. There is no renderer here, so the second run is
+    // driven explicitly -- which is also what the existing suite does.
+    interpretShapefile.mockResolvedValueOnce({
+      error: { stage: "parse", reason: "unreadable_geometry", detail: "bad" },
+    });
+    controller.reset();
+    drive(source);
+    await flush();
+    expect(controller.getStatus()).toBe("error");
+
+    // Now the first run's parse lands. It must stay silent rather than
+    // replacing the live error with a success.
+    first.settle({
+      featureCollection: COLLECTION,
+      projectionCode: "EPSG:4326",
+    });
+    await flush();
+
+    expect(controller.getStatus()).toBe("error");
+    expect(controller.getError().detail).toBe("bad");
+  });
+
+  it("aborts the in-flight run when reset supersedes it", async () => {
+    let captured = null;
+    acquireComponents.mockImplementation((_url, { signal }) => {
+      captured = signal;
+      return new Promise(() => {});
+    });
+    const source = loadShapefile(config(), "EPSG:3857");
+
+    drive(source);
+    await flush();
+    expect(captured.aborted).toBe(false);
+
+    source.get("shapefileController").reset();
+    expect(captured.aborted).toBe(true);
+  });
+});

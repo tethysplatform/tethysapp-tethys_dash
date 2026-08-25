@@ -119,11 +119,24 @@ export function deriveSiblingUrls(shpUrl) {
   const url = new URL(shpUrl);
   const segments = url.pathname.split("/");
   const last = segments[segments.length - 1];
-  const stem = last.slice(0, last.lastIndexOf("."));
+  const dot = last.lastIndexOf(".");
+  const stem = last.slice(0, dot);
+  const supplied = last.slice(dot + 1);
+  // An author who wrote ".SHP" is describing a host that spells it that way,
+  // and a case-sensitive host is the normal case -- S3 among them. Lower-casing
+  // would 404 the siblings, and because the .shp is fetched from this table
+  // too, it would 404 the one required component as well.
+  const upperCased = supplied === supplied.toUpperCase();
 
   return COMPONENT_EXTENSIONS.reduce((derived, extension) => {
+    // The component the author actually named is requested at exactly the URL
+    // they gave, rather than at one rebuilt from it.
+    if (extension === supplied.toLowerCase()) {
+      return { ...derived, [extension]: shpUrl };
+    }
     const rebuilt = new URL(url.toString());
-    rebuilt.pathname = [...segments.slice(0, -1), `${stem}.${extension}`].join(
+    const spelled = upperCased ? extension.toUpperCase() : extension;
+    rebuilt.pathname = [...segments.slice(0, -1), `${stem}.${spelled}`].join(
       "/",
     );
     return { ...derived, [extension]: rebuilt.toString() };

@@ -1,6 +1,4 @@
 import PropTypes from "prop-types";
-import { acquireComponents } from "components/map/shapefile/acquire";
-import { interpretShapefile } from "components/map/shapefile/index";
 import { convertXML } from "simple-xml-to-json";
 import { transform } from "ol/proj";
 import Feature from "ol/Feature";
@@ -1022,15 +1020,11 @@ export async function getStyleFields({
   isDynamicMapLayer = false,
 }) {
   let fields = [];
-  // Shapefile joins the delegating branch rather than getting a second
-  // implementation. Attribute discovery and style-field discovery are otherwise
-  // independent trees, and registering in only one gives working fields in one
-  // pane and an empty list in the other.
-  if (
-    isDynamicMapLayer ||
-    sourceProps.type === "PMTiles Vector" ||
-    sourceProps.type === "Shapefile"
-  ) {
+  // Shapefile is deliberately absent: both panes take their fields from the
+  // author-triggered read in the Source tab (see useShapefileDiscovery) and
+  // return before reaching this function, because a discovery pass here would
+  // download and parse the whole archive on every source-props change.
+  if (isDynamicMapLayer || sourceProps.type === "PMTiles Vector") {
     const attributes = await getLayerAttributes({
       sourceProps,
       layerName: layerProps?.name ?? "",
@@ -1143,46 +1137,11 @@ export async function getLayerAttributes({
     attributes = await getKMLLayerAttributes(sourceUrl, layerName);
   } else if (sourceType === "PMTiles Vector") {
     attributes = await getPMTilesVectorLayerAttributes(sourceUrl);
-  } else if (sourceType === "Shapefile") {
-    attributes = await getShapefileLayerAttributes(
-      sourceUrl,
-      sourceProps?.props?.projection,
-      layerName,
-    );
   } else {
     throw Error(`${sourceType} is not currently configured to be queried`);
   }
 
   return attributes;
-}
-
-// Field names come from the .dbf, which means reading the source. Acquisition is
-// cached against the resolved URL, so the style pane and the attributes pane
-// reading in turn cost one fetch between them.
-async function getShapefileLayerAttributes(
-  sourceUrl,
-  fallbackProjection,
-  layerName,
-) {
-  const acquired = await acquireComponents(sourceUrl);
-  if (acquired.error || acquired.cancelled) return { [layerName]: [] };
-
-  const interpreted = await interpretShapefile(acquired.components, {
-    fallbackProjection,
-  });
-  if (interpreted.error) return { [layerName]: [] };
-
-  const fieldNames = new Set(
-    (interpreted.featureCollection.features ?? []).flatMap((feature) =>
-      Object.keys(feature.properties ?? {}),
-    ),
-  );
-  return {
-    [layerName]: Array.from(fieldNames).map((field) => ({
-      name: field,
-      alias: field,
-    })),
-  };
 }
 
 async function getPMTilesVectorLayerAttributes(sourceUrl) {

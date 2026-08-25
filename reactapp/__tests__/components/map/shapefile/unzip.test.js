@@ -191,3 +191,134 @@ describe("unzipShapefileComponents", () => {
     expect(result.error.stage).toBe("parse");
   });
 });
+
+describe("unzipShapefileComponents — a declared size is a hint, not a bound", () => {
+  // The ceiling is the safety property that justifies fetching an arbitrary
+  // remote archive into a viewer's browser at all. It was applied to the size
+  // the local header declares, and fflate's inflater ignores that number
+  // entirely -- so a member that under-declared expanded without limit.
+  function lieAboutUncompressedSize(zipped, claimed) {
+    const lying = zipped.slice();
+    // Local file header: uncompressed size is a 32-bit LE field at offset 22.
+    new DataView(lying.buffer, lying.byteOffset, lying.byteLength).setUint32(
+      22,
+      claimed,
+      true,
+    );
+    return lying;
+  }
+
+  it("refuses an oversized member that declares its real size", () => {
+    const honest = zipSync({ "basins.shp": new Uint8Array(40 * MB) });
+    const result = unzipShapefileComponents(honest, { maxBytes: 25 * MB });
+    expect(result.error.reason).toBe("too_large");
+  });
+
+  it("still refuses it when the header under-declares", () => {
+    const zipped = zipSync({ "basins.shp": new Uint8Array(40 * MB) });
+    const result = unzipShapefileComponents(
+      lieAboutUncompressedSize(zipped, 100),
+      { maxBytes: 25 * MB },
+    );
+
+    expect(result.error).toBeDefined();
+    expect(result.error.reason).toBe("too_large");
+    // And the refusal reflects what actually arrived, not the claim.
+    expect(result.error.observed).toBeGreaterThan(25 * MB);
+  });
+
+  it("does not double-charge an honest member", () => {
+    // The declared size is charged up front as a fast path; the arriving bytes
+    // must reconcile against it rather than adding to it, or a legitimate
+    // archive at half the ceiling would be refused.
+    const body = new Uint8Array(4 * MB).fill(7);
+    const result = unzipShapefileComponents(zipSync({ "basins.shp": body }), {
+      maxBytes: 6 * MB,
+    });
+    expect(result.error).toBeUndefined();
+    expect(result.components.shp).toHaveLength(4 * MB);
+  });
+});
+
+describe("unzipShapefileComponents — selecting the shapefile's own parts", () => {
+  it("reads a shapefile zipped on macOS", () => {
+    // Finder writes an AppleDouble twin beside every file. "._basins.shp" ends
+    // in ".shp", so it was counted as a second shapefile and the archive was
+    // rejected as ambiguous -- telling the author to point at a single
+    // shapefile, which is what they had done.
+    const result = unzipShapefileComponents(
+      archive({
+        ...MINIMAL,
+        "__MACOSX/._basins.shp": bytes("APPLEDOUBLE"),
+        "__MACOSX/._basins.dbf": bytes("APPLEDOUBLE"),
+      }),
+      { maxBytes: MB },
+    );
+
+    expect(result.error).toBeUndefined();
+    expect(text(result.components.shp)).toBe("SHPBODY");
+    expect(text(result.components.dbf)).toBe("DBFBODY");
+  });
+
+  it("ignores a bare ._ twin outside a __MACOSX directory", () => {
+    const result = unzipShapefileComponents(
+      archive({ ...MINIMAL, "._basins.shp": bytes("APPLEDOUBLE") }),
+      { maxBytes: MB },
+    );
+    expect(result.error).toBeUndefined();
+    expect(text(result.components.shp)).toBe("SHPBODY");
+  });
+
+  it("does not let an unrelated .dbf become the attribute table", () => {
+    // Components were keyed by extension alone, so whichever .dbf appeared last
+    // in the archive won -- silently drawing the geometry with another
+    // dataset's attributes rather than failing.
+    const result = unzipShapefileComponents(
+      archive({ ...MINIMAL, "extra/other.dbf": bytes("WRONGDBF") }),
+      { maxBytes: MB },
+    );
+
+    expect(result.error).toBeUndefined();
+    expect(text(result.components.dbf)).toBe("DBFBODY");
+  });
+
+  it("does not let an unrelated .dbf win by appearing first either", () => {
+    const result = unzipShapefileComponents(
+      archive({ "extra/other.dbf": bytes("WRONGDBF"), ...MINIMAL }),
+      { maxBytes: MB },
+    );
+    expect(text(result.components.dbf)).toBe("DBFBODY");
+  });
+
+  it("takes the parts sharing the .shp's directory and stem", () => {
+    const result = unzipShapefileComponents(
+      archive({
+        "nested/basins.shp": bytes("SHPBODY"),
+        "nested/basins.dbf": bytes("DBFBODY"),
+        "nested/basins.cpg": bytes("UTF-8"),
+        "basins.dbf": bytes("WRONGDBF"),
+      }),
+      { maxBytes: MB },
+    );
+
+    expect(text(result.components.shp)).toBe("SHPBODY");
+    expect(text(result.components.dbf)).toBe("DBFBODY");
+    expect(text(result.components.cpg)).toBe("UTF-8");
+  });
+
+  it("still reports two genuinely different shapefiles as ambiguous", () => {
+    const result = unzipShapefileComponents(
+      archive({ ...MINIMAL, "gages.shp": bytes("OTHERSHP") }),
+      { maxBytes: MB },
+    );
+    expect(result.error.reason).toBe("ambiguous_archive");
+  });
+
+  it("ignores directory entries", () => {
+    const result = unzipShapefileComponents(
+      archive({ "layers/": bytes(""), ...MINIMAL }),
+      { maxBytes: MB },
+    );
+    expect(result.error).toBeUndefined();
+  });
+});

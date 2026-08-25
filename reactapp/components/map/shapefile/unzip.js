@@ -26,11 +26,30 @@ export function createByteBudget(maxBytes) {
 }
 
 function componentExtension(name) {
-  const base = name.split("/").pop() ?? "";
+  // Directory entries carry no data, and a macOS-zipped archive ships an
+  // AppleDouble twin beside every real file. "__MACOSX/._basins.shp" ends in
+  // ".shp", so counting it makes a Finder-zipped shapefile -- the way most
+  // people produce one by hand -- look like an archive holding two shapefiles.
+  if (name.endsWith("/")) return null;
+  const segments = name.split("/");
+  const base = segments[segments.length - 1] ?? "";
+  if (segments.includes("__MACOSX") || base.startsWith("._")) return null;
   const dot = base.lastIndexOf(".");
   if (dot === -1) return null;
   const extension = base.slice(dot + 1).toLowerCase();
   return COMPONENT_EXTENSIONS.includes(extension) ? extension : null;
+}
+
+// The directory and stem that a shapefile's parts share. Components are matched
+// on this rather than on extension alone: an archive may hold unrelated parts,
+// and keying only by extension lets whichever .dbf appears last in the archive
+// silently become the attribute table for the geometry.
+function memberIdentity(name) {
+  const cut = name.lastIndexOf("/");
+  const directory = cut === -1 ? "" : name.slice(0, cut);
+  const base = cut === -1 ? name : name.slice(cut + 1);
+  const dot = base.lastIndexOf(".");
+  return { directory, stem: dot === -1 ? base : base.slice(0, dot) };
 }
 
 function tooLarge(budget) {
@@ -83,7 +102,7 @@ export function unzipShapefileComponents(buffer, { maxBytes }) {
     };
   }
 
-  const components = {};
+  const members = [];
   const shpMembers = [];
   const budget = createByteBudget(maxBytes);
   let failure = null;
@@ -99,16 +118,24 @@ export function unzipShapefileComponents(buffer, { maxBytes }) {
     if (!extension || failure) return;
     if (extension === "shp") shpMembers.push(file.name);
 
+    // The declared size refuses an oversized member before any of it is
+    // inflated, which is the whole point of reading it. But it is a claim made
+    // by the archive, not a fact: fflate's inflater ignores it, so a member that
+    // under-declares would otherwise expand without limit. It is charged up
+    // front as a fast path, then reconciled against the bytes that actually
+    // arrive -- so a lying header buys nothing.
     const declared = file.originalSize;
+    let charged = 0;
     if (Number.isFinite(declared) && declared > 0) {
       if (!budget.add(declared)) {
         failure = tooLarge(budget);
         return;
       }
+      charged = declared;
     }
 
     const chunks = [];
-    const declaredKnown = Number.isFinite(declared) && declared > 0;
+    let received = 0;
     file.ondata = (error, chunk, final) => {
       if (error) {
         failure = failure ?? {
@@ -120,14 +147,16 @@ export function unzipShapefileComponents(buffer, { maxBytes }) {
         };
         return;
       }
-      // Counted only when the header declared nothing, so a declared member is
-      // not charged twice.
-      if (!declaredKnown) {
-        if (!budget.add(chunk.length)) {
+      received += chunk.length;
+      // Only the overshoot beyond what the header already paid for, so an
+      // honest member is not charged twice.
+      if (received > charged) {
+        if (!budget.add(received - charged)) {
           failure = tooLarge(budget);
           file.terminate?.();
           return;
         }
+        charged = received;
       }
       chunks.push(chunk);
       if (final) {
@@ -137,7 +166,7 @@ export function unzipShapefileComponents(buffer, { maxBytes }) {
           merged.set(part, offset);
           return offset + part.length;
         }, 0);
-        components[extension] = merged;
+        members.push({ name: file.name, extension, bytes: merged });
       }
     };
 
@@ -180,7 +209,8 @@ export function unzipShapefileComponents(buffer, { maxBytes }) {
     };
   }
 
-  if (!components.shp) {
+  const shpMember = members.find((member) => member.extension === "shp");
+  if (!shpMember) {
     return {
       error: {
         stage: "parse",
@@ -189,6 +219,21 @@ export function unzipShapefileComponents(buffer, { maxBytes }) {
       },
     };
   }
+
+  // Only the parts belonging to this shapefile. A part with a different stem or
+  // in a different directory is another dataset's, and attaching it would draw
+  // the geometry with the wrong attributes rather than fail.
+  const target = memberIdentity(shpMember.name);
+  const components = members.reduce((selected, member) => {
+    const identity = memberIdentity(member.name);
+    if (
+      identity.directory === target.directory &&
+      identity.stem === target.stem
+    ) {
+      return { ...selected, [member.extension]: member.bytes };
+    }
+    return selected;
+  }, {});
 
   return { components };
 }

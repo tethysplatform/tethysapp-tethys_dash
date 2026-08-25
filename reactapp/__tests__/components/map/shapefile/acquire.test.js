@@ -355,3 +355,73 @@ describe("acquireComponents — defaults", () => {
     expect(DEFAULT_MAX_BYTES).toBe(25 * MB);
   });
 });
+
+describe("acquireComponents — a component the host will not serve", () => {
+  // Hosts disagree about what a missing object is. An S3 bucket without
+  // ListBucket returns 403 rather than 404, and adding .cpg to the fetched set
+  // made that the common case: most shapefiles ship no .cpg at all, so a layer
+  // that worked before would start failing over a file it never needed.
+  function respondingWith(statuses) {
+    return (url) => {
+      const extension = url.split("?")[0].split(".").pop();
+      if (statuses[extension] !== undefined) {
+        return Promise.resolve(respond({ status: statuses[extension] }));
+      }
+      return Promise.resolve(
+        respond({
+          contentType: "application/octet-stream",
+          body: bytes(`${extension.toUpperCase()}BODY`),
+        }),
+      );
+    };
+  }
+
+  it("treats a 403 on .cpg as absence rather than failing the layer", async () => {
+    fetchMock.mockImplementation(respondingWith({ cpg: 403 }));
+
+    const result = await acquireComponents("https://example.org/basins.shp");
+
+    expect(result.error).toBeUndefined();
+    expect(result.components.cpg).toBeUndefined();
+    expect(result.components.shp).toBeDefined();
+  });
+
+  it("treats a 403 on .shx as absence too", async () => {
+    fetchMock.mockImplementation(respondingWith({ shx: 403 }));
+
+    const result = await acquireComponents("https://example.org/basins.shp");
+
+    expect(result.error).toBeUndefined();
+    expect(result.components.shp).toBeDefined();
+  });
+
+  it("still fails the layer on a 403 for .prj", async () => {
+    // Absence of a .prj changes how the layer is drawn -- it falls back to the
+    // author's projection, or to nothing. Treating a transient 403 as absence
+    // would place features somewhere else with no error at all.
+    fetchMock.mockImplementation(respondingWith({ prj: 403 }));
+
+    const result = await acquireComponents("https://example.org/basins.shp");
+
+    expect(result.error.reason).toBe("component_status");
+    expect(result.error.component).toBe("prj");
+  });
+
+  it("still fails the layer on a 403 for .dbf", async () => {
+    fetchMock.mockImplementation(respondingWith({ dbf: 403 }));
+
+    const result = await acquireComponents("https://example.org/basins.shp");
+
+    expect(result.error.reason).toBe("component_status");
+    expect(result.error.component).toBe("dbf");
+  });
+
+  it("reports a 403 on the .shp itself as the layer failing", async () => {
+    fetchMock.mockImplementation(respondingWith({ shp: 403 }));
+
+    const result = await acquireComponents("https://example.org/basins.shp");
+
+    expect(result.error.stage).toBe("fetch");
+    expect(result.error.status).toBe(403);
+  });
+});
