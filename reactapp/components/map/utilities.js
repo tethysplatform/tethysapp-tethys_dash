@@ -333,13 +333,32 @@ export function swapVectorLayerFeatures(
     return;
   }
 
+  source.addFeatures(readFeatureCollection(featureCollection, mapProjection));
+}
+
+/**
+ * Parse a GeoJSON FeatureCollection into OpenLayers features.
+ *
+ * `dataProjection` comes from the collection's own `crs`, defaulting to
+ * EPSG:4326 when it carries none, and `featureProjection` is the map's -- so the
+ * caller decides which projection the features land in, at the moment it calls.
+ *
+ * Shared by the swap above and by the shapefile source's loader. The loader must
+ * not call `swapVectorLayerFeatures` itself: that clears every feature already
+ * on the source, whereas a loader is additive inside its success callback.
+ * (Clearing a source does not reset OpenLayers' loaded-extent bookkeeping
+ * either, so it is not a retry primitive -- `refresh()` is.)
+ *
+ * @param {object} featureCollection A GeoJSON FeatureCollection.
+ * @param {string} mapProjection Projection code to read the features into.
+ * @returns {Array<import("ol/Feature.js").default>}
+ */
+export function readFeatureCollection(featureCollection, mapProjection) {
   const crsName = featureCollection?.crs?.properties?.name;
-  const dataProjection = crsName || "EPSG:4326";
-  const features = new GeoJSONFormat().readFeatures(featureCollection, {
-    dataProjection,
+  return new GeoJSONFormat().readFeatures(featureCollection, {
+    dataProjection: crsName || "EPSG:4326",
     featureProjection: mapProjection,
   });
-  source.addFeatures(features);
 }
 
 /**
