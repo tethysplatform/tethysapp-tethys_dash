@@ -10,7 +10,7 @@ import moduleLoader, {
 // matters, because layers are constructed concurrently and a registration that
 // waited on anything async would race them.
 import { isNativelyResolvable } from "components/map/projections";
-import { CANCEL_REASON } from "components/map/layerStatus";
+import { CANCEL_REASON, errorKindFor } from "components/map/layerStatus";
 import LayersControl from "components/map/LayersControl";
 import FloatingMapControl from "components/map/FloatingMapControl";
 import LegendControl from "components/map/LegendControl";
@@ -93,6 +93,31 @@ async function applyLayerStyle(olLayer, layerConfig) {
   }
 }
 
+// Mirror a shapefile source's load state into React state so it can be
+// rendered. The events are the only signal available: featuresloaderror carries
+// no payload, so the typed failure is read off the controller when it fires.
+function watchShapefileLoad(olLayer, layerName, setStatus) {
+  const source = olLayer?.getSource?.();
+  const controller = source?.get?.("shapefileController");
+  if (!controller) return;
+
+  const sync = () => {
+    const failure = controller.getError();
+    setStatus((previous) => ({
+      ...previous,
+      [layerName]: {
+        state: controller.getStatus(),
+        message: failure?.detail ?? null,
+        kind: failure ? errorKindFor(failure) : null,
+      },
+    }));
+  };
+
+  source.on("featuresloadstart", sync);
+  source.on("featuresloadend", sync);
+  source.on("featuresloaderror", sync);
+}
+
 // Stop an in-flight shapefile load. Called when the layer is going away, so the
 // fetch and decompression do not keep running for a layer nobody will see.
 function abortShapefileLoad(olLayer, reason) {
@@ -115,6 +140,10 @@ const MapComponent = ({
   runtimeLayerState,
 }) => {
   const [errorMessage, setErrorMessage] = useState("");
+  // Per-layer load state for client-parsed sources, keyed on layer name.
+  // Mirrored into React state purely so it can be rendered; the source's own
+  // controller remains the authority.
+  const [shapefileStatus, setShapefileStatus] = useState({});
   const [layerControlUpdate, setLayerControlUpdate] = useState();
   const mapDivRef = useRef();
   const onMapClickCurrent = useRef();
@@ -156,6 +185,35 @@ const MapComponent = ({
     activeFadeRef.current = finalize;
     rafId = requestAnimationFrame(step);
   };
+
+  // Surfaced here rather than only in the layers control, which is opt-in per
+  // dashboard and collapsed to an icon by default. Routing status only there
+  // would leave a viewer with nothing at all on any dashboard whose author
+  // disabled it -- and a failure that renders as a blank layer is the one thing
+  // this must not do. The layers control still carries the richer per-layer
+  // detail when it is enabled.
+  const shapefileEntries = Object.entries(shapefileStatus);
+  const shapefileFailures = shapefileEntries.filter(
+    ([, status]) => status.state === "error",
+  );
+  const shapefileLoading = shapefileEntries.filter(
+    ([, status]) => status.state === "loading",
+  );
+  const shapefileAlert = shapefileFailures.length
+    ? {
+        variant: "danger",
+        message: shapefileFailures
+          .map(([name, status]) => `${name}: ${status.message}`)
+          .join(" "),
+      }
+    : shapefileLoading.length
+      ? {
+          variant: "info",
+          message: `Loading ${shapefileLoading
+            .map(([name]) => name)
+            .join(", ")}\u2026`,
+        }
+      : null;
 
   const defaultMapConfig = {
     className: "ol-map",
@@ -546,6 +604,7 @@ const MapComponent = ({
             }
             newLayer.set("appliedStyle", layerConfig.style);
             map.addLayer(newLayer);
+            watchShapefileLoad(newLayer, name, setShapefileStatus);
 
             if (
               layerConfig.type === "WebGLTile" &&
@@ -807,6 +866,24 @@ const MapComponent = ({
       // run can't overwrite it with a stale config.
       if (!superseded) {
         currentLayers.current = layers ?? [];
+
+        // Drop status for layers no longer on the map, so a rebuilt layer never
+        // shows the previous instance's failure -- and a stale error never
+        // suppresses the replacement's loading indication.
+        const liveNames = new Set(
+          map
+            .getLayers()
+            .getArray()
+            .map((layer) => layer.get("name")),
+        );
+        setShapefileStatus((previous) => {
+          const kept = Object.fromEntries(
+            Object.entries(previous).filter(([name]) => liveNames.has(name)),
+          );
+          return Object.keys(kept).length === Object.keys(previous).length
+            ? previous
+            : kept;
+        });
       }
     };
 
@@ -845,6 +922,17 @@ const MapComponent = ({
             </StyledAlert>
           </AlertAnchor>
         )}
+        {shapefileAlert && (
+          <AlertAnchor edges={ALERT_EDGES}>
+            <StyledAlert
+              variant={shapefileAlert.variant}
+              role={shapefileAlert.variant === "danger" ? "alert" : "status"}
+              aria-live="polite"
+            >
+              {shapefileAlert.message}
+            </StyledAlert>
+          </AlertAnchor>
+        )}
         {dataviewerViz && (
           <InfoDiv id="info" aria-label="Info Div">
             Zoom: {zoom}
@@ -869,6 +957,14 @@ const MapComponent = ({
             visualizationRef={visualizationRef}
             updater={layerControlUpdate}
             runtimeLayerState={runtimeLayerState}
+            shapefileStatus={shapefileStatus}
+            onRetryShapefile={(layerName) => {
+              const layer = visualizationRef.current
+                ?.getLayers()
+                .getArray()
+                .find((candidate) => candidate.get("name") === layerName);
+              layer?.getSource?.()?.get?.("shapefileController")?.reset?.();
+            }}
           />
         )}
         {legend && legend.length > 0 && <LegendControl legendItems={legend} />}
