@@ -2810,3 +2810,121 @@ describe("onMapMoveEnd registration and mount-time prime", () => {
     await waitFor(() => expect(onMapMoveEnd).toHaveBeenCalledTimes(1));
   });
 });
+
+test("a map-extent view replacement moves vector features with the view", async () => {
+  // The reprojection sweep had one call site, on the raster auto-fit path. This
+  // path replaces the view too: the auto-fit adopts a projection without
+  // updating the state this view is rebuilt from, so a later extent change
+  // reverts the projection underneath features that were already moved once --
+  // leaving them holding the outgoing projection's numbers, drawn far off screen
+  // while still reporting the right feature count.
+  let capturedRef;
+  const RefCapture = ({ mapProps }) => {
+    const ref = useRef();
+    capturedRef = ref;
+    return (
+      <div>
+        <MapComponent visualizationRef={ref} {...mapProps} />
+        <p>{useMapContext()?.mapReady ? "Map Ready" : "Map Not Ready"}</p>
+      </div>
+    );
+  };
+  RefCapture.propTypes = { mapProps: PropTypes.object };
+
+  const layers = [
+    {
+      type: "WebGLTile",
+      props: {
+        source: {
+          type: "GeoTIFF",
+          props: { url: "https://example.com/t.tif" },
+        },
+        name: "Auto-fit Raster",
+        zIndex: 0,
+      },
+    },
+    {
+      type: "VectorLayer",
+      props: {
+        name: "Vector Alongside",
+        zIndex: 1,
+        source: {
+          type: "GeoJSON",
+          props: {},
+          geojson: {
+            type: "FeatureCollection",
+            crs: { type: "name", properties: { name: "EPSG:4326" } },
+            features: [
+              {
+                type: "Feature",
+                properties: {},
+                geometry: { type: "Point", coordinates: [-90.54, 14.48] },
+              },
+            ],
+          },
+        },
+      },
+    },
+  ];
+
+  const { rerender } = render(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
+      <MapContextProvider>
+        <RefCapture mapProps={{ layers }} />
+      </MapContextProvider>
+    </VariableInputsContext.Provider>,
+  );
+
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+  const findVector = () =>
+    capturedRef.current
+      ?.getLayers()
+      .getArray()
+      .find((l) => l.get("name") === "Vector Alongside");
+
+  // The auto-fit adopts the raster's EPSG:4326, so the features now hold degrees.
+  await waitFor(() => {
+    expect(capturedRef.current.getView().getProjection().getCode()).toBe(
+      "EPSG:4326",
+    );
+  });
+  await waitFor(() => {
+    const [x] = findVector()
+      .getSource()
+      .getFeatures()[0]
+      .getGeometry()
+      .getCoordinates();
+    expect(Math.abs(x - -90.54)).toBeLessThan(0.01);
+  });
+
+  // Now an extent change rebuilds the view from component state, which the
+  // auto-fit never updated -- so the view goes back to Web Mercator.
+  rerender(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
+      <MapContextProvider>
+        <RefCapture mapProps={{ layers, mapExtent: "-90.54,14.48,5" }} />
+      </MapContextProvider>
+    </VariableInputsContext.Provider>,
+  );
+
+  await waitFor(() => {
+    expect(capturedRef.current.getView().getProjection().getCode()).toBe(
+      "EPSG:3857",
+    );
+  });
+
+  // The features must have come with it: metres now, not the degrees they held.
+  await waitFor(() => {
+    const [x] = findVector()
+      .getSource()
+      .getFeatures()[0]
+      .getGeometry()
+      .getCoordinates();
+    expect(Math.abs(x)).toBeGreaterThan(1e6);
+  });
+});

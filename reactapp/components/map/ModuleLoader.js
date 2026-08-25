@@ -803,6 +803,15 @@ export function matchesCondition(featureValue, type, conditionValue) {
     return a !== null && a !== undefined && a !== "";
   }
 
+  // A field the feature does not carry cannot satisfy a comparison. Without this
+  // the negated operators invert into a match: `!=` becomes `undefined !== x`,
+  // and `notIn` becomes "not in the list", both true -- so one saved rule
+  // repaints every feature of a layer whose .dbf is missing or whose schema
+  // drifted upstream. The layer still renders, so nothing fails and nobody is
+  // told. The presence checks above deliberately run first: asking whether an
+  // absent field is null is a question with a real answer.
+  if (a === null || a === undefined) return false;
+
   const coerce = (v) => (typeof v === "string" && !isNaN(v) ? Number(v) : v);
 
   const av = coerce(a);

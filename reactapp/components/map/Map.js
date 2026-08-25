@@ -332,7 +332,24 @@ const MapComponent = ({
       setZoom(visualizationRef.current.getView().getZoom().toFixed(2));
     });
 
+    // Move already-mounted vector features with the view, exactly as the raster
+    // auto-fit path does. Features are parsed into the view projection when they
+    // are added, so replacing the view leaves them holding the outgoing
+    // projection's numbers -- drawn far off screen while still reporting the
+    // right feature count. This path replaces the view too, and until now had no
+    // sweep: a raster auto-fit adopts a projection without updating the state
+    // this view is rebuilt from, so a later extent change reverts the projection
+    // underneath the features.
+    const outgoingCode = visualizationRef.current
+      .getView()
+      .getProjection()
+      .getCode();
     visualizationRef.current.setView(mapViewConfig);
+    reprojectVectorFeatures(
+      visualizationRef.current,
+      outgoingCode,
+      mapViewConfig.getProjection().getCode(),
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapExtent]);
 
