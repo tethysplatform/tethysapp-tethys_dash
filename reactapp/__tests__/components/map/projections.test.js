@@ -4,7 +4,7 @@ import {
   PROJECTION_TABLE,
   INITIAL_CODES,
   ensureProjection,
-  registerProjectionFromWkt,
+  registerProjectionDefinition,
 } from "components/map/projections";
 
 // A projected CRS with no AUTHORITY node, which is how ESRI writes .prj files.
@@ -101,9 +101,9 @@ describe("ensureProjection", () => {
   });
 });
 
-describe("registerProjectionFromWkt", () => {
+describe("registerProjectionDefinition", () => {
   it("registers WKT with no authority node and transforms with it", () => {
-    const result = registerProjectionFromWkt(ESRI_ALBERS_NO_AUTHORITY);
+    const result = registerProjectionDefinition(ESRI_ALBERS_NO_AUTHORITY);
     expect(result.error).toBeUndefined();
     expect(result.code).toMatch(/^WKT:/);
     expect(getProjection(result.code)).toBeTruthy();
@@ -118,7 +118,7 @@ describe("registerProjectionFromWkt", () => {
   it("reuses an already-resolvable code instead of registering the layer's copy", () => {
     const before = proj4("EPSG:4326", "EPSG:5070", [-105, 40]);
 
-    const result = registerProjectionFromWkt(ALBERS_5070_WRONG_PARAMS);
+    const result = registerProjectionDefinition(ALBERS_5070_WRONG_PARAMS);
     expect(result.code).toBe("EPSG:5070");
 
     // The seeded definition survives and the layer's differing parameters are
@@ -134,7 +134,7 @@ describe("registerProjectionFromWkt", () => {
     expect(getProjection(claimed)).toBeFalsy();
     const wkt = withAuthority(ESRI_ALBERS_NO_AUTHORITY, claimed);
 
-    const result = registerProjectionFromWkt(wkt);
+    const result = registerProjectionDefinition(wkt);
 
     // Guard against this passing vacuously: the fixture must actually carry a
     // top-level authority, or the module would fall through to a synthetic code
@@ -148,13 +148,13 @@ describe("registerProjectionFromWkt", () => {
   });
 
   it("returns the same code for the same WKT without re-registering", () => {
-    const first = registerProjectionFromWkt(ESRI_ALBERS_NO_AUTHORITY);
-    const second = registerProjectionFromWkt(ESRI_ALBERS_NO_AUTHORITY);
+    const first = registerProjectionDefinition(ESRI_ALBERS_NO_AUTHORITY);
+    const second = registerProjectionDefinition(ESRI_ALBERS_NO_AUTHORITY);
     expect(second.code).toBe(first.code);
   });
 
   it("reports an unparsable definition and names what failed", () => {
-    const result = registerProjectionFromWkt('PROJCS["broken",GARBAGE[');
+    const result = registerProjectionDefinition('PROJCS["broken",GARBAGE[');
     expect(result.code).toBeUndefined();
     expect(result.error.reason).toBe("unparsable");
     expect(result.error.detail).toMatch(/could not be parsed/);
@@ -163,7 +163,7 @@ describe("registerProjectionFromWkt", () => {
   it("reports an unsupported projection method by name", () => {
     // This one parses cleanly and only fails at transform time, so the message
     // has to come from validating the transform rather than from the parser.
-    const result = registerProjectionFromWkt(UNSUPPORTED_METHOD);
+    const result = registerProjectionDefinition(UNSUPPORTED_METHOD);
     expect(result.code).toBeUndefined();
     expect(result.error.reason).toBe("unsupported");
     expect(result.error.detail).toContain("Totally_Not_A_Real_Projection");
@@ -173,7 +173,7 @@ describe("registerProjectionFromWkt", () => {
     // proj4 implements the ESRI spelling of Albers but not this one, and the
     // failure is silent: non-finite coordinates, not an exception. Caught by
     // probing the definition at its own centre before registering it.
-    const result = registerProjectionFromWkt(OGC_ALBERS);
+    const result = registerProjectionDefinition(OGC_ALBERS);
     expect(result.code).toBeUndefined();
     expect(result.error.reason).toBe("unsupported");
     expect(result.error.detail).toContain("Albers_Conic_Equal_Area");
@@ -183,14 +183,14 @@ describe("registerProjectionFromWkt", () => {
     // A rejected definition must not stay in proj4's registry: register()
     // constructs a transform for every pair of registered codes, so one unusable
     // definition would make it throw and take working projections down with it.
-    registerProjectionFromWkt(UNSUPPORTED_METHOD);
-    const after = registerProjectionFromWkt(ESRI_ALBERS_NO_AUTHORITY);
+    registerProjectionDefinition(UNSUPPORTED_METHOD);
+    const after = registerProjectionDefinition(ESRI_ALBERS_NO_AUTHORITY);
     expect(after.error).toBeUndefined();
     expect(getProjection("EPSG:5070")).toBeTruthy();
   });
 
   it("reports an empty definition rather than throwing", () => {
-    expect(registerProjectionFromWkt("").error.reason).toBe("empty");
-    expect(registerProjectionFromWkt(undefined).error.reason).toBe("empty");
+    expect(registerProjectionDefinition("").error.reason).toBe("empty");
+    expect(registerProjectionDefinition(undefined).error.reason).toBe("empty");
   });
 });

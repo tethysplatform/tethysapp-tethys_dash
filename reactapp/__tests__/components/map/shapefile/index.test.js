@@ -207,3 +207,57 @@ describe("interpretShapefile — failure paths", () => {
     );
   });
 });
+
+describe("interpretShapefile — projection field accepts a definition", () => {
+  const ESRI_ALBERS = `PROJCS["NAD_1983_Albers",GEOGCS["GCS_North_American_1983",DATUM["D_North_American_1983",SPHEROID["GRS_1980",6378137.0,298.257222101]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]],PROJECTION["Albers"],PARAMETER["False_Easting",0.0],PARAMETER["False_Northing",0.0],PARAMETER["Central_Meridian",-96.0],PARAMETER["Standard_Parallel_1",29.5],PARAMETER["Standard_Parallel_2",45.5],PARAMETER["Latitude_Of_Origin",23.0],UNIT["Meter",1.0]]`;
+
+  it("accepts WKT as the fallback when there is no .prj", async () => {
+    // Without this, a .prj-less shapefile in a CRS the table does not cover has
+    // no authorable path at all -- there is no code to type that resolves.
+    const components = load("holes");
+    delete components.prj;
+
+    const result = await interpretShapefile(components, {
+      fallbackProjection: ESRI_ALBERS,
+    });
+
+    expect(result.error).toBeUndefined();
+    expect(result.projectionCode).toMatch(/^WKT:/);
+  });
+
+  it("accepts a proj4 definition as the fallback", async () => {
+    const components = load("holes");
+    delete components.prj;
+
+    const result = await interpretShapefile(components, {
+      fallbackProjection:
+        "+proj=aea +lat_0=23 +lon_0=-96 +lat_1=29.5 +lat_2=45.5 +x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs",
+    });
+
+    expect(result.error).toBeUndefined();
+    expect(result.projectionCode).toBeTruthy();
+  });
+
+  it("reports a malformed definition as unparsable rather than as an unknown code", async () => {
+    const components = load("holes");
+    delete components.prj;
+
+    const result = await interpretShapefile(components, {
+      fallbackProjection: 'PROJCS["broken",GARBAGE[',
+    });
+
+    expect(result.error.reason).toBe("unresolvable_projection");
+    expect(result.error.detail).toMatch(/could not be parsed/);
+  });
+
+  it("still treats a short token as a code", async () => {
+    const components = load("holes");
+    delete components.prj;
+
+    const result = await interpretShapefile(components, {
+      fallbackProjection: "EPSG:5070",
+    });
+
+    expect(result.projectionCode).toBe("EPSG:5070");
+  });
+});

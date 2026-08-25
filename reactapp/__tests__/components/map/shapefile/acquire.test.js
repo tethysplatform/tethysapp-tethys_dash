@@ -31,11 +31,21 @@ function respond({ status = 200, contentType = "application/zip", body } = {}) {
 }
 
 let fetchMock;
+let originalFetch;
 
 beforeEach(() => {
   clearComponentCache();
+  originalFetch = global.fetch;
   fetchMock = jest.fn();
   global.fetch = fetchMock;
+});
+
+// Restored rather than left assigned. Jest reuses a worker process across test
+// files, so a fetch mock left on the global leaks into whichever file that
+// worker picks up next -- which shows up as an unrelated suite failing only in
+// certain run orders.
+afterEach(() => {
+  global.fetch = originalFetch;
 });
 
 describe("acquireComponents — validation happens before any request", () => {

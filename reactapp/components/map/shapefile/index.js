@@ -1,7 +1,7 @@
 import { strFromU8 } from "fflate";
 import {
   ensureProjection,
-  registerProjectionFromWkt,
+  registerProjectionDefinition,
 } from "components/map/projections";
 
 /**
@@ -86,6 +86,15 @@ function toArrayBuffer(bytes) {
   );
 }
 
+// A code is a short token like "EPSG:5070"; a definition is WKT or a proj4
+// string. Detected by shape rather than by trying one and falling back, so a
+// malformed definition is reported as such instead of as an unknown code.
+function looksLikeDefinition(value) {
+  return /^\s*(\+proj=|[A-Z_]*(PROJCS|GEOGCS|PROJCRS|GEOGCRS|GEODCRS)\s*\[)/i.test(
+    value,
+  );
+}
+
 // Absence and failure are different inputs here, and keeping them apart is the
 // point. A .prj that is genuinely missing falls back to what the author
 // supplied; a .prj that failed to arrive was already reported upstream and never
@@ -96,7 +105,7 @@ function resolveProjection(prjBytes, fallbackProjection) {
     // Decoded with fflate rather than TextDecoder: this runs in the browser and
     // under the test runner, and one of those has no TextDecoder.
     const wkt = strFromU8(prjBytes).trim();
-    const registered = registerProjectionFromWkt(wkt);
+    const registered = registerProjectionDefinition(wkt);
     if (registered.error) {
       return {
         error: {
@@ -110,6 +119,23 @@ function resolveProjection(prjBytes, fallbackProjection) {
   }
 
   if (fallbackProjection) {
+    // The field takes a definition as well as a code. A shapefile with no .prj
+    // in an uncommon CRS has no other way to be placed: there is no table entry
+    // to name, and the registration helper already accepts exactly this input.
+    if (looksLikeDefinition(fallbackProjection)) {
+      const registered = registerProjectionDefinition(fallbackProjection);
+      if (registered.error) {
+        return {
+          error: {
+            stage: "parse",
+            reason: "unresolvable_projection",
+            detail: registered.error.detail,
+          },
+        };
+      }
+      return { code: registered.code };
+    }
+
     const resolved = ensureProjection(fallbackProjection);
     if (!resolved) {
       return {

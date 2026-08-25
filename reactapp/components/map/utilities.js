@@ -122,6 +122,21 @@ export const sourcePropertiesOptions = {
     required: {},
     optional: {},
   },
+  Shapefile: {
+    required: {
+      url: {
+        placeholder:
+          "URL of a zipped shapefile (.zip) or of its .shp component",
+      },
+    },
+    optional: {
+      // Used only when the source carries no .prj. Accepts a WKT or proj4
+      // definition as well as a code, because a .prj-less shapefile in an
+      // uncommon CRS has no other way to be placed.
+      projection: { placeholder: "EPSG:<Code>, or a WKT/proj4 definition" },
+      attributions: { placeholder: "Attributions" },
+    },
+  },
   GeoTIFF: {
     required: {
       url: { placeholder: "Cloud Optimized GeoTIFF URL" },

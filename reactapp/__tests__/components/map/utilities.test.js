@@ -1,4 +1,5 @@
 import {
+  sourcePropertiesOptions,
   readFeatureCollection,
   reprojectVectorFeatures,
   createMarkerLayer,
@@ -4245,5 +4246,30 @@ describe("readFeatureCollection", () => {
     const [x, y] = features[0].getGeometry().getCoordinates();
     expect(x).toBeCloseTo(-105, 1);
     expect(y).toBeCloseTo(40, 1);
+  });
+});
+
+describe("sourcePropertiesOptions — Shapefile", () => {
+  it("is offered as a source type with url required", () => {
+    // This single object drives the source-type dropdown, the properties table,
+    // and the required-key validation at save.
+    const entry = sourcePropertiesOptions.Shapefile;
+    expect(entry).toBeTruthy();
+    expect(Object.keys(entry.required)).toEqual(["url"]);
+    expect(entry.required.url.placeholder).toMatch(/\.zip|\.shp/);
+  });
+
+  it("offers projection and attributions as optional", () => {
+    const optional = Object.keys(sourcePropertiesOptions.Shapefile.optional);
+    expect(optional).toContain("projection");
+    expect(optional).toContain("attributions");
+  });
+
+  it("tells the author the projection field takes a definition as well as a code", () => {
+    // A .prj-less shapefile in an uncommon CRS has no table entry to name, so
+    // the field has to accept WKT for that case to be authorable at all.
+    expect(
+      sourcePropertiesOptions.Shapefile.optional.projection.placeholder,
+    ).toMatch(/WKT|proj4/i);
   });
 });

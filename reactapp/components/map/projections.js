@@ -15,7 +15,7 @@ import wktParser from "wkt-parser";
 //      already be on hand. That is what the table below is for.
 //
 //   2. Definitions a layer brings with it. A shapefile carries its CRS as WKT in
-//      its .prj, so it needs no table entry -- see registerProjectionFromWkt.
+//      its .prj, so it needs no table entry -- see registerProjectionDefinition.
 //
 // The table therefore only has to cover case 1, which is why it is short. A
 // survey of the live dashboards found exactly one layer naming a non-native code
@@ -143,12 +143,12 @@ export function ensureProjection(code) {
   return getProjection(code);
 }
 
-// Stable, dependency-free hash of the normalized WKT. Two textually different
-// but semantically equivalent definitions hash differently and so register
-// separately; that costs a duplicate registration and nothing else, which is
-// cheaper than trying to canonicalise WKT.
-function wktCode(wkt) {
-  const normalized = wkt.replace(/\s+/g, "");
+// Stable, dependency-free hash of the normalized definition. Two textually
+// different but semantically equivalent definitions hash differently and so
+// register separately; that costs a duplicate registration and nothing else,
+// which is cheaper than trying to canonicalise WKT.
+function definitionCode(definition) {
+  const normalized = definition.replace(/\s+/g, "");
   let hash = 5381;
   for (let i = 0; i < normalized.length; i += 1) {
     hash = ((hash << 5) + hash + normalized.charCodeAt(i)) | 0;
@@ -201,31 +201,61 @@ function definitionUsable(code, parsed) {
   }
 }
 
+// WKT names its projected or geographic CRS with a bracketed keyword; a proj4
+// string is a run of `+key=value` tokens. Only the former carries an AUTHORITY
+// node worth reading, and only the former can be handed to the WKT parser.
+function isWkt(definition) {
+  return /\b(PROJCS|GEOGCS|PROJCRS|GEOGCRS|GEODCRS)\s*\[/i.test(definition);
+}
+
 /**
- * Register a coordinate reference system from a layer's own WKT definition.
+ * Register a coordinate reference system from a definition a layer supplies --
+ * WKT, as found in a shapefile's .prj, or a proj4 string.
  *
- * Never overwrites a definition that already resolves. A layer's WKT is
+ * Never overwrites a definition that already resolves. A layer's definition is
  * authoritative for that layer's own features, but the projection registry is
  * global to the browser session -- so letting one layer's parameters replace a
  * code every other layer resolves through would make rendering depend on which
- * dashboard was opened first. When the WKT claims a code that already resolves,
- * the existing definition is reused and nothing is written. Otherwise the
- * definition is registered under a synthetic code, never under the claimed one.
+ * dashboard was opened first. When the definition claims a code that already
+ * resolves, the existing one is reused and nothing is written. Otherwise it is
+ * registered under a synthetic code, never under the claimed one.
  *
- * @param {string} wkt WKT definition, typically the contents of a .prj.
+ * @param {string} definition WKT or proj4 definition.
  * @returns {{code: string}|{error: {reason: string, detail: string}}} The code to
  *   read coordinates with, or a failure describing what could not be resolved.
  */
-export function registerProjectionFromWkt(wkt) {
-  if (typeof wkt !== "string" || wkt.trim() === "") {
+export function registerProjectionDefinition(definition) {
+  if (typeof definition !== "string" || definition.trim() === "") {
     return {
       error: { reason: "empty", detail: "No projection definition was found." },
     };
   }
 
-  let parsed;
+  let claimed = null;
+  if (isWkt(definition)) {
+    let parsed;
+    try {
+      parsed = wktParser(definition);
+    } catch (error) {
+      return {
+        error: {
+          reason: "unparsable",
+          detail: `The projection definition could not be parsed: ${error.message}`,
+        },
+      };
+    }
+    claimed = claimedCode(parsed);
+  }
+
+  if (claimed && (getProjection(claimed) || ensureProjection(claimed))) {
+    return { code: claimed };
+  }
+
+  const code = definitionCode(definition);
+  if (getProjection(code)) return { code };
+
   try {
-    parsed = wktParser(wkt);
+    proj4.defs(code, definition);
   } catch (error) {
     return {
       error: {
@@ -235,18 +265,13 @@ export function registerProjectionFromWkt(wkt) {
     };
   }
 
-  const claimed = claimedCode(parsed);
-  if (claimed && (getProjection(claimed) || ensureProjection(claimed))) {
-    return { code: claimed };
-  }
-
-  const code = wktCode(wkt);
-  if (getProjection(code)) return { code };
-
-  proj4.defs(code, wkt);
-  if (!definitionUsable(code, parsed)) {
+  // Read the definition back rather than reusing the WKT parse: this is the only
+  // shape available for a proj4 string, and it is what proj4 will actually
+  // transform with either way.
+  const registered = proj4.defs(code);
+  if (!definitionUsable(code, registered)) {
     delete proj4.defs[code];
-    const method = parsed?.projName ?? "an unnamed projection method";
+    const method = registered?.projName ?? "an unnamed projection method";
     return {
       error: {
         reason: "unsupported",

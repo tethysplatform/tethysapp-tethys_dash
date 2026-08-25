@@ -367,6 +367,12 @@ const MapComponent = ({
             const newLayer = await moduleLoader(
               layerConfig,
               map.getView().getProjection().getCode(),
+              // Read again when features are actually inserted. A source with a
+              // long async load -- a shapefile -- can finish after a sibling
+              // raster's auto-fit has already changed the view, and features
+              // parsed into the outgoing projection are drawn far off screen
+              // while still reporting the right count.
+              () => map.getView().getProjection().getCode(),
             );
             newLayer.set("name", name);
 
@@ -607,7 +613,11 @@ const MapComponent = ({
               }
             }
           } catch (err) {
-            if (err && err.message === "GeoTIFFEmptySources") {
+            if (
+              err &&
+              (err.message === "GeoTIFFEmptySources" ||
+                err.message === "ShapefileEmptySources")
+            ) {
               return;
             }
             console.log(err);

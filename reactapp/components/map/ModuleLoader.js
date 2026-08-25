@@ -26,7 +26,12 @@ import {
   defaultDotSpacing,
   defaultDotRadius,
 } from "components/inputs/RuleEditor.js";
-import { rewriteArcGISExportUrlForAntimeridian } from "components/map/utilities";
+import {
+  rewriteArcGISExportUrlForAntimeridian,
+  readFeatureCollection,
+} from "components/map/utilities";
+import { acquireComponents } from "components/map/shapefile/acquire";
+import { interpretShapefile } from "components/map/shapefile/index";
 import {
   buildGeoTIFFStyleColor,
   buildCategoricalStyleColor,
@@ -313,7 +318,7 @@ export async function applyAutoRamp(layerConfig) {
   return layerConfig;
 }
 
-const moduleLoader = async (config, mapProjection) => {
+const moduleLoader = async (config, mapProjection, getMapProjection) => {
   if (config.type === "Zarr") {
     // Already yields OL's `sources` shape, so it skips the GeoTIFF branch below.
     config = zarrSourceToGeoTIFF(config);
@@ -349,6 +354,8 @@ const moduleLoader = async (config, mapProjection) => {
     if (moduleCache[type]) {
       if (type === "GeoJSON") {
         return loadGeoJSON(config, mapProjection);
+      } else if (type === "Shapefile") {
+        return loadShapefile(config, mapProjection, getMapProjection);
       } else if (type === "ESRI Feature Service") {
         return loadESRIJSON(config);
       } else {
@@ -390,6 +397,8 @@ const moduleLoader = async (config, mapProjection) => {
 
     if (type === "GeoJSON") {
       return loadGeoJSON(config, mapProjection);
+    } else if (type === "Shapefile") {
+      return loadShapefile(config, mapProjection, getMapProjection);
     } else if (type === "ESRI Feature Service") {
       return loadESRIJSON(config);
     } else {
@@ -506,6 +515,7 @@ const getModuleImporter = (type) => {
     WMS: "ol/source/ImageWMS.js",
     Raster: "ol/source/Raster.js",
     GeoJSON: "ol/format/GeoJSON.js",
+    Shapefile: "ol/source/Vector.js",
     KML: "ol/source/Vector.js",
     Style: "ol/style/Style.js",
     Stroke: "ol/style/Stroke.js",
@@ -533,6 +543,110 @@ const getModuleImporter = (type) => {
   }
 
   return importer;
+};
+
+/**
+ * Build the vector source for a `Shapefile` layer.
+ *
+ * Features load through OpenLayers' own loader hook rather than being fetched
+ * ahead of construction, which buys three things: the loader is handed the live
+ * view projection when it runs, its success/failure callbacks drive the
+ * `featuresloadstart` / `featuresloadend` / `featuresloaderror` events, and it
+ * is not called at all until the layer is actually mounted and rendering.
+ *
+ * `getMapProjection`, when supplied, is read at the moment features are inserted
+ * rather than when the load began. A shapefile is the slowest-loading vector
+ * source in the app, so it is the one most exposed to a sibling raster's auto-fit
+ * changing the view mid-load -- and features parsed into a projection the map has
+ * already left are drawn thousands of kilometres off screen while still reporting
+ * the right feature count.
+ *
+ * The single `shapefileController` set on the source is the whole channel between
+ * this module and the map: abort, status, error and reset. Hanging those on the
+ * source as loose properties would give two modules an undocumented surface each
+ * discovered by reaching into the other's object.
+ */
+export const loadShapefile = (config, mapProjection, getMapProjection) => {
+  const { url, projection: fallbackProjection } = config.props ?? {};
+  // Mirrors the GeoTIFF sentinel: a half-authored source is silent rather than
+  // an error, so typing a URL does not paint a failure after every keystroke.
+  if (!url) throw new Error("ShapefileEmptySources");
+
+  let abortController = null;
+  let status = "idle";
+  let failure = null;
+
+  const source = new VectorSource();
+
+  source.setLoader(async (extent, resolution, projection, success, onError) => {
+    abortController = new AbortController();
+    status = "loading";
+    failure = null;
+
+    const finish = (nextStatus, nextFailure) => {
+      status = nextStatus;
+      failure = nextFailure ?? null;
+      abortController = null;
+    };
+
+    const acquired = await acquireComponents(url, {
+      signal: abortController.signal,
+    });
+    if (acquired.cancelled) {
+      finish("idle");
+      onError?.();
+      return;
+    }
+    if (acquired.error) {
+      finish("error", acquired.error);
+      onError?.();
+      return;
+    }
+
+    const interpreted = await interpretShapefile(acquired.components, {
+      fallbackProjection,
+    });
+    if (interpreted.error) {
+      finish("error", interpreted.error);
+      onError?.();
+      return;
+    }
+
+    // Read against the view as it stands now, not as it stood when the fetch
+    // was issued.
+    const targetProjection =
+      getMapProjection?.() ?? projection?.getCode?.() ?? mapProjection;
+    const features = readFeatureCollection(
+      interpreted.featureCollection,
+      targetProjection,
+    );
+    source.addFeatures(features);
+    finish("ready");
+    success?.(features);
+  });
+
+  source.set("shapefileController", {
+    getStatus: () => status,
+    getError: () => failure,
+    abort: (reason) => {
+      if (abortController) {
+        abortController.abort(reason);
+        abortController = null;
+        status = "idle";
+      }
+    },
+    // `refresh` is the only primitive that actually causes the loader to run
+    // again. Removing the loaded extent alone leaves it un-invoked, because the
+    // renderer short-circuits its frame on an unchanged layer revision -- which
+    // is how a retry button ends up doing nothing while its test passes.
+    reset: () => {
+      status = "idle";
+      failure = null;
+      source.refresh();
+    },
+  });
+
+  return source;
 };
 
 const loadGeoJSON = (config, mapProjection) => {

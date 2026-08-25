@@ -133,6 +133,12 @@ export function renameLayerInAttributeProps(attributeProps, oldName, newName) {
 
 export const getLayerType = (sourceType) => {
   if (sourceType === "GeoTIFF" || sourceType === "Zarr") return "WebGLTile";
+  // Explicit rather than left to the fallthrough below. "Shapefile" happens to
+  // match none of the substring tests, so it would reach VectorLayer anyway --
+  // but a label variant like "Zipped Shapefile Tile" would silently route to the
+  // wrong layer class with no error. The label is load-bearing, and it is also
+  // persisted user data: renaming one costs a migration over every dashboard.
+  if (sourceType === "Shapefile") return "VectorLayer";
   if (sourceType.includes("Vector")) return "VectorTileLayer";
   if (sourceType.includes("Raster")) return "WebGLTile";
   if (sourceType.includes("Tile")) return "TileLayer";
