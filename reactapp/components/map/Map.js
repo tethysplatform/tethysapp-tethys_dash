@@ -10,6 +10,7 @@ import moduleLoader, {
 // matters, because layers are constructed concurrently and a registration that
 // waited on anything async would race them.
 import { isNativelyResolvable } from "components/map/projections";
+import { CANCEL_REASON } from "components/map/layerStatus";
 import LayersControl from "components/map/LayersControl";
 import FloatingMapControl from "components/map/FloatingMapControl";
 import LegendControl from "components/map/LegendControl";
@@ -58,6 +59,45 @@ const InfoDiv = styled.div`
   border-radius: 4px;
   z-index: 1000;
 `;
+
+// Apply a layer config's style to an OL layer.
+//
+// Extracted from the add path so a *preserved* layer can be restyled too.
+// Preservation keeps the layer instance, and the cosmetic prop sync handles only
+// the props OL has first-class setters for -- so without this, editing a
+// preserved layer's style rules would change nothing on the map.
+async function applyLayerStyle(olLayer, layerConfig) {
+  if (!layerConfig.style) return;
+
+  const isWebGLTileRampStyle =
+    layerConfig.type === "WebGLTile" &&
+    layerConfig.style &&
+    typeof layerConfig.style === "object" &&
+    !Array.isArray(layerConfig.style) &&
+    "color" in layerConfig.style;
+
+  if (isWebGLTileRampStyle) {
+    olLayer.setStyle(layerConfig.style);
+    return;
+  }
+
+  try {
+    await applyStyle(olLayer, layerConfig.style);
+  } catch (err) {
+    if (err.message !== "Cannot read properties of undefined (reading 'crs')") {
+      const styleFunction = createJsonStyleFunction(layerConfig.style);
+      if (typeof olLayer.setStyle === "function") {
+        olLayer.setStyle(styleFunction);
+      }
+    }
+  }
+}
+
+// Stop an in-flight shapefile load. Called when the layer is going away, so the
+// fetch and decompression do not keep running for a layer nobody will see.
+function abortShapefileLoad(olLayer, reason) {
+  olLayer?.getSource?.()?.get?.("shapefileController")?.abort?.(reason);
+}
 
 const MapComponent = ({
   mapConfig,
@@ -164,6 +204,10 @@ const MapComponent = ({
       // istanbul ignore next
       if (visualizationRef.current) {
         if (activeFadeRef.current) activeFadeRef.current();
+        visualizationRef.current
+          .getLayers()
+          .getArray()
+          .forEach((layer) => abortShapefileLoad(layer, CANCEL_REASON.UNMOUNT));
         visualizationRef.current.setTarget(undefined);
         visualizationRef.current = null;
       }
@@ -251,6 +295,11 @@ const MapComponent = ({
       // decision. Collect those here and apply after the loop so the in-place
       // update doesn't interfere with layersToKeep membership checks.
       const runtimeLayerUpdates = [];
+      // Preserved shapefile layers, collected the same way. Identity is the
+      // layer's name plus its resolved source URL: rebuilding refetches and
+      // reparses the whole archive, which an unrelated edit -- an opacity change
+      // on another layer, one frame of a raster time-slider -- should not cost.
+      const shapefileLayerUpdates = [];
 
       if (currentLayers.current.length) {
         const newLayerProps = (layers ?? []).map((l) => l.props);
@@ -310,6 +359,31 @@ const MapComponent = ({
             // layerId) fall through and let the layer be torn down + rebuilt.
           }
 
+          // Additive branch: the plugin-provenance check above is left exactly
+          // as it was rather than generalized, so preservation for plugin layers
+          // is untouched by this.
+          if (
+            currentLayer?.props?.source?.type === "Shapefile" &&
+            currentLayer.type === "VectorLayer"
+          ) {
+            const incoming = (layers ?? []).find(
+              (candidate) =>
+                candidate?.props?.source?.type === "Shapefile" &&
+                candidate?.props?.name === currentLayer.props.name &&
+                candidate?.props?.source?.props?.url ===
+                  currentLayer.props.source?.props?.url,
+            );
+            if (incoming) {
+              layersToKeep.push(incoming.props.name);
+              shapefileLayerUpdates.push({
+                name: incoming.props.name,
+                newProps: incoming.props,
+                config: incoming,
+              });
+              return;
+            }
+          }
+
           const shouldKeep =
             newLayerProps.some((newProps) =>
               valuesEqual(newProps, currentLayer.props),
@@ -318,7 +392,15 @@ const MapComponent = ({
             layersToKeep.push(currentLayer.props.name);
           }
         });
+      }
 
+      // The removal sweep runs whenever the map actually holds layers, not only
+      // when reconciliation state was recorded. A run that starts while a
+      // previous one is still loading sees no recorded state, and gating removal
+      // on it would let both runs' layers sit on the map -- features drawn twice,
+      // and every clicked feature reported twice in the popup. With no recorded
+      // state nothing is kept, so this rebuilds rather than duplicates.
+      if (currentMapLayers.length) {
         const keptRuntimeLayerIds = new Set(
           runtimeLayerUpdates.map((u) => u.layerId),
         );
@@ -329,6 +411,8 @@ const MapComponent = ({
             return;
           }
           if (!layersToKeep.includes(layerName)) {
+            // Stop any load still running for a layer that is going away.
+            abortShapefileLoad(layer, CANCEL_REASON.REMOVED);
             layersToRemove.push(layer);
           }
         });
@@ -340,6 +424,20 @@ const MapComponent = ({
           );
           if (olLayer) {
             updateOlLayerProps(olLayer, newProps);
+          }
+        });
+
+        // Same for preserved shapefile layers -- plus the style, which the
+        // cosmetic sync does not carry. Without this a style-rule edit on a
+        // preserved layer would change nothing, since the style is otherwise
+        // only applied when a layer is constructed.
+        shapefileLayerUpdates.forEach(({ name, newProps, config }) => {
+          const olLayer = currentMapLayers.find((l) => l.get("name") === name);
+          if (!olLayer) return;
+          updateOlLayerProps(olLayer, newProps);
+          if (!valuesEqual(olLayer.get("appliedStyle"), config.style)) {
+            olLayer.set("appliedStyle", config.style);
+            applyLayerStyle(olLayer, config);
           }
         });
       }
@@ -438,6 +536,15 @@ const MapComponent = ({
               }
             }
 
+            // A run that has already been superseded must not add its layer:
+            // it is in no newer run's removal snapshot, so it would never be
+            // collected -- leaving features drawn twice and every clicked
+            // feature reported twice in the popup.
+            if (myToken !== layerSyncToken.current) {
+              abortShapefileLoad(newLayer, CANCEL_REASON.SUPERSEDED);
+              return;
+            }
+            newLayer.set("appliedStyle", layerConfig.style);
             map.addLayer(newLayer);
 
             if (
@@ -584,34 +691,7 @@ const MapComponent = ({
               }
             }
 
-            if (layerConfig.style) {
-              const isWebGLTileRampStyle =
-                layerConfig.type === "WebGLTile" &&
-                layerConfig.style &&
-                typeof layerConfig.style === "object" &&
-                !Array.isArray(layerConfig.style) &&
-                "color" in layerConfig.style;
-
-              if (isWebGLTileRampStyle) {
-                newLayer.setStyle(layerConfig.style);
-              } else {
-                try {
-                  await applyStyle(newLayer, layerConfig.style);
-                } catch (err) {
-                  if (
-                    err.message !==
-                    "Cannot read properties of undefined (reading 'crs')"
-                  ) {
-                    const styleFunction = createJsonStyleFunction(
-                      layerConfig.style,
-                    );
-                    if (typeof newLayer.setStyle === "function") {
-                      newLayer.setStyle(styleFunction);
-                    }
-                  }
-                }
-              }
-            }
+            await applyLayerStyle(newLayer, layerConfig);
           } catch (err) {
             if (
               err &&
