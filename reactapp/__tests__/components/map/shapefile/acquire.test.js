@@ -1,4 +1,5 @@
-import { zipSync, strToU8 } from "fflate";
+import { zipSync } from "fflate";
+import { bytes } from "../../../utilities/bytes";
 import {
   acquireComponents,
   DEFAULT_MAX_BYTES,
@@ -11,10 +12,10 @@ import {
 
 const MB = 1024 * 1024;
 const ARCHIVE = zipSync({
-  "basins.shp": strToU8("SHPBODY"),
-  "basins.dbf": strToU8("DBFBODY"),
-  "basins.prj": strToU8('PROJCS["NAD_1983_Albers"]'),
-  "basins.shx": strToU8("SHXBODY"),
+  "basins.shp": bytes("SHPBODY"),
+  "basins.dbf": bytes("DBFBODY"),
+  "basins.prj": bytes('PROJCS["NAD_1983_Albers"]'),
+  "basins.shx": bytes("SHXBODY"),
 });
 
 // Minimal Response stand-in. The configured environment exposes no response
@@ -77,7 +78,7 @@ describe("acquireComponents — archive form", () => {
     fetchMock.mockResolvedValue(
       respond({
         contentType: "text/html; charset=utf-8",
-        body: strToU8("<html>"),
+        body: bytes("<html>"),
       }),
     );
 
@@ -112,7 +113,7 @@ describe("acquireComponents — archive form", () => {
   it("refuses an archive that expands past the ceiling", async () => {
     const bomb = zipSync({
       "basins.shp": new Uint8Array(8 * MB),
-      "basins.prj": strToU8('PROJCS["x"]'),
+      "basins.prj": bytes('PROJCS["x"]'),
     });
     fetchMock.mockResolvedValue(respond({ body: bomb }));
 
@@ -133,7 +134,7 @@ describe("acquireComponents — sibling form", () => {
       return Promise.resolve(
         respond({
           contentType: "application/octet-stream",
-          body: strToU8(`${extension.toUpperCase()}BODY`),
+          body: bytes(`${extension.toUpperCase()}BODY`),
         }),
       );
     };

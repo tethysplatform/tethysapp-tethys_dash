@@ -1,4 +1,5 @@
-import { zipSync, strToU8, strFromU8 } from "fflate";
+import { zipSync } from "fflate";
+import { bytes, text } from "../../../utilities/bytes";
 import {
   unzipShapefileComponents,
   createByteBudget,
@@ -11,10 +12,10 @@ function archive(entries) {
 }
 
 const MINIMAL = {
-  "basins.shp": strToU8("SHPBODY"),
-  "basins.dbf": strToU8("DBFBODY"),
-  "basins.prj": strToU8('PROJCS["NAD_1983_Albers"]'),
-  "basins.shx": strToU8("SHXBODY"),
+  "basins.shp": bytes("SHPBODY"),
+  "basins.dbf": bytes("DBFBODY"),
+  "basins.prj": bytes('PROJCS["NAD_1983_Albers"]'),
+  "basins.shx": bytes("SHXBODY"),
 };
 
 describe("createByteBudget", () => {
@@ -66,7 +67,7 @@ describe("unzipShapefileComponents", () => {
     ]);
     // Buffers come back raw; decoding the .prj is the interpretation step's job.
     expect(result.components.shp).toBeInstanceOf(Uint8Array);
-    expect(strFromU8(result.components.prj)).toContain("PROJCS");
+    expect(text(result.components.prj)).toContain("PROJCS");
   });
 
   it("decompresses a deflate-compressed archive at all", () => {
@@ -75,7 +76,7 @@ describe("unzipShapefileComponents", () => {
     // the regression guard for that.
     const compressible = {
       "basins.shp": new Uint8Array(64 * 1024),
-      "basins.prj": strToU8('PROJCS["x"]'),
+      "basins.prj": bytes('PROJCS["x"]'),
     };
     const zipped = archive(compressible);
     expect(zipped.length).toBeLessThan(64 * 1024);
@@ -88,8 +89,8 @@ describe("unzipShapefileComponents", () => {
   it("tolerates components nested in a directory", () => {
     const result = unzipShapefileComponents(
       archive({
-        "wbd/basins.shp": strToU8("SHPBODY"),
-        "wbd/basins.prj": strToU8('PROJCS["x"]'),
+        "wbd/basins.shp": bytes("SHPBODY"),
+        "wbd/basins.prj": bytes('PROJCS["x"]'),
       }),
       { maxBytes: 10 * MB },
     );
@@ -101,8 +102,8 @@ describe("unzipShapefileComponents", () => {
     const result = unzipShapefileComponents(
       archive({
         ...MINIMAL,
-        "readme.txt": strToU8("notes"),
-        "metadata.xml": strToU8("<x/>"),
+        "readme.txt": bytes("notes"),
+        "metadata.xml": bytes("<x/>"),
       }),
       { maxBytes: 10 * MB },
     );
@@ -120,7 +121,7 @@ describe("unzipShapefileComponents", () => {
     // ceiling has to bind on the declared expansion, not on the transfer.
     const zipped = archive({
       "basins.shp": new Uint8Array(8 * MB),
-      "basins.prj": strToU8('PROJCS["x"]'),
+      "basins.prj": bytes('PROJCS["x"]'),
     });
     expect(zipped.length).toBeLessThan(64 * 1024);
 
@@ -140,7 +141,7 @@ describe("unzipShapefileComponents", () => {
     const zipped = archive({
       "basins.shp": new Uint8Array(half),
       "basins.dbf": new Uint8Array(half),
-      "basins.prj": strToU8('PROJCS["x"]'),
+      "basins.prj": bytes('PROJCS["x"]'),
     });
     const result = unzipShapefileComponents(zipped, { maxBytes: 1 * MB });
     expect(result.error.reason).toBe("too_large");
@@ -161,9 +162,9 @@ describe("unzipShapefileComponents", () => {
   it("reports an archive carrying more than one .shp rather than choosing", () => {
     const result = unzipShapefileComponents(
       archive({
-        "basins.shp": strToU8("A"),
-        "gages.shp": strToU8("B"),
-        "basins.prj": strToU8('PROJCS["x"]'),
+        "basins.shp": bytes("A"),
+        "gages.shp": bytes("B"),
+        "basins.prj": bytes('PROJCS["x"]'),
       }),
       { maxBytes: 10 * MB },
     );
@@ -175,14 +176,14 @@ describe("unzipShapefileComponents", () => {
 
   it("reports an archive with no .shp at all", () => {
     const result = unzipShapefileComponents(
-      archive({ "readme.txt": strToU8("nothing here") }),
+      archive({ "readme.txt": bytes("nothing here") }),
       { maxBytes: 10 * MB },
     );
     expect(result.error.reason).toBe("no_shapefile");
   });
 
   it("reports a buffer that is not an archive rather than throwing", () => {
-    const result = unzipShapefileComponents(strToU8("<html>404</html>"), {
+    const result = unzipShapefileComponents(bytes("<html>404</html>"), {
       maxBytes: 10 * MB,
     });
     expect(result.components).toBeUndefined();
