@@ -96,6 +96,38 @@ The GeoJSON source is different from the other options. It provides a text area 
 
 ------------------------------------------------------------------------------------------------------------------------
 
++++++++++
+Shapefile
++++++++++
+
+
+The Shapefile source draws an ESRI Shapefile that is already published on the web. The browser fetches and reads it directly — nothing is uploaded to TethysDash, and the saved layer keeps only the URL, so the file stays wherever it already lives and stays current when it is replaced there.
+
+Two forms are accepted, and the same **url** field takes either:
+
+- A **zipped shapefile**, whose path ends in ``.zip``.
+- The **.shp component** of an unzipped set. The sibling ``.dbf``, ``.prj`` and ``.shx`` files are requested from the same path automatically, so only the ``.shp`` URL is entered. Any query string on the URL is preserved on each request, which keeps signed links working.
+
+    - **url:** *(required)* URL of a zipped shapefile, or of its ``.shp`` component. Must be ``http`` or ``https``.
+    - **projection:** *(optional)* Used only when the shapefile carries no ``.prj``. Accepts a code such as ``EPSG:5070``, or a full WKT or proj4 definition for a coordinate system the map does not already know.
+    - **attributions:** *(optional)* Attribution text for the layer.
+
+The coordinate system comes from the shapefile's own ``.prj`` and does not need to be entered. If the file has no ``.prj``, the **projection** property is used instead; if neither is present the layer reports that its coordinates cannot be placed rather than guessing at them.
+
+Attribute values come from the ``.dbf``. If that component is missing, the geometry still draws but the layer offers no fields for style rules or popups.
+
+Styling, popups, attribute variables and snapping all behave as they do for a :ref:`GeoJSON <source_tab>` layer — see the :ref:`style_tab` and :ref:`attributes_and_popups_tab`.
+
+**Reading the fields.** The Style and Attributes tabs need the ``.dbf`` field names, which means reading the source. Because that can be a large download, it happens when you ask for it: use **Read shapefile fields** on this tab. One read serves both tabs. If the saved style rules, popup settings or attribute variables name a field the source no longer has — after the file is republished with a renamed column, for instance — the field is listed so the affected rules can be corrected. Those rules will not match anything until then, and the layer will still draw.
+
+**Size limit.** A shapefile is read in one piece, so the components are limited to 25 MB once decompressed. A source above the limit is refused before it is expanded, and the message states both the observed and the permitted size. Clip or simplify the data, or serve a reduced copy.
+
+.. note::
+
+    The browser must be allowed to fetch the file, which means the host has to send permissive `CORS <https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS>`_ headers. Most agency open-data portals do — ArcGIS Hub and AWS-hosted government buckets among them — but some widely used sources do not. Census TIGER files, for example, cannot be read from a browser at all. When a fetch is refused, the layer says so and suggests converting the shapefile to GeoJSON and using the :ref:`GeoJSON <source_tab>` source instead, which stores the data with the dashboard rather than fetching it.
+
+------------------------------------------------------------------------------------------------------------------------
+
 +++++++++++
 Vector Tile
 +++++++++++
