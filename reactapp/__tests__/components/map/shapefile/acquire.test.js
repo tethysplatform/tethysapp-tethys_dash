@@ -185,6 +185,7 @@ describe("acquireComponents — sibling form", () => {
 
     expect(result.error).toBeUndefined();
     expect(Object.keys(result.components).sort()).toEqual([
+      "cpg",
       "dbf",
       "prj",
       "shp",
@@ -196,6 +197,7 @@ describe("acquireComponents — sibling form", () => {
       "https://example.org/basins.dbf",
       "https://example.org/basins.prj",
       "https://example.org/basins.shx",
+      "https://example.org/basins.cpg",
     ]);
   });
 

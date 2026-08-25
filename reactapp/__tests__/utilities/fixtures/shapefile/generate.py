@@ -72,9 +72,75 @@ def points(writer):
     writer.record("06730500", 2.5)
 
 
+# Non-ASCII attribute values in a NUL-padded .dbf, which is what Natural Earth
+# ships and what no amount of String.prototype.trim() will clean up. Written with
+# a .cpg so both halves of the encoding path have a fixture: the declared
+# encoding, and (by deleting the .cpg in a test) the sniffed one.
+def encoded(writer):
+    writer.field("NAME", "C", 40)
+    writer.field("LOCALNAME", "C", 24)
+    writer.field("POP", "N", 10)
+    writer.point(-93.364, 46.0592)
+    writer.record("Miñnesota 明尼苏达州", "", 5707390)
+
+
+def nul_pad_dbf(path):
+    """Rewrite the .dbf's space padding as NUL padding, in place.
+
+    pyshp pads with spaces, which trim() removes; the defect under test only
+    appears with NUL padding. Only each field's own padding run is rewritten --
+    trailing for character fields, leading for the right-justified numeric ones
+    -- so the values themselves and the binary header are left alone.
+    """
+    with open(path, "rb") as handle:
+        data = bytearray(handle.read())
+
+    header_len, record_len = int.from_bytes(data[8:10], "little"), int.from_bytes(
+        data[10:12], "little"
+    )
+    n_records = int.from_bytes(data[4:8], "little")
+
+    fields, offset = [], 32
+    while data[offset] != 0x0D:
+        fields.append((chr(data[offset + 11]), data[offset + 16]))
+        offset += 32
+
+    for record in range(n_records):
+        base = header_len + record * record_len + 1  # +1 skips the deletion flag
+        cursor = 0
+        for kind, length in fields:
+            start = base + cursor
+            chunk = data[start : start + length]
+            if kind == "C":
+                stripped = chunk.rstrip(b" ")
+                chunk = stripped + b"\x00" * (length - len(stripped))
+            else:
+                stripped = chunk.lstrip(b" ")
+                chunk = b"\x00" * (length - len(stripped)) + stripped
+            data[start : start + length] = chunk
+            cursor += length
+
+    with open(path, "wb") as handle:
+        handle.write(data)
+
+
+def write_encoded():
+    path = os.path.join(HERE, "encoded")
+    writer = shapefile.Writer(path, encoding="utf-8")
+    encoded(writer)
+    writer.close()
+    with open(path + ".prj", "w") as handle:
+        handle.write(ESRI_ALBERS_PRJ)
+    with open(path + ".cpg", "w") as handle:
+        handle.write("UTF-8")
+    nul_pad_dbf(path + ".dbf")
+    return {"note": "NUL-padded utf-8 attributes; oracle asserted in the JS test"}
+
+
 oracle = {
     "holes": write("holes", holes),
     "multipart": write("multipart", multipart),
     "points": write("points", points),
+    "encoded": write_encoded(),
 }
 print(json.dumps(oracle, indent=2, sort_keys=True))

@@ -3,6 +3,7 @@ import {
   ensureProjection,
   registerProjectionDefinition,
 } from "components/map/projections";
+import { prepareAttributes } from "components/map/shapefile/attributes";
 
 /**
  * Turn shapefile component buffers into a GeoJSON feature collection carrying
@@ -44,11 +45,18 @@ export async function interpretShapefile(
   // if they were measured against the artifact that actually ships.
   const { read } = await import("shapefile/dist/shapefile.js");
 
+  // The .dbf is decoded and de-padded before the parser sees it: the parser
+  // defaults to windows-1252 regardless of what the source says it wrote, and
+  // strips padding with trim(), which leaves NUL padding in place. Both failures
+  // are silent -- they produce readable-looking attribute values that are wrong.
+  const attributes = prepareAttributes(components.dbf, components.cpg);
+
   let collection;
   try {
     collection = await read(
       toArrayBuffer(components.shp),
-      components.dbf ? toArrayBuffer(components.dbf) : undefined,
+      attributes.dbf ? toArrayBuffer(attributes.dbf) : undefined,
+      attributes.encoding ? { encoding: attributes.encoding } : undefined,
     );
   } catch (error) {
     return {

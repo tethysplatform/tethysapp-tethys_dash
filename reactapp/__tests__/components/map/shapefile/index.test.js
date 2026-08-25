@@ -7,9 +7,10 @@ import { interpretShapefile } from "components/map/shapefile/index";
 // into its filename string, so a binary fixture cannot be `import`ed.
 const FIXTURES = path.join(__dirname, "../../../utilities/fixtures/shapefile");
 
-function load(name) {
+function load(name, { without = [] } = {}) {
   const components = {};
-  ["shp", "dbf", "prj", "shx"].forEach((extension) => {
+  ["shp", "dbf", "prj", "shx", "cpg"].forEach((extension) => {
+    if (without.includes(extension)) return;
     const file = path.join(FIXTURES, `${name}.${extension}`);
     if (fs.existsSync(file)) {
       components[extension] = new Uint8Array(fs.readFileSync(file));
@@ -259,5 +260,74 @@ describe("interpretShapefile — projection field accepts a definition", () => {
     });
 
     expect(result.projectionCode).toBe("EPSG:5070");
+  });
+});
+
+describe("interpretShapefile — attribute text", () => {
+  // The fixture is NUL-padded and UTF-8, which is what Natural Earth ships. Both
+  // properties are asserted on the raw bytes first: the parser pads with
+  // trim(), which does not remove NUL, and defaults to windows-1252 regardless
+  // of what the source says -- so a fixture that had lost either property would
+  // let these tests pass while the defect stood.
+  it("has a fixture that actually carries the defect", () => {
+    const dbf = load("encoded").dbf;
+    const headerLength = dbf[8] | (dbf[9] << 8);
+    const records = dbf.subarray(headerLength);
+
+    expect(
+      Array.from(records).filter((byte) => byte === 0).length,
+    ).toBeGreaterThan(0);
+    expect(Array.from(records).some((byte) => byte > 0x7f)).toBe(true);
+    expect(new TextDecoder("windows-1252").decode(records)).not.toContain(
+      "明尼苏达州",
+    );
+  });
+
+  it("reads non-ASCII values in the encoding the .cpg declares", async () => {
+    const result = await interpretShapefile(load("encoded"));
+
+    expect(result.error).toBeUndefined();
+    const [feature] = result.featureCollection.features;
+    expect(feature.properties.NAME).toBe("Miñnesota 明尼苏达州");
+  });
+
+  it("strips NUL padding rather than carrying it into the value", async () => {
+    // Left in place this renders as a run of tofu boxes after the text, which is
+    // how the defect was reported.
+    const result = await interpretShapefile(load("encoded"));
+
+    const [feature] = result.featureCollection.features;
+    expect(feature.properties.NAME).not.toContain(String.fromCharCode(0));
+    expect(feature.properties.NAME).toHaveLength("Miñnesota 明尼苏达州".length);
+  });
+
+  it("reads an all-padding field as absent rather than as padding", async () => {
+    // A NUL-filled field is a truthy string to the parser, so an empty value
+    // arrives as content -- boxes in a popup, and a style rule that matches it.
+    const result = await interpretShapefile(load("encoded"));
+
+    const [feature] = result.featureCollection.features;
+    expect(feature.properties.LOCALNAME).toBeNull();
+  });
+
+  it("reads a NUL-padded numeric field as its number", async () => {
+    // `+value` on a NUL-padded number is NaN, which the parser reports as null.
+    // Nothing surfaces -- the attribute is simply missing.
+    const result = await interpretShapefile(load("encoded"));
+
+    const [feature] = result.featureCollection.features;
+    expect(feature.properties.POP).toBe(5707390);
+  });
+
+  it("falls back to sniffing when the source carries no .cpg", async () => {
+    // Most shapefiles have no .cpg at all, so the declared path alone would
+    // leave the common case broken.
+    const result = await interpretShapefile(
+      load("encoded", { without: ["cpg"] }),
+    );
+
+    expect(result.error).toBeUndefined();
+    const [feature] = result.featureCollection.features;
+    expect(feature.properties.NAME).toBe("Miñnesota 明尼苏达州");
   });
 });

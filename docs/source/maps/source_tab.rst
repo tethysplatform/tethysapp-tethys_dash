@@ -106,7 +106,7 @@ The Shapefile source draws an ESRI Shapefile that is already published on the we
 Two forms are accepted, and the same **url** field takes either:
 
 - A **zipped shapefile**, whose path ends in ``.zip``.
-- The **.shp component** of an unzipped set. The sibling ``.dbf``, ``.prj`` and ``.shx`` files are requested from the same path automatically, so only the ``.shp`` URL is entered. Any query string on the URL is preserved on each request, which keeps signed links working.
+- The **.shp component** of an unzipped set. The sibling ``.dbf``, ``.prj``, ``.shx`` and ``.cpg`` files are requested from the same path automatically, so only the ``.shp`` URL is entered. Any query string on the URL is preserved on each request, which keeps signed links working.
 
 A portal **download endpoint** counts as the first form even when its path carries no ``.zip`` — ArcGIS Hub and similar services serve shapefiles from a URL ending in something like ``/downloads/data?format=shp``. Paste it as-is.
 
@@ -117,6 +117,8 @@ A portal **download endpoint** counts as the first form even when its path carri
 The coordinate system comes from the shapefile's own ``.prj`` and does not need to be entered. If the file has no ``.prj``, the **projection** property is used instead; if neither is present the layer reports that its coordinates cannot be placed rather than guessing at them.
 
 Attribute values come from the ``.dbf``. If that component is missing, the geometry still draws but the layer offers no fields for style rules or popups.
+
+**Attribute text.** The character encoding comes from the ``.cpg`` component when the shapefile has one. When it does not, UTF-8 is detected from the attribute bytes themselves, and anything that is not valid UTF-8 is read as Windows-1252. Values whose padding is unusual — some publishers pad with null bytes rather than spaces — are trimmed either way, so a field that is empty in the source reads as empty rather than as padding characters.
 
 Styling, popups, attribute variables and snapping all behave as they do for a :ref:`GeoJSON <source_tab>` layer — see the :ref:`style_tab` and :ref:`attributes_and_popups_tab`.
 

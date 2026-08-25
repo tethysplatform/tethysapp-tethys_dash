@@ -89,6 +89,7 @@ describe("deriveSiblingUrls", () => {
       dbf: "https://example.org/data/basins.dbf",
       prj: "https://example.org/data/basins.prj",
       shx: "https://example.org/data/basins.shx",
+      cpg: "https://example.org/data/basins.cpg",
     });
   });
 

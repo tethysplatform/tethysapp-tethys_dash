@@ -1,6 +1,7 @@
 import {
   validateSourceUrl,
   deriveSiblingUrls,
+  COMPONENT_EXTENSIONS,
 } from "components/map/shapefile/siblings";
 import {
   unzipShapefileComponents,
@@ -104,9 +105,11 @@ async function acquireSiblings(url, signal, maxBytes) {
   const components = {};
 
   // Sequential rather than concurrent: the .shp is required, so there is no
-  // point paying for the other three before knowing it exists, and a shared
-  // budget is simpler to reason about when only one request is in flight.
-  for (const extension of ["shp", "dbf", "prj", "shx"]) {
+  // point paying for the others before knowing it exists, and a shared budget is
+  // simpler to reason about when only one request is in flight. Driven off the
+  // component set so adding a component does not mean remembering to add it in
+  // two places.
+  for (const extension of COMPONENT_EXTENSIONS) {
     const fetched = await fetchBytes(derived[extension], signal);
     if (fetched.cancelled) return fetched;
     if (fetched.error) {

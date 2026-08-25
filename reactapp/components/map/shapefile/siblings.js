@@ -1,7 +1,9 @@
 // The components of an unzipped shapefile. `shp` carries geometry, `dbf`
-// attributes, `prj` the coordinate reference system as WKT, and `shx` the record
-// index.
-export const COMPONENT_EXTENSIONS = ["shp", "dbf", "prj", "shx"];
+// attributes, `prj` the coordinate reference system as WKT, `shx` the record
+// index, and `cpg` the character encoding the `dbf` was written in. Only `shp`
+// is required; `shp` is first because the fetch loop treats it as the one whose
+// absence is fatal.
+export const COMPONENT_EXTENSIONS = ["shp", "dbf", "prj", "shx", "cpg"];
 
 const ALLOWED_PROTOCOLS = ["http:", "https:"];
 
