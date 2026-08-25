@@ -2666,3 +2666,54 @@ def test_zarr_meta_unsafe_url_422(mocker):
     )
     request = RequestFactory().get("/zarr/meta", {"src": "http://169.254.169.254"})
     assert zarr_meta(request).status_code == 422
+
+
+def test_zarr_cog_unexpected_failure_500(mocker):
+    # Anything that is not a recognised zarr failure is a bug in the conversion,
+    # and its message can name internal paths or store internals -- so it is
+    # logged server-side and the caller gets a fixed string. The distinction from
+    # the 400 above is what keeps that message from leaking.
+    mocker.patch("tethysapp.tethysdash.controllers.validate_public_url")
+    mocker.patch(
+        "tethysapp.tethysdash.controllers.read_cog",
+        side_effect=RuntimeError("rasterio failed at /srv/internal/path"),
+    )
+    request = RequestFactory().get("/zarr/cog", {"src": "https://x", "variable": "t"})
+    response = zarr_cog(request)
+    assert response.status_code == 500
+    assert json.loads(response.content) == {"error": "failed to convert store"}
+
+
+def test_zarr_meta_requires_src():
+    response = zarr_meta(RequestFactory().get("/zarr/meta"))
+    assert response.status_code == 400
+    assert "src" in json.loads(response.content)["error"]
+
+
+@pytest.mark.parametrize(
+    "error",
+    # StoreOpenError subclasses ZarrCogError, so the handler catches the base
+    # class and both a network failure and a malformed store land on 502.
+    [StoreOpenError("dns failure for internal.host"), ZarrCogError("not a zarr store")],
+)
+def test_zarr_meta_store_open_failure_502(mocker, error):
+    mocker.patch("tethysapp.tethysdash.controllers.validate_public_url")
+    mocker.patch("tethysapp.tethysdash.controllers.open_store", side_effect=error)
+    response = zarr_meta(RequestFactory().get("/zarr/meta", {"src": "https://x"}))
+    assert response.status_code == 502
+    # The upstream message is not forwarded; it can name internal hosts.
+    assert json.loads(response.content) == {"error": "could not open store"}
+
+
+def test_zarr_meta_read_metadata_error_400(mocker):
+    # Unlike the open failure, this message is forwarded: it describes something
+    # about the store the author chose and can act on.
+    mocker.patch("tethysapp.tethysdash.controllers.validate_public_url")
+    mocker.patch("tethysapp.tethysdash.controllers.open_store", return_value=object())
+    mocker.patch(
+        "tethysapp.tethysdash.controllers.read_metadata",
+        side_effect=ZarrCogError("could not determine a griddable variable"),
+    )
+    response = zarr_meta(RequestFactory().get("/zarr/meta", {"src": "https://x"}))
+    assert response.status_code == 400
+    assert "griddable" in json.loads(response.content)["error"]

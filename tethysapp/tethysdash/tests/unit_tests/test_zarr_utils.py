@@ -205,6 +205,12 @@ def test_retry_raises_after_exhausting_attempts(monkeypatch):
         ("bytes=50-", 100, (50, 99)),  # open-ended
         ("bytes=-10", 100, (90, 99)),  # suffix
         ("bytes=200-300", 100, None),  # start past EOF
+        ("bytes=-0", 100, None),  # suffix of zero bytes asks for nothing
+        # A non-numeric bound is refused rather than raising out of the view: the
+        # header is caller-supplied, so a bad one must degrade to a full body.
+        ("bytes=0-abc", 100, None),
+        ("bytes=abc-def", 100, None),
+        ("bytes=-xyz", 100, None),
     ],
 )
 def test_parse_byte_range(header, total, expected):
@@ -218,3 +224,149 @@ def test_build_cog_embeds_band_statistics():
         # slice 0's only wet cell is 2.5 (see _make_group), so min == max == 2.5
         assert float(tags["STATISTICS_MINIMUM"]) == pytest.approx(2.5)
         assert float(tags["STATISTICS_MAXIMUM"]) == pytest.approx(2.5)
+
+
+class _StubFsspecStore:
+    """Stands in for ``FsspecStore`` so ``open_store`` can be driven without a
+    network. Patched onto the module rather than onto zarr's own class, which
+    would mutate a dependency's internals for the duration of the test."""
+
+    opened = []
+
+    @classmethod
+    def from_url(cls, src):
+        cls.opened.append(src)
+        return f"store:{src}"
+
+
+def test_open_store_opens_the_url_read_only(monkeypatch):
+    stub = type("Stub", (_StubFsspecStore,), {"opened": []})
+    monkeypatch.setattr(zu, "FsspecStore", stub)
+    group = object()
+    seen = {}
+
+    def fake_open_group(store, mode):
+        seen.update(store=store, mode=mode)
+        return group
+
+    monkeypatch.setattr(zu.zarr, "open_group", fake_open_group)
+
+    assert zu.open_store("https://host/s.zarr") is group
+    assert stub.opened == ["https://host/s.zarr"]
+    # Read-only is the whole contract here: the store belongs to whoever
+    # published it, and this endpoint takes the URL from a query parameter.
+    assert seen == {"store": "store:https://host/s.zarr", "mode": "r"}
+
+
+def test_open_store_retries_a_transient_failure(monkeypatch):
+    monkeypatch.setattr(zu.time, "sleep", lambda _s: None)
+    stub = type("Stub", (_StubFsspecStore,), {"opened": []})
+    monkeypatch.setattr(zu, "FsspecStore", stub)
+    attempts = {"n": 0}
+    group = object()
+
+    def flaky_open_group(store, mode):
+        attempts["n"] += 1
+        if attempts["n"] < 3:
+            raise ConnectionError("transient")
+        return group
+
+    monkeypatch.setattr(zu.zarr, "open_group", flaky_open_group)
+
+    # A single range read over HTTP fails transiently often enough that one
+    # failure must not sink the request.
+    assert zu.open_store("https://host/s.zarr") is group
+    assert attempts["n"] == 3
+
+
+def test_open_store_wraps_a_persistent_failure(monkeypatch):
+    monkeypatch.setattr(zu.time, "sleep", lambda _s: None)
+
+    class _Boom(_StubFsspecStore):
+        @classmethod
+        def from_url(cls, src):
+            raise OSError("dns failure")
+
+    monkeypatch.setattr(zu, "FsspecStore", _Boom)
+
+    # Reported as StoreOpenError specifically, because the API layer maps that to
+    # 502 (the store is unreachable) rather than 400 (the request is wrong).
+    with pytest.raises(zu.StoreOpenError, match="could not open zarr store") as caught:
+        zu.open_store("https://host/s.zarr")
+    assert isinstance(caught.value, ZarrCogError)
+    # The original is kept as the cause so a server log still names the reason.
+    assert isinstance(caught.value.__cause__, OSError)
+
+
+def test_read_cog_builds_from_the_opened_store(monkeypatch):
+    zu.read_cog.cache_clear()
+    monkeypatch.setattr(zu, "open_store", lambda src: f"group:{src}")
+    calls = []
+
+    def fake_build(group, variable, index, *, mask_below=None):
+        calls.append((group, variable, index, mask_below))
+        return b"COGBYTES"
+
+    monkeypatch.setattr(zu, "build_cog", fake_build)
+
+    assert zu.read_cog("https://a.zarr", "depth", 1, 0.5) == b"COGBYTES"
+    assert calls == [("group:https://a.zarr", "depth", 1, 0.5)]
+    zu.read_cog.cache_clear()
+
+
+def test_read_cog_caches_per_argument_set(monkeypatch):
+    zu.read_cog.cache_clear()
+    opens = {"n": 0}
+
+    def counting_open(src):
+        opens["n"] += 1
+        return "group"
+
+    monkeypatch.setattr(zu, "open_store", counting_open)
+    monkeypatch.setattr(zu, "build_cog", lambda *a, **k: b"COGBYTES")
+
+    zu.read_cog("https://a.zarr", "depth", 0, None)
+    zu.read_cog("https://a.zarr", "depth", 0, None)
+    # A map layer reads one COG over several range requests, so without the cache
+    # each of those would re-open the store and rebuild the whole file.
+    assert opens["n"] == 1
+    zu.read_cog("https://a.zarr", "depth", 1, None)
+    assert opens["n"] == 2
+    zu.read_cog.cache_clear()
+
+
+def test_read_metadata_uses_the_requested_variable():
+    g = _make_group()
+    g.create_array("elevation", shape=(2, 3), dtype="float32")
+    # Auto-selection would pick a griddable array in hash-dependent order, and
+    # "depth" is 3x4x5 -- so the shape is what proves the request was honored.
+    meta = read_metadata(g, variable="elevation")
+    assert meta["grid_shape"] == [2, 3]
+    assert meta["slice_count"] == 1
+
+
+def test_read_metadata_unknown_requested_variable_raises():
+    # Distinct from "could not determine a griddable variable": the caller named
+    # something, and saying it is absent is more use than re-asking for a name.
+    with pytest.raises(ZarrCogError, match="'nope' not found"):
+        read_metadata(_make_group(), variable="nope")
+
+
+def test_read_metadata_missing_transform_raises():
+    g = _make_group()
+    del g.attrs["transform"]
+    # read_metadata needs only the transform -- it reports crs as-is, so unlike
+    # build_cog it does not require one.
+    with pytest.raises(ZarrCogError, match="transform"):
+        read_metadata(g)
+
+
+def test_read_metadata_rejects_unsupported_ndim():
+    g = zarr.open_group(store=zarr.storage.MemoryStore(), mode="w")
+    g.attrs["crs"] = CRS
+    g.attrs["transform"] = TRANSFORM
+    g.create_array("cube", shape=(2, 3, 4, 5), dtype="float32")
+    # Named explicitly because auto-selection skips a 4-D array and would report
+    # that nothing griddable was found instead.
+    with pytest.raises(ZarrCogError, match=r"2D .* or 3D"):
+        read_metadata(g, variable="cube")
