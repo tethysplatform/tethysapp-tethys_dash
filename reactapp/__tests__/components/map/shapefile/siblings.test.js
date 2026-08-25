@@ -27,24 +27,49 @@ describe("validateSourceUrl", () => {
     expect(error.detail).toMatch(/https?/);
   });
 
-  it("rejects a path ending in neither .zip nor .shp and names both forms", () => {
+  it("rejects a path naming a different format outright", () => {
     const { error } = validateSourceUrl(
       "https://example.org/data/basins.geojson",
     );
     expect(error.reason).toBe("unsupported_path");
-    expect(error.detail).toContain(".zip");
-    expect(error.detail).toContain(".shp");
+    expect(error.detail).toContain("geojson");
   });
 
-  it("classifies by the path, not the query string", () => {
-    // A download endpoint whose query says "shp" is still not a .shp path, and a
-    // .zip path with an unrelated query still is an archive.
-    expect(
-      validateSourceUrl("https://example.org/download?format=shp").error,
-    ).toBeTruthy();
+  it.each([
+    "https://hub.arcgis.com/api/v3/datasets/abc_0/downloads/data?format=shp",
+    "https://opendata.arcgis.com/api/v3/datasets/abc_0/downloads/data?format=shp",
+    "https://example.org/download?format=shp",
+    "https://example.org/export",
+  ])("accepts the extensionless download endpoint %s", (url) => {
+    // This is the shape most portals actually hand out: ArcGIS Hub serves
+    // shapefiles from a path ending in "data", with the format in the query
+    // string. Rejecting on path shape alone turned away the host class the
+    // pre-implementation survey found matters most -- so an unrecognised path is
+    // treated as an archive and the bytes decide.
+    expect(validateSourceUrl(url).form).toBe("archive");
+  });
+
+  it("still classifies a recognised extension from the path, not the query", () => {
     expect(
       validateSourceUrl("https://example.org/basins.zip?token=abc").form,
     ).toBe("archive");
+    expect(
+      validateSourceUrl("https://example.org/basins.shp?token=abc").form,
+    ).toBe("components");
+  });
+
+  it("marks every url rejection as an input problem, not a host problem", () => {
+    // These must not suggest converting the file because the host is
+    // unreachable, and must not offer a retry: the host is fine, and re-running
+    // an unsupported url fails identically forever.
+    [
+      "data:application/zip;base64,UEs=",
+      "//example.org/basins.zip",
+      "https://example.org/basins.geojson",
+      "",
+    ].forEach((url) => {
+      expect(validateSourceUrl(url).error.stage).toBe("input");
+    });
   });
 
   it("rejects an empty or non-string url", () => {

@@ -108,6 +108,8 @@ Two forms are accepted, and the same **url** field takes either:
 - A **zipped shapefile**, whose path ends in ``.zip``.
 - The **.shp component** of an unzipped set. The sibling ``.dbf``, ``.prj`` and ``.shx`` files are requested from the same path automatically, so only the ``.shp`` URL is entered. Any query string on the URL is preserved on each request, which keeps signed links working.
 
+A portal **download endpoint** counts as the first form even when its path carries no ``.zip`` — ArcGIS Hub and similar services serve shapefiles from a URL ending in something like ``/downloads/data?format=shp``. Paste it as-is.
+
     - **url:** *(required)* URL of a zipped shapefile, or of its ``.shp`` component. Must be ``http`` or ``https``.
     - **projection:** *(optional)* Used only when the shapefile carries no ``.prj``. Accepts a code such as ``EPSG:5070``, or a full WKT or proj4 definition for a coordinate system the map does not already know.
     - **attributions:** *(optional)* Attribution text for the layer.

@@ -5,9 +5,28 @@ export const COMPONENT_EXTENSIONS = ["shp", "dbf", "prj", "shx"];
 
 const ALLOWED_PROTOCOLS = ["http:", "https:"];
 
-function failure(reason, detail) {
-  return { error: { stage: "fetch", reason, detail } };
+// Something wrong with what the author typed, as distinct from something wrong
+// with the host. Kept separate so these never suggest converting the file
+// because the host is unreachable, and never offer a retry -- re-running an
+// unsupported URL fails identically forever.
+function inputFailure(reason, detail) {
+  return { error: { stage: "input", reason, detail } };
 }
+
+// Extensions that clearly name a different format. A path ending in one of these
+// is a mistake worth catching before a request goes out; a path with no
+// extension at all is not, since that is what a download endpoint looks like.
+const WRONG_FORMAT_EXTENSIONS = [
+  "geojson",
+  "json",
+  "kml",
+  "kmz",
+  "csv",
+  "tif",
+  "tiff",
+  "gpkg",
+  "gdb",
+];
 
 // The extension of the final path segment, lower-cased, or "" when there is
 // none. Read from the path alone: a download endpoint whose query string says
@@ -34,7 +53,7 @@ function pathExtension(url) {
  */
 export function validateSourceUrl(rawUrl) {
   if (typeof rawUrl !== "string" || rawUrl.trim() === "") {
-    return failure("empty", "No shapefile URL was supplied.");
+    return inputFailure("empty", "No shapefile URL was supplied.");
   }
 
   const trimmed = rawUrl.trim();
@@ -42,7 +61,7 @@ export function validateSourceUrl(rawUrl) {
   // Checked before parsing, because a protocol-relative URL has no protocol to
   // report and would otherwise surface as an unhelpful malformed-URL error.
   if (trimmed.startsWith("//")) {
-    return failure(
+    return inputFailure(
       "unsupported_scheme",
       "A protocol-relative URL is not accepted. Use an http:// or https:// URL.",
     );
@@ -52,11 +71,11 @@ export function validateSourceUrl(rawUrl) {
   try {
     url = new URL(trimmed);
   } catch {
-    return failure("malformed_url", `"${trimmed}" is not a valid URL.`);
+    return inputFailure("malformed_url", `"${trimmed}" is not a valid URL.`);
   }
 
   if (!ALLOWED_PROTOCOLS.includes(url.protocol)) {
-    return failure(
+    return inputFailure(
       "unsupported_scheme",
       `The scheme "${url.protocol}" is not accepted. Use an http:// or https:// URL.`,
     );
@@ -64,12 +83,23 @@ export function validateSourceUrl(rawUrl) {
 
   const extension = pathExtension(url);
   if (extension === "zip") return { form: "archive", url: trimmed };
+  // A .shp path is the only case sibling derivation can work from, since it
+  // needs an extension to replace.
   if (extension === "shp") return { form: "components", url: trimmed };
 
-  return failure(
-    "unsupported_path",
-    "The URL path must end in .zip for a zipped shapefile, or .shp for an unzipped one.",
-  );
+  if (WRONG_FORMAT_EXTENSIONS.includes(extension)) {
+    return inputFailure(
+      "unsupported_path",
+      `A ".${extension}" file is not a shapefile. Supply a zipped shapefile, or the .shp of an unzipped one.`,
+    );
+  }
+
+  // No extension, or one we do not recognise: treat it as an archive and let the
+  // bytes decide. Portal download endpoints are the common shape here -- ArcGIS
+  // Hub serves shapefiles from paths ending in "data", with the format in the
+  // query string -- and rejecting those on path shape alone would turn away the
+  // host class most authors actually use.
+  return { form: "archive", url: trimmed };
 }
 
 /**

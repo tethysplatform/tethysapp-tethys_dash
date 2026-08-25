@@ -59,12 +59,40 @@ describe("acquireComponents — validation happens before any request", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("rejects an unsupported path without fetching", async () => {
+  it("rejects a path naming a different format without fetching", async () => {
     const result = await acquireComponents(
       "https://example.org/basins.geojson",
     );
     expect(result.error.reason).toBe("unsupported_path");
+    expect(result.error.stage).toBe("input");
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("fetches an extensionless download endpoint as an archive", async () => {
+    fetchMock.mockResolvedValue(respond({ body: ARCHIVE }));
+
+    const result = await acquireComponents(
+      "https://hub.arcgis.com/api/v3/datasets/abc_0/downloads/data?format=shp",
+    );
+
+    expect(result.error).toBeUndefined();
+    expect(result.components.shp).toBeTruthy();
+  });
+
+  it("reports an extensionless endpoint that does not return an archive", async () => {
+    fetchMock.mockResolvedValue(
+      respond({
+        contentType: "application/octet-stream",
+        body: bytes("not a zip at all"),
+      }),
+    );
+
+    const result = await acquireComponents("https://example.org/export");
+
+    expect(result.error.reason).toBe("unreadable_archive");
+    // The message has to cover both ways this happens, since the path gave no
+    // hint about which.
+    expect(result.error.detail).toMatch(/\.shp URL|error page/);
   });
 });
 

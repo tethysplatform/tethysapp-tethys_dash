@@ -30,6 +30,10 @@ export const CANCEL_REASON = {
  * way.
  */
 export const ERROR_KIND = {
+  // Something wrong with the configured URL itself. Distinct from FETCH because
+  // the host is not the problem: suggesting the file be converted because the
+  // host is unreachable would be misleading, and a retry would fail identically.
+  INPUT: "input",
   FETCH: "fetch",
   PARSE: "parse",
   TOO_LARGE: "too_large",
@@ -61,6 +65,7 @@ export function isRetryable(kind) {
  * @returns {string} One of ERROR_KIND.
  */
 export function errorKindFor(failure) {
+  if (failure?.stage === "input") return ERROR_KIND.INPUT;
   if (failure?.reason === "too_large") return ERROR_KIND.TOO_LARGE;
   if (
     failure?.reason === "missing_projection" ||

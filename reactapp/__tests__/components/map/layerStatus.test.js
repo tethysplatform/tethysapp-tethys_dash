@@ -66,6 +66,15 @@ describe("errorKindFor", () => {
     },
   );
 
+  it("gives a url-shape problem its own kind so no host remedy is offered", () => {
+    // A rejected url is not a reachability failure. Classifying it as one made
+    // the editor suggest converting the file because the host could not be
+    // reached, and offer a retry that would fail identically forever.
+    const kind = errorKindFor({ stage: "input", reason: "unsupported_path" });
+    expect(kind).toBe(ERROR_KIND.INPUT);
+    expect(isRetryable(kind)).toBe(false);
+  });
+
   it("defaults to the fetch kind for an unrecognised failure", () => {
     expect(errorKindFor(undefined)).toBe(ERROR_KIND.FETCH);
     expect(errorKindFor({})).toBe(ERROR_KIND.FETCH);

@@ -78,7 +78,7 @@ export function unzipShapefileComponents(buffer, { maxBytes }) {
         stage: "parse",
         reason: "unreadable_archive",
         detail:
-          "The source is not a zip archive. A portal returning an error page with a success status is the usual cause.",
+          "The source is not a zip archive. Either the host returned an error page with a success status, or the URL points at something else -- an unzipped shapefile has to be given as its .shp URL.",
       },
     };
   }
