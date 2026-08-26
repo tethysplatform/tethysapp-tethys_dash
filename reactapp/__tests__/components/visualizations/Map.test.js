@@ -2296,21 +2296,99 @@ test("Map click attribute variables update text variable input then swipe and up
 
   fireEvent.click(nextSwiper);
 
+  // Third feature's field1 is "Null". The bound variable is now cleared rather
+  // than left showing the previous feature's value: leaving it is the one path
+  // here that propagates a wrong value off the map, because every dependent
+  // visualization keeps rendering the previously selected feature's data with no
+  // indication anything is stale.
   await waitFor(async () => {
     expect(await screen.findByTestId("input-variables")).toHaveTextContent(
       JSON.stringify({
-        "Test Variable": "another value",
+        "Test Variable": "",
       }),
     );
   });
 
   fireEvent.click(nextSwiper);
 
+  // Fourth feature belongs to a layer with no attribute-variable binding, so
+  // nothing is written and the cleared value stands. Unchanged behavior.
   await waitFor(async () => {
     expect(await screen.findByTestId("input-variables")).toHaveTextContent(
       JSON.stringify({
-        "Test Variable": "another value",
+        "Test Variable": "",
       }),
+    );
+  });
+});
+
+test("Map click carries a zero attribute value into the variable input", async () => {
+  // The old check was a truthiness test, so a real 0 -- a gage reading of zero,
+  // a count of zero -- was indistinguishable from an absent field and dropped,
+  // leaving the previously clicked feature's value on screen.
+  mockedQueryLayerFeatures.mockResolvedValue([
+    {
+      attributes: { field1: 0 },
+      geometry: { x: 10, y: 10 },
+      layerName: "Some Layer",
+    },
+  ]);
+
+  // The real setPosition drives OpenLayers' auto-pan, which crashes in jsdom.
+  jest.spyOn(Overlay.prototype, "setPosition").mockImplementation(() => {});
+  const handleChange = jest.fn();
+  const dashboard = JSON.parse(JSON.stringify(userDashboard));
+  dashboard.tabs[0].gridItems = [mockedTextVariable];
+  const varInputArgs = JSON.parse(mockedTextVariable.args_string);
+
+  const layers = [
+    {
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "NWC",
+          source: {
+            type: "ESRI Image and Map Service",
+            props: { url: "some_url" },
+          },
+        },
+      },
+      attributeVariables: { "Some Layer": { field1: "Test Variable" } },
+    },
+  ];
+
+  render(
+    createLoadedComponent({
+      children: (
+        <MapContextProvider>
+          <TestingComponent
+            onMapClick={jest.fn()}
+            clickCoordinates={[10, 20]}
+            mapProps={{
+              mapConfig: {},
+              viewConfig: {},
+              layers,
+              baseMap: null,
+              layerControl: false,
+            }}
+          />
+          <VariableInput
+            variable_name={varInputArgs.variable_name}
+            initial_value={varInputArgs.initial_value}
+            variable_options_source={varInputArgs.variable_options_source}
+            onChange={handleChange}
+          />
+        </MapContextProvider>
+      ),
+      options: { dashboards: { dashboards: [dashboard] } },
+    }),
+  );
+
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+  await waitFor(async () => {
+    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({ "Test Variable": 0 }),
     );
   });
 });

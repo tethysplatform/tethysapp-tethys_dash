@@ -1,4 +1,5 @@
 import PropTypes from "prop-types";
+import { useShapefileDiscovery } from "components/modals/MapLayer/shapefileDiscovery";
 import Modal from "react-bootstrap/Modal";
 import styled from "styled-components";
 import Button from "react-bootstrap/Button";
@@ -133,6 +134,12 @@ export function renameLayerInAttributeProps(attributeProps, oldName, newName) {
 
 export const getLayerType = (sourceType) => {
   if (sourceType === "GeoTIFF" || sourceType === "Zarr") return "WebGLTile";
+  // Explicit rather than left to the fallthrough below. "Shapefile" happens to
+  // match none of the substring tests, so it would reach VectorLayer anyway --
+  // but a label variant like "Zipped Shapefile Tile" would silently route to the
+  // wrong layer class with no error. The label is load-bearing, and it is also
+  // persisted user data: renaming one costs a migration over every dashboard.
+  if (sourceType === "Shapefile") return "VectorLayer";
   if (sourceType.includes("Vector")) return "VectorTileLayer";
   if (sourceType.includes("Raster")) return "WebGLTile";
   if (sourceType.includes("Tile")) return "TileLayer";
@@ -169,6 +176,20 @@ const MapLayerModal = ({
     VariableInputsContext,
   );
   const mapContext = useMapContext();
+
+  // Field discovery for a shapefile source, held here rather than in either pane
+  // because both read from it. The modal already hoists every pane's state, so a
+  // new context would buy nothing -- and one read serves both panes instead of
+  // each paying for its own download.
+  const shapefileDiscovery = useShapefileDiscovery({
+    sourceProps,
+    layerName: layerProps?.name,
+    variableInputValues,
+    variableInputDateFormats,
+    style,
+    attributeProps,
+    popupConfig,
+  });
 
   const onRequestHideModal = useCallback(() => {
     setHiddenForExtentDraw(true);
@@ -656,6 +677,7 @@ const MapLayerModal = ({
                 setErrorMessage={setErrorMessage}
                 onRequestHideModal={onRequestHideModal}
                 onFetchPluginDefaults={fetchPluginDefaults}
+                shapefileDiscovery={shapefileDiscovery}
               />
             </Tab>
             <Tab
@@ -673,6 +695,7 @@ const MapLayerModal = ({
                   layerProps={layerProps}
                   sourceProps={sourceProps}
                   setSourceProps={setSourceProps}
+                  shapefileDiscovery={shapefileDiscovery}
                 />
               </div>
             </Tab>
@@ -703,6 +726,7 @@ const MapLayerModal = ({
                 sourceProps={sourceProps}
                 layerProps={layerProps}
                 tabKey={tabKey}
+                shapefileDiscovery={shapefileDiscovery}
               />
             </Tab>
             <Tab

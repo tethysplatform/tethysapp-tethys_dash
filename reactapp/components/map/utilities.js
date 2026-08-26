@@ -18,7 +18,15 @@ import Protobuf from "pbf";
 
 // Source types whose features live in a client-side OL VectorSource (vs
 // server-rendered services queried remotely).
-export const CLIENT_VECTOR_SOURCE_TYPES = ["GeoJSON", "ESRI Feature Service"];
+// Source types whose features live in a client-side vector source, so a click or
+// a snap can read them straight off the map rather than querying a service.
+// A type missing from here does not error -- the snap path falls through to the
+// feature-service query, which returns nothing -- so the failure is silent.
+export const CLIENT_VECTOR_SOURCE_TYPES = [
+  "GeoJSON",
+  "ESRI Feature Service",
+  "Shapefile",
+];
 
 // Coerce an optional numeric layer prop: GUI inputs emit strings, so accept
 // any numeric value but treat null/undefined/blank/non-numeric as unset.
@@ -121,6 +129,21 @@ export const sourcePropertiesOptions = {
   GeoJSON: {
     required: {},
     optional: {},
+  },
+  Shapefile: {
+    required: {
+      url: {
+        placeholder:
+          "URL of a zipped shapefile (.zip) or of its .shp component",
+      },
+    },
+    optional: {
+      // Used only when the source carries no .prj. Accepts a WKT or proj4
+      // definition as well as a code, because a .prj-less shapefile in an
+      // uncommon CRS has no other way to be placed.
+      projection: { placeholder: "EPSG:<Code>, or a WKT/proj4 definition" },
+      attributions: { placeholder: "Attributions" },
+    },
   },
   GeoTIFF: {
     required: {
@@ -249,12 +272,12 @@ export const layerPropertiesOptions = {
   clickTolerance: {
     type: "number",
     placeholder:
-      "Pixel tolerance for ESRI Image and Map Service identify (click) requests (default 10) and for GeoJSON / ESRI Feature Service feature queries (default 0). Also sets the snap radius when Snap To Features is on (default 15).",
+      "Pixel tolerance for ESRI Image and Map Service identify (click) requests (default 10) and for GeoJSON / ESRI Feature Service / Shapefile feature queries (default 0). Also sets the snap radius when Snap To Features is on (default 15).",
   },
   snapToFeatures: {
     type: "checkbox",
     placeholder:
-      "Snap hover/click to the nearest feature of this layer (ESRI Map Service, GeoJSON, or ESRI Feature Service).",
+      "Snap hover/click to the nearest feature of this layer (ESRI Map Service, GeoJSON, ESRI Feature Service, or Shapefile).",
   },
   snapSublayer: {
     type: "number",
@@ -333,13 +356,32 @@ export function swapVectorLayerFeatures(
     return;
   }
 
+  source.addFeatures(readFeatureCollection(featureCollection, mapProjection));
+}
+
+/**
+ * Parse a GeoJSON FeatureCollection into OpenLayers features.
+ *
+ * `dataProjection` comes from the collection's own `crs`, defaulting to
+ * EPSG:4326 when it carries none, and `featureProjection` is the map's -- so the
+ * caller decides which projection the features land in, at the moment it calls.
+ *
+ * Shared by the swap above and by the shapefile source's loader. The loader must
+ * not call `swapVectorLayerFeatures` itself: that clears every feature already
+ * on the source, whereas a loader is additive inside its success callback.
+ * (Clearing a source does not reset OpenLayers' loaded-extent bookkeeping
+ * either, so it is not a retry primitive -- `refresh()` is.)
+ *
+ * @param {object} featureCollection A GeoJSON FeatureCollection.
+ * @param {string} mapProjection Projection code to read the features into.
+ * @returns {Array<import("ol/Feature.js").default>}
+ */
+export function readFeatureCollection(featureCollection, mapProjection) {
   const crsName = featureCollection?.crs?.properties?.name;
-  const dataProjection = crsName || "EPSG:4326";
-  const features = new GeoJSONFormat().readFeatures(featureCollection, {
-    dataProjection,
+  return new GeoJSONFormat().readFeatures(featureCollection, {
+    dataProjection: crsName || "EPSG:4326",
     featureProjection: mapProjection,
   });
-  source.addFeatures(features);
 }
 
 /**
@@ -978,6 +1020,10 @@ export async function getStyleFields({
   isDynamicMapLayer = false,
 }) {
   let fields = [];
+  // Shapefile is deliberately absent: both panes take their fields from the
+  // author-triggered read in the Source tab (see useShapefileDiscovery) and
+  // return before reaching this function, because a discovery pass here would
+  // download and parse the whole archive on every source-props change.
   if (isDynamicMapLayer || sourceProps.type === "PMTiles Vector") {
     const attributes = await getLayerAttributes({
       sourceProps,

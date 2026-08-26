@@ -6,7 +6,7 @@ Style Tab
 
 
 
-The style tab lets you apply custom styles to map layers. Custom styling is available for GeoJSON, ESRI Feature Service, and PMTiles Vector layers. Two types of styling are supported:
+The style tab lets you apply custom styles to map layers. Custom styling is available for GeoJSON, ESRI Feature Service, PMTiles Vector, and Shapefile layers. Two types of styling are supported:
 
 **MapLibre Styling**: Follows the `MapLibre Style Spec <https://maplibre.org/maplibre-style-spec/>`_ and uses the `ol-mapbox-style applyStyle <https://openlayers.org/ol-mapbox-style/functions/applyStyle.html>`_ function. Refer to these resources to ensure your layers render correctly.
 

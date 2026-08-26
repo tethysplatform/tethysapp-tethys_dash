@@ -95,3 +95,13 @@ HTMLCanvasElement.prototype.getContext = function () {
 jest.mock("uuid", () => ({
   v4: () => 12345678,
 }));
+
+// jsdom ships no TextDecoder/TextEncoder, but every browser does. Without these,
+// any dependency's browser build that decodes text -- the shapefile parser
+// reading a .dbf, for one -- fails only under test. Supplying them lets tests
+// exercise the same build the bundle ships rather than a Node-only fallback.
+if (typeof global.TextDecoder === "undefined") {
+  const { TextDecoder, TextEncoder } = require("util");
+  global.TextDecoder = TextDecoder;
+  global.TextEncoder = TextEncoder;
+}

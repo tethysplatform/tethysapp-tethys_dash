@@ -637,13 +637,26 @@ const MapVisualization = ({
         const variableInputName =
           mapAttributeVariables[layerName][layerAttributeOrAlias];
 
+        // Prefer the field, fall back to the alias only when the field is
+        // genuinely absent. A `||` here would also discard a real 0, "" or
+        // false.
+        const fromField = selectedFeature.attributes[layerAttribute];
         const featureValue =
-          selectedFeature.attributes[layerAttribute] ||
-          selectedFeature.attributes[layerAttributeAlias];
+          fromField === undefined || fromField === null
+            ? selectedFeature.attributes[layerAttributeAlias]
+            : fromField;
 
-        if (featureValue && featureValue !== "Null") {
-          updatedVariableInputs[variableInputName] = featureValue;
-        }
+        // Absent means cleared, not left alone. Skipping the write leaves the
+        // variable holding the previously clicked feature's value, so every
+        // dependent visualization keeps showing the wrong feature's data with no
+        // indication anything is stale -- the only path here that propagates a
+        // wrong value off the map. Presence is tested rather than truthiness, so
+        // a real 0, "" or false is carried through instead of being dropped.
+        const isAbsent =
+          featureValue === undefined ||
+          featureValue === null ||
+          featureValue === "Null";
+        updatedVariableInputs[variableInputName] = isAbsent ? "" : featureValue;
       }
       if (Object.keys(updatedVariableInputs).length > 0) {
         setVariableInputValues((previousVariableInputValues) => ({

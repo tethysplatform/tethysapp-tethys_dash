@@ -1,4 +1,6 @@
 import {
+  sourcePropertiesOptions,
+  readFeatureCollection,
   reprojectVectorFeatures,
   createMarkerLayer,
   createHighlightLayer,
@@ -4186,5 +4188,88 @@ describe("reprojectVectorFeatures", () => {
       .getCoordinates();
     expect(Math.abs(x - SANTA_INES_3857[0])).toBeLessThan(1);
     expect(Math.abs(y - SANTA_INES_3857[1])).toBeLessThan(1);
+  });
+});
+
+describe("readFeatureCollection", () => {
+  const collection = {
+    type: "FeatureCollection",
+    crs: { type: "name", properties: { name: "EPSG:4326" } },
+    features: [
+      {
+        type: "Feature",
+        properties: { NAME: "one" },
+        geometry: { type: "Point", coordinates: [-105, 40] },
+      },
+    ],
+  };
+
+  it("reads a collection into the projection the caller names", () => {
+    const features = readFeatureCollection(collection, "EPSG:3857");
+    expect(features).toHaveLength(1);
+    const [x, y] = features[0].getGeometry().getCoordinates();
+    // Web Mercator metres, not degrees.
+    expect(Math.abs(x)).toBeGreaterThan(1e6);
+    expect(Math.abs(y)).toBeGreaterThan(1e6);
+    expect(features[0].get("NAME")).toBe("one");
+  });
+
+  it("reads into a different projection on a later call", () => {
+    // The projection is a per-call argument, not baked in when the source was
+    // built -- which is what lets a loader read against the view as it stands at
+    // insertion rather than when its fetch began.
+    const asDegrees = readFeatureCollection(collection, "EPSG:4326");
+    const [x] = asDegrees[0].getGeometry().getCoordinates();
+    expect(x).toBeCloseTo(-105, 6);
+  });
+
+  it("defaults the data projection to EPSG:4326 when the collection names none", () => {
+    const { crs, ...withoutCrs } = collection;
+    expect(crs).toBeTruthy();
+    const features = readFeatureCollection(withoutCrs, "EPSG:4326");
+    expect(features[0].getGeometry().getCoordinates()[0]).toBeCloseTo(-105, 6);
+  });
+
+  it("honours a non-default crs on the collection", () => {
+    const mercator = {
+      ...collection,
+      crs: { type: "name", properties: { name: "EPSG:3857" } },
+      features: [
+        {
+          type: "Feature",
+          properties: {},
+          geometry: { type: "Point", coordinates: [-11688546.53, 4865942.28] },
+        },
+      ],
+    };
+    const features = readFeatureCollection(mercator, "EPSG:4326");
+    const [x, y] = features[0].getGeometry().getCoordinates();
+    expect(x).toBeCloseTo(-105, 1);
+    expect(y).toBeCloseTo(40, 1);
+  });
+});
+
+describe("sourcePropertiesOptions — Shapefile", () => {
+  it("is offered as a source type with url required", () => {
+    // This single object drives the source-type dropdown, the properties table,
+    // and the required-key validation at save.
+    const entry = sourcePropertiesOptions.Shapefile;
+    expect(entry).toBeTruthy();
+    expect(Object.keys(entry.required)).toEqual(["url"]);
+    expect(entry.required.url.placeholder).toMatch(/\.zip|\.shp/);
+  });
+
+  it("offers projection and attributions as optional", () => {
+    const optional = Object.keys(sourcePropertiesOptions.Shapefile.optional);
+    expect(optional).toContain("projection");
+    expect(optional).toContain("attributions");
+  });
+
+  it("tells the author the projection field takes a definition as well as a code", () => {
+    // A .prj-less shapefile in an uncommon CRS has no table entry to name, so
+    // the field has to accept WKT for that case to be authorable at all.
+    expect(
+      sourcePropertiesOptions.Shapefile.optional.projection.placeholder,
+    ).toMatch(/WKT|proj4/i);
   });
 });
