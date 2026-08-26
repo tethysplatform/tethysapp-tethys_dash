@@ -124,7 +124,7 @@ Styling, popups, attribute variables and snapping all behave as they do for a :r
 
 **Reading the fields.** The Style and Attributes tabs need the ``.dbf`` field names, which means reading the source. Because that can be a large download, it happens when you ask for it: use **Read shapefile fields** on this tab. One read serves both tabs. If the saved style rules, popup settings or attribute variables name a field the source no longer has — after the file is republished with a renamed column, for instance — the field is listed so the affected rules can be corrected. Those rules will not match anything until then, and the layer will still draw.
 
-**Size limit.** A shapefile is read in one piece, so the components are limited to 25 MB once decompressed. A source above the limit is refused before it is expanded, and the message states both the observed and the permitted size. Clip or simplify the data, or serve a reduced copy.
+**Size limit.** A shapefile is read in one piece, so the components are limited to 25 MB once decompressed. An archive that declares an oversized component is refused before that component is expanded; one that under-declares is refused as soon as the extra bytes arrive, so the declared size cannot be used to get past the limit. Either way the message states both the observed and the permitted size. Clip or simplify the data, or serve a reduced copy.
 
 .. note::
 
