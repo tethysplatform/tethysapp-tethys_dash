@@ -1,8 +1,4 @@
 import { strFromU8 } from "fflate";
-import {
-  ensureProjection,
-  registerProjectionDefinition,
-} from "components/map/projections";
 import { prepareAttributes } from "components/map/shapefile/attributes";
 
 /**
@@ -35,7 +31,10 @@ export async function interpretShapefile(
     };
   }
 
-  const projection = resolveProjection(components.prj, fallbackProjection);
+  const projection = await resolveProjection(
+    components.prj,
+    fallbackProjection,
+  );
   if (projection.error) return projection;
 
   // Loaded lazily so the parser stays out of the main bundle, matching how the
@@ -108,7 +107,15 @@ function looksLikeDefinition(value) {
 // supplied; a .prj that failed to arrive was already reported upstream and never
 // reaches this function, because silently substituting a fallback for it would
 // draw the features somewhere else with no error at all.
-function resolveProjection(prjBytes, fallbackProjection) {
+async function resolveProjection(prjBytes, fallbackProjection) {
+  // Loaded here rather than imported statically: proj4, wkt-parser and the
+  // definition table are ~150 KiB, and this module reaches the main bundle
+  // through the layer loader, which every dashboard with a map evaluates. A
+  // shapefile always needs them -- it carries its CRS as WKT -- so the load is
+  // paid once, on the read, alongside the parser's own dynamic imports.
+  const { ensureProjection, registerProjectionDefinition } =
+    await import("components/map/projections");
+
   if (prjBytes) {
     // Decoded with fflate rather than TextDecoder: this runs in the browser and
     // under the test runner, and one of those has no TextDecoder.

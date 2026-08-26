@@ -1501,3 +1501,42 @@ def test_builder_runtime_geojson_override():
         ]["type"]
         == "Point"
     )
+
+
+@pytest.mark.parametrize(
+    "layer_source,expected_type",
+    [
+        ("Shapefile", "VectorLayer"),
+        ("GeoTIFF", "WebGLTile"),
+        ("Zarr", "WebGLTile"),
+        ("Static Image", "ImageLayer"),
+    ],
+)
+def test_builder_accepts_the_client_side_source_types(layer_source, expected_type):
+    # These reached the frontend's source registry without being added to this
+    # builder, so a plugin author following the documented path was refused a
+    # source type the layer editor offers. The layer class has to match what
+    # getLayerType writes, or a plugin-built layer renders through the wrong OL
+    # class.
+    builder = LayerConfigurationBuilder("test", layer_source)
+
+    assert builder.config["configuration"]["type"] == expected_type
+    assert (
+        builder.config["configuration"]["props"]["source"]["type"] == layer_source
+    )
+
+
+def test_builder_exposes_shapefile_source_properties():
+    builder = LayerConfigurationBuilder("Basins", "Shapefile")
+
+    available = builder.get_available_source_properties()
+
+    assert list(available["required"]) == ["url"]
+    # `projection` is optional and is the only way to place a shapefile that
+    # carries no .prj, so it has to be discoverable here.
+    assert "projection" in available["optional"]
+
+
+def test_builder_still_refuses_a_source_it_does_not_know():
+    with pytest.raises(ValueError, match="Invalid layer_source"):
+        LayerConfigurationBuilder("test", "Shapefile Tile")

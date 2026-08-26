@@ -9,7 +9,7 @@ import moduleLoader, {
 // place before the layer effect below constructs a single source -- which
 // matters, because layers are constructed concurrently and a registration that
 // waited on anything async would race them.
-import { isNativelyResolvable } from "components/map/projections";
+import { isNativelyResolvable } from "components/map/projectionCodes";
 import { CANCEL_REASON, errorKindFor } from "components/map/layerStatus";
 import LayersControl from "components/map/LayersControl";
 import FloatingMapControl from "components/map/FloatingMapControl";
@@ -123,6 +123,20 @@ function watchShapefileLoad(olLayer, layerName, setStatus) {
     source.on("featuresloadend", sync),
     source.on("featuresloaderror", sync),
   ]);
+}
+
+// Source types that can resolve a coordinate reference out of their own data,
+// so their config carries no code to inspect.
+const CRS_BEARING_SOURCES = ["GeoTIFF", "Zarr", "Shapefile"];
+
+// Whether a layer could need a projection definition registered. Answered from
+// the config alone, before anything is fetched, so the projection machinery is
+// loaded only for the dashboards that have a layer needing it.
+function needsProjectionRegistry(layerConfig) {
+  const source = layerConfig?.props?.source;
+  if (CRS_BEARING_SOURCES.includes(source?.type)) return true;
+  const code = source?.props?.projection;
+  return typeof code === "string" && code !== "" && !isNativelyResolvable(code);
 }
 
 // Detach a shapefile source's load listeners. Paired with every abort: the
@@ -547,6 +561,25 @@ const MapComponent = ({
 
       // setup constants for handling new layers
       const customLayers = layers ?? [];
+
+      // proj4, wkt-parser and the definition table are ~150 KiB and cost a
+      // measurable registration pass, and most dashboards have no layer needing
+      // any of it -- so the module is loaded here rather than imported
+      // statically. Awaited before any layer is built: importing it registers
+      // the table codes, and a layer that merely *names* one needs the
+      // definition on hand by the time OpenLayers resolves it, with nothing
+      // asking for it by name.
+      //
+      // The trigger is deliberately broad. A source that reads its own CRS out
+      // of its data -- a GeoTIFF or Zarr from the file, a shapefile from its
+      // .prj -- carries no code in its config to check, so the type is enough
+      // to require it. The view projection is never a table code (it starts at
+      // EPSG:3857 and the auto-fit only adopts natively-resolvable codes), so
+      // there is nothing to register before this point.
+      if (customLayers.some(needsProjectionRegistry)) {
+        await import("components/map/projections");
+      }
+
       let failedLayers = [];
       // Replacement layers added hidden until painted, then revealed on swap.
       const buffered = [];

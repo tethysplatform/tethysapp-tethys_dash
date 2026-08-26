@@ -97,17 +97,17 @@ describe("acquireComponents — validation happens before any request", () => {
 });
 
 describe("acquireComponents — archive form", () => {
-  it("returns the four components from one request", async () => {
+  it("returns the components from one request", async () => {
     fetchMock.mockResolvedValue(respond({ body: ARCHIVE }));
 
     const result = await acquireComponents("https://example.org/basins.zip");
 
     expect(result.error).toBeUndefined();
+    // No .shx: it is the record index and nothing reads it.
     expect(Object.keys(result.components).sort()).toEqual([
       "dbf",
       "prj",
       "shp",
-      "shx",
     ]);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
@@ -189,14 +189,12 @@ describe("acquireComponents — sibling form", () => {
       "dbf",
       "prj",
       "shp",
-      "shx",
     ]);
     const requested = fetchMock.mock.calls.map(([u]) => u);
     expect(requested).toEqual([
       "https://example.org/basins.shp",
       "https://example.org/basins.dbf",
       "https://example.org/basins.prj",
-      "https://example.org/basins.shx",
       "https://example.org/basins.cpg",
     ]);
   });

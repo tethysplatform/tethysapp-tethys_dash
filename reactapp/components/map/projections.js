@@ -24,13 +24,15 @@ import wktParser from "wkt-parser";
 // table entry plus a control point, and `ensureProjection` registers it on
 // demand rather than at startup.
 //
-// Registration is deliberately *not* done for the whole table at load time.
 // `register` builds pairwise transforms across every registered code, so its
 // cost is quadratic: measured at 99ms for two definitions on top of proj4's
 // built-ins, and hundreds of milliseconds once a State-Plane-sized set is in
-// play. This module is imported statically by the map, so that cost would land
-// before first render on every dashboard, including the ones with no layer that
-// needs it.
+// play. That cost, plus proj4 and wkt-parser themselves at ~150 KiB, is why
+// nothing imports this module statically -- the map awaits it only when a layer
+// could carry or name a non-native CRS, and the shapefile pipeline loads it from
+// inside its own async read. Importing this module registers INITIAL_CODES as a
+// side effect (see the bottom of the file), which is what puts a table code on
+// hand for a layer that names one and nothing else asks for.
 
 // Definitions, extents and control points are taken from PROJ's EPSG database
 // rather than hand-derived. The control points sit away from each projection's
@@ -65,32 +67,6 @@ export const INITIAL_CODES = ["EPSG:5041", "EPSG:5070"];
 // any authority namespace so a synthetic code can never be mistaken for -- or
 // collide with -- a real EPSG code.
 const WKT_CODE_PREFIX = "WKT:";
-
-/**
- * Whether OpenLayers resolves this code on its own, without anything registered
- * here.
- *
- * Asked by code rather than by registry lookup, because once a definition is
- * registered the two are indistinguishable through the registry -- which is the
- * whole point of the question. Used to keep the raster auto-fit from adopting a
- * newly-registered projection as the map's *view* projection: adoption calls
- * setView and publishes the adopted code into the map-extent variable other
- * visualizations read, so widening it is a separate change with its own
- * verification. Registered projections still serve as data projections, so a
- * raster in one renders by reprojection instead.
- *
- * @param {string} code Projection code.
- * @returns {boolean}
- */
-export function isNativelyResolvable(code) {
-  if (typeof code !== "string") return false;
-  const match = /^EPSG:(\d+)$/.exec(code.trim());
-  if (!match) return false;
-  const id = Number(match[1]);
-  if ([4326, 3857, 900913, 102100].includes(id)) return true;
-  // OpenLayers ships a UTM projection factory covering the WGS84 zones.
-  return (id > 32600 && id < 32661) || (id > 32700 && id < 32761);
-}
 
 // Registering a definition does not give the resulting projection an extent:
 // `register` builds it from the proj4 definition, and a proj4 definition has

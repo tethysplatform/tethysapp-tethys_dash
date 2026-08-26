@@ -88,7 +88,6 @@ describe("deriveSiblingUrls", () => {
       shp: "https://example.org/data/basins.shp",
       dbf: "https://example.org/data/basins.dbf",
       prj: "https://example.org/data/basins.prj",
-      shx: "https://example.org/data/basins.shx",
       cpg: "https://example.org/data/basins.cpg",
     });
   });
@@ -124,6 +123,7 @@ describe("deriveSiblingUrls", () => {
     expect(derived.dbf).toBe("https://example.org/BASINS.DBF");
     expect(derived.prj).toBe("https://example.org/BASINS.PRJ");
     expect(derived.cpg).toBe("https://example.org/BASINS.CPG");
+    expect(derived.shx).toBeUndefined();
   });
 
   it("requests the component the author named at exactly the url they gave", () => {

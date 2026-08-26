@@ -26,11 +26,11 @@ const FETCH_STAGE_CAUSES =
   "The likely causes are missing cross-origin headers on the host, an unreachable host, a URL that no longer exists, or an expired signature on a signed URL.";
 
 // Components whose absence cannot change how the layer draws: the encoding
-// falls back to a sniff of the .dbf itself, and the record index is never read.
-// Hosts disagree on what a missing object is -- an S3 bucket without
-// ListBucket returns 403, not 404 -- so for these two, any client error means
-// "not published" rather than failing a layer over a file it did not need.
-const INCONSEQUENTIAL_COMPONENTS = ["cpg", "shx"];
+// falls back to a sniff of the .dbf itself. Hosts disagree on what a missing
+// object is -- an S3 bucket without ListBucket returns 403, not 404 -- so any
+// client error here means "not published" rather than failing a layer over a
+// file it did not need. Most shapefiles ship no .cpg at all.
+const INCONSEQUENTIAL_COMPONENTS = ["cpg"];
 
 function fetchFailure(reason, detail, extra = {}) {
   return { error: { stage: "fetch", reason, detail, ...extra } };

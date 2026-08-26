@@ -106,7 +106,7 @@ The Shapefile source draws an ESRI Shapefile that is already published on the we
 Two forms are accepted, and the same **url** field takes either:
 
 - A **zipped shapefile**, whose path ends in ``.zip``.
-- The **.shp component** of an unzipped set. The sibling ``.dbf``, ``.prj``, ``.shx`` and ``.cpg`` files are requested from the same path automatically, so only the ``.shp`` URL is entered. Any query string on the URL is preserved on each request, which keeps signed links working.
+- The **.shp component** of an unzipped set. The sibling ``.dbf``, ``.prj`` and ``.cpg`` files are requested from the same path automatically, so only the ``.shp`` URL is entered. The ``.shx`` index is not requested -- it is not needed to draw the layer. Any query string on the URL is preserved on each request, which keeps signed links working.
 
 A portal **download endpoint** counts as the first form even when its path carries no ``.zip`` — ArcGIS Hub and similar services serve shapefiles from a URL ending in something like ``/downloads/data?format=shp``. Paste it as-is.
 

@@ -1,9 +1,15 @@
-// The components of an unzipped shapefile. `shp` carries geometry, `dbf`
-// attributes, `prj` the coordinate reference system as WKT, `shx` the record
-// index, and `cpg` the character encoding the `dbf` was written in. Only `shp`
-// is required; `shp` is first because the fetch loop treats it as the one whose
-// absence is fatal.
-export const COMPONENT_EXTENSIONS = ["shp", "dbf", "prj", "shx", "cpg"];
+// The components of an unzipped shapefile this pipeline reads. `shp` carries
+// geometry, `dbf` attributes, `prj` the coordinate reference system as WKT, and
+// `cpg` the character encoding the `dbf` was written in. Only `shp` is required;
+// `shp` is first because the fetch loop treats it as the one whose absence is
+// fatal.
+//
+// `.shx` is deliberately absent. It is the record index, and nothing here reads
+// it -- the parser is handed the .shp and .dbf and walks them sequentially.
+// Fetching it cost a round-trip per unzipped shapefile, and in the archive path
+// it was inflated into memory and charged against the size ceiling, which at
+// four bytes per record is real headroom on a large file.
+export const COMPONENT_EXTENSIONS = ["shp", "dbf", "prj", "cpg"];
 
 const ALLOWED_PROTOCOLS = ["http:", "https:"];
 

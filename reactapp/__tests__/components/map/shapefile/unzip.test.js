@@ -54,16 +54,17 @@ describe("createByteBudget", () => {
 });
 
 describe("unzipShapefileComponents", () => {
-  it("extracts the four components and decodes nothing", () => {
+  it("extracts the components it reads and decodes nothing", () => {
     const result = unzipShapefileComponents(archive(MINIMAL), {
       maxBytes: 10 * MB,
     });
     expect(result.error).toBeUndefined();
+    // The .shx is present in the archive and deliberately not extracted: it is
+    // the record index and nothing here reads it.
     expect(Object.keys(result.components).sort()).toEqual([
       "dbf",
       "prj",
       "shp",
-      "shx",
     ]);
     // Buffers come back raw; decoding the .prj is the interpretation step's job.
     expect(result.components.shp).toBeInstanceOf(Uint8Array);
@@ -108,11 +109,12 @@ describe("unzipShapefileComponents", () => {
       { maxBytes: 10 * MB },
     );
     expect(result.error).toBeUndefined();
+    // The .shx is present in the archive and deliberately not extracted: it is
+    // the record index and nothing here reads it.
     expect(Object.keys(result.components).sort()).toEqual([
       "dbf",
       "prj",
       "shp",
-      "shx",
     ]);
   });
 
