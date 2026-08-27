@@ -3640,3 +3640,18 @@ ExtentTestComponent.propTypes = {
   layerInfo: PropTypes.object,
   visualizationRefOverride: PropTypes.object,
 };
+
+describe("getLayerType — Shapefile", () => {
+  it("routes Shapefile to a vector layer", () => {
+    expect(getLayerType("Shapefile")).toBe("VectorLayer");
+  });
+
+  it("pins the exact label", () => {
+    // getLayerType routes by substring, so a label variant would silently pick a
+    // different layer class with no error. This documents that the exact string
+    // is load-bearing -- and it is persisted user data besides, so renaming it
+    // would cost a migration over every dashboard.
+    expect(getLayerType("Shapefile Tile")).toBe("TileLayer");
+    expect(getLayerType("Shapefile Vector")).toBe("VectorTileLayer");
+  });
+});

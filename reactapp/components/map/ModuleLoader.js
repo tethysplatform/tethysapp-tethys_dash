@@ -26,7 +26,13 @@ import {
   defaultDotSpacing,
   defaultDotRadius,
 } from "components/inputs/RuleEditor.js";
-import { rewriteArcGISExportUrlForAntimeridian } from "components/map/utilities";
+import {
+  rewriteArcGISExportUrlForAntimeridian,
+  readFeatureCollection,
+} from "components/map/utilities";
+import { acquireComponents } from "components/map/shapefile/acquire";
+import { interpretShapefile } from "components/map/shapefile/index";
+import { CANCEL_REASON } from "components/map/layerStatus";
 import {
   buildGeoTIFFStyleColor,
   buildCategoricalStyleColor,
@@ -399,7 +405,7 @@ export async function loadGeoPackage(config, mapProjection) {
   return source;
 }
 
-const moduleLoader = async (config, mapProjection) => {
+const moduleLoader = async (config, mapProjection, getMapProjection) => {
   if (config.type === "GeoPackage") {
     return loadGeoPackage(config, mapProjection);
   }
@@ -438,6 +444,8 @@ const moduleLoader = async (config, mapProjection) => {
     if (moduleCache[type]) {
       if (type === "GeoJSON") {
         return loadGeoJSON(config, mapProjection);
+      } else if (type === "Shapefile") {
+        return loadShapefile(config, mapProjection, getMapProjection);
       } else if (type === "ESRI Feature Service") {
         return loadESRIJSON(config);
       } else {
@@ -479,6 +487,8 @@ const moduleLoader = async (config, mapProjection) => {
 
     if (type === "GeoJSON") {
       return loadGeoJSON(config, mapProjection);
+    } else if (type === "Shapefile") {
+      return loadShapefile(config, mapProjection, getMapProjection);
     } else if (type === "ESRI Feature Service") {
       return loadESRIJSON(config);
     } else {
@@ -595,6 +605,7 @@ const getModuleImporter = (type) => {
     WMS: "ol/source/ImageWMS.js",
     Raster: "ol/source/Raster.js",
     GeoJSON: "ol/format/GeoJSON.js",
+    Shapefile: "ol/source/Vector.js",
     KML: "ol/source/Vector.js",
     Style: "ol/style/Style.js",
     Stroke: "ol/style/Stroke.js",
@@ -622,6 +633,148 @@ const getModuleImporter = (type) => {
   }
 
   return importer;
+};
+
+/**
+ * Build the vector source for a `Shapefile` layer.
+ *
+ * Features load through OpenLayers' own loader hook rather than being fetched
+ * ahead of construction, which buys three things: the loader is handed the live
+ * view projection when it runs, its success/failure callbacks drive the
+ * `featuresloadstart` / `featuresloadend` / `featuresloaderror` events, and it
+ * is not called at all until the layer is actually mounted and rendering.
+ *
+ * `getMapProjection`, when supplied, is read at the moment features are inserted
+ * rather than when the load began. A shapefile is the slowest-loading vector
+ * source in the app, so it is the one most exposed to a sibling raster's auto-fit
+ * changing the view mid-load -- and features parsed into a projection the map has
+ * already left are drawn thousands of kilometres off screen while still reporting
+ * the right feature count.
+ *
+ * The single `shapefileController` set on the source is the whole channel between
+ * this module and the map: abort, status, error and reset. Hanging those on the
+ * source as loose properties would give two modules an undocumented surface each
+ * discovered by reaching into the other's object.
+ */
+export const loadShapefile = (config, mapProjection, getMapProjection) => {
+  const { url, projection: fallbackProjection } = config.props ?? {};
+  // Mirrors the GeoTIFF sentinel: a half-authored source is silent rather than
+  // an error, so typing a URL does not paint a failure after every keystroke.
+  if (!url) throw new Error("ShapefileEmptySources");
+
+  let abortController = null;
+  let status = "idle";
+  let failure = null;
+
+  const source = new VectorSource();
+
+  source.setLoader(async (extent, resolution, projection, success, onError) => {
+    // Held locally as well as on the closure. The closure slot is what `abort`
+    // and a second invocation write to, so comparing the two is how this run
+    // learns it is no longer the current one.
+    const controller = new AbortController();
+    abortController = controller;
+    status = "loading";
+    failure = null;
+
+    const finish = (nextStatus, nextFailure) => {
+      status = nextStatus;
+      failure = nextFailure ?? null;
+      abortController = null;
+    };
+
+    // Aborting stops the fetch, but the parse that follows it is CPU-bound and
+    // runs to completion regardless. A run that is no longer current must write
+    // nothing at all: its layer may already be gone, and because status is kept
+    // per layer *name*, a late success would land under whichever source owns
+    // that name now -- erasing a live error and leaving a blank layer that
+    // reports nothing. Staying silent is also why neither callback fires here:
+    // the events they raise are still wired to this dead source.
+    const superseded = () => abortController !== controller;
+
+    try {
+      const acquired = await acquireComponents(url, {
+        signal: controller.signal,
+      });
+      if (superseded()) return;
+      if (acquired.cancelled) {
+        finish("idle");
+        onError?.();
+        return;
+      }
+      if (acquired.error) {
+        finish("error", acquired.error);
+        onError?.();
+        return;
+      }
+
+      const interpreted = await interpretShapefile(acquired.components, {
+        fallbackProjection,
+      });
+      if (superseded()) return;
+      if (interpreted.error) {
+        finish("error", interpreted.error);
+        onError?.();
+        return;
+      }
+
+      // Read against the view as it stands now, not as it stood when the fetch
+      // was issued.
+      const targetProjection =
+        getMapProjection?.() ?? projection?.getCode?.() ?? mapProjection;
+      const features = readFeatureCollection(
+        interpreted.featureCollection,
+        targetProjection,
+      );
+      source.addFeatures(features);
+      finish("ready");
+      success?.(features);
+    } catch (error) {
+      // Both stages above report failures as values, so nothing here throws by
+      // design. A dynamic import still can -- a deploy invalidates the chunk a
+      // stale tab asks for -- and OpenLayers calls the loader without a catch of
+      // its own, so an escaping rejection would leave the layer reporting
+      // "loading" forever, with no error shown and no retry offered.
+      if (superseded()) return;
+      finish("error", {
+        stage: "fetch",
+        reason: "unexpected",
+        detail: `The shapefile could not be loaded: ${error?.message ?? error}`,
+      });
+      onError?.();
+    }
+  });
+
+  source.set("shapefileController", {
+    getStatus: () => status,
+    getError: () => failure,
+    abort: (reason) => {
+      if (abortController) {
+        abortController.abort(reason);
+        abortController = null;
+        status = "idle";
+      }
+    },
+    // `refresh` is the only primitive that actually causes the loader to run
+    // again. Removing the loaded extent alone leaves it un-invoked, because the
+    // renderer short-circuits its frame on an unchanged layer revision -- which
+    // is how a retry button ends up doing nothing while its test passes.
+    reset: () => {
+      // Abort first. Nothing disables the retry affordance while a load runs,
+      // and `refresh` exists to force the loader to run again, so two runs can
+      // otherwise overlap -- the second replacing the first's controller and
+      // leaving it uncancellable.
+      if (abortController) {
+        abortController.abort(CANCEL_REASON.SUPERSEDED);
+        abortController = null;
+      }
+      status = "idle";
+      failure = null;
+      source.refresh();
+    },
+  });
+
+  return source;
 };
 
 const loadGeoJSON = (config, mapProjection) => {
@@ -777,6 +930,15 @@ export function matchesCondition(featureValue, type, conditionValue) {
   if (type === "isNotNull") {
     return a !== null && a !== undefined && a !== "";
   }
+
+  // A field the feature does not carry cannot satisfy a comparison. Without this
+  // the negated operators invert into a match: `!=` becomes `undefined !== x`,
+  // and `notIn` becomes "not in the list", both true -- so one saved rule
+  // repaints every feature of a layer whose .dbf is missing or whose schema
+  // drifted upstream. The layer still renders, so nothing fails and nobody is
+  // told. The presence checks above deliberately run first: asking whether an
+  // absent field is null is a question with a real answer.
+  if (a === null || a === undefined) return false;
 
   const coerce = (v) => (typeof v === "string" && !isNaN(v) ? Number(v) : v);
 

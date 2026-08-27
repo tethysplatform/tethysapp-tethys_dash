@@ -317,12 +317,53 @@ test("StylePane Updating Existing GeoJSON", async () => {
 
 test("StylePane Styling not available", async () => {
   render(<TestingComponent sourceProps={{ type: "NotGeoJSON" }} />);
-  const supportedTypes = ["GeoJSON", "ESRI Feature Service", "PMTiles Vector"];
+  const supportedTypes = [
+    "GeoJSON",
+    "ESRI Feature Service",
+    "PMTiles Vector",
+    "Shapefile",
+  ];
   expect(
     await screen.findByText(
       `Custom Styling is only available for ${supportedTypes.join(", ")} layers.`,
     ),
   ).toBeInTheDocument();
+});
+
+test("StylePane offers the style editor for a Shapefile source", async () => {
+  // The gate this exercises is separate from field discovery: absent from the
+  // supported list, the tab renders a dead-end panel and styling the layer is
+  // impossible no matter what fields were found. Asserted on the absence of that
+  // panel, which is decided at render rather than after discovery resolves.
+  //
+  // Discovery is stubbed so the effect does not reach the network for a URL that
+  // does not exist; what it returns is covered by its own suite.
+  const styleFieldsSpy = jest
+    .spyOn(utilities, "getStyleFields")
+    .mockResolvedValue(["HUC8", "AREASQKM"]);
+
+  render(
+    <TestingComponent
+      sourceProps={{
+        type: "Shapefile",
+        props: { url: "https://example.org/basins.zip" },
+      }}
+    />,
+  );
+
+  expect(
+    screen.queryByText(/Custom Styling is only available for/),
+  ).not.toBeInTheDocument();
+  // And discovery is reached rather than skipped, so the rule editor has fields
+  // to offer once it resolves.
+  await waitFor(() => {
+    expect(styleFieldsSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceProps: expect.objectContaining({ type: "Shapefile" }),
+      }),
+    );
+  });
+  styleFieldsSpy.mockRestore();
 });
 
 test("StylePane switches to rules mode and syncs rules/defaultStyle from JSON", async () => {

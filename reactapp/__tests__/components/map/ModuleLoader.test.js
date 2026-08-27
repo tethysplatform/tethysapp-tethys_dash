@@ -2735,5 +2735,65 @@ describe("loadGeoPackage", () => {
       "EPSG:3857",
     );
     expect(out).toBe(src);
+describe("matchesCondition — a field the feature does not carry", () => {
+  // Left unguarded, the negated operators invert into a match: `!=` becomes
+  // `undefined !== x` and `notIn` becomes "not in the list", both true. One
+  // saved rule then repaints every feature of a layer whose .dbf is missing or
+  // whose schema drifted upstream -- and the layer still renders, so nothing
+  // fails and nobody is told.
+  it.each([
+    ["=", "x"],
+    ["!=", "x"],
+    ["<", 5],
+    ["<=", 5],
+    [">", 5],
+    [">=", 5],
+    ["in", "a,b,c"],
+    ["notIn", "a,b,c"],
+  ])("does not match %s", (operator, conditionValue) => {
+    expect(matchesCondition(undefined, operator, conditionValue)).toBe(false);
+    expect(matchesCondition(null, operator, conditionValue)).toBe(false);
+  });
+
+  it("still answers the presence checks, which are about absence itself", () => {
+    // These deliberately run before the guard: asking whether an absent field is
+    // null has a real answer, and a rule styling "no data" depends on it.
+    expect(matchesCondition(undefined, "isNull", null)).toBe(true);
+    expect(matchesCondition(null, "isNull", null)).toBe(true);
+    expect(matchesCondition(undefined, "isNotNull", null)).toBe(false);
+  });
+
+  it("leaves an empty string as a present value", () => {
+    // "" is something the feature carries, so a comparison against it is
+    // meaningful rather than unanswerable.
+    expect(matchesCondition("", "isNull", null)).toBe(true);
+    expect(matchesCondition("", "!=", "x")).toBe(true);
+    expect(matchesCondition("", "=", "")).toBe(true);
+  });
+
+  it("leaves present-value comparisons untouched", () => {
+    // Regression cover: this function styles every vector layer in the app, so
+    // the guard must change nothing for a field that is actually there.
+    expect(matchesCondition("x", "=", "x")).toBe(true);
+    expect(matchesCondition("x", "!=", "y")).toBe(true);
+    expect(matchesCondition("x", "!=", "x")).toBe(false);
+    expect(matchesCondition(3, "<", 5)).toBe(true);
+    expect(matchesCondition(3, ">", 5)).toBe(false);
+    expect(matchesCondition(0, "=", 0)).toBe(true);
+    expect(matchesCondition(0, "!=", 1)).toBe(true);
+    expect(matchesCondition("b", "in", "a,b,c")).toBe(true);
+    expect(matchesCondition("d", "in", "a,b,c")).toBe(false);
+    expect(matchesCondition("d", "notIn", "a,b,c")).toBe(true);
+    expect(matchesCondition("b", "notIn", "a,b,c")).toBe(false);
+  });
+
+  it("does not repaint a whole layer through a negated rule", () => {
+    // The observable consequence, stated as a scenario: a layer whose features
+    // lack POP2020 and a saved rule of `POP2020 != 0`.
+    const features = [{}, {}, {}].map(() => ({ POP2020: undefined }));
+    const matched = features.filter((f) =>
+      matchesCondition(f.POP2020, "!=", 0),
+    );
+    expect(matched).toHaveLength(0);
   });
 });

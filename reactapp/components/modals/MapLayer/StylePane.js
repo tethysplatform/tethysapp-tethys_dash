@@ -87,6 +87,7 @@ const StylePane = ({
   sourceProps,
   setSourceProps,
   layerProps,
+  shapefileDiscovery,
 }) => {
   const [styleSource, setStyleSource] = useState("custom"); // track the geojson value
   const [styleMode, setStyleMode] = useState("json"); // "json" or "rules"
@@ -97,6 +98,15 @@ const StylePane = ({
   const { dynamicMapLayers } = useContext(AppContext);
 
   useEffect(() => {
+    // A shapefile's fields come from the shared, author-triggered discovery
+    // instead. This effect re-runs on every source-props change -- which for a
+    // typed url is once per keystroke -- and each run there is a multi-megabyte
+    // download.
+    if (shapefileDiscovery?.isShapefile) {
+      setAvailableFields(shapefileDiscovery.fields);
+      return;
+    }
+
     const isDynamic = !!findSelectOptionByValue(
       dynamicMapLayers,
       sourceProps.type,
@@ -115,7 +125,14 @@ const StylePane = ({
       }
     };
     fetchAvailableFields();
-  }, [sourceProps, layerProps, uuid, dynamicMapLayers]);
+  }, [
+    sourceProps,
+    layerProps,
+    uuid,
+    dynamicMapLayers,
+    shapefileDiscovery?.isShapefile,
+    shapefileDiscovery?.fields,
+  ]);
 
   useEffect(() => {
     if (
@@ -428,7 +445,15 @@ const StylePane = ({
     );
   }
 
-  const supportedTypes = ["GeoJSON", "ESRI Feature Service", "PMTiles Vector"];
+  // Absent from this list, the Style tab renders a dead-end "not available for
+  // this source type" panel instead of the rule editor -- so styling a shapefile
+  // layer would be impossible regardless of what field discovery returned.
+  const supportedTypes = [
+    "GeoJSON",
+    "ESRI Feature Service",
+    "PMTiles Vector",
+    "Shapefile",
+  ];
   const isDynamicMapLayer = findSelectOptionByValue(
     dynamicMapLayers,
     sourceProps.type,
@@ -523,6 +548,12 @@ const StylePane = ({
 };
 
 StylePane.propTypes = {
+  // Shared, author-triggered field discovery for a shapefile source. Supplied by
+  // the modal so both panes read one result.
+  shapefileDiscovery: PropTypes.shape({
+    isShapefile: PropTypes.bool,
+    fields: PropTypes.arrayOf(PropTypes.string),
+  }),
   style: PropTypes.string, // stringified json for styling layer
   setStyle: PropTypes.func,
   setErrorMessage: PropTypes.func,

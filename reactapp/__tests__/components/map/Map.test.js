@@ -30,15 +30,20 @@ jest.mock("ol/source/GeoTIFF.js", () => {
     }
     getView() {
       getViewSpy();
-      return Promise.resolve({
-        projection: "EPSG:4326",
-        extent: [-180, -90, 180, 90],
-        center: [0, 0],
-        zoom: 2,
-      });
+      // Overridable so a test can drive a raster whose projection resolves from
+      // a registered definition rather than natively.
+      return Promise.resolve(
+        MockGeoTIFFSource.viewOptions ?? {
+          projection: "EPSG:4326",
+          extent: [-180, -90, 180, 90],
+          center: [0, 0],
+          zoom: 2,
+        },
+      );
     }
   }
   MockGeoTIFFSource.getViewSpy = getViewSpy;
+  MockGeoTIFFSource.viewOptions = null;
   return {
     __esModule: true,
     default: MockGeoTIFFSource,
@@ -1509,6 +1514,87 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
     });
   });
 
+  test("auto-fit does not adopt a registered-but-not-native projection as the view projection", async () => {
+    // EPSG:5041 resolves because the projection table registers it, which is
+    // what makes such a raster render at all. It must not also become the view
+    // projection: adoption calls setView and publishes the adopted code into the
+    // map-extent variable other visualizations read. Widening that is a separate
+    // change, so the view has to stay put while the layer still renders.
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+    GeoTIFFSource.viewOptions = {
+      projection: "EPSG:5041",
+      extent: [-1405881, -1405881, 5405881, 5405881],
+      center: [2000000, 2000000],
+      zoom: 2,
+    };
+
+    let capturedRef;
+    const RefCapture = ({ mapProps }) => {
+      const ref = useRef();
+      capturedRef = ref;
+      return (
+        <div>
+          <MapComponent visualizationRef={ref} {...mapProps} />
+          <p>{useMapContext()?.mapReady ? "Map Ready" : "Map Not Ready"}</p>
+        </div>
+      );
+    };
+    RefCapture.propTypes = { mapProps: PropTypes.object };
+
+    const layers = [
+      {
+        type: "WebGLTile",
+        props: {
+          source: {
+            type: "GeoTIFF",
+            props: { url: "https://example.com/polar.tif" },
+          },
+          name: "Polar GeoTIFF Layer",
+          zIndex: 0,
+        },
+      },
+    ];
+
+    try {
+      render(
+        <VariableInputsContext.Provider
+          value={{ setVariableInputValues: jest.fn() }}
+        >
+          <MapContextProvider>
+            <RefCapture mapProps={{ layers }} />
+          </MapContextProvider>
+        </VariableInputsContext.Provider>,
+      );
+
+      expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+      await waitFor(() => {
+        expect(GeoTIFFSource.getViewSpy).toHaveBeenCalled();
+      });
+
+      // The layer is still added -- rendering by reprojection is the point.
+      await waitFor(() => {
+        const names = capturedRef.current
+          .getLayers()
+          .getArray()
+          .map((l) => l.get("name"));
+        expect(names).toContain("Polar GeoTIFF Layer");
+      });
+
+      // ...but the view did not move off the default.
+      expect(capturedRef.current.getView().getProjection().getCode()).toBe(
+        "EPSG:3857",
+      );
+      await waitFor(() => {
+        expect(warn).toHaveBeenCalledWith(
+          expect.stringContaining('Not adopting "EPSG:5041"'),
+        );
+      });
+    } finally {
+      GeoTIFFSource.viewOptions = null;
+      warn.mockRestore();
+    }
+  });
+
   test("GeoTIFF layer triggers auto-fit: map view's projection switches to the TIF's", async () => {
     // The auto-fit's contract is: when a GeoTIFF layer is added, the map's
     // view projection switches to the TIF's so tiles can render. The mock
@@ -2722,5 +2808,123 @@ describe("onMapMoveEnd registration and mount-time prime", () => {
     // The first run that actually carries layers primes exactly once.
     rerenderLayers([layerConfigGeoJSON.configuration]);
     await waitFor(() => expect(onMapMoveEnd).toHaveBeenCalledTimes(1));
+  });
+});
+
+test("a map-extent view replacement moves vector features with the view", async () => {
+  // The reprojection sweep had one call site, on the raster auto-fit path. This
+  // path replaces the view too: the auto-fit adopts a projection without
+  // updating the state this view is rebuilt from, so a later extent change
+  // reverts the projection underneath features that were already moved once --
+  // leaving them holding the outgoing projection's numbers, drawn far off screen
+  // while still reporting the right feature count.
+  let capturedRef;
+  const RefCapture = ({ mapProps }) => {
+    const ref = useRef();
+    capturedRef = ref;
+    return (
+      <div>
+        <MapComponent visualizationRef={ref} {...mapProps} />
+        <p>{useMapContext()?.mapReady ? "Map Ready" : "Map Not Ready"}</p>
+      </div>
+    );
+  };
+  RefCapture.propTypes = { mapProps: PropTypes.object };
+
+  const layers = [
+    {
+      type: "WebGLTile",
+      props: {
+        source: {
+          type: "GeoTIFF",
+          props: { url: "https://example.com/t.tif" },
+        },
+        name: "Auto-fit Raster",
+        zIndex: 0,
+      },
+    },
+    {
+      type: "VectorLayer",
+      props: {
+        name: "Vector Alongside",
+        zIndex: 1,
+        source: {
+          type: "GeoJSON",
+          props: {},
+          geojson: {
+            type: "FeatureCollection",
+            crs: { type: "name", properties: { name: "EPSG:4326" } },
+            features: [
+              {
+                type: "Feature",
+                properties: {},
+                geometry: { type: "Point", coordinates: [-90.54, 14.48] },
+              },
+            ],
+          },
+        },
+      },
+    },
+  ];
+
+  const { rerender } = render(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
+      <MapContextProvider>
+        <RefCapture mapProps={{ layers }} />
+      </MapContextProvider>
+    </VariableInputsContext.Provider>,
+  );
+
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+  const findVector = () =>
+    capturedRef.current
+      ?.getLayers()
+      .getArray()
+      .find((l) => l.get("name") === "Vector Alongside");
+
+  // The auto-fit adopts the raster's EPSG:4326, so the features now hold degrees.
+  await waitFor(() => {
+    expect(capturedRef.current.getView().getProjection().getCode()).toBe(
+      "EPSG:4326",
+    );
+  });
+  await waitFor(() => {
+    const [x] = findVector()
+      .getSource()
+      .getFeatures()[0]
+      .getGeometry()
+      .getCoordinates();
+    expect(Math.abs(x - -90.54)).toBeLessThan(0.01);
+  });
+
+  // Now an extent change rebuilds the view from component state, which the
+  // auto-fit never updated -- so the view goes back to Web Mercator.
+  rerender(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
+      <MapContextProvider>
+        <RefCapture mapProps={{ layers, mapExtent: "-90.54,14.48,5" }} />
+      </MapContextProvider>
+    </VariableInputsContext.Provider>,
+  );
+
+  await waitFor(() => {
+    expect(capturedRef.current.getView().getProjection().getCode()).toBe(
+      "EPSG:3857",
+    );
+  });
+
+  // The features must have come with it: metres now, not the degrees they held.
+  await waitFor(() => {
+    const [x] = findVector()
+      .getSource()
+      .getFeatures()[0]
+      .getGeometry()
+      .getCoordinates();
+    expect(Math.abs(x)).toBeGreaterThan(1e6);
   });
 });

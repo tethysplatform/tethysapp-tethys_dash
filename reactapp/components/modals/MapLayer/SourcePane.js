@@ -97,6 +97,106 @@ function parsePropertiesArray(properties) {
   }, {});
 }
 
+// The author-facing surface for reading a shapefile's fields: an explicit action
+// rather than an automatic read, the pending state, what failed and what the
+// author can do about it, and any saved field references the source no longer
+// has.
+//
+// The drift list renders here, next to the action that produced it, rather than
+// being split across the style and attributes panes -- a style-rule reference
+// that has gone missing would otherwise be invisible to an author who never
+// opens the attributes tab.
+const ShapefileDiscoveryPanel = ({ discovery }) => {
+  const { state, slow, fields, failure, drift, load } = discovery;
+
+  return (
+    <div style={{ marginTop: "0.75rem" }}>
+      <Button
+        variant="outline-primary"
+        size="sm"
+        onClick={load}
+        disabled={state === "loading" || !discovery.resolvedUrl}
+        aria-label="Read shapefile fields"
+      >
+        {state === "loading" ? (
+          <>
+            <Spinner
+              as="span"
+              animation="border"
+              size="sm"
+              role="status"
+              aria-hidden="true"
+            />
+            <span style={{ marginLeft: "0.4rem" }}>Reading&hellip;</span>
+          </>
+        ) : (
+          "Read shapefile fields"
+        )}
+      </Button>
+      <small style={{ color: "#6c757d", marginLeft: "0.5rem" }}>
+        Reads the source once so the Style and Attributes tabs can offer its
+        fields.
+      </small>
+
+      {state === "loading" && slow && (
+        <div role="status" aria-live="polite" style={{ marginTop: "0.5rem" }}>
+          <small>
+            Still reading this shapefile &mdash; large archives can take a
+            while.
+          </small>
+        </div>
+      )}
+
+      {state === "ready" && (
+        <Alert variant="success" style={{ marginTop: "0.5rem" }}>
+          Found {fields.length} field{fields.length === 1 ? "" : "s"}
+          {fields.length > 0 ? `: ${fields.join(", ")}` : "."}
+        </Alert>
+      )}
+
+      {state === "error" && failure && (
+        <Alert variant="danger" role="alert" style={{ marginTop: "0.5rem" }}>
+          {failure.detail}
+          {failure.remedy && (
+            <>
+              <br />
+              {failure.remedy}
+            </>
+          )}
+          <br />
+          <small>
+            Style rules, popup settings and attribute variables already saved
+            are unchanged.
+          </small>
+        </Alert>
+      )}
+
+      {drift.length > 0 && (
+        <Alert variant="warning" role="alert" style={{ marginTop: "0.5rem" }}>
+          Saved settings reference {drift.length === 1 ? "a field" : "fields"}{" "}
+          this source does not have: {drift.join(", ")}. Rules and popup rows
+          using {drift.length === 1 ? "it" : "them"} will not match anything.
+        </Alert>
+      )}
+    </div>
+  );
+};
+
+ShapefileDiscoveryPanel.propTypes = {
+  discovery: PropTypes.shape({
+    state: PropTypes.string,
+    slow: PropTypes.bool,
+    fields: PropTypes.arrayOf(PropTypes.string),
+    failure: PropTypes.shape({
+      detail: PropTypes.string,
+      remedy: PropTypes.string,
+    }),
+    drift: PropTypes.arrayOf(PropTypes.string),
+    load: PropTypes.func,
+    resolvedUrl: PropTypes.string,
+  }).isRequired,
+};
+
 const SourcePane = ({
   sourceProps,
   setSourceProps,
@@ -105,6 +205,7 @@ const SourcePane = ({
   setErrorMessage,
   onRequestHideModal,
   onFetchPluginDefaults,
+  shapefileDiscovery,
 }) => {
   const [sourceProperties, setSourceProperties] = useState([]); // array of objects that represent properties that will be rendered in the table
   const [propertyPlaceholders, SetPropertyPlaceholders] = useState([]); // array of objects that represent placeholders for the table inputs
@@ -506,6 +607,9 @@ const SourcePane = ({
                   </p>
                 </>
               )}
+              {sourceType.value === "Shapefile" && shapefileDiscovery && (
+                <ShapefileDiscoveryPanel discovery={shapefileDiscovery} />
+              )}
               {sourceType.value === "Static Image" &&
                 mapContext &&
                 onRequestHideModal && (
@@ -527,6 +631,7 @@ const SourcePane = ({
 };
 
 SourcePane.propTypes = {
+  shapefileDiscovery: ShapefileDiscoveryPanel.propTypes.discovery,
   sourceProps: sourcePropType,
   setSourceProps: PropTypes.func, // setter for sourceProps state
   setStyle: PropTypes.func, // setter for style state (used by Fetch defaults applied from MapLayer)

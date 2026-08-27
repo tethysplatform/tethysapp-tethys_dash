@@ -1360,6 +1360,26 @@ export const layerConfigKML = {
   },
 };
 
+// Neither the GeoTIFF nor the Zarr source type added a fixture here, which made
+// both harder to test than they needed to be. The URL lives at
+// source.props.url, like every other URL-based source -- GeoJSON's storage
+// outside props is exactly why it needs a special case in nearly every dispatch
+// function.
+export const layerConfigShapefile = {
+  configuration: {
+    type: "VectorLayer",
+    props: {
+      name: "Shapefile Layer",
+      source: {
+        type: "Shapefile",
+        props: {
+          url: "https://example.org/basins.zip",
+        },
+      },
+    },
+  },
+};
+
 export const layerConfigGeoJSON = {
   configuration: {
     type: "VectorLayer",
