@@ -13,18 +13,20 @@ import moduleLoader, {
   withAntimeridianFix,
   withIsolatedCanvas,
   withAutoCrossOrigin,
-  zarrSourceToGeoTIFF,
   applyAutoRamp,
   loadGeoPackage,
   s3UrlToHttps,
   registerGeoPackageProjections,
   GeoPackageError,
+  loadZarr,
   loadGeoParquet,
   geoParquetCRSToProjection,
   readGeoParquetGeoMetadata,
   GeoParquetError,
 } from "components/map/ModuleLoader";
 import { fromUrl } from "geotiff";
+import DataTile from "ol/source/DataTile.js";
+import { readSlice } from "components/map/zarrReader";
 import WebGLTile from "ol/layer/WebGLTile.js";
 import ImageLayer from "ol/layer/Image.js";
 import VectorTileLayer from "ol/layer/VectorTile.js";
@@ -75,6 +77,14 @@ jest.mock("ol-load-geopackage", () => ({
   __esModule: true,
   initSqlJsWasm: jest.fn(),
   loadGpkg: jest.fn(),
+}));
+
+// zarrReader is mocked so the Zarr DataTile path can be driven with canned slices
+// (the real reader pulls in zarrita, which jest resolves only via the stub).
+jest.mock("components/map/zarrReader", () => ({
+  __esModule: true,
+  readSlice: jest.fn(),
+  readMetadata: jest.fn(),
 }));
 
 jest.mock(
@@ -2102,35 +2112,8 @@ describe.each([
   );
 });
 
-describe("zarrSourceToGeoTIFF", () => {
-  test("assembles the zarr/cog endpoint URL from the source fields", () => {
-    const out = zarrSourceToGeoTIFF({
-      type: "Zarr",
-      props: { url: "https://x/store.zarr", variable: "depth", index: "150" },
-    });
-    expect(out.type).toBe("GeoTIFF");
-    expect(out.props.normalize).toBe(true);
-    const url = out.props.sources[0].url;
-    expect(url).toContain("/apps/tethysdash/zarr/cog/?");
-    expect(url).toContain("src=https%3A%2F%2Fx%2Fstore.zarr");
-    expect(url).toContain("variable=depth");
-    expect(url).toContain("index=150");
-    expect(url).not.toContain("mask_below");
-  });
-
-  test("defaults index to 0 and includes mask_below when provided", () => {
-    const out = zarrSourceToGeoTIFF({
-      type: "Zarr",
-      props: { url: "https://x", variable: "t", mask_below: "0.5" },
-    });
-    const url = out.props.sources[0].url;
-    expect(url).toContain("index=0");
-    expect(url).toContain("mask_below=0.5");
-  });
-});
-
-describe("applyAutoRamp", () => {
-  const zarrLayer = (source = {}) => ({
+describe("applyZarrRamp", () => {
+  const zarrRampLayer = (source = {}) => ({
     type: "WebGLTile",
     props: {
       name: "flood",
@@ -2138,6 +2121,191 @@ describe("applyAutoRamp", () => {
         type: "Zarr",
         rampName: "turbo",
         props: { url: "https://x/store.zarr", variable: "depth", index: "7" },
+        ...source,
+      },
+    },
+  });
+
+  const sliceWith = (over = {}) => ({
+    width: 5,
+    height: 4,
+    extent: [-100, 180, -75, 200],
+    crs: "EPSG:3857",
+    data: new Float32Array(40),
+    min: 0,
+    max: 17.45,
+    ...over,
+  });
+
+  beforeEach(() => {
+    readSlice.mockReset();
+    readSlice.mockResolvedValue(sliceWith());
+  });
+
+  test("fits the ramp to the slice's real value range", async () => {
+    const config = zarrRampLayer();
+
+    await applyAutoRamp(config); // delegates to applyZarrRamp for Zarr sources
+
+    expect(config.props.source.resolvedRampMin).toBe(0);
+    expect(config.props.source.resolvedRampMax).toBeCloseTo(17.45, 4);
+    const color = config.style.color;
+    expect(color[0]).toBe("case"); // hasNodata wraps the ramp in an alpha guard
+    const interpolate = color[3];
+    expect(interpolate[0]).toBe("interpolate");
+    expect(interpolate[3]).toBe(0);
+    expect(interpolate[interpolate.length - 2]).toBeCloseTo(17.45, 4);
+  });
+
+  test("honors an author-pinned range instead of the slice range", async () => {
+    const config = zarrRampLayer({ rampMin: "0", rampMax: "5" });
+
+    await applyAutoRamp(config);
+
+    const interpolate = config.style.color[3];
+    expect(interpolate[interpolate.length - 2]).toBe(5);
+    expect(config.props.source.resolvedRampMax).toBe(5);
+  });
+
+  test("reads the slice only once for a slice it already resolved", async () => {
+    const config = zarrRampLayer();
+
+    await applyAutoRamp(config);
+    await applyAutoRamp(config);
+
+    expect(readSlice).toHaveBeenCalledTimes(1);
+    expect(config.props.source.resolvedRampMax).toBeCloseTo(17.45, 4);
+  });
+
+  test("re-resolves when the slice index moves", async () => {
+    const config = zarrRampLayer();
+    await applyAutoRamp(config);
+
+    readSlice.mockResolvedValue(sliceWith({ max: 300 }));
+    config.props.source.props.index = "8";
+    await applyAutoRamp(config);
+
+    expect(readSlice).toHaveBeenCalledTimes(2);
+    expect(config.props.source.resolvedRampMax).toBe(300);
+  });
+
+  test("passes the mask threshold into the style as a transparent branch", async () => {
+    const config = zarrRampLayer();
+    config.props.source.props.mask_below = "0.05";
+
+    await applyAutoRamp(config);
+
+    // nodata guard is branch 1; the mask is branch 2 on band 1.
+    expect(config.style.color[3]).toEqual(["<=", ["band", 1], 0.05]);
+  });
+
+  test("styles categorical Zarr layers by class without a range", async () => {
+    const config = zarrRampLayer({
+      rampName: undefined,
+      styleMode: "categorical",
+      classes: [
+        { value: "0", color: "#aaa" },
+        { value: "1", color: "#bbb" },
+      ],
+    });
+
+    await applyAutoRamp(config);
+
+    expect(config.style.color[0]).toBe("case");
+    expect(config.style.color[3]).toEqual([
+      "match",
+      ["band", 1],
+      0,
+      "#aaa",
+      1,
+      "#bbb",
+      [0, 0, 0, 0],
+    ]);
+  });
+
+  test("does nothing without a ramp or classes", async () => {
+    const config = zarrRampLayer({ rampName: undefined });
+
+    await applyAutoRamp(config);
+
+    expect(readSlice).not.toHaveBeenCalled();
+    expect(config.style).toBeUndefined();
+  });
+});
+
+describe("loadZarr", () => {
+  const zarrSource = (props = {}) => ({
+    type: "Zarr",
+    props: {
+      url: "https://x/store.zarr",
+      variable: "depth",
+      index: "0",
+      ...props,
+    },
+  });
+
+  beforeEach(() => {
+    readSlice.mockReset();
+    readSlice.mockResolvedValue({
+      width: 5,
+      height: 4,
+      extent: [-100, 180, -75, 200],
+      crs: "EPSG:3857",
+      data: new Float32Array(40),
+      min: 0,
+      max: 18,
+    });
+  });
+
+  test("builds a DataTile source with a getView shim over the slice extent", async () => {
+    const source = await loadZarr(zarrSource(), "EPSG:3857");
+
+    expect(source).toBeInstanceOf(DataTile);
+    expect(source.getTileGrid().getResolutions()).toEqual([5]); // 25m / 5px
+    const view = await source.getView();
+    expect(view.projection).toBe("EPSG:3857");
+    expect(view.extent).toEqual([-100, 180, -75, 200]);
+    expect(view.center).toEqual([-87.5, 190]);
+  });
+
+  test("reads the slice from the source's fields (index and mask coerced)", async () => {
+    await loadZarr(zarrSource({ index: "3", mask_below: "0.5" }), "EPSG:3857");
+
+    expect(readSlice).toHaveBeenCalledWith({
+      url: "https://x/store.zarr",
+      variable: "depth",
+      index: 3,
+      maskBelow: 0.5,
+    });
+  });
+
+  test("adopts the store CRS in getView when it differs from the map", async () => {
+    readSlice.mockResolvedValue({
+      width: 5,
+      height: 4,
+      extent: [0, 0, 25, 20],
+      crs: "EPSG:4326",
+      data: new Float32Array(40),
+      min: 0,
+      max: 1,
+    });
+
+    const source = await loadZarr(zarrSource(), "EPSG:3857");
+    const view = await source.getView();
+
+    expect(view.projection).toBe("EPSG:4326");
+  });
+});
+
+describe("applyAutoRamp", () => {
+  const geotiffRampLayer = (source = {}) => ({
+    type: "WebGLTile",
+    props: {
+      name: "flood",
+      source: {
+        type: "GeoTIFF",
+        rampName: "turbo",
+        props: { url: "https://x/depth.tif" },
         ...source,
       },
     },
@@ -2164,7 +2332,7 @@ describe("applyAutoRamp", () => {
 
   test("styles raw values over the slice range and turns normalize off", async () => {
     mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "17.45" });
-    const config = zarrLayer();
+    const config = geotiffRampLayer();
 
     await applyAutoRamp(config);
 
@@ -2185,21 +2353,18 @@ describe("applyAutoRamp", () => {
     expect(interpolate[interpolate.length - 2]).toBeCloseTo(17.45, 4);
   });
 
-  test("reads stats from the same zarr/cog URL the source will fetch", async () => {
+  test("reads stats from the source's own URL", async () => {
     mockStats({ STATISTICS_MINIMUM: "1", STATISTICS_MAXIMUM: "2" });
-    const config = zarrLayer();
+    const config = geotiffRampLayer();
 
     await applyAutoRamp(config);
 
-    const requested = fromUrl.mock.calls[0][0];
-    expect(requested).toBe(
-      zarrSourceToGeoTIFF(config.props.source).props.sources[0].url,
-    );
+    expect(fromUrl.mock.calls[0][0]).toBe("https://x/depth.tif");
   });
 
-  test("does not refetch for a slice it already resolved", async () => {
+  test("does not refetch for a file it already resolved", async () => {
     mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "9" });
-    const config = zarrLayer();
+    const config = geotiffRampLayer();
 
     // Safe to call from both the legend build and the layer build in one render.
     await applyAutoRamp(config);
@@ -2209,14 +2374,14 @@ describe("applyAutoRamp", () => {
     expect(config.props.source.resolvedRampMax).toBe(9);
   });
 
-  test("re-resolves when the slice index moves", async () => {
+  test("re-resolves when the source URL changes", async () => {
     mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "9" });
-    const config = zarrLayer();
+    const config = geotiffRampLayer();
     await applyAutoRamp(config);
 
-    // A new storm: same layer object, different slice — the ramp must refit.
+    // A new file: same layer object, different URL — the ramp must refit.
     mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "300" });
-    config.props.source.props.index = "8";
+    config.props.source.props.url = "https://x/depth2.tif";
     await applyAutoRamp(config);
 
     expect(fromUrl).toHaveBeenCalledTimes(2);
@@ -2237,7 +2402,7 @@ describe("applyAutoRamp", () => {
 
   test("honors an author-pinned range instead of auto-fitting", async () => {
     mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "99" });
-    const config = zarrLayer({ rampMin: "0", rampMax: "5" });
+    const config = geotiffRampLayer({ rampMin: "0", rampMax: "5" });
 
     await applyAutoRamp(config);
 
@@ -2248,7 +2413,7 @@ describe("applyAutoRamp", () => {
   });
 
   test("does nothing without a ramp style", async () => {
-    const config = zarrLayer({ rampName: undefined });
+    const config = geotiffRampLayer({ rampName: undefined });
 
     await applyAutoRamp(config);
 
@@ -2268,7 +2433,10 @@ describe("applyAutoRamp", () => {
     ],
   ])("falls back to normalized rendering on %s", async (_label, meta) => {
     mockStats(meta);
-    const config = zarrLayer();
+    // Missing stats triggers a sidecar (.aux.xml) probe; stub it so the GeoTIFF
+    // vehicle doesn't attempt a real fetch.
+    global.fetch = jest.fn().mockResolvedValue({ ok: false });
+    const config = geotiffRampLayer();
 
     await applyAutoRamp(config);
 
@@ -2281,7 +2449,7 @@ describe("applyAutoRamp", () => {
 
   test("falls back to normalized rendering when the header cannot be read", async () => {
     fromUrl.mockRejectedValue(new Error("network"));
-    const config = zarrLayer();
+    const config = geotiffRampLayer();
 
     await expect(applyAutoRamp(config)).resolves.toBeTruthy();
 
@@ -2296,7 +2464,7 @@ describe("applyAutoRamp", () => {
       band: {},
       dataset: { STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "1" },
     });
-    const config = zarrLayer();
+    const config = geotiffRampLayer();
 
     await applyAutoRamp(config);
 
@@ -2310,7 +2478,7 @@ describe("applyAutoRamp", () => {
       band: { STATISTICS_MINIMUM: "2", STATISTICS_MAXIMUM: "8" },
       dataset: { STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "100" },
     });
-    const config = zarrLayer();
+    const config = geotiffRampLayer();
 
     await applyAutoRamp(config);
 
@@ -2320,7 +2488,7 @@ describe("applyAutoRamp", () => {
 
   test("resolves only the max when the author pinned the min", async () => {
     mockStats({ STATISTICS_MINIMUM: "0.4", STATISTICS_MAXIMUM: "17.45" });
-    const config = zarrLayer({ rampMin: "0" });
+    const config = geotiffRampLayer({ rampMin: "0" });
 
     await applyAutoRamp(config);
 
@@ -2335,7 +2503,7 @@ describe("applyAutoRamp", () => {
 
   test("resolves only the min when the author pinned the max", async () => {
     mockStats({ STATISTICS_MINIMUM: "0.4", STATISTICS_MAXIMUM: "17.45" });
-    const config = zarrLayer({ rampMax: "20" });
+    const config = geotiffRampLayer({ rampMax: "20" });
 
     await applyAutoRamp(config);
 
@@ -2347,7 +2515,7 @@ describe("applyAutoRamp", () => {
     // The header also carries GDAL_NODATA, and a pinned layer needs its
     // transparency right just as much as an auto-fitted one.
     mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "17" });
-    const config = zarrLayer({ rampMin: "1", rampMax: "5" });
+    const config = geotiffRampLayer({ rampMin: "1", rampMax: "5" });
 
     await applyAutoRamp(config);
 
@@ -2360,7 +2528,7 @@ describe("applyAutoRamp", () => {
   test("treats a pinned min of 0 as set, not as empty", async () => {
     // A falsy-but-valid bound must not be mistaken for "resolve me".
     mockStats({ STATISTICS_MINIMUM: "5", STATISTICS_MAXIMUM: "9" });
-    const config = zarrLayer({ rampMin: 0 });
+    const config = geotiffRampLayer({ rampMin: 0 });
 
     await applyAutoRamp(config);
 
@@ -2370,7 +2538,7 @@ describe("applyAutoRamp", () => {
 
   test("bails when a pinned min exceeds the file's maximum", async () => {
     mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "1" });
-    const config = zarrLayer({ rampMin: "50" });
+    const config = geotiffRampLayer({ rampMin: "50" });
 
     await applyAutoRamp(config);
 
@@ -2380,7 +2548,7 @@ describe("applyAutoRamp", () => {
 
   test("bails when a pinned bound is not a number", async () => {
     mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "1" });
-    const config = zarrLayer({ rampMin: "abc" });
+    const config = geotiffRampLayer({ rampMin: "abc" });
 
     await applyAutoRamp(config);
 
@@ -2393,7 +2561,7 @@ describe("applyAutoRamp", () => {
     // the stats still describe values the mask hides. Without this the bottom of
     // the ramp would be spent on invisible pixels.
     mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "1" });
-    const config = zarrLayer();
+    const config = geotiffRampLayer();
     config.props.source.props.mask_below = "0.05";
 
     await applyAutoRamp(config);
@@ -2404,7 +2572,7 @@ describe("applyAutoRamp", () => {
 
   test("passes the mask threshold into the style as a transparent branch", async () => {
     mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "1" });
-    const config = zarrLayer();
+    const config = geotiffRampLayer();
     config.props.source.props.mask_below = "0.05";
 
     await applyAutoRamp(config);
@@ -2415,7 +2583,7 @@ describe("applyAutoRamp", () => {
 
   test("leaves a pinned min alone even when a mask threshold is higher", async () => {
     mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "1" });
-    const config = zarrLayer({ rampMin: "0" });
+    const config = geotiffRampLayer({ rampMin: "0" });
     config.props.source.props.mask_below = "0.05";
 
     await applyAutoRamp(config);
@@ -2425,7 +2593,7 @@ describe("applyAutoRamp", () => {
 
   test("does not lift the min when the mask is below the file minimum", async () => {
     mockStats({ STATISTICS_MINIMUM: "3", STATISTICS_MAXIMUM: "9" });
-    const config = zarrLayer();
+    const config = geotiffRampLayer();
     config.props.source.props.mask_below = "1";
 
     await applyAutoRamp(config);
@@ -2437,7 +2605,7 @@ describe("applyAutoRamp", () => {
     // Clamping here would invert the range and bail out; instead keep the ramp
     // and let the mask render every cell transparent.
     mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "1" });
-    const config = zarrLayer();
+    const config = geotiffRampLayer();
     config.props.source.props.mask_below = "5";
 
     await applyAutoRamp(config);
@@ -2454,7 +2622,7 @@ describe("applyAutoRamp", () => {
         getGDALNoData: jest.fn(() => null),
       }),
     });
-    const config = zarrLayer();
+    const config = geotiffRampLayer();
 
     await expect(applyAutoRamp(config)).resolves.toBeTruthy();
 

@@ -6,6 +6,8 @@ import GeoJSON from "ol/format/GeoJSON.js";
 import EsriJSON from "ol/format/EsriJSON";
 import { tile as tileStrategy } from "ol/loadingstrategy.js";
 import { createXYZ } from "ol/tilegrid.js";
+import DataTile from "ol/source/DataTile.js";
+import TileGrid from "ol/tilegrid/TileGrid.js";
 import {
   Style,
   Circle as CircleStyle,
@@ -41,6 +43,7 @@ import {
 import proj4 from "proj4";
 import { register as registerProj4 } from "ol/proj/proj4.js";
 import sqlWasmUrl from "sql.js/dist/sql-wasm.wasm";
+import { readSlice } from "components/map/zarrReader";
 
 const moduleCache = {};
 const styleCache = new Map();
@@ -136,31 +139,72 @@ async function prepareProps(type, props) {
   );
 }
 
-// Single place that turns Zarr source props into a COG URL, so the layer's
-// source and the stats pre-read below can never disagree about the slice.
-export function zarrCogUrl(sourceProps) {
-  const { url, variable, index, mask_below } = sourceProps ?? {};
-  const params = new URLSearchParams({
-    src: url ?? "",
-    variable: variable ?? "",
-    index: index ?? "0",
-  });
-  if (mask_below !== undefined && mask_below !== "") {
-    params.set("mask_below", mask_below);
-  }
-  return `${ZARR_APP_ROOT}zarr/cog/?${params.toString()}`;
+// A "Zarr" source reads a public store directly in the browser (see zarrReader):
+// one 2-D slice becomes an ol/source/DataTile with band 1 = value and band 2 =
+// alpha/nodata mask. Variable inputs in the fields (e.g. index="${Storm}") are
+// already substituted before this runs.
+
+// The slice a Zarr source currently points at, as readSlice args. Used both to
+// key the single slice read and to gate applyZarrRamp from restyling an
+// unchanged slice.
+function zarrSliceParams(source) {
+  const { url, variable, index, mask_below } = source?.props ?? {};
+  return {
+    url,
+    variable,
+    index: Number(index ?? 0),
+    maskBelow:
+      mask_below === "" || mask_below == null ? undefined : Number(mask_below),
+  };
 }
 
-export function zarrSourceToGeoTIFF(config) {
-  const { normalize } = config.props ?? {};
-  return {
-    ...config,
-    type: "GeoTIFF",
-    props: {
-      sources: [{ url: zarrCogUrl(config.props) }],
-      normalize: normalize ?? true,
-    },
-  };
+export function zarrSliceKey(source) {
+  return JSON.stringify(zarrSliceParams(source));
+}
+
+// Read the slice once per (source, slice) and memoize the promise on the source
+// config, which applyZarrRamp and loadZarr both receive by reference — so the
+// ramp and the tile data never re-read or disagree about the slice.
+function getZarrSlice(source) {
+  const key = zarrSliceKey(source);
+  if (source._zarrSliceKey !== key) {
+    source._zarrSliceKey = key;
+    source._zarrSlicePromise = readSlice(zarrSliceParams(source));
+  }
+  return source._zarrSlicePromise;
+}
+
+// Build the DataTile source for a Zarr layer from its slice. The map adopts the
+// store's CRS via the getView() shim, so the single tile needs no per-tile
+// reprojection.
+export async function loadZarr(config, mapProjection) {
+  const slice = await getZarrSlice(config);
+  const { data, width, height, extent, crs } = slice;
+  const projection = crs || mapProjection;
+  registerGeoPackageProjections(); // resolve UTM store CRSs
+  const resolution = (extent[2] - extent[0]) / width;
+
+  const source = new DataTile({
+    loader: () => data, // one tile holds the whole slice
+    bandCount: 2, // band 1 = value, band 2 = alpha/nodata mask
+    interpolate: config.props?.interpolate ?? false,
+    projection,
+    tileGrid: new TileGrid({
+      extent,
+      origin: [extent[0], extent[3]],
+      tileSizes: [[width, height]],
+      resolutions: [resolution],
+    }),
+  });
+  // Map.js auto-fits raster layers by calling getView() on the source; expose a
+  // compatible shim so the map fits to the slice extent and adopts the store CRS.
+  source.getView = async () => ({
+    projection,
+    extent,
+    center: [(extent[0] + extent[2]) / 2, (extent[1] + extent[3]) / 2],
+    zoom: 0,
+  });
+  return source;
 }
 
 // A GeoTIFF source is authored as flat fields (url + optional projection),
@@ -179,14 +223,12 @@ export function geotiffSourceToOL(config) {
   return { ...config, props };
 }
 
-// Where to read STATISTICS_* for a ramp-styled raster source, or null when the
+// Where to read STATISTICS_* for a ramp-styled GeoTIFF source, or null when the
 // source is not a candidate for an auto-fitted ramp.
 //
 // The GeoTIFF URL is author-supplied, so it is restricted to http(s):
-// file:/blob:/data:/protocol-relative must not be fetched. The Zarr endpoint is
-// app-relative and built by us, so it skips that check.
+// file:/blob:/data:/protocol-relative must not be fetched.
 function autoRampStatsUrl(source) {
-  if (source?.type === "Zarr") return zarrCogUrl(source.props);
   if (source?.type !== "GeoTIFF") return null;
 
   const url = source.props?.url;
@@ -232,6 +274,65 @@ async function fetchSidecarStats(url) {
   }
 }
 
+// Fit a Zarr layer's ramp to its slice's real value range. min/max come from the
+// decoded slice (via the shared getZarrSlice); masking already lives in the
+// slice's alpha band, so nodata is not re-derived here. Gated on the slice key so
+// it restyles only when the slice changes (e.g. a variable input swaps it).
+export async function applyZarrRamp(layerConfig) {
+  const source = layerConfig?.props?.source;
+  const { rampName, rampMin, rampMax } = source ?? {};
+  const hasMin = (rampMin ?? "") !== "";
+  const hasMax = (rampMax ?? "") !== "";
+  const isCategorical =
+    source?.styleMode === "categorical" &&
+    (source?.classes ?? []).some(isUsableClass);
+  if (!rampName && !isCategorical) return layerConfig;
+
+  const key = zarrSliceKey(source);
+  if (source.resolvedRampUrl === key) return layerConfig;
+
+  try {
+    if (isCategorical) {
+      layerConfig.style = {
+        ...(layerConfig.style ?? {}),
+        color: buildCategoricalStyleColor({
+          classes: source.classes,
+          hasNodata: true,
+          maskBelow: source.props?.mask_below,
+          fallbackColor: source.fallbackColor,
+        }),
+      };
+      source.resolvedRampUrl = key;
+      return layerConfig;
+    }
+
+    const slice = await getZarrSlice(source);
+    // A pinned bound wins; the empty one comes from the slice's real range.
+    let lo = hasMin ? Number(rampMin) : slice.min;
+    let hi = hasMax ? Number(rampMax) : slice.max;
+    if (!Number.isFinite(lo)) lo = slice.min;
+    if (!Number.isFinite(hi)) hi = slice.max;
+
+    layerConfig.style = {
+      ...(layerConfig.style ?? {}),
+      color: buildGeoTIFFStyleColor({
+        rampName,
+        rampMin: lo,
+        rampMax: hi,
+        rampReverse: source.rampReverse === true,
+        hasNodata: true,
+        maskBelow: source.props?.mask_below,
+      }),
+    };
+    source.resolvedRampUrl = key;
+    source.resolvedRampMin = lo;
+    source.resolvedRampMax = hi;
+  } catch {
+    // Slice unreadable: leave the style; loadZarr surfaces the error on build.
+  }
+  return layerConfig;
+}
+
 // Fit a ramp-styled raster layer's color ramp to the file's real value range.
 //
 // Left alone, such a layer renders with `normalize: true`, which makes OL scale
@@ -257,6 +358,7 @@ async function fetchSidecarStats(url) {
 // each file's peak.
 export async function applyAutoRamp(layerConfig) {
   const source = layerConfig?.props?.source;
+  if (source?.type === "Zarr") return applyZarrRamp(layerConfig);
   const { rampName, rampMin, rampMax } = source ?? {};
   const hasMin = (rampMin ?? "") !== "";
   const hasMax = (rampMax ?? "") !== "";
@@ -570,9 +672,10 @@ const moduleLoader = async (config, mapProjection, getMapProjection) => {
     return loadGeoParquet(config, mapProjection);
   }
   if (config.type === "Zarr") {
-    // Already yields OL's `sources` shape, so it skips the GeoTIFF branch below.
-    config = zarrSourceToGeoTIFF(config);
-  } else if (config.type === "GeoTIFF") {
+    // Reads the store client-side and returns a ready DataTile source.
+    return loadZarr(config, mapProjection);
+  }
+  if (config.type === "GeoTIFF") {
     if (!config.props?.url) {
       throw new Error("GeoTIFFEmptySources");
     }
