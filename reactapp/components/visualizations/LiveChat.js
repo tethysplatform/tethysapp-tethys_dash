@@ -11,11 +11,20 @@ const PaddedContainer = styled.div`
   padding: 16px;
   display: flex;
   height: 100%;
+  /* The padding has to come out of the grid item's height rather than add to
+     it, or the input row below the log is pushed past the bottom of the tile. */
+  box-sizing: border-box;
   flex-direction: column;
 `;
 
 const ChatLogArea = styled.div`
   flex: 1 1 0%;
+  /* A flex item's automatic minimum size is its content size, so without this
+     the log refuses to shrink below the full height of the message list: it
+     grows instead of scrolling, pushing the input row out of the grid item and
+     down the page (and leaving the messages above the fold). min-height: 0 lets
+     it shrink so overflow-y actually scrolls inside the tile. */
+  min-height: 0;
   overflow-y: auto;
   margin-bottom: 8px;
 `;
@@ -337,7 +346,9 @@ const LiveChat = ({ requestId, chatHistory }) => {
   );
   const [input, setInput] = useState("");
   const messageInputRef = useRef(null);
-  const [chatLog, setChatLog] = useState(chatHistory);
+  const usernameInputRef = useRef(null);
+  const hasMountedRef = useRef(false);
+  const [chatLog, setChatLog] = useState(chatHistory ?? []);
   const chatLogRef = useRef(null);
   const [rateLimited, setRateLimited] = useState(false);
   const [rateLimitCountdown, setRateLimitCountdown] = useState(0);
@@ -348,6 +359,21 @@ const LiveChat = ({ requestId, chatHistory }) => {
 
   const sessionIdKey = `livechat_sessionid_${requestId}`;
   const sessionId = getOrCreateSessionId(sessionIdKey);
+
+  // getVisualization hands down a fresh chatHistory on every re-fetch (refresh
+  // interval, manual retry, arg change). useState reads its argument only on
+  // mount, so without this the log would stay frozen on whatever history it
+  // mounted with. Messages that arrived over the websocket after the server
+  // took its snapshot are carried over rather than dropped.
+  useEffect(() => {
+    const history = chatHistory ?? [];
+    setChatLog((prev) => {
+      if (valuesEqual(prev, history)) return prev;
+      const historyIds = new Set(history.map((msg) => msg.messageId));
+      const liveOnly = prev.filter((msg) => !historyIds.has(msg.messageId));
+      return [...history, ...liveOnly];
+    });
+  }, [chatHistory]);
 
   // Listen for new successful messages for this requestId
   useEffect(() => {
@@ -544,10 +570,22 @@ const LiveChat = ({ requestId, chatHistory }) => {
     }
   };
 
-  // Autofocus message input when username is set or updated
+  // Move focus to whichever input just became active when the username is set
+  // or updated. Skipped on the initial mount, and focused with preventScroll:
+  // focusing an element scrolls its scrollable ancestors to reveal it, so an
+  // on-load focus drags the dashboard page down to this widget and hides
+  // everything above it -- including this chat's own message history.
   useEffect(() => {
-    if (customUsername && !editingUsername && messageInputRef.current) {
-      messageInputRef.current.focus();
+    if (!hasMountedRef.current) {
+      hasMountedRef.current = true;
+      return;
+    }
+    const activeInput =
+      !customUsername || editingUsername
+        ? usernameInputRef.current
+        : messageInputRef.current;
+    if (activeInput) {
+      activeInput.focus({ preventScroll: true });
     }
   }, [customUsername, editingUsername]);
 
@@ -608,13 +646,13 @@ const LiveChat = ({ requestId, chatHistory }) => {
         {/* If username is not set, use input for username entry */}
         {!customUsername || editingUsername ? (
           <UsernameInput
+            ref={usernameInputRef}
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleInputKeyDown}
             placeholder="Enter your username..."
             maxLength={32}
-            autoFocus
             disabled={false}
           />
         ) : (
