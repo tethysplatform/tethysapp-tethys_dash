@@ -48,6 +48,14 @@ describe("index.js", () => {
     expect(mockGetTethysAppRoot).toHaveBeenCalledTimes(1);
   });
 
+  test("should disable browser scroll restoration", () => {
+    window.history.scrollRestoration = "auto";
+
+    require("../index.js");
+
+    expect(window.history.scrollRestoration).toBe("manual");
+  });
+
   test("should register DOMContentLoaded event listener", () => {
     // Test that the module loads without errors and sets up the listener
     expect(() => {

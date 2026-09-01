@@ -2,6 +2,7 @@ import {
   getTethysPortalHost,
   getPublicUrl,
   getTethysAppRoot,
+  getWebsocketUrl,
 } from "services/utilities";
 
 // Mock window.location
@@ -283,6 +284,82 @@ describe("utilities", () => {
       const publicUrl = getPublicUrl("prod-dashboard-456");
       expect(publicUrl).toBe(
         "https://production.example.com/apps/tethysdash/dashboard/prod-dashboard-456",
+      );
+    });
+  });
+
+  describe("getWebsocketUrl", () => {
+    test("should return null when the url is not configured", () => {
+      delete process.env.REDIS_WS_URL;
+
+      expect(getWebsocketUrl()).toBe(null);
+    });
+
+    test("should return null when the url is empty", () => {
+      process.env.REDIS_WS_URL = "   ";
+
+      expect(getWebsocketUrl()).toBe(null);
+    });
+
+    test("should use an absolute websocket url as-is", () => {
+      process.env.REDIS_WS_URL =
+        "ws://localhost:8000/apps/tethysdash/visualizations/notifications/ws/";
+
+      expect(getWebsocketUrl()).toBe(
+        "ws://localhost:8000/apps/tethysdash/visualizations/notifications/ws/",
+      );
+    });
+
+    test("should derive a wss url from an https page", () => {
+      process.env.REDIS_WS_URL = "visualizations/notifications/ws/";
+      process.env.TETHYS_PORTAL_HOST = "";
+      process.env.TETHYS_PREFIX_URL = "";
+      process.env.TETHYS_APP_ROOT_URL = "/apps/tethysdash/";
+      mockLocation(
+        "https://mysite.com/apps/tethysdash/dashboard/abc",
+        "https://mysite.com",
+      );
+
+      expect(getWebsocketUrl()).toBe(
+        "wss://mysite.com/apps/tethysdash/visualizations/notifications/ws/",
+      );
+    });
+
+    test("should derive a ws url from an http page", () => {
+      process.env.REDIS_WS_URL = "visualizations/notifications/ws/";
+      process.env.TETHYS_PORTAL_HOST = "";
+      process.env.TETHYS_PREFIX_URL = "";
+      process.env.TETHYS_APP_ROOT_URL = "/apps/tethysdash/";
+      mockLocation("http://mysite.com/apps/tethysdash/", "http://mysite.com");
+
+      expect(getWebsocketUrl()).toBe(
+        "ws://mysite.com/apps/tethysdash/visualizations/notifications/ws/",
+      );
+    });
+
+    test("should include the portal prefix url", () => {
+      process.env.REDIS_WS_URL = "visualizations/notifications/ws/";
+      process.env.TETHYS_PORTAL_HOST = "";
+      process.env.TETHYS_PREFIX_URL = "/tethys/";
+      process.env.TETHYS_APP_ROOT_URL = "/apps/tethysdash/";
+      mockLocation(
+        "https://mysite.com/tethys/apps/tethysdash/",
+        "https://mysite.com",
+      );
+
+      expect(getWebsocketUrl()).toBe(
+        "wss://mysite.com/tethys/apps/tethysdash/visualizations/notifications/ws/",
+      );
+    });
+
+    test("should honor a configured portal host with a trailing slash", () => {
+      process.env.REDIS_WS_URL = "/visualizations/notifications/ws/";
+      process.env.TETHYS_PORTAL_HOST = "https://example.com/";
+      process.env.TETHYS_PREFIX_URL = "";
+      process.env.TETHYS_APP_ROOT_URL = "/apps/tethysdash/";
+
+      expect(getWebsocketUrl()).toBe(
+        "wss://example.com/apps/tethysdash/visualizations/notifications/ws/",
       );
     });
   });

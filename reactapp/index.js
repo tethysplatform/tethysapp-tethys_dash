@@ -6,6 +6,15 @@ import App from "App";
 
 const APP_ROOT_URL = getTethysAppRoot();
 
+// Dashboard widgets fetch their data after mount, so the page is short when it
+// first paints and only reaches full height once they resolve. The browser's
+// default scroll restoration re-applies the pre-reload offset at that point,
+// which reads as the page spontaneously scrolling away from the top a moment
+// after load. Own the scroll position instead: a refresh starts at the top.
+if ("scrollRestoration" in window.history) {
+  window.history.scrollRestoration = "manual";
+}
+
 let container = null;
 
 document.addEventListener("DOMContentLoaded", () => {

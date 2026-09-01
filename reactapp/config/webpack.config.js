@@ -126,9 +126,16 @@ module.exports = (env, argv) => {
     devServer: {
       proxy: [
         {
-          context: ["!/static/tethysdash/frontend/**"],
+          // "!/ws" keeps webpack-dev-server's own HMR socket local. Without it
+          // the ws:true upgrade below would hand the HMR connection to Django,
+          // which has no consumer at that path, and hot reload would die.
+          context: ["!/static/tethysdash/frontend/**", "!/ws"],
           target: "http://localhost:8000", // points to django dev server
           changeOrigin: true,
+          // Proxy websocket upgrades too, so the app's notification socket can
+          // use a same-origin relative URL in dev exactly as it does in a
+          // deployed build, instead of hardcoding the django host.
+          ws: true,
           // Lets Django detect that this request was proxied through
           // webpack-dev-server so it renders the unhashed main.js URL
           // (served from memory) instead of the on-disk hashed bundle.
