@@ -4,7 +4,9 @@
 // mock `components/map/zarrReader` (or `zarrita`) with real behavior; for every
 // other suite this stub just satisfies the import and throws if invoked.
 const notMocked = () => {
-  throw new Error("zarrita is stubbed in tests; mock zarrReader to exercise it");
+  throw new Error(
+    "zarrita is stubbed in tests; mock zarrReader to exercise it",
+  );
 };
 
 export function FetchStore(url) {

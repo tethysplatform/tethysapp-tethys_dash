@@ -68,7 +68,8 @@ export async function readSlice({
 
   let selection;
   if (arr.shape.length === 2) {
-    if (index !== 0) throw new Error("2D array has a single slice; index must be 0");
+    if (index !== 0)
+      throw new Error("2D array has a single slice; index must be 0");
     selection = [null, null];
   } else {
     if (!(index >= 0 && index < n)) {
@@ -120,14 +121,25 @@ export async function readSlice({
  * `candidates` (or the chosen `variable`). `labelVar` names a 1-D array whose
  * values label each slice; otherwise labels are the slice indices.
  */
-export async function readMetadata({ url, variable, candidates, labelVar } = {}) {
+export async function readMetadata({
+  url,
+  variable,
+  candidates,
+  labelVar,
+} = {}) {
   const group = await openNode(url);
   const attrs = group.attrs;
 
-  const variables = candidates?.length ? candidates : variable ? [variable] : [];
+  const variables = candidates?.length
+    ? candidates
+    : variable
+      ? [variable]
+      : [];
   const refName = variable ?? variables[0];
   if (!refName) {
-    throw new Error("could not determine a griddable variable; pass `variable`");
+    throw new Error(
+      "could not determine a griddable variable; pass `variable`",
+    );
   }
 
   const base = url.replace(/\/$/, "");

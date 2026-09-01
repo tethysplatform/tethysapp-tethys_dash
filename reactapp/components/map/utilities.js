@@ -169,7 +169,7 @@ export const sourcePropertiesOptions = {
   },
   Zarr: {
     required: {
-      url: { placeholder: "Zarr store URL (https or s3 bucket)" },
+      url: { placeholder: "Zarr store URL (https, CORS-enabled)" },
       variable: { placeholder: "Variable / array name (e.g. depth)" },
     },
     optional: {

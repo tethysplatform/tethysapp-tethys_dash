@@ -48,12 +48,6 @@ import { readSlice } from "components/map/zarrReader";
 const moduleCache = {};
 const styleCache = new Map();
 
-// A "Zarr" source is sugar over the zarr/cog endpoint: the author supplies a
-// store URL + variable (+ optional index/mask_below) and we assemble the COG
-// URL, then render it as an ordinary GeoTIFF source. Variable inputs in the
-// fields (e.g. index="${Storm}") are already substituted before this runs.
-const ZARR_APP_ROOT = process.env.TETHYS_APP_ROOT_URL ?? "/apps/tethysdash/";
-
 const ISOLATED_LAYER_TYPES = new Set(["ImageLayer", "TileLayer"]);
 let isolatedLayerCount = 0;
 

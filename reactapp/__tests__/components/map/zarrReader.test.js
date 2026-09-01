@@ -96,7 +96,10 @@ describe("readSlice", () => {
   it("reads a 2D grid and rejects a non-zero index", async () => {
     setStore({
       [ROOT]: { attrs: { crs: CRS, transform: TRANSFORM } },
-      [`${ROOT}/depth2d`]: { shape: [4, 5], data: new Float32Array(20).fill(3) },
+      [`${ROOT}/depth2d`]: {
+        shape: [4, 5],
+        data: new Float32Array(20).fill(3),
+      },
     });
 
     const r = await readSlice({ url: ROOT, variable: "depth2d" });
@@ -123,15 +126,19 @@ describe("readSlice", () => {
       [ROOT]: { attrs: { crs: CRS } }, // no transform
       [`${ROOT}/depth`]: { shape: [3, 4, 5], data: new Float32Array(60) },
     });
-    await expect(
-      readSlice({ url: ROOT, variable: "depth" }),
-    ).rejects.toThrow("missing 'transform'");
+    await expect(readSlice({ url: ROOT, variable: "depth" })).rejects.toThrow(
+      "missing 'transform'",
+    );
   });
 
   it("falls back to zarr v2 when v3 open fails", async () => {
     setStore({
       [ROOT]: { v2only: true, attrs: { crs: CRS, transform: TRANSFORM } },
-      [`${ROOT}/depth`]: { v2only: true, shape: [4, 5], data: new Float32Array(20).fill(2) },
+      [`${ROOT}/depth`]: {
+        v2only: true,
+        shape: [4, 5],
+        data: new Float32Array(20).fill(2),
+      },
     });
     const r = await readSlice({ url: ROOT, variable: "depth" });
     expect(r.extent).toEqual([-100, 180, -75, 200]);
@@ -168,7 +175,11 @@ describe("readMetadata", () => {
       [`${ROOT}/depth`]: { shape: [3, 4, 5], data: new Float32Array(60) },
       [`${ROOT}/time`]: { shape: [2], data: new Float32Array([10, 20]) },
     });
-    const m = await readMetadata({ url: ROOT, variable: "depth", labelVar: "time" });
+    const m = await readMetadata({
+      url: ROOT,
+      variable: "depth",
+      labelVar: "time",
+    });
     expect(m.slice_labels).toEqual(["0", "1", "2"]);
   });
 

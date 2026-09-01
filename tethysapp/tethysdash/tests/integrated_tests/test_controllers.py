@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, mock_open, patch
 import os
 import shutil
 from django.conf import settings
-from django.test import override_settings, RequestFactory
+from django.test import override_settings
 from datetime import datetime, timedelta
 import types
 from tethysapp.tethysdash.exceptions import VisualizationError
@@ -17,13 +17,9 @@ from tethysapp.tethysdash.controllers import (
     _is_blocked_image_host,
     _connected_peer_is_blocked,
     _is_blocked_address,
-    zarr_cog,
-    zarr_meta,
 )
 import requests
 import socket
-from tethysapp.tethysdash.zarr_utils import StoreOpenError, ZarrCogError
-from tethysapp.tethysdash.url_safety import UnsafeURLError
 from channels.layers import get_channel_layer
 
 
@@ -2911,195 +2907,3 @@ def test_image_proxy_reports_an_upstream_error_status(
         reverse("tethysdash:image_proxy"), {"url": "https://example.com/missing.png"}
     )
     assert response.status_code == 502
-
-
-# The zarr endpoints are exercised by calling the views directly with a
-# RequestFactory: they need no DB or URL routing, and the integrated
-# reverse()/client harness isn't available in every environment.
-def test_zarr_cog_happy_path(mocker):
-    mocker.patch("tethysapp.tethysdash.controllers.validate_public_url")
-    mock_read = mocker.patch(
-        "tethysapp.tethysdash.controllers.read_cog", return_value=b"COGBYTES"
-    )
-    request = RequestFactory().get(
-        "/zarr/cog", {"src": "https://x/store.zarr", "variable": "temp", "index": "2"}
-    )
-    response = zarr_cog(request)
-    assert response.status_code == 200
-    assert response["Content-Type"] == "image/tiff"
-    assert response.content == b"COGBYTES"
-    mock_read.assert_called_once_with("https://x/store.zarr", "temp", 2, None)
-
-
-def test_zarr_cog_range_returns_206(mocker):
-    mocker.patch("tethysapp.tethysdash.controllers.validate_public_url")
-    mocker.patch(
-        "tethysapp.tethysdash.controllers.read_cog", return_value=b"0123456789"
-    )
-    request = RequestFactory().get(
-        "/zarr/cog", {"src": "https://x", "variable": "t"}, HTTP_RANGE="bytes=2-5"
-    )
-    response = zarr_cog(request)
-    assert response.status_code == 206
-    assert response.content == b"2345"
-    assert response["Content-Range"] == "bytes 2-5/10"
-    assert response["Accept-Ranges"] == "bytes"
-
-
-def test_zarr_cog_requires_src_and_variable():
-    r1 = zarr_cog(RequestFactory().get("/zarr/cog", {"variable": "t"}))
-    assert r1.status_code == 400 and "src" in json.loads(r1.content)["error"]
-    r2 = zarr_cog(RequestFactory().get("/zarr/cog", {"src": "https://x"}))
-    assert r2.status_code == 400 and "variable" in json.loads(r2.content)["error"]
-
-
-def test_zarr_cog_rejects_bad_index_and_mask():
-    r1 = zarr_cog(
-        RequestFactory().get(
-            "/zarr/cog", {"src": "https://x", "variable": "t", "index": "abc"}
-        )
-    )
-    assert r1.status_code == 400 and "index" in json.loads(r1.content)["error"]
-    r2 = zarr_cog(
-        RequestFactory().get(
-            "/zarr/cog", {"src": "https://x", "variable": "t", "mask_below": "abc"}
-        )
-    )
-    assert r2.status_code == 400 and "mask_below" in json.loads(r2.content)["error"]
-
-
-def test_zarr_cog_mask_below_passed_through(mocker):
-    mocker.patch("tethysapp.tethysdash.controllers.validate_public_url")
-    mock_read = mocker.patch(
-        "tethysapp.tethysdash.controllers.read_cog", return_value=b"X"
-    )
-    request = RequestFactory().get(
-        "/zarr/cog", {"src": "https://x", "variable": "t", "mask_below": "0.5"}
-    )
-    zarr_cog(request)
-    mock_read.assert_called_once_with("https://x", "t", 0, 0.5)
-
-
-def test_zarr_cog_unsafe_url_422(mocker):
-    mocker.patch(
-        "tethysapp.tethysdash.controllers.validate_public_url",
-        side_effect=UnsafeURLError("bad host"),
-    )
-    request = RequestFactory().get(
-        "/zarr/cog", {"src": "http://169.254.169.254", "variable": "t"}
-    )
-    assert zarr_cog(request).status_code == 422
-
-
-def test_zarr_cog_store_open_error_502(mocker):
-    mocker.patch("tethysapp.tethysdash.controllers.validate_public_url")
-    mocker.patch(
-        "tethysapp.tethysdash.controllers.read_cog",
-        side_effect=StoreOpenError("unreachable"),
-    )
-    request = RequestFactory().get("/zarr/cog", {"src": "https://x", "variable": "t"})
-    assert zarr_cog(request).status_code == 502
-
-
-def test_zarr_cog_zarr_error_400(mocker):
-    mocker.patch("tethysapp.tethysdash.controllers.validate_public_url")
-    mocker.patch(
-        "tethysapp.tethysdash.controllers.read_cog",
-        side_effect=ZarrCogError("variable 'x' not found"),
-    )
-    request = RequestFactory().get("/zarr/cog", {"src": "https://x", "variable": "x"})
-    response = zarr_cog(request)
-    assert response.status_code == 400
-    assert "not found" in json.loads(response.content)["error"]
-
-
-def test_zarr_meta_happy_path_parses_params(mocker):
-    mocker.patch("tethysapp.tethysdash.controllers.validate_public_url")
-    mocker.patch("tethysapp.tethysdash.controllers.open_store", return_value=object())
-    meta = {
-        "variables": ["temp", "coord"],
-        "slice_count": 3,
-        "slice_labels": ["0", "1", "2"],
-        "crs": "EPSG:3857",
-        "grid_shape": [4, 5],
-        "extent": [0, 0, 1, 1],
-    }
-    mock_meta = mocker.patch(
-        "tethysapp.tethysdash.controllers.read_metadata", return_value=meta
-    )
-    request = RequestFactory().get(
-        "/zarr/meta",
-        {
-            "src": "https://x",
-            "variable": "temp",
-            "candidates": "temp, coord",
-            "label_var": "time",
-        },
-    )
-    response = zarr_meta(request)
-    assert response.status_code == 200
-    assert json.loads(response.content) == meta
-    _, kwargs = mock_meta.call_args
-    assert kwargs["variable"] == "temp"
-    assert kwargs["candidates"] == ("temp", "coord")
-    assert kwargs["label_var"] == "time"
-
-
-def test_zarr_meta_unsafe_url_422(mocker):
-    mocker.patch(
-        "tethysapp.tethysdash.controllers.validate_public_url",
-        side_effect=UnsafeURLError("bad"),
-    )
-    request = RequestFactory().get("/zarr/meta", {"src": "http://169.254.169.254"})
-    assert zarr_meta(request).status_code == 422
-
-
-def test_zarr_cog_unexpected_failure_500(mocker):
-    # Anything that is not a recognised zarr failure is a bug in the conversion,
-    # and its message can name internal paths or store internals -- so it is
-    # logged server-side and the caller gets a fixed string. The distinction from
-    # the 400 above is what keeps that message from leaking.
-    mocker.patch("tethysapp.tethysdash.controllers.validate_public_url")
-    mocker.patch(
-        "tethysapp.tethysdash.controllers.read_cog",
-        side_effect=RuntimeError("rasterio failed at /srv/internal/path"),
-    )
-    request = RequestFactory().get("/zarr/cog", {"src": "https://x", "variable": "t"})
-    response = zarr_cog(request)
-    assert response.status_code == 500
-    assert json.loads(response.content) == {"error": "failed to convert store"}
-
-
-def test_zarr_meta_requires_src():
-    response = zarr_meta(RequestFactory().get("/zarr/meta"))
-    assert response.status_code == 400
-    assert "src" in json.loads(response.content)["error"]
-
-
-@pytest.mark.parametrize(
-    "error",
-    # StoreOpenError subclasses ZarrCogError, so the handler catches the base
-    # class and both a network failure and a malformed store land on 502.
-    [StoreOpenError("dns failure for internal.host"), ZarrCogError("not a zarr store")],
-)
-def test_zarr_meta_store_open_failure_502(mocker, error):
-    mocker.patch("tethysapp.tethysdash.controllers.validate_public_url")
-    mocker.patch("tethysapp.tethysdash.controllers.open_store", side_effect=error)
-    response = zarr_meta(RequestFactory().get("/zarr/meta", {"src": "https://x"}))
-    assert response.status_code == 502
-    # The upstream message is not forwarded; it can name internal hosts.
-    assert json.loads(response.content) == {"error": "could not open store"}
-
-
-def test_zarr_meta_read_metadata_error_400(mocker):
-    # Unlike the open failure, this message is forwarded: it describes something
-    # about the store the author chose and can act on.
-    mocker.patch("tethysapp.tethysdash.controllers.validate_public_url")
-    mocker.patch("tethysapp.tethysdash.controllers.open_store", return_value=object())
-    mocker.patch(
-        "tethysapp.tethysdash.controllers.read_metadata",
-        side_effect=ZarrCogError("could not determine a griddable variable"),
-    )
-    response = zarr_meta(RequestFactory().get("/zarr/meta", {"src": "https://x"}))
-    assert response.status_code == 400
-    assert "griddable" in json.loads(response.content)["error"]
