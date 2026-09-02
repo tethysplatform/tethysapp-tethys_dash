@@ -6,6 +6,7 @@ import {
   classifyArrangement,
   reflowDomains,
   reflowColorbar,
+  promoteTickLabels,
   applySubplotToggle,
   associateItemToPane,
 } from "components/visualizations/subplotToggle";
@@ -32,6 +33,40 @@ const verticalStackWithOverlays = () => ({
     yaxis3: { domain: [0.35, 0.65], anchor: "x2", title: { text: "Pressure" } },
     yaxis4: { anchor: "x2", overlaying: "y3", side: "right" },
     yaxis5: { domain: [0, 0.3], anchor: "x3", title: { text: "Wind" } },
+  },
+});
+
+// What `make_subplots(rows=3, cols=1, shared_xaxes=True)` actually emits: one
+// x-axis PER ROW, range-linked via `matches`, with tick labels enabled on the
+// bottom row only. Mirrors the CW3E surface_met figure.
+const sharedXAxisStack = () => ({
+  data: [
+    { name: "Temp", xaxis: "x", yaxis: "y" }, // 0 row1
+    { name: "MSLP", xaxis: "x2", yaxis: "y2" }, // 1 row2
+    { name: "Wind", xaxis: "x3", yaxis: "y3" }, // 2 row3 (bottom)
+  ],
+  layout: {
+    xaxis: {
+      domain: [0, 1],
+      anchor: "y",
+      matches: "x3",
+      showticklabels: false,
+    },
+    xaxis2: {
+      domain: [0, 1],
+      anchor: "y2",
+      matches: "x3",
+      showticklabels: false,
+    },
+    xaxis3: {
+      domain: [0, 1],
+      anchor: "y3",
+      showticklabels: true,
+      tickformat: "%H UTC<br>%Y/%m/%d",
+    },
+    yaxis: { domain: [0.7, 1.0], anchor: "x" },
+    yaxis2: { domain: [0.35, 0.65], anchor: "x2" },
+    yaxis3: { domain: [0, 0.3], anchor: "x3" },
   },
 });
 
@@ -931,6 +966,125 @@ describe("branch coverage", () => {
     // Band [0.7, 1] expands to the full envelope [0, 1] -> scale 1/0.3.
     expect(out.data[0].colorbar.len).toBeCloseTo(0.28 / 0.3, 10);
     expect(out.data[1].visible).toBe(false);
+  });
+});
+
+describe("shared tick-label promotion", () => {
+  it("moves the x tick labels up when the bottom row of a shared-x stack is hidden", () => {
+    const { data, layout } = sharedXAxisStack();
+    const panes = derivePanes(data, layout);
+    // Hide the bottom row, the only one whose x-axis carries tick labels.
+    const out = applySubplotToggle(data, layout, [panes[0].id, panes[1].id]);
+
+    expect(out.layout.xaxis3.visible).toBe(false);
+    // Row 2 is the new bottom-most visible pane: it takes over the labels...
+    expect(out.layout.xaxis2.showticklabels).toBe(true);
+    // ...along with the tick styling it did not define itself...
+    expect(out.layout.xaxis2.tickformat).toBe("%H UTC<br>%Y/%m/%d");
+    // ...while keeping its reflowed domain and its range link.
+    expect(out.layout.yaxis2.domain[0]).toBeCloseTo(0, 6);
+    expect(out.layout.xaxis2.matches).toBe("x3");
+    // Rows above the new bottom stay unlabelled.
+    expect(out.layout.xaxis.showticklabels).toBe(false);
+  });
+
+  it("promotes past several hidden bottom rows", () => {
+    const { data, layout } = sharedXAxisStack();
+    const panes = derivePanes(data, layout);
+    const out = applySubplotToggle(data, layout, [panes[0].id]);
+
+    expect(out.layout.xaxis.showticklabels).toBe(true);
+    expect(out.layout.xaxis2.showticklabels).toBe(false);
+  });
+
+  it("leaves an axis that already defines its own tick styling alone", () => {
+    const { data, layout } = sharedXAxisStack();
+    layout.xaxis2.tickformat = "%b %d";
+    const panes = derivePanes(data, layout);
+    const out = applySubplotToggle(data, layout, [panes[0].id, panes[1].id]);
+
+    expect(out.layout.xaxis2.showticklabels).toBe(true);
+    expect(out.layout.xaxis2.tickformat).toBe("%b %d");
+  });
+
+  it("restores the original labelling when every pane is shown again", () => {
+    const { data, layout } = sharedXAxisStack();
+    const out = applySubplotToggle(data, layout, null);
+    expect(out.layout).toBe(layout); // pristine, promotion included
+  });
+
+  it("promotes the y tick labels for a horizontal strip", () => {
+    const { data, layout } = horizontalStrip();
+    layout.yaxis.showticklabels = true;
+    layout.yaxis2.showticklabels = false;
+    const panes = derivePanes(data, layout);
+    // Hide the left-most column, which carries the shared y tick labels.
+    const out = applySubplotToggle(data, layout, [panes[1].id]);
+
+    expect(out.layout.yaxis2.showticklabels).toBe(true);
+    expect(out.layout.xaxis2.domain[0]).toBeCloseTo(0, 6);
+  });
+
+  it("is a no-op when every subplot already shows its own tick labels", () => {
+    const { data, layout } = sharedXAxisStack();
+    layout.xaxis.showticklabels = true;
+    layout.xaxis2.showticklabels = true;
+    const panes = derivePanes(data, layout);
+    const out = applySubplotToggle(data, layout, [panes[0].id, panes[1].id]);
+
+    expect(out.layout.xaxis2.showticklabels).toBe(true);
+    expect(out.layout.xaxis2.tickformat).toBeUndefined(); // nothing carried over
+  });
+
+  it("is a no-op when the end-most axis hides its labels too", () => {
+    const { data, layout } = sharedXAxisStack();
+    layout.xaxis3.showticklabels = false;
+    const panes = derivePanes(data, layout);
+    const out = applySubplotToggle(data, layout, [panes[0].id, panes[1].id]);
+
+    expect(out.layout.xaxis2.showticklabels).toBe(false);
+  });
+
+  it("is a no-op when the labelled pane is still visible", () => {
+    const { data, layout } = sharedXAxisStack();
+    const panes = derivePanes(data, layout);
+    // Hide the middle row; the bottom row keeps its labels.
+    const out = applySubplotToggle(data, layout, [panes[0].id, panes[2].id]);
+
+    expect(out.layout.xaxis3.showticklabels).toBe(true);
+    expect(out.layout.xaxis.showticklabels).toBe(false);
+  });
+
+  it("does not promote in a grid, where there is no end-most pane", () => {
+    const { data, layout } = grid2x2();
+    layout.xaxis.showticklabels = false;
+    layout.xaxis3.showticklabels = true;
+    const panes = derivePanes(data, layout);
+    const out = applySubplotToggle(data, layout, [panes[0].id, panes[1].id]);
+
+    expect(out.arrangement).toBe("none");
+    expect(out.layout.xaxis.showticklabels).toBe(false);
+  });
+
+  it("returns null when nothing is visible", () => {
+    const { data, layout } = sharedXAxisStack();
+    const panes = derivePanes(data, layout);
+    expect(promoteTickLabels(panes, [], "vertical", layout)).toBeNull();
+  });
+
+  it("returns null when the panes carry no cross-axis key", () => {
+    const panes = [
+      { id: "a", kind: "cartesian", primaryXKey: null, rect: { y: [0, 0.4] } },
+      { id: "b", kind: "cartesian", primaryXKey: null, rect: { y: [0.6, 1] } },
+    ];
+    expect(promoteTickLabels(panes, ["b"], "vertical", {})).toBeNull();
+  });
+
+  it("returns null when the referenced axes are absent from the layout", () => {
+    const { data, layout } = sharedXAxisStack();
+    const panes = derivePanes(data, layout);
+    // Plotly defaults an omitted axis; it defines nothing to promote or receive.
+    expect(promoteTickLabels(panes, [panes[0].id], "vertical", {})).toBeNull();
   });
 });
 

@@ -310,6 +310,19 @@ const median = (nums) => {
   return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
 };
 
+/** The dimension reflow acts along: "x" for a horizontal strip, "y" for a stack. */
+const reflowDim = (axis) => (axis === "horizontal" ? "x" : "y");
+
+/**
+ * Cartesian panes ordered along the reflow dimension, ascending by band start.
+ * `sorted[0]` is the bottom pane of a vertical stack / the left-most pane of a
+ * horizontal strip — the end Plotly anchors the shared tick labels to.
+ */
+const sortPanesAlong = (panes, dim) =>
+  panes
+    .filter((p) => p.kind === "cartesian")
+    .sort((a, b) => a.rect[dim][0] - b.rect[dim][0]);
+
 /**
  * Recompute base-axis domains for the visible panes along the reflow axis,
  * proportional to each pane's ORIGINAL band size and preserving the median
@@ -318,15 +331,11 @@ const median = (nums) => {
  * @returns {Object<string, [number, number]>} primary-axis-key -> new domain
  */
 export const reflowDomains = (panes, visibleIds, axis) => {
-  const dim = axis === "horizontal" ? "x" : "y";
+  const dim = reflowDim(axis);
   const keyOf = (p) => (dim === "x" ? p.primaryXKey : p.primaryYKey);
 
-  const cartesian = panes.filter((p) => p.kind === "cartesian");
-
   // Median gap measured across ALL panes (sorted by band start).
-  const sortedAll = [...cartesian].sort(
-    (a, b) => a.rect[dim][0] - b.rect[dim][0],
-  );
+  const sortedAll = sortPanesAlong(panes, dim);
   const gaps = [];
   for (let i = 1; i < sortedAll.length; i++) {
     const gap = sortedAll[i].rect[dim][0] - sortedAll[i - 1].rect[dim][1];
@@ -344,9 +353,9 @@ export const reflowDomains = (panes, visibleIds, axis) => {
   // footer), so a lone visible pane expands to fill the cartesian region only
   // and never overlaps the reserved band. For a pure cartesian stack that
   // already spans `[0, 1]`, the envelope equals `[0, 1]` and behavior is
-  // unchanged. `cartesian` is non-empty here (visible ⊆ cartesian).
-  const envMin = Math.min(...cartesian.map((p) => p.rect[dim][0]));
-  const envMax = Math.max(...cartesian.map((p) => p.rect[dim][1]));
+  // unchanged. `sortedAll` is non-empty here (visible ⊆ sortedAll).
+  const envMin = Math.min(...sortedAll.map((p) => p.rect[dim][0]));
+  const envMax = Math.max(...sortedAll.map((p) => p.rect[dim][1]));
   const envSpan = Math.max(0, envMax - envMin);
 
   const sumBands = visible.reduce(
@@ -367,6 +376,65 @@ export const reflowDomains = (panes, visibleIds, axis) => {
     cursor += size + gap;
   });
   return result;
+};
+
+// Tick-presentation properties carried over to a promoted cross-axis when it
+// does not define them itself. `make_subplots` leaves these at their defaults on
+// the unlabelled axes, so a plugin that styled only its labelled row (e.g.
+// `update_xaxes(tickformat=..., row=N)`) would otherwise lose that styling when
+// the labels move.
+const TICK_PRESENTATION_KEYS = [
+  "tickformat",
+  "tickangle",
+  "tickfont",
+  "ticks",
+  "title",
+];
+
+/**
+ * `make_subplots(shared_xaxes=True)` does NOT produce one shared x-axis — it
+ * gives every row its own x-axis, range-linked via `matches`, and enables tick
+ * labels on exactly one of them (the bottom row; the left column for
+ * `shared_yaxes`). That axis is used by a single pane, so `derivePanes` marks it
+ * exclusive and hiding the pane hides the only labelled axis — leaving the
+ * figure with no readable cross-axis at all. Promote the labels to the end-most
+ * pane that is still visible.
+ *
+ * Only meaningful for a 1-D arrangement, where "end-most" is defined; callers
+ * gate on that. Ordering matches `reflowDomains`, so the promoted axis is always
+ * the one whose reflowed band starts at the envelope edge.
+ *
+ * @returns {{key: string, override: Object}|null} the axis override to merge in,
+ *   or null when there is nothing to do — the end-most pane is still visible, it
+ *   never carried the labels, or the new end-most pane already shows its own.
+ */
+export const promoteTickLabels = (panes, visibleIds, axis, layout) => {
+  const dim = reflowDim(axis);
+  const crossKeyOf = (p) => (dim === "x" ? p.primaryYKey : p.primaryXKey);
+
+  const sortedAll = sortPanesAlong(panes, dim);
+  const visibleSet = new Set(visibleIds);
+  const target = sortedAll.find((p) => visibleSet.has(p.id));
+  if (!target) return null;
+
+  const refKey = crossKeyOf(sortedAll[0]);
+  const targetKey = crossKeyOf(target);
+  if (!refKey || !targetKey || refKey === targetKey) return null;
+
+  // An axis a pane references may be absent from `layout` (Plotly defaults it),
+  // in which case it defines nothing and cannot be the labelled one.
+  const refAxis = layout[refKey] || {};
+  const targetAxis = layout[targetKey] || {};
+  // The end-most axis never carried the labels, or the new end-most pane
+  // already shows its own: leave both alone.
+  if (refAxis.showticklabels === false) return null;
+  if (targetAxis.showticklabels !== false) return null;
+
+  const override = { showticklabels: true };
+  TICK_PRESENTATION_KEYS.forEach((key) => {
+    if (key in refAxis && !(key in targetAxis)) override[key] = refAxis[key];
+  });
+  return { key: targetKey, override };
 };
 
 // Tolerance for deciding a colorbar "belongs to" a pane's band (see
@@ -572,6 +640,21 @@ export const applySubplotToggle = (data, layout, visiblePaneIds, options) => {
     Object.entries(domains).forEach(([key, domain]) => {
       overrides[key] = { ...overrides[key], domain };
     });
+
+    // Shared tick labels live on a single end-most cross-axis; if that pane is
+    // now hidden, move them to the pane that took its place.
+    const promoted = promoteTickLabels(
+      panes,
+      panes.filter(isVisible).map((p) => p.id),
+      arrangement,
+      layout,
+    );
+    if (promoted) {
+      overrides[promoted.key] = {
+        ...overrides[promoted.key],
+        ...promoted.override,
+      };
+    }
   }
 
   const newLayout = { ...layout };
