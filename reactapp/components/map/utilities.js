@@ -18,7 +18,15 @@ import Protobuf from "pbf";
 
 // Source types whose features live in a client-side OL VectorSource (vs
 // server-rendered services queried remotely).
-export const CLIENT_VECTOR_SOURCE_TYPES = ["GeoJSON", "ESRI Feature Service"];
+// Source types whose features live in a client-side vector source, so a click or
+// a snap can read them straight off the map rather than querying a service.
+// A type missing from here does not error -- the snap path falls through to the
+// feature-service query, which returns nothing -- so the failure is silent.
+export const CLIENT_VECTOR_SOURCE_TYPES = [
+  "GeoJSON",
+  "ESRI Feature Service",
+  "Shapefile",
+];
 
 // Coerce an optional numeric layer prop: GUI inputs emit strings, so accept
 // any numeric value but treat null/undefined/blank/non-numeric as unset.
@@ -132,9 +140,40 @@ export const sourcePropertiesOptions = {
     required: {},
     optional: {},
   },
+  Shapefile: {
+    required: {
+      url: {
+        placeholder:
+          "URL of a zipped shapefile (.zip) or of its .shp component",
+      },
+    },
+    optional: {
+      // Used only when the source carries no .prj. Accepts a WKT or proj4
+      // definition as well as a code, because a .prj-less shapefile in an
+      // uncommon CRS has no other way to be placed.
+      projection: { placeholder: "EPSG:<Code>, or a WKT/proj4 definition" },
+      attributions: { placeholder: "Attributions" },
+    },
+  },
   GeoTIFF: {
-    required: {},
-    optional: {},
+    required: {
+      url: { placeholder: "Cloud Optimized GeoTIFF URL" },
+    },
+    optional: {
+      projection: { placeholder: "EPSG:<Code>" },
+      mask_below: { placeholder: "Mask values at or below this" },
+    },
+  },
+  Zarr: {
+    required: {
+      url: { placeholder: "Zarr store URL (https or s3 bucket)" },
+      variable: { placeholder: "Variable / array name (e.g. depth)" },
+    },
+    optional: {
+      // eslint-disable-next-line no-template-curly-in-string
+      index: { placeholder: "Slice index or a variable, e.g. ${Storm}" },
+      mask_below: { placeholder: "Mask values at or below this" },
+    },
   },
   "Vector Tile": {
     required: {
@@ -248,12 +287,12 @@ export const layerPropertiesOptions = {
   clickTolerance: {
     type: "number",
     placeholder:
-      "Pixel tolerance for ESRI Image and Map Service identify (click) requests (default 10) and for GeoJSON / ESRI Feature Service feature queries (default 0). Also sets the snap radius when Snap To Features is on (default 15).",
+      "Pixel tolerance for ESRI Image and Map Service identify (click) requests (default 10) and for GeoJSON / ESRI Feature Service / Shapefile feature queries (default 0). Also sets the snap radius when Snap To Features is on (default 15).",
   },
   snapToFeatures: {
     type: "checkbox",
     placeholder:
-      "Snap hover/click to the nearest feature of this layer (ESRI Map Service, GeoJSON, or ESRI Feature Service).",
+      "Snap hover/click to the nearest feature of this layer (ESRI Map Service, GeoJSON, ESRI Feature Service, or Shapefile).",
   },
   snapSublayer: {
     type: "number",
@@ -261,6 +300,38 @@ export const layerPropertiesOptions = {
       "MapServer sublayer used for snapping feature queries. Defaults to the first id in the LAYERS 'show:N' source param, else 0.",
   },
 };
+
+/**
+ * Re-project every vector feature already on the map.
+ *
+ * Features are parsed into the map's projection when they are added, so a later
+ * change of view projection leaves them holding the old projection's numbers.
+ * A GeoTIFF auto-fit does exactly that: adopting a UTM raster's projection left
+ * Web Mercator coordinates being read as UTM metres, putting the features far
+ * off screen while the layer still reported the right feature count.
+ *
+ * Only sources that actually hold features are touched; tile sources have no
+ * geometry to move. Returns the number of geometries transformed.
+ */
+export function reprojectVectorFeatures(map, from, to) {
+  if (!map || !from || !to || from === to) return 0;
+  let transformed = 0;
+  map
+    .getLayers()
+    .getArray()
+    .forEach((layer) => {
+      const source = layer.getSource?.();
+      if (typeof source?.getFeatures !== "function") return;
+      source.getFeatures().forEach((feature) => {
+        const geometry = feature.getGeometry?.();
+        if (!geometry) return;
+        geometry.transform(from, to);
+        transformed += 1;
+      });
+      source.changed?.();
+    });
+  return transformed;
+}
 
 /**
  * Swap the features on a preserved OpenLayers VectorLayer in place.
@@ -300,13 +371,32 @@ export function swapVectorLayerFeatures(
     return;
   }
 
+  source.addFeatures(readFeatureCollection(featureCollection, mapProjection));
+}
+
+/**
+ * Parse a GeoJSON FeatureCollection into OpenLayers features.
+ *
+ * `dataProjection` comes from the collection's own `crs`, defaulting to
+ * EPSG:4326 when it carries none, and `featureProjection` is the map's -- so the
+ * caller decides which projection the features land in, at the moment it calls.
+ *
+ * Shared by the swap above and by the shapefile source's loader. The loader must
+ * not call `swapVectorLayerFeatures` itself: that clears every feature already
+ * on the source, whereas a loader is additive inside its success callback.
+ * (Clearing a source does not reset OpenLayers' loaded-extent bookkeeping
+ * either, so it is not a retry primitive -- `refresh()` is.)
+ *
+ * @param {object} featureCollection A GeoJSON FeatureCollection.
+ * @param {string} mapProjection Projection code to read the features into.
+ * @returns {Array<import("ol/Feature.js").default>}
+ */
+export function readFeatureCollection(featureCollection, mapProjection) {
   const crsName = featureCollection?.crs?.properties?.name;
-  const dataProjection = crsName || "EPSG:4326";
-  const features = new GeoJSONFormat().readFeatures(featureCollection, {
-    dataProjection,
+  return new GeoJSONFormat().readFeatures(featureCollection, {
+    dataProjection: crsName || "EPSG:4326",
     featureProjection: mapProjection,
   });
-  source.addFeatures(features);
 }
 
 /**
@@ -639,7 +729,7 @@ export async function queryLayerFeatures(layerInfo, map, coordinate, pixel) {
       features = getVectorTileLayerFeatures(map, pixel);
     } else if (sourceType === "KML") {
       features = getKMLLayerFeatures(map, pixel, coordinate, LayerName);
-    } else if (sourceType === "GeoTIFF") {
+    } else if (sourceType === "GeoTIFF" || sourceType === "Zarr") {
       features = getGeoTIFFPixelValues(
         map,
         pixel,
@@ -688,11 +778,12 @@ function getGeoTIFFPixelValues(map, pixel, LayerName, layerInfo, coordinate) {
   const data = targetLayer.getData(pixel);
   if (!data || data.length === 0) return [];
 
-  const configuredSources =
-    layerInfo?.configuration?.props?.source?.props?.sources ?? [];
-  const anySourceHasNodata = configuredSources.some(
-    (s) => s?.nodata !== undefined && s.nodata !== null && s.nodata !== "",
-  );
+  // OL appends an alpha band whenever a nodata value is in play, and that band
+  // is a mask rather than data. Both raster types always end up with one: a Zarr
+  // COG carries the -9999 sentinel, and a GeoTIFF gets the author's value, the
+  // file's own tag, or the NaN default (see resolveNodata in ModuleLoader).
+  const sourceType = layerInfo?.configuration?.props?.source?.type;
+  const anySourceHasNodata = sourceType === "Zarr" || sourceType === "GeoTIFF";
 
   if (anySourceHasNodata && data.length >= 2 && data[data.length - 1] === 0) {
     return [
@@ -944,6 +1035,10 @@ export async function getStyleFields({
   isDynamicMapLayer = false,
 }) {
   let fields = [];
+  // Shapefile is deliberately absent: both panes take their fields from the
+  // author-triggered read in the Source tab (see useShapefileDiscovery) and
+  // return before reaching this function, because a discovery pass here would
+  // download and parse the whole archive on every source-props change.
   if (isDynamicMapLayer || sourceProps.type === "PMTiles Vector") {
     const attributes = await getLayerAttributes({
       sourceProps,

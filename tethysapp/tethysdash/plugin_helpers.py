@@ -546,6 +546,50 @@ available_source_properties = {
             "tileSize": "Tile Size (e.g., 256, 512)",
         },
     },
+    # Source types the browser reads directly. They reached the frontend's
+    # sourcePropertiesOptions registry without being added here, so a plugin
+    # author following the documented builder path was refused a source type the
+    # editor offers. Kept in step with reactapp/components/map/utilities.js.
+    "Shapefile": {
+        "required": {
+            "url": "URL of a zipped shapefile (.zip) or of its .shp component",
+        },
+        "optional": {
+            # Used only when the source carries no .prj, which is the only way
+            # to place one that has none.
+            "projection": "EPSG:<Code>, or a WKT/proj4 definition",
+            "attributions": "Attributions",
+        },
+    },
+    "GeoTIFF": {
+        "required": {
+            "url": "Cloud Optimized GeoTIFF URL",
+        },
+        "optional": {
+            "projection": "EPSG:<Code>",
+            "mask_below": "Mask values at or below this",
+        },
+    },
+    "Zarr": {
+        "required": {
+            "url": "Zarr store URL (https or s3 bucket)",
+            "variable": "Variable / array name (e.g. depth)",
+        },
+        "optional": {
+            "index": "Slice index, or a variable input reference",
+            "mask_below": "Mask values at or below this",
+        },
+    },
+    "Static Image": {
+        "required": {
+            "url": "https://example.com/image.png",
+            "projection": "EPSG:4326",
+            "imageExtent": "minX,minY,maxX,maxY",
+        },
+        "optional": {
+            "attributions": "Attributions",
+        },
+    },
 }
 
 
@@ -576,12 +620,20 @@ class LayerConfigurationBuilder:
                 - 'Vector Tile'
                 - 'PMTiles Vector'
                 - 'PMTiles Raster'
+                - 'Shapefile'
+                - 'GeoTIFF'
+                - 'Zarr'
+                - 'Static Image'
 
         Raises:
             ValueError: If layer_source is not one of the supported options.
         """
         self.name = name
 
+        # Layer classes mirror getLayerType in
+        # reactapp/components/modals/MapLayer/MapLayer.js, which is what the
+        # editor writes into a saved config -- a plugin-built layer has to match
+        # or it renders through the wrong OL class.
         valid_sources = {
             "Vector Tile": "VectorTileLayer",
             "Image Tile": "TileLayer",
@@ -592,6 +644,10 @@ class LayerConfigurationBuilder:
             "KML": "VectorLayer",
             "PMTiles Vector": "VectorTileLayer",
             "PMTiles Raster": "TileLayer",
+            "Shapefile": "VectorLayer",
+            "GeoTIFF": "WebGLTile",
+            "Zarr": "WebGLTile",
+            "Static Image": "ImageLayer",
         }
 
         if layer_source not in valid_sources:

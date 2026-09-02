@@ -1,4 +1,7 @@
-import { buildGeoTIFFStyleColor } from "components/map/geoTIFFStyle";
+import {
+  buildGeoTIFFStyleColor,
+  buildCategoricalStyleColor,
+} from "components/map/geoTIFFStyle";
 import { COLOR_RAMPS, RAMP_STOPS } from "components/map/colorRamps";
 
 afterEach(() => {
@@ -22,6 +25,71 @@ describe("buildGeoTIFFStyleColor", () => {
     // Length: 3 operator-header elements + RAMP_STOPS (value, color) pairs.
     //   3 (header) + RAMP_STOPS values + RAMP_STOPS colors
     expect(expr).toHaveLength(3 + RAMP_STOPS * 2);
+  });
+
+  describe("rampReverse", () => {
+    const stopsOf = (expr) => {
+      // Strip the 3-element operator header, then take every other entry.
+      const body = expr.slice(3);
+      return body.filter((_, i) => i % 2 === 1);
+    };
+
+    test("flips the colors while leaving the value stops in place", () => {
+      const forward = buildGeoTIFFStyleColor({
+        rampName: "viridis",
+        rampMin: 0,
+        rampMax: 100,
+      });
+      const reversed = buildGeoTIFFStyleColor({
+        rampName: "viridis",
+        rampMin: 0,
+        rampMax: 100,
+        rampReverse: true,
+      });
+
+      // Same length and same numeric breakpoints -- only the palette turns around.
+      expect(reversed).toHaveLength(forward.length);
+      const values = (expr) => expr.slice(3).filter((_, i) => i % 2 === 0);
+      expect(values(reversed)).toEqual(values(forward));
+      expect(stopsOf(reversed)).toEqual([...stopsOf(forward)].reverse());
+    });
+
+    test("the low end of the range takes the ramp's last color", () => {
+      const reversed = buildGeoTIFFStyleColor({
+        rampName: "viridis",
+        rampMin: 0,
+        rampMax: 100,
+        rampReverse: true,
+      });
+      expect(reversed[3]).toBe(0);
+      expect(reversed[4]).toBe(
+        COLOR_RAMPS.viridis[COLOR_RAMPS.viridis.length - 1],
+      );
+      expect(reversed[reversed.length - 1]).toBe(COLOR_RAMPS.viridis[0]);
+    });
+
+    test("omitting rampReverse matches passing false", () => {
+      const args = { rampName: "turbo", rampMin: -5, rampMax: 5 };
+      expect(buildGeoTIFFStyleColor(args)).toEqual(
+        buildGeoTIFFStyleColor({ ...args, rampReverse: false }),
+      );
+    });
+
+    test("reversing survives the transparency guards being prepended", () => {
+      const reversed = buildGeoTIFFStyleColor({
+        rampName: "Blues",
+        rampMin: 0,
+        rampMax: 1,
+        rampReverse: true,
+        hasNodata: true,
+      });
+      expect(reversed[0]).toBe("case");
+      const interpolateExpr = reversed[reversed.length - 1];
+      expect(interpolateExpr[0]).toBe("interpolate");
+      expect(interpolateExpr[4]).toBe(
+        COLOR_RAMPS.Blues[COLOR_RAMPS.Blues.length - 1],
+      );
+    });
   });
 
   test("starts with the first ramp color and ends with the last", () => {
@@ -125,7 +193,88 @@ describe("buildGeoTIFFStyleColor", () => {
         rampMin: "not-a-number",
         rampMax: 100,
       }),
-    ).toThrow(/finite numbers/);
+    ).toThrow(/both be set or both empty/);
+  });
+
+  test("empty rampMin and rampMax build a normalized [0,1] interpolate", () => {
+    const expr = buildGeoTIFFStyleColor({
+      rampName: "viridis",
+      rampMin: "",
+      rampMax: "",
+    });
+    expect(expr[0]).toBe("interpolate");
+    expect(expr[3]).toBe(0); // first stop at 0
+    expect(expr[expr.length - 2]).toBe(1); // last stop at 1
+  });
+
+  test("maskBelow adds a transparent branch for cells at or below the threshold", () => {
+    const expr = buildGeoTIFFStyleColor({
+      rampName: "viridis",
+      rampMin: 0,
+      rampMax: 10,
+      maskBelow: "0.05",
+    });
+
+    expect(expr[0]).toBe("case");
+    expect(expr[1]).toEqual(["<=", ["band", 1], 0.05]);
+    expect(expr[2]).toEqual([0, 0, 0, 0]);
+    expect(expr[3][0]).toBe("interpolate");
+  });
+
+  test("maskBelow and hasNodata produce both guards, nodata first", () => {
+    const expr = buildGeoTIFFStyleColor({
+      rampName: "viridis",
+      rampMin: 0,
+      rampMax: 10,
+      hasNodata: true,
+      maskBelow: 2,
+    });
+
+    expect(expr[0]).toBe("case");
+    expect(expr[1]).toEqual(["==", ["band", 2], 0]);
+    expect(expr[3]).toEqual(["<=", ["band", 1], 2]);
+    expect(expr[5][0]).toBe("interpolate");
+  });
+
+  test("a maskBelow of 0 still masks, rather than reading as unset", () => {
+    const expr = buildGeoTIFFStyleColor({
+      rampName: "viridis",
+      rampMin: 0,
+      rampMax: 10,
+      maskBelow: 0,
+    });
+
+    expect(expr[0]).toBe("case");
+    expect(expr[1]).toEqual(["<=", ["band", 1], 0]);
+  });
+
+  test.each([
+    ["undefined", undefined],
+    ["null", null],
+    ["empty string", ""],
+    ["non-numeric", "abc"],
+  ])("ignores a maskBelow of %s", (_label, maskBelow) => {
+    const expr = buildGeoTIFFStyleColor({
+      rampName: "viridis",
+      rampMin: 0,
+      rampMax: 10,
+      maskBelow,
+    });
+
+    expect(expr[0]).toBe("interpolate");
+  });
+
+  test("skips maskBelow in normalized mode, where band 1 is not a raw value", () => {
+    // Both bounds empty means OL scales band 1 to 0-1, so a raw threshold
+    // cannot be compared against it and there is no range to convert with.
+    const expr = buildGeoTIFFStyleColor({
+      rampName: "viridis",
+      rampMin: "",
+      rampMax: "",
+      maskBelow: 0.05,
+    });
+
+    expect(expr[0]).toBe("interpolate");
   });
 
   test("hasNodata wraps the interpolate in a `case` against band 2 with a transparent fallback", () => {
@@ -157,7 +306,7 @@ describe("buildGeoTIFFStyleColor", () => {
         rampMin: 0,
         rampMax: "",
       }),
-    ).toThrow(/finite numbers/);
+    ).toThrow(/both be set or both empty/);
   });
 
   test("treats an empty-string rampMin as NaN (covers the minIsEmpty true branch)", () => {
@@ -170,7 +319,7 @@ describe("buildGeoTIFFStyleColor", () => {
         rampMin: "",
         rampMax: 100,
       }),
-    ).toThrow(/finite numbers/);
+    ).toThrow(/both be set or both empty/);
   });
 
   test("steps === 1 short-circuits to t=0 (single-entry ramp covers the steps===1 branch)", () => {
@@ -194,5 +343,88 @@ describe("buildGeoTIFFStyleColor", () => {
     } finally {
       COLOR_RAMPS.viridis = original;
     }
+  });
+});
+
+describe("buildCategoricalStyleColor", () => {
+  const classes = [
+    { value: 0, color: "#aaa", label: "Bare" },
+    { value: 1, color: "#bbb", label: "Crop" },
+    { value: 2, color: "#ccc", label: "Urban" },
+  ];
+
+  test("matches each class value to its color", () => {
+    const expr = buildCategoricalStyleColor({ classes });
+
+    expect(expr).toEqual([
+      "match",
+      ["band", 1],
+      0,
+      "#aaa",
+      1,
+      "#bbb",
+      2,
+      "#ccc",
+      [0, 0, 0, 0],
+    ]);
+  });
+
+  test("unmatched values take the fallback color when given", () => {
+    const expr = buildCategoricalStyleColor({
+      classes,
+      fallbackColor: "#999999",
+    });
+
+    expect(expr[expr.length - 1]).toBe("#999999");
+  });
+
+  test("unmatched values are transparent without a fallback", () => {
+    const expr = buildCategoricalStyleColor({ classes });
+
+    expect(expr[expr.length - 1]).toEqual([0, 0, 0, 0]);
+  });
+
+  test("nodata and mask guards run before the class lookup", () => {
+    // Order matters: a masked cell must never reach the match, which is how a
+    // listed class gets hidden once a fallback color makes omission moot.
+    const expr = buildCategoricalStyleColor({
+      classes,
+      hasNodata: true,
+      maskBelow: 0,
+    });
+
+    expect(expr[0]).toBe("case");
+    expect(expr[1]).toEqual(["==", ["band", 2], 0]);
+    expect(expr[3]).toEqual(["<=", ["band", 1], 0]);
+    expect(expr[5][0]).toBe("match");
+  });
+
+  test("string class values are coerced to numbers for the match", () => {
+    // The GUI emits strings; OL compares against the raw band value.
+    const expr = buildCategoricalStyleColor({
+      classes: [{ value: "2", color: "#ccc" }],
+    });
+
+    expect(expr[2]).toBe(2);
+  });
+
+  test("drops rows with no value or no color", () => {
+    const expr = buildCategoricalStyleColor({
+      classes: [
+        { value: 0, color: "#aaa" },
+        { value: "", color: "#bbb" },
+        { value: 5 },
+        { value: "nope", color: "#ccc" },
+      ],
+    });
+
+    expect(expr).toEqual(["match", ["band", 1], 0, "#aaa", [0, 0, 0, 0]]);
+  });
+
+  test("throws when no class is usable", () => {
+    expect(() => buildCategoricalStyleColor({ classes: [] })).toThrow(
+      /at least one class/i,
+    );
+    expect(() => buildCategoricalStyleColor({})).toThrow(/at least one class/i);
   });
 });

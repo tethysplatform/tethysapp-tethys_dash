@@ -42,3 +42,27 @@ export function getTethysAppRoot() {
   let fp = `/${tethys_prefix_url}/${tethys_app_root_url}`;
   return fp.replace(/\/{2,}/g, "/");
 }
+
+export function getWebsocketUrl() {
+  let configured = (process.env.REDIS_WS_URL || "").trim();
+
+  // An empty value disables websocket usage entirely.
+  if (!configured) {
+    return null;
+  }
+
+  // An absolute websocket url is used as-is. This covers an external
+  // notification host and the django dev server, which the webpack dev
+  // server does not proxy websocket upgrades to.
+  if (/^wss?:\/\//i.test(configured)) {
+    return configured;
+  }
+
+  // Otherwise the value is a path under the app root and the origin is
+  // derived from the current page, so deployed bundles never point the
+  // visitor's browser at localhost.
+  let host = getTethysPortalHost().replace(/\/+$/, "").replace(/^http/i, "ws");
+  let path = `${getTethysAppRoot()}/${configured}`.replace(/\/{2,}/g, "/");
+
+  return host + path;
+}

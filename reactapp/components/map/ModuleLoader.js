@@ -26,10 +26,30 @@ import {
   defaultDotSpacing,
   defaultDotRadius,
 } from "components/inputs/RuleEditor.js";
-import { rewriteArcGISExportUrlForAntimeridian } from "components/map/utilities";
+import {
+  rewriteArcGISExportUrlForAntimeridian,
+  readFeatureCollection,
+} from "components/map/utilities";
+import { acquireComponents } from "components/map/shapefile/acquire";
+import { interpretShapefile } from "components/map/shapefile/index";
+import { CANCEL_REASON } from "components/map/layerStatus";
+import {
+  buildGeoTIFFStyleColor,
+  buildCategoricalStyleColor,
+  isUsableClass,
+} from "components/map/geoTIFFStyle";
 
 const moduleCache = {};
 const styleCache = new Map();
+
+// A "Zarr" source is sugar over the zarr/cog endpoint: the author supplies a
+// store URL + variable (+ optional index/mask_below) and we assemble the COG
+// URL, then render it as an ordinary GeoTIFF source. Variable inputs in the
+// fields (e.g. index="${Storm}") are already substituted before this runs.
+const ZARR_APP_ROOT = process.env.TETHYS_APP_ROOT_URL ?? "/apps/tethysdash/";
+
+const ISOLATED_LAYER_TYPES = new Set(["ImageLayer", "TileLayer"]);
+let isolatedLayerCount = 0;
 
 // Inject an OpenLayers `imageLoadFunction` for ESRI Image and Map Service
 // sources that rewrites out-of-range BBOX requests to use a shifted Web
@@ -46,9 +66,6 @@ export function withAntimeridianFix(type, props) {
     },
   };
 }
-
-const ISOLATED_LAYER_TYPES = new Set(["ImageLayer", "TileLayer"]);
-let isolatedLayerCount = 0;
 
 export function withIsolatedCanvas(type, props) {
   if (!ISOLATED_LAYER_TYPES.has(type)) return props;
@@ -116,7 +133,271 @@ async function prepareProps(type, props) {
   );
 }
 
-const moduleLoader = async (config, mapProjection) => {
+// Single place that turns Zarr source props into a COG URL, so the layer's
+// source and the stats pre-read below can never disagree about the slice.
+export function zarrCogUrl(sourceProps) {
+  const { url, variable, index, mask_below } = sourceProps ?? {};
+  const params = new URLSearchParams({
+    src: url ?? "",
+    variable: variable ?? "",
+    index: index ?? "0",
+  });
+  if (mask_below !== undefined && mask_below !== "") {
+    params.set("mask_below", mask_below);
+  }
+  return `${ZARR_APP_ROOT}zarr/cog/?${params.toString()}`;
+}
+
+export function zarrSourceToGeoTIFF(config) {
+  const { normalize } = config.props ?? {};
+  return {
+    ...config,
+    type: "GeoTIFF",
+    props: {
+      sources: [{ url: zarrCogUrl(config.props) }],
+      normalize: normalize ?? true,
+    },
+  };
+}
+
+// A GeoTIFF source is authored as flat fields (url + optional projection),
+// like every other source type. OpenLayers wants a `sources` array with the
+// per-file options inside it and the projection alongside, so assemble that here
+// rather than making authors write it. `nodata` is not authored — applyAutoRamp
+// puts the raster's own value here before this runs.
+export function geotiffSourceToOL(config) {
+  const { url, nodata, projection, mask_below, ...rest } = config.props ?? {};
+  const sourceInfo = { url };
+  if (nodata !== undefined) sourceInfo.nodata = nodata;
+  const props = { ...rest, sources: [sourceInfo] };
+  if (projection !== undefined && projection !== "") {
+    props.projection = projection;
+  }
+  return { ...config, props };
+}
+
+// Where to read STATISTICS_* for a ramp-styled raster source, or null when the
+// source is not a candidate for an auto-fitted ramp.
+//
+// The GeoTIFF URL is author-supplied, so it is restricted to http(s):
+// file:/blob:/data:/protocol-relative must not be fetched. The Zarr endpoint is
+// app-relative and built by us, so it skips that check.
+function autoRampStatsUrl(source) {
+  if (source?.type === "Zarr") return zarrCogUrl(source.props);
+  if (source?.type !== "GeoTIFF") return null;
+
+  const url = source.props?.url;
+  return typeof url === "string" && /^https?:\/\//i.test(url) ? url : null;
+}
+
+// Settle which nodata value a GeoTIFF renders with. Authors do not set this:
+// the value is the raster's own business, read from its GDAL_NODATA tag. To hide
+// a range of real values, `mask_below` is the control.
+//
+// When the file declares nothing, default to NaN: OL has a dedicated NaN branch
+// (plain equality would never match, since NaN !== NaN), and NaN is never
+// meaningful data, so masking it cannot hide a real value. Returning a value in
+// every case means OL always appends an alpha band, so the style always has a
+// band 2 to guard.
+function resolveNodata(fileNodata) {
+  return fileNodata === null || fileNodata === undefined ? NaN : fileNodata;
+}
+
+// GDAL often keeps statistics in a PAM sidecar (`<file>.aux.xml`) instead of the
+// TIFF -- `gdalinfo -stats` writes there by default. geotiff.js only reads the
+// TIFF, so those files look statistics-less and get no fitted ramp or legend.
+// Read the sidecar as a fallback. A 404 is the normal case for files that embed
+// their statistics, so every failure here is silent.
+async function fetchSidecarStats(url) {
+  try {
+    const response = await fetch(`${url}.aux.xml`);
+    if (!response.ok) return {};
+    const doc = new DOMParser().parseFromString(
+      await response.text(),
+      "application/xml",
+    );
+    // Scope to the first band; a multi-band PAM file repeats these keys.
+    const band = doc.querySelector("PAMRasterBand") ?? doc;
+    const stats = {};
+    band.querySelectorAll("MDI").forEach((item) => {
+      const key = item.getAttribute("key");
+      if (key) stats[key] = item.textContent;
+    });
+    return stats;
+  } catch {
+    return {};
+  }
+}
+
+// Fit a ramp-styled raster layer's color ramp to the file's real value range.
+//
+// Left alone, such a layer renders with `normalize: true`, which makes OL scale
+// the band into a Uint8Array from the file's STATISTICS_* tags (min -> 0,
+// max -> 255). The ramp auto-fits, but `layer.getData()` hands back those
+// normalized bytes, so a click reports 0-255 instead of a real value.
+//
+// Reading the same tags here lets us style raw values instead: `normalize` goes
+// off (tile data stays float32) and the ramp is rebuilt over the file's actual
+// [min, max]. Same auto-fit behavior, true values on click, and a legend that
+// can label real units.
+//
+// This matters most when the URL carries a variable input — a new storm or
+// timestep is a different file with a different range, and the ramp refits to
+// each one. The stats live in the header of the very URL the source is about to
+// fetch, so the browser serves OL's own header read from cache. Any failure is
+// non-fatal: the config is left untouched and rendering falls back to
+// normalized mode.
+//
+// Each bound is independent: whichever the author left empty is resolved from
+// the file, and whichever they set is honored as a pinned end of the ramp. So a
+// min of 0 with an empty max gives a ramp anchored at 0 that still grows to fit
+// each file's peak.
+export async function applyAutoRamp(layerConfig) {
+  const source = layerConfig?.props?.source;
+  const { rampName, rampMin, rampMax } = source ?? {};
+  const hasMin = (rampMin ?? "") !== "";
+  const hasMax = (rampMax ?? "") !== "";
+  // A categorical layer colors by exact class value, so it needs no range at
+  // all — but it still needs the header read to settle nodata, and it must
+  // style raw values rather than OL's normalized bytes for the match to line up.
+  const isCategorical =
+    source?.styleMode === "categorical" &&
+    (source?.classes ?? []).some(isUsableClass);
+  // The header is read even when both bounds are pinned, because it also
+  // settles nodata — a pinned layer still needs its transparency right.
+  if (!rampName && !isCategorical) return layerConfig;
+
+  // Keyed on the URL so this is safe to call from more than one place per
+  // render, while still re-resolving when the source points at another file.
+  const statsUrl = autoRampStatsUrl(source);
+  if (!statsUrl || source.resolvedRampUrl === statsUrl) return layerConfig;
+
+  try {
+    const { fromUrl } = await import("geotiff");
+    const image = await (await fromUrl(statsUrl)).getImage();
+    // getGDALMetadata(0) returns items tagged for sample 0 only; passing null
+    // returns the dataset-level items. Writers differ -- rio-cogeo attaches
+    // STATISTICS_* to the band, while GDAL and MATLAB's Mapping Toolbox write
+    // them at dataset level -- so check the band first, then fall back.
+    const meta = image.getGDALMetadata(0) ?? {};
+    const dataset = image.getGDALMetadata(null) ?? {};
+
+    // Settle nodata first: it is independent of the ramp range, and a file with
+    // nodata but no statistics still needs its transparency handled. Zarr COGs
+    // are built by us and always carry the -9999 sentinel already.
+    if (source.type !== "Zarr") {
+      source.props = {
+        ...(source.props ?? {}),
+        nodata: resolveNodata(image.getGDALNoData()),
+      };
+    }
+    // Every path below leaves the source with a nodata value, so OL appends an
+    // alpha band and the style always has a band 2 to guard.
+    const styleFor = (rampMinValue, rampMaxValue) => ({
+      ...(layerConfig.style ?? {}),
+      color: buildGeoTIFFStyleColor({
+        rampName,
+        rampMin: rampMinValue,
+        rampMax: rampMaxValue,
+        rampReverse: source.rampReverse === true,
+        hasNodata: true,
+        maskBelow: source.props?.mask_below,
+      }),
+    });
+
+    if (isCategorical) {
+      // No statistics needed: the class values are the scale. Raw band values
+      // are required though, so normalization goes off unconditionally.
+      //
+      // Nearest-neighbor resampling too. OL interpolates by default, which is
+      // meaningless for class labels -- halfway between class 1 and 2 is not a
+      // class -- and it fringes every nodata boundary: band 1 blends into a
+      // value matching no class (so it takes the fallback color) while band 2
+      // blends off 0 (so the nodata guard stops firing).
+      source.props = {
+        ...(source.props ?? {}),
+        normalize: false,
+        interpolate: false,
+      };
+      layerConfig.style = {
+        ...(layerConfig.style ?? {}),
+        color: buildCategoricalStyleColor({
+          classes: source.classes,
+          hasNodata: true,
+          maskBelow: source.props?.mask_below,
+          fallbackColor: source.fallbackColor,
+        }),
+      };
+      source.resolvedRampUrl = statsUrl;
+      return layerConfig;
+    }
+
+    let statsMin = meta.STATISTICS_MINIMUM ?? dataset.STATISTICS_MINIMUM;
+    let statsMax = meta.STATISTICS_MAXIMUM ?? dataset.STATISTICS_MAXIMUM;
+    // Only worth a sidecar request when a bound actually needs resolving and the
+    // file embedded nothing. A Zarr COG is built by us and always embeds its
+    // statistics, and its URL carries a query string, so it never applies.
+    const needsStats =
+      (!hasMin && statsMin === undefined) ||
+      (!hasMax && statsMax === undefined);
+    if (needsStats && source.type === "GeoTIFF") {
+      const sidecar = await fetchSidecarStats(statsUrl);
+      statsMin = statsMin ?? sidecar.STATISTICS_MINIMUM;
+      statsMax = statsMax ?? sidecar.STATISTICS_MAXIMUM;
+    }
+
+    // A pinned bound wins; only the empty one comes from the statistics.
+    let lo = hasMin ? Number(rampMin) : parseFloat(statsMin);
+    const hi = hasMax ? Number(rampMax) : parseFloat(statsMax);
+    if (!Number.isFinite(lo) || !Number.isFinite(hi) || hi <= lo) {
+      // No usable range, so rendering stays normalized — but rebuild the style
+      // anyway so nodata cells are transparent rather than painted at band 1 = 0,
+      // which is what the zero-filled tile array leaves them as.
+      layerConfig.style = styleFor("", "");
+      return layerConfig;
+    }
+
+    // Lift a resolved min to the mask threshold so the visible data spans the
+    // whole ramp. A GeoTIFF is masked in the style, after the statistics were
+    // written, so its stats still describe the values the mask hides. Zarr masks
+    // server-side before writing stats, so its min already clears the threshold
+    // and this is a no-op. A pinned min is the author's call and is left alone.
+    // Skipped when the threshold covers the whole range: clamping there would
+    // invert it, and the mask alone correctly renders everything transparent.
+    const maskValue = Number(source.props?.mask_below);
+    if (
+      !hasMin &&
+      Number.isFinite(maskValue) &&
+      maskValue > lo &&
+      maskValue < hi
+    ) {
+      lo = maskValue;
+    }
+
+    source.props = { ...(source.props ?? {}), normalize: false };
+    layerConfig.style = styleFor(lo, hi);
+    // Published for the colorbar legend. Kept in separate fields so the
+    // author's own (empty) rampMin/rampMax keep meaning "auto" — writing back
+    // onto those would read as a pinned range and freeze the ramp.
+    source.resolvedRampUrl = statsUrl;
+    source.resolvedRampMin = lo;
+    source.resolvedRampMax = hi;
+  } catch {
+    // No stats, unreachable file, or an unreadable header: keep normalized mode.
+  }
+  return layerConfig;
+}
+
+const moduleLoader = async (config, mapProjection, getMapProjection) => {
+  if (config.type === "Zarr") {
+    // Already yields OL's `sources` shape, so it skips the GeoTIFF branch below.
+    config = zarrSourceToGeoTIFF(config);
+  } else if (config.type === "GeoTIFF") {
+    if (!config.props?.url) {
+      throw new Error("GeoTIFFEmptySources");
+    }
+    config = geotiffSourceToOL(config);
+  }
   if (
     config.type === "Static Image" &&
     typeof config.props?.imageExtent === "string"
@@ -124,14 +405,6 @@ const moduleLoader = async (config, mapProjection) => {
     config.props.imageExtent = config.props.imageExtent
       .split(",")
       .map((v) => parseFloat(v.trim()));
-  }
-
-  if (
-    config.type === "GeoTIFF" &&
-    Array.isArray(config.props?.sources) &&
-    config.props.sources.length === 0
-  ) {
-    throw new Error("GeoTIFFEmptySources");
   }
 
   if (config.type.includes("ESRI")) {
@@ -151,6 +424,8 @@ const moduleLoader = async (config, mapProjection) => {
     if (moduleCache[type]) {
       if (type === "GeoJSON") {
         return loadGeoJSON(config, mapProjection);
+      } else if (type === "Shapefile") {
+        return loadShapefile(config, mapProjection, getMapProjection);
       } else if (type === "ESRI Feature Service") {
         return loadESRIJSON(config);
       } else {
@@ -192,6 +467,8 @@ const moduleLoader = async (config, mapProjection) => {
 
     if (type === "GeoJSON") {
       return loadGeoJSON(config, mapProjection);
+    } else if (type === "Shapefile") {
+      return loadShapefile(config, mapProjection, getMapProjection);
     } else if (type === "ESRI Feature Service") {
       return loadESRIJSON(config);
     } else {
@@ -263,7 +540,12 @@ const resolveProps = async (props, mapProjection) => {
     }
   }
 
-  if (props.sources && Array.isArray(props.sources)) {
+  if (
+    props.sources &&
+    Array.isArray(props.sources) &&
+    props.normalize === undefined
+  ) {
+    // Default raw band values unless the layer explicitly asked to normalize.
     resolvedProps.normalize = false;
   }
 
@@ -310,6 +592,7 @@ const getModuleImporter = (type) => {
     WMS: "ol/source/ImageWMS.js",
     Raster: "ol/source/Raster.js",
     GeoJSON: "ol/format/GeoJSON.js",
+    Shapefile: "ol/source/Vector.js",
     KML: "ol/source/Vector.js",
     Style: "ol/style/Style.js",
     Stroke: "ol/style/Stroke.js",
@@ -337,6 +620,148 @@ const getModuleImporter = (type) => {
   }
 
   return importer;
+};
+
+/**
+ * Build the vector source for a `Shapefile` layer.
+ *
+ * Features load through OpenLayers' own loader hook rather than being fetched
+ * ahead of construction, which buys three things: the loader is handed the live
+ * view projection when it runs, its success/failure callbacks drive the
+ * `featuresloadstart` / `featuresloadend` / `featuresloaderror` events, and it
+ * is not called at all until the layer is actually mounted and rendering.
+ *
+ * `getMapProjection`, when supplied, is read at the moment features are inserted
+ * rather than when the load began. A shapefile is the slowest-loading vector
+ * source in the app, so it is the one most exposed to a sibling raster's auto-fit
+ * changing the view mid-load -- and features parsed into a projection the map has
+ * already left are drawn thousands of kilometres off screen while still reporting
+ * the right feature count.
+ *
+ * The single `shapefileController` set on the source is the whole channel between
+ * this module and the map: abort, status, error and reset. Hanging those on the
+ * source as loose properties would give two modules an undocumented surface each
+ * discovered by reaching into the other's object.
+ */
+export const loadShapefile = (config, mapProjection, getMapProjection) => {
+  const { url, projection: fallbackProjection } = config.props ?? {};
+  // Mirrors the GeoTIFF sentinel: a half-authored source is silent rather than
+  // an error, so typing a URL does not paint a failure after every keystroke.
+  if (!url) throw new Error("ShapefileEmptySources");
+
+  let abortController = null;
+  let status = "idle";
+  let failure = null;
+
+  const source = new VectorSource();
+
+  source.setLoader(async (extent, resolution, projection, success, onError) => {
+    // Held locally as well as on the closure. The closure slot is what `abort`
+    // and a second invocation write to, so comparing the two is how this run
+    // learns it is no longer the current one.
+    const controller = new AbortController();
+    abortController = controller;
+    status = "loading";
+    failure = null;
+
+    const finish = (nextStatus, nextFailure) => {
+      status = nextStatus;
+      failure = nextFailure ?? null;
+      abortController = null;
+    };
+
+    // Aborting stops the fetch, but the parse that follows it is CPU-bound and
+    // runs to completion regardless. A run that is no longer current must write
+    // nothing at all: its layer may already be gone, and because status is kept
+    // per layer *name*, a late success would land under whichever source owns
+    // that name now -- erasing a live error and leaving a blank layer that
+    // reports nothing. Staying silent is also why neither callback fires here:
+    // the events they raise are still wired to this dead source.
+    const superseded = () => abortController !== controller;
+
+    try {
+      const acquired = await acquireComponents(url, {
+        signal: controller.signal,
+      });
+      if (superseded()) return;
+      if (acquired.cancelled) {
+        finish("idle");
+        onError?.();
+        return;
+      }
+      if (acquired.error) {
+        finish("error", acquired.error);
+        onError?.();
+        return;
+      }
+
+      const interpreted = await interpretShapefile(acquired.components, {
+        fallbackProjection,
+      });
+      if (superseded()) return;
+      if (interpreted.error) {
+        finish("error", interpreted.error);
+        onError?.();
+        return;
+      }
+
+      // Read against the view as it stands now, not as it stood when the fetch
+      // was issued.
+      const targetProjection =
+        getMapProjection?.() ?? projection?.getCode?.() ?? mapProjection;
+      const features = readFeatureCollection(
+        interpreted.featureCollection,
+        targetProjection,
+      );
+      source.addFeatures(features);
+      finish("ready");
+      success?.(features);
+    } catch (error) {
+      // Both stages above report failures as values, so nothing here throws by
+      // design. A dynamic import still can -- a deploy invalidates the chunk a
+      // stale tab asks for -- and OpenLayers calls the loader without a catch of
+      // its own, so an escaping rejection would leave the layer reporting
+      // "loading" forever, with no error shown and no retry offered.
+      if (superseded()) return;
+      finish("error", {
+        stage: "fetch",
+        reason: "unexpected",
+        detail: `The shapefile could not be loaded: ${error?.message ?? error}`,
+      });
+      onError?.();
+    }
+  });
+
+  source.set("shapefileController", {
+    getStatus: () => status,
+    getError: () => failure,
+    abort: (reason) => {
+      if (abortController) {
+        abortController.abort(reason);
+        abortController = null;
+        status = "idle";
+      }
+    },
+    // `refresh` is the only primitive that actually causes the loader to run
+    // again. Removing the loaded extent alone leaves it un-invoked, because the
+    // renderer short-circuits its frame on an unchanged layer revision -- which
+    // is how a retry button ends up doing nothing while its test passes.
+    reset: () => {
+      // Abort first. Nothing disables the retry affordance while a load runs,
+      // and `refresh` exists to force the loader to run again, so two runs can
+      // otherwise overlap -- the second replacing the first's controller and
+      // leaving it uncancellable.
+      if (abortController) {
+        abortController.abort(CANCEL_REASON.SUPERSEDED);
+        abortController = null;
+      }
+      status = "idle";
+      failure = null;
+      source.refresh();
+    },
+  });
+
+  return source;
 };
 
 const loadGeoJSON = (config, mapProjection) => {
@@ -492,6 +917,15 @@ export function matchesCondition(featureValue, type, conditionValue) {
   if (type === "isNotNull") {
     return a !== null && a !== undefined && a !== "";
   }
+
+  // A field the feature does not carry cannot satisfy a comparison. Without this
+  // the negated operators invert into a match: `!=` becomes `undefined !== x`,
+  // and `notIn` becomes "not in the list", both true -- so one saved rule
+  // repaints every feature of a layer whose .dbf is missing or whose schema
+  // drifted upstream. The layer still renders, so nothing fails and nobody is
+  // told. The presence checks above deliberately run first: asking whether an
+  // absent field is null is a question with a real answer.
+  if (a === null || a === undefined) return false;
 
   const coerce = (v) => (typeof v === "string" && !isNaN(v) ? Number(v) : v);
 

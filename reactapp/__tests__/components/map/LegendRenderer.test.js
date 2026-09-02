@@ -1,4 +1,7 @@
-import LegendRenderer, { LegendSymbol } from "components/map/LegendRenderer";
+import LegendRenderer, {
+  LegendSymbol,
+  formatRampBound,
+} from "components/map/LegendRenderer";
 import { render, screen, waitFor } from "@testing-library/react";
 import { defaultStroke } from "components/inputs/RuleEditor";
 
@@ -185,6 +188,62 @@ describe("LegendRenderer; ramp legend (GeoTIFF)", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("low")).toBeInTheDocument();
     expect(screen.getByText("high")).toBeInTheDocument();
+  });
+
+  test("rounds float bounds to 2 decimals", () => {
+    // Ranges resolved from a raster's embedded statistics arrive at full float
+    // precision; the colorbar should not print 17.453779.
+    render(
+      <LegendRenderer
+        legend={{
+          rampColors,
+          rampMin: 0.004999,
+          rampMax: 17.453779,
+        }}
+      />,
+    );
+    expect(
+      screen.getByRole("img", { name: "Color ramp from 0 to 17.45" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("17.45")).toBeInTheDocument();
+  });
+
+  test("rounds half away from zero and keeps numeric strings numeric", () => {
+    render(
+      <LegendRenderer
+        legend={{ rampColors, rampMin: "-2.345", rampMax: "8.675" }}
+      />,
+    );
+    expect(
+      screen.getByRole("img", { name: "Color ramp from -2.35 to 8.68" }),
+    ).toBeInTheDocument();
+  });
+
+  test("does not pad trailing zeros onto whole numbers", () => {
+    render(
+      <LegendRenderer legend={{ rampColors, rampMin: "0", rampMax: "100" }} />,
+    );
+    expect(
+      screen.getByRole("img", { name: "Color ramp from 0 to 100" }),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("formatRampBound", () => {
+  test("rounds finite numbers to at most 2 decimals", () => {
+    expect(formatRampBound(17.453779)).toBe(17.45);
+    expect(formatRampBound(-0.006)).toBe(-0.01);
+    expect(formatRampBound(3)).toBe(3);
+    expect(formatRampBound("2.5")).toBe(2.5);
+  });
+
+  test("passes through values that are not finite numbers", () => {
+    // Author-entered labels and absent bounds must survive untouched.
+    expect(formatRampBound("low")).toBe("low");
+    expect(formatRampBound("")).toBe("");
+    expect(formatRampBound(null)).toBe(null);
+    expect(formatRampBound(undefined)).toBe(undefined);
+    expect(formatRampBound(Infinity)).toBe(Infinity);
   });
 });
 

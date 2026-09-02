@@ -1,12 +1,30 @@
+import { Fragment } from "react";
 import PropTypes from "prop-types";
 import styled from "styled-components";
-import { COLOR_RAMPS, RAMP_NAMES } from "components/map/colorRamps";
+import { RAMP_GROUPS, resolveRamp } from "components/map/colorRamps";
 
 const PickerList = styled.div`
   display: flex;
   flex-direction: column;
   gap: 6px;
   margin-bottom: 12px;
+  /* Enough ramps now that the list needs its own scroll rather than pushing the
+     rest of the Style tab off-screen. */
+  max-height: 320px;
+  overflow-y: auto;
+`;
+
+const GroupLabel = styled.div`
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6c757d;
+  margin: 4px 0 0 2px;
+
+  &:first-child {
+    margin-top: 0;
+  }
 `;
 
 const RampRow = styled.button`
@@ -32,12 +50,6 @@ const RampRow = styled.button`
   }
 `;
 
-const RampLabel = styled.span`
-  min-width: 90px;
-  font-size: 0.9rem;
-  font-weight: 500;
-`;
-
 const GradientSwatch = styled.span`
   flex: 1;
   height: 20px;
@@ -50,33 +62,38 @@ const GradientSwatch = styled.span`
 const buildGradient = (colors) =>
   `linear-gradient(to right, ${colors.join(", ")})`;
 
-const RampPicker = ({ selectedRamp, onChange }) => {
+const RampPicker = ({ selectedRamp, onChange, reversed }) => {
   return (
     <PickerList role="radiogroup" aria-label="Color ramp picker">
-      {RAMP_NAMES.map((name) => {
-        const colors = COLOR_RAMPS[name];
-        const isSelected = selectedRamp === name;
-        return (
-          <RampRow
-            key={name}
-            type="button"
-            role="radio"
-            aria-checked={isSelected}
-            aria-label={`Select ${name} ramp`}
-            data-testid={`ramp-option-${name}`}
-            data-selected={isSelected ? "true" : "false"}
-            $selected={isSelected}
-            onClick={() => onChange(name)}
-          >
-            <RampLabel>{name}</RampLabel>
-            <GradientSwatch
-              aria-hidden="true"
-              data-testid={`ramp-swatch-${name}`}
-              $gradient={buildGradient(colors)}
-            />
-          </RampRow>
-        );
-      })}
+      {RAMP_GROUPS.map((group) => (
+        <Fragment key={group.label}>
+          <GroupLabel aria-hidden="true">{group.label}</GroupLabel>
+          {group.names.map((name) => {
+            // Swatches preview the reversed direction, so the picker matches the map.
+            const colors = resolveRamp(name, reversed);
+            const isSelected = selectedRamp === name;
+            return (
+              <RampRow
+                key={name}
+                type="button"
+                role="radio"
+                aria-checked={isSelected}
+                aria-label={`Select ${name} ramp`}
+                data-testid={`ramp-option-${name}`}
+                data-selected={isSelected ? "true" : "false"}
+                $selected={isSelected}
+                onClick={() => onChange(name)}
+              >
+                <GradientSwatch
+                  aria-hidden="true"
+                  data-testid={`ramp-swatch-${name}`}
+                  $gradient={buildGradient(colors)}
+                />
+              </RampRow>
+            );
+          })}
+        </Fragment>
+      ))}
     </PickerList>
   );
 };
@@ -84,10 +101,12 @@ const RampPicker = ({ selectedRamp, onChange }) => {
 RampPicker.propTypes = {
   selectedRamp: PropTypes.string,
   onChange: PropTypes.func.isRequired,
+  reversed: PropTypes.bool,
 };
 
 RampPicker.defaultProps = {
   selectedRamp: null,
+  reversed: false,
 };
 
 export default RampPicker;

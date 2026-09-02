@@ -13,7 +13,10 @@ import moduleLoader, {
   withAntimeridianFix,
   withIsolatedCanvas,
   withAutoCrossOrigin,
+  zarrSourceToGeoTIFF,
+  applyAutoRamp,
 } from "components/map/ModuleLoader";
+import { fromUrl } from "geotiff";
 import WebGLTile from "ol/layer/WebGLTile.js";
 import ImageLayer from "ol/layer/Image.js";
 import VectorTileLayer from "ol/layer/VectorTile.js";
@@ -49,6 +52,8 @@ import {
   defaultStroke,
   defaultStrokeWidth,
 } from "components/inputs/RuleEditor.js";
+
+jest.mock("geotiff", () => ({ fromUrl: jest.fn() }));
 
 jest.mock("ol/source/GeoTIFF.js", () => {
   const ActualSource = jest.requireActual("ol/source/Source.js").default;
@@ -205,116 +210,78 @@ test("KML Layer Instance", async () => {
 });
 
 describe("GeoTIFF source", () => {
-  const geoTIFFLayerConfig = () => ({
+  const geoTIFFLayerConfig = (props = {}) => ({
     type: "WebGLTile",
     props: {
       name: "GeoTIFF Layer",
       source: {
         type: "GeoTIFF",
-        props: {
-          sources: [
-            {
-              url: "https://example.com/cog.tif",
-              bands: "1,2,3",
-              min: "0",
-              max: "255",
-              nodata: "0",
-            },
-          ],
-        },
+        props: { url: "https://example.com/cog.tif", ...props },
       },
       zIndex: 0,
     },
   });
 
+  const lastCtorArgs = () => {
+    const calls = GeoTIFF.constructorSpy.mock.calls;
+    return calls[calls.length - 1][0];
+  };
+
   test("GeoTIFF type resolves to the ol/source/GeoTIFF module", async () => {
-    const config = geoTIFFLayerConfig();
-    const layerInstance = await moduleLoader(config);
+    const layerInstance = await moduleLoader(geoTIFFLayerConfig());
     expect(layerInstance instanceof WebGLTile).toBe(true);
     expect(GeoTIFF.constructorSpy).toHaveBeenCalled();
   });
 
-  test("GeoTIFF sources array passes through to constructor", async () => {
-    const config = geoTIFFLayerConfig();
-    // Drop bands so this test focuses on plain URL + numeric string pass-through.
-    config.props.source.props.sources = [
-      { url: "https://example.com/a.tif", min: "0", max: "255" },
-    ];
-    await moduleLoader(config);
-    const calls = GeoTIFF.constructorSpy.mock.calls;
-    const callArgs = calls[calls.length - 1][0];
-    expect(Array.isArray(callArgs.sources)).toBe(true);
-    expect(callArgs.sources).toHaveLength(1);
-    expect(callArgs.sources[0].url).toBe("https://example.com/a.tif");
-    // numeric strings should be cast by convertType before hitting the ctor
-    expect(callArgs.sources[0].min).toBe(0);
-    expect(callArgs.sources[0].max).toBe(255);
-  });
-
-  test("GeoTIFF bands CSV string is parsed to a number array", async () => {
-    const config = geoTIFFLayerConfig();
-    config.props.source.props.sources = [
-      { url: "https://example.com/b.tif", bands: "1,2,3" },
-    ];
-    await moduleLoader(config);
-    const calls = GeoTIFF.constructorSpy.mock.calls;
-    const callArgs = calls[calls.length - 1][0];
-    expect(callArgs.sources[0].bands).toEqual([1, 2, 3]);
-  });
-
-  test("GeoTIFF empty bands string is dropped (not passed as [])", async () => {
-    // Regression: `bands: ""` from the UI used to parse to `[]`, which tells
-    // ol/source/GeoTIFF to read ZERO bands and throws
-    // "Unsupported data format/bitsPerSample" at tile-decode time. Empty
-    // bands must be dropped so OL falls back to reading all bands.
-    const config = geoTIFFLayerConfig();
-    config.props.source.props.sources = [
-      { url: "https://example.com/c.tif", bands: "" },
-    ];
-    await moduleLoader(config);
-    const calls = GeoTIFF.constructorSpy.mock.calls;
-    const callArgs = calls[calls.length - 1][0];
-    expect(callArgs.sources[0]).not.toHaveProperty("bands");
-    expect(callArgs.sources[0].url).toBe("https://example.com/c.tif");
-  });
-
-  test("GeoTIFF empty projection and empty overviews are dropped", async () => {
-    const config = geoTIFFLayerConfig();
-    config.props.source.props.sources = [
-      {
-        url: "https://example.com/d.tif",
-        projection: "",
-        overviews: [],
-      },
-    ];
-    await moduleLoader(config);
-    const calls = GeoTIFF.constructorSpy.mock.calls;
-    const callArgs = calls[calls.length - 1][0];
-    expect(callArgs.sources[0]).not.toHaveProperty("projection");
-    expect(callArgs.sources[0]).not.toHaveProperty("overviews");
-  });
-
-  test("GeoTIFF empty sources throws GeoTIFFEmptySources", async () => {
-    const config = geoTIFFLayerConfig();
-    config.props.source.props.sources = [];
-    const callCountBefore = GeoTIFF.constructorSpy.mock.calls.length;
-    await expect(moduleLoader(config)).rejects.toThrow("GeoTIFFEmptySources");
-    // The GeoTIFF constructor must not have been invoked for this call.
-    expect(GeoTIFF.constructorSpy.mock.calls.length).toBe(callCountBefore);
-  });
-
-  test("GeoTIFF minimum config (url only) instantiates", async () => {
-    const config = geoTIFFLayerConfig();
-    config.props.source.props.sources = [
-      { url: "https://example.com/minimal.tif" },
-    ];
-    const layerInstance = await moduleLoader(config);
-    expect(layerInstance instanceof WebGLTile).toBe(true);
-    const calls = GeoTIFF.constructorSpy.mock.calls;
-    const callArgs = calls[calls.length - 1][0];
-    expect(callArgs.sources).toEqual([
-      { url: "https://example.com/minimal.tif" },
+  test("a flat url becomes OpenLayers' single-entry sources array", async () => {
+    await moduleLoader(geoTIFFLayerConfig());
+    expect(lastCtorArgs().sources).toEqual([
+      { url: "https://example.com/cog.tif" },
     ]);
+  });
+
+  test("nodata rides inside the source entry, cast to a number", async () => {
+    // OL compares `sourceValue !== nodata` strictly, so a string would never
+    // match and the mask would silently do nothing.
+    await moduleLoader(geoTIFFLayerConfig({ nodata: "-9999" }));
+    expect(lastCtorArgs().sources[0].nodata).toBe(-9999);
+  });
+
+  test("a nodata of 0 is kept, not treated as unset", async () => {
+    await moduleLoader(geoTIFFLayerConfig({ nodata: "0" }));
+    expect(lastCtorArgs().sources[0].nodata).toBe(0);
+  });
+
+  test("projection sits at the source options level, not in the entry", async () => {
+    await moduleLoader(geoTIFFLayerConfig({ projection: "EPSG:32615" }));
+    const args = lastCtorArgs();
+    expect(args.projection).toBe("EPSG:32615");
+    expect(args.sources[0]).not.toHaveProperty("projection");
+  });
+
+  test("an empty projection is dropped", async () => {
+    await moduleLoader(geoTIFFLayerConfig({ projection: "" }));
+    expect(lastCtorArgs()).not.toHaveProperty("projection");
+  });
+
+  test("nodata is omitted when applyAutoRamp has not resolved one", async () => {
+    // A layer with no ramp never reaches applyAutoRamp, so nothing sets nodata
+    // and OL falls back to the file's own tag — which is the right default.
+    await moduleLoader(geoTIFFLayerConfig());
+    expect(lastCtorArgs().sources[0]).not.toHaveProperty("nodata");
+  });
+
+  test("normalize passes through to the constructor", async () => {
+    await moduleLoader(geoTIFFLayerConfig({ normalize: false }));
+    expect(lastCtorArgs().normalize).toBe(false);
+  });
+
+  test("a missing url throws GeoTIFFEmptySources", async () => {
+    const config = geoTIFFLayerConfig();
+    delete config.props.source.props.url;
+    const before = GeoTIFF.constructorSpy.mock.calls.length;
+    await expect(moduleLoader(config)).rejects.toThrow("GeoTIFFEmptySources");
+    expect(GeoTIFF.constructorSpy.mock.calls.length).toBe(before);
   });
 });
 
@@ -2097,4 +2064,722 @@ describe.each([
       expect((await buildSource(value)).crossOrigin_).toBeNull();
     },
   );
+});
+
+describe("zarrSourceToGeoTIFF", () => {
+  test("assembles the zarr/cog endpoint URL from the source fields", () => {
+    const out = zarrSourceToGeoTIFF({
+      type: "Zarr",
+      props: { url: "https://x/store.zarr", variable: "depth", index: "150" },
+    });
+    expect(out.type).toBe("GeoTIFF");
+    expect(out.props.normalize).toBe(true);
+    const url = out.props.sources[0].url;
+    expect(url).toContain("/apps/tethysdash/zarr/cog/?");
+    expect(url).toContain("src=https%3A%2F%2Fx%2Fstore.zarr");
+    expect(url).toContain("variable=depth");
+    expect(url).toContain("index=150");
+    expect(url).not.toContain("mask_below");
+  });
+
+  test("defaults index to 0 and includes mask_below when provided", () => {
+    const out = zarrSourceToGeoTIFF({
+      type: "Zarr",
+      props: { url: "https://x", variable: "t", mask_below: "0.5" },
+    });
+    const url = out.props.sources[0].url;
+    expect(url).toContain("index=0");
+    expect(url).toContain("mask_below=0.5");
+  });
+});
+
+describe("applyAutoRamp", () => {
+  const zarrLayer = (source = {}) => ({
+    type: "WebGLTile",
+    props: {
+      name: "flood",
+      source: {
+        type: "Zarr",
+        rampName: "turbo",
+        props: { url: "https://x/store.zarr", variable: "depth", index: "7" },
+        ...source,
+      },
+    },
+  });
+
+  // geotiff.js: getGDALMetadata(0) returns items tagged for sample 0, while
+  // getGDALMetadata(null) returns the dataset-level items. Writers put
+  // STATISTICS_* in either place, so the mock has to tell them apart.
+  const mockGDALMetadata = ({ band = {}, dataset = {}, fileNodata = null }) =>
+    fromUrl.mockResolvedValue({
+      getImage: jest.fn().mockResolvedValue({
+        getGDALMetadata: jest.fn((sample) =>
+          sample === null ? dataset : band,
+        ),
+        getGDALNoData: jest.fn(() => fileNodata),
+      }),
+    });
+
+  const mockStats = (meta) => mockGDALMetadata({ band: meta });
+
+  beforeEach(() => {
+    fromUrl.mockReset();
+  });
+
+  test("styles raw values over the slice range and turns normalize off", async () => {
+    mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "17.45" });
+    const config = zarrLayer();
+
+    await applyAutoRamp(config);
+
+    // normalize off => OL keeps float32 tile data, so getData reports depths.
+    expect(config.props.source.props.normalize).toBe(false);
+    expect(config.props.source.resolvedRampMin).toBe(0);
+    expect(config.props.source.resolvedRampMax).toBeCloseTo(17.45, 4);
+    // The author's own fields stay empty so the ramp keeps meaning "auto".
+    expect(config.props.source.rampMin).toBeUndefined();
+    expect(config.props.source.rampMax).toBeUndefined();
+
+    const color = config.style.color;
+    // hasNodata wraps the interpolate in a `case` against the alpha band.
+    expect(color[0]).toBe("case");
+    const interpolate = color[3];
+    expect(interpolate[0]).toBe("interpolate");
+    expect(interpolate[3]).toBe(0);
+    expect(interpolate[interpolate.length - 2]).toBeCloseTo(17.45, 4);
+  });
+
+  test("reads stats from the same zarr/cog URL the source will fetch", async () => {
+    mockStats({ STATISTICS_MINIMUM: "1", STATISTICS_MAXIMUM: "2" });
+    const config = zarrLayer();
+
+    await applyAutoRamp(config);
+
+    const requested = fromUrl.mock.calls[0][0];
+    expect(requested).toBe(
+      zarrSourceToGeoTIFF(config.props.source).props.sources[0].url,
+    );
+  });
+
+  test("does not refetch for a slice it already resolved", async () => {
+    mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "9" });
+    const config = zarrLayer();
+
+    // Safe to call from both the legend build and the layer build in one render.
+    await applyAutoRamp(config);
+    await applyAutoRamp(config);
+
+    expect(fromUrl).toHaveBeenCalledTimes(1);
+    expect(config.props.source.resolvedRampMax).toBe(9);
+  });
+
+  test("re-resolves when the slice index moves", async () => {
+    mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "9" });
+    const config = zarrLayer();
+    await applyAutoRamp(config);
+
+    // A new storm: same layer object, different slice — the ramp must refit.
+    mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "300" });
+    config.props.source.props.index = "8";
+    await applyAutoRamp(config);
+
+    expect(fromUrl).toHaveBeenCalledTimes(2);
+    expect(config.props.source.resolvedRampMax).toBe(300);
+  });
+
+  test("leaves non-Zarr layers alone", async () => {
+    const config = {
+      type: "WebGLTile",
+      props: { source: { type: "GeoTIFF", rampName: "turbo", props: {} } },
+    };
+
+    await applyAutoRamp(config);
+
+    expect(fromUrl).not.toHaveBeenCalled();
+    expect(config.style).toBeUndefined();
+  });
+
+  test("honors an author-pinned range instead of auto-fitting", async () => {
+    mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "99" });
+    const config = zarrLayer({ rampMin: "0", rampMax: "5" });
+
+    await applyAutoRamp(config);
+
+    // The file's 0-99 range is ignored; the ramp keeps the author's 0-5.
+    const interpolate = config.style.color[3];
+    expect(interpolate[interpolate.length - 2]).toBe(5);
+    expect(config.props.source.rampMax).toBe("5");
+  });
+
+  test("does nothing without a ramp style", async () => {
+    const config = zarrLayer({ rampName: undefined });
+
+    await applyAutoRamp(config);
+
+    expect(fromUrl).not.toHaveBeenCalled();
+    expect(config.style).toBeUndefined();
+  });
+
+  test.each([
+    ["missing stats", {}],
+    [
+      "unparseable stats",
+      { STATISTICS_MINIMUM: "n/a", STATISTICS_MAXIMUM: "x" },
+    ],
+    [
+      "a degenerate range",
+      { STATISTICS_MINIMUM: "5", STATISTICS_MAXIMUM: "5" },
+    ],
+  ])("falls back to normalized rendering on %s", async (_label, meta) => {
+    mockStats(meta);
+    const config = zarrLayer();
+
+    await applyAutoRamp(config);
+
+    // No usable range, so raw-value styling is not switched on...
+    expect(config.props.source.props.normalize).toBeUndefined();
+    // ...but the style is still rebuilt so nodata cells stay transparent.
+    expect(config.style.color[0]).toBe("case");
+    expect(config.style.color[3][0]).toBe("interpolate");
+  });
+
+  test("falls back to normalized rendering when the header cannot be read", async () => {
+    fromUrl.mockRejectedValue(new Error("network"));
+    const config = zarrLayer();
+
+    await expect(applyAutoRamp(config)).resolves.toBeTruthy();
+
+    expect(config.props.source.props.normalize).toBeUndefined();
+    expect(config.props.source.resolvedRampMin).toBeUndefined();
+  });
+
+  test("reads dataset-level STATISTICS_* when the band carries none", async () => {
+    // GDAL and MATLAB's Mapping Toolbox write STATISTICS_* at dataset level, so
+    // a band-only lookup finds nothing and the layer renders flat.
+    mockGDALMetadata({
+      band: {},
+      dataset: { STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "1" },
+    });
+    const config = zarrLayer();
+
+    await applyAutoRamp(config);
+
+    expect(config.props.source.props.normalize).toBe(false);
+    expect(config.props.source.resolvedRampMin).toBe(0);
+    expect(config.props.source.resolvedRampMax).toBe(1);
+  });
+
+  test("prefers band-level STATISTICS_* over dataset-level", async () => {
+    mockGDALMetadata({
+      band: { STATISTICS_MINIMUM: "2", STATISTICS_MAXIMUM: "8" },
+      dataset: { STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "100" },
+    });
+    const config = zarrLayer();
+
+    await applyAutoRamp(config);
+
+    expect(config.props.source.resolvedRampMin).toBe(2);
+    expect(config.props.source.resolvedRampMax).toBe(8);
+  });
+
+  test("resolves only the max when the author pinned the min", async () => {
+    mockStats({ STATISTICS_MINIMUM: "0.4", STATISTICS_MAXIMUM: "17.45" });
+    const config = zarrLayer({ rampMin: "0" });
+
+    await applyAutoRamp(config);
+
+    // Pinned min is honored; the file's minimum of 0.4 is ignored.
+    expect(config.props.source.resolvedRampMin).toBe(0);
+    expect(config.props.source.resolvedRampMax).toBeCloseTo(17.45, 4);
+    expect(config.props.source.props.normalize).toBe(false);
+    const interpolate = config.style.color[3];
+    expect(interpolate[3]).toBe(0);
+    expect(interpolate[interpolate.length - 2]).toBeCloseTo(17.45, 4);
+  });
+
+  test("resolves only the min when the author pinned the max", async () => {
+    mockStats({ STATISTICS_MINIMUM: "0.4", STATISTICS_MAXIMUM: "17.45" });
+    const config = zarrLayer({ rampMax: "20" });
+
+    await applyAutoRamp(config);
+
+    expect(config.props.source.resolvedRampMin).toBeCloseTo(0.4, 4);
+    expect(config.props.source.resolvedRampMax).toBe(20);
+  });
+
+  test("still reads the header when both bounds are pinned, to settle nodata", async () => {
+    // The header also carries GDAL_NODATA, and a pinned layer needs its
+    // transparency right just as much as an auto-fitted one.
+    mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "17" });
+    const config = zarrLayer({ rampMin: "1", rampMax: "5" });
+
+    await applyAutoRamp(config);
+
+    expect(fromUrl).toHaveBeenCalledTimes(1);
+    // Pinned bounds are not overwritten by the resolved ones.
+    expect(config.props.source.resolvedRampMin).toBe(1);
+    expect(config.props.source.resolvedRampMax).toBe(5);
+  });
+
+  test("treats a pinned min of 0 as set, not as empty", async () => {
+    // A falsy-but-valid bound must not be mistaken for "resolve me".
+    mockStats({ STATISTICS_MINIMUM: "5", STATISTICS_MAXIMUM: "9" });
+    const config = zarrLayer({ rampMin: 0 });
+
+    await applyAutoRamp(config);
+
+    expect(config.props.source.resolvedRampMin).toBe(0);
+    expect(config.props.source.resolvedRampMax).toBe(9);
+  });
+
+  test("bails when a pinned min exceeds the file's maximum", async () => {
+    mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "1" });
+    const config = zarrLayer({ rampMin: "50" });
+
+    await applyAutoRamp(config);
+
+    expect(config.props.source.props.normalize).toBeUndefined();
+    expect(config.props.source.resolvedRampMin).toBeUndefined();
+  });
+
+  test("bails when a pinned bound is not a number", async () => {
+    mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "1" });
+    const config = zarrLayer({ rampMin: "abc" });
+
+    await applyAutoRamp(config);
+
+    expect(config.props.source.props.normalize).toBeUndefined();
+    expect(config.props.source.resolvedRampMin).toBeUndefined();
+  });
+
+  test("lifts a resolved min to the mask threshold", async () => {
+    // A GeoTIFF is masked in the style, after its statistics were written, so
+    // the stats still describe values the mask hides. Without this the bottom of
+    // the ramp would be spent on invisible pixels.
+    mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "1" });
+    const config = zarrLayer();
+    config.props.source.props.mask_below = "0.05";
+
+    await applyAutoRamp(config);
+
+    expect(config.props.source.resolvedRampMin).toBeCloseTo(0.05, 6);
+    expect(config.props.source.resolvedRampMax).toBe(1);
+  });
+
+  test("passes the mask threshold into the style as a transparent branch", async () => {
+    mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "1" });
+    const config = zarrLayer();
+    config.props.source.props.mask_below = "0.05";
+
+    await applyAutoRamp(config);
+
+    // Zarr sets hasNodata, so nodata is guard 1 and the mask is guard 2.
+    expect(config.style.color[3]).toEqual(["<=", ["band", 1], 0.05]);
+  });
+
+  test("leaves a pinned min alone even when a mask threshold is higher", async () => {
+    mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "1" });
+    const config = zarrLayer({ rampMin: "0" });
+    config.props.source.props.mask_below = "0.05";
+
+    await applyAutoRamp(config);
+
+    expect(config.props.source.resolvedRampMin).toBe(0);
+  });
+
+  test("does not lift the min when the mask is below the file minimum", async () => {
+    mockStats({ STATISTICS_MINIMUM: "3", STATISTICS_MAXIMUM: "9" });
+    const config = zarrLayer();
+    config.props.source.props.mask_below = "1";
+
+    await applyAutoRamp(config);
+
+    expect(config.props.source.resolvedRampMin).toBe(3);
+  });
+
+  test("does not lift the min when the mask covers the whole range", async () => {
+    // Clamping here would invert the range and bail out; instead keep the ramp
+    // and let the mask render every cell transparent.
+    mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "1" });
+    const config = zarrLayer();
+    config.props.source.props.mask_below = "5";
+
+    await applyAutoRamp(config);
+
+    expect(config.props.source.resolvedRampMin).toBe(0);
+    expect(config.props.source.resolvedRampMax).toBe(1);
+    expect(config.style.color[3]).toEqual(["<=", ["band", 1], 5]);
+  });
+
+  test("tolerates getGDALMetadata returning null for a file with no GDAL tags", async () => {
+    fromUrl.mockResolvedValue({
+      getImage: jest.fn().mockResolvedValue({
+        getGDALMetadata: jest.fn(() => null),
+        getGDALNoData: jest.fn(() => null),
+      }),
+    });
+    const config = zarrLayer();
+
+    await expect(applyAutoRamp(config)).resolves.toBeTruthy();
+
+    expect(config.props.source.props.normalize).toBeUndefined();
+    expect(config.props.source.resolvedRampMin).toBeUndefined();
+  });
+
+  describe("categorical layers", () => {
+    const categoricalLayer = (source = {}) => ({
+      type: "WebGLTile",
+      props: {
+        name: "land use",
+        source: {
+          type: "GeoTIFF",
+          styleMode: "categorical",
+          classes: [
+            { value: "0", color: "#aaa", label: "Bare" },
+            { value: "1", color: "#bbb", label: "Crop" },
+          ],
+          props: { url: "https://example.com/landuse.tif" },
+          ...source,
+        },
+      },
+    });
+
+    test("styles by class and forces raw band values", async () => {
+      mockGDALMetadata({ fileNodata: 255 });
+      const config = categoricalLayer();
+
+      await applyAutoRamp(config);
+
+      // normalize must be off or band 1 would carry 0-255 scaled bytes and the
+      // match would never line up with the class values.
+      expect(config.props.source.props.normalize).toBe(false);
+      // Nearest neighbor, or resampling blends band 1 into values matching no
+      // class and blends band 2 off 0, fringing every nodata boundary.
+      expect(config.props.source.props.interpolate).toBe(false);
+      expect(config.style.color[0]).toBe("case");
+      expect(config.style.color[3]).toEqual([
+        "match",
+        ["band", 1],
+        0,
+        "#aaa",
+        1,
+        "#bbb",
+        [0, 0, 0, 0],
+      ]);
+    });
+
+    test("still discovers nodata", async () => {
+      mockGDALMetadata({ fileNodata: 255 });
+      const config = categoricalLayer();
+
+      await applyAutoRamp(config);
+
+      expect(config.props.source.props.nodata).toBe(255);
+    });
+
+    test("needs no statistics and never requests a sidecar", async () => {
+      // The class values are the scale, so there is no range to resolve.
+      mockGDALMetadata({ fileNodata: 255 });
+      global.fetch = jest.fn();
+      const config = categoricalLayer();
+
+      await applyAutoRamp(config);
+
+      expect(global.fetch).not.toHaveBeenCalled();
+      expect(config.props.source.resolvedRampMin).toBeUndefined();
+    });
+
+    test("applies the fallback color and the mask guard", async () => {
+      mockGDALMetadata({ fileNodata: 255 });
+      const config = categoricalLayer({ fallbackColor: "#999999" });
+      config.props.source.props.mask_below = "0";
+
+      await applyAutoRamp(config);
+
+      expect(config.style.color[3]).toEqual(["<=", ["band", 1], 0]);
+      const match = config.style.color[5];
+      expect(match[match.length - 1]).toBe("#999999");
+    });
+
+    test("ignores a categorical mode with no usable class", async () => {
+      // A half-filled table must not take over the style.
+      mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "2" });
+      const config = categoricalLayer({
+        classes: [{ value: "", color: "#aaa" }],
+        rampName: "turbo",
+      });
+
+      await applyAutoRamp(config);
+
+      expect(config.style.color[3][0]).toBe("interpolate");
+      expect(config.props.source.resolvedRampMax).toBe(2);
+    });
+
+    test("does nothing when neither a ramp nor classes are set", async () => {
+      const config = categoricalLayer({ styleMode: undefined, classes: [] });
+
+      await applyAutoRamp(config);
+
+      expect(fromUrl).not.toHaveBeenCalled();
+      expect(config.style).toBeUndefined();
+    });
+  });
+
+  describe("GeoTIFF sources", () => {
+    const geotiffLayer = (source = {}, props = {}) => ({
+      type: "WebGLTile",
+      props: {
+        name: "depth",
+        source: {
+          type: "GeoTIFF",
+          rampName: "turbo",
+          props: { url: "https://example.com/depth.tif", ...props },
+          ...source,
+        },
+      },
+    });
+
+    test("fits the ramp to the file's stats and turns normalize off", async () => {
+      mockStats({ STATISTICS_MINIMUM: "0.05", STATISTICS_MAXIMUM: "11.7" });
+      const config = geotiffLayer();
+
+      await applyAutoRamp(config);
+
+      expect(fromUrl).toHaveBeenCalledWith("https://example.com/depth.tif");
+      expect(config.props.source.props.normalize).toBe(false);
+      expect(config.props.source.resolvedRampMin).toBeCloseTo(0.05, 4);
+      expect(config.props.source.resolvedRampMax).toBeCloseTo(11.7, 4);
+    });
+
+    test("guards band 2 even when neither author nor file declares nodata", async () => {
+      // A NaN default is applied, so OL adds an alpha band regardless.
+      mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "10" });
+      const config = geotiffLayer();
+
+      await applyAutoRamp(config);
+
+      expect(config.style.color[0]).toBe("case");
+      expect(Number.isNaN(config.props.source.props.nodata)).toBe(true);
+    });
+
+    test("discovers nodata from the file when the author left it blank", async () => {
+      mockGDALMetadata({
+        band: { STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "10" },
+        fileNodata: 255,
+      });
+      const config = geotiffLayer();
+
+      await applyAutoRamp(config);
+
+      expect(config.props.source.props.nodata).toBe(255);
+      expect(config.style.color[0]).toBe("case");
+    });
+
+    test("a NaN nodata declared by the file is kept, not replaced", async () => {
+      mockGDALMetadata({
+        band: { STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "1" },
+        fileNodata: NaN,
+      });
+      const config = geotiffLayer();
+
+      await applyAutoRamp(config);
+
+      expect(Number.isNaN(config.props.source.props.nodata)).toBe(true);
+    });
+
+    const mockSidecar = (xml, ok = true) => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok,
+        text: jest.fn().mockResolvedValue(xml),
+      });
+    };
+
+    const PAM_XML = `<PAMDataset><PAMRasterBand band="1"><Metadata>
+        <MDI key="STATISTICS_MINIMUM">0</MDI>
+        <MDI key="STATISTICS_MAXIMUM">2</MDI>
+      </Metadata></PAMRasterBand></PAMDataset>`;
+
+    test("falls back to the .aux.xml sidecar when the TIFF embeds no statistics", async () => {
+      // gdalinfo -stats writes STATISTICS_* to a PAM sidecar rather than the
+      // file, and geotiff.js cannot see it.
+      mockGDALMetadata({ fileNodata: 255 });
+      mockSidecar(PAM_XML);
+      const config = geotiffLayer();
+
+      await applyAutoRamp(config);
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "https://example.com/depth.tif.aux.xml",
+      );
+      expect(config.props.source.resolvedRampMin).toBe(0);
+      expect(config.props.source.resolvedRampMax).toBe(2);
+    });
+
+    test("does not request a sidecar when the TIFF already embeds statistics", async () => {
+      mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "10" });
+      global.fetch = jest.fn();
+      const config = geotiffLayer();
+
+      await applyAutoRamp(config);
+
+      expect(global.fetch).not.toHaveBeenCalled();
+      expect(config.props.source.resolvedRampMax).toBe(10);
+    });
+
+    test("does not request a sidecar when both bounds are pinned", async () => {
+      mockGDALMetadata({ fileNodata: 255 });
+      global.fetch = jest.fn();
+      const config = geotiffLayer({ rampMin: "0", rampMax: "2" });
+
+      await applyAutoRamp(config);
+
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    test("tolerates a 404 from the sidecar", async () => {
+      // The normal case for files that embed their statistics.
+      mockGDALMetadata({ fileNodata: 255 });
+      mockSidecar("", false);
+      const config = geotiffLayer();
+
+      await expect(applyAutoRamp(config)).resolves.toBeTruthy();
+
+      expect(config.props.source.resolvedRampMin).toBeUndefined();
+      // Nodata still resolved, so the style still guards the alpha band.
+      expect(config.props.source.props.nodata).toBe(255);
+      expect(config.style.color[0]).toBe("case");
+    });
+
+    test("tolerates an unreachable or unparseable sidecar", async () => {
+      mockGDALMetadata({ fileNodata: 255 });
+      global.fetch = jest.fn().mockRejectedValue(new Error("network"));
+      const config = geotiffLayer();
+
+      await expect(applyAutoRamp(config)).resolves.toBeTruthy();
+
+      expect(config.props.source.resolvedRampMin).toBeUndefined();
+    });
+
+    test("guards band 2 when the file has nodata but no statistics", async () => {
+      // Common for COGs without STATISTICS_*: the ramp cannot be fitted, but
+      // nodata cells must still be transparent rather than painted at band 1 = 0.
+      mockGDALMetadata({ fileNodata: 255 });
+      const config = geotiffLayer();
+
+      await applyAutoRamp(config);
+
+      expect(config.props.source.props.nodata).toBe(255);
+      expect(config.style.color[0]).toBe("case");
+      // Normalized mode: the ramp still spans OL's 0-1 scaled band.
+      expect(config.style.color[3][0]).toBe("interpolate");
+      expect(config.props.source.props.normalize).toBeUndefined();
+    });
+
+    test("refits when a variable input swaps the URL", async () => {
+      mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "10" });
+      const config = geotiffLayer();
+      await applyAutoRamp(config);
+
+      mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "250" });
+      config.props.source.props.url = "https://example.com/depth-storm2.tif";
+      await applyAutoRamp(config);
+
+      expect(fromUrl).toHaveBeenCalledTimes(2);
+      expect(config.props.source.resolvedRampMax).toBe(250);
+    });
+
+    test("skips a source with a blank url", async () => {
+      const config = geotiffLayer({}, { url: "" });
+
+      await applyAutoRamp(config);
+
+      expect(fromUrl).not.toHaveBeenCalled();
+      expect(config.style).toBeUndefined();
+    });
+
+    test.each([
+      ["file:", "file:///etc/passwd"],
+      ["blob:", "blob:http://x/abc"],
+      ["data:", "data:image/tiff;base64,AAA"],
+      ["protocol-relative", "//example.com/depth.tif"],
+    ])("refuses to fetch a %s URL", async (_label, url) => {
+      const config = geotiffLayer({}, { url });
+
+      await applyAutoRamp(config);
+
+      expect(fromUrl).not.toHaveBeenCalled();
+      expect(config.style).toBeUndefined();
+    });
+
+    test("skips a source with no url at all", async () => {
+      const config = geotiffLayer({}, { url: undefined });
+
+      await applyAutoRamp(config);
+
+      expect(fromUrl).not.toHaveBeenCalled();
+    });
+  });
+});
+
+describe("matchesCondition — a field the feature does not carry", () => {
+  // Left unguarded, the negated operators invert into a match: `!=` becomes
+  // `undefined !== x` and `notIn` becomes "not in the list", both true. One
+  // saved rule then repaints every feature of a layer whose .dbf is missing or
+  // whose schema drifted upstream -- and the layer still renders, so nothing
+  // fails and nobody is told.
+  it.each([
+    ["=", "x"],
+    ["!=", "x"],
+    ["<", 5],
+    ["<=", 5],
+    [">", 5],
+    [">=", 5],
+    ["in", "a,b,c"],
+    ["notIn", "a,b,c"],
+  ])("does not match %s", (operator, conditionValue) => {
+    expect(matchesCondition(undefined, operator, conditionValue)).toBe(false);
+    expect(matchesCondition(null, operator, conditionValue)).toBe(false);
+  });
+
+  it("still answers the presence checks, which are about absence itself", () => {
+    // These deliberately run before the guard: asking whether an absent field is
+    // null has a real answer, and a rule styling "no data" depends on it.
+    expect(matchesCondition(undefined, "isNull", null)).toBe(true);
+    expect(matchesCondition(null, "isNull", null)).toBe(true);
+    expect(matchesCondition(undefined, "isNotNull", null)).toBe(false);
+  });
+
+  it("leaves an empty string as a present value", () => {
+    // "" is something the feature carries, so a comparison against it is
+    // meaningful rather than unanswerable.
+    expect(matchesCondition("", "isNull", null)).toBe(true);
+    expect(matchesCondition("", "!=", "x")).toBe(true);
+    expect(matchesCondition("", "=", "")).toBe(true);
+  });
+
+  it("leaves present-value comparisons untouched", () => {
+    // Regression cover: this function styles every vector layer in the app, so
+    // the guard must change nothing for a field that is actually there.
+    expect(matchesCondition("x", "=", "x")).toBe(true);
+    expect(matchesCondition("x", "!=", "y")).toBe(true);
+    expect(matchesCondition("x", "!=", "x")).toBe(false);
+    expect(matchesCondition(3, "<", 5)).toBe(true);
+    expect(matchesCondition(3, ">", 5)).toBe(false);
+    expect(matchesCondition(0, "=", 0)).toBe(true);
+    expect(matchesCondition(0, "!=", 1)).toBe(true);
+    expect(matchesCondition("b", "in", "a,b,c")).toBe(true);
+    expect(matchesCondition("d", "in", "a,b,c")).toBe(false);
+    expect(matchesCondition("d", "notIn", "a,b,c")).toBe(true);
+    expect(matchesCondition("b", "notIn", "a,b,c")).toBe(false);
+  });
+
+  it("does not repaint a whole layer through a negated rule", () => {
+    // The observable consequence, stated as a scenario: a layer whose features
+    // lack POP2020 and a saved rule of `POP2020 != 0`.
+    const features = [{}, {}, {}].map(() => ({ POP2020: undefined }));
+    const matched = features.filter((f) =>
+      matchesCondition(f.POP2020, "!=", 0),
+    );
+    expect(matched).toHaveLength(0);
+  });
 });

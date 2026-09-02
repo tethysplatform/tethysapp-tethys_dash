@@ -124,6 +124,72 @@ describe("LiveChat", () => {
     );
   });
 
+  it("updates the log when a re-fetch delivers new history", () => {
+    const { rerender } = renderWithContexts();
+    expect(screen.getByText("Hello world!")).toBeInTheDocument();
+
+    const refetched = [
+      ...chatHistory,
+      {
+        message: "Fetched later",
+        sessionId: "session-3",
+        sender: "Carol",
+        timestamp: Date.now(),
+        messageId: "msg-3",
+        edited: false,
+      },
+    ];
+    rerender(
+      <AppContext.Provider value={mockAppContext}>
+        <WebsocketContext.Provider value={mockWebsocketContext}>
+          <LiveChat requestId="req-1" chatHistory={refetched} />
+        </WebsocketContext.Provider>
+      </AppContext.Provider>,
+    );
+
+    expect(screen.getByText("Fetched later")).toBeInTheDocument();
+    expect(screen.getByText("Hello world!")).toBeInTheDocument();
+  });
+
+  it("renders with no chat history", () => {
+    renderWithContexts({ chatHistory: undefined });
+    expect(
+      screen.getByPlaceholderText("Type a message..."),
+    ).toBeInTheDocument();
+  });
+
+  it("does not take focus on mount", () => {
+    // Focusing an input scrolls its scrollable ancestors to reveal it, which
+    // on the dashboard scrolls the page down to this widget and hides the
+    // chat history above it.
+    const focusSpy = jest.spyOn(HTMLElement.prototype, "focus");
+    renderWithContexts();
+    expect(focusSpy).not.toHaveBeenCalled();
+    focusSpy.mockRestore();
+  });
+
+  it("focuses without scrolling when the username input opens", () => {
+    renderWithContexts();
+    const focusSpy = jest.spyOn(HTMLElement.prototype, "focus");
+    fireEvent.click(screen.getByLabelText("Change Username"));
+    expect(focusSpy).toHaveBeenCalledWith({ preventScroll: true });
+    focusSpy.mockRestore();
+  });
+
+  it("focuses the message input without scrolling after the username is set", () => {
+    renderWithContexts();
+    fireEvent.click(screen.getByLabelText("Change Username"));
+    const usernameInput = screen.getByPlaceholderText(/enter your username/i);
+
+    const focusSpy = jest.spyOn(HTMLElement.prototype, "focus");
+    fireEvent.change(usernameInput, { target: { value: "NewUser" } });
+    fireEvent.click(screen.getByLabelText("Set Username"));
+
+    expect(focusSpy).toHaveBeenCalledWith({ preventScroll: true });
+    expect(screen.getByPlaceholderText("Type a message...")).toHaveFocus();
+    focusSpy.mockRestore();
+  });
+
   it("allows username change", () => {
     renderWithContexts();
     fireEvent.click(screen.getByLabelText("Change Username"));

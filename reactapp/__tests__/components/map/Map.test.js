@@ -30,15 +30,20 @@ jest.mock("ol/source/GeoTIFF.js", () => {
     }
     getView() {
       getViewSpy();
-      return Promise.resolve({
-        projection: "EPSG:4326",
-        extent: [-180, -90, 180, 90],
-        center: [0, 0],
-        zoom: 2,
-      });
+      // Overridable so a test can drive a raster whose projection resolves from
+      // a registered definition rather than natively.
+      return Promise.resolve(
+        MockGeoTIFFSource.viewOptions ?? {
+          projection: "EPSG:4326",
+          extent: [-180, -90, 180, 90],
+          center: [0, 0],
+          zoom: 2,
+        },
+      );
     }
   }
   MockGeoTIFFSource.getViewSpy = getViewSpy;
+  MockGeoTIFFSource.viewOptions = null;
   return {
     __esModule: true,
     default: MockGeoTIFFSource,
@@ -1260,7 +1265,90 @@ test("Double-buffering done() is idempotent when called twice", async () => {
   jest.useRealTimers();
 });
 
-test("GeoTIFF with empty sources is silently skipped (not a failed layer)", async () => {
+const tileLayer = (url) => [
+  {
+    type: "WebGLTile",
+    props: {
+      source: { type: "Image Tile", props: { url } },
+      name: "buf_layer",
+      zIndex: 0,
+    },
+  },
+];
+
+const wrapLayers = (layers) => (
+  <VariableInputsContext.Provider value={{ setVariableInputValues: jest.fn() }}>
+    <MapContextProvider>
+      <TestingComponent mapProps={{ layers }} />
+    </MapContextProvider>
+  </VariableInputsContext.Provider>
+);
+
+test("replacement tile layer stays hidden until painted, then reveals on swap", async () => {
+  const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+  const removeLayerSpy = jest.spyOn(Map.prototype, "removeLayer");
+
+  const { rerender } = render(
+    wrapLayers(tileLayer("https://example.com/a/{z}/{y}/{x}")),
+  );
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  await waitFor(() => expect(addLayerSpy.mock.calls.length).toBe(1));
+
+  rerender(wrapLayers(tileLayer("https://example.com/b/{z}/{y}/{x}")));
+  await waitFor(() => expect(addLayerSpy.mock.calls.length).toBe(2));
+
+  const newLayer = addLayerSpy.mock.calls[1][0];
+  // Hidden via opacity (still loading) while the old layer is still present.
+  expect(newLayer.getOpacity()).toBe(0);
+  expect(removeLayerSpy.mock.calls.length).toBe(0);
+
+  newLayer.getSource().dispatchEvent("tileloadend");
+
+  await waitFor(() => expect(removeLayerSpy.mock.calls.length).toBe(1));
+  // Revealed on the swap; the old layer is the one removed.
+  expect(newLayer.getOpacity()).toBe(1);
+  expect(removeLayerSpy.mock.calls[0][0].values_.name).toBe("buf_layer");
+});
+
+test("superseded frame is discarded; only the newest replacement reveals", async () => {
+  const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+  const removeLayerSpy = jest.spyOn(Map.prototype, "removeLayer");
+
+  const { rerender } = render(
+    wrapLayers(tileLayer("https://example.com/a/{z}/{y}/{x}")),
+  );
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  await waitFor(() => expect(addLayerSpy.mock.calls.length).toBe(1));
+
+  // Two rerenders before any tiles paint: the middle frame is superseded.
+  rerender(wrapLayers(tileLayer("https://example.com/b/{z}/{y}/{x}")));
+  await waitFor(() => expect(addLayerSpy.mock.calls.length).toBe(2));
+  rerender(wrapLayers(tileLayer("https://example.com/c/{z}/{y}/{x}")));
+  await waitFor(() => expect(addLayerSpy.mock.calls.length).toBe(3));
+
+  const layerA = addLayerSpy.mock.calls[0][0];
+  const layerB = addLayerSpy.mock.calls[1][0];
+  const layerC = addLayerSpy.mock.calls[2][0];
+
+  // Both replacements are still hidden (opacity 0); the original is untouched.
+  expect(layerA.getOpacity()).toBe(1);
+  expect(layerB.getOpacity()).toBe(0);
+  expect(layerC.getOpacity()).toBe(0);
+
+  // The newest frame paints first: it reveals and the old layer is dropped.
+  layerC.getSource().dispatchEvent("tileloadend");
+  await waitFor(() => expect(layerC.getOpacity()).toBe(1));
+  expect(removeLayerSpy.mock.calls.map((c) => c[0])).toContain(layerA);
+
+  // The superseded middle frame paints late: discarded, never revealed.
+  layerB.getSource().dispatchEvent("tileloadend");
+  await waitFor(() =>
+    expect(removeLayerSpy.mock.calls.map((c) => c[0])).toContain(layerB),
+  );
+  expect(layerB.getOpacity()).toBe(0);
+});
+
+test("GeoTIFF with no url is silently skipped (not a failed layer)", async () => {
   const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
   const layers = [
     {
@@ -1269,9 +1357,7 @@ test("GeoTIFF with empty sources is silently skipped (not a failed layer)", asyn
         name: "In-progress GeoTIFF",
         source: {
           type: "GeoTIFF",
-          props: {
-            sources: [],
-          },
+          props: {},
         },
         zIndex: 0,
       },
@@ -1309,7 +1395,7 @@ test("GeoTIFF with empty sources is silently skipped (not a failed layer)", asyn
   });
   expect(addLayerSpy.mock.calls[0][0].values_.name).toBe("Other Layer");
 
-  // The empty-sources GeoTIFF is NOT surfaced in the failedLayers warning.
+  // The url-less GeoTIFF is NOT surfaced in the failedLayers warning.
   expect(
     screen.queryByText(/Failed to load the "In-progress GeoTIFF"/),
   ).not.toBeInTheDocument();
@@ -1428,6 +1514,87 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
     });
   });
 
+  test("auto-fit does not adopt a registered-but-not-native projection as the view projection", async () => {
+    // EPSG:5041 resolves because the projection table registers it, which is
+    // what makes such a raster render at all. It must not also become the view
+    // projection: adoption calls setView and publishes the adopted code into the
+    // map-extent variable other visualizations read. Widening that is a separate
+    // change, so the view has to stay put while the layer still renders.
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+    GeoTIFFSource.viewOptions = {
+      projection: "EPSG:5041",
+      extent: [-1405881, -1405881, 5405881, 5405881],
+      center: [2000000, 2000000],
+      zoom: 2,
+    };
+
+    let capturedRef;
+    const RefCapture = ({ mapProps }) => {
+      const ref = useRef();
+      capturedRef = ref;
+      return (
+        <div>
+          <MapComponent visualizationRef={ref} {...mapProps} />
+          <p>{useMapContext()?.mapReady ? "Map Ready" : "Map Not Ready"}</p>
+        </div>
+      );
+    };
+    RefCapture.propTypes = { mapProps: PropTypes.object };
+
+    const layers = [
+      {
+        type: "WebGLTile",
+        props: {
+          source: {
+            type: "GeoTIFF",
+            props: { url: "https://example.com/polar.tif" },
+          },
+          name: "Polar GeoTIFF Layer",
+          zIndex: 0,
+        },
+      },
+    ];
+
+    try {
+      render(
+        <VariableInputsContext.Provider
+          value={{ setVariableInputValues: jest.fn() }}
+        >
+          <MapContextProvider>
+            <RefCapture mapProps={{ layers }} />
+          </MapContextProvider>
+        </VariableInputsContext.Provider>,
+      );
+
+      expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+      await waitFor(() => {
+        expect(GeoTIFFSource.getViewSpy).toHaveBeenCalled();
+      });
+
+      // The layer is still added -- rendering by reprojection is the point.
+      await waitFor(() => {
+        const names = capturedRef.current
+          .getLayers()
+          .getArray()
+          .map((l) => l.get("name"));
+        expect(names).toContain("Polar GeoTIFF Layer");
+      });
+
+      // ...but the view did not move off the default.
+      expect(capturedRef.current.getView().getProjection().getCode()).toBe(
+        "EPSG:3857",
+      );
+      await waitFor(() => {
+        expect(warn).toHaveBeenCalledWith(
+          expect.stringContaining('Not adopting "EPSG:5041"'),
+        );
+      });
+    } finally {
+      GeoTIFFSource.viewOptions = null;
+      warn.mockRestore();
+    }
+  });
+
   test("GeoTIFF layer triggers auto-fit: map view's projection switches to the TIF's", async () => {
     // The auto-fit's contract is: when a GeoTIFF layer is added, the map's
     // view projection switches to the TIF's so tiles can render. The mock
@@ -1457,11 +1624,36 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
           source: {
             type: "GeoTIFF",
             props: {
-              sources: [{ url: "https://example.com/test.tif" }],
+              url: "https://example.com/test.tif",
             },
           },
           name: "Auto-fit GeoTIFF Layer",
           zIndex: 0,
+        },
+      },
+      // A vector layer alongside it: its features are parsed into the map's
+      // projection when added, so the auto-fit has to move them with the view
+      // or they are left holding the outgoing projection's numbers.
+      {
+        type: "VectorLayer",
+        props: {
+          name: "Vector Alongside",
+          zIndex: 1,
+          source: {
+            type: "GeoJSON",
+            props: {},
+            geojson: {
+              type: "FeatureCollection",
+              crs: { type: "name", properties: { name: "EPSG:4326" } },
+              features: [
+                {
+                  type: "Feature",
+                  properties: {},
+                  geometry: { type: "Point", coordinates: [-90.54, 14.48] },
+                },
+              ],
+            },
+          },
         },
       },
     ];
@@ -1492,6 +1684,33 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
         ?.getCode();
       expect(projCode).toBe("EPSG:4326");
     });
+
+    // And the vector features moved with it. Parsed into EPSG:3857 when the
+    // layer was added, they would otherwise still hold metres (~-1e7) while the
+    // view now reads degrees -- far off screen, which is what stranded the
+    // dynamic layers on a dashboard whose rasters are UTM.
+    const findVector = () =>
+      capturedRef.current
+        .getLayers()
+        .getArray()
+        .find((l) => l.get("name") === "Vector Alongside");
+    await waitFor(() => {
+      expect(findVector()).toBeDefined();
+    });
+    await waitFor(() => {
+      const [x] = findVector()
+        .getSource()
+        .getFeatures()[0]
+        .getGeometry()
+        .getCoordinates();
+      expect(Math.abs(x - -90.54)).toBeLessThan(0.01);
+    });
+    const [, y] = findVector()
+      .getSource()
+      .getFeatures()[0]
+      .getGeometry()
+      .getCoordinates();
+    expect(Math.abs(y - 14.48)).toBeLessThan(0.01);
   });
 
   test("WebGLTile layer without a style does not apply a ramp expression or call applyStyle", async () => {
@@ -1547,7 +1766,7 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
         props: {
           source: {
             type: "GeoTIFF",
-            props: { sources: [{ url: "https://example.com/test.tif" }] },
+            props: { url: "https://example.com/test.tif" },
           },
           name: "Failing GeoTIFF",
           zIndex: 0,
@@ -1597,7 +1816,7 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
         props: {
           source: {
             type: "GeoTIFF",
-            props: { sources: [{ url: "https://example.com/test.tif" }] },
+            props: { url: "https://example.com/test.tif" },
           },
           name: "Format-Bad GeoTIFF",
           zIndex: 0,
@@ -1661,7 +1880,7 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
         props: {
           source: {
             type: "GeoTIFF",
-            props: { sources: [{ url: "https://example.com/test.tif" }] },
+            props: { url: "https://example.com/test.tif" },
           },
           name: "Auto-fit Sized",
           zIndex: 0,
@@ -1727,7 +1946,7 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
         props: {
           source: {
             type: "GeoTIFF",
-            props: { sources: [{ url: "https://example.com/test.tif" }] },
+            props: { url: "https://example.com/test.tif" },
           },
           name: "Pacific GeoTIFF",
           zIndex: 0,
@@ -1769,7 +1988,7 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
         props: {
           source: {
             type: "GeoTIFF",
-            props: { sources: [{ url: "https://example.com/test.tif" }] },
+            props: { url: "https://example.com/test.tif" },
           },
           name: "Top-level Message GeoTIFF",
           zIndex: 0,
@@ -1822,7 +2041,7 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
         props: {
           source: {
             type: "GeoTIFF",
-            props: { sources: [{ url: "https://example.com/test.tif" }] },
+            props: { url: "https://example.com/test.tif" },
           },
           name: "Empty-event GeoTIFF",
           zIndex: 0,
@@ -1882,7 +2101,7 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
         props: {
           source: {
             type: "GeoTIFF",
-            props: { sources: [{ url: "https://example.com/test.tif" }] },
+            props: { url: "https://example.com/test.tif" },
           },
           name: "Bare-projection GeoTIFF",
           zIndex: 0,
@@ -1934,7 +2153,7 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
       props: {
         source: {
           type: "GeoTIFF",
-          props: { sources: [{ url: "https://example.com/test.tif" }] },
+          props: { url: "https://example.com/test.tif" },
         },
         name: "Non-array-getExtent GeoTIFF",
         zIndex: 0,
@@ -1997,7 +2216,7 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
         props: {
           source: {
             type: "GeoTIFF",
-            props: { sources: [{ url: "https://example.com/test.tif" }] },
+            props: { url: "https://example.com/test.tif" },
           },
           name: "NaN-Transform GeoTIFF",
           zIndex: 0,
@@ -2120,6 +2339,15 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
 
     expect(await screen.findByText("Map Ready")).toBeInTheDocument();
     expect(await screen.findByLabelText("Map Legend")).toBeInTheDocument();
+
+    // The control itself must sit outside the map div. A fill-viewport tile is
+    // position:fixed, which seals its subtree into a stacking context that no
+    // descendant z-index can escape -- so a control rendered inside the map
+    // cannot paint above a grid item overlapping it, whatever its z-index.
+    const mapDiv = await screen.findByLabelText("Map Div");
+    const control = await screen.findByLabelText("Show Legend Control");
+    expect(mapDiv).not.toContainElement(control);
+    expect(document.body).toContainElement(control);
   });
 
   test("Auto-fit skips inner extent block when clampedPrev is non-finite", async () => {
@@ -2143,7 +2371,7 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
         props: {
           source: {
             type: "GeoTIFF",
-            props: { sources: [{ url: "https://example.com/test.tif" }] },
+            props: { url: "https://example.com/test.tif" },
           },
           name: "Non-finite Prev GeoTIFF",
           zIndex: 0,
@@ -2188,7 +2416,7 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
         props: {
           source: {
             type: "GeoTIFF",
-            props: { sources: [{ url: "https://example.com/test.tif" }] },
+            props: { url: "https://example.com/test.tif" },
           },
           name: "Bomber",
           zIndex: 0,
@@ -2580,5 +2808,123 @@ describe("onMapMoveEnd registration and mount-time prime", () => {
     // The first run that actually carries layers primes exactly once.
     rerenderLayers([layerConfigGeoJSON.configuration]);
     await waitFor(() => expect(onMapMoveEnd).toHaveBeenCalledTimes(1));
+  });
+});
+
+test("a map-extent view replacement moves vector features with the view", async () => {
+  // The reprojection sweep had one call site, on the raster auto-fit path. This
+  // path replaces the view too: the auto-fit adopts a projection without
+  // updating the state this view is rebuilt from, so a later extent change
+  // reverts the projection underneath features that were already moved once --
+  // leaving them holding the outgoing projection's numbers, drawn far off screen
+  // while still reporting the right feature count.
+  let capturedRef;
+  const RefCapture = ({ mapProps }) => {
+    const ref = useRef();
+    capturedRef = ref;
+    return (
+      <div>
+        <MapComponent visualizationRef={ref} {...mapProps} />
+        <p>{useMapContext()?.mapReady ? "Map Ready" : "Map Not Ready"}</p>
+      </div>
+    );
+  };
+  RefCapture.propTypes = { mapProps: PropTypes.object };
+
+  const layers = [
+    {
+      type: "WebGLTile",
+      props: {
+        source: {
+          type: "GeoTIFF",
+          props: { url: "https://example.com/t.tif" },
+        },
+        name: "Auto-fit Raster",
+        zIndex: 0,
+      },
+    },
+    {
+      type: "VectorLayer",
+      props: {
+        name: "Vector Alongside",
+        zIndex: 1,
+        source: {
+          type: "GeoJSON",
+          props: {},
+          geojson: {
+            type: "FeatureCollection",
+            crs: { type: "name", properties: { name: "EPSG:4326" } },
+            features: [
+              {
+                type: "Feature",
+                properties: {},
+                geometry: { type: "Point", coordinates: [-90.54, 14.48] },
+              },
+            ],
+          },
+        },
+      },
+    },
+  ];
+
+  const { rerender } = render(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
+      <MapContextProvider>
+        <RefCapture mapProps={{ layers }} />
+      </MapContextProvider>
+    </VariableInputsContext.Provider>,
+  );
+
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+  const findVector = () =>
+    capturedRef.current
+      ?.getLayers()
+      .getArray()
+      .find((l) => l.get("name") === "Vector Alongside");
+
+  // The auto-fit adopts the raster's EPSG:4326, so the features now hold degrees.
+  await waitFor(() => {
+    expect(capturedRef.current.getView().getProjection().getCode()).toBe(
+      "EPSG:4326",
+    );
+  });
+  await waitFor(() => {
+    const [x] = findVector()
+      .getSource()
+      .getFeatures()[0]
+      .getGeometry()
+      .getCoordinates();
+    expect(Math.abs(x - -90.54)).toBeLessThan(0.01);
+  });
+
+  // Now an extent change rebuilds the view from component state, which the
+  // auto-fit never updated -- so the view goes back to Web Mercator.
+  rerender(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
+      <MapContextProvider>
+        <RefCapture mapProps={{ layers, mapExtent: "-90.54,14.48,5" }} />
+      </MapContextProvider>
+    </VariableInputsContext.Provider>,
+  );
+
+  await waitFor(() => {
+    expect(capturedRef.current.getView().getProjection().getCode()).toBe(
+      "EPSG:3857",
+    );
+  });
+
+  // The features must have come with it: metres now, not the degrees they held.
+  await waitFor(() => {
+    const [x] = findVector()
+      .getSource()
+      .getFeatures()[0]
+      .getGeometry()
+      .getCoordinates();
+    expect(Math.abs(x)).toBeGreaterThan(1e6);
   });
 });

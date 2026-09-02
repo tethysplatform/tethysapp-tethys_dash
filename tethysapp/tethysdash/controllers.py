@@ -40,6 +40,15 @@ from tethysapp.tethysdash.visualizations import (
 )
 from tethysapp.tethysdash.exceptions import VisualizationError
 from tethysapp.tethysdash.plugin_helpers import send_websocket_message
+from tethysapp.tethysdash.zarr_utils import (
+    ZarrCogError,
+    StoreOpenError,
+    open_store,
+    parse_byte_range,
+    read_cog,
+    read_metadata,
+)
+from tethysapp.tethysdash.url_safety import UnsafeURLError, validate_public_url
 from channels.generic.websocket import AsyncWebsocketConsumer
 from tethys_sdk.routing import consumer
 from asgiref.sync import sync_to_async
@@ -1210,3 +1219,131 @@ def image_proxy(request):
     # and a wildcard is refused by browsers alongside credentialed requests
     # anyway, so it would be surface without benefit.
     return proxied
+
+
+def _cog_response(request, cog_bytes):
+    """Serve COG bytes, honoring an HTTP Range header with 206 partial content
+    so a COG reader can fetch byte ranges instead of the whole file."""
+    total = len(cog_bytes)
+    byte_range = parse_byte_range(request.META.get("HTTP_RANGE", ""), total)
+    if byte_range is not None:
+        start, end = byte_range
+        response = HttpResponse(
+            cog_bytes[start : end + 1], status=206, content_type="image/tiff"
+        )
+        response["Content-Range"] = f"bytes {start}-{end}/{total}"
+    else:
+        response = HttpResponse(cog_bytes, content_type="image/tiff")
+    response["Accept-Ranges"] = "bytes"
+    response["Cache-Control"] = "public, max-age=300"
+    return response
+
+
+@controller(url="tethysdash/zarr/cog", login_required=False)
+def zarr_cog(request):
+    """Stream one 2-D slice of a public Zarr store as a Cloud-Optimized GeoTIFF.
+
+    Reads the caller-supplied store on demand, slices the requested grid, and
+    returns a COG generated in memory (nothing is persisted). A frontend GeoTIFF
+    map layer consumes this URL directly.
+
+    Args:
+        request: Django HTTP request with query parameters:
+            - src: Public http(s)/s3 URL of the Zarr store (required)
+            - variable: Array name to read (required)
+            - index: Integer slice index along the leading dimension (default 0)
+            - mask_below: Optional float; cells <= it render transparent
+
+    Returns:
+        image/tiff COG (HttpResponse) on success; otherwise a JsonResponse with
+        an ``error`` and status 400 (bad request), 422 (unsafe URL), 500
+        (conversion failure), or 502 (store unreachable).
+    """
+    src = request.GET.get("src")
+    variable = request.GET.get("variable")
+    if not src:
+        return JsonResponse({"error": "missing required 'src' parameter"}, status=400)
+    if not variable:
+        return JsonResponse(
+            {"error": "missing required 'variable' parameter"}, status=400
+        )
+    try:
+        index = int(request.GET.get("index", "0"))
+    except (TypeError, ValueError):
+        return JsonResponse({"error": "'index' must be an integer"}, status=400)
+    mask_below = request.GET.get("mask_below")
+    if mask_below is not None:
+        try:
+            mask_below = float(mask_below)
+        except (TypeError, ValueError):
+            return JsonResponse({"error": "'mask_below' must be a number"}, status=400)
+
+    try:
+        validate_public_url(src)
+    except UnsafeURLError as e:
+        return JsonResponse({"error": str(e)}, status=422)
+
+    try:
+        cog_bytes = read_cog(src, variable, index, mask_below)
+    except StoreOpenError:
+        return JsonResponse({"error": "could not open store"}, status=502)
+    except ZarrCogError as e:
+        return JsonResponse({"error": str(e)}, status=400)
+    except Exception as e:  # unexpected conversion failure
+        print(f"zarr->cog conversion failed: {e}")
+        return JsonResponse({"error": "failed to convert store"}, status=500)
+
+    return _cog_response(request, cog_bytes)
+
+
+@controller(url="tethysdash/zarr/meta", login_required=False)
+def zarr_meta(request):
+    """Return selectable metadata for a public Zarr store.
+
+    Lets the frontend populate a variable/slice selector without downloading any
+    raster data.
+
+    Args:
+        request: Django HTTP request with query parameters:
+            - src: Public http(s)/s3 URL of the Zarr store (required)
+            - variable: Reference array (optional; else the first griddable one)
+            - candidates: Comma-separated array names to probe on non-listable
+              stores (optional)
+            - label_var: 1-D array whose values label each slice (optional)
+
+    Returns:
+        JsonResponse with {variables, slice_count, slice_labels, crs, grid_shape,
+        extent} on success; otherwise an ``error`` with status 400 (bad request),
+        422 (unsafe URL), or 502 (store unreachable).
+    """
+    src = request.GET.get("src")
+    if not src:
+        return JsonResponse({"error": "missing required 'src' parameter"}, status=400)
+
+    variable = request.GET.get("variable") or None
+    candidates = request.GET.get("candidates")
+    candidates = (
+        tuple(c.strip() for c in candidates.split(",") if c.strip())
+        if candidates
+        else None
+    )
+    label_var = request.GET.get("label_var") or None
+
+    try:
+        validate_public_url(src)
+    except UnsafeURLError as e:
+        return JsonResponse({"error": str(e)}, status=422)
+
+    try:
+        group = open_store(src)
+    except ZarrCogError:
+        return JsonResponse({"error": "could not open store"}, status=502)
+
+    try:
+        meta = read_metadata(
+            group, variable=variable, candidates=candidates, label_var=label_var
+        )
+    except ZarrCogError as e:
+        return JsonResponse({"error": str(e)}, status=400)
+
+    return JsonResponse(meta)

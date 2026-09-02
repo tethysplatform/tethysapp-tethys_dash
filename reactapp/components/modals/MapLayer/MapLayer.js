@@ -1,4 +1,5 @@
 import PropTypes from "prop-types";
+import { useShapefileDiscovery } from "components/modals/MapLayer/shapefileDiscovery";
 import Modal from "react-bootstrap/Modal";
 import styled from "styled-components";
 import Button from "react-bootstrap/Button";
@@ -28,7 +29,11 @@ import {
   saveLayerJSON,
   resolveTablePopupType,
 } from "components/map/utilities";
-import { buildGeoTIFFStyleColor } from "components/map/geoTIFFStyle";
+import {
+  buildGeoTIFFStyleColor,
+  buildCategoricalStyleColor,
+  isUsableClass,
+} from "components/map/geoTIFFStyle";
 import {
   removeEmptyValues,
   removeEmptyLayerProps,
@@ -128,7 +133,13 @@ export function renameLayerInAttributeProps(attributeProps, oldName, newName) {
 }
 
 export const getLayerType = (sourceType) => {
-  if (sourceType === "GeoTIFF") return "WebGLTile";
+  if (sourceType === "GeoTIFF" || sourceType === "Zarr") return "WebGLTile";
+  // Explicit rather than left to the fallthrough below. "Shapefile" happens to
+  // match none of the substring tests, so it would reach VectorLayer anyway --
+  // but a label variant like "Zipped Shapefile Tile" would silently route to the
+  // wrong layer class with no error. The label is load-bearing, and it is also
+  // persisted user data: renaming one costs a migration over every dashboard.
+  if (sourceType === "Shapefile") return "VectorLayer";
   if (sourceType.includes("Vector")) return "VectorTileLayer";
   if (sourceType.includes("Raster")) return "WebGLTile";
   if (sourceType.includes("Tile")) return "TileLayer";
@@ -156,7 +167,6 @@ const MapLayerModal = ({
   const [popupConfig, setPopupConfig] = useState(layerInfo.popupConfig ?? null);
   const [selectedOption, setSelectedOption] = useState(null);
   const [hiddenForExtentDraw, setHiddenForExtentDraw] = useState(false);
-  const [showingSubModal, setShowingSubModal] = useState(false);
   const [showLayoutEditor, setShowLayoutEditor] = useState(false);
   const legendContainerRef = useRef(null);
   const styleContainerRef = useRef(null);
@@ -166,6 +176,20 @@ const MapLayerModal = ({
     VariableInputsContext,
   );
   const mapContext = useMapContext();
+
+  // Field discovery for a shapefile source, held here rather than in either pane
+  // because both read from it. The modal already hoists every pane's state, so a
+  // new context would buy nothing -- and one read serves both panes instead of
+  // each paying for its own download.
+  const shapefileDiscovery = useShapefileDiscovery({
+    sourceProps,
+    layerName: layerProps?.name,
+    variableInputValues,
+    variableInputDateFormats,
+    style,
+    attributeProps,
+    popupConfig,
+  });
 
   const onRequestHideModal = useCallback(() => {
     setHiddenForExtentDraw(true);
@@ -252,34 +276,6 @@ const MapLayerModal = ({
       if (sourceProps.type === "Vector Tile") {
         validSourceProps.urls = validSourceProps.urls.split(",");
       }
-    }
-
-    if (sourceProps.type === "GeoTIFF") {
-      const rawSources = sourceProps.props?.sources ?? [];
-      const cleanSourceInfo = (s) => {
-        const out = { url: s.url };
-        if (typeof s.bands === "string" && s.bands.trim() !== "") {
-          out.bands = s.bands;
-        }
-        if (s.min !== undefined && s.min !== "") out.min = s.min;
-        if (s.max !== undefined && s.max !== "") out.max = s.max;
-        if (s.nodata !== undefined && s.nodata !== "") out.nodata = s.nodata;
-        if (typeof s.projection === "string" && s.projection.trim() !== "") {
-          out.projection = s.projection;
-        }
-        if (Array.isArray(s.overviews) && s.overviews.length > 0) {
-          out.overviews = s.overviews;
-        }
-        return out;
-      };
-      const restoredSources = rawSources
-        .filter((s) => typeof s?.url === "string" && s.url.trim() !== "")
-        .map(cleanSourceInfo);
-      if (restoredSources.length === 0) {
-        setErrorMessage("Add at least one source with a URL before saving.");
-        return;
-      }
-      validSourceProps.sources = restoredSources;
     }
 
     let mapConfiguration;
@@ -398,31 +394,87 @@ const MapLayerModal = ({
       }
     }
 
-    if (sourceProps.type === "GeoTIFF") {
-      const { rampName, rampMin, rampMax } = sourceProps;
-      const hasRamp =
-        typeof rampName === "string" &&
-        rampName.trim() !== "" &&
-        typeof rampMin === "string" &&
-        rampMin.trim() !== "" &&
-        typeof rampMax === "string" &&
-        rampMax.trim() !== "" &&
-        Number.isFinite(Number(rampMin)) &&
-        Number.isFinite(Number(rampMax));
-      if (hasRamp) {
-        const hasNodata = validSourceProps.sources.some(
-          (s) => s?.nodata !== undefined && s.nodata !== "",
-        );
+    if (sourceProps.type === "GeoTIFF" || sourceProps.type === "Zarr") {
+      const {
+        rampName,
+        rampMin,
+        rampMax,
+        rampReverse,
+        styleMode,
+        classes,
+        fallbackColor,
+      } = sourceProps;
+      const hasRampName =
+        typeof rampName === "string" && rampName.trim() !== "";
+
+      // A categorical layer colors by exact value, so it carries a class list
+      // instead of a range. Raw band values are required for the match to line
+      // up, so normalization is off from the start rather than at render time.
+      const usableClasses = (classes ?? []).filter(isUsableClass);
+      const isCategorical =
+        styleMode === "categorical" && usableClasses.length > 0;
+      if (isCategorical) {
+        const savedSource = mapConfiguration.configuration.props.source;
+        mapConfiguration.configuration.style = {
+          color: buildCategoricalStyleColor({
+            classes: usableClasses,
+            hasNodata: true,
+            maskBelow: validSourceProps.mask_below,
+            fallbackColor,
+          }),
+        };
+        savedSource.props.normalize = false;
+        // Nearest neighbor: interpolating class labels is meaningless and
+        // fringes nodata boundaries with the fallback color.
+        savedSource.props.interpolate = false;
+        savedSource.styleMode = "categorical";
+        savedSource.classes = usableClasses;
+        if (fallbackColor) savedSource.fallbackColor = fallbackColor;
+        // Kept so switching back to a ramp does not lose the chosen palette.
+        if (hasRampName) savedSource.rampName = rampName;
+        if (rampReverse === true) savedSource.rampReverse = true;
+      }
+      // Each bound is independent: a set one pins that end of the ramp, an
+      // empty one is resolved from the file's statistics at render time.
+      const isBoundSet = (v) =>
+        typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v));
+      const hasMin = isBoundSet(rampMin);
+      const hasMax = isBoundSet(rampMax);
+      const hasRange = hasMin && hasMax;
+      if (hasRampName && !isCategorical) {
+        // buildGeoTIFFStyleColor needs both bounds or neither. When only one is
+        // set, save the normalized placeholder — applyAutoRamp rebuilds the
+        // style at render time once it has resolved the missing bound.
+        //
+        // Both raster types end up with a nodata value at render time (a Zarr
+        // COG's -9999 sentinel, or the GeoTIFF's own tag / the NaN default), so
+        // OL always appends an alpha band for the style to guard.
         const color = buildGeoTIFFStyleColor({
           rampName,
-          rampMin,
-          rampMax,
-          hasNodata,
+          rampMin: hasRange ? rampMin : "",
+          rampMax: hasRange ? rampMax : "",
+          rampReverse: rampReverse === true,
+          hasNodata: true,
+          maskBelow: validSourceProps.mask_below,
         });
         mapConfiguration.configuration.style = { color };
         mapConfiguration.configuration.props.source.rampName = rampName;
-        mapConfiguration.configuration.props.source.rampMin = rampMin;
-        mapConfiguration.configuration.props.source.rampMax = rampMax;
+        // Persisted only when set, so an unreversed layer's config is unchanged
+        // from before this option existed.
+        if (rampReverse === true) {
+          mapConfiguration.configuration.props.source.rampReverse = true;
+        }
+        // Raw range styles raw band values; anything less than a full range
+        // normalizes band 1 from stats until the render-time resolve lands.
+        mapConfiguration.configuration.props.source.props.normalize = !hasRange;
+        // Persist each bound that is set. A missing one means "resolve it from
+        // the file", so a half-pinned range has to survive the save.
+        if (hasMin) {
+          mapConfiguration.configuration.props.source.rampMin = rampMin;
+        }
+        if (hasMax) {
+          mapConfiguration.configuration.props.source.rampMax = rampMax;
+        }
       }
     } else if (style && style !== "{}") {
       const apiResponse = await saveLayerJSON({
@@ -584,7 +636,7 @@ const MapLayerModal = ({
         style={
           hiddenForExtentDraw
             ? { visibility: "hidden" }
-            : showingSubModal || showLayoutEditor
+            : showLayoutEditor
               ? { zIndex: 1050 }
               : undefined
         }
@@ -625,7 +677,7 @@ const MapLayerModal = ({
                 setErrorMessage={setErrorMessage}
                 onRequestHideModal={onRequestHideModal}
                 onFetchPluginDefaults={fetchPluginDefaults}
-                onSubModalToggle={setShowingSubModal}
+                shapefileDiscovery={shapefileDiscovery}
               />
             </Tab>
             <Tab
@@ -643,6 +695,7 @@ const MapLayerModal = ({
                   layerProps={layerProps}
                   sourceProps={sourceProps}
                   setSourceProps={setSourceProps}
+                  shapefileDiscovery={shapefileDiscovery}
                 />
               </div>
             </Tab>
@@ -673,6 +726,7 @@ const MapLayerModal = ({
                 sourceProps={sourceProps}
                 layerProps={layerProps}
                 tabKey={tabKey}
+                shapefileDiscovery={shapefileDiscovery}
               />
             </Tab>
             <Tab

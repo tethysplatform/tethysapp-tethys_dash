@@ -1,4 +1,5 @@
 import { render, screen, fireEvent } from "@testing-library/react";
+import { useState } from "react";
 import NormalInput from "components/inputs/NormalInput";
 
 /* eslint-disable no-template-curly-in-string */
@@ -426,5 +427,50 @@ describe("NormalInput Component", () => {
       />,
     );
     expect(input).toHaveValue("20");
+  });
+
+  describe("editing a decimal under a normalizing parent", () => {
+    // Mirrors the real chain: the parent parses whatever the input publishes and
+    // feeds the number back as `value`. "0." parses to 0, so a naive resync
+    // echoes "0" and eats the decimal point mid-edit.
+    // Both cases start from 0.3, so no props are needed -- which also keeps the
+    // helper clear of prop-types lint.
+    const ControlledNumber = () => {
+      const [value, setValue] = useState(0.3);
+      return (
+        <NormalInput
+          label="Num"
+          type="number"
+          value={value}
+          onChange={(e) => {
+            const parsed = parseFloat(e.target.value);
+            setValue(Number.isNaN(parsed) ? "" : parsed);
+          }}
+        />
+      );
+    };
+
+    test("backspacing 0.3 to 0. keeps the decimal point", () => {
+      render(<ControlledNumber />);
+      const input = screen.getByLabelText("Num Input");
+      expect(input).toHaveValue("0.3");
+
+      fireEvent.change(input, { target: { value: "0." } });
+      expect(input).toHaveValue("0.");
+
+      // Typing the next digit therefore yields 0.5, not 5.
+      fireEvent.change(input, { target: { value: "0.5" } });
+      expect(input).toHaveValue("0.5");
+    });
+
+    test("a trailing zero survives while it is being typed", () => {
+      // Starts at 0.3 so the parent's value genuinely changes to 0.5 and the
+      // resync fires. String(0.5) is "0.5", which would drop the typed zero.
+      render(<ControlledNumber />);
+      const input = screen.getByLabelText("Num Input");
+
+      fireEvent.change(input, { target: { value: "0.50" } });
+      expect(input).toHaveValue("0.50");
+    });
   });
 });

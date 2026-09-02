@@ -1,4 +1,7 @@
 import {
+  sourcePropertiesOptions,
+  readFeatureCollection,
+  reprojectVectorFeatures,
   createMarkerLayer,
   createHighlightLayer,
   addHighlightFeatures,
@@ -21,6 +24,7 @@ import {
   coerceOptionalNumber,
 } from "components/map/utilities";
 import VectorSource from "ol/source/Vector.js";
+import Feature from "ol/Feature.js";
 import { LineString, Point, MultiPolygon, Polygon } from "ol/geom";
 import VectorLayer from "ol/layer/Vector.js";
 import {
@@ -1873,12 +1877,8 @@ const geoTIFFLayerConfig = ({ nodata } = {}) => ({
       source: {
         type: "GeoTIFF",
         props: {
-          sources: [
-            {
-              url: "https://example.com/test.tif",
-              ...(nodata !== undefined ? { nodata } : {}),
-            },
-          ],
+          url: "https://example.com/test.tif",
+          ...(nodata !== undefined ? { nodata } : {}),
         },
       },
     },
@@ -1908,7 +1908,11 @@ const mockGeoTIFFMap = ({
 };
 
 test("queryLayerFeatures GeoTIFF returns band values at pixel", async () => {
-  const { map } = mockGeoTIFFMap({ getDataReturn: new Float32Array([285.3]) });
+  // A GeoTIFF always ends up with a nodata value (author, file, or the NaN
+  // default), so OL appends an alpha band: real output is [value, 255].
+  const { map } = mockGeoTIFFMap({
+    getDataReturn: new Float32Array([285.3, 255]),
+  });
   const features = await queryLayerFeatures(
     geoTIFFLayerConfig(),
     map,
@@ -1922,6 +1926,50 @@ test("queryLayerFeatures GeoTIFF returns band values at pixel", async () => {
   expect(features[0].geometry).toEqual({ type: "Point", coordinates: [0, 0] });
 });
 
+const zarrLayerConfig = () => ({
+  configuration: {
+    type: "WebGLTile",
+    props: {
+      name: "Test GeoTIFF Layer",
+      source: {
+        type: "Zarr",
+        props: { url: "https://x", variable: "depth" },
+      },
+    },
+  },
+});
+
+test("queryLayerFeatures Zarr dispatches to GeoTIFF pixel extraction", async () => {
+  // A Zarr COG always carries the -9999 nodata sentinel, so OL appends an alpha
+  // band: real getData output is [value, 255] for a valid pixel.
+  const { map } = mockGeoTIFFMap({
+    getDataReturn: new Float32Array([42.5, 255]),
+  });
+  const features = await queryLayerFeatures(
+    zarrLayerConfig(),
+    map,
+    [0, 0],
+    [400, 300],
+  );
+
+  expect(features).toHaveLength(1);
+  expect(features[0].attributes["Band 1"]).toBeCloseTo(42.5, 4);
+  // The alpha band is a mask, not data — it must not be reported as a band.
+  expect(features[0].attributes["Band 2"]).toBeUndefined();
+});
+
+test("queryLayerFeatures Zarr reports No data when the alpha band is 0", async () => {
+  const { map } = mockGeoTIFFMap({ getDataReturn: new Float32Array([0, 0]) });
+  const features = await queryLayerFeatures(
+    zarrLayerConfig(),
+    map,
+    [0, 0],
+    [400, 300],
+  );
+
+  expect(features[0].attributes).toEqual({ "Band 1": "No data" });
+});
+
 test("queryLayerFeatures GeoTIFF reports multi-band values", async () => {
   const { map } = mockGeoTIFFMap({
     getDataReturn: new Uint8Array([12, 34, 56]),
@@ -1933,10 +1981,10 @@ test("queryLayerFeatures GeoTIFF reports multi-band values", async () => {
     [400, 300],
   );
 
+  // Two data bands plus the alpha mask, which is not reported as a band.
   expect(features[0].attributes).toEqual({
     "Band 1": 12,
     "Band 2": 34,
-    "Band 3": 56,
   });
 });
 
@@ -3792,16 +3840,14 @@ test("updateOlLayerProps is a no-op when olLayer or newProps is null", () => {
   expect(() => updateOlLayerProps(olLayer, null)).not.toThrow();
 });
 
-test("queryLayerFeatures GeoTIFF tolerates missing source.props.sources (covers `?? []` fallback)", async () => {
-  // The configuredSources expression in getGeoTIFFPixelValues uses
-  // `layerInfo?.configuration?.props?.source?.props?.sources ?? []` —
-  // when the optional chain returns undefined (e.g. an in-progress
-  // authoring state where `sources` hasn't been written yet), the
-  // fallback `[]` should kick in instead of throwing.
+test("queryLayerFeatures GeoTIFF strips the alpha band with no nodata authored", async () => {
+  // The author left nodata blank, so nothing in the config declares one — the
+  // alpha band must still be stripped, since the file's own tag or the NaN
+  // default gives OL a reason to append it.
   const layerName = "Sourceless GeoTIFF";
   const targetLayer = {
     get: jest.fn((key) => (key === "name" ? layerName : undefined)),
-    getData: jest.fn(() => new Float32Array([42])),
+    getData: jest.fn(() => new Float32Array([42, 255])),
   };
   const map = {
     getView: jest.fn(() => ({
@@ -3811,26 +3857,22 @@ test("queryLayerFeatures GeoTIFF tolerates missing source.props.sources (covers 
     getLayers: jest.fn(() => ({ getArray: jest.fn(() => [targetLayer]) })),
   };
 
-  const layerInfo = {
-    configuration: {
-      type: "WebGLTile",
-      props: {
-        name: layerName,
-        source: {
-          type: "GeoTIFF",
-          props: {
-            // No `sources` key — the optional chain resolves to undefined
-            // and the `?? []` branch fires.
-          },
+  const features = await queryLayerFeatures(
+    {
+      configuration: {
+        type: "WebGLTile",
+        props: {
+          name: layerName,
+          source: { type: "GeoTIFF", props: { url: "https://x/a.tif" } },
         },
       },
     },
-  };
+    map,
+    [0, 0],
+    [400, 300],
+  );
 
-  const features = await queryLayerFeatures(layerInfo, map, [0, 0], [10, 10]);
-  expect(features).toHaveLength(1);
-  expect(features[0].layerName).toBe(layerName);
-  expect(features[0].attributes["Band 1"]).toBeCloseTo(42, 4);
+  expect(features[0].attributes).toEqual({ "Band 1": 42 });
 });
 
 test("loadGeoJSON returns the URL untouched when keep_urls is true", async () => {
@@ -4047,5 +4089,187 @@ describe("shiftEPSG3857ExtentAndPoint", () => {
     const newCenterX = (newExtent[0] + newExtent[2]) / 2;
     expect(newCenterX).toBeGreaterThan(-MERCATOR_HALF_WORLD);
     expect(newCenterX).toBeLessThan(MERCATOR_HALF_WORLD);
+  });
+});
+
+describe("reprojectVectorFeatures", () => {
+  // Features are parsed into the map's projection when added, so a later change
+  // of view projection leaves them holding the old projection's numbers. A
+  // GeoTIFF auto-fit does exactly that: adopting a UTM raster's projection left
+  // Web Mercator coordinates being read as UTM metres, stranding the dynamic
+  // layers off screen while the layer still reported the right feature count.
+  const SANTA_INES_3857 = [-10078522, 1629726];
+  const SANTA_INES_32615 = [765498, 1602608];
+
+  const mapWith = (layers) => ({
+    getLayers: () => ({ getArray: () => layers }),
+  });
+
+  const vectorLayer = (coords) => {
+    const source = new VectorSource({
+      features: coords.map((c) => new Feature(new Point(c))),
+    });
+    return { getSource: () => source, _source: source };
+  };
+
+  test("moves features from the old projection into the new one", () => {
+    const layer = vectorLayer([SANTA_INES_3857]);
+    const moved = reprojectVectorFeatures(
+      mapWith([layer]),
+      "EPSG:3857",
+      "EPSG:32615",
+    );
+
+    expect(moved).toBe(1);
+    const [x, y] = layer._source
+      .getFeatures()[0]
+      .getGeometry()
+      .getCoordinates();
+    // Within a metre of the known UTM position of the site.
+    expect(Math.abs(x - SANTA_INES_32615[0])).toBeLessThan(1);
+    expect(Math.abs(y - SANTA_INES_32615[1])).toBeLessThan(1);
+  });
+
+  test("is a no-op when the projection has not changed", () => {
+    const layer = vectorLayer([SANTA_INES_3857]);
+    const moved = reprojectVectorFeatures(
+      mapWith([layer]),
+      "EPSG:3857",
+      "EPSG:3857",
+    );
+
+    expect(moved).toBe(0);
+    expect(
+      layer._source.getFeatures()[0].getGeometry().getCoordinates(),
+    ).toEqual(SANTA_INES_3857);
+  });
+
+  test("leaves tile layers alone", () => {
+    // A tile source has no getFeatures; touching it would throw.
+    const tileLayer = { getSource: () => ({ getTileGrid: () => ({}) }) };
+    const layer = vectorLayer([SANTA_INES_3857]);
+
+    expect(() =>
+      reprojectVectorFeatures(
+        mapWith([tileLayer, layer]),
+        "EPSG:3857",
+        "EPSG:32615",
+      ),
+    ).not.toThrow();
+    expect(
+      reprojectVectorFeatures(mapWith([tileLayer]), "EPSG:3857", "EPSG:32615"),
+    ).toBe(0);
+  });
+
+  test("survives a feature with no geometry", () => {
+    const source = new VectorSource({ features: [new Feature()] });
+    const layer = { getSource: () => source };
+
+    expect(
+      reprojectVectorFeatures(mapWith([layer]), "EPSG:3857", "EPSG:32615"),
+    ).toBe(0);
+  });
+
+  test("guards missing arguments", () => {
+    expect(reprojectVectorFeatures(null, "EPSG:3857", "EPSG:32615")).toBe(0);
+    expect(reprojectVectorFeatures(mapWith([]), null, "EPSG:32615")).toBe(0);
+    expect(reprojectVectorFeatures(mapWith([]), "EPSG:3857", null)).toBe(0);
+  });
+
+  test("a round trip returns the original coordinates", () => {
+    const layer = vectorLayer([SANTA_INES_3857]);
+    const map = mapWith([layer]);
+    reprojectVectorFeatures(map, "EPSG:3857", "EPSG:32615");
+    reprojectVectorFeatures(map, "EPSG:32615", "EPSG:3857");
+
+    const [x, y] = layer._source
+      .getFeatures()[0]
+      .getGeometry()
+      .getCoordinates();
+    expect(Math.abs(x - SANTA_INES_3857[0])).toBeLessThan(1);
+    expect(Math.abs(y - SANTA_INES_3857[1])).toBeLessThan(1);
+  });
+});
+
+describe("readFeatureCollection", () => {
+  const collection = {
+    type: "FeatureCollection",
+    crs: { type: "name", properties: { name: "EPSG:4326" } },
+    features: [
+      {
+        type: "Feature",
+        properties: { NAME: "one" },
+        geometry: { type: "Point", coordinates: [-105, 40] },
+      },
+    ],
+  };
+
+  it("reads a collection into the projection the caller names", () => {
+    const features = readFeatureCollection(collection, "EPSG:3857");
+    expect(features).toHaveLength(1);
+    const [x, y] = features[0].getGeometry().getCoordinates();
+    // Web Mercator metres, not degrees.
+    expect(Math.abs(x)).toBeGreaterThan(1e6);
+    expect(Math.abs(y)).toBeGreaterThan(1e6);
+    expect(features[0].get("NAME")).toBe("one");
+  });
+
+  it("reads into a different projection on a later call", () => {
+    // The projection is a per-call argument, not baked in when the source was
+    // built -- which is what lets a loader read against the view as it stands at
+    // insertion rather than when its fetch began.
+    const asDegrees = readFeatureCollection(collection, "EPSG:4326");
+    const [x] = asDegrees[0].getGeometry().getCoordinates();
+    expect(x).toBeCloseTo(-105, 6);
+  });
+
+  it("defaults the data projection to EPSG:4326 when the collection names none", () => {
+    const { crs, ...withoutCrs } = collection;
+    expect(crs).toBeTruthy();
+    const features = readFeatureCollection(withoutCrs, "EPSG:4326");
+    expect(features[0].getGeometry().getCoordinates()[0]).toBeCloseTo(-105, 6);
+  });
+
+  it("honours a non-default crs on the collection", () => {
+    const mercator = {
+      ...collection,
+      crs: { type: "name", properties: { name: "EPSG:3857" } },
+      features: [
+        {
+          type: "Feature",
+          properties: {},
+          geometry: { type: "Point", coordinates: [-11688546.53, 4865942.28] },
+        },
+      ],
+    };
+    const features = readFeatureCollection(mercator, "EPSG:4326");
+    const [x, y] = features[0].getGeometry().getCoordinates();
+    expect(x).toBeCloseTo(-105, 1);
+    expect(y).toBeCloseTo(40, 1);
+  });
+});
+
+describe("sourcePropertiesOptions — Shapefile", () => {
+  it("is offered as a source type with url required", () => {
+    // This single object drives the source-type dropdown, the properties table,
+    // and the required-key validation at save.
+    const entry = sourcePropertiesOptions.Shapefile;
+    expect(entry).toBeTruthy();
+    expect(Object.keys(entry.required)).toEqual(["url"]);
+    expect(entry.required.url.placeholder).toMatch(/\.zip|\.shp/);
+  });
+
+  it("offers projection and attributions as optional", () => {
+    const optional = Object.keys(sourcePropertiesOptions.Shapefile.optional);
+    expect(optional).toContain("projection");
+    expect(optional).toContain("attributions");
+  });
+
+  it("tells the author the projection field takes a definition as well as a code", () => {
+    // A .prj-less shapefile in an uncommon CRS has no table entry to name, so
+    // the field has to accept WKT for that case to be authorable at all.
+    expect(
+      sourcePropertiesOptions.Shapefile.optional.projection.placeholder,
+    ).toMatch(/WKT|proj4/i);
   });
 });

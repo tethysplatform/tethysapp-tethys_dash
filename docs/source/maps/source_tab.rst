@@ -96,6 +96,42 @@ The GeoJSON source is different from the other options. It provides a text area 
 
 ------------------------------------------------------------------------------------------------------------------------
 
++++++++++
+Shapefile
++++++++++
+
+
+The Shapefile source draws an ESRI Shapefile that is already published on the web. The browser fetches and reads it directly — nothing is uploaded to TethysDash, and the saved layer keeps only the URL, so the file stays wherever it already lives and stays current when it is replaced there.
+
+Two forms are accepted, and the same **url** field takes either:
+
+- A **zipped shapefile**, whose path ends in ``.zip``.
+- The **.shp component** of an unzipped set. The sibling ``.dbf``, ``.prj`` and ``.cpg`` files are requested from the same path automatically, so only the ``.shp`` URL is entered. The ``.shx`` index is not requested -- it is not needed to draw the layer. Any query string on the URL is preserved on each request, which keeps signed links working.
+
+A portal **download endpoint** counts as the first form even when its path carries no ``.zip`` — ArcGIS Hub and similar services serve shapefiles from a URL ending in something like ``/downloads/data?format=shp``. Paste it as-is.
+
+    - **url:** *(required)* URL of a zipped shapefile, or of its ``.shp`` component. Must be ``http`` or ``https``.
+    - **projection:** *(optional)* Used only when the shapefile carries no ``.prj``. Accepts a code such as ``EPSG:5070``, or a full WKT or proj4 definition for a coordinate system the map does not already know.
+    - **attributions:** *(optional)* Attribution text for the layer.
+
+The coordinate system comes from the shapefile's own ``.prj`` and does not need to be entered. If the file has no ``.prj``, the **projection** property is used instead; if neither is present the layer reports that its coordinates cannot be placed rather than guessing at them.
+
+Attribute values come from the ``.dbf``. If that component is missing, the geometry still draws but the layer offers no fields for style rules or popups.
+
+**Attribute text.** The character encoding comes from the ``.cpg`` component when the shapefile has one. When it does not, UTF-8 is detected from the attribute bytes themselves, and anything that is not valid UTF-8 is read as Windows-1252. Values whose padding is unusual — some publishers pad with null bytes rather than spaces — are trimmed either way, so a field that is empty in the source reads as empty rather than as padding characters.
+
+Styling, popups, attribute variables and snapping all behave as they do for a :ref:`GeoJSON <source_tab>` layer — see the :ref:`style_tab` and :ref:`attributes_and_popups_tab`.
+
+**Reading the fields.** The Style and Attributes tabs need the ``.dbf`` field names, which means reading the source. Because that can be a large download, it happens when you ask for it: use **Read shapefile fields** on this tab. One read serves both tabs. If the saved style rules, popup settings or attribute variables name a field the source no longer has — after the file is republished with a renamed column, for instance — the field is listed so the affected rules can be corrected. Those rules will not match anything until then, and the layer will still draw.
+
+**Size limit.** A shapefile is read in one piece, so the components are limited to 25 MB once decompressed. An archive that declares an oversized component is refused before that component is expanded; one that under-declares is refused as soon as the extra bytes arrive, so the declared size cannot be used to get past the limit. Either way the message states both the observed and the permitted size. Clip or simplify the data, or serve a reduced copy.
+
+.. note::
+
+    The browser must be allowed to fetch the file, which means the host has to send permissive `CORS <https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS>`_ headers. Most agency open-data portals do — ArcGIS Hub and AWS-hosted government buckets among them — but some widely used sources do not. Census TIGER files, for example, cannot be read from a browser at all. When a fetch is refused, the layer says so and suggests converting the shapefile to GeoJSON and using the :ref:`GeoJSON <source_tab>` source instead, which stores the data with the dashboard rather than fetching it.
+
+------------------------------------------------------------------------------------------------------------------------
+
 +++++++++++
 Vector Tile
 +++++++++++
@@ -199,23 +235,20 @@ GeoTIFF
 
 **Openlayers Class:** `WebGLTile <https://openlayers.org/en/latest/apidoc/module-ol_layer_WebGLTile-WebGLTileLayer.html>`_
 
-The GeoTIFF source overlays a Cloud-Optimized GeoTIFF (COG) on the map at its native projection; the dashboard view re-projects on the fly. Files **must** be Cloud-Optimized GeoTIFFs — plain GeoTIFFs will not render. A single GeoTIFF layer accepts one or more sources (one per band channel) which are combined in the Style tab.
+The GeoTIFF source overlays a Cloud-Optimized GeoTIFF (COG) on the map at its native projection; the dashboard view re-projects on the fly. Files **must** be Cloud-Optimized GeoTIFFs — plain strip-based GeoTIFFs, and some compression/predictor combinations, may fail silently. Convert with::
 
-**Per-source Properties:**
-    - **url:** (required) URL to the COG file. Must be publicly accessible.
-    - **bands:** (optional) Comma-separated 1-based band indices to read from this source. Defaults to all bands.
-    - **min:** (optional) Minimum sample value used for normalization.
-    - **max:** (optional) Maximum sample value used for normalization.
-    - **nodata:** (optional) Sample value to treat as transparent.
+    gdal_translate -of COG -co COMPRESS=DEFLATE -co PREDICTOR=YES input.tif output.tif
+
+**Properties:**
+    - **url:** (required) URL to the COG file. Must be publicly accessible. Supports variable inputs, e.g. ``https://example.com/${Storm}/depth.tif`` — the layer reloads and its color ramp refits whenever the variable changes.
     - **projection:** (optional) Source projection (e.g. ``EPSG:4326``). Defaults to the file's embedded metadata.
-    - **overviews:** (optional) One overview URL per line, used for lower-zoom rendering.
+    - **mask_below:** (optional) Cells at or below this value render transparent. See :ref:`raster_color_ramp` for how it interacts with the ramp.
 
-**Adding GeoTIFF sources:**
+There is no nodata setting. A raster's nodata value is its own business and is read from the
+file's ``GDAL_NODATA`` tag automatically; ``NaN`` cells are masked even when the file declares
+nothing. Use **mask_below** to hide a range of real values, such as zero-probability cells.
 
-1. Choose ``GeoTIFF`` as the source type. The Source tab will show an empty sources list and an **Add GeoTIFF Source** button.
-2. Click **Add GeoTIFF Source** to open the entry modal, fill in the URL (and any optional fields), and click **Save**.
-3. Repeat to add additional sources (for example one per R/G/B band). Each row in the sources list can be edited or removed independently.
-4. Configure per-band color (R/G/B/Alpha or single-band ramp) on the :ref:`style_tab`.
+Pick a color ramp for the layer on the :ref:`style_tab`.
 
 **Example JSON Configuration:**
 
@@ -228,17 +261,43 @@ The GeoTIFF source overlays a Cloud-Optimized GeoTIFF (COG) on the map at its na
             "source": {
                 "type": "GeoTIFF",
                 "props": {
-                    "sources": [
-                        {
-                            "url": "https://example.com/elevation.tif",
-                            "bands": "1",
-                            "min": 0,
-                            "max": 4000,
-                            "nodata": -9999,
-                            "projection": "EPSG:4326",
-                            "overviews": []
-                        }
-                    ]
+                    "url": "https://example.com/elevation.tif",
+                    "nodata": "-9999",
+                    "projection": "EPSG:4326"
+                },
+                "rampName": "turbo"
+            }
+        }
+    }
+
+.. note::
+    A GeoTIFF layer reads one file. OpenLayers can composite several files as separate band channels, but that is not exposed here — if you need it, the layer JSON can still be authored by hand.
+
+Zarr
+++++
+
+The Zarr source renders a raster layer from a public `Zarr <https://zarr.dev/>`_ store with no pre-processing. TethysDash reads the chosen variable slice on demand, converts it to a Cloud-Optimized GeoTIFF in memory, and draws it — so you supply a store URL and a variable rather than a prepared COG. It is styled and queried like a GeoTIFF layer: pick a color ramp on the :ref:`style_tab` and click the map for pixel values.
+
+**Layer Properties:**
+    - **url:** (required) Public URL of the Zarr store (an ``https`` bucket or ``s3://`` URL).
+    - **variable:** (required) Array name to read (e.g. ``depth``).
+    - **index:** (optional) Slice index along the store's leading dimension for stacked ``[n, y, x]`` data (default ``0``). Bind it to a :ref:`variable input <variableinputs>` with ``${Variable Name}`` to switch slices on the fly — for example, drive it with a slider to animate.
+    - **mask_below:** (optional) Sample values at or below this number render transparent. Leave blank to use the store's own threshold, if it declares one.
+
+**Example JSON Configuration:**
+
+::
+
+    {
+        "type": "WebGLTile",
+        "props": {
+            "name": "Flood Depth",
+            "source": {
+                "type": "Zarr",
+                "props": {
+                    "url": "https://example.com/floodmaps.zarr",
+                    "variable": "depth",
+                    "index": "${Storm}"
                 }
             }
         }

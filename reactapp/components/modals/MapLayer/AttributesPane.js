@@ -71,6 +71,7 @@ const AttributesPane = ({
   sourceProps,
   layerProps,
   tabKey,
+  shapefileDiscovery,
 }) => {
   const [warningMessage, setWarningMessage] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
@@ -155,12 +156,38 @@ const AttributesPane = ({
           return;
         }
 
+        // A shapefile's fields come from the shared, author-triggered read in
+        // the Source tab, so opening this tab must not start a multi-megabyte
+        // download of its own. Whatever that read found is applied below.
+        if (shapefileDiscovery?.isShapefile) {
+          applyLayerAttributes(
+            shapefileDiscovery.state === "ready"
+              ? {
+                  [layerProps.name]: shapefileDiscovery.fields.map((field) => ({
+                    name: field,
+                    alias: field,
+                  })),
+                }
+              : null,
+          );
+          return;
+        }
+
         // query attributes from the source props url
         queryLayerAttributes().then(applyLayerAttributes);
       }
     }
+    // shapefileDiscovery is a dependency because the read is triggered from the
+    // Source tab: an author who opens Attributes first, then goes back and reads
+    // the fields, would otherwise never see them here -- the transition to
+    // "ready" is not a sourceProps change. StylePane's effect already lists it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tabKey, sourceProps]);
+  }, [
+    tabKey,
+    sourceProps,
+    shapefileDiscovery?.state,
+    shapefileDiscovery?.fields,
+  ]);
 
   useEffect(() => {
     if (!valuesEqual(previousAttributeProps.current, attributeProps)) {
@@ -664,6 +691,13 @@ const AttributesPane = ({
 };
 
 AttributesPane.propTypes = {
+  // Shared, author-triggered field discovery for a shapefile source. Supplied by
+  // the modal so this pane and the Style pane read one result between them.
+  shapefileDiscovery: PropTypes.shape({
+    isShapefile: PropTypes.bool,
+    state: PropTypes.string,
+    fields: PropTypes.arrayOf(PropTypes.string),
+  }),
   attributeProps: attributePropsPropType, // react state that tracks attribute properties
   setAttributeProps: PropTypes.func, // state setter for attributeProps
   sourceProps: sourcePropType, // configuration and properties for openlayers layer source

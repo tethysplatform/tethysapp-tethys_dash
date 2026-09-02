@@ -6,7 +6,7 @@ Style Tab
 
 
 
-The style tab lets you apply custom styles to map layers. Custom styling is available for GeoJSON, ESRI Feature Service, and PMTiles Vector layers. Two types of styling are supported:
+The style tab lets you apply custom styles to map layers. Custom styling is available for GeoJSON, ESRI Feature Service, PMTiles Vector, and Shapefile layers. Two types of styling are supported:
 
 **MapLibre Styling**: Follows the `MapLibre Style Spec <https://maplibre.org/maplibre-style-spec/>`_ and uses the `ol-mapbox-style applyStyle <https://openlayers.org/ol-mapbox-style/functions/applyStyle.html>`_ function. Refer to these resources to ensure your layers render correctly.
 
@@ -437,3 +437,100 @@ MapLibre Style JSON Example::
             },
             "layers": [...]
         }
+
+
+.. _raster_color_ramp:
+
+++++++++++++++++++
+Raster Color Ramps
+++++++++++++++++++
+
+GeoTIFF and Zarr layers are styled with a color ramp instead of rules. Pick a ramp, then
+choose how its value range is set:
+
+.. list-table::
+    :header-rows: 1
+    :widths: 25 75
+
+    * - Ramp Min / Max
+      - Behavior
+    * - Left empty (default)
+      - **Auto-fit.** The range is read from the raster's embedded band statistics each time
+        the layer renders, so the ramp always spans that file's actual minimum and maximum.
+        The legend labels update to match.
+    * - Filled in
+      - **Pinned.** The ramp spans exactly the values you enter, for every file the layer
+        loads.
+    * - One filled, one empty
+      - **Half-pinned.** The bound you enter is fixed; the empty one is read from the
+        file. Entering a min of ``0`` and leaving the max empty gives a ramp anchored at
+        zero that still grows to fit each file's peak.
+
+Auto-fit matters when a variable input is bound to the source — a Zarr slice index, or a
+URL containing ``${...}``. Each storm or timestep is a different raster with a different
+range, and auto-fit refits the ramp to each one.
+
+Pin the range instead when you need colors to be **comparable across files**. Under auto-fit
+a 5 mm event and a 300 mm event both render across the full ramp, so the same color means
+different values in different frames.
+
+Categorical rasters
+~~~~~~~~~~~~~~~~~~~
+
+Some rasters hold **labels rather than magnitudes** — land cover, hazard class, a
+classification code. A color ramp misrepresents those: a gradient implies that class ``1`` sits
+halfway between ``0`` and ``2``, which is meaningless. Switch the Color Ramp section to
+**Categorical** to color by exact value instead.
+
+Each class is a value, a color, and an optional label. The ramp picker is hidden in this mode —
+a gradient has no meaning for discrete classes, and each class carries its own color — though
+new rows are still seeded from the last ramp you had selected so a usable style appears before
+you pick anything by hand. The label is what the legend shows; without one the legend falls
+back to the raw value.
+
+Values matching no class use the **Other values** color, or render transparent when it is left
+unset. Setting ``legend`` to ``default`` produces one swatch per class rather than a colorbar.
+
+.. note::
+    **Mask Below is checked first**, so a class at or below the threshold stays hidden even
+    though it has a color. That is how you hide a class once an "Other values" color means
+    leaving it out of the table is no longer enough — for example masking the 0 class of a
+    land-cover raster where 0 means "background".
+
+A categorical layer is resampled with nearest-neighbor rather than the usual linear
+interpolation, since a value halfway between two class labels is not a class. Without it every
+nodata boundary picks up a fringe of the "Other values" color, because the interpolated value
+matches no class while the blended transparency stops reading as nodata.
+
+Only the class values matter for rendering, so a categorical layer needs no statistics and
+ignores Ramp Min / Ramp Max. The ramp selection is still remembered, so switching back to
+Continuous does not lose it.
+
+Masking low values
+~~~~~~~~~~~~~~~~~~
+
+Both source types accept an optional **Mask Below** threshold — on the :ref:`source_tab`
+for GeoTIFF, and as the ``mask_below`` source property for Zarr. Cells at or below it render
+transparent, which is the usual way to hide dry ground or sub-threshold noise.
+
+When the ramp minimum is auto-fitted it starts at the threshold rather than the file's
+minimum, so the visible data spans the whole ramp instead of wasting its lower end on
+pixels that are never drawn. A minimum you enter yourself is always respected as-is.
+
+The two source types apply the mask at different stages, which is worth knowing if you
+compare them: Zarr masks server-side before its statistics are computed, while a GeoTIFF is
+masked as it is drawn.
+
+Masking low values is separate from nodata, which marks cells that hold no measurement at
+all. Nodata needs no configuration: a GeoTIFF's value is read from the file automatically and
+``NaN`` cells are masked even when the file declares nothing. **Mask Below** is the control
+for hiding real values you do not want drawn — for example the zero-probability cells that
+would otherwise fill the bottom of the ramp.
+
+.. note::
+    Auto-fit needs ``STATISTICS_MINIMUM`` / ``STATISTICS_MAXIMUM`` statistics. These are read
+    from the file, or from a GDAL ``.aux.xml`` sidecar next to it when the file embeds none —
+    ``gdalinfo -stats`` writes to the sidecar by default.
+    TethysDash writes these into every COG it generates for a Zarr source. If a GeoTIFF
+    lacks them, the layer still renders and clicking still reports values, but no colorbar
+    legend is produced — enter a range manually in that case.

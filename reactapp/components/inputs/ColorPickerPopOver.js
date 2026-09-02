@@ -32,15 +32,21 @@ const ColorPickerPopover = ({
   onChange,
   containerRef,
   divProps,
+  hideLabel = false,
 }) => {
   const divTarget = useRef(null);
   const [showColorPopover, setShowColorPopover] = useState(false);
 
   return (
     <FlexDiv {...divProps}>
-      <span style={{ fontWeight: 500 }}>
-        <b>{label}</b>:
-      </span>
+      {/* `label` still names the control for assistive tech and the tooltip
+          even when it is not drawn — useful in a table that already has a
+          column header saying what the swatch is. */}
+      {!hideLabel && (
+        <span style={{ fontWeight: 500 }}>
+          <b>{label}</b>:
+        </span>
+      )}
       <ColorSwatch
         ref={divTarget}
         aria-label={`${label} color popover square`}
@@ -76,6 +82,8 @@ ColorPickerPopover.propTypes = {
   onChange: PropTypes.func.isRequired,
   containerRef: PropTypes.object.isRequired,
   divProps: PropTypes.object,
+  // Hide the visible label text; the accessible name is unaffected.
+  hideLabel: PropTypes.bool,
 };
 
 export default ColorPickerPopover;

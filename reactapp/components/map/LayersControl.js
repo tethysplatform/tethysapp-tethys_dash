@@ -1,5 +1,6 @@
 import { useContext, useEffect, useState } from "react";
 import PropTypes from "prop-types";
+import { isRetryable } from "components/map/layerStatus";
 import styled from "styled-components";
 import {
   FaLayerGroup,
@@ -8,12 +9,16 @@ import {
   FaRedo,
 } from "react-icons/fa";
 import { WebsocketContext } from "components/contexts/WebSocketContext";
+import FloatingMapControl from "components/map/FloatingMapControl";
 
-const ControlWrapper = styled.div`
+// See LegendControl: the positioning lives on the anchor, the control itself is
+// portalled out of the map tile's stacking context.
+const ControlWrapper = styled(FloatingMapControl)`
   position: absolute;
   bottom: 1rem;
   right: 1rem;
 `;
+const LAYERS_EDGES = ["bottom", "right"];
 
 const ProgressBar = styled.div`
   height: 4px;
@@ -106,7 +111,13 @@ const CloseButton = styled.button`
   right: 5px;
 `;
 
-const LayersControl = ({ updater, visualizationRef, runtimeLayerState }) => {
+const LayersControl = ({
+  updater,
+  visualizationRef,
+  runtimeLayerState,
+  shapefileStatus,
+  onRetryShapefile,
+}) => {
   const [layers, setLayers] = useState([]); // [<openlayer layers>], controls what is shown in the layer controls
   const [isexpanded, setisexpanded] = useState(false); // bool, controls layer conrol menu expansion
   const [layerVisibility, setLayerVisibility] = useState({}); // {layerName: layerVisibility, ...}, controls checkbox checked value based on layer visibility
@@ -159,8 +170,11 @@ const LayersControl = ({ updater, visualizationRef, runtimeLayerState }) => {
   }
 
   return (
-    <ControlWrapper>
-      <LayerControlContainer $isexpanded={isexpanded}>
+    <ControlWrapper edges={LAYERS_EDGES}>
+      <LayerControlContainer
+        $isexpanded={isexpanded}
+        aria-label="Layers Control"
+      >
         {isexpanded ? (
           <>
             <b>Map Layers</b>
@@ -191,6 +205,14 @@ const LayersControl = ({ updater, visualizationRef, runtimeLayerState }) => {
                     : null;
                 const progressPct = parseProgress(progressMessage);
                 const error = isRuntime ? errorsByLayerId[layerId] : undefined;
+                // Client-parsed sources carry their own status, read from the
+                // source rather than from a request id -- there is no backend
+                // request behind them, so the progress channel above never has
+                // anything to report for one.
+                const shapefile = shapefileStatus?.[layerName];
+                const shapefileLoading = shapefile?.state === "loading";
+                const shapefileError =
+                  shapefile?.state === "error" ? shapefile : null;
                 // Hide progress bar once an error is set (error supersedes
                 // any stale in-progress message) or when it has completed.
                 const showProgress =
@@ -232,6 +254,41 @@ const LayersControl = ({ updater, visualizationRef, runtimeLayerState }) => {
                           />
                         </ProgressBar>
                       </div>
+                    )}
+                    {shapefileLoading && (
+                      <div
+                        role="status"
+                        aria-live="polite"
+                        aria-label={`${layerName} loading`}
+                      >
+                        <ProgressBar>
+                          <ProgressFill $pct={100} />
+                        </ProgressBar>
+                      </div>
+                    )}
+                    {shapefileError && (
+                      <ErrorBadge role="alert">
+                        <FaExclamationTriangle aria-hidden="true" />
+                        <span style={{ flex: 1 }}>
+                          {shapefileError.message}
+                        </span>
+                        {/* Retry only where re-running the same request could
+                            succeed. A missing projection, an unresolvable
+                            coordinate system, a malformed component and a source
+                            over the size ceiling all need the author to change
+                            something, so a button here would invite a viewer to
+                            re-download megabytes and fail identically. */}
+                        {isRetryable(shapefileError.kind) &&
+                          onRetryShapefile && (
+                            <RetryBtn
+                              type="button"
+                              onClick={() => onRetryShapefile(layerName)}
+                              aria-label={`Retry ${layerName}`}
+                            >
+                              <FaRedo aria-hidden="true" /> Retry
+                            </RetryBtn>
+                          )}
+                      </ErrorBadge>
                     )}
                     {error && (
                       <ErrorBadge role="alert">
@@ -282,6 +339,16 @@ LayersControl.propTypes = {
     sessionNonce: PropTypes.string,
     gridItemUuid: PropTypes.string,
   }),
+  // Load state for client-parsed sources, keyed on layer name. These carry no
+  // backend request, so they cannot use the progress channel above.
+  shapefileStatus: PropTypes.objectOf(
+    PropTypes.shape({
+      state: PropTypes.string,
+      message: PropTypes.string,
+      kind: PropTypes.string,
+    }),
+  ),
+  onRetryShapefile: PropTypes.func,
 };
 
 export default LayersControl;

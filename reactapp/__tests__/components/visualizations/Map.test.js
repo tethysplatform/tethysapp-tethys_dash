@@ -14,12 +14,16 @@ import { Map } from "ol";
 import ImageArcGISRest from "ol/source/ImageArcGISRest.js";
 import VariableInput from "components/visualizations/VariableInput";
 import { Vector as VectorSource } from "ol/source.js";
+import { GridItemContext } from "components/contexts/Contexts";
 import appAPI from "services/api/app";
 import { applyStyle } from "ol-mapbox-style";
 import Point from "ol/geom/Point.js";
 import LineString from "ol/geom/LineString.js";
 import Feature from "ol/Feature.js";
-import { queryLayerFeatures } from "components/map/utilities";
+import {
+  queryLayerFeatures,
+  swapVectorLayerFeatures,
+} from "components/map/utilities";
 import { fetchLayerVectorFeatures } from "components/map/snapping";
 import Overlay from "ol/Overlay";
 import {
@@ -40,13 +44,18 @@ jest.mock("components/map/ModuleLoader", () => {
     __esModule: true,
     default: actual.default, // use the real default export
     createJsonStyleFunction: jest.fn(), // mock only this function
+    applyAutoRamp: actual.applyAutoRamp, // real: drives the Zarr legend
   };
 });
+
+jest.mock("geotiff", () => ({ fromUrl: jest.fn() }));
 
 // eslint-disable-next-line
 import MapVisualization, { Popup } from "components/visualizations/Map";
 // eslint-disable-next-line
 import { createJsonStyleFunction } from "components/map/ModuleLoader";
+// eslint-disable-next-line
+import { fromUrl } from "geotiff";
 
 global.ResizeObserver = require("resize-observer-polyfill");
 
@@ -72,6 +81,7 @@ jest.mock("components/map/snapping", () => {
   };
 });
 const mockedQueryLayerFeatures = jest.mocked(queryLayerFeatures);
+const mockedSwapVectorLayerFeatures = jest.mocked(swapVectorLayerFeatures);
 const mockedFetchLayerVectorFeatures = jest.mocked(fetchLayerVectorFeatures);
 
 const exampleGeoJSON = {
@@ -623,7 +633,7 @@ test("Map GeoTIFF with default legend emits a ramp colorbar from sourceProps met
         source: {
           type: "GeoTIFF",
           props: {
-            sources: [{ url: "https://example.com/ramp.tif" }],
+            url: "https://example.com/ramp.tif",
           },
           rampName: "viridis",
           rampMin: "0",
@@ -674,6 +684,170 @@ test("Map GeoTIFF with default legend emits a ramp colorbar from sourceProps met
   // Layer name is used as the legend title for the colorbar entry
   // (line 357: `title: layer.configuration?.props?.name`).
   expect(screen.getByText("Ramp Raster Layer")).toBeInTheDocument();
+});
+
+const zarrRampLayer = (source = {}) => ({
+  configuration: {
+    type: "WebGLTile",
+    props: {
+      name: "Flood Depth",
+      source: {
+        type: "Zarr",
+        rampName: "viridis",
+        props: { url: "https://example.com/store.zarr", variable: "depth" },
+        ...source,
+      },
+    },
+  },
+  legend: "default",
+});
+
+const renderMapWithLayers = (layers) => {
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent
+          mapProps={{
+            mapConfig: {},
+            viewConfig: {},
+            layers,
+            baseMap: null,
+            layerControl: false,
+          }}
+        />
+      </MapContextProvider>
+    ),
+  });
+  render(LoadedComponent);
+};
+
+test("Map Zarr with default legend labels the colorbar with the resolved slice range", async () => {
+  // A Zarr layer in auto mode persists no rampMin/rampMax — the range comes
+  // from the COG's STATISTICS_* tags, resolved before the legend is built.
+  fromUrl.mockResolvedValue({
+    getImage: jest.fn().mockResolvedValue({
+      getGDALMetadata: jest.fn(() => ({
+        STATISTICS_MINIMUM: "0",
+        STATISTICS_MAXIMUM: "17",
+      })),
+    }),
+  });
+
+  renderMapWithLayers([zarrRampLayer()]);
+  fireEvent.click(await screen.findByLabelText("Show Legend Control"));
+
+  expect(
+    await screen.findByLabelText("Color ramp from 0 to 17"),
+  ).toBeInTheDocument();
+  expect(screen.getByText("Flood Depth")).toBeInTheDocument();
+});
+
+test("Map Zarr with default legend prefers an author-pinned range over the stats", async () => {
+  fromUrl.mockResolvedValue({
+    getImage: jest.fn().mockResolvedValue({
+      getGDALMetadata: jest.fn(() => ({
+        STATISTICS_MINIMUM: "0",
+        STATISTICS_MAXIMUM: "17",
+      })),
+    }),
+  });
+
+  renderMapWithLayers([zarrRampLayer({ rampMin: "0", rampMax: "50" })]);
+  fireEvent.click(await screen.findByLabelText("Show Legend Control"));
+
+  expect(
+    await screen.findByLabelText("Color ramp from 0 to 50"),
+  ).toBeInTheDocument();
+});
+
+test("Map Zarr with default legend omits the colorbar when stats are unavailable", async () => {
+  // Unreadable header: the layer still renders (normalized), but there is no
+  // real range to label, so no colorbar is emitted.
+  fromUrl.mockRejectedValue(new Error("network"));
+
+  renderMapWithLayers([zarrRampLayer()]);
+  fireEvent.click(await screen.findByLabelText("Show Legend Control"));
+
+  expect(screen.queryByLabelText(/^Color ramp from/)).not.toBeInTheDocument();
+});
+
+test("Map GeoTIFF with an empty range auto-fits the legend to the file statistics", async () => {
+  // No persisted rampMin/rampMax: the colorbar range comes from the file's
+  // STATISTICS_* tags, so it refits when a variable input swaps the URL.
+  fromUrl.mockResolvedValue({
+    getImage: jest.fn().mockResolvedValue({
+      getGDALMetadata: jest.fn(() => ({
+        STATISTICS_MINIMUM: "0.05",
+        STATISTICS_MAXIMUM: "11.732",
+      })),
+      getGDALNoData: jest.fn(() => null),
+    }),
+  });
+
+  renderMapWithLayers([
+    {
+      configuration: {
+        type: "WebGLTile",
+        props: {
+          name: "Depth Raster",
+          source: {
+            type: "GeoTIFF",
+            rampName: "viridis",
+            props: { url: "https://example.com/depth.tif" },
+          },
+        },
+      },
+      legend: "default",
+    },
+  ]);
+  fireEvent.click(await screen.findByLabelText("Show Legend Control"));
+
+  // Rounded to 2 decimals by formatRampBound.
+  expect(
+    await screen.findByLabelText("Color ramp from 0.05 to 11.73"),
+  ).toBeInTheDocument();
+  expect(screen.getByText("Depth Raster")).toBeInTheDocument();
+});
+
+test("Map categorical raster emits discrete legend items, not a colorbar", async () => {
+  // A gradient would imply a continuum between land classes that does not exist.
+  fromUrl.mockResolvedValue({
+    getImage: jest.fn().mockResolvedValue({
+      getGDALMetadata: jest.fn(() => null),
+      getGDALNoData: jest.fn(() => 255),
+    }),
+  });
+
+  renderMapWithLayers([
+    {
+      configuration: {
+        type: "WebGLTile",
+        props: {
+          name: "Land Use",
+          source: {
+            type: "GeoTIFF",
+            styleMode: "categorical",
+            rampName: "viridis",
+            classes: [
+              { value: "0", color: "#aaaaaa", label: "Bare" },
+              { value: "1", color: "#bbbbbb", label: "Crop" },
+              { value: "2", color: "#cccccc" },
+            ],
+            props: { url: "https://example.com/landuse.tif" },
+          },
+        },
+      },
+      legend: "default",
+    },
+  ]);
+  fireEvent.click(await screen.findByLabelText("Show Legend Control"));
+
+  expect(await screen.findByText("Bare")).toBeInTheDocument();
+  expect(screen.getByText("Crop")).toBeInTheDocument();
+  // A class with no label falls back to its value.
+  expect(screen.getByText("2")).toBeInTheDocument();
+  // No colorbar for a categorical layer.
+  expect(screen.queryByLabelText(/^Color ramp from/)).not.toBeInTheDocument();
 });
 
 test("Map ESRI with default legend", async () => {
@@ -2122,21 +2296,99 @@ test("Map click attribute variables update text variable input then swipe and up
 
   fireEvent.click(nextSwiper);
 
+  // Third feature's field1 is "Null". The bound variable is now cleared rather
+  // than left showing the previous feature's value: leaving it is the one path
+  // here that propagates a wrong value off the map, because every dependent
+  // visualization keeps rendering the previously selected feature's data with no
+  // indication anything is stale.
   await waitFor(async () => {
     expect(await screen.findByTestId("input-variables")).toHaveTextContent(
       JSON.stringify({
-        "Test Variable": "another value",
+        "Test Variable": "",
       }),
     );
   });
 
   fireEvent.click(nextSwiper);
 
+  // Fourth feature belongs to a layer with no attribute-variable binding, so
+  // nothing is written and the cleared value stands. Unchanged behavior.
   await waitFor(async () => {
     expect(await screen.findByTestId("input-variables")).toHaveTextContent(
       JSON.stringify({
-        "Test Variable": "another value",
+        "Test Variable": "",
       }),
+    );
+  });
+});
+
+test("Map click carries a zero attribute value into the variable input", async () => {
+  // The old check was a truthiness test, so a real 0 -- a gage reading of zero,
+  // a count of zero -- was indistinguishable from an absent field and dropped,
+  // leaving the previously clicked feature's value on screen.
+  mockedQueryLayerFeatures.mockResolvedValue([
+    {
+      attributes: { field1: 0 },
+      geometry: { x: 10, y: 10 },
+      layerName: "Some Layer",
+    },
+  ]);
+
+  // The real setPosition drives OpenLayers' auto-pan, which crashes in jsdom.
+  jest.spyOn(Overlay.prototype, "setPosition").mockImplementation(() => {});
+  const handleChange = jest.fn();
+  const dashboard = JSON.parse(JSON.stringify(userDashboard));
+  dashboard.tabs[0].gridItems = [mockedTextVariable];
+  const varInputArgs = JSON.parse(mockedTextVariable.args_string);
+
+  const layers = [
+    {
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "NWC",
+          source: {
+            type: "ESRI Image and Map Service",
+            props: { url: "some_url" },
+          },
+        },
+      },
+      attributeVariables: { "Some Layer": { field1: "Test Variable" } },
+    },
+  ];
+
+  render(
+    createLoadedComponent({
+      children: (
+        <MapContextProvider>
+          <TestingComponent
+            onMapClick={jest.fn()}
+            clickCoordinates={[10, 20]}
+            mapProps={{
+              mapConfig: {},
+              viewConfig: {},
+              layers,
+              baseMap: null,
+              layerControl: false,
+            }}
+          />
+          <VariableInput
+            variable_name={varInputArgs.variable_name}
+            initial_value={varInputArgs.initial_value}
+            variable_options_source={varInputArgs.variable_options_source}
+            onChange={handleChange}
+          />
+        </MapContextProvider>
+      ),
+      options: { dashboards: { dashboards: [dashboard] } },
+    }),
+  );
+
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+  await waitFor(async () => {
+    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({ "Test Variable": 0 }),
     );
   });
 });
@@ -3189,35 +3441,14 @@ test("Map hover early-bails when no hover-tagged layers exist", async () => {
   expect(mockedQueryLayerFeatures).not.toHaveBeenCalled();
 });
 
-test("Map hover .map() false branch — null elements are passed through verbatim", async () => {
-  // Covers the L848 false branch of the ternary in runHoverQuery's
-  // queryCalls.map:
-  //   feature && typeof feature === "object"
-  //     ? { ...feature, __wrapperLayer: layer }
-  //     : feature
-  // When an element is falsy/non-object, it is returned verbatim. The
-  // synchronous handler then sets popupContent to that array and
-  // positions the overlay at the hover coordinate — which is the
-  // observable signal that the false branch executed.
-  //
-  // Caveat: the downstream popupContent useEffect tries to read
-  // selectedFeature.layerName and CRASHES on the null element. The
-  // crash is async (fires after the React commit). The synchronous
-  // path completes first, so the assertion below sees the setPosition
-  // call before the crash. We suppress the resulting uncaught error so
-  // it doesn't fail the test.
-  const consoleErrorSpy = jest
-    .spyOn(console, "error")
-    .mockImplementation(() => {});
-  const errorHandler = (e) => {
-    e.preventDefault?.();
-  };
-  // jsdom emits an "error" event on window for uncaught exceptions; the
-  // listener prevents Jest's test runner from treating it as a failure.
-  window.addEventListener("error", errorHandler);
-
+test("Map hover drops a null element instead of handing it to the popup", async () => {
+  // A query result may contain a non-object element; runHoverQuery's map passes
+  // it through verbatim. Popup dereferences every entry it receives, so letting
+  // one reach popupContent threw "Cannot read properties of null (reading
+  // 'layerName')" from a useEffect — asynchronously, after the commit, which
+  // meant the uncaught error could surface inside an unrelated later test.
+  // Non-objects are now filtered out before the popup ever sees them.
   mockedQueryLayerFeatures.mockResolvedValue([null]);
-  jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
   const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
 
   const layers = [
@@ -3258,20 +3489,16 @@ test("Map hover .map() false branch — null elements are passed through verbati
   expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
   expect(await screen.findByText("Map Ready")).toBeInTheDocument();
 
-  // The .map() callback ran with [null], took the false branch, and
-  // returned [null] verbatim. nonEmpty was [null] (length 1), so the
-  // handler called setPosition with the hover coordinate.
-  await waitFor(() => {
-    expect(popSetPosition).toHaveBeenCalledWith(hoverCoords);
-  });
-
-  // Give the (suppressed) downstream useEffect crash a chance to fire
-  // before we tear down listeners, so it lands in our handler not the
-  // next test.
+  // Let the debounced query and its continuation settle before asserting an
+  // absence — otherwise the assertion outruns the async chain and passes
+  // whether or not the null was filtered.
+  await waitFor(() => expect(mockedQueryLayerFeatures).toHaveBeenCalled());
   await new Promise((resolve) => setTimeout(resolve, 50));
 
-  window.removeEventListener("error", errorHandler);
-  consoleErrorSpy.mockRestore();
+  // The null contributes nothing, so no popup is opened at the hover
+  // coordinate and nothing downstream dereferences it.
+  expect(popSetPosition).not.toHaveBeenCalledWith(hoverCoords);
+  expect(screen.getByText("Map Ready")).toBeInTheDocument();
 });
 
 test("Map hover debounce restarts on a second pointermove, dropping the first", async () => {
@@ -4076,6 +4303,92 @@ test("Map runtime layer swap dismisses popup overlay (no prior click)", async ()
   // No click happened, so highlightLayer.current is still undefined and the
   // optional-chain guard short-circuits — VectorSource.clear must not run.
   expect(vectorClearSpy).not.toHaveBeenCalled();
+});
+
+test("Map runtime layer hands features to the swap and identifies its grid item", async () => {
+  // End-to-end guard for two separate failures that each left a dynamic layer
+  // silently blank on dashboard load:
+  //   1. the fetch resolving before Map.js finished building the OL layer, and
+  //   2. the requestId carrying "undefined" for the grid item, because the hook
+  //      destructured gridItemUuid while the caller passes gridItemUUID.
+  // Neither showed up in the hook's own tests: those pass the map and the prop
+  // name the hook expects, so the race and the casing mismatch were invisible.
+  const mockGetVisualizationFeatures = jest
+    .spyOn(appAPI, "getVisualizationFeatures")
+    .mockResolvedValue({
+      success: true,
+      viz_type: "features",
+      data: {
+        type: "FeatureCollection",
+        features: [
+          {
+            type: "Feature",
+            properties: { peligro: 3, nivel: "Alto" },
+            geometry: {
+              type: "Polygon",
+              coordinates: [
+                [
+                  [-90.54, 14.48],
+                  [-90.53, 14.48],
+                  [-90.53, 14.49],
+                  [-90.54, 14.48],
+                ],
+              ],
+            },
+          },
+        ],
+        crs: { type: "name", properties: { name: "EPSG:4326" } },
+      },
+    });
+  mockedSwapVectorLayerFeatures.mockClear();
+
+  const layers = [JSON.parse(JSON.stringify(dynamicMapLayer))];
+  const layerId = layers[0].configuration.props.layerId;
+
+  render(
+    createLoadedComponent({
+      children: (
+        <GridItemContext.Provider value={{ gridItemUUID: "grid-uuid-1" }}>
+          <MapContextProvider>
+            <TestingComponent
+              mapProps={{
+                mapConfig: {},
+                viewConfig: {},
+                layers,
+                baseMap: null,
+                layerControl: false,
+                refreshCount: 0,
+              }}
+            />
+          </MapContextProvider>
+        </GridItemContext.Provider>
+      ),
+    }),
+  );
+
+  expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  await waitFor(() => {
+    expect(mockGetVisualizationFeatures).toHaveBeenCalledTimes(1);
+  });
+
+  const { requestId } = mockGetVisualizationFeatures.mock.calls[0][0];
+  expect(requestId).not.toContain("undefined");
+  expect(requestId).toContain(":grid-uuid-1:");
+  expect(requestId.endsWith(`:${layerId}`)).toBe(true);
+
+  // The payload reaches the swap, aimed at the OL layer carrying this layerId.
+  // components/map/utilities is mocked in this file, so this asserts the
+  // hand-off rather than OpenLayers' own parsing; the deferred path -- when the
+  // fetch wins the race against layer construction -- is covered by
+  // runtimeLayerFetcher.test.js.
+  await waitFor(() => {
+    expect(mockedSwapVectorLayerFeatures).toHaveBeenCalledTimes(1);
+  });
+  const [targetLayer, collection] = mockedSwapVectorLayerFeatures.mock.calls[0];
+  expect(targetLayer.get("layerId")).toBe(layerId);
+  expect(collection.features).toHaveLength(1);
+  expect(collection.features[0].properties.nivel).toBe("Alto");
 });
 
 test("Map runtime layer swap dismisses popup and clears highlight after click", async () => {

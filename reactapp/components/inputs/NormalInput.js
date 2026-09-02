@@ -28,9 +28,17 @@ const NormalInput = ({
 
   useEffect(() => {
     const strValue = String(value ?? "");
-    if (strValue !== "NaN") {
-      setRawValue(strValue);
+    if (strValue === "NaN") return;
+    // Don't overwrite an in-progress entry that already denotes this number.
+    // The parent normalizes what it receives, so backspacing "0.3" to "0."
+    // publishes 0 and echoes "0" back -- which would eat the decimal point the
+    // user deliberately left, making the next keystroke read 5 instead of 0.5.
+    // Trailing zeros ("0.50") are preserved for the same reason.
+    if (isNumber && rawValue !== "" && Number(rawValue) === Number(value)) {
+      return;
     }
+    setRawValue(strValue);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
   const handleChange = (e) => {

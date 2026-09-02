@@ -1,11 +1,20 @@
 import { useState } from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import StylePane from "components/modals/MapLayer/StylePane";
 import appAPI from "services/api/app";
 import PropTypes from "prop-types";
 import userEvent from "@testing-library/user-event";
 import { LayoutContext, AppContext } from "components/contexts/Contexts";
 import * as utilities from "components/map/utilities";
+import { fromUrl } from "geotiff";
+
+jest.mock("geotiff", () => ({ fromUrl: jest.fn() }));
 
 const exampleStyle = {
   version: 8,
@@ -85,8 +94,16 @@ const TestingComponent = ({
   );
 };
 
-const GeoTIFFTestHarness = ({ initialSourceProps }) => {
+const GeoTIFFTestHarness = ({ initialSourceProps, sourcePropsSpy }) => {
   const [sourceProps, setSourceProps] = useState(initialSourceProps);
+
+  const spyingSetSourceProps = (updater) => {
+    setSourceProps((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      if (typeof sourcePropsSpy === "function") sourcePropsSpy(next);
+      return next;
+    });
+  };
 
   return (
     <AppContext.Provider value={{ dynamicMapLayers: [] }}>
@@ -96,11 +113,14 @@ const GeoTIFFTestHarness = ({ initialSourceProps }) => {
           setStyle={() => {}}
           setErrorMessage={() => {}}
           sourceProps={sourceProps}
-          setSourceProps={setSourceProps}
+          setSourceProps={spyingSetSourceProps}
         />
         <p data-testid="rampName">{sourceProps.rampName ?? ""}</p>
         <p data-testid="rampMin">{sourceProps.rampMin ?? ""}</p>
         <p data-testid="rampMax">{sourceProps.rampMax ?? ""}</p>
+        <p data-testid="rampReverse">
+          {String(sourceProps.rampReverse ?? false)}
+        </p>
       </LayoutContext.Provider>
     </AppContext.Provider>
   );
@@ -140,6 +160,42 @@ test("StylePane GeoTIFF ramp/min/max handlers no-op when setSourceProps is missi
   expect(() =>
     fireEvent.change(maxInput, { target: { value: "100" } }),
   ).not.toThrow();
+
+  // Reverse checkbox → handleReverseToggle short-circuits too.
+  const reverse = screen.getByLabelText("Reverse Color Ramp");
+  expect(() => fireEvent.click(reverse)).not.toThrow();
+});
+
+test("StylePane reverse checkbox toggles sourceProps.rampReverse", async () => {
+  render(<GeoTIFFTestHarness initialSourceProps={{ type: "GeoTIFF" }} />);
+
+  const reverse = await screen.findByLabelText("Reverse Color Ramp");
+  expect(reverse).not.toBeChecked();
+  expect(screen.getByTestId("rampReverse")).toHaveTextContent("false");
+
+  await userEvent.click(reverse);
+  expect(screen.getByTestId("rampReverse")).toHaveTextContent("true");
+  expect(await screen.findByLabelText("Reverse Color Ramp")).toBeChecked();
+
+  await userEvent.click(screen.getByLabelText("Reverse Color Ramp"));
+  expect(screen.getByTestId("rampReverse")).toHaveTextContent("false");
+});
+
+test("StylePane hides the reverse checkbox in categorical mode", async () => {
+  // A discrete class list has no ramp direction to flip.
+  render(
+    <GeoTIFFTestHarness
+      initialSourceProps={{
+        type: "GeoTIFF",
+        rampName: "turbo",
+        styleMode: "categorical",
+        classes: [{ value: "1", color: "#123456", label: "One" }],
+      }}
+    />,
+  );
+
+  expect(await screen.findByText("Classes")).toBeInTheDocument();
+  expect(screen.queryByLabelText("Reverse Color Ramp")).not.toBeInTheDocument();
 });
 
 test("StylePane json Input", async () => {
@@ -261,12 +317,53 @@ test("StylePane Updating Existing GeoJSON", async () => {
 
 test("StylePane Styling not available", async () => {
   render(<TestingComponent sourceProps={{ type: "NotGeoJSON" }} />);
-  const supportedTypes = ["GeoJSON", "ESRI Feature Service", "PMTiles Vector"];
+  const supportedTypes = [
+    "GeoJSON",
+    "ESRI Feature Service",
+    "PMTiles Vector",
+    "Shapefile",
+  ];
   expect(
     await screen.findByText(
       `Custom Styling is only available for ${supportedTypes.join(", ")} layers.`,
     ),
   ).toBeInTheDocument();
+});
+
+test("StylePane offers the style editor for a Shapefile source", async () => {
+  // The gate this exercises is separate from field discovery: absent from the
+  // supported list, the tab renders a dead-end panel and styling the layer is
+  // impossible no matter what fields were found. Asserted on the absence of that
+  // panel, which is decided at render rather than after discovery resolves.
+  //
+  // Discovery is stubbed so the effect does not reach the network for a URL that
+  // does not exist; what it returns is covered by its own suite.
+  const styleFieldsSpy = jest
+    .spyOn(utilities, "getStyleFields")
+    .mockResolvedValue(["HUC8", "AREASQKM"]);
+
+  render(
+    <TestingComponent
+      sourceProps={{
+        type: "Shapefile",
+        props: { url: "https://example.org/basins.zip" },
+      }}
+    />,
+  );
+
+  expect(
+    screen.queryByText(/Custom Styling is only available for/),
+  ).not.toBeInTheDocument();
+  // And discovery is reached rather than skipped, so the rule editor has fields
+  // to offer once it resolves.
+  await waitFor(() => {
+    expect(styleFieldsSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceProps: expect.objectContaining({ type: "Shapefile" }),
+      }),
+    );
+  });
+  styleFieldsSpy.mockRestore();
 });
 
 test("StylePane switches to rules mode and syncs rules/defaultStyle from JSON", async () => {
@@ -507,6 +604,7 @@ TestingComponent.propTypes = {
 
 GeoTIFFTestHarness.propTypes = {
   initialSourceProps: PropTypes.object,
+  sourcePropsSpy: PropTypes.func,
 };
 
 test("StylePane renders Color Ramp section for GeoTIFF source type", async () => {
@@ -529,6 +627,65 @@ test("StylePane renders Color Ramp section for GeoTIFF source type", async () =>
   // Min and Max inputs render.
   expect(screen.getByLabelText("Ramp Min")).toBeInTheDocument();
   expect(screen.getByLabelText("Ramp Max")).toBeInTheDocument();
+});
+
+test("StylePane defaults a GeoTIFF source's ramp to turbo when none is set", async () => {
+  render(<GeoTIFFTestHarness initialSourceProps={{ type: "GeoTIFF" }} />);
+  await waitFor(() => {
+    expect(screen.getByTestId("rampName")).toHaveTextContent("turbo");
+  });
+});
+
+test("StylePane renders the Color Ramp section and defaults to turbo for a Zarr source", async () => {
+  render(<GeoTIFFTestHarness initialSourceProps={{ type: "Zarr" }} />);
+  expect(await screen.findByText("Color Ramp")).toBeInTheDocument();
+  await waitFor(() => {
+    expect(screen.getByTestId("rampName")).toHaveTextContent("turbo");
+  });
+});
+
+test("StylePane leaves GeoTIFF ramp min/max empty so the ramp fits each file", async () => {
+  // The ramp range is resolved at render time from the file's statistics (see
+  // applyAutoRamp), which lets it refit when a variable input swaps the URL.
+  // StylePane must not pre-fill the fields, since a filled range reads as the
+  // author pinning the scale and would freeze the ramp on the first file.
+  fromUrl.mockReset();
+
+  render(
+    <GeoTIFFTestHarness
+      initialSourceProps={{
+        type: "GeoTIFF",
+        rampName: "turbo",
+        props: { sources: [{ url: "http://example.com/cog.tif" }] },
+      }}
+    />,
+  );
+
+  await screen.findByText("Color Ramp");
+  expect(screen.getByTestId("rampMin")).toHaveTextContent("");
+  expect(screen.getByTestId("rampMax")).toHaveTextContent("");
+  expect(fromUrl).not.toHaveBeenCalled();
+});
+
+test("StylePane keeps an author-entered GeoTIFF range untouched", async () => {
+  fromUrl.mockReset();
+
+  render(
+    <GeoTIFFTestHarness
+      initialSourceProps={{
+        type: "GeoTIFF",
+        rampName: "turbo",
+        rampMin: "0",
+        rampMax: "50",
+        props: { sources: [{ url: "http://example.com/cog.tif" }] },
+      }}
+    />,
+  );
+
+  await screen.findByText("Color Ramp");
+  expect(screen.getByTestId("rampMin")).toHaveTextContent("0");
+  expect(screen.getByTestId("rampMax")).toHaveTextContent("50");
+  expect(fromUrl).not.toHaveBeenCalled();
 });
 
 test("StylePane does NOT render Color Ramp section for non-GeoTIFF sources", async () => {
@@ -673,5 +830,145 @@ test("StylePane round-trips conditionCombinator and 'in' operator rules", async 
     expect(JSON.parse(screen.getByTestId("style").textContent)).toStrictEqual(
       combinatorStyle,
     );
+  });
+});
+
+describe("StylePane categorical raster styling", () => {
+  const renderPane = (sourceProps, spy) =>
+    render(
+      <GeoTIFFTestHarness
+        initialSourceProps={{
+          type: "GeoTIFF",
+          rampName: "turbo",
+          props: { url: "lu.tif" },
+          ...sourceProps,
+        }}
+        sourcePropsSpy={spy}
+      />,
+    );
+
+  test("Categorical mode swaps the range inputs for a class table", async () => {
+    renderPane({ styleMode: "categorical", classes: [] });
+
+    // Heading follows the mode; "Color Ramp" would misdescribe a class table.
+    expect(await screen.findByText("Classes")).toBeInTheDocument();
+    expect(screen.queryByText("Color Ramp")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Add class" }),
+    ).toBeInTheDocument();
+    // The continuous controls are gone: range inputs and the ramp picker.
+    expect(screen.queryByLabelText("Ramp Min")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Ramp Max")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("radiogroup", { name: "Color ramp picker" }),
+    ).not.toBeInTheDocument();
+  });
+
+  test("Continuous mode keeps the range inputs and hides the class table", async () => {
+    renderPane({});
+
+    expect(await screen.findByLabelText("Ramp Min")).toBeInTheDocument();
+    expect(
+      screen.getByRole("radiogroup", { name: "Color ramp picker" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Add class" }),
+    ).not.toBeInTheDocument();
+  });
+
+  test("switching to Categorical records the mode", async () => {
+    let last;
+    renderPane({}, (next) => {
+      last = next;
+    });
+
+    const modeGroup = await screen.findByRole("radiogroup", {
+      name: "Raster Style Mode",
+    });
+    // Scoped: the ramp picker is a radiogroup too.
+    fireEvent.click(within(modeGroup).getAllByRole("radio")[1]);
+
+    await waitFor(() => expect(last?.styleMode).toBe("categorical"));
+  });
+
+  test("Add class appends a row seeded with a ramp color", async () => {
+    let last;
+    renderPane({ styleMode: "categorical", classes: [] }, (next) => {
+      last = next;
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Add class" }));
+
+    await waitFor(() => expect(last?.classes).toHaveLength(1));
+    // Seeded so a usable style exists without picking colors by hand.
+    expect(last.classes[0].color).toMatch(/^#/);
+    expect(last.classes[0].value).toBe("");
+  });
+
+  test("editing a class value and label writes them back", async () => {
+    let last;
+    renderPane(
+      {
+        styleMode: "categorical",
+        classes: [{ value: "", color: "#aaa", label: "" }],
+      },
+      (next) => {
+        last = next;
+      },
+    );
+
+    fireEvent.change(await screen.findByLabelText("Class 1 Value"), {
+      target: { value: "2" },
+    });
+    await waitFor(() => expect(last?.classes[0].value).toBe("2"));
+
+    fireEvent.change(screen.getByLabelText("Class 1 Label"), {
+      target: { value: "Urban" },
+    });
+    await waitFor(() => expect(last?.classes[0].label).toBe("Urban"));
+  });
+
+  test("class swatches carry no visible label but stay named for a11y", async () => {
+    // The table already has a Color column header, so "Class 1:" beside each
+    // swatch was redundant. The accessible name must survive.
+    renderPane({
+      styleMode: "categorical",
+      classes: [{ value: "0", color: "#aaa" }],
+    });
+
+    expect(
+      await screen.findByLabelText("Class 1 color popover square"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Class 1")).not.toBeInTheDocument();
+  });
+
+  test("the Other values swatch keeps its visible label", async () => {
+    renderPane({
+      styleMode: "categorical",
+      classes: [{ value: "0", color: "#aaa" }],
+    });
+
+    expect(await screen.findByText("Other values")).toBeInTheDocument();
+  });
+
+  test("removing a class drops just that row", async () => {
+    let last;
+    renderPane(
+      {
+        styleMode: "categorical",
+        classes: [
+          { value: "0", color: "#aaa" },
+          { value: "1", color: "#bbb" },
+        ],
+      },
+      (next) => {
+        last = next;
+      },
+    );
+
+    fireEvent.click(await screen.findByLabelText("Remove class 1"));
+
+    await waitFor(() => expect(last?.classes).toHaveLength(1));
+    expect(last.classes[0].value).toBe("1");
   });
 });

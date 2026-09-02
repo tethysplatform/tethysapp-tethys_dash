@@ -1,9 +1,18 @@
 import { memo, useEffect, useState, useRef, useContext } from "react";
 import { Map, View } from "ol";
 import moduleLoader, {
+  applyAutoRamp,
   createJsonStyleFunction,
 } from "components/map/ModuleLoader";
+// Importing this registers the coordinate reference systems that layers name by
+// code. Module evaluation completes before any render, so registration is in
+// place before the layer effect below constructs a single source -- which
+// matters, because layers are constructed concurrently and a registration that
+// waited on anything async would race them.
+import { isNativelyResolvable } from "components/map/projectionCodes";
+import { CANCEL_REASON, errorKindFor } from "components/map/layerStatus";
 import LayersControl from "components/map/LayersControl";
+import FloatingMapControl from "components/map/FloatingMapControl";
 import LegendControl from "components/map/LegendControl";
 import DrawInteractions from "components/map/DrawInteractions";
 import ExtentInteraction from "components/map/ExtentInteraction";
@@ -11,6 +20,7 @@ import {
   legendPropType,
   configurationPropType,
   mapDrawingPropType,
+  reprojectVectorFeatures,
   updateOlLayerProps,
   wrapMercatorX,
 } from "components/map/utilities";
@@ -21,16 +31,23 @@ import PropTypes from "prop-types";
 import { useMapContext } from "components/contexts/MapContext";
 import { fromExtent } from "ol/geom/Polygon";
 import { transformExtent } from "ol/proj";
+import { unByKey } from "ol/Observable";
 import { VariableInputsContext } from "components/contexts/Contexts";
 import GeoJSON from "ol/format/GeoJSON";
 import { valuesEqual } from "components/modals/utilities";
 
-const StyledAlert = styled(Alert)`
+// Pinned on both sides, so the anchor spans the map's width and the floated copy
+// inherits it. Same stacking-context escape as the legend and layer control.
+const AlertAnchor = styled(FloatingMapControl)`
   position: absolute;
   top: 1rem;
   left: 1rem;
   right: 1rem;
-  z-index: 1000;
+`;
+const ALERT_EDGES = ["top", "left", "right"];
+
+const StyledAlert = styled(Alert)`
+  margin: 0;
 `;
 
 const InfoDiv = styled.div`
@@ -43,6 +60,102 @@ const InfoDiv = styled.div`
   border-radius: 4px;
   z-index: 1000;
 `;
+
+// Apply a layer config's style to an OL layer.
+//
+// Extracted from the add path so a *preserved* layer can be restyled too.
+// Preservation keeps the layer instance, and the cosmetic prop sync handles only
+// the props OL has first-class setters for -- so without this, editing a
+// preserved layer's style rules would change nothing on the map.
+async function applyLayerStyle(olLayer, layerConfig) {
+  if (!layerConfig.style) return;
+
+  const isWebGLTileRampStyle =
+    layerConfig.type === "WebGLTile" &&
+    layerConfig.style &&
+    typeof layerConfig.style === "object" &&
+    !Array.isArray(layerConfig.style) &&
+    "color" in layerConfig.style;
+
+  if (isWebGLTileRampStyle) {
+    olLayer.setStyle(layerConfig.style);
+    return;
+  }
+
+  try {
+    await applyStyle(olLayer, layerConfig.style);
+  } catch (err) {
+    if (err.message !== "Cannot read properties of undefined (reading 'crs')") {
+      const styleFunction = createJsonStyleFunction(layerConfig.style);
+      if (typeof olLayer.setStyle === "function") {
+        olLayer.setStyle(styleFunction);
+      }
+    }
+  }
+}
+
+// Mirror a shapefile source's load state into React state so it can be
+// rendered. The events are the only signal available: featuresloaderror carries
+// no payload, so the typed failure is read off the controller when it fires.
+function watchShapefileLoad(olLayer, layerName, setStatus) {
+  const source = olLayer?.getSource?.();
+  const controller = source?.get?.("shapefileController");
+  if (!controller) return;
+
+  const sync = () => {
+    const failure = controller.getError();
+    setStatus((previous) => ({
+      ...previous,
+      [layerName]: {
+        state: controller.getStatus(),
+        message: failure?.detail ?? null,
+        kind: failure ? errorKindFor(failure) : null,
+      },
+    }));
+  };
+
+  // Kept on the layer so teardown can find them. The status map is keyed by
+  // layer name, and a rebuilt layer reuses the name -- so a source that outlives
+  // its layer with these still attached is able to write under a name a
+  // different source now owns.
+  olLayer.set("shapefileLoadKeys", [
+    source.on("featuresloadstart", sync),
+    source.on("featuresloadend", sync),
+    source.on("featuresloaderror", sync),
+  ]);
+}
+
+// Source types that can resolve a coordinate reference out of their own data,
+// so their config carries no code to inspect.
+const CRS_BEARING_SOURCES = ["GeoTIFF", "Zarr", "Shapefile"];
+
+// Whether a layer could need a projection definition registered. Answered from
+// the config alone, before anything is fetched, so the projection machinery is
+// loaded only for the dashboards that have a layer needing it.
+function needsProjectionRegistry(layerConfig) {
+  const source = layerConfig?.props?.source;
+  if (CRS_BEARING_SOURCES.includes(source?.type)) return true;
+  const code = source?.props?.projection;
+  return typeof code === "string" && code !== "" && !isNativelyResolvable(code);
+}
+
+// Detach a shapefile source's load listeners. Paired with every abort: the
+// loader already declines to report anything once superseded, and this closes
+// the other half by making sure nothing is listening if it ever did.
+function detachShapefileLoad(olLayer) {
+  const keys = olLayer?.get?.("shapefileLoadKeys");
+  if (!keys) return;
+  unByKey(keys);
+  olLayer.unset("shapefileLoadKeys");
+}
+
+// Stop an in-flight shapefile load and stop listening to it. Called when the
+// layer is going away, so the fetch and decompression do not keep running for a
+// layer nobody will see.
+function abortShapefileLoad(olLayer, reason) {
+  olLayer?.getSource?.()?.get?.("shapefileController")?.abort?.(reason);
+  detachShapefileLoad(olLayer);
+}
 
 const MapComponent = ({
   mapConfig,
@@ -60,6 +173,10 @@ const MapComponent = ({
   runtimeLayerState,
 }) => {
   const [errorMessage, setErrorMessage] = useState("");
+  // Per-layer load state for client-parsed sources, keyed on layer name.
+  // Mirrored into React state purely so it can be rendered; the source's own
+  // controller remains the authority.
+  const [shapefileStatus, setShapefileStatus] = useState({});
   const [layerControlUpdate, setLayerControlUpdate] = useState();
   const mapDivRef = useRef();
   const onMapClickCurrent = useRef();
@@ -75,7 +192,61 @@ const MapComponent = ({
   const isFirstRender = useRef(true);
   const mapExtentVariableEvent = useRef();
   const currentLayers = useRef([]);
+  const layerSyncToken = useRef(0);
+  const activeFadeRef = useRef(null);
   const { setVariableInputValues } = useContext(VariableInputsContext);
+
+  // Fade the incoming layers in over `duration` ms, then remove the outgoing
+  // ones, so a storm swap dissolves instead of flashing. Any running fade is
+  // finalized first so overlapping swaps don't leave a layer mid-fade.
+  const crossfadeLayers = (map, incoming, outgoing, duration) => {
+    if (activeFadeRef.current) activeFadeRef.current();
+    const start = Date.now();
+    let rafId = null;
+    const finalize = () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      incoming.forEach(({ layer, opacity }) => layer.setOpacity(opacity));
+      outgoing.forEach((layer) => map.removeLayer(layer));
+      activeFadeRef.current = null;
+    };
+    const step = () => {
+      const t = Math.min(1, (Date.now() - start) / duration);
+      incoming.forEach(({ layer, opacity }) => layer.setOpacity(opacity * t));
+      if (t < 1) rafId = requestAnimationFrame(step);
+      else finalize();
+    };
+    activeFadeRef.current = finalize;
+    rafId = requestAnimationFrame(step);
+  };
+
+  // Surfaced here rather than only in the layers control, which is opt-in per
+  // dashboard and collapsed to an icon by default. Routing status only there
+  // would leave a viewer with nothing at all on any dashboard whose author
+  // disabled it -- and a failure that renders as a blank layer is the one thing
+  // this must not do. The layers control still carries the richer per-layer
+  // detail when it is enabled.
+  const shapefileEntries = Object.entries(shapefileStatus);
+  const shapefileFailures = shapefileEntries.filter(
+    ([, status]) => status.state === "error",
+  );
+  const shapefileLoading = shapefileEntries.filter(
+    ([, status]) => status.state === "loading",
+  );
+  const shapefileAlert = shapefileFailures.length
+    ? {
+        variant: "danger",
+        message: shapefileFailures
+          .map(([name, status]) => `${name}: ${status.message}`)
+          .join(" "),
+      }
+    : shapefileLoading.length
+      ? {
+          variant: "info",
+          message: `Loading ${shapefileLoading
+            .map(([name]) => name)
+            .join(", ")}\u2026`,
+        }
+      : null;
 
   const defaultMapConfig = {
     className: "ol-map",
@@ -123,6 +294,11 @@ const MapComponent = ({
     return () => {
       // istanbul ignore next
       if (visualizationRef.current) {
+        if (activeFadeRef.current) activeFadeRef.current();
+        visualizationRef.current
+          .getLayers()
+          .getArray()
+          .forEach((layer) => abortShapefileLoad(layer, CANCEL_REASON.UNMOUNT));
         visualizationRef.current.setTarget(undefined);
         visualizationRef.current = null;
       }
@@ -189,7 +365,24 @@ const MapComponent = ({
       setZoom(visualizationRef.current.getView().getZoom().toFixed(2));
     });
 
+    // Move already-mounted vector features with the view, exactly as the raster
+    // auto-fit path does. Features are parsed into the view projection when they
+    // are added, so replacing the view leaves them holding the outgoing
+    // projection's numbers -- drawn far off screen while still reporting the
+    // right feature count. This path replaces the view too, and until now had no
+    // sweep: a raster auto-fit adopts a projection without updating the state
+    // this view is rebuilt from, so a later extent change reverts the projection
+    // underneath the features.
+    const outgoingCode = visualizationRef.current
+      .getView()
+      .getProjection()
+      .getCode();
     visualizationRef.current.setView(mapViewConfig);
+    reprojectVectorFeatures(
+      visualizationRef.current,
+      outgoingCode,
+      mapViewConfig.getProjection().getCode(),
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapExtent]);
 
@@ -198,6 +391,9 @@ const MapComponent = ({
     const updateLayers = async () => {
       const map = visualizationRef.current;
       const currentMapLayers = map.getLayers().getArray();
+      // Identify this run so a newer frame can supersede it mid-load.
+      layerSyncToken.current += 1;
+      const myToken = layerSyncToken.current;
 
       // Clean up layers: determine which to keep and which to remove
       const layersToKeep = [];
@@ -207,6 +403,11 @@ const MapComponent = ({
       // decision. Collect those here and apply after the loop so the in-place
       // update doesn't interfere with layersToKeep membership checks.
       const runtimeLayerUpdates = [];
+      // Preserved shapefile layers, collected the same way. Identity is the
+      // layer's name plus its resolved source URL: rebuilding refetches and
+      // reparses the whole archive, which an unrelated edit -- an opacity change
+      // on another layer, one frame of a raster time-slider -- should not cost.
+      const shapefileLayerUpdates = [];
 
       if (currentLayers.current.length) {
         const newLayerProps = (layers ?? []).map((l) => l.props);
@@ -266,6 +467,40 @@ const MapComponent = ({
             // layerId) fall through and let the layer be torn down + rebuilt.
           }
 
+          // Additive branch: the plugin-provenance check above is left exactly
+          // as it was rather than generalized, so preservation for plugin layers
+          // is untouched by this.
+          if (
+            currentLayer?.props?.source?.type === "Shapefile" &&
+            currentLayer.type === "VectorLayer"
+          ) {
+            // The whole source is compared, not just the url. `projection` is
+            // the only way to place a shapefile that carries no .prj, and
+            // matching on url alone made editing it a silent no-op -- the layer
+            // was preserved, so nothing re-read or re-interpreted it. Comparing
+            // the source object also covers whatever props it gains next, and
+            // the component cache keeps the resulting rebuild cheap when only a
+            // non-url prop changed.
+            const incoming = (layers ?? []).find(
+              (candidate) =>
+                candidate?.props?.source?.type === "Shapefile" &&
+                candidate?.props?.name === currentLayer.props.name &&
+                valuesEqual(
+                  candidate?.props?.source,
+                  currentLayer.props.source,
+                ),
+            );
+            if (incoming) {
+              layersToKeep.push(incoming.props.name);
+              shapefileLayerUpdates.push({
+                name: incoming.props.name,
+                newProps: incoming.props,
+                config: incoming,
+              });
+              return;
+            }
+          }
+
           const shouldKeep =
             newLayerProps.some((newProps) =>
               valuesEqual(newProps, currentLayer.props),
@@ -274,7 +509,15 @@ const MapComponent = ({
             layersToKeep.push(currentLayer.props.name);
           }
         });
+      }
 
+      // The removal sweep runs whenever the map actually holds layers, not only
+      // when reconciliation state was recorded. A run that starts while a
+      // previous one is still loading sees no recorded state, and gating removal
+      // on it would let both runs' layers sit on the map -- features drawn twice,
+      // and every clicked feature reported twice in the popup. With no recorded
+      // state nothing is kept, so this rebuilds rather than duplicates.
+      if (currentMapLayers.length) {
         const keptRuntimeLayerIds = new Set(
           runtimeLayerUpdates.map((u) => u.layerId),
         );
@@ -285,6 +528,8 @@ const MapComponent = ({
             return;
           }
           if (!layersToKeep.includes(layerName)) {
+            // Stop any load still running for a layer that is going away.
+            abortShapefileLoad(layer, CANCEL_REASON.REMOVED);
             layersToRemove.push(layer);
           }
         });
@@ -298,11 +543,46 @@ const MapComponent = ({
             updateOlLayerProps(olLayer, newProps);
           }
         });
+
+        // Same for preserved shapefile layers -- plus the style, which the
+        // cosmetic sync does not carry. Without this a style-rule edit on a
+        // preserved layer would change nothing, since the style is otherwise
+        // only applied when a layer is constructed.
+        shapefileLayerUpdates.forEach(({ name, newProps, config }) => {
+          const olLayer = currentMapLayers.find((l) => l.get("name") === name);
+          if (!olLayer) return;
+          updateOlLayerProps(olLayer, newProps);
+          if (!valuesEqual(olLayer.get("appliedStyle"), config.style)) {
+            olLayer.set("appliedStyle", config.style);
+            applyLayerStyle(olLayer, config);
+          }
+        });
       }
 
       // setup constants for handling new layers
       const customLayers = layers ?? [];
+
+      // proj4, wkt-parser and the definition table are ~150 KiB and cost a
+      // measurable registration pass, and most dashboards have no layer needing
+      // any of it -- so the module is loaded here rather than imported
+      // statically. Awaited before any layer is built: importing it registers
+      // the table codes, and a layer that merely *names* one needs the
+      // definition on hand by the time OpenLayers resolves it, with nothing
+      // asking for it by name.
+      //
+      // The trigger is deliberately broad. A source that reads its own CRS out
+      // of its data -- a GeoTIFF or Zarr from the file, a shapefile from its
+      // .prj -- carries no code in its config to check, so the type is enough
+      // to require it. The view projection is never a table code (it starts at
+      // EPSG:3857 and the auto-fit only adopts natively-resolvable codes), so
+      // there is nothing to register before this point.
+      if (customLayers.some(needsProjectionRegistry)) {
+        await import("components/map/projections");
+      }
+
       let failedLayers = [];
+      // Replacement layers added hidden until painted, then revealed on swap.
+      const buffered = [];
 
       // Add or update layers in parallel
       const layerLoadPromises = [];
@@ -314,9 +594,19 @@ const MapComponent = ({
           }
 
           try {
+            // Resolve a Zarr layer's ramp from the slice's real value range
+            // before the source is built — `normalize` is read at construction.
+            await applyAutoRamp(layerConfig);
+
             const newLayer = await moduleLoader(
               layerConfig,
               map.getView().getProjection().getCode(),
+              // Read again when features are actually inserted. A source with a
+              // long async load -- a shapefile -- can finish after a sibling
+              // raster's auto-fit has already changed the view, and features
+              // parsed into the outgoing projection are drawn far off screen
+              // while still reporting the right count.
+              () => map.getView().getProjection().getCode(),
             );
             newLayer.set("name", name);
 
@@ -371,14 +661,33 @@ const MapComponent = ({
                   setTimeout(done, 5000);
                 });
                 layerLoadPromises.push(loadPromise);
+                // Hide via opacity, not visibility: an invisible layer never
+                // renders, so it would never load its tiles. Opacity 0 keeps
+                // it loading; we restore the real opacity once it has painted.
+                buffered.push({
+                  layer: newLayer,
+                  opacity: newLayer.getOpacity(),
+                });
+                newLayer.setOpacity(0);
               }
             }
 
+            // A run that has already been superseded must not add its layer:
+            // it is in no newer run's removal snapshot, so it would never be
+            // collected -- leaving features drawn twice and every clicked
+            // feature reported twice in the popup.
+            if (myToken !== layerSyncToken.current) {
+              abortShapefileLoad(newLayer, CANCEL_REASON.SUPERSEDED);
+              return;
+            }
+            newLayer.set("appliedStyle", layerConfig.style);
             map.addLayer(newLayer);
+            watchShapefileLoad(newLayer, name, setShapefileStatus);
 
             if (
               layerConfig.type === "WebGLTile" &&
-              layerConfig.props?.source?.type === "GeoTIFF"
+              (layerConfig.props?.source?.type === "GeoTIFF" ||
+                layerConfig.props?.source?.type === "Zarr")
             ) {
               const geoTIFFSource = newLayer.getSource();
 
@@ -485,7 +794,32 @@ const MapComponent = ({
                 if (targetExtent && haveMapSize) {
                   newView.fit(targetExtent, { size: mapSize });
                 }
-                map.setView(newView);
+                // Features already on the map were parsed into the outgoing
+                // projection, so adopting the raster's leaves them holding the
+                // wrong numbers -- a UTM raster over Guatemala left Web
+                // Mercator coordinates being read as UTM metres, stranding the
+                // dynamic layers off screen while still reporting the right
+                // feature count. Move them with the view.
+                const previousCode = prevProjection.getCode();
+                const adoptedCode = newView.getProjection().getCode();
+
+                // Adopt the raster's projection as the view projection only when
+                // OpenLayers resolves it on its own. Registering a definition
+                // makes a previously-unresolvable raster render, but it must not
+                // also start changing the view: setView publishes the adopted
+                // code into the map-extent variable other visualizations consume,
+                // and saved center/zoom values would be reinterpreted in the new
+                // projection's units. Widening this is its own change, verified
+                // against live dashboards. Such a raster still renders here --
+                // by reprojection rather than natively.
+                if (!isNativelyResolvable(adoptedCode)) {
+                  console.warn(
+                    `Not adopting "${adoptedCode}" as the view projection for layer "${name}": it resolves from a registered definition rather than natively. The layer renders by reprojection.`,
+                  );
+                } else {
+                  map.setView(newView);
+                  reprojectVectorFeatures(map, previousCode, adoptedCode);
+                }
               } catch (err) {
                 console.warn(
                   `GeoTIFF auto-fit failed for layer "${name}":`,
@@ -494,36 +828,13 @@ const MapComponent = ({
               }
             }
 
-            if (layerConfig.style) {
-              const isWebGLTileRampStyle =
-                layerConfig.type === "WebGLTile" &&
-                layerConfig.style &&
-                typeof layerConfig.style === "object" &&
-                !Array.isArray(layerConfig.style) &&
-                "color" in layerConfig.style;
-
-              if (isWebGLTileRampStyle) {
-                newLayer.setStyle(layerConfig.style);
-              } else {
-                try {
-                  await applyStyle(newLayer, layerConfig.style);
-                } catch (err) {
-                  if (
-                    err.message !==
-                    "Cannot read properties of undefined (reading 'crs')"
-                  ) {
-                    const styleFunction = createJsonStyleFunction(
-                      layerConfig.style,
-                    );
-                    if (typeof newLayer.setStyle === "function") {
-                      newLayer.setStyle(styleFunction);
-                    }
-                  }
-                }
-              }
-            }
+            await applyLayerStyle(newLayer, layerConfig);
           } catch (err) {
-            if (err && err.message === "GeoTIFFEmptySources") {
+            if (
+              err &&
+              (err.message === "GeoTIFFEmptySources" ||
+                err.message === "ShapefileEmptySources")
+            ) {
               return;
             }
             console.log(err);
@@ -536,10 +847,19 @@ const MapComponent = ({
         await Promise.all(layerLoadPromises);
       }
 
-      // Remove layers that are no longer needed
-      layersToRemove.forEach((layer) => {
-        map.removeLayer(layer);
-      });
+      // Reveal painted replacements, then drop old layers in one frame.
+      // A superseded run keeps the old layer and discards its unshown buffers,
+      // so fast playback skips frames instead of flashing or stalling.
+      const superseded = myToken !== layerSyncToken.current;
+      if (buffered.length > 0 && superseded) {
+        buffered.forEach(({ layer }) => map.removeLayer(layer));
+      } else if (buffered.length > 0) {
+        crossfadeLayers(map, buffered, layersToRemove, 250);
+      } else {
+        layersToRemove.forEach((layer) => {
+          map.removeLayer(layer);
+        });
+      }
 
       if (failedLayers.length > 0) {
         setErrorMessage(
@@ -620,7 +940,29 @@ const MapComponent = ({
         isFirstRender.current = false;
       }
 
-      currentLayers.current = layers ?? [];
+      // Only the winning run records the rendered layers, so a slow superseded
+      // run can't overwrite it with a stale config.
+      if (!superseded) {
+        currentLayers.current = layers ?? [];
+
+        // Drop status for layers no longer on the map, so a rebuilt layer never
+        // shows the previous instance's failure -- and a stale error never
+        // suppresses the replacement's loading indication.
+        const liveNames = new Set(
+          map
+            .getLayers()
+            .getArray()
+            .map((layer) => layer.get("name")),
+        );
+        setShapefileStatus((previous) => {
+          const kept = Object.fromEntries(
+            Object.entries(previous).filter(([name]) => liveNames.has(name)),
+          );
+          return Object.keys(kept).length === Object.keys(previous).length
+            ? previous
+            : kept;
+        });
+      }
     };
 
     updateLayers();
@@ -647,14 +989,27 @@ const MapComponent = ({
     <>
       <div aria-label="Map Div" ref={mapDivRef} {...customMapConfig}>
         {errorMessage && (
-          <StyledAlert
-            key="failure"
-            variant="danger"
-            dismissible={true}
-            onClose={() => setErrorMessage("")}
-          >
-            {errorMessage}
-          </StyledAlert>
+          <AlertAnchor edges={ALERT_EDGES}>
+            <StyledAlert
+              key="failure"
+              variant="danger"
+              dismissible={true}
+              onClose={() => setErrorMessage("")}
+            >
+              {errorMessage}
+            </StyledAlert>
+          </AlertAnchor>
+        )}
+        {shapefileAlert && (
+          <AlertAnchor edges={ALERT_EDGES}>
+            <StyledAlert
+              variant={shapefileAlert.variant}
+              role={shapefileAlert.variant === "danger" ? "alert" : "status"}
+              aria-live="polite"
+            >
+              {shapefileAlert.message}
+            </StyledAlert>
+          </AlertAnchor>
         )}
         {dataviewerViz && (
           <InfoDiv id="info" aria-label="Info Div">
@@ -680,6 +1035,14 @@ const MapComponent = ({
             visualizationRef={visualizationRef}
             updater={layerControlUpdate}
             runtimeLayerState={runtimeLayerState}
+            shapefileStatus={shapefileStatus}
+            onRetryShapefile={(layerName) => {
+              const layer = visualizationRef.current
+                ?.getLayers()
+                .getArray()
+                .find((candidate) => candidate.get("name") === layerName);
+              layer?.getSource?.()?.get?.("shapefileController")?.reset?.();
+            }}
           />
         )}
         {legend && legend.length > 0 && <LegendControl legendItems={legend} />}

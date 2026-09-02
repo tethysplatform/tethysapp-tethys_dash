@@ -30,7 +30,8 @@ import useSnapping, {
   GATHER_PIXELS,
 } from "components/visualizations/useSnapping";
 import PropTypes from "prop-types";
-import { COLOR_RAMPS } from "components/map/colorRamps";
+import { COLOR_RAMPS, resolveRamp } from "components/map/colorRamps";
+import { applyAutoRamp } from "components/map/ModuleLoader";
 import { getBaseMapLayer } from "components/visualizations/utilities";
 import useRuntimeLayerFetcher from "components/visualizations/runtimeLayerFetcher";
 import {
@@ -478,20 +479,52 @@ const MapVisualization = ({
 
         for (const layer of layers) {
           await loadLayerJSONs(layer, uuid);
+          // Resolve a Zarr layer's auto ramp before the legend is built so the
+          // colorbar can label the slice's real range. Re-runs with `layers` on
+          // every slice change, so the labels track the ramp.
+          await applyAutoRamp(layer.configuration);
           if (layer.legend) {
             if (layer.legend === "default") {
               const rampSource = layer.configuration?.props?.source;
+              // A categorical raster gets one swatch per class rather than a
+              // colorbar — a gradient would imply a continuum between classes.
               if (
-                rampSource?.type === "GeoTIFF" &&
-                typeof rampSource.rampName === "string" &&
-                COLOR_RAMPS[rampSource.rampName] &&
-                rampSource.rampMin !== undefined &&
-                rampSource.rampMax !== undefined
+                rampSource?.styleMode === "categorical" &&
+                rampSource?.classes?.length
               ) {
                 newMapLegend.push({
-                  rampColors: COLOR_RAMPS[rampSource.rampName],
-                  rampMin: rampSource.rampMin,
-                  rampMax: rampSource.rampMax,
+                  title: layer.configuration?.props?.name,
+                  items: rampSource.classes.map((entry) => ({
+                    color: entry.color,
+                    label: entry.label || String(entry.value),
+                    symbol: "square",
+                  })),
+                });
+                newMapLayers.push(layer.configuration);
+                continue;
+              }
+              // Zarr renders through a GeoTIFF source, so it gets the same
+              // colorbar. In auto mode the range comes from the resolved
+              // stats rather than author-entered values.
+              const rampMin =
+                rampSource?.rampMin ?? rampSource?.resolvedRampMin;
+              const rampMax =
+                rampSource?.rampMax ?? rampSource?.resolvedRampMax;
+              if (
+                (rampSource?.type === "GeoTIFF" ||
+                  rampSource?.type === "Zarr") &&
+                typeof rampSource.rampName === "string" &&
+                COLOR_RAMPS[rampSource.rampName] &&
+                rampMin !== undefined &&
+                rampMax !== undefined
+              ) {
+                newMapLegend.push({
+                  rampColors: resolveRamp(
+                    rampSource.rampName,
+                    rampSource.rampReverse === true,
+                  ),
+                  rampMin,
+                  rampMax,
                   title: layer.configuration?.props?.name,
                 });
                 newMapLayers.push(layer.configuration);
@@ -604,13 +637,26 @@ const MapVisualization = ({
         const variableInputName =
           mapAttributeVariables[layerName][layerAttributeOrAlias];
 
+        // Prefer the field, fall back to the alias only when the field is
+        // genuinely absent. A `||` here would also discard a real 0, "" or
+        // false.
+        const fromField = selectedFeature.attributes[layerAttribute];
         const featureValue =
-          selectedFeature.attributes[layerAttribute] ||
-          selectedFeature.attributes[layerAttributeAlias];
+          fromField === undefined || fromField === null
+            ? selectedFeature.attributes[layerAttributeAlias]
+            : fromField;
 
-        if (featureValue && featureValue !== "Null") {
-          updatedVariableInputs[variableInputName] = featureValue;
-        }
+        // Absent means cleared, not left alone. Skipping the write leaves the
+        // variable holding the previously clicked feature's value, so every
+        // dependent visualization keeps showing the wrong feature's data with no
+        // indication anything is stale -- the only path here that propagates a
+        // wrong value off the map. Presence is tested rather than truthiness, so
+        // a real 0, "" or false is carried through instead of being dropped.
+        const isAbsent =
+          featureValue === undefined ||
+          featureValue === null ||
+          featureValue === "Null";
+        updatedVariableInputs[variableInputName] = isAbsent ? "" : featureValue;
       }
       if (Object.keys(updatedVariableInputs).length > 0) {
         setVariableInputValues((previousVariableInputValues) => ({
@@ -824,6 +870,7 @@ const MapVisualization = ({
       );
 
       const nonEmptyLayerAttributes = tableOverlayFeatures.filter((item) => {
+        if (!item || typeof item !== "object") return false;
         if (!item.attributes || Object.keys(item.attributes).length === 0) {
           return false;
         }
@@ -945,9 +992,13 @@ const MapVisualization = ({
     });
     const results = await Promise.all(queryCalls);
 
+    // Drop non-object entries as well as empty results. The map above passes
+    // non-objects through unwrapped, and Popup dereferences every entry, so a
+    // stray null would crash the overlay rather than render nothing.
     const nonEmpty = results
-      .filter((arr) => Array.isArray(arr) && arr.length > 0)
-      .flat();
+      .filter((arr) => Array.isArray(arr))
+      .flat()
+      .filter((feature) => feature && typeof feature === "object");
 
     if (nonEmpty.length > 0) {
       setPopupContent(nonEmpty);
