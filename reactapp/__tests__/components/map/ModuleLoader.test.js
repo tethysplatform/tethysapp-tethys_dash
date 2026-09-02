@@ -2735,6 +2735,9 @@ describe("loadGeoPackage", () => {
       "EPSG:3857",
     );
     expect(out).toBe(src);
+  });
+});
+
 describe("matchesCondition — a field the feature does not carry", () => {
   // Left unguarded, the negated operators invert into a match: `!=` becomes
   // `undefined !== x` and `notIn` becomes "not in the list", both true. One
