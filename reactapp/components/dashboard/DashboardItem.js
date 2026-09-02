@@ -65,11 +65,9 @@ const StyledDiv = styled.div`
   /* Fill-viewport override: escape the react-grid-layout-positioned parent via
      position:fixed so the item spans the content area below the fixed header
      (and tab bar when shown), independent of screen size. No explicit z-index:
-     a fixed element with z-index:auto still paints in DOM/tree order with the
-     other z-index:auto grid tiles, so the fill item stacks by its position in
-     the gridItems array. Items ordered after it stay visible on top; items
-     ordered before it sit behind. Positive-z-index chrome (modals 1040+,
-     alerts 1000/1081) paints above it automatically. */
+     items ordered before it sit behind by tree order, and items ordered after
+     it are lifted above by DashboardLayout, which puts the z-index on the whole
+     grid item so react-grid-layout's resize handles are lifted with it. */
   ${(props) =>
     props.$fillViewport &&
     css`
@@ -322,6 +320,7 @@ const DashboardItem = () => {
   const {
     gridItemSource,
     gridItemI,
+    gridItemUUID,
     gridItemMetadataString,
     gridItemIndex,
     enableFillViewport,
@@ -365,27 +364,35 @@ const DashboardItem = () => {
   }, [gridItemMetadataString]);
 
   // Fill-viewport: a single item can be configured to fill the content area
-  // below the header. Only applies on the main dashboard surface, in view mode.
+  // below the header. Only applies on the main dashboard surface.
   const fillViewportRequested =
     !!gridItemStyling?.fillViewport && !!enableFillViewport;
 
-  // When more than one item on the tab has fill on, only the first in grid
-  // order renders as fill; the rest fall back to normal grid sizing.
-  const isFirstFillItem = (() => {
-    if (!fillViewportRequested) return false;
-    const activeGridItems = getActiveTab().gridItems;
-    const firstFill = activeGridItems.find((gi) => {
+  // Index of the item that fills, if any: the first on the tab in grid order.
+  const firstFillIndex = (() => {
+    if (!enableFillViewport) return -1;
+    return getActiveTab().gridItems.findIndex((gi) => {
       try {
         return JSON.parse(gi.metadata_string)?.fillViewport;
       } catch {
         return false;
       }
     });
-    return firstFill?.i === gridItemI;
   })();
 
-  const fillViewportActive =
-    fillViewportRequested && isFirstFillItem && !isEditing;
+  // When more than one item on the tab has fill on, only the first in grid
+  // order renders as fill; the rest fall back to normal grid sizing.
+  const isFirstFillItem =
+    fillViewportRequested &&
+    getActiveTab().gridItems[firstFillIndex]?.i === gridItemI;
+
+  /* Applies while editing too, so the creator sees the result the moment the
+     cell is saved rather than having to leave edit mode to find out. It also
+     means the item and whatever it contains — a map's canvas in particular —
+     have been at their final size since long before a save, instead of being
+     resized by the exit from edit mode and captured mid-resize by the dashboard
+     thumbnail. */
+  const fillViewportActive = fillViewportRequested && isFirstFillItem;
   // Offset below the header, plus the tab bar when it is shown — which is
   // whenever more than one tab exists, in both view and edit mode.
   const fillOffset =
@@ -545,7 +552,7 @@ const DashboardItem = () => {
           className="h-100 gridVisualization"
           aria-label="gridItem"
         >
-          <BaseVisualization key={gridItemI} />
+          <BaseVisualization key={gridItemUUID ?? gridItemI} />
         </StyledContainer>
         {gridItemStyling?.attribution !== false && attribution && (
           <InfoIconWrapper
@@ -575,22 +582,22 @@ const DashboardItem = () => {
             setShowGridItemMessage={setShowSuccessMessage}
           />
         )}
+        {isEditing && (
+          <StyledButtonDiv>
+            <DashboardItemDropdown
+              gridItemIndex={gridItemIndex}
+              deleteGridItem={deleteGridItem}
+              editGridItem={editGridItem}
+              exportGridItem={exportGridItem}
+              copyGridItem={copyGridItem}
+              bringGridItemtoFront={bringGridItemtoFront}
+              bringGridItemForward={bringGridItemForward}
+              sendGridItemtoBack={sendGridItemtoBack}
+              sendGridItembackward={sendGridItembackward}
+            />
+          </StyledButtonDiv>
+        )}
       </StyledDiv>
-      {isEditing && (
-        <StyledButtonDiv>
-          <DashboardItemDropdown
-            gridItemIndex={gridItemIndex}
-            deleteGridItem={deleteGridItem}
-            editGridItem={editGridItem}
-            exportGridItem={exportGridItem}
-            copyGridItem={copyGridItem}
-            bringGridItemtoFront={bringGridItemtoFront}
-            bringGridItemForward={bringGridItemForward}
-            sendGridItemtoBack={sendGridItemtoBack}
-            sendGridItembackward={sendGridItembackward}
-          />
-        </StyledButtonDiv>
-      )}
     </>
   );
 };

@@ -42,6 +42,15 @@ import {
 const moduleCache = {};
 const styleCache = new Map();
 
+// A "Zarr" source is sugar over the zarr/cog endpoint: the author supplies a
+// store URL + variable (+ optional index/mask_below) and we assemble the COG
+// URL, then render it as an ordinary GeoTIFF source. Variable inputs in the
+// fields (e.g. index="${Storm}") are already substituted before this runs.
+const ZARR_APP_ROOT = process.env.TETHYS_APP_ROOT_URL ?? "/apps/tethysdash/";
+
+const ISOLATED_LAYER_TYPES = new Set(["ImageLayer", "TileLayer"]);
+let isolatedLayerCount = 0;
+
 // Inject an OpenLayers `imageLoadFunction` for ESRI Image and Map Service
 // sources that rewrites out-of-range BBOX requests to use a shifted Web
 // Mercator central meridian. Without this, panning past the antimeridian
@@ -58,11 +67,71 @@ export function withAntimeridianFix(type, props) {
   };
 }
 
-// A "Zarr" source is sugar over the zarr/cog endpoint: the author supplies a
-// store URL + variable (+ optional index/mask_below) and we assemble the COG
-// URL, then render it as an ordinary GeoTIFF source. Variable inputs in the
-// fields (e.g. index="${Storm}") are already substituted before this runs.
-const ZARR_APP_ROOT = process.env.TETHYS_APP_ROOT_URL ?? "/apps/tethysdash/";
+export function withIsolatedCanvas(type, props) {
+  if (!ISOLATED_LAYER_TYPES.has(type)) return props;
+  if (props?.className) return props;
+  isolatedLayerCount += 1;
+  return {
+    ...props,
+    className: `ol-layer tethysdash-layer-${isolatedLayerCount}`,
+  };
+}
+
+const CORS_PROBED_SOURCE_TYPES = new Set([
+  "ESRI Image and Map Service",
+  "WMS",
+  "Static Image",
+]);
+
+const CORS_PROBE_TIMEOUT_MS = 4000;
+const corsSupportByOrigin = new Map();
+
+async function serverAllowsCors(url) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), CORS_PROBE_TIMEOUT_MS);
+  try {
+    await fetch(url, {
+      method: "HEAD",
+      mode: "cors",
+      signal: controller.signal,
+    });
+    return true;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function cachedCorsSupport(url) {
+  let origin;
+  try {
+    origin = new URL(url, window.location.href).origin;
+  } catch {
+    return Promise.resolve(false);
+  }
+  if (!corsSupportByOrigin.has(origin)) {
+    corsSupportByOrigin.set(origin, serverAllowsCors(url));
+  }
+  return corsSupportByOrigin.get(origin);
+}
+
+export async function withAutoCrossOrigin(type, props) {
+  if (!CORS_PROBED_SOURCE_TYPES.has(type)) return props;
+  // An explicit choice in the layer editor wins over detection.
+  if (props?.crossOrigin !== undefined) return props;
+  if (typeof props?.url !== "string" || props.url === "") return props;
+  return (await cachedCorsSupport(props.url))
+    ? { ...props, crossOrigin: "anonymous" }
+    : props;
+}
+
+async function prepareProps(type, props) {
+  return withIsolatedCanvas(
+    type,
+    await withAutoCrossOrigin(type, withAntimeridianFix(type, props)),
+  );
+}
 
 // Single place that turns Zarr source props into a COG URL, so the layer's
 // source and the stats pre-read below can never disagree about the slice.
@@ -367,7 +436,7 @@ const moduleLoader = async (config, mapProjection, getMapProjection) => {
         if (type === "KML") {
           resolvedProps.format = new KML();
         }
-        return new moduleCache[type](withAntimeridianFix(type, resolvedProps));
+        return new moduleCache[type](await prepareProps(type, resolvedProps));
       }
     }
     const importModule = getModuleImporter(type);
@@ -403,7 +472,7 @@ const moduleLoader = async (config, mapProjection, getMapProjection) => {
     } else if (type === "ESRI Feature Service") {
       return loadESRIJSON(config);
     } else {
-      return new ModuleConstructor(withAntimeridianFix(type, resolvedProps));
+      return new ModuleConstructor(await prepareProps(type, resolvedProps));
     }
   } catch (error) {
     console.error(`Failed to load module '${type}':`, error);
@@ -433,6 +502,13 @@ const resolveProps = async (props, mapProjection) => {
       continue;
     }
     if (key === "projection" && value === "") {
+      continue;
+    }
+
+    if (key === "crossOrigin") {
+      if (value === true || value === "true" || value === "anonymous") {
+        resolvedProps[key] = "anonymous";
+      }
       continue;
     }
     if (key === "overviews" && Array.isArray(value) && value.length === 0) {

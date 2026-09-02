@@ -873,6 +873,9 @@ test("DashboardCard editable, edit thumbnail", async () => {
     expect(mockUpdateDashboard).toHaveBeenCalledWith(
       {
         id: userDashboard.id,
+        // Uploading by hand turns off auto-capture, so the next save cannot
+        // overwrite the image just chosen.
+        autoThumbnail: false,
         image: "data:image/png;base64,testImage",
       },
       "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
@@ -937,6 +940,9 @@ test("DashboardCard editable, edit thumbnail fail", async () => {
     expect(mockUpdateDashboard).toHaveBeenCalledWith(
       {
         id: userDashboard.id,
+        // Uploading by hand turns off auto-capture, so the next save cannot
+        // overwrite the image just chosen.
+        autoThumbnail: false,
         image: "data:image/png;base64,testImage",
       },
       "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
@@ -1654,3 +1660,25 @@ TestingComponent.propTypes = {
     PropTypes.element,
   ]),
 };
+
+test("DashboardCard renders no image until one exists", async () => {
+  const imagelessDashboard = JSON.parse(JSON.stringify(userDashboard));
+  imagelessDashboard.image = null;
+
+  render(
+    createLoadedComponent({
+      children: (
+        <MemoryRouter initialEntries={["/"]}>
+          <DashboardCard {...imagelessDashboard} />
+        </MemoryRouter>
+      ),
+    }),
+  );
+
+  expect(await screen.findByText(imagelessDashboard.name)).toBeInTheDocument();
+  /* Rendering the element with no src would show a broken-image icon, which
+     reads worse than an empty card. */
+  expect(
+    screen.queryByLabelText("Dashboard Card Image"),
+  ).not.toBeInTheDocument();
+});
