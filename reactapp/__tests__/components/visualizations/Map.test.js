@@ -26,6 +26,7 @@ import {
 } from "components/map/utilities";
 import { fetchLayerVectorFeatures } from "components/map/snapping";
 import Overlay from "ol/Overlay";
+import { Swiper } from "swiper";
 import {
   mockedTextVariable,
   mockedDropdownVariable,
@@ -1371,6 +1372,317 @@ test("Map click — modal-only layer with tablePopupType 'none' IS queried and m
   await waitFor(() => {
     expect(popSetPosition).toHaveBeenLastCalledWith(undefined);
   });
+});
+
+// --- Table popup <-> popup modal sync ---------------------------------------
+//
+// The table overlay and the popup modal are driven by two lists filtered out of
+// the same click results, so their feature objects match by reference. These
+// tests cover both sync directions and the overlay anchoring that comes with
+// them. `popSetPosition` is shared with the spinner overlay, so assertions use
+// `toHaveBeenLastCalledWith`.
+
+// A layer that opens BOTH popups, with two features far enough apart that the
+// anchor assertions distinguish them.
+const syncLayer = (name = "Both") => ({
+  name,
+  configuration: {
+    type: "ImageLayer",
+    props: {
+      name,
+      source: {
+        type: "ESRI Image and Map Service",
+        props: { url: "both_url" },
+      },
+    },
+  },
+  popupConfig: {
+    mode: "modal",
+    position: null,
+    titleTemplate: null,
+    gridItems: [],
+  },
+});
+
+const renderSyncMap = (layers) => {
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent
+          onMapClick={jest.fn()}
+          clickCoordinates={[10, 20]}
+          mapProps={{
+            mapConfig: {},
+            viewConfig: {},
+            layers,
+            baseMap: null,
+            layerControl: false,
+          }}
+        />
+      </MapContextProvider>
+    ),
+  });
+  return render(LoadedComponent);
+};
+
+// Under jsdom every element measures 0x0, so Swiper never assigns its
+// `swiper-slide-active` class or updates its fraction pagination — neither can
+// be read back to tell which slide is showing. Spy on `slideTo` instead: it is
+// the call the modal makes to move the table, so asserting it is asserting the
+// behavior under test rather than a rendering detail jsdom cannot produce.
+const spyOnSlideTo = () => jest.spyOn(Swiper.prototype, "slideTo");
+
+test("Popup modal carousel moves the table overlay to the active feature", async () => {
+  mockedQueryLayerFeatures.mockResolvedValue([
+    {
+      attributes: { station_id: "AAA" },
+      geometry: { x: 10, y: 10 },
+      layerName: "Both",
+    },
+    {
+      attributes: { station_id: "BBB" },
+      geometry: { x: 50, y: 60 },
+      layerName: "Both",
+    },
+  ]);
+  jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+  const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
+
+  const slideTo = spyOnSlideTo();
+
+  renderSyncMap([syncLayer()]);
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  await waitFor(() => {
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+  await screen.findByLabelText("Next Swiper"); // table popup is up
+
+  // The overlay opens anchored on the first feature's geometry.
+  await waitFor(() => {
+    expect(popSetPosition).toHaveBeenLastCalledWith([10, 10]);
+  });
+  slideTo.mockClear();
+
+  fireEvent.click(screen.getByTestId("popup-modal-carousel-next"));
+
+  // The table slides to the matching feature and the overlay follows it.
+  await waitFor(() => {
+    expect(slideTo).toHaveBeenCalledWith(1);
+  });
+  await waitFor(() => {
+    expect(popSetPosition).toHaveBeenLastCalledWith([50, 60]);
+  });
+  expect(
+    screen.getByTestId("popup-modal-carousel-pagination"),
+  ).toHaveTextContent("2 / 2");
+});
+
+test("Swiping the table popup moves the popup modal to the same feature", async () => {
+  mockedQueryLayerFeatures.mockResolvedValue([
+    {
+      attributes: { station_id: "AAA" },
+      geometry: { x: 10, y: 10 },
+      layerName: "Both",
+    },
+    {
+      attributes: { station_id: "BBB" },
+      geometry: { x: 50, y: 60 },
+      layerName: "Both",
+    },
+  ]);
+  jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+  const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
+
+  renderSyncMap([syncLayer()]);
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  await waitFor(() => {
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+  expect(
+    await screen.findByTestId("popup-modal-carousel-pagination"),
+  ).toHaveTextContent("1 / 2");
+
+  fireEvent.click(await screen.findByLabelText("Next Swiper"));
+
+  // The modal follows the table, and the overlay re-anchors on the new feature.
+  await waitFor(() => {
+    expect(
+      screen.getByTestId("popup-modal-carousel-pagination"),
+    ).toHaveTextContent("2 / 2");
+  });
+  await waitFor(() => {
+    expect(popSetPosition).toHaveBeenLastCalledWith([50, 60]);
+  });
+});
+
+test("Popup modal hides the table overlay on a feature the table has no slide for", async () => {
+  // Two layers at the same click: one drives both popups, one is modal-only
+  // (tablePopupType "none"). Navigating to the modal-only feature leaves the
+  // table with nothing to show, so the overlay hides rather than sitting on a
+  // different feature than the modal.
+  const modalOnly = {
+    ...syncLayer("ModalOnly"),
+    name: "ModalOnly",
+    tablePopupType: "none",
+  };
+  modalOnly.configuration.props.name = "ModalOnly";
+
+  mockedQueryLayerFeatures.mockImplementation((layer) =>
+    Promise.resolve([
+      layer.configuration.props.name === "ModalOnly"
+        ? {
+            attributes: { station_id: "MMM" },
+            geometry: { x: 90, y: 90 },
+            layerName: "ModalOnly",
+          }
+        : {
+            attributes: { station_id: "AAA" },
+            geometry: { x: 10, y: 10 },
+            layerName: "Both",
+          },
+    ]),
+  );
+  jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+  const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
+
+  renderSyncMap([syncLayer(), modalOnly]);
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  await waitFor(() => {
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+  await waitFor(() => {
+    expect(popSetPosition).toHaveBeenLastCalledWith([10, 10]);
+  });
+
+  // Forward to the modal-only feature: the overlay hides.
+  fireEvent.click(screen.getByTestId("popup-modal-carousel-next"));
+  await waitFor(() => {
+    expect(popSetPosition).toHaveBeenLastCalledWith(undefined);
+  });
+
+  // Back to the shared feature: the overlay is restored at its anchor.
+  fireEvent.click(screen.getByTestId("popup-modal-carousel-prev"));
+  await waitFor(() => {
+    expect(popSetPosition).toHaveBeenLastCalledWith([10, 10]);
+  });
+});
+
+test("Table popup follows its own slide when no popup modal is configured", async () => {
+  // The overlay is anchored to the feature it is showing, not to the click
+  // point it opened at — otherwise swiping to a feature elsewhere on the map
+  // leaves the popup pointing at nothing. Applies with no modal in play.
+  mockedQueryLayerFeatures.mockResolvedValue([
+    {
+      attributes: { station_id: "AAA" },
+      geometry: { x: 10, y: 10 },
+      layerName: "TableOnly",
+    },
+    {
+      attributes: { station_id: "BBB" },
+      geometry: { x: 50, y: 60 },
+      layerName: "TableOnly",
+    },
+  ]);
+  jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+  const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
+
+  const tableOnly = syncLayer("TableOnly");
+  tableOnly.configuration.props.name = "TableOnly";
+  delete tableOnly.popupConfig;
+
+  renderSyncMap([tableOnly]);
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  await waitFor(() => {
+    expect(popSetPosition).toHaveBeenCalledWith([10, 20]); // click coordinate
+  });
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+  fireEvent.click(await screen.findByLabelText("Next Swiper"));
+
+  await waitFor(() => {
+    expect(popSetPosition).toHaveBeenLastCalledWith([50, 60]);
+  });
+});
+
+test("Popup sync leaves the overlay in place for a feature with no geometry", async () => {
+  // A queried feature can arrive without a geometry (e.g. a non-spatial result
+  // from a custom feature source). There is nowhere to anchor the popup, so it
+  // keeps the position it already has rather than being moved off-map.
+  mockedQueryLayerFeatures.mockResolvedValue([
+    { attributes: { station_id: "AAA" }, layerName: "Both" },
+    { attributes: { station_id: "BBB" }, layerName: "Both" },
+  ]);
+  jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+  const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
+
+  renderSyncMap([syncLayer()]);
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  await waitFor(() => {
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+  await screen.findByLabelText("Next Swiper");
+  await waitFor(() => {
+    expect(popSetPosition).toHaveBeenLastCalledWith([10, 20]); // click point
+  });
+
+  // Neither direction of the sync repositions it.
+  fireEvent.click(screen.getByTestId("popup-modal-carousel-next"));
+  fireEvent.click(screen.getByLabelText("Next Swiper"));
+  await waitFor(() => {
+    expect(
+      screen.getByTestId("popup-modal-carousel-pagination"),
+    ).toHaveTextContent("2 / 2");
+  });
+  expect(popSetPosition).toHaveBeenLastCalledWith([10, 20]);
+});
+
+test("Swiping the table onto a feature the modal has no entry for leaves the modal alone", async () => {
+  // Two layers at the same click: one drives both popups, one is table-only
+  // (no popupConfig). Swiping onto the table-only feature must not move the
+  // modal's carousel — there is no corresponding entry to move it to.
+  const tableOnly = syncLayer("TableOnly");
+  tableOnly.configuration.props.name = "TableOnly";
+  delete tableOnly.popupConfig;
+
+  mockedQueryLayerFeatures.mockImplementation((layer) =>
+    Promise.resolve([
+      layer.configuration.props.name === "TableOnly"
+        ? {
+            attributes: { station_id: "TTT" },
+            geometry: { x: 90, y: 90 },
+            layerName: "TableOnly",
+          }
+        : {
+            attributes: { station_id: "AAA" },
+            geometry: { x: 10, y: 10 },
+            layerName: "Both",
+          },
+    ]),
+  );
+  jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+  const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
+
+  renderSyncMap([syncLayer(), tableOnly]);
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  await waitFor(() => {
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+  // Only the "Both" layer feature is in the modal, so it has no carousel.
+  expect(
+    screen.queryByTestId("popup-modal-carousel-pagination"),
+  ).not.toBeInTheDocument();
+
+  fireEvent.click(await screen.findByLabelText("Next Swiper"));
+
+  // The overlay follows the table onto the table-only feature; the modal keeps
+  // showing the feature it has.
+  await waitFor(() => {
+    expect(popSetPosition).toHaveBeenLastCalledWith([90, 90]);
+  });
+  expect(screen.getByRole("dialog")).toBeInTheDocument();
+  expect(
+    screen.queryByTestId("popup-modal-carousel-pagination"),
+  ).not.toBeInTheDocument();
 });
 
 test("Map click — modal-only layer feature without geometry does not call addHighlightFeatures", async () => {

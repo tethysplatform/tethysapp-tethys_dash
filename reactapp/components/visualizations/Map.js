@@ -13,6 +13,7 @@ import {
   queryLayerFeatures,
   createHighlightLayer,
   addHighlightFeatures,
+  getGeometryAnchor,
   createMarkerLayer,
   configurationPropType,
   mapDrawingPropType,
@@ -134,6 +135,7 @@ const StyledContent = styled.div`
 export const Popup = ({
   layerAttributes,
   onSwipe,
+  onSwiper,
   omittedPopupAttributes,
   aliases,
 }) => {
@@ -156,6 +158,7 @@ export const Popup = ({
       className="mySwiper"
       simulateTouch={false}
       onSlideChange={onSwipe}
+      onSwiper={onSwiper}
     >
       {filteredLayerAttributes.map((selectedFeature, index) => (
         <MarginSwiperSlide key={index}>
@@ -261,6 +264,15 @@ const MapVisualization = ({
   // hover handler. Only hover-opened popups should close-on-empty; a popup
   // the user opened by clicking must survive cursor movement off-feature.
   const hoverActiveRef = useRef(false);
+  // The table overlay's Swiper instance, so the popup modal's carousel can
+  // drive it (see the modal -> table sync effect below).
+  const swiperRef = useRef(null);
+  // `onSwipe` is captured by the popup's separate React root, whose render
+  // effect only re-runs on `popupContent`. Reading modal state through refs
+  // keeps the table -> modal sync from acting on a stale `modalFeatures` —
+  // e.g. after `closeModal` empties it without touching `popupContent`.
+  const modalFeaturesRef = useRef([]);
+  const modalOpenRef = useRef(false);
   const {
     variableInputValues,
     variableInputDateFormats,
@@ -388,6 +400,9 @@ const MapVisualization = ({
               <Popup
                 layerAttributes={popupContent}
                 onSwipe={onSwipe}
+                onSwiper={(swiper) => {
+                  swiperRef.current = swiper;
+                }}
                 omittedPopupAttributes={mapOmittedPopupAttributesRef.current}
                 aliases={mapAttributeAliasesRef.current}
               />
@@ -465,6 +480,55 @@ const MapVisualization = ({
     highlightLayer.current.getSource().clear();
     addHighlightFeatures(highlightLayer.current, feature.geometry);
   }, [modalOpen, modalFeatures, activeFeatureIndex]);
+
+  // Keep the modal's refs current for `onSwipe`, which is captured by the
+  // popup's separate React root and would otherwise read stale values.
+  useEffect(() => {
+    modalFeaturesRef.current = modalFeatures;
+    modalOpenRef.current = modalOpen;
+  }, [modalFeatures, modalOpen]);
+
+  // Modal -> table: point the table overlay at the modal's active feature.
+  // Both lists are `filter`ed out of the same click results, so the feature
+  // objects match by reference and `indexOf` maps one index onto the other.
+  //
+  // A feature can be in the modal but not the table (a modal-only layer, whose
+  // table popup type is "none"). There is no slide to move to, so hide the
+  // overlay rather than leave it showing a different feature than the modal —
+  // that mismatch is exactly what this sync exists to remove. `popupContent`
+  // is left alone so the Swiper survives and the overlay comes back when the
+  // user navigates to a shared feature again.
+  useEffect(() => {
+    if (!modalOpen) return;
+    // Clamp the same way the highlight effect above does: `activeFeatureIndex`
+    // is reset to 0 by its own effect, which may not have run yet when a fresh
+    // click lands a shorter feature list.
+    const idx = Math.min(activeFeatureIndex, modalFeatures.length - 1);
+    const feature = modalFeatures[idx];
+    // istanbul ignore if -- defensive: `setModalFeatures([])` only ever runs
+    // inside `closeModal`, which flips `setModalOpen(false)` in the same
+    // batch, so `modalOpen === true` implies a non-empty list. Same reasoning
+    // as the highlight effect above.
+    if (!feature) return;
+
+    const tableIndex = popupContent ? popupContent.indexOf(feature) : -1;
+    if (tableIndex < 0) {
+      popupOverlayRef.current?.setPosition(undefined);
+      return;
+    }
+
+    const swiper = swiperRef.current;
+    // Guard the no-op case: `slideTo` with the current index would still be a
+    // wasted call, and skipping it keeps the slideChange -> onSwipe ->
+    // setActiveFeatureIndex round trip from firing at all.
+    if (swiper && !swiper.destroyed && swiper.activeIndex !== tableIndex) {
+      swiper.slideTo(tableIndex);
+    }
+    const anchor = getGeometryAnchor(feature.geometry);
+    if (anchor) {
+      popupOverlayRef.current?.setPosition(anchor);
+    }
+  }, [modalOpen, modalFeatures, activeFeatureIndex, popupContent]);
 
   useEffect(() => {
     const updateLayers = async () => {
@@ -606,6 +670,24 @@ const MapVisualization = ({
     // Variable inputs follow the popup regardless of how it opened — keeps
     // swipe behavior consistent for hover-driven dashboards.
     updateVariableInputsForFeature(selectedFeature);
+
+    // The overlay is anchored to whatever feature it is showing, not to the
+    // click point it opened at — otherwise swiping to a feature elsewhere on
+    // the map leaves the popup pointing at nothing.
+    const anchor = getGeometryAnchor(selectedFeature.geometry);
+    if (anchor) {
+      popupOverlayRef.current?.setPosition(anchor);
+    }
+
+    // Table -> modal: if this feature is also in the modal's list, move the
+    // modal's carousel to match. The two lists are `filter`ed out of the same
+    // click results, so the feature objects are identical by reference.
+    if (modalOpenRef.current) {
+      const modalIndex = modalFeaturesRef.current.indexOf(selectedFeature);
+      if (modalIndex >= 0) {
+        setActiveFeatureIndex(modalIndex);
+      }
+    }
   };
 
   const updateVariableInputsForFeature = (selectedFeature) => {
@@ -1195,6 +1277,7 @@ Popup.propTypes = {
     }),
   ),
   onSwipe: PropTypes.func, // function to call on swipe event
+  onSwiper: PropTypes.func, // receives the Swiper instance so the popup modal can drive it
   omittedPopupAttributes: PropTypes.object,
   aliases: PropTypes.object,
 };

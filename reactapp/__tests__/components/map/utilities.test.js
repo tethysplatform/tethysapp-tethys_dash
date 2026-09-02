@@ -5,6 +5,7 @@ import {
   createMarkerLayer,
   createHighlightLayer,
   addHighlightFeatures,
+  getGeometryAnchor,
   transformCoordinates,
   queryLayerFeatures,
   getLayerAttributes,
@@ -380,6 +381,100 @@ test("addHighlightFeatures no-ops when geometries is a non-object primitive", ()
   expect(() => addHighlightFeatures(highlightLayer, 0)).not.toThrow();
   expect(() => addHighlightFeatures(highlightLayer, "")).not.toThrow();
   expect(highlightLayer.getSource().getFeatures().length).toBe(0);
+});
+
+describe("getGeometryAnchor", () => {
+  // The coordinate a popup is anchored to: the point itself for a point, the
+  // extent center for anything larger. Shares its geometry handling with
+  // addHighlightFeatures, so the popup and the highlight always agree.
+
+  test("returns the point itself for a GeoJSON point", () => {
+    expect(
+      getGeometryAnchor({ type: "Point", coordinates: [5, 7] }),
+    ).toStrictEqual([5, 7]);
+  });
+
+  test("returns the point itself for an ESRI x/y point", () => {
+    // Regression: this branch built `new Point((x, y))` — the comma operator,
+    // which discards x and hands Point a bare number. The anchor came back
+    // as NaN and the highlight geometry was malformed.
+    expect(getGeometryAnchor({ x: 5, y: 7 })).toStrictEqual([5, 7]);
+  });
+
+  test("returns the extent center for a line", () => {
+    expect(
+      getGeometryAnchor({
+        type: "LineString",
+        coordinates: [
+          [0, 0],
+          [10, 20],
+        ],
+      }),
+    ).toStrictEqual([5, 10]);
+  });
+
+  test("returns the extent center for a polygon", () => {
+    expect(
+      getGeometryAnchor({
+        type: "Polygon",
+        coordinates: [
+          [
+            [0, 0],
+            [4, 0],
+            [4, 8],
+            [0, 8],
+            [0, 0],
+          ],
+        ],
+      }),
+    ).toStrictEqual([2, 4]);
+  });
+
+  test("spans every part of a multi-part geometry", () => {
+    expect(
+      getGeometryAnchor({
+        type: "MultiLineString",
+        coordinates: [
+          [
+            [0, 0],
+            [2, 2],
+          ],
+          [
+            [8, 8],
+            [10, 10],
+          ],
+        ],
+      }),
+    ).toStrictEqual([5, 5]);
+  });
+
+  test("reads the ESRI paths shape", () => {
+    expect(
+      getGeometryAnchor({
+        paths: [
+          [
+            [0, 0],
+            [2, 2],
+          ],
+          [
+            [8, 8],
+            [10, 10],
+          ],
+        ],
+      }),
+    ).toStrictEqual([5, 5]);
+  });
+
+  test("returns undefined when there is no usable geometry", () => {
+    // Callers hand the result straight to Overlay.setPosition, where
+    // `undefined` hides the popup rather than placing it off-map.
+    expect(getGeometryAnchor(undefined)).toBeUndefined();
+    expect(getGeometryAnchor(null)).toBeUndefined();
+    expect(getGeometryAnchor("")).toBeUndefined();
+    expect(
+      getGeometryAnchor({ type: "Point", coordinates: [] }),
+    ).toBeUndefined();
+  });
 });
 
 test("transformCoordinates", async () => {

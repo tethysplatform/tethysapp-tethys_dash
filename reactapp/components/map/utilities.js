@@ -5,6 +5,7 @@ import Feature from "ol/Feature";
 import VectorLayer from "ol/layer/Vector";
 import VectorSource from "ol/source/Vector";
 import { LineString, MultiPolygon, Polygon, Point } from "ol/geom";
+import { createEmpty, extend, getCenter } from "ol/extent";
 import { Stroke, Style, Circle } from "ol/style";
 import Icon from "ol/style/Icon";
 import { toGeometry } from "ol/render/Feature";
@@ -496,8 +497,18 @@ export function createHighlightLayer() {
   return highlightLayer;
 }
 
-export function addHighlightFeatures(highlightLayer, geometries) {
-  if (!geometries || typeof geometries !== "object") return;
+/**
+ * Build OL `Feature`s from a queried feature's geometry, accepting both the
+ * ESRI shapes (`paths`, `rings`, `x`/`y`) and the GeoJSON shapes
+ * (`type` + `coordinates`) that the layer query paths return.
+ *
+ * Coordinates are used as-is: the callers' sources carry no projection, so the
+ * geometry is already in view coordinates.
+ *
+ * @returns {Array} OL Features, or `[]` when there is no usable geometry.
+ */
+export function buildHighlightFeatures(geometries) {
+  if (!geometries || typeof geometries !== "object") return [];
 
   let features;
   if ("paths" in geometries || geometries?.type === "MultiLineString") {
@@ -533,7 +544,7 @@ export function addHighlightFeatures(highlightLayer, geometries) {
   } else {
     let geometry;
     if ("x" in geometries) {
-      geometry = new Point((geometries.x, geometries.y));
+      geometry = new Point([geometries.x, geometries.y]);
     } else {
       geometry = new Point(geometries.coordinates);
     }
@@ -545,7 +556,37 @@ export function addHighlightFeatures(highlightLayer, geometries) {
     ];
   }
 
+  return features;
+}
+
+export function addHighlightFeatures(highlightLayer, geometries) {
+  const features = buildHighlightFeatures(geometries);
+  if (features.length === 0) return;
   highlightLayer.getSource().addFeatures(features);
+}
+
+/**
+ * The map coordinate a popup should be anchored to for a queried feature —
+ * the point itself for a point, the extent center for anything larger. Shares
+ * `buildHighlightFeatures`' geometry handling so the popup anchor and the
+ * highlight can never disagree about how a shape is read.
+ *
+ * @returns {Array|undefined} `[x, y]` in view coordinates, or `undefined` when
+ *   the geometry is missing or unusable (callers pass that straight to
+ *   `Overlay.setPosition`, which hides the overlay).
+ */
+export function getGeometryAnchor(geometries) {
+  const features = buildHighlightFeatures(geometries);
+  if (features.length === 0) return undefined;
+
+  const extent = createEmpty();
+  features.forEach((feature) =>
+    extend(extent, feature.getGeometry().getExtent()),
+  );
+  const center = getCenter(extent);
+  // An empty extent yields Infinities; a malformed coordinate yields NaN.
+  // Either would place the overlay off-map, so treat both as "no anchor".
+  return center.every((n) => Number.isFinite(n)) ? center : undefined;
 }
 
 // Half the circumference of the Earth at the equator in EPSG:3857 meters.
