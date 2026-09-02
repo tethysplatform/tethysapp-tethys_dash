@@ -158,6 +158,15 @@ const handlers = [
       ctx.set("Content-Type", "application/json"),
     );
   }),
+  /* The map's CORS detection (withAutoCrossOrigin in components/map/ModuleLoader)
+     issues a HEAD to each layer's host while building its source. Fail every one
+     so it resolves to "no CORS" and no suite reaches the real network - without
+     this, building an ESRI/WMS/Static Image source in any test escapes to the
+     network and msw fails decoding the response. Tests that exercise detection
+     stub fetch directly instead. */
+  rest.head(/.*/, (req, res) =>
+    res.networkError("CORS probe blocked in tests"),
+  ),
 ];
 
 export { handlers };

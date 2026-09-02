@@ -570,6 +570,10 @@ describe("generatePropertiesArrayWithValues", () => {
         value: "",
       },
       {
+        property: "crossOrigin",
+        value: "",
+      },
+      {
         property: "attributions",
         value: "",
       },
@@ -599,6 +603,10 @@ describe("generatePropertiesArrayWithValues", () => {
         value: "ArcGIS Rest service URL",
       },
       {
+        value:
+          "Force CORS on this layer's requests so it can be captured in the dashboard thumbnail. Normally detected automatically, so leave this unchecked unless the layer still renders blank in thumbnails. Only enable if the server sends Access-Control-Allow-Origin - if it does not, the layer will fail to load entirely.",
+      },
+      {
         value: "Attributions",
       },
       {
@@ -619,6 +627,7 @@ describe("generatePropertiesArrayWithValues", () => {
     ]);
     expect(types).toEqual([
       "text",
+      "checkbox",
       "text",
       "text",
       "text",
@@ -647,6 +656,10 @@ describe("generatePropertiesArrayWithValues", () => {
         value: "some_url",
       },
       {
+        property: "crossOrigin",
+        value: "",
+      },
+      {
         property: "attributions",
         value: "",
       },
@@ -676,6 +689,10 @@ describe("generatePropertiesArrayWithValues", () => {
         value: "ArcGIS Rest service URL",
       },
       {
+        value:
+          "Force CORS on this layer's requests so it can be captured in the dashboard thumbnail. Normally detected automatically, so leave this unchecked unless the layer still renders blank in thumbnails. Only enable if the server sends Access-Control-Allow-Origin - if it does not, the layer will fail to load entirely.",
+      },
+      {
         value: "Attributions",
       },
       {
@@ -696,6 +713,7 @@ describe("generatePropertiesArrayWithValues", () => {
     ]);
     expect(types).toEqual([
       "text",
+      "checkbox",
       "text",
       "text",
       "text",

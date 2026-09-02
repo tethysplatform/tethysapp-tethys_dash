@@ -1,10 +1,14 @@
-from django.http import HttpResponse, JsonResponse
+from django.http import JsonResponse, HttpResponse
+import ipaddress
 import json
 import os
 import shutil
+import socket
 import nh3
+import requests
 from rest_framework.decorators import api_view
 import uuid
+from urllib.parse import urljoin, urlparse
 from datetime import datetime
 from django.core.exceptions import RequestDataTooBig
 from tethys_sdk.permissions import has_permission
@@ -52,6 +56,15 @@ from better_profanity import profanity
 
 # Load the default wordlist
 profanity.load_censor_words()
+
+# Bounds for the thumbnail image proxy. The timeout keeps a slow host from
+# tying up a worker; the size cap keeps a large image from being read into
+# memory, and comfortably exceeds anything worth showing in a 640px thumbnail.
+IMAGE_PROXY_TIMEOUT = 10
+IMAGE_PROXY_MAX_BYTES = 10 * 1024 * 1024
+# Redirects are common for image CDNs, but each hop is re-checked, so the chain
+# is kept short rather than unbounded.
+IMAGE_PROXY_MAX_REDIRECTS = 3
 
 
 def _get_error_message(e, fallback):
@@ -656,7 +669,9 @@ def add_dashboard(request, app_media):
             - description: Optional string description
             - notes: Optional string notes
             - public: Optional boolean for public access
-            - unrestrictedPlacement: Optional boolean for placement restrictions
+            - unrestrictedPlacement: Optional boolean for placement restrictions,
+              defaulting to True. Existing dashboards keep whatever they were
+              created with; this only sets the starting point for new ones.
             - gridItems: Optional list of grid items
         app_media: Tethys app media directory for storing dashboard images
 
@@ -672,7 +687,7 @@ def add_dashboard(request, app_media):
     description = dashboard_metadata.get("description", "")
     notes = dashboard_metadata.get("notes", "")
     public = dashboard_metadata.get("public", False)
-    unrestricted_placement = dashboard_metadata.get("unrestrictedPlacement", False)
+    unrestricted_placement = dashboard_metadata.get("unrestrictedPlacement", True)
     tabs = dashboard_metadata.get("tabs", [])
     grid_items = dashboard_metadata.get("gridItems", [])
     owner = request.user
@@ -692,12 +707,8 @@ def add_dashboard(request, app_media):
             tabs,
         )
 
-        dashboard_image = os.path.join(
-            os.path.dirname(__file__), "default_dashboard.png"
-        )
-        shutil.copyfile(
-            dashboard_image, os.path.join(app_media.path, f"{dashboard_uuid}.png")
-        )
+        # No placeholder image is written: a dashboard has no thumbnail until one
+        # is captured on save or uploaded by hand.
         new_dashboard = get_dashboards(owner, id=new_dashboard_id)
         print(f"Successfully created the dashboard named {name}")
 
@@ -1045,6 +1056,169 @@ def download_json(request, app_workspace):
             e, "Failed to download the json. Check server for logs."
         )
         return JsonResponse({"success": False, "message": message})
+
+
+def _is_blocked_address(address_string):
+    """True for an address this server must never be aimed at.
+
+    A proxy that fetches whatever URL it is handed is a server-side request
+    forgery primitive: without this it would reach services bound to the
+    server's own loopback, anything on the private network, and the cloud
+    metadata endpoint (169.254.169.254) that hands out instance credentials.
+    """
+    try:
+        address = ipaddress.ip_address(address_string)
+    except ValueError:
+        return True
+
+    return (
+        address.is_private
+        or address.is_loopback
+        or address.is_link_local
+        or address.is_reserved
+        or address.is_multicast
+        or address.is_unspecified
+    )
+
+
+def _is_blocked_image_host(hostname):
+    """True when any address a hostname resolves to is off limits."""
+    try:
+        addresses = socket.getaddrinfo(hostname, None)
+    except socket.gaierror:
+        # Fail closed: a name that will not resolve is refused, not attempted.
+        return True
+
+    return any(_is_blocked_address(info[4][0]) for info in addresses)
+
+
+def _connected_peer_is_blocked(response):
+    """True when the address actually connected to is off limits.
+
+    Checking the hostname is not enough on its own. That check resolves the
+    name, and requests resolves it again when it opens the connection - two
+    lookups a hostile DNS server is free to answer differently, returning a
+    public address to be inspected and a private one to be connected to. This
+    inspects the socket, so it judges the connection that was really made
+    rather than a separate lookup that may no longer describe it.
+
+    Only meaningful for a response whose body is still unread. urllib3 returns
+    the connection to the pool as soon as a body is finished, and a redirect's
+    body is empty, so by the time one is inspected there is no socket left to
+    look at. Redirect hops are therefore covered by the hostname check alone;
+    this guards the response that actually hands bytes back to the caller.
+
+    Fails closed: if the peer cannot be determined the response is refused,
+    which costs one image in a thumbnail rather than trusting a connection that
+    was never verified.
+    """
+    try:
+        peer = response.raw._connection.sock.getpeername()[0]
+    except Exception:
+        return True
+
+    return _is_blocked_address(peer)
+
+
+@controller(url="tethysdash/images/proxy", login_required=True)
+def image_proxy(request):
+    """
+    Fetch a cross-origin image and return it from this origin.
+
+    Exists for dashboard thumbnails. Capturing one serialises the page, which
+    means re-fetching every <img> from JavaScript, and that re-fetch is subject
+    to CORS - so an image whose host sends no Access-Control-Allow-Origin comes
+    out blank in the thumbnail even though it displays fine in the dashboard.
+    Nothing in the browser can work around that. Fetching server-side can,
+    because server-to-server requests are not subject to CORS.
+
+    Only the capture path uses this (see components/layout/captureThumbnail),
+    and a capture only runs when a dashboard is saved, which already requires an
+    authenticated editor - hence login_required.
+
+    Args:
+        request: Django HTTP request object with query parameters:
+            - url: The absolute http(s) image URL to fetch
+
+    Returns:
+        HttpResponse: The image bytes with their upstream content type, or a
+            plain-text error with an appropriate status code.
+    """
+    url = request.GET.get("url", "")
+    response = None
+
+    for _ in range(IMAGE_PROXY_MAX_REDIRECTS + 1):
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https") or not parsed.hostname:
+            return HttpResponse("Only absolute http(s) URLs are allowed", status=400)
+
+        if _is_blocked_image_host(parsed.hostname):
+            return HttpResponse("That host is not permitted", status=403)
+
+        try:
+            response = requests.get(
+                url,
+                timeout=IMAGE_PROXY_TIMEOUT,
+                stream=True,
+                allow_redirects=False,
+            )
+        except requests.RequestException as e:
+            print(f"Image proxy failed to fetch {url}: {e}")
+            return HttpResponse("Could not fetch the image", status=502)
+
+        if not response.is_redirect:
+            break
+
+        location = response.headers.get("Location", "")
+        response.close()
+        if not location:
+            return HttpResponse("Could not fetch the image", status=502)
+        # Relative Locations are legal, so resolve against the URL just fetched.
+        url = urljoin(url, location)
+    else:
+        return HttpResponse("Too many redirects", status=502)
+
+    # Checked here rather than per hop: this is the response whose body is read,
+    # and the only one still holding a socket to inspect.
+    if _connected_peer_is_blocked(response):
+        response.close()
+        return HttpResponse("That host is not permitted", status=403)
+
+    try:
+        response.raise_for_status()
+    except requests.RequestException as e:
+        print(f"Image proxy failed to fetch {url}: {e}")
+        response.close()
+        return HttpResponse("Could not fetch the image", status=502)
+
+    content_type = response.headers.get("Content-Type", "").split(";")[0].strip()
+    if not content_type.startswith("image/"):
+        # An error page answering 200 must not be passed off as an image.
+        response.close()
+        return HttpResponse("That URL is not an image", status=415)
+
+    # Read with a cap rather than trusting Content-Length, which a server may
+    # understate or omit entirely. decode_content bounds the decompressed size,
+    # so a compressed payload cannot expand past the cap.
+    content = response.raw.read(IMAGE_PROXY_MAX_BYTES + 1, decode_content=True)
+    response.close()
+    if len(content) > IMAGE_PROXY_MAX_BYTES:
+        return HttpResponse("That image is too large to proxy", status=413)
+
+    proxied = HttpResponse(content, content_type=content_type)
+    # This body is written by whoever controls the remote host and is served
+    # from our own origin, so it is pinned down as tightly as an image allows.
+    # image/svg+xml matters most: an SVG can carry script, and opening one at
+    # the top level would run it as this origin. Marking every response an
+    # attachment stops that navigation from rendering, while leaving <img> and
+    # the capture's own fetch unaffected.
+    proxied["X-Content-Type-Options"] = "nosniff"
+    proxied["Content-Security-Policy"] = "default-src 'none'; sandbox"
+    proxied["Content-Disposition"] = "attachment"
+    # No Access-Control-Allow-Origin: the capture is same-origin and needs none,
+    # and a wildcard is refused by browsers alongside credentialed requests
+    # anyway, so it would be surface without benefit.
+    return proxied
 
 
 def _cog_response(request, cog_bytes):

@@ -11,6 +11,8 @@ import moduleLoader, {
   loadESRIJSON,
   buildPolygonFill,
   withAntimeridianFix,
+  withIsolatedCanvas,
+  withAutoCrossOrigin,
   zarrSourceToGeoTIFF,
   applyAutoRamp,
 } from "components/map/ModuleLoader";
@@ -1925,6 +1927,143 @@ describe("withAntimeridianFix", () => {
       rewritten.searchParams.get("BBOXSR"),
     );
   });
+});
+
+/* The CORS probe is stubbed throughout these blocks. Left unstubbed it would
+   reach msw with no handler registered, and every probing test uses its own
+   hostname because the module caches probe results per origin for the lifetime
+   of the module. */
+describe("withIsolatedCanvas", () => {
+  /* OpenLayers merges consecutive layers onto one canvas when their className
+     matches, so a unique className per raster layer is what stops a tainted
+     layer from blanking its neighbours. */
+  it.each([["ImageLayer"], ["TileLayer"]])(
+    "gives %s its own className",
+    (type) => {
+      const first = withIsolatedCanvas(type, {});
+      const second = withIsolatedCanvas(type, {});
+      expect(first.className).not.toBe(second.className);
+      // The conventional class is retained for anything selecting on it.
+      expect(first.className).toMatch(/^ol-layer /);
+    },
+  );
+
+  it("leaves an explicit className alone", () => {
+    expect(
+      withIsolatedCanvas("ImageLayer", { className: "mine" }).className,
+    ).toBe("mine");
+  });
+
+  /* Vector layers cannot taint a canvas, and WebGLTile renders to its own WebGL
+     canvas regardless, so neither needs isolating. */
+  it.each([["VectorLayer"], ["WebGLTile"], ["VectorTileLayer"]])(
+    "leaves %s sharing",
+    (type) => {
+      expect(withIsolatedCanvas(type, {})).not.toHaveProperty("className");
+    },
+  );
+});
+
+describe("withAutoCrossOrigin", () => {
+  it("requests CORS when the server allows it", async () => {
+    jest.spyOn(global, "fetch").mockResolvedValue({ ok: true });
+    const url = "https://cors-ok.example.com/wms";
+    expect((await withAutoCrossOrigin("WMS", { url })).crossOrigin).toBe(
+      "anonymous",
+    );
+    expect(global.fetch).toHaveBeenCalledWith(
+      url,
+      expect.objectContaining({ method: "HEAD", mode: "cors" }),
+    );
+  });
+
+  /* Asking for CORS from a server that does not send the header makes the images
+     fail to load outright, so a rejected probe must leave the option unset. */
+  it("leaves the option unset when the probe is rejected", async () => {
+    jest.spyOn(global, "fetch").mockRejectedValue(new TypeError("CORS"));
+    const result = await withAutoCrossOrigin("WMS", {
+      url: "https://no-cors.example.com/wms",
+    });
+    expect(result).not.toHaveProperty("crossOrigin");
+  });
+
+  it("probes each origin once and shares the result", async () => {
+    jest.spyOn(global, "fetch").mockResolvedValue({ ok: true });
+    const url = "https://probe-once.example.com/MapServer";
+    await Promise.all([
+      withAutoCrossOrigin("ESRI Image and Map Service", { url }),
+      withAutoCrossOrigin("ESRI Image and Map Service", { url: `${url}/2` }),
+    ]);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not probe source types that are already CORS-clean", async () => {
+    jest.spyOn(global, "fetch");
+    const props = { url: "https://image-tile.example.com/tile/{z}/{y}/{x}" };
+    expect(await withAutoCrossOrigin("Image Tile", props)).toBe(props);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it.each([[true], [false], ["anonymous"]])(
+    "lets an explicit setting (%p) win over detection",
+    async (crossOrigin) => {
+      jest.spyOn(global, "fetch");
+      const props = { url: "https://explicit.example.com/wms", crossOrigin };
+      expect(await withAutoCrossOrigin("WMS", props)).toBe(props);
+      expect(global.fetch).not.toHaveBeenCalled();
+    },
+  );
+});
+
+/* Only the ol/source/Image* classes are covered here. ol/source/ImageTile (the
+   "Image Tile" type) defaults crossOrigin to "anonymous" of its own accord - see
+   DataTile.js, `options.crossOrigin || 'anonymous'` - so it is already CORS-clean
+   and deliberately exposes no toggle. These two default to null and are among the
+   sources that actually taint the map canvas. */
+describe.each([
+  ["ESRI Image and Map Service", "https://esri-co.example.com/MapServer"],
+  ["WMS", "https://wms-co.example.com/wms"],
+])("crossOrigin on %s", (sourceType, url) => {
+  beforeEach(() => {
+    // Detection off, so the unset cases below are about the explicit value only.
+    jest.spyOn(global, "fetch").mockRejectedValue(new TypeError("CORS"));
+  });
+
+  const buildSource = async (crossOrigin) => {
+    const layer = await moduleLoader(
+      {
+        type: "ImageLayer",
+        props: {
+          source: {
+            type: sourceType,
+            props: {
+              url,
+              ...(crossOrigin === undefined ? {} : { crossOrigin }),
+            },
+          },
+        },
+      },
+      "EPSG:3857",
+    );
+    return layer.getSource();
+  };
+
+  // The GUI renders crossOrigin as a checkbox, so a checked box arrives as
+  // boolean true rather than the attribute value OpenLayers expects.
+  it("translates a checked box into the crossorigin attribute value", async () => {
+    expect((await buildSource(true)).crossOrigin_).toBe("anonymous");
+  });
+
+  it("passes an explicit 'anonymous' through", async () => {
+    expect((await buildSource("anonymous")).crossOrigin_).toBe("anonymous");
+  });
+
+  it.each([[false], [undefined]])(
+    "leaves the option unset when not enabled (%p)",
+    async (value) => {
+      expect((await buildSource(value)).crossOrigin_).toBeNull();
+    },
+  );
 });
 
 describe("zarrSourceToGeoTIFF", () => {

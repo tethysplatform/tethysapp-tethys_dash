@@ -9,6 +9,7 @@ import userEvent from "@testing-library/user-event";
 import DashboardTabs from "components/dashboard/DashboardTabs";
 import DashboardLayoutAlerts from "components/dashboard/DashboardLayoutAlerts";
 import appAPI from "services/api/app";
+import captureThumbnail from "components/layout/captureThumbnail";
 import { useNavigate } from "react-router-dom";
 import { AppTourContext } from "components/contexts/Contexts";
 import {
@@ -24,7 +25,13 @@ jest.mock("uuid", () => ({
   v4: () => "12345678",
 }));
 
-jest.mock("html2canvas");
+/* jsdom has no layout and no real canvas, so the capture itself cannot run
+   here - it is stubbed out to a no-op. Whether a thumbnail actually renders
+   correctly can only be verified in a real browser. */
+jest.mock("components/layout/captureThumbnail", () => ({
+  __esModule: true,
+  default: jest.fn().mockResolvedValue(null),
+}));
 
 jest.mock("react-router-dom", () => ({
   ...jest.requireActual("react-router-dom"),
@@ -2222,5 +2229,54 @@ test("DashboardHeader, import tab without name uses fallback", async () => {
       }),
       "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
     );
+  });
+});
+
+// Auto-capture is off once a thumbnail has been uploaded by hand, so saving
+// cannot overwrite it.
+describe.each([
+  ["skips the capture when auto thumbnail is off", false, 0],
+  ["captures when auto thumbnail is on", true, 1],
+])("DashboardHeader %s", (_name, autoThumbnail, expectedCalls) => {
+  it(`calls captureThumbnail ${expectedCalls} time(s)`, async () => {
+    const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
+    mockedDashboard.autoThumbnail = autoThumbnail;
+
+    server.use(
+      rest.post(
+        "http://api.test/apps/tethysdash/dashboards/update/",
+        (req, res, ctx) =>
+          res(
+            ctx.status(200),
+            ctx.json({ success: true, updated_dashboard: mockedDashboard }),
+            ctx.set("Content-Type", "application/json"),
+          ),
+      ),
+    );
+
+    render(
+      createLoadedComponent({
+        children: (
+          <MemoryRouter initialEntries={["/dashboard/user/editable"]}>
+            <LayoutAlertContextProvider>
+              <DashboardHeader />
+              <DashboardLayoutAlerts />
+              <DashboardTabs />
+            </LayoutAlertContextProvider>
+          </MemoryRouter>
+        ),
+        options: { initialDashboard: mockedDashboard },
+      }),
+    );
+
+    await userEvent.click(await screen.findByLabelText("editButton"));
+    await userEvent.click(await screen.findByLabelText("saveButton"));
+
+    expect(
+      await screen.findByText("Change have been saved."),
+    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(captureThumbnail).toHaveBeenCalledTimes(expectedCalls);
+    });
   });
 });

@@ -630,3 +630,113 @@ test("Dashboard Responsive Layout with allowOverlap", async () => {
     layoutContextBefore,
   );
 });
+
+describe("fill-viewport stacking", () => {
+  const makeItem = (i, metadata) => ({
+    id: Number(i),
+    uuid: `some-uuid-${i}`,
+    i,
+    x: 0,
+    y: 0,
+    w: 20,
+    h: 20,
+    source: "",
+    args_string: "{}",
+    metadata_string: JSON.stringify(metadata),
+  });
+
+  // Index 1 fills; index 0 sits before it, index 2 after it.
+  const gridItems = [
+    makeItem("1", {}),
+    makeItem("2", { fillViewport: true }),
+    makeItem("3", {}),
+  ];
+
+  const renderLayout = (items, tabId = userDashboard.tabs[0].id) => {
+    const dashboard = JSON.parse(JSON.stringify(userDashboard));
+    dashboard.tabs[0].gridItems = items;
+    return render(
+      createLoadedComponent({
+        children: (
+          <LayoutAlertContextProvider>
+            <DashboardLayout tabId={tabId} gridItems={items} />
+          </LayoutAlertContextProvider>
+        ),
+        options: { initialDashboard: dashboard, inEditing: true },
+      }),
+    );
+  };
+
+  /* Reading the grid item wrappers directly is the point of these tests: the
+     z-index sits on react-grid-layout's own element, which has no accessible
+     role or label to query by. */
+  const gridItemStyles = (container) =>
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
+    [...container.querySelectorAll(".react-grid-item")].map(
+      (element) => element.style.zIndex,
+    );
+
+  /* The lift has to sit on the grid item rather than anything inside it:
+     react-grid-layout renders its resize handles as siblings of the item's
+     content, so lifting only the content would paint over the handles and make
+     the tile impossible to resize. */
+  it("lifts only the items ordered after the fill item", async () => {
+    const { container } = renderLayout(gridItems);
+    expect(await screen.findAllByText("Rendered Item")).not.toHaveLength(0);
+    expect(gridItemStyles(container)).toEqual(["", "", "1"]);
+  });
+
+  it("lifts nothing when no item fills", async () => {
+    const { container } = renderLayout([makeItem("1", {}), makeItem("2", {})]);
+    expect(await screen.findAllByText("Rendered Item")).not.toHaveLength(0);
+    expect(gridItemStyles(container)).toEqual(["", ""]);
+  });
+
+  // Fill-viewport does not apply on the popup surface, so nothing is lifted.
+  it("lifts nothing on the popup surface", async () => {
+    const { container } = renderLayout(gridItems, "popup");
+    expect(await screen.findAllByText("Rendered Item")).not.toHaveLength(0);
+    expect(gridItemStyles(container)).toEqual(["", "", ""]);
+  });
+
+  /* The filling item sizes itself from the viewport, not the grid, so a resize
+     handle on it does nothing - and being a sibling of the item's content, it
+     would be stranded at the old grid position once the item goes
+     position:fixed. Marking it non-resizable is what removes the handle:
+     react-grid-layout keeps the element in the DOM and hides it by adding
+     react-resizable-hide, whose rule lives in its own stylesheet
+     (.react-resizable-hide > .react-resizable-handle { display: none }). */
+  const gridItemFlags = (container) =>
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
+    [...container.querySelectorAll(".react-grid-item")].map((element) => ({
+      handleHidden: element.classList.contains("react-resizable-hide"),
+      draggable: element.classList.contains("react-draggable"),
+    }));
+
+  it("hides the fill item's resize handle, while the others keep theirs", async () => {
+    const { container } = renderLayout(gridItems);
+    expect(await screen.findAllByText("Rendered Item")).not.toHaveLength(0);
+    // Index 1 fills; the tiles either side of it stay resizable and draggable.
+    expect(gridItemFlags(container)).toEqual([
+      { handleHidden: false, draggable: true },
+      { handleHidden: true, draggable: false },
+      { handleHidden: false, draggable: true },
+    ]);
+  });
+
+  /* The flags come off the item's metadata every render, so clearing the
+     setting has to restore dragging and the handle with no further action. */
+  it("restores the handle and dragging once nothing fills", async () => {
+    const withoutFill = gridItems.map((item) => ({
+      ...item,
+      metadata_string: JSON.stringify({}),
+    }));
+    const { container } = renderLayout(withoutFill);
+    expect(await screen.findAllByText("Rendered Item")).not.toHaveLength(0);
+    expect(gridItemFlags(container)).toEqual([
+      { handleHidden: false, draggable: true },
+      { handleHidden: false, draggable: true },
+      { handleHidden: false, draggable: true },
+    ]);
+  });
+});
