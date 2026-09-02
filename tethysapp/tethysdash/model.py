@@ -68,6 +68,8 @@ class Dashboard(Base):
     notes = Column(String)
     owner = Column(String, nullable=False)
     unrestricted_placement = Column(Boolean)
+    # Cleared when a thumbnail is uploaded by hand, so a save cannot overwrite it.
+    auto_thumbnail = Column(Boolean, nullable=False, default=True)
     public = Column(Boolean, nullable=False, default=False)
     last_updated = Column(DateTime, default=datetime.now(timezone.utc))
 
@@ -688,6 +690,7 @@ def copy_named_dashboard(user, id, new_name, dashboard_uuid):
             public=original_dashboard.public,
             owner=user.username,
             unrestricted_placement=original_dashboard.unrestricted_placement,
+            auto_thumbnail=original_dashboard.auto_thumbnail,
         )
 
         # Add and flush to generate new ID
@@ -867,6 +870,9 @@ def update_named_dashboard(user, id, dashboard_updates):
             db_dashboard.unrestricted_placement = dashboard_updates[
                 "unrestrictedPlacement"
             ]
+
+        if "autoThumbnail" in dashboard_updates:
+            db_dashboard.auto_thumbnail = dashboard_updates["autoThumbnail"]
 
         if "permissions" in dashboard_updates:
             update_dashboard_permissions(
@@ -1712,13 +1718,12 @@ def parse_db_dashboard(session, dashboards, user, dashboard_view):
         MEDIA_URL = f"/{PREFIX_URL}/{MEDIA_URL.strip('/')}/"
 
     for dashboard in dashboards:
-        dashboard_image = os.path.join(
-            MEDIA_URL, App.root_url, f"app/{dashboard.uuid}.png"
-        )
+        # None until a thumbnail exists; the card renders without one.
+        dashboard_image = None
         app_media = get_app_media(App)
-        if not os.path.exists(os.path.join(app_media.path, f"{dashboard.uuid}.png")):
+        if os.path.exists(os.path.join(app_media.path, f"{dashboard.uuid}.png")):
             dashboard_image = os.path.join(
-                settings.STATIC_URL, App.root_url, "images", "default_dashboard.png"
+                MEDIA_URL, App.root_url, f"app/{dashboard.uuid}.png"
             )
         # Find the user's permission level for this dashboard
         user_permission = get_dashboard_user_permission(session, dashboard, user)
@@ -1749,6 +1754,7 @@ def parse_db_dashboard(session, dashboards, user, dashboard_view):
             "userPermission": user_permission,
             "permissions": permissions_list,
             "unrestrictedPlacement": dashboard.unrestricted_placement,
+            "autoThumbnail": dashboard.auto_thumbnail,
             "image": dashboard_image,
             "owner": dashboard.owner,
         }

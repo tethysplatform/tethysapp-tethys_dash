@@ -1,5 +1,5 @@
 import PropTypes from "prop-types";
-import { useContext, useState, useEffect } from "react";
+import { useContext, useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import Container from "react-bootstrap/Container";
 import Navbar from "react-bootstrap/Navbar";
@@ -26,6 +26,7 @@ import {
   useLayoutErrorAlertContext,
 } from "components/contexts/LayoutAlertContext";
 import { getTethysPortalBase } from "services/utilities";
+import captureThumbnail from "components/layout/captureThumbnail";
 
 import {
   BsX,
@@ -282,8 +283,13 @@ export const DashboardHeader = () => {
   );
   const [showInfoModal, setShowInfoModal] = useState(false);
   const { user } = useContext(AppContext);
-  const { name, editable, saveLayoutContext, unrestrictedPlacement } =
-    useContext(LayoutContext);
+  const {
+    name,
+    editable,
+    saveLayoutContext,
+    unrestrictedPlacement,
+    autoThumbnail,
+  } = useContext(LayoutContext);
   const { tabs, addTab, updateTab, importTabs, resetTabs, getActiveTab } =
     useContext(TabContext);
   const { isEditing, setIsEditing } = useContext(EditingContext);
@@ -296,7 +302,33 @@ export const DashboardHeader = () => {
     useLayoutSuccessAlertContext();
   const { setErrorMessage, setShowErrorMessage } = useLayoutErrorAlertContext();
   const [showImportModal, setShowImportModal] = useState(false);
+  const [thumbnailPending, setThumbnailPending] = useState(false);
+  const thumbnailInFlight = useRef(false);
   const navigate = useNavigate();
+  useEffect(() => {
+    if (!thumbnailPending || isEditing || thumbnailInFlight.current) return;
+
+    // Off once a thumbnail has been uploaded by hand, so a save cannot
+    // overwrite it. Cleared here rather than skipped earlier so the pending
+    // flag does not stay set.
+    if (autoThumbnail === false) {
+      setThumbnailPending(false);
+      return;
+    }
+
+    thumbnailInFlight.current = true;
+    (async () => {
+      try {
+        const image = await captureThumbnail();
+        if (image) await saveLayoutContext({ image });
+      } catch (error) {
+        console.error("Dashboard thumbnail update failed:", error);
+      } finally {
+        thumbnailInFlight.current = false;
+        setThumbnailPending(false);
+      }
+    })();
+  }, [thumbnailPending, isEditing, saveLayoutContext, autoThumbnail]);
 
   // Only show AppInfoModal on startup after public user modal check is complete and modal is dismissed
   useEffect(() => {
@@ -455,6 +487,7 @@ export const DashboardHeader = () => {
       setSuccessMessage("Change have been saved.");
       setShowSuccessMessage(true);
       setIsEditing(false);
+      setThumbnailPending(true);
     } else {
       setErrorMessage(
         "Failed to save changes. Check server logs for more information.",

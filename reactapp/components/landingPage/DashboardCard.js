@@ -188,6 +188,7 @@ const DashboardCard = ({
   description,
   publicDashboard,
   image,
+  autoThumbnail = true,
 }) => {
   const navigate = useNavigate();
   const { deleteDashboard, copyDashboard, updateDashboard, exportDashboard } =
@@ -201,6 +202,7 @@ const DashboardCard = ({
   const [title, setTitle] = useState(name);
   const [desc, setDesc] = useState(description);
   const [dashboardImage, setDashboardImage] = useState(image);
+  const [autoUpdateThumbnail, setAutoUpdateThumbnail] = useState(autoThumbnail);
   const nameInput = useRef();
   const descriptionInput = useRef();
   const { activeAppTour } = useAppTourContext();
@@ -295,16 +297,16 @@ const DashboardCard = ({
     }
   };
 
-  const onUpdateThumbnail = async (newImage) => {
+  const onUpdateThumbnail = async (newImage, newAutoThumbnail) => {
     setShowThumbnailModal(false);
-    const apiResponse = await updateDashboard({
-      id,
-      newProperties: {
-        image: newImage,
-      },
-    });
+    const newProperties = { autoThumbnail: newAutoThumbnail };
+    // The toggle can be changed on its own, without picking a file.
+    if (newImage) newProperties.image = newImage;
+
+    const apiResponse = await updateDashboard({ id, newProperties });
     if (apiResponse.success) {
-      setDashboardImage(newImage);
+      if (newImage) setDashboardImage(newImage);
+      setAutoUpdateThumbnail(newAutoThumbnail);
     } else {
       setErrorMessage(apiResponse.message ?? "Failed to update dashboard");
     }
@@ -411,11 +413,14 @@ const DashboardCard = ({
               {errorMessage}
             </StyledAlert>
           )}
-          <CardImage
-            variant="top"
-            src={dashboardImage}
-            aria-label="Dashboard Card Image"
-          />
+          {/* Absent until a thumbnail is captured on save or uploaded. */}
+          {dashboardImage && (
+            <CardImage
+              variant="top"
+              src={dashboardImage}
+              aria-label="Dashboard Card Image"
+            />
+          )}
 
           <DescriptionDiv
             isEditing={isEditingDescription}
@@ -450,6 +455,7 @@ const DashboardCard = ({
           showModal={showThumbnailModal}
           setShowModal={setShowThumbnailModal}
           onUpdateThumbnail={onUpdateThumbnail}
+          autoThumbnail={autoUpdateThumbnail}
         />
       )}
       {userPermission === "admin" && (
@@ -525,6 +531,7 @@ DashboardCard.propTypes = {
   description: PropTypes.string,
   publicDashboard: PropTypes.bool,
   image: PropTypes.string,
+  autoThumbnail: PropTypes.bool,
   userPermission: PropTypes.string,
   permissions: PropTypes.arrayOf(
     PropTypes.shape({
