@@ -356,9 +356,12 @@ The GeoParquet source renders a **vector** layer from a public `GeoParquet <http
 
 **Layer Properties:**
     - **url:** (required) Public URL of the GeoParquet file (an ``https`` URL, or an ``s3://`` URL which is translated to its public ``https`` form). The host must allow cross-origin (CORS) reads.
+    - **columns:** (optional) Comma-separated attribute columns to read. The geometry column is always included. Leave blank to read every column. Parquet is column-oriented, so naming only the columns a layer actually needs can cut the download substantially on wide files — but any column left out will not appear in popups.
+    - **bbox:** (optional) ``minx,miny,maxx,maxy`` in the **file's own CRS**. Only features whose bounding box intersects this area are loaded. When the file carries a GeoParquet 1.1 *covering* bbox column, this is pushed down to the file's row-group statistics, so non-matching row groups are never downloaded; otherwise the box is applied after decoding (same result, no download saved).
+    - **maxFeatures:** (optional) Stop after this many rows. A blunt guardrail for an unexpectedly large file.
 
 .. note::
-    The file is downloaded and parsed in the browser, so this suits moderate feature counts; very large files may be slow to render. GeoParquet's default CRS (``OGC:CRS84`` / WGS84 lon-lat) and files in a projected CRS (e.g. UTM) are reprojected automatically. A file declaring a CRS TethysDash cannot resolve reports that on the layer rather than drawing the features at untransformed coordinates.
+    The file is downloaded and parsed in the browser, so this suits moderate feature counts; very large files may be slow to render — use ``columns``, ``bbox`` and ``maxFeatures`` to narrow what is read. GeoParquet's default CRS (``OGC:CRS84`` / WGS84 lon-lat) and files in a projected CRS (e.g. UTM) are reprojected automatically. A file declaring a CRS TethysDash cannot resolve reports that on the layer rather than drawing the features at untransformed coordinates.
 
 **Example JSON Configuration:**
 

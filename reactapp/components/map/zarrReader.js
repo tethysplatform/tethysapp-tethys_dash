@@ -43,11 +43,15 @@ function isFormatMismatch(error) {
 // "not a v2 store" message, which is exactly wrong when CORS is the problem.
 async function openNode(url) {
   const { FetchStore, open } = await getZarrita();
-  const signal = timeoutSignal(ZARR_FETCH_TIMEOUT_MS);
-  const store = new FetchStore(
-    url.replace(/\/$/, ""),
-    signal ? { overrides: { signal } } : undefined,
-  );
+  // Per-request timeout via the store's fetch handler. The `overrides` option
+  // would share one signal across every request the store ever makes, so a
+  // long-but-progressing read of many chunks would abort partway through.
+  const store = new FetchStore(url.replace(/\/$/, ""), {
+    fetch: (request) => {
+      const signal = timeoutSignal(ZARR_FETCH_TIMEOUT_MS);
+      return fetch(signal ? new Request(request, { signal }) : request);
+    },
+  });
   let v3Error;
   try {
     return await open.v3(store);

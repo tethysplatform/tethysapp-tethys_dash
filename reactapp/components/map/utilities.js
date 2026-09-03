@@ -204,7 +204,15 @@ export const sourcePropertiesOptions = {
     required: {
       url: { placeholder: "GeoParquet file URL (https or s3)" },
     },
-    optional: {},
+    optional: {
+      columns: {
+        placeholder: "Attribute columns to read, comma separated (all if blank)",
+      },
+      bbox: {
+        placeholder: "Clip to minx,miny,maxx,maxy (in the file's own CRS)",
+      },
+      maxFeatures: { placeholder: "Stop after this many rows" },
+    },
   },
   "Vector Tile": {
     required: {

@@ -32,6 +32,7 @@ import {
   rewriteArcGISExportUrlForAntimeridian,
   readFeatureCollection,
   coerceOptionalBoolean,
+  coerceOptionalNumber,
 } from "components/map/utilities";
 import { acquireComponents } from "components/map/shapefile/acquire";
 import { interpretShapefile } from "components/map/shapefile/index";
@@ -736,10 +737,91 @@ export function readGeoParquetGeoMetadata(metadata) {
   }
   const geo = JSON.parse(geoValue);
   const geometryColumn = geo.primary_column || "geometry";
-  const dataProjection = geoParquetCRSToProjection(
-    geo.columns?.[geometryColumn]?.crs,
-  );
-  return { geometryColumn, dataProjection };
+  const column = geo.columns?.[geometryColumn];
+  const dataProjection = geoParquetCRSToProjection(column?.crs);
+  return {
+    geometryColumn,
+    dataProjection,
+    // GeoParquet 1.1 optionally names a "covering" struct column holding each
+    // row's bounding box. Its per-row-group min/max statistics are what let a
+    // bbox filter skip whole row groups without fetching their pages.
+    bboxColumn: readCoveringBBoxPaths(column?.covering),
+  };
+}
+
+// covering.bbox maps each side to a physical column path, e.g.
+// { xmin: ["bbox", "xmin"], ... }. Returns dotted paths hyparquet can filter
+// on, or null when the file declares no covering.
+export function readCoveringBBoxPaths(covering) {
+  const bbox = covering?.bbox;
+  if (!bbox) return null;
+  const sides = ["xmin", "ymin", "xmax", "ymax"];
+  const paths = {};
+  for (const side of sides) {
+    const path = bbox[side];
+    if (!Array.isArray(path) || path.length === 0) return null;
+    paths[side] = path.join(".");
+  }
+  return paths;
+}
+
+// Parse a "minx,miny,maxx,maxy" author-supplied bbox in the file's own CRS.
+export function parseBBox(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const parts = String(value)
+    .split(",")
+    .map((n) => Number(n.trim()));
+  if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) {
+    throw new GeoParquetError(
+      `bbox must be four comma-separated numbers ` +
+        `"minx,miny,maxx,maxy"; got "${value}"`,
+    );
+  }
+  const [minx, miny, maxx, maxy] = parts;
+  if (maxx < minx || maxy < miny) {
+    throw new GeoParquetError(
+      `bbox "${value}" is inverted; expected minx,miny,maxx,maxy`,
+    );
+  }
+  return { minx, miny, maxx, maxy };
+}
+
+// Intersection test as a hyparquet filter over the covering bbox columns: two
+// boxes overlap unless one is strictly beyond the other on some axis. Row
+// groups whose statistics cannot satisfy this are skipped without being read.
+export function bboxIntersectsFilter(bboxColumn, box) {
+  return {
+    $and: [
+      { [bboxColumn.xmin]: { $lte: box.maxx } },
+      { [bboxColumn.xmax]: { $gte: box.minx } },
+      { [bboxColumn.ymin]: { $lte: box.maxy } },
+      { [bboxColumn.ymax]: { $gte: box.miny } },
+    ],
+  };
+}
+
+// Author-supplied column list -> the physical columns to decode. The geometry
+// column is always included, and so are the covering bbox columns when a bbox
+// filter needs them. Returns undefined to mean "all columns".
+export function resolveReadColumns({
+  columns,
+  geometryColumn,
+  bboxColumn,
+  usingBBoxFilter,
+}) {
+  const requested = String(columns ?? "")
+    .split(",")
+    .map((c) => c.trim())
+    .filter(Boolean);
+  if (requested.length === 0) return undefined;
+  const needed = new Set([geometryColumn, ...requested]);
+  if (usingBBoxFilter && bboxColumn) {
+    // hyparquet needs the filter's own columns available to evaluate it.
+    for (const path of Object.values(bboxColumn)) {
+      needed.add(path.split(".")[0]);
+    }
+  }
+  return [...needed];
 }
 
 // Lazy-load hyparquet + its codec pack; only needed when a GeoParquet renders.
@@ -803,16 +885,25 @@ export async function loadGeoParquet(config, mapProjection) {
   const url = s3UrlToHttps(rawUrl);
   registerGeoPackageProjections();
 
-  if (!geoParquetCache.has(url)) {
+  // These change what is read, so they belong in the cache key.
+  const readOptions = {
+    columns: config.props?.columns ?? "",
+    bbox: config.props?.bbox ?? "",
+    maxFeatures: coerceOptionalNumber(config.props?.maxFeatures),
+  };
+  const cacheKey = JSON.stringify([url, readOptions]);
+
+  if (!geoParquetCache.has(cacheKey)) {
     geoParquetCache.set(
-      url,
-      readGeoParquetFile(url).catch((error) => {
-        geoParquetCache.delete(url);
+      cacheKey,
+      readGeoParquetFile(url, readOptions).catch((error) => {
+        geoParquetCache.delete(cacheKey);
         throw error;
       }),
     );
   }
-  const { featureCollection, dataProjection } = await geoParquetCache.get(url);
+  const { featureCollection, dataProjection } =
+    await geoParquetCache.get(cacheKey);
 
   return new VectorSource({
     features: new GeoJSON().readFeatures(featureCollection, {
@@ -822,7 +913,7 @@ export async function loadGeoParquet(config, mapProjection) {
   });
 }
 
-async function readGeoParquetFile(url) {
+async function readGeoParquetFile(url, readOptions = {}) {
   const {
     asyncBufferFromUrl,
     parquetMetadataAsync,
@@ -830,13 +921,47 @@ async function readGeoParquetFile(url) {
     compressors,
   } = await getHyparquet();
 
+  const box = parseBBox(readOptions.bbox);
   let metadata;
   let rows;
+  let geometryColumn;
+  let dataProjection;
+  let bboxColumn;
   try {
     const file = await asyncBufferFromUrl({ url });
     metadata = await parquetMetadataAsync(file);
-    rows = await parquetReadObjects({ file, compressors, geoparquet: true });
+    ({ geometryColumn, dataProjection, bboxColumn } =
+      readGeoParquetGeoMetadata(metadata));
+
+    // Only push the bbox down when the file declares a covering column;
+    // otherwise there is nothing with per-row-group statistics to prune on and
+    // the box is applied to the decoded geometries instead.
+    const usingBBoxFilter = Boolean(box && bboxColumn);
+    const columns = resolveReadColumns({
+      columns: readOptions.columns,
+      geometryColumn,
+      bboxColumn,
+      usingBBoxFilter,
+    });
+
+    rows = await parquetReadObjects({
+      file,
+      compressors,
+      geoparquet: true,
+      ...(columns ? { columns } : {}),
+      ...(usingBBoxFilter
+        ? {
+            filter: bboxIntersectsFilter(bboxColumn, box),
+            // Prune at page granularity too, not just row-group.
+            usePageIndex: true,
+          }
+        : {}),
+      ...(readOptions.maxFeatures > 0
+        ? { rowStart: 0, rowEnd: readOptions.maxFeatures }
+        : {}),
+    });
   } catch (error) {
+    if (error instanceof GeoParquetError) throw error;
     // The browser makes this fetch, so a CORS-less host is the likeliest cause
     // and reports only an opaque network failure. Name both possibilities.
     throw new GeoParquetError(
@@ -846,12 +971,14 @@ async function readGeoParquetFile(url) {
     );
   }
 
-  const { geometryColumn, dataProjection } =
-    readGeoParquetGeoMetadata(metadata);
   resolveProjectionOrThrow(dataProjection, {
     ErrorType: GeoParquetError,
     what: "This GeoParquet file",
   });
+
+  // With no covering column the bbox could not be pushed down, so apply it to
+  // the decoded geometries. Same visible result, no I/O saved.
+  const needsGeometryBBoxFilter = Boolean(box && !bboxColumn);
 
   const features = rows
     .map((row) => {
@@ -861,16 +988,54 @@ async function readGeoParquetFile(url) {
         // ol/format/GeoJSON applies properties after the geometry, so a
         // residual column literally named "geometry" would overwrite it.
         if (key === "geometry") continue;
+        // Covering bbox columns are plumbing, not attributes; hide them from
+        // the popup, which shows every property it is given.
+        if (bboxColumn && key === bboxColumn.xmin.split(".")[0]) continue;
         properties[key] = coerceParquetValue(value);
       }
       return { type: "Feature", geometry: geometry ?? null, properties };
     })
-    .filter((feature) => feature.geometry != null);
+    .filter((feature) => feature.geometry != null)
+    .filter(
+      (feature) =>
+        !needsGeometryBBoxFilter || geometryIntersectsBBox(feature.geometry, box),
+    );
 
   return {
     featureCollection: { type: "FeatureCollection", features },
     dataProjection,
   };
+}
+
+// Bounding-box overlap for a GeoJSON geometry, used only when the file has no
+// covering column to push the filter down to.
+export function geometryIntersectsBBox(geometry, box) {
+  if (!geometry || !box) return true;
+  let minx = Infinity;
+  let miny = Infinity;
+  let maxx = -Infinity;
+  let maxy = -Infinity;
+  const visit = (coords) => {
+    if (typeof coords[0] === "number") {
+      const [x, y] = coords;
+      if (x < minx) minx = x;
+      if (x > maxx) maxx = x;
+      if (y < miny) miny = y;
+      if (y > maxy) maxy = y;
+      return;
+    }
+    for (const part of coords) visit(part);
+  };
+  if (geometry.type === "GeometryCollection") {
+    return (geometry.geometries ?? []).some((g) =>
+      geometryIntersectsBBox(g, box),
+    );
+  }
+  if (!geometry.coordinates) return true;
+  visit(geometry.coordinates);
+  return (
+    minx <= box.maxx && maxx >= box.minx && miny <= box.maxy && maxy >= box.miny
+  );
 }
 
 const moduleLoader = async (config, mapProjection, getMapProjection) => {

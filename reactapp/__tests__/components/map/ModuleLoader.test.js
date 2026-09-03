@@ -26,6 +26,11 @@ import moduleLoader, {
   ZarrError,
   coerceParquetValue,
   clearClientSourceCaches,
+  readCoveringBBoxPaths,
+  parseBBox,
+  bboxIntersectsFilter,
+  resolveReadColumns,
+  geometryIntersectsBBox,
 } from "components/map/ModuleLoader";
 import { fromUrl } from "geotiff";
 import DataTile from "ol/source/DataTile.js";
@@ -3183,6 +3188,7 @@ describe("readGeoParquetGeoMetadata", () => {
     expect(readGeoParquetGeoMetadata(meta)).toEqual({
       geometryColumn: "geom",
       dataProjection: "EPSG:32615",
+      bboxColumn: null, // this file declares no GeoParquet 1.1 covering
     });
   });
 });
@@ -3689,5 +3695,260 @@ describe("applyZarrRamp - review findings", () => {
 
     const second = await applyAutoRamp(rampLayer({ rampName: "viridis" }));
     expect(JSON.stringify(second.style.color)).not.toEqual(firstColor);
+  });
+});
+
+describe("GeoParquet read-narrowing helpers", () => {
+  const covering = {
+    bbox: {
+      xmin: ["bbox", "xmin"],
+      ymin: ["bbox", "ymin"],
+      xmax: ["bbox", "xmax"],
+      ymax: ["bbox", "ymax"],
+    },
+  };
+
+  test("reads GeoParquet 1.1 covering paths as dotted filter paths", () => {
+    expect(readCoveringBBoxPaths(covering)).toEqual({
+      xmin: "bbox.xmin",
+      ymin: "bbox.ymin",
+      xmax: "bbox.xmax",
+      ymax: "bbox.ymax",
+    });
+  });
+
+  test("returns null when the file declares no usable covering", () => {
+    expect(readCoveringBBoxPaths(undefined)).toBeNull();
+    expect(readCoveringBBoxPaths({})).toBeNull();
+    expect(readCoveringBBoxPaths({ bbox: { xmin: ["bbox", "xmin"] } })).toBeNull();
+  });
+
+  test("parses a bbox and rejects malformed or inverted input", () => {
+    expect(parseBBox("-105.4,39.9,-105.1,40.15")).toEqual({
+      minx: -105.4,
+      miny: 39.9,
+      maxx: -105.1,
+      maxy: 40.15,
+    });
+    expect(parseBBox("")).toBeNull();
+    expect(parseBBox(undefined)).toBeNull();
+    expect(() => parseBBox("1,2,3")).toThrow(GeoParquetError);
+    expect(() => parseBBox("a,b,c,d")).toThrow(/four comma-separated numbers/);
+    expect(() => parseBBox("10,10,0,0")).toThrow(/inverted/);
+  });
+
+  test("builds an intersection filter, not a containment one", () => {
+    const filter = bboxIntersectsFilter(readCoveringBBoxPaths(covering), {
+      minx: 0,
+      miny: 0,
+      maxx: 10,
+      maxy: 10,
+    });
+    // Overlap holds unless one box is strictly beyond the other on some axis.
+    expect(filter).toEqual({
+      $and: [
+        { "bbox.xmin": { $lte: 10 } },
+        { "bbox.xmax": { $gte: 0 } },
+        { "bbox.ymin": { $lte: 10 } },
+        { "bbox.ymax": { $gte: 0 } },
+      ],
+    });
+  });
+
+  test("resolveReadColumns keeps geometry and adds the filter's own columns", () => {
+    expect(
+      resolveReadColumns({
+        columns: "name, city",
+        geometryColumn: "geometry",
+        bboxColumn: readCoveringBBoxPaths(covering),
+        usingBBoxFilter: true,
+      }),
+    ).toEqual(["geometry", "name", "city", "bbox"]);
+  });
+
+  test("resolveReadColumns means 'all columns' when none are requested", () => {
+    expect(
+      resolveReadColumns({ columns: "", geometryColumn: "geometry" }),
+    ).toBeUndefined();
+    expect(
+      resolveReadColumns({ columns: "  ,  ", geometryColumn: "geometry" }),
+    ).toBeUndefined();
+  });
+
+  test("geometryIntersectsBBox covers points, lines and collections", () => {
+    const box = { minx: 0, miny: 0, maxx: 10, maxy: 10 };
+    const pt = (x, y) => ({ type: "Point", coordinates: [x, y] });
+    expect(geometryIntersectsBBox(pt(5, 5), box)).toBe(true);
+    expect(geometryIntersectsBBox(pt(50, 5), box)).toBe(false);
+    expect(
+      geometryIntersectsBBox(
+        { type: "LineString", coordinates: [[-5, 5], [50, 5]] },
+        box,
+      ),
+    ).toBe(true); // crosses the box even though no vertex is inside
+    expect(
+      geometryIntersectsBBox(
+        { type: "GeometryCollection", geometries: [pt(50, 50), pt(1, 1)] },
+        box,
+      ),
+    ).toBe(true);
+  });
+});
+
+describe("loadGeoParquet - narrowing what is read", () => {
+  const rows = [
+    {
+      geometry: { type: "Point", coordinates: [-105.27, 40.02] },
+      bbox: { xmin: -105.27, ymin: 40.02, xmax: -105.27, ymax: 40.02 },
+      name: "boulder",
+    },
+    {
+      geometry: { type: "Point", coordinates: [-74.0, 40.71] },
+      bbox: { xmin: -74.0, ymin: 40.71, xmax: -74.0, ymax: 40.71 },
+      name: "nyc",
+    },
+  ];
+  const metaWithCovering = {
+    key_value_metadata: [
+      {
+        key: "geo",
+        value: JSON.stringify({
+          primary_column: "geometry",
+          columns: {
+            geometry: {
+              crs: null,
+              covering: {
+                bbox: {
+                  xmin: ["bbox", "xmin"],
+                  ymin: ["bbox", "ymin"],
+                  xmax: ["bbox", "xmax"],
+                  ymax: ["bbox", "ymax"],
+                },
+              },
+            },
+          },
+        }),
+      },
+    ],
+  };
+  const metaNoCovering = { key_value_metadata: undefined };
+
+  beforeEach(() => {
+    clearClientSourceCaches();
+    asyncBufferFromUrl.mockReset().mockResolvedValue({});
+    parquetMetadataAsync.mockReset().mockResolvedValue(metaWithCovering);
+    parquetReadObjects.mockReset().mockResolvedValue(rows);
+  });
+
+  test("reads every column by default", async () => {
+    await loadGeoParquet({ props: { url: "https://x/a.parquet" } }, "EPSG:4326");
+    expect(parquetReadObjects).toHaveBeenCalledWith(
+      expect.not.objectContaining({ columns: expect.anything() }),
+    );
+  });
+
+  test("passes an author's column list through, always keeping geometry", async () => {
+    await loadGeoParquet(
+      { props: { url: "https://x/a.parquet", columns: "name" } },
+      "EPSG:4326",
+    );
+    expect(parquetReadObjects).toHaveBeenCalledWith(
+      expect.objectContaining({ columns: ["geometry", "name"] }),
+    );
+  });
+
+  test("pushes a bbox down as a row-group filter when the file has a covering", async () => {
+    await loadGeoParquet(
+      {
+        props: {
+          url: "https://x/a.parquet",
+          bbox: "-105.4,39.9,-105.1,40.15",
+        },
+      },
+      "EPSG:4326",
+    );
+    const opts = parquetReadObjects.mock.calls[0][0];
+    expect(opts.filter).toEqual({
+      $and: [
+        { "bbox.xmin": { $lte: -105.1 } },
+        { "bbox.xmax": { $gte: -105.4 } },
+        { "bbox.ymin": { $lte: 40.15 } },
+        { "bbox.ymax": { $gte: 39.9 } },
+      ],
+    });
+    expect(opts.usePageIndex).toBe(true);
+  });
+
+  test("keeps the bbox columns readable when pruning columns alongside a filter", async () => {
+    await loadGeoParquet(
+      {
+        props: {
+          url: "https://x/a.parquet",
+          columns: "name",
+          bbox: "-105.4,39.9,-105.1,40.15",
+        },
+      },
+      "EPSG:4326",
+    );
+    expect(parquetReadObjects).toHaveBeenCalledWith(
+      expect.objectContaining({ columns: ["geometry", "name", "bbox"] }),
+    );
+  });
+
+  test("hides the covering bbox column from feature properties", async () => {
+    const source = await loadGeoParquet(
+      { props: { url: "https://x/a.parquet" } },
+      "EPSG:4326",
+    );
+    // The popup renders every property it is given, so plumbing must not leak.
+    expect(source.getFeatures()[0].get("bbox")).toBeUndefined();
+    expect(source.getFeatures()[0].get("name")).toBe("boulder");
+  });
+
+  test("filters on decoded geometry when the file has no covering column", async () => {
+    parquetMetadataAsync.mockResolvedValue(metaNoCovering);
+    const source = await loadGeoParquet(
+      {
+        props: {
+          url: "https://x/plain.parquet",
+          bbox: "-105.4,39.9,-105.1,40.15",
+        },
+      },
+      "EPSG:4326",
+    );
+    // No pushdown available, but the visible result must still be the box.
+    expect(parquetReadObjects.mock.calls[0][0].filter).toBeUndefined();
+    expect(source.getFeatures()).toHaveLength(1);
+    expect(source.getFeatures()[0].get("name")).toBe("boulder");
+  });
+
+  test("caps the read with maxFeatures", async () => {
+    await loadGeoParquet(
+      { props: { url: "https://x/a.parquet", maxFeatures: "500" } },
+      "EPSG:4326",
+    );
+    expect(parquetReadObjects).toHaveBeenCalledWith(
+      expect.objectContaining({ rowStart: 0, rowEnd: 500 }),
+    );
+  });
+
+  test("caches per read-option set, not per URL", async () => {
+    const url = "https://x/a.parquet";
+    await loadGeoParquet({ props: { url } }, "EPSG:4326");
+    await loadGeoParquet({ props: { url, columns: "name" } }, "EPSG:4326");
+    // Different columns means a different result, so it cannot reuse the entry.
+    expect(parquetReadObjects).toHaveBeenCalledTimes(2);
+
+    await loadGeoParquet({ props: { url, columns: "name" } }, "EPSG:4326");
+    expect(parquetReadObjects).toHaveBeenCalledTimes(2);
+  });
+
+  test("surfaces a malformed bbox as a GeoParquet error", async () => {
+    await expect(
+      loadGeoParquet(
+        { props: { url: "https://x/a.parquet", bbox: "1,2,3" } },
+        "EPSG:4326",
+      ),
+    ).rejects.toThrow(/four comma-separated numbers/);
   });
 });
