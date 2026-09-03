@@ -15,6 +15,10 @@ import moduleLoader, {
   withAutoCrossOrigin,
   applyAutoRamp,
   loadGeoPackage,
+  listGeoPackageTables,
+  invalidateGeoPackageTables,
+  listGeoParquetColumns,
+  invalidateGeoParquetColumns,
   s3UrlToHttps,
   registerGeoPackageProjections,
   GeoPackageError,
@@ -3084,6 +3088,136 @@ describe("loadGeoPackage", () => {
   });
 });
 
+describe("listGeoPackageTables", () => {
+  beforeEach(() => {
+    clearClientSourceCaches();
+  });
+
+  test("returns every table name in the file", async () => {
+    loadGpkg.mockResolvedValue([
+      { roads: new VectorSource(), bldgs: new VectorSource() },
+      {},
+    ]);
+    await expect(listGeoPackageTables("https://h/d1.gpkg")).resolves.toEqual([
+      "roads",
+      "bldgs",
+    ]);
+  });
+
+  test("a second call for the same url does not download again", async () => {
+    loadGpkg.mockResolvedValue([{ roads: new VectorSource() }, {}]);
+    await listGeoPackageTables("https://h/d2.gpkg");
+    await listGeoPackageTables("https://h/d2.gpkg");
+    expect(loadGpkg).toHaveBeenCalledTimes(1);
+  });
+
+  test("two concurrent calls for the same url share one download", async () => {
+    // The cache entry has to be planted synchronously, before the reader's
+    // first await: a caller arriving in the same tick would otherwise miss it
+    // and start a second download of the same file.
+    let resolveLoad;
+    loadGpkg.mockReturnValue(
+      new Promise((resolve) => {
+        resolveLoad = resolve;
+      }),
+    );
+    const first = listGeoPackageTables("https://h/d3.gpkg");
+    const second = listGeoPackageTables("https://h/d3.gpkg");
+    resolveLoad([{ roads: new VectorSource() }, {}]);
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      ["roads"],
+      ["roads"],
+    ]);
+    expect(loadGpkg).toHaveBeenCalledTimes(1);
+  });
+
+  test("evicts a rejected read so a later call retries", async () => {
+    loadGpkg
+      .mockRejectedValueOnce(new Error("boom"))
+      .mockResolvedValue([{ roads: new VectorSource() }, {}]);
+    await expect(listGeoPackageTables("https://h/d4.gpkg")).rejects.toThrow(
+      /boom/,
+    );
+    await expect(listGeoPackageTables("https://h/d4.gpkg")).resolves.toEqual([
+      "roads",
+    ]);
+    expect(loadGpkg).toHaveBeenCalledTimes(2);
+  });
+
+  test("normalizes an s3:// url the way the render path does", async () => {
+    loadGpkg.mockResolvedValue([{ roads: new VectorSource() }, {}]);
+    await listGeoPackageTables("s3://b-us-east-1-x/d5.gpkg");
+    expect(loadGpkg).toHaveBeenCalledWith(
+      "https://b-us-east-1-x.s3.us-east-1.amazonaws.com/d5.gpkg",
+      expect.any(String),
+    );
+  });
+
+  test("neither requires nor consults a table name", async () => {
+    // loadGeoPackage throws without one, which is exactly the state discovery
+    // runs in -- the author is asking precisely because they have no name.
+    loadGpkg.mockResolvedValue([{ roads: new VectorSource() }, {}]);
+    await expect(listGeoPackageTables("https://h/d6.gpkg")).resolves.toEqual([
+      "roads",
+    ]);
+    expect(loadGpkg).toHaveBeenCalledTimes(1);
+    expect(loadGpkg.mock.calls[0]).toHaveLength(2);
+  });
+
+  test("reads with no map mounted, against a registered projection", async () => {
+    // The editor may run before or without a map, so the accessor takes no
+    // projection from the caller. loadGpkg throws synchronously on a
+    // projection it cannot resolve, so the one it picks must be registered.
+    loadGpkg.mockResolvedValue([{ roads: new VectorSource() }, {}]);
+    await listGeoPackageTables("https://h/d7.gpkg");
+    const [, projection] = loadGpkg.mock.calls[0];
+    expect(getProjection(projection)).not.toBeNull();
+  });
+
+  test("an invalidating call evicts the entry and downloads again", async () => {
+    // This cache sits behind the discovery hook's own memo, so without an
+    // entry point of its own a forced re-read would land here and be handed
+    // the same list back.
+    loadGpkg.mockResolvedValue([{ roads: new VectorSource() }, {}]);
+    await listGeoPackageTables("https://h/d8.gpkg");
+    invalidateGeoPackageTables("https://h/d8.gpkg");
+    await listGeoPackageTables("https://h/d8.gpkg");
+    expect(loadGpkg).toHaveBeenCalledTimes(2);
+  });
+
+  test("invalidates by the resolved url, not the raw s3:// one", async () => {
+    loadGpkg.mockResolvedValue([{ roads: new VectorSource() }, {}]);
+    await listGeoPackageTables("s3://b-us-east-1-x/d9.gpkg");
+    invalidateGeoPackageTables("s3://b-us-east-1-x/d9.gpkg");
+    await listGeoPackageTables("s3://b-us-east-1-x/d9.gpkg");
+    expect(loadGpkg).toHaveBeenCalledTimes(2);
+  });
+
+  test("a file that fails to reproject surfaces the reason, not an empty list", async () => {
+    // An empty array would read as "this file has no tables" -- a different
+    // and wrong answer that the author cannot act on.
+    loadGpkg.mockRejectedValue(
+      new Error('Projection "EPSG:31370" is not registered'),
+    );
+    const read = listGeoPackageTables("https://h/d10.gpkg");
+    await expect(read).rejects.toThrow(GeoPackageError);
+    await expect(read).rejects.toThrow(/EPSG:31370/);
+  });
+
+  test("does not share the renderer's url+projection cache", async () => {
+    // The renderer keys on `${url}::${mapProjection}`; discovery has no
+    // projection and must not be able to evict an entry a rendered layer is
+    // awaiting, so the two caches are separate reads of the same file.
+    loadGpkg.mockResolvedValue([{ roads: new VectorSource() }, {}]);
+    await loadGeoPackage(
+      { props: { url: "https://h/d11.gpkg", layer: "roads" } },
+      "EPSG:3857",
+    );
+    await listGeoPackageTables("https://h/d11.gpkg");
+    expect(loadGpkg).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe("matchesCondition — a field the feature does not carry", () => {
   // Left unguarded, the negated operators invert into a match: `!=` becomes
   // `undefined !== x` and `notIn` becomes "not in the list", both true. One
@@ -3326,6 +3460,133 @@ describe("loadGeoParquet", () => {
     );
     expect(source).toBeInstanceOf(VectorSource);
     expect(source.getFeatures()).toHaveLength(1);
+  });
+});
+
+describe("listGeoParquetColumns", () => {
+  // A parquet schema is a flat, depth-first list: the root, then each child
+  // with its own subtree inlined straight after it.
+  const flatSchema = [
+    { name: "schema", num_children: 3 },
+    { name: "geometry" },
+    { name: "name" },
+    { name: "pop" },
+  ];
+  const noGeoMeta = { key_value_metadata: undefined, schema: flatSchema };
+
+  beforeEach(() => {
+    clearClientSourceCaches();
+    asyncBufferFromUrl.mockResolvedValue({});
+  });
+
+  test("returns the file's top-level attribute column names", async () => {
+    parquetMetadataAsync.mockResolvedValue(noGeoMeta);
+    await expect(
+      listGeoParquetColumns("https://x/c1.parquet"),
+    ).resolves.toEqual(["name", "pop"]);
+  });
+
+  test("excludes the geometry column and the covering-bbox column", async () => {
+    // Both are machinery the reader consumes itself -- it always reads the
+    // geometry column and hides the covering one from the popup -- so offering
+    // either invites a selection that changes nothing the author can see.
+    parquetMetadataAsync.mockResolvedValue({
+      schema: [
+        { name: "schema", num_children: 4 },
+        { name: "geom" },
+        { name: "bbox", num_children: 4 },
+        { name: "xmin" },
+        { name: "ymin" },
+        { name: "xmax" },
+        { name: "ymax" },
+        { name: "name" },
+        { name: "pop" },
+      ],
+      key_value_metadata: [
+        {
+          key: "geo",
+          value: JSON.stringify({
+            primary_column: "geom",
+            columns: {
+              geom: {
+                encoding: "WKB",
+                crs: null,
+                covering: {
+                  bbox: {
+                    xmin: ["bbox", "xmin"],
+                    ymin: ["bbox", "ymin"],
+                    xmax: ["bbox", "xmax"],
+                    ymax: ["bbox", "ymax"],
+                  },
+                },
+              },
+            },
+          }),
+        },
+      ],
+    });
+    await expect(
+      listGeoParquetColumns("https://x/c2.parquet"),
+    ).resolves.toEqual(["name", "pop"]);
+  });
+
+  test("offers a nested column by its top-level name, not its leaves", async () => {
+    // hyparquet matches a requested column against pathInSchema[0], so a leaf
+    // or dotted path is silently ignored at read time: the author would pick a
+    // column, save, and get a layer rendered without it and no error anywhere.
+    parquetMetadataAsync.mockResolvedValue({
+      key_value_metadata: undefined,
+      schema: [
+        { name: "schema", num_children: 3 },
+        { name: "geometry" },
+        { name: "addr", num_children: 2 },
+        { name: "street" },
+        { name: "city" },
+        { name: "pop" },
+      ],
+    });
+    const columns = await listGeoParquetColumns("https://x/c3.parquet");
+    expect(columns).toEqual(["addr", "pop"]);
+    expect(columns).not.toContain("street");
+    expect(columns).not.toContain("addr.street");
+  });
+
+  test("a second call for the same url does not re-read the file", async () => {
+    parquetMetadataAsync.mockResolvedValue(noGeoMeta);
+    await listGeoParquetColumns("https://x/c4.parquet");
+    await listGeoParquetColumns("https://x/c4.parquet");
+    expect(parquetMetadataAsync).toHaveBeenCalledTimes(1);
+    expect(asyncBufferFromUrl).toHaveBeenCalledTimes(1);
+  });
+
+  test("an invalidating call causes a fresh read", async () => {
+    parquetMetadataAsync.mockResolvedValue(noGeoMeta);
+    await listGeoParquetColumns("https://x/c5.parquet");
+    invalidateGeoParquetColumns("https://x/c5.parquet");
+    await listGeoParquetColumns("https://x/c5.parquet");
+    expect(parquetMetadataAsync).toHaveBeenCalledTimes(2);
+  });
+
+  test("a file that cannot be parsed fails with a reason, not no columns", async () => {
+    parquetMetadataAsync.mockRejectedValue(new Error("invalid parquet magic"));
+    const read = listGeoParquetColumns("https://x/c6.parquet");
+    await expect(read).rejects.toThrow(GeoParquetError);
+    await expect(read).rejects.toThrow(/invalid parquet magic/);
+  });
+
+  test("normalizes an s3:// url and evicts a failed read", async () => {
+    parquetMetadataAsync
+      .mockRejectedValueOnce(new Error("boom"))
+      .mockResolvedValue(noGeoMeta);
+    await expect(
+      listGeoParquetColumns("s3://b-us-east-1-x/c7.parquet"),
+    ).rejects.toThrow(/boom/);
+    await expect(
+      listGeoParquetColumns("s3://b-us-east-1-x/c7.parquet"),
+    ).resolves.toEqual(["name", "pop"]);
+    expect(asyncBufferFromUrl).toHaveBeenCalledWith({
+      url: "https://b-us-east-1-x.s3.us-east-1.amazonaws.com/c7.parquet",
+    });
   });
 });
 
