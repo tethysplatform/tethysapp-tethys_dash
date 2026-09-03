@@ -1127,7 +1127,15 @@ function topLevelParquetColumns(schema) {
   const subtreeSize = (index) => {
     let size = 1;
     let child = index + 1;
-    for (let n = schema[index]?.num_children ?? 0; n > 0; n--) {
+    // num_children comes out of the file. A corrupt or hostile footer can
+    // declare more children than the schema actually holds, and counting down a
+    // file-supplied number with no floor spins this loop until the tab dies --
+    // so the end of the list is the real bound.
+    for (
+      let n = schema[index]?.num_children ?? 0;
+      n > 0 && child < schema.length;
+      n--
+    ) {
       const childSize = subtreeSize(child);
       child += childSize;
       size += childSize;

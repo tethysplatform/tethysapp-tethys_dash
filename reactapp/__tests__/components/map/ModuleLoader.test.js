@@ -4243,3 +4243,35 @@ describe("discovery listings reject without a URL", () => {
     );
   });
 });
+
+describe("parquet schema walking survives a bad footer", () => {
+  // The schema is file-controlled, so these are the shapes an attacker or a
+  // truncated upload can hand us.
+  test("a lying num_children does not freeze the tab counting it down", async () => {
+    const schema = [
+      { name: "root", num_children: 2 },
+      { name: "elev", num_children: 2 ** 31 }, // claims children it does not have
+      { name: "slope" },
+    ];
+    parquetMetadataAsync.mockResolvedValue({ schema, key_value_metadata: [] });
+
+    // The names come out the same either way -- the walk ends up past the end
+    // of the schema regardless. What differs is that counting a file-supplied
+    // 2^31 down to zero blocks the main thread for about ten seconds. So the
+    // assertion has to be the clock, and the margin is wide enough (~0ms vs
+    // ~10s) that a loaded machine will not flip it.
+    const started = Date.now();
+    await expect(
+      listGeoParquetColumns("https://host/bad.parquet"),
+    ).resolves.toEqual(["elev"]);
+    expect(Date.now() - started).toBeLessThan(2000);
+  });
+
+  test("a root declaring no child count still walks to the end", async () => {
+    const schema = [{ name: "root" }, { name: "elev" }, { name: "slope" }];
+    parquetMetadataAsync.mockResolvedValue({ schema, key_value_metadata: [] });
+    await expect(
+      listGeoParquetColumns("https://host/rootless.parquet"),
+    ).resolves.toEqual(["elev", "slope"]);
+  });
+});

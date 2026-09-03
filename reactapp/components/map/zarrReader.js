@@ -313,7 +313,12 @@ function forbiddenAsMissing(response, request) {
  * would resolve to the wrong place for a nested array.
  *
  * Returns `{ names, enumerated }`. Enumeration comes from the store's
- * consolidated metadata; groups are dropped. A store without consolidated
+ * consolidated metadata; groups are dropped, and so is anything that is not a
+ * 2-D or 3-D grid — coordinate axes (x, y, time) and CRS holders (spatial_ref)
+ * are arrays like any other, but `gridDims` rejects them, so offering one is
+ * offering a choice that can only fail. The shape is what decides that, not the
+ * name: a data variable is free to be called `time_of_peak`, and a name-based
+ * filter would hide it. A store without consolidated
  * metadata is NOT an error — the store is fine, it simply cannot be enumerated,
  * and the caller should let the author type a name instead. That case reports
  * `enumerated: false`, which is why the flag exists rather than the caller
@@ -344,12 +349,29 @@ export async function listArrays({ url } = {}) {
     return { names: [], enumerated: false };
   }
 
+  const names = listable
+    .contents()
+    .filter((entry) => entry.kind === "array")
+    .map((entry) => String(entry.path).replace(/^\//, ""))
+    .filter(Boolean); // the root itself lists as "/" and is not a variable
+
+  // One metadata read each, concurrently. They are small and this runs once per
+  // store when the author opens the menu, but a probe that fails keeps its
+  // array: refusing to offer something because we could not check it would turn
+  // a slow or partial store into a store that appears to hold nothing.
+  const griddable = await Promise.all(
+    names.map(async (name) => {
+      try {
+        const arr = await openNode(`${base}/${name}`);
+        return arr.shape?.length === 2 || arr.shape?.length === 3;
+      } catch {
+        return true;
+      }
+    }),
+  );
+
   return {
-    names: listable
-      .contents()
-      .filter((entry) => entry.kind === "array")
-      .map((entry) => String(entry.path).replace(/^\//, ""))
-      .filter(Boolean), // the root itself lists as "/" and is not a variable
+    names: names.filter((_, index) => griddable[index]),
     enumerated: true,
   };
 }

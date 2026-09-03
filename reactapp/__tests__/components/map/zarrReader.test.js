@@ -466,6 +466,52 @@ describe("listArrays", () => {
     });
   });
 
+  it("offers only griddable arrays, dropping coordinate axes and the CRS holder", async () => {
+    // A coordinate axis is an array like any other, but gridDims rejects it, so
+    // offering one offers a choice that can only fail. Shape decides, not name.
+    mockContents = [
+      { path: "/", kind: "group" },
+      { path: "/depth", kind: "array" },
+      { path: "/x", kind: "array" },
+      { path: "/y", kind: "array" },
+      { path: "/time", kind: "array" },
+      { path: "/spatial_ref", kind: "array" },
+      { path: "/time_of_peak", kind: "array" },
+    ];
+    setStore({
+      [ROOT]: { attrs: {} },
+      [`${ROOT}/depth`]: { shape: [3, 4, 5], data: new Float32Array(60) },
+      [`${ROOT}/x`]: { shape: [5], data: new Float32Array(5) },
+      [`${ROOT}/y`]: { shape: [4], data: new Float32Array(4) },
+      [`${ROOT}/time`]: { shape: [3], data: new Float32Array(3) },
+      [`${ROOT}/spatial_ref`]: { shape: [], data: new Float32Array(1) },
+      // Named like an axis, shaped like data. A name filter would hide it.
+      [`${ROOT}/time_of_peak`]: { shape: [4, 5], data: new Float32Array(20) },
+    });
+    answerConsolidatedKeyWith(200);
+
+    await expect(listArrays({ url: ROOT })).resolves.toEqual({
+      names: ["depth", "time_of_peak"],
+      enumerated: true,
+    });
+  });
+
+  it("keeps an array whose shape could not be read rather than hiding it", async () => {
+    // A probe that fails must not turn a reachable store into one that appears
+    // to hold nothing.
+    mockContents = [
+      { path: "/", kind: "group" },
+      { path: "/depth", kind: "array" },
+    ];
+    setStore({ [ROOT]: { attrs: {} } }); // no node for /depth -> probe throws
+    answerConsolidatedKeyWith(200);
+
+    await expect(listArrays({ url: ROOT })).resolves.toEqual({
+      names: ["depth"],
+      enumerated: true,
+    });
+  });
+
   it("fails when the store cannot be opened at all, distinctly from listing nothing", async () => {
     setStore({}); // nothing at any URL -> both opens report "not found"
     answerConsolidatedKeyWith(200);
