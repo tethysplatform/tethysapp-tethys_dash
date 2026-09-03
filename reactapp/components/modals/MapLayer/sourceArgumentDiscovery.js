@@ -168,8 +168,15 @@ export function failureFromError(error) {
   const detail = error?.message ?? String(error);
   const lowered = detail.toLowerCase();
   // A name the source does not contain is the author's input being wrong, and
-  // no amount of retrying changes that.
-  if (/not found|no such|does not contain|could not determine/.test(lowered)) {
+  // no amount of retrying changes that. "not registered" belongs here too: a
+  // file declaring a projection this app has no definition for will declare it
+  // again on every retry, and offering a re-read there sends the author back
+  // for a second identical failure with CORS advice attached to it.
+  if (
+    /not found|no such|does not contain|could not determine|not registered/.test(
+      lowered,
+    )
+  ) {
     return { stage: "input", detail };
   }
   // The bytes arrived but are not what they claim to be. Also permanent.

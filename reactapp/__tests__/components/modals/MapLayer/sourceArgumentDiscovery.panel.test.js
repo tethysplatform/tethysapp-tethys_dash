@@ -374,3 +374,56 @@ describe("flagging a value the source no longer offers", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });
+
+describe("the other discoverable source types", () => {
+  const geopackage = (props = {}) => ({
+    type: "GeoPackage",
+    props: { url: "https://host/a.gpkg", ...props },
+  });
+
+  it("renders GeoPackage's table row as a combobox and reads on menu open", async () => {
+    // SourcePane.test.js walks only the text-input source types, so this row
+    // has no other regression net.
+    const argumentDiscovery = discovery({
+      layer: entry({
+        state: "ready",
+        options: [{ value: "streams", label: "streams" }],
+      }),
+    });
+    renderPane({ sourceProps: geopackage(), argumentDiscovery });
+
+    const input = screen.getByLabelText("value Input 1");
+    expect(input).toBeInTheDocument();
+    selectEvent.openMenu(input);
+    await waitFor(() =>
+      expect(argumentDiscovery.load).toHaveBeenCalledWith("layer"),
+    );
+    expect(await screen.findByText("streams")).toBeInTheDocument();
+  });
+
+  it("tells the author which sibling is missing rather than blaming the url", async () => {
+    renderPane({
+      sourceProps: zarr({ variable: "" }),
+      argumentDiscovery: discovery({
+        variable: entry(),
+        index: entry({
+          state: "nokey",
+          blockedBy: { reason: "dependency", missingSibling: "variable" },
+        }),
+      }),
+    });
+    expect(screen.getByText(/Choose variable first/)).toBeInTheDocument();
+    expect(screen.queryByText(/Enter a source URL/)).not.toBeInTheDocument();
+  });
+
+  it("distinguishes a source that lists nothing from one that cannot be listed", async () => {
+    renderPane({
+      sourceProps: zarr(),
+      argumentDiscovery: discovery({
+        variable: entry({ state: "empty", enumerated: true }),
+        index: entry(),
+      }),
+    });
+    expect(screen.getByText(/was read and offers nothing/)).toBeInTheDocument();
+  });
+});

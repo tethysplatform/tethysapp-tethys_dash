@@ -277,6 +277,39 @@ describe("useSourceArgumentDiscovery", () => {
     jest.useRealTimers();
   });
 
+  test("a whole-file route stays quiet past the metadata threshold and speaks at its own", async () => {
+    // The constant inequality above says the thresholds differ; this says the
+    // route actually uses its own. A GeoPackage read is a whole-file download,
+    // so calling it slow at the metadata threshold would cry wolf on every one.
+    jest.useFakeTimers();
+    try {
+      listGeoPackageTables.mockImplementation(() => new Promise(() => {}));
+      const { result } = setup({
+        sourceProps: { type: "GeoPackage", props: { url: "https://h/a.gpkg" } },
+      });
+      act(() => {
+        result.current.load("layer");
+      });
+      await waitFor(() =>
+        expect(result.current.discoveries.layer.state).toBe("loading"),
+      );
+
+      act(() => {
+        jest.advanceTimersByTime(METADATA_SLOW_MS + 1);
+      });
+      expect(result.current.discoveries.layer.slow).toBe(false);
+
+      act(() => {
+        jest.advanceTimersByTime(WHOLE_FILE_SLOW_MS - METADATA_SLOW_MS);
+      });
+      await waitFor(() =>
+        expect(result.current.discoveries.layer.slow).toBe(true),
+      );
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   test("a templated url is resolved against current values before reading", async () => {
     const { result } = setup({
       // eslint-disable-next-line no-template-curly-in-string
@@ -699,5 +732,25 @@ describe("regressions found in review", () => {
     } finally {
       jest.useRealTimers();
     }
+  });
+});
+
+describe("failure classification", () => {
+  test("an unregistered projection is permanent, not a transfer problem", () => {
+    // The file will declare the same projection on every retry, so offering a
+    // re-read (with CORS advice under it) sends the author back for an
+    // identical failure.
+    const failure = failureFromError(
+      new Error(
+        'GeoPackage layer declares projection "EPSG:9999", which is not registered.',
+      ),
+    );
+    expect(failure.stage).toBe("input");
+  });
+
+  test("an opaque transfer failure stays retryable", () => {
+    expect(failureFromError(new TypeError("Failed to fetch")).stage).toBe(
+      "fetch",
+    );
   });
 });

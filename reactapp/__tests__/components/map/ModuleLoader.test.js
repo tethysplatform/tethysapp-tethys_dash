@@ -4224,3 +4224,22 @@ describe("loadGeoParquet - narrowing what is read", () => {
     ).rejects.toThrow(/four comma-separated numbers/);
   });
 });
+
+describe("discovery listings reject without a URL", () => {
+  // createUrlKeyedCache rejects before touching the network; nothing else
+  // exercised that branch.
+  test("listGeoPackageTables names the missing URL", async () => {
+    await expect(listGeoPackageTables()).rejects.toThrow(
+      /GeoPackage source requires a file URL/,
+    );
+    await expect(listGeoPackageTables("")).rejects.toThrow(
+      /GeoPackage source requires a file URL/,
+    );
+  });
+
+  test("listGeoParquetColumns names the missing URL", async () => {
+    await expect(listGeoParquetColumns()).rejects.toThrow(
+      /GeoParquet source requires a file URL/,
+    );
+  });
+});
