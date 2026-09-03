@@ -47,19 +47,36 @@ jest.mock("components/map/ModuleLoader", () => {
     default: actual.default, // use the real default export
     createJsonStyleFunction: jest.fn(), // mock only this function
     applyAutoRamp: actual.applyAutoRamp, // real: drives the Zarr legend
+    clearClientSourceCaches: actual.clearClientSourceCaches,
   };
 });
 
 jest.mock("geotiff", () => ({ fromUrl: jest.fn() }));
+jest.mock("components/map/zarrReader", () => ({
+  __esModule: true,
+  readSlice: jest.fn(),
+  readMetadata: jest.fn(),
+}));
 
+// eslint-disable-next-line
+import { readSlice } from "components/map/zarrReader";
 // eslint-disable-next-line
 import MapVisualization, { Popup } from "components/visualizations/Map";
 // eslint-disable-next-line
-import { createJsonStyleFunction } from "components/map/ModuleLoader";
+import {
+  createJsonStyleFunction,
+  clearClientSourceCaches,
+} from "components/map/ModuleLoader";
 // eslint-disable-next-line
 import { fromUrl } from "geotiff";
 
 global.ResizeObserver = require("resize-observer-polyfill");
+
+// The GeoParquet/Zarr read caches are module-scoped and live for the page's
+// lifetime by design, so each test must start from an empty one.
+beforeEach(() => {
+  clearClientSourceCaches();
+});
 
 jest.mock("ol-mapbox-style", () => ({
   applyStyle: jest.fn(),
@@ -723,17 +740,21 @@ const renderMapWithLayers = (layers) => {
   render(LoadedComponent);
 };
 
+const zarrSlice = (over = {}) => ({
+  width: 2,
+  height: 2,
+  extent: [0, 0, 2, 2],
+  crs: "EPSG:3857",
+  data: new Float32Array([0, 1, 8, 1, 17, 1, 4, 1]), // [value, alpha] per pixel
+  min: 0,
+  max: 17,
+  ...over,
+});
+
 test("Map Zarr with default legend labels the colorbar with the resolved slice range", async () => {
   // A Zarr layer in auto mode persists no rampMin/rampMax — the range comes
-  // from the COG's STATISTICS_* tags, resolved before the legend is built.
-  fromUrl.mockResolvedValue({
-    getImage: jest.fn().mockResolvedValue({
-      getGDALMetadata: jest.fn(() => ({
-        STATISTICS_MINIMUM: "0",
-        STATISTICS_MAXIMUM: "17",
-      })),
-    }),
-  });
+  // from the decoded slice's real value span, resolved before the legend is built.
+  readSlice.mockResolvedValue(zarrSlice());
 
   renderMapWithLayers([zarrRampLayer()]);
   fireEvent.click(await screen.findByLabelText("Show Legend Control"));
@@ -744,15 +765,8 @@ test("Map Zarr with default legend labels the colorbar with the resolved slice r
   expect(screen.getByText("Flood Depth")).toBeInTheDocument();
 });
 
-test("Map Zarr with default legend prefers an author-pinned range over the stats", async () => {
-  fromUrl.mockResolvedValue({
-    getImage: jest.fn().mockResolvedValue({
-      getGDALMetadata: jest.fn(() => ({
-        STATISTICS_MINIMUM: "0",
-        STATISTICS_MAXIMUM: "17",
-      })),
-    }),
-  });
+test("Map Zarr with default legend prefers an author-pinned range over the slice", async () => {
+  readSlice.mockResolvedValue(zarrSlice());
 
   renderMapWithLayers([zarrRampLayer({ rampMin: "0", rampMax: "50" })]);
   fireEvent.click(await screen.findByLabelText("Show Legend Control"));
@@ -762,10 +776,10 @@ test("Map Zarr with default legend prefers an author-pinned range over the stats
   ).toBeInTheDocument();
 });
 
-test("Map Zarr with default legend omits the colorbar when stats are unavailable", async () => {
-  // Unreadable header: the layer still renders (normalized), but there is no
-  // real range to label, so no colorbar is emitted.
-  fromUrl.mockRejectedValue(new Error("network"));
+test("Map Zarr with default legend omits the colorbar when the slice cannot be read", async () => {
+  // Unreadable store: no slice range to resolve, so the layer cannot build and
+  // no colorbar is emitted.
+  readSlice.mockRejectedValue(new Error("network"));
 
   renderMapWithLayers([zarrRampLayer()]);
   fireEvent.click(await screen.findByLabelText("Show Legend Control"));

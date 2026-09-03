@@ -13,14 +13,28 @@ import moduleLoader, {
   withAntimeridianFix,
   withIsolatedCanvas,
   withAutoCrossOrigin,
-  zarrSourceToGeoTIFF,
   applyAutoRamp,
   loadGeoPackage,
   s3UrlToHttps,
   registerGeoPackageProjections,
   GeoPackageError,
+  loadZarr,
+  loadGeoParquet,
+  geoParquetCRSToProjection,
+  readGeoParquetGeoMetadata,
+  GeoParquetError,
+  ZarrError,
+  coerceParquetValue,
+  clearClientSourceCaches,
+  readCoveringBBoxPaths,
+  parseBBox,
+  bboxIntersectsFilter,
+  resolveReadColumns,
+  geometryIntersectsBBox,
 } from "components/map/ModuleLoader";
 import { fromUrl } from "geotiff";
+import DataTile from "ol/source/DataTile.js";
+import { readSlice } from "components/map/zarrReader";
 import WebGLTile from "ol/layer/WebGLTile.js";
 import ImageLayer from "ol/layer/Image.js";
 import VectorTileLayer from "ol/layer/VectorTile.js";
@@ -59,6 +73,11 @@ import {
 import { get as getProjection } from "ol/proj";
 import proj4 from "proj4";
 import { loadGpkg } from "ol-load-geopackage";
+import {
+  asyncBufferFromUrl,
+  parquetMetadataAsync,
+  parquetReadObjects,
+} from "hyparquet";
 
 jest.mock("geotiff", () => ({ fromUrl: jest.fn() }));
 
@@ -67,6 +86,28 @@ jest.mock("ol-load-geopackage", () => ({
   initSqlJsWasm: jest.fn(),
   loadGpkg: jest.fn(),
 }));
+
+// zarrReader is mocked so the Zarr DataTile path can be driven with canned slices
+// (the real reader pulls in zarrita, which jest resolves only via the stub).
+jest.mock("components/map/zarrReader", () => ({
+  __esModule: true,
+  readSlice: jest.fn(),
+  readMetadata: jest.fn(),
+}));
+
+jest.mock(
+  "hyparquet",
+  () => ({
+    __esModule: true,
+    asyncBufferFromUrl: jest.fn(),
+    parquetMetadataAsync: jest.fn(),
+    parquetReadObjects: jest.fn(),
+  }),
+  { virtual: true },
+);
+jest.mock("hyparquet-compressors", () => ({ compressors: { __mock: true } }), {
+  virtual: true,
+});
 
 jest.mock("ol/source/GeoTIFF.js", () => {
   const ActualSource = jest.requireActual("ol/source/Source.js").default;
@@ -2079,35 +2120,8 @@ describe.each([
   );
 });
 
-describe("zarrSourceToGeoTIFF", () => {
-  test("assembles the zarr/cog endpoint URL from the source fields", () => {
-    const out = zarrSourceToGeoTIFF({
-      type: "Zarr",
-      props: { url: "https://x/store.zarr", variable: "depth", index: "150" },
-    });
-    expect(out.type).toBe("GeoTIFF");
-    expect(out.props.normalize).toBe(true);
-    const url = out.props.sources[0].url;
-    expect(url).toContain("/apps/tethysdash/zarr/cog/?");
-    expect(url).toContain("src=https%3A%2F%2Fx%2Fstore.zarr");
-    expect(url).toContain("variable=depth");
-    expect(url).toContain("index=150");
-    expect(url).not.toContain("mask_below");
-  });
-
-  test("defaults index to 0 and includes mask_below when provided", () => {
-    const out = zarrSourceToGeoTIFF({
-      type: "Zarr",
-      props: { url: "https://x", variable: "t", mask_below: "0.5" },
-    });
-    const url = out.props.sources[0].url;
-    expect(url).toContain("index=0");
-    expect(url).toContain("mask_below=0.5");
-  });
-});
-
-describe("applyAutoRamp", () => {
-  const zarrLayer = (source = {}) => ({
+describe("applyZarrRamp", () => {
+  const zarrRampLayer = (source = {}) => ({
     type: "WebGLTile",
     props: {
       name: "flood",
@@ -2115,6 +2129,199 @@ describe("applyAutoRamp", () => {
         type: "Zarr",
         rampName: "turbo",
         props: { url: "https://x/store.zarr", variable: "depth", index: "7" },
+        ...source,
+      },
+    },
+  });
+
+  const sliceWith = (over = {}) => ({
+    width: 5,
+    height: 4,
+    extent: [-100, 180, -75, 200],
+    crs: "EPSG:3857",
+    data: new Float32Array(40),
+    min: 0,
+    max: 17.45,
+    ...over,
+  });
+
+  beforeEach(() => {
+    clearClientSourceCaches();
+    readSlice.mockReset();
+    readSlice.mockResolvedValue(sliceWith());
+  });
+
+  test("fits the ramp to the slice's real value range", async () => {
+    const config = zarrRampLayer();
+
+    await applyAutoRamp(config); // delegates to applyZarrRamp for Zarr sources
+
+    expect(config.props.source.resolvedRampMin).toBe(0);
+    expect(config.props.source.resolvedRampMax).toBeCloseTo(17.45, 4);
+    const color = config.style.color;
+    expect(color[0]).toBe("case"); // hasNodata wraps the ramp in an alpha guard
+    const interpolate = color[3];
+    expect(interpolate[0]).toBe("interpolate");
+    expect(interpolate[3]).toBe(0);
+    expect(interpolate[interpolate.length - 2]).toBeCloseTo(17.45, 4);
+  });
+
+  test("honors an author-pinned range instead of the slice range", async () => {
+    const config = zarrRampLayer({ rampMin: "0", rampMax: "5" });
+
+    await applyAutoRamp(config);
+
+    const interpolate = config.style.color[3];
+    expect(interpolate[interpolate.length - 2]).toBe(5);
+    expect(config.props.source.resolvedRampMax).toBe(5);
+  });
+
+  test("reads the slice only once for a slice it already resolved", async () => {
+    const config = zarrRampLayer();
+
+    await applyAutoRamp(config);
+    await applyAutoRamp(config);
+
+    expect(readSlice).toHaveBeenCalledTimes(1);
+    expect(config.props.source.resolvedRampMax).toBeCloseTo(17.45, 4);
+  });
+
+  test("re-resolves when the slice index moves", async () => {
+    const config = zarrRampLayer();
+    await applyAutoRamp(config);
+
+    readSlice.mockResolvedValue(sliceWith({ max: 300 }));
+    config.props.source.props.index = "8";
+    await applyAutoRamp(config);
+
+    expect(readSlice).toHaveBeenCalledTimes(2);
+    expect(config.props.source.resolvedRampMax).toBe(300);
+  });
+
+  test("passes the mask threshold into the style as a transparent branch", async () => {
+    const config = zarrRampLayer();
+    config.props.source.props.mask_below = "0.05";
+
+    await applyAutoRamp(config);
+
+    // nodata guard is branch 1; the mask is branch 2 on band 1.
+    expect(config.style.color[3]).toEqual(["<=", ["band", 1], 0.05]);
+  });
+
+  test("styles categorical Zarr layers by class without a range", async () => {
+    const config = zarrRampLayer({
+      rampName: undefined,
+      styleMode: "categorical",
+      classes: [
+        { value: "0", color: "#aaa" },
+        { value: "1", color: "#bbb" },
+      ],
+    });
+
+    await applyAutoRamp(config);
+
+    expect(config.style.color[0]).toBe("case");
+    expect(config.style.color[3]).toEqual([
+      "match",
+      ["band", 1],
+      0,
+      "#aaa",
+      1,
+      "#bbb",
+      [0, 0, 0, 0],
+    ]);
+  });
+
+  test("falls back to grayscale fitted to the slice without a ramp or classes", async () => {
+    // A DataTile carries raw values with no normalization, so an unstyled layer
+    // would paint raw floats into the color channels. The GeoTIFF source this
+    // replaced rendered `normalize: true` grayscale; keep that behavior.
+    const config = zarrRampLayer({ rampName: undefined });
+
+    await applyAutoRamp(config);
+
+    expect(readSlice).toHaveBeenCalledTimes(1);
+    expect(config.style.color).toBeDefined();
+    expect(config.props.source.resolvedRampMax).toBeGreaterThan(
+      config.props.source.resolvedRampMin,
+    );
+  });
+});
+
+describe("loadZarr", () => {
+  const zarrSource = (props = {}) => ({
+    type: "Zarr",
+    props: {
+      url: "https://x/store.zarr",
+      variable: "depth",
+      index: "0",
+      ...props,
+    },
+  });
+
+  beforeEach(() => {
+    clearClientSourceCaches();
+    readSlice.mockReset();
+    readSlice.mockResolvedValue({
+      width: 5,
+      height: 4,
+      extent: [-100, 180, -75, 200],
+      crs: "EPSG:3857",
+      data: new Float32Array(40),
+      min: 0,
+      max: 18,
+    });
+  });
+
+  test("builds a DataTile source with a getView shim over the slice extent", async () => {
+    const source = await loadZarr(zarrSource(), "EPSG:3857");
+
+    expect(source).toBeInstanceOf(DataTile);
+    expect(source.getTileGrid().getResolutions()).toEqual([5]); // 25m / 5px
+    const view = await source.getView();
+    expect(view.projection).toBe("EPSG:3857");
+    expect(view.extent).toEqual([-100, 180, -75, 200]);
+    expect(view.center).toEqual([-87.5, 190]);
+  });
+
+  test("reads the slice from the source's fields (index and mask coerced)", async () => {
+    await loadZarr(zarrSource({ index: "3", mask_below: "0.5" }), "EPSG:3857");
+
+    expect(readSlice).toHaveBeenCalledWith({
+      url: "https://x/store.zarr",
+      variable: "depth",
+      index: 3,
+      maskBelow: 0.5,
+    });
+  });
+
+  test("adopts the store CRS in getView when it differs from the map", async () => {
+    readSlice.mockResolvedValue({
+      width: 5,
+      height: 4,
+      extent: [0, 0, 25, 20],
+      crs: "EPSG:4326",
+      data: new Float32Array(40),
+      min: 0,
+      max: 1,
+    });
+
+    const source = await loadZarr(zarrSource(), "EPSG:3857");
+    const view = await source.getView();
+
+    expect(view.projection).toBe("EPSG:4326");
+  });
+});
+
+describe("applyAutoRamp", () => {
+  const geotiffRampLayer = (source = {}) => ({
+    type: "WebGLTile",
+    props: {
+      name: "flood",
+      source: {
+        type: "GeoTIFF",
+        rampName: "turbo",
+        props: { url: "https://x/depth.tif" },
         ...source,
       },
     },
@@ -2141,7 +2348,7 @@ describe("applyAutoRamp", () => {
 
   test("styles raw values over the slice range and turns normalize off", async () => {
     mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "17.45" });
-    const config = zarrLayer();
+    const config = geotiffRampLayer();
 
     await applyAutoRamp(config);
 
@@ -2162,21 +2369,18 @@ describe("applyAutoRamp", () => {
     expect(interpolate[interpolate.length - 2]).toBeCloseTo(17.45, 4);
   });
 
-  test("reads stats from the same zarr/cog URL the source will fetch", async () => {
+  test("reads stats from the source's own URL", async () => {
     mockStats({ STATISTICS_MINIMUM: "1", STATISTICS_MAXIMUM: "2" });
-    const config = zarrLayer();
+    const config = geotiffRampLayer();
 
     await applyAutoRamp(config);
 
-    const requested = fromUrl.mock.calls[0][0];
-    expect(requested).toBe(
-      zarrSourceToGeoTIFF(config.props.source).props.sources[0].url,
-    );
+    expect(fromUrl.mock.calls[0][0]).toBe("https://x/depth.tif");
   });
 
-  test("does not refetch for a slice it already resolved", async () => {
+  test("does not refetch for a file it already resolved", async () => {
     mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "9" });
-    const config = zarrLayer();
+    const config = geotiffRampLayer();
 
     // Safe to call from both the legend build and the layer build in one render.
     await applyAutoRamp(config);
@@ -2186,14 +2390,14 @@ describe("applyAutoRamp", () => {
     expect(config.props.source.resolvedRampMax).toBe(9);
   });
 
-  test("re-resolves when the slice index moves", async () => {
+  test("re-resolves when the source URL changes", async () => {
     mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "9" });
-    const config = zarrLayer();
+    const config = geotiffRampLayer();
     await applyAutoRamp(config);
 
-    // A new storm: same layer object, different slice — the ramp must refit.
+    // A new file: same layer object, different URL — the ramp must refit.
     mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "300" });
-    config.props.source.props.index = "8";
+    config.props.source.props.url = "https://x/depth2.tif";
     await applyAutoRamp(config);
 
     expect(fromUrl).toHaveBeenCalledTimes(2);
@@ -2214,7 +2418,7 @@ describe("applyAutoRamp", () => {
 
   test("honors an author-pinned range instead of auto-fitting", async () => {
     mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "99" });
-    const config = zarrLayer({ rampMin: "0", rampMax: "5" });
+    const config = geotiffRampLayer({ rampMin: "0", rampMax: "5" });
 
     await applyAutoRamp(config);
 
@@ -2225,7 +2429,7 @@ describe("applyAutoRamp", () => {
   });
 
   test("does nothing without a ramp style", async () => {
-    const config = zarrLayer({ rampName: undefined });
+    const config = geotiffRampLayer({ rampName: undefined });
 
     await applyAutoRamp(config);
 
@@ -2245,7 +2449,10 @@ describe("applyAutoRamp", () => {
     ],
   ])("falls back to normalized rendering on %s", async (_label, meta) => {
     mockStats(meta);
-    const config = zarrLayer();
+    // Missing stats triggers a sidecar (.aux.xml) probe; stub it so the GeoTIFF
+    // vehicle doesn't attempt a real fetch.
+    global.fetch = jest.fn().mockResolvedValue({ ok: false });
+    const config = geotiffRampLayer();
 
     await applyAutoRamp(config);
 
@@ -2258,7 +2465,7 @@ describe("applyAutoRamp", () => {
 
   test("falls back to normalized rendering when the header cannot be read", async () => {
     fromUrl.mockRejectedValue(new Error("network"));
-    const config = zarrLayer();
+    const config = geotiffRampLayer();
 
     await expect(applyAutoRamp(config)).resolves.toBeTruthy();
 
@@ -2273,7 +2480,7 @@ describe("applyAutoRamp", () => {
       band: {},
       dataset: { STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "1" },
     });
-    const config = zarrLayer();
+    const config = geotiffRampLayer();
 
     await applyAutoRamp(config);
 
@@ -2287,7 +2494,7 @@ describe("applyAutoRamp", () => {
       band: { STATISTICS_MINIMUM: "2", STATISTICS_MAXIMUM: "8" },
       dataset: { STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "100" },
     });
-    const config = zarrLayer();
+    const config = geotiffRampLayer();
 
     await applyAutoRamp(config);
 
@@ -2297,7 +2504,7 @@ describe("applyAutoRamp", () => {
 
   test("resolves only the max when the author pinned the min", async () => {
     mockStats({ STATISTICS_MINIMUM: "0.4", STATISTICS_MAXIMUM: "17.45" });
-    const config = zarrLayer({ rampMin: "0" });
+    const config = geotiffRampLayer({ rampMin: "0" });
 
     await applyAutoRamp(config);
 
@@ -2312,7 +2519,7 @@ describe("applyAutoRamp", () => {
 
   test("resolves only the min when the author pinned the max", async () => {
     mockStats({ STATISTICS_MINIMUM: "0.4", STATISTICS_MAXIMUM: "17.45" });
-    const config = zarrLayer({ rampMax: "20" });
+    const config = geotiffRampLayer({ rampMax: "20" });
 
     await applyAutoRamp(config);
 
@@ -2324,7 +2531,7 @@ describe("applyAutoRamp", () => {
     // The header also carries GDAL_NODATA, and a pinned layer needs its
     // transparency right just as much as an auto-fitted one.
     mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "17" });
-    const config = zarrLayer({ rampMin: "1", rampMax: "5" });
+    const config = geotiffRampLayer({ rampMin: "1", rampMax: "5" });
 
     await applyAutoRamp(config);
 
@@ -2337,7 +2544,7 @@ describe("applyAutoRamp", () => {
   test("treats a pinned min of 0 as set, not as empty", async () => {
     // A falsy-but-valid bound must not be mistaken for "resolve me".
     mockStats({ STATISTICS_MINIMUM: "5", STATISTICS_MAXIMUM: "9" });
-    const config = zarrLayer({ rampMin: 0 });
+    const config = geotiffRampLayer({ rampMin: 0 });
 
     await applyAutoRamp(config);
 
@@ -2347,7 +2554,7 @@ describe("applyAutoRamp", () => {
 
   test("bails when a pinned min exceeds the file's maximum", async () => {
     mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "1" });
-    const config = zarrLayer({ rampMin: "50" });
+    const config = geotiffRampLayer({ rampMin: "50" });
 
     await applyAutoRamp(config);
 
@@ -2357,7 +2564,7 @@ describe("applyAutoRamp", () => {
 
   test("bails when a pinned bound is not a number", async () => {
     mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "1" });
-    const config = zarrLayer({ rampMin: "abc" });
+    const config = geotiffRampLayer({ rampMin: "abc" });
 
     await applyAutoRamp(config);
 
@@ -2370,7 +2577,7 @@ describe("applyAutoRamp", () => {
     // the stats still describe values the mask hides. Without this the bottom of
     // the ramp would be spent on invisible pixels.
     mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "1" });
-    const config = zarrLayer();
+    const config = geotiffRampLayer();
     config.props.source.props.mask_below = "0.05";
 
     await applyAutoRamp(config);
@@ -2381,7 +2588,7 @@ describe("applyAutoRamp", () => {
 
   test("passes the mask threshold into the style as a transparent branch", async () => {
     mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "1" });
-    const config = zarrLayer();
+    const config = geotiffRampLayer();
     config.props.source.props.mask_below = "0.05";
 
     await applyAutoRamp(config);
@@ -2392,7 +2599,7 @@ describe("applyAutoRamp", () => {
 
   test("leaves a pinned min alone even when a mask threshold is higher", async () => {
     mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "1" });
-    const config = zarrLayer({ rampMin: "0" });
+    const config = geotiffRampLayer({ rampMin: "0" });
     config.props.source.props.mask_below = "0.05";
 
     await applyAutoRamp(config);
@@ -2402,7 +2609,7 @@ describe("applyAutoRamp", () => {
 
   test("does not lift the min when the mask is below the file minimum", async () => {
     mockStats({ STATISTICS_MINIMUM: "3", STATISTICS_MAXIMUM: "9" });
-    const config = zarrLayer();
+    const config = geotiffRampLayer();
     config.props.source.props.mask_below = "1";
 
     await applyAutoRamp(config);
@@ -2414,7 +2621,7 @@ describe("applyAutoRamp", () => {
     // Clamping here would invert the range and bail out; instead keep the ramp
     // and let the mask render every cell transparent.
     mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "1" });
-    const config = zarrLayer();
+    const config = geotiffRampLayer();
     config.props.source.props.mask_below = "5";
 
     await applyAutoRamp(config);
@@ -2431,7 +2638,7 @@ describe("applyAutoRamp", () => {
         getGDALNoData: jest.fn(() => null),
       }),
     });
-    const config = zarrLayer();
+    const config = geotiffRampLayer();
 
     await expect(applyAutoRamp(config)).resolves.toBeTruthy();
 
@@ -2937,5 +3144,822 @@ describe("matchesCondition — a field the feature does not carry", () => {
       matchesCondition(f.POP2020, "!=", 0),
     );
     expect(matched).toHaveLength(0);
+  });
+});
+
+describe("geoParquetCRSToProjection", () => {
+  test("treats null/undefined CRS as WGS84 (spec default)", () => {
+    expect(geoParquetCRSToProjection(null)).toBe("EPSG:4326");
+    expect(geoParquetCRSToProjection(undefined)).toBe("EPSG:4326");
+  });
+
+  test("resolves a PROJJSON id to its projection code", () => {
+    expect(
+      geoParquetCRSToProjection({ id: { authority: "EPSG", code: 3857 } }),
+    ).toBe("EPSG:3857");
+  });
+
+  test("falls back to the first entry of an ids array", () => {
+    expect(
+      geoParquetCRSToProjection({ ids: [{ authority: "EPSG", code: 32615 }] }),
+    ).toBe("EPSG:32615");
+  });
+});
+
+describe("readGeoParquetGeoMetadata", () => {
+  test("defaults to 'geometry' + WGS84 when there is no geo key", () => {
+    expect(readGeoParquetGeoMetadata({})).toEqual({
+      geometryColumn: "geometry",
+      dataProjection: "EPSG:4326",
+    });
+  });
+
+  test("reads primary_column and its CRS from the geo metadata", () => {
+    const geo = JSON.stringify({
+      primary_column: "geom",
+      columns: {
+        geom: {
+          encoding: "WKB",
+          crs: { id: { authority: "EPSG", code: 32615 } },
+        },
+      },
+    });
+    const meta = { key_value_metadata: [{ key: "geo", value: geo }] };
+    expect(readGeoParquetGeoMetadata(meta)).toEqual({
+      geometryColumn: "geom",
+      dataProjection: "EPSG:32615",
+      bboxColumn: null, // this file declares no GeoParquet 1.1 covering
+    });
+  });
+});
+
+describe("loadGeoParquet", () => {
+  const pointRows = [
+    { geometry: { type: "Point", coordinates: [-100, 40] }, name: "A" },
+    { geometry: { type: "Point", coordinates: [-90, 35] }, name: "B" },
+  ];
+  const noGeoMeta = { key_value_metadata: undefined };
+
+  beforeEach(() => {
+    clearClientSourceCaches();
+  });
+
+  test("reads a GeoParquet file into an OL VectorSource of features", async () => {
+    asyncBufferFromUrl.mockResolvedValue({});
+    parquetMetadataAsync.mockResolvedValue(noGeoMeta);
+    parquetReadObjects.mockResolvedValue(pointRows);
+
+    const source = await loadGeoParquet(
+      { type: "GeoParquet", props: { url: "https://x/data.parquet" } },
+      "EPSG:3857",
+    );
+    expect(source).toBeInstanceOf(VectorSource);
+    const features = source.getFeatures();
+    expect(features).toHaveLength(2);
+    expect(features[0].get("name")).toBe("A");
+    expect(features[0].getGeometry().getType()).toBe("Point");
+    // -100 lon in EPSG:3857 is a large negative metre value: reprojection ran.
+    expect(features[0].getGeometry().getCoordinates()[0]).toBeCloseTo(
+      -11131949.08,
+      0,
+    );
+  });
+
+  test("passes the extended codecs and geoparquet flag to the reader", async () => {
+    asyncBufferFromUrl.mockResolvedValue({});
+    parquetMetadataAsync.mockResolvedValue(noGeoMeta);
+    parquetReadObjects.mockResolvedValue([]);
+
+    await loadGeoParquet(
+      { type: "GeoParquet", props: { url: "https://x/data.parquet" } },
+      "EPSG:3857",
+    );
+    expect(parquetReadObjects).toHaveBeenCalledWith(
+      expect.objectContaining({
+        compressors: { __mock: true },
+        geoparquet: true,
+      }),
+    );
+  });
+
+  test("coerces BigInt property values to Number", async () => {
+    asyncBufferFromUrl.mockResolvedValue({});
+    parquetMetadataAsync.mockResolvedValue(noGeoMeta);
+    parquetReadObjects.mockResolvedValue([
+      { geometry: { type: "Point", coordinates: [0, 0] }, id: 42n },
+    ]);
+    const source = await loadGeoParquet(
+      { type: "GeoParquet", props: { url: "https://x/d.parquet" } },
+      "EPSG:3857",
+    );
+    expect(source.getFeatures()[0].get("id")).toBe(42);
+  });
+
+  test("drops rows with no geometry", async () => {
+    asyncBufferFromUrl.mockResolvedValue({});
+    parquetMetadataAsync.mockResolvedValue(noGeoMeta);
+    parquetReadObjects.mockResolvedValue([
+      { geometry: { type: "Point", coordinates: [0, 0] }, name: "keep" },
+      { geometry: null, name: "drop" },
+    ]);
+    const source = await loadGeoParquet(
+      { type: "GeoParquet", props: { url: "https://x/d.parquet" } },
+      "EPSG:3857",
+    );
+    expect(source.getFeatures()).toHaveLength(1);
+    expect(source.getFeatures()[0].get("name")).toBe("keep");
+  });
+
+  test("uses the primary geometry column from geo metadata", async () => {
+    asyncBufferFromUrl.mockResolvedValue({});
+    parquetMetadataAsync.mockResolvedValue({
+      key_value_metadata: [
+        {
+          key: "geo",
+          value: JSON.stringify({
+            primary_column: "geom",
+            columns: { geom: { encoding: "WKB", crs: null } },
+          }),
+        },
+      ],
+    });
+    parquetReadObjects.mockResolvedValue([
+      { geom: { type: "Point", coordinates: [0, 0] }, name: "A" },
+    ]);
+    const source = await loadGeoParquet(
+      { type: "GeoParquet", props: { url: "https://x/d.parquet" } },
+      "EPSG:3857",
+    );
+    expect(source.getFeatures()).toHaveLength(1);
+    expect(source.getFeatures()[0].getGeometry().getType()).toBe("Point");
+  });
+
+  test("translates an s3:// url before fetching", async () => {
+    asyncBufferFromUrl.mockResolvedValue({});
+    parquetMetadataAsync.mockResolvedValue(noGeoMeta);
+    parquetReadObjects.mockResolvedValue([]);
+    await loadGeoParquet(
+      { type: "GeoParquet", props: { url: "s3://b-us-east-1-x/d.parquet" } },
+      "EPSG:3857",
+    );
+    expect(asyncBufferFromUrl).toHaveBeenCalledWith({
+      url: "https://b-us-east-1-x.s3.us-east-1.amazonaws.com/d.parquet",
+    });
+  });
+
+  test("rejects a missing url without touching the network", async () => {
+    await expect(
+      loadGeoParquet({ type: "GeoParquet", props: {} }, "EPSG:3857"),
+    ).rejects.toThrow(GeoParquetError);
+    expect(asyncBufferFromUrl).not.toHaveBeenCalled();
+  });
+
+  test("moduleLoader routes a GeoParquet config to loadGeoParquet", async () => {
+    asyncBufferFromUrl.mockResolvedValue({});
+    parquetMetadataAsync.mockResolvedValue(noGeoMeta);
+    parquetReadObjects.mockResolvedValue([
+      { geometry: { type: "Point", coordinates: [0, 0] }, name: "A" },
+    ]);
+    const source = await moduleLoader(
+      { type: "GeoParquet", props: { url: "https://x/d.parquet" } },
+      "EPSG:3857",
+    );
+    expect(source).toBeInstanceOf(VectorSource);
+    expect(source.getFeatures()).toHaveLength(1);
+  });
+});
+
+describe("geoParquetCRSToProjection - CRS84 aliases", () => {
+  // GeoParquet's spec default is OGC:CRS84. OpenLayers registers "CRS:84" and
+  // the urn:/http: URI forms but not the bare "OGC:CRS84" that
+  // `${authority}:${code}` assembles, and readFeatures treats an unresolvable
+  // dataProjection as "no transform" -- silently drawing lon/lat as if it were
+  // the view's own units. Every spelling must land on a code OL can resolve.
+  test.each([
+    [{ id: { authority: "OGC", code: "CRS84" } }, "OGC:CRS84 via id"],
+    [{ ids: [{ authority: "OGC", code: "CRS84" }] }, "OGC:CRS84 via ids"],
+    [{ id: { authority: "CRS", code: "84" } }, "CRS:84"],
+    [{ id: { authority: "ogc", code: "crs84" } }, "lowercased"],
+  ])("normalizes %#: %s to EPSG:4326", (crs) => {
+    expect(geoParquetCRSToProjection(crs)).toBe("EPSG:4326");
+  });
+
+  test("the normalized code is one OpenLayers can actually resolve", () => {
+    const code = geoParquetCRSToProjection({
+      id: { authority: "OGC", code: "CRS84" },
+    });
+    expect(getProjection(code)).not.toBeNull();
+  });
+
+  test("leaves a real authority code untouched", () => {
+    expect(
+      geoParquetCRSToProjection({ id: { authority: "EPSG", code: 32615 } }),
+    ).toBe("EPSG:32615");
+  });
+});
+
+describe("coerceParquetValue", () => {
+  test("converts a safe BigInt to a Number", () => {
+    expect(coerceParquetValue(42n)).toBe(42);
+    expect(typeof coerceParquetValue(42n)).toBe("number");
+  });
+
+  test("keeps a BigInt beyond the safe range exact by stringifying it", () => {
+    // 2^53 + 1 is the smallest integer Number cannot represent; rounding it
+    // would silently corrupt 64-bit ids (OSM, H3, snowflake).
+    const big = 9007199254740993n;
+    expect(coerceParquetValue(big)).toBe("9007199254740993");
+  });
+
+  test("walks arrays and nested plain objects", () => {
+    expect(coerceParquetValue([1n, [2n, { a: 3n }]])).toEqual([
+      1,
+      [2, { a: 3 }],
+    ]);
+    expect(coerceParquetValue({ outer: { inner: 7n } })).toEqual({
+      outer: { inner: 7 },
+    });
+  });
+
+  test("leaves non-BigInt values, including Dates, alone", () => {
+    const d = new Date(0);
+    expect(coerceParquetValue(d)).toBe(d);
+    expect(coerceParquetValue("x")).toBe("x");
+    expect(coerceParquetValue(null)).toBeNull();
+  });
+
+  test("the coerced result survives a JSON round-trip", () => {
+    // This is the whole point: the popup and variable-input paths JSON
+    // round-trip feature properties, which throws on a raw BigInt.
+    expect(() =>
+      JSON.stringify(coerceParquetValue({ id: 12n, tags: [3n] })),
+    ).not.toThrow();
+  });
+});
+
+describe("loadGeoParquet - review findings", () => {
+  const rows = [{ geometry: { type: "Point", coordinates: [-100, 40] }, n: 1 }];
+  const geoMeta = (crs) => ({
+    key_value_metadata: [
+      {
+        key: "geo",
+        value: JSON.stringify({
+          primary_column: "geometry",
+          columns: { geometry: { crs } },
+        }),
+      },
+    ],
+  });
+
+  beforeEach(() => {
+    clearClientSourceCaches();
+    asyncBufferFromUrl.mockReset().mockResolvedValue({});
+    parquetMetadataAsync.mockReset().mockResolvedValue(geoMeta(null));
+    parquetReadObjects.mockReset().mockResolvedValue(rows);
+  });
+
+  test("reads the file once and serves later layers from the cache", async () => {
+    const cfg = { props: { url: "https://x/a.parquet" } };
+    await loadGeoParquet(cfg, "EPSG:3857");
+    await loadGeoParquet(cfg, "EPSG:3857");
+
+    expect(asyncBufferFromUrl).toHaveBeenCalledTimes(1);
+    expect(parquetReadObjects).toHaveBeenCalledTimes(1);
+  });
+
+  test("gives each layer its own VectorSource and Feature instances", async () => {
+    const cfg = { props: { url: "https://x/a.parquet" } };
+    const a = await loadGeoParquet(cfg, "EPSG:3857");
+    const b = await loadGeoParquet(cfg, "EPSG:3857");
+
+    expect(a).not.toBe(b);
+    // Sharing Feature objects across sources would leak selection/style state.
+    expect(a.getFeatures()[0]).not.toBe(b.getFeatures()[0]);
+  });
+
+  test("re-reads after a failure instead of caching the rejection", async () => {
+    asyncBufferFromUrl.mockRejectedValueOnce(new Error("boom"));
+    const cfg = { props: { url: "https://x/flaky.parquet" } };
+
+    await expect(loadGeoParquet(cfg, "EPSG:3857")).rejects.toThrow(
+      GeoParquetError,
+    );
+    const source = await loadGeoParquet(cfg, "EPSG:3857");
+    expect(source).toBeInstanceOf(VectorSource);
+  });
+
+  test("wraps a read failure with a CORS hint", async () => {
+    asyncBufferFromUrl.mockRejectedValue(new TypeError("Failed to fetch"));
+    await expect(
+      loadGeoParquet({ props: { url: "https://x/a.parquet" } }, "EPSG:3857"),
+    ).rejects.toThrow(/Access-Control-Allow-Origin/);
+  });
+
+  test("rejects a file whose declared CRS is not registered", async () => {
+    parquetMetadataAsync.mockResolvedValue(
+      geoMeta({ id: { authority: "EPSG", code: 999999 } }),
+    );
+    await expect(
+      loadGeoParquet({ props: { url: "https://x/odd.parquet" } }, "EPSG:3857"),
+    ).rejects.toThrow(/not registered/);
+  });
+
+  test("renders a CRS84 file at its real coordinates, not raw lon/lat", async () => {
+    parquetMetadataAsync.mockResolvedValue(
+      geoMeta({ id: { authority: "OGC", code: "CRS84" } }),
+    );
+    const source = await loadGeoParquet(
+      { props: { url: "https://x/crs84.parquet" } },
+      "EPSG:3857",
+    );
+    const [x, y] = source.getFeatures()[0].getGeometry().getCoordinates();
+    // -100,40 reprojected into Web Mercator, not passed through untransformed.
+    expect(x).toBeCloseTo(-11131949.08, 0);
+    expect(y).toBeCloseTo(4865942.28, 0);
+  });
+
+  test("drops a residual 'geometry' property so it cannot clobber the geometry", async () => {
+    parquetMetadataAsync.mockResolvedValue({
+      key_value_metadata: [
+        {
+          key: "geo",
+          value: JSON.stringify({
+            primary_column: "geom",
+            columns: { geom: { crs: null } },
+          }),
+        },
+      ],
+    });
+    parquetReadObjects.mockResolvedValue([
+      {
+        geom: { type: "Point", coordinates: [-100, 40] },
+        geometry: "not a geometry",
+        n: 1,
+      },
+    ]);
+    const source = await loadGeoParquet(
+      { props: { url: "https://x/g.parquet" } },
+      "EPSG:4326",
+    );
+    const feature = source.getFeatures()[0];
+    expect(feature.getGeometry().getCoordinates()).toEqual([-100, 40]);
+    // OL keeps the geometry under the default geometry name, so "geometry"
+    // must still hold the Geometry -- not the string column that shared its
+    // name (ol/format/GeoJSON applies properties after setGeometry).
+    expect(feature.get("geometry")).toBe(feature.getGeometry());
+  });
+
+  test("coerces BigInt columns so the popup's JSON round-trip cannot throw", async () => {
+    parquetReadObjects.mockResolvedValue([
+      {
+        geometry: { type: "Point", coordinates: [-100, 40] },
+        id: 9007199254740993n,
+        nested: { code: 5n },
+      },
+    ]);
+    const source = await loadGeoParquet(
+      { props: { url: "https://x/b.parquet" } },
+      "EPSG:4326",
+    );
+    const props = source.getFeatures()[0].getProperties();
+    expect(props.id).toBe("9007199254740993");
+    expect(props.nested).toEqual({ code: 5 });
+    expect(() => JSON.stringify(props.nested)).not.toThrow();
+  });
+});
+
+describe("loadZarr - review findings", () => {
+  const slice = (over = {}) => ({
+    width: 5,
+    height: 4,
+    extent: [-100, 180, -75, 200],
+    pixelSize: { x: 5, y: 5 },
+    crs: "EPSG:3857",
+    data: new Float32Array(40),
+    min: 0,
+    max: 18,
+    ...over,
+  });
+  const cfg = (props = {}) => ({
+    type: "Zarr",
+    props: {
+      url: "https://x/store.zarr",
+      variable: "depth",
+      index: "0",
+      ...props,
+    },
+  });
+
+  beforeEach(() => {
+    clearClientSourceCaches();
+    readSlice.mockReset();
+    readSlice.mockResolvedValue(slice());
+  });
+
+  test("re-reads after a failed slice instead of caching the rejection", async () => {
+    // A transient CORS/network blip must not pin the layer to that error for
+    // the life of the page.
+    readSlice.mockRejectedValueOnce(new Error("Failed to fetch"));
+
+    await expect(loadZarr(cfg(), "EPSG:3857")).rejects.toThrow(ZarrError);
+    const source = await loadZarr(cfg(), "EPSG:3857");
+
+    expect(source).toBeInstanceOf(DataTile);
+    expect(readSlice).toHaveBeenCalledTimes(2);
+  });
+
+  test("serves a repeated slice from the cache across separate config objects", async () => {
+    // Variable-input changes rebuild the config, so a memo held on the source
+    // object would never survive to serve a revisited slice.
+    await loadZarr(cfg(), "EPSG:3857");
+    await loadZarr(cfg(), "EPSG:3857");
+    expect(readSlice).toHaveBeenCalledTimes(1);
+  });
+
+  test("wraps a read failure with a CORS hint naming the store", async () => {
+    readSlice.mockRejectedValue(new TypeError("Failed to fetch"));
+    await expect(loadZarr(cfg(), "EPSG:3857")).rejects.toThrow(
+      /Access-Control-Allow-Origin/,
+    );
+  });
+
+  test("translates an s3:// store URL to its public https form", async () => {
+    await loadZarr(cfg({ url: "s3://bucket/store.zarr" }), "EPSG:3857");
+    expect(readSlice).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: "https://bucket.s3.us-east-1.amazonaws.com/store.zarr",
+      }),
+    );
+  });
+
+  test("rejects a store whose crs attr is not a registered projection", async () => {
+    readSlice.mockResolvedValue(slice({ crs: "EPSG:999999" }));
+    await expect(loadZarr(cfg(), "EPSG:3857")).rejects.toThrow(
+      /not registered/,
+    );
+  });
+
+  test("falls back to the map projection when the store declares no crs", async () => {
+    readSlice.mockResolvedValue(slice({ crs: undefined }));
+    const source = await loadZarr(cfg(), "EPSG:3857");
+    expect((await source.getView()).projection).toBe("EPSG:3857");
+  });
+
+  test("rejects a grid too large to upload as a single WebGL texture", async () => {
+    // The whole slice is one tile, so an oversized grid fails the texture
+    // upload and renders blank with no error unless it is caught here.
+    readSlice.mockResolvedValue(slice({ width: 40000, height: 40000 }));
+    await expect(loadZarr(cfg(), "EPSG:3857")).rejects.toThrow(
+      /exceeds this browser's maximum texture size/,
+    );
+  });
+
+  test("rejects non-square cells rather than drawing them stretched", async () => {
+    readSlice.mockResolvedValue(slice({ pixelSize: { x: 5, y: 12 } }));
+    await expect(loadZarr(cfg(), "EPSG:3857")).rejects.toThrow(
+      /non-square cells/,
+    );
+  });
+
+  test("tolerates float rounding in the pixel sizes", async () => {
+    readSlice.mockResolvedValue(
+      slice({ pixelSize: { x: 5, y: 5.0000000001 } }),
+    );
+    await expect(loadZarr(cfg(), "EPSG:3857")).resolves.toBeInstanceOf(
+      DataTile,
+    );
+  });
+
+  test("treats the string 'false' from a GUI field as false", async () => {
+    const source = await loadZarr(cfg({ interpolate: "false" }), "EPSG:3857");
+    expect(source.interpolate_ ?? source.getInterpolate?.()).toBe(false);
+  });
+
+  test("treats the string 'true' from a GUI field as true", async () => {
+    const source = await loadZarr(cfg({ interpolate: "true" }), "EPSG:3857");
+    expect(source.interpolate_ ?? source.getInterpolate?.()).toBe(true);
+  });
+});
+
+describe("applyZarrRamp - review findings", () => {
+  const rampLayer = (source = {}) => ({
+    type: "WebGLTile",
+    props: {
+      name: "flood",
+      source: {
+        type: "Zarr",
+        rampName: "turbo",
+        props: { url: "https://x/store.zarr", variable: "depth", index: "7" },
+        ...source,
+      },
+    },
+  });
+
+  beforeEach(() => {
+    clearClientSourceCaches();
+    readSlice.mockReset();
+    readSlice.mockResolvedValue({
+      width: 2,
+      height: 2,
+      extent: [0, 0, 10, 10],
+      pixelSize: { x: 5, y: 5 },
+      crs: "EPSG:3857",
+      data: new Float32Array(8),
+      min: 3,
+      max: 3, // uniform slice -> degenerate range
+    });
+  });
+
+  test("widens a degenerate range so the ramp cannot divide by zero", async () => {
+    // Equal stops compile to an interpolate whose GPU form divides by
+    // (stop2 - stop1), yielding NaN colors.
+    const config = await applyAutoRamp(rampLayer());
+    const source = config.props.source;
+
+    expect(source.resolvedRampMax).toBeGreaterThan(source.resolvedRampMin);
+    expect(JSON.stringify(config.style.color)).not.toMatch(/null|NaN/);
+  });
+
+  test("widens an inverted author-pinned range", async () => {
+    const config = await applyAutoRamp(
+      rampLayer({ rampMin: "100", rampMax: "10" }),
+    );
+    const source = config.props.source;
+    expect(source.resolvedRampMax).toBeGreaterThan(source.resolvedRampMin);
+  });
+
+  test("rebuilds the style when the ramp changes but the slice does not", async () => {
+    // The gate keys on the slice, so a ramp-only edit must still restyle.
+    const first = await applyAutoRamp(rampLayer({ rampName: "turbo" }));
+    const firstColor = JSON.stringify(first.style.color);
+
+    const second = await applyAutoRamp(rampLayer({ rampName: "viridis" }));
+    expect(JSON.stringify(second.style.color)).not.toEqual(firstColor);
+  });
+});
+
+describe("GeoParquet read-narrowing helpers", () => {
+  const covering = {
+    bbox: {
+      xmin: ["bbox", "xmin"],
+      ymin: ["bbox", "ymin"],
+      xmax: ["bbox", "xmax"],
+      ymax: ["bbox", "ymax"],
+    },
+  };
+
+  test("reads GeoParquet 1.1 covering paths as dotted filter paths", () => {
+    expect(readCoveringBBoxPaths(covering)).toEqual({
+      xmin: "bbox.xmin",
+      ymin: "bbox.ymin",
+      xmax: "bbox.xmax",
+      ymax: "bbox.ymax",
+    });
+  });
+
+  test("returns null when the file declares no usable covering", () => {
+    expect(readCoveringBBoxPaths(undefined)).toBeNull();
+    expect(readCoveringBBoxPaths({})).toBeNull();
+    expect(
+      readCoveringBBoxPaths({ bbox: { xmin: ["bbox", "xmin"] } }),
+    ).toBeNull();
+  });
+
+  test("parses a bbox and rejects malformed or inverted input", () => {
+    expect(parseBBox("-105.4,39.9,-105.1,40.15")).toEqual({
+      minx: -105.4,
+      miny: 39.9,
+      maxx: -105.1,
+      maxy: 40.15,
+    });
+    expect(parseBBox("")).toBeNull();
+    expect(parseBBox(undefined)).toBeNull();
+    expect(() => parseBBox("1,2,3")).toThrow(GeoParquetError);
+    expect(() => parseBBox("a,b,c,d")).toThrow(/four comma-separated numbers/);
+    expect(() => parseBBox("10,10,0,0")).toThrow(/inverted/);
+  });
+
+  test("builds an intersection filter, not a containment one", () => {
+    const filter = bboxIntersectsFilter(readCoveringBBoxPaths(covering), {
+      minx: 0,
+      miny: 0,
+      maxx: 10,
+      maxy: 10,
+    });
+    // Overlap holds unless one box is strictly beyond the other on some axis.
+    expect(filter).toEqual({
+      $and: [
+        { "bbox.xmin": { $lte: 10 } },
+        { "bbox.xmax": { $gte: 0 } },
+        { "bbox.ymin": { $lte: 10 } },
+        { "bbox.ymax": { $gte: 0 } },
+      ],
+    });
+  });
+
+  test("resolveReadColumns keeps geometry and adds the filter's own columns", () => {
+    expect(
+      resolveReadColumns({
+        columns: "name, city",
+        geometryColumn: "geometry",
+        bboxColumn: readCoveringBBoxPaths(covering),
+        usingBBoxFilter: true,
+      }),
+    ).toEqual(["geometry", "name", "city", "bbox"]);
+  });
+
+  test("resolveReadColumns means 'all columns' when none are requested", () => {
+    expect(
+      resolveReadColumns({ columns: "", geometryColumn: "geometry" }),
+    ).toBeUndefined();
+    expect(
+      resolveReadColumns({ columns: "  ,  ", geometryColumn: "geometry" }),
+    ).toBeUndefined();
+  });
+
+  test("geometryIntersectsBBox covers points, lines and collections", () => {
+    const box = { minx: 0, miny: 0, maxx: 10, maxy: 10 };
+    const pt = (x, y) => ({ type: "Point", coordinates: [x, y] });
+    expect(geometryIntersectsBBox(pt(5, 5), box)).toBe(true);
+    expect(geometryIntersectsBBox(pt(50, 5), box)).toBe(false);
+    expect(
+      geometryIntersectsBBox(
+        {
+          type: "LineString",
+          coordinates: [
+            [-5, 5],
+            [50, 5],
+          ],
+        },
+        box,
+      ),
+    ).toBe(true); // crosses the box even though no vertex is inside
+    expect(
+      geometryIntersectsBBox(
+        { type: "GeometryCollection", geometries: [pt(50, 50), pt(1, 1)] },
+        box,
+      ),
+    ).toBe(true);
+  });
+});
+
+describe("loadGeoParquet - narrowing what is read", () => {
+  const rows = [
+    {
+      geometry: { type: "Point", coordinates: [-105.27, 40.02] },
+      bbox: { xmin: -105.27, ymin: 40.02, xmax: -105.27, ymax: 40.02 },
+      name: "boulder",
+    },
+    {
+      geometry: { type: "Point", coordinates: [-74.0, 40.71] },
+      bbox: { xmin: -74.0, ymin: 40.71, xmax: -74.0, ymax: 40.71 },
+      name: "nyc",
+    },
+  ];
+  const metaWithCovering = {
+    key_value_metadata: [
+      {
+        key: "geo",
+        value: JSON.stringify({
+          primary_column: "geometry",
+          columns: {
+            geometry: {
+              crs: null,
+              covering: {
+                bbox: {
+                  xmin: ["bbox", "xmin"],
+                  ymin: ["bbox", "ymin"],
+                  xmax: ["bbox", "xmax"],
+                  ymax: ["bbox", "ymax"],
+                },
+              },
+            },
+          },
+        }),
+      },
+    ],
+  };
+  const metaNoCovering = { key_value_metadata: undefined };
+
+  beforeEach(() => {
+    clearClientSourceCaches();
+    asyncBufferFromUrl.mockReset().mockResolvedValue({});
+    parquetMetadataAsync.mockReset().mockResolvedValue(metaWithCovering);
+    parquetReadObjects.mockReset().mockResolvedValue(rows);
+  });
+
+  test("reads every column by default", async () => {
+    await loadGeoParquet(
+      { props: { url: "https://x/a.parquet" } },
+      "EPSG:4326",
+    );
+    expect(parquetReadObjects).toHaveBeenCalledWith(
+      expect.not.objectContaining({ columns: expect.anything() }),
+    );
+  });
+
+  test("passes an author's column list through, always keeping geometry", async () => {
+    await loadGeoParquet(
+      { props: { url: "https://x/a.parquet", columns: "name" } },
+      "EPSG:4326",
+    );
+    expect(parquetReadObjects).toHaveBeenCalledWith(
+      expect.objectContaining({ columns: ["geometry", "name"] }),
+    );
+  });
+
+  test("pushes a bbox down as a row-group filter when the file has a covering", async () => {
+    await loadGeoParquet(
+      {
+        props: {
+          url: "https://x/a.parquet",
+          bbox: "-105.4,39.9,-105.1,40.15",
+        },
+      },
+      "EPSG:4326",
+    );
+    const opts = parquetReadObjects.mock.calls[0][0];
+    expect(opts.filter).toEqual({
+      $and: [
+        { "bbox.xmin": { $lte: -105.1 } },
+        { "bbox.xmax": { $gte: -105.4 } },
+        { "bbox.ymin": { $lte: 40.15 } },
+        { "bbox.ymax": { $gte: 39.9 } },
+      ],
+    });
+    expect(opts.usePageIndex).toBe(true);
+  });
+
+  test("keeps the bbox columns readable when pruning columns alongside a filter", async () => {
+    await loadGeoParquet(
+      {
+        props: {
+          url: "https://x/a.parquet",
+          columns: "name",
+          bbox: "-105.4,39.9,-105.1,40.15",
+        },
+      },
+      "EPSG:4326",
+    );
+    expect(parquetReadObjects).toHaveBeenCalledWith(
+      expect.objectContaining({ columns: ["geometry", "name", "bbox"] }),
+    );
+  });
+
+  test("hides the covering bbox column from feature properties", async () => {
+    const source = await loadGeoParquet(
+      { props: { url: "https://x/a.parquet" } },
+      "EPSG:4326",
+    );
+    // The popup renders every property it is given, so plumbing must not leak.
+    expect(source.getFeatures()[0].get("bbox")).toBeUndefined();
+    expect(source.getFeatures()[0].get("name")).toBe("boulder");
+  });
+
+  test("filters on decoded geometry when the file has no covering column", async () => {
+    parquetMetadataAsync.mockResolvedValue(metaNoCovering);
+    const source = await loadGeoParquet(
+      {
+        props: {
+          url: "https://x/plain.parquet",
+          bbox: "-105.4,39.9,-105.1,40.15",
+        },
+      },
+      "EPSG:4326",
+    );
+    // No pushdown available, but the visible result must still be the box.
+    expect(parquetReadObjects.mock.calls[0][0].filter).toBeUndefined();
+    expect(source.getFeatures()).toHaveLength(1);
+    expect(source.getFeatures()[0].get("name")).toBe("boulder");
+  });
+
+  test("caps the read with maxFeatures", async () => {
+    await loadGeoParquet(
+      { props: { url: "https://x/a.parquet", maxFeatures: "500" } },
+      "EPSG:4326",
+    );
+    expect(parquetReadObjects).toHaveBeenCalledWith(
+      expect.objectContaining({ rowStart: 0, rowEnd: 500 }),
+    );
+  });
+
+  test("caches per read-option set, not per URL", async () => {
+    const url = "https://x/a.parquet";
+    await loadGeoParquet({ props: { url } }, "EPSG:4326");
+    await loadGeoParquet({ props: { url, columns: "name" } }, "EPSG:4326");
+    // Different columns means a different result, so it cannot reuse the entry.
+    expect(parquetReadObjects).toHaveBeenCalledTimes(2);
+
+    await loadGeoParquet({ props: { url, columns: "name" } }, "EPSG:4326");
+    expect(parquetReadObjects).toHaveBeenCalledTimes(2);
+  });
+
+  test("surfaces a malformed bbox as a GeoParquet error", async () => {
+    await expect(
+      loadGeoParquet(
+        { props: { url: "https://x/a.parquet", bbox: "1,2,3" } },
+        "EPSG:4326",
+      ),
+    ).rejects.toThrow(/four comma-separated numbers/);
   });
 });

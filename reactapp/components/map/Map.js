@@ -127,7 +127,13 @@ function watchShapefileLoad(olLayer, layerName, setStatus) {
 
 // Source types that can resolve a coordinate reference out of their own data,
 // so their config carries no code to inspect.
-const CRS_BEARING_SOURCES = ["GeoTIFF", "Zarr", "Shapefile"];
+const CRS_BEARING_SOURCES = [
+  "GeoTIFF",
+  "Zarr",
+  "Shapefile",
+  "GeoPackage",
+  "GeoParquet",
+];
 
 // Whether a layer could need a projection definition registered. Answered from
 // the config alone, before anything is fetched, so the projection machinery is
