@@ -1,5 +1,6 @@
 import PropTypes from "prop-types";
 import { useShapefileDiscovery } from "components/modals/MapLayer/shapefileDiscovery";
+import useSourceArgumentDiscovery from "components/modals/MapLayer/sourceArgumentDiscovery";
 import Modal from "react-bootstrap/Modal";
 import styled from "styled-components";
 import Button from "react-bootstrap/Button";
@@ -189,6 +190,15 @@ const MapLayerModal = ({
     style,
     attributeProps,
     popupConfig,
+  });
+
+  // Argument discovery sits at the same level and for the same reason: the
+  // source pane renders the controls, but the state has to outlive a single
+  // pane render or a list read once would be read again on the next keystroke.
+  const argumentDiscovery = useSourceArgumentDiscovery({
+    sourceProps,
+    variableInputValues,
+    variableInputDateFormats,
   });
 
   const onRequestHideModal = useCallback(() => {
@@ -678,6 +688,7 @@ const MapLayerModal = ({
                 onRequestHideModal={onRequestHideModal}
                 onFetchPluginDefaults={fetchPluginDefaults}
                 shapefileDiscovery={shapefileDiscovery}
+                argumentDiscovery={argumentDiscovery}
               />
             </Tab>
             <Tab
