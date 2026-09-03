@@ -26,6 +26,7 @@ import Protobuf from "pbf";
 export const CLIENT_VECTOR_SOURCE_TYPES = [
   "GeoJSON",
   "ESRI Feature Service",
+  "GeoPackage",
   "Shapefile",
 ];
 
@@ -175,6 +176,13 @@ export const sourcePropertiesOptions = {
       index: { placeholder: "Slice index or a variable, e.g. ${Storm}" },
       mask_below: { placeholder: "Mask values at or below this" },
     },
+  },
+  GeoPackage: {
+    required: {
+      url: { placeholder: "GeoPackage file URL (https or s3)" },
+      layer: { placeholder: "Table (layer) name" },
+    },
+    optional: {},
   },
   "Vector Tile": {
     required: {
