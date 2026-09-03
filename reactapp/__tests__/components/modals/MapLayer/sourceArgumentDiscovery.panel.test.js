@@ -16,6 +16,7 @@ function entry(overrides = {}) {
     state: "idle",
     slow: false,
     options: [],
+    stale: [],
     failure: null,
     retryable: false,
     ...overrides,
@@ -52,6 +53,7 @@ function renderPane({
               setStyle={jest.fn()}
               setAttributeProps={jest.fn()}
               setErrorMessage={jest.fn()}
+              shapefileDiscovery={{ state: "idle", fields: [], drift: [] }}
               argumentDiscovery={argumentDiscovery}
             />
           </MapContextProvider>
@@ -276,5 +278,101 @@ describe("source argument discovery in the editor", () => {
       </AppContext.Provider>,
     );
     expect(screen.getByLabelText("value Input 0")).toBeInTheDocument();
+  });
+});
+
+describe("flagging a value the source no longer offers", () => {
+  it("names the absent value and says it was left alone", async () => {
+    renderPane({
+      sourceProps: zarr({ variable: "salinity" }),
+      argumentDiscovery: discovery({
+        variable: entry({
+          state: "ready",
+          options: [{ value: "depth", label: "depth" }],
+          stale: ["salinity"],
+        }),
+        index: entry(),
+      }),
+    });
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("does not offer the saved value salinity");
+    expect(alert).toHaveTextContent("left as it is");
+    // The value stays in the control - the warning explains it, it does not
+    // replace it.
+    expect(variableInput()).toBeInTheDocument();
+    expect(screen.getByText("salinity")).toBeInTheDocument();
+  });
+
+  it("reports a slice against the range the array has, not as a missing name", async () => {
+    renderPane({
+      sourceProps: zarr({ variable: "depth", index: "7" }),
+      argumentDiscovery: discovery({
+        variable: entry({ state: "ready" }),
+        index: entry({
+          state: "ready",
+          sliceCount: 2,
+          options: [
+            { value: "0", label: "t0" },
+            { value: "1", label: "t1" },
+          ],
+          stale: ["7"],
+        }),
+      }),
+    });
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("2 slices");
+    expect(alert).toHaveTextContent("positions 0-1");
+    expect(alert).toHaveTextContent("outside it");
+  });
+
+  it("speaks of a single slice in the singular", async () => {
+    renderPane({
+      sourceProps: zarr({ variable: "depth", index: "3" }),
+      argumentDiscovery: discovery({
+        variable: entry({ state: "ready" }),
+        index: entry({
+          state: "ready",
+          sliceCount: 1,
+          options: [{ value: "0", label: "0" }],
+          stale: ["3"],
+        }),
+      }),
+    });
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("1 slice,");
+    expect(alert).toHaveTextContent("only position 0 exists");
+  });
+
+  it("names just the absent entries of a multi-value argument", async () => {
+    renderPane({
+      sourceProps: geoparquet({ columns: "elev,aspect,slope" }),
+      argumentDiscovery: discovery({
+        columns: entry({
+          state: "ready",
+          options: [
+            { value: "elev", label: "elev" },
+            { value: "slope", label: "slope" },
+          ],
+          stale: ["aspect"],
+        }),
+      }),
+    });
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("does not offer the saved value aspect");
+    expect(alert).not.toHaveTextContent("elev,");
+  });
+
+  it("says nothing when every saved value is on offer", async () => {
+    renderPane({
+      sourceProps: zarr({ variable: "depth" }),
+      argumentDiscovery: discovery({
+        variable: entry({
+          state: "ready",
+          options: [{ value: "depth", label: "depth" }],
+        }),
+        index: entry(),
+      }),
+    });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

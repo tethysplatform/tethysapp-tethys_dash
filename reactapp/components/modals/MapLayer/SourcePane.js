@@ -119,8 +119,12 @@ function parsePropertiesArray(properties) {
 // more than a menu line to explain, and because the re-read control has to stay
 // reachable when the menu is closed.
 const ArgumentDiscoveryNote = ({ argument, discovery, onRefresh }) => {
-  const { state, slow, failure, retryable } = discovery;
+  const { state, slow, failure, retryable, stale, sliceCount } = discovery;
   if (state === "idle") return null;
+
+  // A slice is a position, so it is reported against the range the array has
+  // rather than against a list of names the source never offered.
+  const outOfRange = typeof sliceCount === "number";
 
   return (
     <div style={{ marginTop: "0.35rem" }}>
@@ -156,6 +160,33 @@ const ArgumentDiscoveryNote = ({ argument, discovery, onRefresh }) => {
           )}
           <br />
           <small>You can still type the value.</small>
+        </Alert>
+      )}
+
+      {/* The value is reported, never corrected: the author is the only one who
+          knows whether the source was renamed or the wrong URL was typed. */}
+      {stale?.length > 0 && (
+        <Alert variant="warning" role="alert" style={{ marginTop: "0.35rem" }}>
+          {outOfRange ? (
+            <>
+              This source has {sliceCount} slice
+              {sliceCount === 1 ? "" : "s"}, so only position
+              {sliceCount === 1 ? " 0" : `s 0-${sliceCount - 1}`} exist
+              {sliceCount === 1 ? "s" : ""}. The saved{" "}
+              {stale.length === 1 ? "position" : "positions"} {stale.join(", ")}{" "}
+              {stale.length === 1 ? "is" : "are"} outside it.
+            </>
+          ) : (
+            <>
+              This source does not offer{" "}
+              {stale.length === 1 ? "the saved value" : "the saved values"}{" "}
+              {stale.join(", ")}.
+            </>
+          )}{" "}
+          <small>
+            The saved value is left as it is &mdash; pick a listed one, or keep
+            it if the source is wrong.
+          </small>
         </Alert>
       )}
 

@@ -56,10 +56,15 @@ const ROUTES = {
   },
   zarrSlices: {
     slowAfter: METADATA_SLOW_MS,
-    read: async ({ url, dependencies }) =>
-      sliceOptions(
-        await readMetadata({ url, variable: dependencies.variable }),
-      ),
+    // Reports the count alongside the options: a stored slice is checked
+    // against the range the array actually has, not against the option list.
+    read: async ({ url, dependencies }) => {
+      const meta = await readMetadata({ url, variable: dependencies.variable });
+      return {
+        options: sliceOptions(meta),
+        sliceCount: meta?.slice_count ?? 0,
+      };
+    },
   },
   geopackageTables: {
     slowAfter: WHOLE_FILE_SLOW_MS,
@@ -158,10 +163,51 @@ export function failureFromError(error) {
   return { stage: "fetch", detail };
 }
 
+/**
+ * Entries of a stored value that the source turned out not to offer.
+ *
+ * Nothing is corrected - the value stays exactly as the author left it. An
+ * upstream rename says nothing about whether the author's intent was right,
+ * and silently rewriting it would hide the very thing they need to see.
+ */
+export function staleEntries({ value, options, declaration, sliceCount }) {
+  if (typeof value !== "string" || value === "") return [];
+
+  const separator = declaration?.separator;
+  const entries = separator
+    ? value
+        .split(separator)
+        .map((part) => part.trim())
+        .filter(Boolean)
+    : [value];
+
+  // A templated entry resolves per viewer, so the editor is in no position to
+  // judge it. Applied per entry: one template among several must not silence
+  // the check for its siblings.
+  const judgeable = entries.filter((entry) => !hasUnresolvedTemplate(entry));
+
+  // A slice is a position, so "absent" means out of range rather than not in a
+  // set - an index left over from a previous array is a number the new array
+  // simply does not go up to.
+  if (typeof sliceCount === "number") {
+    return judgeable.filter((entry) => {
+      const position = Number(entry);
+      return (
+        !Number.isInteger(position) || position < 0 || position >= sliceCount
+      );
+    });
+  }
+
+  const available = new Set((options ?? []).map((option) => option.value));
+  return judgeable.filter((entry) => !available.has(entry));
+}
+
 const EMPTY = Object.freeze({
   state: "idle",
   slow: false,
   options: [],
+  sliceCount: undefined,
+  stale: [],
   failure: null,
   retryable: false,
 });
@@ -286,10 +332,11 @@ export default function useSourceArgumentDiscovery({
         // spin without changing.
         route.invalidate?.(key.url);
       } else if (cache.current.has(key.id)) {
-        const options = cache.current.get(key.id);
+        const read = cache.current.get(key.id);
         update(argument, {
-          state: options.length ? "ready" : "empty",
-          options,
+          state: read.options.length ? "ready" : "empty",
+          options: read.options,
+          sliceCount: read.sliceCount,
           failure: null,
           slow: false,
         });
@@ -315,12 +362,14 @@ export default function useSourceArgumentDiscovery({
       );
 
       try {
-        const options = await route.read(key);
+        const result = await route.read(key);
         if (!current()) return;
-        cache.current.set(key.id, options);
+        const read = Array.isArray(result) ? { options: result } : result;
+        cache.current.set(key.id, read);
         update(argument, {
-          state: options.length ? "ready" : "empty",
-          options,
+          state: read.options.length ? "ready" : "empty",
+          options: read.options,
+          sliceCount: read.sliceCount,
           failure: null,
         });
       } catch (error) {
@@ -350,13 +399,28 @@ export default function useSourceArgumentDiscovery({
     [run],
   );
 
+  // Staleness is derived rather than stored: it is a function of the value the
+  // author currently has and the last read, and both change underneath it.
   const discoveries = useMemo(() => {
+    const props = sourceProps?.props ?? {};
     const visible = {};
-    args.forEach(({ argument }) => {
-      visible[argument] = byArgument[argument] ?? EMPTY;
+    args.forEach(({ argument, discover }) => {
+      const entry = byArgument[argument] ?? EMPTY;
+      // Only a read that produced an answer can say a value is absent. Before
+      // one, and after a failed one, silence is the honest report.
+      const stale =
+        entry.state === "ready" || entry.state === "empty"
+          ? staleEntries({
+              value: props[argument],
+              options: entry.options,
+              declaration: discover,
+              sliceCount: entry.sliceCount,
+            })
+          : [];
+      visible[argument] = { ...entry, stale };
     });
     return visible;
-  }, [args, byArgument]);
+  }, [args, byArgument, sourceProps?.props]);
 
   return { discoveries, load, refresh, keys };
 }

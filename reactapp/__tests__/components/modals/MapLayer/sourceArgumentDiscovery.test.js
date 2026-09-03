@@ -374,3 +374,172 @@ describe("useSourceArgumentDiscovery", () => {
     }
   });
 });
+
+describe("stale and out-of-range flagging", () => {
+  const parquetProps = (props = {}) => ({
+    type: "GeoParquet",
+    props: { url: "https://host/data.parquet", ...props },
+  });
+
+  test("a saved value absent from the fetched list is flagged, and the value is untouched", async () => {
+    const sourceProps = zarrProps({ variable: "salinity" });
+    const { result } = setup({ sourceProps });
+    await act(async () => result.current.load("variable"));
+
+    expect(result.current.discoveries.variable.stale).toEqual(["salinity"]);
+    // Reporting only: the hook hands back no writer, and the caller's props are
+    // the same object it passed in.
+    expect(sourceProps.props.variable).toBe("salinity");
+  });
+
+  test("a saved value present in the list is not flagged", async () => {
+    const { result } = setup({ sourceProps: zarrProps({ variable: "depth" }) });
+    await act(async () => result.current.load("variable"));
+
+    expect(result.current.discoveries.variable.stale).toEqual([]);
+  });
+
+  test("a slice position beyond the array's slice count is out of range", async () => {
+    readMetadata.mockResolvedValue({
+      slice_count: 2,
+      slice_labels: ["t0", "t1"],
+    });
+    const { result } = setup({
+      sourceProps: zarrProps({ variable: "depth", index: "7" }),
+    });
+    await act(async () => result.current.load("index"));
+
+    expect(result.current.discoveries.index.stale).toEqual(["7"]);
+    expect(result.current.discoveries.index.sliceCount).toBe(2);
+  });
+
+  test("a slice position within range is not flagged", async () => {
+    const { result } = setup({
+      sourceProps: zarrProps({ variable: "depth", index: "1" }),
+    });
+    await act(async () => result.current.load("index"));
+
+    expect(result.current.discoveries.index.stale).toEqual([]);
+  });
+
+  test("a two-dimensional array offers only position zero, so any other saved position is flagged", async () => {
+    // zarrReader collapses a 2D [y, x] array to a single slice, and refuses to
+    // read any index but 0 from one - so this flag matches what a render would
+    // actually do.
+    readMetadata.mockResolvedValue({ slice_count: 1, slice_labels: ["0"] });
+    const { result, rerender } = setup({
+      sourceProps: zarrProps({ variable: "depth", index: "3" }),
+    });
+    await act(async () => result.current.load("index"));
+    expect(result.current.discoveries.index.stale).toEqual(["3"]);
+
+    rerender({
+      sourceProps: zarrProps({ variable: "depth", index: "0" }),
+      variableInputValues: {},
+      variableInputDateFormats: {},
+    });
+    expect(result.current.discoveries.index.stale).toEqual([]);
+  });
+
+  test("changing the array leaves the slice in place, and flags only once the new list has loaded", async () => {
+    readMetadata.mockResolvedValue({
+      slice_count: 8,
+      slice_labels: Array.from({ length: 8 }, (_, i) => `t${i}`),
+    });
+    const { result, rerender } = setup({
+      sourceProps: zarrProps({ variable: "depth", index: "5" }),
+    });
+    await act(async () => result.current.load("index"));
+    expect(result.current.discoveries.index.stale).toEqual([]);
+
+    // The new array is shorter. The slice the author chose is left alone.
+    let release;
+    readMetadata.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          release = () => resolve({ slice_count: 2, slice_labels: ["a", "b"] });
+        }),
+    );
+    rerender({
+      sourceProps: zarrProps({ variable: "velocity", index: "5" }),
+      variableInputValues: {},
+      variableInputDateFormats: {},
+    });
+
+    let pending;
+    act(() => {
+      pending = result.current.load("index");
+    });
+    // Mid-read there is no answer yet, so claiming the value is missing would
+    // be a guess.
+    expect(result.current.discoveries.index.state).toBe("loading");
+    expect(result.current.discoveries.index.stale).toEqual([]);
+
+    await act(async () => {
+      release();
+      await pending;
+    });
+    expect(result.current.discoveries.index.stale).toEqual(["5"]);
+  });
+
+  test("a templated value is never flagged, on either check", async () => {
+    const { result: named } = setup({
+      // eslint-disable-next-line no-template-curly-in-string
+      sourceProps: zarrProps({ variable: "${Chosen Variable}" }),
+      variableInputValues: { "Chosen Variable": "depth" },
+    });
+    await act(async () => named.current.load("variable"));
+    expect(named.current.discoveries.variable.stale).toEqual([]);
+
+    const { result: positioned } = setup({
+      // eslint-disable-next-line no-template-curly-in-string
+      sourceProps: zarrProps({ variable: "depth", index: "${Step}" }),
+      variableInputValues: { Step: "1" },
+    });
+    await act(async () => positioned.current.load("index"));
+    expect(positioned.current.discoveries.index.stale).toEqual([]);
+  });
+
+  test("a multi-value argument names the absent entry and leaves its siblings alone", async () => {
+    listGeoParquetColumns.mockResolvedValue(["elev", "slope"]);
+    const { result } = setup({
+      sourceProps: parquetProps({ columns: "elev,aspect,slope" }),
+    });
+    await act(async () => result.current.load("columns"));
+
+    expect(result.current.discoveries.columns.stale).toEqual(["aspect"]);
+  });
+
+  test("a multi-value argument whose entries are all present is not flagged", async () => {
+    listGeoParquetColumns.mockResolvedValue(["elev", "slope"]);
+    const { result } = setup({
+      sourceProps: parquetProps({ columns: "elev, slope" }),
+    });
+    await act(async () => result.current.load("columns"));
+
+    expect(result.current.discoveries.columns.stale).toEqual([]);
+  });
+
+  test("one templated entry among several is exempt without exempting its siblings", async () => {
+    listGeoParquetColumns.mockResolvedValue(["elev"]);
+    const { result } = setup({
+      // eslint-disable-next-line no-template-curly-in-string
+      sourceProps: parquetProps({ columns: "elev,${Extra Column},aspect" }),
+      variableInputValues: { "Extra Column": "slope" },
+    });
+    await act(async () => result.current.load("columns"));
+
+    expect(result.current.discoveries.columns.stale).toEqual(["aspect"]);
+  });
+
+  test("nothing is flagged before a read, or after one that failed", async () => {
+    const { result } = setup({ sourceProps: zarrProps({ variable: "nope" }) });
+    expect(result.current.discoveries.variable.state).toBe("idle");
+    expect(result.current.discoveries.variable.stale).toEqual([]);
+
+    listArrays.mockRejectedValue(new TypeError("Failed to fetch"));
+    await act(async () => result.current.load("variable"));
+    expect(result.current.discoveries.variable.state).toBe("failed");
+    expect(result.current.discoveries.variable.stale).toEqual([]);
+  });
+});
