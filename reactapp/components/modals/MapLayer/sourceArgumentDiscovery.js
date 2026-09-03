@@ -55,7 +55,13 @@ const nameOptions = (names) =>
 const ROUTES = {
   zarrArrays: {
     slowAfter: METADATA_SLOW_MS,
-    read: async ({ url }) => nameOptions(await listArrays({ url })),
+    // `enumerated` is the whole point here: listArrays answers with no names
+    // both for a store that holds none and for one that cannot be listed at
+    // all, and only the first of those can testify that a saved value is gone.
+    read: async ({ url }) => {
+      const { names, enumerated } = await listArrays({ url });
+      return { options: nameOptions(names), enumerated };
+    },
   },
   zarrSlices: {
     slowAfter: METADATA_SLOW_MS,
@@ -66,18 +72,25 @@ const ROUTES = {
       return {
         options: sliceOptions(meta),
         sliceCount: meta?.slice_count ?? 0,
+        enumerated: true,
       };
     },
   },
   geopackageTables: {
     slowAfter: WHOLE_FILE_SLOW_MS,
     invalidate: invalidateGeoPackageTables,
-    read: async ({ url }) => nameOptions(await listGeoPackageTables(url)),
+    read: async ({ url }) => ({
+      options: nameOptions(await listGeoPackageTables(url)),
+      enumerated: true,
+    }),
   },
   geoparquetColumns: {
     slowAfter: WHOLE_FILE_SLOW_MS,
     invalidate: invalidateGeoParquetColumns,
-    read: async ({ url }) => nameOptions(await listGeoParquetColumns(url)),
+    read: async ({ url }) => ({
+      options: nameOptions(await listGeoParquetColumns(url)),
+      enumerated: true,
+    }),
   },
 };
 
@@ -134,9 +147,13 @@ function resolveValue({
   // ".../${Storm}.zarr" into a real-looking ".../.zarr" and send a read at a
   // store that was never named - so an unsatisfied reference is checked for
   // before the result is trusted, not after.
-  const unsatisfied = getDependentVariableInputs(String(value)).some(
-    (name) => !(variableInputValues ?? {})[name],
-  );
+  // `updateObjectWithVariableInputs` substitutes with `?? ""`, so it keeps 0 and
+  // false. Testing falsiness here would refuse to read a url the renderer
+  // resolves perfectly well - only an absent or blank value really collapses.
+  const unsatisfied = getDependentVariableInputs(String(value)).some((name) => {
+    const provided = (variableInputValues ?? {})[name];
+    return provided === undefined || provided === null || provided === "";
+  });
   if (unsatisfied || hasUnresolvedTemplate(resolved)) return null;
   return normalizeScheme ? s3UrlToHttps(resolved) : resolved;
 }
@@ -203,12 +220,19 @@ export function staleEntries({ value, options, declaration, sliceCount }) {
   return judgeable.filter((entry) => !available.has(entry));
 }
 
+// One shared reference. The no-op guard in `update` compares by identity, so a
+// fresh `[]` in a patch would defeat it for every state that carries no options.
+const NO_OPTIONS = Object.freeze([]);
+
 const EMPTY = Object.freeze({
   state: "idle",
   slow: false,
-  options: [],
+  options: NO_OPTIONS,
   sliceCount: undefined,
-  stale: [],
+  enumerated: false,
+  keyId: null,
+  blockedBy: null,
+  stale: NO_OPTIONS,
   failure: null,
   retryable: false,
 });
@@ -273,7 +297,7 @@ export default function useSourceArgumentDiscovery({
   // derived from whichever array is the reference, so choosing a different
   // array is itself an invalidation event - expressed as data on the
   // declaration rather than hardcoded here.
-  const keys = useMemo(() => {
+  const { keys, blocked } = useMemo(() => {
     const props = sourceProps?.props ?? {};
     const resolveOne = (value, normalizeScheme) =>
       resolveValue({
@@ -284,18 +308,28 @@ export default function useSourceArgumentDiscovery({
       });
     const url = resolveOne(props.url, true);
     const built = {};
+    // Why a key could not be built. "Enter a url" is the wrong thing to tell an
+    // author whose url is fine but whose sibling argument is still blank.
+    const blocked = {};
     args.forEach(({ argument, discover }) => {
       if (!url) {
         built[argument] = null;
+        blocked[argument] = { reason: "url" };
         return;
       }
       const dependencies = {};
       let resolvable = true;
+      let missingSibling = null;
       (discover.dependsOn ?? []).forEach((sibling) => {
         const resolved = resolveOne(props[sibling], false);
-        if (!resolved) resolvable = false;
+        if (!resolved) {
+          resolvable = false;
+          missingSibling = missingSibling ?? sibling;
+        }
         dependencies[sibling] = resolved;
       });
+      if (!resolvable)
+        blocked[argument] = { reason: "dependency", missingSibling };
       built[argument] = resolvable
         ? {
             url,
@@ -304,7 +338,7 @@ export default function useSourceArgumentDiscovery({
           }
         : null;
     });
-    return built;
+    return { keys: built, blocked };
   }, [args, sourceProps?.props, variableInputValues, variableInputDateFormats]);
 
   keysRef.current = keys;
@@ -330,7 +364,12 @@ export default function useSourceArgumentDiscovery({
       const key = keys[argument];
       if (!entry) return;
       if (!key) {
-        update(argument, { state: "nokey", failure: null, options: [] });
+        update(argument, {
+          state: "nokey",
+          failure: null,
+          options: NO_OPTIONS,
+          blockedBy: blocked[argument] ?? null,
+        });
         return;
       }
 
@@ -356,6 +395,8 @@ export default function useSourceArgumentDiscovery({
           state: read.options.length ? "ready" : "empty",
           options: read.options,
           sliceCount: read.sliceCount,
+          enumerated: read.enumerated,
+          keyId: key.id,
           failure: null,
           slow: false,
         });
@@ -372,23 +413,29 @@ export default function useSourceArgumentDiscovery({
         keysRef.current[argument]?.id === key.id;
 
       clearTimeout(timers.current.get(argument));
-      update(argument, { state: "loading", slow: false, failure: null });
-      timers.current.set(
-        argument,
-        setTimeout(() => {
-          if (current()) update(argument, { slow: true });
-        }, route.slowAfter),
-      );
+      // Stamped with the key it is loading for, or the entry would read as
+      // belonging to the previous key and be hidden while the read runs.
+      update(argument, {
+        state: "loading",
+        slow: false,
+        failure: null,
+        keyId: key.id,
+      });
+      const slowTimer = setTimeout(() => {
+        if (current()) update(argument, { slow: true });
+      }, route.slowAfter);
+      timers.current.set(argument, slowTimer);
 
       try {
-        const result = await route.read(key);
+        const read = await route.read(key);
         if (!current()) return;
-        const read = Array.isArray(result) ? { options: result } : result;
         cache.current.set(key.id, read);
         update(argument, {
           state: read.options.length ? "ready" : "empty",
           options: read.options,
           sliceCount: read.sliceCount,
+          enumerated: read.enumerated,
+          keyId: key.id,
           failure: null,
         });
       } catch (error) {
@@ -397,7 +444,8 @@ export default function useSourceArgumentDiscovery({
         const kind = errorKindFor(failure);
         update(argument, {
           state: "failed",
-          options: [],
+          options: NO_OPTIONS,
+          keyId: key.id,
           retryable: isRetryable(kind),
           failure: {
             detail: failure.detail,
@@ -405,11 +453,17 @@ export default function useSourceArgumentDiscovery({
           },
         });
       } finally {
-        clearTimeout(timers.current.get(argument));
+        // Clear this read's own timer. Clearing by argument would cancel the
+        // timer of whichever read superseded this one, and the live read would
+        // never report itself slow.
+        clearTimeout(slowTimer);
+        if (timers.current.get(argument) === slowTimer) {
+          timers.current.delete(argument);
+        }
         if (current()) update(argument, { slow: false });
       }
     },
-    [args, keys, update],
+    [args, keys, blocked, update],
   );
 
   const load = useCallback((argument) => run(argument), [run]);
@@ -424,22 +478,34 @@ export default function useSourceArgumentDiscovery({
     const props = sourceProps?.props ?? {};
     const visible = {};
     args.forEach(({ argument, discover }) => {
-      const entry = byArgument[argument] ?? EMPTY;
-      // Only a read that produced an answer can say a value is absent. Before
-      // one, and after a failed one, silence is the honest report.
-      const stale =
-        entry.state === "ready" || entry.state === "empty"
-          ? staleEntries({
-              value: props[argument],
-              options: entry.options,
-              declaration: discover,
-              sliceCount: entry.sliceCount,
-            })
-          : [];
-      visible[argument] = { ...entry, stale };
+      const stored = byArgument[argument] ?? EMPTY;
+      // An entry belongs to the key it was read under. Editing the url does not
+      // start a read - the next menu open does - so without this check the
+      // previous store's options, and a warning derived from them, would sit
+      // under a url they know nothing about.
+      const currentKeyId = keys[argument]?.id ?? null;
+      const entry =
+        stored.keyId === null || stored.keyId === currentKeyId ? stored : EMPTY;
+
+      // Only a source that was actually enumerated can testify that a value is
+      // absent. A Zarr store without consolidated metadata reads as no names,
+      // but that is "could not list", not "does not have" - flagging there
+      // would accuse every valid hand-typed variable of being gone.
+      const stale = entry.enumerated
+        ? staleEntries({
+            value: props[argument],
+            options: entry.options,
+            declaration: discover,
+            sliceCount: entry.sliceCount,
+          })
+        : NO_OPTIONS;
+      visible[argument] =
+        entry === stored && stale === stored.stale
+          ? stored
+          : { ...entry, stale };
     });
     return visible;
-  }, [args, byArgument, sourceProps?.props]);
+  }, [args, byArgument, keys, sourceProps?.props]);
 
   return { discoveries, load, refresh };
 }

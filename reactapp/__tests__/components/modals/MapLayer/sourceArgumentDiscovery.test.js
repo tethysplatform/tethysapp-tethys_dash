@@ -56,7 +56,9 @@ beforeEach(() => {
         ? url.replace("s3://", "https://s3.amazonaws.com/")
         : url,
     );
-  listArrays.mockReset().mockResolvedValue(["depth", "velocity"]);
+  listArrays
+    .mockReset()
+    .mockResolvedValue({ names: ["depth", "velocity"], enumerated: true });
   readMetadata
     .mockReset()
     .mockResolvedValue({ slice_count: 2, slice_labels: ["t0", "t1"] });
@@ -541,5 +543,161 @@ describe("stale and out-of-range flagging", () => {
     await act(async () => result.current.load("variable"));
     expect(result.current.discoveries.variable.state).toBe("failed");
     expect(result.current.discoveries.variable.stale).toEqual([]);
+  });
+});
+
+// Every case below is a bug a reviewer found in this hook. They are kept
+// together so the reasons stay attached to the behavior they pin.
+describe("regressions found in review", () => {
+  test("a store that cannot be enumerated does not accuse a saved value", async () => {
+    // listArrays answers with no names both for a store that holds none and for
+    // one without consolidated metadata. Only the first can say a name is gone;
+    // treating the second the same way told authors their working variable had
+    // vanished, on the most common kind of Zarr store there is.
+    listArrays.mockResolvedValue({ names: [], enumerated: false });
+    const { result } = setup({ sourceProps: zarrProps({ variable: "depth" }) });
+    await act(async () => result.current.load("variable"));
+
+    expect(result.current.discoveries.variable.state).toBe("empty");
+    expect(result.current.discoveries.variable.enumerated).toBe(false);
+    expect(result.current.discoveries.variable.stale).toEqual([]);
+  });
+
+  test("a store that was enumerated and holds nothing still flags a saved value", async () => {
+    listArrays.mockResolvedValue({ names: [], enumerated: true });
+    const { result } = setup({ sourceProps: zarrProps({ variable: "depth" }) });
+    await act(async () => result.current.load("variable"));
+
+    expect(result.current.discoveries.variable.state).toBe("empty");
+    expect(result.current.discoveries.variable.stale).toEqual(["depth"]);
+  });
+
+  test("editing the url drops the previous store's options and its warning", async () => {
+    listArrays.mockResolvedValue({ names: ["depth"], enumerated: true });
+    const { result, rerender } = setup({
+      sourceProps: zarrProps({ variable: "salinity" }),
+    });
+    await act(async () => result.current.load("variable"));
+    expect(result.current.discoveries.variable.stale).toEqual(["salinity"]);
+
+    // A url edit starts no read - the next menu open does. Until then the old
+    // store's answer must not be shown against an address it never described.
+    rerender({
+      sourceProps: {
+        type: "Zarr",
+        props: { url: "https://host/other.zarr", variable: "salinity" },
+      },
+      variableInputValues: {},
+      variableInputDateFormats: {},
+    });
+
+    expect(result.current.discoveries.variable.state).toBe("idle");
+    expect(result.current.discoveries.variable.options).toEqual([]);
+    expect(result.current.discoveries.variable.stale).toEqual([]);
+  });
+
+  test("a superseded read does not cancel the slow timer of the read that replaced it", async () => {
+    jest.useFakeTimers();
+    try {
+      let settleFirst;
+      listArrays.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            settleFirst = () => resolve({ names: ["depth"], enumerated: true });
+          }),
+      );
+      listArrays.mockImplementationOnce(() => new Promise(() => {}));
+
+      const { result, rerender } = setup();
+      act(() => {
+        result.current.load("variable");
+      });
+
+      // Supersede it: a new url means a new key, so the first read is abandoned.
+      rerender({
+        sourceProps: {
+          type: "Zarr",
+          props: { url: "https://host/second.zarr" },
+        },
+        variableInputValues: {},
+        variableInputDateFormats: {},
+      });
+      act(() => {
+        result.current.load("variable");
+      });
+
+      // The abandoned read settles. Its finally block runs, and used to clear
+      // the timer belonging to the read that replaced it.
+      await act(async () => {
+        settleFirst();
+        await Promise.resolve();
+      });
+
+      act(() => {
+        jest.advanceTimersByTime(METADATA_SLOW_MS + 1);
+      });
+      expect(result.current.discoveries.variable.slow).toBe(true);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test("a variable input holding 0 still resolves a url the renderer would resolve", async () => {
+    // updateObjectWithVariableInputs substitutes with `?? ""`, so it keeps 0.
+    // Testing falsiness here refused to read a url that renders perfectly well.
+    const { result } = setup({
+      // eslint-disable-next-line no-template-curly-in-string
+      sourceProps: { type: "Zarr", props: { url: "https://host/${Run}.zarr" } },
+      variableInputValues: { Run: 0 },
+    });
+    await act(async () => result.current.load("variable"));
+
+    expect(listArrays).toHaveBeenCalledWith({ url: "https://host/0.zarr" });
+    expect(result.current.discoveries.variable.state).toBe("ready");
+  });
+
+  test("an unresolved sibling is reported as such, not as a missing url", async () => {
+    const { result } = setup({
+      sourceProps: zarrProps({ variable: "" }),
+    });
+    await act(async () => result.current.load("index"));
+
+    expect(result.current.discoveries.index.state).toBe("nokey");
+    expect(result.current.discoveries.index.blockedBy).toEqual({
+      reason: "dependency",
+      missingSibling: "variable",
+    });
+  });
+
+  test("a missing url is reported as a missing url", async () => {
+    const { result } = setup({
+      sourceProps: { type: "Zarr", props: { url: "" } },
+    });
+    await act(async () => result.current.load("variable"));
+
+    expect(result.current.discoveries.variable.blockedBy).toEqual({
+      reason: "url",
+    });
+  });
+
+  test("a read still in flight when the hook unmounts leaves no timer behind", async () => {
+    jest.useFakeTimers();
+    try {
+      listArrays.mockImplementation(() => new Promise(() => {}));
+      const { result, unmount } = setup();
+      act(() => {
+        result.current.load("variable");
+      });
+      unmount();
+      // The slow timer would otherwise fire into a hook that is gone.
+      expect(() =>
+        act(() => {
+          jest.advanceTimersByTime(METADATA_SLOW_MS * 2);
+        }),
+      ).not.toThrow();
+      expect(jest.getTimerCount()).toBe(0);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

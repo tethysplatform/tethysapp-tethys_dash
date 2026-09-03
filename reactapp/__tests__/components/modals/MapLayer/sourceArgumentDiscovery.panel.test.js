@@ -170,8 +170,6 @@ describe("source argument discovery in the editor", () => {
   });
 
   it("says a slow read is slow, distinguishably from ordinary loading", async () => {
-    const { unmount } = render(<div />);
-    unmount();
     renderPane({
       sourceProps: zarr(),
       argumentDiscovery: discovery({

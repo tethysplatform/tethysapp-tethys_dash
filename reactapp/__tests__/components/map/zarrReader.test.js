@@ -391,10 +391,10 @@ describe("listArrays", () => {
     ];
     answerConsolidatedKeyWith(200);
 
-    await expect(listArrays({ url: ROOT })).resolves.toEqual([
-      "depth",
-      "velocity",
-    ]);
+    await expect(listArrays({ url: ROOT })).resolves.toEqual({
+      names: ["depth", "velocity"],
+      enumerated: true,
+    });
   });
 
   it("returns no names for a store without consolidated metadata rather than throwing", async () => {
@@ -405,7 +405,13 @@ describe("listArrays", () => {
     mockContents = [{ path: "/depth", kind: "array" }];
     answerConsolidatedKeyWith(404);
 
-    await expect(listArrays({ url: ROOT })).resolves.toEqual([]);
+    // enumerated:false is the load-bearing half. Without it the caller cannot
+    // tell this apart from a store that genuinely holds no arrays, and would
+    // tell the author their perfectly good variable no longer exists.
+    await expect(listArrays({ url: ROOT })).resolves.toEqual({
+      names: [],
+      enumerated: false,
+    });
   });
 
   it("lists nothing when the host answers the consolidated-metadata key as forbidden", async () => {
@@ -415,7 +421,10 @@ describe("listArrays", () => {
     mockContents = [{ path: "/depth", kind: "array" }];
     answerConsolidatedKeyWith(403);
 
-    await expect(listArrays({ url: ROOT })).resolves.toEqual([]);
+    await expect(listArrays({ url: ROOT })).resolves.toEqual({
+      names: [],
+      enumerated: false,
+    });
   });
 
   it("excludes groups, offering only arrays", async () => {
@@ -426,7 +435,10 @@ describe("listArrays", () => {
     ];
     answerConsolidatedKeyWith(200);
 
-    await expect(listArrays({ url: ROOT })).resolves.toEqual(["depth"]);
+    await expect(listArrays({ url: ROOT })).resolves.toEqual({
+      names: ["depth"],
+      enumerated: true,
+    });
   });
 
   it("returns a nested array as a root-relative path, not a bare basename", async () => {
@@ -435,7 +447,23 @@ describe("listArrays", () => {
     mockContents = [{ path: "/forcing/depth", kind: "array" }];
     answerConsolidatedKeyWith(200);
 
-    await expect(listArrays({ url: ROOT })).resolves.toEqual(["forcing/depth"]);
+    await expect(listArrays({ url: ROOT })).resolves.toEqual({
+      names: ["forcing/depth"],
+      enumerated: true,
+    });
+  });
+
+  it("reports an enumerated store that holds no arrays, distinctly from an unlistable one", async () => {
+    mockContents = [
+      { path: "/", kind: "group" },
+      { path: "/forcing", kind: "group" },
+    ];
+    answerConsolidatedKeyWith(200);
+
+    await expect(listArrays({ url: ROOT })).resolves.toEqual({
+      names: [],
+      enumerated: true,
+    });
   });
 
   it("fails when the store cannot be opened at all, distinctly from listing nothing", async () => {

@@ -312,12 +312,14 @@ function forbiddenAsMissing(response, request) {
  * `readSlice`/`readMetadata` already append the variable name. A bare basename
  * would resolve to the wrong place for a nested array.
  *
- * Enumeration comes from the store's consolidated metadata; groups are dropped.
- * A store without consolidated metadata is NOT an error — the store is fine, it
- * simply cannot be enumerated, and the caller should let the author type a name
- * instead. That case returns `[]`: an empty list and a failed read are
- * deliberately different answers. Only an unreachable or unopenable store
- * throws.
+ * Returns `{ names, enumerated }`. Enumeration comes from the store's
+ * consolidated metadata; groups are dropped. A store without consolidated
+ * metadata is NOT an error — the store is fine, it simply cannot be enumerated,
+ * and the caller should let the author type a name instead. That case reports
+ * `enumerated: false`, which is why the flag exists rather than the caller
+ * inferring it from an empty `names`: "holds nothing" and "could not be listed"
+ * are different answers, and only the first can say a saved name is gone. Only
+ * an unreachable or unopenable store throws.
  *
  * Takes no cancellation signal; a superseded listing is abandoned by the caller,
  * not aborted (same as every other read here).
@@ -338,11 +340,16 @@ export async function listArrays({ url } = {}) {
   // no consolidated metadata to read, and a bare FetchStore has no `contents()`.
   // Calling it unconditionally would throw a TypeError and report a failure for
   // precisely the case that is expected to succeed with nothing.
-  if (typeof listable?.contents !== "function") return [];
+  if (typeof listable?.contents !== "function") {
+    return { names: [], enumerated: false };
+  }
 
-  return listable
-    .contents()
-    .filter((entry) => entry.kind === "array")
-    .map((entry) => String(entry.path).replace(/^\//, ""))
-    .filter(Boolean); // the root itself lists as "/" and is not a variable
+  return {
+    names: listable
+      .contents()
+      .filter((entry) => entry.kind === "array")
+      .map((entry) => String(entry.path).replace(/^\//, ""))
+      .filter(Boolean), // the root itself lists as "/" and is not a variable
+    enumerated: true,
+  };
 }

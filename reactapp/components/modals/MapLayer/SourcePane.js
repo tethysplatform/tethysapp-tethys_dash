@@ -105,21 +105,21 @@ function parsePropertiesArray(properties) {
   }, {});
 }
 
-// The author-facing surface for reading a shapefile's fields: an explicit action
-// rather than an automatic read, the pending state, what failed and what the
-// author can do about it, and any saved field references the source no longer
-// has.
-//
-// The drift list renders here, next to the action that produced it, rather than
-// being split across the style and attributes panes -- a style-rule reference
-// that has gone missing would otherwise be invisible to an author who never
-// opens the attributes tab.
 // What discovery has to say about one argument, rendered beneath its select.
 // It lives beside the row rather than inside the menu because a failure needs
 // more than a menu line to explain, and because the re-read control has to stay
 // reachable when the menu is closed.
 const ArgumentDiscoveryNote = ({ argument, discovery, onRefresh }) => {
-  const { state, slow, failure, retryable, stale, sliceCount } = discovery;
+  const {
+    state,
+    slow,
+    failure,
+    retryable,
+    stale,
+    sliceCount,
+    enumerated,
+    blockedBy,
+  } = discovery;
   if (state === "idle") return null;
 
   // A slice is a position, so it is reported against the range the array has
@@ -128,9 +128,13 @@ const ArgumentDiscoveryNote = ({ argument, discovery, onRefresh }) => {
 
   return (
     <div style={{ marginTop: "0.35rem" }}>
+      {/* Naming what is actually missing: telling an author to enter a url they
+          have already entered sends them looking in the wrong place. */}
       {state === "nokey" && (
         <small style={{ color: "#6c757d" }}>
-          Enter a source URL to see the available values.
+          {blockedBy?.reason === "dependency"
+            ? `Choose ${blockedBy.missingSibling ?? "the argument this one depends on"} first to see the available values.`
+            : "Enter a source URL to see the available values."}
         </small>
       )}
 
@@ -142,10 +146,13 @@ const ArgumentDiscoveryNote = ({ argument, discovery, onRefresh }) => {
         </div>
       )}
 
+      {/* Two different answers that used to read the same. A source that was
+          listed and holds nothing is not a source that could not be listed. */}
       {state === "empty" && (
         <Alert variant="secondary" style={{ marginTop: "0.35rem" }}>
-          This source does not list its contents, so nothing can be offered here
-          &mdash; type the value if you know it.
+          {enumerated
+            ? "This source was read and offers nothing here \u2014 type the value if you know it."
+            : "This source does not list its contents, so nothing can be offered here \u2014 type the value if you know it."}
         </Alert>
       )}
 
@@ -169,12 +176,18 @@ const ArgumentDiscoveryNote = ({ argument, discovery, onRefresh }) => {
         <Alert variant="warning" role="alert" style={{ marginTop: "0.35rem" }}>
           {outOfRange ? (
             <>
-              This source has {sliceCount} slice
-              {sliceCount === 1 ? "" : "s"}, so only position
-              {sliceCount === 1 ? " 0" : `s 0-${sliceCount - 1}`} exist
-              {sliceCount === 1 ? "s" : ""}. The saved{" "}
-              {stale.length === 1 ? "position" : "positions"} {stale.join(", ")}{" "}
-              {stale.length === 1 ? "is" : "are"} outside it.
+              {sliceCount === 0 ? (
+                <>This source has no slices at all.</>
+              ) : (
+                <>
+                  This source has {sliceCount} slice
+                  {sliceCount === 1 ? "" : "s"}, so only position
+                  {sliceCount === 1 ? " 0" : `s 0-${sliceCount - 1}`} exist
+                  {sliceCount === 1 ? "s" : ""}.
+                </>
+              )}{" "}
+              The saved {stale.length === 1 ? "position" : "positions"}{" "}
+              {stale.join(", ")} {stale.length === 1 ? "is" : "are"} outside it.
             </>
           ) : (
             <>
@@ -216,6 +229,15 @@ ArgumentDiscoveryNote.propTypes = {
   onRefresh: PropTypes.func.isRequired,
 };
 
+// The author-facing surface for reading a shapefile's fields: an explicit action
+// rather than an automatic read, the pending state, what failed and what the
+// author can do about it, and any saved field references the source no longer
+// has.
+//
+// The drift list renders here, next to the action that produced it, rather than
+// being split across the style and attributes panes -- a style-rule reference
+// that has gone missing would otherwise be invisible to an author who never
+// opens the attributes tab.
 const ShapefileDiscoveryPanel = ({ discovery }) => {
   const { state, slow, fields, failure, drift, load } = discovery;
 

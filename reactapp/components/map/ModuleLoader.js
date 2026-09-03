@@ -777,9 +777,7 @@ async function readGeoPackageTables(url) {
     // Surface why the read failed. Returning an empty list here would be read
     // as "this file has no tables", which is a different and wrong answer.
     throw new GeoPackageError(
-      `Could not read the GeoPackage file at ${url}: ${error?.message ?? error}. ` +
-        `Check the URL is reachable and that the host sends CORS headers ` +
-        `(Access-Control-Allow-Origin).`,
+      `Could not read the GeoPackage file: ${error?.message ?? error}`,
     );
   }
 }
@@ -1177,9 +1175,12 @@ async function readGeoParquetColumns(url) {
     // attribute columns", which is a different and wrong answer.
     if (error instanceof GeoParquetError) throw error;
     throw new GeoParquetError(
-      `Could not read the GeoParquet file at ${url}: ${error?.message ?? error}. ` +
-        `Check the URL is reachable and that the host sends CORS headers ` +
-        `(Access-Control-Allow-Origin) and supports range requests.`,
+      // The remedy is the presentation layer's job -- the discovery note already
+      // appends TRANSFER_REMEDY for a transfer-stage failure, so repeating it
+      // here printed the same sentence twice. The range-request half is
+      // format-specific, so only that stays.
+      `Could not read the GeoParquet file: ${error?.message ?? error}. ` +
+        `The host must also support range requests.`,
     );
   }
 }
