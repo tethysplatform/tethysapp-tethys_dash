@@ -223,16 +223,10 @@ export async function readSlice({
  * Selectable metadata for a Zarr store:
  * { variables, slice_count, slice_labels, crs, grid_shape, extent }.
  *
- * NOTE: intentionally not wired into the UI yet. This is the client-side
- * replacement for the removed `tethysdash/zarr/meta` endpoint, kept so the
- * MapLayer editor can grow a variable/slice picker without re-deriving the
- * read. Until then a layer author types `variable`/`index` by hand and finds
- * out they are wrong when the layer fails to render. Delete this if that picker
- * is not going to be built.
- *
- * HTTP-backed stores cannot be listed, so `variables` comes from the caller's
- * `candidates` (or the chosen `variable`). `labelVar` names a 1-D array whose
- * values label each slice; otherwise labels are the slice indices.
+ * This does not enumerate the store: `variables` comes from the caller's
+ * `candidates` (or the chosen `variable`). Use `listArrays` to discover what a
+ * store holds. `labelVar` names a 1-D array whose values label each slice;
+ * otherwise labels are the slice indices.
  */
 export async function readMetadata({
   url,
@@ -240,9 +234,6 @@ export async function readMetadata({
   candidates,
   labelVar,
 } = {}) {
-  const group = await openNode(url);
-  const attrs = group.attrs;
-
   const variables = candidates?.length
     ? candidates
     : variable
@@ -255,8 +246,15 @@ export async function readMetadata({
     );
   }
 
+  // The root and the array are independent reads, and this now sits behind the
+  // slice dropdown on the tighter metadata threshold, so they go out together
+  // rather than one round trip after the other.
   const base = url.replace(/\/$/, "");
-  const arr = await openNode(`${base}/${refName}`);
+  const [group, arr] = await Promise.all([
+    openNode(url),
+    openNode(`${base}/${refName}`),
+  ]);
+  const attrs = group.attrs;
   const { n, h, w } = gridDims(arr.shape);
   const transform = requireAttr(attrs, "transform");
 

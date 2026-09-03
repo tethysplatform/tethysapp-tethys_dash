@@ -238,8 +238,8 @@ export function clearClientSourceCaches() {
   zarrSliceCache.clear();
   geoPackageCache.clear();
   geoParquetCache.clear();
-  geoPackageTableCache.clear();
-  geoParquetColumnCache.clear();
+  geoPackageTables.invalidate();
+  geoParquetColumns.invalidate();
 }
 
 function getZarrSlice(source) {
@@ -703,55 +703,66 @@ export async function loadGeoPackage(config, mapProjection) {
 // -- so it only has to be a projection that resolves.
 const GEOPACKAGE_DISCOVERY_PROJECTION = "EPSG:3857";
 
+/**
+ * A single-flight promise cache keyed by resolved URL, for the discovery reads
+ * that answer "what does this file contain?".
+ *
+ * The entry is planted synchronously, before the reader's first await, so a
+ * second caller arriving in the same tick joins the in-flight read instead of
+ * starting its own. A rejection is evicted so a transient network or CORS
+ * failure can be retried rather than pinning the menu to that error forever.
+ *
+ * `invalidate` exists because these caches sit behind the discovery hook's own
+ * memo: a forced re-read that cleared only the memo would land here and be
+ * handed the same list straight back, so the control would spin and nothing on
+ * screen would change. Called with no url, it clears every entry.
+ */
+function createUrlKeyedCache({ read, missingUrl }) {
+  const cache = new Map();
+
+  const get = (rawUrl) => {
+    if (!rawUrl) return Promise.reject(missingUrl());
+    const url = s3UrlToHttps(rawUrl);
+    if (!cache.has(url)) {
+      cache.set(
+        url,
+        read(url).catch((error) => {
+          cache.delete(url);
+          throw error;
+        }),
+      );
+    }
+    return cache.get(url);
+  };
+
+  const invalidate = (rawUrl) => {
+    if (rawUrl === undefined) {
+      cache.clear();
+      return;
+    }
+    cache.delete(s3UrlToHttps(rawUrl));
+  };
+
+  return { get, invalidate };
+}
+
 // Discovery's own parsed-gpkg cache, keyed by resolved URL alone. Deliberately
 // not geoPackageCache above, which is keyed `${url}::${mapProjection}`: the
 // editor has no map projection to key with (MapContext exposes only
 // map-readiness and extent-draw state), and a forced re-read from the editor
 // must not evict an entry a rendered layer is still awaiting. The cost is one
 // download not shared with the render path.
-//
-// The promise is cached rather than its result so two callers opening the same
-// menu share one download, and rejections are evicted -- mirroring the
-// renderer's caches -- so a transient network or CORS failure can be retried
-// instead of pinning the menu to that error forever.
-const geoPackageTableCache = new Map();
+const geoPackageTables = createUrlKeyedCache({
+  read: (url) => readGeoPackageTables(url),
+  missingUrl: () =>
+    new GeoPackageError("GeoPackage source requires a file URL"),
+});
 
 // List the table names in a GeoPackage file. loadGeoPackage above needs a table
 // name and throws without one, which is exactly the state an author picking a
 // table is in; this reads the same file and answers with the names instead.
-export function listGeoPackageTables(rawUrl) {
-  if (!rawUrl) {
-    return Promise.reject(
-      new GeoPackageError("GeoPackage source requires a file URL"),
-    );
-  }
-  const url = s3UrlToHttps(rawUrl);
-  if (!geoPackageTableCache.has(url)) {
-    // Set synchronously, before the first await inside the reader, so a second
-    // caller arriving in the same tick joins this download rather than opening
-    // its own.
-    geoPackageTableCache.set(
-      url,
-      readGeoPackageTables(url).catch((error) => {
-        geoPackageTableCache.delete(url);
-        throw error;
-      }),
-    );
-  }
-  return geoPackageTableCache.get(url);
-}
-
-// Drop a cached table list so the next call re-reads the file. This cache sits
-// behind the discovery hook's own memo, so a forced re-read that cleared only
-// the memo would land here and be handed the same list back: the control would
-// spin and nothing on screen would change. Called with no url, clears all.
-export function invalidateGeoPackageTables(rawUrl) {
-  if (rawUrl === undefined) {
-    geoPackageTableCache.clear();
-    return;
-  }
-  geoPackageTableCache.delete(s3UrlToHttps(rawUrl));
-}
+export const listGeoPackageTables = geoPackageTables.get;
+export const invalidateGeoPackageTables = geoPackageTables.invalidate;
 
 async function readGeoPackageTables(url) {
   // Register before loadGpkg rather than relying on the render path having run
@@ -1090,46 +1101,19 @@ async function readGeoParquetFile(url, readOptions = {}) {
   };
 }
 
-// Discovery's own metadata cache, keyed by resolved URL alone -- the same shape
-// as geoPackageTableCache above, for the same reasons: the promise is cached so
-// concurrent callers share one read, and rejections are evicted so a transient
-// failure can be retried. Separate from geoParquetCache because that one keys
-// on the read options (columns/bbox/maxFeatures) an author has not chosen yet.
-const geoParquetColumnCache = new Map();
+// Discovery's own metadata cache, keyed by resolved URL alone. Separate from
+// geoParquetCache because that one keys on the read options (columns/bbox/
+// maxFeatures) an author has not chosen yet.
+const geoParquetColumns = createUrlKeyedCache({
+  read: (url) => readGeoParquetColumns(url),
+  missingUrl: () =>
+    new GeoParquetError("GeoParquet source requires a file URL"),
+});
 
-// List a GeoParquet file's selectable attribute columns.
-export function listGeoParquetColumns(rawUrl) {
-  if (!rawUrl) {
-    return Promise.reject(
-      new GeoParquetError("GeoParquet source requires a file URL"),
-    );
-  }
-  const url = s3UrlToHttps(rawUrl);
-  if (!geoParquetColumnCache.has(url)) {
-    // Set synchronously, before the reader's first await, so concurrent callers
-    // share one read of the file footer.
-    geoParquetColumnCache.set(
-      url,
-      readGeoParquetColumns(url).catch((error) => {
-        geoParquetColumnCache.delete(url);
-        throw error;
-      }),
-    );
-  }
-  return geoParquetColumnCache.get(url);
-}
-
-// Drop a cached column list so the next call re-reads the file. Same reason
-// invalidateGeoPackageTables exists: this cache sits behind the discovery
-// hook's memo, and a forced re-read that cleared only the memo would be handed
-// the same list back from here. Called with no url, clears all.
-export function invalidateGeoParquetColumns(rawUrl) {
-  if (rawUrl === undefined) {
-    geoParquetColumnCache.clear();
-    return;
-  }
-  geoParquetColumnCache.delete(s3UrlToHttps(rawUrl));
-}
+// List a GeoParquet file's selectable attribute columns. Unlike the GeoPackage
+// read this touches only the file footer, since hyparquet ranges into it.
+export const listGeoParquetColumns = geoParquetColumns.get;
+export const invalidateGeoParquetColumns = geoParquetColumns.invalidate;
 
 // A parquet schema arrives as a flat, depth-first list: the root element,
 // followed by each of its children with that child's own subtree inlined

@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { updateObjectWithVariableInputs } from "components/visualizations/utilities";
+import {
+  getDependentVariableInputs,
+  updateObjectWithVariableInputs,
+} from "components/visualizations/utilities";
 import { sourcePropertiesOptions } from "components/map/utilities";
 import { listArrays, readMetadata } from "components/map/zarrReader";
 import {
@@ -131,11 +134,9 @@ function resolveValue({
   // ".../${Storm}.zarr" into a real-looking ".../.zarr" and send a read at a
   // store that was never named - so an unsatisfied reference is checked for
   // before the result is trusted, not after.
-  const referenced = String(value).match(/\$\{([^}]+)\}/g) ?? [];
-  const unsatisfied = referenced.some((token) => {
-    const name = token.slice(2, -1);
-    return !(variableInputValues ?? {})[name];
-  });
+  const unsatisfied = getDependentVariableInputs(String(value)).some(
+    (name) => !(variableInputValues ?? {})[name],
+  );
   if (unsatisfied || hasUnresolvedTemplate(resolved)) return null;
   return normalizeScheme ? s3UrlToHttps(resolved) : resolved;
 }
@@ -255,6 +256,16 @@ export default function useSourceArgumentDiscovery({
     setByArgument({});
   }, [sourceType]);
 
+  // Reads are deliberately abandoned rather than aborted, but the slow-read
+  // timers are ours: without this one fires long after the modal has closed.
+  useEffect(() => {
+    const pending = timers.current;
+    return () => {
+      pending.forEach((timer) => clearTimeout(timer));
+      pending.clear();
+    };
+  }, []);
+
   const args = useMemo(() => discoverableArguments(sourceType), [sourceType]);
 
   // A discovery key is the resolved URL plus the resolved value of every
@@ -299,10 +310,18 @@ export default function useSourceArgumentDiscovery({
   keysRef.current = keys;
 
   const update = useCallback((argument, patch) => {
-    setByArgument((previous) => ({
-      ...previous,
-      [argument]: { ...EMPTY, ...previous[argument], ...patch },
-    }));
+    setByArgument((previous) => {
+      const before = previous[argument];
+      const after = { ...EMPTY, ...before, ...patch };
+      // Re-opening an already-loaded menu asks for the same state again. Left
+      // unguarded that publishes a fresh object every time and re-renders the
+      // editor for a dropdown the author is only glancing at. A cached read
+      // hands back the same options array by reference, so identity is enough.
+      if (before && Object.keys(after).every((k) => after[k] === before[k])) {
+        return previous;
+      }
+      return { ...previous, [argument]: after };
+    });
   }, []);
 
   const run = useCallback(
@@ -422,5 +441,5 @@ export default function useSourceArgumentDiscovery({
     return visible;
   }, [args, byArgument, sourceProps?.props]);
 
-  return { discoveries, load, refresh, keys };
+  return { discoveries, load, refresh };
 }
