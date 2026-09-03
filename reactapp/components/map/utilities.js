@@ -53,6 +53,21 @@ export function coerceOptionalBoolean(value) {
   return undefined;
 }
 
+// The source argument registry. Each argument carries a `placeholder` -- the
+// property walker in SourcePane treats an argument object without one as a
+// nested parameter group, so anything added alongside must sit next to a
+// placeholder or the argument stops rendering as a field at all.
+//
+// An argument whose valid values only exist inside the data (a Zarr array, a
+// GeoPackage table, a GeoParquet column) also carries `discover`. That is inert
+// data on purpose: a route identifier, the sibling arguments its key depends
+// on, and the separator a multi-valued argument joins with. The functions that
+// actually read those routes live with the discovery hook, because the
+// GeoPackage/GeoParquet/Zarr readers import this module -- putting a fetcher
+// here would close that loop and drag the SQLite/wasm chain into every module
+// that imports the registry. `type` says how the row renders ("select" for one
+// value, "multiselect" for several), matching the per-row `types` channel the
+// walker already forwards.
 export const sourcePropertiesOptions = {
   "ESRI Image and Map Service": {
     required: {
@@ -182,11 +197,23 @@ export const sourcePropertiesOptions = {
   Zarr: {
     required: {
       url: { placeholder: "Zarr store URL (https or s3, CORS-enabled)" },
-      variable: { placeholder: "Variable / array name (e.g. depth)" },
+      variable: {
+        placeholder: "Variable / array name (e.g. depth)",
+        type: "select",
+        discover: { route: "zarrArrays" },
+      },
     },
     optional: {
-      // eslint-disable-next-line no-template-curly-in-string
-      index: { placeholder: "Slice index or a variable, e.g. ${Storm}" },
+      index: {
+        // eslint-disable-next-line no-template-curly-in-string
+        placeholder: "Slice index or a variable, e.g. ${Storm}",
+        type: "select",
+        // Slice positions are a property of the chosen array, not of the store,
+        // so the key this reads under has to fold in `variable`. Naming the
+        // dependency here is what lets the key rule stay generic instead of
+        // hardcoding that slices follow arrays.
+        discover: { route: "zarrSlices", dependsOn: ["variable"] },
+      },
       mask_below: { placeholder: "Mask values at or below this" },
       interpolate: {
         placeholder: "Smooth cell values when zoomed in (true/false)",
@@ -196,7 +223,11 @@ export const sourcePropertiesOptions = {
   GeoPackage: {
     required: {
       url: { placeholder: "GeoPackage file URL (https or s3)" },
-      layer: { placeholder: "Table (layer) name" },
+      layer: {
+        placeholder: "Table (layer) name",
+        type: "select",
+        discover: { route: "geopackageTables" },
+      },
     },
     optional: {},
   },
@@ -208,6 +239,11 @@ export const sourcePropertiesOptions = {
       columns: {
         placeholder:
           "Attribute columns to read, comma separated (all if blank)",
+        // The only multi-valued discoverable argument: the reader takes a
+        // comma-separated list, so the separator travels with the declaration
+        // rather than being sniffed out of whatever the author typed.
+        type: "multiselect",
+        discover: { route: "geoparquetColumns", separator: "," },
       },
       bbox: {
         placeholder: "Clip to minx,miny,maxx,maxy (in the file's own CRS)",
