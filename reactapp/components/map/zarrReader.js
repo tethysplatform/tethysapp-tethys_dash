@@ -37,21 +37,32 @@ function isFormatMismatch(error) {
   );
 }
 
-// Open the node at `url` (group or array), trying zarr v3 then falling back to
-// v2. A network/CORS/timeout failure is rethrown as-is: retrying it as v2 only
-// issues a second doomed request and replaces the real cause with a misleading
-// "not a v2 store" message, which is exactly wrong when CORS is the problem.
-async function openNode(url) {
-  const { FetchStore, open } = await getZarrita();
+// Build the store for `url`. `mapResponse` lets a caller reinterpret a response
+// before the store classifies it by status (see `listArrays`); everything else
+// gets the store's own interpretation.
+async function makeStore(url, mapResponse) {
+  const { FetchStore } = await getZarrita();
   // Per-request timeout via the store's fetch handler. The `overrides` option
   // would share one signal across every request the store ever makes, so a
   // long-but-progressing read of many chunks would abort partway through.
-  const store = new FetchStore(url.replace(/\/$/, ""), {
-    fetch: (request) => {
+  return new FetchStore(url.replace(/\/$/, ""), {
+    fetch: async (request) => {
       const signal = timeoutSignal(ZARR_FETCH_TIMEOUT_MS);
-      return fetch(signal ? new Request(request, { signal }) : request);
+      const response = await fetch(
+        signal ? new Request(request, { signal }) : request,
+      );
+      return mapResponse ? mapResponse(response, request) : response;
     },
   });
+}
+
+// Open the node `store` points at (group or array), trying zarr v3 then falling
+// back to v2. A network/CORS/timeout failure is rethrown as-is: retrying it as
+// v2 only issues a second doomed request and replaces the real cause with a
+// misleading "not a v2 store" message, which is exactly wrong when CORS is the
+// problem. `url` is only used to name the store in the failure message.
+async function openStore(store, url) {
+  const { open } = await getZarrita();
   let v3Error;
   try {
     return await open.v3(store);
@@ -69,6 +80,11 @@ async function openNode(url) {
       { cause: v2Error },
     );
   }
+}
+
+// Open the node at `url` on a store of its own.
+async function openNode(url) {
+  return openStore(await makeStore(url), url);
 }
 
 // (n_slices, height, width) for a 2-D [y, x] or 3-D [n, y, x] array.
@@ -267,4 +283,68 @@ export async function readMetadata({
     grid_shape: [h, w],
     extent: extentFromTransform(transform, h, w),
   };
+}
+
+// The keys the consolidated-metadata wrapper reads: `.zmetadata` for a v2 store,
+// the root `zarr.json` for a v3 one.
+const CONSOLIDATED_METADATA_KEY = /\/(\.zmetadata|zarr\.json)$/;
+
+// Object stores commonly answer a *missing* key with 403 rather than 404 when
+// listing is denied, and FetchStore turns every non-404 status into a plain
+// Error. The consolidated wrapper below only swallows not-found and
+// invalid-metadata errors, so that plain Error would escape and a
+// public-but-unlistable store would report a failure where the honest answer is
+// "there is nothing to list". Present a forbidden consolidated-metadata key as a
+// missing one so the wrapper takes its fallback path instead.
+//
+// Deliberately scoped to those two keys: a forbidden `.zgroup`/`.zarray`/chunk
+// must still surface as an error, or a store nobody is allowed to read would be
+// indistinguishable from an empty one.
+function forbiddenAsMissing(response, request) {
+  if (response.status !== 403) return response;
+  if (!CONSOLIDATED_METADATA_KEY.test(new URL(request.url).pathname)) {
+    return response;
+  }
+  return new Response(null, { status: 404, statusText: "Not Found" });
+}
+
+/**
+ * List the arrays a Zarr store offers, as paths relative to the store root
+ * ("depth", "group/depth") so each can be appended to the store URL the way
+ * `readSlice`/`readMetadata` already append the variable name. A bare basename
+ * would resolve to the wrong place for a nested array.
+ *
+ * Enumeration comes from the store's consolidated metadata; groups are dropped.
+ * A store without consolidated metadata is NOT an error — the store is fine, it
+ * simply cannot be enumerated, and the caller should let the author type a name
+ * instead. That case returns `[]`: an empty list and a failed read are
+ * deliberately different answers. Only an unreachable or unopenable store
+ * throws.
+ *
+ * Takes no cancellation signal; a superseded listing is abandoned by the caller,
+ * not aborted (same as every other read here).
+ */
+export async function listArrays({ url } = {}) {
+  const base = url.replace(/\/$/, "");
+  const store = await makeStore(base, forbiddenAsMissing);
+  // Open before listing. It proves the store is reachable, so an empty list
+  // below can only mean "no consolidated metadata" and never "the store was
+  // unreachable" — which is the whole point of keeping empty distinct from
+  // failed. It also records the store's zarr version, which is what the wrapper
+  // uses to decide which consolidated-metadata format to try first.
+  await openStore(store, base);
+
+  const { withMaybeConsolidatedMetadata } = await getZarrita();
+  const listable = await withMaybeConsolidatedMetadata(store);
+  // The forgiving wrapper hands back the ORIGINAL, UNWRAPPED store when there is
+  // no consolidated metadata to read, and a bare FetchStore has no `contents()`.
+  // Calling it unconditionally would throw a TypeError and report a failure for
+  // precisely the case that is expected to succeed with nothing.
+  if (typeof listable?.contents !== "function") return [];
+
+  return listable
+    .contents()
+    .filter((entry) => entry.kind === "array")
+    .map((entry) => String(entry.path).replace(/^\//, ""))
+    .filter(Boolean); // the root itself lists as "/" and is not a variable
 }

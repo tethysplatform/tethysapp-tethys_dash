@@ -1,4 +1,4 @@
-import { readSlice, readMetadata } from "components/map/zarrReader";
+import { readSlice, readMetadata, listArrays } from "components/map/zarrReader";
 
 // zarrita is mocked with a synthetic in-memory store keyed by the exact URL
 // zarrReader builds (group at the root, arrays at `${root}/${name}`). Node shape:
@@ -6,9 +6,17 @@ import { readSlice, readMetadata } from "components/map/zarrReader";
 // `v2only` nodes throw from open.v3 so the v3->v2 fallback path is exercised.
 // `mock`-prefixed so jest's mock hoisting allows the factory to close over it.
 let mockNodes = {};
+// What a listable store enumerates, for the listArrays suite below.
+let mockContents = [];
+const mockRequestFor = (url) => new Request(url);
 jest.mock("zarrita", () => ({
-  FetchStore: function (url) {
+  FetchStore: function (url, options) {
     this.url = url;
+    // The real FetchStore keeps its fetch handler private. Exposing it lets the
+    // consolidated wrapper below go through zarrReader's own fetch override,
+    // where the timeout and the 403 -> 404 remap live, instead of stubbing past
+    // them.
+    this.fetch = options?.fetch;
   },
   open: {
     v3: async (store) => {
@@ -32,6 +40,21 @@ jest.mock("zarrita", () => ({
     }
     return { data: node.data, shape: node.shape };
   },
+  // Models the real wrapper closely enough to test what zarrReader depends on:
+  // it reads the consolidated-metadata key through the store's own fetch, hands
+  // back the ORIGINAL, UNWRAPPED store (no `contents()`) when that key is
+  // missing, and lets any other failing status escape as a plain Error it does
+  // not swallow.
+  withMaybeConsolidatedMetadata: async (store) => {
+    const response = await store.fetch(
+      mockRequestFor(`${store.url}/.zmetadata`),
+    );
+    if (response.status === 404) return store;
+    if (response.status !== 200) {
+      throw new Error(`Unexpected response status ${response.status}`);
+    }
+    return { ...store, contents: () => mockContents };
+  },
 }));
 
 const CRS = "EPSG:3857";
@@ -40,6 +63,7 @@ const ROOT = "https://x/store.zarr";
 
 beforeEach(() => {
   mockNodes = {};
+  mockContents = [];
 });
 
 function setStore(nodes) {
@@ -332,5 +356,148 @@ describe("store open errors", () => {
     await expect(readSlice({ url: ROOT, variable: "depth" })).rejects.toThrow(
       /could not open '.*' as a zarr v3 or v2 store/,
     );
+  });
+});
+
+describe("listArrays", () => {
+  // Listing goes through zarrReader's own fetch override, so these tests stub
+  // the global fetch to stand in for the host answering the
+  // consolidated-metadata key.
+  let realFetch;
+  let realSignalTimeout;
+
+  beforeEach(() => {
+    realFetch = global.fetch;
+    realSignalTimeout = AbortSignal.timeout;
+    setStore({ [ROOT]: { attrs: { crs: CRS, transform: TRANSFORM } } });
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+    global.fetch = realFetch;
+    AbortSignal.timeout = realSignalTimeout;
+  });
+
+  // The status the host answers the consolidated-metadata key with.
+  function answerConsolidatedKeyWith(status) {
+    global.fetch = jest.fn(async () => new Response(null, { status }));
+  }
+
+  it("lists the arrays of a store carrying consolidated metadata", async () => {
+    mockContents = [
+      { path: "/", kind: "group" },
+      { path: "/depth", kind: "array" },
+      { path: "/velocity", kind: "array" },
+    ];
+    answerConsolidatedKeyWith(200);
+
+    await expect(listArrays({ url: ROOT })).resolves.toEqual([
+      "depth",
+      "velocity",
+    ]);
+  });
+
+  it("returns no names for a store without consolidated metadata rather than throwing", async () => {
+    // The forgiving wrapper hands back the unwrapped store here, which has no
+    // contents() at all. These entries must NOT surface: reaching them would
+    // mean the capability check is gone and a real store would throw a
+    // TypeError instead of reporting an honest empty list.
+    mockContents = [{ path: "/depth", kind: "array" }];
+    answerConsolidatedKeyWith(404);
+
+    await expect(listArrays({ url: ROOT })).resolves.toEqual([]);
+  });
+
+  it("lists nothing when the host answers the consolidated-metadata key as forbidden", async () => {
+    // Object stores answer a missing key with 403 when listing is denied. The
+    // wrapper only swallows not-found, so without the remap this store would be
+    // reported as failed instead of simply unlistable.
+    mockContents = [{ path: "/depth", kind: "array" }];
+    answerConsolidatedKeyWith(403);
+
+    await expect(listArrays({ url: ROOT })).resolves.toEqual([]);
+  });
+
+  it("excludes groups, offering only arrays", async () => {
+    mockContents = [
+      { path: "/", kind: "group" },
+      { path: "/forcing", kind: "group" },
+      { path: "/depth", kind: "array" },
+    ];
+    answerConsolidatedKeyWith(200);
+
+    await expect(listArrays({ url: ROOT })).resolves.toEqual(["depth"]);
+  });
+
+  it("returns a nested array as a root-relative path, not a bare basename", async () => {
+    // The caller appends the name to the store URL, so a basename would resolve
+    // to the wrong place and a leading slash would escape the store root.
+    mockContents = [{ path: "/forcing/depth", kind: "array" }];
+    answerConsolidatedKeyWith(200);
+
+    await expect(listArrays({ url: ROOT })).resolves.toEqual(["forcing/depth"]);
+  });
+
+  it("fails when the store cannot be opened at all, distinctly from listing nothing", async () => {
+    setStore({}); // nothing at any URL -> both opens report "not found"
+    answerConsolidatedKeyWith(200);
+
+    await expect(listArrays({ url: ROOT })).rejects.toThrow(
+      /could not open '.*' as a zarr v3 or v2 store/,
+    );
+  });
+
+  it("cuts off a hung listing request with the same timeout as every other read", async () => {
+    // Force the AbortController branch of timeoutSignal so the cutoff runs on
+    // jest's fake timers; AbortSignal.timeout, where a browser supplies it, uses
+    // a real timer this test cannot advance.
+    AbortSignal.timeout = undefined;
+    jest.useFakeTimers();
+    global.fetch = jest.fn(
+      (request) =>
+        new Promise((_, reject) => {
+          request.signal.addEventListener("abort", () =>
+            reject(new Error("the request was aborted")),
+          );
+        }),
+    );
+
+    // Catch immediately so the rejection is never unhandled while the clock is
+    // still stopped.
+    const listing = listArrays({ url: ROOT }).catch((error) => error);
+    // Let the open and the consolidated read reach the stubbed fetch before the
+    // clock jumps; every step in between settles on microtasks.
+    for (let i = 0; i < 50 && global.fetch.mock.calls.length === 0; i++) {
+      await Promise.resolve();
+    }
+    jest.advanceTimersByTime(30000);
+
+    const outcome = await listing;
+    expect(outcome).toBeInstanceOf(Error); // not a resolved list of arrays
+    expect(outcome.message).toMatch(/aborted/);
+  });
+
+  it("leaves readMetadata's behaviour unchanged when the store is listable", async () => {
+    // Listing is additive: variables still come from the caller's candidates,
+    // and slice count/labels still come from the reference array.
+    mockContents = [
+      { path: "/depth", kind: "array" },
+      { path: "/velocity", kind: "array" },
+    ];
+    answerConsolidatedKeyWith(200);
+    setStore({
+      [ROOT]: { attrs: { crs: CRS, transform: TRANSFORM } },
+      [`${ROOT}/depth`]: { shape: [3, 4, 5], data: new Float32Array(60) },
+    });
+
+    const m = await readMetadata({
+      url: ROOT,
+      variable: "depth",
+      candidates: ["depth"],
+    });
+
+    expect(m.variables).toEqual(["depth"]);
+    expect(m.slice_count).toBe(3);
+    expect(m.slice_labels).toEqual(["0", "1", "2"]);
   });
 });
