@@ -998,7 +998,8 @@ async function readGeoParquetFile(url, readOptions = {}) {
     .filter((feature) => feature.geometry != null)
     .filter(
       (feature) =>
-        !needsGeometryBBoxFilter || geometryIntersectsBBox(feature.geometry, box),
+        !needsGeometryBBoxFilter ||
+        geometryIntersectsBBox(feature.geometry, box),
     );
 
   return {

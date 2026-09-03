@@ -206,7 +206,8 @@ export const sourcePropertiesOptions = {
     },
     optional: {
       columns: {
-        placeholder: "Attribute columns to read, comma separated (all if blank)",
+        placeholder:
+          "Attribute columns to read, comma separated (all if blank)",
       },
       bbox: {
         placeholder: "Clip to minx,miny,maxx,maxy (in the file's own CRS)",

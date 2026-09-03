@@ -3720,7 +3720,9 @@ describe("GeoParquet read-narrowing helpers", () => {
   test("returns null when the file declares no usable covering", () => {
     expect(readCoveringBBoxPaths(undefined)).toBeNull();
     expect(readCoveringBBoxPaths({})).toBeNull();
-    expect(readCoveringBBoxPaths({ bbox: { xmin: ["bbox", "xmin"] } })).toBeNull();
+    expect(
+      readCoveringBBoxPaths({ bbox: { xmin: ["bbox", "xmin"] } }),
+    ).toBeNull();
   });
 
   test("parses a bbox and rejects malformed or inverted input", () => {
@@ -3782,7 +3784,13 @@ describe("GeoParquet read-narrowing helpers", () => {
     expect(geometryIntersectsBBox(pt(50, 5), box)).toBe(false);
     expect(
       geometryIntersectsBBox(
-        { type: "LineString", coordinates: [[-5, 5], [50, 5]] },
+        {
+          type: "LineString",
+          coordinates: [
+            [-5, 5],
+            [50, 5],
+          ],
+        },
         box,
       ),
     ).toBe(true); // crosses the box even though no vertex is inside
@@ -3841,7 +3849,10 @@ describe("loadGeoParquet - narrowing what is read", () => {
   });
 
   test("reads every column by default", async () => {
-    await loadGeoParquet({ props: { url: "https://x/a.parquet" } }, "EPSG:4326");
+    await loadGeoParquet(
+      { props: { url: "https://x/a.parquet" } },
+      "EPSG:4326",
+    );
     expect(parquetReadObjects).toHaveBeenCalledWith(
       expect.not.objectContaining({ columns: expect.anything() }),
     );
