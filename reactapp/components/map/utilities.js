@@ -1712,6 +1712,23 @@ export function resolveTablePopupType(obj) {
   return "click";
 }
 
+// The two questions asked of every feature a click turns up. A feature can
+// answer yes to both (the common case), or to exactly one -- a layer with
+// `tablePopupType: "none"` or `"hover"` plus a modal is reachable only through
+// the modal, and a layer with no popupConfig only through the table. The
+// wrapper layer is tagged onto each feature at query time (see the queryCalls
+// loop in Map.js's onMapClick).
+
+/** Does this feature belong in the click-driven table popup? */
+export function isTableEligible(feature) {
+  return resolveTablePopupType(feature?.__wrapperLayer) === "click";
+}
+
+/** Does this feature's layer have a custom modal popup configured? */
+export function hasModalPopup(feature) {
+  return feature?.__wrapperLayer?.popupConfig?.mode === "modal";
+}
+
 export const sourcePropType = PropTypes.shape({
   props: PropTypes.object, // an object of source properties like url, params, etc. see components/map/utilities.js (sourcePropertiesOptions) for examples
   type: PropTypes.string, // layer source type

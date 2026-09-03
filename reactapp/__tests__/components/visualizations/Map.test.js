@@ -5,6 +5,7 @@ import {
   waitFor,
   fireEvent,
   act,
+  within,
 } from "@testing-library/react";
 import createLoadedComponent, {
   InputVariablePComponent,
@@ -1604,6 +1605,104 @@ test("Table popup follows its own slide when no popup modal is configured", asyn
   });
 });
 
+test("Both popups wrap around at either end and stay in sync", async () => {
+  mockedQueryLayerFeatures.mockResolvedValue([
+    {
+      attributes: { station_id: "AAA" },
+      geometry: { x: 10, y: 10 },
+      layerName: "Both",
+    },
+    {
+      attributes: { station_id: "BBB" },
+      geometry: { x: 50, y: 60 },
+      layerName: "Both",
+    },
+  ]);
+  jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+  const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
+  const slideTo = spyOnSlideTo();
+
+  renderSyncMap([syncLayer()]);
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  await waitFor(() => {
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+  await screen.findByLabelText("Next Swiper");
+  await waitFor(() => {
+    expect(popSetPosition).toHaveBeenLastCalledWith([10, 10]);
+  });
+
+  // Back from the first feature lands on the last, and the table follows.
+  slideTo.mockClear();
+  fireEvent.click(screen.getByTestId("popup-modal-carousel-prev"));
+  await waitFor(() => {
+    expect(
+      screen.getByTestId("popup-modal-carousel-pagination"),
+    ).toHaveTextContent("2 / 2");
+  });
+  await waitFor(() => {
+    expect(slideTo).toHaveBeenCalledWith(1);
+  });
+  await waitFor(() => {
+    expect(popSetPosition).toHaveBeenLastCalledWith([50, 60]);
+  });
+
+  // Forward from the last feature comes back around to the first.
+  slideTo.mockClear();
+  fireEvent.click(screen.getByTestId("popup-modal-carousel-next"));
+  await waitFor(() => {
+    expect(
+      screen.getByTestId("popup-modal-carousel-pagination"),
+    ).toHaveTextContent("1 / 2");
+  });
+  await waitFor(() => {
+    expect(slideTo).toHaveBeenCalledWith(0);
+  });
+  await waitFor(() => {
+    expect(popSetPosition).toHaveBeenLastCalledWith([10, 10]);
+  });
+});
+
+test("Table popup's Swiper is configured to wrap at both ends", async () => {
+  // Swiper's rewind path is gated on `isBeginning`/`isEnd`, which it derives
+  // from measured slide geometry. Under jsdom every element is 0x0, so Swiper
+  // ends up with `slides.length === 0` and both flags false — the rewind
+  // branch is unreachable no matter how the arrows are driven. (Plain
+  // stepping still works, which is why the other swipe tests pass.) So assert
+  // the option actually reaches the instance and verify the wrap itself in a
+  // browser. The modal-driven half of the wrap IS covered, by the test above.
+  mockedQueryLayerFeatures.mockResolvedValue([
+    {
+      attributes: { station_id: "AAA" },
+      geometry: { x: 10, y: 10 },
+      layerName: "Both",
+    },
+    {
+      attributes: { station_id: "BBB" },
+      geometry: { x: 50, y: 60 },
+      layerName: "Both",
+    },
+  ]);
+  jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+
+  let swiperInstance = null;
+  const realInit = Swiper.prototype.init;
+  jest.spyOn(Swiper.prototype, "init").mockImplementation(function (...args) {
+    swiperInstance = this;
+    return realInit.apply(this, args);
+  });
+
+  renderSyncMap([syncLayer()]);
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  await screen.findByLabelText("Next Swiper");
+
+  expect(swiperInstance).not.toBeNull();
+  expect(swiperInstance.params.rewind).toBe(true);
+  // `loop` would clone slides and shift activeIndex off the real index, which
+  // is what the popup modal sync maps against — so it must stay off.
+  expect(swiperInstance.params.loop).toBe(false);
+});
+
 test("Popup sync leaves the overlay in place for a feature with no geometry", async () => {
   // A queried feature can arrive without a geometry (e.g. a non-spatial result
   // from a custom feature source). There is nowhere to anchor the popup, so it
@@ -1636,10 +1735,11 @@ test("Popup sync leaves the overlay in place for a feature with no geometry", as
   expect(popSetPosition).toHaveBeenLastCalledWith([10, 20]);
 });
 
-test("Swiping the table onto a feature the modal has no entry for leaves the modal alone", async () => {
+test("Swiping the table onto a feature with no modal closes the modal", async () => {
   // Two layers at the same click: one drives both popups, one is table-only
-  // (no popupConfig). Swiping onto the table-only feature must not move the
-  // modal's carousel — there is no corresponding entry to move it to.
+  // (no popupConfig). The modal is a view of the selected feature, so stepping
+  // onto the table-only feature must close it -- not leave it showing a
+  // different feature than the table.
   const tableOnly = syncLayer("TableOnly");
   tableOnly.configuration.props.name = "TableOnly";
   delete tableOnly.popupConfig;
@@ -1664,25 +1764,229 @@ test("Swiping the table onto a feature the modal has no entry for leaves the mod
 
   renderSyncMap([syncLayer(), tableOnly]);
   expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+  // The modal-bearing feature is first, so the modal opens on it.
   await waitFor(() => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
-  // Only the "Both" layer feature is in the modal, so it has no carousel.
   expect(
-    screen.queryByTestId("popup-modal-carousel-pagination"),
-  ).not.toBeInTheDocument();
+    screen.getByTestId("popup-modal-carousel-pagination"),
+  ).toHaveTextContent("1 / 2");
 
   fireEvent.click(await screen.findByLabelText("Next Swiper"));
 
-  // The overlay follows the table onto the table-only feature; the modal keeps
-  // showing the feature it has.
+  // The overlay follows onto the table-only feature; the modal closes.
   await waitFor(() => {
     expect(popSetPosition).toHaveBeenLastCalledWith([90, 90]);
   });
+  await waitFor(() => {
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+});
+
+test("A click whose first feature has no modal opens the table alone", async () => {
+  // The reported bug: the table opened at 1/22 on a Surface Meteorology point
+  // while the modal independently opened at 1/3 on a MicroRain Radar point.
+  // The modal must not open for something the user never selected.
+  const tableOnly = syncLayer("TableOnly");
+  tableOnly.configuration.props.name = "TableOnly";
+  delete tableOnly.popupConfig;
+
+  mockedQueryLayerFeatures.mockImplementation((layer) =>
+    Promise.resolve([
+      layer.configuration.props.name === "TableOnly"
+        ? {
+            attributes: { station_id: "TTT" },
+            geometry: { x: 10, y: 10 },
+            layerName: "TableOnly",
+          }
+        : {
+            attributes: { station_id: "MMM" },
+            geometry: { x: 90, y: 90 },
+            layerName: "Both",
+          },
+    ]),
+  );
+  jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+  const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
+
+  // Table-only layer first, so it is the union's index 0.
+  renderSyncMap([tableOnly, syncLayer()]);
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  await waitFor(() => {
+    expect(popSetPosition).toHaveBeenLastCalledWith([10, 10]);
+  });
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+  // Stepping onto the modal-bearing feature opens it...
+  fireEvent.click(await screen.findByLabelText("Next Swiper"));
+  await waitFor(() => {
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+  expect(
+    screen.getByTestId("popup-modal-carousel-pagination"),
+  ).toHaveTextContent("2 / 2");
+
+  // ...and stepping back closes it again.
+  fireEvent.click(screen.getByLabelText("Previous Swiper"));
+  await waitFor(() => {
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+});
+
+test("Hovering a hover+modal layer opens the table but not the modal", async () => {
+  // The modal is click-only. Streamflow is both `tablePopupType: "hover"` and
+  // `mode: "modal"`, so without the popupSource gate the derived open-state
+  // would pop the modal on hover.
+  const hoverModal = syncLayer("HoverModal");
+  hoverModal.configuration.props.name = "HoverModal";
+  hoverModal.tablePopupType = "hover";
+
+  mockedQueryLayerFeatures.mockResolvedValue([
+    {
+      attributes: { station_id: "HHH" },
+      geometry: { x: 90, y: 90 },
+      layerName: "HoverModal",
+    },
+  ]);
+  jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+  const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
+
+  const HoverHarness = () => {
+    const visualizationRef = useRef();
+    const { mapReady } = useMapContext();
+    return (
+      <div>
+        <MapVisualization
+          mapConfig={{}}
+          viewConfig={{}}
+          layers={[hoverModal]}
+          baseMap={null}
+          layerControl={false}
+          visualizationRef={visualizationRef}
+        />
+        {mapReady && <p>Map Ready</p>}
+        <button
+          type="button"
+          onClick={() =>
+            visualizationRef.current?.dispatchEvent({
+              type: "pointermove",
+              coordinate: [10, 20],
+            })
+          }
+        >
+          hover-feature
+        </button>
+      </div>
+    );
+  };
+
+  render(
+    createLoadedComponent({
+      children: (
+        <MapContextProvider>
+          <HoverHarness />
+        </MapContextProvider>
+      ),
+    }),
+  );
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+  fireEvent.click(screen.getByText("hover-feature"));
+
+  // The table popup opens at the cursor...
+  await waitFor(() => {
+    expect(popSetPosition).toHaveBeenCalledWith([10, 20]);
+  });
+  // ...and the modal stays shut even though this layer configures one.
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+});
+
+test("A hover+modal layer joins the union, hiding the overlay while it is active", async () => {
+  // Streamflow's shape: mode "modal" with tablePopupType "hover", so on click
+  // it belongs to the modal but never to the table. It still takes a place in
+  // the shared list so it stays reachable; the overlay hides while it is the
+  // selected feature.
+  const hoverModal = syncLayer("HoverModal");
+  hoverModal.configuration.props.name = "HoverModal";
+  hoverModal.tablePopupType = "hover";
+
+  mockedQueryLayerFeatures.mockImplementation((layer) =>
+    Promise.resolve([
+      layer.configuration.props.name === "HoverModal"
+        ? {
+            attributes: { station_id: "HHH" },
+            geometry: { x: 90, y: 90 },
+            layerName: "HoverModal",
+          }
+        : {
+            attributes: { station_id: "AAA" },
+            geometry: { x: 10, y: 10 },
+            layerName: "Both",
+          },
+    ]),
+  );
+  jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+  const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
+
+  renderSyncMap([syncLayer(), hoverModal]);
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  await waitFor(() => {
+    expect(popSetPosition).toHaveBeenLastCalledWith([10, 10]);
+  });
+  // Both features are in the union even though only one is table-eligible.
+  expect(
+    await screen.findByTestId("popup-modal-carousel-pagination"),
+  ).toHaveTextContent("1 / 2");
+
+  fireEvent.click(screen.getByTestId("popup-modal-carousel-next"));
+
+  // Its modal shows; the table overlay hides because it has no table popup.
+  await waitFor(() => {
+    expect(popSetPosition).toHaveBeenLastCalledWith(undefined);
+  });
   expect(screen.getByRole("dialog")).toBeInTheDocument();
   expect(
-    screen.queryByTestId("popup-modal-carousel-pagination"),
-  ).not.toBeInTheDocument();
+    screen.getByTestId("popup-modal-carousel-pagination"),
+  ).toHaveTextContent("2 / 2");
+});
+
+test("Closing the modal keeps it closed while navigating, until the next click", async () => {
+  // The modal's open state is derived from the selected feature, so a
+  // dismissal has to be remembered -- otherwise the next carousel step would
+  // reopen the modal the user just closed.
+  mockedQueryLayerFeatures.mockResolvedValue([
+    {
+      attributes: { station_id: "AAA" },
+      geometry: { x: 10, y: 10 },
+      layerName: "Both",
+    },
+    {
+      attributes: { station_id: "BBB" },
+      geometry: { x: 50, y: 60 },
+      layerName: "Both",
+    },
+  ]);
+  jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+  const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
+
+  renderSyncMap([syncLayer()]);
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  const dialog = await screen.findByRole("dialog");
+  expect(dialog).toBeInTheDocument();
+
+  fireEvent.click(within(dialog).getByLabelText("Close popup"));
+  await waitFor(() => {
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  // Navigating does not resurrect it. The carousel lives inside the modal, so
+  // the overlay's move to the second feature is what proves the step landed.
+  fireEvent.click(await screen.findByLabelText("Next Swiper"));
+  await waitFor(() => {
+    expect(popSetPosition).toHaveBeenLastCalledWith([50, 60]);
+  });
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 });
 
 test("Map click — modal-only layer feature without geometry does not call addHighlightFeatures", async () => {
@@ -4772,14 +5076,18 @@ test("Map runtime layer swap dismisses popup and clears highlight after click", 
   expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
   expect(await screen.findByText("Map Ready")).toBeInTheDocument();
 
-  // Once the runtime fetcher resolves (~250ms after mount), onBeforeSwap →
-  // dismissPopupBeforeSwap fires. clear() can only happen here, since
-  // swapVectorLayerFeatures is mocked and onMapClick only calls clear() on a
-  // *second* click (this test dispatches one). So a single clear() call is
-  // proof the click ran first (creating the highlight) and the dismiss path
-  // then ran with both branches taken.
+  // The click itself clears the highlight before re-adding it (the
+  // active-feature effect), so a bare "was clear() called" check would pass
+  // without the dismiss path running at all. Snapshot the count once the click
+  // has settled, then require a FURTHER clear once the runtime fetcher
+  // resolves (~250ms after mount) and onBeforeSwap → dismissPopupBeforeSwap
+  // fires -- that extra call is the dismiss path taking its highlight branch.
   await waitFor(() => {
     expect(vectorClearSpy).toHaveBeenCalled();
+  });
+  const clearsAfterClick = vectorClearSpy.mock.calls.length;
+  await waitFor(() => {
+    expect(vectorClearSpy.mock.calls.length).toBeGreaterThan(clearsAfterClick);
   });
   expect(setPositionSpy).toHaveBeenCalledWith(undefined);
 });

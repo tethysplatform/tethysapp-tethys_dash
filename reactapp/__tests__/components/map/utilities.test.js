@@ -6,6 +6,8 @@ import {
   createHighlightLayer,
   addHighlightFeatures,
   getGeometryAnchor,
+  isTableEligible,
+  hasModalPopup,
   transformCoordinates,
   queryLayerFeatures,
   getLayerAttributes,
@@ -381,6 +383,66 @@ test("addHighlightFeatures no-ops when geometries is a non-object primitive", ()
   expect(() => addHighlightFeatures(highlightLayer, 0)).not.toThrow();
   expect(() => addHighlightFeatures(highlightLayer, "")).not.toThrow();
   expect(highlightLayer.getSource().getFeatures().length).toBe(0);
+});
+
+describe("isTableEligible / hasModalPopup", () => {
+  // The two questions asked of every feature a click turns up. A feature can
+  // answer yes to both, or to exactly one -- which is what lets a single list
+  // drive both popups.
+  const feature = (wrapperLayer) => ({ __wrapperLayer: wrapperLayer });
+
+  test("a layer with no popup settings is table-only", () => {
+    const f = feature({ configuration: {} });
+    expect(isTableEligible(f)).toBe(true);
+    expect(hasModalPopup(f)).toBe(false);
+  });
+
+  test("a modal layer that also shows the click table answers yes to both", () => {
+    const f = feature({ popupConfig: { mode: "modal" } });
+    expect(isTableEligible(f)).toBe(true);
+    expect(hasModalPopup(f)).toBe(true);
+  });
+
+  test("tablePopupType 'none' with a modal is modal-only", () => {
+    const f = feature({
+      tablePopupType: "none",
+      popupConfig: { mode: "modal" },
+    });
+    expect(isTableEligible(f)).toBe(false);
+    expect(hasModalPopup(f)).toBe(true);
+  });
+
+  test("tablePopupType 'hover' with a modal is modal-only on click", () => {
+    // Streamflow's shape in the CW3E config.
+    const f = feature({
+      tablePopupType: "hover",
+      popupConfig: { mode: "modal" },
+    });
+    expect(isTableEligible(f)).toBe(false);
+    expect(hasModalPopup(f)).toBe(true);
+  });
+
+  test("popupConfig mode 'table' means no modal", () => {
+    // What the layer editor writes when the modal toggle is off; its
+    // gridItems are inert.
+    const f = feature({ popupConfig: { mode: "table", gridItems: [{}] } });
+    expect(isTableEligible(f)).toBe(true);
+    expect(hasModalPopup(f)).toBe(false);
+  });
+
+  test("queryable: false is treated as table popup 'none'", () => {
+    expect(isTableEligible(feature({ queryable: false }))).toBe(false);
+  });
+
+  test("an untagged feature is table-eligible and has no modal", () => {
+    // resolveTablePopupType defaults to "click", so a feature that somehow
+    // arrives without a wrapper layer still reaches the table rather than
+    // vanishing from both popups.
+    expect(isTableEligible({})).toBe(true);
+    expect(hasModalPopup({})).toBe(false);
+    expect(isTableEligible(undefined)).toBe(true);
+    expect(hasModalPopup(undefined)).toBe(false);
+  });
 });
 
 describe("getGeometryAnchor", () => {

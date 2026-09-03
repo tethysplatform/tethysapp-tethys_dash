@@ -21,13 +21,8 @@ const Arrow = styled.button`
   padding: 0.2rem 0.55rem;
   border-radius: 4px;
 
-  &:hover:not(:disabled) {
+  &:hover {
     background: #f1f3f5;
-  }
-
-  &:disabled {
-    color: #ced4da;
-    cursor: default;
   }
 
   &:focus-visible {
@@ -44,6 +39,15 @@ const Pagination = styled.span`
 `;
 
 /**
+ * Step `activeIndex` by `delta`, wrapping around either end: the last feature
+ * advances to the first, the first steps back to the last. Mirrors the table
+ * popup's Swiper, which is configured with `rewind`.
+ */
+export function wrapIndex(activeIndex, delta, total) {
+  return (((activeIndex + delta) % total) + total) % total;
+}
+
+/**
  * Pure helper: compute the next active index given a keyboard key, the
  * features array, and the current index. Returns null when the key isn't a
  * navigation key (or when there are no features). Exported so keyboard
@@ -52,10 +56,10 @@ const Pagination = styled.span`
 export function computeNextIndexFromKey(key, features, activeIndex) {
   if (!features || features.length === 0) return null;
   if (key === "ArrowRight") {
-    return Math.min(features.length - 1, activeIndex + 1);
+    return wrapIndex(activeIndex, 1, features.length);
   }
   if (key === "ArrowLeft") {
-    return Math.max(0, activeIndex - 1);
+    return wrapIndex(activeIndex, -1, features.length);
   }
   if (key === "Home") {
     return 0;
@@ -106,24 +110,20 @@ const PopupModalCarousel = ({
     return null;
   }
 
-  const atStart = activeIndex <= 0;
-  const atEnd = activeIndex >= features.length - 1;
+  // Both arrows wrap, so neither is ever a dead end: the last feature advances
+  // to the first and the first steps back to the last.
+  const prevIndex = wrapIndex(activeIndex, -1, features.length);
+  const nextIndex = wrapIndex(activeIndex, 1, features.length);
 
-  const goPrev = () => {
-    if (!atStart) onActiveIndexChange(activeIndex - 1);
-  };
-  const goNext = () => {
-    if (!atEnd) onActiveIndexChange(activeIndex + 1);
-  };
+  const goPrev = () => onActiveIndexChange(prevIndex);
+  const goNext = () => onActiveIndexChange(nextIndex);
 
-  const prevAriaLabel =
-    !atStart && getLabel
-      ? `Previous feature: ${getLabel(features[activeIndex - 1], activeIndex - 1)}`
-      : "Previous feature";
-  const nextAriaLabel =
-    !atEnd && getLabel
-      ? `Next feature: ${getLabel(features[activeIndex + 1], activeIndex + 1)}`
-      : "Next feature";
+  const prevAriaLabel = getLabel
+    ? `Previous feature: ${getLabel(features[prevIndex], prevIndex)}`
+    : "Previous feature";
+  const nextAriaLabel = getLabel
+    ? `Next feature: ${getLabel(features[nextIndex], nextIndex)}`
+    : "Next feature";
 
   return (
     <Controls
@@ -135,7 +135,6 @@ const PopupModalCarousel = ({
       <Arrow
         type="button"
         onClick={goPrev}
-        disabled={atStart}
         aria-label={prevAriaLabel}
         data-testid="popup-modal-carousel-prev"
       >
@@ -151,7 +150,6 @@ const PopupModalCarousel = ({
       <Arrow
         type="button"
         onClick={goNext}
-        disabled={atEnd}
         aria-label={nextAriaLabel}
         data-testid="popup-modal-carousel-next"
       >
