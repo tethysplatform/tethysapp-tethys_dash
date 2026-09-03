@@ -23,6 +23,9 @@ import moduleLoader, {
   geoParquetCRSToProjection,
   readGeoParquetGeoMetadata,
   GeoParquetError,
+  ZarrError,
+  coerceParquetValue,
+  clearClientSourceCaches,
 } from "components/map/ModuleLoader";
 import { fromUrl } from "geotiff";
 import DataTile from "ol/source/DataTile.js";
@@ -2138,6 +2141,7 @@ describe("applyZarrRamp", () => {
   });
 
   beforeEach(() => {
+    clearClientSourceCaches();
     readSlice.mockReset();
     readSlice.mockResolvedValue(sliceWith());
   });
@@ -2223,13 +2227,19 @@ describe("applyZarrRamp", () => {
     ]);
   });
 
-  test("does nothing without a ramp or classes", async () => {
+  test("falls back to grayscale fitted to the slice without a ramp or classes", async () => {
+    // A DataTile carries raw values with no normalization, so an unstyled layer
+    // would paint raw floats into the color channels. The GeoTIFF source this
+    // replaced rendered `normalize: true` grayscale; keep that behavior.
     const config = zarrRampLayer({ rampName: undefined });
 
     await applyAutoRamp(config);
 
-    expect(readSlice).not.toHaveBeenCalled();
-    expect(config.style).toBeUndefined();
+    expect(readSlice).toHaveBeenCalledTimes(1);
+    expect(config.style.color).toBeDefined();
+    expect(config.props.source.resolvedRampMax).toBeGreaterThan(
+      config.props.source.resolvedRampMin,
+    );
   });
 });
 
@@ -2245,6 +2255,7 @@ describe("loadZarr", () => {
   });
 
   beforeEach(() => {
+    clearClientSourceCaches();
     readSlice.mockReset();
     readSlice.mockResolvedValue({
       width: 5,
@@ -3183,6 +3194,10 @@ describe("loadGeoParquet", () => {
   ];
   const noGeoMeta = { key_value_metadata: undefined };
 
+  beforeEach(() => {
+    clearClientSourceCaches();
+  });
+
   test("reads a GeoParquet file into an OL VectorSource of features", async () => {
     asyncBufferFromUrl.mockResolvedValue({});
     parquetMetadataAsync.mockResolvedValue(noGeoMeta);
@@ -3305,5 +3320,374 @@ describe("loadGeoParquet", () => {
     );
     expect(source).toBeInstanceOf(VectorSource);
     expect(source.getFeatures()).toHaveLength(1);
+  });
+});
+
+describe("geoParquetCRSToProjection - CRS84 aliases", () => {
+  // GeoParquet's spec default is OGC:CRS84. OpenLayers registers "CRS:84" and
+  // the urn:/http: URI forms but not the bare "OGC:CRS84" that
+  // `${authority}:${code}` assembles, and readFeatures treats an unresolvable
+  // dataProjection as "no transform" -- silently drawing lon/lat as if it were
+  // the view's own units. Every spelling must land on a code OL can resolve.
+  test.each([
+    [{ id: { authority: "OGC", code: "CRS84" } }, "OGC:CRS84 via id"],
+    [{ ids: [{ authority: "OGC", code: "CRS84" }] }, "OGC:CRS84 via ids"],
+    [{ id: { authority: "CRS", code: "84" } }, "CRS:84"],
+    [{ id: { authority: "ogc", code: "crs84" } }, "lowercased"],
+  ])("normalizes %#: %s to EPSG:4326", (crs) => {
+    expect(geoParquetCRSToProjection(crs)).toBe("EPSG:4326");
+  });
+
+  test("the normalized code is one OpenLayers can actually resolve", () => {
+    const code = geoParquetCRSToProjection({
+      id: { authority: "OGC", code: "CRS84" },
+    });
+    expect(getProjection(code)).not.toBeNull();
+  });
+
+  test("leaves a real authority code untouched", () => {
+    expect(
+      geoParquetCRSToProjection({ id: { authority: "EPSG", code: 32615 } }),
+    ).toBe("EPSG:32615");
+  });
+});
+
+describe("coerceParquetValue", () => {
+  test("converts a safe BigInt to a Number", () => {
+    expect(coerceParquetValue(42n)).toBe(42);
+    expect(typeof coerceParquetValue(42n)).toBe("number");
+  });
+
+  test("keeps a BigInt beyond the safe range exact by stringifying it", () => {
+    // 2^53 + 1 is the smallest integer Number cannot represent; rounding it
+    // would silently corrupt 64-bit ids (OSM, H3, snowflake).
+    const big = 9007199254740993n;
+    expect(coerceParquetValue(big)).toBe("9007199254740993");
+  });
+
+  test("walks arrays and nested plain objects", () => {
+    expect(coerceParquetValue([1n, [2n, { a: 3n }]])).toEqual([
+      1,
+      [2, { a: 3 }],
+    ]);
+    expect(coerceParquetValue({ outer: { inner: 7n } })).toEqual({
+      outer: { inner: 7 },
+    });
+  });
+
+  test("leaves non-BigInt values, including Dates, alone", () => {
+    const d = new Date(0);
+    expect(coerceParquetValue(d)).toBe(d);
+    expect(coerceParquetValue("x")).toBe("x");
+    expect(coerceParquetValue(null)).toBeNull();
+  });
+
+  test("the coerced result survives a JSON round-trip", () => {
+    // This is the whole point: the popup and variable-input paths JSON
+    // round-trip feature properties, which throws on a raw BigInt.
+    expect(() =>
+      JSON.stringify(coerceParquetValue({ id: 12n, tags: [3n] })),
+    ).not.toThrow();
+  });
+});
+
+describe("loadGeoParquet - review findings", () => {
+  const rows = [{ geometry: { type: "Point", coordinates: [-100, 40] }, n: 1 }];
+  const geoMeta = (crs) => ({
+    key_value_metadata: [
+      {
+        key: "geo",
+        value: JSON.stringify({
+          primary_column: "geometry",
+          columns: { geometry: { crs } },
+        }),
+      },
+    ],
+  });
+
+  beforeEach(() => {
+    clearClientSourceCaches();
+    asyncBufferFromUrl.mockReset().mockResolvedValue({});
+    parquetMetadataAsync.mockReset().mockResolvedValue(geoMeta(null));
+    parquetReadObjects.mockReset().mockResolvedValue(rows);
+  });
+
+  test("reads the file once and serves later layers from the cache", async () => {
+    const cfg = { props: { url: "https://x/a.parquet" } };
+    await loadGeoParquet(cfg, "EPSG:3857");
+    await loadGeoParquet(cfg, "EPSG:3857");
+
+    expect(asyncBufferFromUrl).toHaveBeenCalledTimes(1);
+    expect(parquetReadObjects).toHaveBeenCalledTimes(1);
+  });
+
+  test("gives each layer its own VectorSource and Feature instances", async () => {
+    const cfg = { props: { url: "https://x/a.parquet" } };
+    const a = await loadGeoParquet(cfg, "EPSG:3857");
+    const b = await loadGeoParquet(cfg, "EPSG:3857");
+
+    expect(a).not.toBe(b);
+    // Sharing Feature objects across sources would leak selection/style state.
+    expect(a.getFeatures()[0]).not.toBe(b.getFeatures()[0]);
+  });
+
+  test("re-reads after a failure instead of caching the rejection", async () => {
+    asyncBufferFromUrl.mockRejectedValueOnce(new Error("boom"));
+    const cfg = { props: { url: "https://x/flaky.parquet" } };
+
+    await expect(loadGeoParquet(cfg, "EPSG:3857")).rejects.toThrow(
+      GeoParquetError,
+    );
+    const source = await loadGeoParquet(cfg, "EPSG:3857");
+    expect(source).toBeInstanceOf(VectorSource);
+  });
+
+  test("wraps a read failure with a CORS hint", async () => {
+    asyncBufferFromUrl.mockRejectedValue(new TypeError("Failed to fetch"));
+    await expect(
+      loadGeoParquet({ props: { url: "https://x/a.parquet" } }, "EPSG:3857"),
+    ).rejects.toThrow(/Access-Control-Allow-Origin/);
+  });
+
+  test("rejects a file whose declared CRS is not registered", async () => {
+    parquetMetadataAsync.mockResolvedValue(
+      geoMeta({ id: { authority: "EPSG", code: 999999 } }),
+    );
+    await expect(
+      loadGeoParquet({ props: { url: "https://x/odd.parquet" } }, "EPSG:3857"),
+    ).rejects.toThrow(/not registered/);
+  });
+
+  test("renders a CRS84 file at its real coordinates, not raw lon/lat", async () => {
+    parquetMetadataAsync.mockResolvedValue(
+      geoMeta({ id: { authority: "OGC", code: "CRS84" } }),
+    );
+    const source = await loadGeoParquet(
+      { props: { url: "https://x/crs84.parquet" } },
+      "EPSG:3857",
+    );
+    const [x, y] = source.getFeatures()[0].getGeometry().getCoordinates();
+    // -100,40 reprojected into Web Mercator, not passed through untransformed.
+    expect(x).toBeCloseTo(-11131949.08, 0);
+    expect(y).toBeCloseTo(4865942.28, 0);
+  });
+
+  test("drops a residual 'geometry' property so it cannot clobber the geometry", async () => {
+    parquetMetadataAsync.mockResolvedValue({
+      key_value_metadata: [
+        {
+          key: "geo",
+          value: JSON.stringify({
+            primary_column: "geom",
+            columns: { geom: { crs: null } },
+          }),
+        },
+      ],
+    });
+    parquetReadObjects.mockResolvedValue([
+      {
+        geom: { type: "Point", coordinates: [-100, 40] },
+        geometry: "not a geometry",
+        n: 1,
+      },
+    ]);
+    const source = await loadGeoParquet(
+      { props: { url: "https://x/g.parquet" } },
+      "EPSG:4326",
+    );
+    const feature = source.getFeatures()[0];
+    expect(feature.getGeometry().getCoordinates()).toEqual([-100, 40]);
+    // OL keeps the geometry under the default geometry name, so "geometry"
+    // must still hold the Geometry -- not the string column that shared its
+    // name (ol/format/GeoJSON applies properties after setGeometry).
+    expect(feature.get("geometry")).toBe(feature.getGeometry());
+  });
+
+  test("coerces BigInt columns so the popup's JSON round-trip cannot throw", async () => {
+    parquetReadObjects.mockResolvedValue([
+      {
+        geometry: { type: "Point", coordinates: [-100, 40] },
+        id: 9007199254740993n,
+        nested: { code: 5n },
+      },
+    ]);
+    const source = await loadGeoParquet(
+      { props: { url: "https://x/b.parquet" } },
+      "EPSG:4326",
+    );
+    const props = source.getFeatures()[0].getProperties();
+    expect(props.id).toBe("9007199254740993");
+    expect(props.nested).toEqual({ code: 5 });
+    expect(() => JSON.stringify(props.nested)).not.toThrow();
+  });
+});
+
+describe("loadZarr - review findings", () => {
+  const slice = (over = {}) => ({
+    width: 5,
+    height: 4,
+    extent: [-100, 180, -75, 200],
+    pixelSize: { x: 5, y: 5 },
+    crs: "EPSG:3857",
+    data: new Float32Array(40),
+    min: 0,
+    max: 18,
+    ...over,
+  });
+  const cfg = (props = {}) => ({
+    type: "Zarr",
+    props: {
+      url: "https://x/store.zarr",
+      variable: "depth",
+      index: "0",
+      ...props,
+    },
+  });
+
+  beforeEach(() => {
+    clearClientSourceCaches();
+    readSlice.mockReset();
+    readSlice.mockResolvedValue(slice());
+  });
+
+  test("re-reads after a failed slice instead of caching the rejection", async () => {
+    // A transient CORS/network blip must not pin the layer to that error for
+    // the life of the page.
+    readSlice.mockRejectedValueOnce(new Error("Failed to fetch"));
+
+    await expect(loadZarr(cfg(), "EPSG:3857")).rejects.toThrow(ZarrError);
+    const source = await loadZarr(cfg(), "EPSG:3857");
+
+    expect(source).toBeInstanceOf(DataTile);
+    expect(readSlice).toHaveBeenCalledTimes(2);
+  });
+
+  test("serves a repeated slice from the cache across separate config objects", async () => {
+    // Variable-input changes rebuild the config, so a memo held on the source
+    // object would never survive to serve a revisited slice.
+    await loadZarr(cfg(), "EPSG:3857");
+    await loadZarr(cfg(), "EPSG:3857");
+    expect(readSlice).toHaveBeenCalledTimes(1);
+  });
+
+  test("wraps a read failure with a CORS hint naming the store", async () => {
+    readSlice.mockRejectedValue(new TypeError("Failed to fetch"));
+    await expect(loadZarr(cfg(), "EPSG:3857")).rejects.toThrow(
+      /Access-Control-Allow-Origin/,
+    );
+  });
+
+  test("translates an s3:// store URL to its public https form", async () => {
+    await loadZarr(cfg({ url: "s3://bucket/store.zarr" }), "EPSG:3857");
+    expect(readSlice).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: "https://bucket.s3.us-east-1.amazonaws.com/store.zarr",
+      }),
+    );
+  });
+
+  test("rejects a store whose crs attr is not a registered projection", async () => {
+    readSlice.mockResolvedValue(slice({ crs: "EPSG:999999" }));
+    await expect(loadZarr(cfg(), "EPSG:3857")).rejects.toThrow(
+      /not registered/,
+    );
+  });
+
+  test("falls back to the map projection when the store declares no crs", async () => {
+    readSlice.mockResolvedValue(slice({ crs: undefined }));
+    const source = await loadZarr(cfg(), "EPSG:3857");
+    expect((await source.getView()).projection).toBe("EPSG:3857");
+  });
+
+  test("rejects a grid too large to upload as a single WebGL texture", async () => {
+    // The whole slice is one tile, so an oversized grid fails the texture
+    // upload and renders blank with no error unless it is caught here.
+    readSlice.mockResolvedValue(slice({ width: 40000, height: 40000 }));
+    await expect(loadZarr(cfg(), "EPSG:3857")).rejects.toThrow(
+      /exceeds this browser's maximum texture size/,
+    );
+  });
+
+  test("rejects non-square cells rather than drawing them stretched", async () => {
+    readSlice.mockResolvedValue(slice({ pixelSize: { x: 5, y: 12 } }));
+    await expect(loadZarr(cfg(), "EPSG:3857")).rejects.toThrow(
+      /non-square cells/,
+    );
+  });
+
+  test("tolerates float rounding in the pixel sizes", async () => {
+    readSlice.mockResolvedValue(
+      slice({ pixelSize: { x: 5, y: 5.0000000001 } }),
+    );
+    await expect(loadZarr(cfg(), "EPSG:3857")).resolves.toBeInstanceOf(
+      DataTile,
+    );
+  });
+
+  test("treats the string 'false' from a GUI field as false", async () => {
+    const source = await loadZarr(cfg({ interpolate: "false" }), "EPSG:3857");
+    expect(source.interpolate_ ?? source.getInterpolate?.()).toBe(false);
+  });
+
+  test("treats the string 'true' from a GUI field as true", async () => {
+    const source = await loadZarr(cfg({ interpolate: "true" }), "EPSG:3857");
+    expect(source.interpolate_ ?? source.getInterpolate?.()).toBe(true);
+  });
+});
+
+describe("applyZarrRamp - review findings", () => {
+  const rampLayer = (source = {}) => ({
+    type: "WebGLTile",
+    props: {
+      name: "flood",
+      source: {
+        type: "Zarr",
+        rampName: "turbo",
+        props: { url: "https://x/store.zarr", variable: "depth", index: "7" },
+        ...source,
+      },
+    },
+  });
+
+  beforeEach(() => {
+    clearClientSourceCaches();
+    readSlice.mockReset();
+    readSlice.mockResolvedValue({
+      width: 2,
+      height: 2,
+      extent: [0, 0, 10, 10],
+      pixelSize: { x: 5, y: 5 },
+      crs: "EPSG:3857",
+      data: new Float32Array(8),
+      min: 3,
+      max: 3, // uniform slice -> degenerate range
+    });
+  });
+
+  test("widens a degenerate range so the ramp cannot divide by zero", async () => {
+    // Equal stops compile to an interpolate whose GPU form divides by
+    // (stop2 - stop1), yielding NaN colors.
+    const config = await applyAutoRamp(rampLayer());
+    const source = config.props.source;
+
+    expect(source.resolvedRampMax).toBeGreaterThan(source.resolvedRampMin);
+    expect(JSON.stringify(config.style.color)).not.toMatch(/null|NaN/);
+  });
+
+  test("widens an inverted author-pinned range", async () => {
+    const config = await applyAutoRamp(
+      rampLayer({ rampMin: "100", rampMax: "10" }),
+    );
+    const source = config.props.source;
+    expect(source.resolvedRampMax).toBeGreaterThan(source.resolvedRampMin);
+  });
+
+  test("rebuilds the style when the ramp changes but the slice does not", async () => {
+    // The gate keys on the slice, so a ramp-only edit must still restyle.
+    const first = await applyAutoRamp(rampLayer({ rampName: "turbo" }));
+    const firstColor = JSON.stringify(first.style.color);
+
+    const second = await applyAutoRamp(rampLayer({ rampName: "viridis" }));
+    expect(JSON.stringify(second.style.color)).not.toEqual(firstColor);
   });
 });

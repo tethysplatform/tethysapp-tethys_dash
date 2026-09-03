@@ -190,3 +190,147 @@ describe("readMetadata", () => {
     );
   });
 });
+
+describe("grid shape validation", () => {
+  it("rejects an array that is neither 2D [y, x] nor 3D [n, y, x]", async () => {
+    setStore({
+      [ROOT]: { attrs: { crs: CRS, transform: TRANSFORM } },
+      [`${ROOT}/depth`]: {
+        shape: [2, 3, 4, 5],
+        data: new Float32Array(120),
+      },
+    });
+    await expect(readSlice({ url: ROOT, variable: "depth" })).rejects.toThrow(
+      /expected a 2D \[y, x\] or 3D \[n, y, x\] array, got shape \[2, 3, 4, 5\]/,
+    );
+  });
+
+  it("rejects a 1D array with the same message", async () => {
+    setStore({
+      [ROOT]: { attrs: { crs: CRS, transform: TRANSFORM } },
+      [`${ROOT}/depth`]: { shape: [4], data: new Float32Array(4) },
+    });
+    await expect(readSlice({ url: ROOT, variable: "depth" })).rejects.toThrow(
+      /expected a 2D \[y, x\] or 3D \[n, y, x\] array/,
+    );
+  });
+});
+
+describe("explicit mask arguments", () => {
+  // The store declares no masking attrs, so anything masked here came from the
+  // caller's arguments rather than the store's own defaults.
+  const bareStore = (data) => ({
+    [ROOT]: { attrs: { crs: CRS, transform: TRANSFORM } },
+    [`${ROOT}/depth`]: { shape: [2, 2], data },
+  });
+
+  it("masks with an explicit maskBelow when the store declares none", async () => {
+    setStore(bareStore(new Float32Array([0.01, 5, 7, 9])));
+    const slice = await readSlice({
+      url: ROOT,
+      variable: "depth",
+      maskBelow: 0.05,
+    });
+    expect(slice.data[1]).toBe(0); // alpha of cell 0 -> masked
+    expect(slice.data[3]).toBe(1); // alpha of cell 1 -> visible
+    expect(slice.min).toBe(5);
+    expect(slice.max).toBe(9);
+  });
+
+  it("masks with an explicit sourceNodata when the store declares none", async () => {
+    setStore(bareStore(new Float32Array([-1, 5, 7, 9])));
+    const slice = await readSlice({
+      url: ROOT,
+      variable: "depth",
+      sourceNodata: -1,
+    });
+    expect(slice.data[1]).toBe(0);
+    expect(slice.min).toBe(5);
+  });
+
+  it("lets an explicit maskBelow override the store's own attr", async () => {
+    setStore({
+      [ROOT]: {
+        attrs: { crs: CRS, transform: TRANSFORM, extent_threshold_m: 100 },
+      },
+      [`${ROOT}/depth`]: {
+        shape: [2, 2],
+        data: new Float32Array([1, 2, 3, 4]),
+      },
+    });
+    // The store attr would mask everything; the explicit argument masks nothing.
+    const slice = await readSlice({
+      url: ROOT,
+      variable: "depth",
+      maskBelow: 0,
+    });
+    expect(slice.min).toBe(1);
+    expect(slice.max).toBe(4);
+  });
+});
+
+describe("affine transform validation", () => {
+  const storeWithTransform = (transform) => ({
+    [ROOT]: { attrs: { crs: CRS, transform } },
+    [`${ROOT}/depth`]: { shape: [2, 2], data: new Float32Array([1, 2, 3, 4]) },
+  });
+
+  it("rejects a rotated/skewed transform rather than drawing it north-up", async () => {
+    setStore(storeWithTransform([5, 0.5, -100, 0.25, -5, 200]));
+    await expect(readSlice({ url: ROOT, variable: "depth" })).rejects.toThrow(
+      /rotation\/skew terms/,
+    );
+  });
+
+  it("rejects a zero pixel size", async () => {
+    setStore(storeWithTransform([0, 0, -100, 0, -5, 200]));
+    await expect(readSlice({ url: ROOT, variable: "depth" })).rejects.toThrow(
+      /zero or non-numeric pixel size/,
+    );
+  });
+
+  it("keeps the extent ordered for a west-decreasing (negative a) grid", async () => {
+    setStore(storeWithTransform([-5, 0, -100, 0, -5, 200]));
+    const slice = await readSlice({ url: ROOT, variable: "depth" });
+    const [minx, miny, maxx, maxy] = slice.extent;
+    expect(minx).toBeLessThan(maxx);
+    expect(miny).toBeLessThan(maxy);
+    expect(minx).toBe(-110);
+    expect(maxx).toBe(-100);
+  });
+
+  it("reports the x and y pixel sizes so the caller can reject non-square cells", async () => {
+    setStore(storeWithTransform([5, 0, -100, 0, -12, 200]));
+    const slice = await readSlice({ url: ROOT, variable: "depth" });
+    expect(slice.pixelSize).toEqual({ x: 5, y: 12 });
+  });
+});
+
+describe("store open errors", () => {
+  it("rethrows a network/CORS failure instead of retrying it as v2", async () => {
+    // A v3 open that fails for a non-format reason must surface as-is: a v2
+    // retry only issues a second doomed request and hides the real cause.
+    const netErr = new Error("Failed to fetch");
+    jest.spyOn(console, "error").mockImplementation(() => {});
+    mockNodes = {};
+    const zarrita = require("zarrita");
+    const v3 = jest.spyOn(zarrita.open, "v3").mockRejectedValue(netErr);
+    const v2 = jest.spyOn(zarrita.open, "v2");
+
+    await expect(readSlice({ url: ROOT, variable: "depth" })).rejects.toThrow(
+      "Failed to fetch",
+    );
+    expect(v2).not.toHaveBeenCalled();
+
+    v3.mockRestore();
+    v2.mockRestore();
+    console.error.mockRestore();
+  });
+
+  it("reports both attempts when the store is neither v3 nor v2", async () => {
+    setStore({}); // nothing at any URL -> both opens report "not found"
+    await expect(readSlice({ url: ROOT, variable: "depth" })).rejects.toThrow(
+      /could not open '.*' as a zarr v3 or v2 store/,
+    );
+  });
+});

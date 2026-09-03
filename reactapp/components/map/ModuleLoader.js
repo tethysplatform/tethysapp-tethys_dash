@@ -31,6 +31,7 @@ import {
 import {
   rewriteArcGISExportUrlForAntimeridian,
   readFeatureCollection,
+  coerceOptionalBoolean,
 } from "components/map/utilities";
 import { acquireComponents } from "components/map/shapefile/acquire";
 import { interpretShapefile } from "components/map/shapefile/index";
@@ -41,6 +42,7 @@ import {
   isUsableClass,
 } from "components/map/geoTIFFStyle";
 import proj4 from "proj4";
+import { get as getProjection } from "ol/proj.js";
 import { register as registerProj4 } from "ol/proj/proj4.js";
 import sqlWasmUrl from "sql.js/dist/sql-wasm.wasm";
 import { readSlice } from "components/map/zarrReader";
@@ -138,13 +140,72 @@ async function prepareProps(type, props) {
 // alpha/nodata mask. Variable inputs in the fields (e.g. index="${Storm}") are
 // already substituted before this runs.
 
+export class ZarrError extends Error {}
+
+// The whole slice becomes one WebGL texture, so the grid cannot exceed the
+// driver's max texture dimension. OpenLayers does not check this on the
+// DataTile upload path — an oversized tile fails with GL_INVALID_VALUE and
+// renders blank with no error — so check it here and say what went wrong.
+// 4096 is the floor guaranteed by WebGL2 implementations; probe for the real
+// limit when a context is available.
+const MIN_GUARANTEED_TEXTURE_SIZE = 4096;
+let maxTextureSize = null;
+
+export function getMaxTextureSize() {
+  if (maxTextureSize !== null) return maxTextureSize;
+  maxTextureSize = MIN_GUARANTEED_TEXTURE_SIZE;
+  try {
+    const gl = document
+      .createElement("canvas")
+      .getContext("webgl2", { failIfMajorPerformanceCaveat: false });
+    const probed = gl?.getParameter(gl.MAX_TEXTURE_SIZE);
+    if (Number.isFinite(probed) && probed > 0) maxTextureSize = probed;
+  } catch {
+    // No WebGL context available (headless/test): keep the guaranteed floor.
+  }
+  return maxTextureSize;
+}
+
+// The tile grid carries a single resolution derived from the x axis, so a store
+// whose cells are not square would be drawn stretched along y. Tolerate the
+// rounding a float transform introduces; reject a real mismatch rather than
+// render the raster at the wrong vertical scale.
+const PIXEL_ASPECT_TOLERANCE = 1e-6;
+
+function assertSquarePixels(pixelSize) {
+  if (!pixelSize) return; // reader predates pixelSize; nothing to check
+  const { x, y } = pixelSize;
+  if (!Number.isFinite(x) || !Number.isFinite(y) || x <= 0 || y <= 0) return;
+  if (Math.abs(x - y) / Math.max(x, y) > PIXEL_ASPECT_TOLERANCE) {
+    throw new ZarrError(
+      `This Zarr store has non-square cells (${x} x ${y}), which would be ` +
+        `drawn at the wrong vertical scale. Resample the store to square ` +
+        `cells or publish it as a GeoTIFF.`,
+    );
+  }
+}
+
+function assertRenderableTileSize(width, height) {
+  const limit = getMaxTextureSize();
+  if (width > limit || height > limit) {
+    throw new ZarrError(
+      `This Zarr slice is ${width}x${height} cells, which exceeds this ` +
+        `browser's maximum texture size of ${limit}. The whole slice is ` +
+        `rendered as a single tile, so it cannot be drawn. Downsample the ` +
+        `store or publish it as a tiled GeoTIFF instead.`,
+    );
+  }
+}
+
 // The slice a Zarr source currently points at, as readSlice args. Used both to
 // key the single slice read and to gate applyZarrRamp from restyling an
 // unchanged slice.
 function zarrSliceParams(source) {
   const { url, variable, index, mask_below } = source?.props ?? {};
   return {
-    url,
+    // s3:// is accepted here for parity with the GeoParquet and GeoPackage
+    // sources; the browser can only fetch the public https form.
+    url: s3UrlToHttps(url),
     variable,
     index: Number(index ?? 0),
     maskBelow:
@@ -156,32 +217,76 @@ export function zarrSliceKey(source) {
   return JSON.stringify(zarrSliceParams(source));
 }
 
-// Read the slice once per (source, slice) and memoize the promise on the source
-// config, which applyZarrRamp and loadZarr both receive by reference — so the
-// ramp and the tile data never re-read or disagree about the slice.
+// Read the slice once per distinct slice, shared across layer rebuilds and
+// across applyZarrRamp/loadZarr — so the ramp and the tile data never re-read
+// or disagree about the slice. Module-scoped rather than stashed on the source
+// config: a config object is rebuilt on every variable-input change (so a memo
+// held there never survives to serve a revisited slice) and is persisted state
+// that should hold no promises. Rejections are evicted so a transient network
+// or CORS failure can retry instead of pinning the layer to that error.
+const zarrSliceCache = new Map();
+// Revisiting slices is the common case (a variable input stepping through an
+// index), so keep a few rather than one, but bound the retained decoded arrays.
+const ZARR_SLICE_CACHE_MAX = 8;
+
+// Test seam: these caches are module-scoped by design, so a suite that asserts
+// on read counts needs to start from empty.
+export function clearClientSourceCaches() {
+  zarrSliceCache.clear();
+  geoParquetCache.clear();
+}
+
 function getZarrSlice(source) {
   const key = zarrSliceKey(source);
-  if (source._zarrSliceKey !== key) {
-    source._zarrSliceKey = key;
-    source._zarrSlicePromise = readSlice(zarrSliceParams(source));
+  if (!zarrSliceCache.has(key)) {
+    if (zarrSliceCache.size >= ZARR_SLICE_CACHE_MAX) {
+      zarrSliceCache.delete(zarrSliceCache.keys().next().value);
+    }
+    zarrSliceCache.set(
+      key,
+      readSlice(zarrSliceParams(source)).catch((error) => {
+        zarrSliceCache.delete(key);
+        throw error;
+      }),
+    );
   }
-  return source._zarrSlicePromise;
+  return zarrSliceCache.get(key);
 }
 
 // Build the DataTile source for a Zarr layer from its slice. The map adopts the
 // store's CRS via the getView() shim, so the single tile needs no per-tile
 // reprojection.
 export async function loadZarr(config, mapProjection) {
-  const slice = await getZarrSlice(config);
-  const { data, width, height, extent, crs } = slice;
-  const projection = crs || mapProjection;
+  let slice;
+  try {
+    slice = await getZarrSlice(config);
+  } catch (error) {
+    // The browser makes this fetch, so a store without CORS headers reports
+    // only an opaque network failure. Name the likely causes rather than
+    // letting the raw error reach the generic "failed to load" banner.
+    throw new ZarrError(
+      `Could not read the Zarr store at ${zarrSliceParams(config).url}: ` +
+        `${error?.message ?? error}. Check the store URL and variable name, ` +
+        `and that the host sends CORS headers (Access-Control-Allow-Origin).`,
+    );
+  }
+  const { data, width, height, extent, crs, pixelSize } = slice;
   registerGeoPackageProjections(); // resolve UTM store CRSs
+  const projection = crs
+    ? resolveProjectionOrThrow(crs, {
+        ErrorType: ZarrError,
+        what: "This Zarr store's `crs` attr",
+      })
+    : mapProjection;
+  assertRenderableTileSize(width, height);
+  assertSquarePixels(pixelSize);
   const resolution = (extent[2] - extent[0]) / width;
 
   const source = new DataTile({
     loader: () => data, // one tile holds the whole slice
     bandCount: 2, // band 1 = value, band 2 = alpha/nodata mask
-    interpolate: config.props?.interpolate ?? false,
+    // GUI inputs emit strings, and the string "false" is truthy.
+    interpolate: coerceOptionalBoolean(config.props?.interpolate) ?? false,
     projection,
     tileGrid: new TileGrid({
       extent,
@@ -280,10 +385,17 @@ export async function applyZarrRamp(layerConfig) {
   const isCategorical =
     source?.styleMode === "categorical" &&
     (source?.classes ?? []).some(isUsableClass);
-  if (!rampName && !isCategorical) return layerConfig;
+  // With no ramp and no classes there is still a style to build. A DataTile
+  // carries raw values with no normalization (unlike the GeoTIFF source this
+  // replaced, which rendered `normalize: true` grayscale), so leaving the layer
+  // unstyled paints raw floats straight into the color channels. Fit grayscale
+  // to the slice instead, which is what the old backend path effectively did.
+  const effectiveRamp = rampName || (isCategorical ? null : "grayscale");
+  if (!effectiveRamp && !isCategorical) return layerConfig;
 
+  // Gates the slice read, not the style: ramp settings are not part of the
+  // slice key, so the style is rebuilt on every call from the resolved slice.
   const key = zarrSliceKey(source);
-  if (source.resolvedRampUrl === key) return layerConfig;
 
   try {
     if (isCategorical) {
@@ -296,7 +408,7 @@ export async function applyZarrRamp(layerConfig) {
           fallbackColor: source.fallbackColor,
         }),
       };
-      source.resolvedRampUrl = key;
+      source.resolvedSliceKey = key;
       return layerConfig;
     }
 
@@ -307,10 +419,18 @@ export async function applyZarrRamp(layerConfig) {
     if (!Number.isFinite(lo)) lo = slice.min;
     if (!Number.isFinite(hi)) hi = slice.max;
 
+    // A degenerate range compiles to an `interpolate` whose GPU form divides by
+    // (stop2 - stop1), so equal stops yield NaN colors and an inverted pair a
+    // broken ramp. The GeoTIFF path falls back to normalized mode here, but a
+    // Zarr DataTile carries raw values with no normalization, so widen to a
+    // valid ascending span instead: a uniform slice then renders at the ramp's
+    // low end rather than as NaN.
+    if (hi <= lo) hi = lo + 1;
+
     layerConfig.style = {
       ...(layerConfig.style ?? {}),
       color: buildGeoTIFFStyleColor({
-        rampName,
+        rampName: effectiveRamp,
         rampMin: lo,
         rampMax: hi,
         rampReverse: source.rampReverse === true,
@@ -318,7 +438,7 @@ export async function applyZarrRamp(layerConfig) {
         maskBelow: source.props?.mask_below,
       }),
     };
-    source.resolvedRampUrl = key;
+    source.resolvedSliceKey = key;
     source.resolvedRampMin = lo;
     source.resolvedRampMax = hi;
   } catch {
@@ -572,12 +692,38 @@ export async function loadGeoPackage(config, mapProjection) {
 
 export class GeoParquetError extends Error {}
 
+// OGC's lon/lat WGS84 authority code, spelled several ways across PROJJSON
+// writers. OpenLayers registers "CRS:84" and the urn:/http: URI forms but not
+// the bare "OGC:CRS84" that `${authority}:${code}` assembles, so normalize the
+// whole family to EPSG:4326 rather than handing OL a code it silently cannot
+// resolve.
+const CRS84_ALIASES = /^(?:OGC:CRS84|CRS:84|CRS84)$/i;
+
 // Map a GeoParquet column CRS (PROJJSON) to an OL projection code. A null/absent
 // CRS means OGC:CRS84 (lon/lat WGS84) per the GeoParquet spec.
 export function geoParquetCRSToProjection(crs) {
   if (crs === null || crs === undefined) return "EPSG:4326";
   const id = crs.id ?? crs.ids?.[0];
-  return id ? `${id.authority}:${id.code}` : "EPSG:4326";
+  if (!id) return "EPSG:4326";
+  const code = `${id.authority}:${id.code}`;
+  return CRS84_ALIASES.test(code) ? "EPSG:4326" : code;
+}
+
+// Resolve an author- or file-supplied projection code, or throw. Reprojection
+// helpers treat an unknown code as "no transform" rather than an error, which
+// renders the data at raw coordinates in the view's units — visibly wrong but
+// silent. Failing here instead puts the layer in failedLayers with a message
+// naming the code.
+function resolveProjectionOrThrow(code, { ErrorType = Error, what }) {
+  const projection = getProjection(code);
+  if (!projection) {
+    throw new ErrorType(
+      `${what} declares projection "${code}", which is not registered. ` +
+        `Add its definition to components/map/projections, or republish the ` +
+        `data in a supported CRS (e.g. EPSG:4326).`,
+    );
+  }
+  return code;
 }
 
 // Read the GeoParquet "geo" file metadata: primary geometry column + its CRS.
@@ -609,6 +755,43 @@ async function getHyparquet() {
   return hyparquetLib;
 }
 
+// Parquet INT64 columns arrive as BigInt, which throws on the JSON round-trip
+// the popup/click and variable-input paths perform. Coerce recursively, since a
+// list or struct column nests its BigInts out of reach of a flat pass, and fall
+// back to a string past the safe-integer range so a 64-bit id (OSM, H3,
+// snowflake) is preserved exactly rather than silently rounded.
+export function coerceParquetValue(value) {
+  if (typeof value === "bigint") {
+    // Literals rather than BigInt(Number.MAX_SAFE_INTEGER): the BigInt global
+    // is outside the configured eslint env, and these bounds are fixed anyway.
+    return value >= -9007199254740991n && value <= 9007199254740991n
+      ? Number(value)
+      : value.toString();
+  }
+  if (Array.isArray(value)) return value.map(coerceParquetValue);
+  // Plain objects only: a Date or other class instance is left as-is.
+  if (value !== null && typeof value === "object" && !(value instanceof Date)) {
+    const proto = Object.getPrototypeOf(value);
+    if (proto === Object.prototype || proto === null) {
+      const out = {};
+      for (const [key, nested] of Object.entries(value)) {
+        out[key] = coerceParquetValue(nested);
+      }
+      return out;
+    }
+  }
+  return value;
+}
+
+// One download+decode per file URL, shared across layer rebuilds. GeoParquet
+// layers are VectorLayers, which the map's keep fast-path excludes, so the
+// loader re-runs whenever any layer in the array changes — without this the
+// whole file is re-fetched and re-decoded each time. Only the expensive,
+// projection-independent half is cached: features are built per call so no two
+// layers share mutable ol/Feature instances. Mirrors geoPackageCache above,
+// including dropping the entry on failure so a transient error can retry.
+const geoParquetCache = new Map();
+
 // Read a GeoParquet file in-browser as a reprojected OL vector source. hyparquet
 // decodes the WKB geometry column to GeoJSON (geoparquet:true); features are then
 // reprojected from the file's declared CRS to the map projection.
@@ -620,6 +803,26 @@ export async function loadGeoParquet(config, mapProjection) {
   const url = s3UrlToHttps(rawUrl);
   registerGeoPackageProjections();
 
+  if (!geoParquetCache.has(url)) {
+    geoParquetCache.set(
+      url,
+      readGeoParquetFile(url).catch((error) => {
+        geoParquetCache.delete(url);
+        throw error;
+      }),
+    );
+  }
+  const { featureCollection, dataProjection } = await geoParquetCache.get(url);
+
+  return new VectorSource({
+    features: new GeoJSON().readFeatures(featureCollection, {
+      dataProjection,
+      featureProjection: mapProjection,
+    }),
+  });
+}
+
+async function readGeoParquetFile(url) {
   const {
     asyncBufferFromUrl,
     parquetMetadataAsync,
@@ -627,35 +830,47 @@ export async function loadGeoParquet(config, mapProjection) {
     compressors,
   } = await getHyparquet();
 
-  const file = await asyncBufferFromUrl({ url });
-  const metadata = await parquetMetadataAsync(file);
+  let metadata;
+  let rows;
+  try {
+    const file = await asyncBufferFromUrl({ url });
+    metadata = await parquetMetadataAsync(file);
+    rows = await parquetReadObjects({ file, compressors, geoparquet: true });
+  } catch (error) {
+    // The browser makes this fetch, so a CORS-less host is the likeliest cause
+    // and reports only an opaque network failure. Name both possibilities.
+    throw new GeoParquetError(
+      `Could not read the GeoParquet file at ${url}: ${error?.message ?? error}. ` +
+        `Check the URL is reachable and that the host sends CORS headers ` +
+        `(Access-Control-Allow-Origin) and supports range requests.`,
+    );
+  }
+
   const { geometryColumn, dataProjection } =
     readGeoParquetGeoMetadata(metadata);
-
-  const rows = await parquetReadObjects({
-    file,
-    compressors,
-    geoparquet: true,
+  resolveProjectionOrThrow(dataProjection, {
+    ErrorType: GeoParquetError,
+    what: "This GeoParquet file",
   });
+
   const features = rows
     .map((row) => {
       const { [geometryColumn]: geometry, ...rest } = row;
-      // Parquet INT64 columns arrive as BigInt, which breaks JSON serialization
-      // in the popup/click path, so coerce them to Number.
       const properties = {};
       for (const [key, value] of Object.entries(rest)) {
-        properties[key] = typeof value === "bigint" ? Number(value) : value;
+        // ol/format/GeoJSON applies properties after the geometry, so a
+        // residual column literally named "geometry" would overwrite it.
+        if (key === "geometry") continue;
+        properties[key] = coerceParquetValue(value);
       }
       return { type: "Feature", geometry: geometry ?? null, properties };
     })
     .filter((feature) => feature.geometry != null);
 
-  return new VectorSource({
-    features: new GeoJSON().readFeatures(
-      { type: "FeatureCollection", features },
-      { dataProjection, featureProjection: mapProjection },
-    ),
-  });
+  return {
+    featureCollection: { type: "FeatureCollection", features },
+    dataProjection,
+  };
 }
 
 const moduleLoader = async (config, mapProjection, getMapProjection) => {

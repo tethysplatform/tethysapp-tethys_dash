@@ -1,16 +1,69 @@
-import { FetchStore, get, open } from "zarrita";
-
 // Read a public Zarr store directly in the browser. Group attrs carry
 // georeferencing (`transform`, `crs`) and optional masking (`extent_threshold_m`,
 // `source_nodata`).
 
-// Open the node at `url` (group or array), trying zarr v3 then falling back to v2.
+// zarrita is only needed when a Zarr layer renders, so keep it out of the
+// initial bundle every dashboard downloads. Mirrors getHyparquet/getGeoPackageLib.
+let zarritaLib = null;
+async function getZarrita() {
+  if (!zarritaLib) zarritaLib = await import("zarrita");
+  return zarritaLib;
+}
+
+// A read that never settles leaves the layer spinning with no way to tell it
+// from a slow one, so bound every store request.
+const ZARR_FETCH_TIMEOUT_MS = 30000;
+
+// AbortSignal.timeout is unavailable in jsdom and older browsers; fall back to
+// a controller. Returns undefined where AbortController is missing too, so the
+// fetch simply proceeds unbounded rather than throwing.
+function timeoutSignal(ms) {
+  if (typeof AbortSignal !== "undefined" && AbortSignal.timeout) {
+    return AbortSignal.timeout(ms);
+  }
+  if (typeof AbortController === "undefined") return undefined;
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), ms);
+  return controller.signal;
+}
+
+// Reasons a v3 open can fail that mean "this isn't a v3 store" rather than
+// "the store is unreachable". Only those are worth retrying as v2.
+function isFormatMismatch(error) {
+  const message = String(error?.message ?? error ?? "");
+  return (
+    error?.name === "NodeNotFoundError" ||
+    /not found|no such|404|zarr\.json|missing/i.test(message)
+  );
+}
+
+// Open the node at `url` (group or array), trying zarr v3 then falling back to
+// v2. A network/CORS/timeout failure is rethrown as-is: retrying it as v2 only
+// issues a second doomed request and replaces the real cause with a misleading
+// "not a v2 store" message, which is exactly wrong when CORS is the problem.
 async function openNode(url) {
-  const store = new FetchStore(url.replace(/\/$/, ""));
+  const { FetchStore, open } = await getZarrita();
+  const signal = timeoutSignal(ZARR_FETCH_TIMEOUT_MS);
+  const store = new FetchStore(
+    url.replace(/\/$/, ""),
+    signal ? { overrides: { signal } } : undefined,
+  );
+  let v3Error;
   try {
     return await open.v3(store);
-  } catch {
+  } catch (error) {
+    if (!isFormatMismatch(error)) throw error;
+    v3Error = error;
+  }
+  try {
     return await open.v2(store);
+  } catch (v2Error) {
+    if (!isFormatMismatch(v2Error)) throw v2Error;
+    throw new Error(
+      `could not open '${url}' as a zarr v3 or v2 store ` +
+        `(v3: ${v3Error?.message ?? v3Error}; v2: ${v2Error?.message ?? v2Error})`,
+      { cause: v2Error },
+    );
   }
 }
 
@@ -24,12 +77,43 @@ function gridDims(shape) {
 }
 
 // Affine transform [a, b, c, d, e, f] + grid size -> [minx, miny, maxx, maxy].
-// e is negative, so bottom < top; order the pair so miny <= maxy.
+// e is normally negative, so bottom < top; order both pairs so min <= max and a
+// west-decreasing (negative `a`) grid cannot invert the extent.
+//
+// The slice renders as one axis-aligned tile at a single resolution, so a
+// rotated transform (nonzero b/d) cannot be represented and is rejected rather
+// than silently drawn as if it were north-up. The backend this replaced handed
+// the full affine to GDAL, which honored rotation natively.
 function extentFromTransform(transform, h, w) {
-  const [a, , c, , e, f] = transform.map(Number);
-  const maxx = c + a * w;
+  const [a, b, c, d, e, f] = transform.map(Number);
+  if (b !== 0 || d !== 0) {
+    throw new Error(
+      `store's 'transform' has rotation/skew terms (b=${b}, d=${d}); ` +
+        `only north-up, axis-aligned grids can be rendered`,
+    );
+  }
+  if (!Number.isFinite(a) || !Number.isFinite(e) || a === 0 || e === 0) {
+    throw new Error(
+      `store's 'transform' has a zero or non-numeric pixel size ` +
+        `(a=${a}, e=${e}); cannot georeference`,
+    );
+  }
+  const right = c + a * w;
   const bottom = f + e * h;
-  return [c, Math.min(f, bottom), maxx, Math.max(f, bottom)];
+  return [
+    Math.min(c, right),
+    Math.min(f, bottom),
+    Math.max(c, right),
+    Math.max(f, bottom),
+  ];
+}
+
+// Pixel sizes from the transform. The tile grid carries one resolution, so a
+// store with non-square pixels would be drawn stretched; surface both so the
+// caller can reject that rather than render it wrong.
+function pixelSizes(transform) {
+  const [a, , , , e] = transform.map(Number);
+  return { x: Math.abs(a), y: Math.abs(e) };
 }
 
 function requireAttr(attrs, name) {
@@ -77,6 +161,7 @@ export async function readSlice({
     }
     selection = [index, null, null];
   }
+  const { get } = await getZarrita();
   const raw = (await get(arr, selection)).data;
 
   const below = maskBelow ?? attrs.extent_threshold_m;
@@ -106,6 +191,7 @@ export async function readSlice({
     width: w,
     height: h,
     extent: extentFromTransform(transform, h, w),
+    pixelSize: pixelSizes(transform),
     crs: attrs.crs,
     data,
     min,
@@ -116,6 +202,13 @@ export async function readSlice({
 /**
  * Selectable metadata for a Zarr store:
  * { variables, slice_count, slice_labels, crs, grid_shape, extent }.
+ *
+ * NOTE: intentionally not wired into the UI yet. This is the client-side
+ * replacement for the removed `tethysdash/zarr/meta` endpoint, kept so the
+ * MapLayer editor can grow a variable/slice picker without re-deriving the
+ * read. Until then a layer author types `variable`/`index` by hand and finds
+ * out they are wrong when the layer fails to render. Delete this if that picker
+ * is not going to be built.
  *
  * HTTP-backed stores cannot be listed, so `variables` comes from the caller's
  * `candidates` (or the chosen `variable`). `labelVar` names a 1-D array whose
@@ -152,6 +245,7 @@ export async function readMetadata({
     try {
       const larr = await openNode(`${base}/${labelVar}`);
       if (larr.shape.length === 1 && larr.shape[0] === n) {
+        const { get } = await getZarrita();
         const values = (await get(larr, [null])).data;
         sliceLabels = Array.from(values, (v) => `${Number(v)}`);
       }

@@ -279,10 +279,11 @@ Zarr
 The Zarr source renders a raster layer from a public `Zarr <https://zarr.dev/>`_ store with no pre-processing. TethysDash reads the chosen variable slice directly in the browser and draws it with WebGL — so you supply a store URL and a variable rather than a prepared COG. It is styled and queried like a GeoTIFF layer: pick a color ramp on the :ref:`style_tab` and click the map for pixel values.
 
 **Layer Properties:**
-    - **url:** (required) Public ``https`` URL of the Zarr store. The browser fetches it directly, so the host must allow CORS (``Access-Control-Allow-Origin``); ``s3://`` URLs are not supported.
+    - **url:** (required) Public URL of the Zarr store (an ``https`` URL, or an ``s3://`` URL which is translated to its public ``https`` form). The browser fetches it directly, so the host must allow CORS (``Access-Control-Allow-Origin``).
     - **variable:** (required) Array name to read (e.g. ``depth``).
     - **index:** (optional) Slice index along the store's leading dimension for stacked ``[n, y, x]`` data (default ``0``). Bind it to a :ref:`variable input <variableinputs>` with ``${Variable Name}`` to switch slices on the fly — for example, drive it with a slider to animate.
     - **mask_below:** (optional) Sample values at or below this number render transparent. Leave blank to use the store's own threshold, if it declares one.
+    - **interpolate:** (optional) ``true`` to smooth cell values when zoomed in; defaults to ``false`` (nearest-neighbor), which keeps cell boundaries crisp and reported pixel values exact.
 
 **Example JSON Configuration:**
 
@@ -302,6 +303,15 @@ The Zarr source renders a raster layer from a public `Zarr <https://zarr.dev/>`_
             }
         }
     }
+
+.. note::
+    The store's group attributes must carry ``transform`` (a six-element affine)
+    and ``crs``. The whole slice is drawn as a single WebGL texture, so the grid
+    must be north-up (no rotation terms), have square cells, and fit within the
+    browser's maximum texture size — commonly 4096-16384 cells per side. A store
+    that violates any of these reports the reason on the layer rather than
+    rendering incorrectly. The ``crs`` attr must name a projection TethysDash can
+    resolve (an ``EPSG:`` code, not a WKT or PROJ string).
 
 ------------------------------------------------------------------------------------------------------------------------
 
@@ -342,13 +352,13 @@ The GeoPackage source renders **vector** layers from a public `GeoPackage <https
 GeoParquet
 ++++++++++
 
-The GeoParquet source renders a **vector** layer from a public `GeoParquet <https://geoparquet.org/>`_ file. TethysDash reads the file entirely in the browser, decodes its geometry, and reprojects it to the map projection — so you supply a file URL rather than a prepared GeoJSON. It is styled and queried like a GeoJSON layer.
+The GeoParquet source renders a **vector** layer from a public `GeoParquet <https://geoparquet.org/>`_ file. TethysDash reads the file entirely in the browser, decodes its geometry, and reprojects it to the map projection — so you supply a file URL rather than a prepared GeoJSON. It is queried like a GeoJSON layer; custom styling on the :ref:`style_tab` is not yet available for this source type, so it draws with the default vector style.
 
 **Layer Properties:**
     - **url:** (required) Public URL of the GeoParquet file (an ``https`` URL, or an ``s3://`` URL which is translated to its public ``https`` form). The host must allow cross-origin (CORS) reads.
 
 .. note::
-    The file is downloaded and parsed in the browser, so this suits moderate feature counts; very large files may be slow to render. Files in a projected CRS (e.g. UTM) are reprojected automatically; other custom CRSs may not be supported. GeoParquet's default CRS (OGC:CRS84 / WGS84 lon-lat) is always supported.
+    The file is downloaded and parsed in the browser, so this suits moderate feature counts; very large files may be slow to render. GeoParquet's default CRS (``OGC:CRS84`` / WGS84 lon-lat) and files in a projected CRS (e.g. UTM) are reprojected automatically. A file declaring a CRS TethysDash cannot resolve reports that on the layer rather than drawing the features at untransformed coordinates.
 
 **Example JSON Configuration:**
 

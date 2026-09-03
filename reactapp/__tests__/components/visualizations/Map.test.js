@@ -47,6 +47,7 @@ jest.mock("components/map/ModuleLoader", () => {
     default: actual.default, // use the real default export
     createJsonStyleFunction: jest.fn(), // mock only this function
     applyAutoRamp: actual.applyAutoRamp, // real: drives the Zarr legend
+    clearClientSourceCaches: actual.clearClientSourceCaches,
   };
 });
 
@@ -62,11 +63,20 @@ import { readSlice } from "components/map/zarrReader";
 // eslint-disable-next-line
 import MapVisualization, { Popup } from "components/visualizations/Map";
 // eslint-disable-next-line
-import { createJsonStyleFunction } from "components/map/ModuleLoader";
+import {
+  createJsonStyleFunction,
+  clearClientSourceCaches,
+} from "components/map/ModuleLoader";
 // eslint-disable-next-line
 import { fromUrl } from "geotiff";
 
 global.ResizeObserver = require("resize-observer-polyfill");
+
+// The GeoParquet/Zarr read caches are module-scoped and live for the page's
+// lifetime by design, so each test must start from an empty one.
+beforeEach(() => {
+  clearClientSourceCaches();
+});
 
 jest.mock("ol-mapbox-style", () => ({
   applyStyle: jest.fn(),

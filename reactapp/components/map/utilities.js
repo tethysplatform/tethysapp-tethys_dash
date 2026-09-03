@@ -41,6 +41,18 @@ export function coerceOptionalNumber(value) {
   return Number.isFinite(num) ? num : undefined;
 }
 
+// Same contract for boolean layer props: GUI inputs emit strings, and the
+// string "false" is truthy, so a plain `?? false` on a text field is wrong.
+export function coerceOptionalBoolean(value) {
+  if (value === null || value === undefined) return undefined;
+  if (typeof value === "boolean") return value;
+  const str = String(value).trim().toLowerCase();
+  if (str === "") return undefined;
+  if (["true", "1", "yes"].includes(str)) return true;
+  if (["false", "0", "no"].includes(str)) return false;
+  return undefined;
+}
+
 export const sourcePropertiesOptions = {
   "ESRI Image and Map Service": {
     required: {
@@ -169,13 +181,16 @@ export const sourcePropertiesOptions = {
   },
   Zarr: {
     required: {
-      url: { placeholder: "Zarr store URL (https, CORS-enabled)" },
+      url: { placeholder: "Zarr store URL (https or s3, CORS-enabled)" },
       variable: { placeholder: "Variable / array name (e.g. depth)" },
     },
     optional: {
       // eslint-disable-next-line no-template-curly-in-string
       index: { placeholder: "Slice index or a variable, e.g. ${Storm}" },
       mask_below: { placeholder: "Mask values at or below this" },
+      interpolate: {
+        placeholder: "Smooth cell values when zoomed in (true/false)",
+      },
     },
   },
   GeoPackage: {
