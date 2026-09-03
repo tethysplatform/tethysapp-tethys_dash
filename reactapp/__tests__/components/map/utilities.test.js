@@ -5,6 +5,9 @@ import {
   createMarkerLayer,
   createHighlightLayer,
   addHighlightFeatures,
+  getGeometryAnchor,
+  isTableEligible,
+  hasModalPopup,
   transformCoordinates,
   queryLayerFeatures,
   getLayerAttributes,
@@ -380,6 +383,160 @@ test("addHighlightFeatures no-ops when geometries is a non-object primitive", ()
   expect(() => addHighlightFeatures(highlightLayer, 0)).not.toThrow();
   expect(() => addHighlightFeatures(highlightLayer, "")).not.toThrow();
   expect(highlightLayer.getSource().getFeatures().length).toBe(0);
+});
+
+describe("isTableEligible / hasModalPopup", () => {
+  // The two questions asked of every feature a click turns up. A feature can
+  // answer yes to both, or to exactly one -- which is what lets a single list
+  // drive both popups.
+  const feature = (wrapperLayer) => ({ __wrapperLayer: wrapperLayer });
+
+  test("a layer with no popup settings is table-only", () => {
+    const f = feature({ configuration: {} });
+    expect(isTableEligible(f)).toBe(true);
+    expect(hasModalPopup(f)).toBe(false);
+  });
+
+  test("a modal layer that also shows the click table answers yes to both", () => {
+    const f = feature({ popupConfig: { mode: "modal" } });
+    expect(isTableEligible(f)).toBe(true);
+    expect(hasModalPopup(f)).toBe(true);
+  });
+
+  test("tablePopupType 'none' with a modal is modal-only", () => {
+    const f = feature({
+      tablePopupType: "none",
+      popupConfig: { mode: "modal" },
+    });
+    expect(isTableEligible(f)).toBe(false);
+    expect(hasModalPopup(f)).toBe(true);
+  });
+
+  test("tablePopupType 'hover' with a modal is modal-only on click", () => {
+    // Streamflow's shape in the CW3E config.
+    const f = feature({
+      tablePopupType: "hover",
+      popupConfig: { mode: "modal" },
+    });
+    expect(isTableEligible(f)).toBe(false);
+    expect(hasModalPopup(f)).toBe(true);
+  });
+
+  test("popupConfig mode 'table' means no modal", () => {
+    // What the layer editor writes when the modal toggle is off; its
+    // gridItems are inert.
+    const f = feature({ popupConfig: { mode: "table", gridItems: [{}] } });
+    expect(isTableEligible(f)).toBe(true);
+    expect(hasModalPopup(f)).toBe(false);
+  });
+
+  test("queryable: false is treated as table popup 'none'", () => {
+    expect(isTableEligible(feature({ queryable: false }))).toBe(false);
+  });
+
+  test("an untagged feature is table-eligible and has no modal", () => {
+    // resolveTablePopupType defaults to "click", so a feature that somehow
+    // arrives without a wrapper layer still reaches the table rather than
+    // vanishing from both popups.
+    expect(isTableEligible({})).toBe(true);
+    expect(hasModalPopup({})).toBe(false);
+    expect(isTableEligible(undefined)).toBe(true);
+    expect(hasModalPopup(undefined)).toBe(false);
+  });
+});
+
+describe("getGeometryAnchor", () => {
+  // The coordinate a popup is anchored to: the point itself for a point, the
+  // extent center for anything larger. Shares its geometry handling with
+  // addHighlightFeatures, so the popup and the highlight always agree.
+
+  test("returns the point itself for a GeoJSON point", () => {
+    expect(
+      getGeometryAnchor({ type: "Point", coordinates: [5, 7] }),
+    ).toStrictEqual([5, 7]);
+  });
+
+  test("returns the point itself for an ESRI x/y point", () => {
+    // Regression: this branch built `new Point((x, y))` — the comma operator,
+    // which discards x and hands Point a bare number. The anchor came back
+    // as NaN and the highlight geometry was malformed.
+    expect(getGeometryAnchor({ x: 5, y: 7 })).toStrictEqual([5, 7]);
+  });
+
+  test("returns the extent center for a line", () => {
+    expect(
+      getGeometryAnchor({
+        type: "LineString",
+        coordinates: [
+          [0, 0],
+          [10, 20],
+        ],
+      }),
+    ).toStrictEqual([5, 10]);
+  });
+
+  test("returns the extent center for a polygon", () => {
+    expect(
+      getGeometryAnchor({
+        type: "Polygon",
+        coordinates: [
+          [
+            [0, 0],
+            [4, 0],
+            [4, 8],
+            [0, 8],
+            [0, 0],
+          ],
+        ],
+      }),
+    ).toStrictEqual([2, 4]);
+  });
+
+  test("spans every part of a multi-part geometry", () => {
+    expect(
+      getGeometryAnchor({
+        type: "MultiLineString",
+        coordinates: [
+          [
+            [0, 0],
+            [2, 2],
+          ],
+          [
+            [8, 8],
+            [10, 10],
+          ],
+        ],
+      }),
+    ).toStrictEqual([5, 5]);
+  });
+
+  test("reads the ESRI paths shape", () => {
+    expect(
+      getGeometryAnchor({
+        paths: [
+          [
+            [0, 0],
+            [2, 2],
+          ],
+          [
+            [8, 8],
+            [10, 10],
+          ],
+        ],
+      }),
+    ).toStrictEqual([5, 5]);
+  });
+
+  test("returns undefined when there is no usable geometry", () => {
+    // Callers hand the result straight to Overlay.setPosition, where
+    // `undefined` hides the popup rather than placing it off-map.
+    expect(getGeometryAnchor(undefined)).toBeUndefined();
+    expect(getGeometryAnchor(null)).toBeUndefined();
+    expect(getGeometryAnchor("")).toBeUndefined();
+    expect(
+      getGeometryAnchor({ type: "Point", coordinates: [] }),
+    ).toBeUndefined();
+  });
 });
 
 test("transformCoordinates", async () => {

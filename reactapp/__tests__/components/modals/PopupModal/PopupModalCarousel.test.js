@@ -2,6 +2,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import PopupModalCarousel, {
   computeNextIndexFromKey,
+  wrapIndex,
 } from "components/modals/PopupModal/PopupModalCarousel";
 
 const FEATURES = [
@@ -118,7 +119,7 @@ describe("PopupModalCarousel — arrow buttons", () => {
     expect(onActiveIndexChange).toHaveBeenCalledWith(1);
   });
 
-  test("prev is disabled at activeIndex=0 and does not fire onActiveIndexChange", async () => {
+  test("prev at the first feature wraps around to the last", async () => {
     const user = userEvent.setup();
     const onActiveIndexChange = jest.fn();
     render(
@@ -129,59 +130,13 @@ describe("PopupModalCarousel — arrow buttons", () => {
       />,
     );
     const prev = screen.getByTestId("popup-modal-carousel-prev");
-    expect(prev).toBeDisabled();
+    expect(prev).not.toBeDisabled();
     await user.click(prev);
-    expect(onActiveIndexChange).not.toHaveBeenCalled();
+    expect(onActiveIndexChange).toHaveBeenCalledWith(FEATURES.length - 1);
   });
 
-  test("next is disabled at the last feature and does not fire onActiveIndexChange", async () => {
+  test("next at the last feature wraps around to the first", async () => {
     const user = userEvent.setup();
-    const onActiveIndexChange = jest.fn();
-    render(
-      <PopupModalCarousel
-        features={FEATURES}
-        activeIndex={2}
-        onActiveIndexChange={onActiveIndexChange}
-      />,
-    );
-    const next = screen.getByTestId("popup-modal-carousel-next");
-    expect(next).toBeDisabled();
-    await user.click(next);
-    expect(onActiveIndexChange).not.toHaveBeenCalled();
-  });
-
-  // The `disabled` attribute on the arrows is the primary defense
-  // against out-of-bounds navigation, but goPrev / goNext also each
-  // carry a defensive `if (!atStart)` / `if (!atEnd)` guard inside
-  // their click handler. `userEvent.click` (and `fireEvent.click`)
-  // honor React's synthetic-event filter for `<button disabled>` and
-  // never reach the handler, so those guards never execute in the
-  // user-behavior tests above. The two tests below pull the registered
-  // onClick straight off the DOM node's React fiber props and invoke it
-  // directly, so the handler runs while `atStart` / `atEnd` is still
-  // true and the early-return is exercised.
-  const invokeReactOnClick = (node) => {
-    const propsKey = Object.keys(node).find((k) =>
-      k.startsWith("__reactProps"),
-    );
-    if (!propsKey) throw new Error("React props not found on node");
-    node[propsKey].onClick();
-  };
-
-  test("goPrev's defensive guard suppresses onActiveIndexChange when atStart is true", () => {
-    const onActiveIndexChange = jest.fn();
-    render(
-      <PopupModalCarousel
-        features={FEATURES}
-        activeIndex={0}
-        onActiveIndexChange={onActiveIndexChange}
-      />,
-    );
-    invokeReactOnClick(screen.getByTestId("popup-modal-carousel-prev"));
-    expect(onActiveIndexChange).not.toHaveBeenCalled();
-  });
-
-  test("goNext's defensive guard suppresses onActiveIndexChange when atEnd is true", () => {
     const onActiveIndexChange = jest.fn();
     render(
       <PopupModalCarousel
@@ -190,8 +145,10 @@ describe("PopupModalCarousel — arrow buttons", () => {
         onActiveIndexChange={onActiveIndexChange}
       />,
     );
-    invokeReactOnClick(screen.getByTestId("popup-modal-carousel-next"));
-    expect(onActiveIndexChange).not.toHaveBeenCalled();
+    const next = screen.getByTestId("popup-modal-carousel-next");
+    expect(next).not.toBeDisabled();
+    await user.click(next);
+    expect(onActiveIndexChange).toHaveBeenCalledWith(0);
   });
 });
 
@@ -244,10 +201,10 @@ describe("PopupModalCarousel — aria labels", () => {
         getLabel={getLabel}
       />,
     );
-    // At index 0 there's no previous feature to describe.
+    // At index 0 "previous" wraps to the last feature, and says so.
     expect(screen.getByTestId("popup-modal-carousel-prev")).toHaveAttribute(
       "aria-label",
-      "Previous feature",
+      "Previous feature: Site c",
     );
     // Next IS available, so it uses the label.
     expect(screen.getByTestId("popup-modal-carousel-next")).toHaveAttribute(
@@ -273,7 +230,7 @@ describe("PopupModalCarousel — keyboard navigation", () => {
     expect(onActiveIndexChange).toHaveBeenCalledWith(1);
   });
 
-  test("ArrowLeft at the boundary doesn't fire", () => {
+  test("ArrowLeft at the first feature wraps to the last", () => {
     const onActiveIndexChange = jest.fn();
     render(
       <PopupModalCarousel
@@ -285,7 +242,22 @@ describe("PopupModalCarousel — keyboard navigation", () => {
     fireEvent.keyDown(screen.getByTestId("popup-modal-carousel"), {
       key: "ArrowLeft",
     });
-    expect(onActiveIndexChange).not.toHaveBeenCalled();
+    expect(onActiveIndexChange).toHaveBeenCalledWith(FEATURES.length - 1);
+  });
+
+  test("ArrowRight at the last feature wraps to the first", () => {
+    const onActiveIndexChange = jest.fn();
+    render(
+      <PopupModalCarousel
+        features={FEATURES}
+        activeIndex={FEATURES.length - 1}
+        onActiveIndexChange={onActiveIndexChange}
+      />,
+    );
+    fireEvent.keyDown(screen.getByTestId("popup-modal-carousel"), {
+      key: "ArrowRight",
+    });
+    expect(onActiveIndexChange).toHaveBeenCalledWith(0);
   });
 
   test("Home/End jump to the bounds", () => {
@@ -345,10 +317,29 @@ describe("computeNextIndexFromKey", () => {
 
   test("returns correct index for each navigation key", () => {
     expect(computeNextIndexFromKey("ArrowRight", FEATURES, 0)).toBe(1);
-    expect(computeNextIndexFromKey("ArrowRight", FEATURES, 2)).toBe(2); // clamped
+    expect(computeNextIndexFromKey("ArrowRight", FEATURES, 2)).toBe(0); // wraps
     expect(computeNextIndexFromKey("ArrowLeft", FEATURES, 2)).toBe(1);
-    expect(computeNextIndexFromKey("ArrowLeft", FEATURES, 0)).toBe(0); // clamped
+    expect(computeNextIndexFromKey("ArrowLeft", FEATURES, 0)).toBe(2); // wraps
     expect(computeNextIndexFromKey("Home", FEATURES, 2)).toBe(0);
     expect(computeNextIndexFromKey("End", FEATURES, 0)).toBe(2);
+  });
+});
+
+describe("wrapIndex", () => {
+  test("steps within the list", () => {
+    expect(wrapIndex(0, 1, 3)).toBe(1);
+    expect(wrapIndex(2, -1, 3)).toBe(1);
+  });
+
+  test("wraps around either end", () => {
+    expect(wrapIndex(2, 1, 3)).toBe(0);
+    expect(wrapIndex(0, -1, 3)).toBe(2);
+  });
+
+  test("is a no-op for a single-entry list", () => {
+    // The component renders nothing below 2 features, so this only guards
+    // against a divide-into-1 surprise if that ever changes.
+    expect(wrapIndex(0, 1, 1)).toBe(0);
+    expect(wrapIndex(0, -1, 1)).toBe(0);
   });
 });
