@@ -25,6 +25,7 @@ import {
   rewriteArcGISExportUrlForAntimeridian,
   shiftEPSG3857ExtentAndPoint,
   coerceOptionalNumber,
+  formatAttributeValue,
 } from "components/map/utilities";
 import VectorSource from "ol/source/Vector.js";
 import Feature from "ol/Feature.js";
@@ -4428,5 +4429,225 @@ describe("sourcePropertiesOptions — Shapefile", () => {
     expect(
       sourcePropertiesOptions.Shapefile.optional.projection.placeholder,
     ).toMatch(/WKT|proj4/i);
+  });
+});
+
+describe("sourcePropertiesOptions — discovery declarations", () => {
+  const declarations = [
+    ["Zarr", "required", "variable", "zarrArrays", "select"],
+    ["Zarr", "optional", "index", "zarrSlices", "select"],
+    ["GeoPackage", "required", "layer", "geopackageTables", "select"],
+    ["GeoParquet", "optional", "columns", "geoparquetColumns", "multiselect"],
+  ];
+
+  it.each(declarations)(
+    "%s %s.%s declares route %s and renders as %s",
+    (sourceType, group, argName, route, type) => {
+      const arg = sourcePropertiesOptions[sourceType][group][argName];
+      expect(arg.discover.route).toBe(route);
+      expect(arg.type).toBe(type);
+    },
+  );
+
+  it.each(declarations)(
+    "%s %s.%s keeps its placeholder alongside the declaration",
+    (sourceType, group, argName) => {
+      // The property walker treats an argument object without a placeholder as
+      // a nested parameter group, so a discovery declaration that displaced it
+      // would stop the argument rendering as a field at all.
+      const arg = sourcePropertiesOptions[sourceType][group][argName];
+      expect(typeof arg.placeholder).toBe("string");
+      expect(arg.placeholder.length).toBeGreaterThan(0);
+      expect(Object.keys(arg)).toContain("placeholder");
+    },
+  );
+
+  it.each(declarations)(
+    "%s %s.%s declares only data, never a function",
+    (sourceType, group, argName) => {
+      // The readers behind these routes import this module. A fetcher on the
+      // declaration would close that loop and drag the SQLite/wasm chain into
+      // every module that imports the registry, so the route is an identifier
+      // the hook resolves instead.
+      const arg = sourcePropertiesOptions[sourceType][group][argName];
+      const walk = (value) => {
+        expect(typeof value).not.toBe("function");
+        if (value && typeof value === "object")
+          Object.values(value).forEach(walk);
+      };
+      walk(arg);
+      expect(JSON.parse(JSON.stringify(arg))).toStrictEqual(arg);
+    },
+  );
+
+  it("names the Zarr slice argument's dependency as data", () => {
+    // The slice list is a property of the chosen array, not of the store. The
+    // key rule reads this rather than hardcoding that slices follow arrays, so
+    // the next dependent argument needs no code.
+    expect(
+      sourcePropertiesOptions.Zarr.optional.index.discover.dependsOn,
+    ).toEqual(["variable"]);
+  });
+
+  it("leaves single-valued declarations without a dependency or separator", () => {
+    // Absence is meaningful: a key with no dependsOn is the resolved URL alone,
+    // and no separator means one value.
+    for (const [sourceType, group, argName] of [
+      ["Zarr", "required", "variable"],
+      ["GeoPackage", "required", "layer"],
+    ]) {
+      const { discover } = sourcePropertiesOptions[sourceType][group][argName];
+      expect(discover.dependsOn).toBeUndefined();
+      expect(discover.separator).toBeUndefined();
+    }
+  });
+
+  it("carries the separator on the only multi-valued argument", () => {
+    // The GeoParquet reader splits its columns option on commas; the separator
+    // travels with the declaration so multiplicity is never sniffed out of
+    // whatever the author happened to type.
+    const { discover, type } =
+      sourcePropertiesOptions.GeoParquet.optional.columns;
+    expect(type).toBe("multiselect");
+    expect(discover.separator).toBe(",");
+  });
+
+  it("leaves author-intent arguments as free text", () => {
+    // bbox and maxFeatures are choices about the read, not facts about the
+    // file, so there is nothing in the source to discover them from.
+    const optional = sourcePropertiesOptions.GeoParquet.optional;
+    expect(optional.bbox.discover).toBeUndefined();
+    expect(optional.maxFeatures.discover).toBeUndefined();
+    expect(
+      sourcePropertiesOptions.Zarr.optional.mask_below.discover,
+    ).toBeUndefined();
+  });
+
+  it("declares discovery on no other source type", () => {
+    // Sources requiring credentials or offering only author-intent arguments
+    // stay out of scope; this pins the R2 set so a stray declaration is noticed.
+    const declared = [];
+    for (const [sourceType, groups] of Object.entries(
+      sourcePropertiesOptions,
+    )) {
+      for (const group of ["required", "optional"]) {
+        for (const [argName, arg] of Object.entries(groups?.[group] ?? {})) {
+          if (arg?.discover) declared.push(`${sourceType}.${argName}`);
+        }
+      }
+    }
+    expect(declared.sort()).toEqual([
+      "GeoPackage.layer",
+      "GeoParquet.columns",
+      "Zarr.index",
+      "Zarr.variable",
+    ]);
+  });
+});
+
+describe("formatAttributeValue", () => {
+  // A parquet TIMESTAMP column arrives from hyparquet as a Date, and React
+  // throws outright on a non-primitive child -- clicking a feature on such a
+  // layer crashed the popup with "Objects are not valid as a React child".
+  it("renders a Date as ISO 8601 UTC, not a locale string", () => {
+    expect(formatAttributeValue(new Date(Date.UTC(2026, 7, 1, 6, 30)))).toBe(
+      "2026-08-01T06:30:00.000Z",
+    );
+  });
+
+  it("renders an invalid Date as empty rather than 'Invalid Date'", () => {
+    expect(formatAttributeValue(new Date("nope"))).toBe("");
+  });
+
+  it("renders booleans, which React would otherwise show as nothing", () => {
+    expect(formatAttributeValue(true)).toBe("true");
+    expect(formatAttributeValue(false)).toBe("false");
+  });
+
+  it("renders objects and arrays as JSON", () => {
+    expect(formatAttributeValue({ a: 1 })).toBe('{"a":1}');
+    expect(formatAttributeValue([1, "x"])).toBe('[1,"x"]');
+  });
+
+  it("survives a value JSON refuses", () => {
+    const circular = {};
+    circular.self = circular;
+    expect(typeof formatAttributeValue(circular)).toBe("string");
+  });
+
+  it("leaves strings and numbers alone", () => {
+    expect(formatAttributeValue("depth")).toBe("depth");
+    expect(formatAttributeValue(0)).toBe(0);
+  });
+
+  it("renders null and undefined as empty", () => {
+    expect(formatAttributeValue(null)).toBe("");
+    expect(formatAttributeValue(undefined)).toBe("");
+  });
+});
+
+describe("getStyleFields for the client-side vector formats", () => {
+  // ModuleLoader is pulled in lazily so its readers stay out of the twenty-odd
+  // modules that import map/utilities; the mock has to answer that same path.
+  const loaderPath = "components/map/ModuleLoader";
+
+  afterEach(() => {
+    jest.dontMock(loaderPath);
+    jest.resetModules();
+  });
+
+  async function styleFieldsWith(mockLoader, sourceProps) {
+    jest.doMock(loaderPath, () => mockLoader);
+    const { getStyleFields: fresh } = await import("components/map/utilities");
+    return fresh({
+      sourceProps,
+      layerProps: { name: "Layer" },
+      dashboard_uuid: "u",
+    });
+  }
+
+  it("offers a GeoParquet file's attribute columns", async () => {
+    const listGeoParquetColumns = jest
+      .fn()
+      .mockResolvedValue(["site_id", "elevation_m"]);
+    await expect(
+      styleFieldsWith(
+        { listGeoParquetColumns, listGeoPackageFields: jest.fn() },
+        { type: "GeoParquet", props: { url: "https://h/a.parquet" } },
+      ),
+    ).resolves.toEqual(["site_id", "elevation_m"]);
+    expect(listGeoParquetColumns).toHaveBeenCalledWith("https://h/a.parquet");
+  });
+
+  it("offers the fields of the GeoPackage table the author chose", async () => {
+    const listGeoPackageFields = jest.fn().mockResolvedValue(["basin_name"]);
+    await expect(
+      styleFieldsWith(
+        { listGeoParquetColumns: jest.fn(), listGeoPackageFields },
+        {
+          type: "GeoPackage",
+          props: { url: "https://h/a.gpkg", layer: "subbasins" },
+        },
+      ),
+    ).resolves.toEqual(["basin_name"]);
+    // The table matters: a GeoPackage's fields differ per table.
+    expect(listGeoPackageFields).toHaveBeenCalledWith(
+      "https://h/a.gpkg",
+      "subbasins",
+    );
+  });
+
+  it("returns no fields rather than throwing when the read fails", async () => {
+    await expect(
+      styleFieldsWith(
+        {
+          listGeoParquetColumns: jest
+            .fn()
+            .mockRejectedValue(new Error("Failed to fetch")),
+          listGeoPackageFields: jest.fn(),
+        },
+        { type: "GeoParquet", props: { url: "https://h/gone.parquet" } },
+      ),
+    ).resolves.toEqual([]);
   });
 });

@@ -231,10 +231,15 @@ const zarrSliceCache = new Map();
 const ZARR_SLICE_CACHE_MAX = 8;
 
 // Test seam: these caches are module-scoped by design, so a suite that asserts
-// on read counts needs to start from empty.
+// on read counts needs to start from empty. Every client-side read cache must
+// be listed here -- one left out leaks a parsed file from whichever test read
+// it first into every later test that asserts a read happened.
 export function clearClientSourceCaches() {
   zarrSliceCache.clear();
+  geoPackageCache.clear();
   geoParquetCache.clear();
+  geoPackageContents.invalidate();
+  geoParquetColumns.invalidate();
 }
 
 function getZarrSlice(source) {
@@ -691,6 +696,118 @@ export async function loadGeoPackage(config, mapProjection) {
   return source;
 }
 
+// The display projection a discovery read reprojects into. loadGpkg takes one
+// and throws *synchronously* when it is not registered, so discovery cannot
+// simply pass nothing. The value is not observable in the result -- only
+// Object.keys(dataByTable) is read and every reprojected geometry is discarded
+// -- so it only has to be a projection that resolves.
+const GEOPACKAGE_DISCOVERY_PROJECTION = "EPSG:3857";
+
+/**
+ * A single-flight promise cache keyed by resolved URL, for the discovery reads
+ * that answer "what does this file contain?".
+ *
+ * The entry is planted synchronously, before the reader's first await, so a
+ * second caller arriving in the same tick joins the in-flight read instead of
+ * starting its own. A rejection is evicted so a transient network or CORS
+ * failure can be retried rather than pinning the menu to that error forever.
+ *
+ * `invalidate` exists because these caches sit behind the discovery hook's own
+ * memo: a forced re-read that cleared only the memo would land here and be
+ * handed the same list straight back, so the control would spin and nothing on
+ * screen would change. Called with no url, it clears every entry.
+ */
+function createUrlKeyedCache({ read, missingUrl }) {
+  const cache = new Map();
+
+  const get = (rawUrl) => {
+    if (!rawUrl) return Promise.reject(missingUrl());
+    const url = s3UrlToHttps(rawUrl);
+    if (!cache.has(url)) {
+      cache.set(
+        url,
+        read(url).catch((error) => {
+          cache.delete(url);
+          throw error;
+        }),
+      );
+    }
+    return cache.get(url);
+  };
+
+  const invalidate = (rawUrl) => {
+    if (rawUrl === undefined) {
+      cache.clear();
+      return;
+    }
+    cache.delete(s3UrlToHttps(rawUrl));
+  };
+
+  return { get, invalidate };
+}
+
+// Discovery's own parsed-gpkg cache, keyed by resolved URL alone. Deliberately
+// not geoPackageCache above, which is keyed `${url}::${mapProjection}`: the
+// editor has no map projection to key with (MapContext exposes only
+// map-readiness and extent-draw state), and a forced re-read from the editor
+// must not evict an entry a rendered layer is still awaiting. The cost is one
+// download not shared with the render path.
+const geoPackageContents = createUrlKeyedCache({
+  read: (url) => readGeoPackageContents(url),
+  missingUrl: () =>
+    new GeoPackageError("GeoPackage source requires a file URL"),
+});
+
+// List the table names in a GeoPackage file. loadGeoPackage above needs a table
+// name and throws without one, which is exactly the state an author picking a
+// table is in; this reads the same file and answers with the names instead.
+export const listGeoPackageTables = (rawUrl) =>
+  geoPackageContents.get(rawUrl).then((contents) => contents.tables);
+export const invalidateGeoPackageTables = geoPackageContents.invalidate;
+
+// The attribute names of one table, for the style rule editor. Shares the cache
+// -- and therefore the download -- with the table listing above: parsing a
+// GeoPackage means reading the whole file, so doing it twice for one url would
+// be the expensive half of this feature done twice.
+export const listGeoPackageFields = (rawUrl, table) =>
+  geoPackageContents
+    .get(rawUrl)
+    .then((contents) => contents.fieldsByTable[table] ?? []);
+
+// Attribute names on a parsed table, geometry excluded: it is the shape of the
+// feature, not something a rule can test.
+function geoPackageTableFields(source) {
+  const feature = source?.getFeatures?.()?.[0];
+  if (!feature) return [];
+  const geometryName = feature.getGeometryName?.();
+  return Object.keys(feature.getProperties?.() ?? {}).filter(
+    (name) => name !== geometryName,
+  );
+}
+
+async function readGeoPackageContents(url) {
+  // Register before loadGpkg rather than relying on the render path having run
+  // first: discovery can run before any GeoPackage layer has ever rendered, and
+  // an unregistered display projection makes loadGpkg throw.
+  registerGeoPackageProjections();
+  const { loadGpkg } = await getGeoPackageLib();
+  try {
+    const [dataByTable] = await loadGpkg(url, GEOPACKAGE_DISCOVERY_PROJECTION);
+    const tables = Object.keys(dataByTable ?? {});
+    const fieldsByTable = {};
+    for (const table of tables) {
+      fieldsByTable[table] = geoPackageTableFields(dataByTable[table]);
+    }
+    return { tables, fieldsByTable };
+  } catch (error) {
+    // Surface why the read failed. Returning an empty list here would be read
+    // as "this file has no tables", which is a different and wrong answer.
+    throw new GeoPackageError(
+      `Could not read the GeoPackage file: ${error?.message ?? error}`,
+    );
+  }
+}
+
 export class GeoParquetError extends Error {}
 
 // OGC's lon/lat WGS84 authority code, spelled several ways across PROJJSON
@@ -1006,6 +1123,100 @@ async function readGeoParquetFile(url, readOptions = {}) {
     featureCollection: { type: "FeatureCollection", features },
     dataProjection,
   };
+}
+
+// Discovery's own metadata cache, keyed by resolved URL alone. Separate from
+// geoParquetCache because that one keys on the read options (columns/bbox/
+// maxFeatures) an author has not chosen yet.
+const geoParquetColumns = createUrlKeyedCache({
+  read: (url) => readGeoParquetColumns(url),
+  missingUrl: () =>
+    new GeoParquetError("GeoParquet source requires a file URL"),
+});
+
+// List a GeoParquet file's selectable attribute columns. Unlike the GeoPackage
+// read this touches only the file footer, since hyparquet ranges into it.
+export const listGeoParquetColumns = geoParquetColumns.get;
+export const invalidateGeoParquetColumns = geoParquetColumns.invalidate;
+
+// A parquet schema arrives as a flat, depth-first list: the root element,
+// followed by each of its children with that child's own subtree inlined
+// straight after it. Walking every element would offer nested leaves, so skip
+// whole subtrees and return only the root's direct children.
+//
+// Top-level names are the only correct answer here. hyparquet matches a
+// requested column against `pathInSchema[0]` (read.js), so a leaf or dotted
+// path is silently ignored at read time -- the author would pick a column,
+// save, and get a layer rendered without it and no error anywhere.
+function topLevelParquetColumns(schema) {
+  if (!Array.isArray(schema) || schema.length < 2) return [];
+  const subtreeSize = (index) => {
+    let size = 1;
+    let child = index + 1;
+    // num_children comes out of the file. A corrupt or hostile footer can
+    // declare more children than the schema actually holds, and counting down a
+    // file-supplied number with no floor spins this loop until the tab dies --
+    // so the end of the list is the real bound.
+    for (
+      let n = schema[index]?.num_children ?? 0;
+      n > 0 && child < schema.length;
+      n--
+    ) {
+      const childSize = subtreeSize(child);
+      child += childSize;
+      size += childSize;
+    }
+    return size;
+  };
+  const names = [];
+  // A root that declares no child count is malformed rather than empty, so walk
+  // to the end of the list instead of returning nothing.
+  let remaining = schema[0]?.num_children ?? Infinity;
+  let index = 1;
+  while (index < schema.length && remaining > 0) {
+    names.push(schema[index].name);
+    index += subtreeSize(index);
+    remaining -= 1;
+  }
+  return names;
+}
+
+async function readGeoParquetColumns(url) {
+  const { asyncBufferFromUrl, parquetMetadataAsync } = await getHyparquet();
+  try {
+    const file = await asyncBufferFromUrl({ url });
+    const metadata = await parquetMetadataAsync(file);
+    const { geometryColumn, bboxColumn } = readGeoParquetGeoMetadata(metadata);
+
+    const hidden = new Set([geometryColumn]);
+    if (bboxColumn) {
+      // readCoveringBBoxPaths returns dotted physical paths ("bbox.xmin"), and
+      // the offered names are top-level, so reduce to the first segment -- the
+      // same reduction resolveReadColumns makes when it adds them to a read.
+      for (const path of Object.values(bboxColumn)) {
+        hidden.add(path.split(".")[0]);
+      }
+    }
+    // The geometry and covering columns are machinery the reader consumes on
+    // its own: the reader always includes the geometry column and hides the
+    // covering one from the popup, so offering either invites a selection that
+    // changes nothing the author can see.
+    return topLevelParquetColumns(metadata?.schema).filter(
+      (name) => !hidden.has(name),
+    );
+  } catch (error) {
+    // Fail with a reason. An empty list would read as "this file has no
+    // attribute columns", which is a different and wrong answer.
+    if (error instanceof GeoParquetError) throw error;
+    throw new GeoParquetError(
+      // The remedy is the presentation layer's job -- the discovery note already
+      // appends TRANSFER_REMEDY for a transfer-stage failure, so repeating it
+      // here printed the same sentence twice. The range-request half is
+      // format-specific, so only that stays.
+      `Could not read the GeoParquet file: ${error?.message ?? error}. ` +
+        `The host must also support range requests.`,
+    );
+  }
 }
 
 // Bounding-box overlap for a GeoJSON geometry, used only when the file has no
