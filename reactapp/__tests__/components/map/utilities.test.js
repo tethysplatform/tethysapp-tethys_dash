@@ -26,6 +26,7 @@ import {
   shiftEPSG3857ExtentAndPoint,
   coerceOptionalNumber,
   formatAttributeValue,
+  coerceOptionalBoolean,
 } from "components/map/utilities";
 import VectorSource from "ol/source/Vector.js";
 import Feature from "ol/Feature.js";
@@ -4650,4 +4651,67 @@ describe("getStyleFields for the client-side vector formats", () => {
       ),
     ).resolves.toEqual([]);
   });
+});
+
+describe("coerceOptionalBoolean", () => {
+  it("passes a real boolean straight through", () => {
+    expect(coerceOptionalBoolean(true)).toBe(true);
+    expect(coerceOptionalBoolean(false)).toBe(false);
+  });
+
+  it("reads the spellings a GUI input can emit", () => {
+    for (const yes of ["true", "1", "yes", "TRUE", " Yes "]) {
+      expect(coerceOptionalBoolean(yes)).toBe(true);
+    }
+    for (const no of ["false", "0", "no", "No"]) {
+      expect(coerceOptionalBoolean(no)).toBe(false);
+    }
+  });
+
+  it("treats absent, blank and unrecognised alike as unset", () => {
+    // Unset is not false: an unset layer prop must fall through to OpenLayers'
+    // own default rather than being pinned off.
+    expect(coerceOptionalBoolean(null)).toBeUndefined();
+    expect(coerceOptionalBoolean(undefined)).toBeUndefined();
+    expect(coerceOptionalBoolean("   ")).toBeUndefined();
+    expect(coerceOptionalBoolean("maybe")).toBeUndefined();
+  });
+});
+
+test("getStyleFields tolerates a layer with no name for a PMTiles source", async () => {
+  // layerProps is optional on this call, so the layer name falls back to "".
+  jest
+    .spyOn(PMTiles.prototype, "getZxy")
+    .mockResolvedValue({ data: "some data" });
+  jest
+    .spyOn(require("@mapbox/vector-tile"), "VectorTile")
+    .mockImplementation(() => ({ layers: {} }));
+
+  await expect(
+    getStyleFields({
+      sourceProps: {
+        type: "PMTiles Vector",
+        props: { url: "some/url.pmtiles" },
+      },
+      dashboard_uuid: "u",
+    }),
+  ).resolves.toEqual([]);
+});
+
+test("getStyleFields ignores a GeoJSON feature carrying no properties", async () => {
+  const styleFields = await getStyleFields({
+    sourceProps: {
+      type: "GeoJSON",
+      geojson: {
+        type: "FeatureCollection",
+        features: [
+          { type: "Feature" },
+          { type: "Feature", properties: { a: 1 } },
+        ],
+      },
+    },
+    layerProps: { name: "Layer" },
+    dashboard_uuid: "u",
+  });
+  expect(styleFields).toEqual(["a"]);
 });

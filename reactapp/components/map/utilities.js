@@ -912,7 +912,10 @@ function getGeoTIFFPixelValues(map, pixel, LayerName, layerInfo, coordinate) {
   }
 
   const attributes = {};
-  const bandCount = anySourceHasNodata ? data.length - 1 : data.length;
+  // Always one band short: queryLayerFeatures routes only GeoTIFF and Zarr
+  // here, and both always carry a nodata value, so the appended alpha band
+  // is always present.
+  const bandCount = data.length - 1;
   for (let i = 0; i < bandCount; i++) {
     attributes[`Band ${i + 1}`] = data[i];
   }

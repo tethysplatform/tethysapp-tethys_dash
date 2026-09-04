@@ -19,6 +19,7 @@ import {
   buildImageVizCacheKey,
   argsContainPreset,
   IMAGE_VIZ_CACHE_LIMIT,
+  toNumberOrEmpty,
 } from "components/visualizations/utilities";
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
@@ -2226,5 +2227,20 @@ describe("findUnresolvedVariableInputTokens", () => {
     expect(findUnresolvedVariableInputTokens("${A}")).toEqual(["A"]);
     expect(findUnresolvedVariableInputTokens("${B}")).toEqual(["B"]);
     expect(findUnresolvedVariableInputTokens("${C}")).toEqual(["C"]);
+  });
+});
+
+describe("toNumberOrEmpty", () => {
+  it("parses a numeric value", () => {
+    expect(toNumberOrEmpty("12.5")).toBe(12.5);
+    expect(toNumberOrEmpty(0)).toBe(0);
+  });
+
+  it("gives back an empty string for anything unparseable", () => {
+    // Empty rather than NaN: the value goes straight into a controlled input,
+    // and NaN there renders as the literal text "NaN".
+    expect(toNumberOrEmpty("abc")).toBe("");
+    expect(toNumberOrEmpty("")).toBe("");
+    expect(toNumberOrEmpty(undefined)).toBe("");
   });
 });

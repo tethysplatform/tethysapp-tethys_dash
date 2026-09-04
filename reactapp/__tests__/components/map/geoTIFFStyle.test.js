@@ -1,6 +1,7 @@
 import {
   buildGeoTIFFStyleColor,
   buildCategoricalStyleColor,
+  isUsableClass,
 } from "components/map/geoTIFFStyle";
 import { COLOR_RAMPS, RAMP_STOPS } from "components/map/colorRamps";
 
@@ -426,5 +427,27 @@ describe("buildCategoricalStyleColor", () => {
       /at least one class/i,
     );
     expect(() => buildCategoricalStyleColor({})).toThrow(/at least one class/i);
+  });
+});
+
+describe("isUsableClass", () => {
+  it("rejects an entry with no value at all", () => {
+    expect(isUsableClass(undefined)).toBe(false);
+    expect(isUsableClass({})).toBe(false);
+    expect(isUsableClass({ value: null })).toBe(false);
+  });
+
+  it("rejects a value that is only whitespace", () => {
+    expect(isUsableClass({ value: "   " })).toBe(false);
+  });
+
+  it("accepts a numeric class that carries a color, including zero", () => {
+    expect(isUsableClass({ value: 0, color: "#fff" })).toBe(true);
+    expect(isUsableClass({ value: "3", color: "#fff" })).toBe(true);
+  });
+
+  it("rejects a class that is not numeric, or has no color to draw with", () => {
+    expect(isUsableClass({ value: "forest", color: "#fff" })).toBe(false);
+    expect(isUsableClass({ value: 3 })).toBe(false);
   });
 });
