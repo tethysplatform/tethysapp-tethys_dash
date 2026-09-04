@@ -365,6 +365,24 @@ export default function useSourceArgumentDiscovery({
     });
   }, []);
 
+  const publishFailure = useCallback(
+    (argument, error, keyId) => {
+      const failure = failureFromError(error);
+      const kind = errorKindFor(failure);
+      update(argument, {
+        state: "failed",
+        options: NO_OPTIONS,
+        keyId,
+        retryable: isRetryable(kind),
+        failure: {
+          detail: failure.detail,
+          remedy: kind === ERROR_KIND.FETCH ? TRANSFER_REMEDY : null,
+        },
+      });
+    },
+    [update],
+  );
+
   const run = useCallback(
     async (argument, { force } = {}) => {
       const entry = args.find((candidate) => candidate.argument === argument);
@@ -398,6 +416,15 @@ export default function useSourceArgumentDiscovery({
         route.invalidate?.(key.url);
       } else if (cache.current.has(key.id)) {
         const read = cache.current.get(key.id);
+        // A failed read is a read that happened. Restarting it on every menu
+        // open wiped the explanation, re-fetched, and left the author fighting
+        // the control instead of typing the name they already knew. Retrying
+        // is the Re-read button's job, which forces past this.
+        if (read.error) {
+          publishFailure(argument, read.error, key.id);
+          update(argument, { slow: false });
+          return;
+        }
         update(argument, {
           state: read.options.length ? "ready" : "empty",
           options: read.options,
@@ -447,18 +474,8 @@ export default function useSourceArgumentDiscovery({
         });
       } catch (error) {
         if (!current()) return;
-        const failure = failureFromError(error);
-        const kind = errorKindFor(failure);
-        update(argument, {
-          state: "failed",
-          options: NO_OPTIONS,
-          keyId: key.id,
-          retryable: isRetryable(kind),
-          failure: {
-            detail: failure.detail,
-            remedy: kind === ERROR_KIND.FETCH ? TRANSFER_REMEDY : null,
-          },
-        });
+        cache.current.set(key.id, { error });
+        publishFailure(argument, error, key.id);
       } finally {
         // Clear this read's own timer. Clearing by argument would cancel the
         // timer of whichever read superseded this one, and the live read would
@@ -470,7 +487,7 @@ export default function useSourceArgumentDiscovery({
         if (current()) update(argument, { slow: false });
       }
     },
-    [args, keys, blocked, update],
+    [args, keys, blocked, update, publishFailure],
   );
 
   const load = useCallback((argument) => run(argument), [run]);
@@ -514,5 +531,8 @@ export default function useSourceArgumentDiscovery({
     return visible;
   }, [args, byArgument, keys, sourceProps?.props]);
 
-  return { discoveries, load, refresh };
+  return useMemo(
+    () => ({ discoveries, load, refresh }),
+    [discoveries, load, refresh],
+  );
 }
