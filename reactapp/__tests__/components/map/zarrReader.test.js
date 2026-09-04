@@ -22,11 +22,17 @@ jest.mock("zarrita", () => ({
     v3: async (store) => {
       const node = mockNodes[store.url];
       if (!node || node.v2only) throw new Error("v3 not found");
+      if (node.probeFetch && store.fetch) {
+        await store.fetch(mockRequestFor(`${store.url}/.zattrs`));
+      }
       return node;
     },
     v2: async (store) => {
       const node = mockNodes[store.url];
       if (!node) throw new Error("v2 not found");
+      if (node.probeFetch && store.fetch) {
+        await store.fetch(mockRequestFor(`${store.url}/.zattrs`));
+      }
       return node;
     },
   },
@@ -579,5 +585,238 @@ describe("listArrays", () => {
     expect(m.variables).toEqual(["depth"]);
     expect(m.slice_count).toBe(3);
     expect(m.slice_labels).toEqual(["0", "1", "2"]);
+  });
+});
+
+describe("environment and error-shape fallbacks", () => {
+  const ROOT2 = "https://x/store2.zarr";
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it("uses AbortSignal.timeout when the runtime provides it", async () => {
+    // jsdom has no AbortSignal.timeout, so the preferred path needs standing up.
+    const signal = new AbortController().signal;
+    const timeout = jest.fn(() => signal);
+    const original = AbortSignal.timeout;
+    AbortSignal.timeout = timeout;
+    try {
+      setStore({ [ROOT2]: { attrs: { crs: CRS, transform: TRANSFORM } } });
+      global.fetch = jest.fn(async () => new Response(null, { status: 404 }));
+      await listArrays({ url: ROOT2 });
+      expect(timeout).toHaveBeenCalled();
+    } finally {
+      if (original) AbortSignal.timeout = original;
+      else delete AbortSignal.timeout;
+    }
+  });
+
+  it("reads without a signal when the runtime has no AbortController", async () => {
+    const originalController = global.AbortController;
+    const originalTimeout = AbortSignal.timeout;
+    delete AbortSignal.timeout;
+    delete global.AbortController;
+    try {
+      setStore({ [ROOT2]: { attrs: { crs: CRS, transform: TRANSFORM } } });
+      global.fetch = jest.fn(async () => new Response(null, { status: 404 }));
+      await expect(listArrays({ url: ROOT2 })).resolves.toEqual({
+        names: [],
+        enumerated: false,
+      });
+    } finally {
+      global.AbortController = originalController;
+      if (originalTimeout) AbortSignal.timeout = originalTimeout;
+    }
+  });
+
+  it("reports a store that fails for a reason other than format", async () => {
+    // A non-format error from the v2 attempt is the real problem and must not
+    // be reworded as "not a zarr store".
+    setStore({});
+    global.fetch = jest.fn(async () => new Response(null, { status: 404 }));
+    const zarrita = jest.requireMock("zarrita");
+    const realV2 = zarrita.open.v2;
+    zarrita.open.v2 = async () => {
+      throw new Error("disk on fire");
+    };
+    try {
+      await expect(listArrays({ url: ROOT2 })).rejects.toThrow(/disk on fire/);
+    } finally {
+      zarrita.open.v2 = realV2;
+    }
+  });
+
+  it("names both attempts when neither format opens", async () => {
+    setStore({});
+    global.fetch = jest.fn(async () => new Response(null, { status: 404 }));
+    const zarrita = jest.requireMock("zarrita");
+    const realV2 = zarrita.open.v2;
+    const realV3 = zarrita.open.v3;
+    // Throw bare strings so the message fallbacks are what render.
+    zarrita.open.v3 = async () => {
+      // eslint-disable-next-line no-throw-literal
+      throw "v3 not found";
+    };
+    zarrita.open.v2 = async () => {
+      // eslint-disable-next-line no-throw-literal
+      throw "no such node";
+    };
+    try {
+      await expect(listArrays({ url: ROOT2 })).rejects.toThrow(
+        /v3: v3 not found; v2: no such node/,
+      );
+    } finally {
+      zarrita.open.v2 = realV2;
+      zarrita.open.v3 = realV3;
+    }
+  });
+});
+
+describe("the store's own fetch handler", () => {
+  const ROOT3 = "https://x/store3.zarr";
+
+  it("passes a response through untouched when no remap was supplied", async () => {
+    // readMetadata builds its store without the 403->404 remap that listArrays
+    // installs, so the handler returns exactly what the network gave it.
+    const original = AbortSignal.timeout;
+    delete AbortSignal.timeout;
+    try {
+      setStore({
+        [ROOT3]: {
+          probeFetch: true,
+          attrs: { crs: CRS, transform: TRANSFORM },
+        },
+        [`${ROOT3}/depth`]: { shape: [2, 3], data: new Float32Array(6) },
+      });
+      global.fetch = jest.fn(async () => new Response(null, { status: 200 }));
+
+      const meta = await readMetadata({ url: ROOT3, variable: "depth" });
+      expect(meta.grid_shape).toEqual([2, 3]);
+      expect(global.fetch).toHaveBeenCalled();
+    } finally {
+      if (original) AbortSignal.timeout = original;
+    }
+  });
+
+  it("leaves a forbidden response alone unless it is a consolidated-metadata key", async () => {
+    // The remap exists so an object store's 403 on a missing .zmetadata reads
+    // as absent; a 403 on anything else is a real failure and must stay one.
+    setStore({ [ROOT3]: { attrs: { crs: CRS, transform: TRANSFORM } } });
+    global.fetch = jest.fn(async (request) => {
+      const path = new URL(request.url ?? request).pathname;
+      return new Response(null, {
+        status: path.endsWith(".zmetadata") ? 200 : 403,
+      });
+    });
+    mockContents = [{ path: "/", kind: "group" }];
+
+    await expect(listArrays({ url: ROOT3 })).resolves.toEqual({
+      names: [],
+      enumerated: true,
+    });
+  });
+});
+
+it("hands back a non-metadata response untouched even with the remap installed", async () => {
+  // The remap only reinterprets the consolidated-metadata key. Anything else
+  // the store asks for keeps whatever status the network gave it.
+  const ROOT4 = "https://x/store4.zarr";
+  setStore({
+    [ROOT4]: { probeFetch: true, attrs: { crs: CRS, transform: TRANSFORM } },
+  });
+  const seen = [];
+  global.fetch = jest.fn(async (request) => {
+    const path = new URL(request.url ?? request).pathname;
+    seen.push(path);
+    // Forbidden on a key that is NOT consolidated metadata: the remap has to
+    // leave it exactly as it is, or a store nobody may read would look empty.
+    return new Response(null, {
+      status: path.endsWith(".zmetadata") ? 404 : 403,
+    });
+  });
+
+  await expect(listArrays({ url: ROOT4 })).resolves.toEqual({
+    names: [],
+    enumerated: false,
+  });
+  expect(seen.some((p) => p.endsWith(".zattrs"))).toBe(true);
+});
+
+describe("remaining edges", () => {
+  const R = "https://x/edges.zarr";
+
+  it("reports zero range when every cell is masked", async () => {
+    setStore({
+      [R]: { attrs: { crs: CRS, transform: TRANSFORM } },
+      [`${R}/depth`]: {
+        shape: [2, 2],
+        data: new Float32Array([-9, -9, -9, -9]),
+      },
+    });
+    const slice = await readSlice({
+      url: R,
+      variable: "depth",
+      sourceNodata: -9,
+    });
+    expect(slice.min).toBe(0);
+    expect(slice.max).toBe(0);
+  });
+
+  it("reports a store with no crs attribute as having none", async () => {
+    setStore({
+      [R]: { attrs: { transform: TRANSFORM } },
+      [`${R}/depth`]: { shape: [2, 2], data: new Float32Array(4) },
+    });
+    await expect(
+      readMetadata({ url: R, variable: "depth" }),
+    ).resolves.toMatchObject({ crs: null });
+  });
+
+  it("each reader rejects rather than throwing when called with nothing", async () => {
+    await expect(readSlice()).rejects.toThrow();
+    await expect(readMetadata()).rejects.toThrow();
+    await expect(listArrays()).rejects.toThrow();
+  });
+
+  it("propagates a thrown value with no message instead of guessing at it", async () => {
+    // isFormatMismatch reads error?.message ?? error ?? "" so a thrown
+    // undefined cannot crash the check. It is also not a format mismatch, so
+    // it escapes as-is rather than being reworded into "not a zarr store".
+    setStore({});
+    global.fetch = jest.fn(async () => new Response(null, { status: 404 }));
+    const zarrita = jest.requireMock("zarrita");
+    const realV3 = zarrita.open.v3;
+    zarrita.open.v3 = async () => {
+      // eslint-disable-next-line no-throw-literal
+      throw undefined;
+    };
+    try {
+      await expect(listArrays({ url: R })).rejects.toBeUndefined();
+    } finally {
+      zarrita.open.v3 = realV3;
+    }
+  });
+
+  it("opens arrays as v2 when the store opened as v2", async () => {
+    // The format is carried from the root open so each array is not re-probed.
+    setStore({
+      [R]: { v2only: true, attrs: { crs: CRS, transform: TRANSFORM } },
+      [`${R}/depth`]: {
+        v2only: true,
+        shape: [2, 3],
+        data: new Float32Array(6),
+      },
+    });
+    mockContents = [
+      { path: "/", kind: "group" },
+      { path: "/depth", kind: "array" },
+    ];
+    global.fetch = jest.fn(async () => new Response(null, { status: 200 }));
+
+    await expect(listArrays({ url: R })).resolves.toEqual({
+      names: ["depth"],
+      enumerated: true,
+    });
   });
 });

@@ -393,7 +393,7 @@ export default function useSourceArgumentDiscovery({
           state: "nokey",
           failure: null,
           options: NO_OPTIONS,
-          blockedBy: blocked[argument] ?? null,
+          blockedBy: blocked[argument],
         });
         return;
       }

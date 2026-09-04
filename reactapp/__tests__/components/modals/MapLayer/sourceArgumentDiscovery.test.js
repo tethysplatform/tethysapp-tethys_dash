@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import useSourceArgumentDiscovery, {
   discoverableArguments,
+  staleEntries,
   failureFromError,
   METADATA_SLOW_MS,
   WHOLE_FILE_SLOW_MS,
@@ -752,5 +753,145 @@ describe("failure classification", () => {
     expect(failureFromError(new TypeError("Failed to fetch")).stage).toBe(
       "fetch",
     );
+  });
+});
+
+describe("defensive paths", () => {
+  test("a metadata read that answers with nothing yields no slices", async () => {
+    // meta?.slice_count ?? 0 and meta?.slice_labels ?? [] -- a reader that
+    // resolves undefined must read as "no slices", not throw.
+    readMetadata.mockResolvedValue(undefined);
+    const { result } = setup({ sourceProps: zarrProps({ variable: "depth" }) });
+    await act(async () => result.current.load("index"));
+
+    expect(result.current.discoveries.index.state).toBe("empty");
+    expect(result.current.discoveries.index.options).toEqual([]);
+    expect(result.current.discoveries.index.sliceCount).toBe(0);
+  });
+
+  test("slices fall back to their position when the store carries no labels", async () => {
+    readMetadata.mockResolvedValue({ slice_count: 2 });
+    const { result } = setup({ sourceProps: zarrProps({ variable: "depth" }) });
+    await act(async () => result.current.load("index"));
+
+    expect(result.current.discoveries.index.options).toEqual([
+      { value: "0", label: "0" },
+      { value: "1", label: "1" },
+    ]);
+  });
+
+  test("a source type declaring only one group still reports its arguments", () => {
+    // Every registered type carries both groups today, so this guard is only
+    // reachable by removing one -- which a future source type could do.
+    const zarr = sourcePropertiesOptions.Zarr;
+    const optional = zarr.optional;
+    delete zarr.optional;
+    try {
+      expect(discoverableArguments("Zarr").map((a) => a.argument)).toEqual([
+        "variable",
+      ]);
+    } finally {
+      zarr.optional = optional;
+    }
+  });
+
+  test("no variable input context at all is treated as none supplied", async () => {
+    const { result } = renderHook(() =>
+      useSourceArgumentDiscovery({ sourceProps: zarrProps() }),
+    );
+    await act(async () => result.current.load("variable"));
+    expect(listArrays).toHaveBeenCalledWith({ url: "https://host/store.zarr" });
+  });
+
+  test("a non-Error rejection still produces a readable failure", () => {
+    // error?.message ?? String(error) -- a reader that rejects with a string.
+    expect(failureFromError("something went sideways").detail).toBe(
+      "something went sideways",
+    );
+  });
+
+  test("staleEntries with no option list flags nothing it cannot check", () => {
+    expect(
+      staleEntries({ value: "depth", options: undefined, declaration: {} }),
+    ).toEqual(["depth"]);
+  });
+
+  test("loading an argument the source does not declare is a no-op", async () => {
+    const { result } = setup();
+    await act(async () => result.current.load("nonexistent"));
+    expect(listArrays).not.toHaveBeenCalled();
+  });
+});
+
+describe("a read that is superseded before it settles", () => {
+  const otherUrl = {
+    type: "Zarr",
+    props: { url: "https://host/second.zarr" },
+  };
+
+  test("an empty result stays empty when it is served from memory", async () => {
+    listArrays.mockResolvedValue({ names: [], enumerated: true });
+    const { result } = setup();
+    await act(async () => result.current.load("variable"));
+    expect(result.current.discoveries.variable.state).toBe("empty");
+
+    await act(async () => result.current.load("variable"));
+    expect(result.current.discoveries.variable.state).toBe("empty");
+    expect(listArrays).toHaveBeenCalledTimes(1);
+  });
+
+  test("its slow timer does not report on the read that replaced it", async () => {
+    jest.useFakeTimers();
+    try {
+      listArrays.mockImplementation(() => new Promise(() => {}));
+      const { result, rerender } = setup();
+      act(() => {
+        result.current.load("variable");
+      });
+
+      rerender({
+        sourceProps: otherUrl,
+        variableInputValues: {},
+        variableInputDateFormats: {},
+      });
+
+      // The first read's timer is still pending and is no longer current, so
+      // firing it must publish nothing.
+      act(() => {
+        jest.advanceTimersByTime(METADATA_SLOW_MS + 1);
+      });
+      expect(result.current.discoveries.variable.slow).toBe(false);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  test("its failure does not publish either", async () => {
+    let rejectFirst;
+    listArrays.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          rejectFirst = () => reject(new TypeError("Failed to fetch"));
+        }),
+    );
+    const { result, rerender } = setup();
+    act(() => {
+      result.current.load("variable");
+    });
+
+    rerender({
+      sourceProps: otherUrl,
+      variableInputValues: {},
+      variableInputDateFormats: {},
+    });
+
+    await act(async () => {
+      rejectFirst();
+      await Promise.resolve();
+    });
+
+    // A failure belonging to an abandoned read must not surface against the
+    // url the author has moved on to.
+    expect(result.current.discoveries.variable.state).not.toBe("failed");
   });
 });
