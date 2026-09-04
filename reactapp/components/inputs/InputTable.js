@@ -8,7 +8,14 @@ const FullInput = styled.input`
   width: 100%;
 `;
 
-const FullLabel = styled.label`
+// Deliberately not a <label>. It used to be, wrapping the whole table -- and a
+// label with no `for` implicitly labels its first labelable descendant, so
+// clicking anything inside it that is not itself a control forwarded the
+// activation to the first input. Every cell was a plain text input until a
+// select arrived, and react-select renders its control as a div: clicking it
+// focused the first input instead and the dropdown shut on mouseup, which is
+// when a label's activation behavior fires.
+const FullLabel = styled.div`
   width: 100%;
 `;
 

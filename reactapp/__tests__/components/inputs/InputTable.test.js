@@ -493,3 +493,34 @@ describe("InputTable select rows", () => {
     expect(screen.getByText("Variable / array name")).toBeInTheDocument();
   });
 });
+
+it("does not hand focus to the first input when a non-control cell is clicked", async () => {
+  // The table used to be wrapped in a <label>. A label with no `for` labels its
+  // first labelable descendant, so clicking anything inside it that is not
+  // itself a control handed focus to that first input -- which shut a dropdown
+  // in a later row the moment the mouse came up.
+  const user = userEvent.setup();
+  render(
+    <InputTable
+      label="Source Properties"
+      onChange={jest.fn()}
+      values={[
+        { property: "url", value: "https://host/store.zarr" },
+        { property: "variable", value: "" },
+      ]}
+      disabledFields={["property"]}
+      types={["text", "select"]}
+      selectConfigs={[
+        null,
+        {
+          options: [{ value: "depth", label: "depth" }],
+          onMenuOpen: jest.fn(),
+        },
+      ]}
+    />,
+  );
+
+  const urlInput = screen.getByLabelText("value Input 0");
+  await user.click(screen.getByText("variable"));
+  expect(urlInput).not.toHaveFocus();
+});
