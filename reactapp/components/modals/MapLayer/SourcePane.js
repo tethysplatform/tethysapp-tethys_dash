@@ -120,17 +120,42 @@ const ArgumentDiscoveryNote = ({ argument, discovery, onRefresh }) => {
     enumerated,
     blockedBy,
   } = discovery;
-  if (state === "idle") return null;
-
   // A slice is a position, so it is reported against the range the array has
   // rather than against a list of names the source never offered.
   const outOfRange = typeof sliceCount === "number";
 
+  const showNoKey = state === "nokey";
+  const showSlow = state === "loading" && slow;
+  const showEmpty = state === "empty";
+  const showFailure = state === "failed" && Boolean(failure);
+  const showStale = stale?.length > 0;
+  const showRefresh =
+    state === "ready" || state === "empty" || (state === "failed" && retryable);
+
+  // Render nothing at all rather than an empty wrapper. A read that has only
+  // just started has nothing to say, and the wrapper's margin alone was enough
+  // to grow the row the moment the menu opened -- a layout shift landing
+  // between the author's mousedown and mouseup, which is not a thing a status
+  // line should ever cause.
+  if (
+    !showNoKey &&
+    !showSlow &&
+    !showEmpty &&
+    !showFailure &&
+    !showStale &&
+    !showRefresh
+  ) {
+    return null;
+  }
+
   return (
-    <div style={{ marginTop: "0.35rem" }}>
+    <div
+      style={{ marginTop: "0.35rem" }}
+      data-testid={`discovery-note-${argument}`}
+    >
       {/* Naming what is actually missing: telling an author to enter a url they
           have already entered sends them looking in the wrong place. */}
-      {state === "nokey" && (
+      {showNoKey && (
         <small style={{ color: "#6c757d" }}>
           {blockedBy?.reason === "dependency"
             ? `Choose ${blockedBy.missingSibling ?? "the argument this one depends on"} first to see the available values.`
@@ -138,7 +163,7 @@ const ArgumentDiscoveryNote = ({ argument, discovery, onRefresh }) => {
         </small>
       )}
 
-      {state === "loading" && slow && (
+      {showSlow && (
         <div role="status" aria-live="polite">
           <small>
             Still reading this source &mdash; large files take a while.
@@ -148,7 +173,7 @@ const ArgumentDiscoveryNote = ({ argument, discovery, onRefresh }) => {
 
       {/* Two different answers that used to read the same. A source that was
           listed and holds nothing is not a source that could not be listed. */}
-      {state === "empty" && (
+      {showEmpty && (
         <Alert variant="secondary" style={{ marginTop: "0.35rem" }}>
           {enumerated
             ? "This source was read and offers nothing here \u2014 type the value if you know it."
@@ -156,7 +181,7 @@ const ArgumentDiscoveryNote = ({ argument, discovery, onRefresh }) => {
         </Alert>
       )}
 
-      {state === "failed" && failure && (
+      {showFailure && (
         <Alert variant="danger" role="alert" style={{ marginTop: "0.35rem" }}>
           {failure.detail}
           {failure.remedy && (
@@ -172,7 +197,7 @@ const ArgumentDiscoveryNote = ({ argument, discovery, onRefresh }) => {
 
       {/* The value is reported, never corrected: the author is the only one who
           knows whether the source was renamed or the wrong URL was typed. */}
-      {stale?.length > 0 && (
+      {showStale && (
         <Alert variant="warning" role="alert" style={{ marginTop: "0.35rem" }}>
           {outOfRange ? (
             <>
@@ -206,9 +231,7 @@ const ArgumentDiscoveryNote = ({ argument, discovery, onRefresh }) => {
       {/* Offered after any read that produced an answer, because recovering a
           republished source is what it exists for -- and after a failure only
           when retrying could plausibly succeed. */}
-      {(state === "ready" ||
-        state === "empty" ||
-        (state === "failed" && retryable)) && (
+      {showRefresh && (
         <Button
           variant="link"
           size="sm"

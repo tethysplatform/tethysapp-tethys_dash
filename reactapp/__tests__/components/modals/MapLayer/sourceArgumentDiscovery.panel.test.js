@@ -427,3 +427,32 @@ describe("the other discoverable source types", () => {
     expect(screen.getByText(/was read and offers nothing/)).toBeInTheDocument();
   });
 });
+
+describe("the note does not disturb the row", () => {
+  it("renders nothing while a read is merely in flight", () => {
+    // An empty wrapper still carries its margin, so the row grew the instant
+    // the menu opened -- a layout shift landing between mousedown and mouseup.
+    renderPane({
+      sourceProps: zarr(),
+      argumentDiscovery: discovery({
+        variable: entry({ state: "loading", slow: false }),
+        index: entry(),
+      }),
+    });
+    expect(
+      screen.queryByTestId("discovery-note-variable"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does render once the read has something to say", () => {
+    renderPane({
+      sourceProps: zarr(),
+      argumentDiscovery: discovery({
+        variable: entry({ state: "loading", slow: true }),
+        index: entry(),
+      }),
+    });
+    expect(screen.getByTestId("discovery-note-variable")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(/Still reading/);
+  });
+});
