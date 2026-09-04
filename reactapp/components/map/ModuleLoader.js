@@ -238,7 +238,7 @@ export function clearClientSourceCaches() {
   zarrSliceCache.clear();
   geoPackageCache.clear();
   geoParquetCache.clear();
-  geoPackageTables.invalidate();
+  geoPackageContents.invalidate();
   geoParquetColumns.invalidate();
 }
 
@@ -752,8 +752,8 @@ function createUrlKeyedCache({ read, missingUrl }) {
 // map-readiness and extent-draw state), and a forced re-read from the editor
 // must not evict an entry a rendered layer is still awaiting. The cost is one
 // download not shared with the render path.
-const geoPackageTables = createUrlKeyedCache({
-  read: (url) => readGeoPackageTables(url),
+const geoPackageContents = createUrlKeyedCache({
+  read: (url) => readGeoPackageContents(url),
   missingUrl: () =>
     new GeoPackageError("GeoPackage source requires a file URL"),
 });
@@ -761,10 +761,31 @@ const geoPackageTables = createUrlKeyedCache({
 // List the table names in a GeoPackage file. loadGeoPackage above needs a table
 // name and throws without one, which is exactly the state an author picking a
 // table is in; this reads the same file and answers with the names instead.
-export const listGeoPackageTables = geoPackageTables.get;
-export const invalidateGeoPackageTables = geoPackageTables.invalidate;
+export const listGeoPackageTables = (rawUrl) =>
+  geoPackageContents.get(rawUrl).then((contents) => contents.tables);
+export const invalidateGeoPackageTables = geoPackageContents.invalidate;
 
-async function readGeoPackageTables(url) {
+// The attribute names of one table, for the style rule editor. Shares the cache
+// -- and therefore the download -- with the table listing above: parsing a
+// GeoPackage means reading the whole file, so doing it twice for one url would
+// be the expensive half of this feature done twice.
+export const listGeoPackageFields = (rawUrl, table) =>
+  geoPackageContents
+    .get(rawUrl)
+    .then((contents) => contents.fieldsByTable[table] ?? []);
+
+// Attribute names on a parsed table, geometry excluded: it is the shape of the
+// feature, not something a rule can test.
+function geoPackageTableFields(source) {
+  const feature = source?.getFeatures?.()?.[0];
+  if (!feature) return [];
+  const geometryName = feature.getGeometryName?.();
+  return Object.keys(feature.getProperties?.() ?? {}).filter(
+    (name) => name !== geometryName,
+  );
+}
+
+async function readGeoPackageContents(url) {
   // Register before loadGpkg rather than relying on the render path having run
   // first: discovery can run before any GeoPackage layer has ever rendered, and
   // an unregistered display projection makes loadGpkg throw.
@@ -772,7 +793,12 @@ async function readGeoPackageTables(url) {
   const { loadGpkg } = await getGeoPackageLib();
   try {
     const [dataByTable] = await loadGpkg(url, GEOPACKAGE_DISCOVERY_PROJECTION);
-    return Object.keys(dataByTable ?? {});
+    const tables = Object.keys(dataByTable ?? {});
+    const fieldsByTable = {};
+    for (const table of tables) {
+      fieldsByTable[table] = geoPackageTableFields(dataByTable[table]);
+    }
+    return { tables, fieldsByTable };
   } catch (error) {
     // Surface why the read failed. Returning an empty list here would be read
     // as "this file has no tables", which is a different and wrong answer.

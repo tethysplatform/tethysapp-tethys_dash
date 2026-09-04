@@ -4585,3 +4585,69 @@ describe("formatAttributeValue", () => {
     expect(formatAttributeValue(undefined)).toBe("");
   });
 });
+
+describe("getStyleFields for the client-side vector formats", () => {
+  // ModuleLoader is pulled in lazily so its readers stay out of the twenty-odd
+  // modules that import map/utilities; the mock has to answer that same path.
+  const loaderPath = "components/map/ModuleLoader";
+
+  afterEach(() => {
+    jest.dontMock(loaderPath);
+    jest.resetModules();
+  });
+
+  async function styleFieldsWith(mockLoader, sourceProps) {
+    jest.doMock(loaderPath, () => mockLoader);
+    const { getStyleFields: fresh } = await import("components/map/utilities");
+    return fresh({
+      sourceProps,
+      layerProps: { name: "Layer" },
+      dashboard_uuid: "u",
+    });
+  }
+
+  it("offers a GeoParquet file's attribute columns", async () => {
+    const listGeoParquetColumns = jest
+      .fn()
+      .mockResolvedValue(["site_id", "elevation_m"]);
+    await expect(
+      styleFieldsWith(
+        { listGeoParquetColumns, listGeoPackageFields: jest.fn() },
+        { type: "GeoParquet", props: { url: "https://h/a.parquet" } },
+      ),
+    ).resolves.toEqual(["site_id", "elevation_m"]);
+    expect(listGeoParquetColumns).toHaveBeenCalledWith("https://h/a.parquet");
+  });
+
+  it("offers the fields of the GeoPackage table the author chose", async () => {
+    const listGeoPackageFields = jest.fn().mockResolvedValue(["basin_name"]);
+    await expect(
+      styleFieldsWith(
+        { listGeoParquetColumns: jest.fn(), listGeoPackageFields },
+        {
+          type: "GeoPackage",
+          props: { url: "https://h/a.gpkg", layer: "subbasins" },
+        },
+      ),
+    ).resolves.toEqual(["basin_name"]);
+    // The table matters: a GeoPackage's fields differ per table.
+    expect(listGeoPackageFields).toHaveBeenCalledWith(
+      "https://h/a.gpkg",
+      "subbasins",
+    );
+  });
+
+  it("returns no fields rather than throwing when the read fails", async () => {
+    await expect(
+      styleFieldsWith(
+        {
+          listGeoParquetColumns: jest
+            .fn()
+            .mockRejectedValue(new Error("Failed to fetch")),
+          listGeoPackageFields: jest.fn(),
+        },
+        { type: "GeoParquet", props: { url: "https://h/gone.parquet" } },
+      ),
+    ).resolves.toEqual([]);
+  });
+});

@@ -16,6 +16,7 @@ import moduleLoader, {
   applyAutoRamp,
   loadGeoPackage,
   listGeoPackageTables,
+  listGeoPackageFields,
   invalidateGeoPackageTables,
   listGeoParquetColumns,
   invalidateGeoParquetColumns,
@@ -77,6 +78,8 @@ import {
 import { get as getProjection } from "ol/proj";
 import proj4 from "proj4";
 import { loadGpkg } from "ol-load-geopackage";
+import Feature from "ol/Feature";
+import Point from "ol/geom/Point";
 import {
   asyncBufferFromUrl,
   parquetMetadataAsync,
@@ -4273,5 +4276,55 @@ describe("parquet schema walking survives a bad footer", () => {
     await expect(
       listGeoParquetColumns("https://host/rootless.parquet"),
     ).resolves.toEqual(["elev", "slope"]);
+  });
+});
+
+describe("listGeoPackageFields", () => {
+  const featureIn = (props) => {
+    const source = new VectorSource();
+    source.addFeature(new Feature(props));
+    return source;
+  };
+
+  test("offers a table's attribute names without its geometry", async () => {
+    loadGpkg.mockResolvedValue([
+      {
+        subbasins: featureIn({
+          geometry: new Point([0, 0]),
+          basin_name: "Jordan",
+          area_km2: 12,
+        }),
+      },
+      {},
+    ]);
+    await expect(
+      listGeoPackageFields("https://h/fields.gpkg", "subbasins"),
+    ).resolves.toEqual(["basin_name", "area_km2"]);
+  });
+
+  test("shares one parse with the table listing", async () => {
+    // Parsing a GeoPackage reads the whole file, so doing it twice for one url
+    // would be the expensive half of this feature done twice.
+    loadGpkg.mockResolvedValue([{ t: featureIn({ a: 1 }) }, {}]);
+    const url = "https://h/shared.gpkg";
+    await Promise.all([
+      listGeoPackageTables(url),
+      listGeoPackageFields(url, "t"),
+    ]);
+    expect(loadGpkg).toHaveBeenCalledTimes(1);
+  });
+
+  test("an unknown table has no fields rather than throwing", async () => {
+    loadGpkg.mockResolvedValue([{ t: featureIn({ a: 1 }) }, {}]);
+    await expect(
+      listGeoPackageFields("https://h/unknown.gpkg", "nope"),
+    ).resolves.toEqual([]);
+  });
+
+  test("a table with no features has no fields", async () => {
+    loadGpkg.mockResolvedValue([{ empty: new VectorSource() }, {}]);
+    await expect(
+      listGeoPackageFields("https://h/empty.gpkg", "empty"),
+    ).resolves.toEqual([]);
   });
 });

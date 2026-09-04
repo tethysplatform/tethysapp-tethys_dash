@@ -1191,6 +1191,31 @@ export async function getStyleFields({
         Object.values(attributes).flatMap((attrs) => attrs.map((f) => f.name)),
       ),
     ];
+  } else if (
+    sourceProps.type === "GeoParquet" ||
+    sourceProps.type === "GeoPackage"
+  ) {
+    // Imported here rather than at the top: twenty-odd modules import this
+    // file, and a static ModuleLoader import would pull its readers -- and the
+    // sqlite/wasm and parquet chains behind them -- into every one of them.
+    //
+    // Both readers memoize per url and evict rejections, which is what makes
+    // them safe to call from an effect that re-runs on every keystroke: a url
+    // still being typed fails fast and is not kept, and the finished one is
+    // read once. That is the concern the Shapefile note above describes.
+    try {
+      const { listGeoParquetColumns, listGeoPackageFields } =
+        await import("components/map/ModuleLoader");
+      fields =
+        sourceProps.type === "GeoParquet"
+          ? await listGeoParquetColumns(sourceProps.props?.url)
+          : await listGeoPackageFields(
+              sourceProps.props?.url,
+              sourceProps.props?.layer,
+            );
+    } catch (e) {
+      return fields;
+    }
   }
   return fields;
 }

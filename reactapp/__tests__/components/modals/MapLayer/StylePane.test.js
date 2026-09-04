@@ -322,6 +322,8 @@ test("StylePane Styling not available", async () => {
     "ESRI Feature Service",
     "PMTiles Vector",
     "Shapefile",
+    "GeoPackage",
+    "GeoParquet",
   ];
   expect(
     await screen.findByText(
