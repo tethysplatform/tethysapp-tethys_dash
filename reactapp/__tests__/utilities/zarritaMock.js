@@ -19,6 +19,12 @@ export function FetchStore(url, options) {
 export const open = { v2: notMocked, v3: notMocked };
 export const get = notMocked;
 
+// Location helper. listArrays opens each array against the consolidated store
+// through this, so the stub has to carry the same `url` the openers key on.
+export const root = (store) => ({
+  resolve: (path) => ({ url: `${store?.url ?? ""}/${path}` }),
+});
+
 // Consolidated-metadata wrapper. It has two shapes and zarrReader depends on
 // telling them apart: a store WITH consolidated metadata comes back wrapped and
 // carries `contents()`, a store WITHOUT it comes back as the ORIGINAL, UNWRAPPED

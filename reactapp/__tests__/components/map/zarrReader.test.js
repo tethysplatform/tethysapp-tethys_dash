@@ -30,6 +30,12 @@ jest.mock("zarrita", () => ({
       return node;
     },
   },
+  // Locations, so listArrays can open each array against the consolidated store
+  // instead of standing up a fresh one per array. A resolved location carries
+  // the same `url` the openers key on.
+  root: (store) => ({
+    resolve: (path) => ({ url: `${store.url}/${path}` }),
+  }),
   get: async (node, selection) => {
     if (node.shape.length === 3) {
       const [index] = selection;

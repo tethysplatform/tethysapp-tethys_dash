@@ -61,17 +61,17 @@ async function makeStore(url, mapResponse) {
 // v2 only issues a second doomed request and replaces the real cause with a
 // misleading "not a v2 store" message, which is exactly wrong when CORS is the
 // problem. `url` is only used to name the store in the failure message.
-async function openStore(store, url) {
+async function openStoreVersioned(store, url) {
   const { open } = await getZarrita();
   let v3Error;
   try {
-    return await open.v3(store);
+    return { node: await open.v3(store), zarrFormat: 3 };
   } catch (error) {
     if (!isFormatMismatch(error)) throw error;
     v3Error = error;
   }
   try {
-    return await open.v2(store);
+    return { node: await open.v2(store), zarrFormat: 2 };
   } catch (v2Error) {
     if (!isFormatMismatch(v2Error)) throw v2Error;
     throw new Error(
@@ -80,6 +80,10 @@ async function openStore(store, url) {
       { cause: v2Error },
     );
   }
+}
+
+async function openStore(store, url) {
+  return (await openStoreVersioned(store, url)).node;
 }
 
 // Open the node at `url` on a store of its own.
@@ -337,9 +341,9 @@ export async function listArrays({ url } = {}) {
   // unreachable" — which is the whole point of keeping empty distinct from
   // failed. It also records the store's zarr version, which is what the wrapper
   // uses to decide which consolidated-metadata format to try first.
-  await openStore(store, base);
+  const { zarrFormat } = await openStoreVersioned(store, base);
 
-  const { withMaybeConsolidatedMetadata } = await getZarrita();
+  const { withMaybeConsolidatedMetadata, open, root } = await getZarrita();
   const listable = await withMaybeConsolidatedMetadata(store);
   // The forgiving wrapper hands back the ORIGINAL, UNWRAPPED store when there is
   // no consolidated metadata to read, and a bare FetchStore has no `contents()`.
@@ -355,16 +359,25 @@ export async function listArrays({ url } = {}) {
     .map((entry) => String(entry.path).replace(/^\//, ""))
     .filter(Boolean); // the root itself lists as "/" and is not a variable
 
-  // One metadata read each, concurrently. They are small and this runs once per
-  // store when the author opens the menu, but a probe that fails keeps its
-  // array: refusing to offer something because we could not check it would turn
-  // a slow or partial store into a store that appears to hold nothing.
+  // Shapes come from the consolidated metadata already loaded above: opening
+  // each array against THIS store costs no request, because the wrapper answers
+  // from what it has. Opening each on a store of its own cost two round trips
+  // apiece -- a v3 probe that 404s, then the real v2 read -- which is a request
+  // storm on menu open and a console full of 404s.
+  //
+  // The format is the one that actually opened, for the same reason: letting
+  // zarrita probe would put those 404s straight back, one per array.
+  const openArray = zarrFormat === 3 ? open.v3 : open.v2;
+  const location = root(listable);
   const griddable = await Promise.all(
     names.map(async (name) => {
       try {
-        const arr = await openNode(`${base}/${name}`);
+        const arr = await openArray(location.resolve(name), { kind: "array" });
         return arr.shape?.length === 2 || arr.shape?.length === 3;
       } catch {
+        // A shape we could not read keeps its array: refusing to offer
+        // something because the check failed would make a partly-readable
+        // store look empty.
         return true;
       }
     }),
