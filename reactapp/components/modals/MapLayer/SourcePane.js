@@ -487,7 +487,15 @@ const SourcePane = ({
       options: entry.options,
       isLoading: entry.state === "loading",
       separator: declaration.separator,
-      onMenuOpen: () => argumentDiscovery.load(declaration.argument),
+      // Deferred out of the event on purpose. react-select opens the menu from
+      // inside its own mousedown handler, where it calls preventDefault and
+      // then focuses its input itself. Starting the read synchronously there
+      // makes React flush a re-render of the whole editor mid-event -- which in
+      // a browser leaves the control blurred and the menu shut before the
+      // author can pick anything. Letting the handler finish first costs a
+      // tick and keeps focus where they put it.
+      onMenuOpen: () =>
+        setTimeout(() => argumentDiscovery.load(declaration.argument), 0),
       content: (
         <ArgumentDiscoveryNote
           argument={declaration.argument}

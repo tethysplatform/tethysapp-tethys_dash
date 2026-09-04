@@ -10,12 +10,15 @@ import {
   VariableInputsContext,
 } from "components/contexts/Contexts";
 import MapContextProvider from "components/contexts/MapContext";
+import Modal from "react-bootstrap/Modal";
 import { listArrays } from "components/map/zarrReader";
 import { s3UrlToHttps } from "components/map/ModuleLoader";
 
 // The hook suite fakes the pane and the panel suite fakes the hook, so a
 // contract drift between them would slip past both. This wires the real hook
-// into the real pane the way MapLayer.js does.
+// into the real pane the way MapLayer.js does -- including the react-bootstrap
+// Modal it actually lives in, whose focus trap is the kind of thing that only
+// misbehaves once the real wrapper is there.
 jest.mock("components/map/zarrReader", () => ({
   listArrays: jest.fn(),
   readMetadata: jest.fn(),
@@ -52,15 +55,19 @@ function Harness({ initialProps }) {
           value={{ variableInputValues: {}, variableInputDateFormats: {} }}
         >
           <MapContextProvider>
-            <SourcePane
-              sourceProps={sourceProps}
-              setSourceProps={setSourceProps}
-              setStyle={jest.fn()}
-              setAttributeProps={jest.fn()}
-              setErrorMessage={jest.fn()}
-              shapefileDiscovery={{ state: "idle", fields: [], drift: [] }}
-              argumentDiscovery={argumentDiscovery}
-            />
+            <Modal show onHide={() => {}}>
+              <Modal.Body>
+                <SourcePane
+                  sourceProps={sourceProps}
+                  setSourceProps={setSourceProps}
+                  setStyle={jest.fn()}
+                  setAttributeProps={jest.fn()}
+                  setErrorMessage={jest.fn()}
+                  shapefileDiscovery={{ state: "idle", fields: [], drift: [] }}
+                  argumentDiscovery={argumentDiscovery}
+                />
+              </Modal.Body>
+            </Modal>
           </MapContextProvider>
         </VariableInputsContext.Provider>
       </LayoutContext.Provider>
