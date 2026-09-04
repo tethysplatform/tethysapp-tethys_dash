@@ -240,9 +240,10 @@ const InputTable = ({
                             onChange={(selection) =>
                               handleChange(
                                 isMulti
-                                  ? (selection ?? [])
-                                      .map(optionToValue)
-                                      .join(separator)
+                                  ? // react-select hands a multi select an
+                                    // array on every action, including clear;
+                                    // only a single select is ever passed null.
+                                    selection.map(optionToValue).join(separator)
                                   : optionToValue(selection),
                                 rowIndex,
                                 field,

@@ -524,3 +524,63 @@ it("does not hand focus to the first input when a non-control cell is clicked", 
   await user.click(screen.getByText("variable"));
   expect(urlInput).not.toHaveFocus();
 });
+
+describe("select rows with nothing chosen", () => {
+  const selectRow = (value, extra = {}) => ({
+    values: [{ property: "variable", value }],
+    disabledFields: ["property"],
+    types: ["select"],
+    selectConfigs: [
+      { options: [{ value: "depth", label: "depth" }], ...extra },
+    ],
+  });
+
+  it("clearing a single select stores an empty string, not null", async () => {
+    // isRowEmpty and getEmptyRow both test for "", so a cleared select has to
+    // look exactly like a cleared text box.
+    const onChange = jest.fn();
+    render(
+      <InputTable label="Props" onChange={onChange} {...selectRow("depth")} />,
+    );
+
+    await selectEvent.clearAll(screen.getByLabelText("value Input 0"));
+
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ newValue: "", field: "value" }),
+    );
+  });
+
+  it("a multiselect with no stored value starts empty", () => {
+    render(
+      <InputTable
+        label="Props"
+        onChange={jest.fn()}
+        values={[{ property: "columns", value: undefined }]}
+        disabledFields={["property"]}
+        types={["multiselect"]}
+        selectConfigs={[{ options: [{ value: "elev", label: "elev" }] }]}
+      />,
+    );
+    expect(screen.getByLabelText("value Input 0")).toBeInTheDocument();
+  });
+
+  it("clearing a multiselect stores an empty string", async () => {
+    const onChange = jest.fn();
+    render(
+      <InputTable
+        label="Props"
+        onChange={onChange}
+        values={[{ property: "columns", value: "elev" }]}
+        disabledFields={["property"]}
+        types={["multiselect"]}
+        selectConfigs={[{ options: [{ value: "elev", label: "elev" }] }]}
+      />,
+    );
+
+    await selectEvent.clearAll(screen.getByLabelText("value Input 0"));
+
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ newValue: "", field: "value" }),
+    );
+  });
+});

@@ -740,3 +740,56 @@ describe("fill-viewport stacking", () => {
     ]);
   });
 });
+
+test("a grid item with unparseable metadata is not treated as fullscreen", async () => {
+  // metadata_string comes back from the API as text; a malformed one must not
+  // take the whole layout down while looking for a fillViewport item.
+  const mockedDashboard = {
+    id: 1,
+    name: "malformed metadata",
+    label: "malformed",
+    notes: "",
+    editable: true,
+    accessGroups: [],
+    permissions: [{ username: "admin", permission: "admin" }],
+    userPermission: "admin",
+    unrestrictedPlacement: false,
+    tabs: [
+      {
+        id: 1,
+        name: "Tab 1",
+        gridItems: [
+          {
+            i: "1",
+            x: 0,
+            y: 0,
+            w: 20,
+            h: 20,
+            source: "",
+            args_string: "{}",
+            metadata_string: "{not json",
+          },
+        ],
+      },
+    ],
+  };
+
+  render(
+    createLoadedComponent({
+      children: (
+        <LayoutAlertContextProvider>
+          <DashboardLayout
+            tabId={mockedDashboard.tabs[0].id}
+            gridItems={mockedDashboard.tabs[0].gridItems}
+          />
+        </LayoutAlertContextProvider>
+      ),
+      options: {
+        dashboards: { dashboards: [mockedDashboard] },
+        inEditing: true,
+      },
+    }),
+  );
+
+  expect(await screen.findByText("Rendered Item")).toBeInTheDocument();
+});
