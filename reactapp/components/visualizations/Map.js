@@ -21,6 +21,7 @@ import {
   mapDrawingPropType,
   loadLayerJSONs,
   resolveTablePopupType,
+  formatAttributeValue,
 } from "components/map/utilities";
 import {
   buildSnapFeatureResult,
@@ -210,7 +211,7 @@ export const Popup = ({
                         </a>
                       );
                     } else {
-                      renderedValue = value;
+                      renderedValue = formatAttributeValue(value);
                     }
                     return (
                       <tr key={field}>

@@ -1,6 +1,8 @@
 // Match `${feature.<key>}` where the key permits dots, spaces, parens, dashes
 // — anything except a closing brace. Mirrors the substitution regex used by
 // the existing variable-input pipeline so the syntax is consistent.
+import { formatAttributeValue } from "components/map/utilities";
+
 const FEATURE_TEMPLATE_RE = /\$\{feature\.([^}]+)\}/g;
 
 /**
@@ -10,6 +12,7 @@ const FEATURE_TEMPLATE_RE = /\$\{feature\.([^}]+)\}/g;
  * - Empty/null/undefined `template` → empty string.
  * - Missing/null/undefined attribute → empty string (NOT the literal "null").
  * - Numbers, booleans, and other primitives → `String(value)`.
+ * - Dates → ISO 8601 UTC; objects and arrays → JSON.
  * - Non-template characters pass through unchanged.
  *
  * @param {string|null|undefined} template
@@ -26,7 +29,10 @@ export function substituteTemplateString(template, attributes) {
     if (value === null || value === undefined) {
       return "";
     }
-    return String(value);
+    // Shared with the popup table, so a Date reads the same in a title as it
+    // does in the row below it -- and as ISO rather than whatever locale the
+    // viewer happens to have.
+    return String(formatAttributeValue(value));
   });
 }
 

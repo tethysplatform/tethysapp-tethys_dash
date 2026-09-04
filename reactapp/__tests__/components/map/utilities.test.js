@@ -25,6 +25,7 @@ import {
   rewriteArcGISExportUrlForAntimeridian,
   shiftEPSG3857ExtentAndPoint,
   coerceOptionalNumber,
+  formatAttributeValue,
 } from "components/map/utilities";
 import VectorSource from "ol/source/Vector.js";
 import Feature from "ol/Feature.js";
@@ -4541,5 +4542,46 @@ describe("sourcePropertiesOptions — discovery declarations", () => {
       "Zarr.index",
       "Zarr.variable",
     ]);
+  });
+});
+
+describe("formatAttributeValue", () => {
+  // A parquet TIMESTAMP column arrives from hyparquet as a Date, and React
+  // throws outright on a non-primitive child -- clicking a feature on such a
+  // layer crashed the popup with "Objects are not valid as a React child".
+  it("renders a Date as ISO 8601 UTC, not a locale string", () => {
+    expect(formatAttributeValue(new Date(Date.UTC(2026, 7, 1, 6, 30)))).toBe(
+      "2026-08-01T06:30:00.000Z",
+    );
+  });
+
+  it("renders an invalid Date as empty rather than 'Invalid Date'", () => {
+    expect(formatAttributeValue(new Date("nope"))).toBe("");
+  });
+
+  it("renders booleans, which React would otherwise show as nothing", () => {
+    expect(formatAttributeValue(true)).toBe("true");
+    expect(formatAttributeValue(false)).toBe("false");
+  });
+
+  it("renders objects and arrays as JSON", () => {
+    expect(formatAttributeValue({ a: 1 })).toBe('{"a":1}');
+    expect(formatAttributeValue([1, "x"])).toBe('[1,"x"]');
+  });
+
+  it("survives a value JSON refuses", () => {
+    const circular = {};
+    circular.self = circular;
+    expect(typeof formatAttributeValue(circular)).toBe("string");
+  });
+
+  it("leaves strings and numbers alone", () => {
+    expect(formatAttributeValue("depth")).toBe("depth");
+    expect(formatAttributeValue(0)).toBe(0);
+  });
+
+  it("renders null and undefined as empty", () => {
+    expect(formatAttributeValue(null)).toBe("");
+    expect(formatAttributeValue(undefined)).toBe("");
   });
 });

@@ -1787,6 +1787,37 @@ export function resolveTablePopupType(obj) {
   return "click";
 }
 
+/**
+ * A feature attribute as display text.
+ *
+ * Attribute values are whatever the source decoder produced, and several of
+ * those are not things React will render: hyparquet turns a parquet TIMESTAMP
+ * into a Date, a GeoJSON property can be an object or an array, and React
+ * throws outright on any non-primitive child. Booleans it accepts and then
+ * renders as nothing at all, so a `true` attribute silently showed blank.
+ *
+ * Dates render as ISO 8601 UTC rather than a locale string: the popup is a data
+ * readout, and `toString()` on a Date is both timezone- and locale-dependent,
+ * so two people reading the same feature would see different text.
+ */
+export function formatAttributeValue(value) {
+  if (value === null || value === undefined) return "";
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? "" : value.toISOString();
+  }
+  if (typeof value === "boolean") return String(value);
+  if (typeof value === "object") {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      // Circular, or something else JSON refuses. Naming the type beats
+      // crashing the popup the feature was clicked to show.
+      return String(value);
+    }
+  }
+  return value;
+}
+
 // The two questions asked of every feature a click turns up. A feature can
 // answer yes to both (the common case), or to exactly one -- a layer with
 // `tablePopupType: "none"` or `"hover"` plus a modal is reachable only through

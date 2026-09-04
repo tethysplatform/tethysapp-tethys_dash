@@ -900,6 +900,65 @@ test("Map ESRI with default legend", async () => {
   ).toBe(true);
 });
 
+test("Map click renders attribute values React cannot render on its own", async () => {
+  // Clicking a GeoParquet feature crashed the popup with "Objects are not
+  // valid as a React child": hyparquet decodes a parquet TIMESTAMP to a Date.
+  // A boolean is worse in its way -- React accepts it and renders nothing, so
+  // the row just looked blank.
+  mockedQueryLayerFeatures.mockResolvedValue([
+    {
+      attributes: {
+        observed_at: new Date(Date.UTC(2026, 7, 1, 6, 30)),
+        is_active: true,
+        tags: ["a", "b"],
+        station_name: "Station 007",
+      },
+      geometry: { x: 0, y: 0 },
+      layerName: "Sites",
+    },
+  ]);
+  jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+
+  const layers = [
+    {
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "Sites",
+          source: { type: "ESRI Image and Map Service", props: { url: "u" } },
+        },
+      },
+    },
+  ];
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent
+          onMapClick={jest.fn()}
+          clickCoordinates={[10, 20]}
+          mapProps={{
+            mapConfig: {},
+            viewConfig: {},
+            layers,
+            baseMap: null,
+            layerControl: false,
+          }}
+        />
+      </MapContextProvider>
+    ),
+  });
+  render(LoadedComponent);
+  // TestingComponent dispatches the singleclick itself once the map is ready.
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+  expect(
+    await screen.findByText("2026-08-01T06:30:00.000Z"),
+  ).toBeInTheDocument();
+  expect(screen.getByText("true")).toBeInTheDocument();
+  expect(screen.getByText('["a","b"]')).toBeInTheDocument();
+  expect(screen.getByText("Station 007")).toBeInTheDocument();
+});
+
 test("Map click", async () => {
   mockedQueryLayerFeatures.mockResolvedValue([
     {
