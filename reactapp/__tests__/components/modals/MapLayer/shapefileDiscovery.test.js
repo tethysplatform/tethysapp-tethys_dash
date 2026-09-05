@@ -462,3 +462,148 @@ describe("useShapefileDiscovery — superseded during the parse", () => {
     expect(result.current.state).toBe("ready");
   });
 });
+
+describe("shapes the discovery hook can be handed", () => {
+  it("resolves a templated url with no variable input context supplied", () => {
+    // The hook's callers always pass these; the defaults exist so a caller that
+    // does not is handed empty maps rather than undefined.
+    const resolved = resolveShapefileUrl({
+      // eslint-disable-next-line no-template-curly-in-string
+      sourceProps: { props: { url: "https://example.org/${Storm}.zip" } },
+    });
+    expect(typeof resolved).toBe("string");
+  });
+
+  it("collects referenced fields from partially filled settings", () => {
+    // Variables and omitted lists are both optional, and a config saved before
+    // one existed simply has no entry for that layer.
+    const referenced = collectReferencedFields({
+      attributeProps: {
+        variables: { Basins: undefined },
+        omitted: { Basins: undefined },
+      },
+    });
+    expect(referenced.size).toBe(0);
+  });
+
+  it("reports fields from a collection whose features carry no properties", async () => {
+    acquireComponents.mockResolvedValue({
+      components: { shp: new Uint8Array() },
+    });
+    interpretShapefile.mockReturnValue({
+      featureCollection: { type: "FeatureCollection", features: [{}] },
+      projectionCode: "EPSG:4326",
+    });
+
+    const { result } = setup();
+    await act(async () => result.current.load());
+
+    expect(result.current.state).toBe("ready");
+    expect(result.current.fields).toEqual([]);
+  });
+
+  it("reports a collection with no features at all", async () => {
+    acquireComponents.mockResolvedValue({
+      components: { shp: new Uint8Array() },
+    });
+    interpretShapefile.mockReturnValue({
+      featureCollection: { type: "FeatureCollection" },
+      projectionCode: "EPSG:4326",
+    });
+
+    const { result } = setup();
+    await act(async () => result.current.load());
+
+    expect(result.current.fields).toEqual([]);
+  });
+
+  it("reports a read that rejects with no message", async () => {
+    // eslint-disable-next-line prefer-promise-reject-errors
+    acquireComponents.mockRejectedValue("bare rejection");
+
+    const { result } = setup();
+    await act(async () => result.current.load());
+
+    expect(result.current.state).toBe("error");
+    expect(result.current.failure.detail).toMatch(/bare rejection/);
+  });
+
+  it("says a read is slow once it passes the threshold", async () => {
+    jest.useFakeTimers();
+    try {
+      acquireComponents.mockImplementation(() => new Promise(() => {}));
+      const { result } = setup();
+      act(() => {
+        result.current.load();
+      });
+      act(() => {
+        jest.advanceTimersByTime(SLOW_LOAD_MS + 1);
+      });
+      expect(result.current.slow).toBe(true);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+});
+
+describe("a read that is superseded before it settles", () => {
+  it("does not report its slowness against the read that replaced it", async () => {
+    jest.useFakeTimers();
+    try {
+      // The first read hangs, so its slow timer stays pending. The second one
+      // settles, so only the abandoned timer is left to fire.
+      acquireComponents.mockImplementationOnce(() => new Promise(() => {}));
+      acquireComponents.mockResolvedValue({
+        components: { shp: new Uint8Array() },
+      });
+      interpretShapefile.mockReturnValue(collection([{ BASIN: 1 }]));
+
+      const { result } = setup();
+      act(() => {
+        result.current.load();
+      });
+      await act(async () => {
+        await result.current.load();
+      });
+      expect(result.current.state).toBe("ready");
+
+      act(() => {
+        jest.advanceTimersByTime(SLOW_LOAD_MS + 1);
+      });
+
+      // The abandoned timer fired and said nothing.
+      expect(result.current.slow).toBe(false);
+      expect(result.current.state).toBe("ready");
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("does not report its failure either", async () => {
+    let rejectFirst;
+    acquireComponents.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          rejectFirst = () => reject(new Error("late failure"));
+        }),
+    );
+
+    acquireComponents.mockImplementation(() => new Promise(() => {}));
+
+    const { result } = setup();
+    act(() => {
+      result.current.load();
+    });
+    // A second read takes over before the first settles.
+    act(() => {
+      result.current.load();
+    });
+
+    await act(async () => {
+      rejectFirst();
+      await Promise.resolve();
+    });
+
+    expect(result.current.state).not.toBe("error");
+  });
+});
