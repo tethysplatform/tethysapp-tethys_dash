@@ -441,7 +441,9 @@ const MapLayerModal = ({
         savedSource.classes = usableClasses;
         if (fallbackColor) savedSource.fallbackColor = fallbackColor;
         // Kept so switching back to a ramp does not lose the chosen palette.
-        if (hasRampName) savedSource.rampName = rampName;
+        // Always present here: only a raster carries a class list, and the
+        // Style tab gives every raster a ramp name the moment it has none.
+        savedSource.rampName = rampName;
         if (rampReverse === true) savedSource.rampReverse = true;
       }
       // Each bound is independent: a set one pins that end of the ramp, an

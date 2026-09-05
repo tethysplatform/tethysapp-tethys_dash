@@ -456,3 +456,78 @@ describe("the note does not disturb the row", () => {
     expect(screen.getByRole("status")).toHaveTextContent(/Still reading/);
   });
 });
+
+describe("how the note words itself", () => {
+  it("names several absent values in the plural", () => {
+    renderPane({
+      sourceProps: geoparquet({ columns: "a,b" }),
+      argumentDiscovery: discovery({
+        columns: entry({
+          state: "ready",
+          options: [{ value: "c", label: "c" }],
+          stale: ["a", "b"],
+        }),
+      }),
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "does not offer the saved values a, b",
+    );
+  });
+
+  it("says several slice positions are outside the range", () => {
+    renderPane({
+      sourceProps: zarr({ variable: "depth", index: "7" }),
+      argumentDiscovery: discovery({
+        variable: entry({ state: "ready" }),
+        index: entry({
+          state: "ready",
+          sliceCount: 2,
+          options: [{ value: "0", label: "0" }],
+          stale: ["7", "8"],
+        }),
+      }),
+    });
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("saved positions 7, 8");
+    expect(alert).toHaveTextContent("are outside it");
+  });
+
+  it("says so when the array turns out to have no slices at all", () => {
+    renderPane({
+      sourceProps: zarr({ variable: "depth", index: "1" }),
+      argumentDiscovery: discovery({
+        variable: entry({ state: "ready" }),
+        index: entry({
+          state: "ready",
+          sliceCount: 0,
+          options: [],
+          stale: ["1"],
+        }),
+      }),
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent("no slices at all");
+  });
+
+  it("falls back to a generic phrase when the blocking sibling is unnamed", () => {
+    renderPane({
+      sourceProps: zarr({ variable: "" }),
+      argumentDiscovery: discovery({
+        variable: entry(),
+        index: entry({ state: "nokey", blockedBy: { reason: "dependency" } }),
+      }),
+    });
+    expect(
+      screen.getByText(/the argument this one depends on/),
+    ).toBeInTheDocument();
+  });
+
+  it("renders a discoverable row that has no discovery entry yet", () => {
+    // discoveries is keyed by argument; a row whose entry is missing simply
+    // renders as a plain select rather than throwing.
+    renderPane({
+      sourceProps: zarr(),
+      argumentDiscovery: discovery({}),
+    });
+    expect(screen.getByLabelText("value Input 1")).toBeInTheDocument();
+  });
+});
