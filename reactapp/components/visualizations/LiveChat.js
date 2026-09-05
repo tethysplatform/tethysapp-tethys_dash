@@ -580,13 +580,13 @@ const LiveChat = ({ requestId, chatHistory }) => {
       hasMountedRef.current = true;
       return;
     }
+    // The same condition decides which input renders, a few lines below, so
+    // whichever this picks is mounted by the time an effect runs.
     const activeInput =
       !customUsername || editingUsername
         ? usernameInputRef.current
         : messageInputRef.current;
-    if (activeInput) {
-      activeInput.focus({ preventScroll: true });
-    }
+    activeInput.focus({ preventScroll: true });
   }, [customUsername, editingUsername]);
 
   const handleInputKeyDown = (e) => {

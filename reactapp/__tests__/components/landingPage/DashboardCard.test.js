@@ -1682,3 +1682,39 @@ test("DashboardCard renders no image until one exists", async () => {
     screen.queryByLabelText("Dashboard Card Image"),
   ).not.toBeInTheDocument();
 });
+
+test("DashboardCard editable, turn auto thumbnail off without choosing a file", async () => {
+  // The toggle can be changed on its own; the saved image must be left alone.
+  const mockUpdateDashboard = jest.fn().mockResolvedValue({
+    success: true,
+    updated_dashboard: { ...userDashboard, autoThumbnail: false },
+  });
+  jest.spyOn(appAPI, "updateDashboard").mockImplementation(mockUpdateDashboard);
+
+  render(
+    createLoadedComponent({
+      children: (
+        <MemoryRouter initialEntries={["/"]}>
+          <DashboardCard {...userDashboard} />
+        </MemoryRouter>
+      ),
+    }),
+  );
+
+  await userEvent.click(
+    await screen.findByLabelText("dashboard-item-dropdown-toggle"),
+  );
+  await userEvent.click(await screen.findByText("Update Thumbnail"));
+  await userEvent.click(
+    await screen.findByLabelText("Update Thumbnail On Save Toggle"),
+  );
+  await userEvent.click(screen.getByLabelText("Update Thumbnail Button"));
+
+  await waitFor(() => {
+    // An exact match: no `image` key, so the saved thumbnail is untouched.
+    expect(mockUpdateDashboard).toHaveBeenCalledWith(
+      { id: userDashboard.id, autoThumbnail: false },
+      expect.any(String),
+    );
+  });
+});

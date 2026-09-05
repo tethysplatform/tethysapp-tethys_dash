@@ -7428,3 +7428,55 @@ describe("snap pipeline integration", () => {
     expect(previewLayer.getSource().getFeatures()).toHaveLength(2);
   });
 });
+
+test("a layer mapping no attributes to variables writes no variable inputs", async () => {
+  // The mapping exists but is empty, so the loop finds nothing to carry over
+  // and there is no point publishing an empty update.
+  mockedQueryLayerFeatures.mockResolvedValue([
+    {
+      attributes: { field1: "some value" },
+      geometry: { x: 0, y: 0 },
+      layerName: "Some Layer",
+    },
+  ]);
+  jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+
+  const layers = [
+    {
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "NWC",
+          source: {
+            type: "ESRI Image and Map Service",
+            props: { url: "some_url" },
+          },
+        },
+      },
+      attributeVariables: { "Some Layer": {} },
+    },
+  ];
+
+  render(
+    createLoadedComponent({
+      children: (
+        <MapContextProvider>
+          <TestingComponent
+            onMapClick={jest.fn()}
+            clickCoordinates={[10, 20]}
+            mapProps={{
+              mapConfig: {},
+              viewConfig: {},
+              layers,
+              baseMap: null,
+              layerControl: false,
+            }}
+          />
+        </MapContextProvider>
+      ),
+    }),
+  );
+
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  expect(await screen.findByText("some value")).toBeInTheDocument();
+});
