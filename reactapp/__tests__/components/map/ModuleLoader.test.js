@@ -4597,3 +4597,156 @@ describe("GeoParquet metadata edges", () => {
     expect(coerceParquetValue(date)).toBe(date);
   });
 });
+
+describe("ramp bounds that cannot be used", () => {
+  const zarrLayer = (source = {}) => ({
+    type: "WebGLTile",
+    props: {
+      name: "flood",
+      source: {
+        type: "Zarr",
+        rampName: "turbo",
+        props: { url: "https://x/bounds.zarr", variable: "depth" },
+        ...source,
+      },
+    },
+  });
+
+  beforeEach(() => {
+    clearClientSourceCaches();
+    readSlice.mockReset().mockResolvedValue({
+      width: 5,
+      height: 4,
+      extent: [-100, 180, -75, 200],
+      crs: "EPSG:3857",
+      data: new Float32Array(40),
+      min: 2,
+      max: 9,
+    });
+  });
+
+  test("a pinned bound that is not a number falls back to the slice's range", async () => {
+    // The GUI stores these as text, so "abc" is a value an author can save.
+    const config = zarrLayer({ rampMin: "abc", rampMax: "also-not" });
+
+    await applyZarrRamp(config);
+
+    expect(config.props.source.resolvedRampMin).toBe(2);
+    expect(config.props.source.resolvedRampMax).toBe(9);
+  });
+
+  test("a categorical zarr layer styles by class without reading a range", async () => {
+    const config = zarrLayer({
+      rampName: "",
+      styleMode: "categorical",
+      classes: [{ value: 1, color: "#ff0000" }],
+      fallbackColor: "#000000",
+    });
+
+    await applyZarrRamp(config);
+
+    expect(config.style.color).toBeDefined();
+    expect(config.props.source.resolvedSliceKey).toBeDefined();
+  });
+
+  test("a categorical zarr layer with no usable class still gets a grayscale fit", async () => {
+    const config = zarrLayer({
+      rampName: "",
+      styleMode: "categorical",
+      classes: [{ value: "" }],
+    });
+
+    await applyZarrRamp(config);
+
+    // Not categorical after filtering, so it falls through to the grayscale
+    // fit rather than painting raw floats into the color channels.
+    expect(config.props.source.resolvedRampMin).toBe(2);
+  });
+});
+
+describe("more incomplete shapes", () => {
+  test("a slice whose pixel size is not usable is not rejected for being non-square", async () => {
+    // A reader that predates pixelSize, or reports zeroes, has nothing to check.
+    clearClientSourceCaches();
+    readSlice.mockReset().mockResolvedValue({
+      width: 4,
+      height: 4,
+      extent: [0, 0, 8, 8],
+      crs: "EPSG:3857",
+      data: new Float32Array(32),
+      min: 0,
+      max: 1,
+      pixelSize: { x: 0, y: Number.NaN },
+    });
+
+    await expect(
+      loadZarr(
+        { type: "Zarr", props: { url: "https://x/px.zarr", variable: "d" } },
+        "EPSG:3857",
+      ),
+    ).resolves.toBeDefined();
+  });
+
+  test("a zarr read that rejects with no message still names the store", async () => {
+    clearClientSourceCaches();
+    // eslint-disable-next-line prefer-promise-reject-errors
+    readSlice.mockReset().mockRejectedValue("just a string");
+
+    await expect(
+      loadZarr(
+        { type: "Zarr", props: { url: "https://x/bare.zarr", variable: "d" } },
+        "EPSG:3857",
+      ),
+    ).rejects.toThrow(/just a string/);
+  });
+
+  test("applyAutoRamp ignores a GeoTIFF whose url is not http", async () => {
+    // Author-supplied, so file:/blob:/data: must never be fetched.
+    const config = {
+      type: "WebGLTile",
+      props: {
+        name: "x",
+        source: {
+          type: "GeoTIFF",
+          rampName: "turbo",
+          props: { url: "file:///etc/passwd" },
+        },
+      },
+    };
+    await expect(applyAutoRamp(config)).resolves.toBe(config);
+  });
+
+  test("a GeoPackage table with a feature exposing no properties has no fields", async () => {
+    loadGpkg.mockResolvedValue([{ bare: { getFeatures: () => [{}] } }, {}]);
+    await expect(
+      listGeoPackageFields("https://h/bare.gpkg", "bare"),
+    ).resolves.toEqual([]);
+  });
+
+  test("a GeoPackage that parses to nothing has no tables", async () => {
+    loadGpkg.mockResolvedValue([undefined, {}]);
+    await expect(listGeoPackageTables("https://h/none.gpkg")).resolves.toEqual(
+      [],
+    );
+  });
+
+  test("a GeoPackage read that rejects with no message still reports", async () => {
+    // eslint-disable-next-line prefer-promise-reject-errors
+    loadGpkg.mockRejectedValue("bare rejection");
+    await expect(listGeoPackageTables("https://h/bad.gpkg")).rejects.toThrow(
+      /bare rejection/,
+    );
+  });
+
+  test("coerceParquetValue rewrites a prototype-less object", () => {
+    const bare = Object.create(null);
+    bare.a = 1n;
+    expect(coerceParquetValue(bare)).toEqual({ a: 1 });
+  });
+
+  test("coerceParquetValue leaves a class instance alone", () => {
+    class Thing {}
+    const instance = new Thing();
+    expect(coerceParquetValue(instance)).toBe(instance);
+  });
+});
