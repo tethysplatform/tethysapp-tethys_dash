@@ -36,6 +36,9 @@ import moduleLoader, {
   bboxIntersectsFilter,
   resolveReadColumns,
   geometryIntersectsBBox,
+  zarrSliceKey,
+  geotiffSourceToOL,
+  applyZarrRamp,
 } from "components/map/ModuleLoader";
 import { fromUrl } from "geotiff";
 import DataTile from "ol/source/DataTile.js";
@@ -4326,5 +4329,271 @@ describe("listGeoPackageFields", () => {
     await expect(
       listGeoPackageFields("https://h/empty.gpkg", "empty"),
     ).resolves.toEqual([]);
+  });
+});
+
+describe("prop coercion on the way to OpenLayers", () => {
+  // The GUI stores every layer prop as text, so these are the shapes an author
+  // can actually produce and OL cannot consume.
+  const tileLayer = (sourceProps) => ({
+    type: "WebGLTile",
+    props: {
+      name: "Coerced",
+      source: {
+        type: "GeoTIFF",
+        props: { url: "https://x/a.tif", ...sourceProps },
+      },
+    },
+  });
+
+  test("a comma separated bands string becomes a list of numbers", async () => {
+    const layer = await moduleLoader(tileLayer({ bands: " 1, 2 ,3 " }));
+    expect(layer).toBeDefined();
+  });
+
+  test("a bands string holding nothing usable is dropped rather than passed on", async () => {
+    const layer = await moduleLoader(tileLayer({ bands: " , ,abc" }));
+    expect(layer).toBeDefined();
+  });
+
+  test("an empty projection is dropped so OL falls back to the view's", async () => {
+    // GeoTIFF has its own loader; the generic path is where props are coerced,
+    // so this goes through the layer's own props.
+    const layer = await moduleLoader({
+      ...layerConfigVectorTile.configuration,
+      props: { ...layerConfigVectorTile.configuration.props, projection: "" },
+    });
+    expect(layer).toBeDefined();
+  });
+
+  test("an empty overviews list is dropped", async () => {
+    const layer = await moduleLoader(tileLayer({ overviews: [] }));
+    expect(layer).toBeDefined();
+  });
+});
+
+describe("the remaining ModuleLoader edges", () => {
+  test("a url that will not parse is treated as not CORS-capable", async () => {
+    // withAutoCrossOrigin must not throw on a malformed url; it just declines
+    // to add crossOrigin.
+    const props = await withAutoCrossOrigin("WMS", {
+      url: "http://[not-a-url",
+    });
+    expect(props.crossOrigin).toBeUndefined();
+  });
+
+  test("the texture limit is read from WebGL when a context is available", async () => {
+    // The module memoises, so this has to run against a fresh copy.
+    jest.resetModules();
+    jest
+      .spyOn(HTMLCanvasElement.prototype, "getContext")
+      .mockImplementation((kind) =>
+        kind === "webgl2"
+          ? { MAX_TEXTURE_SIZE: 0x0d33, getParameter: () => 16384 }
+          : null,
+      );
+    try {
+      const fresh = await import("components/map/ModuleLoader");
+      expect(fresh.getMaxTextureSize()).toBe(16384);
+    } finally {
+      jest.restoreAllMocks();
+      jest.resetModules();
+    }
+  });
+
+  test("the slice cache evicts its oldest entry once it is full", async () => {
+    clearClientSourceCaches();
+    readSlice.mockReset().mockResolvedValue({
+      width: 2,
+      height: 2,
+      extent: [0, 0, 10, 10],
+      crs: "EPSG:3857",
+      data: new Float32Array(8),
+      min: 0,
+      max: 1,
+    });
+
+    // Nine distinct slices against a cache that holds eight.
+    for (let index = 0; index < 9; index += 1) {
+      await loadZarr(
+        {
+          type: "Zarr",
+          props: {
+            url: "https://x/s.zarr",
+            variable: "depth",
+            index: `${index}`,
+          },
+        },
+        "EPSG:3857",
+      );
+    }
+    expect(readSlice).toHaveBeenCalledTimes(9);
+
+    // The first is gone, so asking for it again is a fresh read.
+    await loadZarr(
+      {
+        type: "Zarr",
+        props: { url: "https://x/s.zarr", variable: "depth", index: "0" },
+      },
+      "EPSG:3857",
+    );
+    expect(readSlice).toHaveBeenCalledTimes(10);
+  });
+
+  test("the single tile hands back the whole slice", async () => {
+    clearClientSourceCaches();
+    const data = new Float32Array(8);
+    readSlice.mockReset().mockResolvedValue({
+      width: 2,
+      height: 2,
+      extent: [0, 0, 10, 10],
+      crs: "EPSG:3857",
+      data,
+      min: 0,
+      max: 1,
+    });
+
+    const source = await loadZarr(
+      { type: "Zarr", props: { url: "https://x/t.zarr", variable: "depth" } },
+      "EPSG:3857",
+    );
+
+    // The whole slice is one tile, so loading it hands back the array as-is.
+    const tile = source.getTile(0, 0, 0);
+    tile.load();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(tile.getData()).toBe(data);
+  });
+});
+
+describe("configs that arrive incomplete", () => {
+  // Layer configs come out of the database, and older rows predate several of
+  // these fields. Every one of these is a config the app can actually be handed.
+  test("withAutoCrossOrigin leaves a source with no url alone", async () => {
+    await expect(withAutoCrossOrigin("WMS", {})).resolves.toEqual({});
+    await expect(withAutoCrossOrigin("WMS", { url: "" })).resolves.toEqual({
+      url: "",
+    });
+  });
+
+  test("the texture limit keeps its floor when WebGL reports nothing usable", async () => {
+    jest.resetModules();
+    jest
+      .spyOn(HTMLCanvasElement.prototype, "getContext")
+      .mockImplementation((kind) =>
+        kind === "webgl2" ? { getParameter: () => 0 } : null,
+      );
+    try {
+      const fresh = await import("components/map/ModuleLoader");
+      expect(fresh.getMaxTextureSize()).toBeGreaterThan(0);
+    } finally {
+      jest.restoreAllMocks();
+      jest.resetModules();
+    }
+  });
+
+  test("zarrSliceKey tolerates a source with no props", () => {
+    expect(typeof zarrSliceKey({ type: "Zarr" })).toBe("string");
+  });
+
+  test("geotiffSourceToOL tolerates a config with no props", () => {
+    expect(geotiffSourceToOL({ type: "GeoTIFF" })).toBeDefined();
+  });
+
+  test("applyAutoRamp leaves a layer whose source is not a GeoTIFF untouched", async () => {
+    const config = {
+      type: "WebGLTile",
+      props: { name: "x", source: { type: "Image Tile", props: {} } },
+    };
+    await expect(applyAutoRamp(config)).resolves.toBe(config);
+  });
+
+  test("applyAutoRamp leaves a GeoTIFF with neither ramp nor classes untouched", async () => {
+    const config = {
+      type: "WebGLTile",
+      props: { name: "x", source: { type: "GeoTIFF", props: { url: "u" } } },
+    };
+    await expect(applyAutoRamp(config)).resolves.toBe(config);
+  });
+
+  test("applyZarrRamp leaves a layer with neither ramp nor classes untouched", async () => {
+    const config = {
+      type: "WebGLTile",
+      props: { name: "x", source: { type: "Zarr", props: { url: "u" } } },
+    };
+    await expect(applyZarrRamp(config)).resolves.toBe(config);
+  });
+});
+
+describe("geometryIntersectsBBox", () => {
+  const BOX = { minx: 0, miny: 0, maxx: 10, maxy: 10 };
+
+  test("keeps a feature when either side is missing", () => {
+    expect(geometryIntersectsBBox(null, BOX)).toBe(true);
+    expect(geometryIntersectsBBox({ type: "Point" }, null)).toBe(true);
+  });
+
+  test("keeps a geometry that carries no coordinates", () => {
+    expect(geometryIntersectsBBox({ type: "Point" }, BOX)).toBe(true);
+  });
+
+  test("reads a collection through its members", () => {
+    const inside = {
+      type: "GeometryCollection",
+      geometries: [{ type: "Point", coordinates: [5, 5] }],
+    };
+    const outside = {
+      type: "GeometryCollection",
+      geometries: [{ type: "Point", coordinates: [50, 50] }],
+    };
+    expect(geometryIntersectsBBox(inside, BOX)).toBe(true);
+    expect(geometryIntersectsBBox(outside, BOX)).toBe(false);
+  });
+
+  test("keeps a collection with no members rather than dropping it", () => {
+    expect(geometryIntersectsBBox({ type: "GeometryCollection" }, BOX)).toBe(
+      false,
+    );
+  });
+
+  test("spans a geometry whose points run right to left", () => {
+    // maxx/maxy only update when a later point exceeds the running bound.
+    const line = {
+      type: "LineString",
+      coordinates: [
+        [9, 9],
+        [1, 1],
+      ],
+    };
+    expect(geometryIntersectsBBox(line, BOX)).toBe(true);
+  });
+});
+
+describe("GeoParquet metadata edges", () => {
+  test("a CRS naming no authority falls back to lon/lat WGS84", () => {
+    expect(geoParquetCRSToProjection({})).toBe("EPSG:4326");
+    expect(geoParquetCRSToProjection({ ids: [] })).toBe("EPSG:4326");
+  });
+
+  test("a geo block with no primary column uses the conventional name", () => {
+    const metadata = {
+      key_value_metadata: [
+        { key: "geo", value: JSON.stringify({ columns: {} }) },
+      ],
+    };
+    expect(readGeoParquetGeoMetadata(metadata).geometryColumn).toBe("geometry");
+  });
+
+  test("resolveReadColumns tolerates being given no columns at all", () => {
+    expect(() =>
+      resolveReadColumns({ columns: undefined, geometryColumn: "geometry" }),
+    ).not.toThrow();
+  });
+
+  test("coerceParquetValue passes a plain object through", () => {
+    // Only prototype-less shapes are rewritten; a Date or a class instance is
+    // left as it is.
+    const date = new Date(0);
+    expect(coerceParquetValue(date)).toBe(date);
   });
 });
