@@ -334,7 +334,8 @@ export function geotiffSourceToOL(config) {
 // The GeoTIFF URL is author-supplied, so it is restricted to http(s):
 // file:/blob:/data:/protocol-relative must not be fetched.
 function autoRampStatsUrl(source) {
-  if (source?.type !== "GeoTIFF") return null;
+  // Only called once a ramp name has been read off the source, so it is there.
+  if (source.type !== "GeoTIFF") return null;
 
   const url = source.props?.url;
   return typeof url === "string" && /^https?:\/\//i.test(url) ? url : null;
@@ -390,14 +391,15 @@ export async function applyZarrRamp(layerConfig) {
   const hasMax = (rampMax ?? "") !== "";
   const isCategorical =
     source?.styleMode === "categorical" &&
-    (source?.classes ?? []).some(isUsableClass);
+    (source.classes ?? []).some(isUsableClass);
   // With no ramp and no classes there is still a style to build. A DataTile
   // carries raw values with no normalization (unlike the GeoTIFF source this
   // replaced, which rendered `normalize: true` grayscale), so leaving the layer
   // unstyled paints raw floats straight into the color channels. Fit grayscale
   // to the slice instead, which is what the old backend path effectively did.
+  // Never empty for a non-categorical layer: the grayscale fallback covers it,
+  // so there is always either a ramp to fit or a class list to match.
   const effectiveRamp = rampName || (isCategorical ? null : "grayscale");
-  if (!effectiveRamp && !isCategorical) return layerConfig;
 
   // Gates the slice read, not the style: ramp settings are not part of the
   // slice key, so the style is rebuilt on every call from the resolved slice.
@@ -487,7 +489,7 @@ export async function applyAutoRamp(layerConfig) {
   // style raw values rather than OL's normalized bytes for the match to line up.
   const isCategorical =
     source?.styleMode === "categorical" &&
-    (source?.classes ?? []).some(isUsableClass);
+    (source.classes ?? []).some(isUsableClass);
   // The header is read even when both bounds are pinned, because it also
   // settles nodata — a pinned layer still needs its transparency right.
   if (!rampName && !isCategorical) return layerConfig;
@@ -510,12 +512,11 @@ export async function applyAutoRamp(layerConfig) {
     // Settle nodata first: it is independent of the ramp range, and a file with
     // nodata but no statistics still needs its transparency handled. Zarr COGs
     // are built by us and always carry the -9999 sentinel already.
-    if (source.type !== "Zarr") {
-      source.props = {
-        ...source.props,
-        nodata: resolveNodata(image.getGDALNoData()),
-      };
-    }
+    // Zarr never reaches here: applyAutoRamp hands it to applyZarrRamp first.
+    source.props = {
+      ...source.props,
+      nodata: resolveNodata(image.getGDALNoData()),
+    };
     // Every path below leaves the source with a nodata value, so OL appends an
     // alpha band and the style always has a band 2 to guard.
     const styleFor = (rampMinValue, rampMaxValue) => ({
@@ -832,7 +833,7 @@ export function geoParquetCRSToProjection(crs) {
 // renders the data at raw coordinates in the view's units — visibly wrong but
 // silent. Failing here instead puts the layer in failedLayers with a message
 // naming the code.
-function resolveProjectionOrThrow(code, { ErrorType = Error, what }) {
+function resolveProjectionOrThrow(code, { ErrorType, what }) {
   const projection = getProjection(code);
   if (!projection) {
     throw new ErrorType(
@@ -1030,7 +1031,7 @@ export async function loadGeoParquet(config, mapProjection) {
   });
 }
 
-async function readGeoParquetFile(url, readOptions = {}) {
+async function readGeoParquetFile(url, readOptions) {
   const {
     asyncBufferFromUrl,
     parquetMetadataAsync,

@@ -4818,3 +4818,157 @@ describe("ramp helpers handed a bare config", () => {
     await expect(applyAutoRamp(config)).resolves.toBe(config);
   });
 });
+
+describe("GeoParquet failures that carry no message", () => {
+  test("a render read that rejects with a bare value still names the file", async () => {
+    // eslint-disable-next-line prefer-promise-reject-errors
+    asyncBufferFromUrl.mockRejectedValue("bare rejection");
+
+    await expect(
+      loadGeoParquet(
+        { type: "GeoParquet", props: { url: "https://h/a.parquet" } },
+        "EPSG:3857",
+      ),
+    ).rejects.toThrow(/bare rejection/);
+  });
+
+  test("a column read that rejects with a bare value still names the file", async () => {
+    // eslint-disable-next-line prefer-promise-reject-errors
+    asyncBufferFromUrl.mockRejectedValue("bare rejection");
+    invalidateGeoParquetColumns();
+
+    await expect(
+      listGeoParquetColumns("https://h/bare-columns.parquet"),
+    ).rejects.toThrow(/bare rejection/);
+  });
+
+  test("a GeoParquet error from inside the read is passed through unchanged", async () => {
+    // Already a GeoParquetError -- rewrapping would bury the specific reason.
+    asyncBufferFromUrl.mockResolvedValue({});
+    parquetMetadataAsync.mockRejectedValue(
+      new GeoParquetError("declared projection is not registered"),
+    );
+    invalidateGeoParquetColumns();
+
+    await expect(
+      listGeoParquetColumns("https://h/specific.parquet"),
+    ).rejects.toThrow(/declared projection is not registered/);
+  });
+});
+
+describe("the last ramp and parquet edges", () => {
+  test("a ramped layer that is neither GeoTIFF nor Zarr reads no statistics", async () => {
+    // autoRampStatsUrl only knows how to find a GeoTIFF's stats.
+    const config = {
+      type: "TileLayer",
+      props: {
+        name: "x",
+        source: {
+          type: "Image Tile",
+          rampName: "turbo",
+          props: { url: "https://x/{z}/{x}/{y}.png" },
+        },
+      },
+    };
+
+    await expect(applyAutoRamp(config)).resolves.toBe(config);
+    expect(fromUrl).not.toHaveBeenCalled();
+  });
+
+  test("a categorical layer with no class list is not treated as categorical", async () => {
+    // styleMode alone is not enough: an empty table means nothing to match on.
+    const geotiff = {
+      type: "WebGLTile",
+      props: {
+        name: "x",
+        source: {
+          type: "GeoTIFF",
+          styleMode: "categorical",
+          props: { url: "https://x/a.tif" },
+        },
+      },
+    };
+    await expect(applyAutoRamp(geotiff)).resolves.toBe(geotiff);
+
+    clearClientSourceCaches();
+    readSlice.mockReset().mockResolvedValue({
+      width: 2,
+      height: 2,
+      extent: [0, 0, 4, 4],
+      crs: "EPSG:3857",
+      data: new Float32Array(8),
+      min: 0,
+      max: 1,
+    });
+    const zarr = {
+      type: "WebGLTile",
+      props: {
+        name: "y",
+        source: {
+          type: "Zarr",
+          styleMode: "categorical",
+          props: { url: "https://x/s.zarr", variable: "d" },
+        },
+      },
+    };
+    await applyZarrRamp(zarr);
+    // Falls through to the grayscale fit rather than a class match.
+    expect(zarr.props.source.resolvedRampMin).toBe(0);
+  });
+
+  test("a render read passes a GeoParquet error through unchanged", async () => {
+    asyncBufferFromUrl.mockResolvedValue({});
+    parquetMetadataAsync.mockRejectedValue(
+      new GeoParquetError("declared CRS is not registered"),
+    );
+    clearClientSourceCaches();
+
+    await expect(
+      loadGeoParquet(
+        { type: "GeoParquet", props: { url: "https://h/crs.parquet" } },
+        "EPSG:3857",
+      ),
+    ).rejects.toThrow(/declared CRS is not registered/);
+  });
+
+  test("a schema that is not a list yields no columns", async () => {
+    asyncBufferFromUrl.mockResolvedValue({});
+    parquetMetadataAsync.mockResolvedValue({
+      schema: undefined,
+      key_value_metadata: [],
+    });
+    invalidateGeoParquetColumns();
+
+    await expect(
+      listGeoParquetColumns("https://h/no-schema.parquet"),
+    ).resolves.toEqual([]);
+  });
+});
+
+test("the CORS probe gives up rather than hanging on a silent host", async () => {
+  // A HEAD that never answers would otherwise hold the layer indefinitely; the
+  // probe aborts itself and reports the host as not CORS-capable.
+  jest.useFakeTimers();
+  try {
+    let abortSignal;
+    global.fetch = jest.fn(
+      (url, options) =>
+        new Promise((_, reject) => {
+          abortSignal = options.signal;
+          abortSignal.addEventListener("abort", () =>
+            reject(new DOMException("aborted", "AbortError")),
+          );
+        }),
+    );
+
+    const probing = withAutoCrossOrigin("WMS", {
+      url: "https://silent.test/wms",
+    });
+    jest.advanceTimersByTime(5000);
+
+    await expect(probing).resolves.toEqual({ url: "https://silent.test/wms" });
+    expect(abortSignal.aborted).toBe(true);
+  } finally {
+    jest.useRealTimers();
+  }
+});

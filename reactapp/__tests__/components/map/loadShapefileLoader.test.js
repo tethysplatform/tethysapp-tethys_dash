@@ -130,3 +130,40 @@ it("reports a loader that throws rather than leaving the layer loading forever",
   expect(onError).toHaveBeenCalled();
   expect(source.get("shapefileController").getStatus()).toBe("error");
 });
+
+it("says nothing when a superseded run then fails", async () => {
+  // Aborting stops the fetch, but a rejection can still arrive afterwards. A
+  // run that is no longer current must write nothing at all: its layer may be
+  // gone, and a late error would land under whichever source owns that name.
+  let rejectFirst;
+  acquireComponents.mockImplementationOnce(
+    () =>
+      new Promise((_, reject) => {
+        rejectFirst = () => reject(new Error("late failure"));
+      }),
+  );
+
+  const source = loadShapefile(CONFIG, "EPSG:4326");
+  const first = runLoader(source, { getCode: () => "EPSG:4326" });
+  const second = runLoader(source, { getCode: () => "EPSG:4326" });
+  await second.done;
+
+  rejectFirst();
+  await first.done;
+
+  expect(first.onError).not.toHaveBeenCalled();
+  expect(source.get("shapefileController").getStatus()).toBe("ready");
+});
+
+it("reports an unexpected failure that carries no message", async () => {
+  // eslint-disable-next-line prefer-promise-reject-errors
+  acquireComponents.mockRejectedValue("bare rejection");
+  const source = loadShapefile(CONFIG, "EPSG:4326");
+
+  const { done } = runLoader(source, { getCode: () => "EPSG:4326" });
+  await done;
+
+  const controller = source.get("shapefileController");
+  expect(controller.getStatus()).toBe("error");
+  expect(controller.getError().detail).toMatch(/bare rejection/);
+});
