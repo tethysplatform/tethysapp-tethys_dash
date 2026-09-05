@@ -351,3 +351,13 @@ describe("unzipShapefileComponents — a transfer that did not finish", () => {
     expect(result.error.reason).toBe("unreadable_archive");
   });
 });
+
+it("ignores an archive member with no extension at all", () => {
+  const result = unzipShapefileComponents(
+    archive({ ...MINIMAL, README: bytes("read me") }),
+    { maxBytes: 10 * MB },
+  );
+
+  expect(result.error).toBeUndefined();
+  expect(Object.keys(result.components).sort()).toEqual(["dbf", "prj", "shp"]);
+});
