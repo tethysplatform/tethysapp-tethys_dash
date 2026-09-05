@@ -194,3 +194,88 @@ describe("registerProjectionDefinition", () => {
     expect(registerProjectionDefinition(undefined).error.reason).toBe("empty");
   });
 });
+
+describe("registering a table code on demand", () => {
+  // Every code in the shipped table is registered at load, so reaching the
+  // on-demand path needs an entry that is not. Restored in finally.
+  const CODE = "EPSG:26913";
+  const EXTENT = [-110, 31, -102, 45];
+
+  it("registers a table code that was not registered up front, extent and all", () => {
+    PROJECTION_TABLE[CODE] = {
+      definition: "+proj=utm +zone=13 +datum=NAD83 +units=m +no_defs",
+      extent: EXTENT,
+    };
+    try {
+      const projection = ensureProjection(CODE);
+
+      expect(projection).not.toBeNull();
+      // The extent matters: OpenLayers clamps the view with it, so a
+      // projection that becomes the view projection without one degrades
+      // silently.
+      expect(projection.getExtent()).toEqual(EXTENT);
+      // A second call finds it already registered.
+      expect(ensureProjection(CODE)).toBe(projection);
+    } finally {
+      delete PROJECTION_TABLE[CODE];
+    }
+  });
+});
+
+describe("a definition proj4 cannot resolve", () => {
+  it("reports the projection method it could not use", () => {
+    // proj4 parses this and stores it, but cannot transform with it, so the
+    // definition has to be rolled back rather than left registered.
+    const result = registerProjectionDefinition(
+      `PROJCS["Nonsense",GEOGCS["GCS_Nonsense",DATUM["D_Nonsense",SPHEROID["S",6378137.0,298.257222101]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]],PROJECTION["Not_A_Real_Projection"],UNIT["Meter",1.0]]`,
+    );
+
+    expect(result.error.reason).toBe("unsupported");
+    expect(result.error.detail).toMatch(/could not be resolved/);
+  });
+});
+
+it("registers a table code that declares no extent", () => {
+  // Not every projection has a sensible bounding box; those simply register.
+  const CODE = "EPSG:26914";
+  PROJECTION_TABLE[CODE] = {
+    definition: "+proj=utm +zone=14 +datum=NAD83 +units=m +no_defs",
+  };
+  try {
+    const projection = ensureProjection(CODE);
+    expect(projection).not.toBeNull();
+    expect(projection.getExtent()).toBeNull();
+  } finally {
+    delete PROJECTION_TABLE[CODE];
+  }
+});
+
+it("names the authority a rejected definition claimed for itself", () => {
+  const result = registerProjectionDefinition(
+    withAuthority(
+      `PROJCS["Nonsense2",GEOGCS["GCS_Nonsense2",DATUM["D_Nonsense2",SPHEROID["S",6378137.0,298.257222101]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]],PROJECTION["Also_Not_Real"],UNIT["Meter",1.0]]`,
+      "EPSG:999999",
+    ),
+  );
+
+  expect(result.error.reason).toBe("unsupported");
+  expect(result.error.detail).toContain("EPSG:999999");
+});
+
+it("ignores an authority node that names nothing", () => {
+  const result = registerProjectionDefinition(
+    withAuthority(ESRI_ALBERS_NO_AUTHORITY, ":"),
+  );
+  // The definition is fine, so it registers; the empty authority is simply not
+  // reported as a claimed code.
+  expect(result.code).toBeDefined();
+});
+
+it("describes a rejected definition that names no projection method", () => {
+  const result = registerProjectionDefinition(
+    `PROJCS["NoMethod",GEOGCS["GCS_NoMethod",DATUM["D_NoMethod",SPHEROID["S",6378137.0,298.257222101]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]],UNIT["Meter",1.0]]`,
+  );
+
+  expect(result.error.reason).toBe("unsupported");
+  expect(result.error.detail).toContain("an unnamed projection method");
+});

@@ -76,10 +76,11 @@ const WKT_CODE_PREFIX = "WKT:";
 // one degrades silently.
 function applyExtent(code) {
   const entry = PROJECTION_TABLE[code];
-  const projection = getProjection(code);
-  if (entry?.extent && projection && !projection.getExtent()) {
-    projection.setExtent(entry.extent);
-  }
+  if (!entry?.extent) return;
+  // Called only from registerCodes, only for a code it has just declared and
+  // registered, and only once per code -- so the projection exists and has no
+  // extent of its own yet.
+  getProjection(code).setExtent(entry.extent);
 }
 
 // Definitions have to be declared and registered together. `register` iterates
@@ -87,10 +88,11 @@ function applyExtent(code) {
 // registering a subset is not possible -- the subset is chosen by what gets
 // declared.
 function registerCodes(codes) {
+  // Both callers pass codes known to be in the table and not yet registered,
+  // so this never filters down to nothing.
   const pending = codes.filter(
     (code) => PROJECTION_TABLE[code] && !getProjection(code),
   );
-  if (pending.length === 0) return;
   pending.forEach((code) => {
     proj4.defs(code, PROJECTION_TABLE[code].definition);
   });
