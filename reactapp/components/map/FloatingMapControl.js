@@ -80,8 +80,10 @@ const FloatingMapControl = ({ edges, className, children, ...rest }) => {
   const [style, setStyle] = useState(null);
 
   const reposition = useCallback(() => {
+    // Every caller runs while mounted: the layout effect after render, and the
+    // resize, scroll and resize-observer subscriptions, all of which are torn
+    // down in cleanup. So the anchor is always attached here.
     const anchor = anchorRef.current;
-    if (!anchor) return;
     setStyle(
       styleFromAnchor(anchor.getBoundingClientRect(), edges, {
         width: window.innerWidth,

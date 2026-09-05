@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { getLayerAttributes } from "components/map/utilities";
 import AttributesPane from "components/modals/MapLayer/AttributesPane";
@@ -20,6 +20,7 @@ const TestingComponent = ({
   sourceProps,
   layerProps,
   tabKey,
+  shapefileDiscovery,
 }) => {
   const [attributeProps, setAttributeProps] = useState(
     initialAttributeProps ?? {},
@@ -33,6 +34,7 @@ const TestingComponent = ({
         sourceProps={sourceProps}
         layerProps={layerProps}
         tabKey={tabKey}
+        shapefileDiscovery={shapefileDiscovery}
       />
       <p data-testid="attributeVariables">
         {JSON.stringify(attributeProps.variables)}
@@ -838,4 +840,48 @@ TestingComponent.propTypes = {
   sourceProps: PropTypes.object,
   layerProps: PropTypes.object,
   tabKey: PropTypes.string,
+  shapefileDiscovery: PropTypes.object,
 };
+
+describe("a shapefile's fields come from the Source tab's read", () => {
+  const sourceProps = {
+    type: "Shapefile",
+    props: { url: "https://example.org/basins.shp" },
+  };
+
+  test("applies whatever that read found, without querying the url", async () => {
+    // Opening this tab must not start a multi-megabyte download of its own.
+    render(
+      <TestingComponent
+        sourceProps={sourceProps}
+        layerProps={{ name: "basins" }}
+        tabKey="attributes"
+        shapefileDiscovery={{
+          isShapefile: true,
+          state: "ready",
+          fields: ["BASIN_ID", "AREA_KM2"],
+        }}
+      />,
+    );
+
+    expect(await screen.findByText("BASIN_ID")).toBeInTheDocument();
+    expect(screen.getByText("AREA_KM2")).toBeInTheDocument();
+    expect(mockedGetLayerAttributes).not.toHaveBeenCalled();
+  });
+
+  test("shows nothing until that read has produced fields", async () => {
+    render(
+      <TestingComponent
+        sourceProps={sourceProps}
+        layerProps={{ name: "basins" }}
+        tabKey="attributes"
+        shapefileDiscovery={{ isShapefile: true, state: "idle", fields: [] }}
+      />,
+    );
+
+    // An empty row to type into, no discovered fields, and crucially nothing
+    // fetched from here -- the Source tab owns that read.
+    expect(await screen.findByLabelText("name Input 0")).toHaveValue("");
+    expect(mockedGetLayerAttributes).not.toHaveBeenCalled();
+  });
+});
