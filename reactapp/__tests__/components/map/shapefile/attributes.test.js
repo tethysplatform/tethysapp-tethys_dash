@@ -191,3 +191,39 @@ describe("prepareAttributes", () => {
     });
   });
 });
+
+describe("code page and encoding edges", () => {
+  const asciiBytes = (text) =>
+    new Uint8Array(Array.from(text, (character) => character.charCodeAt(0)));
+
+  it("reports nothing for a .cpg holding only unprintable bytes", () => {
+    // A file of newlines and NULs is not a label, and guessing from it would
+    // decode the whole table wrongly rather than fall back.
+    expect(encodingFromCodePage(new Uint8Array([0x0a, 0x00, 0x0d]))).toBeNull();
+  });
+
+  it("reads the number out of a name that carries one", () => {
+    expect(encodingFromCodePage(asciiBytes("ANSI1252"))).toBe("windows-1252");
+  });
+
+  it("reports nothing for a label nothing can decode", () => {
+    expect(encodingFromCodePage(asciiBytes("NOT-A-CHARSET"))).toBeNull();
+  });
+
+  it("declines to guess when the runtime has no TextDecoder", () => {
+    const original = global.TextDecoder;
+    delete global.TextDecoder;
+    try {
+      expect(looksLikeUtf8(new Uint8Array([0xc3, 0xa9]), 0)).toBe(false);
+    } finally {
+      global.TextDecoder = original;
+    }
+  });
+
+  it("passes a buffer too short to hold a header through untouched", () => {
+    // recordRegionOffset returns null, so prepareAttributes must not rewrite
+    // anything on a guess.
+    const stub = new Uint8Array([0x03, 0x00]);
+    expect(prepareAttributes(stub, null).dbf).toBe(stub);
+  });
+});
