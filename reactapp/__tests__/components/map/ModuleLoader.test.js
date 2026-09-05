@@ -2845,6 +2845,56 @@ describe("applyAutoRamp", () => {
       expect(config.props.source.resolvedRampMax).toBe(2);
     });
 
+    test("reads a sidecar that carries no PAMRasterBand", async () => {
+      // Some writers put the Metadata block at the dataset level instead.
+      mockGDALMetadata({ fileNodata: 255 });
+      mockSidecar(`<PAMDataset><Metadata>
+          <MDI key="STATISTICS_MINIMUM">1</MDI>
+          <MDI key="STATISTICS_MAXIMUM">4</MDI>
+        </Metadata></PAMDataset>`);
+      const config = geotiffLayer();
+
+      await applyAutoRamp(config);
+
+      expect(config.props.source.resolvedRampMin).toBe(1);
+      expect(config.props.source.resolvedRampMax).toBe(4);
+    });
+
+    test("ignores a sidecar entry with no key", async () => {
+      mockGDALMetadata({ fileNodata: 255 });
+      mockSidecar(`<PAMDataset><PAMRasterBand><Metadata>
+          <MDI>orphaned</MDI>
+          <MDI key="STATISTICS_MINIMUM">2</MDI>
+          <MDI key="STATISTICS_MAXIMUM">6</MDI>
+        </Metadata></PAMRasterBand></PAMDataset>`);
+      const config = geotiffLayer();
+
+      await applyAutoRamp(config);
+
+      expect(config.props.source.resolvedRampMin).toBe(2);
+    });
+
+    test("carries on when the sidecar request itself fails", async () => {
+      mockGDALMetadata({ fileNodata: 255 });
+      global.fetch = jest.fn().mockRejectedValue(new TypeError("offline"));
+      const config = geotiffLayer();
+
+      await expect(applyAutoRamp(config)).resolves.toBeDefined();
+    });
+
+    test("carries on when the file exposes no GDAL metadata at all", async () => {
+      fromUrl.mockResolvedValue({
+        getImage: jest.fn().mockResolvedValue({
+          getGDALMetadata: jest.fn(() => undefined),
+          getGDALNoData: jest.fn(() => null),
+        }),
+      });
+      mockSidecar("", false);
+      const config = geotiffLayer();
+
+      await expect(applyAutoRamp(config)).resolves.toBeDefined();
+    });
+
     test("does not request a sidecar when the TIFF already embeds statistics", async () => {
       mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "10" });
       global.fetch = jest.fn();
@@ -4748,5 +4798,23 @@ describe("more incomplete shapes", () => {
     class Thing {}
     const instance = new Thing();
     expect(coerceParquetValue(instance)).toBe(instance);
+  });
+});
+
+describe("ramp helpers handed a bare config", () => {
+  // A layer row can predate any of these fields, and applyAutoRamp runs on
+  // every layer regardless of what its source carries.
+  test("a layer with no source at all is returned untouched", async () => {
+    const config = { type: "WebGLTile", props: { name: "x" } };
+    await expect(applyAutoRamp(config)).resolves.toBe(config);
+    await expect(applyZarrRamp(config)).resolves.toBe(config);
+  });
+
+  test("a GeoTIFF with a ramp but no url is returned untouched", async () => {
+    const config = {
+      type: "WebGLTile",
+      props: { name: "x", source: { type: "GeoTIFF", rampName: "turbo" } },
+    };
+    await expect(applyAutoRamp(config)).resolves.toBe(config);
   });
 });

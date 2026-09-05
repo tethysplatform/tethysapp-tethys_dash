@@ -512,7 +512,7 @@ export async function applyAutoRamp(layerConfig) {
     // are built by us and always carry the -9999 sentinel already.
     if (source.type !== "Zarr") {
       source.props = {
-        ...(source.props ?? {}),
+        ...source.props,
         nodata: resolveNodata(image.getGDALNoData()),
       };
     }
@@ -540,7 +540,7 @@ export async function applyAutoRamp(layerConfig) {
       // value matching no class (so it takes the fallback color) while band 2
       // blends off 0 (so the nodata guard stops firing).
       source.props = {
-        ...(source.props ?? {}),
+        ...source.props,
         normalize: false,
         interpolate: false,
       };
@@ -599,7 +599,7 @@ export async function applyAutoRamp(layerConfig) {
       lo = maskValue;
     }
 
-    source.props = { ...(source.props ?? {}), normalize: false };
+    source.props = { ...source.props, normalize: false };
     layerConfig.style = styleFor(lo, hi);
     // Published for the colorbar legend. Kept in separate fields so the
     // author's own (empty) rampMin/rampMax keep meaning "auto" — writing back
