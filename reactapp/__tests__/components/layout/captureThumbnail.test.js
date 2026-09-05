@@ -44,9 +44,13 @@ beforeEach(() => {
   snapdomReturns();
 });
 
+// msw's interceptor restores the real fetch when the shared server closes, so
+// this has to put it back rather than delete it.
+const originalFetch = global.fetch;
+
 afterEach(() => {
   jest.restoreAllMocks();
-  delete global.fetch;
+  global.fetch = originalFetch;
 });
 
 describe("captureThumbnail", () => {
