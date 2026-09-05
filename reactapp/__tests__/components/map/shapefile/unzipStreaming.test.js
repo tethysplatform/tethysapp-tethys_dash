@@ -35,11 +35,6 @@ function member(name, { originalSize, onStart } = {}) {
   };
 }
 
-function run(members, maxBytes = 1024) {
-  const result = unzipShapefileComponents(ZIP_HEADER, { maxBytes });
-  return { result, members };
-}
-
 afterEach(() => {
   mockOnfile = undefined;
 });
