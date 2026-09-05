@@ -974,3 +974,214 @@ describe("StylePane categorical raster styling", () => {
     expect(last.classes[0].value).toBe("1");
   });
 });
+
+describe("StylePane categorical editing edges", () => {
+  const renderBare = (sourceProps) =>
+    render(
+      <AppContext.Provider value={{ dynamicMapLayers: [] }}>
+        <LayoutContext.Provider value={{ uuid: "123" }}>
+          <StylePane
+            style={undefined}
+            setStyle={() => {}}
+            setErrorMessage={() => {}}
+            sourceProps={{
+              type: "GeoTIFF",
+              rampName: "turbo",
+              props: { url: "lu.tif" },
+              ...sourceProps,
+            }}
+          />
+        </LayoutContext.Provider>
+      </AppContext.Provider>,
+    );
+
+  test("class editing is inert without a way to save it", async () => {
+    // The pane is rendered read-only in places; every writer has to no-op
+    // rather than throw on a missing setter.
+    renderBare({
+      styleMode: "categorical",
+      classes: [{ value: "1", color: "#aaa" }],
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: "Add class" }));
+    await userEvent.click(screen.getByRole("radio", { name: /continuous/i }));
+    expect(screen.getByText("Classes")).toBeInTheDocument();
+  });
+
+  test("a class row with no value renders an empty input", async () => {
+    renderBare({ styleMode: "categorical", classes: [{ color: "#aaa" }] });
+
+    expect(await screen.findByLabelText("Class 1 Value")).toHaveValue("");
+  });
+
+  test("a new class falls back to grey when the ramp resolves to nothing", async () => {
+    const spy = jest.fn();
+    render(
+      <GeoTIFFTestHarness
+        initialSourceProps={{
+          type: "GeoTIFF",
+          rampName: "not-a-real-ramp",
+          styleMode: "categorical",
+          classes: [],
+          props: { url: "lu.tif" },
+        }}
+        sourcePropsSpy={spy}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Add class" }));
+
+    await waitFor(() => {
+      const last = spy.mock.calls.at(-1)?.[0];
+      expect(last.classes[0].color).toBe("#888888");
+    });
+  });
+});
+
+test("StylePane takes a shapefile's fields from the Source tab's read", async () => {
+  // Opening the Style tab must not start a multi-megabyte download of its own.
+  render(
+    <AppContext.Provider value={{ dynamicMapLayers: [] }}>
+      <LayoutContext.Provider value={{ uuid: "123" }}>
+        <StylePane
+          style={undefined}
+          setStyle={() => {}}
+          setErrorMessage={() => {}}
+          sourceProps={{
+            type: "Shapefile",
+            props: { url: "https://example.org/basins.shp" },
+          }}
+          setSourceProps={() => {}}
+          shapefileDiscovery={{
+            isShapefile: true,
+            state: "ready",
+            fields: ["BASIN_ID"],
+          }}
+        />
+      </LayoutContext.Provider>
+    </AppContext.Provider>,
+  );
+
+  // The pane offers the editor rather than the dead-end panel, and takes its
+  // fields from that read instead of fetching anything itself.
+  expect(await screen.findByText("Style Source")).toBeInTheDocument();
+  expect(
+    screen.queryByText(/Custom Styling is only available/),
+  ).not.toBeInTheDocument();
+});
+
+describe("StylePane categorical colors", () => {
+  // react-color-palette measures its saturation area; jsdom has no observer.
+  let realResizeObserver;
+  beforeAll(() => {
+    realResizeObserver = global.ResizeObserver;
+    global.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+  });
+  afterAll(() => {
+    if (realResizeObserver) global.ResizeObserver = realResizeObserver;
+    else delete global.ResizeObserver;
+  });
+
+  const openSwatch = async (name) => {
+    fireEvent.click(
+      await screen.findByLabelText(`${name} color popover square`),
+    );
+    return screen.findByRole("textbox", { name: "HEX" });
+  };
+
+  test("picking a class color updates just that class", async () => {
+    let last;
+    render(
+      <GeoTIFFTestHarness
+        initialSourceProps={{
+          type: "GeoTIFF",
+          rampName: "turbo",
+          styleMode: "categorical",
+          classes: [
+            { value: "0", color: "#aaaaaa" },
+            { value: "1", color: "#bbbbbb" },
+          ],
+          props: { url: "lu.tif" },
+        }}
+        sourcePropsSpy={(next) => {
+          last = next;
+        }}
+      />,
+    );
+
+    const hex = await openSwatch("Class 2");
+    fireEvent.change(hex, { target: { value: "#00ff00" } });
+
+    await waitFor(() =>
+      expect(last?.classes[1].color.toLowerCase()).toBe("#00ff00"),
+    );
+    expect(last?.classes[0].color).toBe("#aaaaaa");
+  });
+
+  test("picking the fallback color leaves the classes alone", async () => {
+    let last;
+    render(
+      <GeoTIFFTestHarness
+        initialSourceProps={{
+          type: "GeoTIFF",
+          rampName: "turbo",
+          styleMode: "categorical",
+          classes: [{ value: "0", color: "#aaaaaa" }],
+          props: { url: "lu.tif" },
+        }}
+        sourcePropsSpy={(next) => {
+          last = next;
+        }}
+      />,
+    );
+
+    const hex = await openSwatch("Other values");
+    fireEvent.change(hex, { target: { value: "#123456" } });
+
+    await waitFor(() =>
+      expect(last?.fallbackColor.toLowerCase()).toBe("#123456"),
+    );
+    expect(last?.classes[0].color).toBe("#aaaaaa");
+  });
+});
+
+test("StylePane offers no fields when the field read fails", async () => {
+  // A failed read must leave the rule editor usable with an empty field list
+  // rather than taking the tab down.
+  const { getStyleFields } = require("components/map/utilities");
+  const spy = jest
+    .spyOn(require("components/map/utilities"), "getStyleFields")
+    .mockRejectedValue(new Error("could not read fields"));
+
+  try {
+    render(
+      <AppContext.Provider value={{ dynamicMapLayers: [] }}>
+        <LayoutContext.Provider value={{ uuid: "123" }}>
+          <StylePane
+            style={undefined}
+            setStyle={() => {}}
+            setErrorMessage={() => {}}
+            sourceProps={{
+              type: "GeoJSON",
+              geojson: JSON.stringify({
+                type: "FeatureCollection",
+                features: [],
+              }),
+            }}
+            setSourceProps={() => {}}
+          />
+        </LayoutContext.Provider>
+      </AppContext.Provider>,
+    );
+
+    expect(await screen.findByText("Style Source")).toBeInTheDocument();
+    await waitFor(() => expect(spy).toHaveBeenCalled());
+  } finally {
+    spy.mockRestore();
+  }
+  expect(typeof getStyleFields).toBe("function");
+});
