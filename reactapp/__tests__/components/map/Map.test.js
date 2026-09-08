@@ -1930,6 +1930,118 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
     expect(options).toEqual({ size: [256, 256] });
   });
 
+  test("a second raster in the projection already adopted leaves the view alone", async () => {
+    // This is the jitter. Every raster runs the auto-fit as it mounts, so a
+    // dashboard built on several rasters in one projection ran it once per
+    // raster -- and `setView` replaces the view outright, so each call made
+    // every layer re-render and the basemap refetch its tiles. Once the layers
+    // stopped arriving in a single burst, that showed up as the map jumping
+    // once per raster.
+    jest.spyOn(Map.prototype, "getSize").mockReturnValue([256, 256]);
+    jest.spyOn(Map.prototype, "renderSync").mockImplementation(() => {});
+    const setViewSpy = jest.spyOn(Map.prototype, "setView");
+    const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+
+    // Both rasters report EPSG:4326 over the whole world, so the first adopts
+    // it and the second finds the view already in it and already overlapping.
+    const raster = (name) => ({
+      type: "WebGLTile",
+      props: {
+        source: {
+          type: "GeoTIFF",
+          props: { url: `https://example.com/${name}.tif` },
+        },
+        name,
+        zIndex: 0,
+      },
+    });
+
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent
+            mapProps={{ layers: [raster("first"), raster("second")] }}
+          />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    await waitFor(() => expect(addLayerSpy.mock.calls.length).toBe(2));
+    await waitFor(() => expect(setViewSpy).toHaveBeenCalled());
+
+    // Both rasters are on the map, and the view moved exactly once.
+    expect(setViewSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test("a second raster somewhere else still moves the view", async () => {
+    // The guard is "the view already shows this raster", not "some raster
+    // already adopted this projection". A second raster in the same projection
+    // but outside the current view still has to be fitted, or adding it would
+    // leave the map pointed somewhere the author cannot see it.
+    jest.spyOn(Map.prototype, "getSize").mockReturnValue([256, 256]);
+    jest.spyOn(Map.prototype, "renderSync").mockImplementation(() => {});
+    const setViewSpy = jest.spyOn(Map.prototype, "setView");
+    const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+
+    // The default mock covers the world in EPSG:4326, so the first raster
+    // adopts and the view lands inside it; the second sits in the Pacific.
+    const getViewSpy = jest.spyOn(GeoTIFFSource.prototype, "getView");
+    getViewSpy.mockResolvedValueOnce({
+      projection: "EPSG:4326",
+      extent: [-180, -90, 180, 90],
+      center: [0, 0],
+      zoom: 2,
+    });
+    getViewSpy.mockResolvedValue({
+      projection: "EPSG:4326",
+      extent: [170, -10, 175, -5],
+      center: [172.5, -7.5],
+      zoom: 8,
+    });
+
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent
+            mapProps={{
+              layers: [
+                {
+                  type: "WebGLTile",
+                  props: {
+                    source: {
+                      type: "GeoTIFF",
+                      props: { url: "https://example.com/world.tif" },
+                    },
+                    name: "World",
+                    zIndex: 0,
+                  },
+                },
+                {
+                  type: "WebGLTile",
+                  props: {
+                    source: {
+                      type: "GeoTIFF",
+                      props: { url: "https://example.com/pacific.tif" },
+                    },
+                    name: "Pacific",
+                    zIndex: 1,
+                  },
+                },
+              ],
+            }}
+          />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    await waitFor(() => expect(addLayerSpy.mock.calls.length).toBe(2));
+    await waitFor(() => expect(setViewSpy.mock.calls.length).toBe(2));
+  });
+
   test("Auto-fit falls back to TIF extent when previous view does not overlap", async () => {
     // Override getView to return a tiny TIF extent in the Pacific. The
     // default view (continental US) does not overlap, so intersects() is

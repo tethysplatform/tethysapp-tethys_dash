@@ -785,6 +785,11 @@ const MapComponent = ({
                 });
 
                 let targetExtent = null;
+                // Whether the view, as it stands, is already looking at this
+                // raster. The fit below uses it to decide whether to keep the
+                // current extent; the adoption guard further down uses it to
+                // decide whether there is anything to adopt at all.
+                let viewOverlapsRaster = false;
                 if (haveMapSize) {
                   const prevExtent = prevView.calculateExtent(mapSize);
                   const sourceValid = prevProjection.getExtent?.();
@@ -809,11 +814,11 @@ const MapComponent = ({
                       newProjection,
                     );
                     if (transformed.every(Number.isFinite)) {
-                      const overlaps =
+                      viewOverlapsRaster =
                         Array.isArray(tifExtent) &&
                         tifExtent.length === 4 &&
                         intersects(transformed, tifExtent);
-                      targetExtent = overlaps
+                      targetExtent = viewOverlapsRaster
                         ? transformed
                         : Array.isArray(tifExtent) &&
                             tifExtent.every(Number.isFinite)
@@ -832,9 +837,6 @@ const MapComponent = ({
                   targetExtent = tifExtent;
                 }
 
-                if (targetExtent && haveMapSize) {
-                  newView.fit(targetExtent, { size: mapSize });
-                }
                 // Features already on the map were parsed into the outgoing
                 // projection, so adopting the raster's leaves them holding the
                 // wrong numbers -- a UTM raster over Guatemala left Web
@@ -843,6 +845,17 @@ const MapComponent = ({
                 // feature count. Move them with the view.
                 const previousCode = prevProjection.getCode();
                 const adoptedCode = newView.getProjection().getCode();
+
+                // Every raster runs this block as it mounts, so a dashboard
+                // built on several rasters in one projection ran it several
+                // times -- and when the view is already in that projection and
+                // already looking at the raster, the work above rebuilds the
+                // view that is already on screen. `setView` is not free: it
+                // replaces the view outright, so every layer re-renders and the
+                // basemap refetches its tiles. Five rasters each arriving on
+                // their own schedule made that visible as five jumps.
+                const alreadyAdopted =
+                  previousCode === adoptedCode && viewOverlapsRaster;
 
                 // Adopt the raster's projection as the view projection only when
                 // OpenLayers resolves it on its own. Registering a definition
@@ -853,11 +866,16 @@ const MapComponent = ({
                 // projection's units. Widening this is its own change, verified
                 // against live dashboards. Such a raster still renders here --
                 // by reprojection rather than natively.
-                if (!isNativelyResolvable(adoptedCode)) {
+                if (alreadyAdopted) {
+                  // The view already shows this raster in its own projection.
+                } else if (!isNativelyResolvable(adoptedCode)) {
                   console.warn(
                     `Not adopting "${adoptedCode}" as the view projection for layer "${name}": it resolves from a registered definition rather than natively. The layer renders by reprojection.`,
                   );
                 } else {
+                  if (targetExtent && haveMapSize) {
+                    newView.fit(targetExtent, { size: mapSize });
+                  }
                   map.setView(newView);
                   reprojectVectorFeatures(map, previousCode, adoptedCode);
                 }
