@@ -2958,7 +2958,50 @@ describe("swapping layers", () => {
     },
   });
 
-  it("finalizes a running fade before starting the next one", async () => {
+  it("finalizes a running fade before the next one starts", async () => {
+    // A buffered replacement is held at opacity 0 until it paints. Nothing
+    // paints in jsdom, so the tile event is fired here; and time is held still
+    // so the first fade is still running when the next swap lands -- otherwise
+    // its 250ms elapses and the overlap this guards cannot happen.
+    jest.useFakeTimers();
+    const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+    const setOpacity = jest.spyOn(WebGLTileLayer.prototype, "setOpacity");
+    const paint = () => {
+      const layer = addLayerSpy.mock.calls.at(-1)?.[0];
+      layer?.getSource?.()?.dispatchEvent?.("tileloadend");
+    };
+    // Microtasks only: advancing timers would let the fade's own frame run.
+    const flush = () => act(async () => Promise.resolve());
+
+    try {
+      const { rerender } = render(
+        renderWith([frame("https://tiles.test/a/{z}/{y}/{x}")]),
+      );
+      await flush();
+
+      rerender(renderWith([frame("https://tiles.test/b/{z}/{y}/{x}")]));
+      await flush();
+      paint();
+      await flush();
+
+      rerender(renderWith([frame("https://tiles.test/c/{z}/{y}/{x}")]));
+      await flush();
+      paint();
+      await flush();
+
+      // Both swaps buffered, so a second fade was requested while the first
+      // was still animating.
+      expect(
+        setOpacity.mock.calls.filter(([value]) => value === 0).length,
+      ).toBeGreaterThan(1);
+    } finally {
+      addLayerSpy.mockRestore();
+      setOpacity.mockRestore();
+      jest.useRealTimers();
+    }
+  });
+
+  it("restores a buffered layer's opacity once it has painted", async () => {
     // Storm playback swaps frames faster than a 250ms fade, so an overlapping
     // swap must not leave the previous frame stranded part way through.
     jest.useFakeTimers();
@@ -2992,6 +3035,48 @@ describe("swapping layers", () => {
   it("renders with no layers prop at all", async () => {
     // A dashboard can carry a map with nothing on it yet.
     render(renderWith(undefined));
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  });
+});
+
+describe("projection registry loading", () => {
+  const renderLayers = (layers) =>
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent mapProps={{ layers }} />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+  const layerWithProjection = (projection) => ({
+    type: "WebGLTile",
+    props: {
+      name: "tiles",
+      zIndex: 0,
+      source: {
+        type: "Image Tile",
+        props: { url: "https://tiles.test/{z}/{y}/{x}", projection },
+      },
+    },
+  });
+
+  it("loads the registry for a code OpenLayers cannot resolve itself", async () => {
+    // EPSG:5070 needs a definition; without one the raster draws at raw
+    // coordinates in the view's units -- visibly wrong but silent.
+    renderLayers([layerWithProjection("EPSG:5070")]);
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  });
+
+  it("skips the registry for a natively resolvable code", async () => {
+    renderLayers([layerWithProjection("EPSG:3857")]);
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  });
+
+  it("skips the registry for a source declaring no projection", async () => {
+    renderLayers([layerWithProjection("")]);
     expect(await screen.findByText("Map Ready")).toBeInTheDocument();
   });
 });

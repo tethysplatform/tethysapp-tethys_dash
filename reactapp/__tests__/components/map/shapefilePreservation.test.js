@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, act } from "@testing-library/react";
 import PropTypes from "prop-types";
 import { get as getProjection } from "ol/proj.js";
 import MapComponent from "components/map/Map";
@@ -322,5 +322,30 @@ describe("shapefile load listeners", () => {
       shapefileLayers()[0].getSource().getListeners("featuresloadend")
         ?.length ?? 0,
     ).toBeGreaterThan(0);
+  });
+});
+
+describe("a layer sync superseded before its layer is added", () => {
+  it("abandons the layer a newer sync has already replaced", async () => {
+    // The run's layer is in no newer run's removal snapshot, so adding it would
+    // leave it uncollected -- features drawn twice, and every clicked feature
+    // reported twice in the popup.
+    await mount([shapefileLayer()]);
+    const original = shapefileLayers()[0];
+
+    // Two renders, no microtask flush between them: the second bumps the sync
+    // token while the first is still awaiting its layer.
+    act(() => {
+      setLayers([shapefileLayer({ url: "https://example.org/second.zip" })]);
+    });
+    act(() => {
+      setLayers([shapefileLayer({ url: "https://example.org/third.zip" })]);
+    });
+
+    await reconciled(() => expect(shapefileLayers()[0]).not.toBe(original));
+    await drive();
+
+    // Exactly one shapefile layer survives, whichever order the runs settled.
+    expect(shapefileLayers()).toHaveLength(1);
   });
 });
