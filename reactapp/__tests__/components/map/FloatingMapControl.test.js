@@ -208,3 +208,67 @@ describe("FloatingMapControl", () => {
     expect(anchor).toBeEmptyDOMElement();
   });
 });
+
+describe("tracking the tile it floats above", () => {
+  it("observes the anchor's offset parent so a resized tile repositions it", () => {
+    // Editing the layout resizes the tile without a window resize or a scroll,
+    // so neither listener would fire.
+    const observe = jest.fn();
+    const disconnect = jest.fn();
+    const realResizeObserver = global.ResizeObserver;
+    global.ResizeObserver = jest.fn(() => ({ observe, disconnect }));
+
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    jest
+      .spyOn(HTMLElement.prototype, "offsetParent", "get")
+      .mockReturnValue(parent);
+    stubRect({
+      top: 100,
+      left: 20,
+      width: 200,
+      height: 50,
+      bottom: 150,
+      right: 220,
+    });
+
+    try {
+      const { unmount } = render(
+        <FloatingMapControl edges={["bottom", "left"]}>
+          <span>content</span>
+        </FloatingMapControl>,
+      );
+
+      expect(global.ResizeObserver).toHaveBeenCalled();
+      expect(observe).toHaveBeenCalledWith(parent);
+
+      unmount();
+      expect(disconnect).toHaveBeenCalled();
+    } finally {
+      if (realResizeObserver) global.ResizeObserver = realResizeObserver;
+      else delete global.ResizeObserver;
+    }
+  });
+
+  it("does not observe when the runtime has no ResizeObserver", () => {
+    const realResizeObserver = global.ResizeObserver;
+    delete global.ResizeObserver;
+    const parent = document.createElement("div");
+    jest
+      .spyOn(HTMLElement.prototype, "offsetParent", "get")
+      .mockReturnValue(parent);
+    stubRect({ top: 0, left: 0, width: 10, height: 10, bottom: 10, right: 10 });
+
+    try {
+      expect(() =>
+        render(
+          <FloatingMapControl edges={["top", "right"]}>
+            <span>content</span>
+          </FloatingMapControl>,
+        ),
+      ).not.toThrow();
+    } finally {
+      if (realResizeObserver) global.ResizeObserver = realResizeObserver;
+    }
+  });
+});

@@ -228,7 +228,7 @@ describe("retry wiring and teardown", () => {
 });
 
 describe("per-layer rows in the layers control", () => {
-  function renderControl(shapefileStatus, onRetryShapefile) {
+  function renderControl(layerStatus, onRetryLayer) {
     const layer = {
       get: jest.fn((key) => (key === "name" ? "Basins" : undefined)),
       getVisible: jest.fn(() => true),
@@ -240,8 +240,8 @@ describe("per-layer rows in the layers control", () => {
         visualizationRef={{
           current: { getLayers: () => ({ getArray: () => [layer] }) },
         }}
-        shapefileStatus={shapefileStatus}
-        onRetryShapefile={onRetryShapefile}
+        layerStatus={layerStatus}
+        onRetryLayer={onRetryLayer}
       />,
     );
     return screen.findByLabelText("Show Layers Control").then((button) => {

@@ -453,6 +453,8 @@ const StylePane = ({
     "ESRI Feature Service",
     "PMTiles Vector",
     "Shapefile",
+    "GeoPackage",
+    "GeoParquet",
   ];
   const isDynamicMapLayer = findSelectOptionByValue(
     dynamicMapLayers,

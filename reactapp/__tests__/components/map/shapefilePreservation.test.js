@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, act } from "@testing-library/react";
 import PropTypes from "prop-types";
 import { get as getProjection } from "ol/proj.js";
 import MapComponent from "components/map/Map";
@@ -39,6 +39,7 @@ function shapefileLayer({
   url = "https://example.org/basins.zip",
   projection,
   style,
+  zIndex,
 } = {}) {
   return {
     type: "VectorLayer",
@@ -48,34 +49,43 @@ function shapefileLayer({
         type: "Shapefile",
         props: { url, ...(projection === undefined ? {} : { projection }) },
       },
+      ...(zIndex === undefined ? {} : { zIndex }),
     },
     ...(style === undefined ? {} : { style }),
   };
 }
 
-function otherLayer({ opacity = 1 } = {}) {
+function otherLayer({ opacity = 1, zIndex } = {}) {
   return {
     type: "TileLayer",
     props: {
       name: "Basemap",
       opacity,
       source: { type: "Image Tile", props: { url: "https://example.org/{z}" } },
+      ...(zIndex === undefined ? {} : { zIndex }),
     },
   };
 }
 
 let mapRef;
 let setLayers;
+let setBaseMap;
 
 const Harness = ({ initialLayers }) => {
   const visualizationRef = useRef();
   const [layers, setLayersState] = useState(initialLayers);
+  const [baseMap, setBaseMapState] = useState("OpenStreetMap");
   const { mapReady } = useMapContext();
   mapRef = visualizationRef;
   setLayers = setLayersState;
+  setBaseMap = setBaseMapState;
   return (
     <div>
-      <MapComponent visualizationRef={visualizationRef} layers={layers} />
+      <MapComponent
+        visualizationRef={visualizationRef}
+        layers={layers}
+        baseMap={baseMap}
+      />
       <p>{mapReady ? "Map Ready" : "Map Not Ready"}</p>
     </div>
   );
@@ -160,6 +170,35 @@ describe("shapefile layer preservation", () => {
     expect(acquireComponents).toHaveBeenCalledTimes(1);
     // Same instance, so its features and loaded-extent bookkeeping survived.
     expect(layerNamed("Basins")).toBe(original);
+  });
+
+  it("restacks without reloading when the author reorders the layers", async () => {
+    // Reordering layers changes only `zIndex`, which the preservation match
+    // deliberately ignores -- so this is the one edit that reaches a preserved
+    // layer with a new stacking position and nothing else different. The
+    // sibling raster goes through the generic keep branch, which compares every
+    // prop, so it is rebuilt and picks its new position up for free. Until the
+    // preserved side was taught to apply zIndex too, the two disagreed and
+    // whichever had been rebuilt won -- a reorder looked like it did nothing.
+    await mount([shapefileLayer({ zIndex: 1 }), otherLayer({ zIndex: 2 })]);
+    await drive();
+    const original = layerNamed("Basins");
+    expect(original.getZIndex()).toBe(1);
+    expect(layerNamed("Basemap").getZIndex()).toBe(2);
+
+    setLayers([otherLayer({ zIndex: 1 }), shapefileLayer({ zIndex: 2 })]);
+    // Both sides, because they settle at different times: the preserved
+    // shapefile is restacked during the synchronous reconciliation sweep, while
+    // the raster is torn down and rebuilt behind a dynamic import and a
+    // crossfade.
+    await reconciled(() => {
+      expect(layerNamed("Basins").getZIndex()).toBe(2);
+      expect(layerNamed("Basemap").getZIndex()).toBe(1);
+    });
+    // Restacked in place: no refetch, and the same source keeps its features.
+    expect(layerNamed("Basins")).toBe(original);
+    await drive();
+    expect(acquireComponents).toHaveBeenCalledTimes(1);
   });
 
   it("loads again when the resolved url changes", async () => {
@@ -323,4 +362,42 @@ describe("shapefile load listeners", () => {
         ?.length ?? 0,
     ).toBeGreaterThan(0);
   });
+});
+
+describe("a layer sync superseded before its layer is added", () => {
+  it("abandons the layer a newer sync has already replaced", async () => {
+    // The run's layer is in no newer run's removal snapshot, so adding it would
+    // leave it uncollected -- features drawn twice, and every clicked feature
+    // reported twice in the popup.
+    await mount([shapefileLayer()]);
+    const original = shapefileLayers()[0];
+
+    // Two renders, no microtask flush between them: the second bumps the sync
+    // token while the first is still awaiting its layer.
+    act(() => {
+      setLayers([shapefileLayer({ url: "https://example.org/second.zip" })]);
+    });
+    act(() => {
+      setLayers([shapefileLayer({ url: "https://example.org/third.zip" })]);
+    });
+
+    await reconciled(() => expect(shapefileLayers()[0]).not.toBe(original));
+    await drive();
+
+    // Exactly one shapefile layer survives, whichever order the runs settled.
+    expect(shapefileLayers()).toHaveLength(1);
+  });
+});
+
+it("survives the layer array going away while the basemap changes", async () => {
+  // The reconciliation sweep still walks the previous configs, so it has to
+  // tolerate there being no incoming array to match them against.
+  await mount([shapefileLayer()]);
+
+  act(() => {
+    setLayers(undefined);
+    setBaseMap("Stadia");
+  });
+
+  await reconciled(() => expect(shapefileLayers()).toHaveLength(0));
 });

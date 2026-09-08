@@ -21,6 +21,7 @@ import {
   mapDrawingPropType,
   loadLayerJSONs,
   resolveTablePopupType,
+  formatAttributeValue,
 } from "components/map/utilities";
 import {
   buildSnapFeatureResult,
@@ -210,7 +211,7 @@ export const Popup = ({
                         </a>
                       );
                     } else {
-                      renderedValue = value;
+                      renderedValue = formatAttributeValue(value);
                     }
                     return (
                       <tr key={field}>
@@ -251,6 +252,10 @@ const MapVisualization = ({
 }) => {
   const [mapLegend, setMapLegend] = useState();
   const [mapLayers, setMapLayers] = useState();
+  // Which layers are still being prepared (style fetch, raster header read).
+  // This phase runs before any OL layer exists, so the map's own per-layer
+  // status map cannot see it and it is passed down instead.
+  const [layerPrepStatus, setLayerPrepStatus] = useState({});
   // One list for both popups -- see the union built in onMapClick.
   const [popupContent, setPopupContent] = useState(null);
   // Which gesture opened the current popup. The modal is click-only, and a
@@ -556,14 +561,75 @@ const MapVisualization = ({
         currentBaseMap.current = baseMap;
         currentLayers.current = JSON.parse(JSON.stringify(layers));
         const newMapLegend = [];
-        const newMapLayers = [];
+
+        // The basemap depends on nothing asynchronous, so it goes to the map
+        // before the layers are prepared rather than after. Preparing a layer
+        // costs a style fetch from the backend and, for a raster, a header read
+        // plus a possible sidecar read -- and until now none of it was published
+        // until all of it had finished, so a dashboard with a couple of layers
+        // showed an empty white map for as long as that took.
+        const baseMapLayer = baseMap ? getBaseMapLayer(baseMap) : null;
+        if (baseMap && !baseMapLayer) {
+          console.error(`${baseMap} is not a valid basemap`);
+        }
+        if (baseMapLayer) {
+          baseMapLayer.props.zIndex = 0;
+          setMapLayers([baseMapLayer]);
+        }
+
+        // Prepared in parallel. These are independent per layer -- each awaits
+        // its own network reads and mutates only its own config -- so the wall
+        // clock was the sum of every layer's latency for no reason. Order is
+        // preserved by assembling the legend from the original array afterwards.
+        setLayerPrepStatus(
+          Object.fromEntries(
+            layers
+              .map((layer) => layer.configuration?.props?.name)
+              .filter(Boolean)
+              .map((name) => [name, { state: "loading" }]),
+          ),
+        );
+        const clearPrepStatus = (name) =>
+          setLayerPrepStatus((previous) => {
+            if (!(name in previous)) return previous;
+            const { [name]: _removed, ...rest } = previous;
+            return rest;
+          });
+        await Promise.all(
+          layers.map(async (layer) => {
+            try {
+              await loadLayerJSONs(layer, uuid);
+            } finally {
+              clearPrepStatus(layer.configuration?.props?.name);
+            }
+          }),
+        );
+
+        // Published as soon as the saved references are resolved, and before
+        // any raster has been read. From here the map builds each layer
+        // independently and mounts it the moment it is ready, so a fast
+        // shapefile is on screen while a slow raster is still reading its
+        // header. Waiting for every layer first made the map only as quick as
+        // its slowest layer, which is what this barrier used to be.
+        const newMapLayers = layers.map((layer) => layer.configuration);
+        if (baseMapLayer) {
+          newMapLayers.unshift(baseMapLayer);
+        }
+        newMapLayers.forEach((layer, index) => {
+          layer.props.zIndex = index;
+        });
+        setMapLayers(newMapLayers);
+
+        // Nothing waits on this. A ramp-styled raster's range comes from its
+        // header, and the colorbar cannot be labelled until that is read -- but
+        // the layer itself does not need the legend, and the map resolves the
+        // same ramp for its own construction. So the legend arrives when the
+        // stats do (the two reads share one fetch; see applyAutoRamp).
+        await Promise.all(
+          layers.map((layer) => applyAutoRamp(layer.configuration)),
+        );
 
         for (const layer of layers) {
-          await loadLayerJSONs(layer, uuid);
-          // Resolve a Zarr layer's auto ramp before the legend is built so the
-          // colorbar can label the slice's real range. Re-runs with `layers` on
-          // every slice change, so the labels track the ramp.
-          await applyAutoRamp(layer.configuration);
           if (layer.legend) {
             if (layer.legend === "default") {
               const rampSource = layer.configuration?.props?.source;
@@ -581,7 +647,6 @@ const MapVisualization = ({
                     symbol: "square",
                   })),
                 });
-                newMapLayers.push(layer.configuration);
                 continue;
               }
               // Zarr renders through a GeoTIFF source, so it gets the same
@@ -608,7 +673,6 @@ const MapVisualization = ({
                   rampMax,
                   title: layer.configuration?.props?.name,
                 });
-                newMapLayers.push(layer.configuration);
                 continue;
               }
               // If the layer has a style JSON, pass it as legend metadata
@@ -642,24 +706,9 @@ const MapVisualization = ({
               newMapLegend.push(layer.legend);
             }
           }
-          newMapLayers.push(layer.configuration);
         }
-
-        if (baseMap) {
-          const baseMapLayer = getBaseMapLayer(baseMap);
-          if (baseMapLayer) {
-            newMapLayers.unshift(baseMapLayer);
-          } else {
-            console.error(`${baseMap} is not a valid basemap`);
-          }
-        }
-
-        newMapLayers.forEach((layer, index) => {
-          layer.props.zIndex = index;
-        });
 
         setMapLegend(newMapLegend);
-        setMapLayers(newMapLayers);
       }
     };
 
@@ -1182,6 +1231,7 @@ const MapVisualization = ({
         data-testid="backlayer-map"
         dataviewerViz={dataviewerViz}
         runtimeLayerState={runtimeLayerState}
+        layerPrepStatus={layerPrepStatus}
       />
       <PopupModal
         show={!!activeModalFeature}

@@ -231,10 +231,15 @@ const zarrSliceCache = new Map();
 const ZARR_SLICE_CACHE_MAX = 8;
 
 // Test seam: these caches are module-scoped by design, so a suite that asserts
-// on read counts needs to start from empty.
+// on read counts needs to start from empty. Every client-side read cache must
+// be listed here -- one left out leaks a parsed file from whichever test read
+// it first into every later test that asserts a read happened.
 export function clearClientSourceCaches() {
   zarrSliceCache.clear();
+  geoPackageCache.clear();
   geoParquetCache.clear();
+  geoPackageContents.invalidate();
+  geoParquetColumns.invalidate();
 }
 
 function getZarrSlice(source) {
@@ -329,7 +334,8 @@ export function geotiffSourceToOL(config) {
 // The GeoTIFF URL is author-supplied, so it is restricted to http(s):
 // file:/blob:/data:/protocol-relative must not be fetched.
 function autoRampStatsUrl(source) {
-  if (source?.type !== "GeoTIFF") return null;
+  // Only called once a ramp name has been read off the source, so it is there.
+  if (source.type !== "GeoTIFF") return null;
 
   const url = source.props?.url;
   return typeof url === "string" && /^https?:\/\//i.test(url) ? url : null;
@@ -385,14 +391,15 @@ export async function applyZarrRamp(layerConfig) {
   const hasMax = (rampMax ?? "") !== "";
   const isCategorical =
     source?.styleMode === "categorical" &&
-    (source?.classes ?? []).some(isUsableClass);
+    (source.classes ?? []).some(isUsableClass);
   // With no ramp and no classes there is still a style to build. A DataTile
   // carries raw values with no normalization (unlike the GeoTIFF source this
   // replaced, which rendered `normalize: true` grayscale), so leaving the layer
   // unstyled paints raw floats straight into the color channels. Fit grayscale
   // to the slice instead, which is what the old backend path effectively did.
+  // Never empty for a non-categorical layer: the grayscale fallback covers it,
+  // so there is always either a ramp to fit or a class list to match.
   const effectiveRamp = rampName || (isCategorical ? null : "grayscale");
-  if (!effectiveRamp && !isCategorical) return layerConfig;
 
   // Gates the slice read, not the style: ramp settings are not part of the
   // slice key, so the style is rebuilt on every call from the resolved slice.
@@ -448,6 +455,25 @@ export async function applyZarrRamp(layerConfig) {
   return layerConfig;
 }
 
+// Concurrent resolutions of the same file share one header read. The `resolved`
+// flag below only guards callers that arrive *after* a resolution finished, and
+// two now arrive together: the legend resolves a raster's range to label its
+// colorbar while the map resolves the same range to build the layer. Dropped on
+// settle rather than kept, so this dedupes in-flight reads without holding a
+// decoder open for every file a time-slider has ever visited.
+const rampHeaderReads = new Map();
+
+function readRampHeader(url) {
+  const inFlight = rampHeaderReads.get(url);
+  if (inFlight) return inFlight;
+  const read = (async () => {
+    const { fromUrl } = await import("geotiff");
+    return (await fromUrl(url)).getImage();
+  })().finally(() => rampHeaderReads.delete(url));
+  rampHeaderReads.set(url, read);
+  return read;
+}
+
 // Fit a ramp-styled raster layer's color ramp to the file's real value range.
 //
 // Left alone, such a layer renders with `normalize: true`, which makes OL scale
@@ -482,7 +508,7 @@ export async function applyAutoRamp(layerConfig) {
   // style raw values rather than OL's normalized bytes for the match to line up.
   const isCategorical =
     source?.styleMode === "categorical" &&
-    (source?.classes ?? []).some(isUsableClass);
+    (source.classes ?? []).some(isUsableClass);
   // The header is read even when both bounds are pinned, because it also
   // settles nodata — a pinned layer still needs its transparency right.
   if (!rampName && !isCategorical) return layerConfig;
@@ -493,8 +519,7 @@ export async function applyAutoRamp(layerConfig) {
   if (!statsUrl || source.resolvedRampUrl === statsUrl) return layerConfig;
 
   try {
-    const { fromUrl } = await import("geotiff");
-    const image = await (await fromUrl(statsUrl)).getImage();
+    const image = await readRampHeader(statsUrl);
     // getGDALMetadata(0) returns items tagged for sample 0 only; passing null
     // returns the dataset-level items. Writers differ -- rio-cogeo attaches
     // STATISTICS_* to the band, while GDAL and MATLAB's Mapping Toolbox write
@@ -505,12 +530,11 @@ export async function applyAutoRamp(layerConfig) {
     // Settle nodata first: it is independent of the ramp range, and a file with
     // nodata but no statistics still needs its transparency handled. Zarr COGs
     // are built by us and always carry the -9999 sentinel already.
-    if (source.type !== "Zarr") {
-      source.props = {
-        ...(source.props ?? {}),
-        nodata: resolveNodata(image.getGDALNoData()),
-      };
-    }
+    // Zarr never reaches here: applyAutoRamp hands it to applyZarrRamp first.
+    source.props = {
+      ...source.props,
+      nodata: resolveNodata(image.getGDALNoData()),
+    };
     // Every path below leaves the source with a nodata value, so OL appends an
     // alpha band and the style always has a band 2 to guard.
     const styleFor = (rampMinValue, rampMaxValue) => ({
@@ -535,7 +559,7 @@ export async function applyAutoRamp(layerConfig) {
       // value matching no class (so it takes the fallback color) while band 2
       // blends off 0 (so the nodata guard stops firing).
       source.props = {
-        ...(source.props ?? {}),
+        ...source.props,
         normalize: false,
         interpolate: false,
       };
@@ -594,7 +618,7 @@ export async function applyAutoRamp(layerConfig) {
       lo = maskValue;
     }
 
-    source.props = { ...(source.props ?? {}), normalize: false };
+    source.props = { ...source.props, normalize: false };
     layerConfig.style = styleFor(lo, hi);
     // Published for the colorbar legend. Kept in separate fields so the
     // author's own (empty) rampMin/rampMax keep meaning "auto" — writing back
@@ -691,6 +715,118 @@ export async function loadGeoPackage(config, mapProjection) {
   return source;
 }
 
+// The display projection a discovery read reprojects into. loadGpkg takes one
+// and throws *synchronously* when it is not registered, so discovery cannot
+// simply pass nothing. The value is not observable in the result -- only
+// Object.keys(dataByTable) is read and every reprojected geometry is discarded
+// -- so it only has to be a projection that resolves.
+const GEOPACKAGE_DISCOVERY_PROJECTION = "EPSG:3857";
+
+/**
+ * A single-flight promise cache keyed by resolved URL, for the discovery reads
+ * that answer "what does this file contain?".
+ *
+ * The entry is planted synchronously, before the reader's first await, so a
+ * second caller arriving in the same tick joins the in-flight read instead of
+ * starting its own. A rejection is evicted so a transient network or CORS
+ * failure can be retried rather than pinning the menu to that error forever.
+ *
+ * `invalidate` exists because these caches sit behind the discovery hook's own
+ * memo: a forced re-read that cleared only the memo would land here and be
+ * handed the same list straight back, so the control would spin and nothing on
+ * screen would change. Called with no url, it clears every entry.
+ */
+function createUrlKeyedCache({ read, missingUrl }) {
+  const cache = new Map();
+
+  const get = (rawUrl) => {
+    if (!rawUrl) return Promise.reject(missingUrl());
+    const url = s3UrlToHttps(rawUrl);
+    if (!cache.has(url)) {
+      cache.set(
+        url,
+        read(url).catch((error) => {
+          cache.delete(url);
+          throw error;
+        }),
+      );
+    }
+    return cache.get(url);
+  };
+
+  const invalidate = (rawUrl) => {
+    if (rawUrl === undefined) {
+      cache.clear();
+      return;
+    }
+    cache.delete(s3UrlToHttps(rawUrl));
+  };
+
+  return { get, invalidate };
+}
+
+// Discovery's own parsed-gpkg cache, keyed by resolved URL alone. Deliberately
+// not geoPackageCache above, which is keyed `${url}::${mapProjection}`: the
+// editor has no map projection to key with (MapContext exposes only
+// map-readiness and extent-draw state), and a forced re-read from the editor
+// must not evict an entry a rendered layer is still awaiting. The cost is one
+// download not shared with the render path.
+const geoPackageContents = createUrlKeyedCache({
+  read: (url) => readGeoPackageContents(url),
+  missingUrl: () =>
+    new GeoPackageError("GeoPackage source requires a file URL"),
+});
+
+// List the table names in a GeoPackage file. loadGeoPackage above needs a table
+// name and throws without one, which is exactly the state an author picking a
+// table is in; this reads the same file and answers with the names instead.
+export const listGeoPackageTables = (rawUrl) =>
+  geoPackageContents.get(rawUrl).then((contents) => contents.tables);
+export const invalidateGeoPackageTables = geoPackageContents.invalidate;
+
+// The attribute names of one table, for the style rule editor. Shares the cache
+// -- and therefore the download -- with the table listing above: parsing a
+// GeoPackage means reading the whole file, so doing it twice for one url would
+// be the expensive half of this feature done twice.
+export const listGeoPackageFields = (rawUrl, table) =>
+  geoPackageContents
+    .get(rawUrl)
+    .then((contents) => contents.fieldsByTable[table] ?? []);
+
+// Attribute names on a parsed table, geometry excluded: it is the shape of the
+// feature, not something a rule can test.
+function geoPackageTableFields(source) {
+  const feature = source?.getFeatures?.()?.[0];
+  if (!feature) return [];
+  const geometryName = feature.getGeometryName?.();
+  return Object.keys(feature.getProperties?.() ?? {}).filter(
+    (name) => name !== geometryName,
+  );
+}
+
+async function readGeoPackageContents(url) {
+  // Register before loadGpkg rather than relying on the render path having run
+  // first: discovery can run before any GeoPackage layer has ever rendered, and
+  // an unregistered display projection makes loadGpkg throw.
+  registerGeoPackageProjections();
+  const { loadGpkg } = await getGeoPackageLib();
+  try {
+    const [dataByTable] = await loadGpkg(url, GEOPACKAGE_DISCOVERY_PROJECTION);
+    const tables = Object.keys(dataByTable ?? {});
+    const fieldsByTable = {};
+    for (const table of tables) {
+      fieldsByTable[table] = geoPackageTableFields(dataByTable[table]);
+    }
+    return { tables, fieldsByTable };
+  } catch (error) {
+    // Surface why the read failed. Returning an empty list here would be read
+    // as "this file has no tables", which is a different and wrong answer.
+    throw new GeoPackageError(
+      `Could not read the GeoPackage file: ${error?.message ?? error}`,
+    );
+  }
+}
+
 export class GeoParquetError extends Error {}
 
 // OGC's lon/lat WGS84 authority code, spelled several ways across PROJJSON
@@ -715,7 +851,7 @@ export function geoParquetCRSToProjection(crs) {
 // renders the data at raw coordinates in the view's units — visibly wrong but
 // silent. Failing here instead puts the layer in failedLayers with a message
 // naming the code.
-function resolveProjectionOrThrow(code, { ErrorType = Error, what }) {
+function resolveProjectionOrThrow(code, { ErrorType, what }) {
   const projection = getProjection(code);
   if (!projection) {
     throw new ErrorType(
@@ -913,7 +1049,7 @@ export async function loadGeoParquet(config, mapProjection) {
   });
 }
 
-async function readGeoParquetFile(url, readOptions = {}) {
+async function readGeoParquetFile(url, readOptions) {
   const {
     asyncBufferFromUrl,
     parquetMetadataAsync,
@@ -1008,6 +1144,100 @@ async function readGeoParquetFile(url, readOptions = {}) {
   };
 }
 
+// Discovery's own metadata cache, keyed by resolved URL alone. Separate from
+// geoParquetCache because that one keys on the read options (columns/bbox/
+// maxFeatures) an author has not chosen yet.
+const geoParquetColumns = createUrlKeyedCache({
+  read: (url) => readGeoParquetColumns(url),
+  missingUrl: () =>
+    new GeoParquetError("GeoParquet source requires a file URL"),
+});
+
+// List a GeoParquet file's selectable attribute columns. Unlike the GeoPackage
+// read this touches only the file footer, since hyparquet ranges into it.
+export const listGeoParquetColumns = geoParquetColumns.get;
+export const invalidateGeoParquetColumns = geoParquetColumns.invalidate;
+
+// A parquet schema arrives as a flat, depth-first list: the root element,
+// followed by each of its children with that child's own subtree inlined
+// straight after it. Walking every element would offer nested leaves, so skip
+// whole subtrees and return only the root's direct children.
+//
+// Top-level names are the only correct answer here. hyparquet matches a
+// requested column against `pathInSchema[0]` (read.js), so a leaf or dotted
+// path is silently ignored at read time -- the author would pick a column,
+// save, and get a layer rendered without it and no error anywhere.
+function topLevelParquetColumns(schema) {
+  if (!Array.isArray(schema) || schema.length < 2) return [];
+  const subtreeSize = (index) => {
+    let size = 1;
+    let child = index + 1;
+    // num_children comes out of the file. A corrupt or hostile footer can
+    // declare more children than the schema actually holds, and counting down a
+    // file-supplied number with no floor spins this loop until the tab dies --
+    // so the end of the list is the real bound.
+    for (
+      let n = schema[index]?.num_children ?? 0;
+      n > 0 && child < schema.length;
+      n--
+    ) {
+      const childSize = subtreeSize(child);
+      child += childSize;
+      size += childSize;
+    }
+    return size;
+  };
+  const names = [];
+  // A root that declares no child count is malformed rather than empty, so walk
+  // to the end of the list instead of returning nothing.
+  let remaining = schema[0]?.num_children ?? Infinity;
+  let index = 1;
+  while (index < schema.length && remaining > 0) {
+    names.push(schema[index].name);
+    index += subtreeSize(index);
+    remaining -= 1;
+  }
+  return names;
+}
+
+async function readGeoParquetColumns(url) {
+  const { asyncBufferFromUrl, parquetMetadataAsync } = await getHyparquet();
+  try {
+    const file = await asyncBufferFromUrl({ url });
+    const metadata = await parquetMetadataAsync(file);
+    const { geometryColumn, bboxColumn } = readGeoParquetGeoMetadata(metadata);
+
+    const hidden = new Set([geometryColumn]);
+    if (bboxColumn) {
+      // readCoveringBBoxPaths returns dotted physical paths ("bbox.xmin"), and
+      // the offered names are top-level, so reduce to the first segment -- the
+      // same reduction resolveReadColumns makes when it adds them to a read.
+      for (const path of Object.values(bboxColumn)) {
+        hidden.add(path.split(".")[0]);
+      }
+    }
+    // The geometry and covering columns are machinery the reader consumes on
+    // its own: the reader always includes the geometry column and hides the
+    // covering one from the popup, so offering either invites a selection that
+    // changes nothing the author can see.
+    return topLevelParquetColumns(metadata?.schema).filter(
+      (name) => !hidden.has(name),
+    );
+  } catch (error) {
+    // Fail with a reason. An empty list would read as "this file has no
+    // attribute columns", which is a different and wrong answer.
+    if (error instanceof GeoParquetError) throw error;
+    throw new GeoParquetError(
+      // The remedy is the presentation layer's job -- the discovery note already
+      // appends TRANSFER_REMEDY for a transfer-stage failure, so repeating it
+      // here printed the same sentence twice. The range-request half is
+      // format-specific, so only that stays.
+      `Could not read the GeoParquet file: ${error?.message ?? error}. ` +
+        `The host must also support range requests.`,
+    );
+  }
+}
+
 // Bounding-box overlap for a GeoJSON geometry, used only when the file has no
 // covering column to push the filter down to.
 export function geometryIntersectsBBox(geometry, box) {
@@ -1087,7 +1317,11 @@ const moduleLoader = async (config, mapProjection, getMapProjection) => {
       } else if (type === "ESRI Feature Service") {
         return loadESRIJSON(config);
       } else {
-        const resolvedProps = await resolveProps(props, mapProjection);
+        const resolvedProps = await resolveProps(
+          props,
+          mapProjection,
+          getMapProjection,
+        );
         if (type === "Vector Tile") {
           resolvedProps.format = new MVT();
         }
@@ -1115,7 +1349,11 @@ const moduleLoader = async (config, mapProjection, getMapProjection) => {
 
     moduleCache[type] = ModuleConstructor;
 
-    const resolvedProps = await resolveProps(props, mapProjection);
+    const resolvedProps = await resolveProps(
+      props,
+      mapProjection,
+      getMapProjection,
+    );
     if (type === "Vector Tile") {
       resolvedProps.format = new MVT();
     }
@@ -1138,8 +1376,15 @@ const moduleLoader = async (config, mapProjection, getMapProjection) => {
   }
 };
 
-// Helper function to resolve nested props
-const resolveProps = async (props, mapProjection) => {
+// Helper function to resolve nested props.
+//
+// `getMapProjection` is threaded through every recursion because a layer's
+// source is a nested module config: a shapefile arrives as
+// `{type: "VectorLayer", props: {source: {type: "Shapefile"}}}`, so the source
+// is loaded from here rather than by the top-level dispatch. Dropping the
+// callback here left the shapefile loader with no way to reread the view, which
+// is the whole point of it.
+const resolveProps = async (props, mapProjection, getMapProjection) => {
   if (!props) return {};
 
   const resolvedProps = {};
@@ -1176,13 +1421,17 @@ const resolveProps = async (props, mapProjection) => {
     if (value && typeof value === "object") {
       if ("type" in value && "props" in value) {
         // It's a module configuration; process with moduleLoader
-        resolvedProps[key] = await moduleLoader(value, mapProjection);
+        resolvedProps[key] = await moduleLoader(
+          value,
+          mapProjection,
+          getMapProjection,
+        );
       } else if (Array.isArray(value)) {
         // It's an array; resolve each item
         resolvedProps[key] = await Promise.all(
           value.map(async (item) => {
             if (item && typeof item === "object") {
-              return await resolveProps(item, mapProjection);
+              return await resolveProps(item, mapProjection, getMapProjection);
             } else {
               return item;
             }
@@ -1190,7 +1439,11 @@ const resolveProps = async (props, mapProjection) => {
         );
       } else {
         // It's a regular object; recursively resolve its properties
-        resolvedProps[key] = await resolveProps(value, mapProjection);
+        resolvedProps[key] = await resolveProps(
+          value,
+          mapProjection,
+          getMapProjection,
+        );
       }
     } else {
       // It's a primitive value; assign as is

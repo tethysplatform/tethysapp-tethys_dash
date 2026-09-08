@@ -1,4 +1,4 @@
-import { memo, useEffect, useState, useRef, useContext } from "react";
+import { memo, useEffect, useMemo, useState, useRef, useContext } from "react";
 import { Map, View } from "ol";
 import moduleLoader, {
   applyAutoRamp,
@@ -177,13 +177,27 @@ const MapComponent = ({
   visualizationRef,
   dataviewerViz,
   runtimeLayerState,
+  layerPrepStatus,
 }) => {
   const [errorMessage, setErrorMessage] = useState("");
-  // Per-layer load state for client-parsed sources, keyed on layer name.
-  // Mirrored into React state purely so it can be rendered; the source's own
-  // controller remains the authority.
-  const [shapefileStatus, setShapefileStatus] = useState({});
+  // Per-layer load state, keyed on layer name, for every source read in the
+  // browser. Mirrored into React state purely so it can be rendered; for a
+  // shapefile the source's own controller remains the authority. Written by the
+  // construct pass below and by the watcher on the deferred feature load.
+  const [layerStatus, setLayerStatus] = useState({});
   const [layerControlUpdate, setLayerControlUpdate] = useState();
+
+  // Settle a layer's entry at the end of its construct pass. `ready` mirrors
+  // what the shapefile watcher writes on success; `idle` drops the entry, for a
+  // layer that finished with nothing to report.
+  const settleLayerStatus = (name, state) =>
+    setLayerStatus((previous) => {
+      if (state === "idle") {
+        const { [name]: _dropped, ...rest } = previous;
+        return rest;
+      }
+      return { ...previous, [name]: { state, message: null, kind: null } };
+    });
   const mapDivRef = useRef();
   const onMapClickCurrent = useRef();
   const onMapHoverCurrent = useRef();
@@ -210,7 +224,9 @@ const MapComponent = ({
     const start = Date.now();
     let rafId = null;
     const finalize = () => {
-      if (rafId !== null) cancelAnimationFrame(rafId);
+      // Always scheduled by the time anything can call this: rAF is assigned
+      // below before either `step` or a later crossfade can reach it.
+      cancelAnimationFrame(rafId);
       incoming.forEach(({ layer, opacity }) => layer.setOpacity(opacity));
       outgoing.forEach((layer) => map.removeLayer(layer));
       activeFadeRef.current = null;
@@ -231,24 +247,33 @@ const MapComponent = ({
   // disabled it -- and a failure that renders as a blank layer is the one thing
   // this must not do. The layers control still carries the richer per-layer
   // detail when it is enabled.
-  const shapefileEntries = Object.entries(shapefileStatus);
-  const shapefileFailures = shapefileEntries.filter(
+  // The prep phase runs in the parent, before any OL layer exists, so its
+  // entries are merged in here rather than living in the state above. A layer
+  // being prepared cannot also be constructing, so neither side overwrites a
+  // more specific state belonging to the other.
+  const mergedLayerStatus = useMemo(
+    () => ({ ...layerPrepStatus, ...layerStatus }),
+    [layerPrepStatus, layerStatus],
+  );
+
+  const statusEntries = Object.entries(mergedLayerStatus);
+  const layerFailures = statusEntries.filter(
     ([, status]) => status.state === "error",
   );
-  const shapefileLoading = shapefileEntries.filter(
+  const layersLoading = statusEntries.filter(
     ([, status]) => status.state === "loading",
   );
-  const shapefileAlert = shapefileFailures.length
+  const layerAlert = layerFailures.length
     ? {
         variant: "danger",
-        message: shapefileFailures
+        message: layerFailures
           .map(([name, status]) => `${name}: ${status.message}`)
           .join(" "),
       }
-    : shapefileLoading.length
+    : layersLoading.length
       ? {
           variant: "info",
-          message: `Loading ${shapefileLoading
+          message: `Loading ${layersLoading
             .map(([name]) => name)
             .join(", ")}\u2026`,
         }
@@ -541,10 +566,18 @@ const MapComponent = ({
         });
 
         // Apply cosmetic prop changes to preserved runtime OL instances.
+        // Every entry names a layer that is on the map -- the id comes from the
+        // match that produced the entry, and nothing removes a layer between
+        // that match and here -- so the lookup cannot miss and the tests cannot
+        // reach the other branch. Kept explicit anyway: this reconciliation has
+        // proved subtle enough to be worth the belt, and a miss here would
+        // otherwise depend on `updateOlLayerProps` tolerating undefined, which
+        // is a promise made by another module.
         runtimeLayerUpdates.forEach(({ layerId, newProps }) => {
           const olLayer = currentMapLayers.find(
             (l) => l.get("layerId") === layerId,
           );
+          /* istanbul ignore else -- unreachable: see above */
           if (olLayer) {
             updateOlLayerProps(olLayer, newProps);
           }
@@ -556,6 +589,11 @@ const MapComponent = ({
         // only applied when a layer is constructed.
         shapefileLayerUpdates.forEach(({ name, newProps, config }) => {
           const olLayer = currentMapLayers.find((l) => l.get("name") === name);
+          // Same invariant as above, but this one is load-bearing rather than
+          // belt: the `.get`/`.set` below would throw on a miss and take the
+          // whole layer sync with it, blanking the map.
+          /* istanbul ignore if -- unreachable: the name comes from the match
+             that produced this entry */
           if (!olLayer) return;
           updateOlLayerProps(olLayer, newProps);
           if (!valuesEqual(olLayer.get("appliedStyle"), config.style)) {
@@ -586,6 +624,16 @@ const MapComponent = ({
         await import("components/map/projections");
       }
 
+      // Which raster, if any, gets to set the view projection. Resolved from
+      // the author's array before anything is built, so it is the same answer
+      // for every layer in this run no matter what order they finish in.
+      const viewProjectionOwner = customLayers.find(
+        (candidate) =>
+          candidate?.type === "WebGLTile" &&
+          (candidate.props?.source?.type === "GeoTIFF" ||
+            candidate.props?.source?.type === "Zarr"),
+      );
+
       let failedLayers = [];
       // Replacement layers added hidden until painted, then revealed on swap.
       const buffered = [];
@@ -598,6 +646,16 @@ const MapComponent = ({
           if (layersToKeep.includes(name)) {
             return;
           }
+
+          // Constructing a source is where the network cost of most layer
+          // types actually lands -- a GeoTIFF reads its header, a Zarr decodes
+          // a slice, a GeoPackage fetches the whole file. Only the shapefile
+          // reported any of that, because only it defers work to an OL loader
+          // with events to watch. Marking the pass itself covers every type.
+          setLayerStatus((previous) => ({
+            ...previous,
+            [name]: { state: "loading", message: null, kind: null },
+          }));
 
           try {
             // Resolve a Zarr layer's ramp from the slice's real value range
@@ -688,7 +746,7 @@ const MapComponent = ({
             }
             newLayer.set("appliedStyle", layerConfig.style);
             map.addLayer(newLayer);
-            watchShapefileLoad(newLayer, name, setShapefileStatus);
+            watchShapefileLoad(newLayer, name, setLayerStatus);
 
             if (
               layerConfig.type === "WebGLTile" &&
@@ -725,117 +783,165 @@ const MapComponent = ({
               geoTIFFSource.on("error", surface("source error"));
               geoTIFFSource.on("tileloaderror", surface("tile load error"));
 
-              try {
-                const viewOptions = await geoTIFFSource.getView();
-                const mapSize = map.getSize();
-                const prevView = map.getView();
-                const prevProjection = prevView.getProjection();
-                const newProjection = viewOptions.projection;
-                const tifExtent = viewOptions.extent;
+              // One raster owns the view projection. Every GeoTIFF and Zarr
+              // layer used to assert its own CRS on the map's single view, so a
+              // dashboard mixing projections had them fighting -- each adoption
+              // undoing the last, and each `setView` re-rendering every layer
+              // and refetching the basemap. It only looked stable while they
+              // all landed in the same frame.
+              //
+              // The others still render: OpenLayers reprojects a DataTile
+              // source whose projection differs from the view's, so not owning
+              // the view costs a reprojection, not a layer.
+              //
+              // The owner is the first such layer in the author's own array,
+              // not the first to finish loading, so which projection the map
+              // settles in does not depend on which file the network served
+              // first -- and reordering the layers is how an author changes it.
+              if (layerConfig === viewProjectionOwner) {
+                try {
+                  const viewOptions = await geoTIFFSource.getView();
+                  const mapSize = map.getSize();
+                  const prevView = map.getView();
+                  const prevProjection = prevView.getProjection();
+                  const newProjection = viewOptions.projection;
+                  const tifExtent = viewOptions.extent;
 
-                const haveMapSize =
-                  Array.isArray(mapSize) &&
-                  mapSize.length === 2 &&
-                  mapSize[0] > 0 &&
-                  mapSize[1] > 0;
+                  const haveMapSize =
+                    Array.isArray(mapSize) &&
+                    mapSize.length === 2 &&
+                    mapSize[0] > 0 &&
+                    mapSize[1] > 0;
 
-                // Helper: extents [minX, minY, maxX, maxY] overlap?
-                const intersects = (a, b) =>
-                  !(a[2] < b[0] || a[0] > b[2] || a[3] < b[1] || a[1] > b[3]);
+                  // Helper: extents [minX, minY, maxX, maxY] overlap?
+                  const intersects = (a, b) =>
+                    !(a[2] < b[0] || a[0] > b[2] || a[3] < b[1] || a[1] > b[3]);
 
-                const newView = new View({
-                  projection: newProjection,
-                  center: viewOptions.center ?? [0, 0],
-                  zoom: viewOptions.zoom ?? 0,
-                });
+                  const newView = new View({
+                    projection: newProjection,
+                    center: viewOptions.center ?? [0, 0],
+                    zoom: viewOptions.zoom ?? 0,
+                  });
 
-                let targetExtent = null;
-                if (haveMapSize) {
-                  const prevExtent = prevView.calculateExtent(mapSize);
-                  const sourceValid = prevProjection.getExtent?.();
-                  const clampedPrev =
-                    Array.isArray(sourceValid) && sourceValid.length === 4
-                      ? [
-                          Math.max(prevExtent[0], sourceValid[0]),
-                          Math.max(prevExtent[1], sourceValid[1]),
-                          Math.min(prevExtent[2], sourceValid[2]),
-                          Math.min(prevExtent[3], sourceValid[3]),
-                        ]
-                      : prevExtent;
+                  let targetExtent = null;
+                  // Whether the view, as it stands, is already looking at this
+                  // raster. The fit below uses it to decide whether to keep the
+                  // current extent; the adoption guard further down uses it to
+                  // decide whether there is anything to adopt at all.
+                  let viewOverlapsRaster = false;
+                  if (haveMapSize) {
+                    const prevExtent = prevView.calculateExtent(mapSize);
+                    const sourceValid = prevProjection.getExtent?.();
+                    const clampedPrev =
+                      Array.isArray(sourceValid) && sourceValid.length === 4
+                        ? [
+                            Math.max(prevExtent[0], sourceValid[0]),
+                            Math.max(prevExtent[1], sourceValid[1]),
+                            Math.min(prevExtent[2], sourceValid[2]),
+                            Math.min(prevExtent[3], sourceValid[3]),
+                          ]
+                        : prevExtent;
 
-                  if (
-                    clampedPrev.every(Number.isFinite) &&
-                    clampedPrev[0] < clampedPrev[2] &&
-                    clampedPrev[1] < clampedPrev[3]
-                  ) {
-                    const transformed = transformExtent(
-                      clampedPrev,
-                      prevProjection,
-                      newProjection,
-                    );
-                    if (transformed.every(Number.isFinite)) {
-                      const overlaps =
-                        Array.isArray(tifExtent) &&
-                        tifExtent.length === 4 &&
-                        intersects(transformed, tifExtent);
-                      targetExtent = overlaps
-                        ? transformed
-                        : Array.isArray(tifExtent) &&
-                            tifExtent.every(Number.isFinite)
-                          ? tifExtent
-                          : transformed;
+                    if (
+                      clampedPrev.every(Number.isFinite) &&
+                      clampedPrev[0] < clampedPrev[2] &&
+                      clampedPrev[1] < clampedPrev[3]
+                    ) {
+                      const transformed = transformExtent(
+                        clampedPrev,
+                        prevProjection,
+                        newProjection,
+                      );
+                      if (transformed.every(Number.isFinite)) {
+                        viewOverlapsRaster =
+                          Array.isArray(tifExtent) &&
+                          tifExtent.length === 4 &&
+                          intersects(transformed, tifExtent);
+                        targetExtent = viewOverlapsRaster
+                          ? transformed
+                          : Array.isArray(tifExtent) &&
+                              tifExtent.every(Number.isFinite)
+                            ? tifExtent
+                            : transformed;
+                      }
                     }
                   }
-                }
 
-                if (
-                  !targetExtent &&
-                  Array.isArray(tifExtent) &&
-                  tifExtent.length === 4 &&
-                  tifExtent.every(Number.isFinite)
-                ) {
-                  targetExtent = tifExtent;
-                }
+                  if (
+                    !targetExtent &&
+                    Array.isArray(tifExtent) &&
+                    tifExtent.length === 4 &&
+                    tifExtent.every(Number.isFinite)
+                  ) {
+                    targetExtent = tifExtent;
+                  }
 
-                if (targetExtent && haveMapSize) {
-                  newView.fit(targetExtent, { size: mapSize });
-                }
-                // Features already on the map were parsed into the outgoing
-                // projection, so adopting the raster's leaves them holding the
-                // wrong numbers -- a UTM raster over Guatemala left Web
-                // Mercator coordinates being read as UTM metres, stranding the
-                // dynamic layers off screen while still reporting the right
-                // feature count. Move them with the view.
-                const previousCode = prevProjection.getCode();
-                const adoptedCode = newView.getProjection().getCode();
+                  // Features already on the map were parsed into the outgoing
+                  // projection, so adopting the raster's leaves them holding the
+                  // wrong numbers -- a UTM raster over Guatemala left Web
+                  // Mercator coordinates being read as UTM metres, stranding the
+                  // dynamic layers off screen while still reporting the right
+                  // feature count. Move them with the view.
+                  const previousCode = prevProjection.getCode();
+                  const adoptedCode = newView.getProjection().getCode();
 
-                // Adopt the raster's projection as the view projection only when
-                // OpenLayers resolves it on its own. Registering a definition
-                // makes a previously-unresolvable raster render, but it must not
-                // also start changing the view: setView publishes the adopted
-                // code into the map-extent variable other visualizations consume,
-                // and saved center/zoom values would be reinterpreted in the new
-                // projection's units. Widening this is its own change, verified
-                // against live dashboards. Such a raster still renders here --
-                // by reprojection rather than natively.
-                if (!isNativelyResolvable(adoptedCode)) {
+                  // Every raster runs this block as it mounts, so a dashboard
+                  // built on several rasters in one projection ran it several
+                  // times -- and when the view is already in that projection and
+                  // already looking at the raster, the work above rebuilds the
+                  // view that is already on screen. `setView` is not free: it
+                  // replaces the view outright, so every layer re-renders and the
+                  // basemap refetches its tiles. Five rasters each arriving on
+                  // their own schedule made that visible as five jumps.
+                  const alreadyAdopted =
+                    previousCode === adoptedCode && viewOverlapsRaster;
+
+                  // Adopt the raster's projection as the view projection only when
+                  // OpenLayers resolves it on its own. Registering a definition
+                  // makes a previously-unresolvable raster render, but it must not
+                  // also start changing the view: setView publishes the adopted
+                  // code into the map-extent variable other visualizations consume,
+                  // and saved center/zoom values would be reinterpreted in the new
+                  // projection's units. Widening this is its own change, verified
+                  // against live dashboards. Such a raster still renders here --
+                  // by reprojection rather than natively.
+                  if (alreadyAdopted) {
+                    // The view already shows this raster in its own projection.
+                  } else if (!isNativelyResolvable(adoptedCode)) {
+                    console.warn(
+                      `Not adopting "${adoptedCode}" as the view projection for layer "${name}": it resolves from a registered definition rather than natively. The layer renders by reprojection.`,
+                    );
+                  } else {
+                    if (targetExtent && haveMapSize) {
+                      newView.fit(targetExtent, { size: mapSize });
+                    }
+                    map.setView(newView);
+                    reprojectVectorFeatures(map, previousCode, adoptedCode);
+                  }
+                } catch (err) {
                   console.warn(
-                    `Not adopting "${adoptedCode}" as the view projection for layer "${name}": it resolves from a registered definition rather than natively. The layer renders by reprojection.`,
+                    `GeoTIFF auto-fit failed for layer "${name}":`,
+                    err,
                   );
-                } else {
-                  map.setView(newView);
-                  reprojectVectorFeatures(map, previousCode, adoptedCode);
                 }
-              } catch (err) {
-                console.warn(
-                  `GeoTIFF auto-fit failed for layer "${name}":`,
-                  err,
-                );
               }
             }
 
             await applyLayerStyle(newLayer, layerConfig);
+
+            // A shapefile is not finished when its layer is: its features are
+            // pulled by OpenLayers once the layer renders, and the watcher
+            // attached above owns the entry from here. Writing "ready" now
+            // would blink the indicator off and straight back on.
+            if (!newLayer.getSource?.()?.get?.("shapefileController")) {
+              settleLayerStatus(name, "ready");
+            }
           } catch (err) {
+            // A half-authored source is silent rather than an error, so the
+            // indicator stops with nothing said. Real failures are reported by
+            // the aggregate message below, so the entry is cleared here too --
+            // two danger alerts for one failure would say the same thing twice.
+            settleLayerStatus(name, "idle");
             if (
               err &&
               (err.message === "GeoTIFFEmptySources" ||
@@ -960,7 +1066,7 @@ const MapComponent = ({
             .getArray()
             .map((layer) => layer.get("name")),
         );
-        setShapefileStatus((previous) => {
+        setLayerStatus((previous) => {
           const kept = Object.fromEntries(
             Object.entries(previous).filter(([name]) => liveNames.has(name)),
           );
@@ -1006,14 +1112,14 @@ const MapComponent = ({
             </StyledAlert>
           </AlertAnchor>
         )}
-        {shapefileAlert && (
+        {layerAlert && (
           <AlertAnchor edges={ALERT_EDGES}>
             <StyledAlert
-              variant={shapefileAlert.variant}
-              role={shapefileAlert.variant === "danger" ? "alert" : "status"}
+              variant={layerAlert.variant}
+              role={layerAlert.variant === "danger" ? "alert" : "status"}
               aria-live="polite"
             >
-              {shapefileAlert.message}
+              {layerAlert.message}
             </StyledAlert>
           </AlertAnchor>
         )}
@@ -1041,8 +1147,8 @@ const MapComponent = ({
             visualizationRef={visualizationRef}
             updater={layerControlUpdate}
             runtimeLayerState={runtimeLayerState}
-            shapefileStatus={shapefileStatus}
-            onRetryShapefile={(layerName) => {
+            layerStatus={mergedLayerStatus}
+            onRetryLayer={(layerName) => {
               const layer = visualizationRef.current
                 ?.getLayers()
                 .getArray()
@@ -1084,6 +1190,14 @@ MapComponent.propTypes = {
   // action, plus sessionNonce + gridItemUuid for building composite WebSocket
   // requestIds (Unit 3/5). Undefined for dataviewer / legacy maps — LayersControl
   // handles absence gracefully.
+  // Layers still being prepared by the parent (style fetch, raster header
+  // read). That phase precedes any OL layer, so the map cannot observe it and
+  // is told instead; merged with the map's own per-layer state for display.
+  layerPrepStatus: PropTypes.objectOf(
+    PropTypes.shape({
+      state: PropTypes.string,
+    }),
+  ),
   runtimeLayerState: PropTypes.shape({
     errorsByLayerId: PropTypes.object,
     retry: PropTypes.func,

@@ -1921,6 +1921,28 @@ describe("MapLayerModal categorical raster save path", () => {
     expect(source.rampName).toBe("turbo");
   });
 
+  test("keeps a reversed palette on a categorical layer", async () => {
+    // Persisted only when set, so an unreversed layer's config stays as it was
+    // before the option existed -- and switching back to a ramp keeps both the
+    // palette and its direction.
+    const addMapLayer = jest.fn();
+    renderCategorical(
+      {
+        styleMode: "categorical",
+        rampReverse: true,
+        classes: [{ value: "0", color: "#aaa" }],
+      },
+      addMapLayer,
+    );
+
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+    await waitFor(() => expect(addMapLayer).toHaveBeenCalledTimes(1));
+
+    const source = addMapLayer.mock.calls[0][0].configuration.props.source;
+    expect(source.rampReverse).toBe(true);
+    expect(source.rampName).toBe("turbo");
+  });
+
   test("drops half-filled class rows rather than saving them as class 0", async () => {
     const addMapLayer = jest.fn();
     renderCategorical(
@@ -3653,5 +3675,62 @@ describe("getLayerType — Shapefile", () => {
     // would cost a migration over every dashboard.
     expect(getLayerType("Shapefile Tile")).toBe("TileLayer");
     expect(getLayerType("Shapefile Vector")).toBe("VectorTileLayer");
+  });
+});
+
+test("MapLayerModal keeps a reversed continuous ramp", async () => {
+  const addMapLayer = jest.fn();
+  render(
+    <TestingComponent
+      showModal={true}
+      handleModalClose={jest.fn()}
+      addMapLayer={addMapLayer}
+      layerInfo={{
+        layerProps: { name: "Depth" },
+        sourceProps: {
+          type: "GeoTIFF",
+          rampName: "turbo",
+          rampReverse: true,
+          props: { url: "d.tif" },
+        },
+      }}
+    />,
+  );
+
+  fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+  await waitFor(() => expect(addMapLayer).toHaveBeenCalledTimes(1));
+
+  const source = addMapLayer.mock.calls[0][0].configuration.props.source;
+  expect(source.rampReverse).toBe(true);
+});
+
+test("MapLayerModal carries attribute settings across a layer rename", async () => {
+  // Attribute variables, aliases and popup rows are keyed by layer name, so a
+  // rename that did not carry them would silently orphan every one of them.
+  const addMapLayer = jest.fn();
+  render(
+    <TestingComponent
+      showModal={true}
+      handleModalClose={jest.fn()}
+      addMapLayer={addMapLayer}
+      layerInfo={{
+        layerProps: { name: "Old Name" },
+        sourceProps: { type: "GeoTIFF", props: { url: "d.tif" } },
+        attributeProps: {
+          variables: { "Old Name": { field1: "Some Variable" } },
+        },
+      }}
+    />,
+  );
+
+  fireEvent.change(await screen.findByLabelText("Name Input"), {
+    target: { value: "Renamed Layer" },
+  });
+  fireEvent.click(screen.getByLabelText("Create Layer Button"));
+
+  await waitFor(() => expect(addMapLayer).toHaveBeenCalledTimes(1));
+  const saved = addMapLayer.mock.calls[0][0];
+  expect(saved.attributeVariables).toEqual({
+    "Renamed Layer": { field1: "Some Variable" },
   });
 });

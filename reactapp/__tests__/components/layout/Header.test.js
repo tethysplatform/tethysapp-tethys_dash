@@ -2280,3 +2280,67 @@ describe.each([
     });
   });
 });
+
+describe("DashboardHeader thumbnail capture outcomes", () => {
+  const renderSaved = async () => {
+    const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
+    mockedDashboard.autoThumbnail = true;
+
+    server.use(
+      rest.post(
+        "http://api.test/apps/tethysdash/dashboards/update/",
+        (req, res, ctx) =>
+          res(
+            ctx.status(200),
+            ctx.json({ success: true, updated_dashboard: mockedDashboard }),
+            ctx.set("Content-Type", "application/json"),
+          ),
+      ),
+    );
+
+    render(
+      createLoadedComponent({
+        children: (
+          <MemoryRouter initialEntries={["/dashboard/user/editable"]}>
+            <LayoutAlertContextProvider>
+              <DashboardHeader />
+              <DashboardLayoutAlerts />
+              <DashboardTabs />
+            </LayoutAlertContextProvider>
+          </MemoryRouter>
+        ),
+        options: { initialDashboard: mockedDashboard },
+      }),
+    );
+
+    await userEvent.click(await screen.findByLabelText("editButton"));
+    await userEvent.click(await screen.findByLabelText("saveButton"));
+    expect(
+      await screen.findByText("Change have been saved."),
+    ).toBeInTheDocument();
+  };
+
+  it("saves the image when a capture produced one", async () => {
+    captureThumbnail.mockResolvedValueOnce("data:image/png;base64,AAA");
+    await renderSaved();
+    await waitFor(() => expect(captureThumbnail).toHaveBeenCalled());
+  });
+
+  it("reports a failed capture rather than letting it escape the save", async () => {
+    const consoleError = jest
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    captureThumbnail.mockRejectedValueOnce(new Error("capture blew up"));
+    try {
+      await renderSaved();
+      await waitFor(() =>
+        expect(consoleError).toHaveBeenCalledWith(
+          "Dashboard thumbnail update failed:",
+          expect.any(Error),
+        ),
+      );
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+});

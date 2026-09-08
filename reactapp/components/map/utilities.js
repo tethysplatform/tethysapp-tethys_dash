@@ -53,6 +53,21 @@ export function coerceOptionalBoolean(value) {
   return undefined;
 }
 
+// The source argument registry. Each argument carries a `placeholder` -- the
+// property walker in SourcePane treats an argument object without one as a
+// nested parameter group, so anything added alongside must sit next to a
+// placeholder or the argument stops rendering as a field at all.
+//
+// An argument whose valid values only exist inside the data (a Zarr array, a
+// GeoPackage table, a GeoParquet column) also carries `discover`. That is inert
+// data on purpose: a route identifier, the sibling arguments its key depends
+// on, and the separator a multi-valued argument joins with. The functions that
+// actually read those routes live with the discovery hook, because the
+// GeoPackage/GeoParquet/Zarr readers import this module -- putting a fetcher
+// here would close that loop and drag the SQLite/wasm chain into every module
+// that imports the registry. `type` says how the row renders ("select" for one
+// value, "multiselect" for several), matching the per-row `types` channel the
+// walker already forwards.
 export const sourcePropertiesOptions = {
   "ESRI Image and Map Service": {
     required: {
@@ -182,11 +197,23 @@ export const sourcePropertiesOptions = {
   Zarr: {
     required: {
       url: { placeholder: "Zarr store URL (https or s3, CORS-enabled)" },
-      variable: { placeholder: "Variable / array name (e.g. depth)" },
+      variable: {
+        placeholder: "Variable / array name (e.g. depth)",
+        type: "select",
+        discover: { route: "zarrArrays" },
+      },
     },
     optional: {
-      // eslint-disable-next-line no-template-curly-in-string
-      index: { placeholder: "Slice index or a variable, e.g. ${Storm}" },
+      index: {
+        // eslint-disable-next-line no-template-curly-in-string
+        placeholder: "Slice index or a variable, e.g. ${Storm}",
+        type: "select",
+        // Slice positions are a property of the chosen array, not of the store,
+        // so the key this reads under has to fold in `variable`. Naming the
+        // dependency here is what lets the key rule stay generic instead of
+        // hardcoding that slices follow arrays.
+        discover: { route: "zarrSlices", dependsOn: ["variable"] },
+      },
       mask_below: { placeholder: "Mask values at or below this" },
       interpolate: {
         placeholder: "Smooth cell values when zoomed in (true/false)",
@@ -196,7 +223,11 @@ export const sourcePropertiesOptions = {
   GeoPackage: {
     required: {
       url: { placeholder: "GeoPackage file URL (https or s3)" },
-      layer: { placeholder: "Table (layer) name" },
+      layer: {
+        placeholder: "Table (layer) name",
+        type: "select",
+        discover: { route: "geopackageTables" },
+      },
     },
     optional: {},
   },
@@ -208,6 +239,11 @@ export const sourcePropertiesOptions = {
       columns: {
         placeholder:
           "Attribute columns to read, comma separated (all if blank)",
+        // The only multi-valued discoverable argument: the reader takes a
+        // comma-separated list, so the separator travels with the declaration
+        // rather than being sniffed out of whatever the author typed.
+        type: "multiselect",
+        discover: { route: "geoparquetColumns", separator: "," },
       },
       bbox: {
         placeholder: "Clip to minx,miny,maxx,maxy (in the file's own CRS)",
@@ -471,6 +507,15 @@ export function updateOlLayerProps(olLayer, newProps) {
   }
   if (typeof newProps.maxZoom === "number") {
     olLayer.setMaxZoom(newProps.maxZoom);
+  }
+  // Stacking order. `zIndex` is stamped from the layer's position in the
+  // dashboard's `layers` array, so reordering layers in the editor changes
+  // nothing else about a layer -- which is exactly the case that reaches here
+  // on a preserved OL instance. Without this the reorder was a silent no-op:
+  // rebuilt layers picked up their new position and preserved ones kept the
+  // old one, so the two disagreed and whichever was rebuilt won.
+  if (typeof newProps.zIndex === "number") {
+    olLayer.setZIndex(newProps.zIndex);
   }
   // Keep the pluginSource / layerId tags in sync so identity lookups work
   // after an edit that preserved identity but touched other fields.
@@ -876,7 +921,10 @@ function getGeoTIFFPixelValues(map, pixel, LayerName, layerInfo, coordinate) {
   }
 
   const attributes = {};
-  const bandCount = anySourceHasNodata ? data.length - 1 : data.length;
+  // Always one band short: queryLayerFeatures routes only GeoTIFF and Zarr
+  // here, and both always carry a nodata value, so the appended alpha band
+  // is always present.
+  const bandCount = data.length - 1;
   for (let i = 0; i < bandCount; i++) {
     attributes[`Band ${i + 1}`] = data[i];
   }
@@ -1155,6 +1203,31 @@ export async function getStyleFields({
         Object.values(attributes).flatMap((attrs) => attrs.map((f) => f.name)),
       ),
     ];
+  } else if (
+    sourceProps.type === "GeoParquet" ||
+    sourceProps.type === "GeoPackage"
+  ) {
+    // Imported here rather than at the top: twenty-odd modules import this
+    // file, and a static ModuleLoader import would pull its readers -- and the
+    // sqlite/wasm and parquet chains behind them -- into every one of them.
+    //
+    // Both readers memoize per url and evict rejections, which is what makes
+    // them safe to call from an effect that re-runs on every keystroke: a url
+    // still being typed fails fast and is not kept, and the finished one is
+    // read once. That is the concern the Shapefile note above describes.
+    try {
+      const { listGeoParquetColumns, listGeoPackageFields } =
+        await import("components/map/ModuleLoader");
+      fields =
+        sourceProps.type === "GeoParquet"
+          ? await listGeoParquetColumns(sourceProps.props?.url)
+          : await listGeoPackageFields(
+              sourceProps.props?.url,
+              sourceProps.props?.layer,
+            );
+    } catch (e) {
+      return fields;
+    }
   }
   return fields;
 }
@@ -1749,6 +1822,37 @@ export function resolveTablePopupType(obj) {
   if (obj?.tablePopupType) return obj.tablePopupType;
   if (obj?.queryable === false) return "none";
   return "click";
+}
+
+/**
+ * A feature attribute as display text.
+ *
+ * Attribute values are whatever the source decoder produced, and several of
+ * those are not things React will render: hyparquet turns a parquet TIMESTAMP
+ * into a Date, a GeoJSON property can be an object or an array, and React
+ * throws outright on any non-primitive child. Booleans it accepts and then
+ * renders as nothing at all, so a `true` attribute silently showed blank.
+ *
+ * Dates render as ISO 8601 UTC rather than a locale string: the popup is a data
+ * readout, and `toString()` on a Date is both timezone- and locale-dependent,
+ * so two people reading the same feature would see different text.
+ */
+export function formatAttributeValue(value) {
+  if (value === null || value === undefined) return "";
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? "" : value.toISOString();
+  }
+  if (typeof value === "boolean") return String(value);
+  if (typeof value === "object") {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      // Circular, or something else JSON refuses. Naming the type beats
+      // crashing the popup the feature was clicked to show.
+      return String(value);
+    }
+  }
+  return value;
 }
 
 // The two questions asked of every feature a click turns up. A feature can

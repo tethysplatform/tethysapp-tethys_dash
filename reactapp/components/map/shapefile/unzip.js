@@ -32,7 +32,8 @@ function componentExtension(name) {
   // people produce one by hand -- look like an archive holding two shapefiles.
   if (name.endsWith("/")) return null;
   const segments = name.split("/");
-  const base = segments[segments.length - 1] ?? "";
+  // split always yields at least one segment, so there is always a last one.
+  const base = segments[segments.length - 1];
   if (segments.includes("__MACOSX") || base.startsWith("._")) return null;
   const dot = base.lastIndexOf(".");
   if (dot === -1) return null;
@@ -48,8 +49,10 @@ function memberIdentity(name) {
   const cut = name.lastIndexOf("/");
   const directory = cut === -1 ? "" : name.slice(0, cut);
   const base = cut === -1 ? name : name.slice(cut + 1);
+  // Only ever called for a member that already matched a component extension,
+  // so the name carries a dot.
   const dot = base.lastIndexOf(".");
-  return { directory, stem: dot === -1 ? base : base.slice(0, dot) };
+  return { directory, stem: base.slice(0, dot) };
 }
 
 function tooLarge(budget) {

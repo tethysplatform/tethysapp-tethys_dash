@@ -96,8 +96,10 @@ function cropAndScale(captured, topFraction) {
     Math.round(captured.height * Math.min(Math.max(topFraction, 0), 1)),
     Math.max(0, captured.height - 1),
   );
+  // At least one pixel survives: the caller rejects a capture with a
+  // non-positive width or height, and cropTop is held one short of the full
+  // height above.
   const cropHeight = captured.height - cropTop;
-  if (cropHeight <= 0 || captured.width <= 0) return null;
 
   const width = THUMBNAIL_WIDTH;
   const height = Math.max(1, Math.round((cropHeight / captured.width) * width));

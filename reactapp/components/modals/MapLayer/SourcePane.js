@@ -34,6 +34,11 @@ export const generatePropertiesArrayWithValues = (
   const properties = [];
   const placeholders = [];
   const types = [];
+  // Parallel to the three above and indexed the same way. The row needs the
+  // argument's own name to look its discovery state up, and `property` is not
+  // it: required arguments are prefixed with "*" and nested ones are joined
+  // with " - ", so deriving the name back from the row would be lossy.
+  const discovers = [];
   let existingValues = existingPropertyValues ?? {};
 
   const processKeys = (obj, required, parentKey, mappingObj) => {
@@ -65,6 +70,9 @@ export const generatePropertiesArrayWithValues = (
         });
         placeholders.push({ value: value.placeholder });
         types.push(value?.type ?? "text");
+        discovers.push(
+          value?.discover ? { argument: key, ...value.discover } : null,
+        );
       }
     }
   };
@@ -73,7 +81,7 @@ export const generatePropertiesArrayWithValues = (
   processKeys(sourceProperties?.required, true, "", existingValues);
   processKeys(sourceProperties?.optional, false, "", existingValues);
 
-  return { properties, placeholders, types };
+  return { properties, placeholders, types, discovers };
 };
 
 // coverts a flat object of properties from the generatePropertiesArrayWithValues function into a nested object
@@ -96,6 +104,153 @@ function parsePropertiesArray(properties) {
     return acc;
   }, {});
 }
+
+// What discovery has to say about one argument, rendered beneath its select.
+// It lives beside the row rather than inside the menu because a failure needs
+// more than a menu line to explain, and because the re-read control has to stay
+// reachable when the menu is closed.
+const ArgumentDiscoveryNote = ({ argument, discovery, onRefresh }) => {
+  const {
+    state,
+    slow,
+    failure,
+    retryable,
+    stale,
+    sliceCount,
+    enumerated,
+    blockedBy,
+  } = discovery;
+  // A slice is a position, so it is reported against the range the array has
+  // rather than against a list of names the source never offered.
+  const outOfRange = typeof sliceCount === "number";
+
+  const showNoKey = state === "nokey";
+  const showSlow = state === "loading" && slow;
+  const showEmpty = state === "empty";
+  const showFailure = state === "failed" && Boolean(failure);
+  const showStale = stale?.length > 0;
+  const showRefresh =
+    state === "ready" || state === "empty" || (state === "failed" && retryable);
+
+  // Render nothing at all rather than an empty wrapper. A read that has only
+  // just started has nothing to say, and the wrapper's margin alone was enough
+  // to grow the row the moment the menu opened -- a layout shift landing
+  // between the author's mousedown and mouseup, which is not a thing a status
+  // line should ever cause.
+  if (
+    !showNoKey &&
+    !showSlow &&
+    !showEmpty &&
+    !showFailure &&
+    !showStale &&
+    !showRefresh
+  ) {
+    return null;
+  }
+
+  return (
+    <div
+      style={{ marginTop: "0.35rem" }}
+      data-testid={`discovery-note-${argument}`}
+    >
+      {/* Naming what is actually missing: telling an author to enter a url they
+          have already entered sends them looking in the wrong place. */}
+      {showNoKey && (
+        <small style={{ color: "#6c757d" }}>
+          {blockedBy?.reason === "dependency"
+            ? `Choose ${blockedBy.missingSibling ?? "the argument this one depends on"} first to see the available values.`
+            : "Enter a source URL to see the available values."}
+        </small>
+      )}
+
+      {showSlow && (
+        <div role="status" aria-live="polite">
+          <small>
+            Still reading this source &mdash; large files take a while.
+          </small>
+        </div>
+      )}
+
+      {/* Two different answers that used to read the same. A source that was
+          listed and holds nothing is not a source that could not be listed. */}
+      {showEmpty && (
+        <Alert variant="secondary" style={{ marginTop: "0.35rem" }}>
+          {enumerated
+            ? "This source was read and offers nothing here \u2014 type the value if you know it."
+            : "This source does not list its contents, so nothing can be offered here \u2014 type the value if you know it."}
+        </Alert>
+      )}
+
+      {showFailure && (
+        <Alert variant="danger" role="alert" style={{ marginTop: "0.35rem" }}>
+          {failure.detail}
+          {failure.remedy && (
+            <>
+              <br />
+              {failure.remedy}
+            </>
+          )}
+          <br />
+          <small>You can still type the value.</small>
+        </Alert>
+      )}
+
+      {/* The value is reported, never corrected: the author is the only one who
+          knows whether the source was renamed or the wrong URL was typed. */}
+      {showStale && (
+        <Alert variant="warning" role="alert" style={{ marginTop: "0.35rem" }}>
+          {outOfRange ? (
+            <>
+              {sliceCount === 0 ? (
+                <>This source has no slices at all.</>
+              ) : (
+                <>
+                  This source has {sliceCount} slice
+                  {sliceCount === 1 ? "" : "s"}, so only position
+                  {sliceCount === 1 ? " 0" : `s 0-${sliceCount - 1}`} exist
+                  {sliceCount === 1 ? "s" : ""}.
+                </>
+              )}{" "}
+              The saved {stale.length === 1 ? "position" : "positions"}{" "}
+              {stale.join(", ")} {stale.length === 1 ? "is" : "are"} outside it.
+            </>
+          ) : (
+            <>
+              This source does not offer{" "}
+              {stale.length === 1 ? "the saved value" : "the saved values"}{" "}
+              {stale.join(", ")}.
+            </>
+          )}{" "}
+          <small>
+            The saved value is left as it is &mdash; pick a listed one, or keep
+            it if the source is wrong.
+          </small>
+        </Alert>
+      )}
+
+      {/* Offered after any read that produced an answer, because recovering a
+          republished source is what it exists for -- and after a failure only
+          when retrying could plausibly succeed. */}
+      {showRefresh && (
+        <Button
+          variant="link"
+          size="sm"
+          style={{ padding: 0 }}
+          onClick={() => onRefresh(argument)}
+          aria-label={`Re-read ${argument} values`}
+        >
+          Re-read
+        </Button>
+      )}
+    </div>
+  );
+};
+
+ArgumentDiscoveryNote.propTypes = {
+  argument: PropTypes.string.isRequired,
+  discovery: PropTypes.object.isRequired,
+  onRefresh: PropTypes.func.isRequired,
+};
 
 // The author-facing surface for reading a shapefile's fields: an explicit action
 // rather than an automatic read, the pending state, what failed and what the
@@ -206,10 +361,12 @@ const SourcePane = ({
   onRequestHideModal,
   onFetchPluginDefaults,
   shapefileDiscovery,
+  argumentDiscovery,
 }) => {
   const [sourceProperties, setSourceProperties] = useState([]); // array of objects that represent properties that will be rendered in the table
   const [propertyPlaceholders, SetPropertyPlaceholders] = useState([]); // array of objects that represent placeholders for the table inputs
   const [propertyTypes, SetPropertyTypes] = useState([]); // array of objects that represent types for the table inputs
+  const [propertyDiscovers, setPropertyDiscovers] = useState([]); // per-row discovery declarations, indexed like the arrays above
   const [sourceType, setSourceType] = useState({}); // source type dropdown selection {value: ..., label: ...}
   const [geoJSON, setGeoJSON] = useState("{}"); // track the geojson value
   const [geoJSONSource, setGeoJSONSource] = useState("custom"); // track the geojson value
@@ -280,7 +437,7 @@ const SourcePane = ({
         label: sourceProps.type ?? sourceProps.source,
       });
     } else if (sourceProps.type) {
-      const { properties, placeholders, types } =
+      const { properties, placeholders, types, discovers } =
         generatePropertiesArrayWithValues(
           sourcePropertiesOptions[sourceProps.type],
           sourceProps.props,
@@ -288,6 +445,7 @@ const SourcePane = ({
       setSourceProperties(properties);
       SetPropertyPlaceholders(placeholders);
       SetPropertyTypes(types);
+      setPropertyDiscovers(discovers);
       setSourceType({ value: sourceProps.type, label: sourceProps.type });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -342,6 +500,35 @@ const SourcePane = ({
   );
   potentialMapLayers.push(...dynamicMapLayers);
 
+  // One entry per row, aligned with the arrays above. Rows with no discovery
+  // declaration get null and keep rendering as whatever type they already were.
+  const selectConfigs = propertyDiscovers.map((declaration) => {
+    if (!declaration || !argumentDiscovery) return null;
+    const entry = argumentDiscovery.discoveries[declaration.argument];
+    if (!entry) return null;
+    return {
+      options: entry.options,
+      isLoading: entry.state === "loading",
+      separator: declaration.separator,
+      // Deferred out of the event on purpose. react-select opens the menu from
+      // inside its own mousedown handler, where it calls preventDefault and
+      // then focuses its input itself. Starting the read synchronously there
+      // makes React flush a re-render of the whole editor mid-event -- which in
+      // a browser leaves the control blurred and the menu shut before the
+      // author can pick anything. Letting the handler finish first costs a
+      // tick and keeps focus where they put it.
+      onMenuOpen: () =>
+        setTimeout(() => argumentDiscovery.load(declaration.argument), 0),
+      content: (
+        <ArgumentDiscoveryNote
+          argument={declaration.argument}
+          discovery={entry}
+          onRefresh={argumentDiscovery.refresh}
+        />
+      ),
+    };
+  });
+
   function handlePropertyChange({ newValue, rowIndex, field }) {
     // update table values
     const updatedSourceProperties = JSON.parse(
@@ -367,17 +554,20 @@ const SourcePane = ({
     let properties = [];
     let placeholders = [];
     let types = [];
+    let discovers = [];
     const isRuntime = e.type === "map_layer";
     if (!isRuntime) {
       // update table values and placeholders from new source type
-      ({ properties, placeholders, types } = generatePropertiesArrayWithValues(
-        sourcePropertiesOptions[e.value],
-        sourceProps.props,
-      ));
+      ({ properties, placeholders, types, discovers } =
+        generatePropertiesArrayWithValues(
+          sourcePropertiesOptions[e.value],
+          sourceProps.props,
+        ));
     }
     setSourceProperties(properties);
     SetPropertyPlaceholders(placeholders);
     SetPropertyTypes(types);
+    setPropertyDiscovers(discovers);
 
     const parsedSourceProps = parsePropertiesArray(properties);
     setSourceProps(() => {
@@ -601,6 +791,7 @@ const SourcePane = ({
                     placeholders={propertyPlaceholders}
                     show_placeholder_on_hover={true}
                     types={propertyTypes}
+                    selectConfigs={selectConfigs}
                   />
                   <p>
                     <em>* indicates a required property</em>
@@ -632,6 +823,11 @@ const SourcePane = ({
 
 SourcePane.propTypes = {
   shapefileDiscovery: ShapefileDiscoveryPanel.propTypes.discovery,
+  argumentDiscovery: PropTypes.shape({
+    discoveries: PropTypes.object,
+    load: PropTypes.func,
+    refresh: PropTypes.func,
+  }),
   sourceProps: sourcePropType,
   setSourceProps: PropTypes.func, // setter for sourceProps state
   setStyle: PropTypes.func, // setter for style state (used by Fetch defaults applied from MapLayer)

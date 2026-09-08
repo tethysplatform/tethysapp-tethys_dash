@@ -423,3 +423,84 @@ describe("acquireComponents — a component the host will not serve", () => {
     expect(result.error.status).toBe(403);
   });
 });
+
+describe("component fetch edges", () => {
+  const respondMarkup = (extension) => (url) =>
+    Promise.resolve(
+      url.endsWith(`.${extension}`)
+        ? respond({ contentType: "text/html", body: bytes("<html>404</html>") })
+        : respond({
+            contentType: "application/octet-stream",
+            body: bytes("BODY"),
+          }),
+    );
+
+  it("skips an optional component served as a portal error page", async () => {
+    // A portal answers a missing sidecar with 200 and HTML. That is not data,
+    // but it is also not a reason to fail the layer.
+    global.fetch = jest.fn(respondMarkup("cpg"));
+
+    const result = await acquireComponents("https://example.org/basins.shp");
+
+    expect(result.error).toBeUndefined();
+    expect(result.components.cpg).toBeUndefined();
+  });
+
+  it("fails the layer when the .shp itself is a portal error page", async () => {
+    global.fetch = jest.fn(respondMarkup("shp"));
+
+    const result = await acquireComponents("https://example.org/basins.shp");
+
+    expect(result.error.reason).toBe("wrong_content_type");
+  });
+
+  it("treats a response with no content type as data", async () => {
+    // Archives are served as everything from application/zip to nothing at all,
+    // so an absent type must not be read as markup.
+    global.fetch = jest.fn(async () =>
+      respond({ contentType: null, body: bytes("SHPBODY") }),
+    );
+
+    const result = await acquireComponents("https://example.org/basins.shp");
+
+    expect(result.error).toBeUndefined();
+  });
+
+  it("reports a transfer that fails midway as unreachable", async () => {
+    global.fetch = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      headers: { get: () => "application/octet-stream" },
+      arrayBuffer: async () => {
+        throw new TypeError("network error");
+      },
+    }));
+
+    const result = await acquireComponents("https://example.org/basins.shp");
+
+    expect(result.error.reason).toBe("unreachable");
+  });
+
+  it("reports a transfer aborted partway as cancelled, not failed", async () => {
+    const controller = new AbortController();
+    global.fetch = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      headers: { get: () => "application/octet-stream" },
+      arrayBuffer: async () => {
+        controller.abort();
+        const error = new Error("aborted");
+        error.name = "AbortError";
+        throw error;
+      },
+    }));
+
+    const result = await acquireComponents(
+      "https://example.org/basins.shp",
+      controller.signal,
+    );
+
+    expect(result.cancelled).toBe(true);
+    expect(result.error).toBeUndefined();
+  });
+});

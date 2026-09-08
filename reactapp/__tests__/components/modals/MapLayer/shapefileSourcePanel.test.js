@@ -181,3 +181,24 @@ describe("shapefile discovery panel", () => {
     ).not.toBeInTheDocument();
   });
 });
+
+it("says so when the read found no fields at all", () => {
+  renderPane(discovery({ state: "ready", fields: [] }));
+
+  expect(screen.getByText(/Found 0 fields\./)).toBeInTheDocument();
+});
+
+it("names a single field in the singular", () => {
+  renderPane(discovery({ state: "ready", fields: ["BASIN_ID"] }));
+
+  expect(screen.getByText(/Found 1 field: BASIN_ID/)).toBeInTheDocument();
+});
+
+it("words a single drifted field in the singular", () => {
+  renderPane(discovery({ state: "ready", fields: ["A"], drift: ["POP2020"] }));
+
+  const alerts = screen.getAllByRole("alert");
+  const drift = alerts.find((node) => node.textContent.includes("POP2020"));
+  expect(drift).toHaveTextContent("reference a field");
+  expect(drift).toHaveTextContent(/using it will not match anything/i);
+});

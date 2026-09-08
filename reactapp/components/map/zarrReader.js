@@ -37,30 +37,41 @@ function isFormatMismatch(error) {
   );
 }
 
-// Open the node at `url` (group or array), trying zarr v3 then falling back to
-// v2. A network/CORS/timeout failure is rethrown as-is: retrying it as v2 only
-// issues a second doomed request and replaces the real cause with a misleading
-// "not a v2 store" message, which is exactly wrong when CORS is the problem.
-async function openNode(url) {
-  const { FetchStore, open } = await getZarrita();
+// Build the store for `url`. `mapResponse` lets a caller reinterpret a response
+// before the store classifies it by status (see `listArrays`); everything else
+// gets the store's own interpretation.
+async function makeStore(url, mapResponse) {
+  const { FetchStore } = await getZarrita();
   // Per-request timeout via the store's fetch handler. The `overrides` option
   // would share one signal across every request the store ever makes, so a
   // long-but-progressing read of many chunks would abort partway through.
-  const store = new FetchStore(url.replace(/\/$/, ""), {
-    fetch: (request) => {
+  return new FetchStore(url.replace(/\/$/, ""), {
+    fetch: async (request) => {
       const signal = timeoutSignal(ZARR_FETCH_TIMEOUT_MS);
-      return fetch(signal ? new Request(request, { signal }) : request);
+      const response = await fetch(
+        signal ? new Request(request, { signal }) : request,
+      );
+      return mapResponse ? mapResponse(response, request) : response;
     },
   });
+}
+
+// Open the node `store` points at (group or array), trying zarr v3 then falling
+// back to v2. A network/CORS/timeout failure is rethrown as-is: retrying it as
+// v2 only issues a second doomed request and replaces the real cause with a
+// misleading "not a v2 store" message, which is exactly wrong when CORS is the
+// problem. `url` is only used to name the store in the failure message.
+async function openStoreVersioned(store, url) {
+  const { open } = await getZarrita();
   let v3Error;
   try {
-    return await open.v3(store);
+    return { node: await open.v3(store), zarrFormat: 3 };
   } catch (error) {
     if (!isFormatMismatch(error)) throw error;
     v3Error = error;
   }
   try {
-    return await open.v2(store);
+    return { node: await open.v2(store), zarrFormat: 2 };
   } catch (v2Error) {
     if (!isFormatMismatch(v2Error)) throw v2Error;
     throw new Error(
@@ -69,6 +80,15 @@ async function openNode(url) {
       { cause: v2Error },
     );
   }
+}
+
+async function openStore(store, url) {
+  return (await openStoreVersioned(store, url)).node;
+}
+
+// Open the node at `url` on a store of its own.
+async function openNode(url) {
+  return openStore(await makeStore(url), url);
 }
 
 // (n_slices, height, width) for a 2-D [y, x] or 3-D [n, y, x] array.
@@ -207,16 +227,10 @@ export async function readSlice({
  * Selectable metadata for a Zarr store:
  * { variables, slice_count, slice_labels, crs, grid_shape, extent }.
  *
- * NOTE: intentionally not wired into the UI yet. This is the client-side
- * replacement for the removed `tethysdash/zarr/meta` endpoint, kept so the
- * MapLayer editor can grow a variable/slice picker without re-deriving the
- * read. Until then a layer author types `variable`/`index` by hand and finds
- * out they are wrong when the layer fails to render. Delete this if that picker
- * is not going to be built.
- *
- * HTTP-backed stores cannot be listed, so `variables` comes from the caller's
- * `candidates` (or the chosen `variable`). `labelVar` names a 1-D array whose
- * values label each slice; otherwise labels are the slice indices.
+ * This does not enumerate the store: `variables` comes from the caller's
+ * `candidates` (or the chosen `variable`). Use `listArrays` to discover what a
+ * store holds. `labelVar` names a 1-D array whose values label each slice;
+ * otherwise labels are the slice indices.
  */
 export async function readMetadata({
   url,
@@ -224,9 +238,6 @@ export async function readMetadata({
   candidates,
   labelVar,
 } = {}) {
-  const group = await openNode(url);
-  const attrs = group.attrs;
-
   const variables = candidates?.length
     ? candidates
     : variable
@@ -239,8 +250,15 @@ export async function readMetadata({
     );
   }
 
+  // The root and the array are independent reads, and this now sits behind the
+  // slice dropdown on the tighter metadata threshold, so they go out together
+  // rather than one round trip after the other.
   const base = url.replace(/\/$/, "");
-  const arr = await openNode(`${base}/${refName}`);
+  const [group, arr] = await Promise.all([
+    openNode(url),
+    openNode(`${base}/${refName}`),
+  ]);
+  const attrs = group.attrs;
   const { n, h, w } = gridDims(arr.shape);
   const transform = requireAttr(attrs, "transform");
 
@@ -266,5 +284,107 @@ export async function readMetadata({
     crs: attrs.crs ?? null,
     grid_shape: [h, w],
     extent: extentFromTransform(transform, h, w),
+  };
+}
+
+// The keys the consolidated-metadata wrapper reads: `.zmetadata` for a v2 store,
+// the root `zarr.json` for a v3 one.
+const CONSOLIDATED_METADATA_KEY = /\/(\.zmetadata|zarr\.json)$/;
+
+// Object stores commonly answer a *missing* key with 403 rather than 404 when
+// listing is denied, and FetchStore turns every non-404 status into a plain
+// Error. The consolidated wrapper below only swallows not-found and
+// invalid-metadata errors, so that plain Error would escape and a
+// public-but-unlistable store would report a failure where the honest answer is
+// "there is nothing to list". Present a forbidden consolidated-metadata key as a
+// missing one so the wrapper takes its fallback path instead.
+//
+// Deliberately scoped to those two keys: a forbidden `.zgroup`/`.zarray`/chunk
+// must still surface as an error, or a store nobody is allowed to read would be
+// indistinguishable from an empty one.
+function forbiddenAsMissing(response, request) {
+  if (response.status !== 403) return response;
+  if (!CONSOLIDATED_METADATA_KEY.test(new URL(request.url).pathname)) {
+    return response;
+  }
+  return new Response(null, { status: 404, statusText: "Not Found" });
+}
+
+/**
+ * List the arrays a Zarr store offers, as paths relative to the store root
+ * ("depth", "group/depth") so each can be appended to the store URL the way
+ * `readSlice`/`readMetadata` already append the variable name. A bare basename
+ * would resolve to the wrong place for a nested array.
+ *
+ * Returns `{ names, enumerated }`. Enumeration comes from the store's
+ * consolidated metadata; groups are dropped, and so is anything that is not a
+ * 2-D or 3-D grid — coordinate axes (x, y, time) and CRS holders (spatial_ref)
+ * are arrays like any other, but `gridDims` rejects them, so offering one is
+ * offering a choice that can only fail. The shape is what decides that, not the
+ * name: a data variable is free to be called `time_of_peak`, and a name-based
+ * filter would hide it. A store without consolidated
+ * metadata is NOT an error — the store is fine, it simply cannot be enumerated,
+ * and the caller should let the author type a name instead. That case reports
+ * `enumerated: false`, which is why the flag exists rather than the caller
+ * inferring it from an empty `names`: "holds nothing" and "could not be listed"
+ * are different answers, and only the first can say a saved name is gone. Only
+ * an unreachable or unopenable store throws.
+ *
+ * Takes no cancellation signal; a superseded listing is abandoned by the caller,
+ * not aborted (same as every other read here).
+ */
+export async function listArrays({ url } = {}) {
+  const base = url.replace(/\/$/, "");
+  const store = await makeStore(base, forbiddenAsMissing);
+  // Open before listing. It proves the store is reachable, so an empty list
+  // below can only mean "no consolidated metadata" and never "the store was
+  // unreachable" — which is the whole point of keeping empty distinct from
+  // failed. It also records the store's zarr version, which is what the wrapper
+  // uses to decide which consolidated-metadata format to try first.
+  const { zarrFormat } = await openStoreVersioned(store, base);
+
+  const { withMaybeConsolidatedMetadata, open, root } = await getZarrita();
+  const listable = await withMaybeConsolidatedMetadata(store);
+  // The forgiving wrapper hands back the ORIGINAL, UNWRAPPED store when there is
+  // no consolidated metadata to read, and a bare FetchStore has no `contents()`.
+  // Calling it unconditionally would throw a TypeError and report a failure for
+  // precisely the case that is expected to succeed with nothing.
+  if (typeof listable?.contents !== "function") {
+    return { names: [], enumerated: false };
+  }
+
+  const names = listable
+    .contents()
+    .filter((entry) => entry.kind === "array")
+    .map((entry) => String(entry.path).replace(/^\//, ""))
+    .filter(Boolean); // the root itself lists as "/" and is not a variable
+
+  // Shapes come from the consolidated metadata already loaded above: opening
+  // each array against THIS store costs no request, because the wrapper answers
+  // from what it has. Opening each on a store of its own cost two round trips
+  // apiece -- a v3 probe that 404s, then the real v2 read -- which is a request
+  // storm on menu open and a console full of 404s.
+  //
+  // The format is the one that actually opened, for the same reason: letting
+  // zarrita probe would put those 404s straight back, one per array.
+  const openArray = zarrFormat === 3 ? open.v3 : open.v2;
+  const location = root(listable);
+  const griddable = await Promise.all(
+    names.map(async (name) => {
+      try {
+        const arr = await openArray(location.resolve(name), { kind: "array" });
+        return arr.shape?.length === 2 || arr.shape?.length === 3;
+      } catch {
+        // A shape we could not read keeps its array: refusing to offer
+        // something because the check failed would make a partly-readable
+        // store look empty.
+        return true;
+      }
+    }),
+  );
+
+  return {
+    names: names.filter((_, index) => griddable[index]),
+    enumerated: true,
   };
 }

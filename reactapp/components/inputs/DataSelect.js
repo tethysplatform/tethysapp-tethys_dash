@@ -74,7 +74,10 @@ const DataSelect = ({
 DataSelect.propTypes = {
   onChange: PropTypes.func,
   label: PropTypes.string,
-  selectedOption: PropTypes.object,
+  // An array in multi mode: react-select's own value is an array of options
+  // when isMulti is set, and PropTypes.object rejects arrays -- so a multi
+  // select warned on every render before this.
+  selectedOption: PropTypes.oneOfType([PropTypes.object, PropTypes.array]),
   options: PropTypes.array,
   creatable: PropTypes.bool,
   divProps: PropTypes.object,

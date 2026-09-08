@@ -15,6 +15,11 @@ import moduleLoader, {
   withAutoCrossOrigin,
   applyAutoRamp,
   loadGeoPackage,
+  listGeoPackageTables,
+  listGeoPackageFields,
+  invalidateGeoPackageTables,
+  listGeoParquetColumns,
+  invalidateGeoParquetColumns,
   s3UrlToHttps,
   registerGeoPackageProjections,
   GeoPackageError,
@@ -31,6 +36,9 @@ import moduleLoader, {
   bboxIntersectsFilter,
   resolveReadColumns,
   geometryIntersectsBBox,
+  zarrSliceKey,
+  geotiffSourceToOL,
+  applyZarrRamp,
 } from "components/map/ModuleLoader";
 import { fromUrl } from "geotiff";
 import DataTile from "ol/source/DataTile.js";
@@ -73,6 +81,8 @@ import {
 import { get as getProjection } from "ol/proj";
 import proj4 from "proj4";
 import { loadGpkg } from "ol-load-geopackage";
+import Feature from "ol/Feature";
+import Point from "ol/geom/Point";
 import {
   asyncBufferFromUrl,
   parquetMetadataAsync,
@@ -2390,6 +2400,34 @@ describe("applyAutoRamp", () => {
     expect(config.props.source.resolvedRampMax).toBe(9);
   });
 
+  test("two concurrent resolutions of one file share a single header read", async () => {
+    // The sequential-caller test above is guarded by a flag set *after* a
+    // resolution finishes, which does nothing for callers that arrive together
+    // -- and they now do: the legend resolves a raster's range to label its
+    // colorbar while the map resolves the same range to build the layer.
+    mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "9" });
+    const forLegend = geotiffRampLayer();
+    const forLayer = geotiffRampLayer();
+
+    await Promise.all([applyAutoRamp(forLegend), applyAutoRamp(forLayer)]);
+
+    expect(fromUrl).toHaveBeenCalledTimes(1);
+    // Both callers still get the answer, not just whichever won the race.
+    expect(forLegend.props.source.resolvedRampMax).toBe(9);
+    expect(forLayer.props.source.resolvedRampMax).toBe(9);
+  });
+
+  test("a later resolution of the same file reads it again", async () => {
+    // The in-flight entry is dropped on settle rather than kept, so nothing
+    // holds a decoder open for every file a time-slider has ever visited.
+    mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "9" });
+
+    await applyAutoRamp(geotiffRampLayer());
+    await applyAutoRamp(geotiffRampLayer());
+
+    expect(fromUrl).toHaveBeenCalledTimes(2);
+  });
+
   test("re-resolves when the source URL changes", async () => {
     mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "9" });
     const config = geotiffRampLayer();
@@ -2835,6 +2873,56 @@ describe("applyAutoRamp", () => {
       expect(config.props.source.resolvedRampMax).toBe(2);
     });
 
+    test("reads a sidecar that carries no PAMRasterBand", async () => {
+      // Some writers put the Metadata block at the dataset level instead.
+      mockGDALMetadata({ fileNodata: 255 });
+      mockSidecar(`<PAMDataset><Metadata>
+          <MDI key="STATISTICS_MINIMUM">1</MDI>
+          <MDI key="STATISTICS_MAXIMUM">4</MDI>
+        </Metadata></PAMDataset>`);
+      const config = geotiffLayer();
+
+      await applyAutoRamp(config);
+
+      expect(config.props.source.resolvedRampMin).toBe(1);
+      expect(config.props.source.resolvedRampMax).toBe(4);
+    });
+
+    test("ignores a sidecar entry with no key", async () => {
+      mockGDALMetadata({ fileNodata: 255 });
+      mockSidecar(`<PAMDataset><PAMRasterBand><Metadata>
+          <MDI>orphaned</MDI>
+          <MDI key="STATISTICS_MINIMUM">2</MDI>
+          <MDI key="STATISTICS_MAXIMUM">6</MDI>
+        </Metadata></PAMRasterBand></PAMDataset>`);
+      const config = geotiffLayer();
+
+      await applyAutoRamp(config);
+
+      expect(config.props.source.resolvedRampMin).toBe(2);
+    });
+
+    test("carries on when the sidecar request itself fails", async () => {
+      mockGDALMetadata({ fileNodata: 255 });
+      global.fetch = jest.fn().mockRejectedValue(new TypeError("offline"));
+      const config = geotiffLayer();
+
+      await expect(applyAutoRamp(config)).resolves.toBeDefined();
+    });
+
+    test("carries on when the file exposes no GDAL metadata at all", async () => {
+      fromUrl.mockResolvedValue({
+        getImage: jest.fn().mockResolvedValue({
+          getGDALMetadata: jest.fn(() => undefined),
+          getGDALNoData: jest.fn(() => null),
+        }),
+      });
+      mockSidecar("", false);
+      const config = geotiffLayer();
+
+      await expect(applyAutoRamp(config)).resolves.toBeDefined();
+    });
+
     test("does not request a sidecar when the TIFF already embeds statistics", async () => {
       mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "10" });
       global.fetch = jest.fn();
@@ -3084,6 +3172,136 @@ describe("loadGeoPackage", () => {
   });
 });
 
+describe("listGeoPackageTables", () => {
+  beforeEach(() => {
+    clearClientSourceCaches();
+  });
+
+  test("returns every table name in the file", async () => {
+    loadGpkg.mockResolvedValue([
+      { roads: new VectorSource(), bldgs: new VectorSource() },
+      {},
+    ]);
+    await expect(listGeoPackageTables("https://h/d1.gpkg")).resolves.toEqual([
+      "roads",
+      "bldgs",
+    ]);
+  });
+
+  test("a second call for the same url does not download again", async () => {
+    loadGpkg.mockResolvedValue([{ roads: new VectorSource() }, {}]);
+    await listGeoPackageTables("https://h/d2.gpkg");
+    await listGeoPackageTables("https://h/d2.gpkg");
+    expect(loadGpkg).toHaveBeenCalledTimes(1);
+  });
+
+  test("two concurrent calls for the same url share one download", async () => {
+    // The cache entry has to be planted synchronously, before the reader's
+    // first await: a caller arriving in the same tick would otherwise miss it
+    // and start a second download of the same file.
+    let resolveLoad;
+    loadGpkg.mockReturnValue(
+      new Promise((resolve) => {
+        resolveLoad = resolve;
+      }),
+    );
+    const first = listGeoPackageTables("https://h/d3.gpkg");
+    const second = listGeoPackageTables("https://h/d3.gpkg");
+    resolveLoad([{ roads: new VectorSource() }, {}]);
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      ["roads"],
+      ["roads"],
+    ]);
+    expect(loadGpkg).toHaveBeenCalledTimes(1);
+  });
+
+  test("evicts a rejected read so a later call retries", async () => {
+    loadGpkg
+      .mockRejectedValueOnce(new Error("boom"))
+      .mockResolvedValue([{ roads: new VectorSource() }, {}]);
+    await expect(listGeoPackageTables("https://h/d4.gpkg")).rejects.toThrow(
+      /boom/,
+    );
+    await expect(listGeoPackageTables("https://h/d4.gpkg")).resolves.toEqual([
+      "roads",
+    ]);
+    expect(loadGpkg).toHaveBeenCalledTimes(2);
+  });
+
+  test("normalizes an s3:// url the way the render path does", async () => {
+    loadGpkg.mockResolvedValue([{ roads: new VectorSource() }, {}]);
+    await listGeoPackageTables("s3://b-us-east-1-x/d5.gpkg");
+    expect(loadGpkg).toHaveBeenCalledWith(
+      "https://b-us-east-1-x.s3.us-east-1.amazonaws.com/d5.gpkg",
+      expect.any(String),
+    );
+  });
+
+  test("neither requires nor consults a table name", async () => {
+    // loadGeoPackage throws without one, which is exactly the state discovery
+    // runs in -- the author is asking precisely because they have no name.
+    loadGpkg.mockResolvedValue([{ roads: new VectorSource() }, {}]);
+    await expect(listGeoPackageTables("https://h/d6.gpkg")).resolves.toEqual([
+      "roads",
+    ]);
+    expect(loadGpkg).toHaveBeenCalledTimes(1);
+    expect(loadGpkg.mock.calls[0]).toHaveLength(2);
+  });
+
+  test("reads with no map mounted, against a registered projection", async () => {
+    // The editor may run before or without a map, so the accessor takes no
+    // projection from the caller. loadGpkg throws synchronously on a
+    // projection it cannot resolve, so the one it picks must be registered.
+    loadGpkg.mockResolvedValue([{ roads: new VectorSource() }, {}]);
+    await listGeoPackageTables("https://h/d7.gpkg");
+    const [, projection] = loadGpkg.mock.calls[0];
+    expect(getProjection(projection)).not.toBeNull();
+  });
+
+  test("an invalidating call evicts the entry and downloads again", async () => {
+    // This cache sits behind the discovery hook's own memo, so without an
+    // entry point of its own a forced re-read would land here and be handed
+    // the same list back.
+    loadGpkg.mockResolvedValue([{ roads: new VectorSource() }, {}]);
+    await listGeoPackageTables("https://h/d8.gpkg");
+    invalidateGeoPackageTables("https://h/d8.gpkg");
+    await listGeoPackageTables("https://h/d8.gpkg");
+    expect(loadGpkg).toHaveBeenCalledTimes(2);
+  });
+
+  test("invalidates by the resolved url, not the raw s3:// one", async () => {
+    loadGpkg.mockResolvedValue([{ roads: new VectorSource() }, {}]);
+    await listGeoPackageTables("s3://b-us-east-1-x/d9.gpkg");
+    invalidateGeoPackageTables("s3://b-us-east-1-x/d9.gpkg");
+    await listGeoPackageTables("s3://b-us-east-1-x/d9.gpkg");
+    expect(loadGpkg).toHaveBeenCalledTimes(2);
+  });
+
+  test("a file that fails to reproject surfaces the reason, not an empty list", async () => {
+    // An empty array would read as "this file has no tables" -- a different
+    // and wrong answer that the author cannot act on.
+    loadGpkg.mockRejectedValue(
+      new Error('Projection "EPSG:31370" is not registered'),
+    );
+    const read = listGeoPackageTables("https://h/d10.gpkg");
+    await expect(read).rejects.toThrow(GeoPackageError);
+    await expect(read).rejects.toThrow(/EPSG:31370/);
+  });
+
+  test("does not share the renderer's url+projection cache", async () => {
+    // The renderer keys on `${url}::${mapProjection}`; discovery has no
+    // projection and must not be able to evict an entry a rendered layer is
+    // awaiting, so the two caches are separate reads of the same file.
+    loadGpkg.mockResolvedValue([{ roads: new VectorSource() }, {}]);
+    await loadGeoPackage(
+      { props: { url: "https://h/d11.gpkg", layer: "roads" } },
+      "EPSG:3857",
+    );
+    await listGeoPackageTables("https://h/d11.gpkg");
+    expect(loadGpkg).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe("matchesCondition — a field the feature does not carry", () => {
   // Left unguarded, the negated operators invert into a match: `!=` becomes
   // `undefined !== x` and `notIn` becomes "not in the list", both true. One
@@ -3326,6 +3544,133 @@ describe("loadGeoParquet", () => {
     );
     expect(source).toBeInstanceOf(VectorSource);
     expect(source.getFeatures()).toHaveLength(1);
+  });
+});
+
+describe("listGeoParquetColumns", () => {
+  // A parquet schema is a flat, depth-first list: the root, then each child
+  // with its own subtree inlined straight after it.
+  const flatSchema = [
+    { name: "schema", num_children: 3 },
+    { name: "geometry" },
+    { name: "name" },
+    { name: "pop" },
+  ];
+  const noGeoMeta = { key_value_metadata: undefined, schema: flatSchema };
+
+  beforeEach(() => {
+    clearClientSourceCaches();
+    asyncBufferFromUrl.mockResolvedValue({});
+  });
+
+  test("returns the file's top-level attribute column names", async () => {
+    parquetMetadataAsync.mockResolvedValue(noGeoMeta);
+    await expect(
+      listGeoParquetColumns("https://x/c1.parquet"),
+    ).resolves.toEqual(["name", "pop"]);
+  });
+
+  test("excludes the geometry column and the covering-bbox column", async () => {
+    // Both are machinery the reader consumes itself -- it always reads the
+    // geometry column and hides the covering one from the popup -- so offering
+    // either invites a selection that changes nothing the author can see.
+    parquetMetadataAsync.mockResolvedValue({
+      schema: [
+        { name: "schema", num_children: 4 },
+        { name: "geom" },
+        { name: "bbox", num_children: 4 },
+        { name: "xmin" },
+        { name: "ymin" },
+        { name: "xmax" },
+        { name: "ymax" },
+        { name: "name" },
+        { name: "pop" },
+      ],
+      key_value_metadata: [
+        {
+          key: "geo",
+          value: JSON.stringify({
+            primary_column: "geom",
+            columns: {
+              geom: {
+                encoding: "WKB",
+                crs: null,
+                covering: {
+                  bbox: {
+                    xmin: ["bbox", "xmin"],
+                    ymin: ["bbox", "ymin"],
+                    xmax: ["bbox", "xmax"],
+                    ymax: ["bbox", "ymax"],
+                  },
+                },
+              },
+            },
+          }),
+        },
+      ],
+    });
+    await expect(
+      listGeoParquetColumns("https://x/c2.parquet"),
+    ).resolves.toEqual(["name", "pop"]);
+  });
+
+  test("offers a nested column by its top-level name, not its leaves", async () => {
+    // hyparquet matches a requested column against pathInSchema[0], so a leaf
+    // or dotted path is silently ignored at read time: the author would pick a
+    // column, save, and get a layer rendered without it and no error anywhere.
+    parquetMetadataAsync.mockResolvedValue({
+      key_value_metadata: undefined,
+      schema: [
+        { name: "schema", num_children: 3 },
+        { name: "geometry" },
+        { name: "addr", num_children: 2 },
+        { name: "street" },
+        { name: "city" },
+        { name: "pop" },
+      ],
+    });
+    const columns = await listGeoParquetColumns("https://x/c3.parquet");
+    expect(columns).toEqual(["addr", "pop"]);
+    expect(columns).not.toContain("street");
+    expect(columns).not.toContain("addr.street");
+  });
+
+  test("a second call for the same url does not re-read the file", async () => {
+    parquetMetadataAsync.mockResolvedValue(noGeoMeta);
+    await listGeoParquetColumns("https://x/c4.parquet");
+    await listGeoParquetColumns("https://x/c4.parquet");
+    expect(parquetMetadataAsync).toHaveBeenCalledTimes(1);
+    expect(asyncBufferFromUrl).toHaveBeenCalledTimes(1);
+  });
+
+  test("an invalidating call causes a fresh read", async () => {
+    parquetMetadataAsync.mockResolvedValue(noGeoMeta);
+    await listGeoParquetColumns("https://x/c5.parquet");
+    invalidateGeoParquetColumns("https://x/c5.parquet");
+    await listGeoParquetColumns("https://x/c5.parquet");
+    expect(parquetMetadataAsync).toHaveBeenCalledTimes(2);
+  });
+
+  test("a file that cannot be parsed fails with a reason, not no columns", async () => {
+    parquetMetadataAsync.mockRejectedValue(new Error("invalid parquet magic"));
+    const read = listGeoParquetColumns("https://x/c6.parquet");
+    await expect(read).rejects.toThrow(GeoParquetError);
+    await expect(read).rejects.toThrow(/invalid parquet magic/);
+  });
+
+  test("normalizes an s3:// url and evicts a failed read", async () => {
+    parquetMetadataAsync
+      .mockRejectedValueOnce(new Error("boom"))
+      .mockResolvedValue(noGeoMeta);
+    await expect(
+      listGeoParquetColumns("s3://b-us-east-1-x/c7.parquet"),
+    ).rejects.toThrow(/boom/);
+    await expect(
+      listGeoParquetColumns("s3://b-us-east-1-x/c7.parquet"),
+    ).resolves.toEqual(["name", "pop"]);
+    expect(asyncBufferFromUrl).toHaveBeenCalledWith({
+      url: "https://b-us-east-1-x.s3.us-east-1.amazonaws.com/c7.parquet",
+    });
   });
 });
 
@@ -3962,4 +4307,696 @@ describe("loadGeoParquet - narrowing what is read", () => {
       ),
     ).rejects.toThrow(/four comma-separated numbers/);
   });
+});
+
+describe("discovery listings reject without a URL", () => {
+  // createUrlKeyedCache rejects before touching the network; nothing else
+  // exercised that branch.
+  test("listGeoPackageTables names the missing URL", async () => {
+    await expect(listGeoPackageTables()).rejects.toThrow(
+      /GeoPackage source requires a file URL/,
+    );
+    await expect(listGeoPackageTables("")).rejects.toThrow(
+      /GeoPackage source requires a file URL/,
+    );
+  });
+
+  test("listGeoParquetColumns names the missing URL", async () => {
+    await expect(listGeoParquetColumns()).rejects.toThrow(
+      /GeoParquet source requires a file URL/,
+    );
+  });
+});
+
+describe("parquet schema walking survives a bad footer", () => {
+  // The schema is file-controlled, so these are the shapes an attacker or a
+  // truncated upload can hand us.
+  test("a lying num_children does not freeze the tab counting it down", async () => {
+    const schema = [
+      { name: "root", num_children: 2 },
+      { name: "elev", num_children: 2 ** 31 }, // claims children it does not have
+      { name: "slope" },
+    ];
+    parquetMetadataAsync.mockResolvedValue({ schema, key_value_metadata: [] });
+
+    // The names come out the same either way -- the walk ends up past the end
+    // of the schema regardless. What differs is that counting a file-supplied
+    // 2^31 down to zero blocks the main thread for about ten seconds. So the
+    // assertion has to be the clock, and the margin is wide enough (~0ms vs
+    // ~10s) that a loaded machine will not flip it.
+    const started = Date.now();
+    await expect(
+      listGeoParquetColumns("https://host/bad.parquet"),
+    ).resolves.toEqual(["elev"]);
+    expect(Date.now() - started).toBeLessThan(2000);
+  });
+
+  test("a root declaring no child count still walks to the end", async () => {
+    const schema = [{ name: "root" }, { name: "elev" }, { name: "slope" }];
+    parquetMetadataAsync.mockResolvedValue({ schema, key_value_metadata: [] });
+    await expect(
+      listGeoParquetColumns("https://host/rootless.parquet"),
+    ).resolves.toEqual(["elev", "slope"]);
+  });
+});
+
+describe("listGeoPackageFields", () => {
+  const featureIn = (props) => {
+    const source = new VectorSource();
+    source.addFeature(new Feature(props));
+    return source;
+  };
+
+  test("offers a table's attribute names without its geometry", async () => {
+    loadGpkg.mockResolvedValue([
+      {
+        subbasins: featureIn({
+          geometry: new Point([0, 0]),
+          basin_name: "Jordan",
+          area_km2: 12,
+        }),
+      },
+      {},
+    ]);
+    await expect(
+      listGeoPackageFields("https://h/fields.gpkg", "subbasins"),
+    ).resolves.toEqual(["basin_name", "area_km2"]);
+  });
+
+  test("shares one parse with the table listing", async () => {
+    // Parsing a GeoPackage reads the whole file, so doing it twice for one url
+    // would be the expensive half of this feature done twice.
+    loadGpkg.mockResolvedValue([{ t: featureIn({ a: 1 }) }, {}]);
+    const url = "https://h/shared.gpkg";
+    await Promise.all([
+      listGeoPackageTables(url),
+      listGeoPackageFields(url, "t"),
+    ]);
+    expect(loadGpkg).toHaveBeenCalledTimes(1);
+  });
+
+  test("an unknown table has no fields rather than throwing", async () => {
+    loadGpkg.mockResolvedValue([{ t: featureIn({ a: 1 }) }, {}]);
+    await expect(
+      listGeoPackageFields("https://h/unknown.gpkg", "nope"),
+    ).resolves.toEqual([]);
+  });
+
+  test("a table with no features has no fields", async () => {
+    loadGpkg.mockResolvedValue([{ empty: new VectorSource() }, {}]);
+    await expect(
+      listGeoPackageFields("https://h/empty.gpkg", "empty"),
+    ).resolves.toEqual([]);
+  });
+});
+
+describe("prop coercion on the way to OpenLayers", () => {
+  // The GUI stores every layer prop as text, so these are the shapes an author
+  // can actually produce and OL cannot consume.
+  const tileLayer = (sourceProps) => ({
+    type: "WebGLTile",
+    props: {
+      name: "Coerced",
+      source: {
+        type: "GeoTIFF",
+        props: { url: "https://x/a.tif", ...sourceProps },
+      },
+    },
+  });
+
+  test("a comma separated bands string becomes a list of numbers", async () => {
+    const layer = await moduleLoader(tileLayer({ bands: " 1, 2 ,3 " }));
+    expect(layer).toBeDefined();
+  });
+
+  test("a bands string holding nothing usable is dropped rather than passed on", async () => {
+    const layer = await moduleLoader(tileLayer({ bands: " , ,abc" }));
+    expect(layer).toBeDefined();
+  });
+
+  test("an empty projection is dropped so OL falls back to the view's", async () => {
+    // GeoTIFF has its own loader; the generic path is where props are coerced,
+    // so this goes through the layer's own props.
+    const layer = await moduleLoader({
+      ...layerConfigVectorTile.configuration,
+      props: { ...layerConfigVectorTile.configuration.props, projection: "" },
+    });
+    expect(layer).toBeDefined();
+  });
+
+  test("an empty overviews list is dropped", async () => {
+    const layer = await moduleLoader(tileLayer({ overviews: [] }));
+    expect(layer).toBeDefined();
+  });
+});
+
+describe("the remaining ModuleLoader edges", () => {
+  test("a url that will not parse is treated as not CORS-capable", async () => {
+    // withAutoCrossOrigin must not throw on a malformed url; it just declines
+    // to add crossOrigin.
+    const props = await withAutoCrossOrigin("WMS", {
+      url: "http://[not-a-url",
+    });
+    expect(props.crossOrigin).toBeUndefined();
+  });
+
+  test("the texture limit is read from WebGL when a context is available", async () => {
+    // The module memoises, so this has to run against a fresh copy.
+    jest.resetModules();
+    jest
+      .spyOn(HTMLCanvasElement.prototype, "getContext")
+      .mockImplementation((kind) =>
+        kind === "webgl2"
+          ? { MAX_TEXTURE_SIZE: 0x0d33, getParameter: () => 16384 }
+          : null,
+      );
+    try {
+      const fresh = await import("components/map/ModuleLoader");
+      expect(fresh.getMaxTextureSize()).toBe(16384);
+    } finally {
+      jest.restoreAllMocks();
+      jest.resetModules();
+    }
+  });
+
+  test("the slice cache evicts its oldest entry once it is full", async () => {
+    clearClientSourceCaches();
+    readSlice.mockReset().mockResolvedValue({
+      width: 2,
+      height: 2,
+      extent: [0, 0, 10, 10],
+      crs: "EPSG:3857",
+      data: new Float32Array(8),
+      min: 0,
+      max: 1,
+    });
+
+    // Nine distinct slices against a cache that holds eight.
+    for (let index = 0; index < 9; index += 1) {
+      await loadZarr(
+        {
+          type: "Zarr",
+          props: {
+            url: "https://x/s.zarr",
+            variable: "depth",
+            index: `${index}`,
+          },
+        },
+        "EPSG:3857",
+      );
+    }
+    expect(readSlice).toHaveBeenCalledTimes(9);
+
+    // The first is gone, so asking for it again is a fresh read.
+    await loadZarr(
+      {
+        type: "Zarr",
+        props: { url: "https://x/s.zarr", variable: "depth", index: "0" },
+      },
+      "EPSG:3857",
+    );
+    expect(readSlice).toHaveBeenCalledTimes(10);
+  });
+
+  test("the single tile hands back the whole slice", async () => {
+    clearClientSourceCaches();
+    const data = new Float32Array(8);
+    readSlice.mockReset().mockResolvedValue({
+      width: 2,
+      height: 2,
+      extent: [0, 0, 10, 10],
+      crs: "EPSG:3857",
+      data,
+      min: 0,
+      max: 1,
+    });
+
+    const source = await loadZarr(
+      { type: "Zarr", props: { url: "https://x/t.zarr", variable: "depth" } },
+      "EPSG:3857",
+    );
+
+    // The whole slice is one tile, so loading it hands back the array as-is.
+    const tile = source.getTile(0, 0, 0);
+    tile.load();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(tile.getData()).toBe(data);
+  });
+});
+
+describe("configs that arrive incomplete", () => {
+  // Layer configs come out of the database, and older rows predate several of
+  // these fields. Every one of these is a config the app can actually be handed.
+  test("withAutoCrossOrigin leaves a source with no url alone", async () => {
+    await expect(withAutoCrossOrigin("WMS", {})).resolves.toEqual({});
+    await expect(withAutoCrossOrigin("WMS", { url: "" })).resolves.toEqual({
+      url: "",
+    });
+  });
+
+  test("the texture limit keeps its floor when WebGL reports nothing usable", async () => {
+    jest.resetModules();
+    jest
+      .spyOn(HTMLCanvasElement.prototype, "getContext")
+      .mockImplementation((kind) =>
+        kind === "webgl2" ? { getParameter: () => 0 } : null,
+      );
+    try {
+      const fresh = await import("components/map/ModuleLoader");
+      expect(fresh.getMaxTextureSize()).toBeGreaterThan(0);
+    } finally {
+      jest.restoreAllMocks();
+      jest.resetModules();
+    }
+  });
+
+  test("zarrSliceKey tolerates a source with no props", () => {
+    expect(typeof zarrSliceKey({ type: "Zarr" })).toBe("string");
+  });
+
+  test("geotiffSourceToOL tolerates a config with no props", () => {
+    expect(geotiffSourceToOL({ type: "GeoTIFF" })).toBeDefined();
+  });
+
+  test("applyAutoRamp leaves a layer whose source is not a GeoTIFF untouched", async () => {
+    const config = {
+      type: "WebGLTile",
+      props: { name: "x", source: { type: "Image Tile", props: {} } },
+    };
+    await expect(applyAutoRamp(config)).resolves.toBe(config);
+  });
+
+  test("applyAutoRamp leaves a GeoTIFF with neither ramp nor classes untouched", async () => {
+    const config = {
+      type: "WebGLTile",
+      props: { name: "x", source: { type: "GeoTIFF", props: { url: "u" } } },
+    };
+    await expect(applyAutoRamp(config)).resolves.toBe(config);
+  });
+
+  test("applyZarrRamp leaves a layer with neither ramp nor classes untouched", async () => {
+    const config = {
+      type: "WebGLTile",
+      props: { name: "x", source: { type: "Zarr", props: { url: "u" } } },
+    };
+    await expect(applyZarrRamp(config)).resolves.toBe(config);
+  });
+});
+
+describe("geometryIntersectsBBox", () => {
+  const BOX = { minx: 0, miny: 0, maxx: 10, maxy: 10 };
+
+  test("keeps a feature when either side is missing", () => {
+    expect(geometryIntersectsBBox(null, BOX)).toBe(true);
+    expect(geometryIntersectsBBox({ type: "Point" }, null)).toBe(true);
+  });
+
+  test("keeps a geometry that carries no coordinates", () => {
+    expect(geometryIntersectsBBox({ type: "Point" }, BOX)).toBe(true);
+  });
+
+  test("reads a collection through its members", () => {
+    const inside = {
+      type: "GeometryCollection",
+      geometries: [{ type: "Point", coordinates: [5, 5] }],
+    };
+    const outside = {
+      type: "GeometryCollection",
+      geometries: [{ type: "Point", coordinates: [50, 50] }],
+    };
+    expect(geometryIntersectsBBox(inside, BOX)).toBe(true);
+    expect(geometryIntersectsBBox(outside, BOX)).toBe(false);
+  });
+
+  test("keeps a collection with no members rather than dropping it", () => {
+    expect(geometryIntersectsBBox({ type: "GeometryCollection" }, BOX)).toBe(
+      false,
+    );
+  });
+
+  test("spans a geometry whose points run right to left", () => {
+    // maxx/maxy only update when a later point exceeds the running bound.
+    const line = {
+      type: "LineString",
+      coordinates: [
+        [9, 9],
+        [1, 1],
+      ],
+    };
+    expect(geometryIntersectsBBox(line, BOX)).toBe(true);
+  });
+});
+
+describe("GeoParquet metadata edges", () => {
+  test("a CRS naming no authority falls back to lon/lat WGS84", () => {
+    expect(geoParquetCRSToProjection({})).toBe("EPSG:4326");
+    expect(geoParquetCRSToProjection({ ids: [] })).toBe("EPSG:4326");
+  });
+
+  test("a geo block with no primary column uses the conventional name", () => {
+    const metadata = {
+      key_value_metadata: [
+        { key: "geo", value: JSON.stringify({ columns: {} }) },
+      ],
+    };
+    expect(readGeoParquetGeoMetadata(metadata).geometryColumn).toBe("geometry");
+  });
+
+  test("resolveReadColumns tolerates being given no columns at all", () => {
+    expect(() =>
+      resolveReadColumns({ columns: undefined, geometryColumn: "geometry" }),
+    ).not.toThrow();
+  });
+
+  test("coerceParquetValue passes a plain object through", () => {
+    // Only prototype-less shapes are rewritten; a Date or a class instance is
+    // left as it is.
+    const date = new Date(0);
+    expect(coerceParquetValue(date)).toBe(date);
+  });
+});
+
+describe("ramp bounds that cannot be used", () => {
+  const zarrLayer = (source = {}) => ({
+    type: "WebGLTile",
+    props: {
+      name: "flood",
+      source: {
+        type: "Zarr",
+        rampName: "turbo",
+        props: { url: "https://x/bounds.zarr", variable: "depth" },
+        ...source,
+      },
+    },
+  });
+
+  beforeEach(() => {
+    clearClientSourceCaches();
+    readSlice.mockReset().mockResolvedValue({
+      width: 5,
+      height: 4,
+      extent: [-100, 180, -75, 200],
+      crs: "EPSG:3857",
+      data: new Float32Array(40),
+      min: 2,
+      max: 9,
+    });
+  });
+
+  test("a pinned bound that is not a number falls back to the slice's range", async () => {
+    // The GUI stores these as text, so "abc" is a value an author can save.
+    const config = zarrLayer({ rampMin: "abc", rampMax: "also-not" });
+
+    await applyZarrRamp(config);
+
+    expect(config.props.source.resolvedRampMin).toBe(2);
+    expect(config.props.source.resolvedRampMax).toBe(9);
+  });
+
+  test("a categorical zarr layer styles by class without reading a range", async () => {
+    const config = zarrLayer({
+      rampName: "",
+      styleMode: "categorical",
+      classes: [{ value: 1, color: "#ff0000" }],
+      fallbackColor: "#000000",
+    });
+
+    await applyZarrRamp(config);
+
+    expect(config.style.color).toBeDefined();
+    expect(config.props.source.resolvedSliceKey).toBeDefined();
+  });
+
+  test("a categorical zarr layer with no usable class still gets a grayscale fit", async () => {
+    const config = zarrLayer({
+      rampName: "",
+      styleMode: "categorical",
+      classes: [{ value: "" }],
+    });
+
+    await applyZarrRamp(config);
+
+    // Not categorical after filtering, so it falls through to the grayscale
+    // fit rather than painting raw floats into the color channels.
+    expect(config.props.source.resolvedRampMin).toBe(2);
+  });
+});
+
+describe("more incomplete shapes", () => {
+  test("a slice whose pixel size is not usable is not rejected for being non-square", async () => {
+    // A reader that predates pixelSize, or reports zeroes, has nothing to check.
+    clearClientSourceCaches();
+    readSlice.mockReset().mockResolvedValue({
+      width: 4,
+      height: 4,
+      extent: [0, 0, 8, 8],
+      crs: "EPSG:3857",
+      data: new Float32Array(32),
+      min: 0,
+      max: 1,
+      pixelSize: { x: 0, y: Number.NaN },
+    });
+
+    await expect(
+      loadZarr(
+        { type: "Zarr", props: { url: "https://x/px.zarr", variable: "d" } },
+        "EPSG:3857",
+      ),
+    ).resolves.toBeDefined();
+  });
+
+  test("a zarr read that rejects with no message still names the store", async () => {
+    clearClientSourceCaches();
+    // eslint-disable-next-line prefer-promise-reject-errors
+    readSlice.mockReset().mockRejectedValue("just a string");
+
+    await expect(
+      loadZarr(
+        { type: "Zarr", props: { url: "https://x/bare.zarr", variable: "d" } },
+        "EPSG:3857",
+      ),
+    ).rejects.toThrow(/just a string/);
+  });
+
+  test("applyAutoRamp ignores a GeoTIFF whose url is not http", async () => {
+    // Author-supplied, so file:/blob:/data: must never be fetched.
+    const config = {
+      type: "WebGLTile",
+      props: {
+        name: "x",
+        source: {
+          type: "GeoTIFF",
+          rampName: "turbo",
+          props: { url: "file:///etc/passwd" },
+        },
+      },
+    };
+    await expect(applyAutoRamp(config)).resolves.toBe(config);
+  });
+
+  test("a GeoPackage table with a feature exposing no properties has no fields", async () => {
+    loadGpkg.mockResolvedValue([{ bare: { getFeatures: () => [{}] } }, {}]);
+    await expect(
+      listGeoPackageFields("https://h/bare.gpkg", "bare"),
+    ).resolves.toEqual([]);
+  });
+
+  test("a GeoPackage that parses to nothing has no tables", async () => {
+    loadGpkg.mockResolvedValue([undefined, {}]);
+    await expect(listGeoPackageTables("https://h/none.gpkg")).resolves.toEqual(
+      [],
+    );
+  });
+
+  test("a GeoPackage read that rejects with no message still reports", async () => {
+    // eslint-disable-next-line prefer-promise-reject-errors
+    loadGpkg.mockRejectedValue("bare rejection");
+    await expect(listGeoPackageTables("https://h/bad.gpkg")).rejects.toThrow(
+      /bare rejection/,
+    );
+  });
+
+  test("coerceParquetValue rewrites a prototype-less object", () => {
+    const bare = Object.create(null);
+    bare.a = 1n;
+    expect(coerceParquetValue(bare)).toEqual({ a: 1 });
+  });
+
+  test("coerceParquetValue leaves a class instance alone", () => {
+    class Thing {}
+    const instance = new Thing();
+    expect(coerceParquetValue(instance)).toBe(instance);
+  });
+});
+
+describe("ramp helpers handed a bare config", () => {
+  // A layer row can predate any of these fields, and applyAutoRamp runs on
+  // every layer regardless of what its source carries.
+  test("a layer with no source at all is returned untouched", async () => {
+    const config = { type: "WebGLTile", props: { name: "x" } };
+    await expect(applyAutoRamp(config)).resolves.toBe(config);
+    await expect(applyZarrRamp(config)).resolves.toBe(config);
+  });
+
+  test("a GeoTIFF with a ramp but no url is returned untouched", async () => {
+    const config = {
+      type: "WebGLTile",
+      props: { name: "x", source: { type: "GeoTIFF", rampName: "turbo" } },
+    };
+    await expect(applyAutoRamp(config)).resolves.toBe(config);
+  });
+});
+
+describe("GeoParquet failures that carry no message", () => {
+  test("a render read that rejects with a bare value still names the file", async () => {
+    // eslint-disable-next-line prefer-promise-reject-errors
+    asyncBufferFromUrl.mockRejectedValue("bare rejection");
+
+    await expect(
+      loadGeoParquet(
+        { type: "GeoParquet", props: { url: "https://h/a.parquet" } },
+        "EPSG:3857",
+      ),
+    ).rejects.toThrow(/bare rejection/);
+  });
+
+  test("a column read that rejects with a bare value still names the file", async () => {
+    // eslint-disable-next-line prefer-promise-reject-errors
+    asyncBufferFromUrl.mockRejectedValue("bare rejection");
+    invalidateGeoParquetColumns();
+
+    await expect(
+      listGeoParquetColumns("https://h/bare-columns.parquet"),
+    ).rejects.toThrow(/bare rejection/);
+  });
+
+  test("a GeoParquet error from inside the read is passed through unchanged", async () => {
+    // Already a GeoParquetError -- rewrapping would bury the specific reason.
+    asyncBufferFromUrl.mockResolvedValue({});
+    parquetMetadataAsync.mockRejectedValue(
+      new GeoParquetError("declared projection is not registered"),
+    );
+    invalidateGeoParquetColumns();
+
+    await expect(
+      listGeoParquetColumns("https://h/specific.parquet"),
+    ).rejects.toThrow(/declared projection is not registered/);
+  });
+});
+
+describe("the last ramp and parquet edges", () => {
+  test("a ramped layer that is neither GeoTIFF nor Zarr reads no statistics", async () => {
+    // autoRampStatsUrl only knows how to find a GeoTIFF's stats.
+    const config = {
+      type: "TileLayer",
+      props: {
+        name: "x",
+        source: {
+          type: "Image Tile",
+          rampName: "turbo",
+          props: { url: "https://x/{z}/{x}/{y}.png" },
+        },
+      },
+    };
+
+    await expect(applyAutoRamp(config)).resolves.toBe(config);
+    expect(fromUrl).not.toHaveBeenCalled();
+  });
+
+  test("a categorical layer with no class list is not treated as categorical", async () => {
+    // styleMode alone is not enough: an empty table means nothing to match on.
+    const geotiff = {
+      type: "WebGLTile",
+      props: {
+        name: "x",
+        source: {
+          type: "GeoTIFF",
+          styleMode: "categorical",
+          props: { url: "https://x/a.tif" },
+        },
+      },
+    };
+    await expect(applyAutoRamp(geotiff)).resolves.toBe(geotiff);
+
+    clearClientSourceCaches();
+    readSlice.mockReset().mockResolvedValue({
+      width: 2,
+      height: 2,
+      extent: [0, 0, 4, 4],
+      crs: "EPSG:3857",
+      data: new Float32Array(8),
+      min: 0,
+      max: 1,
+    });
+    const zarr = {
+      type: "WebGLTile",
+      props: {
+        name: "y",
+        source: {
+          type: "Zarr",
+          styleMode: "categorical",
+          props: { url: "https://x/s.zarr", variable: "d" },
+        },
+      },
+    };
+    await applyZarrRamp(zarr);
+    // Falls through to the grayscale fit rather than a class match.
+    expect(zarr.props.source.resolvedRampMin).toBe(0);
+  });
+
+  test("a render read passes a GeoParquet error through unchanged", async () => {
+    asyncBufferFromUrl.mockResolvedValue({});
+    parquetMetadataAsync.mockRejectedValue(
+      new GeoParquetError("declared CRS is not registered"),
+    );
+    clearClientSourceCaches();
+
+    await expect(
+      loadGeoParquet(
+        { type: "GeoParquet", props: { url: "https://h/crs.parquet" } },
+        "EPSG:3857",
+      ),
+    ).rejects.toThrow(/declared CRS is not registered/);
+  });
+
+  test("a schema that is not a list yields no columns", async () => {
+    asyncBufferFromUrl.mockResolvedValue({});
+    parquetMetadataAsync.mockResolvedValue({
+      schema: undefined,
+      key_value_metadata: [],
+    });
+    invalidateGeoParquetColumns();
+
+    await expect(
+      listGeoParquetColumns("https://h/no-schema.parquet"),
+    ).resolves.toEqual([]);
+  });
+});
+
+test("the CORS probe gives up rather than hanging on a silent host", async () => {
+  // A HEAD that never answers would otherwise hold the layer indefinitely; the
+  // probe aborts itself and reports the host as not CORS-capable.
+  jest.useFakeTimers();
+  try {
+    let abortSignal;
+    global.fetch = jest.fn(
+      (url, options) =>
+        new Promise((_, reject) => {
+          abortSignal = options.signal;
+          abortSignal.addEventListener("abort", () =>
+            reject(new DOMException("aborted", "AbortError")),
+          );
+        }),
+    );
+
+    const probing = withAutoCrossOrigin("WMS", {
+      url: "https://silent.test/wms",
+    });
+    jest.advanceTimersByTime(5000);
+
+    await expect(probing).resolves.toEqual({ url: "https://silent.test/wms" });
+    expect(abortSignal.aborted).toBe(true);
+  } finally {
+    jest.useRealTimers();
+  }
 });

@@ -1,5 +1,6 @@
 import PropTypes from "prop-types";
 import { useShapefileDiscovery } from "components/modals/MapLayer/shapefileDiscovery";
+import useSourceArgumentDiscovery from "components/modals/MapLayer/sourceArgumentDiscovery";
 import Modal from "react-bootstrap/Modal";
 import styled from "styled-components";
 import Button from "react-bootstrap/Button";
@@ -189,6 +190,15 @@ const MapLayerModal = ({
     style,
     attributeProps,
     popupConfig,
+  });
+
+  // Argument discovery sits at the same level and for the same reason: the
+  // source pane renders the controls, but the state has to outlive a single
+  // pane render or a list read once would be read again on the next keystroke.
+  const argumentDiscovery = useSourceArgumentDiscovery({
+    sourceProps,
+    variableInputValues,
+    variableInputDateFormats,
   });
 
   const onRequestHideModal = useCallback(() => {
@@ -431,7 +441,9 @@ const MapLayerModal = ({
         savedSource.classes = usableClasses;
         if (fallbackColor) savedSource.fallbackColor = fallbackColor;
         // Kept so switching back to a ramp does not lose the chosen palette.
-        if (hasRampName) savedSource.rampName = rampName;
+        // Always present here: only a raster carries a class list, and the
+        // Style tab gives every raster a ramp name the moment it has none.
+        savedSource.rampName = rampName;
         if (rampReverse === true) savedSource.rampReverse = true;
       }
       // Each bound is independent: a set one pins that end of the ramp, an
@@ -678,6 +690,7 @@ const MapLayerModal = ({
                 onRequestHideModal={onRequestHideModal}
                 onFetchPluginDefaults={fetchPluginDefaults}
                 shapefileDiscovery={shapefileDiscovery}
+                argumentDiscovery={argumentDiscovery}
               />
             </Tab>
             <Tab

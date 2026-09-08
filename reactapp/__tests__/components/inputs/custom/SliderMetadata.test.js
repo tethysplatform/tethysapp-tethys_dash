@@ -638,3 +638,26 @@ test("Number slider defaults Output Format to {{n}} when left empty", async () =
     }),
   );
 });
+
+it("reports a change to the output format in range mode", async () => {
+  // The single-value branch is exercised above; range mode renders its own
+  // initial-value control and the same Output Format input beneath it.
+  render(
+    <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
+      <VariableInputsContext.Provider value={{ variableInputValues: {} }}>
+        <SliderMetadata
+          onChange={jest.fn()}
+          values={{}}
+          visualizationRef={null}
+        />
+      </VariableInputsContext.Provider>
+    </DataViewerModeContext.Provider>,
+  );
+
+  fireEvent.click(screen.getByLabelText("Range"));
+  await selectEvent.select(screen.getByLabelText("Data Type Input"), "Number");
+
+  const outputFormat = await screen.findByLabelText("Output Format Input");
+  fireEvent.change(outputFormat, { target: { value: "{{n}} cfs" } });
+  expect(outputFormat).toHaveValue("{{n}} cfs");
+});
