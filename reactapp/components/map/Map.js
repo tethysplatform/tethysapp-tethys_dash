@@ -1,4 +1,4 @@
-import { memo, useEffect, useState, useRef, useContext } from "react";
+import { memo, useEffect, useMemo, useState, useRef, useContext } from "react";
 import { Map, View } from "ol";
 import moduleLoader, {
   applyAutoRamp,
@@ -177,13 +177,27 @@ const MapComponent = ({
   visualizationRef,
   dataviewerViz,
   runtimeLayerState,
+  layerPrepStatus,
 }) => {
   const [errorMessage, setErrorMessage] = useState("");
-  // Per-layer load state for client-parsed sources, keyed on layer name.
-  // Mirrored into React state purely so it can be rendered; the source's own
-  // controller remains the authority.
-  const [shapefileStatus, setShapefileStatus] = useState({});
+  // Per-layer load state, keyed on layer name, for every source read in the
+  // browser. Mirrored into React state purely so it can be rendered; for a
+  // shapefile the source's own controller remains the authority. Written by the
+  // construct pass below and by the watcher on the deferred feature load.
+  const [layerStatus, setLayerStatus] = useState({});
   const [layerControlUpdate, setLayerControlUpdate] = useState();
+
+  // Settle a layer's entry at the end of its construct pass. `ready` mirrors
+  // what the shapefile watcher writes on success; `idle` drops the entry, for a
+  // layer that finished with nothing to report.
+  const settleLayerStatus = (name, state) =>
+    setLayerStatus((previous) => {
+      if (state === "idle") {
+        const { [name]: _dropped, ...rest } = previous;
+        return rest;
+      }
+      return { ...previous, [name]: { state, message: null, kind: null } };
+    });
   const mapDivRef = useRef();
   const onMapClickCurrent = useRef();
   const onMapHoverCurrent = useRef();
@@ -233,24 +247,33 @@ const MapComponent = ({
   // disabled it -- and a failure that renders as a blank layer is the one thing
   // this must not do. The layers control still carries the richer per-layer
   // detail when it is enabled.
-  const shapefileEntries = Object.entries(shapefileStatus);
-  const shapefileFailures = shapefileEntries.filter(
+  // The prep phase runs in the parent, before any OL layer exists, so its
+  // entries are merged in here rather than living in the state above. A layer
+  // being prepared cannot also be constructing, so neither side overwrites a
+  // more specific state belonging to the other.
+  const mergedLayerStatus = useMemo(
+    () => ({ ...layerPrepStatus, ...layerStatus }),
+    [layerPrepStatus, layerStatus],
+  );
+
+  const statusEntries = Object.entries(mergedLayerStatus);
+  const layerFailures = statusEntries.filter(
     ([, status]) => status.state === "error",
   );
-  const shapefileLoading = shapefileEntries.filter(
+  const layersLoading = statusEntries.filter(
     ([, status]) => status.state === "loading",
   );
-  const shapefileAlert = shapefileFailures.length
+  const layerAlert = layerFailures.length
     ? {
         variant: "danger",
-        message: shapefileFailures
+        message: layerFailures
           .map(([name, status]) => `${name}: ${status.message}`)
           .join(" "),
       }
-    : shapefileLoading.length
+    : layersLoading.length
       ? {
           variant: "info",
-          message: `Loading ${shapefileLoading
+          message: `Loading ${layersLoading
             .map(([name]) => name)
             .join(", ")}\u2026`,
         }
@@ -601,6 +624,16 @@ const MapComponent = ({
             return;
           }
 
+          // Constructing a source is where the network cost of most layer
+          // types actually lands -- a GeoTIFF reads its header, a Zarr decodes
+          // a slice, a GeoPackage fetches the whole file. Only the shapefile
+          // reported any of that, because only it defers work to an OL loader
+          // with events to watch. Marking the pass itself covers every type.
+          setLayerStatus((previous) => ({
+            ...previous,
+            [name]: { state: "loading", message: null, kind: null },
+          }));
+
           try {
             // Resolve a Zarr layer's ramp from the slice's real value range
             // before the source is built — `normalize` is read at construction.
@@ -690,7 +723,7 @@ const MapComponent = ({
             }
             newLayer.set("appliedStyle", layerConfig.style);
             map.addLayer(newLayer);
-            watchShapefileLoad(newLayer, name, setShapefileStatus);
+            watchShapefileLoad(newLayer, name, setLayerStatus);
 
             if (
               layerConfig.type === "WebGLTile" &&
@@ -837,7 +870,20 @@ const MapComponent = ({
             }
 
             await applyLayerStyle(newLayer, layerConfig);
+
+            // A shapefile is not finished when its layer is: its features are
+            // pulled by OpenLayers once the layer renders, and the watcher
+            // attached above owns the entry from here. Writing "ready" now
+            // would blink the indicator off and straight back on.
+            if (!newLayer.getSource?.()?.get?.("shapefileController")) {
+              settleLayerStatus(name, "ready");
+            }
           } catch (err) {
+            // A half-authored source is silent rather than an error, so the
+            // indicator stops with nothing said. Real failures are reported by
+            // the aggregate message below, so the entry is cleared here too --
+            // two danger alerts for one failure would say the same thing twice.
+            settleLayerStatus(name, "idle");
             if (
               err &&
               (err.message === "GeoTIFFEmptySources" ||
@@ -962,7 +1008,7 @@ const MapComponent = ({
             .getArray()
             .map((layer) => layer.get("name")),
         );
-        setShapefileStatus((previous) => {
+        setLayerStatus((previous) => {
           const kept = Object.fromEntries(
             Object.entries(previous).filter(([name]) => liveNames.has(name)),
           );
@@ -1008,14 +1054,14 @@ const MapComponent = ({
             </StyledAlert>
           </AlertAnchor>
         )}
-        {shapefileAlert && (
+        {layerAlert && (
           <AlertAnchor edges={ALERT_EDGES}>
             <StyledAlert
-              variant={shapefileAlert.variant}
-              role={shapefileAlert.variant === "danger" ? "alert" : "status"}
+              variant={layerAlert.variant}
+              role={layerAlert.variant === "danger" ? "alert" : "status"}
               aria-live="polite"
             >
-              {shapefileAlert.message}
+              {layerAlert.message}
             </StyledAlert>
           </AlertAnchor>
         )}
@@ -1043,8 +1089,8 @@ const MapComponent = ({
             visualizationRef={visualizationRef}
             updater={layerControlUpdate}
             runtimeLayerState={runtimeLayerState}
-            shapefileStatus={shapefileStatus}
-            onRetryShapefile={(layerName) => {
+            layerStatus={mergedLayerStatus}
+            onRetryLayer={(layerName) => {
               const layer = visualizationRef.current
                 ?.getLayers()
                 .getArray()
@@ -1086,6 +1132,14 @@ MapComponent.propTypes = {
   // action, plus sessionNonce + gridItemUuid for building composite WebSocket
   // requestIds (Unit 3/5). Undefined for dataviewer / legacy maps — LayersControl
   // handles absence gracefully.
+  // Layers still being prepared by the parent (style fetch, raster header
+  // read). That phase precedes any OL layer, so the map cannot observe it and
+  // is told instead; merged with the map's own per-layer state for display.
+  layerPrepStatus: PropTypes.objectOf(
+    PropTypes.shape({
+      state: PropTypes.string,
+    }),
+  ),
   runtimeLayerState: PropTypes.shape({
     errorsByLayerId: PropTypes.object,
     retry: PropTypes.func,

@@ -115,8 +115,8 @@ const LayersControl = ({
   updater,
   visualizationRef,
   runtimeLayerState,
-  shapefileStatus,
-  onRetryShapefile,
+  layerStatus,
+  onRetryLayer,
 }) => {
   const [layers, setLayers] = useState([]); // [<openlayer layers>], controls what is shown in the layer controls
   const [isexpanded, setisexpanded] = useState(false); // bool, controls layer conrol menu expansion
@@ -209,10 +209,9 @@ const LayersControl = ({
                 // source rather than from a request id -- there is no backend
                 // request behind them, so the progress channel above never has
                 // anything to report for one.
-                const shapefile = shapefileStatus?.[layerName];
-                const shapefileLoading = shapefile?.state === "loading";
-                const shapefileError =
-                  shapefile?.state === "error" ? shapefile : null;
+                const status = layerStatus?.[layerName];
+                const statusLoading = status?.state === "loading";
+                const statusError = status?.state === "error" ? status : null;
                 // Hide progress bar once an error is set (error supersedes
                 // any stale in-progress message) or when it has completed.
                 const showProgress =
@@ -255,7 +254,7 @@ const LayersControl = ({
                         </ProgressBar>
                       </div>
                     )}
-                    {shapefileLoading && (
+                    {statusLoading && (
                       <div
                         role="status"
                         aria-live="polite"
@@ -266,28 +265,25 @@ const LayersControl = ({
                         </ProgressBar>
                       </div>
                     )}
-                    {shapefileError && (
+                    {statusError && (
                       <ErrorBadge role="alert">
                         <FaExclamationTriangle aria-hidden="true" />
-                        <span style={{ flex: 1 }}>
-                          {shapefileError.message}
-                        </span>
+                        <span style={{ flex: 1 }}>{statusError.message}</span>
                         {/* Retry only where re-running the same request could
                             succeed. A missing projection, an unresolvable
                             coordinate system, a malformed component and a source
                             over the size ceiling all need the author to change
                             something, so a button here would invite a viewer to
                             re-download megabytes and fail identically. */}
-                        {isRetryable(shapefileError.kind) &&
-                          onRetryShapefile && (
-                            <RetryBtn
-                              type="button"
-                              onClick={() => onRetryShapefile(layerName)}
-                              aria-label={`Retry ${layerName}`}
-                            >
-                              <FaRedo aria-hidden="true" /> Retry
-                            </RetryBtn>
-                          )}
+                        {isRetryable(statusError.kind) && onRetryLayer && (
+                          <RetryBtn
+                            type="button"
+                            onClick={() => onRetryLayer(layerName)}
+                            aria-label={`Retry ${layerName}`}
+                          >
+                            <FaRedo aria-hidden="true" /> Retry
+                          </RetryBtn>
+                        )}
                       </ErrorBadge>
                     )}
                     {error && (
@@ -339,16 +335,17 @@ LayersControl.propTypes = {
     sessionNonce: PropTypes.string,
     gridItemUuid: PropTypes.string,
   }),
-  // Load state for client-parsed sources, keyed on layer name. These carry no
-  // backend request, so they cannot use the progress channel above.
-  shapefileStatus: PropTypes.objectOf(
+  // Load state for every layer whose source is read in the browser, keyed on
+  // layer name. These carry no backend request, so they cannot use the progress
+  // channel above. Only failures whose kind `isRetryable` get a retry button.
+  layerStatus: PropTypes.objectOf(
     PropTypes.shape({
       state: PropTypes.string,
       message: PropTypes.string,
       kind: PropTypes.string,
     }),
   ),
-  onRetryShapefile: PropTypes.func,
+  onRetryLayer: PropTypes.func,
 };
 
 export default LayersControl;
