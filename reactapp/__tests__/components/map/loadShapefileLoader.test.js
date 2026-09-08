@@ -1,4 +1,4 @@
-import { loadShapefile } from "components/map/ModuleLoader";
+import moduleLoader, { loadShapefile } from "components/map/ModuleLoader";
 import { acquireComponents } from "components/map/shapefile/acquire";
 import { interpretShapefile } from "components/map/shapefile/index";
 
@@ -166,4 +166,33 @@ it("reports an unexpected failure that carries no message", async () => {
   const controller = source.get("shapefileController");
   expect(controller.getStatus()).toBe("error");
   expect(controller.getError().detail).toMatch(/bare rejection/);
+});
+
+describe("the callback reaching a nested source", () => {
+  // A layer arrives as {type: "VectorLayer", props: {source: {type:
+  // "Shapefile"}}}, so the source is built by resolveProps' recursion rather
+  // than the top-level dispatch. That recursion used to drop the third
+  // argument, which left the loader with no way to reread the view -- the whole
+  // point of having it.
+  it("reaches the shapefile source through a layer config", async () => {
+    const getMapProjection = jest.fn(() => "EPSG:3857");
+    const layer = await moduleLoader(
+      {
+        type: "VectorLayer",
+        props: {
+          name: "Basins",
+          source: { type: "Shapefile", props: { url: CONFIG.props.url } },
+        },
+      },
+      "EPSG:3857",
+      getMapProjection,
+    );
+
+    const { done } = runLoader(layer.getSource(), {
+      getCode: () => "EPSG:4326",
+    });
+    await done;
+
+    expect(getMapProjection).toHaveBeenCalled();
+  });
 });

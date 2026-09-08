@@ -1,5 +1,11 @@
 import { useRef, useState, useEffect } from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  act,
+} from "@testing-library/react";
 import MapComponent from "components/map/Map";
 import PropTypes from "prop-types";
 import MapContextProvider, {
@@ -2926,5 +2932,66 @@ test("a map-extent view replacement moves vector features with the view", async 
       .getGeometry()
       .getCoordinates();
     expect(Math.abs(x)).toBeGreaterThan(1e6);
+  });
+});
+
+describe("swapping layers", () => {
+  const renderWith = (layers) => (
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
+      <MapContextProvider>
+        <TestingComponent mapProps={{ layers }} />
+      </MapContextProvider>
+    </VariableInputsContext.Provider>
+  );
+
+  // A replacement layer is buffered at opacity 0 until it paints, then faded
+  // in. Nothing paints in jsdom, so the buffer is released by the loader's own
+  // safety timeout.
+  const frame = (url) => ({
+    type: "WebGLTile",
+    props: {
+      name: "storm",
+      zIndex: 0,
+      source: { type: "Image Tile", props: { url } },
+    },
+  });
+
+  it("finalizes a running fade before starting the next one", async () => {
+    // Storm playback swaps frames faster than a 250ms fade, so an overlapping
+    // swap must not leave the previous frame stranded part way through.
+    jest.useFakeTimers();
+    try {
+      const setOpacity = jest.spyOn(WebGLTileLayer.prototype, "setOpacity");
+      const { rerender } = render(
+        renderWith([frame("https://tiles.test/a/{z}/{y}/{x}")]),
+      );
+      await act(async () => {
+        jest.advanceTimersByTime(100);
+      });
+
+      rerender(renderWith([frame("https://tiles.test/b/{z}/{y}/{x}")]));
+      await act(async () => {
+        jest.advanceTimersByTime(6000);
+      });
+
+      rerender(renderWith([frame("https://tiles.test/c/{z}/{y}/{x}")]));
+      await act(async () => {
+        jest.advanceTimersByTime(6000);
+      });
+
+      // Buffered at 0, then restored -- not left mid-fade.
+      expect(setOpacity).toHaveBeenCalledWith(0);
+      setOpacity.mockRestore();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("renders with no layers prop at all", async () => {
+    // A dashboard can carry a map with nothing on it yet.
+    render(renderWith(undefined));
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
   });
 });

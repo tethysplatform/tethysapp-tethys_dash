@@ -1299,7 +1299,11 @@ const moduleLoader = async (config, mapProjection, getMapProjection) => {
       } else if (type === "ESRI Feature Service") {
         return loadESRIJSON(config);
       } else {
-        const resolvedProps = await resolveProps(props, mapProjection);
+        const resolvedProps = await resolveProps(
+          props,
+          mapProjection,
+          getMapProjection,
+        );
         if (type === "Vector Tile") {
           resolvedProps.format = new MVT();
         }
@@ -1327,7 +1331,11 @@ const moduleLoader = async (config, mapProjection, getMapProjection) => {
 
     moduleCache[type] = ModuleConstructor;
 
-    const resolvedProps = await resolveProps(props, mapProjection);
+    const resolvedProps = await resolveProps(
+      props,
+      mapProjection,
+      getMapProjection,
+    );
     if (type === "Vector Tile") {
       resolvedProps.format = new MVT();
     }
@@ -1350,8 +1358,15 @@ const moduleLoader = async (config, mapProjection, getMapProjection) => {
   }
 };
 
-// Helper function to resolve nested props
-const resolveProps = async (props, mapProjection) => {
+// Helper function to resolve nested props.
+//
+// `getMapProjection` is threaded through every recursion because a layer's
+// source is a nested module config: a shapefile arrives as
+// `{type: "VectorLayer", props: {source: {type: "Shapefile"}}}`, so the source
+// is loaded from here rather than by the top-level dispatch. Dropping the
+// callback here left the shapefile loader with no way to reread the view, which
+// is the whole point of it.
+const resolveProps = async (props, mapProjection, getMapProjection) => {
   if (!props) return {};
 
   const resolvedProps = {};
@@ -1388,13 +1403,17 @@ const resolveProps = async (props, mapProjection) => {
     if (value && typeof value === "object") {
       if ("type" in value && "props" in value) {
         // It's a module configuration; process with moduleLoader
-        resolvedProps[key] = await moduleLoader(value, mapProjection);
+        resolvedProps[key] = await moduleLoader(
+          value,
+          mapProjection,
+          getMapProjection,
+        );
       } else if (Array.isArray(value)) {
         // It's an array; resolve each item
         resolvedProps[key] = await Promise.all(
           value.map(async (item) => {
             if (item && typeof item === "object") {
-              return await resolveProps(item, mapProjection);
+              return await resolveProps(item, mapProjection, getMapProjection);
             } else {
               return item;
             }
@@ -1402,7 +1421,11 @@ const resolveProps = async (props, mapProjection) => {
         );
       } else {
         // It's a regular object; recursively resolve its properties
-        resolvedProps[key] = await resolveProps(value, mapProjection);
+        resolvedProps[key] = await resolveProps(
+          value,
+          mapProjection,
+          getMapProjection,
+        );
       }
     } else {
       // It's a primitive value; assign as is
