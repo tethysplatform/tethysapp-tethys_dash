@@ -611,6 +611,16 @@ const MapComponent = ({
         await import("components/map/projections");
       }
 
+      // Which raster, if any, gets to set the view projection. Resolved from
+      // the author's array before anything is built, so it is the same answer
+      // for every layer in this run no matter what order they finish in.
+      const viewProjectionOwner = customLayers.find(
+        (candidate) =>
+          candidate?.type === "WebGLTile" &&
+          (candidate.props?.source?.type === "GeoTIFF" ||
+            candidate.props?.source?.type === "Zarr"),
+      );
+
       let failedLayers = [];
       // Replacement layers added hidden until painted, then revealed on swap.
       const buffered = [];
@@ -760,130 +770,147 @@ const MapComponent = ({
               geoTIFFSource.on("error", surface("source error"));
               geoTIFFSource.on("tileloaderror", surface("tile load error"));
 
-              try {
-                const viewOptions = await geoTIFFSource.getView();
-                const mapSize = map.getSize();
-                const prevView = map.getView();
-                const prevProjection = prevView.getProjection();
-                const newProjection = viewOptions.projection;
-                const tifExtent = viewOptions.extent;
+              // One raster owns the view projection. Every GeoTIFF and Zarr
+              // layer used to assert its own CRS on the map's single view, so a
+              // dashboard mixing projections had them fighting -- each adoption
+              // undoing the last, and each `setView` re-rendering every layer
+              // and refetching the basemap. It only looked stable while they
+              // all landed in the same frame.
+              //
+              // The others still render: OpenLayers reprojects a DataTile
+              // source whose projection differs from the view's, so not owning
+              // the view costs a reprojection, not a layer.
+              //
+              // The owner is the first such layer in the author's own array,
+              // not the first to finish loading, so which projection the map
+              // settles in does not depend on which file the network served
+              // first -- and reordering the layers is how an author changes it.
+              if (layerConfig === viewProjectionOwner) {
+                try {
+                  const viewOptions = await geoTIFFSource.getView();
+                  const mapSize = map.getSize();
+                  const prevView = map.getView();
+                  const prevProjection = prevView.getProjection();
+                  const newProjection = viewOptions.projection;
+                  const tifExtent = viewOptions.extent;
 
-                const haveMapSize =
-                  Array.isArray(mapSize) &&
-                  mapSize.length === 2 &&
-                  mapSize[0] > 0 &&
-                  mapSize[1] > 0;
+                  const haveMapSize =
+                    Array.isArray(mapSize) &&
+                    mapSize.length === 2 &&
+                    mapSize[0] > 0 &&
+                    mapSize[1] > 0;
 
-                // Helper: extents [minX, minY, maxX, maxY] overlap?
-                const intersects = (a, b) =>
-                  !(a[2] < b[0] || a[0] > b[2] || a[3] < b[1] || a[1] > b[3]);
+                  // Helper: extents [minX, minY, maxX, maxY] overlap?
+                  const intersects = (a, b) =>
+                    !(a[2] < b[0] || a[0] > b[2] || a[3] < b[1] || a[1] > b[3]);
 
-                const newView = new View({
-                  projection: newProjection,
-                  center: viewOptions.center ?? [0, 0],
-                  zoom: viewOptions.zoom ?? 0,
-                });
+                  const newView = new View({
+                    projection: newProjection,
+                    center: viewOptions.center ?? [0, 0],
+                    zoom: viewOptions.zoom ?? 0,
+                  });
 
-                let targetExtent = null;
-                // Whether the view, as it stands, is already looking at this
-                // raster. The fit below uses it to decide whether to keep the
-                // current extent; the adoption guard further down uses it to
-                // decide whether there is anything to adopt at all.
-                let viewOverlapsRaster = false;
-                if (haveMapSize) {
-                  const prevExtent = prevView.calculateExtent(mapSize);
-                  const sourceValid = prevProjection.getExtent?.();
-                  const clampedPrev =
-                    Array.isArray(sourceValid) && sourceValid.length === 4
-                      ? [
-                          Math.max(prevExtent[0], sourceValid[0]),
-                          Math.max(prevExtent[1], sourceValid[1]),
-                          Math.min(prevExtent[2], sourceValid[2]),
-                          Math.min(prevExtent[3], sourceValid[3]),
-                        ]
-                      : prevExtent;
+                  let targetExtent = null;
+                  // Whether the view, as it stands, is already looking at this
+                  // raster. The fit below uses it to decide whether to keep the
+                  // current extent; the adoption guard further down uses it to
+                  // decide whether there is anything to adopt at all.
+                  let viewOverlapsRaster = false;
+                  if (haveMapSize) {
+                    const prevExtent = prevView.calculateExtent(mapSize);
+                    const sourceValid = prevProjection.getExtent?.();
+                    const clampedPrev =
+                      Array.isArray(sourceValid) && sourceValid.length === 4
+                        ? [
+                            Math.max(prevExtent[0], sourceValid[0]),
+                            Math.max(prevExtent[1], sourceValid[1]),
+                            Math.min(prevExtent[2], sourceValid[2]),
+                            Math.min(prevExtent[3], sourceValid[3]),
+                          ]
+                        : prevExtent;
 
-                  if (
-                    clampedPrev.every(Number.isFinite) &&
-                    clampedPrev[0] < clampedPrev[2] &&
-                    clampedPrev[1] < clampedPrev[3]
-                  ) {
-                    const transformed = transformExtent(
-                      clampedPrev,
-                      prevProjection,
-                      newProjection,
-                    );
-                    if (transformed.every(Number.isFinite)) {
-                      viewOverlapsRaster =
-                        Array.isArray(tifExtent) &&
-                        tifExtent.length === 4 &&
-                        intersects(transformed, tifExtent);
-                      targetExtent = viewOverlapsRaster
-                        ? transformed
-                        : Array.isArray(tifExtent) &&
-                            tifExtent.every(Number.isFinite)
-                          ? tifExtent
-                          : transformed;
+                    if (
+                      clampedPrev.every(Number.isFinite) &&
+                      clampedPrev[0] < clampedPrev[2] &&
+                      clampedPrev[1] < clampedPrev[3]
+                    ) {
+                      const transformed = transformExtent(
+                        clampedPrev,
+                        prevProjection,
+                        newProjection,
+                      );
+                      if (transformed.every(Number.isFinite)) {
+                        viewOverlapsRaster =
+                          Array.isArray(tifExtent) &&
+                          tifExtent.length === 4 &&
+                          intersects(transformed, tifExtent);
+                        targetExtent = viewOverlapsRaster
+                          ? transformed
+                          : Array.isArray(tifExtent) &&
+                              tifExtent.every(Number.isFinite)
+                            ? tifExtent
+                            : transformed;
+                      }
                     }
                   }
-                }
 
-                if (
-                  !targetExtent &&
-                  Array.isArray(tifExtent) &&
-                  tifExtent.length === 4 &&
-                  tifExtent.every(Number.isFinite)
-                ) {
-                  targetExtent = tifExtent;
-                }
-
-                // Features already on the map were parsed into the outgoing
-                // projection, so adopting the raster's leaves them holding the
-                // wrong numbers -- a UTM raster over Guatemala left Web
-                // Mercator coordinates being read as UTM metres, stranding the
-                // dynamic layers off screen while still reporting the right
-                // feature count. Move them with the view.
-                const previousCode = prevProjection.getCode();
-                const adoptedCode = newView.getProjection().getCode();
-
-                // Every raster runs this block as it mounts, so a dashboard
-                // built on several rasters in one projection ran it several
-                // times -- and when the view is already in that projection and
-                // already looking at the raster, the work above rebuilds the
-                // view that is already on screen. `setView` is not free: it
-                // replaces the view outright, so every layer re-renders and the
-                // basemap refetches its tiles. Five rasters each arriving on
-                // their own schedule made that visible as five jumps.
-                const alreadyAdopted =
-                  previousCode === adoptedCode && viewOverlapsRaster;
-
-                // Adopt the raster's projection as the view projection only when
-                // OpenLayers resolves it on its own. Registering a definition
-                // makes a previously-unresolvable raster render, but it must not
-                // also start changing the view: setView publishes the adopted
-                // code into the map-extent variable other visualizations consume,
-                // and saved center/zoom values would be reinterpreted in the new
-                // projection's units. Widening this is its own change, verified
-                // against live dashboards. Such a raster still renders here --
-                // by reprojection rather than natively.
-                if (alreadyAdopted) {
-                  // The view already shows this raster in its own projection.
-                } else if (!isNativelyResolvable(adoptedCode)) {
-                  console.warn(
-                    `Not adopting "${adoptedCode}" as the view projection for layer "${name}": it resolves from a registered definition rather than natively. The layer renders by reprojection.`,
-                  );
-                } else {
-                  if (targetExtent && haveMapSize) {
-                    newView.fit(targetExtent, { size: mapSize });
+                  if (
+                    !targetExtent &&
+                    Array.isArray(tifExtent) &&
+                    tifExtent.length === 4 &&
+                    tifExtent.every(Number.isFinite)
+                  ) {
+                    targetExtent = tifExtent;
                   }
-                  map.setView(newView);
-                  reprojectVectorFeatures(map, previousCode, adoptedCode);
+
+                  // Features already on the map were parsed into the outgoing
+                  // projection, so adopting the raster's leaves them holding the
+                  // wrong numbers -- a UTM raster over Guatemala left Web
+                  // Mercator coordinates being read as UTM metres, stranding the
+                  // dynamic layers off screen while still reporting the right
+                  // feature count. Move them with the view.
+                  const previousCode = prevProjection.getCode();
+                  const adoptedCode = newView.getProjection().getCode();
+
+                  // Every raster runs this block as it mounts, so a dashboard
+                  // built on several rasters in one projection ran it several
+                  // times -- and when the view is already in that projection and
+                  // already looking at the raster, the work above rebuilds the
+                  // view that is already on screen. `setView` is not free: it
+                  // replaces the view outright, so every layer re-renders and the
+                  // basemap refetches its tiles. Five rasters each arriving on
+                  // their own schedule made that visible as five jumps.
+                  const alreadyAdopted =
+                    previousCode === adoptedCode && viewOverlapsRaster;
+
+                  // Adopt the raster's projection as the view projection only when
+                  // OpenLayers resolves it on its own. Registering a definition
+                  // makes a previously-unresolvable raster render, but it must not
+                  // also start changing the view: setView publishes the adopted
+                  // code into the map-extent variable other visualizations consume,
+                  // and saved center/zoom values would be reinterpreted in the new
+                  // projection's units. Widening this is its own change, verified
+                  // against live dashboards. Such a raster still renders here --
+                  // by reprojection rather than natively.
+                  if (alreadyAdopted) {
+                    // The view already shows this raster in its own projection.
+                  } else if (!isNativelyResolvable(adoptedCode)) {
+                    console.warn(
+                      `Not adopting "${adoptedCode}" as the view projection for layer "${name}": it resolves from a registered definition rather than natively. The layer renders by reprojection.`,
+                    );
+                  } else {
+                    if (targetExtent && haveMapSize) {
+                      newView.fit(targetExtent, { size: mapSize });
+                    }
+                    map.setView(newView);
+                    reprojectVectorFeatures(map, previousCode, adoptedCode);
+                  }
+                } catch (err) {
+                  console.warn(
+                    `GeoTIFF auto-fit failed for layer "${name}":`,
+                    err,
+                  );
                 }
-              } catch (err) {
-                console.warn(
-                  `GeoTIFF auto-fit failed for layer "${name}":`,
-                  err,
-                );
               }
             }
 

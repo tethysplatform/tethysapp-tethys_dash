@@ -1975,62 +1975,74 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
     expect(setViewSpy).toHaveBeenCalledTimes(1);
   });
 
-  test("a second raster somewhere else still moves the view", async () => {
-    // The guard is "the view already shows this raster", not "some raster
-    // already adopted this projection". A second raster in the same projection
-    // but outside the current view still has to be fitted, or adding it would
-    // leave the map pointed somewhere the author cannot see it.
+  test("a non-owning raster never moves the view, wherever it is", async () => {
+    // Five rasters in two projections each asserting their own CRS on one view
+    // is not resolvable by "skip if already adopted" -- each adoption undoes
+    // the last. One raster owns the view; the rest render by reprojection,
+    // which OpenLayers does for a DataTile source whose projection differs
+    // from the view's.
     jest.spyOn(Map.prototype, "getSize").mockReturnValue([256, 256]);
     jest.spyOn(Map.prototype, "renderSync").mockImplementation(() => {});
     const setViewSpy = jest.spyOn(Map.prototype, "setView");
     const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
 
-    // The default mock covers the world in EPSG:4326, so the first raster
-    // adopts and the view lands inside it; the second sits in the Pacific.
-    const getViewSpy = jest.spyOn(GeoTIFFSource.prototype, "getView");
-    getViewSpy.mockResolvedValueOnce({
-      projection: "EPSG:4326",
-      extent: [-180, -90, 180, 90],
-      center: [0, 0],
-      zoom: 2,
+    // The owner covers the world in EPSG:4326; the second sits in the Pacific
+    // in a different projection, so under the old policy it would have both
+    // re-fitted and re-projected the view.
+    jest
+      .spyOn(GeoTIFFSource.prototype, "getView")
+      .mockImplementation(function () {
+        const url = this.options?.sources?.[0]?.url ?? "";
+        return url.includes("pacific")
+          ? Promise.resolve({
+              projection: "EPSG:32615",
+              extent: [170, -10, 175, -5],
+              center: [172.5, -7.5],
+              zoom: 8,
+            })
+          : Promise.resolve({
+              projection: "EPSG:4326",
+              extent: [-180, -90, 180, 90],
+              center: [0, 0],
+              zoom: 2,
+            });
+      });
+
+    const raster = (name, file, zIndex) => ({
+      type: "WebGLTile",
+      props: {
+        source: {
+          type: "GeoTIFF",
+          props: { url: `https://example.com/${file}.tif` },
+        },
+        name,
+        zIndex,
+      },
     });
-    getViewSpy.mockResolvedValue({
-      projection: "EPSG:4326",
-      extent: [170, -10, 175, -5],
-      center: [172.5, -7.5],
-      zoom: 8,
-    });
+
+    let capturedRef;
+    const RefCapture = ({ mapProps }) => {
+      const ref = useRef();
+      capturedRef = ref;
+      return (
+        <div>
+          <MapComponent visualizationRef={ref} {...mapProps} />
+          <p>{useMapContext()?.mapReady ? "Map Ready" : "Map Not Ready"}</p>
+        </div>
+      );
+    };
+    RefCapture.propTypes = { mapProps: PropTypes.object };
 
     render(
       <VariableInputsContext.Provider
         value={{ setVariableInputValues: jest.fn() }}
       >
         <MapContextProvider>
-          <TestingComponent
+          <RefCapture
             mapProps={{
               layers: [
-                {
-                  type: "WebGLTile",
-                  props: {
-                    source: {
-                      type: "GeoTIFF",
-                      props: { url: "https://example.com/world.tif" },
-                    },
-                    name: "World",
-                    zIndex: 0,
-                  },
-                },
-                {
-                  type: "WebGLTile",
-                  props: {
-                    source: {
-                      type: "GeoTIFF",
-                      props: { url: "https://example.com/pacific.tif" },
-                    },
-                    name: "Pacific",
-                    zIndex: 1,
-                  },
-                },
+                raster("World", "world", 0),
+                raster("Pacific", "pacific", 1),
               ],
             }}
           />
@@ -2039,7 +2051,165 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
     );
 
     await waitFor(() => expect(addLayerSpy.mock.calls.length).toBe(2));
-    await waitFor(() => expect(setViewSpy.mock.calls.length).toBe(2));
+    await waitFor(() => expect(setViewSpy).toHaveBeenCalled());
+
+    // Both layers render; the view moved once, into the owner's projection.
+    expect(setViewSpy).toHaveBeenCalledTimes(1);
+    expect(capturedRef.current.getView().getProjection().getCode()).toBe(
+      "EPSG:4326",
+    );
+  });
+
+  test("rebuilding the owning raster does not move the view again", async () => {
+    // The owner is the only layer that reaches the adoption at all now, so this
+    // is the remaining path to it a second time: the owner itself is torn down
+    // and rebuilt (a variable-input URL change, an opacity edit) after it has
+    // already adopted. The view is already in its projection and already shows
+    // it, so there is nothing to adopt and `setView` would only re-render every
+    // layer and refetch the basemap.
+    jest.spyOn(Map.prototype, "getSize").mockReturnValue([256, 256]);
+    jest.spyOn(Map.prototype, "renderSync").mockImplementation(() => {});
+    // The animation-frame render would reach the WebGL renderer, which has no
+    // GL context in jsdom.
+    jest.spyOn(Map.prototype, "renderFrame_").mockImplementation(() => {});
+    const setViewSpy = jest.spyOn(Map.prototype, "setView");
+    const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+
+    const owner = (opacity) => [
+      {
+        type: "WebGLTile",
+        props: {
+          source: {
+            type: "GeoTIFF",
+            props: { url: "https://example.com/owner.tif" },
+          },
+          name: "Owner",
+          opacity,
+          zIndex: 0,
+        },
+      },
+    ];
+
+    let setLayers;
+    const Restyleable = () => {
+      const ref = useRef();
+      const [layers, setLayersState] = useState(owner(1));
+      setLayers = setLayersState;
+      return (
+        <div>
+          <MapComponent visualizationRef={ref} layers={layers} />
+          <p>{useMapContext()?.mapReady ? "Map Ready" : "Map Not Ready"}</p>
+        </div>
+      );
+    };
+
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <Restyleable />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    await waitFor(() => expect(addLayerSpy.mock.calls.length).toBe(1));
+    await waitFor(() => expect(setViewSpy).toHaveBeenCalledTimes(1));
+
+    // An opacity edit fails the props comparison, so the layer is rebuilt.
+    await act(async () => setLayers(owner(0.5)));
+    await waitFor(() => expect(addLayerSpy.mock.calls.length).toBe(2));
+
+    expect(setViewSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test("the first raster in the array owns the view even when it lands last", async () => {
+    // The owner is chosen from the author's array rather than from whichever
+    // file the network served first, so the projection the map settles in is
+    // the same on a fast connection and a slow one.
+    // Deliberately unsized: the ownership decision does not depend on the map
+    // having a size, and with one the delay below lets a real animation frame
+    // reach the WebGL renderer, which has no GL context in jsdom.
+    const setViewSpy = jest.spyOn(Map.prototype, "setView");
+    const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+
+    jest
+      .spyOn(GeoTIFFSource.prototype, "getView")
+      .mockImplementation(function () {
+        const url = this.options?.sources?.[0]?.url ?? "";
+        if (url.includes("slow")) {
+          // The owner, and the last to answer.
+          return new Promise((resolve) =>
+            setTimeout(
+              () =>
+                resolve({
+                  projection: "EPSG:4326",
+                  extent: [-180, -90, 180, 90],
+                  center: [0, 0],
+                  zoom: 2,
+                }),
+              120,
+            ),
+          );
+        }
+        return Promise.resolve({
+          projection: "EPSG:32615",
+          extent: [170, -10, 175, -5],
+          center: [172.5, -7.5],
+          zoom: 8,
+        });
+      });
+
+    const raster = (name, file, zIndex) => ({
+      type: "WebGLTile",
+      props: {
+        source: {
+          type: "GeoTIFF",
+          props: { url: `https://example.com/${file}.tif` },
+        },
+        name,
+        zIndex,
+      },
+    });
+
+    let capturedRef;
+    const RefCapture = ({ mapProps }) => {
+      const ref = useRef();
+      capturedRef = ref;
+      return (
+        <div>
+          <MapComponent visualizationRef={ref} {...mapProps} />
+          <p>{useMapContext()?.mapReady ? "Map Ready" : "Map Not Ready"}</p>
+        </div>
+      );
+    };
+    RefCapture.propTypes = { mapProps: PropTypes.object };
+
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <RefCapture
+            mapProps={{
+              layers: [
+                raster("Slow owner", "slow", 0),
+                raster("Quick", "quick", 1),
+              ],
+            }}
+          />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    await waitFor(() => expect(addLayerSpy.mock.calls.length).toBe(2));
+    await waitFor(() =>
+      expect(capturedRef.current.getView().getProjection().getCode()).toBe(
+        "EPSG:4326",
+      ),
+    );
+    // The quick one answered first and still did not touch the view.
+    expect(setViewSpy).toHaveBeenCalledTimes(1);
   });
 
   test("Auto-fit falls back to TIF extent when previous view does not overlap", async () => {
