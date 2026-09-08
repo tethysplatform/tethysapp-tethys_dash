@@ -508,6 +508,15 @@ export function updateOlLayerProps(olLayer, newProps) {
   if (typeof newProps.maxZoom === "number") {
     olLayer.setMaxZoom(newProps.maxZoom);
   }
+  // Stacking order. `zIndex` is stamped from the layer's position in the
+  // dashboard's `layers` array, so reordering layers in the editor changes
+  // nothing else about a layer -- which is exactly the case that reaches here
+  // on a preserved OL instance. Without this the reorder was a silent no-op:
+  // rebuilt layers picked up their new position and preserved ones kept the
+  // old one, so the two disagreed and whichever was rebuilt won.
+  if (typeof newProps.zIndex === "number") {
+    olLayer.setZIndex(newProps.zIndex);
+  }
   // Keep the pluginSource / layerId tags in sync so identity lookups work
   // after an edit that preserved identity but touched other fields.
   if (newProps.layerId) {

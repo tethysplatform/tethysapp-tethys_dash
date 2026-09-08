@@ -3961,6 +3961,29 @@ test("updateOlLayerProps applies cosmetic props in place", () => {
   expect(olLayer.getMaxResolution()).toBe(100);
 });
 
+test("updateOlLayerProps restacks a preserved layer", () => {
+  const olLayer = new VectorLayer({ source: new VectorSource() });
+  olLayer.setZIndex(1);
+
+  updateOlLayerProps(olLayer, { zIndex: 3 });
+
+  expect(olLayer.getZIndex()).toBe(3);
+});
+
+test("updateOlLayerProps accepts zIndex 0 and ignores a non-numeric one", () => {
+  // 0 is the basemap's position, so a falsy-guard here would pin the basemap
+  // above whatever it was reordered below.
+  const base = new VectorLayer({ source: new VectorSource() });
+  base.setZIndex(4);
+  updateOlLayerProps(base, { zIndex: 0 });
+  expect(base.getZIndex()).toBe(0);
+
+  const other = new VectorLayer({ source: new VectorSource() });
+  other.setZIndex(2);
+  updateOlLayerProps(other, { zIndex: "5" });
+  expect(other.getZIndex()).toBe(2);
+});
+
 test("updateOlLayerProps keeps layerId / pluginSource tags in sync", () => {
   const olLayer = new VectorLayer({ source: new VectorSource() });
   olLayer.set("layerId", "old-id");

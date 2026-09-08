@@ -39,6 +39,7 @@ function shapefileLayer({
   url = "https://example.org/basins.zip",
   projection,
   style,
+  zIndex,
 } = {}) {
   return {
     type: "VectorLayer",
@@ -48,18 +49,20 @@ function shapefileLayer({
         type: "Shapefile",
         props: { url, ...(projection === undefined ? {} : { projection }) },
       },
+      ...(zIndex === undefined ? {} : { zIndex }),
     },
     ...(style === undefined ? {} : { style }),
   };
 }
 
-function otherLayer({ opacity = 1 } = {}) {
+function otherLayer({ opacity = 1, zIndex } = {}) {
   return {
     type: "TileLayer",
     props: {
       name: "Basemap",
       opacity,
       source: { type: "Image Tile", props: { url: "https://example.org/{z}" } },
+      ...(zIndex === undefined ? {} : { zIndex }),
     },
   };
 }
@@ -167,6 +170,35 @@ describe("shapefile layer preservation", () => {
     expect(acquireComponents).toHaveBeenCalledTimes(1);
     // Same instance, so its features and loaded-extent bookkeeping survived.
     expect(layerNamed("Basins")).toBe(original);
+  });
+
+  it("restacks without reloading when the author reorders the layers", async () => {
+    // Reordering layers changes only `zIndex`, which the preservation match
+    // deliberately ignores -- so this is the one edit that reaches a preserved
+    // layer with a new stacking position and nothing else different. The
+    // sibling raster goes through the generic keep branch, which compares every
+    // prop, so it is rebuilt and picks its new position up for free. Until the
+    // preserved side was taught to apply zIndex too, the two disagreed and
+    // whichever had been rebuilt won -- a reorder looked like it did nothing.
+    await mount([shapefileLayer({ zIndex: 1 }), otherLayer({ zIndex: 2 })]);
+    await drive();
+    const original = layerNamed("Basins");
+    expect(original.getZIndex()).toBe(1);
+    expect(layerNamed("Basemap").getZIndex()).toBe(2);
+
+    setLayers([otherLayer({ zIndex: 1 }), shapefileLayer({ zIndex: 2 })]);
+    // Both sides, because they settle at different times: the preserved
+    // shapefile is restacked during the synchronous reconciliation sweep, while
+    // the raster is torn down and rebuilt behind a dynamic import and a
+    // crossfade.
+    await reconciled(() => {
+      expect(layerNamed("Basins").getZIndex()).toBe(2);
+      expect(layerNamed("Basemap").getZIndex()).toBe(1);
+    });
+    // Restacked in place: no refetch, and the same source keeps its features.
+    expect(layerNamed("Basins")).toBe(original);
+    await drive();
+    expect(acquireComponents).toHaveBeenCalledTimes(1);
   });
 
   it("loads again when the resolved url changes", async () => {
