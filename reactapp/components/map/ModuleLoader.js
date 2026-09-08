@@ -455,6 +455,25 @@ export async function applyZarrRamp(layerConfig) {
   return layerConfig;
 }
 
+// Concurrent resolutions of the same file share one header read. The `resolved`
+// flag below only guards callers that arrive *after* a resolution finished, and
+// two now arrive together: the legend resolves a raster's range to label its
+// colorbar while the map resolves the same range to build the layer. Dropped on
+// settle rather than kept, so this dedupes in-flight reads without holding a
+// decoder open for every file a time-slider has ever visited.
+const rampHeaderReads = new Map();
+
+function readRampHeader(url) {
+  const inFlight = rampHeaderReads.get(url);
+  if (inFlight) return inFlight;
+  const read = (async () => {
+    const { fromUrl } = await import("geotiff");
+    return (await fromUrl(url)).getImage();
+  })().finally(() => rampHeaderReads.delete(url));
+  rampHeaderReads.set(url, read);
+  return read;
+}
+
 // Fit a ramp-styled raster layer's color ramp to the file's real value range.
 //
 // Left alone, such a layer renders with `normalize: true`, which makes OL scale
@@ -500,8 +519,7 @@ export async function applyAutoRamp(layerConfig) {
   if (!statsUrl || source.resolvedRampUrl === statsUrl) return layerConfig;
 
   try {
-    const { fromUrl } = await import("geotiff");
-    const image = await (await fromUrl(statsUrl)).getImage();
+    const image = await readRampHeader(statsUrl);
     // getGDALMetadata(0) returns items tagged for sample 0 only; passing null
     // returns the dataset-level items. Writers differ -- rio-cogeo attaches
     // STATISTICS_* to the band, while GDAL and MATLAB's Mapping Toolbox write

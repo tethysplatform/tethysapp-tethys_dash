@@ -561,7 +561,6 @@ const MapVisualization = ({
         currentBaseMap.current = baseMap;
         currentLayers.current = JSON.parse(JSON.stringify(layers));
         const newMapLegend = [];
-        const newMapLayers = [];
 
         // The basemap depends on nothing asynchronous, so it goes to the map
         // before the layers are prepared rather than after. Preparing a layer
@@ -600,14 +599,34 @@ const MapVisualization = ({
           layers.map(async (layer) => {
             try {
               await loadLayerJSONs(layer, uuid);
-              // Resolve a Zarr layer's auto ramp before the legend is built so
-              // the colorbar can label the slice's real range. Re-runs with
-              // `layers` on every slice change, so the labels track the ramp.
-              await applyAutoRamp(layer.configuration);
             } finally {
               clearPrepStatus(layer.configuration?.props?.name);
             }
           }),
+        );
+
+        // Published as soon as the saved references are resolved, and before
+        // any raster has been read. From here the map builds each layer
+        // independently and mounts it the moment it is ready, so a fast
+        // shapefile is on screen while a slow raster is still reading its
+        // header. Waiting for every layer first made the map only as quick as
+        // its slowest layer, which is what this barrier used to be.
+        const newMapLayers = layers.map((layer) => layer.configuration);
+        if (baseMapLayer) {
+          newMapLayers.unshift(baseMapLayer);
+        }
+        newMapLayers.forEach((layer, index) => {
+          layer.props.zIndex = index;
+        });
+        setMapLayers(newMapLayers);
+
+        // Nothing waits on this. A ramp-styled raster's range comes from its
+        // header, and the colorbar cannot be labelled until that is read -- but
+        // the layer itself does not need the legend, and the map resolves the
+        // same ramp for its own construction. So the legend arrives when the
+        // stats do (the two reads share one fetch; see applyAutoRamp).
+        await Promise.all(
+          layers.map((layer) => applyAutoRamp(layer.configuration)),
         );
 
         for (const layer of layers) {
@@ -628,7 +647,6 @@ const MapVisualization = ({
                     symbol: "square",
                   })),
                 });
-                newMapLayers.push(layer.configuration);
                 continue;
               }
               // Zarr renders through a GeoTIFF source, so it gets the same
@@ -655,7 +673,6 @@ const MapVisualization = ({
                   rampMax,
                   title: layer.configuration?.props?.name,
                 });
-                newMapLayers.push(layer.configuration);
                 continue;
               }
               // If the layer has a style JSON, pass it as legend metadata
@@ -689,19 +706,9 @@ const MapVisualization = ({
               newMapLegend.push(layer.legend);
             }
           }
-          newMapLayers.push(layer.configuration);
         }
-
-        if (baseMapLayer) {
-          newMapLayers.unshift(baseMapLayer);
-        }
-
-        newMapLayers.forEach((layer, index) => {
-          layer.props.zIndex = index;
-        });
 
         setMapLegend(newMapLegend);
-        setMapLayers(newMapLayers);
       }
     };
 

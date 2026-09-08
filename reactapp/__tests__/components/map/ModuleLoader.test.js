@@ -2400,6 +2400,34 @@ describe("applyAutoRamp", () => {
     expect(config.props.source.resolvedRampMax).toBe(9);
   });
 
+  test("two concurrent resolutions of one file share a single header read", async () => {
+    // The sequential-caller test above is guarded by a flag set *after* a
+    // resolution finishes, which does nothing for callers that arrive together
+    // -- and they now do: the legend resolves a raster's range to label its
+    // colorbar while the map resolves the same range to build the layer.
+    mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "9" });
+    const forLegend = geotiffRampLayer();
+    const forLayer = geotiffRampLayer();
+
+    await Promise.all([applyAutoRamp(forLegend), applyAutoRamp(forLayer)]);
+
+    expect(fromUrl).toHaveBeenCalledTimes(1);
+    // Both callers still get the answer, not just whichever won the race.
+    expect(forLegend.props.source.resolvedRampMax).toBe(9);
+    expect(forLayer.props.source.resolvedRampMax).toBe(9);
+  });
+
+  test("a later resolution of the same file reads it again", async () => {
+    // The in-flight entry is dropped on settle rather than kept, so nothing
+    // holds a decoder open for every file a time-slider has ever visited.
+    mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "9" });
+
+    await applyAutoRamp(geotiffRampLayer());
+    await applyAutoRamp(geotiffRampLayer());
+
+    expect(fromUrl).toHaveBeenCalledTimes(2);
+  });
+
   test("re-resolves when the source URL changes", async () => {
     mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "9" });
     const config = geotiffRampLayer();

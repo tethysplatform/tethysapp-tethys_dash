@@ -6,7 +6,7 @@ import { Map } from "ol";
 import MapVisualization from "components/visualizations/Map";
 import MapContextProvider from "components/contexts/MapContext";
 import { loadLayerJSONs } from "components/map/utilities";
-import moduleLoader from "components/map/ModuleLoader";
+import moduleLoader, { applyAutoRamp } from "components/map/ModuleLoader";
 
 global.ResizeObserver = require("resize-observer-polyfill");
 
@@ -30,11 +30,15 @@ jest.mock("components/map/ModuleLoader", () => ({
   ...jest.requireActual("components/map/ModuleLoader"),
   __esModule: true,
   default: jest.fn(),
+  applyAutoRamp: jest.fn(),
 }));
 
 const realModuleLoader = jest.requireActual(
   "components/map/ModuleLoader",
 ).default;
+const realApplyAutoRamp = jest.requireActual(
+  "components/map/ModuleLoader",
+).applyAutoRamp;
 
 const BASE_MAP =
   "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer";
@@ -86,6 +90,7 @@ beforeEach(() => {
   addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
   loadLayerJSONs.mockResolvedValue(undefined);
   moduleLoader.mockImplementation(realModuleLoader);
+  applyAutoRamp.mockImplementation(realApplyAutoRamp);
 });
 
 afterEach(() => {
@@ -197,5 +202,62 @@ test("a layer still being constructed is reported as loading", async () => {
   );
   await waitFor(() =>
     expect(screen.queryByRole("status")).not.toBeInTheDocument(),
+  );
+});
+
+test("a fast layer mounts while a slow sibling is still loading", async () => {
+  // The construct pass was already per-layer parallel, each layer mounting
+  // itself the moment it was built. Pinned here because everything else in this
+  // file exists to get the layers *to* that pass without a shared barrier in
+  // front of it, and that is worth nothing if the pass itself ever serializes.
+  const gate = deferred();
+  moduleLoader.mockImplementation(async (config, ...rest) => {
+    if (config?.props?.name === "Slow raster") {
+      await gate.promise;
+    }
+    return realModuleLoader(config, ...rest);
+  });
+
+  await mount([styledLayer("Slow raster"), styledLayer("Fast layer")]);
+
+  // On the map with the slow sibling still outstanding, and reported as such.
+  await waitFor(() =>
+    expect(addedLayerNames(addLayerSpy)).toContain("Fast layer"),
+  );
+  expect(addedLayerNames(addLayerSpy)).not.toContain("Slow raster");
+  expect(await screen.findByRole("status")).toHaveTextContent(
+    "Loading Slow raster",
+  );
+
+  await gate.release();
+  await waitFor(() =>
+    expect(addedLayerNames(addLayerSpy)).toContain("Slow raster"),
+  );
+});
+
+test("a raster reading its header holds up only itself", async () => {
+  // A ramp-styled raster genuinely cannot be built until its header is read --
+  // `normalize` is settled at construction -- so this read gates its own layer
+  // and always will. What changed is that it no longer gates the others: it used
+  // to run inside a phase that had to finish for every layer before the map was
+  // handed any of them.
+  const gate = deferred();
+  applyAutoRamp.mockImplementation(async (config) => {
+    if (config?.props?.name === "Ramped raster") {
+      await gate.promise;
+    }
+    return config;
+  });
+
+  await mount([styledLayer("Ramped raster"), styledLayer("Plain layer")]);
+
+  await waitFor(() =>
+    expect(addedLayerNames(addLayerSpy)).toContain("Plain layer"),
+  );
+  expect(addedLayerNames(addLayerSpy)).not.toContain("Ramped raster");
+
+  await gate.release();
+  await waitFor(() =>
+    expect(addedLayerNames(addLayerSpy)).toContain("Ramped raster"),
   );
 });
