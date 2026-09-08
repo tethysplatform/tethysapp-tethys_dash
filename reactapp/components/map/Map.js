@@ -210,7 +210,9 @@ const MapComponent = ({
     const start = Date.now();
     let rafId = null;
     const finalize = () => {
-      if (rafId !== null) cancelAnimationFrame(rafId);
+      // Always scheduled by the time anything can call this: rAF is assigned
+      // below before either `step` or a later crossfade can reach it.
+      cancelAnimationFrame(rafId);
       incoming.forEach(({ layer, opacity }) => layer.setOpacity(opacity));
       outgoing.forEach((layer) => map.removeLayer(layer));
       activeFadeRef.current = null;
@@ -541,13 +543,14 @@ const MapComponent = ({
         });
 
         // Apply cosmetic prop changes to preserved runtime OL instances.
+        // Every entry names a layer that is on the map: the id and the name
+        // come from the match that produced the entry, and nothing removes a
+        // layer between that match and here.
         runtimeLayerUpdates.forEach(({ layerId, newProps }) => {
           const olLayer = currentMapLayers.find(
             (l) => l.get("layerId") === layerId,
           );
-          if (olLayer) {
-            updateOlLayerProps(olLayer, newProps);
-          }
+          updateOlLayerProps(olLayer, newProps);
         });
 
         // Same for preserved shapefile layers -- plus the style, which the
@@ -556,7 +559,6 @@ const MapComponent = ({
         // only applied when a layer is constructed.
         shapefileLayerUpdates.forEach(({ name, newProps, config }) => {
           const olLayer = currentMapLayers.find((l) => l.get("name") === name);
-          if (!olLayer) return;
           updateOlLayerProps(olLayer, newProps);
           if (!valuesEqual(olLayer.get("appliedStyle"), config.style)) {
             olLayer.set("appliedStyle", config.style);

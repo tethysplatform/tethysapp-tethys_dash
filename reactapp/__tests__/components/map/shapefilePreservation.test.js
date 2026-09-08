@@ -66,16 +66,23 @@ function otherLayer({ opacity = 1 } = {}) {
 
 let mapRef;
 let setLayers;
+let setBaseMap;
 
 const Harness = ({ initialLayers }) => {
   const visualizationRef = useRef();
   const [layers, setLayersState] = useState(initialLayers);
+  const [baseMap, setBaseMapState] = useState("OpenStreetMap");
   const { mapReady } = useMapContext();
   mapRef = visualizationRef;
   setLayers = setLayersState;
+  setBaseMap = setBaseMapState;
   return (
     <div>
-      <MapComponent visualizationRef={visualizationRef} layers={layers} />
+      <MapComponent
+        visualizationRef={visualizationRef}
+        layers={layers}
+        baseMap={baseMap}
+      />
       <p>{mapReady ? "Map Ready" : "Map Not Ready"}</p>
     </div>
   );
@@ -348,4 +355,17 @@ describe("a layer sync superseded before its layer is added", () => {
     // Exactly one shapefile layer survives, whichever order the runs settled.
     expect(shapefileLayers()).toHaveLength(1);
   });
+});
+
+it("survives the layer array going away while the basemap changes", async () => {
+  // The reconciliation sweep still walks the previous configs, so it has to
+  // tolerate there being no incoming array to match them against.
+  await mount([shapefileLayer()]);
+
+  act(() => {
+    setLayers(undefined);
+    setBaseMap("Stadia");
+  });
+
+  await reconciled(() => expect(shapefileLayers()).toHaveLength(0));
 });
