@@ -566,14 +566,21 @@ const MapComponent = ({
         });
 
         // Apply cosmetic prop changes to preserved runtime OL instances.
-        // Every entry names a layer that is on the map: the id and the name
-        // come from the match that produced the entry, and nothing removes a
-        // layer between that match and here.
+        // Every entry names a layer that is on the map -- the id comes from the
+        // match that produced the entry, and nothing removes a layer between
+        // that match and here -- so the lookup cannot miss and the tests cannot
+        // reach the other branch. Kept explicit anyway: this reconciliation has
+        // proved subtle enough to be worth the belt, and a miss here would
+        // otherwise depend on `updateOlLayerProps` tolerating undefined, which
+        // is a promise made by another module.
         runtimeLayerUpdates.forEach(({ layerId, newProps }) => {
           const olLayer = currentMapLayers.find(
             (l) => l.get("layerId") === layerId,
           );
-          updateOlLayerProps(olLayer, newProps);
+          /* istanbul ignore else -- unreachable: see above */
+          if (olLayer) {
+            updateOlLayerProps(olLayer, newProps);
+          }
         });
 
         // Same for preserved shapefile layers -- plus the style, which the
@@ -582,6 +589,12 @@ const MapComponent = ({
         // only applied when a layer is constructed.
         shapefileLayerUpdates.forEach(({ name, newProps, config }) => {
           const olLayer = currentMapLayers.find((l) => l.get("name") === name);
+          // Same invariant as above, but this one is load-bearing rather than
+          // belt: the `.get`/`.set` below would throw on a miss and take the
+          // whole layer sync with it, blanking the map.
+          /* istanbul ignore if -- unreachable: the name comes from the match
+             that produced this entry */
+          if (!olLayer) return;
           updateOlLayerProps(olLayer, newProps);
           if (!valuesEqual(olLayer.get("appliedStyle"), config.style)) {
             olLayer.set("appliedStyle", config.style);
