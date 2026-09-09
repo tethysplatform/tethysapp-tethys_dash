@@ -19,6 +19,7 @@ import {
   AvailableDashboardsContext,
   TabContext,
 } from "components/contexts/Contexts";
+import ViewGroupProvider from "components/contexts/ViewGroupContext";
 import { toNumberOrEmpty } from "components/visualizations/utilities";
 import Error from "components/error/Error";
 import errorImage from "assets/error404.png";
@@ -381,7 +382,7 @@ const DashboardLoader = ({
               <DataViewerModeContext.Provider
                 value={dataViewerModeContextValue}
               >
-                {children}
+                <ViewGroupProvider>{children}</ViewGroupProvider>
               </DataViewerModeContext.Provider>
             </DisabledEditingMovementContext.Provider>
           </EditingContext.Provider>
