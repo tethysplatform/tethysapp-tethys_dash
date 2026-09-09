@@ -37,6 +37,25 @@ const InputLabel = styled.label`
   font-weight: bold;
 `;
 
+const CheckboxLabel = styled.label`
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  font-weight: bold;
+  opacity: ${({ $disabled }) => ($disabled ? 0.6 : 1)};
+`;
+
+const HelpText = styled.div`
+  margin-left: 1.5rem;
+  margin-top: -0.75rem;
+  margin-bottom: 1rem;
+  padding-right: 1rem;
+  font-size: 0.8rem;
+  font-weight: normal;
+  font-style: italic;
+  color: #666;
+`;
+
 const CollapsibleHeader = styled.div`
   cursor: pointer;
   font-weight: bold;
@@ -61,23 +80,104 @@ const CollapsibleContent = styled.div`
   margin-left: 1.5rem;
 `;
 
+const containsTemplate = (str) => /\$\{\w+\}/.test(str ?? "");
+
+// The saved value tolerates every historical shape: a bare extent string, an
+// `{extent}` / `{extent, variable}` object, and the doubly wrapped
+// `{extent: {extent, ...}}` object that `isValidExtentInput` also unwraps.
+// Everything downstream of this works with the normalized object.
+export const normalizeExtentValue = (value) => {
+  if (value === null || value === undefined) return {};
+  if (typeof value === "string") return { extent: value };
+
+  const inner =
+    value.extent !== null &&
+    typeof value.extent === "object" &&
+    value.extent !== undefined
+      ? value.extent
+      : value;
+
+  return {
+    extent: typeof inner?.extent === "string" ? inner.extent : "",
+    variable: inner?.variable,
+    viewGroup: inner?.viewGroup,
+    isGroupInitialExtent: inner?.isGroupInitialExtent,
+  };
+};
+
 export const MapExtent = ({ onChange, values, visualizationRef }) => {
+  const [initialValue] = useState(() => normalizeExtentValue(values));
   const [extentMode, setExtentMode] = useState("customExtent");
-  const [customExtent, setCustomExtent] = useState(values?.extent ?? "");
+  const [customExtent, setCustomExtent] = useState(initialValue.extent ?? "");
   const [customExtentValid, setCustomExtentValid] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
   const { mapReady } = useMapContext();
-  const [extentVariable, setExtentVariable] = useState(values?.variable ?? "");
+  const [extentVariable, setExtentVariable] = useState(
+    initialValue.variable ?? "",
+  );
+  // The committed group name. The draft is what the text field shows; it is
+  // only promoted to the committed name on blur so a partially typed name
+  // never becomes a group.
+  const [viewGroup, setViewGroup] = useState(
+    (initialValue.viewGroup ?? "").trim(),
+  );
+  const [viewGroupDraft, setViewGroupDraft] = useState(
+    (initialValue.viewGroup ?? "").trim(),
+  );
+  const [isGroupInitialExtent, setIsGroupInitialExtent] = useState(
+    Boolean(initialValue.viewGroup?.trim()) &&
+      Boolean(initialValue.isGroupInitialExtent),
+  );
+
+  // Mirror every emitted field into a ref so effect closures and event
+  // handlers always merge from the current widget state.
+  const customExtentRef = useRef(customExtent);
   const extentVariableRef = useRef(extentVariable);
-  // Keep the ref updated with the latest extentVariable
+  const viewGroupRef = useRef(viewGroup);
+  const isGroupInitialExtentRef = useRef(isGroupInitialExtent);
+  useEffect(() => {
+    customExtentRef.current = customExtent;
+  }, [customExtent]);
   useEffect(() => {
     extentVariableRef.current = extentVariable;
   }, [extentVariable]);
+  useEffect(() => {
+    viewGroupRef.current = viewGroup;
+  }, [viewGroup]);
+  useEffect(() => {
+    isGroupInitialExtentRef.current = isGroupInitialExtent;
+  }, [isGroupInitialExtent]);
 
   const valueOptions = [
     { label: "Use the Previewed Map Extent", value: "mapExtent" },
     { label: "Use a Custom Extent", value: "customExtent" },
   ];
+
+  // The single place the emitted value is built. Every caller merges over the
+  // full widget state, so editing one field can never drop another one.
+  const buildValue = (overrides = {}) => {
+    const extent = overrides.extent ?? customExtentRef.current;
+    const variable = overrides.variable ?? extentVariableRef.current;
+    const group = overrides.viewGroup ?? viewGroupRef.current;
+    const isInitial =
+      overrides.isGroupInitialExtent ?? isGroupInitialExtentRef.current;
+
+    return {
+      extent,
+      ...(variable && { variable }),
+      ...(group && { viewGroup: group }),
+      ...(group && isInitial && { isGroupInitialExtent: true }),
+    };
+  };
+
+  const emitValue = (overrides = {}) => {
+    const newValue = buildValue(overrides);
+    if (newValue.extent && isValidExtentInput(newValue.extent)) {
+      onChange(newValue);
+    } else {
+      onChange(null);
+    }
+  };
 
   useEffect(() => {
     if (!values) {
@@ -88,17 +188,7 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
 
   useEffect(() => {
     if (customExtent) {
-      const isValid = isValidExtentInput(customExtent);
-      if (isValid) {
-        onChange({
-          extent: customExtent,
-          ...(extentVariableRef.current && {
-            variable: extentVariableRef.current,
-          }),
-        });
-      } else {
-        onChange(null);
-      }
+      emitValue({ extent: customExtent });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customExtent]);
@@ -118,12 +208,7 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
       view.on("change:resolution", handleResolutionChange);
       map.on("moveend", handleResolutionChange);
     } else {
-      onChange({
-        extent: customExtent,
-        ...(extentVariableRef.current && {
-          variable: extentVariableRef.current,
-        }),
-      });
+      emitValue();
     }
 
     return () => {
@@ -143,13 +228,9 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
         : center[0];
     const newExtent = `${centerX.toFixed(2)},${center[1].toFixed(2)},${zoom}`;
     setCustomExtent(newExtent);
-    onChange({
-      extent: newExtent,
-      ...(extentVariableRef.current && { variable: extentVariableRef.current }),
-    });
+    customExtentRef.current = newExtent;
+    emitValue({ extent: newExtent });
   };
-
-  const containsTemplate = (str) => /\$\{\w+\}/.test(str);
 
   const isValidExtentInput = (value) => {
     let trimmed;
@@ -182,14 +263,46 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
   const handleVariableChange = (e) => {
     const value = e.target.value;
     setExtentVariable(value);
-
-    onChange({
-      extent: customExtent,
-      variable: value,
-    });
-    // Also update the ref immediately for consistency
+    // Update the ref immediately so the merge below sees the new value
     extentVariableRef.current = value;
+
+    emitValue();
   };
+
+  const commitViewGroup = () => {
+    // Group names are trimmed; a whitespace-only name means no group.
+    const trimmed = viewGroupDraft.trim();
+    // A flag with no group has nothing to apply it to.
+    const nextIsInitial = trimmed ? isGroupInitialExtent : false;
+
+    if (trimmed === viewGroup && nextIsInitial === isGroupInitialExtent) {
+      if (trimmed !== viewGroupDraft) setViewGroupDraft(trimmed);
+      return;
+    }
+
+    setViewGroup(trimmed);
+    setViewGroupDraft(trimmed);
+    setIsGroupInitialExtent(nextIsInitial);
+    viewGroupRef.current = trimmed;
+    isGroupInitialExtentRef.current = nextIsInitial;
+
+    emitValue();
+  };
+
+  const handleGroupInitialExtentChange = (e) => {
+    const checked = e.target.checked;
+    setIsGroupInitialExtent(checked);
+    isGroupInitialExtentRef.current = checked;
+
+    emitValue();
+  };
+
+  const extentIsTemplated = containsTemplate(customExtent);
+  const initialExtentDisabledReason = !viewGroup
+    ? "Set a view group name to use this map's extent as the group's initial extent."
+    : extentIsTemplated
+      ? "An extent built from a variable template cannot supply the group's initial extent."
+      : null;
 
   return (
     <StyledDiv>
@@ -227,6 +340,34 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
               </InputLabel>
             </InputRow>
           )}
+          <InputRow>
+            <InputLabel>
+              View Group
+              <FullInput
+                value={viewGroupDraft}
+                onChange={(e) => setViewGroupDraft(e.target.value)}
+                onBlur={commitViewGroup}
+                placeholder="Maps sharing this name move together"
+                isValid={true}
+                aria-label="View Group Input"
+              />
+            </InputLabel>
+          </InputRow>
+          <InputRow>
+            <CheckboxLabel $disabled={Boolean(initialExtentDisabledReason)}>
+              <input
+                type="checkbox"
+                checked={isGroupInitialExtent}
+                disabled={Boolean(initialExtentDisabledReason)}
+                onChange={handleGroupInitialExtentChange}
+                aria-label="View Group Initial Extent Input"
+              />
+              Use as the view group&apos;s initial extent
+            </CheckboxLabel>
+          </InputRow>
+          {initialExtentDisabledReason && (
+            <HelpText>{initialExtentDisabledReason}</HelpText>
+          )}
           <label>
             <b>Extent Variable Name:</b>{" "}
             <input
@@ -243,10 +384,18 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
 
 MapExtent.propTypes = {
   onChange: PropTypes.func,
-  values: PropTypes.shape({
-    extent: PropTypes.string, // minX,minY,maxX,maxY or lon,lat,zoom
-    variable: PropTypes.string,
-  }),
+  values: PropTypes.oneOfType([
+    PropTypes.string, // legacy bare extent string
+    PropTypes.shape({
+      extent: PropTypes.oneOfType([
+        PropTypes.string, // minX,minY,maxX,maxY or lon,lat,zoom
+        PropTypes.object, // legacy doubly wrapped { extent: { extent } }
+      ]),
+      variable: PropTypes.string,
+      viewGroup: PropTypes.string,
+      isGroupInitialExtent: PropTypes.bool,
+    }),
+  ]),
   visualizationRef: PropTypes.oneOfType([
     PropTypes.func,
     PropTypes.shape({ current: PropTypes.any }),
