@@ -3,7 +3,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MapExtent } from "components/inputs/custom/MapExtent";
 import createLoadedComponent from "__tests__/utilities/customRender";
 import MapContextProvider from "components/contexts/MapContext";
-import { MapContext } from "components/contexts/Contexts";
+import { MapContext, TabContext } from "components/contexts/Contexts";
+import { parseSeedExtent, POPUP_TAB_ID } from "components/map/viewGroup";
 
 // Mock view object with required methods
 const mockView = {
@@ -617,3 +618,122 @@ test("clearing the group name clears the initial-extent flag", () => {
     screen.getByLabelText("View Group Initial Extent Input"),
   ).not.toBeChecked();
 });
+
+// ---------------------------------------------------------------------------
+// Templated extents, the popup exclusion, and tokenizer agreement
+// ---------------------------------------------------------------------------
+
+// eslint-disable-next-line no-template-curly-in-string
+const BBOX_TOKEN = "${bbox}";
+// A variable input name with spaces -- the documented form -- which the
+// editor's own tokenizer used to read as a literal extent.
+// eslint-disable-next-line no-template-curly-in-string
+const SPACED_TOKEN = "${Basin Extent}";
+
+// Same as renderOpen, but under a TabContext so the widget can tell whether it
+// is inside a popup layout.
+const renderOpenInTab = (activeTabId, props = {}) => {
+  const visualizationRef = createRef();
+  visualizationRef.current = makeMap();
+  const onChange = jest.fn();
+
+  render(
+    <TabContext.Provider value={{ activeTabId }}>
+      <MapContext.Provider value={{ mapReady: true }}>
+        <MapExtent
+          onChange={onChange}
+          values={{ extent: "10,20,4" }}
+          visualizationRef={visualizationRef}
+          {...props}
+        />
+      </MapContext.Provider>
+    </TabContext.Provider>,
+  );
+
+  fireEvent.click(screen.getByText("Map Extent"));
+
+  return { onChange, visualizationRef };
+};
+
+test("the view group fields are hidden inside a popup layout", () => {
+  renderOpenInTab(POPUP_TAB_ID);
+
+  // A popup map can never join a view group, so it is not offered one.
+  expect(screen.queryByLabelText("View Group Input")).not.toBeInTheDocument();
+  expect(
+    screen.queryByLabelText("View Group Initial Extent Input"),
+  ).not.toBeInTheDocument();
+  // The rest of the widget is unchanged.
+  expect(screen.getByLabelText("Custom Extent Input")).toBeInTheDocument();
+  expect(screen.getByLabelText("Extent Variable Name:")).toBeInTheDocument();
+});
+
+test("the view group fields are offered on an ordinary dashboard tab", () => {
+  renderOpenInTab(3);
+
+  expect(screen.getByLabelText("View Group Input")).toBeInTheDocument();
+  expect(
+    screen.getByLabelText("View Group Initial Extent Input"),
+  ).toBeInTheDocument();
+});
+
+test("an extent that becomes templated drops the initial-extent flag from the emitted value", () => {
+  const { onChange } = renderOpen();
+
+  setGroupName("Basin");
+  flagAsInitialExtent();
+  expect(lastValue(onChange)).toStrictEqual({
+    extent: "10,20,4",
+    viewGroup: "Basin",
+    isGroupInitialExtent: true,
+  });
+
+  fireEvent.change(screen.getByLabelText("Custom Extent Input"), {
+    target: { value: SPACED_TOKEN },
+  });
+
+  // Disabling the checkbox is not enough: the flag has to leave the value, or
+  // saving this map would strip the flag off the group's real seeding member.
+  expect(lastValue(onChange)).toStrictEqual({
+    extent: SPACED_TOKEN,
+    viewGroup: "Basin",
+  });
+  const checkbox = screen.getByLabelText("View Group Initial Extent Input");
+  expect(checkbox).toBeDisabled();
+  expect(checkbox).not.toBeChecked();
+
+  // ...and it comes back only if the user re-ticks it over a literal extent.
+  fireEvent.change(screen.getByLabelText("Custom Extent Input"), {
+    target: { value: "1,2,3" },
+  });
+  expect(lastValue(onChange)).toStrictEqual({
+    extent: "1,2,3",
+    viewGroup: "Basin",
+  });
+});
+
+// The extent field and the group's seed parser must answer "is this a
+// template?" identically: a value one reads as a literal and the other as a
+// template produces a group that can never open at the view it advertises.
+test.each([[BBOX_TOKEN], [SPACED_TOKEN], ["-1,2,3"]])(
+  "the editor and the seed parser agree about %s",
+  (extent) => {
+    const seeds = parseSeedExtent(extent) !== null;
+
+    const { onChange } = renderOpen();
+    setGroupName("Basin");
+    flagAsInitialExtent();
+
+    fireEvent.change(screen.getByLabelText("Custom Extent Input"), {
+      target: { value: extent },
+    });
+
+    const checkbox = screen.getByLabelText("View Group Initial Extent Input");
+    expect(checkbox.disabled).toBe(!seeds);
+    expect(lastValue(onChange)).toStrictEqual({
+      extent,
+      viewGroup: "Basin",
+      ...(seeds && { isGroupInitialExtent: true }),
+    });
+  },
+);

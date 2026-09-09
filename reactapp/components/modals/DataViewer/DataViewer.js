@@ -27,8 +27,10 @@ import {
 } from "components/visualizations/utilities";
 import {
   BUILT_IN_MAP_SOURCE,
+  clearViewGroupSettings,
   enforceSingleGroupInitialExtent,
   parseGridItemArgs,
+  POPUP_TAB_ID,
   readViewGroupSettings,
 } from "components/map/viewGroup";
 import { v4 as uuidv4 } from "uuid";
@@ -295,6 +297,22 @@ function DataViewerModal({
           ),
         );
 
+        // R27: a map inside a popup layout can never join a view group, so the
+        // group keys never belong in its saved args -- not even one written
+        // before the editor stopped offering the fields there.
+        if (activeTabId === POPUP_TAB_ID) {
+          const savedArgs = parseGridItemArgs(
+            updatedGridItems[gridItemIndex].args_string,
+          );
+          const strippedExtent = clearViewGroupSettings(savedArgs?.map_extent);
+          if (savedArgs && strippedExtent !== savedArgs.map_extent) {
+            updatedGridItems[gridItemIndex].args_string = JSON.stringify({
+              ...savedArgs,
+              map_extent: strippedExtent,
+            });
+          }
+        }
+
         updatedGridItems[gridItemIndex].metadata_string =
           JSON.stringify(settings);
 
@@ -322,7 +340,19 @@ function DataViewerModal({
               )
             : null;
 
-        if (savedGroup?.viewGroup && savedGroup.isInitialExtent) {
+        // The sweep rewrites the whole tab list, which only the dashboard's own
+        // TabContext can accept: the popup modal and the popup layout editor
+        // mount a single synthetic tab and supply no `updateTabs`. Maps there
+        // are excluded from view groups anyway (R27), so falling back to the
+        // single-tab write is both safe and correct.
+        const canSweepTabs =
+          typeof updateTabs === "function" && activeTabId !== POPUP_TAB_ID;
+
+        if (
+          savedGroup?.viewGroup &&
+          savedGroup.isInitialExtent &&
+          canSweepTabs
+        ) {
           const nextTabs = tabs.map((tab) =>
             tab.id === activeTabId
               ? { ...tab, gridItems: updatedGridItems }

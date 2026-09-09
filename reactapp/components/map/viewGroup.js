@@ -245,7 +245,26 @@ export const BUILT_IN_MAP_SOURCE = "Map";
 // A stored extent still carrying a variable token has no value until the
 // dashboard's variable inputs resolve, which may be long after load and may
 // never happen at all. Such an extent seeds nothing (R4).
+//
+// The pattern is deliberately permissive: variable input names routinely carry
+// spaces (`${Basin Extent}` is the documented form), so anything but a closing
+// brace counts as part of the name.
 const VARIABLE_TOKEN_PATTERN = /\$\{[^}]+\}/;
+
+/**
+ * Whether a value still carries a `${...}` variable token.
+ *
+ * This is the single predicate for that question. The editor's extent field
+ * and the seed parser below both have to answer it the same way -- a value one
+ * of them reads as a literal extent and the other as a template produces a
+ * group that either cannot be seeded or is seeded with a token.
+ *
+ * @param {*} value the value to test; a non-string never contains a token
+ * @returns {boolean}
+ */
+export function containsVariableToken(value) {
+  return typeof value === "string" && VARIABLE_TOKEN_PATTERN.test(value);
+}
 
 /**
  * Parse a stored extent string into the seed a group opens at.
@@ -268,7 +287,7 @@ const VARIABLE_TOKEN_PATTERN = /\$\{[^}]+\}/;
 export function parseSeedExtent(extent) {
   if (typeof extent !== "string") return null;
   const trimmed = extent.trim();
-  if (trimmed === "" || VARIABLE_TOKEN_PATTERN.test(trimmed)) return null;
+  if (trimmed === "" || containsVariableToken(trimmed)) return null;
 
   const parts = trimmed.split(",").map((part) => parseFloat(part.trim()));
   if (parts.some((part) => !Number.isFinite(part))) return null;
@@ -363,6 +382,42 @@ export function clearGroupInitialExtent(mapExtent) {
   if (nestedFlagged) {
     const clearedNested = { ...nested };
     delete clearedNested.isGroupInitialExtent;
+    cleared.extent = clearedNested;
+  }
+  return cleared;
+}
+
+/**
+ * Strip the whole view-group membership -- the group name and the
+ * initial-extent flag -- out of a stored `map_extent` value, in whichever of
+ * its historical shapes it arrived.
+ *
+ * Used where a map can never join a group at all (R27: the popup subtrees), so
+ * that a value written before that exclusion existed cannot linger in the
+ * saved args.
+ *
+ * Returns the value it was given when there was nothing to strip, so callers
+ * can compare by identity to tell whether anything changed.
+ *
+ * @param {*} mapExtent the stored map extent value
+ * @returns {*} the value with the group keys removed, or the original reference
+ */
+export function clearViewGroupSettings(mapExtent) {
+  if (!mapExtent || typeof mapExtent !== "object" || Array.isArray(mapExtent)) {
+    return mapExtent;
+  }
+
+  const nested = nestedExtentContainer(mapExtent);
+  const groupKeys = ["viewGroup", "isGroupInitialExtent"];
+  const outerHas = groupKeys.some((key) => key in mapExtent);
+  const nestedHas = nested !== null && groupKeys.some((key) => key in nested);
+  if (!outerHas && !nestedHas) return mapExtent;
+
+  const cleared = { ...mapExtent };
+  groupKeys.forEach((key) => delete cleared[key]);
+  if (nestedHas) {
+    const clearedNested = { ...nested };
+    groupKeys.forEach((key) => delete clearedNested[key]);
     cleared.extent = clearedNested;
   }
   return cleared;

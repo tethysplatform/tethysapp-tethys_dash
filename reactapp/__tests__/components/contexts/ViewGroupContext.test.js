@@ -187,6 +187,152 @@ describe("ViewGroupProvider fan-out", () => {
     expect(consoleError).toHaveBeenCalled();
     consoleError.mockRestore();
   });
+
+  it("logs a consistently failing member once rather than on every publish", () => {
+    const consoleError = jest
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    const thrower = jest.fn(() => {
+      throw new Error("still broken");
+    });
+
+    render(
+      <ViewGroupProvider>
+        <MemberProbe groupName="Basin" memberId="a" applyView={thrower} />
+        <MemberProbe groupName="Basin" memberId="b" view={VIEW_B} />
+      </ViewGroupProvider>,
+    );
+
+    // A pan drives one publish per rendered frame, so a member that throws
+    // every time would otherwise log at frame rate.
+    for (let i = 0; i < 10; i += 1) {
+      fireEvent.click(screen.getByTestId("publish-view-b"));
+    }
+
+    // Isolation is unchanged -- every publish is still delivered and still
+    // caught -- and only the logging is deduplicated.
+    expect(thrower).toHaveBeenCalledTimes(10);
+    expect(consoleError).toHaveBeenCalledTimes(1);
+    consoleError.mockRestore();
+  });
+});
+
+describe("ViewGroupProvider projection pin", () => {
+  // Stands in for a map whose view projection changes under it: a raster
+  // auto-fit adopts the raster's projection long after the map joined.
+  const ProjectionProbe = ({ groupName, memberId, code, applyView }) => {
+    const { registerMember, reportMemberProjection, publishView } =
+      useViewGroupContext();
+    const [pin, setPin] = useState("unreported");
+
+    const handlersRef = useRef({ applyView });
+    handlersRef.current = { applyView };
+
+    useEffect(
+      () =>
+        registerMember(groupName, memberId, {
+          applyView: (...args) => handlersRef.current.applyView?.(...args),
+        }),
+      [registerMember, groupName, memberId],
+    );
+
+    return (
+      <div>
+        <p data-testid={`pin-${memberId}`}>{String(pin)}</p>
+        <button
+          type="button"
+          data-testid={`report-${memberId}`}
+          onClick={() =>
+            setPin(reportMemberProjection(groupName, memberId, code))
+          }
+        >
+          report
+        </button>
+        <button
+          type="button"
+          data-testid={`publish-${memberId}`}
+          onClick={() => publishView(groupName, memberId, VIEW_A)}
+        >
+          publish
+        </button>
+      </div>
+    );
+  };
+  ProjectionProbe.propTypes = {
+    groupName: PropTypes.string,
+    memberId: PropTypes.string.isRequired,
+    code: PropTypes.string,
+    applyView: PropTypes.func,
+  };
+
+  const report = (memberId) => {
+    fireEvent.click(screen.getByTestId(`report-${memberId}`));
+    return screen.getByTestId(`pin-${memberId}`).textContent;
+  };
+
+  it("re-pins once no member still reports the pinned projection", () => {
+    const applyA = jest.fn();
+    const Harness = ({ codeA, codeB }) => (
+      <ViewGroupProvider>
+        <ProjectionProbe
+          groupName="Basin"
+          memberId="a"
+          code={codeA}
+          applyView={applyA}
+        />
+        <ProjectionProbe groupName="Basin" memberId="b" code={codeB} />
+      </ViewGroupProvider>
+    );
+    Harness.propTypes = {
+      codeA: PropTypes.string,
+      codeB: PropTypes.string,
+    };
+
+    const { rerender } = render(
+      <Harness codeA="EPSG:3857" codeB="EPSG:3857" />,
+    );
+
+    // The first member to report pins the group.
+    expect(report("a")).toBe("EPSG:3857");
+    expect(report("b")).toBe("EPSG:3857");
+
+    // Both members then auto-fit to a UTM raster, one frame apart.
+    rerender(<Harness codeA="EPSG:32615" codeB="EPSG:32615" />);
+
+    // While B still holds the pinned code, A is genuinely out of sync (R6).
+    expect(report("a")).toBe("EPSG:3857");
+
+    // Once nobody holds it, the pin is not allowed to outlive them: the group
+    // re-pins on what its members actually are, rather than stranding every
+    // one of them against a code that no longer exists on the dashboard.
+    expect(report("b")).toBe("EPSG:32615");
+    expect(report("a")).toBe("EPSG:32615");
+
+    // Both read their own code back, so both are in the group again.
+    fireEvent.click(screen.getByTestId("publish-b"));
+    expect(applyA).toHaveBeenCalledWith(VIEW_A, {
+      groupName: "Basin",
+      sourceId: "b",
+    });
+  });
+
+  it("keeps the pin while any member still reports it", () => {
+    const Harness = ({ codeA }) => (
+      <ViewGroupProvider>
+        <ProjectionProbe groupName="Basin" memberId="a" code={codeA} />
+        <ProjectionProbe groupName="Basin" memberId="b" code="EPSG:3857" />
+      </ViewGroupProvider>
+    );
+    Harness.propTypes = { codeA: PropTypes.string };
+
+    const { rerender } = render(<Harness codeA="EPSG:3857" />);
+    expect(report("a")).toBe("EPSG:3857");
+    expect(report("b")).toBe("EPSG:3857");
+
+    rerender(<Harness codeA="EPSG:4326" />);
+    expect(report("a")).toBe("EPSG:3857");
+    expect(report("b")).toBe("EPSG:3857");
+  });
 });
 
 describe("ViewGroupProvider group identity", () => {

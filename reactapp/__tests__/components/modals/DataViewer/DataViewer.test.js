@@ -16,6 +16,7 @@ import {
   clearGridItemGroupInitialExtent,
   clearGroupInitialExtent,
   enforceSingleGroupInitialExtent,
+  POPUP_TAB_ID,
 } from "components/map/viewGroup";
 import {
   mockedDashboards,
@@ -1596,5 +1597,108 @@ test("Dashboard Viewer save of an ungrouped map touches no other grid item", asy
   );
   expect(findGridItem(savedTabs, "3").args_string).toBe(
     mockedDashboard.tabs[1].gridItems[0].args_string,
+  );
+});
+
+// --- Saving under a TabContext that cannot sweep every tab -----------------
+
+// The popup modal and the popup layout editor mount the reused dashboard
+// layout under a synthetic single-tab TabContext that supplies no `updateTabs`
+// -- reaching the whole-tab-list sweep from in there used to throw.
+const ShimmedTabProvider = ({
+  gridItems,
+  activeTabId,
+  onUpdateTab,
+  children,
+}) => {
+  const tab = { id: activeTabId, name: "popup", gridItems };
+  const value = {
+    tabs: [tab],
+    activeTabId,
+    getActiveTab: () => tab,
+    getTab: () => tab,
+    updateTab: onUpdateTab,
+    // No `updateTabs`: the shim owns exactly one tab.
+  };
+
+  return <TabContext.Provider value={value}>{children}</TabContext.Provider>;
+};
+
+ShimmedTabProvider.propTypes = {
+  gridItems: Proptypes.array.isRequired,
+  activeTabId: Proptypes.any.isRequired,
+  onUpdateTab: Proptypes.func.isRequired,
+  children: Proptypes.node,
+};
+
+const renderInShimmedTab = async ({ gridItems, activeTabId, onUpdateTab }) => {
+  const mockSetShowGridItemMessage = jest.fn();
+
+  render(
+    createLoadedComponent({
+      children: (
+        <ShimmedTabProvider
+          gridItems={gridItems}
+          activeTabId={activeTabId}
+          onUpdateTab={onUpdateTab}
+        >
+          <TestingComponent
+            gridItem={gridItems[0]}
+            gridItemIndex={0}
+            mockHandleModalClose={jest.fn()}
+            mockSetGridItemMessage={jest.fn()}
+            mockSetShowGridItemMessage={mockSetShowGridItemMessage}
+            onTabUpdate={jest.fn()}
+          />
+        </ShimmedTabProvider>
+      ),
+      options: { initialDashboard: userDashboard },
+    }),
+  );
+
+  fireEvent.click(await screen.findByLabelText("dataviewer-save-button"));
+
+  await waitFor(() => {
+    expect(mockSetShowGridItemMessage).toHaveBeenCalledWith(true);
+  });
+};
+
+test("saving a grouped map inside a popup layout strips the group and skips the sweep", async () => {
+  const onUpdateTab = jest.fn();
+
+  await renderInShimmedTab({
+    gridItems: [makeMapGridItem({ i: "1", mapExtent: flaggedExtent("Basin") })],
+    activeTabId: POPUP_TAB_ID,
+    onUpdateTab,
+  });
+
+  // The single-tab write is taken, so the missing `updateTabs` is never called.
+  expect(onUpdateTab).toHaveBeenCalledTimes(1);
+  const [tabId, updates] = onUpdateTab.mock.calls.at(-1);
+  expect(tabId).toBe(POPUP_TAB_ID);
+
+  // A popup map can never join a group, so a value stored before that
+  // exclusion existed is scrubbed out of the saved args (R27).
+  expect(mapExtentOf(updates.gridItems[0])).toStrictEqual({
+    extent: "-10686671.12,4721671.57,4.5",
+  });
+});
+
+test("saving a grouped map falls back to the single-tab write when updateTabs is missing", async () => {
+  const onUpdateTab = jest.fn();
+
+  await renderInShimmedTab({
+    gridItems: [makeMapGridItem({ i: "1", mapExtent: flaggedExtent("Basin") })],
+    activeTabId: 1,
+    onUpdateTab,
+  });
+
+  expect(onUpdateTab).toHaveBeenCalledTimes(1);
+  const [tabId, updates] = onUpdateTab.mock.calls.at(-1);
+  expect(tabId).toBe(1);
+  // Outside a popup the group settings are kept as saved; only the sweep --
+  // which this context cannot perform -- is skipped.
+  expect(mapExtentOf(updates.gridItems[0])).toStrictEqual(
+    flaggedExtent("Basin"),
   );
 });

@@ -189,7 +189,17 @@ const readViewState = (view) => {
 // combined change applied in any other order paints an intermediate state. The
 // three setters cost one render between them, not three: the map's render
 // scheduling is idempotent within a frame.
+//
+// Returns whether the view actually moved. `applyTargetState_` writes each
+// property only when its constrained value differs from the one already held,
+// so an apply of values the view is already at notifies nothing and schedules
+// no frame -- and a caller that armed a read-back for it would be waiting for
+// a frame that never comes. Measured after the fact rather than against
+// `next`, so a clamped apply that did move counts as a move.
 const applyViewState = (view, next) => {
+  const beforeCenter = view.getCenter();
+  const beforeResolution = view.getResolution();
+  const beforeRotation = view.getRotation();
   if (typeof next.rotation === "number") {
     view.setRotation(next.rotation);
   }
@@ -199,6 +209,15 @@ const applyViewState = (view, next) => {
   if (Array.isArray(next.center)) {
     view.setCenter([...next.center]);
   }
+  const afterCenter = view.getCenter();
+  return (
+    view.getRotation() !== beforeRotation ||
+    view.getResolution() !== beforeResolution ||
+    !Array.isArray(beforeCenter) ||
+    !Array.isArray(afterCenter) ||
+    afterCenter[0] !== beforeCenter[0] ||
+    afterCenter[1] !== beforeCenter[1]
+  );
 };
 
 // --- Coalescing `moveend` side effects (U4) -------------------------------
@@ -527,8 +546,11 @@ const MapComponent = ({
     }
     // A new extent -- and possibly a new variable name -- is a new
     // subscription, so the "already published this value" memo below starts
-    // over rather than suppressing the first publish against it.
+    // over rather than suppressing the first publish against it. A publish
+    // deferred under the previous extent goes with it: it was asked for on
+    // behalf of a subscription that no longer exists.
     lastPublishedExtentRef.current = null;
+    pendingMoveEndRef.current = null;
 
     // Update zoom on view change. Only the DataViewer preview renders `zoom`
     // (the info panel below); on a dashboard map this wrote React state on
@@ -1257,6 +1279,35 @@ const MapComponent = ({
     }, MOVE_SETTLE_MS);
   };
 
+  // Take the group's view on this member. Every adoption in this component
+  // goes through here, for the two things that have to happen with the apply
+  // rather than after it:
+  //
+  //  - The settle gate is shut here, at apply time. Within one frame
+  //    OpenLayers dispatches `moveend` before `postrender` (`renderFrame_`),
+  //    so a gate armed from the postrender handler is still open when that
+  //    same frame's `moveend` runs and the first follower frame of every peer
+  //    gesture leaks an intermediate extent out to the whole dashboard.
+  //    `trackViewMotion` remains the thing that decides motion has stopped;
+  //    this only decides when it has started.
+  //  - A no-op apply schedules no frame at all, so the read-back it would
+  //    otherwise arm could never be consumed -- and would be consumed instead
+  //    by this member's next real move, swallowing that publish. Nothing moved
+  //    and nothing is coming, so the baseline is simply recorded here.
+  //
+  // The baseline is re-read from the view rather than taken from the caller's
+  // frame read: resolving a bbox seed fits the view on the way in, so the
+  // caller's copy is not always what this member is actually at.
+  const adoptGroupView = (view, next) => {
+    if (!applyViewState(view, next)) {
+      viewGroupBaselineRef.current = readViewState(view);
+      return false;
+    }
+    markViewUnsettled();
+    viewGroupReadbackRef.current = true;
+    return true;
+  };
+
   // Called once per rendered frame. Settling is measured on this member's own
   // view being stable across its own frames, never on applies having stopped
   // arriving: a follower that clamps keeps receiving applies whose read-back
@@ -1358,7 +1409,12 @@ const MapComponent = ({
     // R6: out of the group entirely while the projections differ. The notice
     // is raised by the postrender handler, which runs on every frame.
     if (groupProjection && groupProjection !== code) return;
-    if (view.getInteracting()) {
+    // ANIMATING as well as INTERACTING: double-click zoom, keyboard
+    // zoom and the Zoom control all run through `view.animate()`, which holds
+    // neither the INTERACTING hint nor the pointer. Applying over one of them
+    // cancels it mid-flight -- `applyTargetState_` calls `cancelAnimations()`
+    // -- so this member's own in-flight move would be yanked away by a peer's.
+    if (view.getInteracting() || view.getAnimating()) {
       // R23: the viewer is driving this map right now. Record the refusal so
       // the settled frame at the end of the gesture re-adopts -- an
       // unrecorded refusal is indistinguishable from a gesture that had
@@ -1367,11 +1423,10 @@ const MapComponent = ({
       viewGroupDeclinedRef.current = true;
       return;
     }
-    applyViewState(view, nextView);
     // R21: what this member actually settled at is read back on its own next
     // frame. Recording the applied values here instead would make a follower
     // whose view clamped publish the difference straight back.
-    viewGroupReadbackRef.current = true;
+    adoptGroupView(view, nextView);
   };
   viewGroupApplyRef.current = applyGroupView;
 
@@ -1428,7 +1483,7 @@ const MapComponent = ({
     // group's view rather than publishing whatever the replacement landed on.
     if (lastViewObjectRef.current !== view) {
       lastViewObjectRef.current = view;
-      const interacting = view.getInteracting();
+      const interacting = view.getInteracting() || view.getAnimating();
       // A fresh membership reaches this branch on its very first frame, which
       // is also where a late join lands: the group's live view when it has one,
       // and otherwise the seed a flagged member supplied for its opening view.
@@ -1436,8 +1491,7 @@ const MapComponent = ({
         ? viewGroupContext.getGroupView(groupName)
         : groupOpeningView(groupName, view);
       if (groupView && !interacting) {
-        applyViewState(view, groupView);
-        viewGroupReadbackRef.current = true;
+        adoptGroupView(view, groupView);
         viewGroupDeclinedRef.current = false;
         return;
       }
@@ -1450,7 +1504,7 @@ const MapComponent = ({
       return;
     }
 
-    const settled = !view.getInteracting();
+    const settled = !view.getInteracting() && !view.getAnimating();
     if (
       settled &&
       (viewGroupReadoptRef.current || viewGroupDeclinedRef.current)
@@ -1459,8 +1513,7 @@ const MapComponent = ({
       viewGroupDeclinedRef.current = false;
       const groupView = groupOpeningView(groupName, view);
       if (groupView) {
-        applyViewState(view, groupView);
-        viewGroupReadbackRef.current = true;
+        adoptGroupView(view, groupView);
         return;
       }
     }
@@ -1479,8 +1532,7 @@ const MapComponent = ({
     if (settled && viewGroupSeedPendingRef.current) {
       const opening = groupOpeningView(groupName, view);
       if (opening) {
-        applyViewState(view, opening);
-        viewGroupReadbackRef.current = true;
+        adoptGroupView(view, opening);
         return;
       }
     }
@@ -1534,6 +1586,11 @@ const MapComponent = ({
     viewGroupReadbackRef.current = false;
     viewGroupDeclinedRef.current = false;
     viewGroupSeedPendingRef.current = true;
+    // Nothing else asks for the frame that adoption happens on, so a member
+    // joining a group after mount -- the group name being set on a live map,
+    // or its extent changing to carry one -- would sit un-synced until some
+    // unrelated event redrew it. Same as the re-adopt path below.
+    map?.render();
 
     return () => {
       activeViewGroupRef.current = null;
@@ -1584,6 +1641,11 @@ const MapComponent = ({
   // today for a `moveend` that lands back where it started, and the backstop
   // that makes any regression of the gate above degrade rather than collapse.
   const publishMapExtentVariable = (map) => {
+    // The deferred flush runs up to a settle window after the `moveend` that
+    // asked for it, and the extent -- and with it the variable name -- can
+    // have changed in between. Without this the flush publishes under the key
+    // `undefined`.
+    if (!mapExtent?.variable) return;
     const view = map.getView();
     const projection = view.getProjection().getCode();
     const extent = view.calculateExtent(map.getSize());

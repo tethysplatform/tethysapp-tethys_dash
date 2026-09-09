@@ -11,6 +11,7 @@ import {
   DisabledEditingMovementContext,
 } from "components/contexts/Contexts";
 import DashboardLayout from "components/dashboard/DashboardLayout";
+import { POPUP_TAB_ID } from "components/map/viewGroup";
 import "components/modals/wideModal.css";
 import { deriveRowHeight } from "components/modals/PopupModal/PopupModalChrome";
 
@@ -288,10 +289,14 @@ const PopupLayoutEditor = ({
     popupConfig?.position?.heightPct ?? DEFAULT_POSITION.heightPct;
 
   const tabContextValue = useMemo(() => {
-    const popupTab = { id: "popup", name: "popup", gridItems: localGridItems };
+    const popupTab = {
+      id: POPUP_TAB_ID,
+      name: "popup",
+      gridItems: localGridItems,
+    };
     return {
       tabs: [popupTab],
-      activeTabId: "popup",
+      activeTabId: POPUP_TAB_ID,
       setActiveTabId: noop,
       addTab: noop,
       importTabs: noop,
@@ -304,12 +309,12 @@ const PopupLayoutEditor = ({
       reorderTabs: noop,
       resetTabs: noop,
       getActiveTab: () => ({
-        id: "popup",
+        id: POPUP_TAB_ID,
         name: "popup",
         gridItems: localGridItems,
       }),
       getTab: () => ({
-        id: "popup",
+        id: POPUP_TAB_ID,
         name: "popup",
         gridItems: localGridItems,
       }),
@@ -427,7 +432,7 @@ const PopupLayoutEditor = ({
                         editor just edits the canonical lg layout.
                       */}
                       <DashboardLayout
-                        tabId="popup"
+                        tabId={POPUP_TAB_ID}
                         gridItems={localGridItems}
                         shouldLoad={true}
                         rowHeight={rowHeight}

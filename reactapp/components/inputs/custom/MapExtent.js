@@ -1,10 +1,20 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useContext } from "react";
 import DataRadioSelect from "components/inputs/DataRadioSelect";
 import PropTypes from "prop-types";
 import styled from "styled-components";
 import { useMapContext } from "components/contexts/MapContext";
 import { wrapMercatorX } from "components/map/utilities";
-import { readViewGroupSettings } from "components/map/viewGroup";
+import { TabContext } from "components/contexts/Contexts";
+// `containsVariableToken` is the one predicate that decides "is this a
+// template?" for the editor and for the group's seed parser alike. They used
+// to disagree about names containing spaces -- `${Basin Extent}`, the
+// documented form -- so the editor read such an extent as a literal while the
+// seed parser read it as a template.
+import {
+  containsVariableToken,
+  POPUP_TAB_ID,
+  readViewGroupSettings,
+} from "components/map/viewGroup";
 
 const FullInput = styled.input`
   width: 100%;
@@ -81,8 +91,6 @@ const CollapsibleContent = styled.div`
   margin-left: 1.5rem;
 `;
 
-const containsTemplate = (str) => /\$\{\w+\}/.test(str ?? "");
-
 // The saved value tolerates every historical shape: a bare extent string, an
 // `{extent}` / `{extent, variable}` object, and the doubly wrapped
 // `{extent: {extent, ...}}` object that `isValidExtentInput` also unwraps.
@@ -107,6 +115,13 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
   const [customExtentValid, setCustomExtentValid] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
   const { mapReady } = useMapContext();
+  // R27: the popup modal and the popup layout editor mount their reused
+  // dashboard layout under a synthetic tab, and maps there can never join a
+  // view group. Offering the group fields there would let a user set a value
+  // that is silently ignored -- and, worse, save one whose enforcement sweep
+  // that subtree's TabContext shim cannot run.
+  const activeTabId = useContext(TabContext)?.activeTabId;
+  const inPopupLayout = activeTabId === POPUP_TAB_ID;
   const [extentVariable, setExtentVariable] = useState(
     initialValue.variable ?? "",
   );
@@ -157,11 +172,16 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
     const isInitial =
       overrides.isGroupInitialExtent ?? isGroupInitialExtentRef.current;
 
+    // An extent that is empty or still templated resolves to nothing at load
+    // time, so it can never be a group's opening view -- the flag is dropped
+    // from the emitted value rather than saved as a promise nothing keeps.
+    const canSeed = Boolean(extent) && !containsVariableToken(extent);
+
     return {
       extent,
       ...(variable && { variable }),
       ...(group && { viewGroup: group }),
-      ...(group && isInitial && { isGroupInitialExtent: true }),
+      ...(group && isInitial && canSeed && { isGroupInitialExtent: true }),
     };
   };
 
@@ -238,7 +258,7 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
         trimmed = value.trim();
       }
     }
-    if (containsTemplate(trimmed)) return true;
+    if (containsVariableToken(trimmed)) return true;
 
     const parts = trimmed.split(",").map((p) => p.trim());
     if (parts.length !== 3 && parts.length !== 4) return false;
@@ -292,7 +312,23 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
     emitValue();
   };
 
-  const extentIsTemplated = containsTemplate(customExtent);
+  const extentIsTemplated = containsVariableToken(customExtent);
+
+  // Disabling the checkbox is a render-time attribute, not a state change. An
+  // extent that becomes templated -- or a group name that is cleared -- has to
+  // actually clear the flag, otherwise the widget keeps emitting a flag the
+  // user can no longer untick, and saving that map runs the single-flag sweep
+  // and strips the flag off the group's genuine seeding member.
+  useEffect(() => {
+    if (!isGroupInitialExtent) return;
+    if (viewGroup && !extentIsTemplated) return;
+
+    setIsGroupInitialExtent(false);
+    isGroupInitialExtentRef.current = false;
+    emitValue();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isGroupInitialExtent, viewGroup, extentIsTemplated]);
+
   const initialExtentDisabledReason = !viewGroup
     ? "Set a view group name to use this map's extent as the group's initial extent."
     : extentIsTemplated
@@ -335,33 +371,37 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
               </InputLabel>
             </InputRow>
           )}
-          <InputRow>
-            <InputLabel>
-              View Group
-              <FullInput
-                value={viewGroupDraft}
-                onChange={(e) => setViewGroupDraft(e.target.value)}
-                onBlur={commitViewGroup}
-                placeholder="Maps sharing this name move together"
-                isValid={true}
-                aria-label="View Group Input"
-              />
-            </InputLabel>
-          </InputRow>
-          <InputRow>
-            <CheckboxLabel $disabled={Boolean(initialExtentDisabledReason)}>
-              <input
-                type="checkbox"
-                checked={isGroupInitialExtent}
-                disabled={Boolean(initialExtentDisabledReason)}
-                onChange={handleGroupInitialExtentChange}
-                aria-label="View Group Initial Extent Input"
-              />
-              Use as the view group&apos;s initial extent
-            </CheckboxLabel>
-          </InputRow>
-          {initialExtentDisabledReason && (
-            <HelpText>{initialExtentDisabledReason}</HelpText>
+          {!inPopupLayout && (
+            <>
+              <InputRow>
+                <InputLabel>
+                  View Group
+                  <FullInput
+                    value={viewGroupDraft}
+                    onChange={(e) => setViewGroupDraft(e.target.value)}
+                    onBlur={commitViewGroup}
+                    placeholder="Maps sharing this name move together"
+                    isValid={true}
+                    aria-label="View Group Input"
+                  />
+                </InputLabel>
+              </InputRow>
+              <InputRow>
+                <CheckboxLabel $disabled={Boolean(initialExtentDisabledReason)}>
+                  <input
+                    type="checkbox"
+                    checked={isGroupInitialExtent}
+                    disabled={Boolean(initialExtentDisabledReason)}
+                    onChange={handleGroupInitialExtentChange}
+                    aria-label="View Group Initial Extent Input"
+                  />
+                  Use as the view group&apos;s initial extent
+                </CheckboxLabel>
+              </InputRow>
+              {initialExtentDisabledReason && (
+                <HelpText>{initialExtentDisabledReason}</HelpText>
+              )}
+            </>
           )}
           <label>
             <b>Extent Variable Name:</b>{" "}

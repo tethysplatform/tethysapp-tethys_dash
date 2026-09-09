@@ -3806,6 +3806,149 @@ describe("linked map view groups", () => {
     expect(stateOf(maps.b).resolution).toBe(stateOf(maps.a).resolution);
   });
 
+  test("a member animating a view change of its own is not cut short by a peer", async () => {
+    const { maps } = await renderDashboard([
+      grouped("a", "Basin"),
+      grouped("b", "Basin"),
+    ]);
+
+    // Double-click zoom, keyboard zoom and the Zoom control all run through
+    // `view.animate()`, which raises ANIMATING and never INTERACTING -- so a
+    // decline that only looks at `getInteracting()` lets the apply through,
+    // and the apply cancels the animation (`applyTargetState_` calls
+    // `cancelAnimations()`).
+    await act(async () => {
+      viewOf(maps.b).animate({ zoom: 9, duration: 1000000 });
+    });
+    expect(viewOf(maps.b).getAnimating()).toBe(true);
+    const beforeCenter = stateOf(maps.b).center;
+
+    await act(async () => {
+      viewOf(maps.a).setCenter([456000, 789000]);
+      viewOf(maps.a).setZoom(7);
+    });
+    await frame(maps.a);
+
+    // The member's own animation is still in flight and its view is still
+    // going where the viewer sent it.
+    expect(viewOf(maps.b).getAnimating()).toBe(true);
+    expect(stateOf(maps.b).center).toEqual(beforeCenter);
+
+    // The refusal was recorded, so the group is re-adopted on the first
+    // settled frame after the animation actually ends.
+    await act(async () => {
+      viewOf(maps.b).cancelAnimations();
+    });
+    expect(viewOf(maps.b).getAnimating()).toBe(false);
+    await frame(maps.b);
+
+    expect(stateOf(maps.b).center).toEqual([456000, 789000]);
+    expect(stateOf(maps.b).resolution).toBe(stateOf(maps.a).resolution);
+  });
+
+  test("a frame rendered during a member's own animation is not a settled frame", async () => {
+    const { maps } = await renderDashboard([
+      grouped("a", "Basin"),
+      grouped("b", "Basin"),
+    ]);
+
+    await act(async () => {
+      viewOf(maps.b).animate({ zoom: 9, duration: 1000000 });
+    });
+    const beforeCenter = stateOf(maps.b).center;
+
+    // The peer moves, and this member records the refusal.
+    await act(async () => {
+      viewOf(maps.a).setCenter([12000, 13000]);
+    });
+    await frame(maps.a);
+
+    // An animation renders frames of its own, and every one of them reaches
+    // the postrender handler. None of them is settled: treating one as such
+    // would re-adopt the group view over the animation and cancel it outright
+    // -- exactly what declining the apply in the first place avoided.
+    await frame(maps.b);
+    await frame(maps.b);
+    expect(viewOf(maps.b).getAnimating()).toBe(true);
+    expect(stateOf(maps.b).center).toEqual(beforeCenter);
+
+    // The deferred re-adopt still lands on the first frame after it ends.
+    await act(async () => {
+      viewOf(maps.b).cancelAnimations();
+    });
+    await frame(maps.b);
+    expect(stateOf(maps.b).center).toEqual([12000, 13000]);
+  });
+
+  test("a group view landing on values a member already holds does not swallow its next move", async () => {
+    const { maps } = await renderDashboard([
+      grouped("a", "Basin"),
+      grouped("b", "Basin"),
+    ]);
+
+    // B is moved without being framed, so it publishes nothing and the group
+    // still knows nothing about it...
+    await act(async () => {
+      viewOf(maps.b).setCenter([7000, 8000]);
+    });
+
+    // ...and then A publishes exactly the values B is already at. OpenLayers
+    // writes nothing for an apply that changes nothing, so no frame follows
+    // it and a read-back armed for that apply would never be consumed.
+    await act(async () => {
+      viewOf(maps.a).setCenter([7000, 8000]);
+    });
+    await frame(maps.a);
+    expect(stateOf(maps.b).center).toEqual([7000, 8000]);
+
+    // B's own next move is a single frame. A stale read-back would eat it and
+    // this member would silently stop driving the group.
+    await act(async () => {
+      viewOf(maps.b).setCenter([9000, 1000]);
+    });
+    await frame(maps.b);
+
+    expect(stateOf(maps.a).center).toEqual([9000, 1000]);
+  });
+
+  test("a map joining a group after mount adopts the group view with no other event", async () => {
+    const maps = {};
+    const solo = { uuid: "b", mapExtent: { extent: "0,0,5" } };
+    const members = [grouped("a", "Basin"), solo];
+    const { rerender } = render(<Dashboard members={members} maps={maps} />);
+    await settle();
+    for (const member of members) await frame(maps[member.uuid]);
+
+    await act(async () => {
+      viewOf(maps.a).setCenter([61000, 62000]);
+      viewOf(maps.a).setZoom(8);
+    });
+    await frame(maps.a);
+    const groupState = stateOf(maps.a);
+    expect(stateOf(maps.b).center).not.toEqual(groupState.center);
+
+    // The map joins an existing group while idle: same extent string, same
+    // layers, nothing on the dashboard redrawing it. Adoption happens on a
+    // rendered frame, so joining has to ask for one itself.
+    rerender(
+      <Dashboard
+        members={[
+          members[0],
+          { ...solo, mapExtent: { extent: "0,0,5", viewGroup: "Basin" } },
+        ]}
+        maps={maps}
+      />,
+    );
+    await settle();
+    // Deliberately no synthetic frame here -- only the one the join asked for.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+
+    expect(stateOf(maps.b).center).toEqual(groupState.center);
+    expect(stateOf(maps.b).resolution).toBe(groupState.resolution);
+  });
+
   test("a member's own gesture ending is not undone: it publishes and the group follows", async () => {
     const { maps } = await renderDashboard([
       grouped("a", "Basin"),
@@ -3813,7 +3956,14 @@ describe("linked map view groups", () => {
     ]);
 
     // First ending: a gesture with nothing to decline. The settled frame must
-    // publish, not re-adopt.
+    // publish where the gesture actually finished rather than re-adopt.
+    //
+    // The group is deliberately left standing behind the gesture for that
+    // frame -- one rendered frame lands at [11000, 22000] and publishes it,
+    // and the gesture's last movement then lands between frames, as a real
+    // one does. So a settled frame that re-adopted unconditionally would drag
+    // this member visibly back to where the group is, and the assertions
+    // below would see it.
     const interacting = jest
       .spyOn(viewOf(maps.a), "getInteracting")
       .mockReturnValue(true);
@@ -3821,11 +3971,17 @@ describe("linked map view groups", () => {
       viewOf(maps.a).setCenter([11000, 22000]);
     });
     await frame(maps.a);
+    await frame(maps.b);
+    expect(stateOf(maps.b).center).toEqual([11000, 22000]);
+
+    await act(async () => {
+      viewOf(maps.a).setCenter([15000, 25000]);
+    });
     interacting.mockReturnValue(false);
     await frame(maps.a);
 
-    expect(stateOf(maps.a).center).toEqual([11000, 22000]);
-    expect(stateOf(maps.b).center).toEqual([11000, 22000]);
+    expect(stateOf(maps.a).center).toEqual([15000, 25000]);
+    expect(stateOf(maps.b).center).toEqual([15000, 25000]);
     // The follower's own next frame records its read-back, exactly as the
     // render the setters scheduled would.
     await frame(maps.b);
@@ -3836,7 +3992,7 @@ describe("linked map view groups", () => {
       viewOf(maps.b).setCenter([33000, 44000]);
     });
     await frame(maps.b);
-    expect(stateOf(maps.a).center).toEqual([11000, 22000]);
+    expect(stateOf(maps.a).center).toEqual([15000, 25000]);
 
     interacting.mockReturnValue(false);
     await frame(maps.a);
@@ -4353,12 +4509,17 @@ describe("linked map view groups", () => {
       expect(stateOf(maps.b).center).toEqual([FRAMES * 5000, FRAMES * 2500]);
       // ...but the `moveend` it emits per frame while doing so is coalesced,
       // rather than costing a dashboard-wide refetch and a feature query each.
-      // A bound, not an exact count: what matters is that it does not scale
-      // with FRAMES. Unguarded this is 120 of each.
-      expect(publishesDuringDrag).toBeLessThanOrEqual(2);
-      expect(refreshesDuringDrag).toBeLessThanOrEqual(2);
-      expect(setVariableInputValues.mock.calls.length).toBeLessThanOrEqual(3);
-      expect(refreshSnapCaches.mock.calls.length).toBeLessThanOrEqual(3);
+      // Unguarded this is 120 of each. Exact counts, not a bound: the gate is
+      // shut when the apply is made and not when the resulting motion is
+      // observed, so not even the leading edge of the gesture gets out --
+      // OpenLayers dispatches `moveend` before `postrender` within a frame,
+      // and a gate armed from `postrender` would leak the first frame of
+      // every gesture without moving either of these numbers past 2.
+      expect(publishesDuringDrag).toBe(0);
+      expect(refreshesDuringDrag).toBe(0);
+      // One each on the settled flush, for where the group came to rest.
+      expect(setVariableInputValues).toHaveBeenCalledTimes(1);
+      expect(refreshSnapCaches).toHaveBeenCalledTimes(1);
     });
 
     test("a follower with an extent variable still publishes once the group settles", async () => {
@@ -4388,6 +4549,102 @@ describe("linked map view groups", () => {
       // follower still has to refetch for where the group came to rest.
       expectCenterPublished(values.Viewport, maps.b);
       expect(refreshSnapCaches).toHaveBeenCalled();
+    });
+
+    // Drives one deferred publish on the follower and hands back the pieces
+    // the caller needs to change its extent out from under it.
+    const deferOnFollower = async (follower, setVariableInputValues) => {
+      const maps = {};
+      const members = [grouped("a", "Basin"), follower];
+      const view = render(
+        <Dashboard
+          members={members}
+          maps={maps}
+          setVariableInputValues={setVariableInputValues}
+        />,
+      );
+      await settle();
+      for (const member of members) await frame(maps[member.uuid]);
+
+      await act(async () => {
+        viewOf(maps.a).setCenter([31000, 32000]);
+      });
+      await frame(maps.a);
+      await followerFrame(maps.b);
+
+      return { maps, members, ...view };
+    };
+
+    test("an extent variable dropped while a publish is deferred is never published under it", async () => {
+      const values = {};
+      const setVariableInputValues = recordingSetter(values);
+      const follower = withVariable("b", "Basin", "Viewport", jest.fn());
+      const { members, rerender, maps } = await deferOnFollower(
+        follower,
+        setVariableInputValues,
+      );
+
+      // Inside the settle window the follower loses its variable. The flush
+      // still runs -- it was armed before -- and dereferences the variable
+      // name at flush time, so without a guard it publishes under the key
+      // `undefined` and writes a junk entry into the dashboard's store.
+      rerender(
+        <Dashboard
+          members={[
+            members[0],
+            { ...follower, mapExtent: { extent: "0,0,5", viewGroup: "Basin" } },
+          ]}
+          maps={maps}
+          setVariableInputValues={setVariableInputValues}
+        />,
+      );
+      await settle();
+      setVariableInputValues.mockClear();
+
+      await act(async () => {
+        jest.advanceTimersByTime(PAST_SETTLE_MS);
+      });
+
+      expect(setVariableInputValues).not.toHaveBeenCalled();
+      expect(Object.keys(values)).not.toContain("undefined");
+    });
+
+    test("changing the extent drops a publish deferred under the previous one", async () => {
+      const setVariableInputValues = jest.fn();
+      const follower = withVariable("b", "Basin", "Viewport", jest.fn());
+      const { members, rerender, maps } = await deferOnFollower(
+        follower,
+        setVariableInputValues,
+      );
+
+      // A new extent is a new subscription. The publish held over from the
+      // previous one was asked for on behalf of a subscription that no longer
+      // exists, so it goes with it rather than landing a window later.
+      rerender(
+        <Dashboard
+          members={[
+            members[0],
+            {
+              ...follower,
+              mapExtent: {
+                extent: "10,20,6",
+                viewGroup: "Basin",
+                variable: "Viewport",
+              },
+            },
+          ]}
+          maps={maps}
+          setVariableInputValues={setVariableInputValues}
+        />,
+      );
+      await settle();
+      setVariableInputValues.mockClear();
+
+      await act(async () => {
+        jest.advanceTimersByTime(PAST_SETTLE_MS);
+      });
+
+      expect(setVariableInputValues).not.toHaveBeenCalled();
     });
 
     test("a user-driven move on an ungrouped map publishes its extent exactly as it does today", async () => {

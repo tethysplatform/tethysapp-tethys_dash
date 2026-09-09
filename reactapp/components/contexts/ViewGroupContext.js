@@ -79,6 +79,13 @@ const ViewGroupProvider = ({ children }) => {
       try {
         callback(payload, { groupName, sourceId });
       } catch (error) {
+        // Isolation is unchanged -- only the logging is deduplicated. A member
+        // that throws consistently is driven once per rendered frame of a peer
+        // gesture, so an unconditional log here floods the console at frame
+        // rate and buries everything else. The first failure of each handler
+        // says everything the later identical ones would.
+        if (member.loggedFailures.has(key)) return;
+        member.loggedFailures.add(key);
         console.error(
           `View group "${groupName}": member "${memberId}" failed to handle ${key}`,
           error,
@@ -117,6 +124,10 @@ const ViewGroupProvider = ({ children }) => {
             : null,
         // The member's own live projection code, once it reports one.
         projection: null,
+        // Handler keys this member has already been logged as failing, so a
+        // consistently throwing member is reported once rather than on every
+        // frame. Per record, so a re-registration reports afresh.
+        loggedFailures: new Set(),
       };
       entry.members.set(memberId, record);
 
@@ -228,6 +239,20 @@ const ViewGroupProvider = ({ children }) => {
     if (!entry) return null;
     const member = entry.members.get(memberId);
     if (member) member.projection = code ?? null;
+    // The pin is taken from the first member to report one, which is the
+    // pre-raster projection. A group whose members have all since auto-fit to
+    // a raster in another projection would stay pinned to a code none of them
+    // holds any more, stranding every one of them as a permanent mismatch. So
+    // a pin no registered member still reports is dropped before a new one is
+    // taken, and the group re-pins on whoever is actually there.
+    if (
+      entry.projection &&
+      !Array.from(entry.members.values()).some(
+        (registered) => registered.projection === entry.projection,
+      )
+    ) {
+      entry.projection = null;
+    }
     if (!entry.projection && code) entry.projection = code;
     return entry.projection;
   }, []);

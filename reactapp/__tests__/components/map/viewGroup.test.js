@@ -3,6 +3,11 @@ import {
   RESOLUTION_TOLERANCE_RATIO,
   ROTATION_TOLERANCE_RADIANS,
   centersAreEqual,
+  clearGridItemGroupInitialExtent,
+  clearGroupInitialExtent,
+  clearViewGroupSettings,
+  containsVariableToken,
+  enforceSingleGroupInitialExtent,
   normalizeViewGroupName,
   discoverGroupSeeds,
   parseSeedExtent,
@@ -387,5 +392,146 @@ describe("discoverGroupSeeds", () => {
     expect(discoverGroupSeeds(undefined).size).toBe(0);
     expect(discoverGroupSeeds([]).size).toBe(0);
     expect(discoverGroupSeeds([{}, { gridItems: null }]).size).toBe(0);
+  });
+});
+
+describe("containsVariableToken", () => {
+  it.each([
+    // eslint-disable-next-line no-template-curly-in-string
+    ["${bbox}", true],
+    // A variable input name with spaces is the documented form, and used to
+    // read as a literal extent to the editor's own `\\w+` tokenizer.
+    // eslint-disable-next-line no-template-curly-in-string
+    ["${Basin Extent}", true],
+    // eslint-disable-next-line no-template-curly-in-string
+    ["-1,2,${Basin Extent}", true],
+    ["-1,2,3", false],
+    ["", false],
+    ["${}", false],
+  ])("reads %s as templated: %s", (value, expected) => {
+    expect(containsVariableToken(value)).toBe(expected);
+  });
+
+  it("is false for anything that is not a string", () => {
+    expect(containsVariableToken(null)).toBe(false);
+    expect(containsVariableToken(undefined)).toBe(false);
+    // eslint-disable-next-line no-template-curly-in-string
+    expect(containsVariableToken(["${x}"])).toBe(false);
+  });
+});
+
+describe("clearViewGroupSettings", () => {
+  it("hands back values that carry no group keys", () => {
+    expect(clearViewGroupSettings("1,2,3")).toBe("1,2,3");
+    expect(clearViewGroupSettings(null)).toBe(null);
+    const plain = { extent: "1,2,3", variable: "Extent" };
+    expect(clearViewGroupSettings(plain)).toBe(plain);
+  });
+
+  it("strips the group name and the flag off the flat shape", () => {
+    expect(
+      clearViewGroupSettings({
+        extent: "1,2,3",
+        variable: "Extent",
+        viewGroup: "Basin",
+        isGroupInitialExtent: true,
+      }),
+    ).toEqual({ extent: "1,2,3", variable: "Extent" });
+  });
+
+  it("strips them off the doubly nested legacy shape", () => {
+    expect(
+      clearViewGroupSettings({
+        extent: {
+          extent: "1,2,3",
+          viewGroup: "Basin",
+          isGroupInitialExtent: true,
+        },
+      }),
+    ).toEqual({ extent: { extent: "1,2,3" } });
+  });
+});
+
+// The reader tolerates the doubly nested `{extent: {extent, ...}}` shape, so
+// the writers on the losing side of the single-flag rule have to as well: a
+// member stored that way must actually give its flag up.
+describe("the legacy doubly nested shape on a member losing its flag", () => {
+  const nestedFlagged = () => ({
+    extent: {
+      extent: "-10686671.12,4721671.57,4.5",
+      viewGroup: "Basin",
+      isGroupInitialExtent: true,
+    },
+  });
+
+  const nestedGridItem = (i) => ({
+    i,
+    source: "Map",
+    args_string: JSON.stringify({
+      map_extent: nestedFlagged(),
+      baseMap: "OpenStreetMap",
+    }),
+  });
+
+  it("clearGroupInitialExtent drops the nested flag and keeps the group", () => {
+    expect(clearGroupInitialExtent(nestedFlagged())).toEqual({
+      extent: {
+        extent: "-10686671.12,4721671.57,4.5",
+        viewGroup: "Basin",
+      },
+    });
+  });
+
+  it("clearGridItemGroupInitialExtent rewrites only the nested flag", () => {
+    const gridItem = nestedGridItem("2");
+    const cleared = clearGridItemGroupInitialExtent(gridItem);
+
+    expect(cleared).not.toBe(gridItem);
+    const args = JSON.parse(cleared.args_string);
+    expect(args.baseMap).toBe("OpenStreetMap");
+    expect(args.map_extent).toEqual({
+      extent: {
+        extent: "-10686671.12,4721671.57,4.5",
+        viewGroup: "Basin",
+      },
+    });
+    // Still a member of the group, just no longer its seed.
+    expect(readViewGroupSettings(args.map_extent)).toEqual({
+      extent: "-10686671.12,4721671.57,4.5",
+      variable: null,
+      viewGroup: "Basin",
+      isInitialExtent: false,
+    });
+  });
+
+  it("enforceSingleGroupInitialExtent clears a nested-shape loser", () => {
+    const saved = {
+      i: "1",
+      source: "Map",
+      args_string: JSON.stringify({
+        map_extent: {
+          extent: "-10686671.12,4721671.57,4.5",
+          viewGroup: "Basin",
+          isGroupInitialExtent: true,
+        },
+      }),
+    };
+    const loser = nestedGridItem("2");
+    const tabs = [{ id: 1, name: "Tab 1", gridItems: [saved, loser] }];
+
+    const result = enforceSingleGroupInitialExtent(tabs, "Basin", saved);
+    const updatedLoser = result[0].gridItems[1];
+
+    expect(updatedLoser).not.toBe(loser);
+    expect(
+      readViewGroupSettings(JSON.parse(updatedLoser.args_string).map_extent),
+    ).toEqual({
+      extent: "-10686671.12,4721671.57,4.5",
+      variable: null,
+      viewGroup: "Basin",
+      isInitialExtent: false,
+    });
+    // The winner is untouched, by identity.
+    expect(result[0].gridItems[0]).toBe(saved);
   });
 });
