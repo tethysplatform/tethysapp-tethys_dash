@@ -126,6 +126,24 @@ const firstString = (...values) => {
 };
 
 /**
+ * The nested container of a doubly-nested `{extent: {extent, ...}}` value.
+ *
+ * That form is the one shape whose group keys live a level down, so the reader
+ * below and the flag-stripper further on both have to agree on exactly when
+ * the inner value counts as a container. An array is never one: a stored
+ * extent may legitimately be an array of numbers.
+ *
+ * @param {*} mapExtent a stored map extent value in any of its shapes
+ * @returns {object|null} the nested container, or null when there is none
+ */
+export function nestedExtentContainer(mapExtent) {
+  const nested = mapExtent?.extent;
+  return nested && typeof nested === "object" && !Array.isArray(nested)
+    ? nested
+    : null;
+}
+
+/**
  * Read the view group settings out of a stored `map_extent` value.
  *
  * The stored value has accumulated three shapes over time and all three are
@@ -156,12 +174,7 @@ export function readViewGroupSettings(mapExtent) {
     return settings;
   }
 
-  const nested =
-    mapExtent.extent &&
-    typeof mapExtent.extent === "object" &&
-    !Array.isArray(mapExtent.extent)
-      ? mapExtent.extent
-      : null;
+  const nested = nestedExtentContainer(mapExtent);
 
   settings.extent = firstString(nested ? nested.extent : mapExtent.extent);
   settings.variable = firstString(
@@ -180,6 +193,48 @@ export function readViewGroupSettings(mapExtent) {
     );
 
   return settings;
+}
+
+// The synthetic tab the popup modal and the popup layout editor mount their
+// reused `DashboardLayout` under. Those subtrees see the dashboard's providers,
+// so view-group membership has to be declined explicitly (R27).
+export const POPUP_TAB_ID = "popup";
+
+/**
+ * Whether a map may join a view group.
+ *
+ * The view half (`components/map/Map.js`) and the cursor half
+ * (`components/visualizations/Map.js`) register with the group separately, so
+ * the rule that decides membership lives here rather than in either of them:
+ * the two halves must never be enabled independently of each other.
+ *
+ * R27: the DataViewer preview map and the popup-modal / popup-editor maps
+ * never join a group. Neither does a map with no grid item UUID -- an unkeyed
+ * member cannot be addressed, unregistered, or told apart from another unkeyed
+ * one.
+ *
+ * @param {object} params
+ * @param {string|null} params.viewGroupName the resolved group name, if any
+ * @param {boolean} params.hasViewGroupContext whether a group provider is above
+ * @param {boolean} params.dataviewerViz whether this is the DataViewer preview
+ * @param {*} params.activeTabId the id of the tab the map is mounted under
+ * @param {*} params.gridItemUUID the map's grid item UUID, if it has one
+ * @returns {boolean}
+ */
+export function isViewGroupMember({
+  viewGroupName,
+  hasViewGroupContext,
+  dataviewerViz,
+  activeTabId,
+  gridItemUUID,
+}) {
+  return Boolean(
+    viewGroupName &&
+    hasViewGroupContext &&
+    !dataviewerViz &&
+    activeTabId !== POPUP_TAB_ID &&
+    gridItemUUID,
+  );
 }
 
 // Grid item `source` for the built-in Map visualization. A plugin-supplied map
@@ -224,17 +279,25 @@ export function parseSeedExtent(extent) {
   return null;
 }
 
-const parseArgs = (argsString) => {
+/**
+ * Parse a grid item's stored `args_string`.
+ *
+ * A grid item whose args are missing or do not parse yields null rather than
+ * throwing: it simply contributes nothing, and every other grid item on the
+ * dashboard must still be processed.
+ *
+ * @param {*} argsString the grid item's stored `args_string`
+ * @returns {object|null} the parsed args object, or null
+ */
+export function parseGridItemArgs(argsString) {
   if (typeof argsString !== "string" || argsString.trim() === "") return null;
   try {
     const parsed = JSON.parse(argsString);
     return parsed && typeof parsed === "object" ? parsed : null;
   } catch {
-    // A grid item whose args do not parse simply supplies no seed. Every other
-    // grid item on the dashboard must still be scanned.
     return null;
   }
-};
+}
 
 /**
  * Scan a dashboard's tabs for the members flagged to supply their group's
@@ -261,7 +324,7 @@ export function discoverGroupSeeds(tabs) {
     gridItems.forEach((gridItem) => {
       // R19: a plugin map's extent does not exist until the plugin has run.
       if (!gridItem || gridItem.source !== BUILT_IN_MAP_SOURCE) return;
-      const args = parseArgs(gridItem.args_string);
+      const args = parseGridItemArgs(gridItem.args_string);
       if (!args) return;
       const settings = readViewGroupSettings(args.map_extent);
       if (!settings.viewGroup || !settings.isInitialExtent) return;
@@ -271,4 +334,106 @@ export function discoverGroupSeeds(tabs) {
   });
 
   return seeds;
+}
+
+/**
+ * Strip the "this map supplies its group's initial extent" flag out of a
+ * stored `map_extent` value, whichever of its historical shapes it arrived in
+ * (bare string, `{extent}`, `{extent, variable}`, or the doubly nested
+ * `{extent: {extent, ...}}` form).
+ *
+ * Returns the value it was given when there was no flag to clear, so callers
+ * can compare by identity to tell whether anything changed.
+ *
+ * @param {*} mapExtent the stored map extent value
+ * @returns {*} the value with the flag removed, or the original reference
+ */
+export function clearGroupInitialExtent(mapExtent) {
+  if (!mapExtent || typeof mapExtent !== "object" || Array.isArray(mapExtent)) {
+    return mapExtent;
+  }
+
+  const nested = nestedExtentContainer(mapExtent);
+  const outerFlagged = "isGroupInitialExtent" in mapExtent;
+  const nestedFlagged = nested !== null && "isGroupInitialExtent" in nested;
+  if (!outerFlagged && !nestedFlagged) return mapExtent;
+
+  const cleared = { ...mapExtent };
+  delete cleared.isGroupInitialExtent;
+  if (nestedFlagged) {
+    const clearedNested = { ...nested };
+    delete clearedNested.isGroupInitialExtent;
+    cleared.extent = clearedNested;
+  }
+  return cleared;
+}
+
+/**
+ * Clear the group initial-extent flag on one grid item.
+ *
+ * Only the built-in Map carries a stored extent to flag; a plugin map's extent
+ * does not exist until the plugin has run, so it is left alone. A grid item
+ * whose args do not parse is left alone too rather than being rewritten.
+ *
+ * @param {object} gridItem the grid item to clear
+ * @returns {object} a new grid item with the flag cleared, or the original
+ *   reference when there was nothing to clear
+ */
+export function clearGridItemGroupInitialExtent(gridItem) {
+  if (!gridItem || gridItem.source !== BUILT_IN_MAP_SOURCE) return gridItem;
+
+  const args = parseGridItemArgs(gridItem.args_string);
+  if (!args) return gridItem;
+
+  const mapExtent = clearGroupInitialExtent(args.map_extent);
+  if (mapExtent === args.map_extent) return gridItem;
+
+  return {
+    ...gridItem,
+    args_string: JSON.stringify({ ...args, map_extent: mapExtent }),
+  };
+}
+
+/**
+ * Enforce R28 across the whole dashboard: at most one member of a view group
+ * may be flagged as the group's initial extent.
+ *
+ * The just-saved grid item is the winner, so every other member of the same
+ * group -- on any tab, since a group spans tabs -- has its flag cleared. Only
+ * the flag is touched; the losing members stay in the group.
+ *
+ * @param {Array<object>} tabs the complete tab list, already carrying the save
+ * @param {string} groupName the saved map's view group name
+ * @param {object} savedGridItem the grid item being saved, matched by identity
+ * @returns {Array<object>} the tab list, with untouched tabs kept by reference
+ */
+export function enforceSingleGroupInitialExtent(
+  tabs,
+  groupName,
+  savedGridItem,
+) {
+  const normalizedGroup = normalizeViewGroupName(groupName);
+  if (!normalizedGroup || !Array.isArray(tabs)) return tabs;
+
+  return tabs.map((tab) => {
+    const gridItems = Array.isArray(tab?.gridItems) ? tab.gridItems : [];
+    let tabChanged = false;
+
+    const updatedGridItems = gridItems.map((gridItem) => {
+      if (gridItem === savedGridItem) return gridItem;
+      if (!gridItem || gridItem.source !== BUILT_IN_MAP_SOURCE) return gridItem;
+
+      const args = parseGridItemArgs(gridItem.args_string);
+      const settings = readViewGroupSettings(args?.map_extent);
+      if (settings.viewGroup !== normalizedGroup || !settings.isInitialExtent) {
+        return gridItem;
+      }
+
+      const cleared = clearGridItemGroupInitialExtent(gridItem);
+      if (cleared !== gridItem) tabChanged = true;
+      return cleared;
+    });
+
+    return tabChanged ? { ...tab, gridItems: updatedGridItems } : tab;
+  });
 }

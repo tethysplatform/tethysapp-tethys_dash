@@ -61,7 +61,10 @@ jest.mock("components/map/zarrReader", () => ({
 // eslint-disable-next-line
 import { readSlice } from "components/map/zarrReader";
 // eslint-disable-next-line
-import MapVisualization, { Popup } from "components/visualizations/Map";
+import MapVisualization, {
+  LINKED_CURSOR_OVERLAY_ID,
+  Popup,
+} from "components/visualizations/Map";
 // eslint-disable-next-line
 import {
   createJsonStyleFunction,
@@ -7709,7 +7712,7 @@ describe("linked cursor", () => {
   // The marker carries a stable overlay id precisely so a test (and a browser
   // debugging session) can find it without walking the overlay collection.
   const cursorMarker = (mapRef) =>
-    mapRef.current.getOverlayById("linked-cursor");
+    mapRef.current.getOverlayById(LINKED_CURSOR_OVERLAY_ID);
 
   // The popup overlay carries no id, so it is found by the element its own
   // React root renders into. Reaching for the node directly is the point here:
@@ -7816,9 +7819,9 @@ describe("linked cursor", () => {
       createLoadedComponent({ children: dashboardOf([{ uuid: "b" }], maps) }),
     );
 
-    expect(survivor.current.getOverlayById("linked-cursor").getPosition()).toBe(
-      undefined,
-    );
+    expect(
+      survivor.current.getOverlayById(LINKED_CURSOR_OVERLAY_ID).getPosition(),
+    ).toBe(undefined);
   });
 
   test("a member whose projection differs from the group's pin receives no marker", async () => {

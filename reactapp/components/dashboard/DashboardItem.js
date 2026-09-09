@@ -13,9 +13,8 @@ import {
   GridItemContext,
 } from "components/contexts/Contexts";
 import { useAppTourContext } from "components/contexts/AppTourContext";
-import DataViewerModal, {
-  clearGridItemGroupInitialExtent,
-} from "components/modals/DataViewer/DataViewer";
+import DataViewerModal from "components/modals/DataViewer/DataViewer";
+import { clearGridItemGroupInitialExtent } from "components/map/viewGroup";
 import DashboardItemDropdown from "components/dashboard/DashboardItemDropdown";
 import BaseVisualization from "components/visualizations/Base";
 import { confirm } from "components/inputs/DeleteConfirmation";

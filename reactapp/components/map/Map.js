@@ -38,7 +38,11 @@ import {
   VariableInputsContext,
 } from "components/contexts/Contexts";
 import { useViewGroupContext } from "components/contexts/ViewGroupContext";
-import { readViewGroupSettings, viewsAreEqual } from "components/map/viewGroup";
+import {
+  isViewGroupMember,
+  readViewGroupSettings,
+  viewsAreEqual,
+} from "components/map/viewGroup";
 import GeoJSON from "ol/format/GeoJSON";
 import { valuesEqual } from "components/modals/utilities";
 
@@ -169,11 +173,6 @@ function abortShapefileLoad(olLayer, reason) {
   detachShapefileLoad(olLayer);
 }
 
-// The synthetic tab the popup modal and the popup layout editor mount their
-// reused `DashboardLayout` under. Those subtrees see the dashboard's providers,
-// so view-group membership has to be declined explicitly (R27).
-const POPUP_TAB_ID = "popup";
-
 // Snapshot a view's state for the group. The center is copied because
 // OpenLayers hands back the array it holds and mutates it in place during a
 // gesture, which would silently rewrite a recorded baseline.
@@ -292,17 +291,15 @@ const MapComponent = ({
   // The group name is read off the resolved extent value, which has three
   // legacy shapes still in dashboards.
   const viewGroupName = readViewGroupSettings(mapExtent).viewGroup;
-  // R27: the DataViewer preview map and the popup-modal / popup-editor maps
-  // never join a group. Neither does a map with no grid item UUID -- an
-  // unkeyed member cannot be addressed, unregistered, or told apart from
-  // another unkeyed one.
-  const viewGroupEnabled = Boolean(
-    viewGroupName &&
-    viewGroupContext &&
-    !dataviewerViz &&
-    activeTabId !== POPUP_TAB_ID &&
+  // R27 and the rest of the membership rule live in `viewGroup.js`, shared
+  // with the cursor half in `components/visualizations/Map.js`.
+  const viewGroupEnabled = isViewGroupMember({
+    viewGroupName,
+    hasViewGroupContext: Boolean(viewGroupContext),
+    dataviewerViz,
+    activeTabId,
     gridItemUUID,
-  );
+  });
   // The group this member is currently registered under, read by the
   // postrender handler and the apply callback, both of which outlive a render.
   const activeViewGroupRef = useRef(null);
@@ -1265,9 +1262,8 @@ const MapComponent = ({
   // arriving: a follower that clamps keeps receiving applies whose read-back
   // never matches, so an apply-driven notion of "in flight" would never open
   // the gate and that member would stop publishing its extent altogether.
-  const trackViewMotion = (view) => {
+  const trackViewMotion = (view, current) => {
     const previous = lastFrameViewRef.current;
-    const current = readViewState(view);
     lastFrameViewRef.current = current;
     // The condition is "my view moved without me being the interactor", not
     // "I was applied to" -- which also covers a keyboard pan and a
@@ -1393,13 +1389,17 @@ const MapComponent = ({
     // state for a map with no area, so a member on a hidden tab hands the
     // handler a null one.
     const view = map.getView();
+    // Read once per frame and shared by every branch below: nothing between
+    // here and the tail mutates the view within one synchronous invocation --
+    // the branches that do apply a view state all return.
+    const current = readViewState(view);
     // Before any of the group bookkeeping and before any early return: a
     // member that is out of sync on projection still has a view that can be
     // moved programmatically, and its consumers still need the gate.
     // Registered here rather than on its own listener so an ungrouped map --
     // which no peer can drive, and for which OpenLayers' own hints already
     // coalesce every path -- keeps its per-frame cost at exactly zero (R2).
-    if (mapExtent?.variable || onMapMoveEnd) trackViewMotion(view);
+    if (mapExtent?.variable || onMapMoveEnd) trackViewMotion(view, current);
     const code = view.getProjection().getCode();
     const groupProjection = reportViewGroupProjection(code);
 
@@ -1408,7 +1408,7 @@ const MapComponent = ({
       // projection later matches again rejoins where it stands rather than
       // publishing the whole divergence as if the viewer had made it.
       lastViewObjectRef.current = view;
-      viewGroupBaselineRef.current = readViewState(view);
+      viewGroupBaselineRef.current = current;
       viewGroupReadbackRef.current = false;
       viewGroupDeclinedRef.current = false;
       setViewGroupMismatch((previous) =>
@@ -1441,7 +1441,7 @@ const MapComponent = ({
         viewGroupDeclinedRef.current = false;
         return;
       }
-      viewGroupBaselineRef.current = readViewState(view);
+      viewGroupBaselineRef.current = current;
       viewGroupReadbackRef.current = false;
       // Only reachable with a group view while the viewer is interacting, in
       // which case the re-adopt is deferred to the settled frame the same way
@@ -1467,7 +1467,7 @@ const MapComponent = ({
 
     if (viewGroupReadbackRef.current) {
       viewGroupReadbackRef.current = false;
-      viewGroupBaselineRef.current = readViewState(view);
+      viewGroupBaselineRef.current = current;
       return;
     }
 
@@ -1485,7 +1485,6 @@ const MapComponent = ({
       }
     }
 
-    const current = readViewState(view);
     if (!viewGroupBaselineRef.current) {
       viewGroupBaselineRef.current = current;
       return;

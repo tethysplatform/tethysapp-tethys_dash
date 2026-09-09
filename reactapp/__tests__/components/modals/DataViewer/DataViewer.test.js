@@ -9,12 +9,14 @@ import {
   within,
 } from "@testing-library/react";
 import DataViewerModal, {
-  clearGridItemGroupInitialExtent,
-  clearGroupInitialExtent,
-  enforceSingleGroupInitialExtent,
   getAllVariableInputNames,
   updateVariableInputs,
 } from "components/modals/DataViewer/DataViewer";
+import {
+  clearGridItemGroupInitialExtent,
+  clearGroupInitialExtent,
+  enforceSingleGroupInitialExtent,
+} from "components/map/viewGroup";
 import {
   mockedDashboards,
   userDashboard,

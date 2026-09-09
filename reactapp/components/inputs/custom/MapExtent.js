@@ -4,6 +4,7 @@ import PropTypes from "prop-types";
 import styled from "styled-components";
 import { useMapContext } from "components/contexts/MapContext";
 import { wrapMercatorX } from "components/map/utilities";
+import { readViewGroupSettings } from "components/map/viewGroup";
 
 const FullInput = styled.input`
   width: 100%;
@@ -85,23 +86,17 @@ const containsTemplate = (str) => /\$\{\w+\}/.test(str ?? "");
 // The saved value tolerates every historical shape: a bare extent string, an
 // `{extent}` / `{extent, variable}` object, and the doubly wrapped
 // `{extent: {extent, ...}}` object that `isValidExtentInput` also unwraps.
-// Everything downstream of this works with the normalized object.
-export const normalizeExtentValue = (value) => {
-  if (value === null || value === undefined) return {};
-  if (typeof value === "string") return { extent: value };
-
-  const inner =
-    value.extent !== null &&
-    typeof value.extent === "object" &&
-    value.extent !== undefined
-      ? value.extent
-      : value;
-
+// `readViewGroupSettings` is the one reader of those shapes -- the map reads
+// the very same value through it -- so this is only the widget's adapter over
+// it: the editor wants an empty string for "no extent typed yet", and names
+// the flag the way it is stored.
+const normalizeExtentValue = (value) => {
+  const settings = readViewGroupSettings(value);
   return {
-    extent: typeof inner?.extent === "string" ? inner.extent : "",
-    variable: inner?.variable,
-    viewGroup: inner?.viewGroup,
-    isGroupInitialExtent: inner?.isGroupInitialExtent,
+    extent: settings.extent ?? "",
+    variable: settings.variable,
+    viewGroup: settings.viewGroup,
+    isGroupInitialExtent: settings.isInitialExtent,
   };
 };
 

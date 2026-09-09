@@ -48,7 +48,10 @@ import {
 } from "components/contexts/Contexts";
 import { useMapContext } from "components/contexts/MapContext";
 import { useViewGroupContext } from "components/contexts/ViewGroupContext";
-import { readViewGroupSettings } from "components/map/viewGroup";
+import {
+  isViewGroupMember,
+  readViewGroupSettings,
+} from "components/map/viewGroup";
 import PopupModal from "components/modals/PopupModal/PopupModal";
 import PopupModalChrome from "components/modals/PopupModal/PopupModalChrome";
 import PopupModalCarousel from "components/modals/PopupModal/PopupModalCarousel";
@@ -242,10 +245,6 @@ export const Popup = ({
   );
 };
 
-// Mirrors the private constant of the same name in components/map/Map.js: the
-// popup-modal / popup-editor tab's maps never join a view group (R27).
-const POPUP_TAB_ID = "popup";
-
 // Stable overlay id so the linked-cursor marker can be addressed on a map
 // without walking its overlay collection.
 export const LINKED_CURSOR_OVERLAY_ID = "linked-cursor";
@@ -412,13 +411,13 @@ const MapVisualization = ({
   const viewGroupName = readViewGroupSettings(mapExtent).viewGroup;
   // The same membership rules MapComponent applies to the view half of a
   // group, so the two halves are never enabled independently of each other.
-  const cursorGroupEnabled = Boolean(
-    viewGroupName &&
-    viewGroupContext &&
-    !dataviewerViz &&
-    activeTabId !== POPUP_TAB_ID &&
+  const cursorGroupEnabled = isViewGroupMember({
+    viewGroupName,
+    hasViewGroupContext: Boolean(viewGroupContext),
+    dataviewerViz,
+    activeTabId,
     gridItemUUID,
-  );
+  });
   // MapComponent already registers `gridItemUUID` for the view half, and the
   // registry keys members by id -- registering again under the same id would
   // replace that record and silently break view syncing. The cursor half joins
