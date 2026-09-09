@@ -11,7 +11,7 @@ import createLoadedComponent, {
   InputVariablePComponent,
 } from "__tests__/utilities/customRender";
 import PropTypes from "prop-types";
-import { Map } from "ol";
+import { Map, View } from "ol";
 import ImageArcGISRest from "ol/source/ImageArcGISRest.js";
 import VariableInput from "components/visualizations/VariableInput";
 import { Vector as VectorSource } from "ol/source.js";
@@ -7632,5 +7632,330 @@ describe("linked map view groups", () => {
         (call) => call[1] === maps.a.current,
       ),
     ).toBe(true);
+  });
+});
+
+describe("linked cursor", () => {
+  const cursorLayers = [
+    {
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "Gauges",
+          source: {
+            type: "ESRI Image and Map Service",
+            props: { url: "some_url" },
+          },
+        },
+      },
+    },
+  ];
+
+  const CursorMember = ({ uuid, maps, viewGroup = "Basin", mapDrawing }) => {
+    const visualizationRef = useRef();
+    const { mapReady } = useMapContext();
+    useEffect(() => {
+      maps[uuid] = visualizationRef;
+    }, [maps, uuid]);
+    return (
+      <GridItemContext.Provider
+        value={{ gridItemUUID: uuid, shouldLoad: true, gridItemI: uuid }}
+      >
+        <MapVisualization
+          visualizationRef={visualizationRef}
+          mapConfig={{}}
+          layers={cursorLayers}
+          baseMap={null}
+          layerControl={false}
+          mapDrawing={mapDrawing}
+          mapExtent={
+            viewGroup ? { extent: "0,0,5", viewGroup } : { extent: "0,0,5" }
+          }
+        />
+        <p>{mapReady ? `${uuid} ready` : `${uuid} loading`}</p>
+      </GridItemContext.Provider>
+    );
+  };
+  CursorMember.propTypes = {
+    uuid: PropTypes.string,
+    maps: PropTypes.object,
+    viewGroup: PropTypes.string,
+    mapDrawing: PropTypes.object,
+  };
+
+  const dashboardOf = (members, maps) => (
+    <>
+      {members.map((member) => (
+        <MapContextProvider key={member.uuid}>
+          <CursorMember maps={maps} {...member} />
+        </MapContextProvider>
+      ))}
+    </>
+  );
+
+  const renderCursorDashboard = async (members) => {
+    const maps = {};
+    const utils = render(
+      createLoadedComponent({ children: dashboardOf(members, maps) }),
+    );
+    for (const member of members) {
+      expect(
+        await screen.findByText(`${member.uuid} ready`),
+      ).toBeInTheDocument();
+    }
+    return { maps, ...utils };
+  };
+
+  // The marker carries a stable overlay id precisely so a test (and a browser
+  // debugging session) can find it without walking the overlay collection.
+  const cursorMarker = (mapRef) =>
+    mapRef.current.getOverlayById("linked-cursor");
+
+  // The popup overlay carries no id, so it is found by the element its own
+  // React root renders into. Reaching for the node directly is the point here:
+  // the assertion is about an OpenLayers overlay, not about rendered output.
+  const popupOverlayOf = (mapRef) =>
+    mapRef.current
+      .getOverlays()
+      .getArray()
+      // eslint-disable-next-line testing-library/no-node-access
+      .find((overlay) => overlay.getElement()?.querySelector?.("#map-popup"));
+
+  const movePointer = async (mapRef, coordinate, originalEvent) => {
+    await act(async () => {
+      mapRef.current.dispatchEvent({
+        type: "pointermove",
+        coordinate,
+        pixel: [5, 5],
+        originalEvent,
+      });
+    });
+  };
+
+  // Publishes are coalesced onto an animation frame, so a test that asserts an
+  // ABSENCE has to let a real frame go by first -- otherwise it would pass
+  // against an implementation that simply had not flushed yet.
+  const letAFramePass = async () => {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+  };
+
+  test("a pointermove on one member marks the same coordinate on the other", async () => {
+    const { maps } = await renderCursorDashboard([
+      { uuid: "a" },
+      { uuid: "b" },
+    ]);
+
+    await movePointer(maps.a, [1000, 2000]);
+
+    await waitFor(() =>
+      expect(cursorMarker(maps.b).getPosition()).toEqual([1000, 2000]),
+    );
+    // The publisher is excluded from its own fan-out: a map never marks the
+    // position of its own pointer.
+    expect(cursorMarker(maps.a).getPosition()).toBeUndefined();
+  });
+
+  test("a peer's pointermove opens no popup, selects nothing and fires no click handler on the receiver", async () => {
+    const { maps } = await renderCursorDashboard([
+      { uuid: "a" },
+      { uuid: "b" },
+    ]);
+    const receiverClick = jest.fn();
+    maps.b.current.on("singleclick", receiverClick);
+
+    await movePointer(maps.a, [1000, 2000]);
+    await waitFor(() =>
+      expect(cursorMarker(maps.b).getPosition()).toEqual([1000, 2000]),
+    );
+    await letAFramePass();
+
+    expect(receiverClick).not.toHaveBeenCalled();
+    expect(popupOverlayOf(maps.b).getPosition()).toBeUndefined();
+    // No layer on either map was identified, so no feature was selected.
+    expect(mockedQueryLayerFeatures).not.toHaveBeenCalled();
+  });
+
+  test("a pointerleave on the source viewport clears the marker on every other member", async () => {
+    const { maps } = await renderCursorDashboard([
+      { uuid: "a" },
+      { uuid: "b" },
+      { uuid: "c" },
+    ]);
+
+    await movePointer(maps.a, [1000, 2000]);
+    await waitFor(() =>
+      expect(cursorMarker(maps.b).getPosition()).toEqual([1000, 2000]),
+    );
+    expect(cursorMarker(maps.c).getPosition()).toEqual([1000, 2000]);
+
+    fireEvent.pointerLeave(maps.a.current.getViewport());
+
+    expect(cursorMarker(maps.b).getPosition()).toBeUndefined();
+    expect(cursorMarker(maps.c).getPosition()).toBeUndefined();
+  });
+
+  test("unmounting the source clears the marker on the remaining members", async () => {
+    const maps = {};
+    const { rerender } = render(
+      createLoadedComponent({
+        children: dashboardOf([{ uuid: "a" }, { uuid: "b" }], maps),
+      }),
+    );
+    expect(await screen.findByText("a ready")).toBeInTheDocument();
+    expect(await screen.findByText("b ready")).toBeInTheDocument();
+
+    await movePointer(maps.a, [1000, 2000]);
+    await waitFor(() =>
+      expect(cursorMarker(maps.b).getPosition()).toEqual([1000, 2000]),
+    );
+
+    const survivor = maps.b;
+    rerender(
+      createLoadedComponent({ children: dashboardOf([{ uuid: "b" }], maps) }),
+    );
+
+    expect(survivor.current.getOverlayById("linked-cursor").getPosition()).toBe(
+      undefined,
+    );
+  });
+
+  test("a member whose projection differs from the group's pin receives no marker", async () => {
+    const { maps } = await renderCursorDashboard([
+      { uuid: "a" },
+      { uuid: "b" },
+      { uuid: "c" },
+    ]);
+
+    await act(async () => {
+      maps.b.current.setView(
+        new View({ projection: "EPSG:4326", center: [10, 20], zoom: 4 }),
+      );
+    });
+
+    await movePointer(maps.a, [1000, 2000]);
+
+    // `c` proves the publish actually landed, so `b`'s empty marker is the
+    // projection guard rather than a frame that never flushed.
+    await waitFor(() =>
+      expect(cursorMarker(maps.c).getPosition()).toEqual([1000, 2000]),
+    );
+    expect(cursorMarker(maps.b).getPosition()).toBeUndefined();
+  });
+
+  test("several pointermoves inside one frame produce a single position update", async () => {
+    const { maps } = await renderCursorDashboard([
+      { uuid: "a" },
+      { uuid: "b" },
+    ]);
+    const setPosition = jest.spyOn(cursorMarker(maps.b), "setPosition");
+
+    // Three synchronous dispatches cannot be separated by an animation frame.
+    await act(async () => {
+      maps.a.current.dispatchEvent({
+        type: "pointermove",
+        coordinate: [1, 2],
+        pixel: [1, 1],
+      });
+      maps.a.current.dispatchEvent({
+        type: "pointermove",
+        coordinate: [3, 4],
+        pixel: [2, 2],
+      });
+      maps.a.current.dispatchEvent({
+        type: "pointermove",
+        coordinate: [5, 6],
+        pixel: [3, 3],
+      });
+    });
+
+    await waitFor(() => expect(setPosition).toHaveBeenCalledTimes(1));
+    await letAFramePass();
+    // Only the last position of the frame is published.
+    expect(setPosition.mock.calls).toEqual([[[5, 6]]]);
+  });
+
+  test("an ungrouped map on the same dashboard is never marked", async () => {
+    const { maps } = await renderCursorDashboard([
+      { uuid: "a" },
+      { uuid: "b" },
+      { uuid: "c", viewGroup: null },
+    ]);
+
+    await movePointer(maps.a, [1000, 2000]);
+    await waitFor(() =>
+      expect(cursorMarker(maps.b).getPosition()).toEqual([1000, 2000]),
+    );
+    await letAFramePass();
+
+    expect(cursorMarker(maps.c).getPosition()).toBeUndefined();
+  });
+
+  test("entering draw mode on the source clears peers' markers rather than freezing them", async () => {
+    const { maps } = await renderCursorDashboard([
+      { uuid: "a", mapDrawing: { options: ["Point"] } },
+      { uuid: "b" },
+    ]);
+
+    await movePointer(maps.a, [1000, 2000]);
+    await waitFor(() =>
+      expect(cursorMarker(maps.b).getPosition()).toEqual([1000, 2000]),
+    );
+
+    fireEvent.click(screen.getByTitle("Draw Point"));
+    await movePointer(maps.a, [3000, 4000]);
+
+    // The hover handler returns early while drawing; the cursor publisher must
+    // actively retract instead, or the peer would sit on [1000, 2000] forever.
+    expect(cursorMarker(maps.b).getPosition()).toBeUndefined();
+    await letAFramePass();
+    expect(cursorMarker(maps.b).getPosition()).toBeUndefined();
+  });
+
+  test("moving the pointer onto an open popup clears peers' markers rather than freezing them", async () => {
+    const { maps } = await renderCursorDashboard([
+      { uuid: "a" },
+      { uuid: "b" },
+    ]);
+
+    await movePointer(maps.a, [1000, 2000]);
+    await waitFor(() =>
+      expect(cursorMarker(maps.b).getPosition()).toEqual([1000, 2000]),
+    );
+
+    const popupElement = popupOverlayOf(maps.a).getElement();
+    await movePointer(maps.a, [3000, 4000], { target: popupElement });
+
+    expect(cursorMarker(maps.b).getPosition()).toBeUndefined();
+    await letAFramePass();
+    expect(cursorMarker(maps.b).getPosition()).toBeUndefined();
+  });
+
+  test("a pointerleave arriving with a frame flush already queued leaves the marker hidden", async () => {
+    const { maps } = await renderCursorDashboard([
+      { uuid: "a" },
+      { uuid: "b" },
+    ]);
+
+    await movePointer(maps.a, [1000, 2000]);
+    await waitFor(() =>
+      expect(cursorMarker(maps.b).getPosition()).toEqual([1000, 2000]),
+    );
+
+    // The move and the leave land in the same frame, so the leave has to cancel
+    // the queued flush as well as publish the clear.
+    act(() => {
+      maps.a.current.dispatchEvent({
+        type: "pointermove",
+        coordinate: [9000, 9000],
+        pixel: [9, 9],
+      });
+    });
+    fireEvent.pointerLeave(maps.a.current.getViewport());
+
+    expect(cursorMarker(maps.b).getPosition()).toBeUndefined();
+    await letAFramePass();
+    expect(cursorMarker(maps.b).getPosition()).toBeUndefined();
   });
 });

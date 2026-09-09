@@ -44,8 +44,11 @@ import {
   VariableInputsContext,
   LayoutContext,
   GridItemContext,
+  TabContext,
 } from "components/contexts/Contexts";
 import { useMapContext } from "components/contexts/MapContext";
+import { useViewGroupContext } from "components/contexts/ViewGroupContext";
+import { readViewGroupSettings } from "components/map/viewGroup";
 import PopupModal from "components/modals/PopupModal/PopupModal";
 import PopupModalChrome from "components/modals/PopupModal/PopupModalChrome";
 import PopupModalCarousel from "components/modals/PopupModal/PopupModalCarousel";
@@ -239,6 +242,38 @@ export const Popup = ({
   );
 };
 
+// Mirrors the private constant of the same name in components/map/Map.js: the
+// popup-modal / popup-editor tab's maps never join a view group (R27).
+const POPUP_TAB_ID = "popup";
+
+// Stable overlay id so the linked-cursor marker can be addressed on a map
+// without walking its overlay collection.
+export const LINKED_CURSOR_OVERLAY_ID = "linked-cursor";
+
+// The mark a receiving map shows at a peer's cursor position. A crosshair
+// rather than a dot: it reads as "the same place over there" without covering
+// the feature underneath it.
+const createLinkedCursorElement = () => {
+  const element = document.createElement("div");
+  element.setAttribute("aria-hidden", "true");
+  element.className = "linked-cursor-marker";
+  // Decoration only -- it must never swallow the receiving map's own pointer
+  // events. OpenLayers sets `pointer-events: auto` on its own overlay wrapper,
+  // which is cleared alongside this when the overlay is built.
+  element.style.pointerEvents = "none";
+  element.style.width = "22px";
+  element.style.height = "22px";
+  element.innerHTML =
+    '<svg width="22" height="22" viewBox="0 0 22 22" focusable="false">' +
+    '<g fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round" opacity="0.85">' +
+    '<circle cx="11" cy="11" r="4.5" /><path d="M11 0.5v3M11 18.5v3M0.5 11h3M18.5 11h3" />' +
+    "</g>" +
+    '<g fill="none" stroke="#1b6ec2" stroke-width="1.75" stroke-linecap="round">' +
+    '<circle cx="11" cy="11" r="4.5" /><path d="M11 0.5v3M11 18.5v3M0.5 11h3M18.5 11h3" />' +
+    "</g></svg>";
+  return element;
+};
+
 const MapVisualization = ({
   mapConfig,
   mapExtent,
@@ -366,6 +401,47 @@ const MapVisualization = ({
     gridItemUUID,
   };
 
+  // --- Linked cursor (U5) -------------------------------------------------
+  // The marker lives here, not in MapComponent, because this is where the
+  // map's overlays are built. An overlay is also the cheapest way to move a
+  // mark: `Overlay#setPosition` writes one CSS transform and triggers no map
+  // render, and it keeps the marker out of the layer collection, where layer
+  // reconciliation would eventually sweep it away.
+  const viewGroupContext = useViewGroupContext();
+  const { activeTabId } = useContext(TabContext) ?? {};
+  const viewGroupName = readViewGroupSettings(mapExtent).viewGroup;
+  // The same membership rules MapComponent applies to the view half of a
+  // group, so the two halves are never enabled independently of each other.
+  const cursorGroupEnabled = Boolean(
+    viewGroupName &&
+    viewGroupContext &&
+    !dataviewerViz &&
+    activeTabId !== POPUP_TAB_ID &&
+    gridItemUUID,
+  );
+  // MapComponent already registers `gridItemUUID` for the view half, and the
+  // registry keys members by id -- registering again under the same id would
+  // replace that record and silently break view syncing. The cursor half joins
+  // under its own derived id instead, which also excludes the publisher from
+  // its own fan-out for free.
+  const cursorMemberId = gridItemUUID ? `${gridItemUUID}::cursor` : null;
+  const cursorOverlayRef = useRef(null);
+  // The group this map's cursor half is registered under. Read from listeners
+  // and registry callbacks, both of which outlive the render that bound them.
+  const activeCursorGroupRef = useRef(null);
+  // The coordinate waiting on the next animation frame, and that frame's
+  // handle. A pointer move fires far more often than the screen refreshes, so
+  // only the last position of each frame is ever published.
+  const cursorPendingRef = useRef(null);
+  const cursorFrameRef = useRef(null);
+  // What this map last told the group. A pointer parked on the popup, or held
+  // down mid-draw, then publishes one clear rather than one per move.
+  const cursorPublishedRef = useRef(null);
+  const cursorApplyRef = useRef(null);
+  const cursorClearRef = useRef(null);
+  const cursorHideRef = useRef(null);
+  const cursorMoveRef = useRef(null);
+
   const spinnerOverlayRef = useRef(null);
   // Create a spinner element for the overlay
   const spinnerElement = document.createElement("div");
@@ -396,10 +472,31 @@ const MapVisualization = ({
       positioning: "center-center",
     });
 
+    const cursorOverlay = new Overlay({
+      id: LINKED_CURSOR_OVERLAY_ID,
+      element: createLinkedCursorElement(),
+      // Critical: `autoPan` would drag the receiving map around under the
+      // viewer on every pointer move of the source.
+      autoPan: false,
+      // Not in the stop-event container, so the marker never intercepts the
+      // receiving map's clicks, hovers or drags -- and so the popup, which is
+      // in that container, always draws above it.
+      stopEvent: false,
+      positioning: "center-center",
+    });
+    // OpenLayers gives its own overlay wrapper `pointer-events: auto`, which
+    // would put the wrapper back in the way of the element it wraps.
+    // istanbul ignore else
+    if (cursorOverlay.element) {
+      cursorOverlay.element.style.pointerEvents = "none";
+    }
+    cursorOverlayRef.current = cursorOverlay;
+
     // istanbul ignore next
     if (visualizationRef?.current) {
       // known non-coverage for tests
       visualizationRef.current.addOverlay(spinnerOverlayRef.current);
+      visualizationRef.current.addOverlay(cursorOverlay);
       visualizationRef.current.addOverlay(popupOverlay);
       popupOverlayRef.current = popupOverlay;
     }
@@ -410,6 +507,9 @@ const MapVisualization = ({
         // known non-coverage for tests
         if (spinnerOverlayRef.current) {
           visualizationRef.current.removeOverlay(spinnerOverlayRef.current);
+        }
+        if (cursorOverlayRef.current) {
+          visualizationRef.current.removeOverlay(cursorOverlayRef.current);
         }
         if (popupOverlayRef.current) {
           // eslint-disable-next-line
@@ -1158,6 +1258,160 @@ const MapVisualization = ({
       runHoverQuery(map, coordinate, pixel);
     }, HOVER_DEBOUNCE_MS);
   };
+
+  // --- Linked cursor: publish, receive, clear -----------------------------
+
+  // Report this map's live projection into the group and read back the pin.
+  // R6: a member out of step with the pin neither marks nor is marked -- its
+  // coordinates are numbers in a different space, and drawing them as if they
+  // were the group's would put the mark somewhere the pointer never was.
+  const cursorProjectionMatches = () => {
+    const map = visualizationRef?.current;
+    const groupName = activeCursorGroupRef.current;
+    if (!map || !groupName || !viewGroupContext) return false;
+    const code = map.getView().getProjection().getCode();
+    const pinned = viewGroupContext.reportMemberProjection(
+      groupName,
+      cursorMemberId,
+      code,
+    );
+    return !pinned || pinned === code;
+  };
+
+  const publishCursorCoordinate = (coordinate) => {
+    const groupName = activeCursorGroupRef.current;
+    if (!groupName || !viewGroupContext) return;
+    cursorPublishedRef.current = coordinate;
+    viewGroupContext.publishCursor(groupName, cursorMemberId, coordinate);
+  };
+
+  const cancelCursorFrame = () => {
+    if (cursorFrameRef.current === null) return;
+    cancelAnimationFrame(cursorFrameRef.current);
+    cursorFrameRef.current = null;
+  };
+
+  // Retract this map's mark from every peer. The queued frame is cancelled in
+  // the same breath: a flush left in flight would re-show the marker a tick
+  // after the clear, which is exactly what a `pointerleave` must not leave
+  // behind.
+  const clearPeerCursors = () => {
+    cancelCursorFrame();
+    cursorPendingRef.current = null;
+    if (cursorPublishedRef.current === null) return;
+    publishCursorCoordinate(null);
+  };
+  cursorClearRef.current = clearPeerCursors;
+
+  const queueCursorPublish = (coordinate) => {
+    cursorPendingRef.current = coordinate;
+    if (cursorFrameRef.current !== null) return;
+    cursorFrameRef.current = requestAnimationFrame(() => {
+      cursorFrameRef.current = null;
+      const pending = cursorPendingRef.current;
+      cursorPendingRef.current = null;
+      if (!pending) return;
+      publishCursorCoordinate(pending);
+    });
+  };
+
+  // The cursor half's own `pointermove` listener. Deliberately NOT hung off
+  // `onMapHover`: that handler returns early while a draw gesture is live and
+  // again while the pointer rests on the popup, and an early return tells the
+  // group nothing -- peers' markers would freeze at the last position instead
+  // of going away. Both states clear here instead.
+  const handleLinkedCursorMove = (evt) => {
+    if (!activeCursorGroupRef.current) return;
+    if (drawing.current) {
+      clearPeerCursors();
+      return;
+    }
+    const popupElement = popupContainerRef.current;
+    const target = evt.originalEvent?.target;
+    if (popupElement && target && popupElement.contains(target)) {
+      clearPeerCursors();
+      return;
+    }
+    if (!cursorProjectionMatches()) {
+      clearPeerCursors();
+      return;
+    }
+    queueCursorPublish(evt.coordinate);
+  };
+  cursorMoveRef.current = handleLinkedCursorMove;
+
+  // Take this map's own marker down. Guarded on the overlay already carrying a
+  // position so the mount-time and tab-change clears, which fire on every map
+  // whether or not anything is marked, write nothing.
+  const hideCursorMarker = () => {
+    const overlay = cursorOverlayRef.current;
+    if (!overlay || overlay.getPosition() === undefined) return;
+    overlay.setPosition(undefined);
+  };
+
+  // Receive a peer's cursor. A null coordinate is the group's "gone" signal.
+  const applyPeerCursor = (coordinate) => {
+    if (!Array.isArray(coordinate) || !cursorProjectionMatches()) {
+      hideCursorMarker();
+      return;
+    }
+    cursorOverlayRef.current?.setPosition(coordinate);
+  };
+  cursorApplyRef.current = applyPeerCursor;
+  cursorHideRef.current = hideCursorMarker;
+
+  useEffect(() => {
+    // Captured rather than read in the cleanup: MapComponent owns the OL map
+    // and nulls `visualizationRef` out from under this effect on unmount.
+    const map = visualizationRef?.current;
+    if (!map) return;
+
+    const onMove = (evt) => cursorMoveRef.current?.(evt);
+    const onLeave = () => cursorClearRef.current?.();
+    map.on("pointermove", onMove);
+    // OpenLayers raises no map-level pointer-leave, so the viewport carries
+    // it. Without this the last position of a pointer on its way out of the
+    // map would stay marked on every peer.
+    const viewport = map.getViewport();
+    viewport.addEventListener("pointerleave", onLeave);
+
+    return () => {
+      map.un("pointermove", onMove);
+      viewport.removeEventListener("pointerleave", onLeave);
+      cursorClearRef.current?.();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visualizationRef]);
+
+  useEffect(() => {
+    if (!cursorGroupEnabled) {
+      activeCursorGroupRef.current = null;
+      return;
+    }
+    activeCursorGroupRef.current = viewGroupName;
+    const unregister = viewGroupContext.registerMember(
+      viewGroupName,
+      cursorMemberId,
+      { applyCursor: (coordinate) => cursorApplyRef.current?.(coordinate) },
+    );
+
+    return () => {
+      // Peers drop this map's mark before it leaves the group -- after the
+      // unregister there is nobody left to tell.
+      cursorClearRef.current?.();
+      activeCursorGroupRef.current = null;
+      cursorHideRef.current?.();
+      unregister();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cursorGroupEnabled, viewGroupName, cursorMemberId, viewGroupContext]);
+
+  useEffect(() => {
+    // A tab switch moves no pointer, so nothing else would retract the mark
+    // this map put on its peers, or the one a peer put on it.
+    cursorClearRef.current?.();
+    cursorHideRef.current?.();
+  }, [activeTabId]);
 
   useEffect(() => {
     setActiveFeatureIndex(0);
