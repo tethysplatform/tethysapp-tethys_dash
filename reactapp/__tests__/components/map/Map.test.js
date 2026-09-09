@@ -16,7 +16,12 @@ import {
   exampleStyle,
   layerConfigGeoJSON,
 } from "__tests__/utilities/constants";
-import { VariableInputsContext } from "components/contexts/Contexts";
+import {
+  GridItemContext,
+  TabContext,
+  VariableInputsContext,
+} from "components/contexts/Contexts";
+import ViewGroupProvider from "components/contexts/ViewGroupContext";
 import { wrapMercatorX } from "components/map/utilities";
 import * as olMapboxStyle from "ol-mapbox-style";
 import WebGLTileLayer from "ol/layer/WebGLTile";
@@ -227,6 +232,103 @@ test("Custom Map Config and View Config", async () => {
       }),
     ),
   );
+});
+
+test("Characterization: an extent change replaces the View object, sweeps vector features, and an unchanged extent replaces nothing", async () => {
+  // Pins the behaviour the view-group publisher keys on: a `mapExtent` change
+  // builds a NEW `View` and hands it to `setView`, rather than mutating the
+  // live view in place -- which is what makes view-object identity a reliable
+  // "this was not a user action" signal. The vector sweep alongside it is the
+  // prior defect (features parsed into the outgoing projection are stranded
+  // off screen), so it is pinned here too.
+  const capturedRef = { current: null };
+  const ExtentHarness = ({ mapProps }) => {
+    const visualizationRef = useRef();
+    const { mapReady } = useMapContext();
+    useEffect(() => {
+      capturedRef.current = visualizationRef.current;
+    });
+    return (
+      <div>
+        <MapComponent visualizationRef={visualizationRef} {...mapProps} />
+        <p>{mapReady ? "Map Ready" : "Map Not Ready"}</p>
+      </div>
+    );
+  };
+  ExtentHarness.propTypes = { mapProps: PropTypes.object };
+
+  const layers = [
+    {
+      type: "VectorLayer",
+      props: {
+        name: "Vector Alongside",
+        zIndex: 1,
+        source: {
+          type: "GeoJSON",
+          props: {},
+          geojson: {
+            type: "FeatureCollection",
+            crs: { type: "name", properties: { name: "EPSG:4326" } },
+            features: [
+              {
+                type: "Feature",
+                properties: {},
+                geometry: { type: "Point", coordinates: [-90.54, 14.48] },
+              },
+            ],
+          },
+        },
+      },
+    },
+  ];
+
+  const renderWithExtent = (extent) => (
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
+      <MapContextProvider>
+        <ExtentHarness mapProps={{ layers, mapExtent: { extent } }} />
+      </MapContextProvider>
+    </VariableInputsContext.Provider>
+  );
+
+  const { rerender } = render(renderWithExtent("-10686671.12,4721671.57,5"));
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+  const findVectorFeature = () =>
+    capturedRef.current
+      ?.getLayers()
+      .getArray()
+      .find((layer) => layer.get("name") === "Vector Alongside")
+      ?.getSource()
+      .getFeatures()[0];
+
+  await waitFor(() => expect(findVectorFeature()).toBeDefined());
+
+  const viewBefore = capturedRef.current.getView();
+  expect(viewBefore.getZoom()).toBe(5);
+  // Parsed into the view projection, so Web Mercator metres rather than the
+  // degrees the GeoJSON carries.
+  const [xBefore] = findVectorFeature().getGeometry().getCoordinates();
+  expect(Math.abs(xBefore)).toBeGreaterThan(1e6);
+
+  rerender(renderWithExtent("0,0,6"));
+
+  await waitFor(() =>
+    expect(capturedRef.current.getView()).not.toBe(viewBefore),
+  );
+  const viewAfter = capturedRef.current.getView();
+  expect(viewAfter.getZoom()).toBe(6);
+  expect(viewAfter.getCenter()).toEqual([0, 0]);
+  // Same projection on both sides, so the sweep leaves the coordinates alone.
+  expect(findVectorFeature().getGeometry().getCoordinates()[0]).toBe(xBefore);
+
+  // Re-rendering with an equal extent string (a fresh object each time) is
+  // guarded by `lastAppliedExtentRef`, so the view is NOT replaced -- the
+  // publisher must not read that as a programmatic move.
+  rerender(renderWithExtent("0, 0, 6"));
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  expect(capturedRef.current.getView()).toBe(viewAfter);
 });
 
 test("Custom map extent wraps an out-of-range lon for EPSG:3857 projections", async () => {
@@ -3360,5 +3462,508 @@ describe("projection registry loading", () => {
   it("skips the registry for a source declaring no projection", async () => {
     renderLayers([layerWithProjection("")]);
     expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  });
+});
+
+describe("linked map view groups", () => {
+  // Members are keyed by grid item UUID, so the harness hands each map its own
+  // GridItemContext and collects the OL Map refs by the same key.
+  const GroupMember = ({
+    uuid,
+    mapExtent,
+    maps,
+    shouldLoad = true,
+    dataviewerViz,
+  }) => {
+    const visualizationRef = useRef();
+    useEffect(() => {
+      maps[uuid] = visualizationRef;
+    }, [maps, uuid]);
+    return (
+      <GridItemContext.Provider
+        value={{ gridItemUUID: uuid, shouldLoad, gridItemI: uuid }}
+      >
+        <MapComponent
+          visualizationRef={visualizationRef}
+          mapExtent={mapExtent}
+          dataviewerViz={dataviewerViz}
+        />
+      </GridItemContext.Provider>
+    );
+  };
+  GroupMember.propTypes = {
+    uuid: PropTypes.string,
+    mapExtent: PropTypes.any,
+    maps: PropTypes.object,
+    shouldLoad: PropTypes.bool,
+    dataviewerViz: PropTypes.bool,
+  };
+
+  const Dashboard = ({ members, maps, activeTabId = "tab-1" }) => (
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
+      <TabContext.Provider value={{ activeTabId, tabs: [] }}>
+        <ViewGroupProvider>
+          {members.map((member) => (
+            <GroupMember
+              key={member.uuid ?? "unkeyed"}
+              maps={maps}
+              {...member}
+            />
+          ))}
+        </ViewGroupProvider>
+      </TabContext.Provider>
+    </VariableInputsContext.Provider>
+  );
+  Dashboard.propTypes = {
+    members: PropTypes.array,
+    maps: PropTypes.object,
+    activeTabId: PropTypes.string,
+  };
+
+  // The layer-sync effect is async and ends in a renderSync(), which dispatches
+  // the map's first real postrender. Let it land before a test drives anything.
+  const settle = async () => {
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+  };
+
+  const frame = async (mapRef) => {
+    await act(async () => {
+      mapRef.current.dispatchEvent({ type: "postrender" });
+      await Promise.resolve();
+    });
+  };
+
+  const viewOf = (mapRef) => mapRef.current.getView();
+
+  const stateOf = (mapRef) => ({
+    center: viewOf(mapRef).getCenter(),
+    resolution: viewOf(mapRef).getResolution(),
+    rotation: viewOf(mapRef).getRotation(),
+  });
+
+  const grouped = (uuid, group, extent = "0,0,5") => ({
+    uuid,
+    mapExtent: { extent, viewGroup: group },
+  });
+
+  const renderDashboard = async (members, options = {}) => {
+    const maps = {};
+    const utils = render(
+      <Dashboard members={members} maps={maps} {...options} />,
+    );
+    await settle();
+    // Every member records a baseline from its own opening view before
+    // anything is driven, so the tests below start from a quiet group.
+    for (const member of members) {
+      await frame(maps[member.uuid]);
+    }
+    return { maps, ...utils };
+  };
+
+  test("covers AE4: a grouped map's view change leaves an ungrouped map alone", async () => {
+    const { maps } = await renderDashboard([
+      grouped("a", "Basin"),
+      grouped("b", "Basin"),
+      { uuid: "c", mapExtent: { extent: "0,0,5" } },
+    ]);
+    const before = stateOf(maps.c);
+
+    await act(async () => {
+      viewOf(maps.a).setCenter([100000, 200000]);
+      viewOf(maps.a).setZoom(7);
+    });
+    await frame(maps.a);
+
+    expect(stateOf(maps.b).center).toEqual([100000, 200000]);
+    expect(stateOf(maps.c)).toEqual(before);
+  });
+
+  test("changing center and zoom on one member moves the other to the same center and resolution", async () => {
+    const { maps } = await renderDashboard([
+      grouped("a", "Basin"),
+      grouped("b", "Basin"),
+    ]);
+
+    await act(async () => {
+      viewOf(maps.a).setCenter([-500000, 750000]);
+      viewOf(maps.a).setZoom(8);
+    });
+    await frame(maps.a);
+
+    expect(stateOf(maps.b).center).toEqual([-500000, 750000]);
+    expect(stateOf(maps.b).resolution).toBe(stateOf(maps.a).resolution);
+    expect(stateOf(maps.b).rotation).toBe(stateOf(maps.a).rotation);
+  });
+
+  test("a member whose applied resolution is clamped settles at the clamp and publishes no correction", async () => {
+    const { maps } = await renderDashboard([
+      grouped("a", "Basin"),
+      grouped("b", "Basin"),
+    ]);
+
+    // The component gives no way to configure a view constraint, so the
+    // follower's constrained view is installed directly -- which is also the
+    // shape the raster auto-fit path produces.
+    await act(async () => {
+      maps.b.current.setView(
+        new View({
+          projection: "EPSG:3857",
+          center: [0, 0],
+          zoom: 5,
+          maxZoom: 6,
+        }),
+      );
+    });
+    await frame(maps.b);
+
+    await act(async () => {
+      viewOf(maps.a).setZoom(10);
+    });
+    await frame(maps.a);
+
+    const clamped = viewOf(maps.b).getResolution();
+    expect(viewOf(maps.b).getZoom()).toBeCloseTo(6, 5);
+    expect(clamped).toBeGreaterThan(viewOf(maps.a).getResolution());
+
+    // The follower's read-back happens on its own next frame, so this is the
+    // frame that would publish the clamp back if the baseline were recorded
+    // from what was asked for rather than from what the view settled at.
+    await frame(maps.b);
+    await frame(maps.b);
+
+    expect(viewOf(maps.a).getZoom()).toBeCloseTo(10, 5);
+    expect(viewOf(maps.b).getResolution()).toBe(clamped);
+  });
+
+  test("covers AE12: after a clamped apply both maps come to rest and the unconstrained one stays put", async () => {
+    const { maps } = await renderDashboard([
+      grouped("a", "Basin"),
+      grouped("b", "Basin"),
+    ]);
+    await act(async () => {
+      maps.b.current.setView(
+        new View({
+          projection: "EPSG:3857",
+          center: [0, 0],
+          zoom: 5,
+          maxZoom: 6,
+        }),
+      );
+    });
+    await frame(maps.b);
+
+    await act(async () => {
+      viewOf(maps.a).setCenter([12345, 67890]);
+      viewOf(maps.a).setZoom(11);
+    });
+    await frame(maps.a);
+    await frame(maps.b);
+
+    const restA = stateOf(maps.a);
+    const restB = stateOf(maps.b);
+
+    // One more frame each: nothing may move again.
+    await frame(maps.a);
+    await frame(maps.b);
+    await frame(maps.a);
+
+    expect(stateOf(maps.a)).toEqual(restA);
+    expect(stateOf(maps.b)).toEqual(restB);
+    expect(restA.center).toEqual([12345, 67890]);
+    expect(restB.center).toEqual([12345, 67890]);
+  });
+
+  test("replacing a member's view makes it re-adopt the group view and publish nothing", async () => {
+    const { maps } = await renderDashboard([
+      grouped("a", "Basin"),
+      grouped("b", "Basin"),
+    ]);
+
+    await act(async () => {
+      viewOf(maps.b).setCenter([4000, 5000]);
+      viewOf(maps.b).setZoom(9);
+    });
+    await frame(maps.b);
+    const groupState = stateOf(maps.b);
+
+    // The raster auto-fit path: a brand new View handed to the map, holding
+    // somewhere else entirely.
+    await act(async () => {
+      maps.a.current.setView(
+        new View({
+          projection: "EPSG:3857",
+          center: [999999, 888888],
+          zoom: 2,
+        }),
+      );
+    });
+    await frame(maps.a);
+
+    expect(stateOf(maps.a).center).toEqual(groupState.center);
+    expect(stateOf(maps.a).resolution).toBe(groupState.resolution);
+    // The replacement published nothing, so the other member never moved.
+    expect(stateOf(maps.b)).toEqual(groupState);
+  });
+
+  test("covers AE7: a projection-changing raster resolving on one member does not move the other", async () => {
+    const { maps } = await renderDashboard([
+      grouped("a", "Basin"),
+      grouped("b", "Basin"),
+    ]);
+
+    await act(async () => {
+      viewOf(maps.b).setCenter([4000, 5000]);
+      viewOf(maps.b).setZoom(9);
+    });
+    await frame(maps.b);
+    const groupState = stateOf(maps.b);
+
+    await act(async () => {
+      maps.a.current.setView(
+        new View({ projection: "EPSG:4326", center: [-90.5, 14.4], zoom: 6 }),
+      );
+    });
+    await frame(maps.a);
+
+    // The mismatched member neither applies the group's Web Mercator view nor
+    // publishes its own degrees into it.
+    expect(stateOf(maps.a).center).toEqual([-90.5, 14.4]);
+    expect(stateOf(maps.b)).toEqual(groupState);
+  });
+
+  test("a member reporting a different projection neither syncs nor publishes, and shows the mismatch notice", async () => {
+    const { maps } = await renderDashboard([
+      grouped("a", "Basin"),
+      grouped("b", "Basin"),
+    ]);
+
+    await act(async () => {
+      maps.b.current.setView(
+        new View({ projection: "EPSG:4326", center: [10, 20], zoom: 4 }),
+      );
+    });
+    await frame(maps.b);
+
+    expect(
+      await screen.findByLabelText("View Group Projection Mismatch"),
+    ).toHaveTextContent(
+      'This map is not synced with the "Basin" view group: it is in EPSG:4326 and the group is in EPSG:3857.',
+    );
+
+    // Does not apply.
+    await act(async () => {
+      viewOf(maps.a).setCenter([70000, 80000]);
+    });
+    await frame(maps.a);
+    expect(stateOf(maps.b).center).toEqual([10, 20]);
+
+    // Does not publish.
+    const beforeA = stateOf(maps.a);
+    await act(async () => {
+      viewOf(maps.b).setCenter([-30, -40]);
+    });
+    await frame(maps.b);
+    expect(stateOf(maps.a)).toEqual(beforeA);
+  });
+
+  test("an interacting member ignores an applied view and adopts once the interaction ends", async () => {
+    const { maps } = await renderDashboard([
+      grouped("a", "Basin"),
+      grouped("b", "Basin"),
+    ]);
+
+    const interacting = jest
+      .spyOn(viewOf(maps.b), "getInteracting")
+      .mockReturnValue(true);
+    const beforeB = stateOf(maps.b);
+
+    await act(async () => {
+      viewOf(maps.a).setCenter([321000, 654000]);
+      viewOf(maps.a).setZoom(8);
+    });
+    await frame(maps.a);
+
+    expect(stateOf(maps.b)).toEqual(beforeB);
+
+    interacting.mockReturnValue(false);
+    await frame(maps.b);
+
+    expect(stateOf(maps.b).center).toEqual([321000, 654000]);
+    expect(stateOf(maps.b).resolution).toBe(stateOf(maps.a).resolution);
+  });
+
+  test("a member's own gesture ending is not undone: it publishes and the group follows", async () => {
+    const { maps } = await renderDashboard([
+      grouped("a", "Basin"),
+      grouped("b", "Basin"),
+    ]);
+
+    // First ending: a gesture with nothing to decline. The settled frame must
+    // publish, not re-adopt.
+    const interacting = jest
+      .spyOn(viewOf(maps.a), "getInteracting")
+      .mockReturnValue(true);
+    await act(async () => {
+      viewOf(maps.a).setCenter([11000, 22000]);
+    });
+    await frame(maps.a);
+    interacting.mockReturnValue(false);
+    await frame(maps.a);
+
+    expect(stateOf(maps.a).center).toEqual([11000, 22000]);
+    expect(stateOf(maps.b).center).toEqual([11000, 22000]);
+    // The follower's own next frame records its read-back, exactly as the
+    // render the setters scheduled would.
+    await frame(maps.b);
+
+    // Second ending: a gesture that DID decline an apply. That one re-adopts.
+    interacting.mockReturnValue(true);
+    await act(async () => {
+      viewOf(maps.b).setCenter([33000, 44000]);
+    });
+    await frame(maps.b);
+    expect(stateOf(maps.a).center).toEqual([11000, 22000]);
+
+    interacting.mockReturnValue(false);
+    await frame(maps.a);
+    expect(stateOf(maps.a).center).toEqual([33000, 44000]);
+  });
+
+  test("a published EPSG:3857 center beyond one world copy arrives wrapped on the follower", async () => {
+    const { maps } = await renderDashboard([
+      grouped("a", "Basin"),
+      grouped("b", "Basin"),
+    ]);
+
+    const farX = -25981450;
+    expect(wrapMercatorX(farX)).not.toBe(farX);
+
+    await act(async () => {
+      viewOf(maps.a).setCenter([farX, 5746110]);
+    });
+    await frame(maps.a);
+
+    expect(stateOf(maps.b).center).toEqual([wrapMercatorX(farX), 5746110]);
+  });
+
+  test("a dataviewer map and a map with no grid item UUID never join a group", async () => {
+    const { maps } = await renderDashboard([
+      grouped("a", "Basin"),
+      { ...grouped("preview", "Basin"), dataviewerViz: true },
+      { uuid: undefined, mapExtent: { extent: "0,0,5", viewGroup: "Basin" } },
+    ]);
+    const unkeyed = maps[undefined];
+
+    const beforePreview = stateOf(maps.preview);
+    const beforeUnkeyed = stateOf(unkeyed);
+
+    await act(async () => {
+      viewOf(maps.a).setCenter([90000, 90000]);
+    });
+    await frame(maps.a);
+
+    expect(stateOf(maps.preview)).toEqual(beforePreview);
+    expect(stateOf(unkeyed)).toEqual(beforeUnkeyed);
+
+    // And neither of them publishes into the group either.
+    const beforeA = stateOf(maps.a);
+    await act(async () => {
+      viewOf(maps.preview).setCenter([-1000, -2000]);
+      viewOf(unkeyed).setCenter([-3000, -4000]);
+    });
+    await frame(maps.preview);
+    await frame(unkeyed);
+    expect(stateOf(maps.a)).toEqual(beforeA);
+  });
+
+  test("a map on the synthetic popup tab never joins a group", async () => {
+    const { maps } = await renderDashboard(
+      [grouped("a", "Basin"), grouped("b", "Basin")],
+      { activeTabId: "popup" },
+    );
+    const beforeB = stateOf(maps.b);
+
+    await act(async () => {
+      viewOf(maps.a).setCenter([55000, 66000]);
+    });
+    await frame(maps.a);
+
+    expect(stateOf(maps.b)).toEqual(beforeB);
+  });
+
+  test("unmounting a member mid-gesture leaves the rest of the group working", async () => {
+    const maps = {};
+    const members = [
+      grouped("a", "Basin"),
+      grouped("b", "Basin"),
+      grouped("c", "Basin"),
+    ];
+    const { rerender } = render(<Dashboard members={members} maps={maps} />);
+    await settle();
+    for (const member of members) await frame(maps[member.uuid]);
+
+    const mapC = maps.c;
+    // Mid-gesture: C is being interacted with when it goes away.
+    jest.spyOn(viewOf(mapC), "getInteracting").mockReturnValue(true);
+    await act(async () => {
+      viewOf(mapC).setCenter([777, 888]);
+    });
+
+    rerender(<Dashboard members={members.slice(0, 2)} maps={maps} />);
+    await settle();
+
+    // The departed member's frames are inert -- its handler is unbound and its
+    // membership gone -- so nothing it does reaches the group.
+    const beforeA = stateOf(maps.a);
+    expect(mapC.current).toBeNull();
+
+    await act(async () => {
+      viewOf(maps.a).setCenter([13000, 14000]);
+    });
+    await frame(maps.a);
+    expect(stateOf(maps.b).center).toEqual([13000, 14000]);
+    expect(beforeA.center).not.toEqual([13000, 14000]);
+  });
+
+  test("covers AE10: a member hidden during a group move shows the group view on reactivation and publishes nothing", async () => {
+    const maps = {};
+    const visible = grouped("a", "Basin");
+    const hiddenMember = { ...grouped("b", "Basin"), shouldLoad: false };
+    const { rerender } = render(
+      <Dashboard members={[visible, hiddenMember]} maps={maps} />,
+    );
+    await settle();
+    await frame(maps.a);
+    await frame(maps.b);
+
+    await act(async () => {
+      viewOf(maps.a).setCenter([24000, 25000]);
+      viewOf(maps.a).setZoom(9);
+    });
+    await frame(maps.a);
+    const groupState = stateOf(maps.a);
+
+    // A member that was mounted and hidden never unmounts, so the registration
+    // effect never re-runs for it -- the shouldLoad transition is what forces
+    // it back in step.
+    rerender(
+      <Dashboard
+        members={[visible, { ...hiddenMember, shouldLoad: true }]}
+        maps={maps}
+      />,
+    );
+    await settle();
+    await frame(maps.b);
+    await frame(maps.b);
+
+    expect(stateOf(maps.b).center).toEqual(groupState.center);
+    expect(stateOf(maps.b).resolution).toBe(groupState.resolution);
+    // Arriving must not push the reactivated member's own view at the others.
+    expect(stateOf(maps.a)).toEqual(groupState);
   });
 });

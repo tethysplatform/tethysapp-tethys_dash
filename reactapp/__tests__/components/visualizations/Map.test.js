@@ -7480,3 +7480,157 @@ test("a layer mapping no attributes to variables writes no variable inputs", asy
   expect(await screen.findByText("Map Ready")).toBeInTheDocument();
   expect(await screen.findByText("some value")).toBeInTheDocument();
 });
+
+describe("linked map view groups", () => {
+  const groupedLayers = [
+    {
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "Gauges",
+          minZoomQuery: 6,
+          source: {
+            type: "ESRI Image and Map Service",
+            props: { url: "some_url" },
+          },
+        },
+      },
+    },
+  ];
+
+  const GroupedMapMember = ({ uuid, maps }) => {
+    const visualizationRef = useRef();
+    const { mapReady } = useMapContext();
+    useEffect(() => {
+      maps[uuid] = visualizationRef;
+    }, [maps, uuid]);
+    return (
+      <GridItemContext.Provider
+        value={{ gridItemUUID: uuid, shouldLoad: true, gridItemI: uuid }}
+      >
+        <MapVisualization
+          visualizationRef={visualizationRef}
+          mapConfig={{}}
+          layers={groupedLayers}
+          baseMap={null}
+          layerControl={false}
+          mapExtent={{ extent: "0,0,5", viewGroup: "Basin" }}
+        />
+        <p>{mapReady ? `${uuid} ready` : `${uuid} loading`}</p>
+        <button
+          type="button"
+          onClick={() =>
+            visualizationRef.current?.dispatchEvent({
+              type: "singleclick",
+              coordinate: [1000, 2000],
+              pixel: [5, 5],
+            })
+          }
+        >
+          {`click-${uuid}`}
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            visualizationRef.current?.dispatchEvent({ type: "postrender" })
+          }
+        >
+          {`frame-${uuid}`}
+        </button>
+      </GridItemContext.Provider>
+    );
+  };
+  GroupedMapMember.propTypes = {
+    uuid: PropTypes.string,
+    maps: PropTypes.object,
+  };
+
+  test("a below-minZoomQuery click moves the whole group, and only the clicked map opens a popup", async () => {
+    // `queryLayerFeatures` mutates the clicked map's view IN PLACE when the
+    // click lands below a layer's minZoomQuery -- the third programmatic path
+    // that moves a view, and the only one that does not replace the View
+    // object. Under the identity rule it reads as a user action, which is the
+    // intended treatment: the viewer did act on that map. Pinned here because
+    // a click moving every member of a group is the kind of thing R16 is read
+    // to forbid, so the boundary belongs in a test rather than in a comment.
+    // The popup overlay auto-pans, and its rect measurement throws in jsdom.
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+    const actualUtilities = jest.requireActual("components/map/utilities");
+    mockedQueryLayerFeatures.mockImplementation(
+      async (layerInfo, map, coordinate, pixel) => {
+        if (
+          layerInfo.configuration.props.minZoomQuery >= map.getView().getZoom()
+        ) {
+          return actualUtilities.queryLayerFeatures(
+            layerInfo,
+            map,
+            coordinate,
+            pixel,
+          );
+        }
+        return [{ layerName: "Gauges", attributes: { gauge: "Feature A" } }];
+      },
+    );
+
+    const maps = {};
+    const LoadedComponent = createLoadedComponent({
+      children: (
+        <>
+          <MapContextProvider>
+            <GroupedMapMember uuid="a" maps={maps} />
+          </MapContextProvider>
+          <MapContextProvider>
+            <GroupedMapMember uuid="b" maps={maps} />
+          </MapContextProvider>
+        </>
+      ),
+    });
+    render(LoadedComponent);
+
+    expect(await screen.findByText("a ready")).toBeInTheDocument();
+    expect(await screen.findByText("b ready")).toBeInTheDocument();
+
+    // Both members record a baseline from their own opening view first.
+    fireEvent.click(screen.getByText("frame-a"));
+    fireEvent.click(screen.getByText("frame-b"));
+
+    // The click lands below minZoomQuery, so the layer query zooms the clicked
+    // map in place instead of identifying anything.
+    fireEvent.click(screen.getByText("click-a"));
+    await waitFor(() =>
+      expect(maps.a.current.getView().getZoom()).toBeCloseTo(6.1, 5),
+    );
+    expect(maps.a.current.getView().getCenter()).toEqual([1000, 2000]);
+
+    fireEvent.click(screen.getByText("frame-a"));
+
+    // The group follows the auto-zoom.
+    await waitFor(() =>
+      expect(maps.b.current.getView().getCenter()).toEqual([1000, 2000]),
+    );
+    expect(maps.b.current.getView().getResolution()).toBe(
+      maps.a.current.getView().getResolution(),
+    );
+
+    // Only the clicked map was queried -- the follower moved, it did not click.
+    expect(
+      mockedQueryLayerFeatures.mock.calls.every(
+        (call) => call[1] === maps.a.current,
+      ),
+    ).toBe(true);
+    // ...and nothing opened a popup on either map: the query zoomed instead.
+    expect(screen.queryByText("Feature A")).not.toBeInTheDocument();
+
+    // Now above minZoomQuery, the same click identifies a feature. Exactly one
+    // of the two popups shows it.
+    fireEvent.click(screen.getByText("click-a"));
+    expect(await screen.findByText("Feature A")).toBeInTheDocument();
+    expect(screen.getAllByText("Feature A")).toHaveLength(1);
+    expect(screen.getAllByLabelText("Map Popup Content")).toHaveLength(2);
+    expect(
+      mockedQueryLayerFeatures.mock.calls.every(
+        (call) => call[1] === maps.a.current,
+      ),
+    ).toBe(true);
+  });
+});

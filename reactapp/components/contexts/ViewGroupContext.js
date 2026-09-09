@@ -13,8 +13,9 @@ const createGroupEntry = () => ({
   // The group's current shared view, `{center, resolution, rotation}` or null
   // until a member first publishes (R9).
   view: null,
-  // The projection code the group is pinned to, or null while unpinned.
-  // Pinning and mismatch handling belong to the map wiring (U2).
+  // The projection code the group is pinned to, or null while unpinned. The
+  // first member to report one pins it; a member whose live code differs
+  // neither applies nor publishes (R6).
   projection: null,
   // The extent a flagged member supplies for the group's opening view. The
   // provider-side seed discovery that fills this in belongs to U3.
@@ -83,6 +84,8 @@ const ViewGroupProvider = ({ children }) => {
           typeof handlers.applyCursor === "function"
             ? handlers.applyCursor
             : null,
+        // The member's own live projection code, once it reports one.
+        projection: null,
       };
       entry.members.set(memberId, record);
 
@@ -98,6 +101,15 @@ const ViewGroupProvider = ({ children }) => {
           // Drop the whole entry with the last member so a view left behind by
           // a departed group cannot be resurrected by a later join.
           groupsRef.current.delete(name);
+          return;
+        }
+        if (record.projection && current.projection === record.projection) {
+          // The member that pinned the projection is leaving, so the pin is
+          // re-evaluated from whoever is left rather than outliving them.
+          const remaining = Array.from(current.members.values()).find(
+            (member) => member.projection,
+          );
+          current.projection = remaining ? remaining.projection : null;
         }
       };
     },
@@ -157,6 +169,32 @@ const ViewGroupProvider = ({ children }) => {
   );
 
   /**
+   * Report a member's live projection code and read back the group's pinned
+   * one.
+   *
+   * The group pins its projection from the first member to report one, and a
+   * member whose live code differs from the pin neither applies nor publishes
+   * (R6). Members re-report every frame rather than only at registration,
+   * because a raster auto-fit changes a map's view projection long after it
+   * joined.
+   *
+   * @param {string} groupName
+   * @param {string} memberId
+   * @param {string|null} code the member's live projection code
+   * @returns {string|null} the group's pinned projection code
+   */
+  const reportMemberProjection = useCallback((groupName, memberId, code) => {
+    const name = normalizeViewGroupName(groupName);
+    if (!name) return null;
+    const entry = groupsRef.current.get(name);
+    if (!entry) return null;
+    const member = entry.members.get(memberId);
+    if (member) member.projection = code ?? null;
+    if (!entry.projection && code) entry.projection = code;
+    return entry.projection;
+  }, []);
+
+  /**
    * Read a group's current shared view.
    *
    * @param {string} groupName
@@ -205,8 +243,16 @@ const ViewGroupProvider = ({ children }) => {
       publishCursor,
       getGroupView,
       seedGroupView,
+      reportMemberProjection,
     }),
-    [registerMember, publishView, publishCursor, getGroupView, seedGroupView],
+    [
+      registerMember,
+      publishView,
+      publishCursor,
+      getGroupView,
+      seedGroupView,
+      reportMemberProjection,
+    ],
   );
 
   return (

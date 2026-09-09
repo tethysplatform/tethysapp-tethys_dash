@@ -1277,6 +1277,10 @@ MapVisualization.propTypes = {
   mapExtent: PropTypes.shape({
     extent: PropTypes.string, // minX,minY,maxX,maxY or lon,lat,zoom
     variable: PropTypes.string,
+    // Maps sharing a view group name pan, zoom and rotate together. Read and
+    // acted on by MapComponent, which owns the OL view.
+    viewGroup: PropTypes.string,
+    isGroupInitialExtent: PropTypes.bool,
   }),
   layers: PropTypes.arrayOf(
     PropTypes.shape({
