@@ -2956,3 +2956,105 @@ test("Dashboard Item context menu lives inside the item, not beside it", async (
      content area, and it did not follow a cell lifted above a fill item. */
   expect(dashboardGridItem).toContainElement(dropdownToggle);
 });
+
+// --- Single-flag enforcement on copy (U7 / AE9) ---------------------------
+
+const makeGroupedMapGridItem = ({ i, mapExtent }) => ({
+  id: Number(i),
+  uuid: `some-uuid-${i}`,
+  i,
+  x: 0,
+  y: 0,
+  w: 20,
+  h: 20,
+  source: "Map",
+  args_string: JSON.stringify({
+    baseMap:
+      "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer",
+    layers: [],
+    layerControl: true,
+    map_extent: mapExtent,
+  }),
+  metadata_string: JSON.stringify({ refreshRate: 0 }),
+});
+
+const copyGridItemAndReadTabs = async (mapExtent) => {
+  const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
+  const mockedDashboard = updatedMockedDashboards.dashboards[0];
+  const gridItem = makeGroupedMapGridItem({ i: "1", mapExtent });
+  mockedDashboard.tabs[0].gridItems = [gridItem];
+
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <GridItemContext.Provider
+            value={{
+              gridItemSource: gridItem.source,
+              gridItemI: gridItem.i,
+              gridItemMetadataString: gridItem.metadata_string,
+              gridItemArgsString: gridItem.args_string,
+              gridItemIndex: 0,
+            }}
+          >
+            <DashboardItem />
+          </GridItemContext.Provider>
+          <TabsPComponent />
+        </>
+      ),
+      options: {
+        dashboards: updatedMockedDashboards,
+        initialDashboard: mockedDashboard,
+        inEditing: true,
+      },
+    }),
+  );
+
+  const dashboardItemDropdownToggle = await screen.findByLabelText(
+    "dashboard-item-dropdown-toggle",
+  );
+  await userEvent.click(dashboardItemDropdownToggle);
+  const createCopyButton = await screen.findByText("Copy");
+  await userEvent.click(createCopyButton);
+
+  await waitFor(() => {
+    const { tabs } = JSON.parse(screen.getByTestId("tabs-context").textContent);
+    expect(tabs[0].gridItems).toHaveLength(2);
+  });
+
+  const { tabs } = JSON.parse(screen.getByTestId("tabs-context").textContent);
+  const [original, copy] = tabs[0].gridItems;
+  return {
+    original: JSON.parse(original.args_string).map_extent,
+    copy: JSON.parse(copy.args_string).map_extent,
+    copyGridItem: copy,
+  };
+};
+
+test("Dashboard Item copy of a flagged map clears the flag on the copy", async () => {
+  const { original, copy, copyGridItem } = await copyGridItemAndReadTabs({
+    extent: "-10686671.12,4721671.57,4.5",
+    viewGroup: "Basin",
+    isGroupInitialExtent: true,
+  });
+
+  // The copy is a genuinely new grid item...
+  expect(copyGridItem.i).toBe("2");
+  expect(copyGridItem.id).toBe(null);
+  // ...still in the group, but never a second seed for it.
+  expect(copy.viewGroup).toBe("Basin");
+  expect(copy.isGroupInitialExtent).toBeUndefined();
+  // The original keeps the flag.
+  expect(original.isGroupInitialExtent).toBe(true);
+});
+
+test("Dashboard Item copy of an unflagged grouped map keeps the group name", async () => {
+  const { original, copy } = await copyGridItemAndReadTabs({
+    extent: "-10686671.12,4721671.57,4.5",
+    viewGroup: "Basin",
+  });
+
+  expect(copy).toEqual(original);
+  expect(copy.viewGroup).toBe("Basin");
+  expect(copy.isGroupInitialExtent).toBeUndefined();
+});

@@ -9,6 +9,9 @@ import {
   within,
 } from "@testing-library/react";
 import DataViewerModal, {
+  clearGridItemGroupInitialExtent,
+  clearGroupInitialExtent,
+  enforceSingleGroupInitialExtent,
   getAllVariableInputNames,
   updateVariableInputs,
 } from "components/modals/DataViewer/DataViewer";
@@ -1263,3 +1266,333 @@ TestingComponent.propTypes = {
   mockSetShowGridItemMessage: Proptypes.func.isRequired,
   onTabUpdate: Proptypes.func.isRequired,
 };
+
+// --- Single-flag enforcement (U7) -----------------------------------------
+
+const makeMapGridItem = ({ i, mapExtent, source = "Map" }) => ({
+  id: Number(i),
+  uuid: `some-uuid-${i}`,
+  i,
+  x: 0,
+  y: 0,
+  w: 20,
+  h: 20,
+  source,
+  args_string: JSON.stringify({
+    baseMap:
+      "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer",
+    layers: [],
+    layerControl: true,
+    map_extent: mapExtent,
+  }),
+  metadata_string: JSON.stringify({ refreshRate: 0 }),
+});
+
+const makeVariableGridItem = ({ i, variableName, value }) => ({
+  id: Number(i),
+  uuid: `some-uuid-${i}`,
+  i,
+  x: 0,
+  y: 0,
+  w: 20,
+  h: 20,
+  source: "Variable Input",
+  args_string: JSON.stringify({
+    initial_value: value,
+    variable_name: variableName,
+    variable_options_source: "text",
+  }),
+  metadata_string: JSON.stringify({ refreshRate: 0 }),
+});
+
+const mapExtentOf = (gridItem) => JSON.parse(gridItem.args_string).map_extent;
+
+const findGridItem = (tabs, i) => {
+  for (const tab of tabs) {
+    const found = tab.gridItems.find((gridItem) => gridItem.i === i);
+    if (found) return found;
+  }
+  return undefined;
+};
+
+const flaggedExtent = (group) => ({
+  extent: "-10686671.12,4721671.57,4.5",
+  viewGroup: group,
+  isGroupInitialExtent: true,
+});
+
+test("enforceSingleGroupInitialExtent clears the flag on a same-tab group member", () => {
+  const saved = makeMapGridItem({ i: "1", mapExtent: flaggedExtent("Basin") });
+  const sibling = makeMapGridItem({
+    i: "2",
+    mapExtent: flaggedExtent("Basin"),
+  });
+  const tabs = [{ id: 1, name: "Tab 1", gridItems: [saved, sibling] }];
+
+  const result = enforceSingleGroupInitialExtent(tabs, "Basin", saved);
+
+  expect(mapExtentOf(findGridItem(result, "1"))).toEqual(
+    flaggedExtent("Basin"),
+  );
+  expect(mapExtentOf(findGridItem(result, "2"))).toEqual({
+    extent: "-10686671.12,4721671.57,4.5",
+    viewGroup: "Basin",
+  });
+});
+
+test("enforceSingleGroupInitialExtent clears the flag on a group member on another tab", () => {
+  const saved = makeMapGridItem({ i: "1", mapExtent: flaggedExtent("Basin") });
+  const crossTab = makeMapGridItem({
+    i: "2",
+    mapExtent: flaggedExtent("Basin"),
+  });
+  const tabs = [
+    { id: 1, name: "Tab 1", gridItems: [saved] },
+    { id: 2, name: "Tab 2", gridItems: [crossTab] },
+  ];
+
+  const result = enforceSingleGroupInitialExtent(tabs, "Basin", saved);
+
+  expect(mapExtentOf(findGridItem(result, "1"))).toEqual(
+    flaggedExtent("Basin"),
+  );
+  expect(
+    mapExtentOf(findGridItem(result, "2")).isGroupInitialExtent,
+  ).toBeUndefined();
+  expect(mapExtentOf(findGridItem(result, "2")).viewGroup).toBe("Basin");
+});
+
+test("enforceSingleGroupInitialExtent leaves a map in a different group alone", () => {
+  const saved = makeMapGridItem({ i: "1", mapExtent: flaggedExtent("Basin") });
+  const otherGroup = makeMapGridItem({
+    i: "2",
+    mapExtent: flaggedExtent("Other"),
+  });
+  const pluginMap = makeMapGridItem({
+    i: "3",
+    mapExtent: flaggedExtent("Basin"),
+    source: "plugin_source",
+  });
+  const tabs = [
+    { id: 1, name: "Tab 1", gridItems: [saved, otherGroup, pluginMap] },
+  ];
+
+  const result = enforceSingleGroupInitialExtent(tabs, "Basin", saved);
+
+  expect(mapExtentOf(findGridItem(result, "2"))).toEqual(
+    flaggedExtent("Other"),
+  );
+  // A plugin-supplied map never seeds a group, so it is not rewritten either.
+  expect(findGridItem(result, "3")).toBe(pluginMap);
+});
+
+test("enforceSingleGroupInitialExtent touches nothing when the saved map has no group", () => {
+  const saved = makeMapGridItem({
+    i: "1",
+    mapExtent: { extent: "-10686671.12,4721671.57,4.5" },
+  });
+  const flagged = makeMapGridItem({
+    i: "2",
+    mapExtent: flaggedExtent("Basin"),
+  });
+  const tabs = [{ id: 1, name: "Tab 1", gridItems: [saved, flagged] }];
+
+  expect(enforceSingleGroupInitialExtent(tabs, undefined, saved)).toBe(tabs);
+  expect(enforceSingleGroupInitialExtent(tabs, "   ", saved)).toBe(tabs);
+});
+
+test("clearGroupInitialExtent preserves every legacy map extent shape", () => {
+  // A bare string cannot carry a flag.
+  expect(clearGroupInitialExtent("1,2,3")).toBe("1,2,3");
+  expect(clearGroupInitialExtent(null)).toBe(null);
+
+  // An unflagged object is handed back by identity.
+  const unflagged = { extent: "1,2,3", viewGroup: "Basin" };
+  expect(clearGroupInitialExtent(unflagged)).toBe(unflagged);
+
+  // The flat shape the editor emits.
+  expect(
+    clearGroupInitialExtent({
+      extent: "1,2,3",
+      variable: "Extent",
+      viewGroup: "Basin",
+      isGroupInitialExtent: true,
+    }),
+  ).toEqual({ extent: "1,2,3", variable: "Extent", viewGroup: "Basin" });
+
+  // The doubly nested legacy shape.
+  expect(
+    clearGroupInitialExtent({
+      extent: {
+        extent: "1,2,3",
+        viewGroup: "Basin",
+        isGroupInitialExtent: true,
+      },
+    }),
+  ).toEqual({ extent: { extent: "1,2,3", viewGroup: "Basin" } });
+});
+
+test("clearGridItemGroupInitialExtent leaves unparseable and non-map grid items alone", () => {
+  const broken = { source: "Map", args_string: "{not json" };
+  expect(clearGridItemGroupInitialExtent(broken)).toBe(broken);
+
+  const notAMap = {
+    source: "plugin_source",
+    args_string: JSON.stringify({ map_extent: flaggedExtent("Basin") }),
+  };
+  expect(clearGridItemGroupInitialExtent(notAMap)).toBe(notAMap);
+});
+
+test("Dashboard Viewer save clears duplicate group initial extents across every tab", async () => {
+  const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
+  mockedDashboard.tabs = [
+    {
+      id: 1,
+      name: "Tab 1",
+      gridItems: [
+        makeMapGridItem({ i: "1", mapExtent: flaggedExtent("Basin") }),
+        makeMapGridItem({ i: "2", mapExtent: flaggedExtent("Basin") }),
+        makeMapGridItem({ i: "3", mapExtent: flaggedExtent("Other") }),
+        makeVariableGridItem({
+          i: "4",
+          variableName: "Tab One Variable",
+          value: "one",
+        }),
+      ],
+    },
+    {
+      id: 2,
+      name: "Tab 2",
+      gridItems: [
+        makeMapGridItem({ i: "5", mapExtent: flaggedExtent("Basin") }),
+        makeVariableGridItem({
+          i: "6",
+          variableName: "Tab Two Variable",
+          value: "two",
+        }),
+      ],
+    },
+  ];
+  const gridItem = mockedDashboard.tabs[0].gridItems[0];
+  const mockUpdateTab = jest.fn();
+  const mockSetShowGridItemMessage = jest.fn();
+
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <TestingComponent
+            gridItem={gridItem}
+            gridItemIndex={0}
+            mockHandleModalClose={jest.fn()}
+            mockSetGridItemMessage={jest.fn()}
+            mockSetShowGridItemMessage={mockSetShowGridItemMessage}
+            onTabUpdate={mockUpdateTab}
+          />
+          <InputVariablePComponent />
+        </>
+      ),
+      options: { initialDashboard: mockedDashboard },
+    }),
+  );
+
+  const dataviewerSaveButton = await screen.findByLabelText(
+    "dataviewer-save-button",
+  );
+  fireEvent.click(dataviewerSaveButton);
+
+  await waitFor(() => {
+    expect(mockSetShowGridItemMessage).toHaveBeenCalledWith(true);
+  });
+
+  const savedTabs = mockUpdateTab.mock.calls.at(-1)[0];
+  // The saved map keeps its flag.
+  expect(mapExtentOf(findGridItem(savedTabs, "1")).isGroupInitialExtent).toBe(
+    true,
+  );
+  // A same-tab member of the same group gives its flag up...
+  expect(
+    mapExtentOf(findGridItem(savedTabs, "2")).isGroupInitialExtent,
+  ).toBeUndefined();
+  expect(mapExtentOf(findGridItem(savedTabs, "2")).viewGroup).toBe("Basin");
+  // ...and so does a member on another tab.
+  expect(
+    mapExtentOf(findGridItem(savedTabs, "5")).isGroupInitialExtent,
+  ).toBeUndefined();
+  expect(mapExtentOf(findGridItem(savedTabs, "5")).viewGroup).toBe("Basin");
+  // A map in a different group is untouched.
+  expect(mapExtentOf(findGridItem(savedTabs, "3")).isGroupInitialExtent).toBe(
+    true,
+  );
+
+  // Regression guard for the whole-tab-set write: rebuilding the variable
+  // input values from only the active tab would blank "Tab Two Variable".
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({
+      "Tab One Variable": "one",
+      "Tab Two Variable": "two",
+    }),
+  );
+});
+
+test("Dashboard Viewer save of an ungrouped map touches no other grid item", async () => {
+  const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
+  mockedDashboard.tabs = [
+    {
+      id: 1,
+      name: "Tab 1",
+      gridItems: [
+        makeMapGridItem({
+          i: "1",
+          mapExtent: { extent: "-10686671.12,4721671.57,4.5" },
+        }),
+        makeMapGridItem({ i: "2", mapExtent: flaggedExtent("Basin") }),
+      ],
+    },
+    {
+      id: 2,
+      name: "Tab 2",
+      gridItems: [
+        makeMapGridItem({ i: "3", mapExtent: flaggedExtent("Basin") }),
+      ],
+    },
+  ];
+  const gridItem = mockedDashboard.tabs[0].gridItems[0];
+  const mockUpdateTab = jest.fn();
+  const mockSetShowGridItemMessage = jest.fn();
+
+  render(
+    createLoadedComponent({
+      children: (
+        <TestingComponent
+          gridItem={gridItem}
+          gridItemIndex={0}
+          mockHandleModalClose={jest.fn()}
+          mockSetGridItemMessage={jest.fn()}
+          mockSetShowGridItemMessage={mockSetShowGridItemMessage}
+          onTabUpdate={mockUpdateTab}
+        />
+      ),
+      options: { initialDashboard: mockedDashboard },
+    }),
+  );
+
+  const dataviewerSaveButton = await screen.findByLabelText(
+    "dataviewer-save-button",
+  );
+  fireEvent.click(dataviewerSaveButton);
+
+  await waitFor(() => {
+    expect(mockSetShowGridItemMessage).toHaveBeenCalledWith(true);
+  });
+
+  const savedTabs = mockUpdateTab.mock.calls.at(-1)[0];
+  // The map saved has no group, so nothing else on any tab is rewritten --
+  // the other two keep their flags even though they share a group.
+  expect(findGridItem(savedTabs, "2").args_string).toBe(
+    mockedDashboard.tabs[0].gridItems[1].args_string,
+  );
+  expect(findGridItem(savedTabs, "3").args_string).toBe(
+    mockedDashboard.tabs[1].gridItems[0].args_string,
+  );
+});

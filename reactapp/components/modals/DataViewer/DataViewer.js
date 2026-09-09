@@ -25,6 +25,11 @@ import {
   findVisualizationBySource,
   updateObjectWithVariableInputs,
 } from "components/visualizations/utilities";
+import {
+  BUILT_IN_MAP_SOURCE,
+  normalizeViewGroupName,
+  readViewGroupSettings,
+} from "components/map/viewGroup";
 import { v4 as uuidv4 } from "uuid";
 import { WebsocketContext } from "components/contexts/WebSocketContext";
 import "components/modals/wideModal.css";
@@ -142,6 +147,123 @@ export function updateVariableInputs(
   return updatedGridItems;
 }
 
+/**
+ * Strip the "this map supplies its group's initial extent" flag out of a
+ * stored `map_extent` value, whichever of its historical shapes it arrived in
+ * (bare string, `{extent}`, `{extent, variable}`, or the doubly nested
+ * `{extent: {extent, ...}}` form).
+ *
+ * Returns the value it was given when there was no flag to clear, so callers
+ * can compare by identity to tell whether anything changed.
+ *
+ * @param {*} mapExtent the stored map extent value
+ * @returns {*} the value with the flag removed, or the original reference
+ */
+export function clearGroupInitialExtent(mapExtent) {
+  if (!mapExtent || typeof mapExtent !== "object" || Array.isArray(mapExtent)) {
+    return mapExtent;
+  }
+
+  const nested =
+    mapExtent.extent &&
+    typeof mapExtent.extent === "object" &&
+    !Array.isArray(mapExtent.extent)
+      ? mapExtent.extent
+      : null;
+  const outerFlagged = "isGroupInitialExtent" in mapExtent;
+  const nestedFlagged = nested !== null && "isGroupInitialExtent" in nested;
+  if (!outerFlagged && !nestedFlagged) return mapExtent;
+
+  const cleared = { ...mapExtent };
+  delete cleared.isGroupInitialExtent;
+  if (nestedFlagged) {
+    const clearedNested = { ...nested };
+    delete clearedNested.isGroupInitialExtent;
+    cleared.extent = clearedNested;
+  }
+  return cleared;
+}
+
+/**
+ * Clear the group initial-extent flag on one grid item.
+ *
+ * Only the built-in Map carries a stored extent to flag; a plugin map's extent
+ * does not exist until the plugin has run, so it is left alone. A grid item
+ * whose args do not parse is left alone too rather than being rewritten.
+ *
+ * @param {object} gridItem the grid item to clear
+ * @returns {object} a new grid item with the flag cleared, or the original
+ *   reference when there was nothing to clear
+ */
+export function clearGridItemGroupInitialExtent(gridItem) {
+  if (!gridItem || gridItem.source !== BUILT_IN_MAP_SOURCE) return gridItem;
+
+  let args;
+  try {
+    args = JSON.parse(gridItem.args_string);
+  } catch {
+    return gridItem;
+  }
+  if (!args || typeof args !== "object") return gridItem;
+
+  const mapExtent = clearGroupInitialExtent(args.map_extent);
+  if (mapExtent === args.map_extent) return gridItem;
+
+  return {
+    ...gridItem,
+    args_string: JSON.stringify({ ...args, map_extent: mapExtent }),
+  };
+}
+
+/**
+ * Enforce R28 across the whole dashboard: at most one member of a view group
+ * may be flagged as the group's initial extent.
+ *
+ * The just-saved grid item is the winner, so every other member of the same
+ * group -- on any tab, since a group spans tabs -- has its flag cleared. Only
+ * the flag is touched; the losing members stay in the group.
+ *
+ * @param {Array<object>} tabs the complete tab list, already carrying the save
+ * @param {string} groupName the saved map's view group name
+ * @param {object} savedGridItem the grid item being saved, matched by identity
+ * @returns {Array<object>} the tab list, with untouched tabs kept by reference
+ */
+export function enforceSingleGroupInitialExtent(
+  tabs,
+  groupName,
+  savedGridItem,
+) {
+  const normalizedGroup = normalizeViewGroupName(groupName);
+  if (!normalizedGroup || !Array.isArray(tabs)) return tabs;
+
+  return tabs.map((tab) => {
+    const gridItems = Array.isArray(tab?.gridItems) ? tab.gridItems : [];
+    let tabChanged = false;
+
+    const updatedGridItems = gridItems.map((gridItem) => {
+      if (gridItem === savedGridItem) return gridItem;
+      if (!gridItem || gridItem.source !== BUILT_IN_MAP_SOURCE) return gridItem;
+
+      let args;
+      try {
+        args = JSON.parse(gridItem.args_string);
+      } catch {
+        return gridItem;
+      }
+      const settings = readViewGroupSettings(args?.map_extent);
+      if (settings.viewGroup !== normalizedGroup || !settings.isInitialExtent) {
+        return gridItem;
+      }
+
+      const cleared = clearGridItemGroupInitialExtent(gridItem);
+      if (cleared !== gridItem) tabChanged = true;
+      return cleared;
+    });
+
+    return tabChanged ? { ...tab, gridItems: updatedGridItems } : tab;
+  });
+}
+
 function DataViewerModal({
   showModal,
   handleModalClose,
@@ -155,7 +277,7 @@ function DataViewerModal({
     gridItemIndex,
   } = useContext(GridItemContext);
   const { visualizations } = useContext(AppContext);
-  const { getActiveTab, updateTab } = useContext(TabContext);
+  const { tabs, getActiveTab, updateTab, updateTabs } = useContext(TabContext);
   // --- Initialization logic for visualization states ---
   let initialSelectedVizTypeOption = findVisualizationBySource(
     visualizations,
@@ -302,7 +424,36 @@ function DataViewerModal({
           );
         }
 
-        updateTab(activeTabId, { gridItems: updatedGridItems });
+        // R28: a view group may only carry one initial-extent flag. The map
+        // just saved is the winner, so any other member of the same group --
+        // on this tab or any other -- gives its flag up. The whole tab list is
+        // committed in one write because `updateTab` rebuilds the dashboard's
+        // variable input values from only the tabs it is handed, so naming a
+        // second tab would blank every variable input defined elsewhere.
+        const savedGridItem = updatedGridItems[gridItemIndex];
+        const savedGroup =
+          savedGridItem.source === BUILT_IN_MAP_SOURCE
+            ? readViewGroupSettings(
+                JSON.parse(savedGridItem.args_string).map_extent,
+              )
+            : null;
+
+        if (savedGroup?.viewGroup && savedGroup.isInitialExtent) {
+          const nextTabs = tabs.map((tab) =>
+            tab.id === activeTabId
+              ? { ...tab, gridItems: updatedGridItems }
+              : tab,
+          );
+          updateTabs(
+            enforceSingleGroupInitialExtent(
+              nextTabs,
+              savedGroup.viewGroup,
+              savedGridItem,
+            ),
+          );
+        } else {
+          updateTab(activeTabId, { gridItems: updatedGridItems });
+        }
         setShowGridItemMessage(true);
         handleModalClose();
       } else {

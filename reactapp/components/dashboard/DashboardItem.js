@@ -13,7 +13,9 @@ import {
   GridItemContext,
 } from "components/contexts/Contexts";
 import { useAppTourContext } from "components/contexts/AppTourContext";
-import DataViewerModal from "components/modals/DataViewer/DataViewer";
+import DataViewerModal, {
+  clearGridItemGroupInitialExtent,
+} from "components/modals/DataViewer/DataViewer";
 import DashboardItemDropdown from "components/dashboard/DashboardItemDropdown";
 import BaseVisualization from "components/visualizations/Base";
 import { confirm } from "components/inputs/DeleteConfirmation";
@@ -469,7 +471,7 @@ const DashboardItem = () => {
       return (acc = acc > parseInt(value.i) ? acc : parseInt(value.i));
     }, 0);
     const copiedGridItem = getGridItem(gridItems, gridItemI);
-    const newGridItem = { ...copiedGridItem };
+    let newGridItem = { ...copiedGridItem };
     newGridItem.i = `${parseInt(maxGridItemI) + 1}`;
     newGridItem.id = null;
     newGridItem.uuid = uuidv4();
@@ -493,6 +495,10 @@ const DashboardItem = () => {
         variableInputValues[copiedVariableName];
       setVariableInputValues(variableInputValues);
     }
+    // R28/AE9: the copy stays in the same view group but never inherits the
+    // group's initial-extent flag -- two flagged members would make the
+    // group's opening view depend on the order the dashboard is scanned in.
+    newGridItem = clearGridItemGroupInitialExtent(newGridItem);
     const updatedGridItems = JSON.parse(JSON.stringify(gridItems));
     updateTab(activeTabId, { gridItems: [...updatedGridItems, newGridItem] });
     setIsEditing(true);

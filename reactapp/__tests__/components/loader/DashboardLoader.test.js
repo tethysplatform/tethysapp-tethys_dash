@@ -1340,6 +1340,95 @@ test("DashboardLoader getActiveTab and getTab", async () => {
   );
 });
 
+test("DashboardLoader updateTabs writes every tab in one commit", async () => {
+  const mockUpdateDashboard = jest.fn();
+  const tabOneVariable = JSON.parse(JSON.stringify(mockedTextVariable));
+  tabOneVariable.args_string = JSON.stringify({
+    initial_value: "one",
+    variable_name: "Tab One Variable",
+    variable_options_source: "text",
+  });
+  const tabTwoVariable = JSON.parse(JSON.stringify(mockedTextVariable));
+  tabTwoVariable.id = 2;
+  tabTwoVariable.uuid = "some-uuid-2";
+  tabTwoVariable.i = "2";
+  tabTwoVariable.args_string = JSON.stringify({
+    initial_value: "two",
+    variable_name: "Tab Two Variable",
+    variable_options_source: "text",
+  });
+
+  const twoTabDashboard = JSON.parse(JSON.stringify(userDashboard));
+  twoTabDashboard.tabs = [
+    { id: 1, name: "Tab 1", gridItems: [tabOneVariable] },
+    { id: 2, name: "Tab 2", gridItems: [tabTwoVariable] },
+  ];
+
+  server.use(
+    rest.get(
+      "http://api.test/apps/tethysdash/dashboards/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({ success: true, dashboard: twoTabDashboard }),
+          ctx.set("Content-Type", "application/json"),
+        );
+      },
+    ),
+  );
+
+  // The commit edits a grid item on the NON-active tab. Doing this through
+  // `updateTab` would rebuild the variable input values from only that tab and
+  // blank "Tab One Variable"; `updateTabs` rebuilds over the whole list.
+  const editedTabTwoVariable = JSON.parse(JSON.stringify(tabTwoVariable));
+  editedTabTwoVariable.w = 5;
+  const nextTabs = [
+    { id: 1, name: "Tab 1", gridItems: [tabOneVariable] },
+    { id: 2, name: "Tab 2", gridItems: [editedTabTwoVariable] },
+  ];
+
+  render(
+    <AvailableDashboardsContext.Provider
+      value={{ updateDashboard: mockUpdateDashboard }}
+    >
+      <DashboardLoader {...twoTabDashboard}>
+        <InputVariablePComponent />
+        <TabsPComponent />
+        <TabContext.Consumer>
+          {({ updateTabs }) => (
+            <button
+              data-testid="updateTabsButton"
+              onClick={() => updateTabs(nextTabs)}
+            ></button>
+          )}
+        </TabContext.Consumer>
+      </DashboardLoader>
+    </AvailableDashboardsContext.Provider>,
+  );
+
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({
+      "Tab One Variable": "one",
+      "Tab Two Variable": "two",
+    }),
+  );
+
+  const updateTabsButton = await screen.findByTestId("updateTabsButton");
+  await userEvent.click(updateTabsButton);
+
+  // One write covering both tabs...
+  expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
+    JSON.stringify({ tabs: nextTabs, activeTabId: 1 }),
+  );
+  // ...and every tab's variable inputs survive it.
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({
+      "Tab One Variable": "one",
+      "Tab Two Variable": "two",
+    }),
+  );
+});
+
 TestingComponent.propTypes = {
   TabID: PropTypes.number.isRequired,
   updatedTabProperties: PropTypes.object,

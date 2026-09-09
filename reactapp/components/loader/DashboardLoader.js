@@ -190,6 +190,26 @@ const DashboardLoader = ({
     [tabs, activeTabId, variableInputValues],
   );
 
+  // Commit a whole tab list in one write.
+  //
+  // `updateTab` looks tab-keyed but is not safe to call for a tab that is not
+  // the active one: when its payload carries grid items it rebuilds the
+  // dashboard's variable input values from only the tabs it was handed and
+  // sets them as a full replacement, so naming another tab would blank every
+  // variable input defined elsewhere. Batching several `updateTab` calls does
+  // not help either -- `setTabs` is functional but `setVariableInputValues`
+  // is not, so the last call would win. Callers that must edit grid items on
+  // more than one tab at once use this instead: one `setTabs`, and one
+  // variable-input rebuild over the complete list.
+  const updateTabs = useCallback(
+    (nextTabs) => {
+      setTabs(nextTabs);
+      updateVariableInputValuesWithGridItems(nextTabs);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [variableInputValues],
+  );
+
   const resetTabs = useCallback(() => {
     setTabs(originalTabs.current);
     setActiveTabId(originalTabs.current[0].id);
@@ -296,6 +316,7 @@ const DashboardLoader = ({
       addTab,
       importTabs,
       updateTab,
+      updateTabs,
       deleteTab,
       reorderTabs,
       resetTabs,
@@ -308,6 +329,7 @@ const DashboardLoader = ({
       addTab,
       importTabs,
       updateTab,
+      updateTabs,
       deleteTab,
       reorderTabs,
       resetTabs,
