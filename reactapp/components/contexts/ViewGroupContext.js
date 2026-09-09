@@ -1,6 +1,10 @@
 import { createContext, useCallback, useContext, useMemo, useRef } from "react";
 import PropTypes from "prop-types";
-import { normalizeViewGroupName } from "components/map/viewGroup";
+import {
+  discoverGroupSeeds,
+  normalizeViewGroupName,
+} from "components/map/viewGroup";
+import { TabContext } from "components/contexts/Contexts";
 
 export const ViewGroupContext = createContext();
 
@@ -17,8 +21,10 @@ const createGroupEntry = () => ({
   // first member to report one pins it; a member whose live code differs
   // neither applies nor publishes (R6).
   projection: null,
-  // The extent a flagged member supplies for the group's opening view. The
-  // provider-side seed discovery that fills this in belongs to U3.
+  // The extent a flagged member supplies for the group's opening view, as
+  // discovered from the dashboard's stored grid items rather than from a
+  // member. Null when no member of the group carries the flag, or when the
+  // flagged member's extent seeds nothing.
   pendingSeed: null,
   // Registered members, keyed by grid item UUID.
   members: new Map(),
@@ -33,6 +39,31 @@ const createGroupEntry = () => ({
  */
 const ViewGroupProvider = ({ children }) => {
   const groupsRef = useRef(new Map());
+  const { tabs } = useContext(TabContext) ?? {};
+
+  // Seed discovery is done here, during the provider's own render, rather than
+  // in an effect: effects run child-first, so a map's registration effect would
+  // beat a provider effect to the store and the first member of a group would
+  // find no seed. Rendering is child-last, so every group's seed is in place
+  // before any map mounts. The scan only ever writes `pendingSeed`, never a
+  // live view, so re-running it is idempotent.
+  useMemo(() => {
+    const discovered = discoverGroupSeeds(tabs);
+    discovered.forEach((seed, name) => {
+      let entry = groupsRef.current.get(name);
+      if (!entry) {
+        entry = createGroupEntry();
+        groupsRef.current.set(name, entry);
+      }
+      entry.pendingSeed = seed;
+    });
+    // A group whose flagged member was removed or unflagged stops seeding.
+    groupsRef.current.forEach((entry, name) => {
+      if (discovered.has(name)) return;
+      entry.pendingSeed = null;
+      if (entry.members.size === 0) groupsRef.current.delete(name);
+    });
+  }, [tabs]);
 
   // Fan a value out to every member of a group except the one that published
   // it. Each callback is guarded on its own: a member torn down mid-frame
@@ -98,8 +129,15 @@ const ViewGroupProvider = ({ children }) => {
         if (current.members.get(memberId) !== record) return;
         current.members.delete(memberId);
         if (current.members.size === 0) {
-          // Drop the whole entry with the last member so a view left behind by
-          // a departed group cannot be resurrected by a later join.
+          // A view left behind by a departed group must not be resurrected by a
+          // later join, so it goes with the last member. The discovered seed is
+          // not the departed members' -- it is the dashboard's -- so it stays,
+          // and a group that has none loses its entry entirely.
+          if (current.pendingSeed) {
+            current.view = null;
+            current.projection = null;
+            return;
+          }
           groupsRef.current.delete(name);
           return;
         }
@@ -208,6 +246,24 @@ const ViewGroupProvider = ({ children }) => {
   }, []);
 
   /**
+   * Read the seed a flagged member supplies for a group's opening view.
+   *
+   * Members read this at registration when the group holds no live view yet.
+   * It is not cleared on read: the `x,y,zoom` form is adopted independently by
+   * every member, and the bbox form stops being read once the first member
+   * with a viewport promotes its fit through `seedGroupView`.
+   *
+   * @param {string} groupName
+   * @returns {object|null} the parsed seed, or null when the group has none
+   */
+  const getGroupSeed = useCallback((groupName) => {
+    const name = normalizeViewGroupName(groupName);
+    if (!name) return null;
+    const entry = groupsRef.current.get(name);
+    return entry ? entry.pendingSeed : null;
+  }, []);
+
+  /**
    * Give a group an opening view. Seeding never overwrites a view the group
    * already holds -- a member that resolves a seed does so after the group may
    * already have moved -- and it never fans out, since a seed is adopted by
@@ -242,6 +298,7 @@ const ViewGroupProvider = ({ children }) => {
       publishView,
       publishCursor,
       getGroupView,
+      getGroupSeed,
       seedGroupView,
       reportMemberProjection,
     }),
@@ -250,6 +307,7 @@ const ViewGroupProvider = ({ children }) => {
       publishView,
       publishCursor,
       getGroupView,
+      getGroupSeed,
       seedGroupView,
       reportMemberProjection,
     ],

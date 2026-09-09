@@ -4,6 +4,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import ViewGroupProvider, {
   useViewGroupContext,
 } from "components/contexts/ViewGroupContext";
+import { TabContext } from "components/contexts/Contexts";
 
 const VIEW_A = { center: [100, 200], resolution: 10, rotation: 0 };
 const VIEW_B = { center: [500, 600], resolution: 5, rotation: 0.25 };
@@ -373,5 +374,161 @@ describe("ViewGroupProvider context value", () => {
     );
     render(<NullProbe />);
     expect(screen.getByTestId("hook")).toHaveTextContent("null");
+  });
+});
+
+describe("ViewGroupProvider seed discovery", () => {
+  const flaggedItem = (group, extent, overrides = {}) => ({
+    source: "Map",
+    args_string: JSON.stringify({
+      map_extent: {
+        extent,
+        viewGroup: group,
+        isGroupInitialExtent: true,
+      },
+    }),
+    ...overrides,
+  });
+
+  // Reads the seed during its own render, which is the moment a map's
+  // registration effect would read it: the scan has to have run by then.
+  const SeedProbe = ({ groupName, testId = "seed" }) => {
+    const { getGroupSeed } = useViewGroupContext();
+    return (
+      <p data-testid={testId}>{JSON.stringify(getGroupSeed(groupName))}</p>
+    );
+  };
+  SeedProbe.propTypes = {
+    groupName: PropTypes.string,
+    testId: PropTypes.string,
+  };
+
+  const withTabs = (tabs, children) => (
+    <TabContext.Provider value={{ tabs, activeTabId: 1 }}>
+      <ViewGroupProvider>{children}</ViewGroupProvider>
+    </TabContext.Provider>
+  );
+
+  const seedText = (testId = "seed") => screen.getByTestId(testId).textContent;
+
+  it("holds a flagged member's seed before any member registers", () => {
+    render(
+      withTabs(
+        [{ gridItems: [flaggedItem("Basin", "-100,200,7")] }],
+        <SeedProbe groupName="Basin" />,
+      ),
+    );
+
+    expect(JSON.parse(seedText())).toEqual({
+      type: "center",
+      center: [-100, 200],
+      zoom: 7,
+    });
+  });
+
+  it("reads the flag off a tab whose members never render", () => {
+    render(
+      withTabs(
+        [
+          { gridItems: [] },
+          { gridItems: [flaggedItem("Basin", "-10,-20,30,40")] },
+        ],
+        <MemberProbe groupName="Basin" memberId="a" view={VIEW_A} />,
+      ),
+    );
+
+    // Registration reuses the entry the scan created rather than replacing it.
+    expect(readGroupView("a")).toBe("null");
+  });
+
+  it("keeps the first flagged member in tab-then-grid order", () => {
+    render(
+      withTabs(
+        [
+          {
+            gridItems: [
+              flaggedItem("Basin", "1,2,3"),
+              flaggedItem("Basin", "4,5,6"),
+            ],
+          },
+          { gridItems: [flaggedItem("Basin", "7,8,9")] },
+        ],
+        <SeedProbe groupName="Basin" />,
+      ),
+    );
+
+    expect(JSON.parse(seedText()).center).toEqual([1, 2]);
+  });
+
+  it("has no seed for an unflagged group, an unknown group, or no group", () => {
+    render(
+      withTabs(
+        [{ gridItems: [flaggedItem("Basin", "1,2,3")] }],
+        [
+          <SeedProbe key="other" groupName="Other" testId="other" />,
+          <SeedProbe key="blank" groupName="   " testId="blank" />,
+        ],
+      ),
+    );
+
+    expect(seedText("other")).toBe("null");
+    expect(seedText("blank")).toBe("null");
+  });
+
+  it("rescans when the tab list changes", () => {
+    const { rerender } = render(
+      withTabs([{ gridItems: [] }], <SeedProbe groupName="Basin" />),
+    );
+    expect(seedText()).toBe("null");
+
+    rerender(
+      withTabs(
+        [{ gridItems: [flaggedItem("Basin", "1,2,3")] }],
+        <SeedProbe groupName="Basin" />,
+      ),
+    );
+    expect(JSON.parse(seedText()).center).toEqual([1, 2]);
+
+    // Unflagging or deleting the flagged member stops the group seeding.
+    rerender(withTabs([{ gridItems: [] }], <SeedProbe groupName="Basin" />));
+    expect(seedText()).toBe("null");
+  });
+
+  it("keeps a discovered seed when the last member leaves, but not the live view", () => {
+    // Held stable so the scan does not re-run and re-seed behind the test.
+    const tabs = [{ gridItems: [flaggedItem("Basin", "1,2,3")] }];
+    const Harness = ({ showMembers }) => (
+      <TabContext.Provider value={{ tabs, activeTabId: 1 }}>
+        <ViewGroupProvider>
+          {showMembers && (
+            <MemberProbe groupName="Basin" memberId="a" view={VIEW_A} />
+          )}
+          <SeedProbe groupName="Basin" />
+        </ViewGroupProvider>
+      </TabContext.Provider>
+    );
+    Harness.propTypes = { showMembers: PropTypes.bool };
+
+    const { rerender } = render(<Harness showMembers />);
+    fireEvent.click(screen.getByTestId("publish-view-a"));
+    expect(JSON.parse(readGroupView("a"))).toEqual(VIEW_A);
+
+    // The last member goes, which drops the group's live view. The seed came
+    // from the dashboard rather than from that member, so it survives.
+    rerender(<Harness showMembers={false} />);
+    expect(JSON.parse(seedText()).center).toEqual([1, 2]);
+
+    rerender(<Harness showMembers />);
+    expect(readGroupView("a")).toBe("null");
+    expect(JSON.parse(seedText()).center).toEqual([1, 2]);
+  });
+
+  it("tolerates rendering with no tab context at all", () => {
+    render(
+      <ViewGroupProvider>
+        <SeedProbe groupName="Basin" />
+      </ViewGroupProvider>,
+    );
+    expect(seedText()).toBe("null");
   });
 });

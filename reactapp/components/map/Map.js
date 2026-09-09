@@ -291,6 +291,10 @@ const MapComponent = ({
   const viewGroupDeclinedRef = useRef(false);
   // A forced re-adopt, from a hidden tab becoming active again (R10).
   const viewGroupReadoptRef = useRef(false);
+  // This membership has not yet taken the group's opening view. Consumed once,
+  // on the first frame that can resolve it -- a bbox seed needs a viewport, so
+  // a member that mounts with no area keeps the seed pending until it has one.
+  const viewGroupSeedPendingRef = useRef(false);
   const viewGroupPostrenderRef = useRef(null);
   const viewGroupHandlerRef = useRef(null);
   const viewGroupApplyRef = useRef(null);
@@ -1176,6 +1180,55 @@ const MapComponent = ({
     );
   };
 
+  // Resolve the group's discovered seed into a concrete view state for this
+  // map, and consume it. The seed is stored in view coordinates of the group's
+  // (single, R6) projection, exactly as the extent effect reads them, so no
+  // transform is involved.
+  const resolveGroupSeed = (groupName, view) => {
+    const seed = viewGroupContext.getGroupSeed(groupName);
+    if (!seed) {
+      viewGroupSeedPendingRef.current = false;
+      return null;
+    }
+
+    if (seed.type === "center") {
+      viewGroupSeedPendingRef.current = false;
+      const code = view.getProjection().getCode();
+      const [x, y] = seed.center;
+      return {
+        center: [code === "EPSG:3857" ? wrapMercatorX(x) : x, y],
+        resolution: view.getResolutionForZoom(seed.zoom),
+        rotation: 0,
+      };
+    }
+
+    // AE11. A bbox only means something against a viewport, so the first
+    // member that has one fits it and promotes the result to the group view.
+    // Later members then adopt that rather than each fitting the same bbox to
+    // its own aspect ratio and landing on a different resolution.
+    const size = visualizationRef.current?.getSize();
+    if (!size || !(size[0] > 0) || !(size[1] > 0)) return null;
+    viewGroupSeedPendingRef.current = false;
+    view.fit(seed.bbox, { size });
+    const fitted = readViewState(view);
+    // Promotion never overwrites a live view, so a group moved between this
+    // member mounting and this frame keeps the view the viewer put it at.
+    return viewGroupContext.seedGroupView(groupName, fitted) ?? fitted;
+  };
+
+  // The view a member joining a group opens at: the group's live view when it
+  // has one, otherwise the seed a flagged member supplied. Returns null when
+  // the group has neither, which is R4 -- the member keeps its own extent.
+  const groupOpeningView = (groupName, view) => {
+    const groupView = viewGroupContext.getGroupView(groupName);
+    if (groupView) {
+      viewGroupSeedPendingRef.current = false;
+      return groupView;
+    }
+    if (!viewGroupSeedPendingRef.current) return null;
+    return resolveGroupSeed(groupName, view);
+  };
+
   // Receive another member's view. Registered once per membership, so it reads
   // everything it needs through refs rather than closing over a render.
   const applyGroupView = (nextView) => {
@@ -1246,8 +1299,14 @@ const MapComponent = ({
     // group's view rather than publishing whatever the replacement landed on.
     if (lastViewObjectRef.current !== view) {
       lastViewObjectRef.current = view;
-      const groupView = viewGroupContext.getGroupView(groupName);
-      if (groupView && !view.getInteracting()) {
+      const interacting = view.getInteracting();
+      // A fresh membership reaches this branch on its very first frame, which
+      // is also where a late join lands: the group's live view when it has one,
+      // and otherwise the seed a flagged member supplied for its opening view.
+      const groupView = interacting
+        ? viewGroupContext.getGroupView(groupName)
+        : groupOpeningView(groupName, view);
+      if (groupView && !interacting) {
         applyViewState(view, groupView);
         viewGroupReadbackRef.current = true;
         viewGroupDeclinedRef.current = false;
@@ -1269,7 +1328,7 @@ const MapComponent = ({
     ) {
       viewGroupReadoptRef.current = false;
       viewGroupDeclinedRef.current = false;
-      const groupView = viewGroupContext.getGroupView(groupName);
+      const groupView = groupOpeningView(groupName, view);
       if (groupView) {
         applyViewState(view, groupView);
         viewGroupReadbackRef.current = true;
@@ -1281,6 +1340,20 @@ const MapComponent = ({
       viewGroupReadbackRef.current = false;
       viewGroupBaselineRef.current = readViewState(view);
       return;
+    }
+
+    // A bbox seed cannot be resolved by a member with no viewport, and a map
+    // mounted on a hidden tab has none. The seed stays pending until a frame
+    // that can resolve it arrives -- which is the frame the ResizeObserver
+    // schedules when the member is first given area. No gesture can be in
+    // flight at that point, since a zero-size map cannot be panned.
+    if (settled && viewGroupSeedPendingRef.current) {
+      const opening = groupOpeningView(groupName, view);
+      if (opening) {
+        applyViewState(view, opening);
+        viewGroupReadbackRef.current = true;
+        return;
+      }
     }
 
     const current = readViewState(view);
@@ -1332,6 +1405,7 @@ const MapComponent = ({
     viewGroupBaselineRef.current = null;
     viewGroupReadbackRef.current = false;
     viewGroupDeclinedRef.current = false;
+    viewGroupSeedPendingRef.current = true;
 
     return () => {
       activeViewGroupRef.current = null;

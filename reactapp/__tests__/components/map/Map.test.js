@@ -3499,11 +3499,11 @@ describe("linked map view groups", () => {
     dataviewerViz: PropTypes.bool,
   };
 
-  const Dashboard = ({ members, maps, activeTabId = "tab-1" }) => (
+  const Dashboard = ({ members, maps, activeTabId = "tab-1", tabs = [] }) => (
     <VariableInputsContext.Provider
       value={{ setVariableInputValues: jest.fn() }}
     >
-      <TabContext.Provider value={{ activeTabId, tabs: [] }}>
+      <TabContext.Provider value={{ activeTabId, tabs }}>
         <ViewGroupProvider>
           {members.map((member) => (
             <GroupMember
@@ -3520,6 +3520,7 @@ describe("linked map view groups", () => {
     members: PropTypes.array,
     maps: PropTypes.object,
     activeTabId: PropTypes.string,
+    tabs: PropTypes.array,
   };
 
   // The layer-sync effect is async and ends in a renderSync(), which dispatches
@@ -3964,6 +3965,287 @@ describe("linked map view groups", () => {
     expect(stateOf(maps.b).center).toEqual(groupState.center);
     expect(stateOf(maps.b).resolution).toBe(groupState.resolution);
     // Arriving must not push the reactivated member's own view at the others.
+    expect(stateOf(maps.a)).toEqual(groupState);
+  });
+  // --- Group seeding and late join (U3) ----------------------------------
+
+  // A stored grid item as the provider's seed scan reads it: only `source` and
+  // `args_string` matter to it.
+  const mapGridItem = (
+    uuid,
+    group,
+    extent,
+    { flagged = false, source = "Map" } = {},
+  ) => ({
+    uuid,
+    source,
+    args_string: JSON.stringify({
+      map_extent: { extent, viewGroup: group, isGroupInitialExtent: flagged },
+    }),
+  });
+
+  const tabOf = (id, ...gridItems) => ({ id, name: `Tab ${id}`, gridItems });
+
+  const resolutionForZoom = (zoom) =>
+    new View({ projection: "EPSG:3857" }).getResolutionForZoom(zoom);
+
+  test("covers AE1: with no flagged member each map opens at its own extent, then they move together", async () => {
+    const { maps } = await renderDashboard([
+      grouped("a", "Basin", "0,0,5"),
+      grouped("b", "Basin", "1000000,2000000,7"),
+    ]);
+
+    expect(stateOf(maps.a).center).toEqual([0, 0]);
+    expect(stateOf(maps.b).center).toEqual([1000000, 2000000]);
+    expect(stateOf(maps.a).resolution).not.toBe(stateOf(maps.b).resolution);
+
+    await act(async () => {
+      viewOf(maps.a).setCenter([-300000, 400000]);
+      viewOf(maps.a).setZoom(9);
+    });
+    await frame(maps.a);
+
+    expect(stateOf(maps.b).center).toEqual([-300000, 400000]);
+    expect(stateOf(maps.b).resolution).toBe(stateOf(maps.a).resolution);
+  });
+
+  test("covers AE2: a flagged member on a tab that never mounts still seeds the group", async () => {
+    const tabs = [
+      tabOf(
+        1,
+        mapGridItem("a", "Basin", "0,0,5"),
+        mapGridItem("b", "Basin", "1000000,2000000,7"),
+      ),
+      tabOf(
+        2,
+        mapGridItem("hidden", "Basin", "-5000000,3000000,8", {
+          flagged: true,
+        }),
+      ),
+    ];
+
+    const { maps } = await renderDashboard(
+      [
+        grouped("a", "Basin", "0,0,5"),
+        grouped("b", "Basin", "1000000,2000000,7"),
+      ],
+      { tabs },
+    );
+
+    // The flagged member is on the inactive tab and was never rendered: its
+    // extent reached the group purely through the provider's scan of the args.
+    expect(maps.hidden).toBeUndefined();
+    expect(stateOf(maps.a).center).toEqual([-5000000, 3000000]);
+    expect(stateOf(maps.a).resolution).toBe(resolutionForZoom(8));
+    expect(stateOf(maps.b).center).toEqual([-5000000, 3000000]);
+    expect(stateOf(maps.b).resolution).toBe(resolutionForZoom(8));
+  });
+
+  test("covers AE11: a bbox seed opens members of differing aspect ratios at one center and resolution", async () => {
+    const bbox = "-1000000,-500000,3000000,1500000";
+    const tabs = [
+      tabOf(
+        1,
+        mapGridItem("seed", "Basin", bbox, { flagged: true }),
+        mapGridItem("a", "Basin", "0,0,5"),
+        mapGridItem("b", "Basin", "1000000,2000000,7"),
+      ),
+    ];
+    const maps = {};
+    render(
+      <Dashboard
+        members={[
+          grouped("a", "Basin", "0,0,5"),
+          grouped("b", "Basin", "1000000,2000000,7"),
+        ]}
+        maps={maps}
+        tabs={tabs}
+      />,
+    );
+    await settle();
+
+    // jsdom lays nothing out, so the two viewports the aspect-ratio hazard
+    // needs are installed directly. Until a member has area the bbox stays
+    // unresolved, which is exactly the hidden-tab case.
+    await act(async () => {
+      maps.a.current.setSize([400, 400]);
+      maps.b.current.setSize([200, 400]);
+    });
+    await frame(maps.a);
+    await frame(maps.b);
+
+    expect(stateOf(maps.a).center).toEqual([1000000, 500000]);
+    expect(stateOf(maps.b).center).toEqual(stateOf(maps.a).center);
+    expect(stateOf(maps.b).resolution).toBe(stateOf(maps.a).resolution);
+
+    // Each fitting the bbox to its own tile is the failure this pins: b's own
+    // fit lands on a different resolution entirely.
+    const solo = new View({ projection: "EPSG:3857" });
+    solo.fit(bbox.split(",").map(Number), { size: [200, 400] });
+    expect(solo.getResolution()).not.toBe(stateOf(maps.b).resolution);
+  });
+
+  test("a flagged member whose extent is a variable template seeds nothing", async () => {
+    const tabs = [
+      tabOf(
+        1,
+        mapGridItem("a", "Basin", "0,0,5"),
+        mapGridItem("b", "Basin", "1000000,2000000,7"),
+      ),
+      tabOf(
+        2,
+        // eslint-disable-next-line no-template-curly-in-string
+        mapGridItem("hidden", "Basin", "${SomeVariable}", { flagged: true }),
+      ),
+    ];
+
+    const { maps } = await renderDashboard(
+      [
+        grouped("a", "Basin", "0,0,5"),
+        grouped("b", "Basin", "1000000,2000000,7"),
+      ],
+      { tabs },
+    );
+
+    expect(stateOf(maps.a).center).toEqual([0, 0]);
+    expect(stateOf(maps.b).center).toEqual([1000000, 2000000]);
+  });
+
+  test("a plugin-supplied flagged member is ignored as a seed", async () => {
+    const tabs = [
+      tabOf(
+        1,
+        mapGridItem("a", "Basin", "0,0,5"),
+        mapGridItem("b", "Basin", "1000000,2000000,7"),
+      ),
+      tabOf(
+        2,
+        mapGridItem("plugin", "Basin", "-5000000,3000000,8", {
+          flagged: true,
+          source: "my_plugin_map",
+        }),
+      ),
+    ];
+
+    const { maps } = await renderDashboard(
+      [
+        grouped("a", "Basin", "0,0,5"),
+        grouped("b", "Basin", "1000000,2000000,7"),
+      ],
+      { tabs },
+    );
+
+    expect(stateOf(maps.a).center).toEqual([0, 0]);
+    expect(stateOf(maps.b).center).toEqual([1000000, 2000000]);
+  });
+
+  test("with two flagged members the earlier in tab-then-grid order seeds, on every load", async () => {
+    const tabs = [
+      tabOf(
+        1,
+        mapGridItem("first", "Basin", "1000000,2000000,6", { flagged: true }),
+        mapGridItem("second", "Basin", "-3000000,-4000000,9", {
+          flagged: true,
+        }),
+      ),
+      tabOf(
+        2,
+        mapGridItem("third", "Basin", "7000000,8000000,3", { flagged: true }),
+      ),
+    ];
+
+    const openings = [];
+    for (let load = 0; load < 3; load += 1) {
+      const { maps, unmount } = await renderDashboard(
+        [grouped("m", "Basin", "0,0,5")],
+        { tabs },
+      );
+      openings.push(stateOf(maps.m));
+      unmount();
+    }
+
+    openings.forEach((opening) => {
+      expect(opening.center).toEqual([1000000, 2000000]);
+      expect(opening.resolution).toBe(resolutionForZoom(6));
+    });
+  });
+
+  test("a member joining a group that has already moved adopts its view on its first frame", async () => {
+    const maps = {};
+    const members = [grouped("a", "Basin"), grouped("b", "Basin")];
+    const { rerender } = render(<Dashboard members={members} maps={maps} />);
+    await settle();
+    for (const member of members) await frame(maps[member.uuid]);
+
+    await act(async () => {
+      viewOf(maps.a).setCenter([61000, 62000]);
+      viewOf(maps.a).setZoom(8);
+    });
+    await frame(maps.a);
+    const groupState = stateOf(maps.a);
+
+    rerender(
+      <Dashboard
+        members={[...members, grouped("c", "Basin", "1000000,2000000,7")]}
+        maps={maps}
+      />,
+    );
+    await settle();
+
+    expect(stateOf(maps.c).center).toEqual(groupState.center);
+    expect(stateOf(maps.c).resolution).toBe(groupState.resolution);
+    // Joining is not a move: the members already in the group stay put.
+    expect(stateOf(maps.a)).toEqual(groupState);
+  });
+
+  test("covers AE10: returning to a visited tab shows the group's current view and publishes nothing", async () => {
+    const maps = {};
+    const visible = grouped("a", "Basin");
+    const second = grouped("b", "Basin", "1000000,2000000,7");
+
+    // The viewer visits the second tab, so its member mounts and renders...
+    const { rerender } = render(
+      <Dashboard members={[visible, second]} maps={maps} />,
+    );
+    await settle();
+    await frame(maps.a);
+    await frame(maps.b);
+
+    // ...and returns to the first one, which leaves that member mounted at
+    // zero size rather than unmounting it.
+    rerender(
+      <Dashboard
+        members={[visible, { ...second, shouldLoad: false }]}
+        maps={maps}
+      />,
+    );
+    await settle();
+
+    await act(async () => {
+      viewOf(maps.a).setCenter([24000, 25000]);
+      viewOf(maps.a).setZoom(9);
+    });
+    await frame(maps.a);
+    const groupState = stateOf(maps.a);
+
+    // Drive the hidden member somewhere stale, so re-adoption has something to
+    // correct and a stale publish has something to leak.
+    await act(async () => {
+      viewOf(maps.b).setCenter([-999990, -888880]);
+    });
+
+    rerender(
+      <Dashboard
+        members={[visible, { ...second, shouldLoad: true }]}
+        maps={maps}
+      />,
+    );
+    await settle();
+    await frame(maps.b);
+    await frame(maps.b);
+
+    expect(stateOf(maps.b).center).toEqual(groupState.center);
+    expect(stateOf(maps.b).resolution).toBe(groupState.resolution);
     expect(stateOf(maps.a)).toEqual(groupState);
   });
 });

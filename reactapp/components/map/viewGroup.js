@@ -176,8 +176,99 @@ export function readViewGroupSettings(mapExtent) {
     settings.viewGroup !== null &&
     Boolean(
       mapExtent.isGroupInitialExtent ??
-        (nested ? nested.isGroupInitialExtent : undefined),
+      (nested ? nested.isGroupInitialExtent : undefined),
     );
 
   return settings;
+}
+
+// Grid item `source` for the built-in Map visualization. A plugin-supplied map
+// carries the plugin's own source name instead, and its extent only exists once
+// the plugin has run -- so it can never supply a group's opening view (R19).
+export const BUILT_IN_MAP_SOURCE = "Map";
+
+// A stored extent still carrying a variable token has no value until the
+// dashboard's variable inputs resolve, which may be long after load and may
+// never happen at all. Such an extent seeds nothing (R4).
+const VARIABLE_TOKEN_PATTERN = /\$\{[^}]+\}/;
+
+/**
+ * Parse a stored extent string into the seed a group opens at.
+ *
+ * The two shapes the map itself accepts are both handled, and in the same
+ * coordinate space the map reads them in: the numbers are view coordinates in
+ * the map's own projection, never lon/lat awaiting a transform.
+ *
+ *  - three parts, `x,y,zoom` -- a center and a zoom level, resolvable by any
+ *    member on its own because it needs no viewport size.
+ *  - four parts, `minX,minY,maxX,maxY` -- a bounding box, which only resolves
+ *    against a viewport size and so is resolved by the first member that has
+ *    one (AE11).
+ *
+ * @param {*} extent the stored extent string
+ * @returns {{type: "center", center: Array<number>, zoom: number}
+ *          |{type: "bbox", bbox: Array<number>}
+ *          |null} null when the extent seeds nothing
+ */
+export function parseSeedExtent(extent) {
+  if (typeof extent !== "string") return null;
+  const trimmed = extent.trim();
+  if (trimmed === "" || VARIABLE_TOKEN_PATTERN.test(trimmed)) return null;
+
+  const parts = trimmed.split(",").map((part) => parseFloat(part.trim()));
+  if (parts.some((part) => !Number.isFinite(part))) return null;
+  if (parts.length === 3) {
+    return { type: "center", center: [parts[0], parts[1]], zoom: parts[2] };
+  }
+  if (parts.length === 4) return { type: "bbox", bbox: parts };
+  return null;
+}
+
+const parseArgs = (argsString) => {
+  if (typeof argsString !== "string" || argsString.trim() === "") return null;
+  try {
+    const parsed = JSON.parse(argsString);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    // A grid item whose args do not parse simply supplies no seed. Every other
+    // grid item on the dashboard must still be scanned.
+    return null;
+  }
+};
+
+/**
+ * Scan a dashboard's tabs for the members flagged to supply their group's
+ * opening view.
+ *
+ * This is the provider's job rather than a member's: the flagged map may sit on
+ * a tab that has never mounted, so it would never register and could never seed
+ * itself, and no map component can read another grid item's stored extent.
+ *
+ * Duplicate flags on one group are resolved in tab-then-grid order and the rest
+ * ignored (R28) -- including when the winner's own extent seeds nothing, so the
+ * outcome does not depend on which flagged member happens to be parseable.
+ *
+ * @param {Array<object>} tabs the dashboard's tabs, in their stored order
+ * @returns {Map<string, object|null>} group name to seed, or null for a group
+ *   whose flagged member supplies no usable extent
+ */
+export function discoverGroupSeeds(tabs) {
+  const seeds = new Map();
+  if (!Array.isArray(tabs)) return seeds;
+
+  tabs.forEach((tab) => {
+    const gridItems = Array.isArray(tab?.gridItems) ? tab.gridItems : [];
+    gridItems.forEach((gridItem) => {
+      // R19: a plugin map's extent does not exist until the plugin has run.
+      if (!gridItem || gridItem.source !== BUILT_IN_MAP_SOURCE) return;
+      const args = parseArgs(gridItem.args_string);
+      if (!args) return;
+      const settings = readViewGroupSettings(args.map_extent);
+      if (!settings.viewGroup || !settings.isInitialExtent) return;
+      if (seeds.has(settings.viewGroup)) return;
+      seeds.set(settings.viewGroup, parseSeedExtent(settings.extent));
+    });
+  });
+
+  return seeds;
 }

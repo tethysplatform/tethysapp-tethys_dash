@@ -4,6 +4,8 @@ import {
   ROTATION_TOLERANCE_RADIANS,
   centersAreEqual,
   normalizeViewGroupName,
+  discoverGroupSeeds,
+  parseSeedExtent,
   readViewGroupSettings,
   resolutionsAreEqual,
   rotationsAreEqual,
@@ -213,5 +215,177 @@ describe("readViewGroupSettings", () => {
     expect(readViewGroupSettings("")).toEqual(empty);
     expect(readViewGroupSettings(42)).toEqual(empty);
     expect(readViewGroupSettings({})).toEqual(empty);
+  });
+});
+
+describe("parseSeedExtent", () => {
+  it("reads the three-part form as a center and a zoom", () => {
+    expect(parseSeedExtent("-105.5,40.2,7")).toEqual({
+      type: "center",
+      center: [-105.5, 40.2],
+      zoom: 7,
+    });
+  });
+
+  it("reads the four-part form as a bounding box", () => {
+    expect(parseSeedExtent("-10,-20,30,40")).toEqual({
+      type: "bbox",
+      bbox: [-10, -20, 30, 40],
+    });
+  });
+
+  it("tolerates surrounding and interior whitespace", () => {
+    expect(parseSeedExtent("  0 , 0 , 5 ")).toEqual({
+      type: "center",
+      center: [0, 0],
+      zoom: 5,
+    });
+  });
+
+  it("seeds nothing from an extent still carrying a variable token", () => {
+    // eslint-disable-next-line no-template-curly-in-string
+    expect(parseSeedExtent("${SomeVariable}")).toBeNull();
+    // eslint-disable-next-line no-template-curly-in-string
+    expect(parseSeedExtent("${MinX},${MinY},${MaxX},${MaxY}")).toBeNull();
+  });
+
+  it("seeds nothing from an unusable extent", () => {
+    expect(parseSeedExtent("")).toBeNull();
+    expect(parseSeedExtent("   ")).toBeNull();
+    expect(parseSeedExtent("0,0")).toBeNull();
+    expect(parseSeedExtent("0,0,1,2,3")).toBeNull();
+    expect(parseSeedExtent("0,0,nope")).toBeNull();
+    expect(parseSeedExtent(null)).toBeNull();
+    expect(parseSeedExtent(["0,0,5"])).toBeNull();
+  });
+});
+
+describe("discoverGroupSeeds", () => {
+  const gridItem = (overrides = {}) => ({
+    source: "Map",
+    args_string: JSON.stringify({
+      map_extent: {
+        extent: "0,0,5",
+        viewGroup: "Basin",
+        isGroupInitialExtent: true,
+      },
+    }),
+    ...overrides,
+  });
+
+  const mapExtentItem = (mapExtent, overrides = {}) =>
+    gridItem({
+      args_string: JSON.stringify({ map_extent: mapExtent }),
+      ...overrides,
+    });
+
+  it("finds the flagged member's seed on any tab", () => {
+    const seeds = discoverGroupSeeds([
+      { gridItems: [mapExtentItem({ extent: "1,2,3", viewGroup: "Other" })] },
+      { gridItems: [gridItem()] },
+    ]);
+    expect(Array.from(seeds.keys())).toEqual(["Basin"]);
+    expect(seeds.get("Basin")).toEqual({
+      type: "center",
+      center: [0, 0],
+      zoom: 5,
+    });
+  });
+
+  it("keeps the first flagged member in tab-then-grid order", () => {
+    const seeds = discoverGroupSeeds([
+      {
+        gridItems: [
+          mapExtentItem({
+            extent: "10,20,6",
+            viewGroup: "Basin",
+            isGroupInitialExtent: true,
+          }),
+          mapExtentItem({
+            extent: "30,40,7",
+            viewGroup: "Basin",
+            isGroupInitialExtent: true,
+          }),
+        ],
+      },
+      {
+        gridItems: [
+          mapExtentItem({
+            extent: "50,60,8",
+            viewGroup: "Basin",
+            isGroupInitialExtent: true,
+          }),
+        ],
+      },
+    ]);
+    expect(seeds.get("Basin")).toEqual({
+      type: "center",
+      center: [10, 20],
+      zoom: 6,
+    });
+  });
+
+  it("lets the winner claim the group even when its own extent seeds nothing", () => {
+    // Otherwise which member seeds would depend on which one happens to be
+    // parseable, which is not stable across an edit.
+    const seeds = discoverGroupSeeds([
+      {
+        gridItems: [
+          mapExtentItem({
+            // eslint-disable-next-line no-template-curly-in-string
+            extent: "${SomeVariable}",
+            viewGroup: "Basin",
+            isGroupInitialExtent: true,
+          }),
+          mapExtentItem({
+            extent: "30,40,7",
+            viewGroup: "Basin",
+            isGroupInitialExtent: true,
+          }),
+        ],
+      },
+    ]);
+    expect(seeds.has("Basin")).toBe(true);
+    expect(seeds.get("Basin")).toBeNull();
+  });
+
+  it("ignores a plugin-supplied map carrying the flag", () => {
+    const seeds = discoverGroupSeeds([
+      { gridItems: [gridItem({ source: "my_plugin_map" })] },
+    ]);
+    expect(seeds.size).toBe(0);
+  });
+
+  it("ignores an unflagged or ungrouped member", () => {
+    const seeds = discoverGroupSeeds([
+      {
+        gridItems: [
+          mapExtentItem({ extent: "0,0,5", viewGroup: "Basin" }),
+          mapExtentItem({ extent: "0,0,5", isGroupInitialExtent: true }),
+        ],
+      },
+    ]);
+    expect(seeds.size).toBe(0);
+  });
+
+  it("skips grid items whose args do not parse or carry no extent", () => {
+    const seeds = discoverGroupSeeds([
+      {
+        gridItems: [
+          null,
+          gridItem({ args_string: "{not json" }),
+          gridItem({ args_string: "" }),
+          gridItem({ args_string: JSON.stringify({}) }),
+          gridItem({ args_string: "42" }),
+        ],
+      },
+    ]);
+    expect(seeds.size).toBe(0);
+  });
+
+  it("returns an empty map for a missing or malformed tab list", () => {
+    expect(discoverGroupSeeds(undefined).size).toBe(0);
+    expect(discoverGroupSeeds([]).size).toBe(0);
+    expect(discoverGroupSeeds([{}, { gridItems: null }]).size).toBe(0);
   });
 });
