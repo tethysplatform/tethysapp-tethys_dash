@@ -3474,6 +3474,7 @@ describe("linked map view groups", () => {
     maps,
     shouldLoad = true,
     dataviewerViz,
+    onMapMoveEnd,
   }) => {
     const visualizationRef = useRef();
     useEffect(() => {
@@ -3487,6 +3488,7 @@ describe("linked map view groups", () => {
           visualizationRef={visualizationRef}
           mapExtent={mapExtent}
           dataviewerViz={dataviewerViz}
+          onMapMoveEnd={onMapMoveEnd}
         />
       </GridItemContext.Provider>
     );
@@ -3497,12 +3499,17 @@ describe("linked map view groups", () => {
     maps: PropTypes.object,
     shouldLoad: PropTypes.bool,
     dataviewerViz: PropTypes.bool,
+    onMapMoveEnd: PropTypes.func,
   };
 
-  const Dashboard = ({ members, maps, activeTabId = "tab-1", tabs = [] }) => (
-    <VariableInputsContext.Provider
-      value={{ setVariableInputValues: jest.fn() }}
-    >
+  const Dashboard = ({
+    members,
+    maps,
+    activeTabId = "tab-1",
+    tabs = [],
+    setVariableInputValues = jest.fn(),
+  }) => (
+    <VariableInputsContext.Provider value={{ setVariableInputValues }}>
       <TabContext.Provider value={{ activeTabId, tabs }}>
         <ViewGroupProvider>
           {members.map((member) => (
@@ -3521,6 +3528,7 @@ describe("linked map view groups", () => {
     maps: PropTypes.object,
     activeTabId: PropTypes.string,
     tabs: PropTypes.array,
+    setVariableInputValues: PropTypes.func,
   };
 
   // The layer-sync effect is async and ends in a renderSync(), which dispatches
@@ -4247,5 +4255,331 @@ describe("linked map view groups", () => {
     expect(stateOf(maps.b).center).toEqual(groupState.center);
     expect(stateOf(maps.b).resolution).toBe(groupState.resolution);
     expect(stateOf(maps.a)).toEqual(groupState);
+  });
+
+  // --- Coalesced follower side effects (U4) -------------------------------
+
+  describe("coalescing follower side effects", () => {
+    // Longer than the settle window in components/map/Map.js by a wide margin.
+    // Every assertion below is written against "at least one window has
+    // passed", never against the window's exact value.
+    const PAST_SETTLE_MS = 1000;
+
+    beforeEach(() => {
+      jest.useFakeTimers();
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    // One rendered frame as OpenLayers produces it for a map whose view moved
+    // without it holding a view hint: `renderFrame_` dispatches `moveend`
+    // BEFORE `postrender`, and a follower driven by bare setters gets one of
+    // each per frame of a peer's gesture. jsdom maps have no area, so they
+    // never build a frame state of their own and the pair is synthesized here.
+    const followerFrame = async (mapRef) => {
+      await act(async () => {
+        mapRef.current.dispatchEvent({ type: "moveend", map: mapRef.current });
+        mapRef.current.dispatchEvent({ type: "postrender" });
+        await Promise.resolve();
+      });
+    };
+
+    // A published extent arrives as the GeoJSON polygon of the viewport, so
+    // the assertions read its center back out rather than rebuilding the
+    // whole geometry.
+    const publishedCenter = (value) => {
+      const ring = value.geometries[0].coordinates[0];
+      const xs = ring.map((point) => point[0]);
+      const ys = ring.map((point) => point[1]);
+      return [
+        (Math.min(...xs) + Math.max(...xs)) / 2,
+        (Math.min(...ys) + Math.max(...ys)) / 2,
+      ];
+    };
+
+    // A stateful stand-in for the dashboard's variable input store, so tests
+    // can assert on the value that actually landed and not just the call count.
+    const recordingSetter = (values) =>
+      jest.fn((updater) => Object.assign(values, updater({ ...values })));
+
+    const withVariable = (uuid, group, variable, onMapMoveEnd) => ({
+      uuid,
+      mapExtent: { extent: "0,0,5", viewGroup: group, variable },
+      onMapMoveEnd,
+    });
+
+    const expectCenterPublished = (value, mapRef) => {
+      const [x, y] = publishedCenter(value);
+      const [cx, cy] = viewOf(mapRef).getCenter();
+      expect(x).toBeCloseTo(cx, 6);
+      expect(y).toBeCloseTo(cy, 6);
+    };
+
+    test("covers AE8: a two-second peer drag does not storm the follower's extent publish or snap refresh", async () => {
+      const setVariableInputValues = jest.fn();
+      const refreshSnapCaches = jest.fn();
+      const { maps } = await renderDashboard(
+        [
+          grouped("a", "Basin"),
+          withVariable("b", "Basin", "Viewport", refreshSnapCaches),
+        ],
+        { setVariableInputValues },
+      );
+      setVariableInputValues.mockClear();
+      refreshSnapCaches.mockClear();
+
+      // Two seconds of a continuous drag on the peer, at 60fps.
+      // A frame's step has to clear the group's publish tolerance (half a
+      // rendered pixel, ~2.4km at this resolution) or the peer coalesces the
+      // drag by itself and the follower never sees a per-frame apply.
+      const FRAMES = 120;
+      for (let i = 1; i <= FRAMES; i += 1) {
+        await act(async () => {
+          viewOf(maps.a).setCenter([i * 5000, i * 2500]);
+        });
+        await frame(maps.a);
+        await followerFrame(maps.b);
+      }
+
+      const publishesDuringDrag = setVariableInputValues.mock.calls.length;
+      const refreshesDuringDrag = refreshSnapCaches.mock.calls.length;
+      await act(async () => {
+        jest.advanceTimersByTime(PAST_SETTLE_MS);
+      });
+
+      // The follower did follow -- every one of those frames moved it.
+      expect(stateOf(maps.b).center).toEqual([FRAMES * 5000, FRAMES * 2500]);
+      // ...but the `moveend` it emits per frame while doing so is coalesced,
+      // rather than costing a dashboard-wide refetch and a feature query each.
+      // A bound, not an exact count: what matters is that it does not scale
+      // with FRAMES. Unguarded this is 120 of each.
+      expect(publishesDuringDrag).toBeLessThanOrEqual(2);
+      expect(refreshesDuringDrag).toBeLessThanOrEqual(2);
+      expect(setVariableInputValues.mock.calls.length).toBeLessThanOrEqual(3);
+      expect(refreshSnapCaches.mock.calls.length).toBeLessThanOrEqual(3);
+    });
+
+    test("a follower with an extent variable still publishes once the group settles", async () => {
+      const values = {};
+      const setVariableInputValues = recordingSetter(values);
+      const refreshSnapCaches = jest.fn();
+      const { maps } = await renderDashboard(
+        [
+          grouped("a", "Basin"),
+          withVariable("b", "Basin", "Viewport", refreshSnapCaches),
+        ],
+        { setVariableInputValues },
+      );
+
+      for (let i = 1; i <= 10; i += 1) {
+        await act(async () => {
+          viewOf(maps.a).setCenter([i * 6000, i * 9000]);
+        });
+        await frame(maps.a);
+        await followerFrame(maps.b);
+      }
+      await act(async () => {
+        jest.advanceTimersByTime(PAST_SETTLE_MS);
+      });
+
+      // Coalescing must not swallow the publish: viewport-filtered data on the
+      // follower still has to refetch for where the group came to rest.
+      expectCenterPublished(values.Viewport, maps.b);
+      expect(refreshSnapCaches).toHaveBeenCalled();
+    });
+
+    test("a user-driven move on an ungrouped map publishes its extent exactly as it does today", async () => {
+      const setVariableInputValues = jest.fn();
+      const { maps } = await renderDashboard(
+        [
+          {
+            uuid: "solo",
+            mapExtent: { extent: "0,0,5", variable: "Viewport" },
+          },
+        ],
+        { setVariableInputValues },
+      );
+      setVariableInputValues.mockClear();
+
+      await act(async () => {
+        viewOf(maps.solo).setCenter([12345, 54321]);
+        maps.solo.current.dispatchEvent({
+          type: "moveend",
+          map: maps.solo.current,
+        });
+      });
+
+      // No timer is advanced: an ungrouped map has no peer that can drive it,
+      // so its publish stays synchronous with the event.
+      expect(setVariableInputValues).toHaveBeenCalledTimes(1);
+    });
+
+    test("rapid alternating drags across two members leave no pending publish unflushed", async () => {
+      const values = {};
+      const setVariableInputValues = recordingSetter(values);
+      const { maps } = await renderDashboard(
+        [
+          withVariable("a", "Basin", "ViewportA", jest.fn()),
+          withVariable("b", "Basin", "ViewportB", jest.fn()),
+        ],
+        { setVariableInputValues },
+      );
+
+      for (let round = 0; round < 6; round += 1) {
+        const source = round % 2 === 0 ? maps.a : maps.b;
+        for (let i = 1; i <= 8; i += 1) {
+          await act(async () => {
+            viewOf(source).setCenter([round * 90000 + i * 7000, i * 5000]);
+          });
+          await frame(source);
+          await followerFrame(maps.a);
+          await followerFrame(maps.b);
+        }
+      }
+      await act(async () => {
+        jest.advanceTimersByTime(PAST_SETTLE_MS);
+      });
+
+      // Both members ended up publishing where they actually came to rest, so
+      // no member is left holding a deferred publish that never fired.
+      expectCenterPublished(values.ViewportA, maps.a);
+      expectCenterPublished(values.ViewportB, maps.b);
+
+      const settledCalls = setVariableInputValues.mock.calls.length;
+      await act(async () => {
+        jest.advanceTimersByTime(PAST_SETTLE_MS);
+      });
+      expect(setVariableInputValues.mock.calls.length).toBe(settledCalls);
+    });
+
+    test("a follower whose applied resolution is clamped still publishes its extent once the group settles", async () => {
+      const values = {};
+      const setVariableInputValues = recordingSetter(values);
+      const { maps } = await renderDashboard(
+        [
+          grouped("a", "Basin"),
+          withVariable("b", "Basin", "Viewport", jest.fn()),
+        ],
+        { setVariableInputValues },
+      );
+
+      // The component exposes no view-constraint prop, so the constrained view
+      // is installed directly -- the same shape the raster auto-fit produces.
+      await act(async () => {
+        maps.b.current.setView(
+          new View({
+            projection: "EPSG:3857",
+            center: [0, 0],
+            zoom: 5,
+            maxZoom: 6,
+          }),
+        );
+      });
+      await frame(maps.b);
+
+      // The peer pans and zooms past the follower's limit...
+      for (let i = 1; i <= 10; i += 1) {
+        await act(async () => {
+          viewOf(maps.a).setCenter([i * 8000, i * 4000]);
+          viewOf(maps.a).setZoom(6 + i * 0.3);
+        });
+        await frame(maps.a);
+        await followerFrame(maps.b);
+      }
+      // ...and then keeps zooming without panning, so the follower goes on
+      // receiving applies whose read-back can never match while its own view
+      // no longer changes at all. A gate that opened on applies ceasing would
+      // still be shut here, and this member would never publish again.
+      const clampedCenter = stateOf(maps.b).center;
+      const clampedResolution = stateOf(maps.b).resolution;
+      for (let i = 1; i <= 10; i += 1) {
+        await act(async () => {
+          viewOf(maps.a).setZoom(9 + i * 0.3);
+        });
+        await frame(maps.a);
+        await followerFrame(maps.b);
+      }
+      expect(stateOf(maps.b).center).toEqual(clampedCenter);
+      expect(stateOf(maps.b).resolution).toBe(clampedResolution);
+
+      setVariableInputValues.mockClear();
+      await act(async () => {
+        jest.advanceTimersByTime(PAST_SETTLE_MS);
+      });
+
+      expect(setVariableInputValues).toHaveBeenCalledTimes(1);
+      expectCenterPublished(values.Viewport, maps.b);
+    });
+
+    test("publishing the same extent value twice in a row calls the variable-input setter once", async () => {
+      const setVariableInputValues = jest.fn();
+      const { maps } = await renderDashboard(
+        [
+          {
+            uuid: "solo",
+            mapExtent: { extent: "0,0,5", variable: "Viewport" },
+          },
+        ],
+        { setVariableInputValues },
+      );
+      setVariableInputValues.mockClear();
+
+      await act(async () => {
+        viewOf(maps.solo).setCenter([777, 888]);
+        maps.solo.current.dispatchEvent({
+          type: "moveend",
+          map: maps.solo.current,
+        });
+        maps.solo.current.dispatchEvent({
+          type: "moveend",
+          map: maps.solo.current,
+        });
+      });
+
+      expect(setVariableInputValues).toHaveBeenCalledTimes(1);
+    });
+
+    test("a dashboard map re-renders no more during a peer's zoom than during its own equivalent zoom", async () => {
+      const renders = { count: 0 };
+      // The map reads `viewGroup` off its stored extent exactly once per
+      // render, which makes a getter on that key an honest render counter
+      // without instrumenting the component.
+      const countedExtent = {
+        extent: "0,0,5",
+        get viewGroup() {
+          renders.count += 1;
+          return "Basin";
+        },
+      };
+      const { maps } = await renderDashboard([
+        grouped("a", "Basin"),
+        { uuid: "b", mapExtent: countedExtent },
+      ]);
+
+      const zoomAcross = async (sourceKey, followerKey) => {
+        for (let step = 1; step <= 12; step += 1) {
+          await act(async () => {
+            viewOf(maps[sourceKey]).setZoom(5 + step * 0.25);
+          });
+          await frame(maps[sourceKey]);
+          await followerFrame(maps[followerKey]);
+        }
+      };
+
+      renders.count = 0;
+      await zoomAcross("a", "b");
+      const peerZoomRenders = renders.count;
+
+      renders.count = 0;
+      await zoomAcross("b", "a");
+      const ownZoomRenders = renders.count;
+
+      // Following a peer costs the map no React render at all: nothing on a
+      // dashboard renders the zoom, so nothing writes it to state per frame.
+      expect(peerZoomRenders).toBe(0);
+      expect(peerZoomRenders).toBeLessThanOrEqual(ownZoomRenders);
+    });
   });
 });

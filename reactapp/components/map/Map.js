@@ -202,6 +202,36 @@ const applyViewState = (view, next) => {
   }
 };
 
+// --- Coalescing `moveend` side effects (U4) -------------------------------
+// OpenLayers gates `moveend` on the ANIMATING and INTERACTING view hints only
+// (`ol/Map.js` `renderFrame_`). A view-group follower is driven by bare
+// `setCenter` / `setResolution` and so holds neither hint: it emits `movestart`
+// and `moveend` on every rendered frame for the whole duration of a peer's
+// gesture. Both consumers of that event -- the extent-variable publisher, which
+// re-runs an effect on every visualization on the dashboard, and the snap-cache
+// refresh, which issues un-aborted network queries -- assume a human just
+// stopped moving. They are therefore held until this member's own view has been
+// stable for a settle window.
+//
+// The window is a tuning value: the cadence it guards against is one frame,
+// so anything comfortably above ~16ms coalesces a gesture, and anything a
+// viewer would not perceive as lag is short enough. 150ms is both.
+const MOVE_SETTLE_MS = 150;
+
+// Exact comparison, deliberately not the view group's tolerance helper: any
+// change at all means motion is still in flight, and a slow drag whose
+// per-frame delta sits under half a pixel would otherwise read as settled and
+// let the storm straight through.
+const viewStatesIdentical = (a, b) =>
+  Boolean(a) &&
+  Boolean(b) &&
+  a.resolution === b.resolution &&
+  a.rotation === b.rotation &&
+  Array.isArray(a.center) &&
+  Array.isArray(b.center) &&
+  a.center[0] === b.center[0] &&
+  a.center[1] === b.center[1];
+
 const MapComponent = ({
   mapConfig,
   mapExtent,
@@ -300,6 +330,24 @@ const MapComponent = ({
   const viewGroupApplyRef = useRef(null);
   const previousShouldLoadRef = useRef(shouldLoad);
   const [viewGroupMismatch, setViewGroupMismatch] = useState(null);
+
+  // --- Coalesced `moveend` side effects (U4: R24, R29) --------------------
+  // Unsettled motion is in flight on this member's own view. Held in a ref
+  // because both consumers read it from inside their handlers (see
+  // `deferMoveEndConsumer`).
+  const viewUnsettledRef = useRef(false);
+  const settleTimerRef = useRef(null);
+  // Which consumers asked to run while the gate was shut, replayed once on the
+  // settled flush. A set of flags, not a queue: the work is idempotent and only
+  // the settled view is worth doing it for.
+  const pendingMoveEndRef = useRef(null);
+  // This member's view as of the previous frame, for the frame-to-frame
+  // stability test that decides when motion has settled.
+  const lastFrameViewRef = useRef(null);
+  // R29's backstop: the last extent value actually handed to the variable
+  // input, so an identical one is never published twice in a row.
+  const lastPublishedExtentRef = useRef(null);
+  const flushMoveEndRef = useRef(null);
 
   // Fade the incoming layers in over `duration` ms, then remove the outgoing
   // ones, so a storm swap dissolves instead of flashing. Any running fade is
@@ -408,6 +456,11 @@ const MapComponent = ({
     }
 
     return () => {
+      if (settleTimerRef.current) {
+        clearTimeout(settleTimerRef.current);
+        settleTimerRef.current = null;
+      }
+      pendingMoveEndRef.current = null;
       // istanbul ignore next
       if (visualizationRef.current) {
         if (activeFadeRef.current) activeFadeRef.current();
@@ -475,11 +528,22 @@ const MapComponent = ({
       visualizationRef.current.on("moveend", updateMapExtentVariable);
       mapExtentVariableEvent.current = updateMapExtentVariable;
     }
+    // A new extent -- and possibly a new variable name -- is a new
+    // subscription, so the "already published this value" memo below starts
+    // over rather than suppressing the first publish against it.
+    lastPublishedExtentRef.current = null;
 
-    // Update zoom on view change
-    mapViewConfig.on("change:resolution", () => {
-      setZoom(visualizationRef.current.getView().getZoom().toFixed(2));
-    });
+    // Update zoom on view change. Only the DataViewer preview renders `zoom`
+    // (the info panel below); on a dashboard map this wrote React state on
+    // every frame the resolution changed, which for a view-group follower is
+    // every frame of a peer's zoom -- and each of those re-renders makes both
+    // floating map controls re-measure their anchor. The mount-time write in
+    // this effect still seeds `defaultViewConfig`, so nothing else changes.
+    if (dataviewerViz) {
+      mapViewConfig.on("change:resolution", () => {
+        setZoom(visualizationRef.current.getView().getZoom().toFixed(2));
+      });
+    }
 
     // Move already-mounted vector features with the view, exactly as the raster
     // auto-fit path does. Features are parsed into the view projection when they
@@ -1104,6 +1168,11 @@ const MapComponent = ({
             visualizationRef.current.un("moveend", onMapMoveEndCurrent.current);
           }
           onMapMoveEndCurrent.current = function () {
+            // R24. The gate is read from a ref *inside* the handler rather
+            // than captured when it is bound: this handler is rebound on every
+            // layer change and the extent publisher on every extent change, so
+            // a gate captured in either closure goes stale against the other.
+            if (deferMoveEndConsumer("snap")) return;
             onMapMoveEnd(visualizationRef.current);
           };
           visualizationRef.current.on("moveend", onMapMoveEndCurrent.current);
@@ -1165,6 +1234,59 @@ const MapComponent = ({
     updateLayers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layers]);
+
+  // Replay the consumers that were held back, recomputed from the live map
+  // rather than replayed from the deferred event's frame: the settled view is
+  // the one they were always meant to see, and the view has moved on since.
+  const flushPendingMoveEnd = () => {
+    const pending = pendingMoveEndRef.current;
+    pendingMoveEndRef.current = null;
+    const map = visualizationRef.current;
+    if (!pending || !map) return;
+    if (pending.extent) publishMapExtentVariable(map);
+    if (pending.snap && onMapMoveEnd) onMapMoveEnd(map);
+  };
+  // The settle timer outlives the render that armed it, so it flushes through
+  // a ref and never through a closed-over copy of the props.
+  flushMoveEndRef.current = flushPendingMoveEnd;
+
+  const markViewUnsettled = () => {
+    viewUnsettledRef.current = true;
+    if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
+    settleTimerRef.current = setTimeout(() => {
+      settleTimerRef.current = null;
+      viewUnsettledRef.current = false;
+      flushMoveEndRef.current?.();
+    }, MOVE_SETTLE_MS);
+  };
+
+  // Called once per rendered frame. Settling is measured on this member's own
+  // view being stable across its own frames, never on applies having stopped
+  // arriving: a follower that clamps keeps receiving applies whose read-back
+  // never matches, so an apply-driven notion of "in flight" would never open
+  // the gate and that member would stop publishing its extent altogether.
+  const trackViewMotion = (view) => {
+    const previous = lastFrameViewRef.current;
+    const current = readViewState(view);
+    lastFrameViewRef.current = current;
+    // The condition is "my view moved without me being the interactor", not
+    // "I was applied to" -- which also covers a keyboard pan and a
+    // variable-driven extent change. A gesture the viewer is driving is
+    // already coalesced by OpenLayers, which holds the INTERACTING hint and
+    // suppresses `moveend` for the whole of it.
+    if (view.getInteracting()) return;
+    if (!previous || viewStatesIdentical(previous, current)) return;
+    markViewUnsettled();
+  };
+
+  // True when the caller's work was deferred to the settled flush. Reads the
+  // gate through the ref at call time, so both consumers see the same state
+  // regardless of which effect bound them or when.
+  const deferMoveEndConsumer = (key) => {
+    if (!viewUnsettledRef.current) return false;
+    pendingMoveEndRef.current = { ...pendingMoveEndRef.current, [key]: true };
+    return true;
+  };
 
   // Report this member's live projection code and read back the group's pin.
   // Always read from `map.getView().getProjection()`, never from the
@@ -1271,6 +1393,13 @@ const MapComponent = ({
     // state for a map with no area, so a member on a hidden tab hands the
     // handler a null one.
     const view = map.getView();
+    // Before any of the group bookkeeping and before any early return: a
+    // member that is out of sync on projection still has a view that can be
+    // moved programmatically, and its consumers still need the gate.
+    // Registered here rather than on its own listener so an ungrouped map --
+    // which no peer can drive, and for which OpenLayers' own hints already
+    // coalesce every path -- keeps its per-frame cost at exactly zero (R2).
+    if (mapExtent?.variable || onMapMoveEnd) trackViewMotion(view);
     const code = view.getProjection().getCode();
     const groupProjection = reportViewGroupProjection(code);
 
@@ -1451,20 +1580,34 @@ const MapComponent = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shouldLoad, viewGroupEnabled]);
 
-  const updateMapExtentVariable = (event) => {
-    const view = event.map.getView();
-    const extent = view.calculateExtent(event.map.getSize());
+  // R29. Publishing an extent re-runs an effect on every visualization on the
+  // dashboard, so the same value is never published twice in a row -- a win
+  // today for a `moveend` that lands back where it started, and the backstop
+  // that makes any regression of the gate above degrade rather than collapse.
+  const publishMapExtentVariable = (map) => {
+    const view = map.getView();
+    const projection = view.getProjection().getCode();
+    const extent = view.calculateExtent(map.getSize());
+    const signature = `${mapExtent.variable}|${projection}|${extent.join(",")}`;
+    if (lastPublishedExtentRef.current === signature) return;
+    lastPublishedExtentRef.current = signature;
     const rectangleGeom = fromExtent(extent);
     const geojson = JSON.parse(new GeoJSON().writeGeometry(rectangleGeom));
     setVariableInputValues((previousVariableInputValues) => ({
       ...previousVariableInputValues,
       ...{
         [mapExtent.variable]: {
-          projection: view.getProjection().getCode(),
+          projection,
           geometries: [geojson],
         },
       },
     }));
+  };
+
+  const updateMapExtentVariable = (event) => {
+    // R24. Same ref-read-inside-the-handler rule as the snap refresh.
+    if (deferMoveEndConsumer("extent")) return;
+    publishMapExtentVariable(event.map);
   };
 
   return (
