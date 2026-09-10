@@ -43,8 +43,9 @@ const InputRow = styled.div`
   padding-right: 1rem;
 `;
 
-const FlushInputRow = styled(InputRow)`
-  margin-left: 0;
+const InlineFieldRow = styled.div`
+  margin-bottom: 1rem;
+  padding-right: 1rem;
 `;
 
 const InputLabel = styled.label`
@@ -377,19 +378,18 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
           )}
           {!inPopupLayout && (
             <>
-              <FlushInputRow>
-                <InputLabel>
-                  View Group
-                  <FullInput
+              <InlineFieldRow>
+                <label>
+                  <b>View Group:</b>{" "}
+                  <input
+                    type="text"
                     value={viewGroupDraft}
                     onChange={(e) => setViewGroupDraft(e.target.value)}
                     onBlur={commitViewGroup}
-                    placeholder="Maps sharing this name move together"
-                    isValid={true}
                     aria-label="View Group Input"
                   />
-                </InputLabel>
-              </FlushInputRow>
+                </label>
+              </InlineFieldRow>
               <InputRow>
                 <CheckboxLabel $disabled={Boolean(initialExtentDisabledReason)}>
                   <input
