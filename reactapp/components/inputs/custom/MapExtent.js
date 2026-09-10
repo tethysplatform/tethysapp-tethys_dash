@@ -61,7 +61,7 @@ const CheckboxLabel = styled.label`
 `;
 
 const HelpText = styled.div`
-  margin-left: 0;
+  margin-left: 1.5rem;
   margin-top: -0.75rem;
   margin-bottom: 1rem;
   padding-right: 1rem;
@@ -390,7 +390,7 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
                   />
                 </InputLabel>
               </FlushInputRow>
-              <FlushInputRow>
+              <InputRow>
                 <CheckboxLabel $disabled={Boolean(initialExtentDisabledReason)}>
                   <input
                     type="checkbox"
@@ -401,7 +401,7 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
                   />
                   Use as the view group&apos;s initial extent
                 </CheckboxLabel>
-              </FlushInputRow>
+              </InputRow>
               {initialExtentDisabledReason && (
                 <HelpText>{initialExtentDisabledReason}</HelpText>
               )}
