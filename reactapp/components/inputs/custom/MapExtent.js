@@ -43,6 +43,10 @@ const InputRow = styled.div`
   padding-right: 1rem;
 `;
 
+const FlushInputRow = styled(InputRow)`
+  margin-left: 0;
+`;
+
 const InputLabel = styled.label`
   width: 100%;
   font-weight: bold;
@@ -57,7 +61,7 @@ const CheckboxLabel = styled.label`
 `;
 
 const HelpText = styled.div`
-  margin-left: 1.5rem;
+  margin-left: 0;
   margin-top: -0.75rem;
   margin-bottom: 1rem;
   padding-right: 1rem;
@@ -373,7 +377,7 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
           )}
           {!inPopupLayout && (
             <>
-              <InputRow>
+              <FlushInputRow>
                 <InputLabel>
                   View Group
                   <FullInput
@@ -385,8 +389,8 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
                     aria-label="View Group Input"
                   />
                 </InputLabel>
-              </InputRow>
-              <InputRow>
+              </FlushInputRow>
+              <FlushInputRow>
                 <CheckboxLabel $disabled={Boolean(initialExtentDisabledReason)}>
                   <input
                     type="checkbox"
@@ -397,7 +401,7 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
                   />
                   Use as the view group&apos;s initial extent
                 </CheckboxLabel>
-              </InputRow>
+              </FlushInputRow>
               {initialExtentDisabledReason && (
                 <HelpText>{initialExtentDisabledReason}</HelpText>
               )}
