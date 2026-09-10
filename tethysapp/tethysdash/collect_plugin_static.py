@@ -68,7 +68,7 @@ def copy_plugin_static(plugin_modules, static_plugin_images, static_plugin_data)
             static_file = os.path.join(static_plugin_images, f"{source}.png")
             shutil.copyfile(image_path, static_file)
 
-            if str(plugin_root) not in plugins_data_collected:
+            if str(plugin_root) not in plugins_data_collected and static_dir.is_dir():
                 for filename in os.listdir(static_dir):
                     if (
                         filename.endswith(".geojson")

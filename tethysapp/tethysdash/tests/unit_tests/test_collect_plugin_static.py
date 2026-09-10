@@ -270,3 +270,25 @@ def test_main(monkeypatch, tmp_path):
     monkeypatch.setattr("subprocess.run", lambda *args, **kwargs: fake_result)
 
     main()
+
+
+@mock.patch("tethysapp.tethysdash.collect_plugin_static.shutil.copy2")
+@mock.patch("tethysapp.tethysdash.collect_plugin_static.shutil.copyfile")
+def test_copy_plugin_static_no_static_dir(
+    copyfile_mock, copy2_mock, monkeypatch, tmp_path
+):
+    # os.listdir is deliberately not patched here so the real filesystem is used
+    plugin_modules = {"plugin_y": "plugin_y.module"}
+
+    module_file = tmp_path / "plugin_y" / "module.py"
+    module_file.parent.mkdir(parents=True)
+    mod_mock = types.SimpleNamespace(__file__=str(module_file))
+    monkeypatch.setattr(importlib, "import_module", lambda name: mod_mock)
+
+    fake_registry = {"plugin_y": mock.Mock(type="map")}
+    monkeypatch.setattr(intake.source, "registry", fake_registry)
+
+    copy_plugin_static(plugin_modules, tmp_path / "static_out", tmp_path / "data_out")
+
+    copyfile_mock.assert_called_once_with("default_map.png", mock.ANY)
+    copy2_mock.assert_not_called()
