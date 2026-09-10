@@ -116,7 +116,7 @@ const normalizeExtentValue = (value) => {
 export const MapExtent = ({ onChange, values, visualizationRef }) => {
   const [initialValue] = useState(() => normalizeExtentValue(values));
   const [extentMode, setExtentMode] = useState("customExtent");
-  const [customExtent, setCustomExtent] = useState(initialValue.extent ?? "");
+  const [customExtent, setCustomExtent] = useState(initialValue.extent);
   const [customExtentValid, setCustomExtentValid] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
   const { mapReady } = useMapContext();
@@ -170,7 +170,7 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
 
   // The single place the emitted value is built. Every caller merges over the
   // full widget state, so editing one field can never drop another one.
-  const buildValue = (overrides = {}) => {
+  const buildValue = (overrides) => {
     const extent = overrides.extent ?? customExtentRef.current;
     const variable = overrides.variable ?? extentVariableRef.current;
     const group = overrides.viewGroup ?? viewGroupRef.current;

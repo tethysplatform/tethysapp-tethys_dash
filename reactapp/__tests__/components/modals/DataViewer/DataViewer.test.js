@@ -1684,6 +1684,30 @@ test("saving a grouped map inside a popup layout strips the group and skips the 
   });
 });
 
+test("saving an ungrouped map inside a popup layout rewrites nothing", async () => {
+  const onUpdateTab = jest.fn();
+  const ungrouped = { extent: "-10686671.12,4721671.57,4.5" };
+
+  await renderInShimmedTab({
+    gridItems: [makeMapGridItem({ i: "1", mapExtent: ungrouped })],
+    activeTabId: POPUP_TAB_ID,
+    onUpdateTab,
+  });
+
+  expect(onUpdateTab).toHaveBeenCalledTimes(1);
+  const [tabId, updates] = onUpdateTab.mock.calls.at(-1);
+  expect(tabId).toBe(POPUP_TAB_ID);
+
+  // There is nothing to strip, so the scrub hands the extent straight back by
+  // identity and the args the editor emitted are saved untouched -- no group
+  // keys are invented on the way through, and nothing else is disturbed.
+  const savedArgs = JSON.parse(updates.gridItems[0].args_string);
+  expect(savedArgs.map_extent).toStrictEqual(ungrouped);
+  expect(savedArgs).not.toHaveProperty("map_extent.viewGroup");
+  expect(savedArgs).not.toHaveProperty("map_extent.isGroupInitialExtent");
+  expect(savedArgs.layerControl).toBe(true);
+});
+
 test("saving a grouped map falls back to the single-tab write when updateTabs is missing", async () => {
   const onUpdateTab = jest.fn();
 

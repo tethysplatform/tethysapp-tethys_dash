@@ -69,6 +69,27 @@ describe("centersAreEqual", () => {
     expect(centersAreEqual([0, 0], null, resolution)).toBe(false);
     expect(centersAreEqual([0, NaN], [0, 0], resolution)).toBe(false);
   });
+
+  it("treats two absent centers as equal however they are absent", () => {
+    expect(centersAreEqual(undefined, undefined, resolution)).toBe(true);
+    expect(centersAreEqual(null, undefined, resolution)).toBe(true);
+    expect(centersAreEqual(undefined, null, resolution)).toBe(true);
+  });
+
+  it("treats one absent center as unequal", () => {
+    expect(centersAreEqual(null, [1, 2], resolution)).toBe(false);
+    expect(centersAreEqual([1, 2], undefined, resolution)).toBe(false);
+  });
+
+  it("collapses the tolerance to zero without a positive resolution", () => {
+    // A non-positive resolution sizes no pixel, so nothing but an exact match
+    // may compare equal -- the tolerance must not silently become 0 * 0.5 of
+    // some other number.
+    expect(centersAreEqual([1000, 2000], [1000, 2000], 0)).toBe(true);
+    expect(centersAreEqual([1000, 2000], [1000.0001, 2000], 0)).toBe(false);
+    expect(centersAreEqual([1000, 2000], [1000, 2000], -10)).toBe(true);
+    expect(centersAreEqual([1000, 2000], [1000, 2000.0001], -10)).toBe(false);
+  });
 });
 
 describe("resolutionsAreEqual", () => {
@@ -101,6 +122,14 @@ describe("rotationsAreEqual", () => {
     expect(rotationsAreEqual(undefined, 0)).toBe(true);
     expect(rotationsAreEqual(undefined, 1)).toBe(false);
   });
+
+  it("reads a missing rotation as zero on either side", () => {
+    expect(rotationsAreEqual(0, undefined)).toBe(true);
+    expect(rotationsAreEqual(1, undefined)).toBe(false);
+    // Anything that is not a finite number reads as unrotated.
+    expect(rotationsAreEqual(0, NaN)).toBe(true);
+    expect(rotationsAreEqual(0, "0.5")).toBe(true);
+  });
 });
 
 describe("viewsAreEqual", () => {
@@ -126,6 +155,24 @@ describe("viewsAreEqual", () => {
     expect(viewsAreEqual(null, null)).toBe(true);
     expect(viewsAreEqual(view, null)).toBe(false);
     expect(viewsAreEqual(null, view)).toBe(false);
+  });
+
+  it("falls back to the first view's resolution to size the tolerance", () => {
+    // Neither view carries a usable resolution, so the fallback is taken and
+    // the center tolerance collapses to zero: only an exact center matches.
+    const a = { center: [1000, 2000], rotation: 0 };
+    expect(viewsAreEqual(a, { center: [1000, 2000], rotation: 0 })).toBe(true);
+    expect(viewsAreEqual(a, { center: [1000.5, 2000], rotation: 0 })).toBe(
+      false,
+    );
+    // The same pair at a resolution wide enough to swallow that delta is
+    // equal, which is what the missing resolution costs the comparison.
+    expect(
+      viewsAreEqual(
+        { ...a, resolution: 10 },
+        { center: [1000.5, 2000], rotation: 0, resolution: 10 },
+      ),
+    ).toBe(true);
   });
 });
 
@@ -533,5 +580,50 @@ describe("the legacy doubly nested shape on a member losing its flag", () => {
     });
     // The winner is untouched, by identity.
     expect(result[0].gridItems[0]).toBe(saved);
+  });
+});
+
+describe("enforceSingleGroupInitialExtent", () => {
+  const flaggedItem = (i) => ({
+    i,
+    source: "Map",
+    args_string: JSON.stringify({
+      map_extent: {
+        extent: "0,0,5",
+        viewGroup: "Basin",
+        isGroupInitialExtent: true,
+      },
+    }),
+  });
+
+  it("leaves a tab carrying no grid items alone and sweeps the others", () => {
+    const saved = flaggedItem("1");
+    const loser = flaggedItem("2");
+    // A tab may carry no `gridItems` at all, and a malformed one may carry
+    // something that is not a list. Neither may throw, and neither may be
+    // rewritten -- an untouched tab is handed back by identity.
+    const missingTab = { id: 1, name: "Tab 1" };
+    const malformedTab = { id: 2, name: "Tab 2", gridItems: null };
+    const populatedTab = { id: 3, name: "Tab 3", gridItems: [saved, loser] };
+
+    const result = enforceSingleGroupInitialExtent(
+      [missingTab, malformedTab, populatedTab],
+      "Basin",
+      saved,
+    );
+
+    expect(result[0]).toBe(missingTab);
+    expect(result[1]).toBe(malformedTab);
+    expect(result[2].gridItems[0]).toBe(saved);
+    expect(
+      readViewGroupSettings(
+        JSON.parse(result[2].gridItems[1].args_string).map_extent,
+      ),
+    ).toEqual({
+      extent: "0,0,5",
+      variable: null,
+      viewGroup: "Basin",
+      isInitialExtent: false,
+    });
   });
 });

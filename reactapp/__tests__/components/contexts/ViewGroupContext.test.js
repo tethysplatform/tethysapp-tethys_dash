@@ -477,6 +477,52 @@ describe("ViewGroupProvider lifecycle", () => {
     fireEvent.click(screen.getByTestId("seed"));
     expect(JSON.parse(readGroupView("a"))).toEqual(VIEW_A);
   });
+
+  it("creates the group entry when seeding a group nothing has joined", () => {
+    // A bbox seed is promoted by the first member that can resolve it, and a
+    // group whose members all live on tabs that have never mounted has no
+    // entry yet. Seeding has to make one rather than drop the view.
+    const SeedProbe = () => {
+      const { seedGroupView, getGroupView } = useViewGroupContext();
+      const [readView, setReadView] = useState("unread");
+      return (
+        <div>
+          <p data-testid="unjoined-view">{readView}</p>
+          <button
+            type="button"
+            data-testid="seed-unjoined"
+            onClick={() => seedGroupView("Unjoined", VIEW_B)}
+          >
+            seed
+          </button>
+          <button
+            type="button"
+            data-testid="read-unjoined"
+            onClick={() =>
+              setReadView(JSON.stringify(getGroupView("Unjoined") ?? null))
+            }
+          >
+            read
+          </button>
+        </div>
+      );
+    };
+
+    render(
+      <ViewGroupProvider>
+        <SeedProbe />
+      </ViewGroupProvider>,
+    );
+
+    fireEvent.click(screen.getByTestId("read-unjoined"));
+    expect(screen.getByTestId("unjoined-view")).toHaveTextContent("null");
+
+    fireEvent.click(screen.getByTestId("seed-unjoined"));
+    fireEvent.click(screen.getByTestId("read-unjoined"));
+    expect(JSON.parse(screen.getByTestId("unjoined-view").textContent)).toEqual(
+      VIEW_B,
+    );
+  });
 });
 
 describe("ViewGroupProvider context value", () => {

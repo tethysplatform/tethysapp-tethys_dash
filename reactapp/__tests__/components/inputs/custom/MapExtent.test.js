@@ -415,6 +415,28 @@ test("entering a group name emits the extent together with the group name", () =
   expect(screen.getByLabelText("View Group Input").value).toBe("Basin");
 });
 
+test("re-blurring an unchanged group name emits nothing and trims the draft", () => {
+  const { onChange } = renderOpen();
+
+  setGroupName("Basin");
+  const field = screen.getByLabelText("View Group Input");
+  onChange.mockClear();
+
+  // Nothing changed, so the commit early-returns: no value goes out, and the
+  // draft is already the committed name so it is left exactly as it is.
+  fireEvent.blur(field);
+  expect(onChange).not.toHaveBeenCalled();
+  expect(field.value).toBe("Basin");
+
+  // Re-typing the same name with whitespace around it also commits nothing --
+  // the group is unchanged -- but the field still has to be trimmed back so it
+  // never shows a value that is not the one in force.
+  fireEvent.change(field, { target: { value: "  Basin  " } });
+  fireEvent.blur(field);
+  expect(onChange).not.toHaveBeenCalled();
+  expect(field.value).toBe("Basin");
+});
+
 test("a whitespace-only group name commits as no group", () => {
   const { onChange } = renderOpen();
 

@@ -484,7 +484,12 @@ export function enforceSingleGroupInitialExtent(
         return gridItem;
       }
 
+      // The else cannot fire today: reaching here means the flag was read as
+      // set, which means the key is present, which is exactly the condition
+      // under which the clear returns a new grid item. Kept as a guard so the
+      // two readers drifting apart cannot mark a tab changed for nothing.
       const cleared = clearGridItemGroupInitialExtent(gridItem);
+      /* istanbul ignore else -- unreachable, see comment above */
       if (cleared !== gridItem) tabChanged = true;
       return cleared;
     });

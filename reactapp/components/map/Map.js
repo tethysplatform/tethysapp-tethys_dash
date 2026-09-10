@@ -1537,6 +1537,13 @@ const MapComponent = ({
       }
     }
 
+    // Cannot fire today: every branch above that returns leaves a baseline
+    // behind -- the projection-mismatch branch records one, the view-replaced
+    // branch records one on its non-adopt path and arms a read-back on its
+    // adopt path, and the read-back branch records one -- so control only
+    // reaches here with a baseline already in hand. Kept as a guard so a new
+    // early return above cannot silently publish a member's opening view.
+    /* istanbul ignore next -- unreachable guard, see comment above */
     if (!viewGroupBaselineRef.current) {
       viewGroupBaselineRef.current = current;
       return;
@@ -1605,6 +1612,14 @@ const MapComponent = ({
     const map = visualizationRef.current;
     if (!map) return;
 
+    // Cannot fire today: React runs this effect's own cleanup -- which unbinds
+    // and clears the ref -- before every re-run, and the ref is written
+    // nowhere else, so a handler is never already bound when the body starts.
+    // Verified by driving a live member through a group rename, a drop out of
+    // the group and a rejoin: none of them reaches this. Kept as a guard so a
+    // dep added here, or an early return added to the cleanup, cannot leak a
+    // second postrender handler and double every publish.
+    /* istanbul ignore next -- unreachable guard, see comment above */
     if (viewGroupPostrenderRef.current) {
       map.un("postrender", viewGroupPostrenderRef.current);
       viewGroupPostrenderRef.current = null;

@@ -7847,6 +7847,39 @@ describe("linked cursor", () => {
     expect(cursorMarker(maps.b).getPosition()).toBeUndefined();
   });
 
+  test("a member whose projection differs from the group's pin publishes no coordinate", async () => {
+    const { maps } = await renderCursorDashboard([
+      { uuid: "a" },
+      { uuid: "b" },
+      { uuid: "c" },
+    ]);
+
+    // `a` marks its peers while it is still in step. That is what makes the
+    // silence afterwards a retraction rather than a map that never published.
+    await movePointer(maps.a, [1000, 2000]);
+    await waitFor(() =>
+      expect(cursorMarker(maps.b).getPosition()).toEqual([1000, 2000]),
+    );
+    expect(cursorMarker(maps.c).getPosition()).toEqual([1000, 2000]);
+
+    // `b` and `c` keep the group pinned to the map projection, so `a` is now
+    // the odd one out.
+    await act(async () => {
+      maps.a.current.setView(
+        new View({ projection: "EPSG:4326", center: [10, 20], zoom: 4 }),
+      );
+    });
+
+    // Its coordinates are lon/lat now. Publishing them would draw a mark
+    // somewhere the pointer never was, so the move takes `a`'s mark down
+    // instead -- the receive-side guard is a separate gate and cannot do this.
+    await movePointer(maps.a, [11, 21]);
+    await letAFramePass();
+
+    expect(cursorMarker(maps.b).getPosition()).toBeUndefined();
+    expect(cursorMarker(maps.c).getPosition()).toBeUndefined();
+  });
+
   test("several pointermoves inside one frame produce a single position update", async () => {
     const { maps } = await renderCursorDashboard([
       { uuid: "a" },
