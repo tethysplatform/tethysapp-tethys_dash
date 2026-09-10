@@ -15,7 +15,13 @@ import { Map, View } from "ol";
 import ImageArcGISRest from "ol/source/ImageArcGISRest.js";
 import VariableInput from "components/visualizations/VariableInput";
 import { Vector as VectorSource } from "ol/source.js";
-import { GridItemContext } from "components/contexts/Contexts";
+import {
+  AppContext,
+  DataViewerModeContext,
+  GridItemContext,
+  LayoutContext,
+  VariableInputsContext,
+} from "components/contexts/Contexts";
 import appAPI from "services/api/app";
 import { applyStyle } from "ol-mapbox-style";
 import Point from "ol/geom/Point.js";
@@ -7966,6 +7972,63 @@ describe("linked cursor", () => {
     expect(cursorMarker(maps.b).getPosition()).toBeUndefined();
     await letAFramePass();
     expect(cursorMarker(maps.b).getPosition()).toBeUndefined();
+  });
+
+  test("a pointermove that carries no coordinate marks nothing on the peer", async () => {
+    const { maps } = await renderCursorDashboard([
+      { uuid: "a" },
+      { uuid: "b" },
+    ]);
+
+    // OpenLayers computes `coordinate` from the frame state, so a map that has
+    // not painted a frame yet hands the handler a null one. There is nothing
+    // to mark, and the frame queued for it must flush without publishing.
+    await movePointer(maps.a, null);
+    await letAFramePass();
+
+    expect(cursorMarker(maps.b).getPosition()).toBeUndefined();
+
+    // ...and it left nothing wedged behind it: the next real move still marks.
+    await movePointer(maps.a, [1000, 2000]);
+    await waitFor(() =>
+      expect(cursorMarker(maps.b).getPosition()).toEqual([1000, 2000]),
+    );
+  });
+
+  test("a map rendered outside the dashboard's tab and view-group providers still works", async () => {
+    // `Base` renders this component wherever a `map` visualization is asked
+    // for. Only the dashboard tree carries a TabContext and a view-group
+    // provider, so a map mounted outside one has to read the active tab off a
+    // context that is not there -- and join no group.
+    const maps = {};
+    render(
+      <AppContext.Provider value={{ sessionNonce: "test-nonce" }}>
+        <LayoutContext.Provider value={{ uuid: "dashboard-uuid" }}>
+          <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
+            <VariableInputsContext.Provider
+              value={{
+                variableInputValues: {},
+                variableInputDateFormats: {},
+                setVariableInputValues: jest.fn(),
+              }}
+            >
+              <MapContextProvider>
+                <CursorMember uuid="solo" maps={maps} />
+              </MapContextProvider>
+            </VariableInputsContext.Provider>
+          </DataViewerModeContext.Provider>
+        </LayoutContext.Provider>
+      </AppContext.Provider>,
+    );
+
+    expect(await screen.findByText("solo ready")).toBeInTheDocument();
+
+    // The map is named a group, but with no provider above it there is no
+    // group to join -- so the pointer publishes nowhere and marks nothing.
+    await movePointer(maps.solo, [1000, 2000]);
+    await letAFramePass();
+
+    expect(cursorMarker(maps.solo).getPosition()).toBeUndefined();
   });
 
   test("a pointerleave arriving with a frame flush already queued leaves the marker hidden", async () => {

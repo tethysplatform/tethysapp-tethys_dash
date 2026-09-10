@@ -200,6 +200,10 @@ const applyViewState = (view, next) => {
   const beforeCenter = view.getCenter();
   const beforeResolution = view.getResolution();
   const beforeRotation = view.getRotation();
+  // istanbul ignore else -- every view state that reaches here is built by
+  // `readViewState`, and an OpenLayers view's rotation is always a number
+  // (`View` defaults it to 0 in its constructor). Kept so a view state from
+  // any other source cannot write `undefined` into the rotation.
   if (typeof next.rotation === "number") {
     view.setRotation(next.rotation);
   }
@@ -1341,6 +1345,9 @@ const MapComponent = ({
   // without ever updating that state.
   const reportViewGroupProjection = (code) => {
     const groupName = activeViewGroupRef.current;
+    // istanbul ignore if -- unreachable: both callers run only for a
+    // registered member, and `activeViewGroupRef` is set before the
+    // registration and cleared only after it is torn down.
     if (!groupName || !viewGroupContext) return null;
     return viewGroupContext.reportMemberProjection(
       groupName,
@@ -1382,6 +1389,12 @@ const MapComponent = ({
     const fitted = readViewState(view);
     // Promotion never overwrites a live view, so a group moved between this
     // member mounting and this frame keeps the view the viewer put it at.
+    //
+    // The `?? fitted` arm cannot fire against the provider in this app:
+    // `seedGroupView` returns null only for an empty group name, and this is a
+    // registered member of a named group. Kept so a provider that declines to
+    // record the fit still opens this member at it.
+    /* istanbul ignore next -- unreachable fallback, see comment above */
     return viewGroupContext.seedGroupView(groupName, fitted) ?? fitted;
   };
 
@@ -1402,6 +1415,9 @@ const MapComponent = ({
   // everything it needs through refs rather than closing over a render.
   const applyGroupView = (nextView) => {
     const map = visualizationRef.current;
+    // istanbul ignore if -- unreachable: the registry never fans out a null
+    // view, and a member's registration is torn down in the same synchronous
+    // commit that disposes its map, so no peer can publish in between.
     if (!map || !nextView) return;
     const view = map.getView();
     const code = view.getProjection().getCode();
@@ -1437,6 +1453,10 @@ const MapComponent = ({
   const handleViewGroupPostrender = () => {
     const map = visualizationRef.current;
     const groupName = activeViewGroupRef.current;
+    // istanbul ignore if -- unreachable: the handler is bound to the map it
+    // reads, and unbound in the same commit that disposes it, so it never runs
+    // without one; the group name and the context are set by the registration
+    // that made this map a member at all.
     if (!map || !groupName || !viewGroupContext) return;
 
     // Read the view state off the view, never off the event's frame state:
@@ -1579,6 +1599,9 @@ const MapComponent = ({
     // The group pins its projection from the first member to register, so the
     // pin is reported on joining rather than waiting for a frame.
     const map = visualizationRef.current;
+    // istanbul ignore else -- the mount effect above creates the map and is
+    // declared first, so it has always run by the time this one does. Kept so
+    // a future reordering cannot dereference a map that is not there yet.
     if (map) {
       viewGroupContext.reportMemberProjection(
         viewGroupName,
@@ -1610,6 +1633,9 @@ const MapComponent = ({
     // Captured rather than read in the cleanup: the mount effect above runs its
     // own cleanup first and nulls `visualizationRef` out from under this one.
     const map = visualizationRef.current;
+    // istanbul ignore if -- same as the registration effect above: the map is
+    // created by an earlier effect and only ever nulled on unmount, so this
+    // body never runs without one.
     if (!map) return;
 
     // Cannot fire today: React runs this effect's own cleanup -- which unbinds
@@ -1632,6 +1658,10 @@ const MapComponent = ({
 
     return () => {
       map.un("postrender", handler);
+      // istanbul ignore else -- the ref is written only by the body above, and
+      // React runs this cleanup before every re-run, so the handler it holds
+      // is always this one. Kept so a second bound handler could not be
+      // cleared by the wrong cleanup.
       if (viewGroupPostrenderRef.current === handler) {
         viewGroupPostrenderRef.current = null;
       }

@@ -1267,6 +1267,10 @@ const MapVisualization = ({
   const cursorProjectionMatches = () => {
     const map = visualizationRef?.current;
     const groupName = activeCursorGroupRef.current;
+    // istanbul ignore if -- unreachable: both callers run only for a
+    // registered member of a group, and the registration is torn down in the
+    // same synchronous commit that disposes the map. Kept so a peer's
+    // coordinate arriving on a torn-down map draws nothing.
     if (!map || !groupName || !viewGroupContext) return false;
     const code = map.getView().getProjection().getCode();
     const pinned = viewGroupContext.reportMemberProjection(
@@ -1279,6 +1283,10 @@ const MapVisualization = ({
 
   const publishCursorCoordinate = (coordinate) => {
     const groupName = activeCursorGroupRef.current;
+    // istanbul ignore if -- unreachable: every path that clears the group name
+    // retracts this map's mark first, so nothing is left to publish by the
+    // time the name is gone. Kept so leaving a group can never publish into
+    // one this map is no longer in.
     if (!groupName || !viewGroupContext) return;
     cursorPublishedRef.current = coordinate;
     viewGroupContext.publishCursor(groupName, cursorMemberId, coordinate);
@@ -1363,6 +1371,9 @@ const MapVisualization = ({
     // Captured rather than read in the cleanup: MapComponent owns the OL map
     // and nulls `visualizationRef` out from under this effect on unmount.
     const map = visualizationRef?.current;
+    // istanbul ignore if -- MapComponent is a child, so its map-creating effect
+    // has always run by the time this one does; the same known non-coverage as
+    // the overlay effect above.
     if (!map) return;
 
     const onMove = (evt) => cursorMoveRef.current?.(evt);

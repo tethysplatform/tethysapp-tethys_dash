@@ -215,6 +215,73 @@ describe("ViewGroupProvider fan-out", () => {
     expect(consoleError).toHaveBeenCalledTimes(1);
     consoleError.mockRestore();
   });
+
+  // Joins with two arguments only, so the handlers parameter falls back to its
+  // default: a map that groups but has nothing to be told about.
+  const HandlerlessProbe = ({ groupName, memberId }) => {
+    const { registerMember } = useViewGroupContext();
+    useEffect(
+      () => registerMember(groupName, memberId),
+      [registerMember, groupName, memberId],
+    );
+    return null;
+  };
+  HandlerlessProbe.propTypes = {
+    groupName: PropTypes.string,
+    memberId: PropTypes.string.isRequired,
+  };
+
+  it("skips a member that joined without handlers", () => {
+    const applyB = jest.fn();
+    const Harness = ({ showPair }) => (
+      <ViewGroupProvider>
+        <HandlerlessProbe groupName="Basin" memberId="silent" />
+        {showPair ? (
+          <>
+            <MemberProbe groupName="Basin" memberId="a" view={VIEW_A} />
+            <MemberProbe groupName="Basin" memberId="b" applyView={applyB} />
+          </>
+        ) : null}
+      </ViewGroupProvider>
+    );
+    Harness.propTypes = { showPair: PropTypes.bool };
+
+    const { rerender } = render(<Harness showPair />);
+
+    // The handler-less member is passed over rather than called, and the rest
+    // of the group is delivered to as usual.
+    expect(() =>
+      fireEvent.click(screen.getByTestId("publish-view-a")),
+    ).not.toThrow();
+    expect(applyB).toHaveBeenCalledTimes(1);
+
+    // It is a full member all the same: the group is not dropped when the two
+    // handler-carrying members leave, so the view outlives them.
+    rerender(<Harness showPair={false} />);
+    rerender(<Harness showPair />);
+    expect(JSON.parse(readGroupView("b"))).toEqual(VIEW_A);
+  });
+
+  it("delivers a view whose center is not a coordinate array unchanged", () => {
+    // Only an array center is copied -- anything else is handed on as it came,
+    // rather than being dropped or turned into an array.
+    const CENTERLESS_VIEW = { center: null, resolution: 4, rotation: 0 };
+    const applyB = jest.fn();
+    render(
+      <ViewGroupProvider>
+        <MemberProbe groupName="Basin" memberId="a" view={CENTERLESS_VIEW} />
+        <MemberProbe groupName="Basin" memberId="b" applyView={applyB} />
+      </ViewGroupProvider>,
+    );
+
+    fireEvent.click(screen.getByTestId("publish-view-a"));
+
+    expect(applyB).toHaveBeenCalledWith(CENTERLESS_VIEW, {
+      groupName: "Basin",
+      sourceId: "a",
+    });
+    expect(JSON.parse(readGroupView("b"))).toEqual(CENTERLESS_VIEW);
+  });
 });
 
 describe("ViewGroupProvider projection pin", () => {
@@ -333,6 +400,94 @@ describe("ViewGroupProvider projection pin", () => {
     expect(report("a")).toBe("EPSG:3857");
     expect(report("b")).toBe("EPSG:3857");
   });
+
+  // Reports on behalf of an id that never joined the group.
+  const GhostReporter = ({ groupName, memberId, code }) => {
+    const { reportMemberProjection } = useViewGroupContext();
+    const [pin, setPin] = useState("unreported");
+    return (
+      <div>
+        <p data-testid={`pin-${memberId}`}>{String(pin)}</p>
+        <button
+          type="button"
+          data-testid={`report-${memberId}`}
+          onClick={() =>
+            setPin(reportMemberProjection(groupName, memberId, code))
+          }
+        >
+          report
+        </button>
+      </div>
+    );
+  };
+  GhostReporter.propTypes = {
+    groupName: PropTypes.string,
+    memberId: PropTypes.string.isRequired,
+    code: PropTypes.string,
+  };
+
+  it("reads the pin back for an id that never joined without recording it", () => {
+    render(
+      <ViewGroupProvider>
+        <ProjectionProbe groupName="Basin" memberId="a" code="EPSG:3857" />
+        <GhostReporter groupName="Basin" memberId="ghost" code="EPSG:32615" />
+      </ViewGroupProvider>,
+    );
+
+    expect(report("a")).toBe("EPSG:3857");
+
+    // A report from an unregistered id reads the group's pin but leaves no
+    // projection behind, so it cannot re-pin the group or unseat the member
+    // that did join.
+    expect(report("ghost")).toBe("EPSG:3857");
+    expect(report("a")).toBe("EPSG:3857");
+  });
+
+  it("releases the pin when the member holding it reports no projection", () => {
+    const Harness = ({ codeA }) => (
+      <ViewGroupProvider>
+        <ProjectionProbe groupName="Basin" memberId="a" code={codeA} />
+        <ProjectionProbe groupName="Basin" memberId="b" code="EPSG:4326" />
+      </ViewGroupProvider>
+    );
+    Harness.propTypes = { codeA: PropTypes.string };
+
+    const { rerender } = render(<Harness codeA="EPSG:3857" />);
+    expect(report("a")).toBe("EPSG:3857");
+    // B is genuinely out of sync while A holds the pin (R6).
+    expect(report("b")).toBe("EPSG:3857");
+
+    // A's map loses its view projection entirely and reports none.
+    rerender(<Harness codeA={undefined} />);
+    expect(report("a")).toBe("null");
+
+    // The pin went with it, so B is no longer stranded against a code nobody
+    // on the dashboard holds.
+    expect(report("b")).toBe("EPSG:4326");
+  });
+
+  it("drops the pin when its member leaves and nobody else reports one", () => {
+    const Harness = ({ showA }) => (
+      <ViewGroupProvider>
+        {showA ? (
+          <ProjectionProbe groupName="Basin" memberId="a" code="EPSG:3857" />
+        ) : null}
+        <ProjectionProbe groupName="Basin" memberId="b" code="EPSG:32615" />
+      </ViewGroupProvider>
+    );
+    Harness.propTypes = { showA: PropTypes.bool };
+
+    const { rerender } = render(<Harness showA />);
+
+    // A pins the group; B has reported nothing at all yet.
+    expect(report("a")).toBe("EPSG:3857");
+
+    rerender(<Harness showA={false} />);
+
+    // The pin leaves with the member that set it rather than outliving it, so
+    // the projection B actually holds is accepted.
+    expect(report("b")).toBe("EPSG:32615");
+  });
 });
 
 describe("ViewGroupProvider group identity", () => {
@@ -399,6 +554,122 @@ describe("ViewGroupProvider group identity", () => {
       groupName: "Delta",
       sourceId: "d",
     });
+  });
+
+  // Calls the registry straight through for the guards that have no member to
+  // observe, and prints whatever came back.
+  const GuardProbe = ({ groupName }) => {
+    const {
+      publishView,
+      publishCursor,
+      reportMemberProjection,
+      seedGroupView,
+      getGroupView,
+    } = useViewGroupContext();
+    const [result, setResult] = useState("uncalled");
+    const record = (value) => setResult(JSON.stringify(value ?? null));
+    return (
+      <div>
+        <p data-testid="guard-result">{result}</p>
+        <button
+          type="button"
+          data-testid="guard-publish-view"
+          onClick={() => record(publishView(groupName, "ghost", VIEW_A))}
+        >
+          publish view
+        </button>
+        <button
+          type="button"
+          data-testid="guard-publish-cursor"
+          onClick={() => record(publishCursor(groupName, "ghost", [1, 2]))}
+        >
+          publish cursor
+        </button>
+        <button
+          type="button"
+          data-testid="guard-report"
+          onClick={() =>
+            record(reportMemberProjection(groupName, "ghost", "EPSG:3857"))
+          }
+        >
+          report
+        </button>
+        <button
+          type="button"
+          data-testid="guard-seed"
+          onClick={() => record(seedGroupView(groupName, VIEW_B))}
+        >
+          seed
+        </button>
+        <button
+          type="button"
+          data-testid="guard-read"
+          onClick={() => record(getGroupView(groupName))}
+        >
+          read
+        </button>
+      </div>
+    );
+  };
+  GuardProbe.propTypes = { groupName: PropTypes.string };
+
+  const guardResult = () => screen.getByTestId("guard-result").textContent;
+
+  it("ignores a whitespace-only name on every registry method", () => {
+    const applyA = jest.fn();
+    const cursorA = jest.fn();
+    render(
+      <ViewGroupProvider>
+        <MemberProbe
+          groupName="Basin"
+          memberId="a"
+          applyView={applyA}
+          applyCursor={cursorA}
+        />
+        <GuardProbe groupName="   " />
+      </ViewGroupProvider>,
+    );
+
+    fireEvent.click(screen.getByTestId("guard-publish-cursor"));
+    fireEvent.click(screen.getByTestId("guard-report"));
+    expect(guardResult()).toBe("null");
+    fireEvent.click(screen.getByTestId("guard-seed"));
+    expect(guardResult()).toBe("null");
+    fireEvent.click(screen.getByTestId("guard-read"));
+    expect(guardResult()).toBe("null");
+
+    // Nothing reached the real group either -- a blank name is no group, not a
+    // group everyone shares.
+    expect(applyA).not.toHaveBeenCalled();
+    expect(cursorA).not.toHaveBeenCalled();
+  });
+
+  it("is inert for a named group nothing has joined", () => {
+    const applyA = jest.fn();
+    const cursorA = jest.fn();
+    render(
+      <ViewGroupProvider>
+        <MemberProbe
+          groupName="Basin"
+          memberId="a"
+          applyView={applyA}
+          applyCursor={cursorA}
+        />
+        <GuardProbe groupName="Nowhere" />
+      </ViewGroupProvider>,
+    );
+
+    fireEvent.click(screen.getByTestId("guard-publish-view"));
+    fireEvent.click(screen.getByTestId("guard-publish-cursor"));
+    fireEvent.click(screen.getByTestId("guard-report"));
+    expect(guardResult()).toBe("null");
+
+    // Publishing into a group nobody is in neither reaches another group nor
+    // brings the empty one into being with a view of its own.
+    expect(applyA).not.toHaveBeenCalled();
+    expect(cursorA).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("guard-read"));
+    expect(guardResult()).toBe("null");
   });
 });
 
@@ -522,6 +793,144 @@ describe("ViewGroupProvider lifecycle", () => {
     expect(JSON.parse(screen.getByTestId("unjoined-view").textContent)).toEqual(
       VIEW_B,
     );
+  });
+
+  // Joins on demand and keeps every unregister it was handed, so a test can
+  // call a stale one, or the same one twice.
+  const RejoinProbe = ({ groupName, memberId, applyView, view }) => {
+    const { registerMember, publishView } = useViewGroupContext();
+    const unregistersRef = useRef([]);
+    const handlerRef = useRef(applyView);
+    handlerRef.current = applyView;
+
+    return (
+      <div>
+        <button
+          type="button"
+          data-testid={`join-${memberId}`}
+          onClick={() =>
+            unregistersRef.current.push(
+              registerMember(groupName, memberId, {
+                applyView: (...args) => handlerRef.current?.(...args),
+              }),
+            )
+          }
+        >
+          join
+        </button>
+        <button
+          type="button"
+          data-testid={`leave-first-${memberId}`}
+          onClick={() => unregistersRef.current[0]?.()}
+        >
+          leave first
+        </button>
+        <button
+          type="button"
+          data-testid={`leave-last-${memberId}`}
+          onClick={() => unregistersRef.current.at(-1)?.()}
+        >
+          leave last
+        </button>
+        <button
+          type="button"
+          data-testid={`send-${memberId}`}
+          onClick={() => publishView(groupName, memberId, view)}
+        >
+          send
+        </button>
+      </div>
+    );
+  };
+  RejoinProbe.propTypes = {
+    groupName: PropTypes.string,
+    memberId: PropTypes.string.isRequired,
+    applyView: PropTypes.func,
+    // eslint-disable-next-line react/forbid-prop-types
+    view: PropTypes.object,
+  };
+
+  it("tolerates calling the same unregister twice", () => {
+    const applyA = jest.fn();
+    render(
+      <ViewGroupProvider>
+        <RejoinProbe groupName="Basin" memberId="a" applyView={applyA} />
+        <RejoinProbe groupName="Basin" memberId="b" view={VIEW_B} />
+      </ViewGroupProvider>,
+    );
+
+    fireEvent.click(screen.getByTestId("join-a"));
+    fireEvent.click(screen.getByTestId("join-b"));
+    fireEvent.click(screen.getByTestId("send-b"));
+    expect(applyA).toHaveBeenCalledTimes(1);
+
+    // Both members leave, which takes the group entry with them, and then A's
+    // unregister runs a second time against a group that is no longer there.
+    fireEvent.click(screen.getByTestId("leave-last-a"));
+    fireEvent.click(screen.getByTestId("leave-last-b"));
+    expect(() =>
+      fireEvent.click(screen.getByTestId("leave-last-a")),
+    ).not.toThrow();
+
+    // The registry is unharmed: the same two members can form the group again.
+    fireEvent.click(screen.getByTestId("join-a"));
+    fireEvent.click(screen.getByTestId("join-b"));
+    fireEvent.click(screen.getByTestId("send-b"));
+    expect(applyA).toHaveBeenCalledTimes(2);
+  });
+
+  it("ignores a stale unregister from a member that re-registered", () => {
+    const applyA = jest.fn();
+    render(
+      <ViewGroupProvider>
+        <RejoinProbe groupName="Basin" memberId="a" applyView={applyA} />
+        <RejoinProbe groupName="Basin" memberId="b" view={VIEW_B} />
+      </ViewGroupProvider>,
+    );
+
+    fireEvent.click(screen.getByTestId("join-b"));
+    // A joins twice under the same id -- a group rename or a remount installs
+    // a second registration over the first.
+    fireEvent.click(screen.getByTestId("join-a"));
+    fireEvent.click(screen.getByTestId("join-a"));
+
+    // The first registration's unregister must not take the live one down.
+    fireEvent.click(screen.getByTestId("leave-first-a"));
+    fireEvent.click(screen.getByTestId("send-b"));
+    expect(applyA).toHaveBeenCalledTimes(1);
+
+    // The live registration still leaves when its own unregister is called.
+    fireEvent.click(screen.getByTestId("leave-last-a"));
+    fireEvent.click(screen.getByTestId("send-b"));
+    expect(applyA).toHaveBeenCalledTimes(1);
+  });
+
+  it("seeds a view whose center is not a coordinate array", () => {
+    const CENTERLESS_VIEW = { center: null, resolution: 4, rotation: 0 };
+    const Seeder = () => {
+      const { seedGroupView } = useViewGroupContext();
+      return (
+        <button
+          type="button"
+          data-testid="seed-centerless"
+          onClick={() => seedGroupView("Basin", CENTERLESS_VIEW)}
+        >
+          seed
+        </button>
+      );
+    };
+
+    render(
+      <ViewGroupProvider>
+        <MemberProbe groupName="Basin" memberId="a" view={VIEW_A} />
+        <Seeder />
+      </ViewGroupProvider>,
+    );
+
+    // Only an array center is copied; any other center is recorded as it came
+    // rather than being dropped.
+    fireEvent.click(screen.getByTestId("seed-centerless"));
+    expect(JSON.parse(readGroupView("a"))).toEqual(CENTERLESS_VIEW);
   });
 });
 
@@ -713,6 +1122,39 @@ describe("ViewGroupProvider seed discovery", () => {
     rerender(<Harness showMembers />);
     expect(readGroupView("a")).toBe("null");
     expect(JSON.parse(seedText()).center).toEqual([1, 2]);
+  });
+
+  it("seeds and unseeds a group that already has members", () => {
+    const Harness = ({ tabs }) => (
+      <TabContext.Provider value={{ tabs, activeTabId: 1 }}>
+        <ViewGroupProvider>
+          <MemberProbe groupName="Basin" memberId="a" view={VIEW_A} />
+          <SeedProbe groupName="Basin" />
+        </ViewGroupProvider>
+      </TabContext.Provider>
+    );
+    Harness.propTypes = {
+      // eslint-disable-next-line react/forbid-prop-types
+      tabs: PropTypes.array,
+    };
+
+    const { rerender } = render(<Harness tabs={[{ gridItems: [] }]} />);
+    fireEvent.click(screen.getByTestId("publish-view-a"));
+    expect(seedText()).toBe("null");
+
+    // The seed lands on the entry the member already made, rather than on a
+    // fresh one that would discard the view the group is holding.
+    rerender(
+      <Harness tabs={[{ gridItems: [flaggedItem("Basin", "1,2,3")] }]} />,
+    );
+    expect(JSON.parse(seedText()).center).toEqual([1, 2]);
+    expect(JSON.parse(readGroupView("a"))).toEqual(VIEW_A);
+
+    // Unflagging clears the seed, but a group with members is not disbanded
+    // for having none.
+    rerender(<Harness tabs={[{ gridItems: [] }]} />);
+    expect(seedText()).toBe("null");
+    expect(JSON.parse(readGroupView("a"))).toEqual(VIEW_A);
   });
 
   it("tolerates rendering with no tab context at all", () => {
