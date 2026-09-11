@@ -80,10 +80,13 @@ const FloatingMapControl = ({ edges, className, children, ...rest }) => {
   const [style, setStyle] = useState(null);
 
   const reposition = useCallback(() => {
-    // Every caller runs while mounted: the layout effect after render, and the
-    // resize, scroll and resize-observer subscriptions, all of which are torn
-    // down in cleanup. So the anchor is always attached here.
     const anchor = anchorRef.current;
+    // The resize observer below is created in a passive effect, so its cleanup
+    // runs a phase later than the mutation phase in which React nulls this
+    // ref -- and detaching the anchor is itself what resizes the offsetParent
+    // being observed. A callback delivered in that window finds no anchor, and
+    // has nothing left to position.
+    if (!anchor) return;
     setStyle(
       styleFromAnchor(anchor.getBoundingClientRect(), edges, {
         width: window.innerWidth,

@@ -3,7 +3,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MapExtent } from "components/inputs/custom/MapExtent";
 import createLoadedComponent from "__tests__/utilities/customRender";
 import MapContextProvider from "components/contexts/MapContext";
-import { MapContext } from "components/contexts/Contexts";
+import { MapContext, TabContext } from "components/contexts/Contexts";
+import { parseSeedExtent, POPUP_TAB_ID } from "components/map/viewGroup";
 
 // Mock view object with required methods
 const mockView = {
@@ -344,3 +345,417 @@ test("setMapExtent leaves the raw center X unwrapped for non-EPSG:3857 projectio
     extent: "9999999999.00,987654.32,4.57",
   });
 });
+
+// ---------------------------------------------------------------------------
+// View group controls
+// ---------------------------------------------------------------------------
+
+const makeMap = () => {
+  const view = {
+    on: jest.fn(),
+    un: jest.fn(),
+    getCenter: () => [123456.78, 987654.32],
+    getZoom: () => 4.5678,
+    getProjection: () => ({ getCode: () => "EPSG:3857" }),
+  };
+  return {
+    getView: () => view,
+    on: jest.fn(),
+    un: jest.fn(),
+  };
+};
+
+const PREVIEWED_EXTENT = "123456.78,987654.32,4.57";
+
+// Renders the widget with the collapsible section already expanded.
+const renderOpen = (props = {}) => {
+  const visualizationRef = createRef();
+  visualizationRef.current = makeMap();
+  const onChange = jest.fn();
+
+  render(
+    <MapContext.Provider value={{ mapReady: true }}>
+      <MapExtent
+        onChange={onChange}
+        values={{ extent: "10,20,4" }}
+        visualizationRef={visualizationRef}
+        {...props}
+      />
+    </MapContext.Provider>,
+  );
+
+  fireEvent.click(screen.getByText("Map Extent"));
+
+  return { onChange, visualizationRef };
+};
+
+const lastValue = (onChange) =>
+  onChange.mock.calls[onChange.mock.calls.length - 1][0];
+
+const setGroupName = (name) => {
+  const field = screen.getByLabelText("View Group Input");
+  fireEvent.change(field, { target: { value: name } });
+  fireEvent.blur(field);
+  return field;
+};
+
+const flagAsInitialExtent = () =>
+  fireEvent.click(screen.getByLabelText("View Group Initial Extent Input"));
+
+test("entering a group name emits the extent together with the group name", () => {
+  const { onChange } = renderOpen();
+
+  // Surrounding whitespace is trimmed off the committed name (R25).
+  setGroupName("  Basin  ");
+
+  expect(lastValue(onChange)).toStrictEqual({
+    extent: "10,20,4",
+    viewGroup: "Basin",
+  });
+  expect(screen.getByLabelText("View Group Input").value).toBe("Basin");
+});
+
+test("re-blurring an unchanged group name emits nothing and trims the draft", () => {
+  const { onChange } = renderOpen();
+
+  setGroupName("Basin");
+  const field = screen.getByLabelText("View Group Input");
+  onChange.mockClear();
+
+  // Nothing changed, so the commit early-returns: no value goes out, and the
+  // draft is already the committed name so it is left exactly as it is.
+  fireEvent.blur(field);
+  expect(onChange).not.toHaveBeenCalled();
+  expect(field.value).toBe("Basin");
+
+  // Re-typing the same name with whitespace around it also commits nothing --
+  // the group is unchanged -- but the field still has to be trimmed back so it
+  // never shows a value that is not the one in force.
+  fireEvent.change(field, { target: { value: "  Basin  " } });
+  fireEvent.blur(field);
+  expect(onChange).not.toHaveBeenCalled();
+  expect(field.value).toBe("Basin");
+});
+
+test("a whitespace-only group name commits as no group", () => {
+  const { onChange } = renderOpen();
+
+  setGroupName("   ");
+
+  expect(lastValue(onChange)).toStrictEqual({ extent: "10,20,4" });
+  expect(
+    screen.getByLabelText("View Group Initial Extent Input"),
+  ).toBeDisabled();
+});
+
+test("changing the extent keeps the group name and initial-extent flag", () => {
+  const { onChange } = renderOpen();
+
+  setGroupName("Basin");
+  flagAsInitialExtent();
+
+  expect(lastValue(onChange)).toStrictEqual({
+    extent: "10,20,4",
+    viewGroup: "Basin",
+    isGroupInitialExtent: true,
+  });
+
+  fireEvent.change(screen.getByLabelText("Custom Extent Input"), {
+    target: { value: "1,2,3" },
+  });
+
+  expect(lastValue(onChange)).toStrictEqual({
+    extent: "1,2,3",
+    viewGroup: "Basin",
+    isGroupInitialExtent: true,
+  });
+});
+
+test("toggling the previewed-extent radio keeps the group name and flag", async () => {
+  const { onChange } = renderOpen();
+
+  setGroupName("Basin");
+  flagAsInitialExtent();
+
+  fireEvent.click(
+    await screen.findByLabelText(/Use the Previewed Map Extent/i),
+  );
+
+  expect(lastValue(onChange)).toStrictEqual({
+    extent: PREVIEWED_EXTENT,
+    viewGroup: "Basin",
+    isGroupInitialExtent: true,
+  });
+
+  fireEvent.click(await screen.findByLabelText(/Use a Custom Extent/i));
+
+  expect(lastValue(onChange)).toStrictEqual({
+    extent: PREVIEWED_EXTENT,
+    viewGroup: "Basin",
+    isGroupInitialExtent: true,
+  });
+});
+
+test("editing the extent variable keeps the group name and flag", () => {
+  const { onChange } = renderOpen();
+
+  setGroupName("Basin");
+  flagAsInitialExtent();
+
+  fireEvent.change(screen.getByLabelText("Extent Variable Name:"), {
+    target: { value: "map_extent" },
+  });
+
+  expect(lastValue(onChange)).toStrictEqual({
+    extent: "10,20,4",
+    variable: "map_extent",
+    viewGroup: "Basin",
+    isGroupInitialExtent: true,
+  });
+});
+
+test("an invalid extent blocks saving but restores the group fields once corrected", () => {
+  const { onChange } = renderOpen();
+
+  setGroupName("Basin");
+  flagAsInitialExtent();
+
+  const extentInput = screen.getByLabelText("Custom Extent Input");
+  fireEvent.change(extentInput, { target: { value: "10,20" } });
+  expect(lastValue(onChange)).toBe(null);
+
+  fireEvent.change(extentInput, { target: { value: "10,20,30,40" } });
+
+  expect(lastValue(onChange)).toStrictEqual({
+    extent: "10,20,30,40",
+    viewGroup: "Basin",
+    isGroupInitialExtent: true,
+  });
+});
+
+test.each([
+  ["a legacy bare string", "10,20,4", { extent: "10,20,4" }],
+  ["an { extent } object", { extent: "10,20,4" }, { extent: "10,20,4" }],
+  [
+    "an { extent, variable } object",
+    { extent: "10,20,4", variable: "map_extent" },
+    { extent: "10,20,4", variable: "map_extent" },
+  ],
+])("loads %s and preserves it on emit", (_label, values, expected) => {
+  const { onChange } = renderOpen({ values });
+
+  expect(screen.getByLabelText("Custom Extent Input").value).toBe("10,20,4");
+  expect(onChange.mock.calls[0][0]).toStrictEqual(expected);
+
+  setGroupName("Basin");
+
+  expect(lastValue(onChange)).toStrictEqual({
+    ...expected,
+    viewGroup: "Basin",
+  });
+});
+
+test("a saved legacy bare string loads with its extent populated", () => {
+  const { onChange } = renderOpen({ values: "-100.5,40.2,6" });
+
+  expect(screen.getByLabelText("Custom Extent Input").value).toBe(
+    "-100.5,40.2,6",
+  );
+  expect(onChange.mock.calls[0][0]).toStrictEqual({ extent: "-100.5,40.2,6" });
+});
+
+test("the group name field emits on blur, not on each keystroke", () => {
+  const { onChange } = renderOpen();
+
+  const field = screen.getByLabelText("View Group Input");
+  const callsBefore = onChange.mock.calls.length;
+
+  fireEvent.change(field, { target: { value: "B" } });
+  fireEvent.change(field, { target: { value: "Ba" } });
+  fireEvent.change(field, { target: { value: "Basin" } });
+
+  expect(onChange.mock.calls.length).toBe(callsBefore);
+
+  fireEvent.blur(field);
+
+  expect(onChange.mock.calls.length).toBe(callsBefore + 1);
+  expect(lastValue(onChange)).toStrictEqual({
+    extent: "10,20,4",
+    viewGroup: "Basin",
+  });
+});
+
+test("the initial-extent checkbox is disabled while the group name is empty", () => {
+  renderOpen();
+
+  const checkbox = screen.getByLabelText("View Group Initial Extent Input");
+  expect(checkbox).toBeDisabled();
+  expect(
+    screen.getByText(/Set a view group name to use this map's extent/i),
+  ).toBeInTheDocument();
+
+  setGroupName("Basin");
+
+  expect(
+    screen.getByLabelText("View Group Initial Extent Input"),
+  ).not.toBeDisabled();
+});
+
+test("the initial-extent checkbox is disabled while the extent is templated", () => {
+  renderOpen();
+
+  setGroupName("Basin");
+  expect(
+    screen.getByLabelText("View Group Initial Extent Input"),
+  ).not.toBeDisabled();
+
+  fireEvent.change(screen.getByLabelText("Custom Extent Input"), {
+    // eslint-disable-next-line no-template-curly-in-string
+    target: { value: "${Lon}, 12, 4" },
+  });
+
+  expect(
+    screen.getByLabelText("View Group Initial Extent Input"),
+  ).toBeDisabled();
+  expect(
+    screen.getByText(/cannot supply the group's initial extent/i),
+  ).toBeInTheDocument();
+});
+
+test("clearing the group name clears the initial-extent flag", () => {
+  const { onChange } = renderOpen();
+
+  setGroupName("Basin");
+  flagAsInitialExtent();
+  expect(lastValue(onChange)).toStrictEqual({
+    extent: "10,20,4",
+    viewGroup: "Basin",
+    isGroupInitialExtent: true,
+  });
+
+  setGroupName("");
+
+  expect(lastValue(onChange)).toStrictEqual({ extent: "10,20,4" });
+  expect(
+    screen.getByLabelText("View Group Initial Extent Input"),
+  ).not.toBeChecked();
+});
+
+// ---------------------------------------------------------------------------
+// Templated extents, the popup exclusion, and tokenizer agreement
+// ---------------------------------------------------------------------------
+
+// eslint-disable-next-line no-template-curly-in-string
+const BBOX_TOKEN = "${bbox}";
+// A variable input name with spaces -- the documented form -- which the
+// editor's own tokenizer used to read as a literal extent.
+// eslint-disable-next-line no-template-curly-in-string
+const SPACED_TOKEN = "${Basin Extent}";
+
+// Same as renderOpen, but under a TabContext so the widget can tell whether it
+// is inside a popup layout.
+const renderOpenInTab = (activeTabId, props = {}) => {
+  const visualizationRef = createRef();
+  visualizationRef.current = makeMap();
+  const onChange = jest.fn();
+
+  render(
+    <TabContext.Provider value={{ activeTabId }}>
+      <MapContext.Provider value={{ mapReady: true }}>
+        <MapExtent
+          onChange={onChange}
+          values={{ extent: "10,20,4" }}
+          visualizationRef={visualizationRef}
+          {...props}
+        />
+      </MapContext.Provider>
+    </TabContext.Provider>,
+  );
+
+  fireEvent.click(screen.getByText("Map Extent"));
+
+  return { onChange, visualizationRef };
+};
+
+test("the view group fields are hidden inside a popup layout", () => {
+  renderOpenInTab(POPUP_TAB_ID);
+
+  // A popup map can never join a view group, so it is not offered one.
+  expect(screen.queryByLabelText("View Group Input")).not.toBeInTheDocument();
+  expect(
+    screen.queryByLabelText("View Group Initial Extent Input"),
+  ).not.toBeInTheDocument();
+  // The rest of the widget is unchanged.
+  expect(screen.getByLabelText("Custom Extent Input")).toBeInTheDocument();
+  expect(screen.getByLabelText("Extent Variable Name:")).toBeInTheDocument();
+});
+
+test("the view group fields are offered on an ordinary dashboard tab", () => {
+  renderOpenInTab(3);
+
+  expect(screen.getByLabelText("View Group Input")).toBeInTheDocument();
+  expect(
+    screen.getByLabelText("View Group Initial Extent Input"),
+  ).toBeInTheDocument();
+});
+
+test("an extent that becomes templated drops the initial-extent flag from the emitted value", () => {
+  const { onChange } = renderOpen();
+
+  setGroupName("Basin");
+  flagAsInitialExtent();
+  expect(lastValue(onChange)).toStrictEqual({
+    extent: "10,20,4",
+    viewGroup: "Basin",
+    isGroupInitialExtent: true,
+  });
+
+  fireEvent.change(screen.getByLabelText("Custom Extent Input"), {
+    target: { value: SPACED_TOKEN },
+  });
+
+  // Disabling the checkbox is not enough: the flag has to leave the value, or
+  // saving this map would strip the flag off the group's real seeding member.
+  expect(lastValue(onChange)).toStrictEqual({
+    extent: SPACED_TOKEN,
+    viewGroup: "Basin",
+  });
+  const checkbox = screen.getByLabelText("View Group Initial Extent Input");
+  expect(checkbox).toBeDisabled();
+  expect(checkbox).not.toBeChecked();
+
+  // ...and it comes back only if the user re-ticks it over a literal extent.
+  fireEvent.change(screen.getByLabelText("Custom Extent Input"), {
+    target: { value: "1,2,3" },
+  });
+  expect(lastValue(onChange)).toStrictEqual({
+    extent: "1,2,3",
+    viewGroup: "Basin",
+  });
+});
+
+// The extent field and the group's seed parser must answer "is this a
+// template?" identically: a value one reads as a literal and the other as a
+// template produces a group that can never open at the view it advertises.
+test.each([[BBOX_TOKEN], [SPACED_TOKEN], ["-1,2,3"]])(
+  "the editor and the seed parser agree about %s",
+  (extent) => {
+    const seeds = parseSeedExtent(extent) !== null;
+
+    const { onChange } = renderOpen();
+    setGroupName("Basin");
+    flagAsInitialExtent();
+
+    fireEvent.change(screen.getByLabelText("Custom Extent Input"), {
+      target: { value: extent },
+    });
+
+    const checkbox = screen.getByLabelText("View Group Initial Extent Input");
+    expect(checkbox.disabled).toBe(!seeds);
+    expect(lastValue(onChange)).toStrictEqual({
+      extent,
+      viewGroup: "Basin",
+      ...(seeds && { isGroupInitialExtent: true }),
+    });
+  },
+);

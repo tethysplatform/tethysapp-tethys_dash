@@ -110,10 +110,14 @@ Each plugin `run()` must return data in the format expected by its `type`:
 | `card` | `{"title": str, "data": [{color, label, value, icon}, ...]}` |
 | `text` | `{"text": str}` |
 | `variable_input` | `{"variable_name": str, "initial_value": any, "variable_options_source": list or str}` |
-| `map` | `{"baseMap": str, "viewConfig": {...}, "mapConfig": {...}, "layers": [...]}` |
+| `map` | `{"baseMap": str, "map_extent": {...}, "mapConfig": {...}, "layers": [...]}` |
 | `custom` | `{"url": str, "scope": str, "module": str, "props": {...}}` (Module Federation) |
 
 For long-running plugins, call `self.send_update(message, percentage_complete)` during `run()` to stream progress via WebSocket.
+
+`map_extent` also carries the map's **view group**: `{"extent": "...", "viewGroup": "Group Name"}` puts the map in the dashboard's linked view group of that name, so every member pans, zooms, and shows the hovered position together. Group names are trimmed and matched case-sensitively; an empty name means "no group". A plugin-supplied map may *join* a group but can never supply its opening view — the plugin's extent does not exist until the plugin has run — so the `isGroupInitialExtent` flag is honored only on the built-in `Map` visualization and is settable only through its editor (Map Extent → "Use as the view group's initial extent"). At most one member per group may carry the flag; saving a flagged map clears it from every other member of that group. Maps inside a popup layout never join a group.
+
+The view group is a **map-level** setting, not a per-layer one, so it deliberately does *not* live in the `layerPropertiesOptions` registry described below.
 
 `map`-type layer configs also support per-layer props (`configuration.props` on each layer) beyond the base `layers` shape — opacity, min/max resolution, min/max zoom, `minZoomQuery`, `clickTolerance`, `snapToFeatures`, and `snapSublayer` — registered in `layerPropertiesOptions` (`reactapp/components/map/utilities.js`). That registry drives the MapLayer editor's "Layer Properties" GUI table, so any new layer prop must be added there to become editable in the GUI.
 

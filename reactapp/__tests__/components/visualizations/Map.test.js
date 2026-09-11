@@ -11,11 +11,17 @@ import createLoadedComponent, {
   InputVariablePComponent,
 } from "__tests__/utilities/customRender";
 import PropTypes from "prop-types";
-import { Map } from "ol";
+import { Map, View } from "ol";
 import ImageArcGISRest from "ol/source/ImageArcGISRest.js";
 import VariableInput from "components/visualizations/VariableInput";
 import { Vector as VectorSource } from "ol/source.js";
-import { GridItemContext } from "components/contexts/Contexts";
+import {
+  AppContext,
+  DataViewerModeContext,
+  GridItemContext,
+  LayoutContext,
+  VariableInputsContext,
+} from "components/contexts/Contexts";
 import appAPI from "services/api/app";
 import { applyStyle } from "ol-mapbox-style";
 import Point from "ol/geom/Point.js";
@@ -61,7 +67,10 @@ jest.mock("components/map/zarrReader", () => ({
 // eslint-disable-next-line
 import { readSlice } from "components/map/zarrReader";
 // eslint-disable-next-line
-import MapVisualization, { Popup } from "components/visualizations/Map";
+import MapVisualization, {
+  LINKED_CURSOR_OVERLAY_ID,
+  Popup,
+} from "components/visualizations/Map";
 // eslint-disable-next-line
 import {
   createJsonStyleFunction,
@@ -7479,4 +7488,573 @@ test("a layer mapping no attributes to variables writes no variable inputs", asy
 
   expect(await screen.findByText("Map Ready")).toBeInTheDocument();
   expect(await screen.findByText("some value")).toBeInTheDocument();
+});
+
+describe("linked map view groups", () => {
+  const groupedLayers = [
+    {
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "Gauges",
+          minZoomQuery: 6,
+          source: {
+            type: "ESRI Image and Map Service",
+            props: { url: "some_url" },
+          },
+        },
+      },
+    },
+  ];
+
+  const GroupedMapMember = ({ uuid, maps }) => {
+    const visualizationRef = useRef();
+    const { mapReady } = useMapContext();
+    useEffect(() => {
+      maps[uuid] = visualizationRef;
+    }, [maps, uuid]);
+    return (
+      <GridItemContext.Provider
+        value={{ gridItemUUID: uuid, shouldLoad: true, gridItemI: uuid }}
+      >
+        <MapVisualization
+          visualizationRef={visualizationRef}
+          mapConfig={{}}
+          layers={groupedLayers}
+          baseMap={null}
+          layerControl={false}
+          mapExtent={{ extent: "0,0,5", viewGroup: "Basin" }}
+        />
+        <p>{mapReady ? `${uuid} ready` : `${uuid} loading`}</p>
+        <button
+          type="button"
+          onClick={() =>
+            visualizationRef.current?.dispatchEvent({
+              type: "singleclick",
+              coordinate: [1000, 2000],
+              pixel: [5, 5],
+            })
+          }
+        >
+          {`click-${uuid}`}
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            visualizationRef.current?.dispatchEvent({ type: "postrender" })
+          }
+        >
+          {`frame-${uuid}`}
+        </button>
+      </GridItemContext.Provider>
+    );
+  };
+  GroupedMapMember.propTypes = {
+    uuid: PropTypes.string,
+    maps: PropTypes.object,
+  };
+
+  test("a below-minZoomQuery click moves the whole group, and only the clicked map opens a popup", async () => {
+    // `queryLayerFeatures` mutates the clicked map's view IN PLACE when the
+    // click lands below a layer's minZoomQuery -- the third programmatic path
+    // that moves a view, and the only one that does not replace the View
+    // object. Under the identity rule it reads as a user action, which is the
+    // intended treatment: the viewer did act on that map. Pinned here because
+    // a click moving every member of a group is the kind of thing R16 is read
+    // to forbid, so the boundary belongs in a test rather than in a comment.
+    // The popup overlay auto-pans, and its rect measurement throws in jsdom.
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+    const actualUtilities = jest.requireActual("components/map/utilities");
+    mockedQueryLayerFeatures.mockImplementation(
+      async (layerInfo, map, coordinate, pixel) => {
+        if (
+          layerInfo.configuration.props.minZoomQuery >= map.getView().getZoom()
+        ) {
+          return actualUtilities.queryLayerFeatures(
+            layerInfo,
+            map,
+            coordinate,
+            pixel,
+          );
+        }
+        return [{ layerName: "Gauges", attributes: { gauge: "Feature A" } }];
+      },
+    );
+
+    const maps = {};
+    const LoadedComponent = createLoadedComponent({
+      children: (
+        <>
+          <MapContextProvider>
+            <GroupedMapMember uuid="a" maps={maps} />
+          </MapContextProvider>
+          <MapContextProvider>
+            <GroupedMapMember uuid="b" maps={maps} />
+          </MapContextProvider>
+        </>
+      ),
+    });
+    render(LoadedComponent);
+
+    expect(await screen.findByText("a ready")).toBeInTheDocument();
+    expect(await screen.findByText("b ready")).toBeInTheDocument();
+
+    // Both members record a baseline from their own opening view first.
+    fireEvent.click(screen.getByText("frame-a"));
+    fireEvent.click(screen.getByText("frame-b"));
+
+    // The click lands below minZoomQuery, so the layer query zooms the clicked
+    // map in place instead of identifying anything.
+    fireEvent.click(screen.getByText("click-a"));
+    await waitFor(() =>
+      expect(maps.a.current.getView().getZoom()).toBeCloseTo(6.1, 5),
+    );
+    expect(maps.a.current.getView().getCenter()).toEqual([1000, 2000]);
+
+    fireEvent.click(screen.getByText("frame-a"));
+
+    // The group follows the auto-zoom.
+    await waitFor(() =>
+      expect(maps.b.current.getView().getCenter()).toEqual([1000, 2000]),
+    );
+    expect(maps.b.current.getView().getResolution()).toBe(
+      maps.a.current.getView().getResolution(),
+    );
+
+    // Only the clicked map was queried -- the follower moved, it did not click.
+    expect(
+      mockedQueryLayerFeatures.mock.calls.every(
+        (call) => call[1] === maps.a.current,
+      ),
+    ).toBe(true);
+    // ...and nothing opened a popup on either map: the query zoomed instead.
+    expect(screen.queryByText("Feature A")).not.toBeInTheDocument();
+
+    // Now above minZoomQuery, the same click identifies a feature. Exactly one
+    // of the two popups shows it.
+    fireEvent.click(screen.getByText("click-a"));
+    expect(await screen.findByText("Feature A")).toBeInTheDocument();
+    expect(screen.getAllByText("Feature A")).toHaveLength(1);
+    expect(screen.getAllByLabelText("Map Popup Content")).toHaveLength(2);
+    expect(
+      mockedQueryLayerFeatures.mock.calls.every(
+        (call) => call[1] === maps.a.current,
+      ),
+    ).toBe(true);
+  });
+});
+
+describe("linked cursor", () => {
+  const cursorLayers = [
+    {
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "Gauges",
+          source: {
+            type: "ESRI Image and Map Service",
+            props: { url: "some_url" },
+          },
+        },
+      },
+    },
+  ];
+
+  const CursorMember = ({ uuid, maps, viewGroup = "Basin", mapDrawing }) => {
+    const visualizationRef = useRef();
+    const { mapReady } = useMapContext();
+    useEffect(() => {
+      maps[uuid] = visualizationRef;
+    }, [maps, uuid]);
+    return (
+      <GridItemContext.Provider
+        value={{ gridItemUUID: uuid, shouldLoad: true, gridItemI: uuid }}
+      >
+        <MapVisualization
+          visualizationRef={visualizationRef}
+          mapConfig={{}}
+          layers={cursorLayers}
+          baseMap={null}
+          layerControl={false}
+          mapDrawing={mapDrawing}
+          mapExtent={
+            viewGroup ? { extent: "0,0,5", viewGroup } : { extent: "0,0,5" }
+          }
+        />
+        <p>{mapReady ? `${uuid} ready` : `${uuid} loading`}</p>
+      </GridItemContext.Provider>
+    );
+  };
+  CursorMember.propTypes = {
+    uuid: PropTypes.string,
+    maps: PropTypes.object,
+    viewGroup: PropTypes.string,
+    mapDrawing: PropTypes.object,
+  };
+
+  const dashboardOf = (members, maps) => (
+    <>
+      {members.map((member) => (
+        <MapContextProvider key={member.uuid}>
+          <CursorMember maps={maps} {...member} />
+        </MapContextProvider>
+      ))}
+    </>
+  );
+
+  const renderCursorDashboard = async (members) => {
+    const maps = {};
+    const utils = render(
+      createLoadedComponent({ children: dashboardOf(members, maps) }),
+    );
+    for (const member of members) {
+      expect(
+        await screen.findByText(`${member.uuid} ready`),
+      ).toBeInTheDocument();
+    }
+    return { maps, ...utils };
+  };
+
+  // The marker carries a stable overlay id precisely so a test (and a browser
+  // debugging session) can find it without walking the overlay collection.
+  const cursorMarker = (mapRef) =>
+    mapRef.current.getOverlayById(LINKED_CURSOR_OVERLAY_ID);
+
+  // The popup overlay carries no id, so it is found by the element its own
+  // React root renders into. Reaching for the node directly is the point here:
+  // the assertion is about an OpenLayers overlay, not about rendered output.
+  const popupOverlayOf = (mapRef) =>
+    mapRef.current
+      .getOverlays()
+      .getArray()
+      // eslint-disable-next-line testing-library/no-node-access
+      .find((overlay) => overlay.getElement()?.querySelector?.("#map-popup"));
+
+  const movePointer = async (mapRef, coordinate, originalEvent) => {
+    await act(async () => {
+      mapRef.current.dispatchEvent({
+        type: "pointermove",
+        coordinate,
+        pixel: [5, 5],
+        originalEvent,
+      });
+    });
+  };
+
+  // Publishes are coalesced onto an animation frame, so a test that asserts an
+  // ABSENCE has to let a real frame go by first -- otherwise it would pass
+  // against an implementation that simply had not flushed yet.
+  const letAFramePass = async () => {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+  };
+
+  test("a pointermove on one member marks the same coordinate on the other", async () => {
+    const { maps } = await renderCursorDashboard([
+      { uuid: "a" },
+      { uuid: "b" },
+    ]);
+
+    await movePointer(maps.a, [1000, 2000]);
+
+    await waitFor(() =>
+      expect(cursorMarker(maps.b).getPosition()).toEqual([1000, 2000]),
+    );
+    // The publisher is excluded from its own fan-out: a map never marks the
+    // position of its own pointer.
+    expect(cursorMarker(maps.a).getPosition()).toBeUndefined();
+  });
+
+  test("a peer's pointermove opens no popup, selects nothing and fires no click handler on the receiver", async () => {
+    const { maps } = await renderCursorDashboard([
+      { uuid: "a" },
+      { uuid: "b" },
+    ]);
+    const receiverClick = jest.fn();
+    maps.b.current.on("singleclick", receiverClick);
+
+    await movePointer(maps.a, [1000, 2000]);
+    await waitFor(() =>
+      expect(cursorMarker(maps.b).getPosition()).toEqual([1000, 2000]),
+    );
+    await letAFramePass();
+
+    expect(receiverClick).not.toHaveBeenCalled();
+    expect(popupOverlayOf(maps.b).getPosition()).toBeUndefined();
+    // No layer on either map was identified, so no feature was selected.
+    expect(mockedQueryLayerFeatures).not.toHaveBeenCalled();
+  });
+
+  test("a pointerleave on the source viewport clears the marker on every other member", async () => {
+    const { maps } = await renderCursorDashboard([
+      { uuid: "a" },
+      { uuid: "b" },
+      { uuid: "c" },
+    ]);
+
+    await movePointer(maps.a, [1000, 2000]);
+    await waitFor(() =>
+      expect(cursorMarker(maps.b).getPosition()).toEqual([1000, 2000]),
+    );
+    expect(cursorMarker(maps.c).getPosition()).toEqual([1000, 2000]);
+
+    fireEvent.pointerLeave(maps.a.current.getViewport());
+
+    expect(cursorMarker(maps.b).getPosition()).toBeUndefined();
+    expect(cursorMarker(maps.c).getPosition()).toBeUndefined();
+  });
+
+  test("unmounting the source clears the marker on the remaining members", async () => {
+    const maps = {};
+    const { rerender } = render(
+      createLoadedComponent({
+        children: dashboardOf([{ uuid: "a" }, { uuid: "b" }], maps),
+      }),
+    );
+    expect(await screen.findByText("a ready")).toBeInTheDocument();
+    expect(await screen.findByText("b ready")).toBeInTheDocument();
+
+    await movePointer(maps.a, [1000, 2000]);
+    await waitFor(() =>
+      expect(cursorMarker(maps.b).getPosition()).toEqual([1000, 2000]),
+    );
+
+    const survivor = maps.b;
+    rerender(
+      createLoadedComponent({ children: dashboardOf([{ uuid: "b" }], maps) }),
+    );
+
+    expect(
+      survivor.current.getOverlayById(LINKED_CURSOR_OVERLAY_ID).getPosition(),
+    ).toBe(undefined);
+  });
+
+  test("a member whose projection differs from the group's pin receives no marker", async () => {
+    const { maps } = await renderCursorDashboard([
+      { uuid: "a" },
+      { uuid: "b" },
+      { uuid: "c" },
+    ]);
+
+    await act(async () => {
+      maps.b.current.setView(
+        new View({ projection: "EPSG:4326", center: [10, 20], zoom: 4 }),
+      );
+    });
+
+    await movePointer(maps.a, [1000, 2000]);
+
+    // `c` proves the publish actually landed, so `b`'s empty marker is the
+    // projection guard rather than a frame that never flushed.
+    await waitFor(() =>
+      expect(cursorMarker(maps.c).getPosition()).toEqual([1000, 2000]),
+    );
+    expect(cursorMarker(maps.b).getPosition()).toBeUndefined();
+  });
+
+  test("a member whose projection differs from the group's pin publishes no coordinate", async () => {
+    const { maps } = await renderCursorDashboard([
+      { uuid: "a" },
+      { uuid: "b" },
+      { uuid: "c" },
+    ]);
+
+    // `a` marks its peers while it is still in step. That is what makes the
+    // silence afterwards a retraction rather than a map that never published.
+    await movePointer(maps.a, [1000, 2000]);
+    await waitFor(() =>
+      expect(cursorMarker(maps.b).getPosition()).toEqual([1000, 2000]),
+    );
+    expect(cursorMarker(maps.c).getPosition()).toEqual([1000, 2000]);
+
+    // `b` and `c` keep the group pinned to the map projection, so `a` is now
+    // the odd one out.
+    await act(async () => {
+      maps.a.current.setView(
+        new View({ projection: "EPSG:4326", center: [10, 20], zoom: 4 }),
+      );
+    });
+
+    // Its coordinates are lon/lat now. Publishing them would draw a mark
+    // somewhere the pointer never was, so the move takes `a`'s mark down
+    // instead -- the receive-side guard is a separate gate and cannot do this.
+    await movePointer(maps.a, [11, 21]);
+    await letAFramePass();
+
+    expect(cursorMarker(maps.b).getPosition()).toBeUndefined();
+    expect(cursorMarker(maps.c).getPosition()).toBeUndefined();
+  });
+
+  test("several pointermoves inside one frame produce a single position update", async () => {
+    const { maps } = await renderCursorDashboard([
+      { uuid: "a" },
+      { uuid: "b" },
+    ]);
+    const setPosition = jest.spyOn(cursorMarker(maps.b), "setPosition");
+
+    // Three synchronous dispatches cannot be separated by an animation frame.
+    await act(async () => {
+      maps.a.current.dispatchEvent({
+        type: "pointermove",
+        coordinate: [1, 2],
+        pixel: [1, 1],
+      });
+      maps.a.current.dispatchEvent({
+        type: "pointermove",
+        coordinate: [3, 4],
+        pixel: [2, 2],
+      });
+      maps.a.current.dispatchEvent({
+        type: "pointermove",
+        coordinate: [5, 6],
+        pixel: [3, 3],
+      });
+    });
+
+    await waitFor(() => expect(setPosition).toHaveBeenCalledTimes(1));
+    await letAFramePass();
+    // Only the last position of the frame is published.
+    expect(setPosition.mock.calls).toEqual([[[5, 6]]]);
+  });
+
+  test("an ungrouped map on the same dashboard is never marked", async () => {
+    const { maps } = await renderCursorDashboard([
+      { uuid: "a" },
+      { uuid: "b" },
+      { uuid: "c", viewGroup: null },
+    ]);
+
+    await movePointer(maps.a, [1000, 2000]);
+    await waitFor(() =>
+      expect(cursorMarker(maps.b).getPosition()).toEqual([1000, 2000]),
+    );
+    await letAFramePass();
+
+    expect(cursorMarker(maps.c).getPosition()).toBeUndefined();
+  });
+
+  test("entering draw mode on the source clears peers' markers rather than freezing them", async () => {
+    const { maps } = await renderCursorDashboard([
+      { uuid: "a", mapDrawing: { options: ["Point"] } },
+      { uuid: "b" },
+    ]);
+
+    await movePointer(maps.a, [1000, 2000]);
+    await waitFor(() =>
+      expect(cursorMarker(maps.b).getPosition()).toEqual([1000, 2000]),
+    );
+
+    fireEvent.click(screen.getByTitle("Draw Point"));
+    await movePointer(maps.a, [3000, 4000]);
+
+    // The hover handler returns early while drawing; the cursor publisher must
+    // actively retract instead, or the peer would sit on [1000, 2000] forever.
+    expect(cursorMarker(maps.b).getPosition()).toBeUndefined();
+    await letAFramePass();
+    expect(cursorMarker(maps.b).getPosition()).toBeUndefined();
+  });
+
+  test("moving the pointer onto an open popup clears peers' markers rather than freezing them", async () => {
+    const { maps } = await renderCursorDashboard([
+      { uuid: "a" },
+      { uuid: "b" },
+    ]);
+
+    await movePointer(maps.a, [1000, 2000]);
+    await waitFor(() =>
+      expect(cursorMarker(maps.b).getPosition()).toEqual([1000, 2000]),
+    );
+
+    const popupElement = popupOverlayOf(maps.a).getElement();
+    await movePointer(maps.a, [3000, 4000], { target: popupElement });
+
+    expect(cursorMarker(maps.b).getPosition()).toBeUndefined();
+    await letAFramePass();
+    expect(cursorMarker(maps.b).getPosition()).toBeUndefined();
+  });
+
+  test("a pointermove that carries no coordinate marks nothing on the peer", async () => {
+    const { maps } = await renderCursorDashboard([
+      { uuid: "a" },
+      { uuid: "b" },
+    ]);
+
+    // OpenLayers computes `coordinate` from the frame state, so a map that has
+    // not painted a frame yet hands the handler a null one. There is nothing
+    // to mark, and the frame queued for it must flush without publishing.
+    await movePointer(maps.a, null);
+    await letAFramePass();
+
+    expect(cursorMarker(maps.b).getPosition()).toBeUndefined();
+
+    // ...and it left nothing wedged behind it: the next real move still marks.
+    await movePointer(maps.a, [1000, 2000]);
+    await waitFor(() =>
+      expect(cursorMarker(maps.b).getPosition()).toEqual([1000, 2000]),
+    );
+  });
+
+  test("a map rendered outside the dashboard's tab and view-group providers still works", async () => {
+    // `Base` renders this component wherever a `map` visualization is asked
+    // for. Only the dashboard tree carries a TabContext and a view-group
+    // provider, so a map mounted outside one has to read the active tab off a
+    // context that is not there -- and join no group.
+    const maps = {};
+    render(
+      <AppContext.Provider value={{ sessionNonce: "test-nonce" }}>
+        <LayoutContext.Provider value={{ uuid: "dashboard-uuid" }}>
+          <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
+            <VariableInputsContext.Provider
+              value={{
+                variableInputValues: {},
+                variableInputDateFormats: {},
+                setVariableInputValues: jest.fn(),
+              }}
+            >
+              <MapContextProvider>
+                <CursorMember uuid="solo" maps={maps} />
+              </MapContextProvider>
+            </VariableInputsContext.Provider>
+          </DataViewerModeContext.Provider>
+        </LayoutContext.Provider>
+      </AppContext.Provider>,
+    );
+
+    expect(await screen.findByText("solo ready")).toBeInTheDocument();
+
+    // The map is named a group, but with no provider above it there is no
+    // group to join -- so the pointer publishes nowhere and marks nothing.
+    await movePointer(maps.solo, [1000, 2000]);
+    await letAFramePass();
+
+    expect(cursorMarker(maps.solo).getPosition()).toBeUndefined();
+  });
+
+  test("a pointerleave arriving with a frame flush already queued leaves the marker hidden", async () => {
+    const { maps } = await renderCursorDashboard([
+      { uuid: "a" },
+      { uuid: "b" },
+    ]);
+
+    await movePointer(maps.a, [1000, 2000]);
+    await waitFor(() =>
+      expect(cursorMarker(maps.b).getPosition()).toEqual([1000, 2000]),
+    );
+
+    // The move and the leave land in the same frame, so the leave has to cancel
+    // the queued flush as well as publish the clear.
+    act(() => {
+      maps.a.current.dispatchEvent({
+        type: "pointermove",
+        coordinate: [9000, 9000],
+        pixel: [9, 9],
+      });
+    });
+    fireEvent.pointerLeave(maps.a.current.getViewport());
+
+    expect(cursorMarker(maps.b).getPosition()).toBeUndefined();
+    await letAFramePass();
+    expect(cursorMarker(maps.b).getPosition()).toBeUndefined();
+  });
 });

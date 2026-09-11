@@ -4,6 +4,7 @@ import styled from "styled-components";
 import FeatureScopedVariableInputs from "components/contexts/FeatureScopedVariableInputs";
 import DashboardLayout from "components/dashboard/DashboardLayout";
 import { TabContext, EditingContext } from "components/contexts/Contexts";
+import { POPUP_TAB_ID } from "components/map/viewGroup";
 
 export const DEFAULT_ROW_HEIGHT = 30;
 const TARGET_ROWS = 20;
@@ -86,10 +87,10 @@ const PopupModalChrome = ({ feature, popupConfig }) => {
 
   const gridItems = useMemo(() => popupConfig?.gridItems ?? [], [popupConfig]);
   const tabContextValue = useMemo(() => {
-    const popupTab = { id: "popup", name: "popup", gridItems };
+    const popupTab = { id: POPUP_TAB_ID, name: "popup", gridItems };
     return {
       tabs: [popupTab],
-      activeTabId: "popup",
+      activeTabId: POPUP_TAB_ID,
     };
   }, [gridItems]);
 
@@ -113,7 +114,7 @@ const PopupModalChrome = ({ feature, popupConfig }) => {
             <TabContext.Provider value={tabContextValue}>
               <EditingContext.Provider value={editingContextValue}>
                 <DashboardLayout
-                  tabId="popup"
+                  tabId={POPUP_TAB_ID}
                   gridItems={gridItems}
                   shouldLoad={true}
                   responsive

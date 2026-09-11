@@ -271,4 +271,39 @@ describe("tracking the tile it floats above", () => {
       if (realResizeObserver) global.ResizeObserver = realResizeObserver;
     }
   });
+
+  // Detaching the anchor is itself what resizes the offsetParent being
+  // observed, and the observer is torn down a phase later than React nulls the
+  // ref -- so the callback can genuinely arrive with nothing to measure. It
+  // used to throw, which surfaced as a console error the moment an edit made a
+  // map's extent invalid and took one of its alert banners down.
+  test("tolerates a resize callback delivered after the anchor detaches", () => {
+    const realResizeObserver = global.ResizeObserver;
+    let fireResize;
+    global.ResizeObserver = class {
+      constructor(callback) {
+        fireResize = callback;
+      }
+      observe() {}
+      // A real disconnect cannot recall a callback already in flight.
+      disconnect() {}
+    };
+    const parent = document.createElement("div");
+    jest
+      .spyOn(HTMLElement.prototype, "offsetParent", "get")
+      .mockReturnValue(parent);
+    stubRect({ top: 0, left: 0, width: 10, height: 10, bottom: 10, right: 10 });
+
+    try {
+      const { unmount } = render(
+        <FloatingMapControl edges={["top", "left"]}>
+          <span>content</span>
+        </FloatingMapControl>,
+      );
+      unmount();
+      expect(() => fireResize()).not.toThrow();
+    } finally {
+      if (realResizeObserver) global.ResizeObserver = realResizeObserver;
+    }
+  });
 });

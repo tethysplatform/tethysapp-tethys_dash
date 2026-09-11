@@ -32,7 +32,17 @@ import { useMapContext } from "components/contexts/MapContext";
 import { fromExtent } from "ol/geom/Polygon";
 import { transformExtent } from "ol/proj";
 import { unByKey } from "ol/Observable";
-import { VariableInputsContext } from "components/contexts/Contexts";
+import {
+  GridItemContext,
+  TabContext,
+  VariableInputsContext,
+} from "components/contexts/Contexts";
+import { useViewGroupContext } from "components/contexts/ViewGroupContext";
+import {
+  isViewGroupMember,
+  readViewGroupSettings,
+  viewsAreEqual,
+} from "components/map/viewGroup";
 import GeoJSON from "ol/format/GeoJSON";
 import { valuesEqual } from "components/modals/utilities";
 
@@ -163,6 +173,87 @@ function abortShapefileLoad(olLayer, reason) {
   detachShapefileLoad(olLayer);
 }
 
+// Snapshot a view's state for the group. The center is copied because
+// OpenLayers hands back the array it holds and mutates it in place during a
+// gesture, which would silently rewrite a recorded baseline.
+const readViewState = (view) => {
+  const center = view.getCenter();
+  return {
+    center: Array.isArray(center) ? [...center] : center,
+    resolution: view.getResolution(),
+    rotation: view.getRotation(),
+  };
+};
+
+// Rotation, then resolution, then center -- OpenLayers' own internal order. A
+// combined change applied in any other order paints an intermediate state. The
+// three setters cost one render between them, not three: the map's render
+// scheduling is idempotent within a frame.
+//
+// Returns whether the view actually moved. `applyTargetState_` writes each
+// property only when its constrained value differs from the one already held,
+// so an apply of values the view is already at notifies nothing and schedules
+// no frame -- and a caller that armed a read-back for it would be waiting for
+// a frame that never comes. Measured after the fact rather than against
+// `next`, so a clamped apply that did move counts as a move.
+const applyViewState = (view, next) => {
+  const beforeCenter = view.getCenter();
+  const beforeResolution = view.getResolution();
+  const beforeRotation = view.getRotation();
+  // istanbul ignore else -- every view state that reaches here is built by
+  // `readViewState`, and an OpenLayers view's rotation is always a number
+  // (`View` defaults it to 0 in its constructor). Kept so a view state from
+  // any other source cannot write `undefined` into the rotation.
+  if (typeof next.rotation === "number") {
+    view.setRotation(next.rotation);
+  }
+  if (typeof next.resolution === "number" && next.resolution > 0) {
+    view.setResolution(next.resolution);
+  }
+  if (Array.isArray(next.center)) {
+    view.setCenter([...next.center]);
+  }
+  const afterCenter = view.getCenter();
+  return (
+    view.getRotation() !== beforeRotation ||
+    view.getResolution() !== beforeResolution ||
+    !Array.isArray(beforeCenter) ||
+    !Array.isArray(afterCenter) ||
+    afterCenter[0] !== beforeCenter[0] ||
+    afterCenter[1] !== beforeCenter[1]
+  );
+};
+
+// --- Coalescing `moveend` side effects (U4) -------------------------------
+// OpenLayers gates `moveend` on the ANIMATING and INTERACTING view hints only
+// (`ol/Map.js` `renderFrame_`). A view-group follower is driven by bare
+// `setCenter` / `setResolution` and so holds neither hint: it emits `movestart`
+// and `moveend` on every rendered frame for the whole duration of a peer's
+// gesture. Both consumers of that event -- the extent-variable publisher, which
+// re-runs an effect on every visualization on the dashboard, and the snap-cache
+// refresh, which issues un-aborted network queries -- assume a human just
+// stopped moving. They are therefore held until this member's own view has been
+// stable for a settle window.
+//
+// The window is a tuning value: the cadence it guards against is one frame,
+// so anything comfortably above ~16ms coalesces a gesture, and anything a
+// viewer would not perceive as lag is short enough. 150ms is both.
+const MOVE_SETTLE_MS = 150;
+
+// Exact comparison, deliberately not the view group's tolerance helper: any
+// change at all means motion is still in flight, and a slow drag whose
+// per-frame delta sits under half a pixel would otherwise read as settled and
+// let the storm straight through.
+const viewStatesIdentical = (a, b) =>
+  Boolean(a) &&
+  Boolean(b) &&
+  a.resolution === b.resolution &&
+  a.rotation === b.rotation &&
+  Array.isArray(a.center) &&
+  Array.isArray(b.center) &&
+  a.center[0] === b.center[0] &&
+  a.center[1] === b.center[1];
+
 const MapComponent = ({
   mapConfig,
   mapExtent,
@@ -215,6 +306,68 @@ const MapComponent = ({
   const layerSyncToken = useRef(0);
   const activeFadeRef = useRef(null);
   const { setVariableInputValues } = useContext(VariableInputsContext);
+
+  // --- Linked map view groups --------------------------------------------
+  const viewGroupContext = useViewGroupContext();
+  const { gridItemUUID, shouldLoad } = useContext(GridItemContext) ?? {};
+  const { activeTabId } = useContext(TabContext) ?? {};
+  // The group name is read off the resolved extent value, which has three
+  // legacy shapes still in dashboards.
+  const viewGroupName = readViewGroupSettings(mapExtent).viewGroup;
+  // R27 and the rest of the membership rule live in `viewGroup.js`, shared
+  // with the cursor half in `components/visualizations/Map.js`.
+  const viewGroupEnabled = isViewGroupMember({
+    viewGroupName,
+    hasViewGroupContext: Boolean(viewGroupContext),
+    dataviewerViz,
+    activeTabId,
+    gridItemUUID,
+  });
+  // The group this member is currently registered under, read by the
+  // postrender handler and the apply callback, both of which outlive a render.
+  const activeViewGroupRef = useRef(null);
+  // The `View` object seen on the previous frame. A different one means the
+  // view was replaced -- the extent effect or a raster auto-fit -- which is
+  // never a user action (R20).
+  const lastViewObjectRef = useRef(null);
+  // What this member's view last settled at, as read back from the view
+  // itself. Publishes are the difference against this (R21, R22).
+  const viewGroupBaselineRef = useRef(null);
+  // An apply is outstanding: record the read-back on the next frame instead of
+  // publishing the difference.
+  const viewGroupReadbackRef = useRef(false);
+  // This member refused an apply because it was being interacted with. Only a
+  // recorded refusal re-adopts when the interaction ends (R23).
+  const viewGroupDeclinedRef = useRef(false);
+  // A forced re-adopt, from a hidden tab becoming active again (R10).
+  const viewGroupReadoptRef = useRef(false);
+  // This membership has not yet taken the group's opening view. Consumed once,
+  // on the first frame that can resolve it -- a bbox seed needs a viewport, so
+  // a member that mounts with no area keeps the seed pending until it has one.
+  const viewGroupSeedPendingRef = useRef(false);
+  const viewGroupPostrenderRef = useRef(null);
+  const viewGroupHandlerRef = useRef(null);
+  const viewGroupApplyRef = useRef(null);
+  const previousShouldLoadRef = useRef(shouldLoad);
+  const [viewGroupMismatch, setViewGroupMismatch] = useState(null);
+
+  // --- Coalesced `moveend` side effects (U4: R24, R29) --------------------
+  // Unsettled motion is in flight on this member's own view. Held in a ref
+  // because both consumers read it from inside their handlers (see
+  // `deferMoveEndConsumer`).
+  const viewUnsettledRef = useRef(false);
+  const settleTimerRef = useRef(null);
+  // Which consumers asked to run while the gate was shut, replayed once on the
+  // settled flush. A set of flags, not a queue: the work is idempotent and only
+  // the settled view is worth doing it for.
+  const pendingMoveEndRef = useRef(null);
+  // This member's view as of the previous frame, for the frame-to-frame
+  // stability test that decides when motion has settled.
+  const lastFrameViewRef = useRef(null);
+  // R29's backstop: the last extent value actually handed to the variable
+  // input, so an identical one is never published twice in a row.
+  const lastPublishedExtentRef = useRef(null);
+  const flushMoveEndRef = useRef(null);
 
   // Fade the incoming layers in over `duration` ms, then remove the outgoing
   // ones, so a storm swap dissolves instead of flashing. Any running fade is
@@ -323,6 +476,11 @@ const MapComponent = ({
     }
 
     return () => {
+      if (settleTimerRef.current) {
+        clearTimeout(settleTimerRef.current);
+        settleTimerRef.current = null;
+      }
+      pendingMoveEndRef.current = null;
       // istanbul ignore next
       if (visualizationRef.current) {
         if (activeFadeRef.current) activeFadeRef.current();
@@ -390,11 +548,25 @@ const MapComponent = ({
       visualizationRef.current.on("moveend", updateMapExtentVariable);
       mapExtentVariableEvent.current = updateMapExtentVariable;
     }
+    // A new extent -- and possibly a new variable name -- is a new
+    // subscription, so the "already published this value" memo below starts
+    // over rather than suppressing the first publish against it. A publish
+    // deferred under the previous extent goes with it: it was asked for on
+    // behalf of a subscription that no longer exists.
+    lastPublishedExtentRef.current = null;
+    pendingMoveEndRef.current = null;
 
-    // Update zoom on view change
-    mapViewConfig.on("change:resolution", () => {
-      setZoom(visualizationRef.current.getView().getZoom().toFixed(2));
-    });
+    // Update zoom on view change. Only the DataViewer preview renders `zoom`
+    // (the info panel below); on a dashboard map this wrote React state on
+    // every frame the resolution changed, which for a view-group follower is
+    // every frame of a peer's zoom -- and each of those re-renders makes both
+    // floating map controls re-measure their anchor. The mount-time write in
+    // this effect still seeds `defaultViewConfig`, so nothing else changes.
+    if (dataviewerViz) {
+      mapViewConfig.on("change:resolution", () => {
+        setZoom(visualizationRef.current.getView().getZoom().toFixed(2));
+      });
+    }
 
     // Move already-mounted vector features with the view, exactly as the raster
     // auto-fit path does. Features are parsed into the view projection when they
@@ -1019,6 +1191,11 @@ const MapComponent = ({
             visualizationRef.current.un("moveend", onMapMoveEndCurrent.current);
           }
           onMapMoveEndCurrent.current = function () {
+            // R24. The gate is read from a ref *inside* the handler rather
+            // than captured when it is bound: this handler is rebound on every
+            // layer change and the extent publisher on every extent change, so
+            // a gate captured in either closure goes stale against the other.
+            if (deferMoveEndConsumer("snap")) return;
             onMapMoveEnd(visualizationRef.current);
           };
           visualizationRef.current.on("moveend", onMapMoveEndCurrent.current);
@@ -1081,20 +1258,462 @@ const MapComponent = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layers]);
 
-  const updateMapExtentVariable = (event) => {
-    const view = event.map.getView();
-    const extent = view.calculateExtent(event.map.getSize());
+  // Replay the consumers that were held back, recomputed from the live map
+  // rather than replayed from the deferred event's frame: the settled view is
+  // the one they were always meant to see, and the view has moved on since.
+  const flushPendingMoveEnd = () => {
+    const pending = pendingMoveEndRef.current;
+    pendingMoveEndRef.current = null;
+    const map = visualizationRef.current;
+    if (!pending || !map) return;
+    if (pending.extent) publishMapExtentVariable(map);
+    if (pending.snap && onMapMoveEnd) onMapMoveEnd(map);
+  };
+  // The settle timer outlives the render that armed it, so it flushes through
+  // a ref and never through a closed-over copy of the props.
+  flushMoveEndRef.current = flushPendingMoveEnd;
+
+  const markViewUnsettled = () => {
+    viewUnsettledRef.current = true;
+    if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
+    settleTimerRef.current = setTimeout(() => {
+      settleTimerRef.current = null;
+      viewUnsettledRef.current = false;
+      flushMoveEndRef.current?.();
+    }, MOVE_SETTLE_MS);
+  };
+
+  // Take the group's view on this member. Every adoption in this component
+  // goes through here, for the two things that have to happen with the apply
+  // rather than after it:
+  //
+  //  - The settle gate is shut here, at apply time. Within one frame
+  //    OpenLayers dispatches `moveend` before `postrender` (`renderFrame_`),
+  //    so a gate armed from the postrender handler is still open when that
+  //    same frame's `moveend` runs and the first follower frame of every peer
+  //    gesture leaks an intermediate extent out to the whole dashboard.
+  //    `trackViewMotion` remains the thing that decides motion has stopped;
+  //    this only decides when it has started.
+  //  - A no-op apply schedules no frame at all, so the read-back it would
+  //    otherwise arm could never be consumed -- and would be consumed instead
+  //    by this member's next real move, swallowing that publish. Nothing moved
+  //    and nothing is coming, so the baseline is simply recorded here.
+  //
+  // The baseline is re-read from the view rather than taken from the caller's
+  // frame read: resolving a bbox seed fits the view on the way in, so the
+  // caller's copy is not always what this member is actually at.
+  const adoptGroupView = (view, next) => {
+    if (!applyViewState(view, next)) {
+      viewGroupBaselineRef.current = readViewState(view);
+      return false;
+    }
+    markViewUnsettled();
+    viewGroupReadbackRef.current = true;
+    return true;
+  };
+
+  // Called once per rendered frame. Settling is measured on this member's own
+  // view being stable across its own frames, never on applies having stopped
+  // arriving: a follower that clamps keeps receiving applies whose read-back
+  // never matches, so an apply-driven notion of "in flight" would never open
+  // the gate and that member would stop publishing its extent altogether.
+  const trackViewMotion = (view, current) => {
+    const previous = lastFrameViewRef.current;
+    lastFrameViewRef.current = current;
+    // The condition is "my view moved without me being the interactor", not
+    // "I was applied to" -- which also covers a keyboard pan and a
+    // variable-driven extent change. A gesture the viewer is driving is
+    // already coalesced by OpenLayers, which holds the INTERACTING hint and
+    // suppresses `moveend` for the whole of it.
+    if (view.getInteracting()) return;
+    if (!previous || viewStatesIdentical(previous, current)) return;
+    markViewUnsettled();
+  };
+
+  // True when the caller's work was deferred to the settled flush. Reads the
+  // gate through the ref at call time, so both consumers see the same state
+  // regardless of which effect bound them or when.
+  const deferMoveEndConsumer = (key) => {
+    if (!viewUnsettledRef.current) return false;
+    pendingMoveEndRef.current = { ...pendingMoveEndRef.current, [key]: true };
+    return true;
+  };
+
+  // Report this member's live projection code and read back the group's pin.
+  // Always read from `map.getView().getProjection()`, never from the
+  // `projection` state: a raster auto-fit adopts the raster's projection
+  // without ever updating that state.
+  const reportViewGroupProjection = (code) => {
+    const groupName = activeViewGroupRef.current;
+    // istanbul ignore if -- unreachable: both callers run only for a
+    // registered member, and `activeViewGroupRef` is set before the
+    // registration and cleared only after it is torn down.
+    if (!groupName || !viewGroupContext) return null;
+    return viewGroupContext.reportMemberProjection(
+      groupName,
+      gridItemUUID,
+      code,
+    );
+  };
+
+  // Resolve the group's discovered seed into a concrete view state for this
+  // map, and consume it. The seed is stored in view coordinates of the group's
+  // (single, R6) projection, exactly as the extent effect reads them, so no
+  // transform is involved.
+  const resolveGroupSeed = (groupName, view) => {
+    const seed = viewGroupContext.getGroupSeed(groupName);
+    if (!seed) {
+      viewGroupSeedPendingRef.current = false;
+      return null;
+    }
+
+    if (seed.type === "center") {
+      viewGroupSeedPendingRef.current = false;
+      const code = view.getProjection().getCode();
+      const [x, y] = seed.center;
+      return {
+        center: [code === "EPSG:3857" ? wrapMercatorX(x) : x, y],
+        resolution: view.getResolutionForZoom(seed.zoom),
+        rotation: 0,
+      };
+    }
+
+    // AE11. A bbox only means something against a viewport, so the first
+    // member that has one fits it and promotes the result to the group view.
+    // Later members then adopt that rather than each fitting the same bbox to
+    // its own aspect ratio and landing on a different resolution.
+    const size = visualizationRef.current?.getSize();
+    if (!size || !(size[0] > 0) || !(size[1] > 0)) return null;
+    viewGroupSeedPendingRef.current = false;
+    view.fit(seed.bbox, { size });
+    const fitted = readViewState(view);
+    // Promotion never overwrites a live view, so a group moved between this
+    // member mounting and this frame keeps the view the viewer put it at.
+    //
+    // The `?? fitted` arm cannot fire against the provider in this app:
+    // `seedGroupView` returns null only for an empty group name, and this is a
+    // registered member of a named group. Kept so a provider that declines to
+    // record the fit still opens this member at it.
+    /* istanbul ignore next -- unreachable fallback, see comment above */
+    return viewGroupContext.seedGroupView(groupName, fitted) ?? fitted;
+  };
+
+  // The view a member joining a group opens at: the group's live view when it
+  // has one, otherwise the seed a flagged member supplied. Returns null when
+  // the group has neither, which is R4 -- the member keeps its own extent.
+  const groupOpeningView = (groupName, view) => {
+    const groupView = viewGroupContext.getGroupView(groupName);
+    if (groupView) {
+      viewGroupSeedPendingRef.current = false;
+      return groupView;
+    }
+    if (!viewGroupSeedPendingRef.current) return null;
+    return resolveGroupSeed(groupName, view);
+  };
+
+  // Receive another member's view. Registered once per membership, so it reads
+  // everything it needs through refs rather than closing over a render.
+  const applyGroupView = (nextView) => {
+    const map = visualizationRef.current;
+    // istanbul ignore if -- unreachable: the registry never fans out a null
+    // view, and a member's registration is torn down in the same synchronous
+    // commit that disposes its map, so no peer can publish in between.
+    if (!map || !nextView) return;
+    const view = map.getView();
+    const code = view.getProjection().getCode();
+    const groupProjection = reportViewGroupProjection(code);
+    // R6: out of the group entirely while the projections differ. The notice
+    // is raised by the postrender handler, which runs on every frame.
+    if (groupProjection && groupProjection !== code) return;
+    // ANIMATING as well as INTERACTING: double-click zoom, keyboard
+    // zoom and the Zoom control all run through `view.animate()`, which holds
+    // neither the INTERACTING hint nor the pointer. Applying over one of them
+    // cancels it mid-flight -- `applyTargetState_` calls `cancelAnimations()`
+    // -- so this member's own in-flight move would be yanked away by a peer's.
+    if (view.getInteracting() || view.getAnimating()) {
+      // R23: the viewer is driving this map right now. Record the refusal so
+      // the settled frame at the end of the gesture re-adopts -- an
+      // unrecorded refusal is indistinguishable from a gesture that had
+      // nothing to decline, and re-adopting after those would undo every
+      // move the viewer makes.
+      viewGroupDeclinedRef.current = true;
+      return;
+    }
+    // R21: what this member actually settled at is read back on its own next
+    // frame. Recording the applied values here instead would make a follower
+    // whose view clamped publish the difference straight back.
+    adoptGroupView(view, nextView);
+  };
+  viewGroupApplyRef.current = applyGroupView;
+
+  // One handler, bound at the `Map` level: map-level listeners survive the two
+  // `setView` calls above, view-level ones are silently dropped by them.
+  // `postrender` is also frame-coalesced, so a combined pan-and-zoom publishes
+  // once rather than pushing an intermediate state out on `change:resolution`.
+  const handleViewGroupPostrender = () => {
+    const map = visualizationRef.current;
+    const groupName = activeViewGroupRef.current;
+    // istanbul ignore if -- unreachable: the handler is bound to the map it
+    // reads, and unbound in the same commit that disposes it, so it never runs
+    // without one; the group name and the context are set by the registration
+    // that made this map a member at all.
+    if (!map || !groupName || !viewGroupContext) return;
+
+    // Read the view state off the view, never off the event's frame state:
+    // OpenLayers dispatches `postrender` unconditionally but builds no frame
+    // state for a map with no area, so a member on a hidden tab hands the
+    // handler a null one.
+    const view = map.getView();
+    // Read once per frame and shared by every branch below: nothing between
+    // here and the tail mutates the view within one synchronous invocation --
+    // the branches that do apply a view state all return.
+    const current = readViewState(view);
+    // Before any of the group bookkeeping and before any early return: a
+    // member that is out of sync on projection still has a view that can be
+    // moved programmatically, and its consumers still need the gate.
+    // Registered here rather than on its own listener so an ungrouped map --
+    // which no peer can drive, and for which OpenLayers' own hints already
+    // coalesce every path -- keeps its per-frame cost at exactly zero (R2).
+    if (mapExtent?.variable || onMapMoveEnd) trackViewMotion(view, current);
+    const code = view.getProjection().getCode();
+    const groupProjection = reportViewGroupProjection(code);
+
+    if (groupProjection && groupProjection !== code) {
+      // R6. The baseline is still tracked while out of sync, so a member whose
+      // projection later matches again rejoins where it stands rather than
+      // publishing the whole divergence as if the viewer had made it.
+      lastViewObjectRef.current = view;
+      viewGroupBaselineRef.current = current;
+      viewGroupReadbackRef.current = false;
+      viewGroupDeclinedRef.current = false;
+      setViewGroupMismatch((previous) =>
+        previous &&
+        previous.mapCode === code &&
+        previous.groupCode === groupProjection &&
+        previous.groupName === groupName
+          ? previous
+          : { groupName, mapCode: code, groupCode: groupProjection },
+      );
+      return;
+    }
+    setViewGroupMismatch((previous) => (previous ? null : previous));
+
+    // R20. A replaced `View` is never a user action -- the extent effect and
+    // the raster auto-fit both build a new one -- so this member re-adopts the
+    // group's view rather than publishing whatever the replacement landed on.
+    if (lastViewObjectRef.current !== view) {
+      lastViewObjectRef.current = view;
+      const interacting = view.getInteracting() || view.getAnimating();
+      // A fresh membership reaches this branch on its very first frame, which
+      // is also where a late join lands: the group's live view when it has one,
+      // and otherwise the seed a flagged member supplied for its opening view.
+      const groupView = interacting
+        ? viewGroupContext.getGroupView(groupName)
+        : groupOpeningView(groupName, view);
+      if (groupView && !interacting) {
+        adoptGroupView(view, groupView);
+        viewGroupDeclinedRef.current = false;
+        return;
+      }
+      viewGroupBaselineRef.current = current;
+      viewGroupReadbackRef.current = false;
+      // Only reachable with a group view while the viewer is interacting, in
+      // which case the re-adopt is deferred to the settled frame the same way
+      // a declined apply is.
+      viewGroupDeclinedRef.current = Boolean(groupView);
+      return;
+    }
+
+    const settled = !view.getInteracting() && !view.getAnimating();
+    if (
+      settled &&
+      (viewGroupReadoptRef.current || viewGroupDeclinedRef.current)
+    ) {
+      viewGroupReadoptRef.current = false;
+      viewGroupDeclinedRef.current = false;
+      const groupView = groupOpeningView(groupName, view);
+      if (groupView) {
+        adoptGroupView(view, groupView);
+        return;
+      }
+    }
+
+    if (viewGroupReadbackRef.current) {
+      viewGroupReadbackRef.current = false;
+      viewGroupBaselineRef.current = current;
+      return;
+    }
+
+    // A bbox seed cannot be resolved by a member with no viewport, and a map
+    // mounted on a hidden tab has none. The seed stays pending until a frame
+    // that can resolve it arrives -- which is the frame the ResizeObserver
+    // schedules when the member is first given area. No gesture can be in
+    // flight at that point, since a zero-size map cannot be panned.
+    if (settled && viewGroupSeedPendingRef.current) {
+      const opening = groupOpeningView(groupName, view);
+      if (opening) {
+        adoptGroupView(view, opening);
+        return;
+      }
+    }
+
+    // Cannot fire today: every branch above that returns leaves a baseline
+    // behind -- the projection-mismatch branch records one, the view-replaced
+    // branch records one on its non-adopt path and arms a read-back on its
+    // adopt path, and the read-back branch records one -- so control only
+    // reaches here with a baseline already in hand. Kept as a guard so a new
+    // early return above cannot silently publish a member's opening view.
+    /* istanbul ignore next -- unreachable guard, see comment above */
+    if (!viewGroupBaselineRef.current) {
+      viewGroupBaselineRef.current = current;
+      return;
+    }
+    if (viewsAreEqual(viewGroupBaselineRef.current, current)) return;
+
+    viewGroupBaselineRef.current = current;
+    viewGroupContext.publishView(groupName, gridItemUUID, {
+      ...current,
+      // R26: a source panned past the antimeridian would otherwise teleport
+      // every follower a world away.
+      center:
+        code === "EPSG:3857" && Array.isArray(current.center)
+          ? [wrapMercatorX(current.center[0]), current.center[1]]
+          : current.center,
+    });
+  };
+  viewGroupHandlerRef.current = handleViewGroupPostrender;
+
+  useEffect(() => {
+    if (!viewGroupEnabled) {
+      activeViewGroupRef.current = null;
+      setViewGroupMismatch(null);
+      return;
+    }
+
+    activeViewGroupRef.current = viewGroupName;
+    const unregister = viewGroupContext.registerMember(
+      viewGroupName,
+      gridItemUUID,
+      { applyView: (nextView) => viewGroupApplyRef.current?.(nextView) },
+    );
+    // The group pins its projection from the first member to register, so the
+    // pin is reported on joining rather than waiting for a frame.
+    const map = visualizationRef.current;
+    // istanbul ignore else -- the mount effect above creates the map and is
+    // declared first, so it has always run by the time this one does. Kept so
+    // a future reordering cannot dereference a map that is not there yet.
+    if (map) {
+      viewGroupContext.reportMemberProjection(
+        viewGroupName,
+        gridItemUUID,
+        map.getView().getProjection().getCode(),
+      );
+    }
+    // A fresh membership has no history: the next frame re-adopts the group's
+    // view rather than reading this map's own opening view as a move.
+    lastViewObjectRef.current = null;
+    viewGroupBaselineRef.current = null;
+    viewGroupReadbackRef.current = false;
+    viewGroupDeclinedRef.current = false;
+    viewGroupSeedPendingRef.current = true;
+    // Nothing else asks for the frame that adoption happens on, so a member
+    // joining a group after mount -- the group name being set on a live map,
+    // or its extent changing to carry one -- would sit un-synced until some
+    // unrelated event redrew it. Same as the re-adopt path below.
+    map?.render();
+
+    return () => {
+      activeViewGroupRef.current = null;
+      unregister();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewGroupEnabled, viewGroupName, gridItemUUID, viewGroupContext]);
+
+  useEffect(() => {
+    // Captured rather than read in the cleanup: the mount effect above runs its
+    // own cleanup first and nulls `visualizationRef` out from under this one.
+    const map = visualizationRef.current;
+    // istanbul ignore if -- same as the registration effect above: the map is
+    // created by an earlier effect and only ever nulled on unmount, so this
+    // body never runs without one.
+    if (!map) return;
+
+    // Cannot fire today: React runs this effect's own cleanup -- which unbinds
+    // and clears the ref -- before every re-run, and the ref is written
+    // nowhere else, so a handler is never already bound when the body starts.
+    // Verified by driving a live member through a group rename, a drop out of
+    // the group and a rejoin: none of them reaches this. Kept as a guard so a
+    // dep added here, or an early return added to the cleanup, cannot leak a
+    // second postrender handler and double every publish.
+    /* istanbul ignore next -- unreachable guard, see comment above */
+    if (viewGroupPostrenderRef.current) {
+      map.un("postrender", viewGroupPostrenderRef.current);
+      viewGroupPostrenderRef.current = null;
+    }
+    if (!viewGroupEnabled) return;
+
+    const handler = () => viewGroupHandlerRef.current?.();
+    viewGroupPostrenderRef.current = handler;
+    map.on("postrender", handler);
+
+    return () => {
+      map.un("postrender", handler);
+      // istanbul ignore else -- the ref is written only by the body above, and
+      // React runs this cleanup before every re-run, so the handler it holds
+      // is always this one. Kept so a second bound handler could not be
+      // cleared by the wrong cleanup.
+      if (viewGroupPostrenderRef.current === handler) {
+        viewGroupPostrenderRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewGroupEnabled]);
+
+  useEffect(() => {
+    const wasLoaded = previousShouldLoadRef.current;
+    previousShouldLoadRef.current = shouldLoad;
+    // R10. A member that was mounted and hidden never unmounts, so the
+    // registration effect never re-runs for it and nothing else would make it
+    // pick the group's view up again on its way back.
+    if (!viewGroupEnabled || !shouldLoad || wasLoaded) return;
+    viewGroupReadoptRef.current = true;
+    visualizationRef.current?.render();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shouldLoad, viewGroupEnabled]);
+
+  // R29. Publishing an extent re-runs an effect on every visualization on the
+  // dashboard, so the same value is never published twice in a row -- a win
+  // today for a `moveend` that lands back where it started, and the backstop
+  // that makes any regression of the gate above degrade rather than collapse.
+  const publishMapExtentVariable = (map) => {
+    // The deferred flush runs up to a settle window after the `moveend` that
+    // asked for it, and the extent -- and with it the variable name -- can
+    // have changed in between. Without this the flush publishes under the key
+    // `undefined`.
+    if (!mapExtent?.variable) return;
+    const view = map.getView();
+    const projection = view.getProjection().getCode();
+    const extent = view.calculateExtent(map.getSize());
+    const signature = `${mapExtent.variable}|${projection}|${extent.join(",")}`;
+    if (lastPublishedExtentRef.current === signature) return;
+    lastPublishedExtentRef.current = signature;
     const rectangleGeom = fromExtent(extent);
     const geojson = JSON.parse(new GeoJSON().writeGeometry(rectangleGeom));
     setVariableInputValues((previousVariableInputValues) => ({
       ...previousVariableInputValues,
       ...{
         [mapExtent.variable]: {
-          projection: view.getProjection().getCode(),
+          projection,
           geometries: [geojson],
         },
       },
     }));
+  };
+
+  const updateMapExtentVariable = (event) => {
+    // R24. Same ref-read-inside-the-handler rule as the snap refresh.
+    if (deferMoveEndConsumer("extent")) return;
+    publishMapExtentVariable(event.map);
   };
 
   return (
@@ -1120,6 +1739,20 @@ const MapComponent = ({
               aria-live="polite"
             >
               {layerAlert.message}
+            </StyledAlert>
+          </AlertAnchor>
+        )}
+        {viewGroupMismatch && (
+          <AlertAnchor edges={ALERT_EDGES}>
+            <StyledAlert
+              variant="warning"
+              role="status"
+              aria-live="polite"
+              aria-label="View Group Projection Mismatch"
+            >
+              {`This map is not synced with the "${viewGroupMismatch.groupName}" ` +
+                `view group: it is in ${viewGroupMismatch.mapCode} and the ` +
+                `group is in ${viewGroupMismatch.groupCode}.`}
             </StyledAlert>
           </AlertAnchor>
         )}
@@ -1170,6 +1803,9 @@ MapComponent.propTypes = {
     PropTypes.shape({
       extent: PropTypes.string, // e.g., "minX,minY,maxX,maxY" or "lon,lat,zoom"
       variable: PropTypes.string,
+      // Maps sharing a view group name pan, zoom and rotate together.
+      viewGroup: PropTypes.string,
+      isGroupInitialExtent: PropTypes.bool,
     }),
   ]),
   layers: PropTypes.arrayOf(
