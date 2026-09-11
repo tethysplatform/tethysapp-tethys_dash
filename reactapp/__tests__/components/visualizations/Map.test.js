@@ -3666,15 +3666,19 @@ test("Map hover swipe updates variable inputs but never touches the highlight la
   //     highlight gate is skipped (the highlight layer doesn't exist for
   //     hover-opened popups). updateVariableInputsForFeature still runs.
   // The existing click swipe test covers the true branch of L509.
+  // Positioned so "first" really is the nearest to the hover coordinate
+  // ([10, 20]) and therefore lands in slot 0 under proximity ranking. This
+  // test is about swipe mechanics, not ordering, so the fixture is placed to
+  // keep the names matching the slots rather than to assert a rank.
   mockedQueryLayerFeatures.mockResolvedValue([
     {
       attributes: { field1: "first" },
-      geometry: { x: 0, y: 0 },
+      geometry: { x: 10, y: 20 },
       layerName: "Hover Layer",
     },
     {
       attributes: { field1: "second" },
-      geometry: { x: 1, y: 1 },
+      geometry: { x: 100, y: 200 },
       layerName: "Hover Layer",
     },
   ]);
@@ -7029,6 +7033,44 @@ describe("snap pipeline integration", () => {
     expect(await screen.findByText("other value")).toBeInTheDocument();
   });
 
+  test("a snapped river keeps slot 1 even when a gauge point is nearer the click", async () => {
+    // AE8. A snap is a deliberate selection, so the snapped feature is pinned
+    // ahead of the point-beats-line sub-ranking. Without the pin, any gauge
+    // inside the gather radius would steal slot 1 and the popup would open on
+    // a feature the user explicitly did not snap to.
+    mockedFetchLayerVectorFeatures.mockResolvedValue([
+      makeRiver("Test River", [
+        [0, 20],
+        [30, 20],
+      ]),
+    ]);
+    // A gauge ~1.4 "pixels" from the click, versus 4 to the river line.
+    mockedQueryLayerFeatures.mockResolvedValue([
+      {
+        attributes: { gauge_id: "NEARBY" },
+        geometry: { x: 13, y: 23 },
+        layerName: "Other Layer",
+      },
+    ]);
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+    const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
+
+    const mapRef = await mountSnapMap([riversLayer(), otherLayer()]);
+
+    await dispatch(mapRef, {
+      type: "singleclick",
+      coordinate: [12, 24],
+      pixel: [12, 24],
+    });
+
+    // The overlay settles on the river's extent centre ([15, 20]), not the
+    // gauge at [13, 23] -- proof the snapped feature took slot 0.
+    await waitFor(() =>
+      expect(popSetPosition).toHaveBeenLastCalledWith([15, 20]),
+    );
+    expect(await screen.findByText("Test River")).toBeInTheDocument();
+  });
+
   test("singleclick with an empty snap cache falls back to /identify for the snap layer", async () => {
     mockedFetchLayerVectorFeatures.mockResolvedValue([]);
     mockedQueryLayerFeatures.mockResolvedValue([
@@ -8155,5 +8197,150 @@ describe("linked cursor", () => {
     expect(cursorMarker(maps.b).getPosition()).toBeUndefined();
     await letAFramePass();
     expect(cursorMarker(maps.b).getPosition()).toBeUndefined();
+  });
+});
+
+describe("click and hover result ordering", () => {
+  // Ranking runs at the two aggregation seams, so these assert the wiring; the
+  // comparator itself is unit-tested in components/map/utilities.test.js.
+  //
+  // Under jsdom Swiper never assigns an active-slide class, so slot 0 is read
+  // through the overlay anchor: the popup-sync effect positions the overlay on
+  // the ACTIVE feature's geometry, and the active index is reset to 0 on every
+  // new popupContent.
+  const plainLayer = (name, sourceType = "ESRI Image and Map Service") => ({
+    name,
+    configuration: {
+      type: "ImageLayer",
+      props: {
+        name,
+        source: { type: sourceType, props: { url: `${name}_url` } },
+      },
+    },
+  });
+
+  test("a click opens the popup on the nearest feature, not the first returned", async () => {
+    // The click fires at [10, 20]; "far" is ~22 away and "near" ~2.8, and
+    // "far" is returned first to prove arrival order is not what decides.
+    mockedQueryLayerFeatures.mockResolvedValue([
+      { attributes: { id: "far" }, geometry: { x: 0, y: 0 }, layerName: "L" },
+      {
+        attributes: { id: "near" },
+        geometry: { x: 12, y: 22 },
+        layerName: "L",
+      },
+    ]);
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+    const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
+
+    renderSyncMap([plainLayer("L")]);
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+    await waitFor(() =>
+      expect(popSetPosition).toHaveBeenLastCalledWith([12, 22]),
+    );
+  });
+
+  test("a raster band reading sinks below a vector hit that is further away", async () => {
+    // The raster builders report the click coordinate as their own geometry,
+    // so a plain distance sort would hand them slot 0 on every click.
+    mockedQueryLayerFeatures.mockImplementation(async (layer) =>
+      layer.configuration.props.name === "Raster"
+        ? [
+            {
+              attributes: { "Band 1": 42 },
+              geometry: { type: "Point", coordinates: [10, 20] },
+              layerName: "Raster",
+            },
+          ]
+        : [
+            {
+              attributes: { id: "gauge" },
+              geometry: { x: 16, y: 26 },
+              layerName: "Vector",
+            },
+          ],
+    );
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+    const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
+
+    renderSyncMap([plainLayer("Raster", "GeoTIFF"), plainLayer("Vector")]);
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+    await waitFor(() =>
+      expect(popSetPosition).toHaveBeenLastCalledWith([16, 26]),
+    );
+  });
+
+  test("a hover opens the popup on the nearest feature", async () => {
+    // Hover leaves the overlay pinned at the cursor (the popup-sync effect
+    // returns early for a hover-opened popup), so slot 0 is read through
+    // variable-input publication, which follows the active feature on hover.
+    mockedQueryLayerFeatures.mockResolvedValue([
+      {
+        attributes: { field1: "far" },
+        geometry: { x: 0, y: 0 },
+        layerName: "H",
+      },
+      {
+        attributes: { field1: "near" },
+        geometry: { x: 11, y: 21 },
+        layerName: "H",
+      },
+    ]);
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+
+    const dashboard = JSON.parse(JSON.stringify(userDashboard));
+    dashboard.tabs[0].gridItems = [mockedTextVariable];
+    const varInputArgs = JSON.parse(mockedTextVariable.args_string);
+
+    const hoverLayer = {
+      tablePopupType: "hover",
+      attributeVariables: { H: { field1: "Test Variable" } },
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "H",
+          source: {
+            type: "ESRI Image and Map Service",
+            props: { url: "h_url" },
+          },
+        },
+      },
+    };
+
+    const LoadedComponent = createLoadedComponent({
+      children: (
+        <MapContextProvider>
+          <TestingComponent
+            onMapPointerMove={true}
+            clickCoordinates={[10, 20]}
+            mapProps={{
+              mapConfig: {},
+              viewConfig: {},
+              layers: [hoverLayer],
+              baseMap: null,
+              layerControl: false,
+            }}
+          />
+          <VariableInput
+            variable_name={varInputArgs.variable_name}
+            initial_value={varInputArgs.initial_value}
+            variable_options_source={varInputArgs.variable_options_source}
+            onChange={jest.fn()}
+          />
+        </MapContextProvider>
+      ),
+      options: { dashboards: { dashboards: [dashboard] } },
+    });
+    render(LoadedComponent);
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+    // "far" arrived first but "near" is ~2.2 from the cursor versus ~22.
+    await waitFor(async () => {
+      expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+        JSON.stringify({ "Test Variable": "near" }),
+      );
+    });
   });
 });

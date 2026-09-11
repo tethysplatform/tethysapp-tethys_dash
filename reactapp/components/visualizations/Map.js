@@ -10,6 +10,7 @@ import {
 import { createRoot } from "react-dom/client";
 import MapComponent from "components/map/Map";
 import {
+  rankQueriedFeatures,
   queryLayerFeatures,
   createHighlightLayer,
   addHighlightFeatures,
@@ -1097,7 +1098,18 @@ const MapVisualization = ({
         const features = shouldSnapSelect(layer, clickSnap)
           ? snapSiblings
               .filter((g) => g.layerName === layer.configuration.props.name)
-              .map((g) => buildSnapFeatureResult(g.feature, layer))
+              .map((g) => {
+                const result = buildSnapFeatureResult(g.feature, layer);
+                // Tag ONLY the feature the click actually clipped to, so
+                // ranking can pin it ahead of everything else. Its siblings
+                // were merely gathered within GATHER_PIXELS (35) rather than
+                // snapped within SNAP_PIXELS (15); pinning them too would let a
+                // confluence click push a dead-on gauge behind several reaches,
+                // losing the very ordering fix on snap-enabled maps.
+                return g.feature === clickSnap.feature
+                  ? { ...result, __snapped: true }
+                  : result;
+              })
           : await queryLayerFeatures(layer, map, evt.coordinate, pixel);
         if (!Array.isArray(features)) return features;
         return features.map((feature) =>
@@ -1141,8 +1153,20 @@ const MapVisualization = ({
         (feature) => isTableEligible(feature) || hasModalPopup(feature),
       );
 
-      newPopupContent = unionFeatures.length > 0 ? unionFeatures : null;
-      if (unionFeatures.length === 0) {
+      // Nearest-first. Runs here rather than over the raw Promise.all results
+      // so the "zoomed" sentinel check above still sees the untouched array,
+      // and so ranking only ever sees features that can actually be shown.
+      const rankedFeatures = rankQueriedFeatures(
+        unionFeatures,
+        map,
+        // The TRUE click, not `coordinate` -- every layer was queried at
+        // evt.coordinate, so ranking against the snapped point would re-sort
+        // every other layer around a point the user did not click.
+        evt.coordinate,
+      );
+
+      newPopupContent = rankedFeatures.length > 0 ? rankedFeatures : null;
+      if (rankedFeatures.length === 0) {
         // No click-eligible features at this location. If a hover popup is
         // currently open, the user is mid-interaction with it — replacing
         // it with an empty "No Attributes Found" overlay would be hostile.
@@ -1261,7 +1285,7 @@ const MapVisualization = ({
 
     if (nonEmpty.length > 0) {
       popupAnchorRef.current = coordinate;
-      setPopupContent(nonEmpty);
+      setPopupContent(rankQueriedFeatures(nonEmpty, map, coordinate));
       // Marks the modal as not-applicable: a layer can be both
       // `tablePopupType: "hover"` and `mode: "modal"`, and the modal is
       // click-only, so hovering one must not pop it open.
