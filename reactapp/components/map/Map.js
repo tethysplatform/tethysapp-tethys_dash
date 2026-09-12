@@ -1793,7 +1793,7 @@ const MapComponent = ({
     <>
       <div aria-label="Map Div" ref={mapDivRef} {...customMapConfig}>
         {errorMessage && (
-          <AlertAnchor edges={ALERT_EDGES}>
+          <AlertAnchor edges={ALERT_EDGES} mapDivRef={mapDivRef}>
             <StyledAlert
               key="failure"
               variant="danger"
@@ -1805,7 +1805,8 @@ const MapComponent = ({
           </AlertAnchor>
         )}
         {showLayerAlert && (
-          <AlertAnchor edges={ALERT_EDGES}>
+          <AlertAnchor edges={ALERT_EDGES} mapDivRef={mapDivRef}>
+
             <StyledAlert
               variant={layerAlert.variant}
               role={layerAlert.variant === "danger" ? "alert" : "status"}
@@ -1822,7 +1823,7 @@ const MapComponent = ({
           </AlertAnchor>
         )}
         {viewGroupMismatch && (
-          <AlertAnchor edges={ALERT_EDGES}>
+          <AlertAnchor edges={ALERT_EDGES} mapDivRef={mapDivRef}>
             <StyledAlert
               variant="warning"
               role="status"

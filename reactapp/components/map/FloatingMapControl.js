@@ -1,5 +1,7 @@
 import {
+  createContext,
   useCallback,
+  useContext,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -75,9 +77,40 @@ export function styleFromAnchor(rect, edges, viewport) {
   return style;
 }
 
-const FloatingMapControl = ({ edges, className, children, ...rest }) => {
+/**
+ * The map div's current height, in CSS pixels, or `null` when it has not been
+ * measured. Provided by FloatingMapControl and read by whatever it portals, so
+ * a control can size itself against the map it belongs to rather than against
+ * the viewport -- the portal means it has no CSS relationship to the map at all.
+ */
+const MapDivHeightContext = createContext(null);
+
+/** @returns {number|null} the map div height, or null when unmeasured. */
+export const useMapDivHeight = () => useContext(MapDivHeightContext);
+
+/**
+ * A measured height, or `null` when there is nothing usable to report.
+ *
+ * Zero is reported as unmeasured rather than as a real zero: a map on an
+ * inactive dashboard tab is mounted but `display: none`, and a tile mid-drag
+ * can measure zero too. Treating those as a real height would cap a control at
+ * a fraction of zero and hide it outright. Any floor above zero belongs to the
+ * consumer, which knows its own collapsed size.
+ */
+export function normalizeMeasuredHeight(height) {
+  return Number.isFinite(height) && height > 0 ? height : null;
+}
+
+const FloatingMapControl = ({
+  edges,
+  className,
+  mapDivRef,
+  children,
+  ...rest
+}) => {
   const anchorRef = useRef(null);
   const [style, setStyle] = useState(null);
+  const [mapDivHeight, setMapDivHeight] = useState(null);
 
   const reposition = useCallback(() => {
     const anchor = anchorRef.current;
@@ -103,6 +136,11 @@ const FloatingMapControl = ({ edges, className, children, ...rest }) => {
     reposition();
   }, [reposition, children]);
 
+  // Deliberately a passive effect, not a layout effect. A parent host element's
+  // ref is not attached yet when a child's layout effect runs, so `mapDivRef`
+  // reads null there and the height would stay unmeasured forever. (The
+  // measure-and-derive pattern in PopupModalChrome uses a layout effect safely
+  // only because it measures its OWN element.)
   useEffect(() => {
     window.addEventListener("resize", reposition);
     // Capture phase: a non-fill map scrolls with the grid, and the scroll may
@@ -111,19 +149,46 @@ const FloatingMapControl = ({ edges, className, children, ...rest }) => {
 
     // Track the tile itself being moved or resized, which happens while editing
     // the dashboard layout.
+    //
+    // Prefer the caller's map div over `offsetParent`. `offsetParent` resolves
+    // to the map div only because the default map style sets
+    // `position: relative`, and a plugin-supplied `mapConfig.style` replaces
+    // that default wholesale -- which would silently move the observed box to
+    // an ancestor. It is also null for a map on an inactive tab, where the tile
+    // is `display: none` at mount, so no observer would ever be attached.
+    // Callers that pass no ref keep the old behavior exactly.
+    const observed = mapDivRef?.current ?? anchorRef.current?.offsetParent;
+
+    const measure = () => {
+      if (!observed) return;
+      setMapDivHeight((previous) => {
+        const next = normalizeMeasuredHeight(
+          observed.getBoundingClientRect().height,
+        );
+        // Equality guard: the observer fires on every frame of a tile drag, and
+        // an unconditional set would re-render both controls each time.
+        return next === previous ? previous : next;
+      });
+    };
+
     let observer;
-    const observed = anchorRef.current?.offsetParent;
     if (observed && typeof ResizeObserver !== "undefined") {
-      observer = new ResizeObserver(reposition);
+      observer = new ResizeObserver(() => {
+        reposition();
+        measure();
+      });
       observer.observe(observed);
     }
+    // Seed from the current layout as well: a runtime without ResizeObserver
+    // still gets one measurement, and an observer's first callback is async.
+    measure();
 
     return () => {
       window.removeEventListener("resize", reposition);
       window.removeEventListener("scroll", reposition, true);
       observer?.disconnect();
     };
-  }, [reposition]);
+  }, [reposition, mapDivRef]);
 
   return (
     <>
@@ -136,7 +201,9 @@ const FloatingMapControl = ({ edges, className, children, ...rest }) => {
       {style &&
         ReactDOM.createPortal(
           <Floating style={style} data-testid="floating-map-control" {...rest}>
-            {children}
+            <MapDivHeightContext.Provider value={mapDivHeight}>
+              {children}
+            </MapDivHeightContext.Provider>
           </Floating>,
           document.body,
         )}
@@ -150,6 +217,12 @@ FloatingMapControl.propTypes = {
     .isRequired,
   /** Applied to the anchor: this is where the caller's positioning CSS goes. */
   className: PropTypes.string,
+  /**
+   * The map div this control belongs to. Observed for size so children can read
+   * its height via `useMapDivHeight`. Optional: without it the component falls
+   * back to observing `offsetParent`, which is what it did before.
+   */
+  mapDivRef: PropTypes.shape({ current: PropTypes.any }),
   children: PropTypes.node,
 };
 

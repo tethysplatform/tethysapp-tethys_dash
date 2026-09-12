@@ -2,6 +2,8 @@ import { render, screen, act } from "@testing-library/react";
 import FloatingMapControl, {
   FLOATING_CONTROL_Z_INDEX,
   styleFromAnchor,
+  normalizeMeasuredHeight,
+  useMapDivHeight,
 } from "components/map/FloatingMapControl";
 
 // jsdom does no layout, so every rect is stubbed. These tests pin the mapping
@@ -305,5 +307,193 @@ describe("tracking the tile it floats above", () => {
     } finally {
       if (realResizeObserver) global.ResizeObserver = realResizeObserver;
     }
+  });
+});
+
+describe("map div height", () => {
+  // A control is portalled out of the map div, so it has no CSS relationship to
+  // the map it belongs to. These pin the measurement it reads instead.
+
+  const HeightProbe = () => {
+    const height = useMapDivHeight();
+    return <span data-testid="probe">{String(height)}</span>;
+  };
+
+  // An own-property override, so it shadows the prototype-wide stubRect above
+  // and the map div can report a different rect than the anchor.
+  const makeMapDiv = (height) => {
+    const element = document.createElement("div");
+    element.getBoundingClientRect = () => ({
+      top: 0,
+      left: 0,
+      width: 300,
+      height,
+      bottom: height,
+      right: 300,
+      toJSON: () => ({}),
+    });
+    document.body.appendChild(element);
+    return element;
+  };
+
+  const ANCHOR_RECT = {
+    top: 100,
+    left: 20,
+    width: 0,
+    height: 0,
+    bottom: 100,
+    right: 20,
+  };
+
+  describe("normalizeMeasuredHeight", () => {
+    test.each([
+      ["a positive height", 400, 400],
+      ["zero", 0, null],
+      ["a negative height", -5, null],
+      ["NaN", NaN, null],
+      ["Infinity", Infinity, null],
+      ["undefined", undefined, null],
+    ])("maps %s", (_label, input, expected) => {
+      expect(normalizeMeasuredHeight(input)).toBe(expected);
+    });
+  });
+
+  test("reports the map div's height to a portalled child", () => {
+    stubRect(ANCHOR_RECT);
+    const mapDiv = makeMapDiv(400);
+
+    render(
+      <FloatingMapControl
+        edges={["bottom", "left"]}
+        mapDivRef={{ current: mapDiv }}
+      >
+        <HeightProbe />
+      </FloatingMapControl>,
+    );
+
+    expect(screen.getByTestId("probe")).toHaveTextContent("400");
+  });
+
+  test("reports unmeasured for a map div that measures zero", () => {
+    // A map on an inactive dashboard tab is mounted but display:none, so it
+    // measures zero. Capping a control at a fraction of zero would hide it.
+    stubRect(ANCHOR_RECT);
+    const mapDiv = makeMapDiv(0);
+
+    render(
+      <FloatingMapControl
+        edges={["bottom", "left"]}
+        mapDivRef={{ current: mapDiv }}
+      >
+        <HeightProbe />
+      </FloatingMapControl>,
+    );
+
+    expect(screen.getByTestId("probe")).toHaveTextContent("null");
+  });
+
+  test("picks up a height change through the resize observer", () => {
+    // AE7 / AE10: a tile resized under an open control, and a hidden tab
+    // becoming visible, are the same mechanism -- the observed box changes size
+    // while the control stays mounted.
+    const realResizeObserver = global.ResizeObserver;
+    let fireResize;
+    global.ResizeObserver = class {
+      constructor(callback) {
+        fireResize = callback;
+      }
+      observe() {}
+      disconnect() {}
+    };
+    stubRect(ANCHOR_RECT);
+
+    let currentHeight = 0;
+    const mapDiv = document.createElement("div");
+    mapDiv.getBoundingClientRect = () => ({
+      top: 0,
+      left: 0,
+      width: 300,
+      height: currentHeight,
+      bottom: currentHeight,
+      right: 300,
+      toJSON: () => ({}),
+    });
+    document.body.appendChild(mapDiv);
+
+    try {
+      render(
+        <FloatingMapControl
+          edges={["bottom", "left"]}
+          mapDivRef={{ current: mapDiv }}
+        >
+          <HeightProbe />
+        </FloatingMapControl>,
+      );
+
+      // Hidden at mount.
+      expect(screen.getByTestId("probe")).toHaveTextContent("null");
+
+      currentHeight = 600;
+      act(() => fireResize());
+
+      expect(screen.getByTestId("probe")).toHaveTextContent("600");
+    } finally {
+      if (realResizeObserver) global.ResizeObserver = realResizeObserver;
+      else delete global.ResizeObserver;
+    }
+  });
+
+  test("falls back to observing offsetParent when given no map div ref", () => {
+    // The alert anchors pass no ref, and must keep behaving exactly as before.
+    const observe = jest.fn();
+    const realResizeObserver = global.ResizeObserver;
+    global.ResizeObserver = jest.fn(() => ({
+      observe,
+      disconnect: jest.fn(),
+    }));
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    jest
+      .spyOn(HTMLElement.prototype, "offsetParent", "get")
+      .mockReturnValue(parent);
+    stubRect(ANCHOR_RECT);
+
+    try {
+      render(
+        <FloatingMapControl edges={["bottom", "left"]}>
+          <HeightProbe />
+        </FloatingMapControl>,
+      );
+      expect(observe).toHaveBeenCalledWith(parent);
+    } finally {
+      if (realResizeObserver) global.ResizeObserver = realResizeObserver;
+      else delete global.ResizeObserver;
+    }
+  });
+
+  test("measures once even when the runtime has no ResizeObserver", () => {
+    const realResizeObserver = global.ResizeObserver;
+    delete global.ResizeObserver;
+    stubRect(ANCHOR_RECT);
+    const mapDiv = makeMapDiv(320);
+
+    try {
+      render(
+        <FloatingMapControl
+          edges={["bottom", "left"]}
+          mapDivRef={{ current: mapDiv }}
+        >
+          <HeightProbe />
+        </FloatingMapControl>,
+      );
+      expect(screen.getByTestId("probe")).toHaveTextContent("320");
+    } finally {
+      if (realResizeObserver) global.ResizeObserver = realResizeObserver;
+    }
+  });
+
+  test("reports null to a consumer rendered outside the provider", () => {
+    render(<HeightProbe />);
+    expect(screen.getByTestId("probe")).toHaveTextContent("null");
   });
 });
