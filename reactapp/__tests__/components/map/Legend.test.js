@@ -1,6 +1,7 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { legendItems } from "__tests__/utilities/constants";
 import LegendControl from "components/map/LegendControl";
+import { makeMapDiv } from "__tests__/utilities/mapDiv";
 
 test("LegendControl", async () => {
   const { rerender } = render(<LegendControl legendItems={[]} />);
@@ -49,21 +50,12 @@ describe("LegendControl height cap", () => {
   // jsdom does no layout, so these pin the DECLARED max-height. That the
   // control visually clips inside a short map, and does not paint over
   // neighbouring grid items, is browser-verified.
-  const makeMapDiv = (height) => {
-    const element = document.createElement("div");
-    element.getBoundingClientRect = () => ({
-      top: 0,
-      left: 0,
-      width: 300,
-      height,
-      bottom: height,
-      right: 300,
-      toJSON: () => ({}),
-    });
-    document.body.appendChild(element);
-    return element;
-  };
-
+  //
+  // The viewport is pinned tall enough that the MAP is the binding constraint
+  // in most cases; the clamp itself gets its own test below.
+  beforeEach(() => {
+    window.innerHeight = 2000;
+  });
   const expand = async () => {
     fireEvent.click(await screen.findByLabelText("Show Legend Control"));
     return screen.findByLabelText("Legend Control");
@@ -102,6 +94,20 @@ describe("LegendControl height cap", () => {
       />,
     );
     expect(await expand()).toHaveStyle({ maxHeight: "40px" });
+  });
+
+  test("clamps to the viewport when the map is taller than the window", async () => {
+    // A grid item can be taller than the browser window, and the control is
+    // position:fixed pinned to the map's bottom edge -- so an unclamped 75% of
+    // a very tall map would put its top off-screen with no way to scroll there.
+    window.innerHeight = 800;
+    render(
+      <LegendControl
+        legendItems={[legendItems]}
+        mapDivRef={{ current: makeMapDiv(4000) }}
+      />,
+    );
+    expect(await expand()).toHaveStyle({ maxHeight: "600px" });
   });
 
   test("leaves the collapsed control uncapped at its fixed size", async () => {

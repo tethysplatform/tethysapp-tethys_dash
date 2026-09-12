@@ -117,15 +117,27 @@ const UNMEASURED_MAX_HEIGHT = "35vh";
 /**
  * The `max-height` a floating control should declare.
  *
+ * Capped by the viewport as well as the map. A grid item can be taller than the
+ * browser window, and the control is `position: fixed` and pinned to the map's
+ * bottom edge -- so three-quarters of a very tall map would put the control's
+ * top off-screen with no way to scroll to it. The old `35vh` cap was bounded by
+ * the window for free; this one has to say so.
+ *
  * @param {number|null} mapDivHeight measured map div height, or null.
  * @param {boolean} expanded whether the control is expanded.
+ * @param {number} [viewportHeight] window height; omitted means no viewport cap.
  * @returns {string} a CSS length, or `none` while collapsed -- a collapsed
  *   control is a fixed-size button and capping it would clip the toggle.
  */
-export function deriveControlMaxHeight(mapDivHeight, expanded) {
+export function deriveControlMaxHeight(mapDivHeight, expanded, viewportHeight) {
   if (!expanded) return "none";
   if (mapDivHeight === null) return UNMEASURED_MAX_HEIGHT;
-  const capped = Math.round(mapDivHeight * MAP_HEIGHT_FRACTION);
+  const viewportCap = Number.isFinite(viewportHeight)
+    ? viewportHeight * MAP_HEIGHT_FRACTION
+    : Infinity;
+  const capped = Math.round(
+    Math.min(mapDivHeight * MAP_HEIGHT_FRACTION, viewportCap),
+  );
   return `${Math.max(capped, COLLAPSED_CONTROL_PX)}px`;
 }
 
@@ -144,10 +156,19 @@ export const MapSizedControlContainer = ({
   ...rest
 }) => {
   const mapDivHeight = useMapDivHeight();
+  // Read at render rather than held in state: FloatingMapControl already
+  // re-renders on window resize (its reposition listener sets a fresh style
+  // object), so the cap recomputes without a second resize subscription.
+  const viewportHeight =
+    typeof window === "undefined" ? undefined : window.innerHeight;
   return (
     <Container
       $isexpanded={expanded}
-      $maxheight={deriveControlMaxHeight(mapDivHeight, expanded)}
+      $maxheight={deriveControlMaxHeight(
+        mapDivHeight,
+        expanded,
+        viewportHeight,
+      )}
       {...rest}
     >
       {children}

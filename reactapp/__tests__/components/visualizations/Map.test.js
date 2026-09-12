@@ -8405,6 +8405,46 @@ describe("features with nothing to render are dropped from the popup", () => {
     expect(await screen.findByText("shown value")).toBeInTheDocument();
   });
 
+  test("a click that finds only droppable features hides the overlay instead of reporting nothing found", async () => {
+    // Both arms of the empty-popup branch. When features WERE found and every
+    // one was dropped, the author omitted those attributes on purpose, so an
+    // explicit "No Attributes Found" box on every click is noise they did not
+    // ask for -- the overlay just hides, which is what they saw before the drop
+    // existed. A click that genuinely finds nothing still gets the box.
+    mockedQueryLayerFeatures.mockResolvedValue([
+      {
+        attributes: { field1: "hidden value" },
+        geometry: { x: 10, y: 10 },
+        layerName: "Hidden",
+      },
+    ]);
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+    const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
+
+    renderSyncMap([omittedLayer("Hidden")]);
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+    // `undefined` is how OpenLayers hides an overlay -- the element stays in the
+    // DOM unpositioned, so the position is the assertable signal, not presence.
+    await waitFor(() =>
+      expect(popSetPosition).toHaveBeenLastCalledWith(undefined),
+    );
+  });
+
+  test("a click that finds nothing at all still anchors the empty popup", async () => {
+    mockedQueryLayerFeatures.mockResolvedValue([]);
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+    const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
+
+    renderSyncMap([omittedLayer("Hidden")]);
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+    // Anchored at the cursor, not hidden -- the distinguishing behavior.
+    await waitFor(() =>
+      expect(popSetPosition).toHaveBeenLastCalledWith([10, 20]),
+    );
+  });
+
   test("an all-omitted feature with a modal stays and opens its modal", async () => {
     // AE9. The modal is that feature's render, so it is exempt from the drop.
     mockedQueryLayerFeatures.mockResolvedValue([

@@ -7,6 +7,7 @@ import FloatingMapControl, {
   deriveControlMaxHeight,
   COLLAPSED_CONTROL_PX,
 } from "components/map/FloatingMapControl";
+import { makeMapDiv } from "__tests__/utilities/mapDiv";
 
 // jsdom does no layout, so every rect is stubbed. These tests pin the mapping
 // from anchor rect to fixed-position style and the escape from the parent tree;
@@ -321,23 +322,6 @@ describe("map div height", () => {
     return <span data-testid="probe">{String(height)}</span>;
   };
 
-  // An own-property override, so it shadows the prototype-wide stubRect above
-  // and the map div can report a different rect than the anchor.
-  const makeMapDiv = (height) => {
-    const element = document.createElement("div");
-    element.getBoundingClientRect = () => ({
-      top: 0,
-      left: 0,
-      width: 300,
-      height,
-      bottom: height,
-      right: 300,
-      toJSON: () => ({}),
-    });
-    document.body.appendChild(element);
-    return element;
-  };
-
   const ANCHOR_RECT = {
     top: 100,
     left: 20,
@@ -524,5 +508,18 @@ describe("deriveControlMaxHeight", () => {
   test("does not cap a collapsed control at all", () => {
     expect(deriveControlMaxHeight(800, false)).toBe("none");
     expect(deriveControlMaxHeight(null, false)).toBe("none");
+  });
+
+  test("clamps to the viewport when the map is taller than the window", () => {
+    // position:fixed means an over-tall control's top is simply unreachable.
+    expect(deriveControlMaxHeight(4000, true, 800)).toBe("600px");
+  });
+
+  test("lets the map bind when it is shorter than the viewport", () => {
+    expect(deriveControlMaxHeight(800, true, 2000)).toBe("600px");
+  });
+
+  test("applies no viewport cap when no viewport height is given", () => {
+    expect(deriveControlMaxHeight(800, true)).toBe("600px");
   });
 });

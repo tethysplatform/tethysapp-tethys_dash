@@ -1178,7 +1178,7 @@ async function getGeoJSONLayerFeatures(
 // a deliberate pick; a pixel readout loses to anything with real geometry
 // because its coordinates are the click itself; anything we cannot measure sinks
 // rather than being dropped, so the popup never loses a feature silently.
-export const RANK_TIER = {
+const RANK_TIER = {
   SNAPPED: 0,
   REAL_GEOMETRY: 1,
   RASTER: 2,
@@ -1223,6 +1223,14 @@ export function classifyGeometryForRanking(geometry) {
     return {
       kind: RANK_KIND.POINT,
       geometries: [new Point([geometry.x, geometry.y])],
+    };
+  }
+  if (Array.isArray(geometry.points)) {
+    // ESRI's multipoint shape. Without this branch a dead-on multipoint hit
+    // falls through to the unrankable tier and sorts below the raster readings.
+    return {
+      kind: RANK_KIND.POINT,
+      geometries: [new MultiPoint(geometry.points)],
     };
   }
   if (Array.isArray(geometry.paths)) {

@@ -1,6 +1,7 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import LayersControl, { parseProgress } from "components/map/LayersControl";
 import { WebsocketContext } from "components/contexts/WebSocketContext";
+import { makeMapDiv } from "__tests__/utilities/mapDiv";
 
 test("LayersControl update layers", async () => {
   let visualizationRef;
@@ -256,21 +257,9 @@ describe("LayersControl height cap", () => {
   // The two floating controls are visually symmetric siblings on the same map,
   // so they must size by the same rule. jsdom does no layout; the declared
   // max-height is what is pinned here.
-  const makeMapDiv = (height) => {
-    const element = document.createElement("div");
-    element.getBoundingClientRect = () => ({
-      top: 0,
-      left: 0,
-      width: 300,
-      height,
-      bottom: height,
-      right: 300,
-      toJSON: () => ({}),
-    });
-    document.body.appendChild(element);
-    return element;
-  };
-
+  beforeEach(() => {
+    window.innerHeight = 2000;
+  });
   const renderExpanded = async (mapDivRef) => {
     render(
       <LayersControl

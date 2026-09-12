@@ -4822,6 +4822,16 @@ describe("classifyGeometryForRanking", () => {
     ],
     ["ESRI x/y", { x: 1, y: 2 }, RANK_KIND.POINT],
     [
+      "ESRI multipoint",
+      {
+        points: [
+          [1, 2],
+          [3, 4],
+        ],
+      },
+      RANK_KIND.POINT,
+    ],
+    [
       "ESRI paths",
       {
         paths: [
@@ -5203,6 +5213,84 @@ describe("rankQueriedFeatures", () => {
     ];
     expect(names(rankQueriedFeatures(features, mapAt(), [0, 0]))).toStrictEqual(
       ["raster-a", "raster-b"],
+    );
+  });
+
+  test("Covers AE4. a lone raster reading is returned unchanged", () => {
+    // Tiering is not observable with a single result: the band reading appears
+    // exactly as it does today.
+    const band = point("band", [0, 0], "GeoTIFF");
+    expect(rankQueriedFeatures([band], mapAt(), [0, 0])).toStrictEqual([band]);
+  });
+
+  test("ranks a mixed GeometryCollection by its point member's distance", () => {
+    const collection = {
+      name: "collection",
+      geometry: {
+        type: "GeometryCollection",
+        geometries: [
+          {
+            type: "Polygon",
+            coordinates: [
+              [
+                [40, 40],
+                [40, 50],
+                [50, 50],
+                [40, 40],
+              ],
+            ],
+          },
+          { type: "Point", coordinates: [2, 0] },
+        ],
+      },
+      __wrapperLayer: layerOf("GeoJSON"),
+    };
+    const features = [point("far", [9, 0]), collection];
+    expect(names(rankQueriedFeatures(features, mapAt(), [0, 0]))).toStrictEqual(
+      ["collection", "far"],
+    );
+  });
+
+  test("ranks a MultiLineString at its nearest member, behind a nearer point", () => {
+    const multiline = {
+      name: "multiline",
+      geometry: {
+        type: "MultiLineString",
+        coordinates: [
+          [
+            [80, -10],
+            [80, 10],
+          ],
+          [
+            [4, -10],
+            [4, 10],
+          ],
+        ],
+      },
+      __wrapperLayer: layerOf("GeoJSON"),
+    };
+    const features = [multiline, point("gauge", [9, 0])];
+    // Nearest member is 4 away, nearer than the gauge at 9 -- but a point still
+    // outranks a line regardless of distance.
+    expect(names(rankQueriedFeatures(features, mapAt(), [0, 0]))).toStrictEqual(
+      ["gauge", "multiline"],
+    );
+  });
+
+  test("ranks an ESRI multipoint in the point sub-tier", () => {
+    const esriMultipoint = {
+      name: "esri-multipoint",
+      geometry: {
+        points: [
+          [50, 0],
+          [2, 0],
+        ],
+      },
+      __wrapperLayer: layerOf("ESRI Image and Map Service"),
+    };
+    const features = [point("band", [0, 0], "Zarr"), esriMultipoint];
+    expect(names(rankQueriedFeatures(features, mapAt(), [0, 0]))).toStrictEqual(
+      ["esri-multipoint", "band"],
     );
   });
 
