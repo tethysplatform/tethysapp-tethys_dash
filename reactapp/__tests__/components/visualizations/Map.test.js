@@ -8344,3 +8344,154 @@ describe("click and hover result ordering", () => {
     });
   });
 });
+
+describe("features with nothing to render are dropped from the popup", () => {
+  const omittedLayer = (name, extra = {}) => ({
+    name,
+    configuration: {
+      type: "ImageLayer",
+      props: {
+        name,
+        source: { type: "ESRI Image and Map Service", props: { url: "u" } },
+      },
+    },
+    omittedPopupAttributes: { [name]: ["field1"] },
+    ...extra,
+  });
+
+  test("an all-omitted feature is dropped even when it is the nearest", async () => {
+    // The nearer feature has every attribute omitted and no modal or variable
+    // mapping, so it renders nothing. If it survived the filter, ranking would
+    // hand it slot 0 and the overlay would hide; instead the overlay anchors on
+    // the farther feature that actually has something to show.
+    mockedQueryLayerFeatures.mockImplementation(async (layer) =>
+      layer.configuration.props.name === "Hidden"
+        ? [
+            {
+              attributes: { field1: "hidden value" },
+              geometry: { x: 11, y: 21 },
+              layerName: "Hidden",
+            },
+          ]
+        : [
+            {
+              attributes: { field1: "shown value" },
+              geometry: { x: 50, y: 60 },
+              layerName: "Shown",
+            },
+          ],
+    );
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+    const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
+
+    renderSyncMap([
+      omittedLayer("Hidden"),
+      {
+        name: "Shown",
+        configuration: {
+          type: "ImageLayer",
+          props: {
+            name: "Shown",
+            source: { type: "ESRI Image and Map Service", props: { url: "u" } },
+          },
+        },
+      },
+    ]);
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+    await waitFor(() =>
+      expect(popSetPosition).toHaveBeenLastCalledWith([50, 60]),
+    );
+    expect(await screen.findByText("shown value")).toBeInTheDocument();
+  });
+
+  test("an all-omitted feature with a modal stays and opens its modal", async () => {
+    // AE9. The modal is that feature's render, so it is exempt from the drop.
+    mockedQueryLayerFeatures.mockResolvedValue([
+      {
+        attributes: { field1: "hidden value" },
+        geometry: { x: 10, y: 10 },
+        layerName: "Modal Layer",
+      },
+    ]);
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+    const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
+
+    renderSyncMap([
+      omittedLayer("Modal Layer", {
+        popupConfig: {
+          mode: "modal",
+          position: null,
+          titleTemplate: null,
+          gridItems: [],
+        },
+      }),
+    ]);
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+    // The modal opens for the feature...
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    // ...and the table overlay stays hidden, because it has nothing to show.
+    await waitFor(() =>
+      expect(popSetPosition).toHaveBeenLastCalledWith(undefined),
+    );
+  });
+
+  test("an all-omitted feature that drives a variable input stays and publishes", async () => {
+    // "Hide the ugly table, just drive the chart below" is a normal setup:
+    // attributeVariables is keyed on layer name and is independent of the
+    // omitted-attribute config, so dropping this feature would silently stop
+    // the chart from updating.
+    mockedQueryLayerFeatures.mockResolvedValue([
+      {
+        attributes: { field1: "published value" },
+        geometry: { x: 10, y: 10 },
+        layerName: "Var Layer",
+      },
+    ]);
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+
+    const dashboard = JSON.parse(JSON.stringify(userDashboard));
+    dashboard.tabs[0].gridItems = [mockedTextVariable];
+    const varInputArgs = JSON.parse(mockedTextVariable.args_string);
+
+    const LoadedComponent = createLoadedComponent({
+      children: (
+        <MapContextProvider>
+          <TestingComponent
+            onMapClick={jest.fn()}
+            clickCoordinates={[10, 20]}
+            mapProps={{
+              mapConfig: {},
+              viewConfig: {},
+              layers: [
+                omittedLayer("Var Layer", {
+                  attributeVariables: {
+                    "Var Layer": { field1: "Test Variable" },
+                  },
+                }),
+              ],
+              baseMap: null,
+              layerControl: false,
+            }}
+          />
+          <VariableInput
+            variable_name={varInputArgs.variable_name}
+            initial_value={varInputArgs.initial_value}
+            variable_options_source={varInputArgs.variable_options_source}
+            onChange={jest.fn()}
+          />
+        </MapContextProvider>
+      ),
+      options: { dashboards: { dashboards: [dashboard] } },
+    });
+    render(LoadedComponent);
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+    await waitFor(async () => {
+      expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+        JSON.stringify({ "Test Variable": "published value" }),
+      );
+    });
+  });
+});
