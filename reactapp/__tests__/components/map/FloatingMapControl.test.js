@@ -4,6 +4,8 @@ import FloatingMapControl, {
   styleFromAnchor,
   normalizeMeasuredHeight,
   useMapDivHeight,
+  deriveControlMaxHeight,
+  COLLAPSED_CONTROL_PX,
 } from "components/map/FloatingMapControl";
 
 // jsdom does no layout, so every rect is stubbed. These tests pin the mapping
@@ -495,5 +497,32 @@ describe("map div height", () => {
   test("reports null to a consumer rendered outside the provider", () => {
     render(<HeightProbe />);
     expect(screen.getByTestId("probe")).toHaveTextContent("null");
+  });
+});
+
+describe("deriveControlMaxHeight", () => {
+  test("caps an expanded control at three quarters of the map div", () => {
+    expect(deriveControlMaxHeight(800, true)).toBe("600px");
+  });
+
+  test("scales down with a shorter map", () => {
+    expect(deriveControlMaxHeight(300, true)).toBe("225px");
+  });
+
+  test("falls back to the pre-measurement cap when unmeasured", () => {
+    // Whatever the reason -- an inactive tab, a runtime reporting zero -- the
+    // fallback is the behavior users already had rather than something new.
+    expect(deriveControlMaxHeight(null, true)).toBe("35vh");
+  });
+
+  test("never caps below the collapsed control's own size", () => {
+    // 75% of 40 is 30, which would clip the toggle and leave the control
+    // impossible to open on a very short map.
+    expect(deriveControlMaxHeight(40, true)).toBe(`${COLLAPSED_CONTROL_PX}px`);
+  });
+
+  test("does not cap a collapsed control at all", () => {
+    expect(deriveControlMaxHeight(800, false)).toBe("none");
+    expect(deriveControlMaxHeight(null, false)).toBe("none");
   });
 });

@@ -101,6 +101,67 @@ export function normalizeMeasuredHeight(height) {
   return Number.isFinite(height) && height > 0 ? height : null;
 }
 
+// The collapsed controls render as a fixed-size square button. The expanded cap
+// is floored here so a very short map can never shrink a control below its own
+// toggle and leave it unopenable.
+export const COLLAPSED_CONTROL_PX = 40;
+
+// Three-quarters of the map, per the control-height spec.
+const MAP_HEIGHT_FRACTION = 0.75;
+
+// What the controls capped at before the map div was measurable. Still the
+// fallback for the window where no measurement exists -- an inactive tab, a
+// runtime that reports zero -- because it is the behavior users already had.
+const UNMEASURED_MAX_HEIGHT = "35vh";
+
+/**
+ * The `max-height` a floating control should declare.
+ *
+ * @param {number|null} mapDivHeight measured map div height, or null.
+ * @param {boolean} expanded whether the control is expanded.
+ * @returns {string} a CSS length, or `none` while collapsed -- a collapsed
+ *   control is a fixed-size button and capping it would clip the toggle.
+ */
+export function deriveControlMaxHeight(mapDivHeight, expanded) {
+  if (!expanded) return "none";
+  if (mapDivHeight === null) return UNMEASURED_MAX_HEIGHT;
+  const capped = Math.round(mapDivHeight * MAP_HEIGHT_FRACTION);
+  return `${Math.max(capped, COLLAPSED_CONTROL_PX)}px`;
+}
+
+/**
+ * Render a control's styled container with a `$maxheight` sized to the map.
+ *
+ * Exists for two reasons. The container is a `styled.div` and cannot call a
+ * hook; and the control itself renders FloatingMapControl as its CHILD, which
+ * puts the control ABOVE the height provider, where `useMapDivHeight` would
+ * always read null. This component sits below the portal, so it can read it.
+ */
+export const MapSizedControlContainer = ({
+  container: Container,
+  expanded,
+  children,
+  ...rest
+}) => {
+  const mapDivHeight = useMapDivHeight();
+  return (
+    <Container
+      $isexpanded={expanded}
+      $maxheight={deriveControlMaxHeight(mapDivHeight, expanded)}
+      {...rest}
+    >
+      {children}
+    </Container>
+  );
+};
+
+MapSizedControlContainer.propTypes = {
+  /** The styled container to render. */
+  container: PropTypes.elementType.isRequired,
+  expanded: PropTypes.bool,
+  children: PropTypes.node,
+};
+
 const FloatingMapControl = ({
   edges,
   className,

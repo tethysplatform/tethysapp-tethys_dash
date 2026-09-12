@@ -44,3 +44,74 @@ test("LegendControl", async () => {
   fireEvent.click(closeLegendButton);
   expect(screen.queryByText("Some New Title")).not.toBeInTheDocument();
 });
+
+describe("LegendControl height cap", () => {
+  // jsdom does no layout, so these pin the DECLARED max-height. That the
+  // control visually clips inside a short map, and does not paint over
+  // neighbouring grid items, is browser-verified.
+  const makeMapDiv = (height) => {
+    const element = document.createElement("div");
+    element.getBoundingClientRect = () => ({
+      top: 0,
+      left: 0,
+      width: 300,
+      height,
+      bottom: height,
+      right: 300,
+      toJSON: () => ({}),
+    });
+    document.body.appendChild(element);
+    return element;
+  };
+
+  const expand = async () => {
+    fireEvent.click(await screen.findByLabelText("Show Legend Control"));
+    return screen.findByLabelText("Legend Control");
+  };
+
+  test("caps an expanded legend at three quarters of the map div", async () => {
+    render(
+      <LegendControl
+        legendItems={[legendItems]}
+        mapDivRef={{ current: makeMapDiv(800) }}
+      />,
+    );
+    expect(await expand()).toHaveStyle({ maxHeight: "600px" });
+  });
+
+  test("scales the cap down with a shorter map", async () => {
+    render(
+      <LegendControl
+        legendItems={[legendItems]}
+        mapDivRef={{ current: makeMapDiv(300) }}
+      />,
+    );
+    expect(await expand()).toHaveStyle({ maxHeight: "225px" });
+  });
+
+  test("falls back to the viewport cap with no map div to measure", async () => {
+    render(<LegendControl legendItems={[legendItems]} />);
+    expect(await expand()).toHaveStyle({ maxHeight: "35vh" });
+  });
+
+  test("never caps below the collapsed control's own size", async () => {
+    render(
+      <LegendControl
+        legendItems={[legendItems]}
+        mapDivRef={{ current: makeMapDiv(40) }}
+      />,
+    );
+    expect(await expand()).toHaveStyle({ maxHeight: "40px" });
+  });
+
+  test("leaves the collapsed control uncapped at its fixed size", async () => {
+    render(
+      <LegendControl
+        legendItems={[legendItems]}
+        mapDivRef={{ current: makeMapDiv(300) }}
+      />,
+    );
+    const container = await screen.findByLabelText("Legend Control");
+    expect(container).toHaveStyle({ maxHeight: "none", height: "40px" });
+  });
+});

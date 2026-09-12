@@ -1857,6 +1857,7 @@ const MapComponent = ({
         )}
         {layerControl && (
           <LayersControl
+            mapDivRef={mapDivRef}
             visualizationRef={visualizationRef}
             updater={layerControlUpdate}
             runtimeLayerState={runtimeLayerState}
@@ -1870,7 +1871,9 @@ const MapComponent = ({
             }}
           />
         )}
-        {legend && legend.length > 0 && <LegendControl legendItems={legend} />}
+        {legend && legend.length > 0 && (
+          <LegendControl legendItems={legend} mapDivRef={mapDivRef} />
+        )}
       </div>
     </>
   );
