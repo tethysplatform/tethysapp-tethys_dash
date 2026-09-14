@@ -618,8 +618,11 @@ test("Map GeoJSON with default legend and no style emits a single default swatch
     expect(addLayerSpy.mock.calls.length).toBe(1);
   });
   fireEvent.click(await screen.findByLabelText("Show Legend Control"));
-  // The swatch's title is the layer name.
+  // The swatch's title is the layer name...
   expect(await screen.findByText("Plain GeoJSON")).toBeInTheDocument();
+  // ...and the symbol is a circle (matching the default point style, since the
+  // inline GeoJSON's feature is a Point) in the default stroke color.
+  expect(await screen.findByLabelText("#3399CC-circle")).toBeInTheDocument();
 });
 
 test("Map GeoTIFF with default legend shows a 0..1 colorbar when normalized with no range", async () => {

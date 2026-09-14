@@ -143,6 +143,25 @@ const StyledContent = styled.div`
   margin-top: 1rem;
 `;
 
+// Legend swatch symbol for a styleless client vector. Its features render in
+// OpenLayers' single default style, so the swatch should match the geometry:
+// a circle for points (the default point shape), a line for lines, a square for
+// polygons. Geometry is only known when the GeoJSON is inline -- a URL source is
+// handed to OL as a URL and not fetched here -- so default to a circle, which
+// matches the default point style and the most common case.
+function defaultVectorSwatchSymbol(source) {
+  const geojson = source?.geojson;
+  const type =
+    geojson && typeof geojson === "object" && Array.isArray(geojson.features)
+      ? geojson.features.find((f) => f?.geometry?.type)?.geometry?.type
+      : undefined;
+  if (typeof type !== "string") return "circle";
+  if (type.includes("Point")) return "circle";
+  if (type.includes("LineString")) return "linestring";
+  if (type.includes("Polygon")) return "polygon";
+  return "circle";
+}
+
 export const Popup = ({
   layerAttributes,
   onSwipe,
@@ -824,7 +843,9 @@ const MapVisualization = ({
                       {
                         color: defaultStroke,
                         label: layer.configuration?.props?.name,
-                        symbol: "square",
+                        symbol: defaultVectorSwatchSymbol(
+                          layer.configuration.props.source,
+                        ),
                       },
                     ],
                   });
