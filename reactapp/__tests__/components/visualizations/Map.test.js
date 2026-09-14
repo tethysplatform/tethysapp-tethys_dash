@@ -579,6 +579,102 @@ test("Map GeoJSON with legend and bad style", async () => {
   expect(screen.queryByLabelText("Legend Control")).not.toBeInTheDocument();
 });
 
+test("Map GeoJSON with default legend and no style emits a single default swatch", async () => {
+  // A styleless client vector has no symbology to describe, so the default
+  // legend used to come out empty. It now shows one swatch titled by the layer
+  // name (geojson passed inline so no downloadJSON round-trip is needed).
+  const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+  const layers = [
+    {
+      configuration: {
+        type: "VectorLayer",
+        props: {
+          name: "Plain GeoJSON",
+          source: { type: "GeoJSON", props: {}, geojson: exampleGeoJSON },
+        },
+        // deliberately no style
+      },
+      legend: "default",
+    },
+  ];
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent
+          mapProps={{
+            mapConfig: {},
+            viewConfig: {},
+            layers,
+            baseMap: null,
+            layerControl: false,
+          }}
+        />
+      </MapContextProvider>
+    ),
+  });
+  render(LoadedComponent);
+
+  await waitFor(() => {
+    expect(addLayerSpy.mock.calls.length).toBe(1);
+  });
+  fireEvent.click(await screen.findByLabelText("Show Legend Control"));
+  // The swatch's title is the layer name.
+  expect(await screen.findByText("Plain GeoJSON")).toBeInTheDocument();
+});
+
+test("Map GeoTIFF with default legend shows a 0..1 colorbar when normalized with no range", async () => {
+  // geotiff.fromUrl is mocked (returns undefined), so applyAutoRamp's header
+  // read fails and the raster stays normalized with no resolved min/max. The
+  // ramp legend should still render, labelled 0..1, rather than coming out empty.
+  const layer = {
+    configuration: {
+      type: "WebGLTile",
+      props: {
+        name: "Normalized Raster",
+        source: {
+          type: "GeoTIFF",
+          props: { url: "https://example.com/norm.tif", normalize: true },
+          rampName: "viridis",
+          // no rampMin/rampMax
+        },
+      },
+      style: {
+        color: [
+          "interpolate",
+          ["linear"],
+          ["band", 1],
+          0,
+          "#000000",
+          1,
+          "#ffffff",
+        ],
+      },
+    },
+    legend: "default",
+  };
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent
+          mapProps={{
+            mapConfig: {},
+            viewConfig: {},
+            layers: [layer],
+            baseMap: null,
+            layerControl: false,
+          }}
+        />
+      </MapContextProvider>
+    ),
+  });
+  render(LoadedComponent);
+
+  fireEvent.click(await screen.findByLabelText("Show Legend Control"));
+  expect(
+    await screen.findByLabelText("Color ramp from 0 to 1"),
+  ).toBeInTheDocument();
+});
+
 test("Map GeoJSON with legend and bad format", async () => {
   const mockDownloadJSON = jest.fn();
   jest.spyOn(appAPI, "downloadJSON").mockImplementation(mockDownloadJSON);

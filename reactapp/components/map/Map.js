@@ -277,6 +277,12 @@ const MapComponent = ({
   // construct pass below and by the watcher on the deferred feature load.
   const [layerStatus, setLayerStatus] = useState({});
   const [layerControlUpdate, setLayerControlUpdate] = useState();
+  // The layer-failure alert is derived from live layer status, so it cannot be
+  // cleared like a plain message. Record the signature of the failures the user
+  // dismissed; the alert stays hidden only while that exact set persists and
+  // re-appears the moment a new or different layer failure occurs.
+  const [dismissedLayerFailureKey, setDismissedLayerFailureKey] =
+    useState(null);
 
   // Settle a layer's entry at the end of its construct pass. `ready` mirrors
   // what the shapefile watcher writes on success; `idle` drops the entry, for a
@@ -416,6 +422,9 @@ const MapComponent = ({
   const layersLoading = statusEntries.filter(
     ([, status]) => status.state === "loading",
   );
+  const layerFailureKey = layerFailures
+    .map(([name, status]) => `${name}: ${status.message}`)
+    .join(" | ");
   const layerAlert = layerFailures.length
     ? {
         variant: "danger",
@@ -431,6 +440,14 @@ const MapComponent = ({
             .join(", ")}\u2026`,
         }
       : null;
+  // Only the (dismissible) error alert is suppressed once dismissed; the loading
+  // alert clears itself when the layers settle, so it is never hidden this way.
+  const showLayerAlert =
+    !!layerAlert &&
+    !(
+      layerAlert.variant === "danger" &&
+      layerFailureKey === dismissedLayerFailureKey
+    );
 
   const defaultMapConfig = {
     className: "ol-map",
@@ -1731,12 +1748,18 @@ const MapComponent = ({
             </StyledAlert>
           </AlertAnchor>
         )}
-        {layerAlert && (
+        {showLayerAlert && (
           <AlertAnchor edges={ALERT_EDGES}>
             <StyledAlert
               variant={layerAlert.variant}
               role={layerAlert.variant === "danger" ? "alert" : "status"}
               aria-live="polite"
+              dismissible={layerAlert.variant === "danger"}
+              onClose={
+                layerAlert.variant === "danger"
+                  ? () => setDismissedLayerFailureKey(layerFailureKey)
+                  : undefined
+              }
             >
               {layerAlert.message}
             </StyledAlert>
