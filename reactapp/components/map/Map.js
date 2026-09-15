@@ -155,14 +155,69 @@ function needsProjectionRegistry(layerConfig) {
   return typeof code === "string" && code !== "" && !isNativelyResolvable(code);
 }
 
-// Detach a shapefile source's load listeners. Paired with every abort: the
-// loader already declines to report anything once superseded, and this closes
-// the other half by making sure nothing is listening if it ever did.
+// Whether a source pulls its features through OpenLayers' own url loader
+// (GeoJSON-by-URL, EsriJSON / ESRI Feature Service). These emit
+// featuresload{start,end,error} but, unlike the shapefile source, carry no
+// controller -- so nothing surfaced their failures and a bad URL failed
+// silently. An inline-features source has no url and loads synchronously, so it
+// is excluded (and so is the shapefile, which its own watcher already owns).
+function isUrlLoaderVectorSource(source) {
+  return (
+    !!source &&
+    typeof source.getUrl === "function" &&
+    !!source.getUrl() &&
+    !source.get?.("shapefileController")
+  );
+}
+
+// Surface a url-loader vector source's load failure as a dismissible error,
+// rather than a layer that silently never appears. Only the error is written
+// (and cleared if a later retry succeeds); loading/ready stay owned by the
+// construct pass, so an off-view layer whose loader has not run yet is not
+// pinned at "loading". featuresloaderror carries no payload, so the message is
+// generic.
+function watchVectorSourceLoad(olLayer, layerName, setStatus) {
+  const source = olLayer?.getSource?.();
+  if (!isUrlLoaderVectorSource(source)) return;
+  olLayer.set("vectorLoadKeys", [
+    source.on("featuresloaderror", () =>
+      setStatus((previous) => ({
+        ...previous,
+        [layerName]: {
+          state: "error",
+          message:
+            "Failed to load layer data (check the URL, network access, or CORS).",
+          kind: null,
+        },
+      })),
+    ),
+    source.on("featuresloadend", () =>
+      setStatus((previous) =>
+        // Only downgrade our own error back to ready on a later success; never
+        // clobber a state the construct pass or another watcher owns.
+        previous[layerName]?.state === "error"
+          ? {
+              ...previous,
+              [layerName]: { state: "ready", message: null, kind: null },
+            }
+          : previous,
+      ),
+    ),
+  ]);
+}
+
+// Detach a layer's load listeners (shapefile controller-driven, or the url
+// vector featuresload* listeners). Paired with every abort: the loader already
+// declines to report anything once superseded, and this closes the other half
+// by making sure nothing is listening if it ever did.
 function detachShapefileLoad(olLayer) {
-  const keys = olLayer?.get?.("shapefileLoadKeys");
-  if (!keys) return;
-  unByKey(keys);
-  olLayer.unset("shapefileLoadKeys");
+  for (const prop of ["shapefileLoadKeys", "vectorLoadKeys"]) {
+    const keys = olLayer?.get?.(prop);
+    if (keys) {
+      unByKey(keys);
+      olLayer.unset(prop);
+    }
+  }
 }
 
 // Stop an in-flight shapefile load and stop listening to it. Called when the
@@ -277,6 +332,12 @@ const MapComponent = ({
   // construct pass below and by the watcher on the deferred feature load.
   const [layerStatus, setLayerStatus] = useState({});
   const [layerControlUpdate, setLayerControlUpdate] = useState();
+  // The layer-failure alert is derived from live layer status, so it cannot be
+  // cleared like a plain message. Record the signature of the failures the user
+  // dismissed; the alert stays hidden only while that exact set persists and
+  // re-appears the moment a new or different layer failure occurs.
+  const [dismissedLayerFailureKey, setDismissedLayerFailureKey] =
+    useState(null);
 
   // Settle a layer's entry at the end of its construct pass. `ready` mirrors
   // what the shapefile watcher writes on success; `idle` drops the entry, for a
@@ -416,6 +477,9 @@ const MapComponent = ({
   const layersLoading = statusEntries.filter(
     ([, status]) => status.state === "loading",
   );
+  const layerFailureKey = layerFailures
+    .map(([name, status]) => `${name}: ${status.message}`)
+    .join(" | ");
   const layerAlert = layerFailures.length
     ? {
         variant: "danger",
@@ -431,6 +495,14 @@ const MapComponent = ({
             .join(", ")}\u2026`,
         }
       : null;
+  // Only the (dismissible) error alert is suppressed once dismissed; the loading
+  // alert clears itself when the layers settle, so it is never hidden this way.
+  const showLayerAlert =
+    !!layerAlert &&
+    !(
+      layerAlert.variant === "danger" &&
+      layerFailureKey === dismissedLayerFailureKey
+    );
 
   const defaultMapConfig = {
     className: "ol-map",
@@ -919,6 +991,7 @@ const MapComponent = ({
             newLayer.set("appliedStyle", layerConfig.style);
             map.addLayer(newLayer);
             watchShapefileLoad(newLayer, name, setLayerStatus);
+            watchVectorSourceLoad(newLayer, name, setLayerStatus);
 
             if (
               layerConfig.type === "WebGLTile" &&
@@ -1731,12 +1804,18 @@ const MapComponent = ({
             </StyledAlert>
           </AlertAnchor>
         )}
-        {layerAlert && (
+        {showLayerAlert && (
           <AlertAnchor edges={ALERT_EDGES}>
             <StyledAlert
               variant={layerAlert.variant}
               role={layerAlert.variant === "danger" ? "alert" : "status"}
               aria-live="polite"
+              dismissible={layerAlert.variant === "danger"}
+              onClose={
+                layerAlert.variant === "danger"
+                  ? () => setDismissedLayerFailureKey(layerFailureKey)
+                  : undefined
+              }
             >
               {layerAlert.message}
             </StyledAlert>

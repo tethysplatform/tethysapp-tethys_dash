@@ -1914,6 +1914,117 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
     );
   });
 
+  test("layer-failure alert is dismissible and stays dismissed for the same failure", async () => {
+    jest.spyOn(console, "warn").mockImplementation(() => {});
+    const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+
+    const layers = [
+      {
+        type: "WebGLTile",
+        props: {
+          source: {
+            type: "GeoTIFF",
+            props: { url: "https://example.com/test.tif" },
+          },
+          name: "Failing GeoTIFF",
+          zIndex: 0,
+        },
+      },
+    ];
+
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent mapProps={{ layers }} />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    await waitFor(() => {
+      expect(addLayerSpy.mock.calls.length).toBe(1);
+    });
+    const source = addLayerSpy.mock.calls[0][0].getSource();
+    source.dispatchEvent({
+      type: "error",
+      error: { message: "Request failed: AggregateError on byte range" },
+    });
+
+    // The danger alert shows a Close button (it did not before this fix)...
+    expect(
+      await screen.findByText(/failed to fetch the file/i),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Close alert"));
+
+    // ...and dismissing it hides the alert...
+    await waitFor(() => {
+      expect(
+        screen.queryByText(/failed to fetch the file/i),
+      ).not.toBeInTheDocument();
+    });
+
+    // ...and it stays hidden while the same failure persists (a re-fired
+    // identical error keeps the same signature, so it must not resurrect the
+    // dismissed alert).
+    source.dispatchEvent({
+      type: "error",
+      error: { message: "Request failed: AggregateError on byte range" },
+    });
+    await Promise.resolve();
+    expect(
+      screen.queryByText(/failed to fetch the file/i),
+    ).not.toBeInTheDocument();
+  });
+
+  test("GeoJSON url source 'featuresloaderror' surfaces a layer-load error, cleared on a later success", async () => {
+    const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+
+    const layers = [
+      {
+        type: "VectorLayer",
+        props: {
+          source: {
+            type: "GeoJSON",
+            props: {},
+            geojson: "https://example.com/missing.geojson",
+          },
+          name: "Bad GeoJSON",
+          zIndex: 0,
+        },
+      },
+    ];
+
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent mapProps={{ layers }} />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    await waitFor(() => {
+      expect(addLayerSpy.mock.calls.length).toBe(1);
+    });
+    const source = addLayerSpy.mock.calls[0][0].getSource();
+
+    // A failed fetch used to fail silently; it now surfaces a dismissible error.
+    source.dispatchEvent({ type: "featuresloaderror" });
+    expect(
+      await screen.findByText(/failed to load layer data/i),
+    ).toBeInTheDocument();
+
+    // A later successful (re)load clears our own error.
+    source.dispatchEvent({ type: "featuresloadend" });
+    await waitFor(() => {
+      expect(
+        screen.queryByText(/failed to load layer data/i),
+      ).not.toBeInTheDocument();
+    });
+  });
+
   test("GeoTIFF 'tileloaderror' surfaces format-failure message and throttles after first event", async () => {
     const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
     const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");

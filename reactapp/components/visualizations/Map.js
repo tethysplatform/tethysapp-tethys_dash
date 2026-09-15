@@ -22,7 +22,9 @@ import {
   loadLayerJSONs,
   resolveTablePopupType,
   formatAttributeValue,
+  CLIENT_VECTOR_SOURCE_TYPES,
 } from "components/map/utilities";
+import { defaultStroke } from "components/inputs/RuleEditor";
 import {
   buildSnapFeatureResult,
   shouldSnapSelect,
@@ -140,6 +142,25 @@ const StyledCloser = styled.a`
 const StyledContent = styled.div`
   margin-top: 1rem;
 `;
+
+// Legend swatch symbol for a styleless client vector. Its features render in
+// OpenLayers' single default style, so the swatch should match the geometry:
+// a circle for points (the default point shape), a line for lines, a square for
+// polygons. Geometry is only known when the GeoJSON is inline -- a URL source is
+// handed to OL as a URL and not fetched here -- so default to a circle, which
+// matches the default point style and the most common case.
+function defaultVectorSwatchSymbol(source) {
+  const geojson = source?.geojson;
+  const type =
+    geojson && typeof geojson === "object" && Array.isArray(geojson.features)
+      ? geojson.features.find((f) => f?.geometry?.type)?.geometry?.type
+      : undefined;
+  if (typeof type !== "string") return "circle";
+  if (type.includes("Point")) return "circle";
+  if (type.includes("LineString")) return "linestring";
+  if (type.includes("Polygon")) return "polygon";
+  return "circle";
+}
 
 export const Popup = ({
   layerAttributes,
@@ -755,21 +776,32 @@ const MapVisualization = ({
                 rampSource?.rampMin ?? rampSource?.resolvedRampMin;
               const rampMax =
                 rampSource?.rampMax ?? rampSource?.resolvedRampMax;
+              // When no range can be resolved (a file with no embedded
+              // statistics), applyAutoRamp leaves the raster rendering on a
+              // normalized 0..1 scale. Label the colorbar 0..1 in that case
+              // rather than dropping the legend entirely; without this a
+              // ramp-styled raster shows no legend at all. `normalize` is an OL
+              // GeoTIFF source prop, so it lives under `source.props`.
+              const normalized =
+                rampSource?.props?.normalize === true ||
+                rampSource?.normalize === true;
+              const effRampMin = rampMin ?? (normalized ? 0 : undefined);
+              const effRampMax = rampMax ?? (normalized ? 1 : undefined);
               if (
                 (rampSource?.type === "GeoTIFF" ||
                   rampSource?.type === "Zarr") &&
                 typeof rampSource.rampName === "string" &&
                 COLOR_RAMPS[rampSource.rampName] &&
-                rampMin !== undefined &&
-                rampMax !== undefined
+                effRampMin !== undefined &&
+                effRampMax !== undefined
               ) {
                 newMapLegend.push({
                   rampColors: resolveRamp(
                     rampSource.rampName,
                     rampSource.rampReverse === true,
                   ),
-                  rampMin,
-                  rampMax,
+                  rampMin: effRampMin,
+                  rampMax: effRampMax,
                   title: layer.configuration?.props?.name,
                 });
                 continue;
@@ -794,12 +826,37 @@ const MapVisualization = ({
                   newMapLegend.push(null);
                 }
               } else {
-                newMapLegend.push({
-                  sourceType: layer.configuration.props.source.type,
-                  url: layer.configuration.props.source.props.url,
-                  layers:
-                    layer.configuration.props.source.props?.params?.LAYERS,
-                });
+                const noStyleSourceType = layer.configuration.props.source.type;
+                // A client-drawn vector with no configured style renders in
+                // OpenLayers' single default symbol, so a "default" legend has
+                // no symbology to describe and used to come out empty. Show one
+                // swatch in the default color instead. ESRI Feature Service is
+                // excluded: it has a real service legend that LegendRenderer
+                // fetches from the {sourceType, url} shape below.
+                if (
+                  CLIENT_VECTOR_SOURCE_TYPES.includes(noStyleSourceType) &&
+                  noStyleSourceType !== "ESRI Feature Service"
+                ) {
+                  newMapLegend.push({
+                    title: layer.configuration?.props?.name,
+                    items: [
+                      {
+                        color: defaultStroke,
+                        label: layer.configuration?.props?.name,
+                        symbol: defaultVectorSwatchSymbol(
+                          layer.configuration.props.source,
+                        ),
+                      },
+                    ],
+                  });
+                } else {
+                  newMapLegend.push({
+                    sourceType: noStyleSourceType,
+                    url: layer.configuration.props.source.props.url,
+                    layers:
+                      layer.configuration.props.source.props?.params?.LAYERS,
+                  });
+                }
               }
             } else {
               newMapLegend.push(layer.legend);
