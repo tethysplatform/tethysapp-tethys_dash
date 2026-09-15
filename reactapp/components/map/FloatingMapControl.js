@@ -156,12 +156,22 @@ export const MapSizedControlContainer = ({
   ...rest
 }) => {
   const mapDivHeight = useMapDivHeight();
-  // Read at render rather than held in state: FloatingMapControl already
-  // re-renders on window resize (its reposition listener sets a fresh style
-  // object), so the cap recomputes without a second resize subscription.
-  // istanbul ignore next -- window is always defined under jsdom; this is the SSR guard.
-  const viewportHeight =
-    typeof window === "undefined" ? undefined : window.innerHeight;
+  // Own resize subscription: this component is portalled and passed as `children`
+  // to FloatingMapControl, so FloatingMapControl re-rendering on resize does NOT
+  // re-render it (React bails out on the stable children element). A render-time
+  // window.innerHeight read would therefore go stale on a window resize that
+  // doesn't also change the map-div height, leaving the viewport clamp wrong.
+  const [viewportHeight, setViewportHeight] = useState(
+    // istanbul ignore next -- window is always defined under jsdom; SSR guard.
+    () => (typeof window === "undefined" ? undefined : window.innerHeight),
+  );
+  useEffect(() => {
+    // istanbul ignore next -- SSR guard; jsdom always has window.
+    if (typeof window === "undefined") return undefined;
+    const onResize = () => setViewportHeight(window.innerHeight);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
   return (
     <Container
       $isexpanded={expanded}

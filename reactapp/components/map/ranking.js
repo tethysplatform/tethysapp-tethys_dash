@@ -12,16 +12,10 @@ import {
   Point,
 } from "ol/geom";
 
-import { MERCATOR_HALF_WORLD, wrapMercatorX } from "components/map/utilities";
-
-// Source types whose query result is a pixel readout rather than a feature. The
-// builders for these synthesize `{type: "Point", coordinates: <the click>}`, so
-// their distance to the click is always zero and a plain distance sort would put
-// them in slot 1 on every click. Click ordering ranks them behind anything
-// carrying real geometry (see `rankQueriedFeatures`). A new source type that
-// fabricates its geometry the same way belongs here; one that returns real
-// geometry needs no entry -- unlisted types rank as real geometry.
-export const RASTER_SOURCE_TYPES = ["GeoTIFF", "Zarr"];
+import {
+  RASTER_SOURCE_TYPES,
+  shiftEPSG3857ExtentAndPoint,
+} from "components/map/utilities";
 
 // Rank tiers, lowest first. Snapped selection beats everything because a snap is
 // a deliberate pick; a pixel readout loses to anything with real geometry
@@ -188,14 +182,11 @@ export function distanceToGeometries(geometries, coordinate) {
 // it is one addition instead of a deep coordinate walk.
 function esriRankingCoordinate(map, coordinate) {
   const view = map.getView();
+  // shiftEPSG3857ExtentAndPoint has no projection guard of its own, so keep it
+  // here; the antimeridian offset itself is delegated to that shared helper (the
+  // inverse of the shift the /identify builder applied) rather than recomputed.
   if (view.getProjection().getCode() !== "EPSG:3857") return coordinate;
-  const extent = view.calculateExtent();
-  const centerX = (extent[0] + extent[2]) / 2;
-  if (centerX >= -MERCATOR_HALF_WORLD && centerX < MERCATOR_HALF_WORLD) {
-    return coordinate;
-  }
-  const shift = wrapMercatorX(centerX) - centerX;
-  return [coordinate[0] + shift, coordinate[1]];
+  return shiftEPSG3857ExtentAndPoint(view.calculateExtent(), coordinate).point;
 }
 
 /**

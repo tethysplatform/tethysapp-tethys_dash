@@ -27,13 +27,13 @@ import {
   coerceOptionalNumber,
   formatAttributeValue,
   coerceOptionalBoolean,
+  RASTER_SOURCE_TYPES,
 } from "components/map/utilities";
 import {
   classifyGeometryForRanking,
   distanceToGeometries,
   rankQueriedFeatures,
   RANK_KIND,
-  RASTER_SOURCE_TYPES,
 } from "components/map/ranking";
 import VectorSource from "ol/source/Vector.js";
 import Feature from "ol/Feature.js";

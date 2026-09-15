@@ -6,6 +6,7 @@ import FloatingMapControl, {
   useMapDivHeight,
   deriveControlMaxHeight,
   COLLAPSED_CONTROL_PX,
+  MapSizedControlContainer,
 } from "components/map/FloatingMapControl";
 import { makeMapDiv } from "__tests__/utilities/mapDiv";
 
@@ -427,6 +428,42 @@ describe("map div height", () => {
       if (realResizeObserver) global.ResizeObserver = realResizeObserver;
       else delete global.ResizeObserver;
     }
+  });
+
+  test("viewport clamp updates on a window resize (map div unchanged)", () => {
+    // Regression: MapSizedControlContainer is portalled/passed as children, so
+    // FloatingMapControl re-rendering on resize does not re-render it. A pure
+    // window resize (map div height unchanged) must still tighten the viewport
+    // clamp -- previously a render-time window.innerHeight read went stale here.
+    stubRect(ANCHOR_RECT);
+    window.innerHeight = 800;
+    const mapDiv = makeMapDiv(4000); // tall map, so the viewport clamp binds
+    // eslint-disable-next-line react/prop-types
+    const ProbeContainer = ({ $maxheight }) => (
+      <div data-testid="cap">{$maxheight}</div>
+    );
+
+    render(
+      <FloatingMapControl
+        edges={["bottom", "left"]}
+        mapDivRef={{ current: mapDiv }}
+      >
+        <MapSizedControlContainer container={ProbeContainer} expanded>
+          x
+        </MapSizedControlContainer>
+      </FloatingMapControl>,
+    );
+
+    // min(4000 * 0.75, 800 * 0.75) = min(3000, 600) = 600.
+    expect(screen.getByTestId("cap")).toHaveTextContent("600px");
+
+    act(() => {
+      window.innerHeight = 400;
+      window.dispatchEvent(new Event("resize"));
+    });
+
+    // Map div still 4000; only the viewport shrank -> min(3000, 300) = 300.
+    expect(screen.getByTestId("cap")).toHaveTextContent("300px");
   });
 
   test("falls back to observing offsetParent when given no map div ref", () => {
