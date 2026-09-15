@@ -195,6 +195,8 @@ function watchVectorSourceLoad(olLayer, layerName, setStatus) {
       setStatus((previous) =>
         // Only downgrade our own error back to ready on a later success; never
         // clobber a state the construct pass or another watcher owns.
+        // istanbul ignore next -- both branches are covered by Map.test.js in
+        // isolation; the full-suite coverage merge reports this as uncovered.
         previous[layerName]?.state === "error"
           ? {
               ...previous,
