@@ -1915,18 +1915,18 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
   });
 
   test("layer-failure alert is dismissible and stays dismissed for the same failure", async () => {
-    jest.spyOn(console, "warn").mockImplementation(() => {});
     const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
 
     const layers = [
       {
-        type: "WebGLTile",
+        type: "VectorLayer",
         props: {
           source: {
-            type: "GeoTIFF",
-            props: { url: "https://example.com/test.tif" },
+            type: "GeoJSON",
+            props: {},
+            geojson: "https://example.com/missing.geojson",
           },
-          name: "Failing GeoTIFF",
+          name: "Bad GeoJSON",
           zIndex: 0,
         },
       },
@@ -1946,35 +1946,55 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
       expect(addLayerSpy.mock.calls.length).toBe(1);
     });
     const source = addLayerSpy.mock.calls[0][0].getSource();
-    source.dispatchEvent({
-      type: "error",
-      error: { message: "Request failed: AggregateError on byte range" },
-    });
+    source.dispatchEvent({ type: "featuresloaderror" });
 
-    // The danger alert shows a Close button (it did not before this fix)...
+    // The layer-failure (danger) alert shows a Close button (it did not before
+    // this fix)...
     expect(
-      await screen.findByText(/failed to fetch the file/i),
+      await screen.findByText(/failed to load layer data/i),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByLabelText("Close alert"));
 
     // ...and dismissing it hides the alert...
     await waitFor(() => {
       expect(
-        screen.queryByText(/failed to fetch the file/i),
+        screen.queryByText(/failed to load layer data/i),
       ).not.toBeInTheDocument();
     });
 
     // ...and it stays hidden while the same failure persists (a re-fired
     // identical error keeps the same signature, so it must not resurrect the
     // dismissed alert).
-    source.dispatchEvent({
-      type: "error",
-      error: { message: "Request failed: AggregateError on byte range" },
-    });
+    source.dispatchEvent({ type: "featuresloaderror" });
     await Promise.resolve();
     expect(
-      screen.queryByText(/failed to fetch the file/i),
+      screen.queryByText(/failed to load layer data/i),
     ).not.toBeInTheDocument();
+  });
+
+  test("layer-loading alert is the info variant and is not dismissible", async () => {
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent
+            mapProps={{
+              layers: [],
+              layerPrepStatus: {
+                "Slow Layer": { state: "loading", message: null, kind: null },
+              },
+            }}
+          />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    // The loading indication renders (info, not danger)...
+    expect(await screen.findByText(/Loading Slow Layer/)).toBeInTheDocument();
+    // ...with role="status" and no dismiss control (only the danger variant is
+    // dismissible; the loading alert clears itself when the layers settle).
+    expect(screen.queryByLabelText("Close alert")).not.toBeInTheDocument();
   });
 
   test("GeoJSON url source 'featuresloaderror' surfaces a layer-load error, cleared on a later success", async () => {
@@ -2023,6 +2043,14 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
         screen.queryByText(/failed to load layer data/i),
       ).not.toBeInTheDocument();
     });
+
+    // A featuresloadend when not in an error state is a no-op (it must not
+    // clobber the state the construct pass owns) — no error re-appears.
+    source.dispatchEvent({ type: "featuresloadend" });
+    await Promise.resolve();
+    expect(
+      screen.queryByText(/failed to load layer data/i),
+    ).not.toBeInTheDocument();
   });
 
   test("GeoTIFF 'tileloaderror' surfaces format-failure message and throttles after first event", async () => {

@@ -159,6 +159,7 @@ export const MapSizedControlContainer = ({
   // Read at render rather than held in state: FloatingMapControl already
   // re-renders on window resize (its reposition listener sets a fresh style
   // object), so the cap recomputes without a second resize subscription.
+  // istanbul ignore next -- window is always defined under jsdom; this is the SSR guard.
   const viewportHeight =
     typeof window === "undefined" ? undefined : window.innerHeight;
   return (

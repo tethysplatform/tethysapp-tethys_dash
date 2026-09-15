@@ -625,6 +625,131 @@ test("Map GeoJSON with default legend and no style emits a single default swatch
   expect(await screen.findByLabelText("#3399CC-circle")).toBeInTheDocument();
 });
 
+test.each([
+  [
+    "a line",
+    {
+      type: "LineString",
+      coordinates: [
+        [0, 0],
+        [1, 1],
+      ],
+    },
+    "linestring",
+  ],
+  [
+    "a polygon",
+    {
+      type: "Polygon",
+      coordinates: [
+        [
+          [0, 0],
+          [0, 1],
+          [1, 1],
+          [0, 0],
+        ],
+      ],
+    },
+    "#3399CC-square",
+  ],
+  [
+    // A geometry type that is neither point/line/polygon falls back to a circle.
+    "a geometry collection",
+    { type: "GeometryCollection", geometries: [] },
+    "#3399CC-circle",
+  ],
+])(
+  "default legend swatch matches %s geometry (inline GeoJSON)",
+  async (_label, geometry, expectedSwatchLabel) => {
+    const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+    const geojson = {
+      type: "FeatureCollection",
+      crs: { type: "name", properties: { name: "EPSG:3857" } },
+      features: [{ type: "Feature", geometry, properties: {} }],
+    };
+    const layers = [
+      {
+        configuration: {
+          type: "VectorLayer",
+          props: {
+            name: "Plain Vector",
+            source: { type: "GeoJSON", props: {}, geojson },
+          },
+        },
+        legend: "default",
+      },
+    ];
+    const LoadedComponent = createLoadedComponent({
+      children: (
+        <MapContextProvider>
+          <TestingComponent
+            mapProps={{
+              mapConfig: {},
+              viewConfig: {},
+              layers,
+              baseMap: null,
+              layerControl: false,
+            }}
+          />
+        </MapContextProvider>
+      ),
+    });
+    render(LoadedComponent);
+
+    await waitFor(() => {
+      expect(addLayerSpy.mock.calls.length).toBe(1);
+    });
+    fireEvent.click(await screen.findByLabelText("Show Legend Control"));
+    expect(
+      await screen.findByLabelText(expectedSwatchLabel),
+    ).toBeInTheDocument();
+  },
+);
+
+test("default legend swatch is a circle for a URL GeoJSON source (geometry unknown)", async () => {
+  // A URL source is handed to OL as a URL and not fetched at legend-build time,
+  // so its geometry is unknown; the swatch falls back to a circle.
+  const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+  const layers = [
+    {
+      configuration: {
+        type: "VectorLayer",
+        props: {
+          name: "URL GeoJSON",
+          source: {
+            type: "GeoJSON",
+            props: {},
+            geojson: "https://example.com/features.geojson",
+          },
+        },
+      },
+      legend: "default",
+    },
+  ];
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent
+          mapProps={{
+            mapConfig: {},
+            viewConfig: {},
+            layers,
+            baseMap: null,
+            layerControl: false,
+          }}
+        />
+      </MapContextProvider>
+    ),
+  });
+  render(LoadedComponent);
+
+  await waitFor(() => {
+    expect(addLayerSpy.mock.calls.length).toBe(1);
+  });
+  fireEvent.click(await screen.findByLabelText("Show Legend Control"));
+  expect(await screen.findByLabelText("#3399CC-circle")).toBeInTheDocument();
+});
+
 test("Map GeoTIFF with default legend shows a 0..1 colorbar when normalized with no range", async () => {
   // geotiff.fromUrl is mocked (returns undefined), so applyAutoRamp's header
   // read fails and the raster stays normalized with no resolved min/max. The

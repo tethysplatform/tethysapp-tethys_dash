@@ -1806,7 +1806,6 @@ const MapComponent = ({
         )}
         {showLayerAlert && (
           <AlertAnchor edges={ALERT_EDGES} mapDivRef={mapDivRef}>
-
             <StyledAlert
               variant={layerAlert.variant}
               role={layerAlert.variant === "danger" ? "alert" : "status"}
