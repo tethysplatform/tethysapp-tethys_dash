@@ -10,7 +10,6 @@ import {
 import { createRoot } from "react-dom/client";
 import MapComponent from "components/map/Map";
 import {
-  rankQueriedFeatures,
   queryLayerFeatures,
   createHighlightLayer,
   addHighlightFeatures,
@@ -25,6 +24,7 @@ import {
   formatAttributeValue,
   CLIENT_VECTOR_SOURCE_TYPES,
 } from "components/map/utilities";
+import { rankQueriedFeatures } from "components/map/ranking";
 import { defaultStroke } from "components/inputs/RuleEditor";
 import {
   buildSnapFeatureResult,

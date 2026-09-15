@@ -7196,6 +7196,38 @@ describe("snap pipeline integration", () => {
     expect(await screen.findByText("Test River")).toBeInTheDocument();
   });
 
+  test("snap tagging pins only the clicked feature; a gathered sibling in the same layer is not pinned", async () => {
+    // Two rivers in one snap layer: the click is within SNAP_PIXELS (15) of the
+    // near one and within GATHER_PIXELS (35) of the far one. Only the snapped
+    // (near) feature is tagged __snapped; the gathered sibling keeps its plain
+    // result -- the `!== clickSnap.feature` branch of the snap-tagging map.
+    mockedFetchLayerVectorFeatures.mockResolvedValue([
+      makeRiver("Near River", [
+        [0, 20],
+        [30, 20],
+      ]),
+      makeRiver("Far River", [
+        [0, 40],
+        [30, 40],
+      ]),
+    ]);
+    mockedQueryLayerFeatures.mockResolvedValue([]);
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+
+    const mapRef = await mountSnapMap([riversLayer()]);
+
+    // Click 4 "pixels" from Near River (snapped) and 16 from Far River (gathered).
+    await dispatch(mapRef, {
+      type: "singleclick",
+      coordinate: [12, 24],
+      pixel: [12, 24],
+    });
+
+    // Both gathered rivers make it into the popup; the sibling was not dropped.
+    expect(await screen.findByText("Near River")).toBeInTheDocument();
+    expect(await screen.findByText("Far River")).toBeInTheDocument();
+  });
+
   test("singleclick with an empty snap cache falls back to /identify for the snap layer", async () => {
     mockedFetchLayerVectorFeatures.mockResolvedValue([]);
     mockedQueryLayerFeatures.mockResolvedValue([

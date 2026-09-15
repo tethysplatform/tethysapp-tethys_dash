@@ -27,12 +27,14 @@ import {
   coerceOptionalNumber,
   formatAttributeValue,
   coerceOptionalBoolean,
+} from "components/map/utilities";
+import {
   classifyGeometryForRanking,
   distanceToGeometries,
   rankQueriedFeatures,
   RANK_KIND,
   RASTER_SOURCE_TYPES,
-} from "components/map/utilities";
+} from "components/map/ranking";
 import VectorSource from "ol/source/Vector.js";
 import Feature from "ol/Feature.js";
 import { LineString, Point, MultiPolygon, Polygon } from "ol/geom";
@@ -4893,6 +4895,7 @@ describe("classifyGeometryForRanking", () => {
     ["an unknown type", { type: "Wat", coordinates: [1, 2] }],
     ["an object with no recognizable key", { foo: "bar" }],
     ["an empty collection", { type: "GeometryCollection", geometries: [] }],
+    ["a collection with no geometries key", { type: "GeometryCollection" }],
   ])("returns null for %s", (_label, geometry) => {
     expect(classifyGeometryForRanking(geometry)).toBeNull();
   });
@@ -4940,6 +4943,25 @@ describe("distanceToGeometries", () => {
       coordinates: [NaN, NaN],
     });
     expect(distanceToGeometries(classified.geometries, [0, 0])).toBe(Infinity);
+  });
+
+  test("keeps the nearest when a later geometry is farther", () => {
+    // Two separate geometries (ESRI multi-path), neither containing the click:
+    // the first is nearer, so the second must not lower the running minimum.
+    const classified = classifyGeometryForRanking({
+      paths: [
+        [
+          [5, 0],
+          [5, 1],
+        ],
+        [
+          [100, 0],
+          [100, 1],
+        ],
+      ],
+    });
+    expect(classified.geometries).toHaveLength(2);
+    expect(distanceToGeometries(classified.geometries, [0, 0])).toBeCloseTo(5);
   });
 });
 
@@ -5297,6 +5319,7 @@ describe("rankQueriedFeatures", () => {
   test.each([
     ["an empty list", []],
     ["a single-feature list", [point("only", [1, 1])]],
+    ["a non-array", null],
   ])("returns %s unchanged", (_label, features) => {
     expect(rankQueriedFeatures(features, mapAt(), [0, 0])).toStrictEqual(
       features,
@@ -5345,5 +5368,19 @@ describe("rankQueriedFeatures", () => {
     expect(names(rankQueriedFeatures(features, mapAt(), [0, 0]))).toStrictEqual(
       ["vector", "esri"],
     );
+  });
+
+  test("leaves ESRI ranking alone on a non-3857 view", () => {
+    // The antimeridian shift only applies to EPSG:3857; any other projection
+    // ranks the ESRI hit at the raw click.
+    const esriHit = {
+      name: "esri",
+      geometry: { x: 8, y: 0 },
+      __wrapperLayer: layerOf("ESRI Image and Map Service"),
+    };
+    const features = [esriHit, point("vector", [2, 0])];
+    expect(
+      names(rankQueriedFeatures(features, mapAt("EPSG:4326"), [0, 0])),
+    ).toStrictEqual(["vector", "esri"]);
   });
 });
