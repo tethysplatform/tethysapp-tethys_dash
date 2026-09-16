@@ -154,6 +154,7 @@ export default function useRuntimeLayerFetcher({
       const cancelTokenSource = axios.CancelToken.source();
       state.cancelTokenSource = cancelTokenSource;
       state.lastResolvedArgs = resolvedArgs;
+      state.lastSource = pluginSource.source;
 
       // Claim this layer's next generation. A request that had already resolved
       // when a newer one superseded it is never rejected by axios, so its tail
@@ -271,6 +272,7 @@ export default function useRuntimeLayerFetcher({
           cancelTokenSource: null,
           debounceTimer: null,
           lastResolvedArgs: undefined,
+          lastSource: undefined,
           pendingSwap: null,
         });
       }
@@ -325,6 +327,7 @@ export default function useRuntimeLayerFetcher({
           cancelTokenSource: null,
           debounceTimer: null,
           lastResolvedArgs: undefined,
+          lastSource: undefined,
           pendingSwap: null,
         });
         // First appearance — always fetch (subject to debounce).
@@ -338,8 +341,13 @@ export default function useRuntimeLayerFetcher({
       }
 
       const state = perLayerStateRef.current.get(layerId);
+      // A layer whose plugin source is edited is rebuilt from scratch, because
+      // identity preservation requires the same source. Comparing arguments
+      // alone left that rebuilt layer blank forever: the arguments had not
+      // changed, so nothing refetched and nothing was ever painted into it.
       const argsUnchanged = valuesEqual(state.lastResolvedArgs, resolvedArgs);
-      if (argsUnchanged) return;
+      const sourceUnchanged = state.lastSource === pluginSource.source;
+      if (argsUnchanged && sourceUnchanged) return;
 
       scheduleFetch(layerId, pluginSource, resolvedArgs);
     });

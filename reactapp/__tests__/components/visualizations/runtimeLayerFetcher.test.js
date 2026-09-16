@@ -1262,6 +1262,50 @@ describe("useRuntimeLayerFetcher", () => {
     expect(getFeaturesMock).not.toHaveBeenCalled();
   });
 
+  test("a changed plugin source refetches even when the arguments match", async () => {
+    // Editing a layer's plugin source rebuilds the layer, because identity
+    // preservation requires the same source. Comparing arguments alone left
+    // that rebuilt layer blank forever -- nothing refetched, so nothing was
+    // ever painted into it.
+    const olLayer = fakeOlLayer("layer-1");
+    const mapRef = { current: fakeOlMap([olLayer]) };
+    const first = [
+      runtimeLayerConfig({ layerId: "layer-1", source: "plugin_a" }),
+    ];
+    const second = [
+      runtimeLayerConfig({ layerId: "layer-1", source: "plugin_b" }),
+    ];
+
+    const { rerender } = renderHook(
+      ({ currentLayers }) =>
+        useRuntimeLayerFetcher({
+          layers: currentLayers,
+          gridItemUUID: "grid-a",
+          sessionNonce: "nonce",
+          mapRef,
+          variableInputValues: undefined,
+          variableInputDateFormats: undefined,
+        }),
+      { initialProps: { currentLayers: first } },
+    );
+
+    await act(async () => {
+      jest.advanceTimersByTime(250);
+      await Promise.resolve();
+    });
+    expect(getFeaturesMock).toHaveBeenCalledTimes(1);
+    expect(getFeaturesMock.mock.calls[0][0].source).toBe("plugin_a");
+
+    rerender({ currentLayers: second });
+    await act(async () => {
+      jest.advanceTimersByTime(250);
+      await Promise.resolve();
+    });
+
+    expect(getFeaturesMock).toHaveBeenCalledTimes(2);
+    expect(getFeaturesMock.mock.calls[1][0].source).toBe("plugin_b");
+  });
+
   // The window the hook always computed and never published. Every clear path
   // is load-bearing for banner correctness -- there is no reconciliation pass
   // or timeout behind it -- so each terminal path gets its own test.
