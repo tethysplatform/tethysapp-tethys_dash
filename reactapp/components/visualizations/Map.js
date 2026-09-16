@@ -739,6 +739,7 @@ const MapVisualization = ({
         (layers && !valuesEqual(layers, currentLayers.current)) ||
         !valuesEqual(baseMap, currentBaseMap.current)
       ) {
+        const previousBaseMap = currentBaseMap.current;
         currentBaseMap.current = baseMap;
         currentLayers.current = JSON.parse(JSON.stringify(layers));
         const newMapLegend = [];
@@ -755,7 +756,33 @@ const MapVisualization = ({
         }
         if (baseMapLayer) {
           baseMapLayer.props.zIndex = 0;
-          setMapLayers([baseMapLayer]);
+          // Swap only the base map entry; everything else that was already
+          // published stays.
+          //
+          // Publishing the base map alone used to hand the map a layer list
+          // with no runtime layers in it. The reconciliation found no id to
+          // preserve and tore every runtime layer off, and because that run is
+          // superseded by the full publish below, it never records what it
+          // rendered -- so the winning run compares against the pre-change list,
+          // identity-matches the layer it believes is still mounted, and skips
+          // constructing it. The layer ends up removed with nothing rebuilt,
+          // which is why changing the base map made plugin layers disappear.
+          //
+          // Keeping the already-prepared entries means the reconciliation
+          // matches them by identity and leaves their OpenLayers layers, and
+          // their features, untouched. Their zIndex values were assigned on the
+          // publish that placed them and still order them behind index 0.
+          const previousBaseMapName = previousBaseMap
+            ? getBaseMapLayer(previousBaseMap)?.props?.name
+            : null;
+          setMapLayers((previous) => {
+            const kept = previousBaseMapName
+              ? (previous ?? []).filter(
+                  (config) => config?.props?.name !== previousBaseMapName,
+                )
+              : (previous ?? []);
+            return [baseMapLayer, ...kept];
+          });
         }
 
         // Prepared in parallel. These are independent per layer -- each awaits
