@@ -40,6 +40,8 @@ import PropTypes from "prop-types";
 import { COLOR_RAMPS, resolveRamp } from "components/map/colorRamps";
 import { applyAutoRamp } from "components/map/ModuleLoader";
 import { getBaseMapLayer } from "components/visualizations/utilities";
+import { LAYER_STATE, parseProgress } from "components/map/layerStatus";
+import { WebsocketContext } from "components/contexts/WebSocketContext";
 import useRuntimeLayerFetcher from "components/visualizations/runtimeLayerFetcher";
 import {
   AppContext,
@@ -404,7 +406,12 @@ const MapVisualization = ({
     }
   }, []);
 
-  const { errorsByLayerId, retry: retryRuntimeLayer } = useRuntimeLayerFetcher({
+  const { getMessageForRequest } = useContext(WebsocketContext) ?? {};
+  const {
+    errorsByLayerId,
+    loadingByLayerId,
+    retry: retryRuntimeLayer,
+  } = useRuntimeLayerFetcher({
     layers,
     gridItemUUID,
     sessionNonce,
@@ -415,17 +422,53 @@ const MapVisualization = ({
     refreshTick: refreshCount,
   });
 
-  // Published under the spelling the consumers actually read. LayersControl
-  // and both PropTypes declarations use `gridItemUuid`; publishing the
-  // context's `gridItemUUID` verbatim left the key undefined, so the composite
-  // request id was always null and the per-layer progress bar never rendered
-  // outside tests that passed the prop by hand.
   const runtimeLayerState = {
     errorsByLayerId,
     retry: retryRuntimeLayer,
-    sessionNonce,
-    gridItemUuid: gridItemUUID,
   };
+
+  // Name-keyed status for the layers whose plugin fetch is outstanding, so the
+  // map's loading banner can name them alongside layers loading for any other
+  // reason. Built by walking the live configs and reading the fetcher's entry
+  // by id, never the other way round: the fetcher's entries are state cleared
+  // inside an effect while this runs during render, so an entry-first walk can
+  // resolve a name of `undefined` for a frame and put "Loading undefined" on
+  // screen. A config with no name is skipped for the same reason.
+  const runtimeLayerFetchStatus = useMemo(() => {
+    const status = {};
+    (layers ?? []).forEach((layer) => {
+      const layerProps = layer?.configuration?.props;
+      const name = layerProps?.name;
+      const layerId = layerProps?.layerId;
+      if (!name || !layerId) return;
+      if (!loadingByLayerId?.[layerId]) return;
+      const requestId =
+        sessionNonce && gridItemUUID
+          ? `${sessionNonce}:${gridItemUUID}:${layerId}`
+          : null;
+      // Percentages are optional: only a plugin that reports progress has one,
+      // and only while the fetch it belongs to is still outstanding. Reading it
+      // here rather than in the layers control keeps the banner the single
+      // place loading is reported.
+      const percent =
+        requestId && getMessageForRequest
+          ? parseProgress(getMessageForRequest(requestId))
+          : null;
+      status[name] = {
+        state: LAYER_STATE.LOADING,
+        message: null,
+        kind: null,
+        percent,
+      };
+    });
+    return status;
+  }, [
+    layers,
+    loadingByLayerId,
+    sessionNonce,
+    gridItemUUID,
+    getMessageForRequest,
+  ]);
 
   // --- Linked cursor (U5) -------------------------------------------------
   // The marker lives here, not in MapComponent, because this is where the
@@ -1608,6 +1651,7 @@ const MapVisualization = ({
         dataviewerViz={dataviewerViz}
         runtimeLayerState={runtimeLayerState}
         layerPrepStatus={layerPrepStatus}
+        runtimeLayerFetchStatus={runtimeLayerFetchStatus}
       />
       <PopupModal
         show={!!activeModalFeature}

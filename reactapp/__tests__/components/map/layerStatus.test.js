@@ -1,8 +1,11 @@
 import {
   CANCEL_REASON,
   ERROR_KIND,
+  LAYER_STATE,
   isRetryable,
   errorKindFor,
+  mergeLayerStatus,
+  parseProgress,
 } from "components/map/layerStatus";
 
 describe("cancel reasons", () => {
@@ -93,5 +96,79 @@ describe("errorKindFor", () => {
   it("defaults to the fetch kind for an unrecognised failure", () => {
     expect(errorKindFor(undefined)).toBe(ERROR_KIND.FETCH);
     expect(errorKindFor({})).toBe(ERROR_KIND.FETCH);
+  });
+});
+
+describe("layer states", () => {
+  it("names the three states a layer reports", () => {
+    expect(Object.values(LAYER_STATE).sort()).toEqual([
+      "error",
+      "loading",
+      "ready",
+    ]);
+  });
+});
+
+describe("mergeLayerStatus", () => {
+  const loading = { state: LAYER_STATE.LOADING };
+  const ready = { state: LAYER_STATE.READY };
+  const failed = { state: LAYER_STATE.ERROR, message: "boom" };
+
+  it("keeps an outstanding load over a settled one", () => {
+    // The case the helper exists for: construction settles a runtime layer as
+    // ready while its plugin fetch is still outstanding, and a plain spread
+    // would report the layer as done.
+    expect(mergeLayerStatus({ A: ready }, { A: loading })).toEqual({
+      A: loading,
+    });
+    expect(mergeLayerStatus({ A: loading }, { A: ready })).toEqual({
+      A: loading,
+    });
+  });
+
+  it("keeps a failure over both", () => {
+    expect(mergeLayerStatus({ A: failed }, { A: loading })).toEqual({
+      A: failed,
+    });
+    expect(mergeLayerStatus({ A: ready }, { A: failed })).toEqual({
+      A: failed,
+    });
+  });
+
+  it("lets the later source win a tie, as the spread it replaces did", () => {
+    const second = { state: LAYER_STATE.ERROR, message: "newer" };
+    expect(mergeLayerStatus({ A: failed }, { A: second })).toEqual({
+      A: second,
+    });
+  });
+
+  it("unions layers across sources and tolerates missing ones", () => {
+    expect(mergeLayerStatus({ A: loading }, undefined, { B: ready })).toEqual({
+      A: loading,
+      B: ready,
+    });
+    expect(mergeLayerStatus()).toEqual({});
+  });
+
+  it("keeps an entry whose state it does not recognise", () => {
+    const odd = { state: "something-else" };
+    expect(mergeLayerStatus({ A: odd })).toEqual({ A: odd });
+  });
+});
+
+describe("parseProgress", () => {
+  it("reads a numeric percentage out of a progress message", () => {
+    expect(parseProgress(JSON.stringify({ percentageComplete: 42 }))).toBe(42);
+    expect(parseProgress(JSON.stringify({ percentageComplete: 0 }))).toBe(0);
+  });
+
+  it("returns null for anything that is not a numeric percentage", () => {
+    expect(parseProgress(null)).toBeNull();
+    expect(parseProgress(undefined)).toBeNull();
+    expect(parseProgress("not json")).toBeNull();
+    expect(parseProgress(JSON.stringify({ message: "working" }))).toBeNull();
+    expect(
+      parseProgress(JSON.stringify({ percentageComplete: "60" })),
+    ).toBeNull();
   });
 });

@@ -1997,6 +1997,149 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
     expect(screen.queryByLabelText("Close alert")).not.toBeInTheDocument();
   });
 
+  test("an outstanding plugin fetch is named even after its layer settles", async () => {
+    // The construct pass settles a runtime layer as ready long before its
+    // plugin fetch returns. Under the old spread merge `ready` won, so the map
+    // reported a settled layer while the plugin was still working -- the whole
+    // symptom the fetch status exists to remove.
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent
+            mapProps={{
+              layers: [],
+              layerPrepStatus: {
+                "Teacup Diagram": { state: "ready", message: null, kind: null },
+              },
+              runtimeLayerFetchStatus: {
+                "Teacup Diagram": {
+                  state: "loading",
+                  message: null,
+                  kind: null,
+                  percent: null,
+                },
+              },
+            }}
+          />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    expect(
+      await screen.findByText(/Loading Teacup Diagram/),
+    ).toBeInTheDocument();
+  });
+
+  test("the loading alert names every fetching layer and shows known percentages", async () => {
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent
+            mapProps={{
+              layers: [],
+              runtimeLayerFetchStatus: {
+                "Teacup Diagram": {
+                  state: "loading",
+                  message: null,
+                  kind: null,
+                  percent: 60,
+                },
+                "Basin Boundaries": {
+                  state: "loading",
+                  message: null,
+                  kind: null,
+                  percent: null,
+                },
+              },
+            }}
+          />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    // Both named, and only the one reporting progress carries a number.
+    const alert = await screen.findByRole("status");
+    expect(alert).toHaveTextContent("Teacup Diagram (60%)");
+    expect(alert).toHaveTextContent("Basin Boundaries");
+    expect(alert).not.toHaveTextContent("Basin Boundaries (");
+  });
+
+  test("percentages at the bounds read as working rather than as a number", async () => {
+    // A plugin's first message is often 0 and its last is often 100, neither of
+    // which tells the reader anything useful next to the layer name.
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent
+            mapProps={{
+              layers: [],
+              runtimeLayerFetchStatus: {
+                "At Zero": {
+                  state: "loading",
+                  message: null,
+                  kind: null,
+                  percent: 0,
+                },
+                "At Hundred": {
+                  state: "loading",
+                  message: null,
+                  kind: null,
+                  percent: 100,
+                },
+              },
+            }}
+          />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    const alert = await screen.findByRole("status");
+    expect(alert).toHaveTextContent("At Zero");
+    expect(alert).toHaveTextContent("At Hundred");
+    expect(alert).not.toHaveTextContent("%");
+  });
+
+  test("a layer failure still outranks an outstanding fetch on the same layer", async () => {
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent
+            mapProps={{
+              layers: [],
+              layerPrepStatus: {
+                "Teacup Diagram": {
+                  state: "error",
+                  message: "boom",
+                  kind: "fetch",
+                },
+              },
+              runtimeLayerFetchStatus: {
+                "Teacup Diagram": {
+                  state: "loading",
+                  message: null,
+                  kind: null,
+                  percent: 40,
+                },
+              },
+            }}
+          />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Teacup Diagram: boom",
+    );
+  });
+
   test("GeoJSON url source 'featuresloaderror' surfaces a layer-load error, cleared on a later success", async () => {
     const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
 

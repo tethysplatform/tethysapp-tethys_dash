@@ -85,3 +85,68 @@ export function errorKindFor(failure) {
   if (TRANSFER_REASONS.includes(failure?.reason)) return ERROR_KIND.FETCH;
   return failure?.stage === "parse" ? ERROR_KIND.PARSE : ERROR_KIND.FETCH;
 }
+
+/** The states a layer's status entry can report. */
+export const LAYER_STATE = {
+  LOADING: "loading",
+  READY: "ready",
+  ERROR: "error",
+};
+
+// How much each state outranks the others when several sources describe the
+// same layer. A layer that is failing is reported as failing; a layer that is
+// still working is never reported as settled.
+const STATE_RANK = {
+  [LAYER_STATE.ERROR]: 3,
+  [LAYER_STATE.LOADING]: 2,
+  [LAYER_STATE.READY]: 1,
+};
+
+/**
+ * Combine per-layer status maps by state priority rather than by spread order.
+ *
+ * The map's three sources settle independently: preparation finishes before
+ * construction, and construction settles a runtime layer as ready long before
+ * its plugin fetch returns. Under a plain spread the last source wins, so a
+ * settled construct pass masked an outstanding fetch and reproduced the very
+ * symptom the fetch status exists to report. Ties fall to the later source,
+ * which is what the spread did.
+ *
+ * @param {...Object<string, {state: string}>} sources Later sources win ties.
+ * @returns {Object<string, {state: string}>} One entry per layer name.
+ */
+export function mergeLayerStatus(...sources) {
+  const merged = {};
+  sources.forEach((source) => {
+    Object.entries(source ?? {}).forEach(([name, status]) => {
+      const incoming = STATE_RANK[status?.state] ?? 0;
+      const existing = STATE_RANK[merged[name]?.state] ?? 0;
+      if (!(name in merged) || incoming >= existing) {
+        merged[name] = status;
+      }
+    });
+  });
+  return merged;
+}
+
+/**
+ * Read a WebSocket progress message's percentage.
+ *
+ * Messages arrive as JSON strings keyed by request id. Returns null when the
+ * message is absent or carries no numeric percentage.
+ *
+ * @param {string|null|undefined} rawMessage
+ * @returns {number|null}
+ */
+export function parseProgress(rawMessage) {
+  if (!rawMessage) return null;
+  try {
+    const parsed = JSON.parse(rawMessage);
+    if (typeof parsed.percentageComplete === "number") {
+      return parsed.percentageComplete;
+    }
+  } catch {
+    // Not JSON, or not a progress message.
+  }
+  return null;
+}

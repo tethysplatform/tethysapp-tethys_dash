@@ -10,7 +10,11 @@ import moduleLoader, {
 // matters, because layers are constructed concurrently and a registration that
 // waited on anything async would race them.
 import { isNativelyResolvable } from "components/map/projectionCodes";
-import { CANCEL_REASON, errorKindFor } from "components/map/layerStatus";
+import {
+  CANCEL_REASON,
+  errorKindFor,
+  mergeLayerStatus,
+} from "components/map/layerStatus";
 import LayersControl from "components/map/LayersControl";
 import FloatingMapControl from "components/map/FloatingMapControl";
 import LegendControl from "components/map/LegendControl";
@@ -326,6 +330,7 @@ const MapComponent = ({
   dataviewerViz,
   runtimeLayerState,
   layerPrepStatus,
+  runtimeLayerFetchStatus,
 }) => {
   const [errorMessage, setErrorMessage] = useState("");
   // Per-layer load state, keyed on layer name, for every source read in the
@@ -467,9 +472,15 @@ const MapComponent = ({
   // entries are merged in here rather than living in the state above. A layer
   // being prepared cannot also be constructing, so neither side overwrites a
   // more specific state belonging to the other.
+  // Three independent sources, combined by state priority rather than spread
+  // order. The construct pass settles a runtime layer as ready well before its
+  // plugin fetch returns, so a spread would let `ready` mask an outstanding
+  // fetch -- the exact symptom the fetch status exists to report. The fetch
+  // source is last so it also wins ties.
   const mergedLayerStatus = useMemo(
-    () => ({ ...layerPrepStatus, ...layerStatus }),
-    [layerPrepStatus, layerStatus],
+    () =>
+      mergeLayerStatus(layerPrepStatus, layerStatus, runtimeLayerFetchStatus),
+    [layerPrepStatus, layerStatus, runtimeLayerFetchStatus],
   );
 
   const statusEntries = Object.entries(mergedLayerStatus);
@@ -493,7 +504,17 @@ const MapComponent = ({
       ? {
           variant: "info",
           message: `Loading ${layersLoading
-            .map(([name]) => name)
+            .map(([name, status]) =>
+              // Only a plugin that reports progress has a percentage. Keep the
+              // bound the old bar used -- strictly between 0 and 100 -- so a
+              // leading 0% or a trailing 100% reads as "working" rather than as
+              // a number that looks wrong.
+              typeof status.percent === "number" &&
+              status.percent > 0 &&
+              status.percent < 100
+                ? `${name} (${Math.round(status.percent)}%)`
+                : name,
+            )
             .join(", ")}\u2026`,
         }
       : null;
@@ -1913,6 +1934,12 @@ MapComponent.propTypes = {
   // Layers still being prepared by the parent (style fetch, raster header
   // read). That phase precedes any OL layer, so the map cannot observe it and
   // is told instead; merged with the map's own per-layer state for display.
+  runtimeLayerFetchStatus: PropTypes.objectOf(
+    PropTypes.shape({
+      state: PropTypes.string,
+      percent: PropTypes.number,
+    }),
+  ),
   layerPrepStatus: PropTypes.objectOf(
     PropTypes.shape({
       state: PropTypes.string,
