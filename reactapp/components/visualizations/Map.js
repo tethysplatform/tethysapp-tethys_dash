@@ -429,6 +429,10 @@ const MapVisualization = ({
   // screen. A config with no name is skipped for the same reason.
   const runtimeLayerFetchStatus = useMemo(() => {
     const status = {};
+    // istanbul ignore next -- unreachable: a missing `layers` prop throws in
+    // this component's own effect and in useSnapping long before the fallback
+    // could matter. Kept so this memo, which runs during render, is not the
+    // thing that crashes first.
     (layers ?? []).forEach((layer) => {
       const layerProps = layer?.configuration?.props;
       const name = layerProps?.name;
@@ -784,11 +788,12 @@ const MapVisualization = ({
             ? getBaseMapLayer(previousBaseMap)?.props?.name
             : null;
           setMapLayers((previous) => {
+            const published = previous ?? [];
             const kept = previousBaseMapName
-              ? (previous ?? []).filter(
+              ? published.filter(
                   (config) => config?.props?.name !== previousBaseMapName,
                 )
-              : (previous ?? []);
+              : published;
             return [baseMapLayer, ...kept];
           });
         }
