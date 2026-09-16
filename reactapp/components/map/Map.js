@@ -64,6 +64,16 @@ const StyledAlert = styled(Alert)`
   margin: 0;
 `;
 
+// Every alert anchor resolves to the same rectangle, and each one portals a
+// fixed-position copy pinned to it -- so two anchors put one alert on top of
+// another rather than stacking them. The map's alerts share a single anchor
+// and stack inside it instead.
+const AlertStack = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+`;
+
 const InfoDiv = styled.div`
   position: absolute;
   top: 10px;
@@ -493,39 +503,35 @@ const MapComponent = ({
   const layerFailureKey = layerFailures
     .map(([name, status]) => `${name}: ${status.message}`)
     .join(" | ");
-  const layerAlert = layerFailures.length
-    ? {
-        variant: "danger",
-        message: layerFailures
-          .map(([name, status]) => `${name}: ${status.message}`)
-          .join(" "),
-      }
-    : layersLoading.length
-      ? {
-          variant: "info",
-          message: `Loading ${layersLoading
-            .map(([name, status]) =>
-              // Only a plugin that reports progress has a percentage. Keep the
-              // bound the old bar used -- strictly between 0 and 100 -- so a
-              // leading 0% or a trailing 100% reads as "working" rather than as
-              // a number that looks wrong.
-              typeof status.percent === "number" &&
-              status.percent > 0 &&
-              status.percent < 100
-                ? `${name} (${Math.round(status.percent)}%)`
-                : name,
-            )
-            .join(", ")}\u2026`,
-        }
-      : null;
-  // Only the (dismissible) error alert is suppressed once dismissed; the loading
-  // alert clears itself when the layers settle, so it is never hidden this way.
-  const showLayerAlert =
-    !!layerAlert &&
-    !(
-      layerAlert.variant === "danger" &&
-      layerFailureKey === dismissedLayerFailureKey
-    );
+  // Failure and loading are independent, not two arms of one expression. As
+  // one expression a single failed layer erased the loading names of every
+  // other layer, and dismissing that failure suppressed the only alert being
+  // computed -- so loading indication went silent for the whole map.
+  const layerFailureMessage = layerFailures.length
+    ? layerFailures
+        .map(([name, status]) => `${name}: ${status.message}`)
+        .join(" ")
+    : null;
+  const layerLoadingMessage = layersLoading.length
+    ? `Loading ${layersLoading
+        .map(([name, status]) =>
+          // Only a plugin that reports progress has a percentage. Keep the
+          // bound the old bar used -- strictly between 0 and 100 -- so a
+          // leading 0% or a trailing 100% reads as "working" rather than as
+          // a number that looks wrong.
+          typeof status.percent === "number" &&
+          status.percent > 0 &&
+          status.percent < 100
+            ? `${name} (${Math.round(status.percent)}%)`
+            : name,
+        )
+        .join(", ")}\u2026`
+    : null;
+  // Dismissal applies only to the failure. The loading alert clears itself when
+  // the layers settle, and is now unaffected by a dismissed failure.
+  const showLayerFailure =
+    !!layerFailureMessage && layerFailureKey !== dismissedLayerFailureKey;
+  const showLayerLoading = !!layerLoadingMessage;
 
   const defaultMapConfig = {
     className: "ol-map",
@@ -1815,47 +1821,51 @@ const MapComponent = ({
   return (
     <>
       <div aria-label="Map Div" ref={mapDivRef} {...customMapConfig}>
-        {errorMessage && (
+        {(errorMessage ||
+          showLayerFailure ||
+          showLayerLoading ||
+          viewGroupMismatch) && (
           <AlertAnchor edges={ALERT_EDGES} mapDivRef={mapDivRef}>
-            <StyledAlert
-              key="failure"
-              variant="danger"
-              dismissible={true}
-              onClose={() => setErrorMessage("")}
-            >
-              {errorMessage}
-            </StyledAlert>
-          </AlertAnchor>
-        )}
-        {showLayerAlert && (
-          <AlertAnchor edges={ALERT_EDGES} mapDivRef={mapDivRef}>
-            <StyledAlert
-              variant={layerAlert.variant}
-              role={layerAlert.variant === "danger" ? "alert" : "status"}
-              aria-live="polite"
-              dismissible={layerAlert.variant === "danger"}
-              onClose={
-                layerAlert.variant === "danger"
-                  ? () => setDismissedLayerFailureKey(layerFailureKey)
-                  : undefined
-              }
-            >
-              {layerAlert.message}
-            </StyledAlert>
-          </AlertAnchor>
-        )}
-        {viewGroupMismatch && (
-          <AlertAnchor edges={ALERT_EDGES} mapDivRef={mapDivRef}>
-            <StyledAlert
-              variant="warning"
-              role="status"
-              aria-live="polite"
-              aria-label="View Group Projection Mismatch"
-            >
-              {`This map is not synced with the "${viewGroupMismatch.groupName}" ` +
-                `view group: it is in ${viewGroupMismatch.mapCode} and the ` +
-                `group is in ${viewGroupMismatch.groupCode}.`}
-            </StyledAlert>
+            <AlertStack role="group" aria-label="Map Alerts">
+              {errorMessage && (
+                <StyledAlert
+                  key="failure"
+                  variant="danger"
+                  dismissible={true}
+                  onClose={() => setErrorMessage("")}
+                >
+                  {errorMessage}
+                </StyledAlert>
+              )}
+              {showLayerFailure && (
+                <StyledAlert
+                  variant="danger"
+                  role="alert"
+                  aria-live="polite"
+                  dismissible={true}
+                  onClose={() => setDismissedLayerFailureKey(layerFailureKey)}
+                >
+                  {layerFailureMessage}
+                </StyledAlert>
+              )}
+              {showLayerLoading && (
+                <StyledAlert variant="info" role="status" aria-live="polite">
+                  {layerLoadingMessage}
+                </StyledAlert>
+              )}
+              {viewGroupMismatch && (
+                <StyledAlert
+                  variant="warning"
+                  role="status"
+                  aria-live="polite"
+                  aria-label="View Group Projection Mismatch"
+                >
+                  {`This map is not synced with the "${viewGroupMismatch.groupName}" ` +
+                    `view group: it is in ${viewGroupMismatch.mapCode} and the ` +
+                    `group is in ${viewGroupMismatch.groupCode}.`}
+                </StyledAlert>
+              )}
+            </AlertStack>
           </AlertAnchor>
         )}
         {dataviewerViz && (

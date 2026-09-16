@@ -5,6 +5,7 @@ import {
   fireEvent,
   waitFor,
   act,
+  within,
 } from "@testing-library/react";
 import MapComponent from "components/map/Map";
 import PropTypes from "prop-types";
@@ -2138,6 +2139,122 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Teacup Diagram: boom",
     );
+  });
+
+  test("a failure on one layer does not erase the loading names of others", async () => {
+    // These used to be two arms of one expression, so a single failed layer
+    // suppressed the loading message for the entire map.
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent
+            mapProps={{
+              layers: [],
+              layerPrepStatus: {
+                "Basin Boundaries": {
+                  state: "error",
+                  message: "boom",
+                  kind: "fetch",
+                },
+              },
+              runtimeLayerFetchStatus: {
+                "Teacup Diagram": {
+                  state: "loading",
+                  message: null,
+                  kind: null,
+                  percent: null,
+                },
+              },
+            }}
+          />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    // Both live inside the one anchor. Two anchors resolve to the same
+    // rectangle and would overlay each other -- which jsdom cannot see, so the
+    // stacking is pinned structurally rather than visually.
+    const stack = await screen.findByRole("group", { name: "Map Alerts" });
+    expect(within(stack).getByRole("alert")).toHaveTextContent(
+      "Basin Boundaries: boom",
+    );
+    expect(within(stack).getByRole("status")).toHaveTextContent(
+      "Loading Teacup Diagram",
+    );
+  });
+
+  test("dismissing a failure leaves the loading report on screen", async () => {
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent
+            mapProps={{
+              layers: [],
+              layerPrepStatus: {
+                "Basin Boundaries": {
+                  state: "error",
+                  message: "boom",
+                  kind: "fetch",
+                },
+              },
+              runtimeLayerFetchStatus: {
+                "Teacup Diagram": {
+                  state: "loading",
+                  message: null,
+                  kind: null,
+                  percent: null,
+                },
+              },
+            }}
+          />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Close alert"));
+
+    // The dismissal used to hide the only alert being computed, taking loading
+    // indication with it for as long as the failure stood.
+    await waitFor(() => {
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Loading Teacup Diagram",
+    );
+  });
+
+  test("the loading alert is never dismissible", async () => {
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent
+            mapProps={{
+              layers: [],
+              runtimeLayerFetchStatus: {
+                "Teacup Diagram": {
+                  state: "loading",
+                  message: null,
+                  kind: null,
+                  percent: null,
+                },
+              },
+            }}
+          />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Loading Teacup Diagram",
+    );
+    expect(screen.queryByLabelText("Close alert")).not.toBeInTheDocument();
   });
 
   test("GeoJSON url source 'featuresloaderror' surfaces a layer-load error, cleared on a later success", async () => {
