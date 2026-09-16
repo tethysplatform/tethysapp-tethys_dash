@@ -1282,6 +1282,74 @@ describe("useRuntimeLayerFetcher", () => {
       });
     });
 
+    test("a late rejection from a superseded request cannot close the newer window", async () => {
+      // The success half of this is covered above. A superseded request that
+      // rejects late reaches a different tail, and that tail also closes the
+      // window and writes an error -- both of which belong to whoever owns the
+      // layer now, not to a request that has been replaced.
+      const olLayer = fakeOlLayer("layer-1");
+      const mapRef = { current: fakeOlMap([olLayer]) };
+      // eslint-disable-next-line no-template-curly-in-string
+      const layers = [runtimeLayerConfig({ args: { bbox: "${BBox}" } })];
+
+      let rejectFirst;
+      let resolveSecond;
+      getFeaturesMock
+        .mockImplementationOnce(
+          () =>
+            new Promise((_resolve, reject) => {
+              rejectFirst = reject;
+            }),
+        )
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              resolveSecond = resolve;
+            }),
+        );
+
+      const { result, rerender } = renderHook(
+        ({ variableInputValues }) =>
+          useRuntimeLayerFetcher(
+            hookArgs({ layers, mapRef, variableInputValues }),
+          ),
+        { initialProps: { variableInputValues: { BBox: "1,2,3,4" } } },
+      );
+
+      await act(async () => {
+        jest.advanceTimersByTime(250);
+        await Promise.resolve();
+      });
+      expect(getFeaturesMock).toHaveBeenCalledTimes(1);
+
+      rerender({ variableInputValues: { BBox: "9,9,9,9" } });
+      await act(async () => {
+        jest.advanceTimersByTime(250);
+        await Promise.resolve();
+      });
+      expect(getFeaturesMock).toHaveBeenCalledTimes(2);
+
+      await act(async () => {
+        rejectFirst(new Error("late boom"));
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      // The replacement still owns the layer: still loading, and not failed by
+      // a request nobody is waiting for.
+      expect(result.current.loadingByLayerId["layer-1"]).toBe(true);
+      expect(result.current.errorsByLayerId["layer-1"]).toBeUndefined();
+
+      await act(async () => {
+        resolveSecond({ success: true, viz_type: "features", data: validFc });
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      await waitFor(() => {
+        expect(result.current.loadingByLayerId).toEqual({});
+      });
+    });
+
     test("a layer removed mid-flight closes its window at the cancel site", async () => {
       const olLayer = fakeOlLayer("layer-1");
       const mapRef = { current: fakeOlMap([olLayer]) };

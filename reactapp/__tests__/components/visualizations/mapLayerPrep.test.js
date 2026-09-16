@@ -350,6 +350,80 @@ describe("an outstanding plugin fetch is reported in the banner", () => {
     });
   });
 
+  test("a preparing layer and a fetching plugin share one message", async () => {
+    // The merge's actual job, which had only ever been tested in halves: a
+    // layer still being prepared and a plugin still fetching come from two
+    // different status sources and must land in one banner, not two.
+    const prep = deferred();
+    const fetchGate = deferred();
+    loadLayerJSONs.mockImplementation((layer) =>
+      layer.configuration.props.name === "Basins"
+        ? prep.promise
+        : Promise.resolve(),
+    );
+    jest
+      .spyOn(appAPI, "getVisualizationFeatures")
+      .mockImplementation(() => fetchGate.promise.then(() => emptyFeatures));
+
+    await mount([
+      styledLayer("Basins"),
+      runtimeLayer("Teacup Diagram", "layer-1"),
+    ]);
+
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent("Basins"),
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Teacup Diagram");
+    // One alert carrying both, not one alert per source.
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+
+    await prep.release();
+
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Loading Teacup Diagram",
+      ),
+    );
+
+    await fetchGate.release();
+    await waitFor(() => {
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    });
+  });
+
+  test("a layer with no name is never named in the banner", async () => {
+    // Every status source keys by name, so a config without one has to be
+    // skipped rather than keyed under `undefined` and rendered as "Loading
+    // undefined". Construction is held open so the window is genuinely
+    // outstanding while this asserts -- otherwise a fast source settles first
+    // and the assertion passes without exercising anything.
+    const constructGate = deferred();
+    const fetchGate = deferred();
+    moduleLoader.mockImplementation(async (config, ...rest) => {
+      if (!config?.props?.name) {
+        await constructGate.promise;
+      }
+      return realModuleLoader(config, ...rest);
+    });
+    jest
+      .spyOn(appAPI, "getVisualizationFeatures")
+      .mockImplementation(() => fetchGate.promise.then(() => emptyFeatures));
+
+    const nameless = runtimeLayer("Nameless", "layer-1");
+    delete nameless.configuration.props.name;
+
+    await mount([nameless]);
+
+    await waitFor(() =>
+      expect(addedLayerNames(addLayerSpy)).toContain("World Light Gray Base"),
+    );
+    // Construction is still outstanding for the nameless layer at this point.
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+
+    await constructGate.release();
+    await fetchGate.release();
+  });
+
   test("a failed fetch stops being reported as loading", async () => {
     const gate = deferred();
     jest.spyOn(appAPI, "getVisualizationFeatures").mockImplementation(() =>

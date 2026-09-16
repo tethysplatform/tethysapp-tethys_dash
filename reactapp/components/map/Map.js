@@ -359,7 +359,12 @@ const MapComponent = ({
   // Settle a layer's entry at the end of its construct pass. `ready` mirrors
   // what the shapefile watcher writes on success; `idle` drops the entry, for a
   // layer that finished with nothing to report.
-  const settleLayerStatus = (name, state) =>
+  const settleLayerStatus = (name, state) => {
+    // Status is keyed by name, and the banner renders those keys. A layer
+    // without one would key the literal string "undefined" and be reported as
+    // "Loading undefined" -- so it is skipped here, as it already is in the
+    // prep and plugin-fetch sources.
+    if (!name) return;
     setLayerStatus((previous) => {
       if (state === "idle") {
         const { [name]: _dropped, ...rest } = previous;
@@ -367,6 +372,7 @@ const MapComponent = ({
       }
       return { ...previous, [name]: { state, message: null, kind: null } };
     });
+  };
   const mapDivRef = useRef();
   const onMapClickCurrent = useRef();
   const onMapHoverCurrent = useRef();
@@ -925,10 +931,12 @@ const MapComponent = ({
           // a slice, a GeoPackage fetches the whole file. Only the shapefile
           // reported any of that, because only it defers work to an OL loader
           // with events to watch. Marking the pass itself covers every type.
-          setLayerStatus((previous) => ({
-            ...previous,
-            [name]: { state: "loading", message: null, kind: null },
-          }));
+          if (name) {
+            setLayerStatus((previous) => ({
+              ...previous,
+              [name]: { state: "loading", message: null, kind: null },
+            }));
+          }
 
           try {
             // Resolve a Zarr layer's ramp from the slice's real value range
