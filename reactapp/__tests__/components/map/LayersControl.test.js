@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from "@testing-library/react";
-import LayersControl, { parseProgress } from "components/map/LayersControl";
+import LayersControl from "components/map/LayersControl";
 import { WebsocketContext } from "components/contexts/WebSocketContext";
 import { makeMapDiv } from "__tests__/utilities/mapDiv";
 
@@ -117,34 +117,27 @@ function mountLayersControl({
   return { rerender, visualizationRef };
 }
 
-test("LayersControl shows progress bar for runtime layer with WebSocket percentage", async () => {
+test("LayersControl reports no loading state -- the map banner owns that", async () => {
+  // This panel is collapsed by default, so a hairline bar inside it was the
+  // least visible place to say a layer is working. Loading is reported by the
+  // map's banner instead; the panel keeps only what is layer-specific and
+  // actionable, which is the failure and its retry.
   const olLayer = makeRuntimeOlLayer({ layerId: "layer-1" });
-  const getMessageForRequest = jest.fn((rid) => {
-    if (rid === "nonce:grid:layer-1") {
-      return JSON.stringify({
-        requestId: rid,
-        message: "computing",
-        percentageComplete: 42,
-        layerId: "layer-1",
-      });
-    }
-    return undefined;
-  });
+  const getMessageForRequest = jest.fn(() =>
+    JSON.stringify({ percentageComplete: 42 }),
+  );
 
   mountLayersControl({
     olLayer,
-    runtimeLayerState: {
-      errorsByLayerId: {},
-      retry: jest.fn(),
-      sessionNonce: "nonce",
-      gridItemUuid: "grid",
-    },
+    runtimeLayerState: { errorsByLayerId: {}, retry: jest.fn() },
     websocketValue: { getMessageForRequest },
+    layerStatus: { "Runtime Layer": { state: "loading" } },
   });
 
-  const liveRegion = await screen.findByRole("status");
-  expect(liveRegion).toHaveAttribute("aria-live", "polite");
-  expect(liveRegion.getAttribute("aria-label")).toMatch(/42%/);
+  expect(
+    await screen.findByLabelText("Runtime Layer Set Visible"),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole("status")).not.toBeInTheDocument();
 });
 
 test("LayersControl hides progress bar once an error is recorded", async () => {
@@ -160,13 +153,11 @@ test("LayersControl hides progress bar once an error is recorded", async () => {
         "layer-1": { message: "boom", kind: "error" },
       },
       retry: jest.fn(),
-      sessionNonce: "nonce",
-      gridItemUuid: "grid",
     },
     websocketValue: { getMessageForRequest },
   });
 
-  // Error badge visible, progress bar suppressed.
+  // Error badge visible; nothing reports loading here any more.
   expect(await screen.findByRole("alert")).toHaveTextContent("boom");
   expect(screen.queryByRole("status")).not.toBeInTheDocument();
 });
@@ -182,8 +173,6 @@ test("LayersControl Retry button fires retry callback for generic errors", async
         "layer-1": { message: "boom", kind: "error" },
       },
       retry,
-      sessionNonce: "nonce",
-      gridItemUuid: "grid",
     },
   });
 
@@ -202,8 +191,6 @@ test("LayersControl hides Retry for plugin-unavailable errors", async () => {
         "layer-1": { message: "Plugin not available", kind: "unavailable" },
       },
       retry: jest.fn(),
-      sessionNonce: "nonce",
-      gridItemUuid: "grid",
     },
   });
 
@@ -230,27 +217,6 @@ test("LayersControl renders static (non-runtime) layers without progress or erro
   expect(await screen.findByText("Static Layer")).toBeInTheDocument();
   expect(screen.queryByRole("status")).not.toBeInTheDocument();
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-});
-
-describe("parseProgress", () => {
-  test("returns percentageComplete from valid message", () => {
-    const message = JSON.stringify({
-      percentageComplete: 75,
-    });
-    expect(parseProgress(message)).toBe(75);
-  });
-
-  test("returns null if percentageComplete is missing", () => {
-    const message = JSON.stringify({
-      message: "computing",
-    });
-    expect(parseProgress(message)).toBeNull();
-  });
-
-  test("returns null for invalid JSON", () => {
-    const message = "not a json";
-    expect(parseProgress(message)).toBeNull();
-  });
 });
 
 describe("LayersControl height cap", () => {

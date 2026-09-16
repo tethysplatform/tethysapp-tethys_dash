@@ -249,9 +249,17 @@ describe("per-layer rows in the layers control", () => {
     });
   }
 
-  it("shows an in-flight indication for a loading layer", async () => {
+  it("reports no in-flight indication -- the map banner owns that", async () => {
+    // The panel is collapsed by default, so loading moved to the map's banner,
+    // which names every loading layer whatever its source. The row keeps only
+    // the failure, which carries a message and a retry that belong to the
+    // layer rather than to the map.
     await renderControl({ Basins: { state: "loading" } });
-    expect(await screen.findByLabelText("Basins loading")).toBeInTheDocument();
+    expect(
+      await screen.findByLabelText("Basins Set Visible"),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Basins loading")).not.toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
   it("shows the failure message for a failed layer", async () => {

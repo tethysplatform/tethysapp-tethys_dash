@@ -1927,10 +1927,10 @@ MapComponent.propTypes = {
   dataviewerViz: PropTypes.bool, // determines if the map is in the dataviewer so that it doesnt affect the main map
   mapDrawing: mapDrawingPropType,
   drawing: PropTypes.shape({ current: PropTypes.bool }),
-  // Runtime dynamic_map_layer state bundle: errors keyed by layerId, retry
-  // action, plus sessionNonce + gridItemUuid for building composite WebSocket
-  // requestIds (Unit 3/5). Undefined for dataviewer / legacy maps — LayersControl
-  // handles absence gracefully.
+  // Runtime dynamic_map_layer state bundle: errors keyed by layerId and the
+  // retry action. Loading is reported by the map's banner rather than by the
+  // layers control, so no request-id parts are carried here. Undefined for
+  // dataviewer / legacy maps — LayersControl handles absence gracefully.
   // Layers still being prepared by the parent (style fetch, raster header
   // read). That phase precedes any OL layer, so the map cannot observe it and
   // is told instead; merged with the map's own per-layer state for display.
@@ -1948,8 +1948,6 @@ MapComponent.propTypes = {
   runtimeLayerState: PropTypes.shape({
     errorsByLayerId: PropTypes.object,
     retry: PropTypes.func,
-    sessionNonce: PropTypes.string,
-    gridItemUuid: PropTypes.string,
   }),
 };
 
