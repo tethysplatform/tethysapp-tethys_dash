@@ -403,8 +403,15 @@ test("Custom map extent passes through raw lon for non-EPSG:3857 projections", a
 
   expect(await screen.findByText("Map Ready")).toBeInTheDocument();
 
-  const viewText = (await screen.findByTestId("map-view")).textContent;
-  const parsed = JSON.parse(viewText);
+  // `view` is filled by an effect that runs after `mapReady` flips, so the
+  // "Map Ready" marker can be on screen a render before the view JSON is.
+  // Every sibling assertion in this file waits; this one parses instead of
+  // matching a fixed string, which is how it ended up reading the empty
+  // initial state under full-suite load.
+  await waitFor(() =>
+    expect(screen.getByTestId("map-view")).toHaveTextContent(/"zoom"/),
+  );
+  const parsed = JSON.parse(screen.getByTestId("map-view").textContent);
   // Raw lon passes through unchanged — no wrap applied on the false branch.
   expect(parsed.center[0]).toBe(inputLon);
   expect(parsed.center[1]).toBe(lat);
