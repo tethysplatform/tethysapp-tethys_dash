@@ -407,11 +407,7 @@ const MapVisualization = ({
   }, []);
 
   const { getMessageForRequest } = useContext(WebsocketContext) ?? {};
-  const {
-    errorsByLayerId,
-    loadingByLayerId,
-    retry: retryRuntimeLayer,
-  } = useRuntimeLayerFetcher({
+  const { errorsByLayerId, loadingByLayerId } = useRuntimeLayerFetcher({
     layers,
     gridItemUUID,
     sessionNonce,
@@ -422,10 +418,7 @@ const MapVisualization = ({
     refreshTick: refreshCount,
   });
 
-  const runtimeLayerState = {
-    errorsByLayerId,
-    retry: retryRuntimeLayer,
-  };
+  const runtimeLayerState = { errorsByLayerId };
 
   // Name-keyed status for the layers whose plugin fetch is outstanding, so the
   // map's loading banner can name them alongside layers loading for any other
@@ -441,6 +434,20 @@ const MapVisualization = ({
       const name = layerProps?.name;
       const layerId = layerProps?.layerId;
       if (!name || !layerId) return;
+      // A failed fetch is reported on the same surface as a slow one. Without
+      // this the banner simply dropped the layer's name when it failed, so a
+      // broken layer and a finished one looked identical -- the other half of
+      // the problem a loading report exists to solve.
+      const failure = errorsByLayerId?.[layerId];
+      if (failure) {
+        status[name] = {
+          state: LAYER_STATE.ERROR,
+          message: failure.message,
+          kind: failure.kind,
+          percent: null,
+        };
+        return;
+      }
       if (!loadingByLayerId?.[layerId]) return;
       const requestId =
         sessionNonce && gridItemUUID
@@ -465,6 +472,7 @@ const MapVisualization = ({
   }, [
     layers,
     loadingByLayerId,
+    errorsByLayerId,
     sessionNonce,
     gridItemUUID,
     getMessageForRequest,

@@ -369,11 +369,15 @@ describe("an outstanding plugin fetch is reported in the banner", () => {
 
     await gate.release();
 
-    // The layer is no longer working, so the banner stops claiming it is. The
-    // failure itself stays in the layers control, which is where its message
-    // and retry action live.
-    await waitFor(() => {
-      expect(screen.queryByRole("status")).not.toBeInTheDocument();
-    });
+    // The layer is no longer working, so the banner stops claiming it is --
+    // and says what went wrong instead. Dropping the name silently was the
+    // other half of the original complaint: a broken layer looked exactly like
+    // a finished one.
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Teacup Diagram: plugin blew up",
+      ),
+    );
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 });

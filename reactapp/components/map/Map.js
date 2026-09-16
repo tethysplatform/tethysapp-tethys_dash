@@ -1894,13 +1894,6 @@ const MapComponent = ({
             updater={layerControlUpdate}
             runtimeLayerState={runtimeLayerState}
             layerStatus={mergedLayerStatus}
-            onRetryLayer={(layerName) => {
-              const layer = visualizationRef.current
-                ?.getLayers()
-                .getArray()
-                .find((candidate) => candidate.get("name") === layerName);
-              layer?.getSource?.()?.get?.("shapefileController")?.reset?.();
-            }}
           />
         )}
         {legend && legend.length > 0 && (

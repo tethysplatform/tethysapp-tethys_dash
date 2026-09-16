@@ -187,27 +187,6 @@ describe("map-level surfacing", () => {
 });
 
 describe("retry wiring and teardown", () => {
-  it("retry from the layers control re-invokes the loader", async () => {
-    acquireComponents.mockResolvedValue({
-      error: { stage: "fetch", reason: "unreachable", detail: "no host" },
-    });
-
-    await mount({ layerControl: true });
-    drive();
-    await screen.findAllByRole("alert");
-    expect(acquireComponents).toHaveBeenCalledTimes(1);
-
-    fireEvent.click(await screen.findByLabelText("Show Layers Control"));
-    fireEvent.click(await screen.findByLabelText("Retry Basins"));
-
-    // Reset goes through the source's refresh, which is the only primitive that
-    // causes the loader to run again -- so driving it once more loads afresh.
-    drive();
-    await waitFor(() => {
-      expect(acquireComponents.mock.calls.length).toBeGreaterThan(1);
-    });
-  });
-
   it("discards a layer's status when the layer is removed", async () => {
     acquireComponents.mockResolvedValue({
       error: { stage: "fetch", reason: "unreachable", detail: "no host" },
@@ -228,7 +207,7 @@ describe("retry wiring and teardown", () => {
 });
 
 describe("per-layer rows in the layers control", () => {
-  function renderControl(layerStatus, onRetryLayer) {
+  function renderControl(layerStatus) {
     const layer = {
       get: jest.fn((key) => (key === "name" ? "Basins" : undefined)),
       getVisible: jest.fn(() => true),
@@ -241,7 +220,6 @@ describe("per-layer rows in the layers control", () => {
           current: { getLayers: () => ({ getArray: () => [layer] }) },
         }}
         layerStatus={layerStatus}
-        onRetryLayer={onRetryLayer}
       />,
     );
     return screen.findByLabelText("Show Layers Control").then((button) => {
@@ -273,24 +251,6 @@ describe("per-layer rows in the layers control", () => {
     expect(
       await screen.findByText("The shapefile could not be fetched."),
     ).toBeInTheDocument();
-  });
-
-  it("offers retry for a fetch-stage failure and calls back with the layer name", async () => {
-    const onRetry = jest.fn();
-    await renderControl(
-      {
-        Basins: {
-          state: "error",
-          message: "unreachable",
-          kind: ERROR_KIND.FETCH,
-        },
-      },
-      onRetry,
-    );
-
-    fireEvent.click(await screen.findByLabelText("Retry Basins"));
-
-    expect(onRetry).toHaveBeenCalledWith("Basins");
   });
 
   it.each([

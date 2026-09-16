@@ -89,6 +89,11 @@ const validFc = {
   crs: { type: "name", properties: { name: "EPSG:4326" } },
 };
 
+// Stable identities: the reconciliation effect keys on these by reference, so
+// fresh literals per render would re-run it every render.
+const noVariableInputs = {};
+const noDateFormats = {};
+
 describe("useRuntimeLayerFetcher", () => {
   let getFeaturesMock;
   let swapSpy;
@@ -343,15 +348,18 @@ describe("useRuntimeLayerFetcher", () => {
     const mapRef = { current: fakeOlMap([olLayer]) };
     const layers = [runtimeLayerConfig()];
 
-    const { result } = renderHook(() =>
-      useRuntimeLayerFetcher({
-        layers,
-        gridItemUUID: "g",
-        sessionNonce: "n",
-        mapRef,
-        variableInputValues: {},
-        variableInputDateFormats: {},
-      }),
+    const { result, rerender } = renderHook(
+      ({ refreshTick }) =>
+        useRuntimeLayerFetcher({
+          layers,
+          gridItemUUID: "g",
+          sessionNonce: "n",
+          mapRef,
+          variableInputValues: noVariableInputs,
+          variableInputDateFormats: noDateFormats,
+          refreshTick,
+        }),
+      { initialProps: { refreshTick: 0 } },
     );
 
     await act(async () => {
@@ -362,73 +370,15 @@ describe("useRuntimeLayerFetcher", () => {
       expect(result.current.errorsByLayerId["layer-1"]).toBeDefined();
     });
 
-    // Retry → second mock returns success → error state cleared.
-    act(() => {
-      result.current.retry("layer-1");
-    });
+    // A refresh drives the second fetch; success clears the error state.
+    rerender({ refreshTick: 1 });
     await act(async () => {
+      jest.advanceTimersByTime(250);
       await Promise.resolve();
     });
     await waitFor(() => {
       expect(result.current.errorsByLayerId["layer-1"]).toBeUndefined();
     });
-  });
-
-  test("retry bypasses debounce and cancels prior in-flight", async () => {
-    // First call never resolves (simulated in-flight); second call returns.
-    let firstCancelled = false;
-    getFeaturesMock.mockImplementationOnce(({ cancelToken }) => {
-      // Axios attaches a cancellation listener via promise subscribe/throwIfRequested.
-      // We simulate by checking cancellation inside the returned promise.
-      return new Promise((resolve, reject) => {
-        if (cancelToken && typeof cancelToken.promise?.then === "function") {
-          cancelToken.promise.then((reason) => {
-            firstCancelled = true;
-            reject(new axios.Cancel(reason?.message ?? "cancel"));
-          });
-        }
-      });
-    });
-    getFeaturesMock.mockResolvedValueOnce({
-      success: true,
-      data: validFc,
-    });
-
-    const olLayer = fakeOlLayer("layer-1");
-    const mapRef = { current: fakeOlMap([olLayer]) };
-    const layers = [runtimeLayerConfig()];
-
-    const { result } = renderHook(() =>
-      useRuntimeLayerFetcher({
-        layers,
-        gridItemUUID: "g",
-        sessionNonce: "n",
-        mapRef,
-        variableInputValues: {},
-        variableInputDateFormats: {},
-      }),
-    );
-
-    await act(async () => {
-      jest.advanceTimersByTime(250);
-      await Promise.resolve();
-    });
-    // First fetch is in-flight (never resolves).
-    expect(getFeaturesMock).toHaveBeenCalledTimes(1);
-
-    // Retry fires a second fetch immediately without debounce and cancels
-    // the first via the layer's cancelTokenSource.
-    act(() => {
-      result.current.retry("layer-1");
-    });
-    await act(async () => {
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-    expect(getFeaturesMock).toHaveBeenCalledTimes(2);
-    expect(firstCancelled).toBe(true);
-    // No error state recorded for the cancelled first fetch.
-    expect(result.current.errorsByLayerId["layer-1"]).toBeUndefined();
   });
 
   test("unmount cancels in-flight fetches without setState warning", async () => {
@@ -649,87 +599,6 @@ describe("useRuntimeLayerFetcher", () => {
       kind: "error",
     });
     expect(swapSpy).not.toHaveBeenCalled();
-  });
-
-  test("retry clears a pending debounce timer so only the immediate fetch fires", async () => {
-    const olLayer = fakeOlLayer("layer-1");
-    const mapRef = { current: fakeOlMap([olLayer]) };
-    const layers = [runtimeLayerConfig({ layerId: "layer-1" })];
-
-    const { result } = renderHook(() =>
-      useRuntimeLayerFetcher({
-        layers,
-        gridItemUUID: "g",
-        sessionNonce: "n",
-        mapRef,
-        variableInputValues: {},
-        variableInputDateFormats: {},
-      }),
-    );
-
-    // Mount queued a debounce timer; nothing has fetched yet.
-    expect(getFeaturesMock).not.toHaveBeenCalled();
-
-    act(() => {
-      result.current.retry("layer-1");
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
-
-    // Immediate retry fired exactly once.
-    expect(getFeaturesMock).toHaveBeenCalledTimes(1);
-
-    // The originally-queued debounce timer should have been cleared by retry.
-    await act(async () => {
-      jest.advanceTimersByTime(250);
-      await Promise.resolve();
-    });
-    expect(getFeaturesMock).toHaveBeenCalledTimes(1);
-  });
-
-  test("retry re-creates orchestrator state when prior state was cleared", async () => {
-    const olLayer = fakeOlLayer("layer-a");
-    const mapRef = { current: fakeOlMap([olLayer]) };
-    const initialLayers = [runtimeLayerConfig({ layerId: "layer-a" })];
-
-    const { result, rerender } = renderHook(
-      ({ layers }) =>
-        useRuntimeLayerFetcher({
-          layers,
-          gridItemUUID: "g",
-          sessionNonce: "n",
-          mapRef,
-          variableInputValues: {},
-          variableInputDateFormats: {},
-        }),
-      { initialProps: { layers: initialLayers } },
-    );
-
-    await act(async () => {
-      jest.advanceTimersByTime(250);
-      await Promise.resolve();
-    });
-    expect(getFeaturesMock).toHaveBeenCalledTimes(1);
-
-    // Capture the retry callback whose closure still references the original
-    // layers array — before the rerender swaps it out.
-    const staleRetry = result.current.retry;
-
-    // Rerender with no layers — orchestrator state for "layer-a" is deleted
-    // by the cleanup branch.
-    rerender({ layers: [] });
-
-    // Stale-closure retry: layer is still findable in its captured `layers`,
-    // but perLayerStateRef has no entry → forces the state.set branch.
-    act(() => {
-      staleRetry("layer-a");
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
-
-    expect(getFeaturesMock).toHaveBeenCalledTimes(2);
   });
 
   test("orchestrator state cleared when a layer is removed from the map", async () => {
@@ -1059,81 +928,8 @@ describe("useRuntimeLayerFetcher", () => {
     warnSpy.mockRestore();
   });
 
-  test("retry on an unknown layerId is a no-op", async () => {
-    const olLayer = fakeOlLayer("layer-1");
-    const mapRef = { current: fakeOlMap([olLayer]) };
-    const layers = [runtimeLayerConfig({ layerId: "layer-1" })];
-
-    const { result } = renderHook(() =>
-      useRuntimeLayerFetcher({
-        layers,
-        gridItemUUID: "g",
-        sessionNonce: "n",
-        mapRef,
-        variableInputValues: {},
-        variableInputDateFormats: {},
-      }),
-    );
-
-    await act(async () => {
-      jest.advanceTimersByTime(250);
-      await Promise.resolve();
-    });
-    expect(getFeaturesMock).toHaveBeenCalledTimes(1);
-
-    act(() => {
-      result.current.retry("nonexistent-layer");
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
-
-    expect(getFeaturesMock).toHaveBeenCalledTimes(1);
-  });
-
-  test("retry on a layer without pluginSource is a no-op", async () => {
-    const layers = [
-      {
-        configuration: {
-          type: "VectorLayer",
-          props: {
-            name: "static",
-            layerId: "static-layer",
-            source: { type: "GeoJSON", props: {} },
-          },
-        },
-      },
-    ];
-
-    const { result } = renderHook(() =>
-      useRuntimeLayerFetcher({
-        layers,
-        gridItemUUID: "g",
-        sessionNonce: "n",
-        mapRef: { current: fakeOlMap([]) },
-        variableInputValues: {},
-        variableInputDateFormats: {},
-      }),
-    );
-
-    await act(async () => {
-      jest.advanceTimersByTime(250);
-      await Promise.resolve();
-    });
-    expect(getFeaturesMock).not.toHaveBeenCalled();
-
-    act(() => {
-      result.current.retry("static-layer");
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
-
-    expect(getFeaturesMock).not.toHaveBeenCalled();
-  });
-
-  test("undefined layers prop is treated as empty (no fetch, retry safe)", async () => {
-    const { result } = renderHook(() =>
+  test("undefined layers prop is treated as empty (no fetch)", async () => {
+    renderHook(() =>
       useRuntimeLayerFetcher({
         layers: undefined,
         gridItemUUID: "g",
@@ -1146,14 +942,6 @@ describe("useRuntimeLayerFetcher", () => {
 
     await act(async () => {
       jest.advanceTimersByTime(250);
-      await Promise.resolve();
-    });
-    expect(getFeaturesMock).not.toHaveBeenCalled();
-
-    act(() => {
-      result.current.retry("anything");
-    });
-    await act(async () => {
       await Promise.resolve();
     });
     expect(getFeaturesMock).not.toHaveBeenCalled();
@@ -1310,10 +1098,6 @@ describe("useRuntimeLayerFetcher", () => {
   // is load-bearing for banner correctness -- there is no reconciliation pass
   // or timeout behind it -- so each terminal path gets its own test.
   describe("in-flight reporting", () => {
-    // Stable identities: the reconciliation effect keys on these by reference,
-    // so fresh literals per render would re-run it every render.
-    const noVariableInputs = {};
-    const noDateFormats = {};
     const hookArgs = (over = {}) => ({
       gridItemUUID: "grid-a",
       sessionNonce: "nonce",
@@ -1600,54 +1384,6 @@ describe("useRuntimeLayerFetcher", () => {
       await waitFor(() => {
         expect(result.current.loadingByLayerId).toEqual({});
       });
-    });
-
-    test("retry clears the prior error at dispatch and reports loading", async () => {
-      const olLayer = fakeOlLayer("layer-1");
-      const mapRef = { current: fakeOlMap([olLayer]) };
-      const layers = [runtimeLayerConfig({ layerId: "layer-1" })];
-
-      getFeaturesMock.mockResolvedValueOnce({
-        success: false,
-        data: { error: "boom" },
-      });
-
-      const { result } = renderHook(() =>
-        useRuntimeLayerFetcher(hookArgs({ layers, mapRef })),
-      );
-
-      await act(async () => {
-        jest.advanceTimersByTime(250);
-        await Promise.resolve();
-      });
-      await waitFor(() => {
-        expect(result.current.errorsByLayerId["layer-1"]).toBeDefined();
-      });
-      expect(result.current.loadingByLayerId).toEqual({});
-
-      // The retry affordance only exists inside the error branch, so the error
-      // has to clear at dispatch or the retry can never be seen as loading.
-      let resolveRetry;
-      getFeaturesMock.mockImplementationOnce(
-        () =>
-          new Promise((res) => {
-            resolveRetry = res;
-          }),
-      );
-      await act(async () => {
-        result.current.retry("layer-1");
-        await Promise.resolve();
-      });
-
-      expect(result.current.errorsByLayerId["layer-1"]).toBeUndefined();
-      expect(result.current.loadingByLayerId["layer-1"]).toBe(true);
-
-      await act(async () => {
-        resolveRetry({ success: true, viz_type: "features", data: validFc });
-        await Promise.resolve();
-        await Promise.resolve();
-      });
-      expect(result.current.loadingByLayerId).toEqual({});
     });
 
     test("a response arriving with no map still closes the window", async () => {

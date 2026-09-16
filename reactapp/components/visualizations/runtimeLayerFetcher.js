@@ -164,8 +164,9 @@ export default function useRuntimeLayerFetcher({
       generationRef.current.set(layerId, myGeneration);
       const isCurrent = () =>
         generationRef.current.get(layerId) === myGeneration;
-      // Also opened here, not only in scheduleFetch: `retry` dispatches
-      // straight through this function with no debounce.
+      // Idempotent by layer id, so the open in scheduleFetch -- which covers
+      // the debounce wait -- costs nothing, and a request dispatched by any
+      // future path still reports itself.
       openLoading(layerId);
 
       const requestId = `${sessionNonce}:${gridItemUUID}:${layerId}`;
@@ -258,39 +259,6 @@ export default function useRuntimeLayerFetcher({
     [debounceMs, performFetch, openLoading],
   );
 
-  // Immediate retry (no debounce) — used by Unit 7's Retry action.
-  const retry = useCallback(
-    (layerId) => {
-      const layer = (layers ?? []).find(
-        (l) => l?.configuration?.props?.layerId === layerId,
-      );
-      if (!layer) return;
-      const pluginSource = layer.configuration.props.pluginSource;
-      if (!pluginSource) return;
-      if (!perLayerStateRef.current.has(layerId)) {
-        perLayerStateRef.current.set(layerId, {
-          cancelTokenSource: null,
-          debounceTimer: null,
-          lastResolvedArgs: undefined,
-          lastSource: undefined,
-          pendingSwap: null,
-        });
-      }
-      const state = perLayerStateRef.current.get(layerId);
-      if (state.debounceTimer) {
-        clearTimeout(state.debounceTimer);
-        state.debounceTimer = null;
-      }
-      const { resolvedArgs } = resolveLayerArgs(pluginSource.args);
-      // The error survives until a fetch succeeds, and the retry affordance
-      // only exists inside the error branch. Without clearing here the layer
-      // would read as failed for the whole retry and never as loading.
-      clearError(layerId);
-      performFetch(layerId, pluginSource, resolvedArgs);
-    },
-    [layers, resolveLayerArgs, performFetch, clearError],
-  );
-
   const prevRefreshTickRef = useRef(refreshTick);
 
   useEffect(() => {
@@ -354,5 +322,5 @@ export default function useRuntimeLayerFetcher({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layers, variableInputValues, variableInputDateFormats, refreshTick]);
 
-  return { errorsByLayerId, loadingByLayerId, retry };
+  return { errorsByLayerId, loadingByLayerId };
 }

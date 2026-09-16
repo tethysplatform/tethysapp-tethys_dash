@@ -162,26 +162,7 @@ test("LayersControl hides progress bar once an error is recorded", async () => {
   expect(screen.queryByRole("status")).not.toBeInTheDocument();
 });
 
-test("LayersControl Retry button fires retry callback for generic errors", async () => {
-  const olLayer = makeRuntimeOlLayer({ layerId: "layer-1" });
-  const retry = jest.fn();
-
-  mountLayersControl({
-    olLayer,
-    runtimeLayerState: {
-      errorsByLayerId: {
-        "layer-1": { message: "boom", kind: "error" },
-      },
-      retry,
-    },
-  });
-
-  const retryBtn = await screen.findByLabelText("Retry Runtime Layer");
-  fireEvent.click(retryBtn);
-  expect(retry).toHaveBeenCalledWith("layer-1");
-});
-
-test("LayersControl hides Retry for plugin-unavailable errors", async () => {
+test("LayersControl shows a failure message with no action on it", async () => {
   const olLayer = makeRuntimeOlLayer({ layerId: "layer-1" });
 
   mountLayersControl({
@@ -190,16 +171,17 @@ test("LayersControl hides Retry for plugin-unavailable errors", async () => {
       errorsByLayerId: {
         "layer-1": { message: "Plugin not available", kind: "unavailable" },
       },
-      retry: jest.fn(),
     },
   });
 
+  // The map's banner reports which layers failed and why; this repeats it
+  // against the layer it belongs to. There is nothing to click -- a failed
+  // layer is recovered by reloading, not from inside this panel.
   expect(await screen.findByRole("alert")).toHaveTextContent(
     "Plugin not available",
   );
-  // kind="unavailable" → no Retry button (author must remove/replace).
   expect(
-    screen.queryByLabelText("Retry Runtime Layer"),
+    screen.queryByRole("button", { name: /retry/i }),
   ).not.toBeInTheDocument();
 });
 
