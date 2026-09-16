@@ -5,6 +5,7 @@ import {
   fireEvent,
   waitFor,
   act,
+  within,
 } from "@testing-library/react";
 import MapComponent from "components/map/Map";
 import PropTypes from "prop-types";
@@ -402,8 +403,15 @@ test("Custom map extent passes through raw lon for non-EPSG:3857 projections", a
 
   expect(await screen.findByText("Map Ready")).toBeInTheDocument();
 
-  const viewText = (await screen.findByTestId("map-view")).textContent;
-  const parsed = JSON.parse(viewText);
+  // `view` is filled by an effect that runs after `mapReady` flips, so the
+  // "Map Ready" marker can be on screen a render before the view JSON is.
+  // Every sibling assertion in this file waits; this one parses instead of
+  // matching a fixed string, which is how it ended up reading the empty
+  // initial state under full-suite load.
+  await waitFor(() =>
+    expect(screen.getByTestId("map-view")).toHaveTextContent(/"zoom"/),
+  );
+  const parsed = JSON.parse(screen.getByTestId("map-view").textContent);
   // Raw lon passes through unchanged — no wrap applied on the false branch.
   expect(parsed.center[0]).toBe(inputLon);
   expect(parsed.center[1]).toBe(lat);
@@ -1994,6 +2002,265 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
     expect(await screen.findByText(/Loading Slow Layer/)).toBeInTheDocument();
     // ...with role="status" and no dismiss control (only the danger variant is
     // dismissible; the loading alert clears itself when the layers settle).
+    expect(screen.queryByLabelText("Close alert")).not.toBeInTheDocument();
+  });
+
+  test("an outstanding plugin fetch is named even after its layer settles", async () => {
+    // The construct pass settles a runtime layer as ready long before its
+    // plugin fetch returns. Under the old spread merge `ready` won, so the map
+    // reported a settled layer while the plugin was still working -- the whole
+    // symptom the fetch status exists to remove.
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent
+            mapProps={{
+              layers: [],
+              layerPrepStatus: {
+                "Teacup Diagram": { state: "ready", message: null, kind: null },
+              },
+              runtimeLayerFetchStatus: {
+                "Teacup Diagram": {
+                  state: "loading",
+                  message: null,
+                  kind: null,
+                  percent: null,
+                },
+              },
+            }}
+          />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    expect(
+      await screen.findByText(/Loading Teacup Diagram/),
+    ).toBeInTheDocument();
+  });
+
+  test("the loading alert names every fetching layer and shows known percentages", async () => {
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent
+            mapProps={{
+              layers: [],
+              runtimeLayerFetchStatus: {
+                "Teacup Diagram": {
+                  state: "loading",
+                  message: null,
+                  kind: null,
+                  percent: 60,
+                },
+                "Basin Boundaries": {
+                  state: "loading",
+                  message: null,
+                  kind: null,
+                  percent: null,
+                },
+              },
+            }}
+          />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    // Both named, and only the one reporting progress carries a number.
+    const alert = await screen.findByRole("status");
+    expect(alert).toHaveTextContent("Teacup Diagram (60%)");
+    expect(alert).toHaveTextContent("Basin Boundaries");
+    expect(alert).not.toHaveTextContent("Basin Boundaries (");
+  });
+
+  test("percentages at the bounds read as working rather than as a number", async () => {
+    // A plugin's first message is often 0 and its last is often 100, neither of
+    // which tells the reader anything useful next to the layer name.
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent
+            mapProps={{
+              layers: [],
+              runtimeLayerFetchStatus: {
+                "At Zero": {
+                  state: "loading",
+                  message: null,
+                  kind: null,
+                  percent: 0,
+                },
+                "At Hundred": {
+                  state: "loading",
+                  message: null,
+                  kind: null,
+                  percent: 100,
+                },
+              },
+            }}
+          />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    const alert = await screen.findByRole("status");
+    expect(alert).toHaveTextContent("At Zero");
+    expect(alert).toHaveTextContent("At Hundred");
+    expect(alert).not.toHaveTextContent("%");
+  });
+
+  test("a layer failure still outranks an outstanding fetch on the same layer", async () => {
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent
+            mapProps={{
+              layers: [],
+              layerPrepStatus: {
+                "Teacup Diagram": {
+                  state: "error",
+                  message: "boom",
+                  kind: "fetch",
+                },
+              },
+              runtimeLayerFetchStatus: {
+                "Teacup Diagram": {
+                  state: "loading",
+                  message: null,
+                  kind: null,
+                  percent: 40,
+                },
+              },
+            }}
+          />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Teacup Diagram: boom",
+    );
+  });
+
+  test("a failure on one layer does not erase the loading names of others", async () => {
+    // These used to be two arms of one expression, so a single failed layer
+    // suppressed the loading message for the entire map.
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent
+            mapProps={{
+              layers: [],
+              layerPrepStatus: {
+                "Basin Boundaries": {
+                  state: "error",
+                  message: "boom",
+                  kind: "fetch",
+                },
+              },
+              runtimeLayerFetchStatus: {
+                "Teacup Diagram": {
+                  state: "loading",
+                  message: null,
+                  kind: null,
+                  percent: null,
+                },
+              },
+            }}
+          />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    // Both live inside the one anchor. Two anchors resolve to the same
+    // rectangle and would overlay each other -- which jsdom cannot see, so the
+    // stacking is pinned structurally rather than visually.
+    const stack = await screen.findByRole("group", { name: "Map Alerts" });
+    expect(within(stack).getByRole("alert")).toHaveTextContent(
+      "Basin Boundaries: boom",
+    );
+    expect(within(stack).getByRole("status")).toHaveTextContent(
+      "Loading Teacup Diagram",
+    );
+  });
+
+  test("dismissing a failure leaves the loading report on screen", async () => {
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent
+            mapProps={{
+              layers: [],
+              layerPrepStatus: {
+                "Basin Boundaries": {
+                  state: "error",
+                  message: "boom",
+                  kind: "fetch",
+                },
+              },
+              runtimeLayerFetchStatus: {
+                "Teacup Diagram": {
+                  state: "loading",
+                  message: null,
+                  kind: null,
+                  percent: null,
+                },
+              },
+            }}
+          />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Close alert"));
+
+    // The dismissal used to hide the only alert being computed, taking loading
+    // indication with it for as long as the failure stood.
+    await waitFor(() => {
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Loading Teacup Diagram",
+    );
+  });
+
+  test("the loading alert is never dismissible", async () => {
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent
+            mapProps={{
+              layers: [],
+              runtimeLayerFetchStatus: {
+                "Teacup Diagram": {
+                  state: "loading",
+                  message: null,
+                  kind: null,
+                  percent: null,
+                },
+              },
+            }}
+          />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Loading Teacup Diagram",
+    );
     expect(screen.queryByLabelText("Close alert")).not.toBeInTheDocument();
   });
 

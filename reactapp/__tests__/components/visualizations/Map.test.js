@@ -45,6 +45,7 @@ import {
 import MapContextProvider, {
   useMapContext,
 } from "components/contexts/MapContext";
+import { WebsocketContext } from "components/contexts/WebSocketContext";
 
 jest.mock("components/map/ModuleLoader", () => {
   const actual = jest.requireActual("components/map/ModuleLoader");
@@ -5315,6 +5316,153 @@ test("Map runtime layer hands features to the swap and identifies its grid item"
   expect(targetLayer.get("layerId")).toBe(layerId);
   expect(collection.features).toHaveLength(1);
   expect(collection.features[0].properties.nivel).toBe("Alto");
+});
+
+test("Map runtime layer resolves a composite request id for the layers control", async () => {
+  // The layers control builds `${sessionNonce}:${gridItemUuid}:${layerId}` and
+  // only looks up progress when every part is present. MapVisualization used to
+  // publish the grid item under `gridItemUUID` while the control read
+  // `gridItemUuid`, so the id was always null and the per-layer progress bar
+  // never rendered in the app. LayersControl's own tests pass the prop by hand,
+  // so only a render through the real producer can see this.
+  jest.spyOn(appAPI, "getVisualizationFeatures").mockResolvedValue({
+    success: true,
+    viz_type: "features",
+    data: {
+      type: "FeatureCollection",
+      features: [],
+      crs: { type: "name", properties: { name: "EPSG:4326" } },
+    },
+  });
+  const getMessageForRequest = jest.fn(() => null);
+
+  const layers = [JSON.parse(JSON.stringify(dynamicMapLayer))];
+  const layerId = layers[0].configuration.props.layerId;
+
+  render(
+    createLoadedComponent({
+      children: (
+        <GridItemContext.Provider value={{ gridItemUUID: "grid-uuid-1" }}>
+          <WebsocketContext.Provider value={{ getMessageForRequest }}>
+            <MapContextProvider>
+              <TestingComponent
+                mapProps={{
+                  mapConfig: {},
+                  viewConfig: {},
+                  layers,
+                  baseMap: null,
+                  layerControl: true,
+                  refreshCount: 0,
+                }}
+              />
+            </MapContextProvider>
+          </WebsocketContext.Provider>
+        </GridItemContext.Provider>
+      ),
+    }),
+  );
+
+  expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+  fireEvent.click(await screen.findByLabelText("Show Layers Control"));
+
+  await waitFor(() => {
+    expect(getMessageForRequest).toHaveBeenCalled();
+  });
+  const requestIds = getMessageForRequest.mock.calls.map(([id]) => id);
+  const composite = requestIds.find((id) => id && id.endsWith(`:${layerId}`));
+  expect(composite).toBeDefined();
+  expect(composite).not.toContain("undefined");
+  expect(composite).toContain(":grid-uuid-1:");
+});
+
+const BASE_MAP_A =
+  "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer";
+const BASE_MAP_B =
+  "https://server.arcgisonline.com/arcgis/rest/services/World_Topo_Map/MapServer";
+
+test("changing the base map leaves runtime layers on the map", async () => {
+  // Reported symptom: switching the base map made plugin-backed layers vanish.
+  // The base map was published on its own so it could paint before the slow
+  // layer preparation, which handed the reconciliation a list with no runtime
+  // layer in it -- so it tore them off. That run is superseded by the full
+  // publish, so it never records what it rendered, and the winning run then
+  // compares against the pre-change list, believes the layer is still mounted
+  // and skips rebuilding it. Removed, never rebuilt.
+  const mockGetVisualizationFeatures = jest
+    .spyOn(appAPI, "getVisualizationFeatures")
+    .mockResolvedValue({
+      success: true,
+      viz_type: "features",
+      data: {
+        type: "FeatureCollection",
+        features: [],
+        crs: { type: "name", properties: { name: "EPSG:4326" } },
+      },
+    });
+  const removeLayerSpy = jest.spyOn(Map.prototype, "removeLayer");
+
+  const layers = [JSON.parse(JSON.stringify(dynamicMapLayer))];
+  const layerId = layers[0].configuration.props.layerId;
+
+  const BaseMapSwitcher = () => {
+    const [baseMap, setBaseMap] = useState(BASE_MAP_A);
+    return (
+      <>
+        <button type="button" onClick={() => setBaseMap(BASE_MAP_B)}>
+          switch basemap
+        </button>
+        <TestingComponent
+          mapProps={{
+            mapConfig: {},
+            viewConfig: {},
+            layers,
+            baseMap,
+            layerControl: false,
+            refreshCount: 0,
+          }}
+        />
+      </>
+    );
+  };
+
+  render(
+    createLoadedComponent({
+      children: (
+        <MapContextProvider>
+          <BaseMapSwitcher />
+        </MapContextProvider>
+      ),
+    }),
+  );
+
+  expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  await waitFor(() => {
+    expect(mockGetVisualizationFeatures).toHaveBeenCalledTimes(1);
+  });
+
+  removeLayerSpy.mockClear();
+  fireEvent.click(screen.getByText("switch basemap"));
+
+  // Give the base map swap and the follow-up publish time to settle.
+  await waitFor(() => {
+    expect(
+      removeLayerSpy.mock.calls.some(
+        ([layer]) => layer?.get?.("name") === "World Light Gray Base",
+      ),
+    ).toBe(true);
+  });
+
+  // The runtime layer was never torn off, so nothing had to rebuild or refetch
+  // it -- its features are still the ones already painted.
+  expect(
+    removeLayerSpy.mock.calls.some(
+      ([layer]) => layer?.get?.("layerId") === layerId,
+    ),
+  ).toBe(false);
+  expect(mockGetVisualizationFeatures).toHaveBeenCalledTimes(1);
 });
 
 test("Map runtime layer swap dismisses popup and clears highlight after click", async () => {

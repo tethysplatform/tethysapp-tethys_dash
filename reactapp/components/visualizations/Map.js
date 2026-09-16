@@ -40,6 +40,8 @@ import PropTypes from "prop-types";
 import { COLOR_RAMPS, resolveRamp } from "components/map/colorRamps";
 import { applyAutoRamp } from "components/map/ModuleLoader";
 import { getBaseMapLayer } from "components/visualizations/utilities";
+import { LAYER_STATE, parseProgress } from "components/map/layerStatus";
+import { WebsocketContext } from "components/contexts/WebSocketContext";
 import useRuntimeLayerFetcher from "components/visualizations/runtimeLayerFetcher";
 import {
   AppContext,
@@ -404,7 +406,8 @@ const MapVisualization = ({
     }
   }, []);
 
-  const { errorsByLayerId, retry: retryRuntimeLayer } = useRuntimeLayerFetcher({
+  const { getMessageForRequest } = useContext(WebsocketContext) ?? {};
+  const { errorsByLayerId, loadingByLayerId } = useRuntimeLayerFetcher({
     layers,
     gridItemUUID,
     sessionNonce,
@@ -415,12 +418,69 @@ const MapVisualization = ({
     refreshTick: refreshCount,
   });
 
-  const runtimeLayerState = {
+  const runtimeLayerState = { errorsByLayerId };
+
+  // Name-keyed status for the layers whose plugin fetch is outstanding, so the
+  // map's loading banner can name them alongside layers loading for any other
+  // reason. Built by walking the live configs and reading the fetcher's entry
+  // by id, never the other way round: the fetcher's entries are state cleared
+  // inside an effect while this runs during render, so an entry-first walk can
+  // resolve a name of `undefined` for a frame and put "Loading undefined" on
+  // screen. A config with no name is skipped for the same reason.
+  const runtimeLayerFetchStatus = useMemo(() => {
+    const status = {};
+    // istanbul ignore next -- unreachable: a missing `layers` prop throws in
+    // this component's own effect and in useSnapping long before the fallback
+    // could matter. Kept so this memo, which runs during render, is not the
+    // thing that crashes first.
+    (layers ?? []).forEach((layer) => {
+      const layerProps = layer?.configuration?.props;
+      const name = layerProps?.name;
+      const layerId = layerProps?.layerId;
+      if (!name || !layerId) return;
+      // A failed fetch is reported on the same surface as a slow one. Without
+      // this the banner simply dropped the layer's name when it failed, so a
+      // broken layer and a finished one looked identical -- the other half of
+      // the problem a loading report exists to solve.
+      const failure = errorsByLayerId?.[layerId];
+      if (failure) {
+        status[name] = {
+          state: LAYER_STATE.ERROR,
+          message: failure.message,
+          kind: failure.kind,
+          percent: null,
+        };
+        return;
+      }
+      if (!loadingByLayerId?.[layerId]) return;
+      const requestId =
+        sessionNonce && gridItemUUID
+          ? `${sessionNonce}:${gridItemUUID}:${layerId}`
+          : null;
+      // Percentages are optional: only a plugin that reports progress has one,
+      // and only while the fetch it belongs to is still outstanding. Reading it
+      // here rather than in the layers control keeps the banner the single
+      // place loading is reported.
+      const percent =
+        requestId && getMessageForRequest
+          ? parseProgress(getMessageForRequest(requestId))
+          : null;
+      status[name] = {
+        state: LAYER_STATE.LOADING,
+        message: null,
+        kind: null,
+        percent,
+      };
+    });
+    return status;
+  }, [
+    layers,
+    loadingByLayerId,
     errorsByLayerId,
-    retry: retryRuntimeLayer,
     sessionNonce,
     gridItemUUID,
-  };
+    getMessageForRequest,
+  ]);
 
   // --- Linked cursor (U5) -------------------------------------------------
   // The marker lives here, not in MapComponent, because this is where the
@@ -691,6 +751,7 @@ const MapVisualization = ({
         (layers && !valuesEqual(layers, currentLayers.current)) ||
         !valuesEqual(baseMap, currentBaseMap.current)
       ) {
+        const previousBaseMap = currentBaseMap.current;
         currentBaseMap.current = baseMap;
         currentLayers.current = JSON.parse(JSON.stringify(layers));
         const newMapLegend = [];
@@ -707,7 +768,34 @@ const MapVisualization = ({
         }
         if (baseMapLayer) {
           baseMapLayer.props.zIndex = 0;
-          setMapLayers([baseMapLayer]);
+          // Swap only the base map entry; everything else that was already
+          // published stays.
+          //
+          // Publishing the base map alone used to hand the map a layer list
+          // with no runtime layers in it. The reconciliation found no id to
+          // preserve and tore every runtime layer off, and because that run is
+          // superseded by the full publish below, it never records what it
+          // rendered -- so the winning run compares against the pre-change list,
+          // identity-matches the layer it believes is still mounted, and skips
+          // constructing it. The layer ends up removed with nothing rebuilt,
+          // which is why changing the base map made plugin layers disappear.
+          //
+          // Keeping the already-prepared entries means the reconciliation
+          // matches them by identity and leaves their OpenLayers layers, and
+          // their features, untouched. Their zIndex values were assigned on the
+          // publish that placed them and still order them behind index 0.
+          const previousBaseMapName = previousBaseMap
+            ? getBaseMapLayer(previousBaseMap)?.props?.name
+            : null;
+          setMapLayers((previous) => {
+            const published = previous ?? [];
+            const kept = previousBaseMapName
+              ? published.filter(
+                  (config) => config?.props?.name !== previousBaseMapName,
+                )
+              : published;
+            return [baseMapLayer, ...kept];
+          });
         }
 
         // Prepared in parallel. These are independent per layer -- each awaits
@@ -1603,6 +1691,7 @@ const MapVisualization = ({
         dataviewerViz={dataviewerViz}
         runtimeLayerState={runtimeLayerState}
         layerPrepStatus={layerPrepStatus}
+        runtimeLayerFetchStatus={runtimeLayerFetchStatus}
       />
       <PopupModal
         show={!!activeModalFeature}

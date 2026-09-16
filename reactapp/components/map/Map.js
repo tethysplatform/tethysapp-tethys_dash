@@ -10,7 +10,11 @@ import moduleLoader, {
 // matters, because layers are constructed concurrently and a registration that
 // waited on anything async would race them.
 import { isNativelyResolvable } from "components/map/projectionCodes";
-import { CANCEL_REASON, errorKindFor } from "components/map/layerStatus";
+import {
+  CANCEL_REASON,
+  errorKindFor,
+  mergeLayerStatus,
+} from "components/map/layerStatus";
 import LayersControl from "components/map/LayersControl";
 import FloatingMapControl from "components/map/FloatingMapControl";
 import LegendControl from "components/map/LegendControl";
@@ -58,6 +62,16 @@ const ALERT_EDGES = ["top", "left", "right"];
 
 const StyledAlert = styled(Alert)`
   margin: 0;
+`;
+
+// Every alert anchor resolves to the same rectangle, and each one portals a
+// fixed-position copy pinned to it -- so two anchors put one alert on top of
+// another rather than stacking them. The map's alerts share a single anchor
+// and stack inside it instead.
+const AlertStack = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 `;
 
 const InfoDiv = styled.div`
@@ -326,6 +340,7 @@ const MapComponent = ({
   dataviewerViz,
   runtimeLayerState,
   layerPrepStatus,
+  runtimeLayerFetchStatus,
 }) => {
   const [errorMessage, setErrorMessage] = useState("");
   // Per-layer load state, keyed on layer name, for every source read in the
@@ -344,7 +359,12 @@ const MapComponent = ({
   // Settle a layer's entry at the end of its construct pass. `ready` mirrors
   // what the shapefile watcher writes on success; `idle` drops the entry, for a
   // layer that finished with nothing to report.
-  const settleLayerStatus = (name, state) =>
+  const settleLayerStatus = (name, state) => {
+    // Status is keyed by name, and the banner renders those keys. A layer
+    // without one would key the literal string "undefined" and be reported as
+    // "Loading undefined" -- so it is skipped here, as it already is in the
+    // prep and plugin-fetch sources.
+    if (!name) return;
     setLayerStatus((previous) => {
       if (state === "idle") {
         const { [name]: _dropped, ...rest } = previous;
@@ -352,6 +372,7 @@ const MapComponent = ({
       }
       return { ...previous, [name]: { state, message: null, kind: null } };
     });
+  };
   const mapDivRef = useRef();
   const onMapClickCurrent = useRef();
   const onMapHoverCurrent = useRef();
@@ -467,9 +488,15 @@ const MapComponent = ({
   // entries are merged in here rather than living in the state above. A layer
   // being prepared cannot also be constructing, so neither side overwrites a
   // more specific state belonging to the other.
+  // Three independent sources, combined by state priority rather than spread
+  // order. The construct pass settles a runtime layer as ready well before its
+  // plugin fetch returns, so a spread would let `ready` mask an outstanding
+  // fetch -- the exact symptom the fetch status exists to report. The fetch
+  // source is last so it also wins ties.
   const mergedLayerStatus = useMemo(
-    () => ({ ...layerPrepStatus, ...layerStatus }),
-    [layerPrepStatus, layerStatus],
+    () =>
+      mergeLayerStatus(layerPrepStatus, layerStatus, runtimeLayerFetchStatus),
+    [layerPrepStatus, layerStatus, runtimeLayerFetchStatus],
   );
 
   const statusEntries = Object.entries(mergedLayerStatus);
@@ -482,29 +509,35 @@ const MapComponent = ({
   const layerFailureKey = layerFailures
     .map(([name, status]) => `${name}: ${status.message}`)
     .join(" | ");
-  const layerAlert = layerFailures.length
-    ? {
-        variant: "danger",
-        message: layerFailures
-          .map(([name, status]) => `${name}: ${status.message}`)
-          .join(" "),
-      }
-    : layersLoading.length
-      ? {
-          variant: "info",
-          message: `Loading ${layersLoading
-            .map(([name]) => name)
-            .join(", ")}\u2026`,
-        }
-      : null;
-  // Only the (dismissible) error alert is suppressed once dismissed; the loading
-  // alert clears itself when the layers settle, so it is never hidden this way.
-  const showLayerAlert =
-    !!layerAlert &&
-    !(
-      layerAlert.variant === "danger" &&
-      layerFailureKey === dismissedLayerFailureKey
-    );
+  // Failure and loading are independent, not two arms of one expression. As
+  // one expression a single failed layer erased the loading names of every
+  // other layer, and dismissing that failure suppressed the only alert being
+  // computed -- so loading indication went silent for the whole map.
+  const layerFailureMessage = layerFailures.length
+    ? layerFailures
+        .map(([name, status]) => `${name}: ${status.message}`)
+        .join(" ")
+    : null;
+  const layerLoadingMessage = layersLoading.length
+    ? `Loading ${layersLoading
+        .map(([name, status]) =>
+          // Only a plugin that reports progress has a percentage. Keep the
+          // bound the old bar used -- strictly between 0 and 100 -- so a
+          // leading 0% or a trailing 100% reads as "working" rather than as
+          // a number that looks wrong.
+          typeof status.percent === "number" &&
+          status.percent > 0 &&
+          status.percent < 100
+            ? `${name} (${Math.round(status.percent)}%)`
+            : name,
+        )
+        .join(", ")}\u2026`
+    : null;
+  // Dismissal applies only to the failure. The loading alert clears itself when
+  // the layers settle, and is now unaffected by a dismissed failure.
+  const showLayerFailure =
+    !!layerFailureMessage && layerFailureKey !== dismissedLayerFailureKey;
+  const showLayerLoading = !!layerLoadingMessage;
 
   const defaultMapConfig = {
     className: "ol-map",
@@ -898,10 +931,12 @@ const MapComponent = ({
           // a slice, a GeoPackage fetches the whole file. Only the shapefile
           // reported any of that, because only it defers work to an OL loader
           // with events to watch. Marking the pass itself covers every type.
-          setLayerStatus((previous) => ({
-            ...previous,
-            [name]: { state: "loading", message: null, kind: null },
-          }));
+          if (name) {
+            setLayerStatus((previous) => ({
+              ...previous,
+              [name]: { state: "loading", message: null, kind: null },
+            }));
+          }
 
           try {
             // Resolve a Zarr layer's ramp from the slice's real value range
@@ -1794,47 +1829,51 @@ const MapComponent = ({
   return (
     <>
       <div aria-label="Map Div" ref={mapDivRef} {...customMapConfig}>
-        {errorMessage && (
+        {(errorMessage ||
+          showLayerFailure ||
+          showLayerLoading ||
+          viewGroupMismatch) && (
           <AlertAnchor edges={ALERT_EDGES} mapDivRef={mapDivRef}>
-            <StyledAlert
-              key="failure"
-              variant="danger"
-              dismissible={true}
-              onClose={() => setErrorMessage("")}
-            >
-              {errorMessage}
-            </StyledAlert>
-          </AlertAnchor>
-        )}
-        {showLayerAlert && (
-          <AlertAnchor edges={ALERT_EDGES} mapDivRef={mapDivRef}>
-            <StyledAlert
-              variant={layerAlert.variant}
-              role={layerAlert.variant === "danger" ? "alert" : "status"}
-              aria-live="polite"
-              dismissible={layerAlert.variant === "danger"}
-              onClose={
-                layerAlert.variant === "danger"
-                  ? () => setDismissedLayerFailureKey(layerFailureKey)
-                  : undefined
-              }
-            >
-              {layerAlert.message}
-            </StyledAlert>
-          </AlertAnchor>
-        )}
-        {viewGroupMismatch && (
-          <AlertAnchor edges={ALERT_EDGES} mapDivRef={mapDivRef}>
-            <StyledAlert
-              variant="warning"
-              role="status"
-              aria-live="polite"
-              aria-label="View Group Projection Mismatch"
-            >
-              {`This map is not synced with the "${viewGroupMismatch.groupName}" ` +
-                `view group: it is in ${viewGroupMismatch.mapCode} and the ` +
-                `group is in ${viewGroupMismatch.groupCode}.`}
-            </StyledAlert>
+            <AlertStack role="group" aria-label="Map Alerts">
+              {errorMessage && (
+                <StyledAlert
+                  key="failure"
+                  variant="danger"
+                  dismissible={true}
+                  onClose={() => setErrorMessage("")}
+                >
+                  {errorMessage}
+                </StyledAlert>
+              )}
+              {showLayerFailure && (
+                <StyledAlert
+                  variant="danger"
+                  role="alert"
+                  aria-live="polite"
+                  dismissible={true}
+                  onClose={() => setDismissedLayerFailureKey(layerFailureKey)}
+                >
+                  {layerFailureMessage}
+                </StyledAlert>
+              )}
+              {showLayerLoading && (
+                <StyledAlert variant="info" role="status" aria-live="polite">
+                  {layerLoadingMessage}
+                </StyledAlert>
+              )}
+              {viewGroupMismatch && (
+                <StyledAlert
+                  variant="warning"
+                  role="status"
+                  aria-live="polite"
+                  aria-label="View Group Projection Mismatch"
+                >
+                  {`This map is not synced with the "${viewGroupMismatch.groupName}" ` +
+                    `view group: it is in ${viewGroupMismatch.mapCode} and the ` +
+                    `group is in ${viewGroupMismatch.groupCode}.`}
+                </StyledAlert>
+              )}
+            </AlertStack>
           </AlertAnchor>
         )}
         {dataviewerViz && (
@@ -1863,13 +1902,6 @@ const MapComponent = ({
             updater={layerControlUpdate}
             runtimeLayerState={runtimeLayerState}
             layerStatus={mergedLayerStatus}
-            onRetryLayer={(layerName) => {
-              const layer = visualizationRef.current
-                ?.getLayers()
-                .getArray()
-                .find((candidate) => candidate.get("name") === layerName);
-              layer?.getSource?.()?.get?.("shapefileController")?.reset?.();
-            }}
           />
         )}
         {legend && legend.length > 0 && (
@@ -1906,13 +1938,19 @@ MapComponent.propTypes = {
   dataviewerViz: PropTypes.bool, // determines if the map is in the dataviewer so that it doesnt affect the main map
   mapDrawing: mapDrawingPropType,
   drawing: PropTypes.shape({ current: PropTypes.bool }),
-  // Runtime dynamic_map_layer state bundle: errors keyed by layerId, retry
-  // action, plus sessionNonce + gridItemUuid for building composite WebSocket
-  // requestIds (Unit 3/5). Undefined for dataviewer / legacy maps — LayersControl
-  // handles absence gracefully.
+  // Runtime dynamic_map_layer state bundle: errors keyed by layerId and the
+  // retry action. Loading is reported by the map's banner rather than by the
+  // layers control, so no request-id parts are carried here. Undefined for
+  // dataviewer / legacy maps — LayersControl handles absence gracefully.
   // Layers still being prepared by the parent (style fetch, raster header
   // read). That phase precedes any OL layer, so the map cannot observe it and
   // is told instead; merged with the map's own per-layer state for display.
+  runtimeLayerFetchStatus: PropTypes.objectOf(
+    PropTypes.shape({
+      state: PropTypes.string,
+      percent: PropTypes.number,
+    }),
+  ),
   layerPrepStatus: PropTypes.objectOf(
     PropTypes.shape({
       state: PropTypes.string,
@@ -1921,8 +1959,6 @@ MapComponent.propTypes = {
   runtimeLayerState: PropTypes.shape({
     errorsByLayerId: PropTypes.object,
     retry: PropTypes.func,
-    sessionNonce: PropTypes.string,
-    gridItemUuid: PropTypes.string,
   }),
 };
 

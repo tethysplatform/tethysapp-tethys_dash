@@ -7,6 +7,8 @@ import MapVisualization from "components/visualizations/Map";
 import MapContextProvider from "components/contexts/MapContext";
 import { loadLayerJSONs } from "components/map/utilities";
 import moduleLoader, { applyAutoRamp } from "components/map/ModuleLoader";
+import appAPI from "services/api/app";
+import { dynamicMapLayer } from "__tests__/utilities/constants";
 
 global.ResizeObserver = require("resize-observer-polyfill");
 
@@ -260,4 +262,196 @@ test("a raster reading its header holds up only itself", async () => {
   await waitFor(() =>
     expect(addedLayerNames(addLayerSpy)).toContain("Ramped raster"),
   );
+});
+
+describe("an outstanding plugin fetch is reported in the banner", () => {
+  const emptyFeatures = {
+    success: true,
+    viz_type: "features",
+    data: {
+      type: "FeatureCollection",
+      features: [],
+      crs: { type: "name", properties: { name: "EPSG:4326" } },
+    },
+  };
+
+  const runtimeLayer = (name, layerId) => {
+    const layer = JSON.parse(JSON.stringify(dynamicMapLayer));
+    layer.configuration.props.name = name;
+    layer.configuration.props.layerId = layerId;
+    return layer;
+  };
+
+  test("a plugin that reports no progress is still named for its whole run", async () => {
+    // The reported symptom: a five-second sleep inside a plugin's feature fetch
+    // showed nothing at all, because a layer only got an indicator if the
+    // plugin volunteered progress messages.
+    const gate = deferred();
+    jest
+      .spyOn(appAPI, "getVisualizationFeatures")
+      .mockImplementation(() => gate.promise.then(() => emptyFeatures));
+
+    await mount([runtimeLayer("Teacup Diagram", "layer-1")]);
+
+    // Content asserted inside waitFor: the alert element appears a render
+    // before its text settles, so a bare findByRole can resolve on an empty one.
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Loading Teacup Diagram",
+      );
+    });
+    // No percentage: this plugin sends none, and the banner must not invent one.
+    expect(screen.getByRole("status")).not.toHaveTextContent("%");
+
+    await gate.release();
+
+    await waitFor(() => {
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    });
+  });
+
+  test("two layers fetching at once are both named, and clear independently", async () => {
+    const first = deferred();
+    const second = deferred();
+    jest
+      .spyOn(appAPI, "getVisualizationFeatures")
+      .mockImplementation(({ requestId }) =>
+        requestId.endsWith(":layer-1")
+          ? first.promise.then(() => emptyFeatures)
+          : second.promise.then(() => emptyFeatures),
+      );
+
+    await mount([
+      runtimeLayer("Teacup Diagram", "layer-1"),
+      runtimeLayer("Basin Boundaries", "layer-2"),
+    ]);
+
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent("Teacup Diagram"),
+    );
+    // Both fetches start together, so the second name is in the same render.
+    expect(screen.getByRole("status")).toHaveTextContent("Basin Boundaries");
+
+    await first.release();
+
+    // One settles; the other is still named, on its own.
+    // The settled layer is dropped from the message; the remaining one is now
+    // named on its own, which this exact string can only match once Teacup has
+    // gone.
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Loading Basin Boundaries",
+      ),
+    );
+
+    await second.release();
+    await waitFor(() => {
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    });
+  });
+
+  test("a preparing layer and a fetching plugin share one message", async () => {
+    // The merge's actual job, which had only ever been tested in halves: a
+    // layer still being prepared and a plugin still fetching come from two
+    // different status sources and must land in one banner, not two.
+    const prep = deferred();
+    const fetchGate = deferred();
+    loadLayerJSONs.mockImplementation((layer) =>
+      layer.configuration.props.name === "Basins"
+        ? prep.promise
+        : Promise.resolve(),
+    );
+    jest
+      .spyOn(appAPI, "getVisualizationFeatures")
+      .mockImplementation(() => fetchGate.promise.then(() => emptyFeatures));
+
+    await mount([
+      styledLayer("Basins"),
+      runtimeLayer("Teacup Diagram", "layer-1"),
+    ]);
+
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent("Basins"),
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Teacup Diagram");
+    // One alert carrying both, not one alert per source.
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+
+    await prep.release();
+
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Loading Teacup Diagram",
+      ),
+    );
+
+    await fetchGate.release();
+    await waitFor(() => {
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    });
+  });
+
+  test("a layer with no name is never named in the banner", async () => {
+    // Every status source keys by name, so a config without one has to be
+    // skipped rather than keyed under `undefined` and rendered as "Loading
+    // undefined". Construction is held open so the window is genuinely
+    // outstanding while this asserts -- otherwise a fast source settles first
+    // and the assertion passes without exercising anything.
+    const constructGate = deferred();
+    const fetchGate = deferred();
+    moduleLoader.mockImplementation(async (config, ...rest) => {
+      if (!config?.props?.name) {
+        await constructGate.promise;
+      }
+      return realModuleLoader(config, ...rest);
+    });
+    jest
+      .spyOn(appAPI, "getVisualizationFeatures")
+      .mockImplementation(() => fetchGate.promise.then(() => emptyFeatures));
+
+    const nameless = runtimeLayer("Nameless", "layer-1");
+    delete nameless.configuration.props.name;
+
+    await mount([nameless]);
+
+    await waitFor(() =>
+      expect(addedLayerNames(addLayerSpy)).toContain("World Light Gray Base"),
+    );
+    // Construction is still outstanding for the nameless layer at this point.
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+
+    await constructGate.release();
+    await fetchGate.release();
+  });
+
+  test("a failed fetch stops being reported as loading", async () => {
+    const gate = deferred();
+    jest.spyOn(appAPI, "getVisualizationFeatures").mockImplementation(() =>
+      gate.promise.then(() => ({
+        success: false,
+        data: { error: "plugin blew up" },
+      })),
+    );
+
+    await mount([runtimeLayer("Teacup Diagram", "layer-1")]);
+
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Loading Teacup Diagram",
+      );
+    });
+
+    await gate.release();
+
+    // The layer is no longer working, so the banner stops claiming it is --
+    // and says what went wrong instead. Dropping the name silently was the
+    // other half of the original complaint: a broken layer looked exactly like
+    // a finished one.
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Teacup Diagram: plugin blew up",
+      ),
+    );
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
 });

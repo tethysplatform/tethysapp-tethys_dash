@@ -1,14 +1,7 @@
-import { useContext, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import PropTypes from "prop-types";
-import { isRetryable } from "components/map/layerStatus";
 import styled from "styled-components";
-import {
-  FaLayerGroup,
-  FaTimes,
-  FaExclamationTriangle,
-  FaRedo,
-} from "react-icons/fa";
-import { WebsocketContext } from "components/contexts/WebSocketContext";
+import { FaLayerGroup, FaTimes, FaExclamationTriangle } from "react-icons/fa";
 import FloatingMapControl, {
   MapSizedControlContainer,
 } from "components/map/FloatingMapControl";
@@ -22,22 +15,6 @@ const ControlWrapper = styled(FloatingMapControl)`
 `;
 const LAYERS_EDGES = ["bottom", "right"];
 
-const ProgressBar = styled.div`
-  height: 4px;
-  background: #e0e0e0;
-  border-radius: 2px;
-  overflow: hidden;
-  margin-top: 3px;
-  width: 100%;
-`;
-
-const ProgressFill = styled.div`
-  height: 100%;
-  background: #3498db;
-  transition: width 200ms ease-out;
-  width: ${(props) => `${props.$pct}%`};
-`;
-
 const ErrorBadge = styled.div`
   display: flex;
   align-items: center;
@@ -49,34 +26,6 @@ const ErrorBadge = styled.div`
   border-radius: 3px;
   font-size: 11px;
 `;
-
-const RetryBtn = styled.button`
-  background: none;
-  border: 1px solid #8a1f1f;
-  color: #8a1f1f;
-  cursor: pointer;
-  font-size: 11px;
-  padding: 1px 6px;
-  border-radius: 3px;
-  &:hover {
-    background: #f8d7d3;
-  }
-`;
-
-// Parse a WebSocket message's percentageComplete. Messages are JSON strings
-// keyed by requestId. Returns null when no parseable progress is present.
-export function parseProgress(rawMessage) {
-  if (!rawMessage) return null;
-  try {
-    const parsed = JSON.parse(rawMessage);
-    if (typeof parsed.percentageComplete === "number") {
-      return parsed.percentageComplete;
-    }
-  } catch {
-    // fall through
-  }
-  return null;
-}
 
 const LayerControlContainer = styled.div`
   background-color: white;
@@ -119,18 +68,12 @@ const LayersControl = ({
   visualizationRef,
   runtimeLayerState,
   layerStatus,
-  onRetryLayer,
   mapDivRef,
 }) => {
   const [layers, setLayers] = useState([]); // [<openlayer layers>], controls what is shown in the layer controls
   const [isexpanded, setisexpanded] = useState(false); // bool, controls layer conrol menu expansion
   const [layerVisibility, setLayerVisibility] = useState({}); // {layerName: layerVisibility, ...}, controls checkbox checked value based on layer visibility
-  const websocketContext = useContext(WebsocketContext) ?? {};
-  const { getMessageForRequest } = websocketContext;
   const errorsByLayerId = runtimeLayerState?.errorsByLayerId ?? {};
-  const retryRuntimeLayer = runtimeLayerState?.retry;
-  const sessionNonce = runtimeLayerState?.sessionNonce;
-  const gridItemUuid = runtimeLayerState?.gridItemUuid;
 
   useEffect(() => {
     if (visualizationRef.current) {
@@ -196,34 +139,18 @@ const LayersControl = ({
               {layers.map((layer, index) => {
                 const layerName = layer.get("name") ?? `Layer ${index + 1}`;
                 const layerId = layer.get("layerId");
-                // Runtime dynamic_map_layer progress + error state is scoped
-                // to layers tagged with a layerId by Unit 4. Static layers
-                // render only the visibility checkbox, as before.
+                // Runtime dynamic_map_layer errors are scoped to layers tagged
+                // with a layerId. Static layers render only the visibility
+                // checkbox, as before.
                 const isRuntime = !!layerId;
-                const compositeRequestId =
-                  isRuntime && sessionNonce && gridItemUuid
-                    ? `${sessionNonce}:${gridItemUuid}:${layerId}`
-                    : null;
-                const progressMessage =
-                  compositeRequestId && getMessageForRequest
-                    ? getMessageForRequest(compositeRequestId)
-                    : null;
-                const progressPct = parseProgress(progressMessage);
                 const error = isRuntime ? errorsByLayerId[layerId] : undefined;
-                // Client-parsed sources carry their own status, read from the
-                // source rather than from a request id -- there is no backend
-                // request behind them, so the progress channel above never has
-                // anything to report for one.
+                // Loading is reported by the map's banner, not here: this panel
+                // is collapsed by default, so a hairline bar inside it was the
+                // least visible place to say a layer is still working. Failures
+                // stay, because they carry a message and a retry action that
+                // only make sense against the layer they belong to.
                 const status = layerStatus?.[layerName];
-                const statusLoading = status?.state === "loading";
                 const statusError = status?.state === "error" ? status : null;
-                // Hide progress bar once an error is set (error supersedes
-                // any stale in-progress message) or when it has completed.
-                const showProgress =
-                  !error &&
-                  typeof progressPct === "number" &&
-                  progressPct > 0 &&
-                  progressPct < 100;
 
                 return (
                   <div
@@ -246,64 +173,20 @@ const LayersControl = ({
                       />
                       <span>{layerName}</span>
                     </label>
-                    {showProgress && (
-                      <div
-                        role="status"
-                        aria-live="polite"
-                        aria-label={`${layerName} loading ${Math.round(progressPct)}%`}
-                      >
-                        <ProgressBar>
-                          <ProgressFill
-                            $pct={Math.max(0, Math.min(100, progressPct))}
-                          />
-                        </ProgressBar>
-                      </div>
-                    )}
-                    {statusLoading && (
-                      <div
-                        role="status"
-                        aria-live="polite"
-                        aria-label={`${layerName} loading`}
-                      >
-                        <ProgressBar>
-                          <ProgressFill $pct={100} />
-                        </ProgressBar>
-                      </div>
-                    )}
+                    {/* Message only. The map's banner reports which layers
+                        have failed and why; this repeats it against the layer
+                        it belongs to, and there is no longer any action to
+                        offer -- a failed layer is recovered by reloading. */}
                     {statusError && (
                       <ErrorBadge role="alert">
                         <FaExclamationTriangle aria-hidden="true" />
                         <span style={{ flex: 1 }}>{statusError.message}</span>
-                        {/* Retry only where re-running the same request could
-                            succeed. A missing projection, an unresolvable
-                            coordinate system, a malformed component and a source
-                            over the size ceiling all need the author to change
-                            something, so a button here would invite a viewer to
-                            re-download megabytes and fail identically. */}
-                        {isRetryable(statusError.kind) && onRetryLayer && (
-                          <RetryBtn
-                            type="button"
-                            onClick={() => onRetryLayer(layerName)}
-                            aria-label={`Retry ${layerName}`}
-                          >
-                            <FaRedo aria-hidden="true" /> Retry
-                          </RetryBtn>
-                        )}
                       </ErrorBadge>
                     )}
                     {error && (
                       <ErrorBadge role="alert">
                         <FaExclamationTriangle aria-hidden="true" />
                         <span style={{ flex: 1 }}>{error.message}</span>
-                        {error.kind !== "unavailable" && retryRuntimeLayer && (
-                          <RetryBtn
-                            type="button"
-                            onClick={() => retryRuntimeLayer(layerId)}
-                            aria-label={`Retry ${layerName}`}
-                          >
-                            <FaRedo aria-hidden="true" /> Retry
-                          </RetryBtn>
-                        )}
                       </ErrorBadge>
                     )}
                   </div>
@@ -336,9 +219,6 @@ LayersControl.propTypes = {
   // Undefined for dataviewer / legacy maps.
   runtimeLayerState: PropTypes.shape({
     errorsByLayerId: PropTypes.object,
-    retry: PropTypes.func,
-    sessionNonce: PropTypes.string,
-    gridItemUuid: PropTypes.string,
   }),
   // Load state for every layer whose source is read in the browser, keyed on
   // layer name. These carry no backend request, so they cannot use the progress
@@ -350,7 +230,6 @@ LayersControl.propTypes = {
       kind: PropTypes.string,
     }),
   ),
-  onRetryLayer: PropTypes.func,
   /** The map div this control belongs to, for the map-relative height cap. */
   mapDivRef: PropTypes.shape({ current: PropTypes.any }),
 };
