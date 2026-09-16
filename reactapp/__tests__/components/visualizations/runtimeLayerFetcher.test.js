@@ -1261,4 +1261,404 @@ describe("useRuntimeLayerFetcher", () => {
 
     expect(getFeaturesMock).not.toHaveBeenCalled();
   });
+
+  // The window the hook always computed and never published. Every clear path
+  // is load-bearing for banner correctness -- there is no reconciliation pass
+  // or timeout behind it -- so each terminal path gets its own test.
+  describe("in-flight reporting", () => {
+    // Stable identities: the reconciliation effect keys on these by reference,
+    // so fresh literals per render would re-run it every render.
+    const noVariableInputs = {};
+    const noDateFormats = {};
+    const hookArgs = (over = {}) => ({
+      gridItemUUID: "grid-a",
+      sessionNonce: "nonce",
+      variableInputValues: noVariableInputs,
+      variableInputDateFormats: noDateFormats,
+      ...over,
+    });
+
+    test("opens on schedule and stays open across the debounce wait", async () => {
+      const olLayer = fakeOlLayer("layer-1");
+      const mapRef = { current: fakeOlMap([olLayer]) };
+      const layers = [runtimeLayerConfig({ layerId: "layer-1" })];
+
+      const { result } = renderHook(() =>
+        useRuntimeLayerFetcher(hookArgs({ layers, mapRef })),
+      );
+
+      // Open before the request is dispatched: the debounce is inside the
+      // window, otherwise every load has a silent quarter-second.
+      await waitFor(() => {
+        expect(result.current.loadingByLayerId["layer-1"]).toBe(true);
+      });
+      expect(getFeaturesMock).not.toHaveBeenCalled();
+
+      await act(async () => {
+        jest.advanceTimersByTime(249);
+        await Promise.resolve();
+      });
+      expect(result.current.loadingByLayerId["layer-1"]).toBe(true);
+      expect(getFeaturesMock).not.toHaveBeenCalled();
+
+      await act(async () => {
+        jest.advanceTimersByTime(2);
+        await Promise.resolve();
+      });
+      expect(getFeaturesMock).toHaveBeenCalledTimes(1);
+
+      await waitFor(() => {
+        expect(result.current.loadingByLayerId).toEqual({});
+      });
+    });
+
+    test("a superseding fetch keeps the window continuously open", async () => {
+      const olLayer = fakeOlLayer("layer-1");
+      const mapRef = { current: fakeOlMap([olLayer]) };
+      // eslint-disable-next-line no-template-curly-in-string
+      const layers = [runtimeLayerConfig({ args: { bbox: "${BBox}" } })];
+
+      // Sampled on every render, not only at the end: a flag that drops between
+      // the old request settling and the new one completing is exactly the
+      // handover defect, and an end-state assertion cannot see it.
+      // Both deferred: if the replacement resolved immediately the window would
+      // close legitimately and the handover would not be observable.
+      let resolveFirst;
+      let resolveSecond;
+      getFeaturesMock
+        .mockImplementationOnce(
+          () =>
+            new Promise((res) => {
+              resolveFirst = res;
+            }),
+        )
+        .mockImplementationOnce(
+          () =>
+            new Promise((res) => {
+              resolveSecond = res;
+            }),
+        );
+
+      const samples = [];
+      const { result, rerender } = renderHook(
+        ({ variableInputValues }) => {
+          const r = useRuntimeLayerFetcher(
+            hookArgs({ layers, mapRef, variableInputValues }),
+          );
+          samples.push(r.loadingByLayerId["layer-1"] === true);
+          return r;
+        },
+        { initialProps: { variableInputValues: { BBox: "1,2,3,4" } } },
+      );
+
+      await act(async () => {
+        jest.advanceTimersByTime(250);
+        await Promise.resolve();
+      });
+      expect(getFeaturesMock).toHaveBeenCalledTimes(1);
+
+      const openedBefore = samples.length;
+      rerender({ variableInputValues: { BBox: "9,9,9,9" } });
+      await act(async () => {
+        jest.advanceTimersByTime(250);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(getFeaturesMock).toHaveBeenCalledTimes(2);
+
+      // The superseded request settles after its replacement started.
+      await act(async () => {
+        resolveFirst({ success: true, viz_type: "features", data: validFc });
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      // Across the whole handover the layer never reported settled.
+      expect(samples.slice(openedBefore).every(Boolean)).toBe(true);
+      expect(result.current.loadingByLayerId["layer-1"]).toBe(true);
+
+      await act(async () => {
+        resolveSecond({ success: true, viz_type: "features", data: validFc });
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      await waitFor(() => {
+        expect(result.current.loadingByLayerId).toEqual({});
+      });
+    });
+
+    test("a late success from a superseded request cannot close the newer window", async () => {
+      const olLayer = fakeOlLayer("layer-1");
+      const mapRef = { current: fakeOlMap([olLayer]) };
+      // eslint-disable-next-line no-template-curly-in-string
+      const layers = [runtimeLayerConfig({ args: { bbox: "${BBox}" } })];
+
+      // First request resolves on our schedule. axios never rejects a request
+      // that had already resolved when a newer one superseded it, so its tail
+      // runs a microtask later and would otherwise clear the new window.
+      let resolveFirst;
+      let resolveSecond;
+      getFeaturesMock
+        .mockImplementationOnce(
+          () =>
+            new Promise((res) => {
+              resolveFirst = res;
+            }),
+        )
+        .mockImplementationOnce(
+          () =>
+            new Promise((res) => {
+              resolveSecond = res;
+            }),
+        );
+
+      const { result, rerender } = renderHook(
+        ({ variableInputValues }) =>
+          useRuntimeLayerFetcher(
+            hookArgs({ layers, mapRef, variableInputValues }),
+          ),
+        { initialProps: { variableInputValues: { BBox: "1,2,3,4" } } },
+      );
+
+      await act(async () => {
+        jest.advanceTimersByTime(250);
+        await Promise.resolve();
+      });
+      expect(getFeaturesMock).toHaveBeenCalledTimes(1);
+
+      // Second request is dispatched while the first is still unresolved.
+      rerender({ variableInputValues: { BBox: "9,9,9,9" } });
+      await act(async () => {
+        jest.advanceTimersByTime(250);
+        await Promise.resolve();
+      });
+      expect(getFeaturesMock).toHaveBeenCalledTimes(2);
+
+      // Now let the superseded request's success tail run.
+      await act(async () => {
+        resolveFirst({ success: true, viz_type: "features", data: validFc });
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      // The replacement is still outstanding, so the window stays open.
+      expect(result.current.loadingByLayerId["layer-1"]).toBe(true);
+
+      await act(async () => {
+        resolveSecond({ success: true, viz_type: "features", data: validFc });
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      await waitFor(() => {
+        expect(result.current.loadingByLayerId).toEqual({});
+      });
+    });
+
+    test("a layer removed mid-flight closes its window at the cancel site", async () => {
+      const olLayer = fakeOlLayer("layer-1");
+      const mapRef = { current: fakeOlMap([olLayer]) };
+      const layers = [runtimeLayerConfig({ layerId: "layer-1" })];
+
+      // Never settles, so only the removal sweep can close the window.
+      getFeaturesMock.mockImplementation(
+        ({ cancelToken }) =>
+          new Promise((_res, rej) => {
+            cancelToken.promise.then(rej);
+          }),
+      );
+
+      const { result, rerender } = renderHook(
+        ({ currentLayers }) =>
+          useRuntimeLayerFetcher(hookArgs({ layers: currentLayers, mapRef })),
+        { initialProps: { currentLayers: layers } },
+      );
+
+      await act(async () => {
+        jest.advanceTimersByTime(250);
+        await Promise.resolve();
+      });
+      expect(result.current.loadingByLayerId["layer-1"]).toBe(true);
+
+      rerender({ currentLayers: [] });
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      // Cleared by the sweep itself, not by waiting on the cancel rejection.
+      expect(result.current.loadingByLayerId).toEqual({});
+    });
+
+    test("a stale response after remove and re-add cannot close the new window", async () => {
+      const olLayer = fakeOlLayer("layer-1");
+      const mapRef = { current: fakeOlMap([olLayer]) };
+      const layers = [runtimeLayerConfig({ layerId: "layer-1" })];
+
+      let resolveFirst;
+      let resolveSecond;
+      getFeaturesMock
+        .mockImplementationOnce(
+          () =>
+            new Promise((res) => {
+              resolveFirst = res;
+            }),
+        )
+        .mockImplementationOnce(
+          () =>
+            new Promise((res) => {
+              resolveSecond = res;
+            }),
+        );
+
+      const { result, rerender } = renderHook(
+        ({ currentLayers }) =>
+          useRuntimeLayerFetcher(hookArgs({ layers: currentLayers, mapRef })),
+        { initialProps: { currentLayers: layers } },
+      );
+
+      await act(async () => {
+        jest.advanceTimersByTime(250);
+        await Promise.resolve();
+      });
+      expect(getFeaturesMock).toHaveBeenCalledTimes(1);
+
+      // Remove, then re-add the same id. The removal sweep deletes the
+      // per-layer state object, so a generation counter living on it would
+      // reset here and let the first request's tail pass the guard.
+      rerender({ currentLayers: [] });
+      await act(async () => {
+        await Promise.resolve();
+      });
+      // The re-registering effect must flush before the timers advance, or the
+      // new debounce timer does not exist yet when they do.
+      rerender({ currentLayers: layers });
+      await act(async () => {
+        await Promise.resolve();
+      });
+      await act(async () => {
+        jest.advanceTimersByTime(250);
+        await Promise.resolve();
+      });
+      expect(getFeaturesMock).toHaveBeenCalledTimes(2);
+
+      await act(async () => {
+        resolveFirst({ success: true, viz_type: "features", data: validFc });
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(result.current.loadingByLayerId["layer-1"]).toBe(true);
+
+      await act(async () => {
+        resolveSecond({ success: true, viz_type: "features", data: validFc });
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      await waitFor(() => {
+        expect(result.current.loadingByLayerId).toEqual({});
+      });
+    });
+
+    test("retry clears the prior error at dispatch and reports loading", async () => {
+      const olLayer = fakeOlLayer("layer-1");
+      const mapRef = { current: fakeOlMap([olLayer]) };
+      const layers = [runtimeLayerConfig({ layerId: "layer-1" })];
+
+      getFeaturesMock.mockResolvedValueOnce({
+        success: false,
+        data: { error: "boom" },
+      });
+
+      const { result } = renderHook(() =>
+        useRuntimeLayerFetcher(hookArgs({ layers, mapRef })),
+      );
+
+      await act(async () => {
+        jest.advanceTimersByTime(250);
+        await Promise.resolve();
+      });
+      await waitFor(() => {
+        expect(result.current.errorsByLayerId["layer-1"]).toBeDefined();
+      });
+      expect(result.current.loadingByLayerId).toEqual({});
+
+      // The retry affordance only exists inside the error branch, so the error
+      // has to clear at dispatch or the retry can never be seen as loading.
+      let resolveRetry;
+      getFeaturesMock.mockImplementationOnce(
+        () =>
+          new Promise((res) => {
+            resolveRetry = res;
+          }),
+      );
+      await act(async () => {
+        result.current.retry("layer-1");
+        await Promise.resolve();
+      });
+
+      expect(result.current.errorsByLayerId["layer-1"]).toBeUndefined();
+      expect(result.current.loadingByLayerId["layer-1"]).toBe(true);
+
+      await act(async () => {
+        resolveRetry({ success: true, viz_type: "features", data: validFc });
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(result.current.loadingByLayerId).toEqual({});
+    });
+
+    test("a response arriving with no map still closes the window", async () => {
+      const mapRef = { current: null };
+      const layers = [runtimeLayerConfig({ layerId: "layer-1" })];
+
+      const { result } = renderHook(() =>
+        useRuntimeLayerFetcher(hookArgs({ layers, mapRef })),
+      );
+
+      await act(async () => {
+        jest.advanceTimersByTime(250);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      // Settled with nothing painted and no error -- the window must not be
+      // left open, even though the layer is blank.
+      await waitFor(() => {
+        expect(result.current.loadingByLayerId).toEqual({});
+      });
+      expect(result.current.errorsByLayerId).toEqual({});
+    });
+
+    test("unmount mid-flight leaves no setState warning", async () => {
+      const olLayer = fakeOlLayer("layer-1");
+      const mapRef = { current: fakeOlMap([olLayer]) };
+      const layers = [runtimeLayerConfig({ layerId: "layer-1" })];
+      const errorSpy = jest
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+
+      getFeaturesMock.mockImplementation(
+        ({ cancelToken }) =>
+          new Promise((_res, rej) => {
+            cancelToken.promise.then(rej);
+          }),
+      );
+
+      const { result, unmount } = renderHook(() =>
+        useRuntimeLayerFetcher(hookArgs({ layers, mapRef })),
+      );
+
+      await act(async () => {
+        jest.advanceTimersByTime(250);
+        await Promise.resolve();
+      });
+      expect(result.current.loadingByLayerId["layer-1"]).toBe(true);
+
+      await act(async () => {
+        unmount();
+        await Promise.resolve();
+      });
+
+      expect(errorSpy).not.toHaveBeenCalled();
+    });
+  });
 });

@@ -4,6 +4,7 @@ import { updateObjectWithVariableInputs } from "components/visualizations/utilit
 import { swapVectorLayerFeatures } from "components/map/utilities";
 import appAPI from "services/api/app";
 import { valuesEqual } from "components/modals/utilities";
+import { CANCEL_REASON } from "components/map/layerStatus";
 
 /** Find the OL layer carrying a runtime layer's identity tag. */
 function findOlLayer(map, layerId) {
@@ -62,6 +63,15 @@ export default function useRuntimeLayerFetcher({
   const perLayerStateRef = useRef(new Map()); // layerId → state
   const isMountedRef = useRef(true);
   const [errorsByLayerId, setErrorsByLayerId] = useState({});
+  // Which layers have a fetch outstanding. The hook has always known this and
+  // thrown it away, which is why a plugin that simply takes a while looked
+  // identical to one that had finished with nothing to show.
+  const [loadingByLayerId, setLoadingByLayerId] = useState({});
+  // Request generation per layer id, deliberately NOT on the per-layer state
+  // object: the removal sweep deletes that object and a re-add builds a fresh
+  // one, so a counter living there would reset and let a pre-removal response
+  // pass the staleness guard. Monotonic for the lifetime of the hook.
+  const generationRef = useRef(new Map());
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -73,7 +83,7 @@ export default function useRuntimeLayerFetcher({
           clearTimeout(state.debounceTimer);
         }
         if (state.cancelTokenSource) {
-          state.cancelTokenSource.cancel("unmount");
+          state.cancelTokenSource.cancel(CANCEL_REASON.UNMOUNT);
         }
         cancelPendingSwap(state);
       });
@@ -85,6 +95,25 @@ export default function useRuntimeLayerFetcher({
     // istanbul ignore next
     if (!isMountedRef.current) return;
     setErrorsByLayerId((prev) => {
+      if (!(layerId in prev)) return prev;
+      const next = { ...prev };
+      delete next[layerId];
+      return next;
+    });
+  }, []);
+
+  const openLoading = useCallback((layerId) => {
+    // istanbul ignore next
+    if (!isMountedRef.current) return;
+    setLoadingByLayerId((prev) =>
+      prev[layerId] ? prev : { ...prev, [layerId]: true },
+    );
+  }, []);
+
+  const closeLoading = useCallback((layerId) => {
+    // istanbul ignore next
+    if (!isMountedRef.current) return;
+    setLoadingByLayerId((prev) => {
       if (!(layerId in prev)) return prev;
       const next = { ...prev };
       delete next[layerId];
@@ -118,13 +147,25 @@ export default function useRuntimeLayerFetcher({
       if (!state) return Promise.resolve();
 
       if (state.cancelTokenSource) {
-        state.cancelTokenSource.cancel("superseded");
+        state.cancelTokenSource.cancel(CANCEL_REASON.SUPERSEDED);
       }
       // A newer fetch replaces whatever an older one was still waiting to paint.
       cancelPendingSwap(state);
       const cancelTokenSource = axios.CancelToken.source();
       state.cancelTokenSource = cancelTokenSource;
       state.lastResolvedArgs = resolvedArgs;
+
+      // Claim this layer's next generation. A request that had already resolved
+      // when a newer one superseded it is never rejected by axios, so its tail
+      // still runs a microtask later; without this guard it would close the
+      // newer request's window and paint its own stale payload over the map.
+      const myGeneration = (generationRef.current.get(layerId) ?? 0) + 1;
+      generationRef.current.set(layerId, myGeneration);
+      const isCurrent = () =>
+        generationRef.current.get(layerId) === myGeneration;
+      // Also opened here, not only in scheduleFetch: `retry` dispatches
+      // straight through this function with no debounce.
+      openLoading(layerId);
 
       const requestId = `${sessionNonce}:${gridItemUUID}:${layerId}`;
 
@@ -137,6 +178,8 @@ export default function useRuntimeLayerFetcher({
         })
         .then((response) => {
           if (!isMountedRef.current) return;
+          if (!isCurrent()) return;
+          closeLoading(layerId);
           if (response && response.success === false) {
             const errorText = response?.data?.error ?? "Unknown error";
             const kind =
@@ -169,15 +212,29 @@ export default function useRuntimeLayerFetcher({
           clearError(layerId);
         })
         .catch((err) => {
-          if (axios.isCancel(err)) return; // superseded / unmount
+          // Cancels return before any state write, so the window is closed at
+          // the cancel sites instead -- except a supersede, where the newer
+          // request has already reopened it.
+          if (axios.isCancel(err)) return;
           if (!isMountedRef.current) return;
+          if (!isCurrent()) return;
+          closeLoading(layerId);
           setError(layerId, {
             message: err?.message ?? "Fetch failed",
             kind: "error",
           });
         });
     },
-    [sessionNonce, gridItemUUID, mapRef, onBeforeSwap, setError, clearError],
+    [
+      sessionNonce,
+      gridItemUUID,
+      mapRef,
+      onBeforeSwap,
+      setError,
+      clearError,
+      openLoading,
+      closeLoading,
+    ],
   );
 
   const scheduleFetch = useCallback(
@@ -188,12 +245,16 @@ export default function useRuntimeLayerFetcher({
       if (state.debounceTimer) {
         clearTimeout(state.debounceTimer);
       }
+      // The wait counts as loading. Opening at dispatch instead would leave a
+      // quarter-second of silence on every load, and would report a settled map
+      // for the whole of a slider drag, where the timer keeps restarting.
+      openLoading(layerId);
       state.debounceTimer = setTimeout(() => {
         state.debounceTimer = null;
         performFetch(layerId, pluginSource, resolvedArgs);
       }, debounceMs);
     },
-    [debounceMs, performFetch],
+    [debounceMs, performFetch, openLoading],
   );
 
   // Immediate retry (no debounce) — used by Unit 7's Retry action.
@@ -219,9 +280,13 @@ export default function useRuntimeLayerFetcher({
         state.debounceTimer = null;
       }
       const { resolvedArgs } = resolveLayerArgs(pluginSource.args);
+      // The error survives until a fetch succeeds, and the retry affordance
+      // only exists inside the error branch. Without clearing here the layer
+      // would read as failed for the whole retry and never as loading.
+      clearError(layerId);
       performFetch(layerId, pluginSource, resolvedArgs);
     },
-    [layers, resolveLayerArgs, performFetch],
+    [layers, resolveLayerArgs, performFetch, clearError],
   );
 
   const prevRefreshTickRef = useRef(refreshTick);
@@ -243,9 +308,11 @@ export default function useRuntimeLayerFetcher({
     perLayerStateRef.current.forEach((state, layerId) => {
       if (!currentLayerIds.has(layerId)) {
         if (state.debounceTimer) clearTimeout(state.debounceTimer);
-        if (state.cancelTokenSource) state.cancelTokenSource.cancel("removed");
+        if (state.cancelTokenSource)
+          state.cancelTokenSource.cancel(CANCEL_REASON.REMOVED);
         cancelPendingSwap(state);
         perLayerStateRef.current.delete(layerId);
+        closeLoading(layerId);
       }
     });
 
@@ -279,5 +346,5 @@ export default function useRuntimeLayerFetcher({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layers, variableInputValues, variableInputDateFormats, refreshTick]);
 
-  return { errorsByLayerId, retry };
+  return { errorsByLayerId, loadingByLayerId, retry };
 }
