@@ -45,6 +45,7 @@ import {
 import MapContextProvider, {
   useMapContext,
 } from "components/contexts/MapContext";
+import { WebsocketContext } from "components/contexts/WebSocketContext";
 
 jest.mock("components/map/ModuleLoader", () => {
   const actual = jest.requireActual("components/map/ModuleLoader");
@@ -5315,6 +5316,65 @@ test("Map runtime layer hands features to the swap and identifies its grid item"
   expect(targetLayer.get("layerId")).toBe(layerId);
   expect(collection.features).toHaveLength(1);
   expect(collection.features[0].properties.nivel).toBe("Alto");
+});
+
+test("Map runtime layer resolves a composite request id for the layers control", async () => {
+  // The layers control builds `${sessionNonce}:${gridItemUuid}:${layerId}` and
+  // only looks up progress when every part is present. MapVisualization used to
+  // publish the grid item under `gridItemUUID` while the control read
+  // `gridItemUuid`, so the id was always null and the per-layer progress bar
+  // never rendered in the app. LayersControl's own tests pass the prop by hand,
+  // so only a render through the real producer can see this.
+  jest.spyOn(appAPI, "getVisualizationFeatures").mockResolvedValue({
+    success: true,
+    viz_type: "features",
+    data: {
+      type: "FeatureCollection",
+      features: [],
+      crs: { type: "name", properties: { name: "EPSG:4326" } },
+    },
+  });
+  const getMessageForRequest = jest.fn(() => null);
+
+  const layers = [JSON.parse(JSON.stringify(dynamicMapLayer))];
+  const layerId = layers[0].configuration.props.layerId;
+
+  render(
+    createLoadedComponent({
+      children: (
+        <GridItemContext.Provider value={{ gridItemUUID: "grid-uuid-1" }}>
+          <WebsocketContext.Provider value={{ getMessageForRequest }}>
+            <MapContextProvider>
+              <TestingComponent
+                mapProps={{
+                  mapConfig: {},
+                  viewConfig: {},
+                  layers,
+                  baseMap: null,
+                  layerControl: true,
+                  refreshCount: 0,
+                }}
+              />
+            </MapContextProvider>
+          </WebsocketContext.Provider>
+        </GridItemContext.Provider>
+      ),
+    }),
+  );
+
+  expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+  fireEvent.click(await screen.findByLabelText("Show Layers Control"));
+
+  await waitFor(() => {
+    expect(getMessageForRequest).toHaveBeenCalled();
+  });
+  const requestIds = getMessageForRequest.mock.calls.map(([id]) => id);
+  const composite = requestIds.find((id) => id && id.endsWith(`:${layerId}`));
+  expect(composite).toBeDefined();
+  expect(composite).not.toContain("undefined");
+  expect(composite).toContain(":grid-uuid-1:");
 });
 
 test("Map runtime layer swap dismisses popup and clears highlight after click", async () => {

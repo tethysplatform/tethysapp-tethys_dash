@@ -415,11 +415,16 @@ const MapVisualization = ({
     refreshTick: refreshCount,
   });
 
+  // Published under the spelling the consumers actually read. LayersControl
+  // and both PropTypes declarations use `gridItemUuid`; publishing the
+  // context's `gridItemUUID` verbatim left the key undefined, so the composite
+  // request id was always null and the per-layer progress bar never rendered
+  // outside tests that passed the prop by hand.
   const runtimeLayerState = {
     errorsByLayerId,
     retry: retryRuntimeLayer,
     sessionNonce,
-    gridItemUUID,
+    gridItemUuid: gridItemUUID,
   };
 
   // --- Linked cursor (U5) -------------------------------------------------
