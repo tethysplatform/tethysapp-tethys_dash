@@ -9,7 +9,9 @@ import {
   FaRedo,
 } from "react-icons/fa";
 import { WebsocketContext } from "components/contexts/WebSocketContext";
-import FloatingMapControl from "components/map/FloatingMapControl";
+import FloatingMapControl, {
+  MapSizedControlContainer,
+} from "components/map/FloatingMapControl";
 
 // See LegendControl: the positioning lives on the anchor, the control itself is
 // portalled out of the map tile's stacking context.
@@ -84,7 +86,8 @@ const LayerControlContainer = styled.div`
   border-radius: 4px;
   min-width: ${(props) => (props.$isexpanded ? "13vw" : "40px")};
   max-width: "20vw";
-  max-height: 35vh;
+  /* Three-quarters of the MAP, not of the viewport -- see LegendControl. */
+  max-height: ${(props) => props.$maxheight};
   height: ${(props) => (props.$isexpanded ? "auto" : "40px")};
   display: flex;
   flex-direction: column;
@@ -117,6 +120,7 @@ const LayersControl = ({
   runtimeLayerState,
   layerStatus,
   onRetryLayer,
+  mapDivRef,
 }) => {
   const [layers, setLayers] = useState([]); // [<openlayer layers>], controls what is shown in the layer controls
   const [isexpanded, setisexpanded] = useState(false); // bool, controls layer conrol menu expansion
@@ -170,9 +174,10 @@ const LayersControl = ({
   }
 
   return (
-    <ControlWrapper edges={LAYERS_EDGES}>
-      <LayerControlContainer
-        $isexpanded={isexpanded}
+    <ControlWrapper edges={LAYERS_EDGES} mapDivRef={mapDivRef}>
+      <MapSizedControlContainer
+        container={LayerControlContainer}
+        expanded={isexpanded}
         aria-label="Layers Control"
       >
         {isexpanded ? (
@@ -315,7 +320,7 @@ const LayersControl = ({
             <FaLayerGroup />
           </ControlButton>
         )}
-      </LayerControlContainer>
+      </MapSizedControlContainer>
     </ControlWrapper>
   );
 };
@@ -346,6 +351,8 @@ LayersControl.propTypes = {
     }),
   ),
   onRetryLayer: PropTypes.func,
+  /** The map div this control belongs to, for the map-relative height cap. */
+  mapDivRef: PropTypes.shape({ current: PropTypes.any }),
 };
 
 export default LayersControl;

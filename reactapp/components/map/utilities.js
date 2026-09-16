@@ -31,6 +31,12 @@ export const CLIENT_VECTOR_SOURCE_TYPES = [
   "GeoParquet",
 ];
 
+// Source types whose query result is a pixel readout rather than a feature. Used
+// both by the ramp/nodata paths here and by proximity ranking (components/map/
+// ranking.js), which ranks them behind anything carrying real geometry since
+// their coordinates are the click itself.
+export const RASTER_SOURCE_TYPES = ["GeoTIFF", "Zarr"];
+
 // Coerce an optional numeric layer prop: GUI inputs emit strings, so accept
 // any numeric value but treat null/undefined/blank/non-numeric as unset.
 export function coerceOptionalNumber(value) {
@@ -854,7 +860,7 @@ export async function queryLayerFeatures(layerInfo, map, coordinate, pixel) {
       features = getVectorTileLayerFeatures(map, pixel);
     } else if (sourceType === "KML") {
       features = getKMLLayerFeatures(map, pixel, coordinate, LayerName);
-    } else if (sourceType === "GeoTIFF" || sourceType === "Zarr") {
+    } else if (RASTER_SOURCE_TYPES.includes(sourceType)) {
       features = getGeoTIFFPixelValues(
         map,
         pixel,
@@ -908,7 +914,7 @@ function getGeoTIFFPixelValues(map, pixel, LayerName, layerInfo, coordinate) {
   // COG carries the -9999 sentinel, and a GeoTIFF gets the author's value, the
   // file's own tag, or the NaN default (see resolveNodata in ModuleLoader).
   const sourceType = layerInfo?.configuration?.props?.source?.type;
-  const anySourceHasNodata = sourceType === "Zarr" || sourceType === "GeoTIFF";
+  const anySourceHasNodata = RASTER_SOURCE_TYPES.includes(sourceType);
 
   if (anySourceHasNodata && data.length >= 2 && data[data.length - 1] === 0) {
     return [

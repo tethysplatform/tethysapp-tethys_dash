@@ -27,7 +27,14 @@ import {
   coerceOptionalNumber,
   formatAttributeValue,
   coerceOptionalBoolean,
+  RASTER_SOURCE_TYPES,
 } from "components/map/utilities";
+import {
+  classifyGeometryForRanking,
+  distanceToGeometries,
+  rankQueriedFeatures,
+  RANK_KIND,
+} from "components/map/ranking";
 import VectorSource from "ol/source/Vector.js";
 import Feature from "ol/Feature.js";
 import { LineString, Point, MultiPolygon, Polygon } from "ol/geom";
@@ -4737,4 +4744,643 @@ test("getStyleFields ignores a GeoJSON feature carrying no properties", async ()
     dashboard_uuid: "u",
   });
   expect(styleFields).toEqual(["a"]);
+});
+
+describe("classifyGeometryForRanking", () => {
+  // Deliberately not buildHighlightFeatures: that one throws on shapes it does
+  // not recognize, which is survivable for one selected feature but not for a
+  // pass over every feature of every click.
+
+  test.each([
+    ["GeoJSON point", { type: "Point", coordinates: [1, 2] }, RANK_KIND.POINT],
+    [
+      "GeoJSON multipoint",
+      {
+        type: "MultiPoint",
+        coordinates: [
+          [1, 2],
+          [3, 4],
+        ],
+      },
+      RANK_KIND.POINT,
+    ],
+    [
+      "GeoJSON line",
+      {
+        type: "LineString",
+        coordinates: [
+          [0, 0],
+          [1, 1],
+        ],
+      },
+      RANK_KIND.LINE,
+    ],
+    [
+      "GeoJSON multiline",
+      {
+        type: "MultiLineString",
+        coordinates: [
+          [
+            [0, 0],
+            [1, 1],
+          ],
+        ],
+      },
+      RANK_KIND.LINE,
+    ],
+    [
+      "GeoJSON polygon",
+      {
+        type: "Polygon",
+        coordinates: [
+          [
+            [0, 0],
+            [0, 4],
+            [4, 4],
+            [4, 0],
+            [0, 0],
+          ],
+        ],
+      },
+      RANK_KIND.POLYGON,
+    ],
+    [
+      "GeoJSON multipolygon",
+      {
+        type: "MultiPolygon",
+        coordinates: [
+          [
+            [
+              [0, 0],
+              [0, 4],
+              [4, 4],
+              [4, 0],
+              [0, 0],
+            ],
+          ],
+        ],
+      },
+      RANK_KIND.POLYGON,
+    ],
+    ["ESRI x/y", { x: 1, y: 2 }, RANK_KIND.POINT],
+    [
+      "ESRI multipoint",
+      {
+        points: [
+          [1, 2],
+          [3, 4],
+        ],
+      },
+      RANK_KIND.POINT,
+    ],
+    [
+      "ESRI paths",
+      {
+        paths: [
+          [
+            [0, 0],
+            [1, 1],
+          ],
+        ],
+      },
+      RANK_KIND.LINE,
+    ],
+    [
+      "ESRI rings",
+      {
+        rings: [
+          [
+            [0, 0],
+            [0, 4],
+            [4, 4],
+            [4, 0],
+            [0, 0],
+          ],
+        ],
+      },
+      RANK_KIND.POLYGON,
+    ],
+  ])("reads a %s as its kind", (_label, geometry, expectedKind) => {
+    const classified = classifyGeometryForRanking(geometry);
+    expect(classified.kind).toBe(expectedKind);
+    expect(classified.geometries.length).toBeGreaterThan(0);
+  });
+
+  test("ranks a mixed collection by its strongest member", () => {
+    const classified = classifyGeometryForRanking({
+      type: "GeometryCollection",
+      geometries: [
+        {
+          type: "Polygon",
+          coordinates: [
+            [
+              [0, 0],
+              [0, 4],
+              [4, 4],
+              [0, 0],
+            ],
+          ],
+        },
+        { type: "Point", coordinates: [9, 9] },
+      ],
+    });
+    expect(classified.kind).toBe(RANK_KIND.POINT);
+    expect(classified.geometries).toHaveLength(2);
+  });
+
+  test.each([
+    ["null", null],
+    ["undefined", undefined],
+    ["a non-object", "nope"],
+    ["an unknown type", { type: "Wat", coordinates: [1, 2] }],
+    ["an object with no recognizable key", { foo: "bar" }],
+    ["an empty collection", { type: "GeometryCollection", geometries: [] }],
+    ["a collection with no geometries key", { type: "GeometryCollection" }],
+  ])("returns null for %s", (_label, geometry) => {
+    expect(classifyGeometryForRanking(geometry)).toBeNull();
+  });
+});
+
+describe("distanceToGeometries", () => {
+  test("measures to the nearest point of the nearest geometry", () => {
+    const classified = classifyGeometryForRanking({
+      type: "MultiPoint",
+      coordinates: [
+        [10, 0],
+        [3, 0],
+      ],
+    });
+    expect(distanceToGeometries(classified.geometries, [0, 0])).toBeCloseTo(3);
+  });
+
+  test("is zero inside a polygon", () => {
+    const classified = classifyGeometryForRanking({
+      type: "Polygon",
+      coordinates: [
+        [
+          [0, 0],
+          [0, 10],
+          [10, 10],
+          [10, 0],
+          [0, 0],
+        ],
+      ],
+    });
+    expect(distanceToGeometries(classified.geometries, [5, 5])).toBe(0);
+  });
+
+  test("returns Infinity for a degenerate geometry answering [null, null]", () => {
+    const classified = classifyGeometryForRanking({
+      type: "LineString",
+      coordinates: [],
+    });
+    expect(distanceToGeometries(classified.geometries, [0, 0])).toBe(Infinity);
+  });
+
+  test("returns Infinity when no finite distance can be computed", () => {
+    const classified = classifyGeometryForRanking({
+      type: "Point",
+      coordinates: [NaN, NaN],
+    });
+    expect(distanceToGeometries(classified.geometries, [0, 0])).toBe(Infinity);
+  });
+
+  test("keeps the nearest when a later geometry is farther", () => {
+    // Two separate geometries (ESRI multi-path), neither containing the click:
+    // the first is nearer, so the second must not lower the running minimum.
+    const classified = classifyGeometryForRanking({
+      paths: [
+        [
+          [5, 0],
+          [5, 1],
+        ],
+        [
+          [100, 0],
+          [100, 1],
+        ],
+      ],
+    });
+    expect(classified.geometries).toHaveLength(2);
+    expect(distanceToGeometries(classified.geometries, [0, 0])).toBeCloseTo(5);
+  });
+});
+
+describe("rankQueriedFeatures", () => {
+  const mapAt = (projection = "EPSG:3857", extent = [-10, -10, 10, 10]) => ({
+    getView: () => ({
+      getProjection: () => ({ getCode: () => projection }),
+      calculateExtent: () => extent,
+    }),
+  });
+
+  const layerOf = (type) => ({
+    configuration: { props: { source: { type } } },
+  });
+
+  const point = (name, xy, type = "GeoJSON") => ({
+    name,
+    geometry: { type: "Point", coordinates: xy },
+    __wrapperLayer: layerOf(type),
+  });
+
+  const names = (features) => features.map((feature) => feature.name);
+
+  test("orders points by distance to the click", () => {
+    const features = [
+      point("far", [10, 0]),
+      point("near", [1, 0]),
+      point("mid", [5, 0]),
+    ];
+    expect(names(rankQueriedFeatures(features, mapAt(), [0, 0]))).toStrictEqual(
+      ["near", "mid", "far"],
+    );
+  });
+
+  test("ranks points ahead of an enclosing polygon at distance zero", () => {
+    const basin = {
+      name: "basin",
+      geometry: {
+        type: "Polygon",
+        coordinates: [
+          [
+            [-100, -100],
+            [-100, 100],
+            [100, 100],
+            [100, -100],
+            [-100, -100],
+          ],
+        ],
+      },
+      __wrapperLayer: layerOf("GeoJSON"),
+    };
+    const features = [
+      basin,
+      point("gauge-b", [9, 0]),
+      point("gauge-a", [2, 0]),
+    ];
+    expect(names(rankQueriedFeatures(features, mapAt(), [0, 0]))).toStrictEqual(
+      ["gauge-a", "gauge-b", "basin"],
+    );
+  });
+
+  test("ranks a line between points and polygons", () => {
+    const line = {
+      name: "line",
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          [50, 0],
+          [50, 10],
+        ],
+      },
+      __wrapperLayer: layerOf("GeoJSON"),
+    };
+    const polygon = {
+      name: "polygon",
+      geometry: {
+        type: "Polygon",
+        coordinates: [
+          [
+            [-1, -1],
+            [-1, 1],
+            [1, 1],
+            [-1, -1],
+          ],
+        ],
+      },
+      __wrapperLayer: layerOf("GeoJSON"),
+    };
+    const features = [polygon, line, point("point", [99, 0])];
+    expect(names(rankQueriedFeatures(features, mapAt(), [0, 0]))).toStrictEqual(
+      ["point", "line", "polygon"],
+    );
+  });
+
+  test("sinks raster readings below anything with real geometry", () => {
+    // The raster builders report the click coordinate as their own geometry, so
+    // a plain distance sort would give them slot 1 on every click.
+    const band = point("band", [0, 0], "GeoTIFF");
+    const features = [band, point("gauge", [8, 0])];
+    expect(names(rankQueriedFeatures(features, mapAt(), [0, 0]))).toStrictEqual(
+      ["gauge", "band"],
+    );
+  });
+
+  test("treats every RASTER_SOURCE_TYPES entry as the raster tier", () => {
+    RASTER_SOURCE_TYPES.forEach((type) => {
+      const features = [point("band", [0, 0], type), point("gauge", [8, 0])];
+      expect(names(rankQueriedFeatures(features, mapAt(), [0, 0]))[0]).toBe(
+        "gauge",
+      );
+    });
+  });
+
+  test("ranks an unlisted source type as real geometry", () => {
+    const features = [
+      point("band", [0, 0], "GeoTIFF"),
+      point("kml", [8, 0], "KML"),
+    ];
+    expect(names(rankQueriedFeatures(features, mapAt(), [0, 0]))).toStrictEqual(
+      ["kml", "band"],
+    );
+  });
+
+  test("pins the snapped feature ahead of a nearer point", () => {
+    const river = {
+      name: "river",
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          [15, -10],
+          [15, 10],
+        ],
+      },
+      __wrapperLayer: layerOf("GeoJSON"),
+      __snapped: true,
+    };
+    const features = [point("gauge", [1, 0]), river];
+    expect(names(rankQueriedFeatures(features, mapAt(), [0, 0]))).toStrictEqual(
+      ["river", "gauge"],
+    );
+  });
+
+  test("does not pin snap siblings, so a nearer point outranks them", () => {
+    const snapped = {
+      name: "snapped",
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          [15, -10],
+          [15, 10],
+        ],
+      },
+      __wrapperLayer: layerOf("GeoJSON"),
+      __snapped: true,
+    };
+    const sibling = {
+      name: "sibling",
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          [30, -10],
+          [30, 10],
+        ],
+      },
+      __wrapperLayer: layerOf("GeoJSON"),
+    };
+    const features = [snapped, sibling, point("gauge", [1, 0])];
+    expect(names(rankQueriedFeatures(features, mapAt(), [0, 0]))).toStrictEqual(
+      ["snapped", "gauge", "sibling"],
+    );
+  });
+
+  test("keeps a snapped feature pinned even when its geometry is unreadable", () => {
+    const snapped = {
+      name: "snapped",
+      geometry: null,
+      __wrapperLayer: layerOf("GeoJSON"),
+      __snapped: true,
+    };
+    const features = [point("gauge", [1, 0]), snapped];
+    expect(names(rankQueriedFeatures(features, mapAt(), [0, 0]))[0]).toBe(
+      "snapped",
+    );
+  });
+
+  test("ranks a MultiPoint in the point sub-tier at its nearest member", () => {
+    // Regression guard: buildHighlightFeatures has no MultiPoint branch and
+    // produces a NaN distance, which would sink a MultiPoint gauge below the
+    // raster readings -- the inversion the tiering exists to prevent.
+    const multi = {
+      name: "multi",
+      geometry: {
+        type: "MultiPoint",
+        coordinates: [
+          [50, 0],
+          [2, 0],
+        ],
+      },
+      __wrapperLayer: layerOf("GeoJSON"),
+    };
+    const features = [
+      point("band", [0, 0], "Zarr"),
+      point("far", [9, 0]),
+      multi,
+    ];
+    expect(names(rankQueriedFeatures(features, mapAt(), [0, 0]))).toStrictEqual(
+      ["multi", "far", "band"],
+    );
+  });
+
+  test.each([
+    ["a null geometry", null],
+    ["an unreadable shape", { foo: "bar" }],
+    ["a non-finite coordinate", { type: "Point", coordinates: [NaN, NaN] }],
+    // Regression: OL answers `getClosestPoint` with `[null, null]` for these,
+    // and `null - 0` is 0 in JS, so an unguarded Math.hypot scored them as a
+    // dead-on hit at distance 0 and ranked them ahead of every real feature.
+    ["an empty coordinate array", { type: "Point", coordinates: [] }],
+    ["an empty line", { type: "LineString", coordinates: [] }],
+    ["a non-numeric coordinate", { type: "Point", coordinates: "abc" }],
+    ["a ring of garbage", { rings: [["x"]] }],
+  ])(
+    "sinks %s to the unrankable tier without dropping it",
+    (_label, geometry) => {
+      const broken = {
+        name: "broken",
+        geometry,
+        __wrapperLayer: layerOf("GeoJSON"),
+      };
+      const features = [
+        broken,
+        point("band", [0, 0], "GeoTIFF"),
+        point("gauge", [5, 0]),
+      ];
+      const ranked = rankQueriedFeatures(features, mapAt(), [0, 0]);
+      expect(names(ranked)).toStrictEqual(["gauge", "band", "broken"]);
+    },
+  );
+
+  test("does not propagate an error when geometry construction throws", () => {
+    // A GeoJSON Point with no coordinates reaches `new Point(undefined)`, which
+    // throws. One bad geometry in one layer must not abort the whole click.
+    const exploding = {
+      name: "exploding",
+      geometry: { type: "Point", coordinates: undefined },
+      __wrapperLayer: layerOf("GeoJSON"),
+    };
+    const features = [exploding, point("gauge", [5, 0])];
+    let ranked;
+    expect(() => {
+      ranked = rankQueriedFeatures(features, mapAt(), [0, 0]);
+    }).not.toThrow();
+    expect(names(ranked)).toStrictEqual(["gauge", "exploding"]);
+  });
+
+  test("is stable for features that tie on tier, kind and distance", () => {
+    const features = [
+      point("first", [3, 0]),
+      point("second", [3, 0]),
+      point("third", [3, 0]),
+    ];
+    expect(names(rankQueriedFeatures(features, mapAt(), [0, 0]))).toStrictEqual(
+      ["first", "second", "third"],
+    );
+  });
+
+  test("preserves layer order within the raster tier", () => {
+    const features = [
+      point("raster-a", [0, 0], "GeoTIFF"),
+      point("raster-b", [0, 0], "Zarr"),
+    ];
+    expect(names(rankQueriedFeatures(features, mapAt(), [0, 0]))).toStrictEqual(
+      ["raster-a", "raster-b"],
+    );
+  });
+
+  test("Covers AE4. a lone raster reading is returned unchanged", () => {
+    // Tiering is not observable with a single result: the band reading appears
+    // exactly as it does today.
+    const band = point("band", [0, 0], "GeoTIFF");
+    expect(rankQueriedFeatures([band], mapAt(), [0, 0])).toStrictEqual([band]);
+  });
+
+  test("ranks a mixed GeometryCollection by its point member's distance", () => {
+    const collection = {
+      name: "collection",
+      geometry: {
+        type: "GeometryCollection",
+        geometries: [
+          {
+            type: "Polygon",
+            coordinates: [
+              [
+                [40, 40],
+                [40, 50],
+                [50, 50],
+                [40, 40],
+              ],
+            ],
+          },
+          { type: "Point", coordinates: [2, 0] },
+        ],
+      },
+      __wrapperLayer: layerOf("GeoJSON"),
+    };
+    const features = [point("far", [9, 0]), collection];
+    expect(names(rankQueriedFeatures(features, mapAt(), [0, 0]))).toStrictEqual(
+      ["collection", "far"],
+    );
+  });
+
+  test("ranks a MultiLineString at its nearest member, behind a nearer point", () => {
+    const multiline = {
+      name: "multiline",
+      geometry: {
+        type: "MultiLineString",
+        coordinates: [
+          [
+            [80, -10],
+            [80, 10],
+          ],
+          [
+            [4, -10],
+            [4, 10],
+          ],
+        ],
+      },
+      __wrapperLayer: layerOf("GeoJSON"),
+    };
+    const features = [multiline, point("gauge", [9, 0])];
+    // Nearest member is 4 away, nearer than the gauge at 9 -- but a point still
+    // outranks a line regardless of distance.
+    expect(names(rankQueriedFeatures(features, mapAt(), [0, 0]))).toStrictEqual(
+      ["gauge", "multiline"],
+    );
+  });
+
+  test("ranks an ESRI multipoint in the point sub-tier", () => {
+    const esriMultipoint = {
+      name: "esri-multipoint",
+      geometry: {
+        points: [
+          [50, 0],
+          [2, 0],
+        ],
+      },
+      __wrapperLayer: layerOf("ESRI Image and Map Service"),
+    };
+    const features = [point("band", [0, 0], "Zarr"), esriMultipoint];
+    expect(names(rankQueriedFeatures(features, mapAt(), [0, 0]))).toStrictEqual(
+      ["esri-multipoint", "band"],
+    );
+  });
+
+  test.each([
+    ["an empty list", []],
+    ["a single-feature list", [point("only", [1, 1])]],
+    ["a non-array", null],
+  ])("returns %s unchanged", (_label, features) => {
+    expect(rankQueriedFeatures(features, mapAt(), [0, 0])).toStrictEqual(
+      features,
+    );
+  });
+
+  test("does not mutate the input array", () => {
+    const features = [point("far", [10, 0]), point("near", [1, 0])];
+    rankQueriedFeatures(features, mapAt(), [0, 0]);
+    expect(names(features)).toStrictEqual(["far", "near"]);
+  });
+
+  test("ranks an ESRI hit by its true distance on an antimeridian view", () => {
+    // /identify is sent a request shifted by whole world-widths and answers in
+    // that shifted space. Ranked raw, every ESRI hit sorts a world away.
+    const shiftedExtent = [
+      MERCATOR_HALF_WORLD * 2 - 1000,
+      -1000,
+      MERCATOR_HALF_WORLD * 2 + 1000,
+      1000,
+    ];
+    const click = [MERCATOR_HALF_WORLD * 2, 0];
+    const centerX = (shiftedExtent[0] + shiftedExtent[2]) / 2;
+    const shift = wrapMercatorX(centerX) - centerX;
+    const esriHit = {
+      name: "esri",
+      geometry: { x: click[0] + shift + 5, y: 0 },
+      __wrapperLayer: layerOf("ESRI Image and Map Service"),
+    };
+    const vectorHit = point("vector", [click[0] + 500, 0]);
+    const ranked = rankQueriedFeatures(
+      [vectorHit, esriHit],
+      mapAt("EPSG:3857", shiftedExtent),
+      click,
+    );
+    expect(names(ranked)).toStrictEqual(["esri", "vector"]);
+  });
+
+  test("leaves ESRI ranking alone on an in-range view", () => {
+    const esriHit = {
+      name: "esri",
+      geometry: { x: 8, y: 0 },
+      __wrapperLayer: layerOf("ESRI Image and Map Service"),
+    };
+    const features = [esriHit, point("vector", [2, 0])];
+    expect(names(rankQueriedFeatures(features, mapAt(), [0, 0]))).toStrictEqual(
+      ["vector", "esri"],
+    );
+  });
+
+  test("leaves ESRI ranking alone on a non-3857 view", () => {
+    // The antimeridian shift only applies to EPSG:3857; any other projection
+    // ranks the ESRI hit at the raw click.
+    const esriHit = {
+      name: "esri",
+      geometry: { x: 8, y: 0 },
+      __wrapperLayer: layerOf("ESRI Image and Map Service"),
+    };
+    const features = [esriHit, point("vector", [2, 0])];
+    expect(
+      names(rankQueriedFeatures(features, mapAt("EPSG:4326"), [0, 0])),
+    ).toStrictEqual(["vector", "esri"]);
+  });
 });

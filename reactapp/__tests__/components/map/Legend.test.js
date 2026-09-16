@@ -1,6 +1,7 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { legendItems } from "__tests__/utilities/constants";
 import LegendControl from "components/map/LegendControl";
+import { makeMapDiv } from "__tests__/utilities/mapDiv";
 
 test("LegendControl", async () => {
   const { rerender } = render(<LegendControl legendItems={[]} />);
@@ -43,4 +44,80 @@ test("LegendControl", async () => {
   );
   fireEvent.click(closeLegendButton);
   expect(screen.queryByText("Some New Title")).not.toBeInTheDocument();
+});
+
+describe("LegendControl height cap", () => {
+  // jsdom does no layout, so these pin the DECLARED max-height. That the
+  // control visually clips inside a short map, and does not paint over
+  // neighbouring grid items, is browser-verified.
+  //
+  // The viewport is pinned tall enough that the MAP is the binding constraint
+  // in most cases; the clamp itself gets its own test below.
+  beforeEach(() => {
+    window.innerHeight = 2000;
+  });
+  const expand = async () => {
+    fireEvent.click(await screen.findByLabelText("Show Legend Control"));
+    return screen.findByLabelText("Legend Control");
+  };
+
+  test("caps an expanded legend at three quarters of the map div", async () => {
+    render(
+      <LegendControl
+        legendItems={[legendItems]}
+        mapDivRef={{ current: makeMapDiv(800) }}
+      />,
+    );
+    expect(await expand()).toHaveStyle({ maxHeight: "600px" });
+  });
+
+  test("scales the cap down with a shorter map", async () => {
+    render(
+      <LegendControl
+        legendItems={[legendItems]}
+        mapDivRef={{ current: makeMapDiv(300) }}
+      />,
+    );
+    expect(await expand()).toHaveStyle({ maxHeight: "225px" });
+  });
+
+  test("falls back to the viewport cap with no map div to measure", async () => {
+    render(<LegendControl legendItems={[legendItems]} />);
+    expect(await expand()).toHaveStyle({ maxHeight: "35vh" });
+  });
+
+  test("never caps below the collapsed control's own size", async () => {
+    render(
+      <LegendControl
+        legendItems={[legendItems]}
+        mapDivRef={{ current: makeMapDiv(40) }}
+      />,
+    );
+    expect(await expand()).toHaveStyle({ maxHeight: "40px" });
+  });
+
+  test("clamps to the viewport when the map is taller than the window", async () => {
+    // A grid item can be taller than the browser window, and the control is
+    // position:fixed pinned to the map's bottom edge -- so an unclamped 75% of
+    // a very tall map would put its top off-screen with no way to scroll there.
+    window.innerHeight = 800;
+    render(
+      <LegendControl
+        legendItems={[legendItems]}
+        mapDivRef={{ current: makeMapDiv(4000) }}
+      />,
+    );
+    expect(await expand()).toHaveStyle({ maxHeight: "600px" });
+  });
+
+  test("leaves the collapsed control uncapped at its fixed size", async () => {
+    render(
+      <LegendControl
+        legendItems={[legendItems]}
+        mapDivRef={{ current: makeMapDiv(300) }}
+      />,
+    );
+    const container = await screen.findByLabelText("Legend Control");
+    expect(container).toHaveStyle({ maxHeight: "none", height: "40px" });
+  });
 });

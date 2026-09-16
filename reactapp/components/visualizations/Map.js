@@ -24,6 +24,7 @@ import {
   formatAttributeValue,
   CLIENT_VECTOR_SOURCE_TYPES,
 } from "components/map/utilities";
+import { rankQueriedFeatures } from "components/map/ranking";
 import { defaultStroke } from "components/inputs/RuleEditor";
 import {
   buildSnapFeatureResult,
@@ -597,6 +598,18 @@ const MapVisualization = ({
     );
   };
 
+  // Does this feature's layer publish any of its attributes to a variable
+  // input? Keyed on layer name and entirely independent of the omitted-attribute
+  // config, so a layer can hide every attribute from the table and still drive a
+  // chart. That combination is a normal "hide the ugly table, just drive the
+  // chart below" setup, which is why such a feature must survive the
+  // nothing-to-render filter below even though it renders nothing itself.
+  const publishesVariableInputs = (feature) =>
+    Boolean(
+      feature?.layerName &&
+      mapAttributeVariablesRef.current?.[feature.layerName],
+    );
+
   // Keep the active feature current for `onSwipe`, which is captured by the
   // popup's separate React root (its render effect only re-runs on
   // `popupContent`) and would otherwise read a stale list.
@@ -1097,7 +1110,18 @@ const MapVisualization = ({
         const features = shouldSnapSelect(layer, clickSnap)
           ? snapSiblings
               .filter((g) => g.layerName === layer.configuration.props.name)
-              .map((g) => buildSnapFeatureResult(g.feature, layer))
+              .map((g) => {
+                const result = buildSnapFeatureResult(g.feature, layer);
+                // Tag ONLY the feature the click actually clipped to, so
+                // ranking can pin it ahead of everything else. Its siblings
+                // were merely gathered within GATHER_PIXELS (35) rather than
+                // snapped within SNAP_PIXELS (15); pinning them too would let a
+                // confluence click push a dead-on gauge behind several reaches,
+                // losing the very ordering fix on snap-enabled maps.
+                return g.feature === clickSnap.feature
+                  ? { ...result, __snapped: true }
+                  : result;
+              })
           : await queryLayerFeatures(layer, map, evt.coordinate, pixel);
         if (!Array.isArray(features)) return features;
         return features.map((feature) =>
@@ -1131,18 +1155,39 @@ const MapVisualization = ({
         .flat();
 
       // One list for both popups: every feature this click found that either
-      // popup can show. Each popup then renders the active feature only when
-      // it qualifies -- the overlay hides on a modal-only feature, the modal
-      // closes on a table-only one -- so the two always agree on which
-      // feature is selected and report the same N / total. A modal-only
-      // feature still occupies a Swiper slide (hidden while active), which is
-      // what keeps the counts identical.
+      // popup can show, or that drives a variable input. Each popup then
+      // renders the active feature only when it qualifies -- the overlay hides
+      // on a modal-only feature, the modal closes on a table-only one -- so the
+      // two always agree on which feature is selected and report the same
+      // N / total. A modal-only feature still occupies a Swiper slide (hidden
+      // while active), which is what keeps the counts identical.
+      //
+      // The eligibility checks above are LAYER-level, so on their own they let
+      // through a feature whose every attribute is omitted: it takes a slide,
+      // counts toward the total, and renders an empty hidden overlay. Drop
+      // those, but only when the feature has nothing else to offer -- a modal
+      // is its own render, and a variable mapping is its own reason to exist.
       const unionFeatures = nonEmptyLayers.filter(
-        (feature) => isTableEligible(feature) || hasModalPopup(feature),
+        (feature) =>
+          hasModalPopup(feature) ||
+          publishesVariableInputs(feature) ||
+          (isTableEligible(feature) && hasVisiblePopupAttributes(feature)),
       );
 
-      newPopupContent = unionFeatures.length > 0 ? unionFeatures : null;
-      if (unionFeatures.length === 0) {
+      // Nearest-first. Runs here rather than over the raw Promise.all results
+      // so the "zoomed" sentinel check above still sees the untouched array,
+      // and so ranking only ever sees features that can actually be shown.
+      const rankedFeatures = rankQueriedFeatures(
+        unionFeatures,
+        map,
+        // The TRUE click, not `coordinate` -- every layer was queried at
+        // evt.coordinate, so ranking against the snapped point would re-sort
+        // every other layer around a point the user did not click.
+        evt.coordinate,
+      );
+
+      newPopupContent = rankedFeatures.length > 0 ? rankedFeatures : null;
+      if (rankedFeatures.length === 0) {
         // No click-eligible features at this location. If a hover popup is
         // currently open, the user is mid-interaction with it — replacing
         // it with an empty "No Attributes Found" overlay would be hostile.
@@ -1150,8 +1195,13 @@ const MapVisualization = ({
         // already added is the click-registered feedback.
         if (hoverActiveRef.current) return;
         // Otherwise anchor the empty popup at the cursor so the user still
-        // sees "No Attributes Found".
-        popupCoordinate = coordinate;
+        // sees "No Attributes Found" -- but only when the click genuinely
+        // found nothing. When features WERE found and every one of them was
+        // filtered out for having nothing to render, the author omitted those
+        // attributes on purpose, and an explicit "No Attributes Found" box on
+        // every click is noise they did not ask for. Hide the overlay instead,
+        // which is what the user saw before those features were dropped.
+        popupCoordinate = nonEmptyLayers.length > 0 ? undefined : coordinate;
       }
       // When there ARE features, the popup-sync effect owns the overlay
       // position: it anchors on the active feature's geometry, or hides the
@@ -1261,7 +1311,7 @@ const MapVisualization = ({
 
     if (nonEmpty.length > 0) {
       popupAnchorRef.current = coordinate;
-      setPopupContent(nonEmpty);
+      setPopupContent(rankQueriedFeatures(nonEmpty, map, coordinate));
       // Marks the modal as not-applicable: a layer can be both
       // `tablePopupType: "hover"` and `mode: "modal"`, and the modal is
       // click-only, so hovering one must not pop it open.

@@ -1,6 +1,7 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import LayersControl, { parseProgress } from "components/map/LayersControl";
 import { WebsocketContext } from "components/contexts/WebSocketContext";
+import { makeMapDiv } from "__tests__/utilities/mapDiv";
 
 test("LayersControl update layers", async () => {
   let visualizationRef;
@@ -249,5 +250,49 @@ describe("parseProgress", () => {
   test("returns null for invalid JSON", () => {
     const message = "not a json";
     expect(parseProgress(message)).toBeNull();
+  });
+});
+
+describe("LayersControl height cap", () => {
+  // The two floating controls are visually symmetric siblings on the same map,
+  // so they must size by the same rule. jsdom does no layout; the declared
+  // max-height is what is pinned here.
+  beforeEach(() => {
+    window.innerHeight = 2000;
+  });
+  const renderExpanded = async (mapDivRef) => {
+    render(
+      <LayersControl
+        updater={null}
+        visualizationRef={{ current: undefined }}
+        mapDivRef={mapDivRef}
+      />,
+    );
+    fireEvent.click(await screen.findByLabelText("Show Layers Control"));
+    return screen.findByLabelText("Layers Control");
+  };
+
+  test("caps at three quarters of the map div, matching the legend", async () => {
+    expect(await renderExpanded({ current: makeMapDiv(800) })).toHaveStyle({
+      maxHeight: "600px",
+    });
+  });
+
+  test("falls back to the viewport cap with no map div to measure", async () => {
+    expect(await renderExpanded(undefined)).toHaveStyle({ maxHeight: "35vh" });
+  });
+
+  test("leaves the collapsed control uncapped at its fixed size", async () => {
+    render(
+      <LayersControl
+        updater={null}
+        visualizationRef={{ current: undefined }}
+        mapDivRef={{ current: makeMapDiv(800) }}
+      />,
+    );
+    expect(await screen.findByLabelText("Layers Control")).toHaveStyle({
+      maxHeight: "none",
+      height: "40px",
+    });
   });
 });

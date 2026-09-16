@@ -1,7 +1,9 @@
 import { useState } from "react";
 import styled from "styled-components";
 import LegendRenderer from "components/map/LegendRenderer";
-import FloatingMapControl from "components/map/FloatingMapControl";
+import FloatingMapControl, {
+  MapSizedControlContainer,
+} from "components/map/FloatingMapControl";
 import { FaTimes, FaListUl } from "react-icons/fa";
 import PropTypes from "prop-types";
 
@@ -24,7 +26,10 @@ const LegendControlContainer = styled.div`
   border-radius: 4px;
   width: ${(props) => (props.$isexpanded ? "13vw" : "40px")};
   max-width: 20vw;
-  max-height: 35vh;
+  /* Three-quarters of the MAP, not of the viewport. The control is portalled to
+     document.body, so a viewport-relative cap would happily overflow a short
+     map tile and paint over neighbouring grid items. */
+  max-height: ${(props) => props.$maxheight};
   height: ${(props) => (props.$isexpanded ? "auto" : "40px")};
   display: flex;
   flex-direction: column;
@@ -51,15 +56,16 @@ const CloseButton = styled.button`
   right: 5px;
 `;
 
-const LegendControl = ({ legendItems }) => {
+const LegendControl = ({ legendItems, mapDivRef }) => {
   const [isexpanded, setisexpanded] = useState(false);
 
   return (
     <div aria-label="Map Legend">
       {legendItems.filter((item) => item !== null).length > 0 && (
-        <LegendWrapper edges={LEGEND_EDGES}>
-          <LegendControlContainer
-            $isexpanded={isexpanded}
+        <LegendWrapper edges={LEGEND_EDGES} mapDivRef={mapDivRef}>
+          <MapSizedControlContainer
+            container={LegendControlContainer}
+            expanded={isexpanded}
             aria-label="Legend Control"
             className="legend-control"
           >
@@ -94,7 +100,7 @@ const LegendControl = ({ legendItems }) => {
                 <FaListUl />
               </ControlButton>
             )}
-          </LegendControlContainer>
+          </MapSizedControlContainer>
         </LegendWrapper>
       )}
     </div>
@@ -114,6 +120,8 @@ LegendControl.propTypes = {
       ),
     }),
   ),
+  /** The map div this legend belongs to, for the map-relative height cap. */
+  mapDivRef: PropTypes.shape({ current: PropTypes.any }),
 };
 
 export default LegendControl;
