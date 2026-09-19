@@ -244,9 +244,24 @@ The GeoTIFF source overlays a Cloud-Optimized GeoTIFF (COG) on the map at its na
     - **projection:** (optional) Source projection (e.g. ``EPSG:4326``). Defaults to the file's embedded metadata.
     - **mask_below:** (optional) Cells at or below this value render transparent. See :ref:`raster_color_ramp` for how it interacts with the ramp.
 
+Almost every coordinate system a raster is published in is understood, including national and
+local grids — the file's own metadata is read and the layer is re-projected into the dashboard
+view. Some cannot be drawn in a browser accurately enough to be trusted, and those fail with a
+message naming the code rather than drawing in the wrong place. Most of them are older datums
+whose conversion needs a correction grid the browser has no way to read — NAD27 in particular,
+which would otherwise land tens of metres out. Re-project the file and it will draw::
+
+    gdalwarp -t_srs EPSG:4326 input.tif output.tif
+
 There is no nodata setting. A raster's nodata value is its own business and is read from the
 file's ``GDAL_NODATA`` tag automatically; ``NaN`` cells are masked even when the file declares
 nothing. Use **mask_below** to hide a range of real values, such as zero-probability cells.
+
+The color ramp fits itself to the file's values. It prefers statistics the file publishes — the
+``STATISTICS_*`` tags, or a ``.aux.xml`` sidecar next to it — and reads the raster itself when
+there are none. Very large rasters that publish no statistics are not read: set **Min** and
+**Max** on the :ref:`style_tab` for those, or publish statistics alongside the file
+(``gdal_edit.py -stats input.tif``), and the layer will say so rather than drawing blank.
 
 Pick a color ramp for the layer on the :ref:`style_tab`.
 

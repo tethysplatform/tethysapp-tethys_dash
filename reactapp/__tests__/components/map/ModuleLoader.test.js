@@ -39,6 +39,7 @@ import moduleLoader, {
   zarrSliceKey,
   geotiffSourceToOL,
   applyZarrRamp,
+  GeoTIFFError,
 } from "components/map/ModuleLoader";
 import { fromUrl } from "geotiff";
 import DataTile from "ol/source/DataTile.js";
@@ -273,6 +274,88 @@ test("KML Layer Instance", async () => {
   expect(cachedLayerInstance instanceof VectorLayer).toBe(true);
 });
 
+describe("a projection an author names on a source", () => {
+  // Every source type takes a `projection`, and OpenLayers resolves it by exact
+  // string: an unregistered one resolves to nothing and the source quietly
+  // falls back to the view projection, drawing the data in the wrong place
+  // without an error. So it is resolved before anything is constructed.
+  const wmsLayer = (projection) => ({
+    type: "ImageLayer",
+    props: {
+      name: "WMS Layer",
+      source: {
+        type: "WMS",
+        props: {
+          url: "https://example.com/geoserver/wms",
+          params: { LAYERS: "topp:states" },
+          projection,
+        },
+      },
+      zIndex: 1,
+    },
+  });
+
+  test("registers a code from the generated table", async () => {
+    await moduleLoader(wmsLayer("EPSG:2193"));
+
+    expect(getProjection("EPSG:2193")).toBeTruthy();
+  });
+
+  test("hands OpenLayers the code as registered, not as typed", async () => {
+    const config = wmsLayer("epsg:2193");
+
+    await moduleLoader(config);
+
+    expect(config.props.source.props.projection).toBe("EPSG:2193");
+  });
+
+  test("fails the layer when the code cannot be placed", async () => {
+    await expect(moduleLoader(wmsLayer("EPSG:2046"))).rejects.toThrow(
+      /EPSG:2046 \(Hartebeesthoek94 \/ Lo15\)/,
+    );
+  });
+
+  test("leaves a source with no projection alone", async () => {
+    const config = wmsLayer(undefined);
+    delete config.props.source.props.projection;
+
+    await expect(moduleLoader(config)).resolves.toBeDefined();
+  });
+});
+
+describe("a GeoJSON that names its own CRS", () => {
+  const geoJSONLayer = (crsName) => ({
+    type: "Vector",
+    props: {
+      name: "Sites",
+      source: {
+        type: "GeoJSON",
+        props: {},
+        geojson: {
+          type: "FeatureCollection",
+          crs: { type: "name", properties: { name: crsName } },
+          features: [],
+        },
+      },
+      zIndex: 0,
+    },
+  });
+
+  test("registers the code, in the URN spelling exporters write", async () => {
+    // An unknown dataProjection silently means "already WGS 84" to the reader,
+    // which drops projected coordinates onto the map as degrees.
+    await moduleLoader(geoJSONLayer("urn:ogc:def:crs:EPSG::2193"));
+
+    expect(getProjection("EPSG:2193")).toBeTruthy();
+  });
+
+  test("fails the layer when the named CRS cannot be placed", async () => {
+    await expect(
+      moduleLoader(geoJSONLayer("urn:ogc:def:crs:EPSG::2046")),
+    ).rejects.toThrow(/Hartebeesthoek94/);
+  });
+});
+
 describe("GeoTIFF source", () => {
   const geoTIFFLayerConfig = (props = {}) => ({
     type: "WebGLTile",
@@ -326,6 +409,112 @@ describe("GeoTIFF source", () => {
   test("an empty projection is dropped", async () => {
     await moduleLoader(geoTIFFLayerConfig({ projection: "" }));
     expect(lastCtorArgs()).not.toHaveProperty("projection");
+  });
+
+  describe("the CRS the file names", () => {
+    // OpenLayers reads these keys itself as it opens the file, and builds a
+    // transformless projection when the code resolves to nothing -- so what is
+    // mocked here is the same header read the pre-flight does ahead of it.
+    const mockGeoKeys = (geoKeys) =>
+      fromUrl.mockResolvedValue({
+        getImage: jest.fn().mockResolvedValue({ geoKeys }),
+      });
+
+    beforeEach(() => {
+      fromUrl.mockReset();
+    });
+
+    test("registers the projection the file names, before the source is built", async () => {
+      // Moznet / UTM zone 38S: in the generated table, and in nothing else --
+      // OpenLayers does not resolve it and the curated table does not carry it.
+      mockGeoKeys({ ProjectedCSTypeGeoKey: 5629 });
+
+      await moduleLoader(geoTIFFLayerConfig());
+
+      expect(getProjection("EPSG:5629")).toBeTruthy();
+      expect(GeoTIFF.constructorSpy).toHaveBeenCalled();
+    });
+
+    test("registers a geographic CRS named by its own key", async () => {
+      mockGeoKeys({ GeographicTypeGeoKey: 4258 });
+
+      await moduleLoader(geoTIFFLayerConfig());
+
+      expect(getProjection("EPSG:4258")).toBeTruthy();
+    });
+
+    test("fails the layer when the file's CRS cannot be placed", async () => {
+      mockGeoKeys({ ProjectedCSTypeGeoKey: 2046 });
+
+      await expect(moduleLoader(geoTIFFLayerConfig())).rejects.toThrow(
+        GeoTIFFError,
+      );
+      await expect(moduleLoader(geoTIFFLayerConfig())).rejects.toThrow(
+        /EPSG:2046 \(Hartebeesthoek94 \/ Lo15\)/,
+      );
+    });
+
+    test("trusts the author's projection over the file's, and resolves it", async () => {
+      await moduleLoader(geoTIFFLayerConfig({ projection: "EPSG:5629" }));
+
+      // No header read: OpenLayers skips the GeoKeys when given a projection,
+      // so reading them here would be a fetch nobody uses.
+      expect(fromUrl).not.toHaveBeenCalled();
+      expect(getProjection("EPSG:5629")).toBeTruthy();
+    });
+
+    test("fails the layer when the author's projection cannot be placed", async () => {
+      await expect(
+        moduleLoader(geoTIFFLayerConfig({ projection: "EPSG:999999" })),
+      ).rejects.toThrow(/EPSG:999999/);
+    });
+
+    test("builds the layer anyway when the file names no CRS", async () => {
+      // A user-defined CRS (32767) carries its parameters in the file instead
+      // of naming a code. OpenLayers does not read those either, so the layer
+      // renders in the view projection exactly as it did before.
+      mockGeoKeys({ ProjectedCSTypeGeoKey: 32767 });
+
+      await expect(moduleLoader(geoTIFFLayerConfig())).resolves.toBeDefined();
+    });
+
+    test("builds the layer anyway when the header cannot be read", async () => {
+      // The same URL is about to fail for OpenLayers, whose own error handler
+      // reports it with more to go on than this could.
+      fromUrl.mockRejectedValue(new Error("network"));
+
+      await expect(moduleLoader(geoTIFFLayerConfig())).resolves.toBeDefined();
+    });
+
+    test("fails the layer when its ramp was left without a range", async () => {
+      // applyAutoRamp records this when a float raster publishes no statistics
+      // and is too large to scan. Drawing it would paint every cell at zero and
+      // say nothing, so the layer fails here instead, where the message reaches
+      // the author.
+      const config = geoTIFFLayerConfig();
+      config.props.source.rampRangeUnavailable = true;
+
+      await expect(moduleLoader(config)).rejects.toThrow(GeoTIFFError);
+      await expect(moduleLoader(config)).rejects.toThrow(
+        /Set the ramp's Min and Max on the layer's Style tab/,
+      );
+    });
+
+    test("hands OpenLayers the code as registered, not as typed", async () => {
+      // OpenLayers looks a projection up by exact string, so a code that
+      // resolved here but was written differently would resolve to nothing
+      // there -- and the raster would be drawn at raw coordinates.
+      await moduleLoader(geoTIFFLayerConfig({ projection: "epsg:5629" }));
+
+      expect(lastCtorArgs().projection).toBe("EPSG:5629");
+    });
+
+    test("does not fetch a non-http url", async () => {
+      await expect(
+        moduleLoader(geoTIFFLayerConfig({ url: "file:///tmp/cog.tif" })),
+      ).resolves.toBeDefined();
+      expect(fromUrl).not.toHaveBeenCalled();
+    });
   });
 
   test("nodata is omitted when applyAutoRamp has not resolved one", async () => {
@@ -2340,13 +2529,35 @@ describe("applyAutoRamp", () => {
   // geotiff.js: getGDALMetadata(0) returns items tagged for sample 0, while
   // getGDALMetadata(null) returns the dataset-level items. Writers put
   // STATISTICS_* in either place, so the mock has to tell them apart.
-  const mockGDALMetadata = ({ band = {}, dataset = {}, fileNodata = null }) =>
+  // A raster that publishes no statistics is read for its range, so the mock
+  // has to answer for its size, its sample format and its pixels as well as its
+  // metadata. The default pixels are a single repeated value: read
+  // successfully, no range in them, which is the shape of every case below that
+  // predates the scan.
+  const mockGDALMetadata = ({
+    band = {},
+    dataset = {},
+    fileNodata = null,
+    width = 4,
+    height = 4,
+    sampleFormat = 3,
+    pixels = null,
+    readRasters = null,
+  }) =>
     fromUrl.mockResolvedValue({
       getImage: jest.fn().mockResolvedValue({
         getGDALMetadata: jest.fn((sample) =>
           sample === null ? dataset : band,
         ),
         getGDALNoData: jest.fn(() => fileNodata),
+        getWidth: jest.fn(() => width),
+        getHeight: jest.fn(() => height),
+        getSampleFormat: jest.fn(() => sampleFormat),
+        readRasters:
+          readRasters ??
+          jest.fn(async () => [
+            pixels ?? new Float32Array(width * height).fill(0),
+          ]),
       }),
     });
 
@@ -2475,6 +2686,23 @@ describe("applyAutoRamp", () => {
     expect(config.style).toBeUndefined();
   });
 
+  test("writes nothing to a source it has no ramp to fit", async () => {
+    // Layer preservation decides whether to rebuild by comparing configs, so a
+    // key written onto a source that passes through here -- a shapefile, or a
+    // raster with no ramp -- makes that layer look changed and reload on every
+    // render, features and all.
+    const source = {
+      type: "Shapefile",
+      props: { url: "https://example.com/basins.zip" },
+    };
+    const before = JSON.stringify(source);
+
+    await applyAutoRamp({ type: "Vector", props: { source } });
+
+    expect(JSON.stringify(source)).toBe(before);
+    expect(Object.keys(source)).toEqual(["type", "props"]);
+  });
+
   test.each([
     ["missing stats", {}],
     [
@@ -2486,6 +2714,8 @@ describe("applyAutoRamp", () => {
       { STATISTICS_MINIMUM: "5", STATISTICS_MAXIMUM: "5" },
     ],
   ])("falls back to normalized rendering on %s", async (_label, meta) => {
+    // The mocked raster's cells all hold the same value, so the pixel scan that
+    // runs when nothing publishes a range comes back with nothing either.
     mockStats(meta);
     // Missing stats triggers a sidecar (.aux.xml) probe; stub it so the GeoTIFF
     // vehicle doesn't attempt a real fetch.
@@ -2968,6 +3198,150 @@ describe("applyAutoRamp", () => {
       expect(config.props.source.resolvedRampMin).toBeUndefined();
     });
 
+    test("reads the range out of the raster when nothing publishes one", async () => {
+      // The case that rendered every cell as zero: no STATISTICS_*, no sidecar,
+      // and OpenLayers falling back to normalizing float data by the range of
+      // the data type, against which a probability of 1.0 is indistinguishable
+      // from 0.
+      mockGDALMetadata({
+        width: 2,
+        height: 2,
+        pixels: new Float32Array([0, 0.25, 0.5, 1]),
+      });
+      mockSidecar("", false);
+      const config = geotiffLayer();
+
+      await applyAutoRamp(config);
+
+      expect(config.props.source.resolvedRampMin).toBe(0);
+      expect(config.props.source.resolvedRampMax).toBe(1);
+      // Raw values, so a click reports a probability and not a scaled byte.
+      expect(config.props.source.props.normalize).toBe(false);
+    });
+
+    test("leaves nodata and NaN cells out of the range", async () => {
+      mockGDALMetadata({
+        width: 2,
+        height: 2,
+        fileNodata: -9999,
+        pixels: new Float32Array([-9999, NaN, 2, 7]),
+      });
+      mockSidecar("", false);
+      const config = geotiffLayer();
+
+      await applyAutoRamp(config);
+
+      expect(config.props.source.resolvedRampMin).toBe(2);
+      expect(config.props.source.resolvedRampMax).toBe(7);
+    });
+
+    test("does not read pixels when the file publishes its own statistics", async () => {
+      const readRasters = jest.fn();
+      mockGDALMetadata({
+        band: { STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "4" },
+        readRasters,
+      });
+      const config = geotiffLayer();
+
+      await applyAutoRamp(config);
+
+      expect(readRasters).not.toHaveBeenCalled();
+      expect(config.props.source.resolvedRampMax).toBe(4);
+    });
+
+    test("does not read pixels when the author pinned both bounds", async () => {
+      const readRasters = jest.fn();
+      mockGDALMetadata({ readRasters });
+      const config = geotiffLayer({ rampMin: "0", rampMax: "2" });
+
+      await applyAutoRamp(config);
+
+      expect(readRasters).not.toHaveBeenCalled();
+      expect(config.props.source.resolvedRampMax).toBe(2);
+    });
+
+    test("does not scan a raster too large to read whole", async () => {
+      // 16M cells: reading it would be a download of its own rather than a
+      // detail of drawing the layer.
+      const readRasters = jest.fn();
+      mockGDALMetadata({ width: 4000, height: 4000, readRasters });
+      mockSidecar("", false);
+      const config = geotiffLayer();
+
+      await applyAutoRamp(config);
+
+      expect(readRasters).not.toHaveBeenCalled();
+      // Float data with no range renders as nothing, so the layer is failed
+      // rather than drawn blank -- see moduleLoader.
+      expect(config.props.source.rampRangeUnavailable).toBe(true);
+    });
+
+    test("leaves an unscannable integer raster on normalized rendering", async () => {
+      // Normalizing by the data type is meaningful for integers -- a uint8 band
+      // scaled by 255 still carries its shape -- so nothing is failed here.
+      mockGDALMetadata({ width: 4000, height: 4000, sampleFormat: 1 });
+      mockSidecar("", false);
+      const config = geotiffLayer();
+
+      await applyAutoRamp(config);
+
+      expect(config.props.source.rampRangeUnavailable).toBeFalsy();
+    });
+
+    test("does not blame the author when the pixel read itself fails", async () => {
+      // A broken or half-served file. OpenLayers is about to fetch the same URL
+      // and report what went wrong from the source, with more to go on than a
+      // message about ramp bounds.
+      mockGDALMetadata({
+        readRasters: jest.fn().mockRejectedValue(new Error("truncated")),
+      });
+      mockSidecar("", false);
+      const config = geotiffLayer();
+
+      await applyAutoRamp(config);
+
+      expect(config.props.source.rampRangeUnavailable).toBeFalsy();
+    });
+
+    test("does not blame the author for a raster that holds a single value", async () => {
+      // Read successfully; there is simply no range in it. Pinning a ramp would
+      // not change that, so asking the author to pin one would be sending them
+      // after something that does not exist.
+      mockGDALMetadata({
+        width: 2,
+        height: 2,
+        pixels: new Float32Array([3, 3, 3, 3]),
+      });
+      mockSidecar("", false);
+      const config = geotiffLayer();
+
+      await applyAutoRamp(config);
+
+      expect(config.props.source.rampRangeUnavailable).toBeFalsy();
+      expect(config.style.color[0]).toBe("case");
+    });
+
+    test("clears the flag when a later file does carry a range", async () => {
+      mockGDALMetadata({ width: 4000, height: 4000 });
+      mockSidecar("", false);
+      const config = geotiffLayer();
+      await applyAutoRamp(config);
+      expect(config.props.source.rampRangeUnavailable).toBe(true);
+
+      // A variable input swaps the URL for a file that can be scanned.
+      mockGDALMetadata({
+        width: 2,
+        height: 2,
+        pixels: new Float32Array([1, 2, 3, 4]),
+      });
+      config.props.source.props.url = "https://example.com/other.tif";
+
+      await applyAutoRamp(config);
+
+      expect(config.props.source.rampRangeUnavailable).toBeFalsy();
+      expect(config.props.source.resolvedRampMax).toBe(4);
+    });
+
     test("guards band 2 when the file has nodata but no statistics", async () => {
       // Common for COGs without STATISTICS_*: the ramp cannot be fitted, but
       // nodata cells must still be transparent rather than painted at band 1 = 0.
@@ -3090,7 +3464,14 @@ describe("loadGeoPackage", () => {
       "EPSG:3857",
     );
     expect(out).toBe(src);
-    expect(loadGpkg).toHaveBeenCalledWith("https://h/t1.gpkg", "EPSG:3857");
+    expect(loadGpkg).toHaveBeenCalledWith(
+      "https://h/t1.gpkg",
+      "EPSG:3857",
+      // Report an unresolvable table SRS rather than throwing the load away, so
+      // the SRS it names can be read back and registered. The key is the one
+      // the library reads, which is not the one its API.md documents.
+      { missingDataSrsAction: "discard" },
+    );
   });
 
   test("translates an s3:// url before loading", async () => {
@@ -3102,6 +3483,7 @@ describe("loadGeoPackage", () => {
     expect(loadGpkg).toHaveBeenCalledWith(
       "https://b-us-east-1-x.s3.us-east-1.amazonaws.com/t2.gpkg",
       "EPSG:3857",
+      expect.anything(),
     );
   });
 
@@ -3129,6 +3511,65 @@ describe("loadGeoPackage", () => {
         "EPSG:3857",
       ),
     ).rejects.toThrow(/roads|bldgs/);
+  });
+
+  test("registers a table's own CRS and loads again when the loader could not place it", async () => {
+    // A GeoPackage names its CRS in a SQLite table, so nothing in the layer
+    // config says what to register. The loader reports the SRS it wanted; the
+    // second pass reads the file the browser has already fetched.
+    const placed = new VectorSource();
+    loadGpkg
+      .mockResolvedValueOnce([
+        {},
+        {},
+        { roads: { statusCode: 2, origSrsId: 2193 } },
+      ])
+      .mockResolvedValueOnce([
+        { roads: placed },
+        {},
+        { roads: { statusCode: 0 } },
+      ]);
+
+    const out = await loadGeoPackage(
+      { props: { url: "https://h/nztm.gpkg", layer: "roads" } },
+      "EPSG:3857",
+    );
+
+    expect(out).toBe(placed);
+    expect(loadGpkg).toHaveBeenCalledTimes(2);
+    expect(getProjection("EPSG:2193")).toBeTruthy();
+  });
+
+  test("fails the layer when a table's CRS cannot be placed at all", async () => {
+    // EPSG:2046 is west-orientated: the generated table drops it rather than
+    // draw it thousands of kilometres out, so no amount of reloading helps.
+    loadGpkg.mockResolvedValue([
+      {},
+      {},
+      { roads: { statusCode: 2, origSrsId: 2046 } },
+    ]);
+
+    await expect(
+      loadGeoPackage(
+        { props: { url: "https://h/lo15.gpkg", layer: "roads" } },
+        "EPSG:3857",
+      ),
+    ).rejects.toThrow(/EPSG:2046 \(Hartebeesthoek94 \/ Lo15\)/);
+  });
+
+  test("loads once when every table placed", async () => {
+    loadGpkg.mockResolvedValue([
+      { t: new VectorSource() },
+      {},
+      { t: { statusCode: 0, origSrsId: 4326 } },
+    ]);
+
+    await loadGeoPackage(
+      { props: { url: "https://h/plain.gpkg", layer: "t" } },
+      "EPSG:3857",
+    );
+
+    expect(loadGpkg).toHaveBeenCalledTimes(1);
   });
 
   test("parses a file only once across layers (cache by url+projection)", async () => {
@@ -3188,6 +3629,25 @@ describe("listGeoPackageTables", () => {
     ]);
   });
 
+  test("lists a table whose CRS had to be registered first", async () => {
+    // Discovery is where an author first meets the file, so it needs the same
+    // register-and-reload the render path does. Listing nothing here reads as
+    // "this file is empty", which is a different and wrong answer -- and is
+    // what an author saw for any GeoPackage outside the WGS84 UTM zones.
+    loadGpkg
+      .mockResolvedValueOnce([
+        {},
+        {},
+        { subbasins: { statusCode: 2, origSrsId: "26912" } },
+      ])
+      .mockResolvedValueOnce([{ subbasins: new VectorSource() }, {}, {}]);
+
+    await expect(listGeoPackageTables("https://h/utm12.gpkg")).resolves.toEqual(
+      ["subbasins"],
+    );
+    expect(loadGpkg).toHaveBeenCalledTimes(2);
+  });
+
   test("a second call for the same url does not download again", async () => {
     loadGpkg.mockResolvedValue([{ roads: new VectorSource() }, {}]);
     await listGeoPackageTables("https://h/d2.gpkg");
@@ -3234,6 +3694,7 @@ describe("listGeoPackageTables", () => {
     expect(loadGpkg).toHaveBeenCalledWith(
       "https://b-us-east-1-x.s3.us-east-1.amazonaws.com/d5.gpkg",
       expect.any(String),
+      expect.anything(),
     );
   });
 
@@ -3245,7 +3706,13 @@ describe("listGeoPackageTables", () => {
       "roads",
     ]);
     expect(loadGpkg).toHaveBeenCalledTimes(1);
-    expect(loadGpkg.mock.calls[0]).toHaveLength(2);
+    // The file, the display projection and the load options -- nothing about a
+    // table.
+    expect(loadGpkg).toHaveBeenCalledWith(
+      "https://h/d6.gpkg",
+      expect.any(String),
+      expect.objectContaining({ missingDataSrsAction: "discard" }),
+    );
   });
 
   test("reads with no map mounted, against a registered projection", async () => {
@@ -3800,13 +4267,13 @@ describe("loadGeoParquet - review findings", () => {
     ).rejects.toThrow(/Access-Control-Allow-Origin/);
   });
 
-  test("rejects a file whose declared CRS is not registered", async () => {
+  test("rejects a file whose declared CRS cannot be resolved", async () => {
     parquetMetadataAsync.mockResolvedValue(
       geoMeta({ id: { authority: "EPSG", code: 999999 } }),
     );
     await expect(
       loadGeoParquet({ props: { url: "https://x/odd.parquet" } }, "EPSG:3857"),
-    ).rejects.toThrow(/not registered/);
+    ).rejects.toThrow(/EPSG:999999 is not in the EPSG .* table this build/);
   });
 
   test("renders a CRS84 file at its real coordinates, not raw lon/lat", async () => {
@@ -3937,10 +4404,10 @@ describe("loadZarr - review findings", () => {
     );
   });
 
-  test("rejects a store whose crs attr is not a registered projection", async () => {
+  test("rejects a store whose crs attr is not a resolvable projection", async () => {
     readSlice.mockResolvedValue(slice({ crs: "EPSG:999999" }));
     await expect(loadZarr(cfg(), "EPSG:3857")).rejects.toThrow(
-      /not registered/,
+      /EPSG:999999 is not in the EPSG .* table this build/,
     );
   });
 

@@ -32,6 +32,15 @@ import { get as olGetProj } from "ol/proj";
 
 global.ResizeObserver = require("resize-observer-polyfill"); // Mock GeoTIFF source so auto-fit tests don't trigger real network fetches.
 
+// geotiff.js reads a raster's header twice over: once for the layer's CRS
+// before the source is built, and once for STATISTICS_* when a ramp auto-fits.
+// Neither belongs in a Map test -- both would be real requests -- so the reader
+// fails here and both callers fall back, which is what they do for a file whose
+// header cannot be read.
+jest.mock("geotiff", () => ({
+  fromUrl: jest.fn().mockRejectedValue(new Error("no header reads in tests")),
+}));
+
 jest.mock("ol/source/GeoTIFF.js", () => {
   const ActualSource = jest.requireActual("ol/source/Source.js").default;
   const getViewSpy = jest.fn();
@@ -878,6 +887,43 @@ test("Bad Map Layers", async () => {
   expect(removeLayerSpy.mock.calls[0][0].values_.name).toBe(
     "World Light Gray Base",
   );
+});
+
+test("A failed layer that knows why says so", async () => {
+  // The generic message names the layer that failed; a source that could not
+  // place its data also knows what it could not place, and that detail is the
+  // only part the author can act on.
+  const layers = [
+    {
+      type: "WebGLTile",
+      props: {
+        name: "Depth",
+        source: {
+          type: "GeoTIFF",
+          props: {
+            url: "https://example.com/depth.tif",
+            projection: "EPSG:999999",
+          },
+        },
+        zIndex: 0,
+      },
+    },
+  ];
+
+  render(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
+      <MapContextProvider>
+        <TestingComponent mapProps={{ layers }} />
+      </MapContextProvider>
+    </VariableInputsContext.Provider>,
+  );
+
+  const message = await screen.findByText(
+    /Failed to load the "Depth" layer\(s\) Layer "Depth": This GeoTIFF source declares projection "EPSG:999999"/,
+  );
+  expect(message).toBeInTheDocument();
 });
 
 test("Map Layer JSON Style Function", async () => {

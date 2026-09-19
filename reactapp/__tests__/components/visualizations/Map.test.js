@@ -55,6 +55,9 @@ jest.mock("components/map/ModuleLoader", () => {
     createJsonStyleFunction: jest.fn(), // mock only this function
     applyAutoRamp: actual.applyAutoRamp, // real: drives the Zarr legend
     clearClientSourceCaches: actual.clearClientSourceCaches,
+    // Real: the map tests an instanceof against it to decide whether a failed
+    // layer's message is meant for the author.
+    LayerSourceError: actual.LayerSourceError,
   };
 });
 

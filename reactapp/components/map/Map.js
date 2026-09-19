@@ -3,6 +3,7 @@ import { Map, View } from "ol";
 import moduleLoader, {
   applyAutoRamp,
   createJsonStyleFunction,
+  LayerSourceError,
 } from "components/map/ModuleLoader";
 // Importing this registers the coordinate reference systems that layers name by
 // code. Module evaluation completes before any render, so registration is in
@@ -914,6 +915,11 @@ const MapComponent = ({
       );
 
       let failedLayers = [];
+      // What to say about the ones that know why they failed. A source that
+      // could not place its data names the code it could not place; without
+      // this the author is told only that a layer failed, and the one thing
+      // they could act on is left in the console.
+      const failureDetails = [];
       // Replacement layers added hidden until painted, then revealed on swap.
       const buffered = [];
 
@@ -1233,6 +1239,9 @@ const MapComponent = ({
             }
             console.log(err);
             failedLayers.push(name);
+            if (err instanceof LayerSourceError) {
+              failureDetails.push(`Layer "${name}": ${err.message}`);
+            }
           }
         }),
       );
@@ -1257,7 +1266,10 @@ const MapComponent = ({
 
       if (failedLayers.length > 0) {
         setErrorMessage(
-          `Failed to load the "${failedLayers.join(", ")}" layer(s)`,
+          [
+            `Failed to load the "${failedLayers.join(", ")}" layer(s)`,
+            ...failureDetails,
+          ].join(" "),
         );
       }
 
