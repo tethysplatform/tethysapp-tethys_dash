@@ -4,8 +4,12 @@ import {
   PROJECTION_TABLE,
   INITIAL_CODES,
   ensureProjection,
+  ensureProjectionAsync,
   registerProjectionDefinition,
 } from "components/map/projections";
+// The generated table, read directly so a test can say what the artifact is
+// expected to carry as well as what the lookup does with it.
+import epsgTable from "components/map/epsgDefinitions.json";
 
 // A projected CRS with no AUTHORITY node, which is how ESRI writes .prj files.
 const ESRI_ALBERS_NO_AUTHORITY = `PROJCS["NAD_1983_Albers",GEOGCS["GCS_North_American_1983",DATUM["D_North_American_1983",SPHEROID["GRS_1980",6378137.0,298.257222101]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433]],PROJECTION["Albers"],PARAMETER["False_Easting",0.0],PARAMETER["False_Northing",0.0],PARAMETER["Central_Meridian",-96.0],PARAMETER["Standard_Parallel_1",29.5],PARAMETER["Standard_Parallel_2",45.5],PARAMETER["Latitude_Of_Origin",23.0],UNIT["Meter",1.0]]`;
@@ -278,4 +282,137 @@ it("describes a rejected definition that names no projection method", () => {
 
   expect(result.error.reason).toBe("unsupported");
   expect(result.error.detail).toContain("an unnamed projection method");
+});
+
+describe("ensureProjectionAsync", () => {
+  // Every case is asserted by transforming a point rather than by inspecting
+  // the registry: a code can be registered and still be unusable, and it is
+  // being drawn in the right place that the map depends on.
+  const transform = (code, lonLat) => proj4("EPSG:4326", code, lonLat);
+
+  // The table promises agreement with PROJ to within its own tolerance, so that
+  // is what the control points are checked against -- not an arbitrary epsilon.
+  const expectWithinTolerance = (got, expected) => {
+    const distance = Math.hypot(got[0] - expected[0], got[1] - expected[1]);
+    expect(distance).toBeLessThanOrEqual(epsgTable.toleranceMeters);
+  };
+
+  it("resolves a code OpenLayers already knows", async () => {
+    const result = await ensureProjectionAsync("EPSG:3857");
+    expect(result.projection.getCode()).toBe("EPSG:3857");
+  });
+
+  it("resolves a curated table code", async () => {
+    const result = await ensureProjectionAsync("EPSG:5070");
+    expect(result.projection.getCode()).toBe("EPSG:5070");
+  });
+
+  it("places a generated code where PROJ places it", async () => {
+    // Moznet / UTM zone 38S: the Comoros COG whose failure to draw is what the
+    // table exists for. PROJ puts this point at the raster's own centre.
+    const result = await ensureProjectionAsync("EPSG:5629");
+
+    expect(result.projection.getCode()).toBe("EPSG:5629");
+    expectWithinTolerance(
+      transform("EPSG:5629", [43.2547, -11.7041]),
+      [309776.346, 8705578.206],
+    );
+  });
+
+  it("applies the datum shift PROJ leaves out of a proj4 string", async () => {
+    // OSGB36 sits ~120 m from WGS 84. Without the reconstructed +towgs84 the
+    // projection maths would still be right and the point still wrong.
+    expect(epsgTable.definitions["27700"]).toContain("+towgs84=");
+
+    await ensureProjectionAsync("EPSG:27700");
+    expectWithinTolerance(
+      transform("EPSG:27700", [-0.1276, 51.5072]),
+      [530043.195, 180358.209],
+    );
+  });
+
+  it("places the other control points where PROJ places them", async () => {
+    const controls = [
+      ["EPSG:2193", [174.7762, -41.2865], [1748735.553, 5427916.479]],
+      ["EPSG:3035", [13.405, 52.52], [4552036.45, 3273268.274]],
+      ["EPSG:26910", [-122.3321, 47.6062], [550200.213, 5272748.591]],
+    ];
+
+    for (const [code, lonLat, expected] of controls) {
+      const result = await ensureProjectionAsync(code);
+      expect(result.projection.getCode()).toBe(code);
+      expectWithinTolerance(transform(code, lonLat), expected);
+    }
+  });
+
+  it("reuses a registration rather than declaring it twice", async () => {
+    const first = await ensureProjectionAsync("EPSG:2193");
+    const second = await ensureProjectionAsync("EPSG:2193");
+    // Same projection instance: a second declaration would replace it, and with
+    // it every transform already built against the first.
+    expect(second.projection).toBe(first.projection);
+  });
+
+  it("reports a code the generator could not reproduce, naming the CRS", async () => {
+    // Hartebeesthoek94 / Lo15 is west-orientated; proj4 ignores the axis order
+    // and would draw it thousands of kilometres out, so it is not shipped.
+    const result = await ensureProjectionAsync("EPSG:2046");
+
+    expect(result.projection).toBeUndefined();
+    expect(result.error.reason).toBe("axis");
+    expect(result.error.detail).toContain("Hartebeesthoek94 / Lo15");
+    expect(result.error.detail).toContain("EPSG:4326");
+  });
+
+  it("reports a code the table has never heard of", async () => {
+    const result = await ensureProjectionAsync("EPSG:999999");
+
+    expect(result.error.reason).toBe("unknown");
+    expect(result.error.detail).toContain(epsgTable.epsgVersion);
+  });
+
+  it("reports a code from another authority", async () => {
+    const result = await ensureProjectionAsync("ESRI:102008");
+
+    expect(result.error.reason).toBe("unknown");
+    expect(result.error.detail).toContain("is not an EPSG code");
+  });
+
+  it("reports an empty code", async () => {
+    expect((await ensureProjectionAsync("   ")).error.reason).toBe("empty");
+    expect((await ensureProjectionAsync(null)).error.reason).toBe("empty");
+  });
+});
+
+describe("generated EPSG table", () => {
+  it("records what built it", () => {
+    // Provenance, so a table that drifts from PROJ can be told apart from one
+    // that was generated differently.
+    expect(epsgTable.generated).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(epsgTable.projVersion).toMatch(/^\d+\./);
+    expect(epsgTable.epsgVersion).toMatch(/^v\d+/);
+    expect(epsgTable.toleranceMeters).toBeGreaterThan(0);
+  });
+
+  it("covers the CRSs dashboards are published in", () => {
+    // A spread of the families that reach the map: UTM on a local datum, a
+    // national grid needing a datum shift, a continental equal-area, a US UTM
+    // zone, and plain geographic.
+    for (const code of ["5629", "27700", "2193", "3035", "26910", "4326"]) {
+      expect(epsgTable.definitions[code]).toMatch(/^\+proj=/);
+    }
+  });
+
+  it("drops what it could not reproduce instead of shipping it", () => {
+    // The drop list is the other half of the contract: a code in it fails with
+    // a reason, and a code in neither list is genuinely unknown to EPSG.
+    expect(epsgTable.definitions["2046"]).toBeUndefined();
+    const [reason, name] = epsgTable.unsupported["2046"];
+    expect(reason).toBe("axis");
+    expect(name).toContain("Hartebeesthoek94");
+
+    for (const [reason] of Object.values(epsgTable.unsupported)) {
+      expect(["method", "axis", "inaccurate"]).toContain(reason);
+    }
+  });
 });

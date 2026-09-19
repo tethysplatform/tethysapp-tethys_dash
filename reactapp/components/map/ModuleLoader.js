@@ -43,7 +43,6 @@ import {
   isUsableClass,
 } from "components/map/geoTIFFStyle";
 import proj4 from "proj4";
-import { get as getProjection } from "ol/proj.js";
 import { register as registerProj4 } from "ol/proj/proj4.js";
 import sqlWasmUrl from "sql.js/dist/sql-wasm.wasm";
 import { readSlice } from "components/map/zarrReader";
@@ -141,7 +140,14 @@ async function prepareProps(type, props) {
 // alpha/nodata mask. Variable inputs in the fields (e.g. index="${Storm}") are
 // already substituted before this runs.
 
-export class ZarrError extends Error {}
+// Base class for a source failure whose message is written for the dashboard's
+// author rather than for the console: a store's CRS, a file that could not be
+// read, a projection nothing can place. Map.js shows these verbatim alongside
+// the layer name, so anything thrown as one has to say what went wrong in terms
+// the author can act on.
+export class LayerSourceError extends Error {}
+
+export class ZarrError extends LayerSourceError {}
 
 // The whole slice becomes one WebGL texture, so the grid cannot exceed the
 // driver's max texture dimension. OpenLayers does not check this on the
@@ -279,7 +285,7 @@ export async function loadZarr(config, mapProjection) {
   const { data, width, height, extent, crs, pixelSize } = slice;
   registerGeoPackageProjections(); // resolve UTM store CRSs
   const projection = crs
-    ? resolveProjectionOrThrow(crs, {
+    ? await resolveProjectionOrThrow(crs, {
         ErrorType: ZarrError,
         what: "This Zarr store's `crs` attr",
       })
@@ -326,6 +332,71 @@ export function geotiffSourceToOL(config) {
     props.projection = projection;
   }
   return { ...config, props };
+}
+
+export class GeoTIFFError extends LayerSourceError {}
+
+// The CRS a GeoTIFF names for its own coordinates, read from the file's GeoKeys,
+// or null when it names none.
+//
+// A GeoTIFF names its CRS by code and carries no definition of it, so this is
+// the code to go looking for a definition with -- not something that can be
+// answered from the layer config.
+async function readGeoTIFFProjectionCode(url) {
+  // Author-supplied URL, same restriction the statistics read applies:
+  // file:/blob:/data:/protocol-relative must not be fetched.
+  if (typeof url !== "string" || !/^https?:\/\//i.test(url)) return null;
+  try {
+    const image = await readGeoTIFFHeader(url);
+    const geoKeys = image.geoKeys ?? {};
+    // 32767 is GeoTIFF's "user-defined": the file carries the projection's
+    // parameters itself instead of naming a code, so there is nothing to look
+    // up. OpenLayers does not read those parameters either, so such a file
+    // renders in the view projection exactly as it did before.
+    const projected = geoKeys.ProjectedCSTypeGeoKey;
+    if (projected && projected !== 32767) return `EPSG:${projected}`;
+    const geographic = geoKeys.GeographicTypeGeoKey;
+    if (geographic && geographic !== 32767) return `EPSG:${geographic}`;
+  } catch {
+    // Unreachable, or not a GeoTIFF at all. Both are about to happen again to
+    // OpenLayers on the same URL, where the source's own error handler reports
+    // them with more to go on than anything that could be said here.
+  }
+  return null;
+}
+
+// Put a GeoTIFF's CRS definition on hand before OpenLayers goes looking for it.
+//
+// OL resolves a GeoTIFF's projection from the file's GeoKeys as it opens the
+// file, and when the code resolves to nothing it builds a projection carrying
+// no transforms rather than failing. The layer then throws "No transform
+// available between EPSG:3857 and EPSG:xxxx" from inside the renderer, on every
+// frame, and never draws -- with nothing said to the author, because the throw
+// is neither a source error nor a tile load error.
+//
+// An author-supplied `projection` wins, as it does in OpenLayers, which skips
+// the GeoKeys entirely when the source is given one. It is resolved rather than
+// trusted: an override naming a code we cannot place is the author's mistake to
+// hear about, not something to silently fall back from.
+async function ensureGeoTIFFProjection(config) {
+  const authored = config.props?.projection;
+  const isAuthored = typeof authored === "string" && authored.trim() !== "";
+  const code = isAuthored
+    ? authored.trim()
+    : await readGeoTIFFProjectionCode(config.props?.url);
+  if (!code) return;
+  const registered = await resolveProjectionOrThrow(code, {
+    ErrorType: GeoTIFFError,
+    what: "This GeoTIFF",
+  });
+  // Hand OpenLayers the code as registered rather than as typed, for the same
+  // reason. Only for an authored one: the file's own code goes to OpenLayers
+  // through the file, and writing it into the config here would override the
+  // GeoKey reading it does itself -- which takes the linear units into account
+  // and can rightly decline a code this has already resolved.
+  if (isAuthored && registered !== authored) {
+    config.props.projection = registered;
+  }
 }
 
 // Where to read STATISTICS_* for a ramp-styled GeoTIFF source, or null when the
@@ -455,23 +526,102 @@ export async function applyZarrRamp(layerConfig) {
   return layerConfig;
 }
 
-// Concurrent resolutions of the same file share one header read. The `resolved`
+// Concurrent readers of the same file share one header read. The `resolved`
 // flag below only guards callers that arrive *after* a resolution finished, and
-// two now arrive together: the legend resolves a raster's range to label its
-// colorbar while the map resolves the same range to build the layer. Dropped on
+// three now arrive together: the legend resolves a raster's range to label its
+// colorbar, the map resolves the same range to build the layer, and the layer's
+// CRS is read from the same header before the source is constructed. Dropped on
 // settle rather than kept, so this dedupes in-flight reads without holding a
-// decoder open for every file a time-slider has ever visited.
-const rampHeaderReads = new Map();
+// decoder open for every file a time-slider has ever visited. A reader arriving
+// after the drop re-reads, which the browser serves from its own cache -- the
+// bytes are the same range of the same URL OpenLayers is about to ask for.
+const geoTIFFHeaderReads = new Map();
 
-function readRampHeader(url) {
-  const inFlight = rampHeaderReads.get(url);
+// The decoder, not the image: a reader that only wants the header calls
+// getImage() on it, and one that wants pixels can ask the image how big it is
+// before deciding to read any. Both share the byte ranges the decoder has
+// already fetched.
+function openGeoTIFF(url) {
+  const inFlight = geoTIFFHeaderReads.get(url);
   if (inFlight) return inFlight;
   const read = (async () => {
     const { fromUrl } = await import("geotiff");
-    return (await fromUrl(url)).getImage();
-  })().finally(() => rampHeaderReads.delete(url));
-  rampHeaderReads.set(url, read);
+    return fromUrl(url);
+  })().finally(() => geoTIFFHeaderReads.delete(url));
+  geoTIFFHeaderReads.set(url, read);
   return read;
+}
+
+async function readGeoTIFFHeader(url) {
+  return (await openGeoTIFF(url)).getImage();
+}
+
+// The most cells this will scan to find a raster's range. Four million is a
+// 2000x2000 raster: ~16 MiB of float32 once decoded, and a few hundred
+// milliseconds to walk. Past that the read stops being a detail of drawing the
+// layer and becomes a download of its own, so the author is asked for the range
+// instead of being made to wait for it.
+const RANGE_SCAN_CELL_LIMIT = 4_000_000;
+
+// TIFF's sample format for IEEE floating point.
+const SAMPLE_FORMAT_FLOAT = 3;
+
+/**
+ * The real minimum and maximum of a raster's first band, read from its pixels.
+ *
+ * For the files that need this there is nothing else to go on: they carry no
+ * STATISTICS_* tags and no PAM sidecar, and OpenLayers' fallback -- normalizing
+ * by the range of the *data type* -- turns every float value into zero, because
+ * a probability of 1.0 against a float32 ceiling of 3.4e38 rounds to nothing.
+ *
+ * Deliberately reads full resolution rather than an overview. Overview pixels
+ * are averages, so they lose exactly the extremes a color ramp is defined by:
+ * measured on a 4000x4000 raster spanning -3.5 to 123.75, the 500x500 overview
+ * reports 18.7 to 31.5 and even the 2000x2000 level reports 1.3 to 49.7. A ramp
+ * fitted to those would clip its own data and a legend built from them would
+ * claim a maximum the raster exceeds.
+ *
+ * The outcome is reported separately from the range, because three things that
+ * all leave the ramp unfitted call for three different responses:
+ *
+ *   "too-large"  The pixels were not read. The author can answer this, by
+ *                pinning the ramp or publishing the file's statistics, so they
+ *                are asked to.
+ *   "unreadable" The read was attempted and failed. The file is broken or
+ *                unreachable, which OpenLayers is about to discover for itself
+ *                on the same URL and report with more to go on.
+ *   "read"       The pixels were read. If no range came back, the raster holds
+ *                one value or none, and no author input would change that.
+ *
+ * @param {string} url GeoTIFF URL.
+ * @param {number} nodata The value standing for "no data", or NaN.
+ * @returns {Promise<{outcome: string, min?: number, max?: number}>}
+ */
+async function readRasterRange(url, nodata) {
+  try {
+    const image = await readGeoTIFFHeader(url);
+    if (image.getWidth() * image.getHeight() > RANGE_SCAN_CELL_LIMIT) {
+      return { outcome: "too-large" };
+    }
+
+    const [band] = await image.readRasters({ samples: [0] });
+    let min = Infinity;
+    let max = -Infinity;
+    for (let index = 0; index < band.length; index += 1) {
+      const value = band[index];
+      // NaN fails every comparison, so nodata cells written as NaN drop out
+      // here rather than needing a test of their own.
+      if (!Number.isFinite(value) || value === nodata) continue;
+      if (value < min) min = value;
+      if (value > max) max = value;
+    }
+    // min > max only when nothing was counted. Equal bounds are returned as
+    // they are: a single-valued raster was read successfully, and it is the
+    // ramp builder's business that such a range cannot be interpolated over.
+    return min > max ? { outcome: "read" } : { outcome: "read", min, max };
+  } catch {
+    return { outcome: "unreadable" };
+  }
 }
 
 // Fit a ramp-styled raster layer's color ramp to the file's real value range.
@@ -500,6 +650,16 @@ function readRampHeader(url) {
 export async function applyAutoRamp(layerConfig) {
   const source = layerConfig?.props?.source;
   if (source?.type === "Zarr") return applyZarrRamp(layerConfig);
+  // Cleared before anything is resolved, so the flag only ever describes the
+  // resolution that just ran. An author who drops the ramp, or points the layer
+  // at a file that publishes its statistics, must not go on failing on a verdict
+  // reached about an earlier one.
+  //
+  // Deleted rather than set false, and this matters: layer preservation decides
+  // whether to rebuild by comparing configs, so writing a key onto every source
+  // that passes through here -- shapefiles included -- makes each of them look
+  // changed, and every layer reloads on every render.
+  if (source) delete source.rampRangeUnavailable;
   const { rampName, rampMin, rampMax } = source ?? {};
   const hasMin = (rampMin ?? "") !== "";
   const hasMax = (rampMax ?? "") !== "";
@@ -519,7 +679,7 @@ export async function applyAutoRamp(layerConfig) {
   if (!statsUrl || source.resolvedRampUrl === statsUrl) return layerConfig;
 
   try {
-    const image = await readRampHeader(statsUrl);
+    const image = await readGeoTIFFHeader(statsUrl);
     // getGDALMetadata(0) returns items tagged for sample 0 only; passing null
     // returns the dataset-level items. Writers differ -- rio-cogeo attaches
     // STATISTICS_* to the band, while GDAL and MATLAB's Mapping Toolbox write
@@ -590,6 +750,21 @@ export async function applyAutoRamp(layerConfig) {
       statsMax = statsMax ?? sidecar.STATISTICS_MAXIMUM;
     }
 
+    // Nothing published a range, so read one out of the raster itself. Last
+    // because it is the only step that touches pixels: a file that carries its
+    // statistics, in its tags or its sidecar, is never scanned.
+    let tooLargeToScan = false;
+    if (
+      source.type === "GeoTIFF" &&
+      ((!hasMin && statsMin === undefined) ||
+        (!hasMax && statsMax === undefined))
+    ) {
+      const range = await readRasterRange(statsUrl, source.props.nodata);
+      tooLargeToScan = range.outcome === "too-large";
+      statsMin = statsMin ?? range.min;
+      statsMax = statsMax ?? range.max;
+    }
+
     // A pinned bound wins; only the empty one comes from the statistics.
     let lo = hasMin ? Number(rampMin) : parseFloat(statsMin);
     const hi = hasMax ? Number(rampMax) : parseFloat(statsMax);
@@ -598,6 +773,20 @@ export async function applyAutoRamp(layerConfig) {
       // anyway so nodata cells are transparent rather than painted at band 1 = 0,
       // which is what the zero-filled tile array leaves them as.
       layerConfig.style = styleFor("", "");
+      // For float data, staying normalized is not a degraded rendering, it is a
+      // blank one: OpenLayers scales by the range of the data type, and against
+      // a float32 ceiling of 3.4e38 every real value rounds to zero. Raised only
+      // when the pixels were never read -- a raster that was read and holds one
+      // value has no range to find, and telling the author to go and find one
+      // would send them after something that does not exist.
+      //
+      // Recorded rather than thrown: the legend build calls this too, and it has
+      // no business failing over a raster it only wanted to label. moduleLoader
+      // raises it when the layer is built, where a failure is already handled.
+      // Set only when true, for the same reason it is deleted above.
+      if (tooLargeToScan && image.getSampleFormat() === SAMPLE_FORMAT_FLOAT) {
+        source.rampRangeUnavailable = true;
+      }
       return layerConfig;
     }
 
@@ -632,7 +821,7 @@ export async function applyAutoRamp(layerConfig) {
   return layerConfig;
 }
 
-export class GeoPackageError extends Error {}
+export class GeoPackageError extends LayerSourceError {}
 
 // s3://bucket/key -> virtual-hosted https so the browser can fetch it directly.
 export function s3UrlToHttps(url, defaultRegion = "us-east-1") {
@@ -827,7 +1016,7 @@ async function readGeoPackageContents(url) {
   }
 }
 
-export class GeoParquetError extends Error {}
+export class GeoParquetError extends LayerSourceError {}
 
 // OGC's lon/lat WGS84 authority code, spelled several ways across PROJJSON
 // writers. OpenLayers registers "CRS:84" and the urn:/http: URI forms but not
@@ -851,16 +1040,25 @@ export function geoParquetCRSToProjection(crs) {
 // renders the data at raw coordinates in the view's units — visibly wrong but
 // silent. Failing here instead puts the layer in failedLayers with a message
 // naming the code.
-function resolveProjectionOrThrow(code, { ErrorType, what }) {
-  const projection = getProjection(code);
-  if (!projection) {
+//
+// Async because most codes resolve out of the generated EPSG table, which is a
+// chunk fetched on first use; every caller is inside a source loader that is
+// already awaiting its data. The projection module is imported here rather than
+// at the top of this file so that a dashboard with no such layer pays for
+// neither it nor the table.
+async function resolveProjectionOrThrow(code, { ErrorType, what }) {
+  const { ensureProjectionAsync } = await import("components/map/projections");
+  const resolved = await ensureProjectionAsync(code);
+  if (resolved.error) {
     throw new ErrorType(
-      `${what} declares projection "${code}", which is not registered. ` +
-        `Add its definition to components/map/projections, or republish the ` +
-        `data in a supported CRS (e.g. EPSG:4326).`,
+      `${what} declares projection "${code}". ${resolved.error.detail}`,
     );
   }
-  return code;
+  // The registered code, not the one that was asked for. OpenLayers looks a
+  // projection up by exact string, so handing back "epsg:5629" as written would
+  // resolve to nothing and put the data at raw coordinates -- the silent
+  // failure this function exists to prevent.
+  return resolved.projection.getCode();
 }
 
 // Read the GeoParquet "geo" file metadata: primary geometry column + its CRS.
@@ -1107,7 +1305,7 @@ async function readGeoParquetFile(url, readOptions) {
     );
   }
 
-  resolveProjectionOrThrow(dataProjection, {
+  await resolveProjectionOrThrow(dataProjection, {
     ErrorType: GeoParquetError,
     what: "This GeoParquet file",
   });
@@ -1283,6 +1481,16 @@ const moduleLoader = async (config, mapProjection, getMapProjection) => {
   if (config.type === "GeoTIFF") {
     if (!config.props?.url) {
       throw new Error("GeoTIFFEmptySources");
+    }
+    await ensureGeoTIFFProjection(config);
+    if (config.rampRangeUnavailable) {
+      throw new GeoTIFFError(
+        `This GeoTIFF publishes no statistics and is too large to scan for ` +
+          `its own value range, so its color ramp cannot be fitted and every ` +
+          `cell would render as zero. Set the ramp's Min and Max on the ` +
+          `layer's Style tab, or publish the file's statistics alongside it ` +
+          `(gdal_edit.py -stats, or its .aux.xml sidecar).`,
+      );
     }
     config = geotiffSourceToOL(config);
   }

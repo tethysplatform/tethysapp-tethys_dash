@@ -7,3 +7,7 @@ coverage/
 dist/
 build/
 package-lock.json
+
+# Generated EPSG definition table (`npm run generate:epsg`). One line of JSON on
+# purpose: reformatting it would add ~5,500 lines of diff to every regeneration.
+reactapp/components/map/epsgDefinitions.json

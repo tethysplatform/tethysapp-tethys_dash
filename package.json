@@ -5,6 +5,7 @@
   "description": "Frontend React project for tethysdash",
   "main": "index.js",
   "scripts": {
+    "generate:epsg": "python scripts/epsg/extract.py && node scripts/epsg/build.mjs",
     "start": "webpack-dev-server --mode development --config ./reactapp/config/webpack.config.js",
     "build": "webpack --mode production --config ./reactapp/config/webpack.config.js",
     "lint": "npx eslint reactapp",
