@@ -365,6 +365,31 @@ async function readGeoTIFFProjectionCode(url) {
   return null;
 }
 
+// Register the CRS an author named on a source, whatever its type.
+//
+// A code typed into a layer's `projection` field is handed straight to
+// OpenLayers, which resolves it by exact string and, finding nothing, quietly
+// falls back to the view projection -- so a WMS or a static image in a CRS
+// nothing registered draws at the wrong place rather than failing. Resolving it
+// here turns that into a layer error naming the code.
+//
+// Shapefiles are excluded: their `projection` field takes a WKT or proj4
+// definition as well as a code, for a .prj-less file in a CRS no table carries,
+// and their own reader already handles all three.
+async function ensureAuthoredProjection(config) {
+  const authored = config.props?.projection;
+  if (typeof authored !== "string" || authored.trim() === "") return false;
+
+  const registered = await resolveProjectionOrThrow(authored.trim(), {
+    ErrorType: LayerSourceError,
+    what: `This ${config.type} source`,
+  });
+  // OpenLayers looks a projection up by exact string, so it is handed the code
+  // as registered rather than as typed.
+  if (registered !== authored) config.props.projection = registered;
+  return true;
+}
+
 // Put a GeoTIFF's CRS definition on hand before OpenLayers goes looking for it.
 //
 // OL resolves a GeoTIFF's projection from the file's GeoKeys as it opens the
@@ -379,24 +404,23 @@ async function readGeoTIFFProjectionCode(url) {
 // trusted: an override naming a code we cannot place is the author's mistake to
 // hear about, not something to silently fall back from.
 async function ensureGeoTIFFProjection(config) {
-  const authored = config.props?.projection;
-  const isAuthored = typeof authored === "string" && authored.trim() !== "";
-  const code = isAuthored
-    ? authored.trim()
-    : await readGeoTIFFProjectionCode(config.props?.url);
+  // An author-supplied projection wins, as it does in OpenLayers, which skips
+  // the GeoKeys entirely when the source is given one.
+  if (await ensureAuthoredProjection(config)) return;
+
+  const code = await readGeoTIFFProjectionCode(config.props?.url);
   if (!code) return;
-  const registered = await resolveProjectionOrThrow(code, {
+  // Not written back into the config: the file's own code reaches OpenLayers
+  // through the file, and setting it here would override the GeoKey reading it
+  // does itself -- which takes the linear units into account and can rightly
+  // decline a code this has already resolved.
+  await resolveProjectionOrThrow(code, {
+    // "file", against the authored helper's "source": which of the two named
+    // the code is the first thing an author needs to know, because only one of
+    // them is theirs to change.
     ErrorType: GeoTIFFError,
-    what: "This GeoTIFF",
+    what: "This GeoTIFF file",
   });
-  // Hand OpenLayers the code as registered rather than as typed, for the same
-  // reason. Only for an authored one: the file's own code goes to OpenLayers
-  // through the file, and writing it into the config here would override the
-  // GeoKey reading it does itself -- which takes the linear units into account
-  // and can rightly decline a code this has already resolved.
-  if (isAuthored && registered !== authored) {
-    config.props.projection = registered;
-  }
 }
 
 // Where to read STATISTICS_* for a ramp-styled GeoTIFF source, or null when the
@@ -853,6 +877,58 @@ export function registerGeoPackageProjections() {
   projectionsRegistered = true;
 }
 
+// A table whose SRS OpenLayers could not resolve: 1 is "kept but not
+// reprojected", 2 is "discarded", and which of the two comes back depends on
+// the MissingDataSrsAction below. Both mean the same thing here.
+const GEOPACKAGE_MISSING_SRS_CODES = [1, 2];
+
+// Report a table whose SRS is unresolvable instead of throwing the whole load
+// away, so the SRS it names can be read back off the status. Genuine load
+// failures are left on their default, which is to throw.
+//
+// camelCase deliberately: ol-load-geopackage's API.md documents this option as
+// `MissingDataSrsAction`, but the shipped code reads `missingDataSrsAction` and
+// silently ignores anything else -- leaving the default in place, which throws
+// the whole load away and takes the SRS id with it.
+const GEOPACKAGE_OPTIONS = { missingDataSrsAction: "discard" };
+
+/**
+ * Load a GeoPackage's tables, registering any CRS the loader could not resolve.
+ *
+ * A GeoPackage names its CRS inside the file, in a SQLite table, so there is
+ * nothing in the layer config to register from and no cheap way to look before
+ * the loader opens it. Instead the loader is asked to report rather than throw:
+ * a table it could not place comes back with the numeric SRS id it wanted, that
+ * code is registered, and the file is loaded once more -- by which time the
+ * browser has the bytes, so the second pass is parsing, not downloading.
+ */
+async function loadGeoPackageTables(loadGpkg, url, mapProjection) {
+  const loaded = await loadGpkg(url, mapProjection, GEOPACKAGE_OPTIONS);
+
+  const missing = new Set();
+  for (const status of Object.values(loaded[2] ?? {})) {
+    if (
+      GEOPACKAGE_MISSING_SRS_CODES.includes(status?.statusCode) &&
+      status?.origSrsId
+    ) {
+      missing.add(`EPSG:${status.origSrsId}`);
+    }
+  }
+  if (missing.size === 0) return loaded;
+
+  const { ensureProjectionAsync } = await import("components/map/projections");
+  for (const code of missing) {
+    const resolved = await ensureProjectionAsync(code);
+    if (resolved.error) {
+      throw new GeoPackageError(
+        `This GeoPackage holds a table in projection "${code}". ` +
+          resolved.error.detail,
+      );
+    }
+  }
+  return loadGpkg(url, mapProjection, GEOPACKAGE_OPTIONS);
+}
+
 // Lazy-load ol-load-geopackage and init the sql.js wasm loader once.
 let geoPackageLib = null;
 async function getGeoPackageLib() {
@@ -884,7 +960,10 @@ export async function loadGeoPackage(config, mapProjection) {
 
   const cacheKey = `${url}::${mapProjection}`;
   if (!geoPackageCache.has(cacheKey)) {
-    geoPackageCache.set(cacheKey, loadGpkg(url, mapProjection));
+    geoPackageCache.set(
+      cacheKey,
+      loadGeoPackageTables(loadGpkg, url, mapProjection),
+    );
   }
   let dataByTable;
   try {
@@ -1000,7 +1079,15 @@ async function readGeoPackageContents(url) {
   registerGeoPackageProjections();
   const { loadGpkg } = await getGeoPackageLib();
   try {
-    const [dataByTable] = await loadGpkg(url, GEOPACKAGE_DISCOVERY_PROJECTION);
+    // Through the same two-phase load the render path uses. Discovery is where
+    // an author first meets the file, so a table in a CRS that needs
+    // registering has to appear in the list here too -- listing nothing reads
+    // as "this file is empty", which is a different and wrong answer.
+    const [dataByTable] = await loadGeoPackageTables(
+      loadGpkg,
+      url,
+      GEOPACKAGE_DISCOVERY_PROJECTION,
+    );
     const tables = Object.keys(dataByTable ?? {});
     const fieldsByTable = {};
     for (const table of tables) {
@@ -1468,6 +1555,15 @@ export function geometryIntersectsBBox(geometry, box) {
 }
 
 const moduleLoader = async (config, mapProjection, getMapProjection) => {
+  // Before anything is constructed, and before the type-specific branches:
+  // every source type accepts a `projection`, and an unregistered one is worse
+  // than useless at every one of them. GeoTIFF resolves its own below, because
+  // it has the file's GeoKeys to fall back on, and Shapefile because its field
+  // accepts a definition as well as a code.
+  if (config.type !== "GeoTIFF" && config.type !== "Shapefile") {
+    await ensureAuthoredProjection(config);
+  }
+
   if (config.type === "GeoPackage") {
     return loadGeoPackage(config, mapProjection);
   }
@@ -1883,7 +1979,7 @@ export const loadShapefile = (config, mapProjection, getMapProjection) => {
   return source;
 };
 
-const loadGeoJSON = (config, mapProjection) => {
+const loadGeoJSON = async (config, mapProjection) => {
   const geojson = config.geojson;
 
   if (typeof geojson === "string") {
@@ -1893,9 +1989,21 @@ const loadGeoJSON = (config, mapProjection) => {
     });
   }
 
+  // A GeoJSON naming its own CRS -- the pre-2016 spelling, still written by
+  // plenty of exporters -- hands the reader a code it may not know, and an
+  // unknown one silently means "already WGS 84", which drops projected
+  // coordinates onto the map as degrees. Resolve it, or say why not.
+  const named = geojson.crs?.properties?.name;
+  const dataProjection = named
+    ? await resolveProjectionOrThrow(named, {
+        ErrorType: LayerSourceError,
+        what: "This GeoJSON's `crs`",
+      })
+    : undefined;
+
   return new VectorSource({
     features: new GeoJSON().readFeatures(geojson, {
-      dataProjection: geojson.crs?.properties?.name,
+      dataProjection,
       featureProjection: mapProjection,
     }),
   });

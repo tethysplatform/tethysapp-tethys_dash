@@ -113,7 +113,7 @@ async function resolveProjection(prjBytes, fallbackProjection) {
   // through the layer loader, which every dashboard with a map evaluates. A
   // shapefile always needs them -- it carries its CRS as WKT -- so the load is
   // paid once, on the read, alongside the parser's own dynamic imports.
-  const { ensureProjection, registerProjectionDefinition } =
+  const { ensureProjectionAsync, registerProjectionDefinition } =
     await import("components/map/projections");
 
   if (prjBytes) {
@@ -151,17 +151,19 @@ async function resolveProjection(prjBytes, fallbackProjection) {
       return { code: registered.code };
     }
 
-    const resolved = ensureProjection(fallbackProjection);
-    if (!resolved) {
+    const resolved = await ensureProjectionAsync(fallbackProjection);
+    if (resolved.error) {
       return {
         error: {
           stage: "parse",
           reason: "unresolvable_projection",
-          detail: `The projection "${fallbackProjection}" could not be resolved. Supply a coordinate system this map recognises, or a WKT definition.`,
+          detail: `The projection "${fallbackProjection}" could not be resolved. ${resolved.error.detail}`,
         },
       };
     }
-    return { code: fallbackProjection };
+    // The code as registered: OpenLayers resolves a projection by exact string,
+    // and the features are read with whatever is returned here.
+    return { code: resolved.projection.getCode() };
   }
 
   return {

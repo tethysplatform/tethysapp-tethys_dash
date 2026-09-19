@@ -274,6 +274,88 @@ test("KML Layer Instance", async () => {
   expect(cachedLayerInstance instanceof VectorLayer).toBe(true);
 });
 
+describe("a projection an author names on a source", () => {
+  // Every source type takes a `projection`, and OpenLayers resolves it by exact
+  // string: an unregistered one resolves to nothing and the source quietly
+  // falls back to the view projection, drawing the data in the wrong place
+  // without an error. So it is resolved before anything is constructed.
+  const wmsLayer = (projection) => ({
+    type: "ImageLayer",
+    props: {
+      name: "WMS Layer",
+      source: {
+        type: "WMS",
+        props: {
+          url: "https://example.com/geoserver/wms",
+          params: { LAYERS: "topp:states" },
+          projection,
+        },
+      },
+      zIndex: 1,
+    },
+  });
+
+  test("registers a code from the generated table", async () => {
+    await moduleLoader(wmsLayer("EPSG:2193"));
+
+    expect(getProjection("EPSG:2193")).toBeTruthy();
+  });
+
+  test("hands OpenLayers the code as registered, not as typed", async () => {
+    const config = wmsLayer("epsg:2193");
+
+    await moduleLoader(config);
+
+    expect(config.props.source.props.projection).toBe("EPSG:2193");
+  });
+
+  test("fails the layer when the code cannot be placed", async () => {
+    await expect(moduleLoader(wmsLayer("EPSG:2046"))).rejects.toThrow(
+      /EPSG:2046 \(Hartebeesthoek94 \/ Lo15\)/,
+    );
+  });
+
+  test("leaves a source with no projection alone", async () => {
+    const config = wmsLayer(undefined);
+    delete config.props.source.props.projection;
+
+    await expect(moduleLoader(config)).resolves.toBeDefined();
+  });
+});
+
+describe("a GeoJSON that names its own CRS", () => {
+  const geoJSONLayer = (crsName) => ({
+    type: "Vector",
+    props: {
+      name: "Sites",
+      source: {
+        type: "GeoJSON",
+        props: {},
+        geojson: {
+          type: "FeatureCollection",
+          crs: { type: "name", properties: { name: crsName } },
+          features: [],
+        },
+      },
+      zIndex: 0,
+    },
+  });
+
+  test("registers the code, in the URN spelling exporters write", async () => {
+    // An unknown dataProjection silently means "already WGS 84" to the reader,
+    // which drops projected coordinates onto the map as degrees.
+    await moduleLoader(geoJSONLayer("urn:ogc:def:crs:EPSG::2193"));
+
+    expect(getProjection("EPSG:2193")).toBeTruthy();
+  });
+
+  test("fails the layer when the named CRS cannot be placed", async () => {
+    await expect(
+      moduleLoader(geoJSONLayer("urn:ogc:def:crs:EPSG::2046")),
+    ).rejects.toThrow(/Hartebeesthoek94/);
+  });
+});
+
 describe("GeoTIFF source", () => {
   const geoTIFFLayerConfig = (props = {}) => ({
     type: "WebGLTile",
@@ -3382,7 +3464,14 @@ describe("loadGeoPackage", () => {
       "EPSG:3857",
     );
     expect(out).toBe(src);
-    expect(loadGpkg).toHaveBeenCalledWith("https://h/t1.gpkg", "EPSG:3857");
+    expect(loadGpkg).toHaveBeenCalledWith(
+      "https://h/t1.gpkg",
+      "EPSG:3857",
+      // Report an unresolvable table SRS rather than throwing the load away, so
+      // the SRS it names can be read back and registered. The key is the one
+      // the library reads, which is not the one its API.md documents.
+      { missingDataSrsAction: "discard" },
+    );
   });
 
   test("translates an s3:// url before loading", async () => {
@@ -3394,6 +3483,7 @@ describe("loadGeoPackage", () => {
     expect(loadGpkg).toHaveBeenCalledWith(
       "https://b-us-east-1-x.s3.us-east-1.amazonaws.com/t2.gpkg",
       "EPSG:3857",
+      expect.anything(),
     );
   });
 
@@ -3421,6 +3511,65 @@ describe("loadGeoPackage", () => {
         "EPSG:3857",
       ),
     ).rejects.toThrow(/roads|bldgs/);
+  });
+
+  test("registers a table's own CRS and loads again when the loader could not place it", async () => {
+    // A GeoPackage names its CRS in a SQLite table, so nothing in the layer
+    // config says what to register. The loader reports the SRS it wanted; the
+    // second pass reads the file the browser has already fetched.
+    const placed = new VectorSource();
+    loadGpkg
+      .mockResolvedValueOnce([
+        {},
+        {},
+        { roads: { statusCode: 2, origSrsId: 2193 } },
+      ])
+      .mockResolvedValueOnce([
+        { roads: placed },
+        {},
+        { roads: { statusCode: 0 } },
+      ]);
+
+    const out = await loadGeoPackage(
+      { props: { url: "https://h/nztm.gpkg", layer: "roads" } },
+      "EPSG:3857",
+    );
+
+    expect(out).toBe(placed);
+    expect(loadGpkg).toHaveBeenCalledTimes(2);
+    expect(getProjection("EPSG:2193")).toBeTruthy();
+  });
+
+  test("fails the layer when a table's CRS cannot be placed at all", async () => {
+    // EPSG:2046 is west-orientated: the generated table drops it rather than
+    // draw it thousands of kilometres out, so no amount of reloading helps.
+    loadGpkg.mockResolvedValue([
+      {},
+      {},
+      { roads: { statusCode: 2, origSrsId: 2046 } },
+    ]);
+
+    await expect(
+      loadGeoPackage(
+        { props: { url: "https://h/lo15.gpkg", layer: "roads" } },
+        "EPSG:3857",
+      ),
+    ).rejects.toThrow(/EPSG:2046 \(Hartebeesthoek94 \/ Lo15\)/);
+  });
+
+  test("loads once when every table placed", async () => {
+    loadGpkg.mockResolvedValue([
+      { t: new VectorSource() },
+      {},
+      { t: { statusCode: 0, origSrsId: 4326 } },
+    ]);
+
+    await loadGeoPackage(
+      { props: { url: "https://h/plain.gpkg", layer: "t" } },
+      "EPSG:3857",
+    );
+
+    expect(loadGpkg).toHaveBeenCalledTimes(1);
   });
 
   test("parses a file only once across layers (cache by url+projection)", async () => {
@@ -3480,6 +3629,25 @@ describe("listGeoPackageTables", () => {
     ]);
   });
 
+  test("lists a table whose CRS had to be registered first", async () => {
+    // Discovery is where an author first meets the file, so it needs the same
+    // register-and-reload the render path does. Listing nothing here reads as
+    // "this file is empty", which is a different and wrong answer -- and is
+    // what an author saw for any GeoPackage outside the WGS84 UTM zones.
+    loadGpkg
+      .mockResolvedValueOnce([
+        {},
+        {},
+        { subbasins: { statusCode: 2, origSrsId: "26912" } },
+      ])
+      .mockResolvedValueOnce([{ subbasins: new VectorSource() }, {}, {}]);
+
+    await expect(listGeoPackageTables("https://h/utm12.gpkg")).resolves.toEqual(
+      ["subbasins"],
+    );
+    expect(loadGpkg).toHaveBeenCalledTimes(2);
+  });
+
   test("a second call for the same url does not download again", async () => {
     loadGpkg.mockResolvedValue([{ roads: new VectorSource() }, {}]);
     await listGeoPackageTables("https://h/d2.gpkg");
@@ -3526,6 +3694,7 @@ describe("listGeoPackageTables", () => {
     expect(loadGpkg).toHaveBeenCalledWith(
       "https://b-us-east-1-x.s3.us-east-1.amazonaws.com/d5.gpkg",
       expect.any(String),
+      expect.anything(),
     );
   });
 
@@ -3537,7 +3706,13 @@ describe("listGeoPackageTables", () => {
       "roads",
     ]);
     expect(loadGpkg).toHaveBeenCalledTimes(1);
-    expect(loadGpkg.mock.calls[0]).toHaveLength(2);
+    // The file, the display projection and the load options -- nothing about a
+    // table.
+    expect(loadGpkg).toHaveBeenCalledWith(
+      "https://h/d6.gpkg",
+      expect.any(String),
+      expect.objectContaining({ missingDataSrsAction: "discard" }),
+    );
   });
 
   test("reads with no map mounted, against a registered projection", async () => {

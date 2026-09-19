@@ -165,6 +165,28 @@ const UNSUPPORTED_REASONS = {
 
 const ADVICE = "Republish the data in a supported CRS, such as EPSG:4326.";
 
+// The spellings an EPSG code arrives in. A layer config names one plainly, but
+// data formats do not: GeoJSON's `crs.properties.name` and GeoParquet's PROJJSON
+// both carry URN or URI forms, and OpenLayers understands those only for codes
+// it has already registered -- which is exactly what is being asked for here.
+const EPSG_SPELLINGS = [
+  /^EPSG:(\d+)$/i,
+  // urn:ogc:def:crs:EPSG::2193, urn:x-ogc:def:crs:EPSG:6.6:2193
+  /^urn:(?:x-)?ogc:def:crs:EPSG:[^:]*:(\d+)$/i,
+  // http://www.opengis.net/def/crs/EPSG/0/2193
+  /\/def\/crs\/EPSG\/[^/]*\/(\d+)$/i,
+  // http://www.opengis.net/gml/srs/epsg.xml#2193
+  /epsg\.xml#(\d+)$/i,
+];
+
+function epsgCodeFrom(text) {
+  for (const spelling of EPSG_SPELLINGS) {
+    const match = spelling.exec(text);
+    if (match) return match[1];
+  }
+  return null;
+}
+
 /**
  * Resolve a projection by code, falling back to the generated EPSG table when
  * neither OpenLayers nor the curated table above covers it.
@@ -194,8 +216,8 @@ export async function ensureProjectionAsync(code) {
   const known = ensureProjection(trimmed);
   if (known) return { projection: known };
 
-  const epsg = /^EPSG:(\d+)$/i.exec(trimmed);
-  if (!epsg) {
+  const id = epsgCodeFrom(trimmed);
+  if (!id) {
     return {
       error: {
         reason: "unknown",
@@ -205,7 +227,6 @@ export async function ensureProjectionAsync(code) {
   }
 
   const table = await loadGeneratedTable();
-  const id = epsg[1];
   const normalized = `EPSG:${id}`;
 
   const definition = table.definitions[id];

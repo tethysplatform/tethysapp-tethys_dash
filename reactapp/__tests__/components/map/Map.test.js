@@ -921,7 +921,7 @@ test("A failed layer that knows why says so", async () => {
   );
 
   const message = await screen.findByText(
-    /Failed to load the "Depth" layer\(s\) Layer "Depth": This GeoTIFF declares projection "EPSG:999999"/,
+    /Failed to load the "Depth" layer\(s\) Layer "Depth": This GeoTIFF source declares projection "EPSG:999999"/,
   );
   expect(message).toBeInTheDocument();
 });
