@@ -2761,6 +2761,245 @@ test("handleGridItemImport bad style load", async () => {
   expect(response).toStrictEqual(apiResponse);
 });
 
+// The identity pass wired into handleGridItemImport. The rules themselves are
+// exercised in __tests__/components/dashboard/importIdentity.test.js; what these
+// cases pin is that import runs them, on the same object the file rehydration
+// walk above it has already touched, and that nothing they cannot interpret
+// turns into a failed import. The uuid mock at the top of this file returns one
+// constant, so "this id was re-minted" is assertable here but "these two ids
+// differ" is not -- that coverage lives in the identity suite.
+describe("handleGridItemImport identity normalization", () => {
+  const MINTED_UUID = "12345678";
+
+  const pluginLayer = (props = {}) => ({
+    configuration: {
+      type: "VectorLayer",
+      props: {
+        name: "Gages",
+        pluginSource: { source: "plugin_gages", args: {} },
+        source: { type: "GeoJSON", props: {} },
+        ...props,
+      },
+    },
+  });
+
+  const staticLayer = (overrides = {}) => ({
+    configuration: {
+      type: "WebGLTileLayer",
+      props: {
+        name: "Basemap",
+        source: { type: "ImageTile", props: { url: "https://example.com" } },
+      },
+    },
+    ...overrides,
+  });
+
+  const mapGridItem = (args) => ({
+    i: "1",
+    x: 0,
+    y: 0,
+    w: 20,
+    h: 20,
+    source: "Map",
+    args_string: args,
+    metadata_string: { refreshRate: 0 },
+  });
+
+  const argsOf = (response) =>
+    JSON.parse(response.importedGridItem.args_string);
+
+  const popupItemsOf = (response, layerIndex = 0) =>
+    argsOf(response).layers[layerIndex].popupConfig.gridItems;
+
+  test("mints a layerId for a plugin-backed layer that arrived without one", async () => {
+    const response = await handleGridItemImport(
+      mapGridItem({ layers: [pluginLayer()] }),
+      "123456789",
+    );
+
+    expect(response.success).toBe(true);
+    expect(argsOf(response).layers[0].configuration.props.layerId).toBe(
+      MINTED_UUID,
+    );
+  });
+
+  test("re-mints a popup-nested grid item uuid and its plugin layer id", async () => {
+    const nested = {
+      i: "nested-1",
+      x: 0,
+      y: 0,
+      w: 10,
+      h: 10,
+      uuid: "uuid-from-the-imported-file",
+      source: "Map",
+      args_string: JSON.stringify({
+        layers: [pluginLayer({ layerId: "layerId-from-the-imported-file" })],
+      }),
+      metadata_string: "{}",
+    };
+    const layer = staticLayer({
+      popupConfig: { gridItems: [nested] },
+    });
+
+    const response = await handleGridItemImport(
+      mapGridItem({ layers: [layer] }),
+      "123456789",
+    );
+
+    expect(response.success).toBe(true);
+    const [normalizedNested] = popupItemsOf(response);
+    expect(normalizedNested.uuid).not.toBe("uuid-from-the-imported-file");
+    expect(normalizedNested.uuid).toBe(MINTED_UUID);
+    const nestedArgs = JSON.parse(normalizedNested.args_string);
+    expect(nestedArgs.layers[0].configuration.props.layerId).toBe(MINTED_UUID);
+  });
+
+  test("strips the view group keys off a popup-nested map", async () => {
+    const nested = {
+      i: "nested-1",
+      uuid: "nested-uuid",
+      source: "Map",
+      args_string: JSON.stringify({
+        map_extent: {
+          extent: "1,2,3,4",
+          viewGroup: "Basin",
+          isGroupInitialExtent: true,
+        },
+      }),
+      metadata_string: "{}",
+    };
+
+    const response = await handleGridItemImport(
+      mapGridItem({
+        layers: [staticLayer({ popupConfig: { gridItems: [nested] } })],
+      }),
+      "123456789",
+    );
+
+    expect(response.success).toBe(true);
+    const nestedArgs = JSON.parse(popupItemsOf(response)[0].args_string);
+    expect(nestedArgs.map_extent).toStrictEqual({ extent: "1,2,3,4" });
+  });
+
+  test("imports a layer whose popupConfig.gridItems is not an array, untouched", async () => {
+    // A table-mode popup has no `gridItems` at all, and a hand-authored file can
+    // put anything there. Neither may fail the import.
+    const args = {
+      layers: [staticLayer({ popupConfig: { gridItems: "not-an-array" } })],
+    };
+
+    const response = await handleGridItemImport(mapGridItem(args), "123456789");
+
+    expect(response).toStrictEqual({
+      success: true,
+      importedGridItem: {
+        i: "1",
+        x: 0,
+        y: 0,
+        w: 20,
+        h: 20,
+        source: "Map",
+        args_string: JSON.stringify(args),
+        metadata_string: JSON.stringify({ refreshRate: 0 }),
+      },
+    });
+  });
+
+  test("imports a popup-nested grid item whose args will not parse", async () => {
+    const nested = {
+      i: "nested-1",
+      uuid: "nested-uuid",
+      source: "Map",
+      args_string: "{not json at all",
+      metadata_string: "{}",
+    };
+
+    const response = await handleGridItemImport(
+      mapGridItem({
+        layers: [staticLayer({ popupConfig: { gridItems: [nested] } })],
+      }),
+      "123456789",
+    );
+
+    // The import succeeds and the subtree it could not read is handed back
+    // verbatim; only the uuid, which needs no parsing, is re-minted.
+    expect(response.success).toBe(true);
+    expect(popupItemsOf(response)[0]).toStrictEqual({
+      ...nested,
+      uuid: MINTED_UUID,
+    });
+  });
+
+  test("re-mints the uuid of a popup-nested non-map item and nothing else", async () => {
+    const nested = {
+      i: "nested-1",
+      x: 0,
+      y: 0,
+      w: 10,
+      h: 10,
+      uuid: "nested-uuid",
+      source: "Custom Text",
+      args_string: JSON.stringify({ text: "hello" }),
+      metadata_string: JSON.stringify({ refreshRate: 0 }),
+    };
+
+    const response = await handleGridItemImport(
+      mapGridItem({
+        layers: [staticLayer({ popupConfig: { gridItems: [nested] } })],
+      }),
+      "123456789",
+    );
+
+    expect(response.success).toBe(true);
+    expect(popupItemsOf(response)[0]).toStrictEqual({
+      ...nested,
+      uuid: MINTED_UUID,
+    });
+  });
+
+  test("still rehydrates geojson and style files while minting the layer id", async () => {
+    const mockUploadJSON = jest.fn();
+    mockUploadJSON.mockResolvedValueOnce({
+      success: true,
+      filename: "geojson.json",
+    });
+    mockUploadJSON.mockResolvedValueOnce({
+      success: true,
+      filename: "style.json",
+    });
+    jest.spyOn(appAPI, "uploadJSON").mockImplementation(mockUploadJSON);
+
+    const layer = pluginLayer();
+    layer.configuration.props.source.geojson = exampleGeoJSON;
+    layer.configuration.style = exampleStyle;
+
+    const response = await handleGridItemImport(
+      mapGridItem({ layers: [layer] }),
+      "123456789",
+    );
+
+    expect(response.success).toBe(true);
+    const normalizedLayer = argsOf(response).layers[0];
+    // Same two uploads, in the same order, with the geojson CRS-checked and the
+    // style not -- the identity pass runs beside that walk, not inside it.
+    expect(mockUploadJSON).toHaveBeenCalledTimes(2);
+    expect(mockUploadJSON.mock.calls[0][0]).toStrictEqual({
+      data: JSON.stringify(exampleGeoJSON),
+      filename: `${MINTED_UUID}.json`,
+      dashboard_uuid: undefined,
+    });
+    expect(mockUploadJSON.mock.calls[0][1]).toBe("123456789");
+    expect(mockUploadJSON.mock.calls[1][0].data).toBe(
+      JSON.stringify(exampleStyle),
+    );
+    expect(normalizedLayer.configuration.props.source.geojson).toBe(
+      "geojson.json",
+    );
+    expect(normalizedLayer.configuration.style).toBe("style.json");
+    expect(normalizedLayer.configuration.props.layerId).toBe(MINTED_UUID);
+  });
+});
+
 describe("detectImportFormat", () => {
   const validGridItem = {
     i: "1",

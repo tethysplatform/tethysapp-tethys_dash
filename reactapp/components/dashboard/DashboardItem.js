@@ -15,6 +15,7 @@ import {
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import DataViewerModal from "components/modals/DataViewer/DataViewer";
 import { clearGridItemGroupInitialExtent } from "components/map/viewGroup";
+import { applyItemIdentityRules } from "components/dashboard/importIdentity";
 import DashboardItemDropdown from "components/dashboard/DashboardItemDropdown";
 import BaseVisualization from "components/visualizations/Base";
 import { confirm } from "components/inputs/DeleteConfirmation";
@@ -236,7 +237,7 @@ export const handleGridItemExport = async (gridItem, dashboard_uuid) => {
 };
 
 export const handleGridItemImport = async (gridItem, csrf, dashboard_uuid) => {
-  const importedGridItem = JSON.parse(JSON.stringify(gridItem));
+  let importedGridItem = JSON.parse(JSON.stringify(gridItem));
   if (typeof importedGridItem.args_string === "string") {
     importedGridItem.args_string = JSON.parse(importedGridItem.args_string);
   }
@@ -306,6 +307,22 @@ export const handleGridItemImport = async (gridItem, csrf, dashboard_uuid) => {
       }
     }
   }
+  // The identity fields in the payload address the dashboard the file was
+  // exported from, not this one: a `layerId` from there names no layer here, and
+  // a hand-authored or script-generated file can repeat one across two layers or
+  // omit it entirely -- which nothing reports, because the runtime consumers all
+  // read a missing id as "not a runtime layer" and early-return. Re-minting is a
+  // separate concern from the file rehydration walk above, so it runs as its own
+  // pass rather than as another branch inside that loop; it also descends into
+  // the popup layouts the walk never looks at. Running it here, after the walk,
+  // means the walk keeps mutating exactly the layer objects it always has, and
+  // the applier sees the rehydrated result. It normalizes `args_string` itself
+  // and hands it back in the representation it was given -- an object at this
+  // point -- so the re-stringify below stays the single place the string is
+  // rebuilt. It never throws: a subtree it cannot interpret is left alone rather
+  // than failing the whole import.
+  importedGridItem = applyItemIdentityRules(importedGridItem);
+
   importedGridItem.args_string = JSON.stringify(importedGridItem.args_string);
   importedGridItem.metadata_string = JSON.stringify(
     importedGridItem.metadata_string,
