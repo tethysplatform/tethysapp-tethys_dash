@@ -244,8 +244,19 @@ export const handleGridItemExport = async (gridItem, dashboard_uuid) => {
 
 export const handleGridItemImport = async (gridItem, csrf, dashboard_uuid) => {
   let importedGridItem = JSON.parse(JSON.stringify(gridItem));
+  // Hand-authored and script-generated files are the input class this whole
+  // path serves, so a malformed `args_string` is expected traffic. Neither
+  // caller wraps its await in try/catch, so a throw here would surface as an
+  // unhandled rejection -- the modal would neither close nor show an error.
   if (typeof importedGridItem.args_string === "string") {
-    importedGridItem.args_string = JSON.parse(importedGridItem.args_string);
+    try {
+      importedGridItem.args_string = JSON.parse(importedGridItem.args_string);
+    } catch {
+      return {
+        success: false,
+        message: `Grid Item args_string is not valid JSON`,
+      };
+    }
   }
 
   if (
@@ -256,6 +267,17 @@ export const handleGridItemImport = async (gridItem, csrf, dashboard_uuid) => {
     return {
       success: false,
       message: `Grid Items must include ${requiredGridItemKeys.join(", ")} keys`,
+    };
+  }
+
+  if (
+    !importedGridItem.args_string ||
+    typeof importedGridItem.args_string !== "object" ||
+    Array.isArray(importedGridItem.args_string)
+  ) {
+    return {
+      success: false,
+      message: `Grid Item args_string must be a JSON object`,
     };
   }
 
@@ -522,14 +544,7 @@ const DashboardItem = () => {
     // one rule list rather than two sites each knowing a different subset, which
     // is how these two drifted apart in the first place. The args here are still
     // a JSON string; the applier hands one back.
-    //
-    // The popup descent is declined, and that is load-bearing rather than an
-    // optimization: popup-nested Live Chat messages are stored against the
-    // nested grid item uuid (`Message.request_id == db_grid_item.uuid`,
-    // `tethysapp/tethysdash/model.py`), so re-minting those uuids would silently
-    // start the copy with an empty chat history. Import is the opposite case --
-    // an imported dashboard has no prior messages to orphan.
-    newGridItem = applyItemIdentityRules(newGridItem, { descendPopups: false });
+    newGridItem = applyItemIdentityRules(newGridItem);
     // R28/AE9: the copy stays in the same view group but never inherits the
     // group's initial-extent flag -- two flagged members would make the group's
     // opening view depend on the order the dashboard is scanned in. Expressed as

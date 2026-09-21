@@ -14,14 +14,21 @@
 // the import chokepoint in `components/dashboard/DashboardItem.js` and the copy
 // handler beside it -- and those two had already drifted: copy re-minted the
 // grid item uuid and cleared the view-group flag, while import re-minted the
-// uuid and nothing else. The list is a vocabulary, not a dispatch table. It
-// declares, per key, WHERE the key lives, WHEN it is applied and WHAT happens
-// to it; the locators stay in the appliers below, because they do not
-// generalize -- a `layerId` sits at `configuration.props` gated on
+// uuid and nothing else. The keys this module owns, and what happens to each:
+//
+//   layerId               on every plugin-backed layer, top level and nested -- re-minted
+//   uuid                  on every popup-nested grid item -- re-minted
+//   viewGroup             on a popup-nested map -- stripped
+//   isGroupInitialExtent  on a popup-nested map -- stripped
+//                         on a top-level map -- cleared when the group is claimed
+//
+// The first four are decided from one grid item alone and applied by
+// `applyItemIdentityRules`; the last spans the whole import and the target
+// dashboard, so it is applied by `applyBatchIdentityRules` at the call sites,
+// once every item has been processed. The locators stay in the appliers because
+// they do not generalize -- a `layerId` sits at `configuration.props` gated on
 // `pluginSource`, a nested uuid at a popup grid item's root, and the view-group
-// keys inside `map_extent` in any of its historical shapes. Adding a key costs
-// a rule entry AND a locator. The payoff is that the scope and action of every
-// key are declared in one readable place.
+// keys inside `map_extent` in any of its historical shapes.
 //
 // Nothing here touches React or OpenLayers, so the rules are testable without
 // mounting anything.
@@ -30,66 +37,11 @@ import { v4 as uuidv4 } from "uuid";
 import {
   BUILT_IN_MAP_SOURCE,
   clearGridItemGroupInitialExtent,
-  clearGridItemViewGroupSettings,
+  clearViewGroupSettings,
   normalizeViewGroupName,
   parseGridItemArgs,
   readViewGroupSettings,
 } from "components/map/viewGroup";
-
-/**
- * The identity rules, as a list rather than an object keyed by key name.
- *
- * `isGroupInitialExtent` needs two entries -- cleared on collision at the top
- * level, stripped outright inside a popup -- which a name-keyed object cannot
- * hold. Every rule carries:
- *
- *  - `key`       the identity field itself.
- *  - `position`  `"item"` for the grid item being processed, `"popup"` for one
- *                nested in a layer's `popupConfig.gridItems`. The same key can
- *                need different treatment at each, so position qualifies a rule
- *                as much as the key does. One key appears at most once per
- *                position.
- *  - `scope`     `"item"` when one grid item carries everything needed to
- *                decide, `"batch"` when the decision spans the whole import and
- *                the target dashboard. The two scopes are applied by the two
- *                appliers below, at different points in the import.
- *  - `action`    `"mint"` replaces the value with a fresh one, `"strip"` removes
- *                the key, `"clearOnCollision"` removes it only when something
- *                else already claims it.
- */
-export const IDENTITY_RULES = [
-  // A plugin-backed layer's runtime id. Re-minted, never preserved: the id from
-  // the file addresses a layer in the dashboard it was exported from.
-  { key: "layerId", position: "item", scope: "item", action: "mint" },
-  // A popup-nested grid item's uuid is the request-id key for the
-  // visualizations embedded in that popup, so duplicates are unsafe by
-  // construction. Prophylactic rather than a fix for an observed defect.
-  { key: "uuid", position: "popup", scope: "item", action: "mint" },
-  // Popup layouts nest real grid items, so a nested map's layers have exactly
-  // the same identity problem as a top-level map's.
-  { key: "layerId", position: "popup", scope: "item", action: "mint" },
-  // A map inside a popup layout never joins a view group (R27), and the group
-  // discovery pass never scans popup subtrees -- so a group name left in there
-  // would be invisible to enforcement while still sitting in saved config.
-  // Stripping both keys outright is the only state the two readers agree on.
-  { key: "viewGroup", position: "popup", scope: "item", action: "strip" },
-  {
-    key: "isGroupInitialExtent",
-    position: "popup",
-    scope: "item",
-    action: "strip",
-  },
-  // At the top level the flag is kept unless something else already supplies
-  // the group's opening view -- a co-imported sibling earlier in the batch, or
-  // a member already on the target dashboard. Two stored flags would let a
-  // later save of the losing map flip which map seeds the group.
-  {
-    key: "isGroupInitialExtent",
-    position: "item",
-    scope: "batch",
-    action: "clearOnCollision",
-  },
-];
 
 const isPlainObject = (value) =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -156,7 +108,38 @@ function normalizePopupGridItem(nested) {
   // Deliberately not descended into again: popup-within-popup nesting is out
   // of scope, and one level is what every scenario covers.
   normalized = normalizeGridItemLayers(normalized, false);
-  return clearGridItemViewGroupSettings(normalized);
+  return stripViewGroup(normalized);
+}
+
+/**
+ * Remove a nested map's view-group membership.
+ *
+ * A map inside a popup layout never joins a group, and `discoverGroupSeeds`
+ * never scans popup subtrees -- so a group name or seed flag left down here
+ * would sit in saved config where the enforcement pass cannot see it.
+ *
+ * Reads the args through `readArgs` rather than a grid-item-level viewGroup
+ * helper, because those parse `args_string` as a string only: a hand-authored
+ * file may nest an item whose args arrived already parsed, and the strip has to
+ * work on both representations like the rest of this module.
+ *
+ * @param {*} gridItem a popup grid item
+ * @returns {*} the grid item without group keys, or the original reference
+ */
+function stripViewGroup(gridItem) {
+  if (gridItem?.source !== BUILT_IN_MAP_SOURCE) return gridItem;
+
+  const read = readArgs(gridItem);
+  if (!read) return gridItem;
+
+  const mapExtent = clearViewGroupSettings(read.args.map_extent);
+  if (mapExtent === read.args.map_extent) return gridItem;
+
+  const nextArgs = { ...read.args, map_extent: mapExtent };
+  return {
+    ...gridItem,
+    args_string: read.wasString ? JSON.stringify(nextArgs) : nextArgs,
+  };
 }
 
 /**
@@ -196,11 +179,12 @@ function normalizePopupSubtree(layer) {
  * callers compare by identity to tell whether anything changed.
  *
  * @param {*} gridItem
- * @param {boolean} descendPopups whether to apply the popup rules to each
- *   layer's popup layout
+ * @param {boolean} [descend=true] false stops at this item's own layers and
+ *   leaves their popup layouts alone. Only the popup walk passes false, to hold
+ *   the recursion to one level -- popup-within-popup nesting is out of scope.
  * @returns {*} the normalized grid item, or the original reference
  */
-function normalizeGridItemLayers(gridItem, descendPopups) {
+function normalizeGridItemLayers(gridItem, descend = true) {
   if (!isPlainObject(gridItem)) return gridItem;
 
   const read = readArgs(gridItem);
@@ -209,7 +193,7 @@ function normalizeGridItemLayers(gridItem, descendPopups) {
   let changed = false;
   const layers = read.args.layers.map((layer) => {
     let next = mintLayerId(layer);
-    if (descendPopups) next = normalizePopupSubtree(next);
+    if (descend) next = normalizePopupSubtree(next);
     if (next !== layer) changed = true;
     return next;
   });
@@ -236,25 +220,19 @@ function normalizeGridItemLayers(gridItem, descendPopups) {
  * Total: any subtree it cannot interpret is left alone and the grid item is
  * returned unchanged. It never throws.
  *
- * The popup descent is opt-out for one caller only. Import re-mints nested
- * uuids because they are the request-id key for the visualizations embedded in
- * a popup, and an imported dashboard has no prior state keyed on them. A copy
- * does: popup-nested Live Chat messages are stored against the nested grid item
- * uuid (`tethysapp/tethysdash/model.py`), so re-minting on copy would silently
- * start the copy with an empty chat history.
+ * Every caller descends, import and copy alike. A nested uuid is the request-id
+ * key for the visualizations embedded in that popup, so two subtrees sharing one
+ * would cross-deliver progress and loading messages whenever both popups are
+ * open. Nothing durable is keyed on it: popup grid items live inside the parent
+ * item's `args_string` and never become rows of their own, so the server cannot
+ * associate state -- Live Chat included -- with a nested uuid.
  *
  * @param {*} gridItem the grid item to normalize
- * @param {object} [options]
- * @param {boolean} [options.descendPopups=true] false applies the top-level
- *   rules only, leaving every popup subtree exactly as it arrived
  * @returns {*} the normalized grid item, or the original reference when there
  *   was nothing to change
  */
-export function applyItemIdentityRules(
-  gridItem,
-  { descendPopups = true } = {},
-) {
-  return normalizeGridItemLayers(gridItem, descendPopups);
+export function applyItemIdentityRules(gridItem) {
+  return normalizeGridItemLayers(gridItem);
 }
 
 /**

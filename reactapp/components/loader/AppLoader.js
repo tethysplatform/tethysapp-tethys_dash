@@ -412,22 +412,25 @@ function Loader({ children }) {
       //
       // The target state is empty: this path always creates a new dashboard, so
       // there is no existing member for an imported flag to collide with.
-      const normalizedGridItems = applyBatchIdentityRules(
-        [
-          ...importedLooseItems,
-          ...importedTabs.flatMap((tab) => tab.gridItems),
-        ],
-        [],
-      );
+      //
+      // Only the items the server will actually keep take part. `add_new_dashboard`
+      // persists the tab grid items when the payload has tabs and the loose ones
+      // only when it does not, so a file carrying both would otherwise let a
+      // flagged loose map claim a group and clear the flag off the tab map --
+      // and then be discarded, leaving the group with no opening view at all.
+      const hasTabs = importedTabs.length > 0;
+      const batchInput = hasTabs
+        ? importedTabs.flatMap((tab) => tab.gridItems)
+        : importedLooseItems;
+      const normalizedGridItems = applyBatchIdentityRules(batchInput, []);
 
       if (importedLooseItems.length > 0) {
-        dashboardContext.gridItems = normalizedGridItems.slice(
-          0,
-          importedLooseItems.length,
-        );
+        dashboardContext.gridItems = hasTabs
+          ? importedLooseItems
+          : normalizedGridItems;
       }
-      if (importedTabs.length > 0) {
-        let itemIndex = importedLooseItems.length;
+      if (hasTabs) {
+        let itemIndex = 0;
         dashboardContext.tabs = importedTabs.map((tab) => {
           const gridItems = normalizedGridItems.slice(
             itemIndex,

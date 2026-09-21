@@ -3337,7 +3337,7 @@ test("Dashboard Item copy of a plugin-backed layer re-mints its layer id", async
   expect(copyArgs.layers[0].configuration.props.layerId).toBe("12345678");
 });
 
-test("Dashboard Item copy leaves popup-nested grid item uuids alone", async () => {
+test("Dashboard Item copy re-mints popup-nested grid item uuids", async () => {
   const nestedUUID = "nested-grid-item-uuid";
   const { copyArgs } = await copyGridItemAndReadTabs(
     { extent: "-10686671.12,4721671.57,4.5" },
@@ -3362,12 +3362,13 @@ test("Dashboard Item copy leaves popup-nested grid item uuids alone", async () =
     ],
   );
 
-  // Live Chat messages are stored against the nested grid item uuid
-  // (`Message.request_id == db_grid_item.uuid`), so re-minting it here would
-  // silently start the copy with an empty chat history. Copy therefore declines
-  // the popup descent that import performs.
+  // A nested uuid is the request-id key for the visualizations inside that
+  // popup, so leaving the copy sharing the original's would cross-deliver
+  // progress and loading messages whenever both popups are open. Nothing
+  // durable is keyed on it -- popup grid items live inside the parent's
+  // args_string and never become rows of their own.
   const copiedLayer = copyArgs.layers[0];
-  expect(copiedLayer.popupConfig.gridItems[0].uuid).toBe(nestedUUID);
-  // ...while the top-level rules still ran on the same layer.
+  expect(copiedLayer.popupConfig.gridItems[0].uuid).not.toBe(nestedUUID);
+  // ...and the top-level rules still ran on the same layer.
   expect(copiedLayer.configuration.props.layerId).toBe("12345678");
 });

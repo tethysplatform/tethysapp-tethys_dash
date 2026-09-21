@@ -1,5 +1,4 @@
 import {
-  IDENTITY_RULES,
   applyBatchIdentityRules,
   applyItemIdentityRules,
 } from "components/dashboard/importIdentity";
@@ -68,54 +67,6 @@ const flaggedMap = (viewGroup, overrides = {}) =>
 
 const viewGroupSettingsOf = (gridItem) =>
   readViewGroupSettings(argsOf(gridItem).map_extent);
-
-const ruleFor = (key, position) =>
-  IDENTITY_RULES.find(
-    (rule) => rule.key === key && rule.position === position,
-  ) ?? null;
-
-describe("IDENTITY_RULES", () => {
-  it("declares one rule per key and position", () => {
-    const seen = new Set();
-    IDENTITY_RULES.forEach((rule) => {
-      const signature = `${rule.key}@${rule.position}`;
-      expect(seen.has(signature)).toBe(false);
-      seen.add(signature);
-    });
-  });
-
-  it("gives every rule a key, position, scope and action", () => {
-    IDENTITY_RULES.forEach((rule) => {
-      expect(typeof rule.key).toBe("string");
-      expect(["item", "popup"]).toContain(rule.position);
-      expect(["item", "batch"]).toContain(rule.scope);
-      expect(["mint", "strip", "clearOnCollision"]).toContain(rule.action);
-    });
-  });
-
-  it("carries the two rules that a name-keyed object could not hold", () => {
-    expect(ruleFor("isGroupInitialExtent", "item")).toEqual({
-      key: "isGroupInitialExtent",
-      position: "item",
-      scope: "batch",
-      action: "clearOnCollision",
-    });
-    expect(ruleFor("isGroupInitialExtent", "popup").action).toBe("strip");
-  });
-
-  it("returns null for a key that has no rule at that position", () => {
-    expect(ruleFor("viewGroup", "item")).toBeNull();
-    expect(ruleFor("nonsense", "popup")).toBeNull();
-  });
-
-  it("partitions the rules by scope", () => {
-    const itemRules = IDENTITY_RULES.filter((rule) => rule.scope === "item");
-    const batchRules = IDENTITY_RULES.filter((rule) => rule.scope === "batch");
-    expect(itemRules.length + batchRules.length).toBe(IDENTITY_RULES.length);
-    expect(batchRules).toHaveLength(1);
-    expect(itemRules.every((rule) => rule.scope === "item")).toBe(true);
-  });
-});
 
 describe("applyItemIdentityRules -- top level layer identity", () => {
   it("mints an id for a plugin-backed layer that has none", () => {
@@ -298,28 +249,64 @@ describe("applyItemIdentityRules -- popup subtrees", () => {
   });
 });
 
-describe("applyItemIdentityRules -- descendPopups: false", () => {
-  // The copy path opts out: popup-nested Live Chat history is keyed on the
-  // nested grid item uuid, so re-minting it would orphan the messages.
-  const gridItem = () =>
-    mapGridItem({
+describe("applyItemIdentityRules -- popup view group strip", () => {
+  // The strip reads args through readArgs rather than a string-only helper, so
+  // a nested item whose args arrived already parsed is stripped too. A
+  // hand-authored file can nest either shape.
+  it("strips a nested map's group keys when its args arrived as an object", () => {
+    const gridItem = mapGridItem({
       layers: [
         {
-          ...pluginLayer({ layerId: "id-from-the-file" }),
+          ...pluginLayer(),
           popupConfig: {
             mode: "modal",
             gridItems: [
               {
                 i: "1",
-                uuid: "nested-uuid",
+                uuid: "nested",
                 source: "Map",
-                args_string: JSON.stringify({
-                  layers: [pluginLayer()],
+                args_string: {
                   map_extent: {
                     extent: "1,2,3",
                     viewGroup: "Basin",
                     isGroupInitialExtent: true,
                   },
+                },
+              },
+            ],
+          },
+        },
+      ],
+    });
+
+    const nested = argsOf(applyItemIdentityRules(gridItem)).layers[0]
+      .popupConfig.gridItems[0];
+
+    expect(nested.args_string.map_extent).toEqual({ extent: "1,2,3" });
+  });
+});
+
+describe("applyItemIdentityRules -- popup recursion depth", () => {
+  // Held to one level: popup-within-popup nesting is out of scope, so a nested
+  // item's own layers are re-minted but their popup layouts are left alone.
+  it("re-mints a nested layer's id but does not descend a second level", () => {
+    const innerPopup = {
+      mode: "modal",
+      gridItems: [{ i: "1", uuid: "second-level-uuid", source: "Map" }],
+    };
+    const gridItem = mapGridItem({
+      layers: [
+        {
+          ...pluginLayer(),
+          popupConfig: {
+            mode: "modal",
+            gridItems: [
+              {
+                i: "1",
+                uuid: "first-level-uuid",
+                source: "Map",
+                args_string: JSON.stringify({
+                  layers: [{ ...pluginLayer(), popupConfig: innerPopup }],
                 }),
               },
             ],
@@ -328,22 +315,14 @@ describe("applyItemIdentityRules -- descendPopups: false", () => {
       ],
     });
 
-  it("still re-mints the top level layer id", () => {
-    const result = applyItemIdentityRules(gridItem(), {
-      descendPopups: false,
-    });
+    const result = applyItemIdentityRules(gridItem);
+    const nested = argsOf(result).layers[0].popupConfig.gridItems[0];
+    const nestedLayer = JSON.parse(nested.args_string).layers[0];
 
-    expect(layerIdOf(result)).not.toBe("id-from-the-file");
-  });
-
-  it("leaves the popup subtree exactly as it arrived", () => {
-    const original = gridItem();
-
-    const result = applyItemIdentityRules(original, { descendPopups: false });
-
-    expect(argsOf(result).layers[0].popupConfig).toEqual(
-      argsOf(original).layers[0].popupConfig,
-    );
+    expect(nested.uuid).not.toBe("first-level-uuid");
+    expect(nestedLayer.configuration.props.layerId).toBeTruthy();
+    // The second level is left exactly as it arrived.
+    expect(nestedLayer.popupConfig).toEqual(innerPopup);
   });
 });
 
