@@ -25,6 +25,7 @@ import {
   useLayoutSuccessAlertContext,
   useLayoutErrorAlertContext,
 } from "components/contexts/LayoutAlertContext";
+import { discoverGroupSeeds } from "components/map/viewGroup";
 import { getTethysPortalBase } from "services/utilities";
 import captureThumbnail from "components/layout/captureThumbnail";
 
@@ -660,6 +661,20 @@ export const DashboardHeader = () => {
           showModal={showImportModal}
           setShowModal={setShowImportModal}
           onImportGridItem={onImportGridItem}
+          // The groups this dashboard already supplies an initial extent for.
+          // Computed here rather than inside the modal: the same modal is also
+          // mounted on the landing page, outside any `TabContext` provider,
+          // where a context read would throw at render and blank the page.
+          //
+          // Keys only, never values -- `discoverGroupSeeds` stores null for a
+          // flagged member whose extent will not parse, and that group is
+          // claimed all the same.
+          //
+          // Read at render, so it is the pre-import snapshot. That matters for
+          // a tab that merges into an existing same-named tab: taken after the
+          // merge, the list would contain the imported items themselves and an
+          // imported flag would collide with itself and always lose.
+          targetGroupNames={[...discoverGroupSeeds(tabs).keys()]}
         />
       )}
     </>

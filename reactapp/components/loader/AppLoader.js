@@ -23,6 +23,7 @@ import {
   handleGridItemExport,
   handleGridItemImport,
 } from "components/dashboard/DashboardItem";
+import { applyBatchIdentityRules } from "components/dashboard/importIdentity";
 import IdleTimerManager from "components/loader/IdleTimerManager";
 import WebsocketProvider from "components/contexts/WebSocketContext";
 import { v4 as uuidv4 } from "uuid";
@@ -361,8 +362,8 @@ function Loader({ children }) {
       }
       dashboardContext.uuid = uuidv4();
 
+      const importedLooseItems = [];
       if (dashboardContext.gridItems && dashboardContext.gridItems.length > 0) {
-        const updatedGridItems = [];
         for (let gridItem of dashboardContext.gridItems) {
           const { success, message, importedGridItem } =
             await handleGridItemImport(
@@ -371,16 +372,15 @@ function Loader({ children }) {
               dashboardContext.uuid,
             );
           if (success) {
-            updatedGridItems.push(importedGridItem);
+            importedLooseItems.push(importedGridItem);
           } else {
             return { success, message };
           }
         }
-        dashboardContext.gridItems = updatedGridItems;
       }
 
+      const importedTabs = [];
       if (dashboardContext.tabs && dashboardContext.tabs.length > 0) {
-        const updatedTabs = [];
         for (let tab of dashboardContext.tabs) {
           const updatedGridItems = [];
           for (let gridItem of tab.gridItems) {
@@ -396,9 +396,46 @@ function Loader({ children }) {
               return { success, message };
             }
           }
-          updatedTabs.push({ ...tab, gridItems: updatedGridItems });
+          importedTabs.push({ ...tab, gridItems: updatedGridItems });
         }
-        dashboardContext.tabs = updatedTabs;
+      }
+
+      // R8: one view group may have only one member flagged as its initial
+      // extent, and the batch that has to agree on that spans the loose items
+      // AND every tab -- a flagged map on tab two must be able to see a flagged
+      // sibling on tab one. So it cannot be a per-loop helper. The two loops
+      // above collect their results instead of assigning them, the whole import
+      // is flattened in one fixed order -- loose items first, then tabs in
+      // order -- transformed once, and re-split by the lengths each tab arrived
+      // with. The re-split is safe precisely because the transform preserves
+      // length and order; nothing here may reorder or drop an item.
+      //
+      // The target state is empty: this path always creates a new dashboard, so
+      // there is no existing member for an imported flag to collide with.
+      const normalizedGridItems = applyBatchIdentityRules(
+        [
+          ...importedLooseItems,
+          ...importedTabs.flatMap((tab) => tab.gridItems),
+        ],
+        [],
+      );
+
+      if (importedLooseItems.length > 0) {
+        dashboardContext.gridItems = normalizedGridItems.slice(
+          0,
+          importedLooseItems.length,
+        );
+      }
+      if (importedTabs.length > 0) {
+        let itemIndex = importedLooseItems.length;
+        dashboardContext.tabs = importedTabs.map((tab) => {
+          const gridItems = normalizedGridItems.slice(
+            itemIndex,
+            itemIndex + tab.gridItems.length,
+          );
+          itemIndex += tab.gridItems.length;
+          return { ...tab, gridItems };
+        });
       }
 
       const apiResponse = await addDashboard(dashboardContext);
