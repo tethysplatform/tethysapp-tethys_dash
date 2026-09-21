@@ -610,6 +610,24 @@ describe("the legacy doubly nested shape on a member losing its flag", () => {
     });
   });
 
+  it("clearGridItemGroupInitialExtent returns the original item when there is no flag to clear", () => {
+    // The identity-comparison contract: callers tell whether anything changed
+    // by comparing references, so an unflagged member must come back as-is
+    // rather than as a re-serialized equal.
+    const gridItem = {
+      source: "Map",
+      args_string: JSON.stringify({
+        baseMap: "OpenStreetMap",
+        map_extent: {
+          extent: "-10686671.12,4721671.57,4.5",
+          viewGroup: "Basin",
+        },
+      }),
+    };
+
+    expect(clearGridItemGroupInitialExtent(gridItem)).toBe(gridItem);
+  });
+
   it("clearGridItemGroupInitialExtent rewrites only the nested flag", () => {
     const gridItem = nestedGridItem("2");
     const cleared = clearGridItemGroupInitialExtent(gridItem);
