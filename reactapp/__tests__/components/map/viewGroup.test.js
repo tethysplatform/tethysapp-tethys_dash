@@ -4,6 +4,7 @@ import {
   ROTATION_TOLERANCE_RADIANS,
   centersAreEqual,
   clearGridItemGroupInitialExtent,
+  clearGridItemViewGroupSettings,
   clearGroupInitialExtent,
   clearViewGroupSettings,
   containsVariableToken,
@@ -496,6 +497,86 @@ describe("clearViewGroupSettings", () => {
         },
       }),
     ).toEqual({ extent: { extent: "1,2,3" } });
+  });
+});
+
+describe("clearGridItemViewGroupSettings", () => {
+  const mapGridItem = (mapExtent, extra = {}) => ({
+    i: "1",
+    source: "Map",
+    args_string: JSON.stringify({ map_extent: mapExtent, ...extra }),
+  });
+
+  it("strips both group keys and keeps the rest of the extent", () => {
+    const gridItem = mapGridItem(
+      {
+        extent: "0,0,5",
+        variable: "Extent",
+        viewGroup: "Basin",
+        isGroupInitialExtent: true,
+      },
+      { baseMap: "OpenStreetMap" },
+    );
+
+    const stripped = clearGridItemViewGroupSettings(gridItem);
+
+    expect(stripped).not.toBe(gridItem);
+    const args = JSON.parse(stripped.args_string);
+    expect(args.baseMap).toBe("OpenStreetMap");
+    expect(args.map_extent).toEqual({ extent: "0,0,5", variable: "Extent" });
+  });
+
+  it("strips a group name that arrived without the flag", () => {
+    const gridItem = mapGridItem({ extent: "0,0,5", viewGroup: "Basin" });
+
+    const stripped = clearGridItemViewGroupSettings(gridItem);
+
+    expect(stripped).not.toBe(gridItem);
+    expect(JSON.parse(stripped.args_string).map_extent).toEqual({
+      extent: "0,0,5",
+    });
+  });
+
+  it("strips the keys nested under an inner extent container too", () => {
+    const gridItem = mapGridItem({
+      extent: {
+        extent: "0,0,5",
+        viewGroup: "Basin",
+        isGroupInitialExtent: true,
+      },
+      viewGroup: "Basin",
+    });
+
+    const stripped = clearGridItemViewGroupSettings(gridItem);
+
+    expect(stripped).not.toBe(gridItem);
+    expect(JSON.parse(stripped.args_string).map_extent).toEqual({
+      extent: { extent: "0,0,5" },
+    });
+  });
+
+  it("hands back a grid item carrying neither key by identity", () => {
+    const gridItem = mapGridItem({ extent: "0,0,5", variable: "Extent" });
+    expect(clearGridItemViewGroupSettings(gridItem)).toBe(gridItem);
+  });
+
+  it("leaves a plugin map alone even when its args carry a group", () => {
+    // R19: a plugin map's extent does not exist until the plugin has run, so
+    // there is nothing here for the built-in editor to have written.
+    const gridItem = {
+      i: "1",
+      source: "Plugin Map",
+      args_string: JSON.stringify({
+        map_extent: { extent: "0,0,5", viewGroup: "Basin" },
+      }),
+    };
+    expect(clearGridItemViewGroupSettings(gridItem)).toBe(gridItem);
+    expect(clearGridItemViewGroupSettings(null)).toBe(null);
+  });
+
+  it("leaves a grid item whose args do not parse alone", () => {
+    const gridItem = { i: "1", source: "Map", args_string: "{not json" };
+    expect(clearGridItemViewGroupSettings(gridItem)).toBe(gridItem);
   });
 });
 

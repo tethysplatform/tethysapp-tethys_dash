@@ -450,6 +450,33 @@ export function clearGridItemGroupInitialExtent(gridItem) {
 }
 
 /**
+ * Strip the whole view-group membership off one grid item.
+ *
+ * The grid-item-level sibling of `clearViewGroupSettings`, and the same guard
+ * order as the flag-clearing wrapper above: only the built-in Map carries a
+ * stored extent to strip, and a grid item whose args do not parse is left
+ * alone rather than being rewritten.
+ *
+ * @param {object} gridItem the grid item to strip
+ * @returns {object} a new grid item with the group keys removed, or the
+ *   original reference when there was nothing to strip
+ */
+export function clearGridItemViewGroupSettings(gridItem) {
+  if (!gridItem || gridItem.source !== BUILT_IN_MAP_SOURCE) return gridItem;
+
+  const args = parseGridItemArgs(gridItem.args_string);
+  if (!args) return gridItem;
+
+  const mapExtent = clearViewGroupSettings(args.map_extent);
+  if (mapExtent === args.map_extent) return gridItem;
+
+  return {
+    ...gridItem,
+    args_string: JSON.stringify({ ...args, map_extent: mapExtent }),
+  };
+}
+
+/**
  * Enforce R28 across the whole dashboard: at most one member of a view group
  * may be flagged as the group's initial extent.
  *
