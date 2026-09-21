@@ -2,8 +2,6 @@ import {
   IDENTITY_RULES,
   applyBatchIdentityRules,
   applyItemIdentityRules,
-  findIdentityRule,
-  identityRulesForScope,
 } from "components/dashboard/importIdentity";
 import { readViewGroupSettings } from "components/map/viewGroup";
 
@@ -71,6 +69,11 @@ const flaggedMap = (viewGroup, overrides = {}) =>
 const viewGroupSettingsOf = (gridItem) =>
   readViewGroupSettings(argsOf(gridItem).map_extent);
 
+const ruleFor = (key, position) =>
+  IDENTITY_RULES.find(
+    (rule) => rule.key === key && rule.position === position,
+  ) ?? null;
+
 describe("IDENTITY_RULES", () => {
   it("declares one rule per key and position", () => {
     const seen = new Set();
@@ -91,25 +94,23 @@ describe("IDENTITY_RULES", () => {
   });
 
   it("carries the two rules that a name-keyed object could not hold", () => {
-    expect(findIdentityRule("isGroupInitialExtent", "item")).toEqual({
+    expect(ruleFor("isGroupInitialExtent", "item")).toEqual({
       key: "isGroupInitialExtent",
       position: "item",
       scope: "batch",
       action: "clearOnCollision",
     });
-    expect(findIdentityRule("isGroupInitialExtent", "popup").action).toBe(
-      "strip",
-    );
+    expect(ruleFor("isGroupInitialExtent", "popup").action).toBe("strip");
   });
 
   it("returns null for a key that has no rule at that position", () => {
-    expect(findIdentityRule("viewGroup", "item")).toBeNull();
-    expect(findIdentityRule("nonsense", "popup")).toBeNull();
+    expect(ruleFor("viewGroup", "item")).toBeNull();
+    expect(ruleFor("nonsense", "popup")).toBeNull();
   });
 
   it("partitions the rules by scope", () => {
-    const itemRules = identityRulesForScope("item");
-    const batchRules = identityRulesForScope("batch");
+    const itemRules = IDENTITY_RULES.filter((rule) => rule.scope === "item");
+    const batchRules = IDENTITY_RULES.filter((rule) => rule.scope === "batch");
     expect(itemRules.length + batchRules.length).toBe(IDENTITY_RULES.length);
     expect(batchRules).toHaveLength(1);
     expect(itemRules.every((rule) => rule.scope === "item")).toBe(true);

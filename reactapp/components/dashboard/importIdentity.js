@@ -91,34 +91,6 @@ export const IDENTITY_RULES = [
   },
 ];
 
-/**
- * The rule for one key at one position, if there is one.
- *
- * The appliers call this at the point of decision rather than hard-coding the
- * behaviour, so removing a rule from the list above stops it being applied.
- *
- * @param {string} key the identity field
- * @param {"item"|"popup"} position where the field sits
- * @returns {object|null} the matching rule, or null
- */
-export function findIdentityRule(key, position) {
-  return (
-    IDENTITY_RULES.find(
-      (rule) => rule.key === key && rule.position === position,
-    ) ?? null
-  );
-}
-
-/**
- * Every rule of one scope, in declaration order.
- *
- * @param {"item"|"batch"} scope which applier owns the rules
- * @returns {Array<object>} the matching rules
- */
-export function identityRulesForScope(scope) {
-  return IDENTITY_RULES.filter((rule) => rule.scope === scope);
-}
-
 const isPlainObject = (value) =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
@@ -172,8 +144,7 @@ function mintLayerId(layer) {
  * Normalize one grid item nested in a layer's popup layout.
  *
  * Its uuid is re-minted, the layer rules are applied to it as to any other map,
- * and its view-group membership is stripped. It is deliberately not descended
- * into further: popup-within-popup nesting is out of scope.
+ * and its view-group membership is stripped.
  *
  * @param {*} nested a popup grid item
  * @returns {*} the normalized grid item, or the original reference
