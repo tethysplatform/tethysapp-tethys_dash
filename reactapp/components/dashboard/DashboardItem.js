@@ -14,8 +14,14 @@ import {
 } from "components/contexts/Contexts";
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import DataViewerModal from "components/modals/DataViewer/DataViewer";
-import { clearGridItemGroupInitialExtent } from "components/map/viewGroup";
-import { applyItemIdentityRules } from "components/dashboard/importIdentity";
+import {
+  parseGridItemArgs,
+  readViewGroupSettings,
+} from "components/map/viewGroup";
+import {
+  applyBatchIdentityRules,
+  applyItemIdentityRules,
+} from "components/dashboard/importIdentity";
 import DashboardItemDropdown from "components/dashboard/DashboardItemDropdown";
 import BaseVisualization from "components/visualizations/Base";
 import { confirm } from "components/inputs/DeleteConfirmation";
@@ -511,10 +517,33 @@ const DashboardItem = () => {
         variableInputValues[copiedVariableName];
       setVariableInputValues(variableInputValues);
     }
+    // A copy is a grid item arriving from outside the board it is about to live
+    // on, exactly as an imported one is, so it runs the same identity rules --
+    // one rule list rather than two sites each knowing a different subset, which
+    // is how these two drifted apart in the first place. The args here are still
+    // a JSON string; the applier hands one back.
+    //
+    // The popup descent is declined, and that is load-bearing rather than an
+    // optimization: popup-nested Live Chat messages are stored against the
+    // nested grid item uuid (`Message.request_id == db_grid_item.uuid`,
+    // `tethysapp/tethysdash/model.py`), so re-minting those uuids would silently
+    // start the copy with an empty chat history. Import is the opposite case --
+    // an imported dashboard has no prior messages to orphan.
+    newGridItem = applyItemIdentityRules(newGridItem, { descendPopups: false });
     // R28/AE9: the copy stays in the same view group but never inherits the
-    // group's initial-extent flag -- two flagged members would make the
-    // group's opening view depend on the order the dashboard is scanned in.
-    newGridItem = clearGridItemGroupInitialExtent(newGridItem);
+    // group's initial-extent flag -- two flagged members would make the group's
+    // opening view depend on the order the dashboard is scanned in. Expressed as
+    // a one-item batch whose target state already claims the original's group,
+    // because a copy collides with its original by construction: the clear then
+    // falls out of the shared clear-on-collision rule instead of being a second,
+    // hand-written special case beside it.
+    const { viewGroup } = readViewGroupSettings(
+      parseGridItemArgs(copiedGridItem.args_string)?.map_extent,
+    );
+    [newGridItem] = applyBatchIdentityRules(
+      [newGridItem],
+      viewGroup ? [viewGroup] : [],
+    );
     const updatedGridItems = JSON.parse(JSON.stringify(gridItems));
     updateTab(activeTabId, { gridItems: [...updatedGridItems, newGridItem] });
     setIsEditing(true);

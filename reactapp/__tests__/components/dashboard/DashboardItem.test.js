@@ -3198,7 +3198,7 @@ test("Dashboard Item context menu lives inside the item, not beside it", async (
 
 // --- Single-flag enforcement on copy (U7 / AE9) ---------------------------
 
-const makeGroupedMapGridItem = ({ i, mapExtent }) => ({
+const makeGroupedMapGridItem = ({ i, mapExtent, layers = [] }) => ({
   id: Number(i),
   uuid: `some-uuid-${i}`,
   i,
@@ -3210,17 +3210,17 @@ const makeGroupedMapGridItem = ({ i, mapExtent }) => ({
   args_string: JSON.stringify({
     baseMap:
       "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer",
-    layers: [],
+    layers,
     layerControl: true,
     map_extent: mapExtent,
   }),
   metadata_string: JSON.stringify({ refreshRate: 0 }),
 });
 
-const copyGridItemAndReadTabs = async (mapExtent) => {
+const copyGridItemAndReadTabs = async (mapExtent, layers = []) => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
   const mockedDashboard = updatedMockedDashboards.dashboards[0];
-  const gridItem = makeGroupedMapGridItem({ i: "1", mapExtent });
+  const gridItem = makeGroupedMapGridItem({ i: "1", mapExtent, layers });
   mockedDashboard.tabs[0].gridItems = [gridItem];
 
   render(
@@ -3266,6 +3266,8 @@ const copyGridItemAndReadTabs = async (mapExtent) => {
   return {
     original: JSON.parse(original.args_string).map_extent,
     copy: JSON.parse(copy.args_string).map_extent,
+    originalArgs: JSON.parse(original.args_string),
+    copyArgs: JSON.parse(copy.args_string),
     copyGridItem: copy,
   };
 };
@@ -3296,4 +3298,76 @@ test("Dashboard Item copy of an unflagged grouped map keeps the group name", asy
   expect(copy).toEqual(original);
   expect(copy.viewGroup).toBe("Basin");
   expect(copy.isGroupInitialExtent).toBeUndefined();
+});
+
+// --- Identity re-minting on copy (U5) -------------------------------------
+
+// `uuid` is mocked to the constant "12345678" for this whole file, so the
+// original's id is deliberately something else: "different from the original"
+// is only a real assertion if the two could not have matched by accident.
+const ORIGINAL_LAYER_ID = "layerId-from-the-original";
+
+const copiedPluginLayer = (overrides = {}) => ({
+  configuration: {
+    type: "VectorLayer",
+    props: {
+      name: "Gages",
+      pluginSource: { source: "plugin_gages", args: {} },
+      source: { type: "GeoJSON", props: {} },
+      layerId: ORIGINAL_LAYER_ID,
+    },
+  },
+  ...overrides,
+});
+
+test("Dashboard Item copy of a plugin-backed layer re-mints its layer id", async () => {
+  const { originalArgs, copyArgs } = await copyGridItemAndReadTabs(
+    { extent: "-10686671.12,4721671.57,4.5" },
+    [copiedPluginLayer()],
+  );
+
+  // A `layerId` addresses a layer within one grid item, so the copy cannot
+  // share the original's: the two maps would then key the same runtime layer.
+  expect(originalArgs.layers[0].configuration.props.layerId).toBe(
+    ORIGINAL_LAYER_ID,
+  );
+  expect(copyArgs.layers[0].configuration.props.layerId).not.toBe(
+    ORIGINAL_LAYER_ID,
+  );
+  expect(copyArgs.layers[0].configuration.props.layerId).toBe("12345678");
+});
+
+test("Dashboard Item copy leaves popup-nested grid item uuids alone", async () => {
+  const nestedUUID = "nested-grid-item-uuid";
+  const { copyArgs } = await copyGridItemAndReadTabs(
+    { extent: "-10686671.12,4721671.57,4.5" },
+    [
+      copiedPluginLayer({
+        popupConfig: {
+          gridItems: [
+            {
+              uuid: nestedUUID,
+              i: "1",
+              x: 0,
+              y: 0,
+              w: 20,
+              h: 20,
+              source: "Custom Image",
+              args_string: JSON.stringify({ uri: "https://example.com/a.png" }),
+              metadata_string: JSON.stringify({ refreshRate: 0 }),
+            },
+          ],
+        },
+      }),
+    ],
+  );
+
+  // Live Chat messages are stored against the nested grid item uuid
+  // (`Message.request_id == db_grid_item.uuid`), so re-minting it here would
+  // silently start the copy with an empty chat history. Copy therefore declines
+  // the popup descent that import performs.
+  const copiedLayer = copyArgs.layers[0];
+  expect(copiedLayer.popupConfig.gridItems[0].uuid).toBe(nestedUUID);
+  // ...while the top-level rules still ran on the same layer.
+  expect(copiedLayer.configuration.props.layerId).toBe("12345678");
 });
