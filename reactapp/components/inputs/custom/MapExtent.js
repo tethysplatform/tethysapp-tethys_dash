@@ -4,6 +4,7 @@ import PropTypes from "prop-types";
 import styled from "styled-components";
 import { useMapContext } from "components/contexts/MapContext";
 import { wrapMercatorX } from "components/map/utilities";
+import { transform } from "ol/proj";
 import { TabContext } from "components/contexts/Contexts";
 // `containsVariableToken` is the one predicate that decides "is this a
 // template?" for the editor and for the group's seed parser alike. They used
@@ -240,12 +241,18 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
 
   const setMapExtent = () => {
     const view = visualizationRef.current.getView();
-    const center = view.getCenter();
     const zoom = view.getZoom().toFixed(2);
-    const centerX =
-      view.getProjection().getCode() === "EPSG:3857"
-        ? wrapMercatorX(center[0])
-        : center[0];
+    const viewCode = view.getProjection().getCode();
+    // Stored in EPSG:3857 whatever the view is in, because the saved string
+    // carries no projection and Map.js reads it back as Mercator. A raster can
+    // own the view projection, so capturing the centre verbatim wrote degrees
+    // into a field read back as metres and put the reopened map off West
+    // Africa. Identity while the view is 3857.
+    const center =
+      viewCode === "EPSG:3857"
+        ? view.getCenter()
+        : transform(view.getCenter(), viewCode, "EPSG:3857");
+    const centerX = wrapMercatorX(center[0]);
     const newExtent = `${centerX.toFixed(2)},${center[1].toFixed(2)},${zoom}`;
     setCustomExtent(newExtent);
     customExtentRef.current = newExtent;

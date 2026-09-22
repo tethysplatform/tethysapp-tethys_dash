@@ -306,14 +306,14 @@ test("setMapExtent wraps an out-of-range center X for EPSG:3857 projections", as
   });
 });
 
-test("setMapExtent leaves the raw center X unwrapped for non-EPSG:3857 projections", async () => {
-  // The wrap branch in setMapExtent is gated on EPSG:3857. A view in another
-  // projection must pass center[0] through untouched, even if its magnitude
-  // would be out of range for Web Mercator.
+test("setMapExtent stores a non-EPSG:3857 view's centre as EPSG:3857", async () => {
+  // A saved extent carries no projection and Map.js reads it back as
+  // Mercator, so capturing one while a raster owns the view has to convert.
+  // Storing the degrees verbatim put the reopened map off West Africa.
   const view4326 = {
     on: jest.fn(),
     un: jest.fn(),
-    getCenter: () => [9999999999, 987654.32],
+    getCenter: () => [-59.5356, 13.19],
     getZoom: () => 4.5678,
     getProjection: () => ({ getCode: () => "EPSG:4326" }),
   };
@@ -342,7 +342,7 @@ test("setMapExtent leaves the raw center X unwrapped for non-EPSG:3857 projectio
   );
 
   expect(onChange).toHaveBeenCalledWith({
-    extent: "9999999999.00,987654.32,4.57",
+    extent: "-6627472.68,1481447.68,4.57",
   });
 });
 

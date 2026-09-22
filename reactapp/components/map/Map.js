@@ -36,7 +36,7 @@ import { applyStyle } from "ol-mapbox-style";
 import PropTypes from "prop-types";
 import { useMapContext } from "components/contexts/MapContext";
 import { fromExtent } from "ol/geom/Polygon";
-import { transformExtent } from "ol/proj";
+import { transform, transformExtent } from "ol/proj";
 import { unByKey } from "ol/Observable";
 import {
   GridItemContext,
@@ -630,21 +630,35 @@ const MapComponent = ({
     const mapViewConfig = new View({ projection });
     setProjection(mapViewConfig.getProjection().getCode());
 
+    // A saved extent is always stored in EPSG:3857, whatever projection the
+    // view ends up in -- the string carries no code of its own, and until the
+    // view could open in a raster's projection there was nothing to
+    // distinguish. Converting here is what lets it. Both conversions below are
+    // the identity while the view is 3857, which is every dashboard saved so
+    // far. MapExtent.js converts the other way when capturing one.
+    const viewCode = mapViewConfig.getProjection().getCode();
     const parts = extent.split(",").map((p) => parseFloat(p.trim()));
     if (parts.length === 3) {
       const [lon, lat, zoomLevel] = parts;
-      const centerX =
-        mapViewConfig.getProjection().getCode() === "EPSG:3857"
-          ? wrapMercatorX(lon)
-          : lon;
-      setLonLat([centerX, lat]);
+      const stored = [wrapMercatorX(lon), lat];
+      const [centerX, centerY] =
+        viewCode === "EPSG:3857"
+          ? stored
+          : transform(stored, "EPSG:3857", viewCode);
+      setLonLat([centerX, centerY]);
       setZoom(zoomLevel);
       mapViewConfig.setZoom(zoomLevel);
-      mapViewConfig.setCenter([centerX, lat]);
+      mapViewConfig.setCenter([centerX, centerY]);
     } else {
-      mapViewConfig.fit(extent.split(",").map(Number), {
-        size: visualizationRef.current.getSize(),
-      });
+      const storedExtent = extent.split(",").map(Number);
+      mapViewConfig.fit(
+        viewCode === "EPSG:3857"
+          ? storedExtent
+          : transformExtent(storedExtent, "EPSG:3857", viewCode),
+        {
+          size: visualizationRef.current.getSize(),
+        },
+      );
       setZoom(mapViewConfig.getZoom().toFixed(2));
       setLonLat(mapViewConfig.getCenter());
     }
