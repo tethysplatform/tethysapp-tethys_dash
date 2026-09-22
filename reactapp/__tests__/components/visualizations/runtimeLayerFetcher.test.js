@@ -55,13 +55,16 @@ function runtimeLayerConfig({
   name = "Runtime A",
   source = "my_plugin",
   args = {},
+  type = "VectorLayer",
+  imageRatio,
 } = {}) {
   return {
     configuration: {
-      type: "VectorLayer",
+      type,
       props: {
         name,
         layerId,
+        imageRatio,
         pluginSource: { source, args },
         source: {
           type: "GeoJSON",
@@ -1092,6 +1095,126 @@ describe("useRuntimeLayerFetcher", () => {
 
     expect(getFeaturesMock).toHaveBeenCalledTimes(2);
     expect(getFeaturesMock.mock.calls[1][0].source).toBe("plugin_b");
+  });
+
+  test("switching a layer to image rendering refetches", async () => {
+    // Opting into VectorImageLayer changes the layer class, which Map.js
+    // cannot apply to a live OL layer -- so it rebuilds. Comparing arguments
+    // and plugin source alone left that rebuilt layer blank: the layer
+    // vanished from the map and only came back on a page reload.
+    const olLayer = fakeOlLayer("layer-1");
+    const mapRef = { current: fakeOlMap([olLayer]) };
+    const asVector = [runtimeLayerConfig({ layerId: "layer-1" })];
+    const asImage = [
+      runtimeLayerConfig({ layerId: "layer-1", type: "VectorImageLayer" }),
+    ];
+
+    const { rerender } = renderHook(
+      ({ currentLayers }) =>
+        useRuntimeLayerFetcher({
+          layers: currentLayers,
+          gridItemUUID: "grid-a",
+          sessionNonce: "nonce",
+          mapRef,
+          variableInputValues: undefined,
+          variableInputDateFormats: undefined,
+        }),
+      { initialProps: { currentLayers: asVector } },
+    );
+
+    await act(async () => {
+      jest.advanceTimersByTime(250);
+      await Promise.resolve();
+    });
+    expect(getFeaturesMock).toHaveBeenCalledTimes(1);
+
+    rerender({ currentLayers: asImage });
+    await act(async () => {
+      jest.advanceTimersByTime(250);
+      await Promise.resolve();
+    });
+
+    expect(getFeaturesMock).toHaveBeenCalledTimes(2);
+  });
+
+  test("changing imageRatio refetches", async () => {
+    // OpenLayers exposes no setter for imageRatio, so this also rebuilds.
+    const olLayer = fakeOlLayer("layer-1");
+    const mapRef = { current: fakeOlMap([olLayer]) };
+    const base = {
+      layerId: "layer-1",
+      type: "VectorImageLayer",
+    };
+    const first = [runtimeLayerConfig({ ...base, imageRatio: 1 })];
+    const second = [runtimeLayerConfig({ ...base, imageRatio: 1.5 })];
+
+    const { rerender } = renderHook(
+      ({ currentLayers }) =>
+        useRuntimeLayerFetcher({
+          layers: currentLayers,
+          gridItemUUID: "grid-a",
+          sessionNonce: "nonce",
+          mapRef,
+          variableInputValues: undefined,
+          variableInputDateFormats: undefined,
+        }),
+      { initialProps: { currentLayers: first } },
+    );
+
+    await act(async () => {
+      jest.advanceTimersByTime(250);
+      await Promise.resolve();
+    });
+    expect(getFeaturesMock).toHaveBeenCalledTimes(1);
+
+    rerender({ currentLayers: second });
+    await act(async () => {
+      jest.advanceTimersByTime(250);
+      await Promise.resolve();
+    });
+
+    expect(getFeaturesMock).toHaveBeenCalledTimes(2);
+  });
+
+  test("an unrelated rerender still does not refetch", async () => {
+    // The guard must not have become unconditional: a layer whose args,
+    // source and construction props are all unchanged stays put.
+    const olLayer = fakeOlLayer("layer-1");
+    const mapRef = { current: fakeOlMap([olLayer]) };
+    const config = [
+      runtimeLayerConfig({ layerId: "layer-1", type: "VectorImageLayer" }),
+    ];
+
+    const { rerender } = renderHook(
+      ({ currentLayers }) =>
+        useRuntimeLayerFetcher({
+          layers: currentLayers,
+          gridItemUUID: "grid-a",
+          sessionNonce: "nonce",
+          mapRef,
+          variableInputValues: undefined,
+          variableInputDateFormats: undefined,
+        }),
+      { initialProps: { currentLayers: config } },
+    );
+
+    await act(async () => {
+      jest.advanceTimersByTime(250);
+      await Promise.resolve();
+    });
+    expect(getFeaturesMock).toHaveBeenCalledTimes(1);
+
+    rerender({
+      currentLayers: [
+        runtimeLayerConfig({ layerId: "layer-1", type: "VectorImageLayer" }),
+      ],
+    });
+    await act(async () => {
+      jest.advanceTimersByTime(250);
+      await Promise.resolve();
+    });
+
+    expect(getFeaturesMock).toHaveBeenCalledTimes(1);
   });
 
   // The window the hook always computed and never published. Every clear path

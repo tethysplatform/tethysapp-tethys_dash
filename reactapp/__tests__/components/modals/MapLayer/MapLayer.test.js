@@ -1,3 +1,4 @@
+import { applyRenderAsImage } from "components/modals/MapLayer/MapLayer";
 import PropTypes from "prop-types";
 import { useRef } from "react";
 import {
@@ -3732,5 +3733,35 @@ test("MapLayerModal carries attribute settings across a layer rename", async () 
   const saved = addMapLayer.mock.calls[0][0];
   expect(saved.attributeVariables).toEqual({
     "Renamed Layer": { field1: "Some Variable" },
+  });
+});
+
+describe("applyRenderAsImage", () => {
+  it("upgrades a vector layer when the author opts in", () => {
+    expect(applyRenderAsImage("VectorLayer", { renderAsImage: true })).toBe(
+      "VectorImageLayer",
+    );
+  });
+
+  it("leaves the type alone without the opt-in", () => {
+    expect(applyRenderAsImage("VectorLayer", { renderAsImage: false })).toBe(
+      "VectorLayer",
+    );
+    expect(applyRenderAsImage("VectorLayer", {})).toBe("VectorLayer");
+    expect(applyRenderAsImage("VectorLayer", undefined)).toBe("VectorLayer");
+  });
+
+  it("leaves types that have no image-rendered equivalent alone", () => {
+    // Opting in on a raster or tile layer must not produce a class that
+    // cannot draw its source.
+    expect(applyRenderAsImage("WebGLTile", { renderAsImage: true })).toBe(
+      "WebGLTile",
+    );
+    expect(applyRenderAsImage("VectorTileLayer", { renderAsImage: true })).toBe(
+      "VectorTileLayer",
+    );
+    expect(applyRenderAsImage("ImageLayer", { renderAsImage: true })).toBe(
+      "ImageLayer",
+    );
   });
 });

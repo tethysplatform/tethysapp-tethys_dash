@@ -37,6 +37,20 @@ export const CLIENT_VECTOR_SOURCE_TYPES = [
 // their coordinates are the click itself.
 export const RASTER_SOURCE_TYPES = ["GeoTIFF", "Zarr"];
 
+// Layer types whose features are drawn client-side from a vector source.
+//
+// In OpenLayers, VectorImageLayer is a sibling of VectorLayer rather than a
+// subclass, so nothing keying on the class catches both -- and the layer
+// preservation branches key on this config type string anyway. A vector type
+// missing from this list falls through to the non-vector branch, where a
+// runtime plugin layer loses its identity match and gets rebuilt on every
+// reconcile instead of having its features swapped in place.
+export const VECTOR_LAYER_TYPES = ["VectorLayer", "VectorImageLayer"];
+
+export function isVectorLayerType(type) {
+  return VECTOR_LAYER_TYPES.includes(type);
+}
+
 // Coerce an optional numeric layer prop: GUI inputs emit strings, so accept
 // any numeric value but treat null/undefined/blank/non-numeric as unset.
 export function coerceOptionalNumber(value) {
@@ -381,6 +395,16 @@ export const layerPropertiesOptions = {
     placeholder:
       "MapServer sublayer used for snapping feature queries. Defaults to the first id in the LAYERS 'show:N' source param, else 0.",
   },
+  renderAsImage: {
+    type: "checkbox",
+    placeholder:
+      "Draw this layer to an intermediate canvas and re-blit it while panning, instead of redrawing every feature each frame. Much smoother on layers with many features. Features blur slightly while zooming and hit detection becomes approximate, so clicks and hover resolve less precisely.",
+  },
+  imageRatio: {
+    type: "number",
+    placeholder:
+      "Vector Image Layer only: canvas size relative to the viewport (default 1; ~1.5 keeps edges clean while panning). Editing this rebuilds the layer -- OpenLayers only accepts it at construction.",
+  },
 };
 
 /**
@@ -443,6 +467,17 @@ export function swapVectorLayerFeatures(
   if (!source || typeof source.clear !== "function") {
     return;
   }
+
+  // The rule-style function caches a Style per combination of the feature
+  // values its rules read, so every entry is about features that are on their
+  // way out. A preserved layer keeps its style function across refetches --
+  // updateOlLayerProps never syncs style -- so without this the cache grows
+  // with each refresh for the life of the page.
+  const style = olLayer.getStyle?.();
+  if (typeof style?.resetStyleCache === "function") {
+    style.resetStyleCache();
+  }
+
   source.clear();
 
   if (

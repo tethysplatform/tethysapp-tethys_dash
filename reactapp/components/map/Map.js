@@ -25,6 +25,7 @@ import {
   legendPropType,
   configurationPropType,
   mapDrawingPropType,
+  isVectorLayerType,
   reprojectVectorFeatures,
   updateOlLayerProps,
   wrapMercatorX,
@@ -736,7 +737,11 @@ const MapComponent = ({
             if (existing) {
               existing.count += 1;
             } else {
-              incomingRuntimeIds.set(id, { props: l.props, count: 1 });
+              incomingRuntimeIds.set(id, {
+                props: l.props,
+                type: l.type,
+                count: 1,
+              });
             }
           }
         });
@@ -745,7 +750,7 @@ const MapComponent = ({
           const isRuntime =
             currentLayer?.props?.pluginSource &&
             currentLayer?.props?.layerId &&
-            currentLayer.type === "VectorLayer";
+            isVectorLayerType(currentLayer.type);
 
           if (isRuntime) {
             const incoming = incomingRuntimeIds.get(currentLayer.props.layerId);
@@ -753,7 +758,13 @@ const MapComponent = ({
               incoming &&
               incoming.count === 1 &&
               incoming.props.pluginSource?.source ===
-                currentLayer.props.pluginSource?.source
+                currentLayer.props.pluginSource?.source &&
+              // Both are fixed at construction: the renderer class comes from
+              // the type, and OpenLayers exposes no setter for imageRatio. A
+              // preserved layer cannot pick up a change to either, so an edit
+              // to one has to rebuild rather than silently do nothing.
+              incoming.type === currentLayer.type &&
+              incoming.props.imageRatio === currentLayer.props.imageRatio
             ) {
               // Identity match: preserve the OL layer. Track cosmetic props
               // to propagate after the loop. Use the INCOMING name for the
@@ -783,7 +794,7 @@ const MapComponent = ({
           // is untouched by this.
           if (
             currentLayer?.props?.source?.type === "Shapefile" &&
-            currentLayer.type === "VectorLayer"
+            isVectorLayerType(currentLayer.type)
           ) {
             // The whole source is compared, not just the url. `projection` is
             // the only way to place a shapefile that carries no .prj, and
@@ -815,7 +826,7 @@ const MapComponent = ({
           const shouldKeep =
             newLayerProps.some((newProps) =>
               valuesEqual(newProps, currentLayer.props),
-            ) && currentLayer.type !== "VectorLayer";
+            ) && !isVectorLayerType(currentLayer.type);
           if (shouldKeep) {
             layersToKeep.push(currentLayer.props.name);
           }

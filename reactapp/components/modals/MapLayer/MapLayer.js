@@ -133,6 +133,13 @@ export function renameLayerInAttributeProps(attributeProps, oldName, newName) {
   };
 }
 
+// A vector layer can be drawn to an intermediate canvas and re-blitted while
+// panning rather than redrawing every feature each frame. Only the plain
+// vector class has that alternative, so the upgrade applies there and leaves
+// every other layer type alone.
+export const applyRenderAsImage = (type, props) =>
+  props?.renderAsImage && type === "VectorLayer" ? "VectorImageLayer" : type;
+
 export const getLayerType = (sourceType) => {
   if (sourceType === "GeoTIFF" || sourceType === "Zarr") return "WebGLTile";
   // Explicit rather than left to the fallthrough below. "Shapefile" happens to
@@ -295,7 +302,7 @@ const MapLayerModal = ({
       const layerId = existingLayerId || uuidv4();
       mapConfiguration = {
         configuration: {
-          type: "VectorLayer",
+          type: applyRenderAsImage("VectorLayer", validLayerProps),
           props: {
             ...validLayerProps,
             layerId,
@@ -314,7 +321,10 @@ const MapLayerModal = ({
     } else {
       mapConfiguration = {
         configuration: {
-          type: getLayerType(sourceProps.type),
+          type: applyRenderAsImage(
+            getLayerType(sourceProps.type),
+            validLayerProps,
+          ),
           props: {
             ...validLayerProps,
             source: {

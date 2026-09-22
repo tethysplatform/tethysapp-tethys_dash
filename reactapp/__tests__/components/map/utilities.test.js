@@ -17,6 +17,9 @@ import {
   checkForCRS,
   getStyleFields,
   swapVectorLayerFeatures,
+  isVectorLayerType,
+  VECTOR_LAYER_TYPES,
+  layerPropertiesOptions,
   updateOlLayerProps,
   wrapMercatorX,
   MERCATOR_HALF_WORLD,
@@ -5382,5 +5385,68 @@ describe("rankQueriedFeatures", () => {
     expect(
       names(rankQueriedFeatures(features, mapAt("EPSG:4326"), [0, 0])),
     ).toStrictEqual(["vector", "esri"]);
+  });
+});
+
+test("swapVectorLayerFeatures empties the style function's cache", () => {
+  // The rule-style function caches a Style per combination of the feature
+  // values its rules read. A preserved layer keeps that function across every
+  // refetch, so the swap is the only point at which those entries can be
+  // recognised as stale.
+  const olLayer = makeVectorLayerWithFeatures(2);
+  let cleared = 0;
+  const styleFn = () => null;
+  styleFn.resetStyleCache = () => {
+    cleared += 1;
+  };
+  olLayer.setStyle(styleFn);
+
+  swapVectorLayerFeatures(olLayer, null, "EPSG:3857");
+
+  expect(cleared).toBe(1);
+  expect(olLayer.getSource().getFeatures()).toHaveLength(0);
+});
+
+test("swapVectorLayerFeatures leaves a style that carries no cache alone", () => {
+  const olLayer = makeVectorLayerWithFeatures(2);
+  olLayer.setStyle(() => null);
+  expect(() =>
+    swapVectorLayerFeatures(olLayer, null, "EPSG:3857"),
+  ).not.toThrow();
+  expect(olLayer.getSource().getFeatures()).toHaveLength(0);
+});
+
+describe("vector layer types", () => {
+  it("counts both vector layer types", () => {
+    // VectorImageLayer is a sibling of VectorLayer in OpenLayers rather than
+    // a subclass, and the layer-preservation branches key on this config type
+    // string. A vector type missing here falls through to the non-vector
+    // branch, where a runtime plugin layer loses its identity match and gets
+    // rebuilt on every reconcile instead of having its features swapped.
+    expect(isVectorLayerType("VectorLayer")).toBe(true);
+    expect(isVectorLayerType("VectorImageLayer")).toBe(true);
+    expect(VECTOR_LAYER_TYPES).toEqual(["VectorLayer", "VectorImageLayer"]);
+  });
+
+  it("does not count non-vector or unknown types", () => {
+    expect(isVectorLayerType("VectorTileLayer")).toBe(false);
+    expect(isVectorLayerType("WebGLTile")).toBe(false);
+    expect(isVectorLayerType("ImageLayer")).toBe(false);
+    expect(isVectorLayerType(undefined)).toBe(false);
+    expect(isVectorLayerType(null)).toBe(false);
+    expect(isVectorLayerType("")).toBe(false);
+  });
+});
+
+describe("imageRatio is editable in the layer properties GUI", () => {
+  it("is registered so the MapLayer editor renders a control for it", () => {
+    // Per CLAUDE.md: a per-layer prop only becomes editable in the GUI once
+    // it is in this registry. Without the entry the prop would be settable
+    // only by hand-editing the dashboard JSON.
+    expect(layerPropertiesOptions.imageRatio).toBeDefined();
+    expect(layerPropertiesOptions.imageRatio.type).toBe("number");
+    expect(layerPropertiesOptions.imageRatio.placeholder).toEqual(
+      expect.stringContaining("Vector Image Layer"),
+    );
   });
 });
