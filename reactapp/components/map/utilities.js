@@ -395,6 +395,11 @@ export const layerPropertiesOptions = {
     placeholder:
       "MapServer sublayer used for snapping feature queries. Defaults to the first id in the LAYERS 'show:N' source param, else 0.",
   },
+  renderAsImage: {
+    type: "checkbox",
+    placeholder:
+      "Draw this layer to an intermediate canvas and re-blit it while panning, instead of redrawing every feature each frame. Much smoother on layers with many features. Features blur slightly while zooming and hit detection becomes approximate, so clicks and hover resolve less precisely.",
+  },
   imageRatio: {
     type: "number",
     placeholder:
