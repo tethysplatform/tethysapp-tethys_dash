@@ -443,6 +443,17 @@ export function swapVectorLayerFeatures(
   if (!source || typeof source.clear !== "function") {
     return;
   }
+
+  // The rule-style function caches a Style per combination of the feature
+  // values its rules read, so every entry is about features that are on their
+  // way out. A preserved layer keeps its style function across refetches --
+  // updateOlLayerProps never syncs style -- so without this the cache grows
+  // with each refresh for the life of the page.
+  const style = olLayer.getStyle?.();
+  if (typeof style?.resetStyleCache === "function") {
+    style.resetStyleCache();
+  }
+
   source.clear();
 
   if (

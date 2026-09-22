@@ -1723,3 +1723,244 @@ describe("collectStyleFields", () => {
     );
   });
 });
+
+describe("the style cache is keyed on what the rules read", () => {
+  const oneIntegerAttribute = {
+    default: { point: { fill: "#cccccc", size: 4 } },
+    rules: [
+      {
+        geometryType: "point",
+        conditionField: "rank",
+        conditionType: "=",
+        conditionValue: 5,
+        fill: "#ff0000",
+      },
+    ],
+  };
+
+  it("hands two features reading the same value the same Style instance", () => {
+    const styleFn = createJsonStyleFunction(oneIntegerAttribute);
+    const first = styleFn(mockFeature({ rank: 5, ignored: "a" }));
+    const second = styleFn(mockFeature({ rank: 5, ignored: "b" }));
+    expect(second).toBe(first);
+    expect(styleFn.cachedStyleCount()).toBe(1);
+  });
+
+  it("does not share styles between two style functions", () => {
+    // The key is rule-relative, so it means nothing across style definitions.
+    // A module-global cache would serve one layer the other's Style.
+    const a = createJsonStyleFunction(oneIntegerAttribute);
+    const b = createJsonStyleFunction({
+      default: { point: { fill: "#cccccc", size: 4 } },
+      rules: [
+        {
+          geometryType: "point",
+          conditionField: "rank",
+          conditionType: "=",
+          conditionValue: 5,
+          fill: "#0000ff",
+        },
+      ],
+    });
+    const fromA = a(mockFeature({ rank: 5 }));
+    const fromB = b(mockFeature({ rank: 5 }));
+    expect(fromB).not.toBe(fromA);
+    expect(fromA.getImage().getFill().getColor()).toBe("#ff0000");
+    expect(fromB.getImage().getFill().getColor()).toBe("#0000ff");
+  });
+
+  it("keys on the bucket alone when the style names no fields", () => {
+    const styleFn = createJsonStyleFunction({
+      default: { point: { fill: "#123456", size: 3 } },
+    });
+    expect(styleFn(mockFeature({ a: 1 }))).toBe(styleFn(mockFeature({ a: 2 })));
+    expect(styleFn.cachedStyleCount()).toBe(1);
+  });
+
+  it("gives each feature its own style when a propertyRef reads a unique value", () => {
+    const styleFn = createJsonStyleFunction({
+      default: { point: { fill: "#000000", size: 5 } },
+      rules: [
+        {
+          geometryType: "point",
+          conditionField: "present",
+          conditionType: "=",
+          conditionValue: 1,
+          propertyRefs: { size: "reading" },
+        },
+      ],
+    });
+    const radii = [];
+    for (let i = 0; i < 50; i++) {
+      radii.push(
+        styleFn(mockFeature({ present: 1, reading: i + 0.5 }))
+          .getImage()
+          .getRadius(),
+      );
+    }
+    expect(radii[0]).toBe(0.5);
+    expect(radii[49]).toBe(49.5);
+    expect(styleFn.cachedStyleCount()).toBe(50);
+  });
+
+  it("keeps resolveSize's divergence from ruleMatches", () => {
+    // ruleMatches rejects this rule (the AND'd condition fails), but
+    // resolveSize matches on the flat triple alone and still supplies its size.
+    const styleFn = createJsonStyleFunction({
+      default: { point: { fill: "#cccccc", size: 4 } },
+      rules: [
+        {
+          geometryType: "point",
+          conditionField: "rank",
+          conditionType: ">",
+          conditionValue: 3,
+          conditionCombinator: "AND",
+          conditions: [{ field: "zone", type: "=", value: "nope" }],
+          size: 30,
+        },
+      ],
+    });
+    expect(
+      styleFn(mockFeature({ rank: 5, zone: "yes" }))
+        .getImage()
+        .getRadius(),
+    ).toBe(30);
+    expect(
+      styleFn(mockFeature({ rank: 1, zone: "yes" }))
+        .getImage()
+        .getRadius(),
+    ).toBe(4);
+  });
+
+  it("does not collapse values the pipeline treats differently", () => {
+    const styleFn = createJsonStyleFunction({
+      default: { point: { fill: "#cccccc", size: 4 } },
+      rules: [
+        {
+          geometryType: "point",
+          conditionField: "v",
+          conditionType: "<",
+          conditionValue: 5,
+          fill: "#ff0000",
+        },
+      ],
+    });
+    // "" coerces to 0 and matches; null returns early and does not.
+    expect(
+      styleFn(mockFeature({ v: "" }))
+        .getImage()
+        .getFill()
+        .getColor(),
+    ).toBe("#ff0000");
+    expect(
+      styleFn(mockFeature({ v: null }))
+        .getImage()
+        .getFill()
+        .getColor(),
+    ).toBe("#cccccc");
+
+    const flagStyle = createJsonStyleFunction({
+      default: { point: { fill: "#cccccc", size: 4 } },
+      rules: [
+        {
+          geometryType: "point",
+          conditionField: "flag",
+          conditionType: "=",
+          conditionValue: "true",
+          fill: "#00ff00",
+        },
+      ],
+    });
+    // A rule comparing against "true" matches the string, not the boolean.
+    expect(
+      flagStyle(mockFeature({ flag: "true" }))
+        .getImage()
+        .getFill()
+        .getColor(),
+    ).toBe("#00ff00");
+    expect(
+      flagStyle(mockFeature({ flag: true }))
+        .getImage()
+        .getFill()
+        .getColor(),
+    ).toBe("#cccccc");
+  });
+
+  it("does not let one field's value bleed into the next", () => {
+    // Under a naive join both features produce the same joined string.
+    const styleFn = createJsonStyleFunction({
+      default: { point: { fill: "#cccccc", size: 4 } },
+      rules: [
+        {
+          geometryType: "point",
+          conditionCombinator: "AND",
+          conditions: [
+            { field: "a", type: "=", value: "x" },
+            { field: "b", type: "=", value: "y\u001fz" },
+          ],
+          fill: "#ff00ff",
+        },
+      ],
+    });
+    const collides = styleFn(mockFeature({ a: "x\u001fy", b: "z" }));
+    const matches = styleFn(mockFeature({ a: "x", b: "y\u001fz" }));
+    expect(collides.getImage().getFill().getColor()).toBe("#cccccc");
+    expect(matches.getImage().getFill().getColor()).toBe("#ff00ff");
+  });
+
+  it("keeps NaN, null and a Date distinct from what they would flatten into", () => {
+    const styleFn = createJsonStyleFunction({
+      default: { point: { fill: "#cccccc", size: 4 } },
+      rules: [
+        {
+          geometryType: "point",
+          conditionField: "present",
+          conditionType: "=",
+          conditionValue: 1,
+          propertyRefs: { size: "v" },
+        },
+      ],
+    });
+    // NaN is injected; null is skipped and leaves the default size.
+    expect(
+      styleFn(mockFeature({ present: 1, v: NaN }))
+        .getImage()
+        .getRadius(),
+    ).toBeNaN();
+    expect(
+      styleFn(mockFeature({ present: 1, v: null }))
+        .getImage()
+        .getRadius(),
+    ).toBe(4);
+
+    const when = new Date("2026-01-01T00:00:00.000Z");
+    const fromDate = styleFn(mockFeature({ present: 1, v: when }));
+    const fromString = styleFn(
+      mockFeature({ present: 1, v: when.toISOString() }),
+    );
+    expect(fromString).not.toBe(fromDate);
+  });
+
+  it("empties the cache when the layer's features are replaced", () => {
+    const styleFn = createJsonStyleFunction(oneIntegerAttribute);
+    const before = styleFn(mockFeature({ rank: 5 }));
+    expect(styleFn.cachedStyleCount()).toBe(1);
+
+    styleFn.resetStyleCache();
+    expect(styleFn.cachedStyleCount()).toBe(0);
+
+    const after = styleFn(mockFeature({ rank: 5 }));
+    expect(after).not.toBe(before);
+    expect(after.getImage().getFill().getColor()).toBe("#ff0000");
+  });
+
+  it("never matches a rule that carries no conditions", () => {
+    const styleFn = createJsonStyleFunction({
+      default: { point: { fill: "#cccccc", size: 4 } },
+      rules: [{ geometryType: "point", fill: "#ff0000" }],
+    });
+    expect(styleFn(mockFeature({})).getImage().getFill().getColor()).toBe(
+      "#cccccc",
+    );
+  });
+});

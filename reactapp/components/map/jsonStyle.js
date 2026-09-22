@@ -33,8 +33,6 @@ import {
   defaultDotRadius,
 } from "components/inputs/RuleEditor.js";
 
-const styleCache = new Map();
-
 function createDotFill({ color, radius, spacing }) {
   const canvas = document.createElement("canvas");
   canvas.width = spacing;
@@ -495,6 +493,58 @@ export function buildPolygonFill(merged) {
   return new Fill({ color: merged.fill || defaultFill });
 }
 
+// Field separator for the cache key. A unit separator cannot appear in a
+// value the key ever reads without being length-prefixed first.
+const KEY_SEPARATOR = "\u001f";
+
+// One field value, encoded so that nothing the pipeline treats differently can
+// share an encoding.
+//
+// matchesCondition returns early for null and undefined but lets "" through to
+// Number(""), which is 0 -- so a rule `v < 5` matches "" and not null. A rule
+// comparing against "true" matches the string and not the boolean. And
+// propertyRefs injects the raw value into the style, so 10 and "10" produce
+// different Style content. Each therefore needs its own encoding.
+//
+// undefined and null share one, which is safe rather than lazy: they are
+// interchangeable at all three read sites.
+//
+// Strings and serialized values are length-prefixed so a value containing the
+// separator cannot bleed into the next field. Non-primitives go through
+// JSON.stringify so they compare by content -- an array-valued attribute
+// reached through propertyRefs is a supported shape, and identity comparison
+// would drop the hit rate to zero for it.
+function encodeKeyValue(value) {
+  if (value === null || value === undefined) return "~";
+  switch (typeof value) {
+    case "string":
+      return "s" + value.length + ":" + value;
+    case "number":
+      // NaN takes its own tag: it is not null, and matchesCondition does not
+      // early-return on it the way it does for null.
+      return Number.isNaN(value) ? "x" : "n" + value;
+    case "boolean":
+      return value ? "b1" : "b0";
+    case "bigint":
+      // JSON.stringify throws on these, and a GeoParquet int64 column can
+      // produce one.
+      return "g" + value.toString();
+    default: {
+      let json;
+      try {
+        json = JSON.stringify(value);
+      } catch {
+        // Circular, or otherwise unserializable. Fall back to a stable tag
+        // rather than throwing out of a render frame; such a value cannot
+        // drive a rule comparison meaningfully anyway.
+        return "e";
+      }
+      if (json === undefined) return "u";
+      return "j" + json.length + ":" + json;
+    }
+  }
+}
+
 // Every feature field this style can read.
 //
 // The resulting style is a pure function of the geometry bucket and these
@@ -563,9 +613,37 @@ export function collectStyleFields(styleJson) {
 }
 
 export function createJsonStyleFunction(styleJson) {
-  return function (feature) {
-    let properties = feature.getProperties();
+  // One cache per style function, not one per module.
+  //
+  // The key below is built from the fields *this* style names, so it means
+  // nothing outside this style definition -- a shared cache would serve one
+  // layer a style computed for another. Scoping here also ends the
+  // page-lifetime growth of the module-global map this replaces: the cache
+  // becomes unreachable with the style function.
+  //
+  // Deliberately uncapped. A style whose fields carry near-unique values keeps
+  // an entry per distinct value, which is what the previous output-keyed cache
+  // did too; capping would turn exactly that layer into an all-miss-every-frame
+  // layer, which is slower than doing nothing. Growth is instead bounded by
+  // resetStyleCache below, called when the layer's features are replaced.
+  const styleCache = new Map();
+
+  // Collected once. The style is a pure function of the geometry bucket and
+  // these fields' values, so a hit needs neither the rule loop nor the
+  // property-bag copy.
+  const keyFields = collectStyleFields(styleJson);
+
+  const styleFunction = function (feature) {
     const geometryBucket = getGeometryBucket(feature); // 'point', 'line', 'polygon'
+
+    let cacheKey = geometryBucket;
+    for (let i = 0; i < keyFields.length; i++) {
+      cacheKey += KEY_SEPARATOR + encodeKeyValue(feature.get(keyFields[i]));
+    }
+    const cached = styleCache.get(cacheKey);
+    if (cached) return cached;
+
+    const properties = feature.getProperties();
 
     // --- Defaults (geometry-specific) ---
     // Copied, not referenced. The point block below assigns merged.size and
@@ -595,12 +673,6 @@ export function createJsonStyleFunction(styleJson) {
       if (merged.size == null) merged.size = defaultSize;
       if (!merged.shape) merged.shape = defaultShape;
       merged.size = resolveSize(feature, styleJson.rules || [], merged.size);
-    }
-
-    // --- Cache lookup ---
-    const cacheKey = `${geometryBucket}:${JSON.stringify(merged)}`;
-    if (styleCache.has(cacheKey)) {
-      return styleCache.get(cacheKey);
     }
 
     // --- Build style ---
@@ -660,4 +732,15 @@ export function createJsonStyleFunction(styleJson) {
     styleCache.set(cacheKey, style);
     return style;
   };
+
+  // Called when the layer's feature set is replaced. Keys are built from
+  // feature values, so entries computed against the old dataset are dead
+  // weight -- and a refreshing layer keeps its style function across every
+  // refetch, so without this they accumulate for the life of the page.
+  styleFunction.resetStyleCache = () => styleCache.clear();
+
+  // Exists for tests; nothing in the app needs it.
+  styleFunction.cachedStyleCount = () => styleCache.size;
+
+  return styleFunction;
 }

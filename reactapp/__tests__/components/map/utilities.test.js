@@ -5384,3 +5384,31 @@ describe("rankQueriedFeatures", () => {
     ).toStrictEqual(["vector", "esri"]);
   });
 });
+
+test("swapVectorLayerFeatures empties the style function's cache", () => {
+  // The rule-style function caches a Style per combination of the feature
+  // values its rules read. A preserved layer keeps that function across every
+  // refetch, so the swap is the only point at which those entries can be
+  // recognised as stale.
+  const olLayer = makeVectorLayerWithFeatures(2);
+  let cleared = 0;
+  const styleFn = () => null;
+  styleFn.resetStyleCache = () => {
+    cleared += 1;
+  };
+  olLayer.setStyle(styleFn);
+
+  swapVectorLayerFeatures(olLayer, null, "EPSG:3857");
+
+  expect(cleared).toBe(1);
+  expect(olLayer.getSource().getFeatures()).toHaveLength(0);
+});
+
+test("swapVectorLayerFeatures leaves a style that carries no cache alone", () => {
+  const olLayer = makeVectorLayerWithFeatures(2);
+  olLayer.setStyle(() => null);
+  expect(() =>
+    swapVectorLayerFeatures(olLayer, null, "EPSG:3857"),
+  ).not.toThrow();
+  expect(olLayer.getSource().getFeatures()).toHaveLength(0);
+});
