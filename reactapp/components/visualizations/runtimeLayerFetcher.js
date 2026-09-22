@@ -141,7 +141,7 @@ export default function useRuntimeLayerFetcher({
   );
 
   const performFetch = useCallback(
-    (layerId, pluginSource, resolvedArgs) => {
+    (layerId, pluginSource, resolvedArgs, renderIdentity) => {
       const state = perLayerStateRef.current.get(layerId);
       // istanbul ignore next
       if (!state) return Promise.resolve();
@@ -155,6 +155,7 @@ export default function useRuntimeLayerFetcher({
       state.cancelTokenSource = cancelTokenSource;
       state.lastResolvedArgs = resolvedArgs;
       state.lastSource = pluginSource.source;
+      state.lastRenderIdentity = renderIdentity;
 
       // Claim this layer's next generation. A request that had already resolved
       // when a newer one superseded it is never rejected by axios, so its tail
@@ -240,7 +241,7 @@ export default function useRuntimeLayerFetcher({
   );
 
   const scheduleFetch = useCallback(
-    (layerId, pluginSource, resolvedArgs) => {
+    (layerId, pluginSource, resolvedArgs, renderIdentity) => {
       const state = perLayerStateRef.current.get(layerId);
       // istanbul ignore next
       if (!state) return;
@@ -253,7 +254,7 @@ export default function useRuntimeLayerFetcher({
       openLoading(layerId);
       state.debounceTimer = setTimeout(() => {
         state.debounceTimer = null;
-        performFetch(layerId, pluginSource, resolvedArgs);
+        performFetch(layerId, pluginSource, resolvedArgs, renderIdentity);
       }, debounceMs);
     },
     [debounceMs, performFetch, openLoading],
@@ -289,6 +290,14 @@ export default function useRuntimeLayerFetcher({
     runtimeLayers.forEach((layer) => {
       const { layerId, pluginSource } = layer.configuration.props;
       const { resolvedArgs } = resolveLayerArgs(pluginSource.args);
+      // Everything Map.js requires to be unchanged before it will preserve the
+      // OL layer instead of rebuilding it. Anything here that differs means a
+      // fresh, empty layer is about to be built, and a rebuilt layer has to be
+      // repainted even when the plugin arguments are identical.
+      const renderIdentity = {
+        type: layer.configuration.type,
+        imageRatio: layer.configuration.props.imageRatio,
+      };
 
       if (!perLayerStateRef.current.has(layerId)) {
         perLayerStateRef.current.set(layerId, {
@@ -296,15 +305,16 @@ export default function useRuntimeLayerFetcher({
           debounceTimer: null,
           lastResolvedArgs: undefined,
           lastSource: undefined,
+          lastRenderIdentity: undefined,
           pendingSwap: null,
         });
         // First appearance — always fetch (subject to debounce).
-        scheduleFetch(layerId, pluginSource, resolvedArgs);
+        scheduleFetch(layerId, pluginSource, resolvedArgs, renderIdentity);
         return;
       }
 
       if (refreshTickChanged) {
-        scheduleFetch(layerId, pluginSource, resolvedArgs);
+        scheduleFetch(layerId, pluginSource, resolvedArgs, renderIdentity);
         return;
       }
 
@@ -315,9 +325,17 @@ export default function useRuntimeLayerFetcher({
       // changed, so nothing refetched and nothing was ever painted into it.
       const argsUnchanged = valuesEqual(state.lastResolvedArgs, resolvedArgs);
       const sourceUnchanged = state.lastSource === pluginSource.source;
-      if (argsUnchanged && sourceUnchanged) return;
+      // Same reasoning as the source check above, generalised: switching a
+      // layer to image rendering, or changing its imageRatio, forces Map.js to
+      // rebuild it because neither can be applied to a live OL layer. Without
+      // this the rebuilt layer stayed blank until the page was reloaded.
+      const renderUnchanged = valuesEqual(
+        state.lastRenderIdentity,
+        renderIdentity,
+      );
+      if (argsUnchanged && sourceUnchanged && renderUnchanged) return;
 
-      scheduleFetch(layerId, pluginSource, resolvedArgs);
+      scheduleFetch(layerId, pluginSource, resolvedArgs, renderIdentity);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layers, variableInputValues, variableInputDateFormats, refreshTick]);
