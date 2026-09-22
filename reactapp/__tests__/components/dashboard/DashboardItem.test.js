@@ -3337,6 +3337,55 @@ test("Dashboard Item copy of a plugin-backed layer re-mints its layer id", async
   expect(copyArgs.layers[0].configuration.props.layerId).toBe("12345678");
 });
 
+test("handleGridItemImport reports an unparseable args_string", async () => {
+  // A hand-authored file is the expected traffic here, so this must come back
+  // as a reported failure rather than a throw: neither call site catches, so a
+  // throw would surface as an unhandled rejection with no error and no success.
+  const response = await handleGridItemImport(
+    {
+      i: "1",
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "Text",
+      args_string: "{this is not json",
+      metadata_string: { refreshRate: 0 },
+    },
+    "csrf",
+    "dash-uuid",
+  );
+
+  expect(response).toStrictEqual({
+    success: false,
+    message: "Grid Item args_string is not valid JSON",
+  });
+});
+
+test("handleGridItemImport reports an args_string that is not a JSON object", async () => {
+  // Parses fine but is not an object, so every downstream read of
+  // `args_string.layers` would throw on it.
+  const response = await handleGridItemImport(
+    {
+      i: "1",
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "Map",
+      args_string: "null",
+      metadata_string: { refreshRate: 0 },
+    },
+    "csrf",
+    "dash-uuid",
+  );
+
+  expect(response).toStrictEqual({
+    success: false,
+    message: "Grid Item args_string must be a JSON object",
+  });
+});
+
 test("handleGridItemImport parses a string metadata_string instead of double-encoding it", async () => {
   // The GUI export writes both fields as objects, but a hand-authored file may
   // write either as a string. Re-stringifying one that arrived as a string

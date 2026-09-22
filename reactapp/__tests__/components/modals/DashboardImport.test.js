@@ -2070,6 +2070,158 @@ test("DashboardImportModal mixed import keeps each item with the tab it arrived 
   expect(readInitialExtentFlag(result.tabs[0].gridItems[0])).toBe(true);
 });
 
+test("a tab whose gridItems is not an array cannot steal a sibling tab's items", async () => {
+  // flatMap only spreads a real array, so a non-array `gridItems` contributes
+  // nothing to the flatten. Reading `.length` off the raw value at re-split
+  // time would then slice a sibling tab's items onto this one.
+  const realItem = {
+    i: "1",
+    x: 0,
+    y: 0,
+    w: 20,
+    h: 20,
+    source: "Text",
+    args_string: "{}",
+    metadata_string: JSON.stringify({ refreshRate: 0 }),
+  };
+  jest
+    .spyOn(dashboardUtils, "handleGridItemImport")
+    .mockImplementation(realHandleGridItemImport);
+
+  const mockOnImportGridItem = jest.fn();
+  renderDashboardModal({ onImportGridItem: mockOnImportGridItem });
+  await importFiles(
+    [
+      jsonFile(
+        {
+          name: "Sneaky",
+          tabs: [
+            // Not an array, but it carries a length.
+            { name: "Tab A", gridItems: { ...realItem, length: 1 } },
+            { name: "Tab B", gridItems: [realItem] },
+          ],
+        },
+        "dashboard.json",
+      ),
+    ],
+    "Import Dashboard Item",
+  );
+
+  const [payload] = mockOnImportGridItem.mock.calls[0];
+  const byName = Object.fromEntries(
+    payload.tabs.map((tab) => [tab.name, tab.gridItems.length]),
+  );
+  expect(byName).toEqual({ "Tab A": 0, "Tab B": 1 });
+});
+
+test("DashboardImportModal falls back when the thrown value carries no message", async () => {
+  // A rejection that is not an Error still has to produce something readable
+  // rather than "Import failed: undefined".
+  jest
+    .spyOn(dashboardUtils, "handleGridItemImport")
+    .mockRejectedValue("not an Error");
+
+  renderDashboardModal({ onImportGridItem: jest.fn() });
+  await importFiles(
+    [
+      jsonFile(
+        {
+          i: "1",
+          x: 0,
+          y: 0,
+          w: 20,
+          h: 20,
+          source: "Text",
+          args_string: "{}",
+          metadata_string: JSON.stringify({ refreshRate: 0 }),
+        },
+        "item.json",
+      ),
+    ],
+    "Import Dashboard Item",
+  );
+
+  expect(
+    await screen.findByText(/Import failed: unexpected error/),
+  ).toBeInTheDocument();
+});
+
+test("whole-dashboard import falls back when the thrown value carries no message", async () => {
+  jest
+    .spyOn(dashboardUtils, "handleGridItemImport")
+    .mockRejectedValue("not an Error");
+  jest.spyOn(appAPI, "addDashboard").mockImplementation(jest.fn());
+
+  renderDashboardModal({});
+  await importFiles(
+    [
+      jsonFile(
+        {
+          name: "Thrower",
+          gridItems: [
+            {
+              i: "1",
+              x: 0,
+              y: 0,
+              w: 20,
+              h: 20,
+              source: "Text",
+              args_string: {},
+              metadata_string: { refreshRate: 0 },
+            },
+          ],
+        },
+        "dashboard.json",
+      ),
+    ],
+    "Import Dashboard",
+  );
+
+  expect(
+    await screen.findByText(/Import failed: unexpected error/),
+  ).toBeInTheDocument();
+});
+
+test("whole-dashboard import reports a thrown failure rather than rejecting", async () => {
+  // importDashboard is awaited from a click handler with no catch of its own,
+  // so it has to convert a throw into a returned failure.
+  jest
+    .spyOn(dashboardUtils, "handleGridItemImport")
+    .mockRejectedValue(new Error("upload exploded"));
+  const mockAddDashboard = jest.fn();
+  jest.spyOn(appAPI, "addDashboard").mockImplementation(mockAddDashboard);
+
+  renderDashboardModal({});
+  await importFiles(
+    [
+      jsonFile(
+        {
+          name: "Thrower",
+          gridItems: [
+            {
+              i: "1",
+              x: 0,
+              y: 0,
+              w: 20,
+              h: 20,
+              source: "Text",
+              args_string: {},
+              metadata_string: { refreshRate: 0 },
+            },
+          ],
+        },
+        "dashboard.json",
+      ),
+    ],
+    "Import Dashboard",
+  );
+
+  expect(
+    await screen.findByText(/Import failed: upload exploded/),
+  ).toBeInTheDocument();
+  expect(mockAddDashboard).not.toHaveBeenCalled();
+});
+
 test("DashboardImportModal surfaces a thrown import failure instead of stalling", async () => {
   // Without the guard this rejection reaches the onClick handler unhandled:
   // no error, no success, the modal just sits there with the button live.
