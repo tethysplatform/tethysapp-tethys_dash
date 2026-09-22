@@ -1887,10 +1887,14 @@ describe("the style cache is keyed on what the rules read", () => {
         .getFill()
         .getColor(),
     ).toBe("#cccccc");
-    // false encodes distinctly from true, so the two cannot share an entry.
-    expect(flagStyle(mockFeature({ flag: false }))).not.toBe(
-      flagStyle(mockFeature({ flag: true })),
-    );
+    // false and true both miss the rule, so they legitimately resolve to the
+    // same style and share the instance. What matters is that they were looked
+    // up under separate keys rather than one standing in for the other.
+    flagStyle(mockFeature({ flag: false }));
+    flagStyle(mockFeature({ flag: true }));
+    // Three keys: the string "true", the boolean true, the boolean false.
+    expect(flagStyle.cachedStyleCount()).toBe(3);
+    expect(flagStyle.distinctStyleCount()).toBe(2);
   });
 
   it("does not let one field's value bleed into the next", () => {
@@ -1990,12 +1994,16 @@ describe("the key encoder survives values GeoJSON can carry", () => {
     // A GeoParquet int64 column can produce one, and JSON.stringify throws
     // on them.
     const styleFn = createJsonStyleFunction(byValue);
-    const fromBig = styleFn(mockFeature({ v: 10n }));
-    const fromNumber = styleFn(mockFeature({ v: 10 }));
-    const fromString = styleFn(mockFeature({ v: "10" }));
-    expect(fromNumber).not.toBe(fromBig);
-    expect(fromString).not.toBe(fromBig);
+    styleFn(mockFeature({ v: 10n }));
+    styleFn(mockFeature({ v: 10 }));
+    styleFn(mockFeature({ v: "10" }));
+    // Three separate keys. All three miss the rule, so they share one Style.
     expect(styleFn.cachedStyleCount()).toBe(3);
+    expect(styleFn.distinctStyleCount()).toBe(1);
+
+    // Injecting a BigInt into a numeric style slot is an OpenLayers
+    // limitation, not a caching one -- CircleStyle cannot take a BigInt
+    // radius. The distinct key counts above are what this change owns.
   });
 
   it("does not throw on a value it cannot serialize", () => {
@@ -2007,5 +2015,67 @@ describe("the key encoder survives values GeoJSON can carry", () => {
     expect(() => styleFn(mockFeature({ v: circular }))).not.toThrow();
     expect(() => styleFn(mockFeature({ v: () => null }))).not.toThrow();
     expect(() => styleFn(mockFeature({ v: Symbol("s") }))).not.toThrow();
+  });
+});
+
+describe("styles are shared between features that resolve alike", () => {
+  it("keeps one Style per distinct result, not per distinct input", () => {
+    // A threshold rule collapses every value past it into one result. Keying
+    // the cache on inputs alone would allocate a Style -- with its own Stroke,
+    // Fill and rendered canvas -- for every distinct reading, where the
+    // output-keyed cache this replaced allocated two for the whole layer.
+    const styleFn = createJsonStyleFunction({
+      default: { point: { fill: "#cccccc", size: 4 } },
+      rules: [
+        {
+          geometryType: "point",
+          conditionField: "flow",
+          conditionType: ">",
+          conditionValue: 100,
+          fill: "#ff0000",
+        },
+      ],
+    });
+
+    const styles = [];
+    for (let i = 0; i < 500; i++) {
+      styles.push(styleFn(mockFeature({ flow: i * 0.7 })));
+    }
+
+    expect(styleFn.cachedStyleCount()).toBe(500);
+    expect(styleFn.distinctStyleCount()).toBe(2);
+    expect(new Set(styles).size).toBe(2);
+
+    const above = styles.filter(
+      (s) => s.getImage().getFill().getColor() === "#ff0000",
+    );
+    const below = styles.filter(
+      (s) => s.getImage().getFill().getColor() === "#cccccc",
+    );
+    expect(above.length + below.length).toBe(500);
+    expect(new Set(above).size).toBe(1);
+    expect(new Set(below).size).toBe(1);
+  });
+
+  it("clears both maps when the features are replaced", () => {
+    const styleFn = createJsonStyleFunction({
+      default: { point: { fill: "#cccccc", size: 4 } },
+      rules: [
+        {
+          geometryType: "point",
+          conditionField: "flow",
+          conditionType: ">",
+          conditionValue: 100,
+          fill: "#ff0000",
+        },
+      ],
+    });
+    styleFn(mockFeature({ flow: 150 }));
+    styleFn(mockFeature({ flow: 10 }));
+    expect(styleFn.distinctStyleCount()).toBe(2);
+
+    styleFn.resetStyleCache();
+    expect(styleFn.cachedStyleCount()).toBe(0);
+    expect(styleFn.distinctStyleCount()).toBe(0);
   });
 });

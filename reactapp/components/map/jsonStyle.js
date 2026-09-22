@@ -545,6 +545,22 @@ function encodeKeyValue(value) {
   }
 }
 
+// The resolved style, encoded so equal results share one Style instance.
+//
+// Deliberately not JSON.stringify: resolveAllStyleValues injects raw feature
+// values into the result, so a Date would serialize to the same text as the
+// string of its own ISO form and the two would share a Style built from the
+// wrong one -- the collision the input key exists to prevent, one layer down.
+// A BigInt would throw outright. Keys are sorted so property order cannot
+// change the result.
+function encodeResolvedStyle(geometryBucket, merged) {
+  let key = geometryBucket;
+  for (const name of Object.keys(merged).sort()) {
+    key += KEY_SEPARATOR + name + ":" + encodeKeyValue(merged[name]);
+  }
+  return key;
+}
+
 // Every feature field this style can read.
 //
 // The resulting style is a pure function of the geometry bucket and these
@@ -621,12 +637,19 @@ export function createJsonStyleFunction(styleJson) {
   // page-lifetime growth of the module-global map this replaces: the cache
   // becomes unreachable with the style function.
   //
-  // Deliberately uncapped. A style whose fields carry near-unique values keeps
-  // an entry per distinct value, which is what the previous output-keyed cache
-  // did too; capping would turn exactly that layer into an all-miss-every-frame
-  // layer, which is slower than doing nothing. Growth is instead bounded by
-  // resetStyleCache below, called when the layer's features are replaced.
+  // Deliberately uncapped: capping would turn a layer whose fields carry
+  // near-unique values into an all-miss-every-frame layer, which is slower
+  // than doing nothing. Growth is bounded instead by resetStyleCache below,
+  // called when the layer's features are replaced.
   const styleCache = new Map();
+
+  // Distinct inputs routinely resolve to the same style -- a threshold rule
+  // collapses every value past it into one result -- so the Style objects are
+  // keyed on the resolved style as well, and features sharing a result share
+  // one instance. Without this, keying on inputs alone would allocate a Style,
+  // its Stroke and Fill, and its rendered canvas per distinct value, where the
+  // output-keyed cache this replaces allocated two for the whole layer.
+  const stylesByResolved = new Map();
 
   // Collected once. The style is a pure function of the geometry bucket and
   // these fields' values, so a hit needs neither the rule loop nor the
@@ -674,6 +697,17 @@ export function createJsonStyleFunction(styleJson) {
       if (merged.size == null) merged.size = defaultSize;
       if (!merged.shape) merged.shape = defaultShape;
       merged.size = resolveSize(feature, rules, merged.size);
+    }
+
+    // Resolved identically to something already built? Share that instance.
+    // Only reached on a miss, so the serialization here costs what it cost
+    // before this cache was keyed on inputs -- once per feature on the first
+    // frame, and nothing thereafter.
+    const resolvedKey = encodeResolvedStyle(geometryBucket, merged);
+    const shared = stylesByResolved.get(resolvedKey);
+    if (shared) {
+      styleCache.set(cacheKey, shared);
+      return shared;
     }
 
     // --- Build style ---
@@ -731,6 +765,7 @@ export function createJsonStyleFunction(styleJson) {
 
     // --- Cache & return ---
     styleCache.set(cacheKey, style);
+    stylesByResolved.set(resolvedKey, style);
     return style;
   };
 
@@ -738,10 +773,14 @@ export function createJsonStyleFunction(styleJson) {
   // feature values, so entries computed against the old dataset are dead
   // weight -- and a refreshing layer keeps its style function across every
   // refetch, so without this they accumulate for the life of the page.
-  styleFunction.resetStyleCache = () => styleCache.clear();
+  styleFunction.resetStyleCache = () => {
+    styleCache.clear();
+    stylesByResolved.clear();
+  };
 
-  // Exists for tests; nothing in the app needs it.
+  // Exist for tests; nothing in the app needs them.
   styleFunction.cachedStyleCount = () => styleCache.size;
+  styleFunction.distinctStyleCount = () => stylesByResolved.size;
 
   return styleFunction;
 }
