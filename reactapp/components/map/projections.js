@@ -145,7 +145,7 @@ let generatedTable = null;
 function loadGeneratedTable() {
   if (!generatedTable) {
     generatedTable = import("components/map/epsgDefinitions.json").then(
-      (module) => module.default ?? module,
+      (module) => module.default,
     );
   }
   return generatedTable;

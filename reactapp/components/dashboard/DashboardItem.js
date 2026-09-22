@@ -14,7 +14,15 @@ import {
 } from "components/contexts/Contexts";
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import DataViewerModal from "components/modals/DataViewer/DataViewer";
-import { clearGridItemGroupInitialExtent } from "components/map/viewGroup";
+import {
+  clearGridItemGroupInitialExtent,
+  parseGridItemArgs,
+  readViewGroupSettings,
+} from "components/map/viewGroup";
+import {
+  applyBatchIdentityRules,
+  applyItemIdentityRules,
+} from "components/dashboard/importIdentity";
 import DashboardItemDropdown from "components/dashboard/DashboardItemDropdown";
 import BaseVisualization from "components/visualizations/Base";
 import { confirm } from "components/inputs/DeleteConfirmation";
@@ -236,9 +244,20 @@ export const handleGridItemExport = async (gridItem, dashboard_uuid) => {
 };
 
 export const handleGridItemImport = async (gridItem, csrf, dashboard_uuid) => {
-  const importedGridItem = JSON.parse(JSON.stringify(gridItem));
+  let importedGridItem = JSON.parse(JSON.stringify(gridItem));
+  // Hand-authored and script-generated files are the input class this whole
+  // path serves, so a malformed `args_string` is expected traffic. Neither
+  // caller wraps its await in try/catch, so a throw here would surface as an
+  // unhandled rejection -- the modal would neither close nor show an error.
   if (typeof importedGridItem.args_string === "string") {
-    importedGridItem.args_string = JSON.parse(importedGridItem.args_string);
+    try {
+      importedGridItem.args_string = JSON.parse(importedGridItem.args_string);
+    } catch {
+      return {
+        success: false,
+        message: `Grid Item args_string is not valid JSON`,
+      };
+    }
   }
 
   if (
@@ -250,6 +269,36 @@ export const handleGridItemImport = async (gridItem, csrf, dashboard_uuid) => {
       success: false,
       message: `Grid Items must include ${requiredGridItemKeys.join(", ")} keys`,
     };
+  }
+
+  if (
+    !importedGridItem.args_string ||
+    typeof importedGridItem.args_string !== "object" ||
+    Array.isArray(importedGridItem.args_string)
+  ) {
+    return {
+      success: false,
+      message: `Grid Item args_string must be a JSON object`,
+    };
+  }
+  // Both fields are re-stringified at the end, so a `metadata_string` that
+  // arrived as a string has to be parsed here for the same reason
+  // `args_string` is. The GUI's own export writes both as objects, but a
+  // hand-authored or script-generated file may write either as a string --
+  // and double-encoding one is not caught here: it surfaces later, when the
+  // dashboard is opened, as a TypeError against a string that should have
+  // been an object.
+  if (typeof importedGridItem.metadata_string === "string") {
+    try {
+      importedGridItem.metadata_string = JSON.parse(
+        importedGridItem.metadata_string,
+      );
+    } catch {
+      return {
+        success: false,
+        message: `Grid Item metadata_string is not valid JSON`,
+      };
+    }
   }
 
   if (importedGridItem.source === "Map") {
@@ -306,6 +355,22 @@ export const handleGridItemImport = async (gridItem, csrf, dashboard_uuid) => {
       }
     }
   }
+  // The identity fields in the payload address the dashboard the file was
+  // exported from, not this one: a `layerId` from there names no layer here, and
+  // a hand-authored or script-generated file can repeat one across two layers or
+  // omit it entirely -- which nothing reports, because the runtime consumers all
+  // read a missing id as "not a runtime layer" and early-return. Re-minting is a
+  // separate concern from the file rehydration walk above, so it runs as its own
+  // pass rather than as another branch inside that loop; it also descends into
+  // the popup layouts the walk never looks at. Running it here, after the walk,
+  // means the walk keeps mutating exactly the layer objects it always has, and
+  // the applier sees the rehydrated result. It normalizes `args_string` itself
+  // and hands it back in the representation it was given -- an object at this
+  // point -- so the re-stringify below stays the single place the string is
+  // rebuilt. It never throws: a subtree it cannot interpret is left alone rather
+  // than failing the whole import.
+  importedGridItem = applyItemIdentityRules(importedGridItem);
+
   importedGridItem.args_string = JSON.stringify(importedGridItem.args_string);
   importedGridItem.metadata_string = JSON.stringify(
     importedGridItem.metadata_string,
@@ -494,10 +559,33 @@ const DashboardItem = () => {
         variableInputValues[copiedVariableName];
       setVariableInputValues(variableInputValues);
     }
+    // A copy is a grid item arriving from outside the board it is about to live
+    // on, exactly as an imported one is, so it runs the same identity rules --
+    // one rule list rather than two sites each knowing a different subset, which
+    // is how these two drifted apart in the first place. The args here are still
+    // a JSON string; the applier hands one back.
+    newGridItem = applyItemIdentityRules(newGridItem);
     // R28/AE9: the copy stays in the same view group but never inherits the
-    // group's initial-extent flag -- two flagged members would make the
-    // group's opening view depend on the order the dashboard is scanned in.
-    newGridItem = clearGridItemGroupInitialExtent(newGridItem);
+    // group's initial-extent flag -- two flagged members would make the group's
+    // opening view depend on the order the dashboard is scanned in. Expressed as
+    // a one-item batch whose target state already claims the original's group,
+    // because a copy collides with its original by construction: the clear then
+    // falls out of the shared clear-on-collision rule instead of being a second,
+    // hand-written special case beside it.
+    const { viewGroup } = readViewGroupSettings(
+      parseGridItemArgs(copiedGridItem.args_string)?.map_extent,
+    );
+    [newGridItem] = applyBatchIdentityRules(
+      [newGridItem],
+      viewGroup ? [viewGroup] : [],
+    );
+    // A seed flag with no group name is meaningless to every reader, so the
+    // shared rule leaves it alone -- but the clear this replaced removed it on
+    // presence, and letting it ride into saved config would hand the next
+    // reader of that key a copy it never applied to.
+    if (!viewGroup) {
+      newGridItem = clearGridItemGroupInitialExtent(newGridItem);
+    }
     const updatedGridItems = JSON.parse(JSON.stringify(gridItems));
     updateTab(activeTabId, { gridItems: [...updatedGridItems, newGridItem] });
     setIsEditing(true);

@@ -498,10 +498,6 @@ describe("clearViewGroupSettings", () => {
     ).toEqual({ extent: { extent: "1,2,3" } });
   });
 });
-
-// The reader tolerates the doubly nested `{extent: {extent, ...}}` shape, so
-// the writers on the losing side of the single-flag rule have to as well: a
-// member stored that way must actually give its flag up.
 describe("the legacy doubly nested shape on a member losing its flag", () => {
   const nestedFlagged = () => ({
     extent: {
@@ -527,6 +523,24 @@ describe("the legacy doubly nested shape on a member losing its flag", () => {
         viewGroup: "Basin",
       },
     });
+  });
+
+  it("clearGridItemGroupInitialExtent returns the original item when there is no flag to clear", () => {
+    // The identity-comparison contract: callers tell whether anything changed
+    // by comparing references, so an unflagged member must come back as-is
+    // rather than as a re-serialized equal.
+    const gridItem = {
+      source: "Map",
+      args_string: JSON.stringify({
+        baseMap: "OpenStreetMap",
+        map_extent: {
+          extent: "-10686671.12,4721671.57,4.5",
+          viewGroup: "Basin",
+        },
+      }),
+    };
+
+    expect(clearGridItemGroupInitialExtent(gridItem)).toBe(gridItem);
   });
 
   it("clearGridItemGroupInitialExtent rewrites only the nested flag", () => {

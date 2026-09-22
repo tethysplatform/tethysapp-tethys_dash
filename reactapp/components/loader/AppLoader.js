@@ -23,6 +23,7 @@ import {
   handleGridItemExport,
   handleGridItemImport,
 } from "components/dashboard/DashboardItem";
+import { applyBatchIdentityRules } from "components/dashboard/importIdentity";
 import IdleTimerManager from "components/loader/IdleTimerManager";
 import WebsocketProvider from "components/contexts/WebSocketContext";
 import { v4 as uuidv4 } from "uuid";
@@ -356,34 +357,21 @@ function Loader({ children }) {
 
   const importDashboard = useCallback(
     async (dashboardContext) => {
-      if (!("name" in dashboardContext)) {
-        return { success: false, message: "Dashboards must include a name" };
-      }
-      dashboardContext.uuid = uuidv4();
-
-      if (dashboardContext.gridItems && dashboardContext.gridItems.length > 0) {
-        const updatedGridItems = [];
-        for (let gridItem of dashboardContext.gridItems) {
-          const { success, message, importedGridItem } =
-            await handleGridItemImport(
-              gridItem,
-              appContext.csrf,
-              dashboardContext.uuid,
-            );
-          if (success) {
-            updatedGridItems.push(importedGridItem);
-          } else {
-            return { success, message };
-          }
+      try {
+        if (!("name" in dashboardContext)) {
+          return { success: false, message: "Dashboards must include a name" };
         }
-        dashboardContext.gridItems = updatedGridItems;
-      }
+        // Its caller awaits this from a click handler with no catch of its own,
+        // so anything thrown below would surface as an unhandled rejection --
+        // no error shown, no success, the modal left open.
+        dashboardContext.uuid = uuidv4();
 
-      if (dashboardContext.tabs && dashboardContext.tabs.length > 0) {
-        const updatedTabs = [];
-        for (let tab of dashboardContext.tabs) {
-          const updatedGridItems = [];
-          for (let gridItem of tab.gridItems) {
+        const importedLooseItems = [];
+        if (
+          dashboardContext.gridItems &&
+          dashboardContext.gridItems.length > 0
+        ) {
+          for (let gridItem of dashboardContext.gridItems) {
             const { success, message, importedGridItem } =
               await handleGridItemImport(
                 gridItem,
@@ -391,18 +379,83 @@ function Loader({ children }) {
                 dashboardContext.uuid,
               );
             if (success) {
-              updatedGridItems.push(importedGridItem);
+              importedLooseItems.push(importedGridItem);
             } else {
               return { success, message };
             }
           }
-          updatedTabs.push({ ...tab, gridItems: updatedGridItems });
         }
-        dashboardContext.tabs = updatedTabs;
-      }
 
-      const apiResponse = await addDashboard(dashboardContext);
-      return apiResponse;
+        const importedTabs = [];
+        if (dashboardContext.tabs && dashboardContext.tabs.length > 0) {
+          for (let tab of dashboardContext.tabs) {
+            const updatedGridItems = [];
+            for (let gridItem of tab.gridItems) {
+              const { success, message, importedGridItem } =
+                await handleGridItemImport(
+                  gridItem,
+                  appContext.csrf,
+                  dashboardContext.uuid,
+                );
+              if (success) {
+                updatedGridItems.push(importedGridItem);
+              } else {
+                return { success, message };
+              }
+            }
+            importedTabs.push({ ...tab, gridItems: updatedGridItems });
+          }
+        }
+
+        // R8: one view group may have only one member flagged as its initial
+        // extent, and the batch that has to agree on that spans the loose items
+        // AND every tab -- a flagged map on tab two must be able to see a flagged
+        // sibling on tab one. So it cannot be a per-loop helper. The two loops
+        // above collect their results instead of assigning them, the whole import
+        // is flattened in one fixed order -- loose items first, then tabs in
+        // order -- transformed once, and re-split by the lengths each tab arrived
+        // with. The re-split is safe precisely because the transform preserves
+        // length and order; nothing here may reorder or drop an item.
+        //
+        // The target state is empty: this path always creates a new dashboard, so
+        // there is no existing member for an imported flag to collide with.
+        //
+        // Only the items the server will actually keep take part. `add_new_dashboard`
+        // persists the tab grid items when the payload has tabs and the loose ones
+        // only when it does not, so a file carrying both would otherwise let a
+        // flagged loose map claim a group and clear the flag off the tab map --
+        // and then be discarded, leaving the group with no opening view at all.
+        const hasTabs = importedTabs.length > 0;
+        const batchInput = hasTabs
+          ? importedTabs.flatMap((tab) => tab.gridItems)
+          : importedLooseItems;
+        const normalizedGridItems = applyBatchIdentityRules(batchInput, []);
+
+        if (importedLooseItems.length > 0) {
+          dashboardContext.gridItems = hasTabs
+            ? importedLooseItems
+            : normalizedGridItems;
+        }
+        if (hasTabs) {
+          let itemIndex = 0;
+          dashboardContext.tabs = importedTabs.map((tab) => {
+            const gridItems = normalizedGridItems.slice(
+              itemIndex,
+              itemIndex + tab.gridItems.length,
+            );
+            itemIndex += tab.gridItems.length;
+            return { ...tab, gridItems };
+          });
+        }
+
+        const apiResponse = await addDashboard(dashboardContext);
+        return apiResponse;
+      } catch (error) {
+        return {
+          success: false,
+          message: `Import failed: ${error?.message ?? "unexpected error"}`,
+        };
+      }
     },
     [appContext, addDashboard],
   );

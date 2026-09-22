@@ -2761,6 +2761,245 @@ test("handleGridItemImport bad style load", async () => {
   expect(response).toStrictEqual(apiResponse);
 });
 
+// The identity pass wired into handleGridItemImport. The rules themselves are
+// exercised in __tests__/components/dashboard/importIdentity.test.js; what these
+// cases pin is that import runs them, on the same object the file rehydration
+// walk above it has already touched, and that nothing they cannot interpret
+// turns into a failed import. The uuid mock at the top of this file returns one
+// constant, so "this id was re-minted" is assertable here but "these two ids
+// differ" is not -- that coverage lives in the identity suite.
+describe("handleGridItemImport identity normalization", () => {
+  const MINTED_UUID = "12345678";
+
+  const pluginLayer = (props = {}) => ({
+    configuration: {
+      type: "VectorLayer",
+      props: {
+        name: "Gages",
+        pluginSource: { source: "plugin_gages", args: {} },
+        source: { type: "GeoJSON", props: {} },
+        ...props,
+      },
+    },
+  });
+
+  const staticLayer = (overrides = {}) => ({
+    configuration: {
+      type: "WebGLTileLayer",
+      props: {
+        name: "Basemap",
+        source: { type: "ImageTile", props: { url: "https://example.com" } },
+      },
+    },
+    ...overrides,
+  });
+
+  const mapGridItem = (args) => ({
+    i: "1",
+    x: 0,
+    y: 0,
+    w: 20,
+    h: 20,
+    source: "Map",
+    args_string: args,
+    metadata_string: { refreshRate: 0 },
+  });
+
+  const argsOf = (response) =>
+    JSON.parse(response.importedGridItem.args_string);
+
+  const popupItemsOf = (response, layerIndex = 0) =>
+    argsOf(response).layers[layerIndex].popupConfig.gridItems;
+
+  test("mints a layerId for a plugin-backed layer that arrived without one", async () => {
+    const response = await handleGridItemImport(
+      mapGridItem({ layers: [pluginLayer()] }),
+      "123456789",
+    );
+
+    expect(response.success).toBe(true);
+    expect(argsOf(response).layers[0].configuration.props.layerId).toBe(
+      MINTED_UUID,
+    );
+  });
+
+  test("re-mints a popup-nested grid item uuid and its plugin layer id", async () => {
+    const nested = {
+      i: "nested-1",
+      x: 0,
+      y: 0,
+      w: 10,
+      h: 10,
+      uuid: "uuid-from-the-imported-file",
+      source: "Map",
+      args_string: JSON.stringify({
+        layers: [pluginLayer({ layerId: "layerId-from-the-imported-file" })],
+      }),
+      metadata_string: "{}",
+    };
+    const layer = staticLayer({
+      popupConfig: { gridItems: [nested] },
+    });
+
+    const response = await handleGridItemImport(
+      mapGridItem({ layers: [layer] }),
+      "123456789",
+    );
+
+    expect(response.success).toBe(true);
+    const [normalizedNested] = popupItemsOf(response);
+    expect(normalizedNested.uuid).not.toBe("uuid-from-the-imported-file");
+    expect(normalizedNested.uuid).toBe(MINTED_UUID);
+    const nestedArgs = JSON.parse(normalizedNested.args_string);
+    expect(nestedArgs.layers[0].configuration.props.layerId).toBe(MINTED_UUID);
+  });
+
+  test("strips the view group keys off a popup-nested map", async () => {
+    const nested = {
+      i: "nested-1",
+      uuid: "nested-uuid",
+      source: "Map",
+      args_string: JSON.stringify({
+        map_extent: {
+          extent: "1,2,3,4",
+          viewGroup: "Basin",
+          isGroupInitialExtent: true,
+        },
+      }),
+      metadata_string: "{}",
+    };
+
+    const response = await handleGridItemImport(
+      mapGridItem({
+        layers: [staticLayer({ popupConfig: { gridItems: [nested] } })],
+      }),
+      "123456789",
+    );
+
+    expect(response.success).toBe(true);
+    const nestedArgs = JSON.parse(popupItemsOf(response)[0].args_string);
+    expect(nestedArgs.map_extent).toStrictEqual({ extent: "1,2,3,4" });
+  });
+
+  test("imports a layer whose popupConfig.gridItems is not an array, untouched", async () => {
+    // A table-mode popup has no `gridItems` at all, and a hand-authored file can
+    // put anything there. Neither may fail the import.
+    const args = {
+      layers: [staticLayer({ popupConfig: { gridItems: "not-an-array" } })],
+    };
+
+    const response = await handleGridItemImport(mapGridItem(args), "123456789");
+
+    expect(response).toStrictEqual({
+      success: true,
+      importedGridItem: {
+        i: "1",
+        x: 0,
+        y: 0,
+        w: 20,
+        h: 20,
+        source: "Map",
+        args_string: JSON.stringify(args),
+        metadata_string: JSON.stringify({ refreshRate: 0 }),
+      },
+    });
+  });
+
+  test("imports a popup-nested grid item whose args will not parse", async () => {
+    const nested = {
+      i: "nested-1",
+      uuid: "nested-uuid",
+      source: "Map",
+      args_string: "{not json at all",
+      metadata_string: "{}",
+    };
+
+    const response = await handleGridItemImport(
+      mapGridItem({
+        layers: [staticLayer({ popupConfig: { gridItems: [nested] } })],
+      }),
+      "123456789",
+    );
+
+    // The import succeeds and the subtree it could not read is handed back
+    // verbatim; only the uuid, which needs no parsing, is re-minted.
+    expect(response.success).toBe(true);
+    expect(popupItemsOf(response)[0]).toStrictEqual({
+      ...nested,
+      uuid: MINTED_UUID,
+    });
+  });
+
+  test("re-mints the uuid of a popup-nested non-map item and nothing else", async () => {
+    const nested = {
+      i: "nested-1",
+      x: 0,
+      y: 0,
+      w: 10,
+      h: 10,
+      uuid: "nested-uuid",
+      source: "Custom Text",
+      args_string: JSON.stringify({ text: "hello" }),
+      metadata_string: JSON.stringify({ refreshRate: 0 }),
+    };
+
+    const response = await handleGridItemImport(
+      mapGridItem({
+        layers: [staticLayer({ popupConfig: { gridItems: [nested] } })],
+      }),
+      "123456789",
+    );
+
+    expect(response.success).toBe(true);
+    expect(popupItemsOf(response)[0]).toStrictEqual({
+      ...nested,
+      uuid: MINTED_UUID,
+    });
+  });
+
+  test("still rehydrates geojson and style files while minting the layer id", async () => {
+    const mockUploadJSON = jest.fn();
+    mockUploadJSON.mockResolvedValueOnce({
+      success: true,
+      filename: "geojson.json",
+    });
+    mockUploadJSON.mockResolvedValueOnce({
+      success: true,
+      filename: "style.json",
+    });
+    jest.spyOn(appAPI, "uploadJSON").mockImplementation(mockUploadJSON);
+
+    const layer = pluginLayer();
+    layer.configuration.props.source.geojson = exampleGeoJSON;
+    layer.configuration.style = exampleStyle;
+
+    const response = await handleGridItemImport(
+      mapGridItem({ layers: [layer] }),
+      "123456789",
+    );
+
+    expect(response.success).toBe(true);
+    const normalizedLayer = argsOf(response).layers[0];
+    // Same two uploads, in the same order, with the geojson CRS-checked and the
+    // style not -- the identity pass runs beside that walk, not inside it.
+    expect(mockUploadJSON).toHaveBeenCalledTimes(2);
+    expect(mockUploadJSON.mock.calls[0][0]).toStrictEqual({
+      data: JSON.stringify(exampleGeoJSON),
+      filename: `${MINTED_UUID}.json`,
+      dashboard_uuid: undefined,
+    });
+    expect(mockUploadJSON.mock.calls[0][1]).toBe("123456789");
+    expect(mockUploadJSON.mock.calls[1][0].data).toBe(
+      JSON.stringify(exampleStyle),
+    );
+    expect(normalizedLayer.configuration.props.source.geojson).toBe(
+      "geojson.json",
+    );
+    expect(normalizedLayer.configuration.style).toBe("style.json");
+    expect(normalizedLayer.configuration.props.layerId).toBe(MINTED_UUID);
+  });
+});
+
 describe("detectImportFormat", () => {
   const validGridItem = {
     i: "1",
@@ -2959,7 +3198,7 @@ test("Dashboard Item context menu lives inside the item, not beside it", async (
 
 // --- Single-flag enforcement on copy (U7 / AE9) ---------------------------
 
-const makeGroupedMapGridItem = ({ i, mapExtent }) => ({
+const makeGroupedMapGridItem = ({ i, mapExtent, layers = [] }) => ({
   id: Number(i),
   uuid: `some-uuid-${i}`,
   i,
@@ -2971,17 +3210,17 @@ const makeGroupedMapGridItem = ({ i, mapExtent }) => ({
   args_string: JSON.stringify({
     baseMap:
       "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer",
-    layers: [],
+    layers,
     layerControl: true,
     map_extent: mapExtent,
   }),
   metadata_string: JSON.stringify({ refreshRate: 0 }),
 });
 
-const copyGridItemAndReadTabs = async (mapExtent) => {
+const copyGridItemAndReadTabs = async (mapExtent, layers = []) => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
   const mockedDashboard = updatedMockedDashboards.dashboards[0];
-  const gridItem = makeGroupedMapGridItem({ i: "1", mapExtent });
+  const gridItem = makeGroupedMapGridItem({ i: "1", mapExtent, layers });
   mockedDashboard.tabs[0].gridItems = [gridItem];
 
   render(
@@ -3027,6 +3266,8 @@ const copyGridItemAndReadTabs = async (mapExtent) => {
   return {
     original: JSON.parse(original.args_string).map_extent,
     copy: JSON.parse(copy.args_string).map_extent,
+    originalArgs: JSON.parse(original.args_string),
+    copyArgs: JSON.parse(copy.args_string),
     copyGridItem: copy,
   };
 };
@@ -3057,4 +3298,186 @@ test("Dashboard Item copy of an unflagged grouped map keeps the group name", asy
   expect(copy).toEqual(original);
   expect(copy.viewGroup).toBe("Basin");
   expect(copy.isGroupInitialExtent).toBeUndefined();
+});
+
+// --- Identity re-minting on copy (U5) -------------------------------------
+
+// `uuid` is mocked to the constant "12345678" for this whole file, so the
+// original's id is deliberately something else: "different from the original"
+// is only a real assertion if the two could not have matched by accident.
+const ORIGINAL_LAYER_ID = "layerId-from-the-original";
+
+const copiedPluginLayer = (overrides = {}) => ({
+  configuration: {
+    type: "VectorLayer",
+    props: {
+      name: "Gages",
+      pluginSource: { source: "plugin_gages", args: {} },
+      source: { type: "GeoJSON", props: {} },
+      layerId: ORIGINAL_LAYER_ID,
+    },
+  },
+  ...overrides,
+});
+
+test("Dashboard Item copy of a plugin-backed layer re-mints its layer id", async () => {
+  const { originalArgs, copyArgs } = await copyGridItemAndReadTabs(
+    { extent: "-10686671.12,4721671.57,4.5" },
+    [copiedPluginLayer()],
+  );
+
+  // A `layerId` addresses a layer within one grid item, so the copy cannot
+  // share the original's: the two maps would then key the same runtime layer.
+  expect(originalArgs.layers[0].configuration.props.layerId).toBe(
+    ORIGINAL_LAYER_ID,
+  );
+  expect(copyArgs.layers[0].configuration.props.layerId).not.toBe(
+    ORIGINAL_LAYER_ID,
+  );
+  expect(copyArgs.layers[0].configuration.props.layerId).toBe("12345678");
+});
+
+test("handleGridItemImport reports an unparseable args_string", async () => {
+  // A hand-authored file is the expected traffic here, so this must come back
+  // as a reported failure rather than a throw: neither call site catches, so a
+  // throw would surface as an unhandled rejection with no error and no success.
+  const response = await handleGridItemImport(
+    {
+      i: "1",
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "Text",
+      args_string: "{this is not json",
+      metadata_string: { refreshRate: 0 },
+    },
+    "csrf",
+    "dash-uuid",
+  );
+
+  expect(response).toStrictEqual({
+    success: false,
+    message: "Grid Item args_string is not valid JSON",
+  });
+});
+
+test("handleGridItemImport reports an args_string that is not a JSON object", async () => {
+  // Parses fine but is not an object, so every downstream read of
+  // `args_string.layers` would throw on it.
+  const response = await handleGridItemImport(
+    {
+      i: "1",
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "Map",
+      args_string: "null",
+      metadata_string: { refreshRate: 0 },
+    },
+    "csrf",
+    "dash-uuid",
+  );
+
+  expect(response).toStrictEqual({
+    success: false,
+    message: "Grid Item args_string must be a JSON object",
+  });
+});
+
+test("handleGridItemImport parses a string metadata_string instead of double-encoding it", async () => {
+  // The GUI export writes both fields as objects, but a hand-authored file may
+  // write either as a string. Re-stringifying one that arrived as a string
+  // double-encodes it, and the failure only surfaces when the dashboard is
+  // opened, as a TypeError against a string that should have been an object.
+  const response = await handleGridItemImport(
+    {
+      i: "1",
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "Text",
+      args_string: { text: "hello" },
+      metadata_string: JSON.stringify({ refreshRate: 0 }),
+    },
+    "csrf",
+    "dash-uuid",
+  );
+
+  expect(response.success).toBe(true);
+  expect(JSON.parse(response.importedGridItem.metadata_string)).toEqual({
+    refreshRate: 0,
+  });
+});
+
+test("handleGridItemImport reports an unparseable metadata_string", async () => {
+  const response = await handleGridItemImport(
+    {
+      i: "1",
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "Text",
+      args_string: { text: "hello" },
+      metadata_string: "{not json",
+    },
+    "csrf",
+    "dash-uuid",
+  );
+
+  expect(response).toStrictEqual({
+    success: false,
+    message: "Grid Item metadata_string is not valid JSON",
+  });
+});
+
+test("Dashboard Item copy scrubs a seed flag that carries no group name", async () => {
+  // Meaningless to every reader, so the shared rule leaves it -- but the clear
+  // this replaced removed it on presence, and it should not ride into saved
+  // config on the copy.
+  const { copy } = await copyGridItemAndReadTabs({
+    extent: "-10686671.12,4721671.57,4.5",
+    isGroupInitialExtent: true,
+  });
+
+  expect(copy.isGroupInitialExtent).toBeUndefined();
+});
+
+test("Dashboard Item copy re-mints popup-nested grid item uuids", async () => {
+  const nestedUUID = "nested-grid-item-uuid";
+  const { copyArgs } = await copyGridItemAndReadTabs(
+    { extent: "-10686671.12,4721671.57,4.5" },
+    [
+      copiedPluginLayer({
+        popupConfig: {
+          gridItems: [
+            {
+              uuid: nestedUUID,
+              i: "1",
+              x: 0,
+              y: 0,
+              w: 20,
+              h: 20,
+              source: "Custom Image",
+              args_string: JSON.stringify({ uri: "https://example.com/a.png" }),
+              metadata_string: JSON.stringify({ refreshRate: 0 }),
+            },
+          ],
+        },
+      }),
+    ],
+  );
+
+  // A nested uuid is the request-id key for the visualizations inside that
+  // popup, so leaving the copy sharing the original's would cross-deliver
+  // progress and loading messages whenever both popups are open. Nothing
+  // durable is keyed on it -- popup grid items live inside the parent's
+  // args_string and never become rows of their own.
+  const copiedLayer = copyArgs.layers[0];
+  expect(copiedLayer.popupConfig.gridItems[0].uuid).not.toBe(nestedUUID);
+  // ...and the top-level rules still ran on the same layer.
+  expect(copiedLayer.configuration.props.layerId).toBe("12345678");
 });

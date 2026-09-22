@@ -16,6 +16,7 @@ import {
   detectImportFormat,
   validateGridItemBatch,
 } from "components/dashboard/DashboardItem";
+import { applyBatchIdentityRules } from "components/dashboard/importIdentity";
 
 const StyledAlert = styled(Alert)`
   margin-top: 0.5rem;
@@ -29,7 +30,12 @@ const PreviewText = styled.div`
   font-size: 0.9rem;
 `;
 
-function DashboardImportModal({ showModal, setShowModal, onImportGridItem }) {
+function DashboardImportModal({
+  showModal,
+  setShowModal,
+  onImportGridItem,
+  targetGroupNames = [],
+}) {
   const [jsonContent, setJsonContent] = useState(null);
   const [importFormat, setImportFormat] = useState(null);
   const [selectedTabs, setSelectedTabs] = useState([]);
@@ -40,6 +46,14 @@ function DashboardImportModal({ showModal, setShowModal, onImportGridItem }) {
   const { csrf } = useContext(AppContext);
   const layoutContext = useContext(LayoutContext);
 
+  // The flatten below and the re-association further down must agree on how
+  // many items a tab contributes. flatMap only spreads a real array, so reading
+  // `.length` off the raw value elsewhere would diverge for anything else --
+  // an object carrying a `length` property would silently pull a sibling tab's
+  // items onto this one.
+  const tabGridItems = (tab) =>
+    Array.isArray(tab?.gridItems) ? tab.gridItems : [];
+
   const getAllGridItems = (format, selectedTabIndices) => {
     if (format.type === "single" || format.type === "array") {
       return format.gridItems;
@@ -48,12 +62,22 @@ function DashboardImportModal({ showModal, setShowModal, onImportGridItem }) {
       format.type === "dashboard" || format.type === "mixed"
         ? format.tabs.filter((_, i) => selectedTabIndices.includes(i))
         : format.tabs;
-    const tabItems = tabs.flatMap((tab) => tab.gridItems || []);
+    const tabItems = tabs.flatMap((tab) => tabGridItems(tab));
     const looseItems = format.type === "mixed" ? format.gridItems : [];
     return [...looseItems, ...tabItems];
   };
 
   const onImport = async () => {
+    try {
+      await runImport();
+    } catch (error) {
+      // Without this the rejection reaches the onClick handler unhandled and
+      // the user gets neither an error nor a closed modal.
+      setErrorMessage(`Import failed: ${error?.message ?? "unexpected error"}`);
+    }
+  };
+
+  const runImport = async () => {
     setErrorMessage("");
 
     if (!onImportGridItem) {
@@ -90,6 +114,23 @@ function DashboardImportModal({ showModal, setShowModal, onImportGridItem }) {
       processedGridItems.push(result.importedGridItem);
     }
 
+    // R8: at most one member of a view group may carry the initial-extent flag.
+    // The check is batch-scoped rather than per-item because a per-item check
+    // cannot see co-imported siblings -- a dashboard-shaped file with a flagged
+    // map on each of two tabs would otherwise import with both flags stored.
+    // One pass over the whole flat array covers the loose items and every tab,
+    // and it runs here, above the teardown below, so a failure would still
+    // surface as an error rather than as a closed modal reporting success.
+    //
+    // The transform is pure, positional, and length- and order-preserving,
+    // which is exactly what the slice-position re-association further down
+    // depends on: at this point the items have no stable identity, since uuid
+    // and `i` are minted afterwards in `onImportGridItem`.
+    const normalizedGridItems = applyBatchIdentityRules(
+      processedGridItems,
+      targetGroupNames,
+    );
+
     setShowModal(false);
     setShowSuccessMessage(true);
 
@@ -97,23 +138,23 @@ function DashboardImportModal({ showModal, setShowModal, onImportGridItem }) {
       setSuccessMessage("Successfully imported dashboard item");
       onImportGridItem({
         type: "single",
-        gridItems: processedGridItems,
+        gridItems: normalizedGridItems,
         tabs: [],
       });
     } else if (importFormat.type === "array") {
       setSuccessMessage(
-        `Successfully imported ${processedGridItems.length} dashboard items`,
+        `Successfully imported ${normalizedGridItems.length} dashboard items`,
       );
       onImportGridItem({
         type: "array",
-        gridItems: processedGridItems,
+        gridItems: normalizedGridItems,
         tabs: [],
       });
     } else {
       const looseItemCount =
         importFormat.type === "mixed" ? importFormat.gridItems.length : 0;
-      const processedLooseItems = processedGridItems.slice(0, looseItemCount);
-      const processedTabItems = processedGridItems.slice(looseItemCount);
+      const processedLooseItems = normalizedGridItems.slice(0, looseItemCount);
+      const processedTabItems = normalizedGridItems.slice(looseItemCount);
 
       const tabs =
         importFormat.type === "dashboard" || importFormat.type === "mixed"
@@ -122,11 +163,9 @@ function DashboardImportModal({ showModal, setShowModal, onImportGridItem }) {
 
       let itemIndex = 0;
       const processedTabs = tabs.map((tab) => {
-        const tabItems = processedTabItems.slice(
-          itemIndex,
-          itemIndex + (tab.gridItems?.length || 0),
-        );
-        itemIndex += tab.gridItems?.length || 0;
+        const count = tabGridItems(tab).length;
+        const tabItems = processedTabItems.slice(itemIndex, itemIndex + count);
+        itemIndex += count;
         return { ...tab, gridItems: tabItems };
       });
 
@@ -351,6 +390,11 @@ DashboardImportModal.propTypes = {
   showModal: PropTypes.bool,
   setShowModal: PropTypes.func,
   onImportGridItem: PropTypes.func,
+  // The view groups the target dashboard already supplies an initial extent
+  // for. Supplied by the caller rather than read from `TabContext` here: this
+  // modal is also mounted on the landing page, outside any tab provider, where
+  // a context read would throw at render.
+  targetGroupNames: PropTypes.arrayOf(PropTypes.string),
 };
 
 export default DashboardImportModal;

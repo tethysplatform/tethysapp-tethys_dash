@@ -4,12 +4,60 @@ import userEvent from "@testing-library/user-event";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import DashboardImportModal from "components/modals/DashboardImport";
 import createLoadedComponent from "__tests__/utilities/customRender";
-import { AvailableDashboardsContext } from "components/contexts/Contexts";
+import {
+  AppContext,
+  AvailableDashboardsContext,
+} from "components/contexts/Contexts";
 import { LayoutSuccessAlertContext } from "components/contexts/LayoutAlertContext";
 import * as dashboardUtils from "components/dashboard/DashboardItem";
+import * as importIdentity from "components/dashboard/importIdentity";
+import { discoverGroupSeeds } from "components/map/viewGroup";
 import appAPI from "services/api/app";
 
-const TestingComponent = ({ onImportGridItem }) => {
+// Captured before any test installs a spy, so a test that wants the real
+// behaviour can ask for it explicitly. `resetMocks` clears implementations
+// between tests but leaves the spied property in place, so "no spy" and
+// "the real function" are not the same thing once any test has spied.
+const realHandleGridItemImport = dashboardUtils.handleGridItemImport;
+const realApplyBatchIdentityRules = importIdentity.applyBatchIdentityRules;
+
+// A built-in Map grid item claiming to supply its view group's opening view.
+// The `Map` source is load-bearing, not decoration: only the built-in map
+// carries a stored extent that can seed a group (R19).
+const flaggedMapGridItem = ({ i = "1", group, extent = "-100,30,-90,40" }) => ({
+  i,
+  x: 0,
+  y: 0,
+  w: 20,
+  h: 20,
+  source: "Map",
+  args_string: {
+    map_extent: { extent, viewGroup: group, isGroupInitialExtent: true },
+  },
+  metadata_string: { refreshRate: 0 },
+});
+
+// Stand in for the per-item pass, returning what the real one returns: a grid
+// item whose `args_string` is back to a JSON string. The batch pass reads the
+// stored representation, so a stub handing back a parsed object would make
+// every flag invisible to it and every assertion below vacuous.
+const stubPerItemImport = () => {
+  const mock = jest.fn(async (gridItem) => ({
+    success: true,
+    importedGridItem: {
+      ...gridItem,
+      args_string: JSON.stringify(gridItem.args_string),
+      metadata_string: JSON.stringify(gridItem.metadata_string),
+    },
+  }));
+  jest.spyOn(dashboardUtils, "handleGridItemImport").mockImplementation(mock);
+  return mock;
+};
+
+const readInitialExtentFlag = (gridItem) =>
+  Boolean(JSON.parse(gridItem.args_string).map_extent.isGroupInitialExtent);
+
+const TestingComponent = ({ onImportGridItem, targetGroupNames }) => {
   const [showModal, setShowModal] = useState(true);
 
   return (
@@ -17,6 +65,7 @@ const TestingComponent = ({ onImportGridItem }) => {
       showModal={showModal}
       setShowModal={setShowModal}
       onImportGridItem={onImportGridItem}
+      targetGroupNames={targetGroupNames}
     />
   );
 };
@@ -1777,6 +1826,518 @@ test("DashboardImportModal two files with one tab total uses singular summary", 
   });
 });
 
+const renderDashboardModal = ({ onImportGridItem, targetGroupNames }) => {
+  const mockSetSuccessMessage = jest.fn();
+  const mockSetShowSuccessMessage = jest.fn();
+
+  render(
+    createLoadedComponent({
+      children: (
+        <LayoutSuccessAlertContext.Provider
+          value={{
+            setSuccessMessage: mockSetSuccessMessage,
+            setShowSuccessMessage: mockSetShowSuccessMessage,
+          }}
+        >
+          <TestingComponent
+            onImportGridItem={onImportGridItem}
+            targetGroupNames={targetGroupNames}
+          />
+        </LayoutSuccessAlertContext.Provider>
+      ),
+    }),
+  );
+
+  return { mockSetSuccessMessage, mockSetShowSuccessMessage };
+};
+
+const importFiles = async (files, title) => {
+  expect(await screen.findByText(title)).toBeInTheDocument();
+  const fileInput = screen.getByTestId("file-input");
+  fireEvent.change(fileInput, { target: { files } });
+  const importButton = screen.getByLabelText("Import Button");
+  await waitFor(() => expect(importButton).not.toBeDisabled());
+  await userEvent.click(importButton);
+};
+
+const jsonFile = (payload, name) =>
+  new File([JSON.stringify(payload)], name, { type: "text/plain" });
+
+test("DashboardImportModal clears a duplicate initial extent flag across tabs", async () => {
+  const dashboard = {
+    tabs: [
+      { name: "Tab A", gridItems: [flaggedMapGridItem({ group: "Basin" })] },
+      { name: "Tab B", gridItems: [flaggedMapGridItem({ group: "Basin" })] },
+    ],
+  };
+  stubPerItemImport();
+  const mockOnImportGridItem = jest.fn();
+
+  renderDashboardModal({ onImportGridItem: mockOnImportGridItem });
+  await importFiles(
+    [jsonFile(dashboard, "dashboard.json")],
+    "Import Dashboard Item",
+  );
+
+  const { tabs } = mockOnImportGridItem.mock.calls[0][0];
+  // The batch spans both tabs, so the second flag loses to the first even
+  // though nothing on either tab alone could tell.
+  expect(readInitialExtentFlag(tabs[0].gridItems[0])).toBe(true);
+  expect(readInitialExtentFlag(tabs[1].gridItems[0])).toBe(false);
+});
+
+test("DashboardImportModal keeps initial extent flags naming different groups", async () => {
+  const dashboard = {
+    tabs: [
+      { name: "Tab A", gridItems: [flaggedMapGridItem({ group: "Basin" })] },
+      { name: "Tab B", gridItems: [flaggedMapGridItem({ group: "Coast" })] },
+    ],
+  };
+  stubPerItemImport();
+  const mockOnImportGridItem = jest.fn();
+
+  renderDashboardModal({ onImportGridItem: mockOnImportGridItem });
+  await importFiles(
+    [jsonFile(dashboard, "dashboard.json")],
+    "Import Dashboard Item",
+  );
+
+  const { tabs } = mockOnImportGridItem.mock.calls[0][0];
+  expect(readInitialExtentFlag(tabs[0].gridItems[0])).toBe(true);
+  expect(readInitialExtentFlag(tabs[1].gridItems[0])).toBe(true);
+});
+
+test("DashboardImportModal clears an initial extent flag the target already claims", async () => {
+  stubPerItemImport();
+  const mockOnImportGridItem = jest.fn();
+
+  renderDashboardModal({
+    onImportGridItem: mockOnImportGridItem,
+    targetGroupNames: ["Basin"],
+  });
+  await importFiles(
+    [jsonFile(flaggedMapGridItem({ group: "Basin" }), "item.json")],
+    "Import Dashboard Item",
+  );
+
+  const { gridItems } = mockOnImportGridItem.mock.calls[0][0];
+  expect(readInitialExtentFlag(gridItems[0])).toBe(false);
+});
+
+test("DashboardImportModal keeps a lone initial extent flag the target does not claim", async () => {
+  stubPerItemImport();
+  const mockOnImportGridItem = jest.fn();
+
+  // The regression the collision-scoped rule exists to avoid: one flagged map
+  // imported into a dashboard that claims no such group must keep its flag.
+  renderDashboardModal({
+    onImportGridItem: mockOnImportGridItem,
+    targetGroupNames: ["Coast"],
+  });
+  await importFiles(
+    [jsonFile(flaggedMapGridItem({ group: "Basin" }), "item.json")],
+    "Import Dashboard Item",
+  );
+
+  const { gridItems } = mockOnImportGridItem.mock.calls[0][0];
+  expect(readInitialExtentFlag(gridItems[0])).toBe(true);
+});
+
+test("DashboardImportModal clears against a target group whose seed is null", async () => {
+  // The target's flagged member points its extent at a variable input, so the
+  // group seeds nothing and `discoverGroupSeeds` stores null for it. The group
+  // is claimed all the same, which is why the modal is handed the seed map's
+  // keys rather than the groups that produced a usable extent.
+  const targetTabs = [
+    {
+      name: "Existing",
+      gridItems: [
+        {
+          ...flaggedMapGridItem({ group: "Basin" }),
+          args_string: JSON.stringify({
+            map_extent: {
+              // eslint-disable-next-line no-template-curly-in-string
+              extent: "${Basin Extent}",
+              viewGroup: "Basin",
+              isGroupInitialExtent: true,
+            },
+          }),
+        },
+      ],
+    },
+  ];
+  const seeds = discoverGroupSeeds(targetTabs);
+  expect(seeds.get("Basin")).toBeNull();
+
+  stubPerItemImport();
+  const mockOnImportGridItem = jest.fn();
+
+  renderDashboardModal({
+    onImportGridItem: mockOnImportGridItem,
+    targetGroupNames: [...seeds.keys()],
+  });
+  await importFiles(
+    [jsonFile(flaggedMapGridItem({ group: "Basin" }), "item.json")],
+    "Import Dashboard Item",
+  );
+
+  const { gridItems } = mockOnImportGridItem.mock.calls[0][0];
+  expect(readInitialExtentFlag(gridItems[0])).toBe(false);
+});
+
+test("DashboardImportModal applies the batch pass once per import, not once per tab", async () => {
+  const dashboard = {
+    tabs: [
+      {
+        name: "Tab A",
+        gridItems: [
+          flaggedMapGridItem({ i: "1", group: "Basin" }),
+          flaggedMapGridItem({ i: "2", group: "Coast" }),
+        ],
+      },
+      {
+        name: "Tab B",
+        gridItems: [
+          flaggedMapGridItem({ i: "1", group: "Basin" }),
+          flaggedMapGridItem({ i: "2", group: "Coast" }),
+        ],
+      },
+    ],
+  };
+  stubPerItemImport();
+  const spyApplyBatch = jest
+    .spyOn(importIdentity, "applyBatchIdentityRules")
+    .mockImplementation(realApplyBatchIdentityRules);
+  const mockOnImportGridItem = jest.fn();
+
+  renderDashboardModal({ onImportGridItem: mockOnImportGridItem });
+  await importFiles(
+    [jsonFile(dashboard, "dashboard.json")],
+    "Import Dashboard Item",
+  );
+
+  expect(spyApplyBatch).toHaveBeenCalledTimes(1);
+  // One flat array holding every item from every tab -- a per-tab call would
+  // see two items at a time and could never spot the cross-tab collision.
+  expect(spyApplyBatch.mock.calls[0][0]).toHaveLength(4);
+});
+
+test("DashboardImportModal mixed import keeps each item with the tab it arrived in", async () => {
+  const looseItem = {
+    i: "1",
+    x: 0,
+    y: 0,
+    w: 20,
+    h: 20,
+    source: "LooseSource",
+    args_string: {},
+    metadata_string: { refreshRate: 0 },
+  };
+  const tab = {
+    name: "MyTab",
+    gridItems: [
+      flaggedMapGridItem({ i: "1", group: "Basin" }),
+      {
+        i: "2",
+        x: 0,
+        y: 0,
+        w: 20,
+        h: 20,
+        source: "TabSource",
+        args_string: {},
+        metadata_string: { refreshRate: 0 },
+      },
+    ],
+  };
+  stubPerItemImport();
+  const mockOnImportGridItem = jest.fn();
+
+  renderDashboardModal({ onImportGridItem: mockOnImportGridItem });
+  await importFiles(
+    [jsonFile(looseItem, "item.json"), jsonFile(tab, "tab.json")],
+    "Import Dashboard Item",
+  );
+
+  const result = mockOnImportGridItem.mock.calls[0][0];
+  // The batch transform is positional, and the slicing that rebuilds the tabs
+  // trusts that: a reorder or a drop would silently move items between tabs.
+  expect(result.gridItems.map((item) => item.source)).toEqual(["LooseSource"]);
+  expect(result.tabs).toHaveLength(1);
+  expect(result.tabs[0].gridItems.map((item) => item.source)).toEqual([
+    "Map",
+    "TabSource",
+  ]);
+  expect(readInitialExtentFlag(result.tabs[0].gridItems[0])).toBe(true);
+});
+
+test("a tab whose gridItems is not an array cannot steal a sibling tab's items", async () => {
+  // flatMap only spreads a real array, so a non-array `gridItems` contributes
+  // nothing to the flatten. Reading `.length` off the raw value at re-split
+  // time would then slice a sibling tab's items onto this one.
+  const realItem = {
+    i: "1",
+    x: 0,
+    y: 0,
+    w: 20,
+    h: 20,
+    source: "Text",
+    args_string: "{}",
+    metadata_string: JSON.stringify({ refreshRate: 0 }),
+  };
+  jest
+    .spyOn(dashboardUtils, "handleGridItemImport")
+    .mockImplementation(realHandleGridItemImport);
+
+  const mockOnImportGridItem = jest.fn();
+  renderDashboardModal({ onImportGridItem: mockOnImportGridItem });
+  await importFiles(
+    [
+      jsonFile(
+        {
+          name: "Sneaky",
+          tabs: [
+            // Not an array, but it carries a length.
+            { name: "Tab A", gridItems: { ...realItem, length: 1 } },
+            { name: "Tab B", gridItems: [realItem] },
+          ],
+        },
+        "dashboard.json",
+      ),
+    ],
+    "Import Dashboard Item",
+  );
+
+  const [payload] = mockOnImportGridItem.mock.calls[0];
+  const byName = Object.fromEntries(
+    payload.tabs.map((tab) => [tab.name, tab.gridItems.length]),
+  );
+  expect(byName).toEqual({ "Tab A": 0, "Tab B": 1 });
+});
+
+test("DashboardImportModal falls back when the thrown value carries no message", async () => {
+  // A rejection that is not an Error still has to produce something readable
+  // rather than "Import failed: undefined".
+  jest
+    .spyOn(dashboardUtils, "handleGridItemImport")
+    .mockRejectedValue("not an Error");
+
+  renderDashboardModal({ onImportGridItem: jest.fn() });
+  await importFiles(
+    [
+      jsonFile(
+        {
+          i: "1",
+          x: 0,
+          y: 0,
+          w: 20,
+          h: 20,
+          source: "Text",
+          args_string: "{}",
+          metadata_string: JSON.stringify({ refreshRate: 0 }),
+        },
+        "item.json",
+      ),
+    ],
+    "Import Dashboard Item",
+  );
+
+  expect(
+    await screen.findByText(/Import failed: unexpected error/),
+  ).toBeInTheDocument();
+});
+
+test("whole-dashboard import falls back when the thrown value carries no message", async () => {
+  jest
+    .spyOn(dashboardUtils, "handleGridItemImport")
+    .mockRejectedValue("not an Error");
+  jest.spyOn(appAPI, "addDashboard").mockImplementation(jest.fn());
+
+  renderDashboardModal({});
+  await importFiles(
+    [
+      jsonFile(
+        {
+          name: "Thrower",
+          gridItems: [
+            {
+              i: "1",
+              x: 0,
+              y: 0,
+              w: 20,
+              h: 20,
+              source: "Text",
+              args_string: {},
+              metadata_string: { refreshRate: 0 },
+            },
+          ],
+        },
+        "dashboard.json",
+      ),
+    ],
+    "Import Dashboard",
+  );
+
+  expect(
+    await screen.findByText(/Import failed: unexpected error/),
+  ).toBeInTheDocument();
+});
+
+test("whole-dashboard import reports a thrown failure rather than rejecting", async () => {
+  // importDashboard is awaited from a click handler with no catch of its own,
+  // so it has to convert a throw into a returned failure.
+  jest
+    .spyOn(dashboardUtils, "handleGridItemImport")
+    .mockRejectedValue(new Error("upload exploded"));
+  const mockAddDashboard = jest.fn();
+  jest.spyOn(appAPI, "addDashboard").mockImplementation(mockAddDashboard);
+
+  renderDashboardModal({});
+  await importFiles(
+    [
+      jsonFile(
+        {
+          name: "Thrower",
+          gridItems: [
+            {
+              i: "1",
+              x: 0,
+              y: 0,
+              w: 20,
+              h: 20,
+              source: "Text",
+              args_string: {},
+              metadata_string: { refreshRate: 0 },
+            },
+          ],
+        },
+        "dashboard.json",
+      ),
+    ],
+    "Import Dashboard",
+  );
+
+  expect(
+    await screen.findByText(/Import failed: upload exploded/),
+  ).toBeInTheDocument();
+  expect(mockAddDashboard).not.toHaveBeenCalled();
+});
+
+test("DashboardImportModal surfaces a thrown import failure instead of stalling", async () => {
+  // Without the guard this rejection reaches the onClick handler unhandled:
+  // no error, no success, the modal just sits there with the button live.
+  jest
+    .spyOn(dashboardUtils, "handleGridItemImport")
+    .mockRejectedValue(new Error("boom"));
+
+  const mockOnImportGridItem = jest.fn();
+  renderDashboardModal({ onImportGridItem: mockOnImportGridItem });
+  await importFiles(
+    [
+      jsonFile(
+        {
+          i: "1",
+          x: 0,
+          y: 0,
+          w: 20,
+          h: 20,
+          source: "Text",
+          args_string: "{}",
+          metadata_string: JSON.stringify({ refreshRate: 0 }),
+        },
+        "item.json",
+      ),
+    ],
+    "Import Dashboard Item",
+  );
+
+  expect(await screen.findByText(/Import failed: boom/)).toBeInTheDocument();
+  expect(mockOnImportGridItem).not.toHaveBeenCalled();
+});
+
+test("DashboardImportModal whole dashboard import enforces one flag and keeps tab membership", async () => {
+  const importedDashboard = {
+    name: "Test",
+    description: "this is a new description",
+    gridItems: [
+      {
+        i: "1",
+        x: 0,
+        y: 0,
+        w: 20,
+        h: 20,
+        source: "LooseSource",
+        args_string: {},
+        metadata_string: { refreshRate: 0 },
+      },
+    ],
+    tabs: [
+      {
+        id: "1",
+        name: "Tab 1",
+        gridItems: [flaggedMapGridItem({ group: "Basin" })],
+      },
+      {
+        id: "2",
+        name: "Tab 2",
+        gridItems: [flaggedMapGridItem({ group: "Basin" })],
+      },
+    ],
+  };
+  jest
+    .spyOn(dashboardUtils, "handleGridItemImport")
+    .mockImplementation(realHandleGridItemImport);
+  const mockAddDashboard = jest.fn();
+  jest.spyOn(appAPI, "addDashboard").mockImplementation(mockAddDashboard);
+  mockAddDashboard.mockResolvedValue({
+    success: true,
+    new_dashboard: importedDashboard,
+  });
+
+  renderDashboardModal({});
+  await importFiles(
+    [jsonFile(importedDashboard, "dashboard.json")],
+    "Import Dashboard",
+  );
+
+  const [payload] = mockAddDashboard.mock.calls[0];
+  // Flattened loose-items-then-tabs and re-split by the lengths each tab
+  // arrived with, so nothing crosses a tab boundary.
+  expect(payload.gridItems.map((item) => item.source)).toEqual(["LooseSource"]);
+  expect(payload.tabs).toHaveLength(2);
+  expect(payload.tabs[0].name).toBe("Tab 1");
+  expect(payload.tabs[0].gridItems).toHaveLength(1);
+  expect(payload.tabs[1].name).toBe("Tab 2");
+  expect(payload.tabs[1].gridItems).toHaveLength(1);
+  expect(readInitialExtentFlag(payload.tabs[0].gridItems[0])).toBe(true);
+  expect(readInitialExtentFlag(payload.tabs[1].gridItems[0])).toBe(false);
+});
+
+test("DashboardImportModal landing page mount renders with no TabContext provider", async () => {
+  // The regression guard for the hazard this prop exists to avoid: the modal
+  // is mounted on the landing page outside any TabContext provider, so reading
+  // that context here would throw at render and blank the page. Every other
+  // case in this file renders inside DashboardLoader, which supplies one.
+  render(
+    <AppContext.Provider value={{ csrf: "test-csrf" }}>
+      <LayoutSuccessAlertContext.Provider
+        value={{
+          setSuccessMessage: jest.fn(),
+          setShowSuccessMessage: jest.fn(),
+        }}
+      >
+        <AvailableDashboardsContext.Provider
+          value={{ importDashboard: jest.fn() }}
+        >
+          <DashboardImportModal showModal={true} setShowModal={jest.fn()} />
+        </AvailableDashboardsContext.Provider>
+      </LayoutSuccessAlertContext.Provider>
+    </AppContext.Provider>,
+  );
+
+  expect(await screen.findByText("Import Dashboard")).toBeInTheDocument();
+});
+
 TestingComponent.propTypes = {
   onImportGridItem: PropTypes.func,
+  targetGroupNames: PropTypes.arrayOf(PropTypes.string),
 };
