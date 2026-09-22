@@ -501,7 +501,13 @@ export function createJsonStyleFunction(styleJson) {
     const geometryBucket = getGeometryBucket(feature); // 'point', 'line', 'polygon'
 
     // --- Defaults (geometry-specific) ---
-    let merged = styleJson.default?.[geometryBucket] || {};
+    // Copied, not referenced. The point block below assigns merged.size and
+    // merged.shape, and when no rule matched there is nothing between here and
+    // there that clones -- resolveAllStyleValues returns its argument untouched
+    // absent propertyRefs. Writing through would land in the caller's own style
+    // config, where resolveSize's borrowed size then applies to every later
+    // feature that matches nothing.
+    let merged = { ...(styleJson.default?.[geometryBucket] || {}) };
 
     // --- Apply matching rules ---
     for (const rule of styleJson.rules || []) {

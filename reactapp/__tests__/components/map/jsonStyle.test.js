@@ -1556,3 +1556,71 @@ describe("matchesCondition — a field the feature does not carry", () => {
     expect(matched).toHaveLength(0);
   });
 });
+
+describe("the style function does not write into the style config", () => {
+  // resolveSize matches on the flat conditionField/conditionType/conditionValue
+  // triple alone, ignoring geometryType -- so a polygon rule can decide a point
+  // feature's size. When no rule matches under ruleMatches, `merged` is still
+  // the caller's own default object, so writing the resolved size into it
+  // leaks that size onto every later feature that matches nothing.
+  const styleWithDefaultsAndSizeRule = () => ({
+    default: { point: { fill: "#0000ff", size: 10 } },
+    rules: [
+      {
+        geometryType: "polygon",
+        conditionField: "rank",
+        conditionType: "=",
+        conditionValue: 5,
+        size: 20,
+      },
+    ],
+  });
+
+  it("leaves a later unmatched feature at the declared default size", () => {
+    const styleFn = createJsonStyleFunction(styleWithDefaultsAndSizeRule());
+    styleFn(mockFeature({ rank: 5 }));
+    const unmatched = styleFn(mockFeature({ rank: 1 }));
+    expect(unmatched.getImage().getRadius()).toBe(10);
+  });
+
+  it("leaves the style config itself untouched", () => {
+    const styleJson = styleWithDefaultsAndSizeRule();
+    const before = JSON.parse(JSON.stringify(styleJson));
+    const styleFn = createJsonStyleFunction(styleJson);
+    styleFn(mockFeature({ rank: 5 }));
+    styleFn(mockFeature({ rank: 1 }));
+    expect(styleJson).toEqual(before);
+  });
+
+  it("resolves a feature the same way whatever was styled before it", () => {
+    const styleFn = createJsonStyleFunction(styleWithDefaultsAndSizeRule());
+    const first = styleFn(mockFeature({ rank: 1 }))
+      .getImage()
+      .getRadius();
+    styleFn(mockFeature({ rank: 5 }));
+    const second = styleFn(mockFeature({ rank: 1 }))
+      .getImage()
+      .getRadius();
+    expect(second).toBe(first);
+  });
+
+  it("still resolves propertyRefs declared on the defaults block", () => {
+    const styleFn = createJsonStyleFunction({
+      default: {
+        point: { fill: "#000000", size: 7, propertyRefs: { fill: "color" } },
+      },
+    });
+    expect(
+      styleFn(mockFeature({ color: "#ff0000" }))
+        .getImage()
+        .getFill()
+        .getColor(),
+    ).toBe("#ff0000");
+    expect(
+      styleFn(mockFeature({ color: "#00ff00" }))
+        .getImage()
+        .getFill()
+        .getColor(),
+    ).toBe("#00ff00");
+  });
+});
