@@ -338,7 +338,7 @@ export class GeoTIFFError extends LayerSourceError {}
 // A GeoTIFF names its CRS by code and carries no definition of it, so this is
 // the code to go looking for a definition with -- not something that can be
 // answered from the layer config.
-async function readGeoTIFFProjectionCode(url) {
+export async function readGeoTIFFProjectionCode(url) {
   // Author-supplied URL, same restriction the statistics read applies:
   // file:/blob:/data:/protocol-relative must not be fetched.
   if (typeof url !== "string" || !/^https?:\/\//i.test(url)) return null;
