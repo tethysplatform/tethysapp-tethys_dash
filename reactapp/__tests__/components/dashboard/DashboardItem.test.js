@@ -3337,6 +3337,54 @@ test("Dashboard Item copy of a plugin-backed layer re-mints its layer id", async
   expect(copyArgs.layers[0].configuration.props.layerId).toBe("12345678");
 });
 
+test("handleGridItemImport parses a string metadata_string instead of double-encoding it", async () => {
+  // The GUI export writes both fields as objects, but a hand-authored file may
+  // write either as a string. Re-stringifying one that arrived as a string
+  // double-encodes it, and the failure only surfaces when the dashboard is
+  // opened, as a TypeError against a string that should have been an object.
+  const response = await handleGridItemImport(
+    {
+      i: "1",
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "Text",
+      args_string: { text: "hello" },
+      metadata_string: JSON.stringify({ refreshRate: 0 }),
+    },
+    "csrf",
+    "dash-uuid",
+  );
+
+  expect(response.success).toBe(true);
+  expect(JSON.parse(response.importedGridItem.metadata_string)).toEqual({
+    refreshRate: 0,
+  });
+});
+
+test("handleGridItemImport reports an unparseable metadata_string", async () => {
+  const response = await handleGridItemImport(
+    {
+      i: "1",
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "Text",
+      args_string: { text: "hello" },
+      metadata_string: "{not json",
+    },
+    "csrf",
+    "dash-uuid",
+  );
+
+  expect(response).toStrictEqual({
+    success: false,
+    message: "Grid Item metadata_string is not valid JSON",
+  });
+});
+
 test("Dashboard Item copy scrubs a seed flag that carries no group name", async () => {
   // Meaningless to every reader, so the shared rule leaves it -- but the clear
   // this replaced removed it on presence, and it should not ride into saved

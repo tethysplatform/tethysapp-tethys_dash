@@ -281,6 +281,25 @@ export const handleGridItemImport = async (gridItem, csrf, dashboard_uuid) => {
       message: `Grid Item args_string must be a JSON object`,
     };
   }
+  // Both fields are re-stringified at the end, so a `metadata_string` that
+  // arrived as a string has to be parsed here for the same reason
+  // `args_string` is. The GUI's own export writes both as objects, but a
+  // hand-authored or script-generated file may write either as a string --
+  // and double-encoding one is not caught here: it surfaces later, when the
+  // dashboard is opened, as a TypeError against a string that should have
+  // been an object.
+  if (typeof importedGridItem.metadata_string === "string") {
+    try {
+      importedGridItem.metadata_string = JSON.parse(
+        importedGridItem.metadata_string,
+      );
+    } catch {
+      return {
+        success: false,
+        message: `Grid Item metadata_string is not valid JSON`,
+      };
+    }
+  }
 
   if (importedGridItem.source === "Map") {
     if (
