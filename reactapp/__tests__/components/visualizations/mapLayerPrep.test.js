@@ -136,6 +136,52 @@ test("the basemap is on the map before the layers finish preparing", async () =>
   );
 });
 
+const rasterLayer = (name) => ({
+  configuration: {
+    type: "WebGLTile",
+    props: {
+      name,
+      source: { type: "GeoTIFF", props: { url: "https://example.com/a.tif" } },
+    },
+  },
+});
+
+test("the basemap waits when a raster is going to decide the view projection", async () => {
+  // The early publish puts the basemap on the map in a pass that holds no
+  // rasters, so nothing there knows a projection is about to be adopted. The
+  // basemap was added straight away and then had every tile discarded when the
+  // adoption replaced the view. Held back, it goes out in the same pass as the
+  // raster and is fetched once.
+  //
+  // This is the check that was missing: the gate that holds it only works if
+  // the basemap and the raster reach the map together, and the early publish
+  // guaranteed they never did.
+  const gate = deferred();
+  loadLayerJSONs.mockImplementation(() => gate.promise);
+
+  await mount([rasterLayer("Flood Probability")]);
+
+  await waitFor(() => expect(loadLayerJSONs).toHaveBeenCalledTimes(1));
+
+  // Asserted over a window, not at an instant. The early publish reaches
+  // addLayer a few ticks after the state write, so a bare not.toContain here
+  // passes whether or not the basemap was held -- which is how the first
+  // version of this test passed against the unfixed code.
+  await expect(
+    waitFor(
+      () =>
+        expect(addedLayerNames(addLayerSpy)).toContain("World Light Gray Base"),
+      { timeout: 1500 },
+    ),
+  ).rejects.toThrow();
+
+  await gate.release();
+
+  await waitFor(() =>
+    expect(addedLayerNames(addLayerSpy)).toContain("World Light Gray Base"),
+  );
+});
+
 test("layers are prepared in parallel, not one after another", async () => {
   // Each layer's prep awaits its own network reads and touches only its own
   // config, so serializing them made the wall clock the sum of their latencies

@@ -27,6 +27,7 @@ import { wrapMercatorX } from "components/map/utilities";
 import * as olMapboxStyle from "ol-mapbox-style";
 import WebGLTileLayer from "ol/layer/WebGLTile";
 import GeoTIFFSource from "ol/source/GeoTIFF.js";
+import OLMap from "ol/Map.js";
 import * as olProj from "ol/proj";
 import { get as olGetProj } from "ol/proj";
 
@@ -379,20 +380,21 @@ test("Custom map extent wraps an out-of-range lon for EPSG:3857 projections", as
   );
 });
 
-test("Custom map extent passes through raw lon for non-EPSG:3857 projections", async () => {
-  // Covers the falsy side of the projection ternary on Map.js:158. The
-  // `projection` state is initialized to EPSG:3857 with no external override,
-  // so the only way to exercise this branch is to spy on the View's
-  // getProjection so it reports a non-3857 code during the mapExtent effect.
-  // In that branch the raw lon must pass through unchanged — even when its
-  // magnitude is out of range for Web Mercator (no wrap is applied).
+test("Custom map extent converts a stored 3857 centre into the view projection", async () => {
+  // A saved extent is stored in EPSG:3857 whatever the view is in, so a view
+  // that opened in a raster's projection has to convert it rather than read
+  // the numbers as its own units. `projection` state initialises to 3857, so
+  // the only way to reach the conversion is to spy on the View's
+  // getProjection during the mapExtent effect.
   const mockProj = olGetProj("EPSG:4326");
   const getProjectionSpy = jest
     .spyOn(View.prototype, "getProjection")
     .mockReturnValue(mockProj);
 
-  const inputLon = -25981450.0; // out-of-range for EPSG:3857
-  const lat = 30;
+  // Barbados, the case this exists for: stored Mercator metres, read into a
+  // 4326 view.
+  const inputLon = -6627472.68;
+  const lat = 1481447.68;
   const zoom = 4;
 
   render(
@@ -421,10 +423,51 @@ test("Custom map extent passes through raw lon for non-EPSG:3857 projections", a
     expect(screen.getByTestId("map-view")).toHaveTextContent(/"zoom"/),
   );
   const parsed = JSON.parse(screen.getByTestId("map-view").textContent);
-  // Raw lon passes through unchanged — no wrap applied on the false branch.
-  expect(parsed.center[0]).toBe(inputLon);
-  expect(parsed.center[1]).toBe(lat);
+  // Converted into the view's degrees rather than read as degrees.
+  expect(parsed.center[0]).toBeCloseTo(-59.5356, 3);
+  expect(parsed.center[1]).toBeCloseTo(13.19, 3);
 
+  getProjectionSpy.mockRestore();
+});
+
+test("Custom bounding box extent converts from stored 3857 into the view projection", async () => {
+  // The four-part form of a saved extent is a bbox, stored in Mercator like
+  // the three-part form, so a view in a raster's projection transforms it as
+  // an extent rather than fitting Mercator metres as degrees.
+  const mockProj = olGetProj("EPSG:4326");
+  const getProjectionSpy = jest
+    .spyOn(View.prototype, "getProjection")
+    .mockReturnValue(mockProj);
+  const fitSpy = jest.spyOn(View.prototype, "fit");
+
+  render(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
+      <MapContextProvider>
+        <TestingComponent
+          mapProps={{
+            mapConfig: { style: { width: "50%" } },
+            mapExtent: {
+              extent: "-6700000,1400000,-6500000,1550000",
+            },
+          }}
+        />
+      </MapContextProvider>
+    </VariableInputsContext.Provider>,
+  );
+
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  await waitFor(() => expect(fitSpy).toHaveBeenCalled());
+
+  const fitted = fitSpy.mock.calls[fitSpy.mock.calls.length - 1][0];
+  // Degrees around Barbados, not the stored metres.
+  expect(fitted[0]).toBeCloseTo(-60.185, 2);
+  expect(fitted[2]).toBeCloseTo(-58.388, 2);
+  expect(Math.abs(fitted[1])).toBeLessThan(90);
+  expect(Math.abs(fitted[3])).toBeLessThan(90);
+
+  fitSpy.mockRestore();
   getProjectionSpy.mockRestore();
 });
 
@@ -5632,5 +5675,108 @@ describe("linked map view groups", () => {
       expect(peerZoomRenders).toBe(0);
       expect(peerZoomRenders).toBeLessThanOrEqual(ownZoomRenders);
     });
+  });
+});
+
+describe("the basemap waits for the raster that owns the view projection", () => {
+  const baseMapConfig = () => ({
+    type: "WebGLTile",
+    isBaseMap: true,
+    props: {
+      name: "World Imagery",
+      source: {
+        type: "Image Tile",
+        props: { url: "https://example.com/tile/{z}/{y}/{x}" },
+      },
+    },
+  });
+
+  const geoTIFFConfig = () => ({
+    type: "WebGLTile",
+    props: {
+      name: "Flood Probability",
+      source: { type: "GeoTIFF", props: { url: "https://example.com/a.tif" } },
+    },
+  });
+
+  const addedNames = (spy) =>
+    spy.mock.calls.map((call) => call[0]?.get?.("name")).filter(Boolean);
+
+  it("adds it after the raster, so its tiles are fetched once", async () => {
+    // Adopting a projection replaces the view and discards every tile the
+    // basemap already fetched. Adding it after the raster has settled is what
+    // makes that a single fetch instead of a discard and a refetch.
+    const addSpy = jest.spyOn(OLMap.prototype, "addLayer");
+
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent
+            mapProps={{ layers: [baseMapConfig(), geoTIFFConfig()] }}
+          />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(addedNames(addSpy)).toEqual(
+        expect.arrayContaining(["World Imagery"]),
+      ),
+    );
+
+    const order = addedNames(addSpy);
+    expect(order.indexOf("Flood Probability")).toBeGreaterThanOrEqual(0);
+    expect(order.indexOf("World Imagery")).toBeGreaterThan(
+      order.indexOf("Flood Probability"),
+    );
+    addSpy.mockRestore();
+  });
+
+  it("adds it without waiting when no raster owns the projection", async () => {
+    // Nothing can replace the view, so there is nothing to wait for.
+    const addSpy = jest.spyOn(OLMap.prototype, "addLayer");
+
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent mapProps={{ layers: [baseMapConfig()] }} />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+    await waitFor(() => expect(addedNames(addSpy)).toContain("World Imagery"));
+    addSpy.mockRestore();
+  });
+
+  it("adds it even when the raster fails outright", async () => {
+    // The gate is released from the owner's own construct, whatever became of
+    // it. A raster that cannot be read must cost its own layer, not the basemap.
+    const getViewSpy = jest
+      .spyOn(GeoTIFFSource.prototype, "getView")
+      .mockRejectedValue(new Error("header unreadable"));
+    const addSpy = jest.spyOn(OLMap.prototype, "addLayer");
+
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent
+            mapProps={{ layers: [baseMapConfig(), geoTIFFConfig()] }}
+          />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+    await waitFor(() => expect(addedNames(addSpy)).toContain("World Imagery"));
+    getViewSpy.mockRestore();
+    addSpy.mockRestore();
   });
 });
