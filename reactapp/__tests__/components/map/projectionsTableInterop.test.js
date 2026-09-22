@@ -1,3 +1,5 @@
+import { ensureProjectionAsync } from "components/map/projections";
+
 // The generated EPSG table is loaded with a dynamic `import()`, and what that
 // yields depends on how the JSON is transformed: a namespace object carrying
 // `default`, or the parsed object itself. `loadGeneratedTable` accepts either.
@@ -11,8 +13,6 @@ jest.mock("components/map/epsgDefinitions.json", () => ({
   },
   unsupported: {},
 }));
-
-import { ensureProjectionAsync } from "components/map/projections";
 
 test("reads a generated table that is the parsed object rather than a namespace", async () => {
   const result = await ensureProjectionAsync("EPSG:99999");
