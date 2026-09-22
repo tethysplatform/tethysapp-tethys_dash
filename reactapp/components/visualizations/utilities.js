@@ -821,6 +821,10 @@ export function getBaseMapLayer(baseMapURL) {
   );
   const layer_dict = {
     type: "WebGLTile",
+    // Read by Map.js, which holds the basemap back until a raster has finished
+    // deciding the view projection. Sits outside `props` so it reaches neither
+    // the OpenLayers constructor nor the preservation comparison.
+    isBaseMap: true,
     props: {
       source: {
         type: "Image Tile",

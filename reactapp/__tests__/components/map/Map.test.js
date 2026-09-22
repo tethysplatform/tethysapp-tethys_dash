@@ -27,6 +27,7 @@ import { wrapMercatorX } from "components/map/utilities";
 import * as olMapboxStyle from "ol-mapbox-style";
 import WebGLTileLayer from "ol/layer/WebGLTile";
 import GeoTIFFSource from "ol/source/GeoTIFF.js";
+import OLMap from "ol/Map.js";
 import * as olProj from "ol/proj";
 import { get as olGetProj } from "ol/proj";
 
@@ -5674,5 +5675,108 @@ describe("linked map view groups", () => {
       expect(peerZoomRenders).toBe(0);
       expect(peerZoomRenders).toBeLessThanOrEqual(ownZoomRenders);
     });
+  });
+});
+
+describe("the basemap waits for the raster that owns the view projection", () => {
+  const baseMapConfig = () => ({
+    type: "WebGLTile",
+    isBaseMap: true,
+    props: {
+      name: "World Imagery",
+      source: {
+        type: "Image Tile",
+        props: { url: "https://example.com/tile/{z}/{y}/{x}" },
+      },
+    },
+  });
+
+  const geoTIFFConfig = () => ({
+    type: "WebGLTile",
+    props: {
+      name: "Flood Probability",
+      source: { type: "GeoTIFF", props: { url: "https://example.com/a.tif" } },
+    },
+  });
+
+  const addedNames = (spy) =>
+    spy.mock.calls.map((call) => call[0]?.get?.("name")).filter(Boolean);
+
+  it("adds it after the raster, so its tiles are fetched once", async () => {
+    // Adopting a projection replaces the view and discards every tile the
+    // basemap already fetched. Adding it after the raster has settled is what
+    // makes that a single fetch instead of a discard and a refetch.
+    const addSpy = jest.spyOn(OLMap.prototype, "addLayer");
+
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent
+            mapProps={{ layers: [baseMapConfig(), geoTIFFConfig()] }}
+          />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(addedNames(addSpy)).toEqual(
+        expect.arrayContaining(["World Imagery"]),
+      ),
+    );
+
+    const order = addedNames(addSpy);
+    expect(order.indexOf("Flood Probability")).toBeGreaterThanOrEqual(0);
+    expect(order.indexOf("World Imagery")).toBeGreaterThan(
+      order.indexOf("Flood Probability"),
+    );
+    addSpy.mockRestore();
+  });
+
+  it("adds it without waiting when no raster owns the projection", async () => {
+    // Nothing can replace the view, so there is nothing to wait for.
+    const addSpy = jest.spyOn(OLMap.prototype, "addLayer");
+
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent mapProps={{ layers: [baseMapConfig()] }} />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+    await waitFor(() => expect(addedNames(addSpy)).toContain("World Imagery"));
+    addSpy.mockRestore();
+  });
+
+  it("adds it even when the raster fails outright", async () => {
+    // The gate is released from the owner's own construct, whatever became of
+    // it. A raster that cannot be read must cost its own layer, not the basemap.
+    const getViewSpy = jest
+      .spyOn(GeoTIFFSource.prototype, "getView")
+      .mockRejectedValue(new Error("header unreadable"));
+    const addSpy = jest.spyOn(OLMap.prototype, "addLayer");
+
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent
+            mapProps={{ layers: [baseMapConfig(), geoTIFFConfig()] }}
+          />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+    await waitFor(() => expect(addedNames(addSpy)).toContain("World Imagery"));
+    getViewSpy.mockRestore();
+    addSpy.mockRestore();
   });
 });

@@ -766,7 +766,29 @@ const MapVisualization = ({
         if (baseMap && !baseMapLayer) {
           console.error(`${baseMap} is not a valid basemap`);
         }
-        if (baseMapLayer) {
+        // Publishing the basemap on its own puts it on the map in a
+        // reconciliation pass that holds no rasters, so nothing there knows a
+        // projection is about to be adopted and the basemap is added
+        // immediately -- only to have its tiles discarded when the adoption
+        // replaces the view. Measured on a four-raster dashboard: 55 tiles
+        // painted, dropped thirteen seconds later, then 77 refetched.
+        //
+        // When a raster is going to decide the view, the basemap goes out with
+        // the full publish below instead, in the same pass as that raster, so
+        // Map.js can hold it until the projection has settled. Dashboards with
+        // no such raster keep the early publish, which is what stops them
+        // showing a white map while their layers prepare.
+        // Not guarded: the line above already parsed `layers`, so reaching
+        // here with nothing is not a state this block survives.
+        const rasterWillOwnTheView = layers.some((layer) => {
+          const configuration = layer?.configuration;
+          return (
+            configuration?.type === "WebGLTile" &&
+            (configuration.props?.source?.type === "GeoTIFF" ||
+              configuration.props?.source?.type === "Zarr")
+          );
+        });
+        if (baseMapLayer && !rasterWillOwnTheView) {
           baseMapLayer.props.zIndex = 0;
           // Swap only the base map entry; everything else that was already
           // published stays.

@@ -1453,6 +1453,10 @@ test("getBaseMapLayer", async () => {
   );
 
   expect(result).toStrictEqual({
+    // Read by Map.js, which holds the basemap back until a raster has finished
+    // deciding the view projection so its tiles are fetched once rather than
+    // fetched, discarded and fetched again.
+    isBaseMap: true,
     props: {
       name: "World Ocean Base",
       source: {

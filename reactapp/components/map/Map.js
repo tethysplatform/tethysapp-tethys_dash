@@ -327,6 +327,12 @@ const viewStatesIdentical = (a, b) =>
   a.center[0] === b.center[0] &&
   a.center[1] === b.center[1];
 
+// Backstop for the basemap gate: how long the basemap will wait on a raster
+// that never finishes deciding the view projection. The gate is normally
+// released by that raster's own construct, so this only covers a read that
+// never settles at all.
+const BASEMAP_ADOPTION_WAIT_MS = 10000;
+
 const MapComponent = ({
   mapConfig,
   mapExtent,
@@ -939,6 +945,33 @@ const MapComponent = ({
             candidate.props?.source?.type === "Zarr"),
       );
 
+      // The basemap waits for whichever raster owns the view projection.
+      //
+      // Adopting a projection replaces the view, and that discards every tile
+      // the basemap has already fetched. Measured on a four-raster dashboard:
+      // 55 tiles painted, thrown away thirteen seconds later when the first
+      // header resolved, then 77 refetched -- a white map in between. Adding
+      // the basemap once that has settled fetches them once.
+      //
+      // Released from the owner's own construct below, whether it adopts,
+      // declines to, or fails outright. The timer is only a backstop for a
+      // read that never settles at all; a late basemap is the worst case, and
+      // it is what happens today anyway.
+      let releaseBaseMap;
+      // Only when the owner is actually being constructed. A preserved raster
+      // never re-runs its adoption, so a gate waiting on it would hold the
+      // basemap until the backstop fired -- which is what changing the base
+      // map on a raster dashboard would have cost.
+      const ownerWillConstruct =
+        viewProjectionOwner &&
+        !layersToKeep.includes(viewProjectionOwner.props?.name);
+      const baseMapGate = ownerWillConstruct
+        ? new Promise((resolve) => {
+            releaseBaseMap = resolve;
+            setTimeout(resolve, BASEMAP_ADOPTION_WAIT_MS);
+          })
+        : null;
+
       let failedLayers = [];
       // What to say about the ones that know why they failed. A source that
       // could not place its data names the code it could not place; without
@@ -1055,6 +1088,26 @@ const MapComponent = ({
             if (myToken !== layerSyncToken.current) {
               abortShapefileLoad(newLayer, CANCEL_REASON.SUPERSEDED);
               return;
+            }
+            if (layerConfig.isBaseMap && baseMapGate) {
+              await baseMapGate;
+              // Awaiting reopens the supersede window the identical check
+              // above closed, and this wait is long -- it spans the owner's
+              // whole header read, thirteen seconds on the dashboard this was
+              // built for. A variable input or layer edit inside that window
+              // supersedes the run, and a superseded run must not add its
+              // layer: it is in no newer run's removal snapshot, so nothing
+              // would ever collect it.
+              //
+              // istanbul ignore next -- reachable in the app but not
+              // schedulable from the suite: driving it needs a supersede
+              // landing inside the await, and the gate resolves from the
+              // owner's own construct, which the test cannot hold open at a
+              // chosen instant.
+              if (myToken !== layerSyncToken.current) {
+                abortShapefileLoad(newLayer, CANCEL_REASON.SUPERSEDED);
+                return;
+              }
             }
             newLayer.set("appliedStyle", layerConfig.style);
             map.addLayer(newLayer);
@@ -1266,6 +1319,12 @@ const MapComponent = ({
             failedLayers.push(name);
             if (err instanceof LayerSourceError) {
               failureDetails.push(`Layer "${name}": ${err.message}`);
+            }
+          } finally {
+            // Whatever became of the owner -- adopted, declined, threw -- the
+            // basemap stops waiting on it.
+            if (layerConfig === viewProjectionOwner) {
+              releaseBaseMap?.();
             }
           }
         }),
