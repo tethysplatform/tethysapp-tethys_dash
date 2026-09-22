@@ -354,6 +354,16 @@ describe("a GeoJSON that names its own CRS", () => {
       moduleLoader(geoJSONLayer("urn:ogc:def:crs:EPSG::2046")),
     ).rejects.toThrow(/Hartebeesthoek94/);
   });
+
+  test("resolves nothing when the GeoJSON names no CRS", async () => {
+    // The overwhelmingly common case, and the one the reader's own default
+    // already handles: no `crs` means WGS 84, so nothing is resolved and the
+    // layer must not fail looking for a code that was never named.
+    const layer = geoJSONLayer("urn:ogc:def:crs:EPSG::2193");
+    delete layer.props.source.geojson.crs;
+
+    await expect(moduleLoader(layer)).resolves.toBeTruthy();
+  });
 });
 
 describe("GeoTIFF source", () => {
@@ -3274,6 +3284,31 @@ describe("applyAutoRamp", () => {
       // Float data with no range renders as nothing, so the layer is failed
       // rather than drawn blank -- see moduleLoader.
       expect(config.props.source.rampRangeUnavailable).toBe(true);
+    });
+
+    test("treats a raster with no countable pixel as having no range", async () => {
+      // Every cell is nodata, so the scan finishes having counted nothing and
+      // min is left above max. That is a successful read of a raster with no
+      // range -- distinct from a read that failed, and distinct from a raster
+      // too large to scan, which never reads at all and IS flagged.
+      const readRasters = jest.fn(async () => [new Float32Array(16).fill(NaN)]);
+      mockGDALMetadata({ readRasters });
+      mockSidecar("", false);
+      const config = geotiffLayer();
+
+      await applyAutoRamp(config);
+
+      expect(readRasters).toHaveBeenCalled();
+      expect(config.props.source.resolvedRampMin).toBeUndefined();
+      expect(config.props.source.resolvedRampMax).toBeUndefined();
+      // Deliberately NOT flagged unavailable: that is reserved for a raster
+      // whose pixels were never read. This one was read and simply holds no
+      // range, so telling the author to go and pin a Min and Max would send
+      // them after something that does not exist.
+      expect(config.props.source.rampRangeUnavailable).toBeUndefined();
+      // The style is still rebuilt, so nodata cells are transparent rather
+      // than painted at band 1 = 0 by the zero-filled tile array.
+      expect(config.style).toBeTruthy();
     });
 
     test("leaves an unscannable integer raster on normalized rendering", async () => {
