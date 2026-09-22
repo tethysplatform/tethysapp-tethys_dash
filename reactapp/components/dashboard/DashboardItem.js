@@ -15,6 +15,7 @@ import {
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import DataViewerModal from "components/modals/DataViewer/DataViewer";
 import {
+  clearGridItemGroupInitialExtent,
   parseGridItemArgs,
   readViewGroupSettings,
 } from "components/map/viewGroup";
@@ -559,6 +560,13 @@ const DashboardItem = () => {
       [newGridItem],
       viewGroup ? [viewGroup] : [],
     );
+    // A seed flag with no group name is meaningless to every reader, so the
+    // shared rule leaves it alone -- but the clear this replaced removed it on
+    // presence, and letting it ride into saved config would hand the next
+    // reader of that key a copy it never applied to.
+    if (!viewGroup) {
+      newGridItem = clearGridItemGroupInitialExtent(newGridItem);
+    }
     const updatedGridItems = JSON.parse(JSON.stringify(gridItems));
     updateTab(activeTabId, { gridItems: [...updatedGridItems, newGridItem] });
     setIsEditing(true);

@@ -46,6 +46,14 @@ function DashboardImportModal({
   const { csrf } = useContext(AppContext);
   const layoutContext = useContext(LayoutContext);
 
+  // The flatten below and the re-association further down must agree on how
+  // many items a tab contributes. flatMap only spreads a real array, so reading
+  // `.length` off the raw value elsewhere would diverge for anything else --
+  // an object carrying a `length` property would silently pull a sibling tab's
+  // items onto this one.
+  const tabGridItems = (tab) =>
+    Array.isArray(tab?.gridItems) ? tab.gridItems : [];
+
   const getAllGridItems = (format, selectedTabIndices) => {
     if (format.type === "single" || format.type === "array") {
       return format.gridItems;
@@ -54,12 +62,22 @@ function DashboardImportModal({
       format.type === "dashboard" || format.type === "mixed"
         ? format.tabs.filter((_, i) => selectedTabIndices.includes(i))
         : format.tabs;
-    const tabItems = tabs.flatMap((tab) => tab.gridItems || []);
+    const tabItems = tabs.flatMap((tab) => tabGridItems(tab));
     const looseItems = format.type === "mixed" ? format.gridItems : [];
     return [...looseItems, ...tabItems];
   };
 
   const onImport = async () => {
+    try {
+      await runImport();
+    } catch (error) {
+      // Without this the rejection reaches the onClick handler unhandled and
+      // the user gets neither an error nor a closed modal.
+      setErrorMessage(`Import failed: ${error?.message ?? "unexpected error"}`);
+    }
+  };
+
+  const runImport = async () => {
     setErrorMessage("");
 
     if (!onImportGridItem) {
@@ -145,11 +163,9 @@ function DashboardImportModal({
 
       let itemIndex = 0;
       const processedTabs = tabs.map((tab) => {
-        const tabItems = processedTabItems.slice(
-          itemIndex,
-          itemIndex + (tab.gridItems?.length || 0),
-        );
-        itemIndex += tab.gridItems?.length || 0;
+        const count = tabGridItems(tab).length;
+        const tabItems = processedTabItems.slice(itemIndex, itemIndex + count);
+        itemIndex += count;
         return { ...tab, gridItems: tabItems };
       });
 

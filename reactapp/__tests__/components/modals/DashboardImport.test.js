@@ -2070,6 +2070,38 @@ test("DashboardImportModal mixed import keeps each item with the tab it arrived 
   expect(readInitialExtentFlag(result.tabs[0].gridItems[0])).toBe(true);
 });
 
+test("DashboardImportModal surfaces a thrown import failure instead of stalling", async () => {
+  // Without the guard this rejection reaches the onClick handler unhandled:
+  // no error, no success, the modal just sits there with the button live.
+  jest
+    .spyOn(dashboardUtils, "handleGridItemImport")
+    .mockRejectedValue(new Error("boom"));
+
+  const mockOnImportGridItem = jest.fn();
+  renderDashboardModal({ onImportGridItem: mockOnImportGridItem });
+  await importFiles(
+    [
+      jsonFile(
+        {
+          i: "1",
+          x: 0,
+          y: 0,
+          w: 20,
+          h: 20,
+          source: "Text",
+          args_string: "{}",
+          metadata_string: JSON.stringify({ refreshRate: 0 }),
+        },
+        "item.json",
+      ),
+    ],
+    "Import Dashboard Item",
+  );
+
+  expect(await screen.findByText(/Import failed: boom/)).toBeInTheDocument();
+  expect(mockOnImportGridItem).not.toHaveBeenCalled();
+});
+
 test("DashboardImportModal whole dashboard import enforces one flag and keeps tab membership", async () => {
   const importedDashboard = {
     name: "Test",

@@ -3337,6 +3337,18 @@ test("Dashboard Item copy of a plugin-backed layer re-mints its layer id", async
   expect(copyArgs.layers[0].configuration.props.layerId).toBe("12345678");
 });
 
+test("Dashboard Item copy scrubs a seed flag that carries no group name", async () => {
+  // Meaningless to every reader, so the shared rule leaves it -- but the clear
+  // this replaced removed it on presence, and it should not ride into saved
+  // config on the copy.
+  const { copy } = await copyGridItemAndReadTabs({
+    extent: "-10686671.12,4721671.57,4.5",
+    isGroupInitialExtent: true,
+  });
+
+  expect(copy.isGroupInitialExtent).toBeUndefined();
+});
+
 test("Dashboard Item copy re-mints popup-nested grid item uuids", async () => {
   const nestedUUID = "nested-grid-item-uuid";
   const { copyArgs } = await copyGridItemAndReadTabs(

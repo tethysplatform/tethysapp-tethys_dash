@@ -1,5 +1,5 @@
 import PropTypes from "prop-types";
-import { useContext, useState, useEffect, useRef } from "react";
+import { useContext, useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import Container from "react-bootstrap/Container";
 import Navbar from "react-bootstrap/Navbar";
@@ -294,6 +294,22 @@ export const DashboardHeader = () => {
   const { tabs, addTab, updateTab, importTabs, resetTabs, getActiveTab } =
     useContext(TabContext);
   const { isEditing, setIsEditing } = useContext(EditingContext);
+  // The groups this dashboard already supplies an initial extent for, handed to
+  // the import modal so an imported flag cannot become a second seed. Computed
+  // here rather than inside the modal: the same modal is also mounted on the
+  // landing page, outside any `TabContext` provider, where a context read would
+  // throw at render and blank the page.
+  //
+  // Keys only, never values -- `discoverGroupSeeds` stores null for a flagged
+  // member whose extent will not parse, and that group is claimed all the same.
+  // Keyed on `tabs` alone so unrelated header state does not re-walk every grid
+  // item, and read before the import merges anything, which is the snapshot an
+  // imported tab merging into an existing same-named tab has to be judged
+  // against.
+  const claimedViewGroups = useMemo(
+    () => [...discoverGroupSeeds(tabs).keys()],
+    [tabs],
+  );
   const [isSaving, setIsSaving] = useState(false);
   const { disabledEditingMovement, setDisabledEditingMovement } = useContext(
     DisabledEditingMovementContext,
@@ -661,20 +677,7 @@ export const DashboardHeader = () => {
           showModal={showImportModal}
           setShowModal={setShowImportModal}
           onImportGridItem={onImportGridItem}
-          // The groups this dashboard already supplies an initial extent for.
-          // Computed here rather than inside the modal: the same modal is also
-          // mounted on the landing page, outside any `TabContext` provider,
-          // where a context read would throw at render and blank the page.
-          //
-          // Keys only, never values -- `discoverGroupSeeds` stores null for a
-          // flagged member whose extent will not parse, and that group is
-          // claimed all the same.
-          //
-          // Read at render, so it is the pre-import snapshot. That matters for
-          // a tab that merges into an existing same-named tab: taken after the
-          // merge, the list would contain the imported items themselves and an
-          // imported flag would collide with itself and always lose.
-          targetGroupNames={[...discoverGroupSeeds(tabs).keys()]}
+          targetGroupNames={claimedViewGroups}
         />
       )}
     </>
