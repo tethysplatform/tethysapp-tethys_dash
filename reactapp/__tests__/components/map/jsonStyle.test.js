@@ -14,6 +14,7 @@ import {
   createDiamondIconStyle,
   getGeometryBucket,
   buildPolygonFill,
+  collectStyleFields,
 } from "components/map/jsonStyle";
 import {
   defaultFill,
@@ -1622,5 +1623,103 @@ describe("the style function does not write into the style config", () => {
         .getFill()
         .getColor(),
     ).toBe("#00ff00");
+  });
+});
+
+describe("collectStyleFields", () => {
+  it("takes a cross-bucket size rule's condition field", () => {
+    // resolveSize ignores geometryType, so this polygon rule can decide a point
+    // feature's size. Filtering the collection by bucket would drop "rank" and
+    // two point features differing only in it would share the wrong size.
+    expect(
+      collectStyleFields({
+        default: { point: { size: 10 } },
+        rules: [
+          {
+            geometryType: "polygon",
+            conditionField: "rank",
+            conditionType: "=",
+            conditionValue: 5,
+            size: 20,
+          },
+        ],
+      }),
+    ).toEqual(["rank"]);
+  });
+
+  it("takes a condition field even when conditionType is absent", () => {
+    expect(collectStyleFields({ rules: [{ conditionField: "kind" }] })).toEqual(
+      ["kind"],
+    );
+  });
+
+  it("takes the field named by a comparand, not the comparand itself", () => {
+    expect(
+      collectStyleFields({
+        rules: [
+          {
+            conditionField: "a",
+            conditionType: "=",
+            conditionValue: "b",
+            conditionValueIsField: true,
+          },
+          {
+            conditions: [
+              { field: "c", type: "=", value: "d", valueIsField: true },
+              { field: "e", type: "=", value: "literal" },
+            ],
+          },
+        ],
+      }),
+    ).toEqual(["a", "b", "c", "d", "e"]);
+  });
+
+  it("takes propertyRefs targets from rules and from the geometry defaults", () => {
+    expect(
+      collectStyleFields({
+        default: { point: { propertyRefs: { fill: "color" } } },
+        rules: [{ conditionField: "t", propertyRefs: { rotation: "bearing" } }],
+      }),
+    ).toEqual(["color", "t", "bearing"]);
+  });
+
+  it("yields an empty list for a style that names nothing", () => {
+    expect(
+      collectStyleFields({ default: { point: { fill: "#fff" } } }),
+    ).toEqual([]);
+    expect(collectStyleFields({ rules: [] })).toEqual([]);
+  });
+
+  it("yields an empty list rather than throwing on a style it cannot read", () => {
+    // What applyLayerStyle's catch actually hands over when applyStyle fails.
+    expect(collectStyleFields("https://example.com/style.json")).toEqual([]);
+    expect(collectStyleFields({ version: 8, layers: [], sources: {} })).toEqual(
+      [],
+    );
+    expect(collectStyleFields(null)).toEqual([]);
+    expect(collectStyleFields(undefined)).toEqual([]);
+    expect(collectStyleFields({ default: "nope", rules: "nope" })).toEqual([]);
+    expect(
+      collectStyleFields({ rules: [null, 7, { propertyRefs: 3 }] }),
+    ).toEqual([]);
+    expect(
+      collectStyleFields({
+        rules: [{ conditions: [null, 7, { field: "f" }] }],
+      }),
+    ).toEqual(["f"]);
+  });
+
+  it("lists each field once, in a stable order", () => {
+    const styleJson = {
+      rules: [
+        { conditionField: "b" },
+        { conditionField: "a" },
+        { conditionField: "b" },
+      ],
+    };
+    expect(collectStyleFields(styleJson)).toEqual(["b", "a"]);
+    expect(collectStyleFields(styleJson)).toEqual(
+      collectStyleFields(styleJson),
+    );
   });
 });

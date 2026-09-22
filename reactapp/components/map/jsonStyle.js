@@ -495,6 +495,73 @@ export function buildPolygonFill(merged) {
   return new Fill({ color: merged.fill || defaultFill });
 }
 
+// Every feature field this style can read.
+//
+// The resulting style is a pure function of the geometry bucket and these
+// values, which is what lets a cache key be built from them instead of from
+// the merged result. Three readers name fields and they disagree on scope, so
+// this takes the union of all three rather than filtering per geometry:
+//
+//   - ruleMatches / evaluateCondition read conditionField, every
+//     conditions[].field, and -- where the *IsField flags are set -- the field
+//     named by the comparand rather than the comparand itself.
+//   - resolveAllStyleValues reads every propertyRefs target, on rules and on
+//     the geometry defaults alike.
+//   - resolveSize reads conditionField for every rule carrying a size,
+//     ignoring geometryType, conditions[] and the combinator. A polygon rule
+//     can therefore decide a point feature's size, so filtering this list by
+//     bucket would drop a field that changes the result. conditionField is
+//     taken whether or not conditionType is present, for the same reason.
+//
+// Returns an empty list for anything not rule-shaped. The style function is
+// reached from the catch around ol-mapbox-style's applyStyle, so it is handed
+// whatever the layer config held -- including a style URL string or a Mapbox
+// style object whose fetch failed. Those survive the pipeline today on
+// optional chaining, and throwing here would propagate out through the awaited
+// layer add and take the layer with it.
+export function collectStyleFields(styleJson) {
+  const fields = [];
+  const seen = new Set();
+
+  const take = (name) => {
+    if (typeof name !== "string" || !name || seen.has(name)) return;
+    seen.add(name);
+    fields.push(name);
+  };
+
+  const takePropertyRefs = (carrier) => {
+    const refs = carrier?.propertyRefs;
+    if (!refs || typeof refs !== "object") return;
+    for (const target of Object.values(refs)) take(target);
+  };
+
+  if (!styleJson || typeof styleJson !== "object") return fields;
+
+  const defaults = styleJson.default;
+  if (defaults && typeof defaults === "object") {
+    for (const bucket of Object.values(defaults)) {
+      if (bucket && typeof bucket === "object") takePropertyRefs(bucket);
+    }
+  }
+
+  const rules = Array.isArray(styleJson.rules) ? styleJson.rules : [];
+  for (const rule of rules) {
+    if (!rule || typeof rule !== "object") continue;
+    take(rule.conditionField);
+    if (rule.conditionValueIsField) take(rule.conditionValue);
+    if (Array.isArray(rule.conditions)) {
+      for (const condition of rule.conditions) {
+        if (!condition || typeof condition !== "object") continue;
+        take(condition.field);
+        if (condition.valueIsField) take(condition.value);
+      }
+    }
+    takePropertyRefs(rule);
+  }
+
+  return fields;
+}
+
 export function createJsonStyleFunction(styleJson) {
   return function (feature) {
     let properties = feature.getProperties();
