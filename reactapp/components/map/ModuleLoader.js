@@ -1794,6 +1794,7 @@ const getModuleImporter = (type) => {
     WebGLTile: "ol/layer/WebGLTile.js",
     ImageLayer: "ol/layer/Image.js",
     VectorLayer: "ol/layer/Vector.js",
+    VectorImageLayer: "ol/layer/VectorImage.js",
     VectorTileLayer: "ol/layer/VectorTile.js",
     TileLayer: "ol/layer/Tile.js",
     "Image Tile": "ol/source/ImageTile.js",

@@ -3951,3 +3951,43 @@ test("the CORS probe gives up rather than hanging on a silent host", async () =>
     jest.useRealTimers();
   }
 });
+
+describe("VectorImageLayer", () => {
+  it("builds a VectorImageLayer and passes imageRatio to the constructor", async () => {
+    // Renders the features to an intermediate canvas and re-blits that while
+    // panning, instead of re-drawing every feature each frame. Opt-in per
+    // layer, because hit detection becomes approximate.
+    const config = JSON.parse(JSON.stringify(layerConfigGeoJSON.configuration));
+    config.type = "VectorImageLayer";
+    config.props.imageRatio = 1.5;
+
+    const layerInstance = await moduleLoader(config);
+
+    // Asserted by name rather than instanceof: this suite calls
+    // jest.resetModules() partway through, so the class reached by the
+    // dynamic import is a different module instance from anything imported
+    // at file scope, and instanceof would compare the wrong pair.
+    const chain = [];
+    for (
+      let p = Object.getPrototypeOf(layerInstance);
+      p;
+      p = Object.getPrototypeOf(p)
+    ) {
+      chain.push(p.constructor?.name);
+    }
+    expect(chain[0]).toBe("VectorImageLayer");
+    // A sibling of VectorLayer in OpenLayers, not a subclass -- anything
+    // keying on the class has to know that.
+    expect(chain).toContain("BaseVectorLayer");
+    expect(chain).not.toContain("VectorLayer");
+    expect(layerInstance.getSource().constructor.name).toBe("VectorSource");
+  });
+
+  it("is reachable through the module registry", async () => {
+    // typeMapping and moduleMap are separate registries; an entry in one
+    // without the other throws at layer construction.
+    const config = JSON.parse(JSON.stringify(layerConfigGeoJSON.configuration));
+    config.type = "VectorImageLayer";
+    await expect(moduleLoader(config)).resolves.toBeDefined();
+  });
+});

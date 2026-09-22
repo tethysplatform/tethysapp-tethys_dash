@@ -2,6 +2,7 @@ export const moduleMap = {
   "ol/layer/WebGLTile.js": () => import("ol/layer/WebGLTile.js"),
   "ol/layer/Image.js": () => import("ol/layer/Image.js"),
   "ol/layer/Vector.js": () => import("ol/layer/Vector.js"),
+  "ol/layer/VectorImage.js": () => import("ol/layer/VectorImage.js"),
   "ol/layer/Tile.js": () => import("ol/layer/Tile.js"),
   "ol/layer/VectorTile.js": () => import("ol/layer/VectorTile.js"),
   "ol/source/VectorTile.js": () => import("ol/source/VectorTile.js"),
