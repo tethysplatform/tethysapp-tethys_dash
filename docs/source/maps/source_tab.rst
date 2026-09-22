@@ -7,6 +7,47 @@ Source Tab
 
 The source tab defines the data source for the layer and its properties. After selecting a source type, relevant properties will appear for further customization. Some properties are required for the layer to render, while others are optional. The available source types and their properties are listed below.
 
+.. _argument_discovery:
+
++++++++++++++++++++++++++++
+Discovering Argument Values
++++++++++++++++++++++++++++
+
+Some source properties name something *inside* the file — a Zarr array, a GeoPackage table, a GeoParquet column. Rather than requiring the exact spelling to be known in advance, TethysDash reads the source once the URL is entered and offers what it finds as a dropdown. The properties that work this way are:
+
+.. list-table::
+    :header-rows: 1
+    :widths: 25 25 50
+
+    * - Source
+      - Property
+      - What is listed
+    * - Zarr
+      - **variable**
+      - The array names in the store.
+    * - Zarr
+      - **index**
+      - The slice positions of the chosen **variable**, labeled from the store's own labels when it has them. Choose the variable first.
+    * - GeoPackage
+      - **layer**
+      - The feature tables in the file.
+    * - GeoParquet
+      - **columns**
+      - The columns in the file. Several may be selected.
+
+The value can always be typed by hand, whatever the read reports. What the read *does* change is what the editor can tell you:
+
+- **Nothing listed.** A source that was read and holds nothing is reported differently from one that does not list its contents at all, so it is clear whether the value is missing or simply not discoverable.
+- **A saved value the source no longer has.** Reported as a warning naming the value, and left exactly as saved — only the author knows whether the source was renamed or the wrong URL was pasted. A Zarr slice position is checked against the number of slices the array actually has.
+- **A read that failed.** Shows what failed and, where something can be done about it, what to do — most often that the host must be reachable and must send CORS headers.
+- **A slow read.** A file that takes a while says so rather than appearing stuck.
+
+Use **Re-read** beneath the property to read the source again — after the file has been republished, for instance.
+
+.. note::
+   A URL containing a ``${Variable Name}`` template is resolved with the variable's current value before the source is read, so discovery works on variable-driven layers too.
+
+
 ------------------------------------------------------------------------------------------------------------------------
 
 ++++++++++++++++++++++++++
@@ -23,6 +64,7 @@ ESRI Image and Map Service
     - **params - LAYERDEFS:** (optional) Allows you to filter the features of individual layers in the exported map by specifying definition expressions for those layers. Syntax is in the form of "{"<layerId1>": "<layerDef1>", "<layerId2>": "<layerDef2>"}". See `ESRI documentation <https://developers.arcgis.com/rest/services-reference/enterprise/export-map/>`_ for more information.
     - **params - mosaicRule:** (optional) Allows you to set a mosaic rule for image services.
     - **projection:** (optional) Projection of the source data. Default is the view projection (EPSG:3857).
+    - **crossOrigin:** (optional) Force cross-origin (CORS) requests for this layer so it can be captured in the dashboard thumbnail. CORS support is detected per host automatically, so leave this off unless the layer renders blank in thumbnails. Only enable it when the server sends ``Access-Control-Allow-Origin`` — if it does not, the layer will fail to load entirely.
 
 ------------------------------------------------------------------------------------------------------------------------
 
@@ -55,6 +97,7 @@ WMS
     - **params - STYLES:** (optional) The name of a preloaded SLD (Styled Layer Descriptor). For additional custom styling, see the style tab.
     - **params - TIME:** (optional) Time value of layer desired.  Syntax is in the form of "yyyy-MM-ddThh:mm:ss.SSSZ".
     - **projection:** (optional) Projection. Default is the view projection (EPSG:3857).
+    - **crossOrigin:** (optional) Force cross-origin (CORS) requests for this layer so it can be captured in the dashboard thumbnail. CORS support is detected per host automatically, so leave this off unless the layer renders blank in thumbnails. Only enable it when the server sends ``Access-Control-Allow-Origin`` — if it does not, the layer will fail to load entirely.
 
 ------------------------------------------------------------------------------------------------------------------------
 
@@ -193,6 +236,7 @@ The Static Image source overlays a georeferenced image (PNG, GIF, JPG, etc.) on 
     - **projection:** (required) Projection of the image extent coordinates (e.g. ``EPSG:3857``, ``EPSG:4326``).
     - **imageExtent:** (required) Bounding extent of the image as a comma-separated string in the format ``minX, minY, maxX, maxY``, using coordinates in the specified projection.
     - **attributions:** (optional) Attributions.
+    - **crossOrigin:** (optional) Force cross-origin (CORS) requests for this layer so it can be captured in the dashboard thumbnail. CORS support is detected per host automatically, so leave this off unless the layer renders blank in thumbnails. Only enable it when the server sends ``Access-Control-Allow-Origin`` — if it does not, the layer will fail to load entirely.
 
 **Interactive Placement:**
 
@@ -414,8 +458,8 @@ When adding a layer, dynamic plugins are listed under the **Custom Layers** grou
 **Render-time behavior:**
     - Features refresh in place — the underlying OpenLayers ``VectorLayer`` is preserved across updates, so popups and highlight selections survive re-fetches.
     - Re-fetches on variable-input change are debounced and the older in-flight request is cancelled when a new one starts.
-    - Per-layer progress messages from ``self.send_update(...)`` are routed to the layer's progress indicator.
-    - If the backing plugin is missing on the server (e.g. uninstalled), the layer renders with a "Plugin not available" banner rather than failing the whole map.
+    - While a layer is loading, the map names it in its loading alert, with the percentage from ``self.send_update(...)`` when the plugin reports one. See :ref:`create_map`.
+    - A layer that fails — an unreachable host, a plugin that is not installed on the server — is named in the map's failure alert and beside its entry in the layer control. The rest of the map still renders.
 
 For the plugin-author contract — ``dynamic_map_layer``, ``fetch_features``, ``LayerConfigurationBuilder.set_plugin_source``, the return-shape validator, and progress streaming — see :ref:`visualizationplugins`.
 

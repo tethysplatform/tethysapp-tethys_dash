@@ -891,6 +891,14 @@ configurations for configs and layers.
         - **legend** (required): an object that contains a title key and items key. The items key value is an array of object with label and color keys for the legend.
         - **style** (required): See maps :ref:`legend_tab` for more information.
     - **layerControl** (optional): A boolean indicating if a layer control should be available.
+    - **map_extent** (optional): The extent the map opens at, and the linked view group it belongs to. Either a bare extent string (``"minX, minY, maxX, maxY"`` or ``"lon, lat, zoom"``), or an object: ::
+
+        {"extent": "-130, 20, -60, 55", "viewGroup": "Basins"}
+
+      **viewGroup** puts the map in the dashboard's linked view group of that name, so every member pans, zooms, and marks the hovered position together. Names are trimmed and matched case-sensitively; an empty name means no group. See :ref:`view_groups`.
+
+      .. note::
+         A plugin-supplied map may *join* a view group but cannot supply the group's opening view — the plugin's extent does not exist until the plugin has run. The ``isGroupInitialExtent`` flag is honored only on the built-in **Map** visualization and is set only from its editor.
 
 **Example**: ::
 

@@ -446,7 +446,36 @@ Raster Color Ramps
 ++++++++++++++++++
 
 GeoTIFF and Zarr layers are styled with a color ramp instead of rules. Pick a ramp, then
-choose how its value range is set:
+choose how its value range is set.
+
+The ramp picker groups its options by how they should be read:
+
+.. list-table::
+    :header-rows: 1
+    :widths: 25 30 45
+
+    * - Group
+      - Ramps
+      - When to use it
+    * - Perceptually uniform
+      - ``viridis``, ``magma``, ``inferno``, ``plasma``, ``cividis``
+      - The safe default. Equal steps in value look like equal steps in color, so the
+        picture does not invent features the data does not have.
+    * - Single hue
+      - ``Blues``, ``Greens``, ``Oranges``, ``Purples``, ``Reds``
+      - Light to dark in one hue. Easiest to read a magnitude off, and the clearest
+        choice when the raster is drawn underneath colored vector features.
+    * - Sequential
+      - ``turbo``, ``YlGnBu``, ``YlOrRd``, ``grayscale``
+      - High contrast. ``turbo`` is a rainbow rather than perceptually uniform — popular
+        and legible, but it can suggest edges that are not in the data. ``grayscale``
+        runs dark to light, the opposite of the single-hue ramps.
+    * - Diverging
+      - ``RdYlBu``, ``RdBu``, ``Spectral``, ``BrBG``
+      - Data read against a meaningful midpoint — anomalies, change between two dates.
+        Wrong for data with no natural centre.
+
+Then choose how the ramp's value range is set:
 
 .. list-table::
     :header-rows: 1

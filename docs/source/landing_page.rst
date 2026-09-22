@@ -20,6 +20,18 @@ Dashboard Cards
 
 Each card on the landing page represents a dashboard and displays its name, description, owner status, public status, and a thumbnail. Dashboards owned by the user are marked with the owner icon (|owner_icon|) in the top left corner, while public dashboards are marked with the public icon (|public_icon|). Hovering over a card reveals its description. The three-dot menu in the top right corner provides additional actions.
 
+Finding a Dashboard
+-------------------
+
+A search box in the landing page header filters the dashboard cards as you type. A dashboard matches when the query appears in its **name**, or when every significant word of the query appears in its **description**.
+
+- Matching ignores case and accents, so ``clasificacion`` finds a dashboard named "Clasificación".
+- Names are matched as plain text, common words included, so a dashboard called "The Basin" is still findable by typing ``the``.
+- Descriptions are matched on significant words only — common words such as *the*, *of* and *with* are ignored there, since requiring them would match nearly every dashboard.
+- A query made up entirely of common words falls back to name matching alone.
+
+Clear the box (or click the clear button inside it) to show every dashboard again.
+
 Creating a Dashboard
 --------------------
 
@@ -71,6 +83,17 @@ Granting access to a group gives all its members the specified level of access. 
 **Export**: Download the dashboard as a JSON file.
 
 **Delete** (*Admin Privileges Required*): Permanently remove the dashboard.
+
+Dashboard Thumbnails
+--------------------
+
+A dashboard's thumbnail is captured automatically each time the dashboard is saved: the visible tab is photographed as it appears on screen, so the card on the landing page reflects the dashboard's current contents. The capture is sent after the save has completed and never blocks or fails it — if the image cannot be produced, the previous thumbnail is kept.
+
+Use **Update Thumbnail** in the card's context menu to replace the captured image with one of your own.
+
+.. note::
+   Map layers appear in the thumbnail only when the tile or image server allows cross-origin reads. TethysDash detects this per host automatically. If a layer still comes out blank, enable the layer's **crossOrigin** source property (see :ref:`source_tab`) — but only if that server sends ``Access-Control-Allow-Origin``, because requesting it elsewhere stops the layer loading at all.
+
 
 Importing Dashboards
 --------------------
@@ -139,9 +162,23 @@ The following options are available for the metadata_string key:
       * **error**: Custom error message for visualization errors.
       * **<Variable Input Name>**: Custom message when a Variable Input has no value.
    
-   * **refreshRate** (integer): Time interval (in seconds) to refresh the visualization.
-  
+   * **refreshRate** (integer): Time interval (in minutes) to refresh the visualization. ``0`` disables automatic refreshing.
+
+   * **fillViewport** (boolean): Item fills the screen below the navigation bar on any screen size.
+
+   * **enforceAspectRatio** (boolean): For image visualizations, keep the image's natural aspect ratio. Ignored while **fillViewport** is set.
+
    * Any additional settings for specific visualizations (see :ref:`settings_tab`).
+
+Identity Fields on Import
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Some layer and item keys identify a thing *within one dashboard* and mean nothing outside it. These are regenerated on the way in, so an import file does not have to supply them and cannot collide with what is already on the board. The same rules apply when an item is copied.
+
+   * **layerId** — regenerated on every plugin-backed (Custom) map layer, including layers nested inside a popup layout. Omit it from hand-written files.
+   * **uuid** on a grid item nested in a popup layout — regenerated.
+   * **viewGroup** and the view group's initial-extent flag on a map nested in a popup layout — removed, because maps inside a popup never join a view group (see :ref:`view_groups`).
+   * The initial-extent flag on a top-level map — kept, unless the group's opening view is already claimed: by a map already on the dashboard, or by an earlier map in the same import file. A map that loses the claim still joins the group; it just does not supply the view the group opens at.
 
 Manage Visualization Permissions
 --------------------------------
