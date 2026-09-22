@@ -632,6 +632,7 @@ export function createJsonStyleFunction(styleJson) {
   // these fields' values, so a hit needs neither the rule loop nor the
   // property-bag copy.
   const keyFields = collectStyleFields(styleJson);
+  const rules = Array.isArray(styleJson.rules) ? styleJson.rules : [];
 
   const styleFunction = function (feature) {
     const geometryBucket = getGeometryBucket(feature); // 'point', 'line', 'polygon'
@@ -655,7 +656,7 @@ export function createJsonStyleFunction(styleJson) {
     let merged = { ...(styleJson.default?.[geometryBucket] || {}) };
 
     // --- Apply matching rules ---
-    for (const rule of styleJson.rules || []) {
+    for (const rule of rules) {
       // Only apply rule if it matches this geometry type
       const ruleGeom = rule.geometryType || geometryBucket;
       if (ruleGeom !== geometryBucket) continue;
@@ -672,7 +673,7 @@ export function createJsonStyleFunction(styleJson) {
     if (geometryBucket === "point") {
       if (merged.size == null) merged.size = defaultSize;
       if (!merged.shape) merged.shape = defaultShape;
-      merged.size = resolveSize(feature, styleJson.rules || [], merged.size);
+      merged.size = resolveSize(feature, rules, merged.size);
     }
 
     // --- Build style ---

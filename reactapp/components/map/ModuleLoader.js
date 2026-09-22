@@ -1968,6 +1968,11 @@ export const loadShapefile = (config, mapProjection, getMapProjection) => {
       }
       status = "idle";
       failure = null;
+      // Whoever wires a retry affordance to this must also empty the layer's
+      // style cache -- `refresh` clears and reloads the features, but it does
+      // not go through swapVectorLayerFeatures, which is the only thing
+      // calling resetStyleCache today. Without that the previous dataset's
+      // entries stay in the map for the life of the layer.
       source.refresh();
     },
   });
