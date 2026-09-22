@@ -1700,6 +1700,9 @@ describe("collectStyleFields", () => {
     expect(collectStyleFields(undefined)).toEqual([]);
     expect(collectStyleFields({ default: "nope", rules: "nope" })).toEqual([]);
     expect(
+      collectStyleFields({ default: { point: null, polygon: 7 } }),
+    ).toEqual([]);
+    expect(
       collectStyleFields({ rules: [null, 7, { propertyRefs: 3 }] }),
     ).toEqual([]);
     expect(
@@ -1884,6 +1887,10 @@ describe("the style cache is keyed on what the rules read", () => {
         .getFill()
         .getColor(),
     ).toBe("#cccccc");
+    // false encodes distinctly from true, so the two cannot share an entry.
+    expect(flagStyle(mockFeature({ flag: false }))).not.toBe(
+      flagStyle(mockFeature({ flag: true })),
+    );
   });
 
   it("does not let one field's value bleed into the next", () => {
@@ -1962,5 +1969,43 @@ describe("the style cache is keyed on what the rules read", () => {
     expect(styleFn(mockFeature({})).getImage().getFill().getColor()).toBe(
       "#cccccc",
     );
+  });
+});
+
+describe("the key encoder survives values GeoJSON can carry", () => {
+  const byValue = {
+    default: { point: { fill: "#cccccc", size: 4 } },
+    rules: [
+      {
+        geometryType: "point",
+        conditionField: "v",
+        conditionType: "=",
+        conditionValue: 1,
+        fill: "#ff0000",
+      },
+    ],
+  };
+
+  it("keeps a BigInt distinct from the number and string of the same digits", () => {
+    // A GeoParquet int64 column can produce one, and JSON.stringify throws
+    // on them.
+    const styleFn = createJsonStyleFunction(byValue);
+    const fromBig = styleFn(mockFeature({ v: 10n }));
+    const fromNumber = styleFn(mockFeature({ v: 10 }));
+    const fromString = styleFn(mockFeature({ v: "10" }));
+    expect(fromNumber).not.toBe(fromBig);
+    expect(fromString).not.toBe(fromBig);
+    expect(styleFn.cachedStyleCount()).toBe(3);
+  });
+
+  it("does not throw on a value it cannot serialize", () => {
+    // Better a shared bucket for unserializable values than an exception
+    // thrown out of a render frame.
+    const styleFn = createJsonStyleFunction(byValue);
+    const circular = { name: "loop" };
+    circular.self = circular;
+    expect(() => styleFn(mockFeature({ v: circular }))).not.toThrow();
+    expect(() => styleFn(mockFeature({ v: () => null }))).not.toThrow();
+    expect(() => styleFn(mockFeature({ v: Symbol("s") }))).not.toThrow();
   });
 });
