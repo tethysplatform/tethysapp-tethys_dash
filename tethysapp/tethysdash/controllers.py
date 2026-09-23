@@ -2,7 +2,6 @@ from django.http import JsonResponse, HttpResponse
 import ipaddress
 import json
 import os
-import shutil
 import socket
 import nh3
 import requests
@@ -31,6 +30,8 @@ from tethysapp.tethysdash.model import (
     update_visualization_permissions as update_viz_perms,
     check_for_liveChat,
     Message,
+    copy_thumbnail,
+    delete_thumbnail,
 )
 from django.core.cache import cache
 from tethysapp.tethysdash.visualizations import (
@@ -646,8 +647,8 @@ def get_dashboard(request):
 
 
 @api_view(["POST"])
-@controller(url="tethysdash/dashboards/add", login_required=True, app_media=True)
-def add_dashboard(request, app_media):
+@controller(url="tethysdash/dashboards/add", login_required=True)
+def add_dashboard(request):
     """
     API controller for creating a new dashboard.
 
@@ -664,7 +665,6 @@ def add_dashboard(request, app_media):
               defaulting to True. Existing dashboards keep whatever they were
               created with; this only sets the starting point for new ones.
             - gridItems: Optional list of grid items
-        app_media: Tethys app media directory for storing dashboard images
 
     Returns:
         JsonResponse: Dictionary containing:
@@ -713,8 +713,8 @@ def add_dashboard(request, app_media):
 
 
 @api_view(["POST"])
-@controller(url="tethysdash/dashboards/copy", login_required=True, app_media=True)
-def copy_dashboard(request, app_media):
+@controller(url="tethysdash/dashboards/copy", login_required=True)
+def copy_dashboard(request):
     """
     API controller for copying an existing dashboard.
 
@@ -725,7 +725,6 @@ def copy_dashboard(request, app_media):
         request: Django HTTP request object with JSON body containing:
             - id: String ID of the dashboard to copy
             - newName: String name for the copied dashboard
-        app_media: Tethys app media directory for storing dashboard images
 
     Returns:
         JsonResponse: Dictionary containing:
@@ -746,14 +745,7 @@ def copy_dashboard(request, app_media):
             user, dashboard_id, new_name, dashboard_uuid
         )
 
-        copied_dashboard_image = os.path.join(
-            os.path.join(app_media.path, f"{copied_dashboard_uuid}.png")
-        )
-        if os.path.exists(copied_dashboard_image):
-            shutil.copyfile(
-                copied_dashboard_image,
-                os.path.join(app_media.path, f"{dashboard_uuid}.png"),
-            )
+        copy_thumbnail(copied_dashboard_uuid, dashboard_uuid)
         new_dashboard = get_dashboards(user, id=new_dashboard_id)
         print(f"Successfully copied dashboard {dashboard_id}")
 
@@ -768,8 +760,8 @@ def copy_dashboard(request, app_media):
 
 
 @api_view(["POST"])
-@controller(url="tethysdash/dashboards/delete", login_required=True, app_media=True)
-def delete_dashboard(request, app_media):
+@controller(url="tethysdash/dashboards/delete", login_required=True)
+def delete_dashboard(request):
     """
     API controller for deleting a dashboard.
 
@@ -779,7 +771,6 @@ def delete_dashboard(request, app_media):
     Args:
         request: Django HTTP request object with JSON body containing:
             - id: String ID of the dashboard to delete
-        app_media: Tethys app media directory containing dashboard images
 
     Returns:
         JsonResponse: Dictionary containing:
@@ -795,9 +786,7 @@ def delete_dashboard(request, app_media):
         dashboard_uuid = delete_named_dashboard(user, dashboard_id)
         print(f"Successfully deleted dashboard {dashboard_id}")
 
-        dashboard_image = os.path.join(app_media.path, f"{dashboard_uuid}.png")
-        if os.path.exists(dashboard_image):
-            os.remove(dashboard_image)
+        delete_thumbnail(dashboard_uuid)
 
         return JsonResponse({"success": True})
     except Exception as e:
