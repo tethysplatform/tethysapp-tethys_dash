@@ -20,10 +20,7 @@ import json
 import os
 from datetime import datetime, timezone
 from django.conf import settings
-from django.core.files.base import ContentFile
-from django.core.files.storage import default_storage
-from tethys_sdk.paths import get_app_workspace
-from urllib.parse import urlsplit
+from tethys_sdk.paths import get_app_media, get_app_workspace
 import base64
 from alembic import command, script, config
 from sqlalchemy.exc import ProgrammingError, OperationalError
@@ -37,126 +34,6 @@ import filecmp
 from uuid import uuid4
 
 Base = declarative_base()
-
-
-def thumbnail_directory():
-    """Return the default storage directory holding dashboard thumbnails."""
-    from tethysapp.tethysdash.app import App
-
-    return f"{App.package}/app"
-
-
-def thumbnail_name(dashboard_uuid):
-    """Return the default storage name for a dashboard thumbnail.
-
-    The layout matches what get_app_media lays down under MEDIA_ROOT, so a portal on
-    local storage keeps the same files and the same URLs it had before.
-    """
-    return f"{thumbnail_directory()}/{dashboard_uuid}.png"
-
-
-def _prefixed(url):
-    """Apply PREFIX_URL to a storage URL that this portal serves itself.
-
-    Tethys mounts the whole urlconf under PREFIX_URL but does not put it in MEDIA_URL, so a
-    relative storage URL is missing it. An absolute URL from a remote backend is not ours to
-    rewrite.
-    """
-    prefix = settings.PREFIX_URL
-    if prefix is not None and prefix != "/" and not urlsplit(url).netloc:
-        return f"/{prefix.strip('/')}/{url.lstrip('/')}"
-    return url
-
-
-def save_thumbnail(dashboard_uuid, content):
-    """Write a thumbnail through the default storage, replacing any existing one.
-
-    Storage backends suffix a name that is already taken rather than overwriting it, so the
-    old object is deleted first; deleting a name that is absent is a no-op. If the backend
-    still hands back a different name then a concurrent save took the canonical one. That
-    object is unreachable, because every read rebuilds the canonical name, so it is removed
-    and the caller told, rather than left behind as an orphan the URL never points at.
-    """
-    name = thumbnail_name(dashboard_uuid)
-    default_storage.delete(name)
-    saved = default_storage.save(name, ContentFile(content))
-    if saved != name:
-        default_storage.delete(saved)
-        raise RuntimeError(
-            f"thumbnail for {dashboard_uuid} could not be stored as {name}: the storage "
-            f"returned {saved}, so another save holds that name"
-        )
-
-
-def thumbnail_url(dashboard_uuid):
-    """Return the URL of one dashboard's thumbnail, or None when it has none.
-
-    A storage failure yields None rather than propagating. A card without its picture beats
-    losing the page that holds it.
-    """
-    name = thumbnail_name(dashboard_uuid)
-    try:
-        if not default_storage.exists(name):
-            return None
-        return _prefixed(default_storage.url(name))
-    except Exception as error:
-        print(f"Could not resolve the thumbnail for {dashboard_uuid}: {error}")
-        return None
-
-
-def thumbnail_urls(dashboard_uuids):
-    """Map each uuid to its thumbnail URL, or None, for a whole page at once.
-
-    The landing page renders every dashboard a viewer can see, so asking the storage about
-    each one separately is a round trip per dashboard once the storage is remote. One
-    directory listing answers for all of them instead. Two kinds of uuid are asked about
-    individually anyway: a uuid holding a separator, whose object is nested and so is never a
-    direct child of the listed directory, and the lone uuid of a single dashboard view, where
-    a listing would be the more expensive of the two.
-    """
-    uuids = list(dashboard_uuids)
-    nested = {uuid for uuid in uuids if "/" in str(uuid)}
-    flat = [uuid for uuid in uuids if uuid not in nested]
-
-    if len(flat) <= 1:
-        return {uuid: thumbnail_url(uuid) for uuid in uuids}
-
-    suffix = ".png"
-    try:
-        _, files = default_storage.listdir(thumbnail_directory())
-        present = {name[: -len(suffix)] for name in files if name.endswith(suffix)}
-        resolved = {
-            uuid: (
-                _prefixed(default_storage.url(thumbnail_name(uuid)))
-                if uuid in present
-                else None
-            )
-            for uuid in flat
-        }
-    except FileNotFoundError:
-        resolved = {uuid: None for uuid in flat}
-    except NotImplementedError:
-        resolved = {uuid: thumbnail_url(uuid) for uuid in flat}
-    except Exception as error:
-        print(f"Could not list the dashboard thumbnails: {error}")
-        resolved = {uuid: None for uuid in flat}
-
-    resolved.update({uuid: thumbnail_url(uuid) for uuid in nested})
-    return {uuid: resolved[uuid] for uuid in uuids}
-
-
-def copy_thumbnail(source_uuid, target_uuid):
-    """Copy one dashboard's thumbnail onto another, if the source has one."""
-    source = thumbnail_name(source_uuid)
-    if not default_storage.exists(source):
-        return
-    with default_storage.open(source, "rb") as handle:
-        save_thumbnail(target_uuid, handle.read())
-
-
-def delete_thumbnail(dashboard_uuid):
-    """Remove a dashboard's thumbnail. Deleting an absent name is a no-op."""
-    default_storage.delete(thumbnail_name(dashboard_uuid))
 
 
 class Dashboard(Base):
@@ -1108,7 +985,12 @@ def update_named_dashboard(user, id, dashboard_updates):
         if "image" in dashboard_updates:
             # Extract the file format (e.g., 'data:image/png;base64,')
             imgstr = dashboard_updates["image"].split(";base64,")[1]
-            save_thumbnail(db_dashboard.uuid, base64.b64decode(imgstr))
+            app_media = get_app_media(App)
+            file_path = os.path.join(app_media.path, f"{db_dashboard.uuid}.png")
+
+            # Decode and write the image file
+            with open(file_path, "wb") as file:
+                file.write(base64.b64decode(imgstr))
 
         # Commit the session and close the connection
         session.commit()
@@ -1827,12 +1709,22 @@ def parse_db_dashboard(session, dashboards, user, dashboard_view):
         list: List of dashboard dictionaries containing metadata,
               permissions, and optionally grid items
     """
+    from tethysapp.tethysdash.app import App
+
     dashboard_list = []
-    # One listing for the whole page; a card with no thumbnail renders without one.
-    images = thumbnail_urls([dashboard.uuid for dashboard in dashboards])
+    MEDIA_URL = settings.MEDIA_URL
+    PREFIX_URL = settings.PREFIX_URL
+    if PREFIX_URL is not None and PREFIX_URL != "/":
+        MEDIA_URL = f"/{PREFIX_URL}/{MEDIA_URL.strip('/')}/"
 
     for dashboard in dashboards:
-        dashboard_image = images[dashboard.uuid]
+        # None until a thumbnail exists; the card renders without one.
+        dashboard_image = None
+        app_media = get_app_media(App)
+        if os.path.exists(os.path.join(app_media.path, f"{dashboard.uuid}.png")):
+            dashboard_image = os.path.join(
+                MEDIA_URL, App.root_url, f"app/{dashboard.uuid}.png"
+            )
         # Find the user's permission level for this dashboard
         user_permission = get_dashboard_user_permission(session, dashboard, user)
 
