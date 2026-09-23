@@ -5,6 +5,8 @@ from tethysapp.tethysdash.model import Dashboard, Message
 from unittest.mock import MagicMock, mock_open, patch
 import os
 import shutil
+from django.core.files.storage import default_storage
+from tethysapp.tethysdash.model import save_thumbnail, thumbnail_name
 from django.conf import settings
 from django.test import override_settings
 from datetime import datetime, timedelta
@@ -238,8 +240,6 @@ def test_dashboards(
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     app_media_path = tmp_path
     workspace_path = tmp_path
-    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
-    mock_get_app_media.return_value = MagicMock(path=app_media_path)
     mock_get_app_media2 = mocker.patch("tethys_apps.base.paths.get_app_media")
     mock_get_app_media2.return_value = MagicMock(path=app_media_path)
     mock_get_app_workspace = mocker.patch(
@@ -287,8 +287,6 @@ def test_dashboards_with_support_email(
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     app_media_path = tmp_path
     workspace_path = tmp_path
-    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
-    mock_get_app_media.return_value = MagicMock(path=app_media_path)
     mock_get_app_media2 = mocker.patch("tethys_apps.base.paths.get_app_media")
     mock_get_app_media2.return_value = MagicMock(path=app_media_path)
     mock_get_app_workspace = mocker.patch(
@@ -319,8 +317,6 @@ def test_dashboards_with_support_github(
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     app_media_path = tmp_path
     workspace_path = tmp_path
-    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
-    mock_get_app_media.return_value = MagicMock(path=app_media_path)
     mock_get_app_media2 = mocker.patch("tethys_apps.base.paths.get_app_media")
     mock_get_app_media2.return_value = MagicMock(path=app_media_path)
     mock_get_app_workspace = mocker.patch(
@@ -353,8 +349,6 @@ def test_dashboards_with_support_email_and_github(
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     app_media_path = tmp_path
     workspace_path = tmp_path
-    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
-    mock_get_app_media.return_value = MagicMock(path=app_media_path)
     mock_get_app_media2 = mocker.patch("tethys_apps.base.paths.get_app_media")
     mock_get_app_media2.return_value = MagicMock(path=app_media_path)
     mock_get_app_workspace = mocker.patch(
@@ -385,14 +379,9 @@ def test_get_dashboard(
     test_admin_user,
     mock_app_get_ps_db,
     dashboard,
-    mocker,
-    tmp_path,
     permission_group,
 ):
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
-    app_media_path = tmp_path
-    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
-    mock_get_app_media.return_value = MagicMock(path=app_media_path)
 
     url = reverse("tethysdash:get_dashboard")
     client.force_login(test_owner_user)
@@ -432,9 +421,6 @@ def test_get_dashboard_failed(
     client, admin_user, mock_app_get_ps_db, dashboard, mocker, tmp_path
 ):
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
-    app_media_path = tmp_path
-    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
-    mock_get_app_media.return_value = MagicMock(path=app_media_path)
 
     url = reverse("tethysdash:get_dashboard")
     client.force_login(admin_user)
@@ -461,9 +447,6 @@ def test_get_dashboard_failed_unknown_exception(
     client, admin_user, mock_app_get_ps_db, dashboard, mocker, tmp_path
 ):
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
-    app_media_path = tmp_path
-    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
-    mock_get_app_media.return_value = MagicMock(path=app_media_path)
 
     url = reverse("tethysdash:get_dashboard")
     client.force_login(admin_user)
@@ -495,8 +478,6 @@ def test_add_dashboard(
     mock_app("tethysapp.tethysdash.app.App")
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     app_media_path = tmp_path
-    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
-    mock_get_app_media.return_value = MagicMock(path=app_media_path)
     mock_get_app_media2 = mocker.patch("tethys_apps.base.paths.get_app_media")
     mock_get_app_media2.return_value = MagicMock(path=app_media_path)
     mock_uuid = mocker.patch("tethysapp.tethysdash.controllers.uuid")
@@ -672,13 +653,12 @@ def test_delete_dashboard_with_thumbnail(
         "id": dashboard.id,
     }
 
-    shutil.copyfile(
-        os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "files/thumbnail.png",
-        ),
-        os.path.join(app_media_path, "some_user_dashboard_uuid.png"),
+    thumbnail = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "files/thumbnail.png",
     )
+    with open(thumbnail, "rb") as handle:
+        save_thumbnail("some_user_dashboard_uuid", handle.read())
 
     url = reverse("tethysdash:delete_dashboard")
     client.force_login(test_owner_user)
@@ -692,9 +672,7 @@ def test_delete_dashboard_with_thumbnail(
         db_session.query(Dashboard).filter(Dashboard.id == dashboard.id).first() is None
     )
 
-    assert not os.path.exists(
-        os.path.join(app_media_path, "some_user_dashboard_uuid.png")
-    )
+    assert not default_storage.exists(thumbnail_name("some_user_dashboard_uuid"))
 
 
 @pytest.mark.django_db
@@ -758,13 +736,9 @@ def test_update_dashboard(
     mock_app,
     mock_app_get_ps_db,
     dashboard,
-    mocker,
-    tmp_path,
     permission_group,
 ):
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
-    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
-    mock_get_app_media.return_value = MagicMock(path=tmp_path)
     mock_app("tethysapp.tethysdash.controllers.App")
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     itemData = {
@@ -905,8 +879,6 @@ def test_copy_dashboard(
     mock_app("tethysapp.tethysdash.app.App")
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     app_media_path = tmp_path
-    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
-    mock_get_app_media.return_value = MagicMock(path=app_media_path)
     mock_get_app_media2 = mocker.patch("tethys_apps.base.paths.get_app_media")
     mock_get_app_media2.return_value = MagicMock(path=app_media_path)
     dashboard_uuid = str(uuid.uuid4())
@@ -961,8 +933,6 @@ def test_copy_dashboard_with_thumbnail(
     mock_app("tethysapp.tethysdash.app.App")
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     app_media_path = tmp_path
-    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
-    mock_get_app_media.return_value = MagicMock(path=app_media_path)
     mock_get_app_media2 = mocker.patch("tethys_apps.base.paths.get_app_media")
     mock_get_app_media2.return_value = MagicMock(path=app_media_path)
     mock_uuid = mocker.patch("tethysapp.tethysdash.controllers.uuid")
@@ -973,13 +943,12 @@ def test_copy_dashboard_with_thumbnail(
         "newName": "some_new_dashboard_name",
     }
 
-    shutil.copyfile(
-        os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "files/thumbnail.png",
-        ),
-        os.path.join(app_media_path, "some_user_dashboard_uuid.png"),
+    thumbnail = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "files/thumbnail.png",
     )
+    with open(thumbnail, "rb") as handle:
+        save_thumbnail("some_user_dashboard_uuid", handle.read())
 
     url = reverse("tethysdash:copy_dashboard")
     client.force_login(admin_user)
@@ -1023,8 +992,6 @@ def test_copy_dashboard_failed(
     mock_app("tethysapp.tethysdash.app.App")
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     app_media_path = tmp_path
-    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
-    mock_get_app_media.return_value = MagicMock(path=app_media_path)
     mock_get_app_media2 = mocker.patch("tethys_apps.base.paths.get_app_media")
     mock_get_app_media2.return_value = MagicMock(path=app_media_path)
     mock_uuid = mocker.patch("tethysapp.tethysdash.controllers.uuid")
@@ -1068,8 +1035,6 @@ def test_copy_dashboard_failed_unknown_exception(
     mock_app("tethysapp.tethysdash.app.App")
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     app_media_path = tmp_path
-    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
-    mock_get_app_media.return_value = MagicMock(path=app_media_path)
     mock_get_app_media2 = mocker.patch("tethys_apps.base.paths.get_app_media")
     mock_get_app_media2.return_value = MagicMock(path=app_media_path)
     mock_uuid = mocker.patch("tethysapp.tethysdash.controllers.uuid")
