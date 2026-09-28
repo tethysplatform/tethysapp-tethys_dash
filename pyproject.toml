@@ -33,7 +33,11 @@ dependencies = [
     "alembic==1.14.0",
     "xmltodict==0.14.2",
     "psycopg2-binary==2.9.11",
-    "geoalchemy2==0.18.4",
+    # 0.18.4 called ColumnCollection() directly, which SQLAlchemy 2.1
+    # made abstract; 0.20.0 picks WriteableColumnCollection when the
+    # installed SQLAlchemy has it. Kept exact, like the rest of these:
+    # SQLAlchemy itself floats, and 2.1.1 broke the old pin overnight.
+    "geoalchemy2==0.20.0",
     "tethys-platform>=4.5.0",
     "python-dateutil",
 ]
