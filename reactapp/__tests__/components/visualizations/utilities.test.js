@@ -196,17 +196,20 @@ test("getVisualization plotly", async () => {
     config: undefined,
     toggle_subplots: undefined,
     subplot_toggle: undefined,
+    min_plot_height: undefined,
   });
 });
 
 test("getVisualization plotly passes through subplot toggle opt-in keys", async () => {
-  // Regression: the plotly branch must forward plugin-returned top-level
-  // `toggle_subplots`/`subplot_toggle` keys, not strip them to data/layout/config.
+  // Regression: the plotly branch must forward the plugin-returned
+  // top-level `toggle_subplots`, `subplot_toggle` and `min_plot_height`
+  // keys, not strip the response to data/layout/config.
   const plotData = {
     data: [],
     layout: {},
     toggle_subplots: true,
     subplot_toggle: { reflow: "vertical" },
+    min_plot_height: 800,
   };
   server.use(
     rest.get(
@@ -240,6 +243,7 @@ test("getVisualization plotly passes through subplot toggle opt-in keys", async 
     config: undefined,
     toggle_subplots: true,
     subplot_toggle: { reflow: "vertical" },
+    min_plot_height: 800,
   });
 });
 

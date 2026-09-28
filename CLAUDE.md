@@ -115,6 +115,16 @@ Each plugin `run()` must return data in the format expected by its `type`:
 
 For long-running plugins, call `self.send_update(message, percentage_complete)` during `run()` to stream progress via WebSocket.
 
+A `plotly` plugin may also return these **top-level keys alongside `data`/`layout`/`config`**, which are forwarded to `BasePlot` as metadata rather than to Plotly. Dashboard-authored grid-item metadata of the same name takes precedence, so a plugin's value is a default the dashboard can override.
+
+| key | effect |
+|-----|--------|
+| `toggle_subplots` | `true` renders the overlay control that shows/hides individual subplots, the rest reflowing to fill the space. Panes and their labels are derived from the figure (axis title → first trace name → "Subplot N"); the control is hidden below two panes. |
+| `subplot_toggle` | `{"labels": {...}}` names panes explicitly by pane id, `{"reflow": ...}` overrides the arrangement. Only needed for irregular layouts. |
+| `min_plot_height` | Pixels. A plot is otherwise sized to its tile, whatever `layout.height` said, so a tall stack of subplots in a short tile leaves each one a sliver. Given a floor, the plot keeps that height and the tile scrolls. Ignored until the tile is measured, and whenever the tile is already at least that tall. Prefer `toggle_subplots`: trimming what is drawn beats scrolling, since hiding two of four panels gives the rest the full height rather than the same height with a scrollbar. |
+
+Note that `layout.height` on its own does nothing — `BasePlot` always overrides the figure's width and height with the measured tile size. `min_plot_height` is the only way to make a plot taller than its tile.
+
 `map_extent` also carries the map's **view group**: `{"extent": "...", "viewGroup": "Group Name"}` puts the map in the dashboard's linked view group of that name, so every member pans, zooms, and shows the hovered position together. Group names are trimmed and matched case-sensitively; an empty name means "no group". A plugin-supplied map may *join* a group but can never supply its opening view — the plugin's extent does not exist until the plugin has run — so the `isGroupInitialExtent` flag is honored only on the built-in `Map` visualization and is settable only through its editor (Map Extent → "Use as the view group's initial extent"). At most one member per group may carry the flag; saving a flagged map clears it from every other member of that group. Maps inside a popup layout never join a group.
 
 The view group is a **map-level** setting, not a per-layer one, so it deliberately does *not* live in the `layerPropertiesOptions` registry described below.

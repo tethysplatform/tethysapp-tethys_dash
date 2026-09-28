@@ -36,8 +36,26 @@ const EMPTY_VERTICAL_LINE = Object.freeze({});
 
 const StyledPlot = styled(Plot)`
   width: 100%;
-  height: 100%;
   padding: 0;
+  /* Fills the tile normally. When the figure is taller than the tile and
+     min_plot_height is in play, it takes that explicit height instead and
+     ScrollBox scrolls it -- height: 100% would clamp it back to the tile
+     and there would be nothing to scroll. */
+  height: ${({ $height }) => ($height ? `${$height}px` : "100%")};
+  flex: ${({ $height }) => ($height ? "0 0 auto" : "1 1 auto")};
+`;
+
+/* The measured element, and the scroll container. Measuring here rather
+   than on the outer box matters twice over: ResizeObserver reports the
+   content box, so `width` already excludes any scrollbar, and the height
+   stays the tile's however tall the figure grows -- overflow scrolls it
+   rather than growing this box, so there is no resize feedback loop. */
+const ScrollBox = styled.div`
+  display: flex;
+  width: 100%;
+  height: 100%;
+  overflow-y: ${({ $scrolls }) => ($scrolls ? "auto" : "visible")};
+  overflow-x: hidden;
 `;
 
 // Convert paper-normalized x to axis-relative x using domain
@@ -375,6 +393,19 @@ const BasePlot = ({
     value: verticalLineValue,
   } = plotlyVerticalLine;
 
+  // --- Minimum plot height (opt-in via metadata.min_plot_height) ---
+  // A plot is otherwise sized to its tile, whatever the figure asked for,
+  // so a tall stack of subplots in a short tile leaves each one a sliver.
+  // Given a floor, the plot keeps that height and the tile scrolls.
+  // Prefer trimming what is drawn -- see the subplot toggles below -- and
+  // reach for this when every panel has to stay on screen at a readable
+  // size. Ignored until the tile has been measured, and whenever the tile
+  // is already at least that tall, so nothing scrolls that need not.
+  const minPlotHeight =
+    Number(metadata.min_plot_height) > 0 ? Number(metadata.min_plot_height) : 0;
+  const scrolls = minPlotHeight > 0 && height > 0 && height < minPlotHeight;
+  const plotHeight = scrolls ? minPlotHeight : height;
+
   // --- Subplot show/hide (opt-in via metadata.toggle_subplots) ---
   const subplotToggleEnabled = !!metadata.toggle_subplots;
   const reflowOverride = metadata.subplot_toggle?.reflow;
@@ -424,10 +455,10 @@ const BasePlot = ({
   // off `toggledLayout`, which already encodes the active toggles.
   const [verticalLineShapes, setVerticalLineShapes] = useState(null);
   const plotLayout = useMemo(() => {
-    const merged = { ...toggledLayout, width, height };
+    const merged = { ...toggledLayout, width, height: plotHeight };
     if (verticalLineShapes !== null) merged.shapes = verticalLineShapes;
     return merged;
-  }, [toggledLayout, width, height, verticalLineShapes]);
+  }, [toggledLayout, width, plotHeight, verticalLineShapes]);
 
   // Merge the always-on "Download data as CSV" modebar button into the plugin's
   // config (plugins may send no config at all, e.g. geoglows plots).
@@ -578,17 +609,19 @@ const BasePlot = ({
   );
 
   return (
-    <div
-      ref={ref}
-      style={{ display: "flex", height: "100%", position: "relative" }}
-    >
-      <StyledPlot
-        ref={visualizationRef}
-        data={plotData}
-        layout={plotLayout}
-        config={plotConfig}
-        onRelayout={handleRelayout}
-      />
+    // The control sits outside ScrollBox on purpose: it is positioned
+    // against this box, so it stays put while the figure scrolls under it.
+    <div style={{ display: "flex", height: "100%", position: "relative" }}>
+      <ScrollBox ref={ref} $scrolls={scrolls}>
+        <StyledPlot
+          ref={visualizationRef}
+          data={plotData}
+          layout={plotLayout}
+          config={plotConfig}
+          onRelayout={handleRelayout}
+          $height={scrolls ? plotHeight : 0}
+        />
+      </ScrollBox>
       {subplotToggleEnabled && (
         <SubplotToggleControl
           panes={toggleablePanes}

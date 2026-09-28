@@ -211,6 +211,8 @@ export const Visualization = memo(
                 vizMetadata.toggle_subplots ?? vizData.toggle_subplots,
               subplot_toggle:
                 vizMetadata.subplot_toggle ?? vizData.subplot_toggle,
+              min_plot_height:
+                vizMetadata.min_plot_height ?? vizData.min_plot_height,
             }}
           />
         );

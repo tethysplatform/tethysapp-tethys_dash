@@ -346,6 +346,8 @@ export async function getVisualization({
         // Plugin-driven subplot toggle opt-in (top-level figure keys).
         toggle_subplots: responseData.toggle_subplots,
         subplot_toggle: responseData.subplot_toggle,
+        // Plugin-driven minimum plot height, in pixels (top-level key).
+        min_plot_height: responseData.min_plot_height,
       });
     } else if (apiResponse.viz_type === "card") {
       setVizType("card");
