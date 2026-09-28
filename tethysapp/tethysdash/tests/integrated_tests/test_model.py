@@ -524,10 +524,7 @@ def test_update_named_dashboard_image(
     existing_dashboard = parse_db_dashboard(
         db_session, [dashboard], test_owner_user, False
     )
-    assert (
-        existing_dashboard[0]["image"]
-        is None
-    )
+    assert existing_dashboard[0]["image"] is None
 
     example_image = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -1166,6 +1163,42 @@ def test_clean_up_jsons_no_existing_dashboard_folder(
     mock_remove = mocker.patch("os.remove")
     clean_up_jsons(test_owner_user)
     mock_remove.assert_not_called()
+
+
+@pytest.mark.django_db
+def test_clean_up_jsons_skips_a_dashboard_whose_uuid_escapes_the_workspace(
+    dashboard, db_session, mock_app_get_ps_db, mocker, tmp_path, test_owner_user
+):
+    """A stored traversal uuid must never reach os.remove.
+
+    add_dashboard now refuses a malformed uuid, but rows predating that guard --
+    or written directly to the database -- still flow through this sweep, which
+    runs on every dashboard listing and deletes every file it considers unused.
+    """
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
+    mock_get_app_media.return_value = MagicMock(path=tmp_path)
+
+    workspace_path = tmp_path / "workspace"
+    workspace_path.mkdir()
+    mock_get_app_workspace = mocker.patch(
+        "tethysapp.tethysdash.model.get_app_workspace"
+    )
+    mock_get_app_workspace.return_value = MagicMock(path=workspace_path)
+
+    victim_dir = tmp_path / "victim"
+    victim_dir.mkdir()
+    victim_file = victim_dir / "id_rsa"
+    victim_file.write_text("do not delete me")
+
+    db_dashboard = db_session.query(Dashboard).filter_by(id=dashboard.id).first()
+    db_dashboard.uuid = "../victim"
+    db_session.commit()
+
+    clean_up_jsons(test_owner_user)
+
+    assert victim_file.exists()
+    assert victim_file.read_text() == "do not delete me"
 
 
 @pytest.mark.django_db

@@ -28,6 +28,10 @@ from sqlalchemy import CheckConstraint
 from pathlib import Path
 import subprocess
 from tethysapp.tethysdash.utilities import sanitize_html
+from tethysapp.tethysdash.paths import (
+    UnsafePath,
+    resolve_dashboard_folder,
+)
 from django.contrib.auth import get_user_model
 import shutil
 import filecmp
@@ -1921,8 +1925,16 @@ def clean_up_jsons(user):
         app_workspace = get_app_workspace(App)
         for dashboard in all_dashboards:
             dashboard_uuid = dashboard.uuid
-            dashboard_folder = os.path.join(app_workspace.path, dashboard_uuid)
-            if not os.path.exists(dashboard_folder):
+            try:
+                dashboard_folder = resolve_dashboard_folder(
+                    app_workspace.path, dashboard_uuid
+                )
+            except UnsafePath:
+                # A uuid stored before validation existed, or written directly
+                # to the database. Never sweep a folder outside the workspace.
+                print(f"Skipping cleanup for unsafe dashboard uuid {dashboard_uuid}")
+                continue
+            if not dashboard_folder.exists():
                 continue
             # Collect all in-use jsons for this dashboard
             in_use_jsons = []

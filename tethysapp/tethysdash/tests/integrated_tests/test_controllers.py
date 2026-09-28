@@ -1255,7 +1255,10 @@ def test_download_json_failed(
 
     assert response.status_code == 200
     assert response.json()["success"] is False
-    assert response.json()["message"] == "failed to load json"
+    # download_json is unauthenticated, so every failure after the containment
+    # check reports the same refusal - a distinct message here would tell a
+    # caller whether the file exists.
+    assert response.json()["message"] == "Invalid file path."
 
 
 @pytest.mark.django_db
@@ -1290,10 +1293,10 @@ def test_download_json_failed_unknown_exception(
 
     assert response.status_code == 200
     assert response.json()["success"] is False
-    assert (
-        response.json()["message"]
-        == "Failed to download the json. Check server for logs."
-    )
+    # download_json is unauthenticated, so every failure after the containment
+    # check reports the same refusal - a distinct message here would tell a
+    # caller whether the file exists.
+    assert response.json()["message"] == "Invalid file path."
 
 
 def _json_workspace(mocker, tmp_path):
@@ -1328,11 +1331,7 @@ def test_download_json_rejects_filename_escaping_dashboard_folder(
     unauthenticated arbitrary file read.
     """
     mock_app("tethysapp.tethysdash.app.App")
-    workspace_path = _json_workspace(mocker, tmp_path)
-
-    secret = tmp_path / "secret.json"
-    secret.write_text(json.dumps({"stolen": True}))
-    assert secret.exists()
+    _json_workspace(mocker, tmp_path)
 
     url = reverse("tethysdash:download_json")
     client.force_login(admin_user)
@@ -1344,7 +1343,6 @@ def test_download_json_rejects_filename_escaping_dashboard_folder(
     assert response.status_code == 200
     assert response.json()["success"] is False
     assert response.json()["message"] == "Invalid file path."
-    assert str(workspace_path) not in response.json()["message"]
 
 
 @pytest.mark.django_db
@@ -1487,6 +1485,222 @@ def test_json_round_trip_accepts_dotted_filenames(
     )
     assert download.json()["success"] is True
     assert download.json()["data"] == {"round": "trip"}
+
+
+@pytest.mark.django_db
+def test_download_json_rejects_traversal_without_authentication(
+    client, mock_app, mocker, tmp_path, dashboard_data
+):
+    """The endpoint is login_required=False, so the threat model is anonymous.
+
+    Every other test here authenticates first; this one pins the reachability
+    that made the bug urgent.
+    """
+    mock_app("tethysapp.tethysdash.app.App")
+    _json_workspace(mocker, tmp_path)
+    secret = tmp_path / "secret.json"
+    secret.write_text(json.dumps({"stolen": True}))
+
+    response = client.get(
+        reverse("tethysdash:download_json"),
+        {"filename": "../secret.json", "dashboard_uuid": dashboard_data["uuid"]},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["success"] is False
+    assert "stolen" not in json.dumps(response.json())
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("dashboard_uuid", ["", ".", "uuid/.."])
+def test_upload_json_rejects_uuid_resolving_to_the_workspace_root(
+    client, admin_user, mock_app, mocker, tmp_path, dashboard_uuid
+):
+    """Guards the equality clause, which is_relative_to cannot cover.
+
+    A path is relative to itself, so without the clause an empty or dot-only
+    uuid writes straight into the shared workspace root. Asserted on the
+    filesystem rather than the message: refusal and a missing file report the
+    same string by design, so only the effect distinguishes them.
+    """
+    mock_app("tethysapp.tethysdash.app.App")
+    workspace_path = _json_workspace(mocker, tmp_path)
+    client.force_login(admin_user)
+
+    response = client.generic(
+        "POST",
+        reverse("tethysdash:upload_json"),
+        json.dumps(
+            {
+                "data": json.dumps({"some": "data"}),
+                "filename": "escaped.json",
+                "dashboard_uuid": dashboard_uuid,
+            }
+        ),
+    )
+
+    assert response.json()["success"] is False
+    assert response.json()["message"] == "Invalid file path."
+    assert not (workspace_path / "escaped.json").exists()
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("filename", ["", ".", ".."])
+def test_upload_json_rejects_filename_resolving_to_the_folder_itself(
+    client, admin_user, mock_app, mocker, tmp_path, dashboard_data, filename
+):
+    """The other equality clause.
+
+    Asserted by the absence of the dashboard folder: the guard runs before
+    mkdir, so a weakened check would leave the directory behind even though
+    the write itself still fails.
+    """
+    mock_app("tethysapp.tethysdash.app.App")
+    workspace_path = _json_workspace(mocker, tmp_path)
+    client.force_login(admin_user)
+
+    response = client.generic(
+        "POST",
+        reverse("tethysdash:upload_json"),
+        json.dumps(
+            {
+                "data": json.dumps({"some": "data"}),
+                "filename": filename,
+                "dashboard_uuid": dashboard_data["uuid"],
+            }
+        ),
+    )
+
+    assert response.json()["success"] is False
+    assert response.json()["message"] == "Invalid file path."
+    assert not (workspace_path / dashboard_data["uuid"]).exists()
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("link_style", ["file", "directory"])
+def test_download_json_rejects_symlink_pointing_out_of_the_folder(
+    client, admin_user, mock_app, mocker, tmp_path, dashboard_data, link_style
+):
+    """Pins the symlink property the containment helper's docstring claims.
+
+    A textual normalization of the path would pass every other test in this
+    block while silently reinstating this escape.
+    """
+    mock_app("tethysapp.tethysdash.app.App")
+    workspace_path = _json_workspace(mocker, tmp_path)
+    dashboard_folder = workspace_path / dashboard_data["uuid"]
+    dashboard_folder.mkdir()
+
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "secret.json").write_text(json.dumps({"stolen": True}))
+
+    if link_style == "file":
+        os.symlink(outside / "secret.json", dashboard_folder / "link.json")
+        filename = "link.json"
+    else:
+        os.symlink(outside, dashboard_folder / "linkdir")
+        filename = "linkdir/secret.json"
+
+    client.force_login(admin_user)
+    response = client.get(
+        reverse("tethysdash:download_json"),
+        {"filename": filename, "dashboard_uuid": dashboard_data["uuid"]},
+    )
+
+    assert response.json()["success"] is False
+    assert response.json()["message"] == "Invalid file path."
+    assert "stolen" not in json.dumps(response.json())
+
+
+@pytest.mark.django_db
+def test_download_json_missing_file_is_indistinguishable_from_a_refused_path(
+    client, admin_user, mock_app, mocker, tmp_path, dashboard_data
+):
+    """Closes the errno oracle.
+
+    Before this, a contained-but-absent file surfaced OSError.args[0] -- the
+    integer errno -- so a caller could tell 'not there' from 'refused'.
+    """
+    mock_app("tethysapp.tethysdash.app.App")
+    workspace_path = _json_workspace(mocker, tmp_path)
+    (workspace_path / dashboard_data["uuid"]).mkdir()
+    client.force_login(admin_user)
+
+    absent = client.get(
+        reverse("tethysdash:download_json"),
+        {"filename": "not_here.json", "dashboard_uuid": dashboard_data["uuid"]},
+    )
+    refused = client.get(
+        reverse("tethysdash:download_json"),
+        {"filename": "../escape.json", "dashboard_uuid": dashboard_data["uuid"]},
+    )
+
+    assert absent.json() == refused.json()
+    assert isinstance(absent.json()["message"], str)
+
+
+@pytest.mark.django_db
+def test_upload_json_rejects_traversal_in_dashboard_uuid(
+    client, admin_user, mock_app, mocker, tmp_path
+):
+    """The write side of the uuid guard, which download covers but upload did not."""
+    mock_app("tethysapp.tethysdash.app.App")
+    workspace_path = _json_workspace(mocker, tmp_path)
+    client.force_login(admin_user)
+
+    response = client.generic(
+        "POST",
+        reverse("tethysdash:upload_json"),
+        json.dumps(
+            {
+                "data": json.dumps({"some": "data"}),
+                "filename": "escaped.json",
+                "dashboard_uuid": "../../",
+            }
+        ),
+    )
+
+    assert response.json()["success"] is False
+    assert response.json()["message"] == "Invalid file path."
+    assert not (tmp_path.parent / "escaped.json").exists()
+    assert not (workspace_path / "escaped.json").exists()
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("bad_uuid", ["../victim", "..", "a/b", "", "not-a-uuid"])
+def test_add_dashboard_rejects_a_uuid_that_is_not_a_uuid(
+    client,
+    mock_app,
+    db_session,
+    mocker,
+    tmp_path,
+    test_admin_user,
+    mock_app_get_ps_db,
+    bad_uuid,
+):
+    """A malformed uuid is stored verbatim and later joined into a workspace
+    path by a sweep that deletes files, so it is refused at the door."""
+    mock_app("tethysapp.tethysdash.app.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
+    mock_get_app_media.return_value = MagicMock(path=tmp_path)
+    mock_get_app_media2 = mocker.patch("tethys_apps.base.paths.get_app_media")
+    mock_get_app_media2.return_value = MagicMock(path=tmp_path)
+
+    client.force_login(test_admin_user)
+    response = client.generic(
+        "POST",
+        reverse("tethysdash:add_dashboard"),
+        json.dumps({"name": "traversal", "uuid": bad_uuid, "gridItems": []}),
+    )
+
+    assert response.json()["success"] is False
+    assert response.json()["message"] == "Invalid dashboard identifier."
+    assert (
+        db_session.query(Dashboard).filter(Dashboard.name == "traversal").first()
+        is None
+    )
 
 
 @pytest.mark.django_db

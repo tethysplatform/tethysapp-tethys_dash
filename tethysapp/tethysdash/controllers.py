@@ -2,7 +2,6 @@ from django.http import JsonResponse, HttpResponse
 import ipaddress
 import json
 import os
-from pathlib import Path
 import shutil
 import socket
 import nh3
@@ -40,6 +39,11 @@ from tethysapp.tethysdash.visualizations import (
     get_restricted_visualizations,
 )
 from tethysapp.tethysdash.exceptions import VisualizationError
+from tethysapp.tethysdash.paths import (
+    UnsafePath,
+    is_valid_dashboard_uuid,
+    resolve_dashboard_file,
+)
 from tethysapp.tethysdash.plugin_helpers import send_websocket_message
 from channels.generic.websocket import AsyncWebsocketConsumer
 from tethys_sdk.routing import consumer
@@ -70,9 +74,10 @@ def _get_error_message(e, fallback):
         str: Human-readable error message suitable for an API response.
     """
     try:
-        return e.args[0]
+        message = e.args[0]
     except Exception:
         return fallback
+    return message if isinstance(message, str) else fallback
 
 
 _FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "public", "frontend")
@@ -684,6 +689,12 @@ def add_dashboard(request, app_media):
     grid_items = dashboard_metadata.get("gridItems", [])
     owner = request.user
     dashboard_uuid = dashboard_metadata.get("uuid", str(uuid.uuid4()))
+    if not is_valid_dashboard_uuid(dashboard_uuid):
+        # Stored verbatim and later joined into a workspace path by a sweep
+        # that deletes files, so a malformed uuid is refused at the door.
+        return JsonResponse(
+            {"success": False, "message": "Invalid dashboard identifier."}
+        )
     print(f"Creating a dashboard named {name}")
 
     try:
@@ -962,35 +973,6 @@ def delete_permission_group(request):
         return JsonResponse({"success": False, "message": message})
 
 
-def _resolve_dashboard_file(workspace_path, dashboard_uuid, filename):
-    """Resolve a dashboard's file path, refusing anything outside its own folder.
-
-    Both the uuid and the filename arrive straight from the caller. Joining them
-    unchecked lets a request walk out of the workspace two different ways: a
-    relative ``../`` chain, and an absolute path, which makes the join discard
-    the base entirely. Rejecting ``..`` alone would miss the second, so
-    containment is checked on the fully resolved path instead. Resolving also
-    collapses symlinks, so a link inside the folder cannot point outward.
-    """
-    workspace_root = Path(workspace_path).resolve()
-    dashboard_folder = (workspace_root / dashboard_uuid).resolve()
-    dashboard_file = (dashboard_folder / filename).resolve()
-
-    escapes_workspace = (
-        not dashboard_folder.is_relative_to(workspace_root)
-        or dashboard_folder == workspace_root
-    )
-    escapes_folder = (
-        not dashboard_file.is_relative_to(dashboard_folder)
-        or dashboard_file == dashboard_folder
-    )
-    if escapes_workspace or escapes_folder:
-        # Deliberately uniform: the caller learns nothing about what is there.
-        raise Exception("Invalid file path.")
-
-    return dashboard_folder, dashboard_file
-
-
 @api_view(["POST"])
 @controller(url="tethysdash/json/upload", login_required=True, app_workspace=True)
 def upload_json(request, app_workspace):
@@ -1015,24 +997,25 @@ def upload_json(request, app_workspace):
 
     json_data = json.loads(request.body)
 
-    data = json_data["data"]
-    filename = json_data["filename"]
-    dashboard_uuid = json_data["dashboard_uuid"]
-    clean_data = nh3.clean(data)
-    print(f"Uploading {filename}")
-
     try:
-        dashboard_folder, dashboard_file = _resolve_dashboard_file(
+        data = json_data["data"]
+        filename = json_data["filename"]
+        dashboard_uuid = json_data["dashboard_uuid"]
+        clean_data = nh3.clean(data)
+        print(f"Uploading {filename}")
+
+        dashboard_folder, dashboard_file = resolve_dashboard_file(
             app_workspace.path, dashboard_uuid, filename
         )
-        if not dashboard_folder.exists():
-            dashboard_folder.mkdir()
+        dashboard_folder.mkdir(exist_ok=True)
 
         with open(dashboard_file, "w") as outfile:
             outfile.write(clean_data)
 
         return JsonResponse({"success": True, "filename": filename})
 
+    except KeyError:
+        return JsonResponse({"success": False, "message": "Invalid file path."})
     except Exception as e:
         message = _get_error_message(
             e, "Failed to upload the json. Check server for logs."
@@ -1059,19 +1042,28 @@ def download_json(request, app_workspace):
             - data: JSON data if successful
             - message: Error message if unsuccessful
     """
-    filename = request.GET["filename"]
-    dashboard_uuid = request.GET["dashboard_uuid"]
-    print(f"Getting data from {filename}")
-
     try:
-        _, dashboard_file = _resolve_dashboard_file(
+        filename = request.GET["filename"]
+        dashboard_uuid = request.GET["dashboard_uuid"]
+        print(f"Getting data from {filename}")
+
+        _, dashboard_file = resolve_dashboard_file(
             app_workspace.path, dashboard_uuid, filename
         )
-        with open(dashboard_file, "r") as file:
-            data = json.load(file)
-            data = json.loads(nh3.clean(json.dumps(data)))
+        try:
+            with open(dashboard_file, "r") as file:
+                data = json.load(file)
+                data = json.loads(nh3.clean(json.dumps(data)))
+        except Exception as read_error:
+            # This endpoint is unauthenticated, so a missing file, a directory,
+            # an unreadable file and a malformed one must be indistinguishable
+            # from a refused path - otherwise the errno is an existence oracle.
+            print(read_error)
+            raise UnsafePath()
 
         return JsonResponse({"success": True, "data": data})
+    except KeyError:
+        return JsonResponse({"success": False, "message": "Invalid file path."})
     except Exception as e:
         print(e)
         message = _get_error_message(
