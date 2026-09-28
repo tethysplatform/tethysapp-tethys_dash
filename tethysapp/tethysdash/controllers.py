@@ -2,6 +2,7 @@ from django.http import JsonResponse, HttpResponse
 import ipaddress
 import json
 import os
+from pathlib import Path
 import shutil
 import socket
 import nh3
@@ -961,6 +962,35 @@ def delete_permission_group(request):
         return JsonResponse({"success": False, "message": message})
 
 
+def _resolve_dashboard_file(workspace_path, dashboard_uuid, filename):
+    """Resolve a dashboard's file path, refusing anything outside its own folder.
+
+    Both the uuid and the filename arrive straight from the caller. Joining them
+    unchecked lets a request walk out of the workspace two different ways: a
+    relative ``../`` chain, and an absolute path, which makes the join discard
+    the base entirely. Rejecting ``..`` alone would miss the second, so
+    containment is checked on the fully resolved path instead. Resolving also
+    collapses symlinks, so a link inside the folder cannot point outward.
+    """
+    workspace_root = Path(workspace_path).resolve()
+    dashboard_folder = (workspace_root / dashboard_uuid).resolve()
+    dashboard_file = (dashboard_folder / filename).resolve()
+
+    escapes_workspace = (
+        not dashboard_folder.is_relative_to(workspace_root)
+        or dashboard_folder == workspace_root
+    )
+    escapes_folder = (
+        not dashboard_file.is_relative_to(dashboard_folder)
+        or dashboard_file == dashboard_folder
+    )
+    if escapes_workspace or escapes_folder:
+        # Deliberately uniform: the caller learns nothing about what is there.
+        raise Exception("Invalid file path.")
+
+    return dashboard_folder, dashboard_file
+
+
 @api_view(["POST"])
 @controller(url="tethysdash/json/upload", login_required=True, app_workspace=True)
 def upload_json(request, app_workspace):
@@ -992,11 +1022,12 @@ def upload_json(request, app_workspace):
     print(f"Uploading {filename}")
 
     try:
-        dashboard_folder = os.path.join(app_workspace.path, dashboard_uuid)
-        if not os.path.exists(dashboard_folder):
-            os.mkdir(dashboard_folder)
+        dashboard_folder, dashboard_file = _resolve_dashboard_file(
+            app_workspace.path, dashboard_uuid, filename
+        )
+        if not dashboard_folder.exists():
+            dashboard_folder.mkdir()
 
-        dashboard_file = os.path.join(dashboard_folder, filename)
         with open(dashboard_file, "w") as outfile:
             outfile.write(clean_data)
 
@@ -1030,12 +1061,12 @@ def download_json(request, app_workspace):
     """
     filename = request.GET["filename"]
     dashboard_uuid = request.GET["dashboard_uuid"]
-    dashboard_folder = os.path.join(app_workspace.path, dashboard_uuid)
     print(f"Getting data from {filename}")
 
     try:
-        dashboard_file = os.path.join(dashboard_folder, filename)
-        # Writing to sample.json
+        _, dashboard_file = _resolve_dashboard_file(
+            app_workspace.path, dashboard_uuid, filename
+        )
         with open(dashboard_file, "r") as file:
             data = json.load(file)
             data = json.loads(nh3.clean(json.dumps(data)))
