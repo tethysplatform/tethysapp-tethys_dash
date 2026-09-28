@@ -213,6 +213,8 @@ export const Visualization = memo(
                 vizMetadata.subplot_toggle ?? vizData.subplot_toggle,
               min_plot_height:
                 vizMetadata.min_plot_height ?? vizData.min_plot_height,
+              min_plot_width:
+                vizMetadata.min_plot_width ?? vizData.min_plot_width,
             }}
           />
         );

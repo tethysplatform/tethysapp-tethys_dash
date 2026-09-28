@@ -82,13 +82,14 @@ const renderPlot = (metadata) => {
 
 const scroller = () => screen.getByTestId("plot").parentElement;
 const overflowY = () => window.getComputedStyle(scroller()).overflowY;
+const overflowX = () => window.getComputedStyle(scroller()).overflowX;
 
 beforeEach(() => {
   global.__resizeSize = { width: 500, height: 300 };
   global.__plotProps = undefined;
 });
 
-describe("BasePlot minimum plot height", () => {
+describe("BasePlot minimum plot size", () => {
   it("sizes the plot to the tile when no minimum is given", () => {
     renderPlot({});
     expect(global.__plotProps.layout.height).toBe(300);
@@ -130,6 +131,44 @@ describe("BasePlot minimum plot height", () => {
       global.__plotProps = undefined;
       const { unmount } = renderPlot({ min_plot_height: bad });
       expect(global.__plotProps.layout.height).toBe(300);
+      unmount();
+    }
+  });
+
+  it("holds the plot at the minimum width and scrolls when the tile is narrower", () => {
+    renderPlot({ min_plot_width: 900 });
+    expect(global.__plotProps.layout.width).toBe(900);
+    expect(global.__plotProps.layout.height).toBe(300);
+    expect(overflowX()).toBe("auto");
+    expect(overflowY()).toBe("visible");
+  });
+
+  it("does not scroll horizontally when the tile is already wide enough", () => {
+    renderPlot({ min_plot_width: 400 });
+    expect(global.__plotProps.layout.width).toBe(500);
+    expect(overflowX()).toBe("hidden");
+  });
+
+  it("never scrolls horizontally without a minimum width", () => {
+    // A plot is fitted to the measured width, so a horizontal scrollbar
+    // would only ever be an artefact.
+    renderPlot({ min_plot_height: 800 });
+    expect(overflowX()).toBe("hidden");
+  });
+
+  it("applies both floors at once", () => {
+    renderPlot({ min_plot_width: 900, min_plot_height: 800 });
+    expect(global.__plotProps.layout.width).toBe(900);
+    expect(global.__plotProps.layout.height).toBe(800);
+    expect(overflowX()).toBe("auto");
+    expect(overflowY()).toBe("auto");
+  });
+
+  it("ignores a width that is not a positive number", () => {
+    for (const bad of [0, -100, "wide", null]) {
+      global.__plotProps = undefined;
+      const { unmount } = renderPlot({ min_plot_width: bad });
+      expect(global.__plotProps.layout.width).toBe(500);
       unmount();
     }
   });
