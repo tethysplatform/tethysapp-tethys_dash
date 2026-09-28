@@ -80,6 +80,7 @@ const renderPlot = (metadata) => {
   );
 };
 
+// eslint-disable-next-line
 const scroller = () => screen.getByTestId("plot").parentElement;
 const overflowY = () => window.getComputedStyle(scroller()).overflowY;
 const overflowX = () => window.getComputedStyle(scroller()).overflowX;
