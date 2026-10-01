@@ -10,9 +10,11 @@ import RampPicker from "components/modals/MapLayer/RampPicker";
 import ColorPickerPopOver from "components/inputs/ColorPickerPopOver";
 import { resolveRamp } from "components/map/colorRamps";
 import Button from "react-bootstrap/Button";
+import Form from "react-bootstrap/Form";
 import { LayoutContext, AppContext } from "components/contexts/Contexts";
 import { getStyleFields } from "components/map/utilities";
 import { findSelectOptionByValue } from "components/visualizations/utilities";
+import { getDynamicLayerSourceType } from "components/modals/MapLayer/runtimeLayerSource";
 
 const EditorModeRow = styled.div`
   display: flex;
@@ -65,6 +67,19 @@ const ModeRow = styled.div`
   font-size: 0.9rem;
 `;
 
+const HelperText = styled.small`
+  display: block;
+  color: #6c757d;
+`;
+
+const FOLLOW_PLUGIN_ON_TEXT =
+  "The plugin's styling is applied on each fetch. The settings below are " +
+  "used only when the plugin returns no styling. Editing any of them pins " +
+  "your style.";
+const FOLLOW_PLUGIN_OFF_TEXT =
+  "Your style is pinned. The plugin's styling is ignored until you turn this " +
+  "back on.";
+
 const ClassTable = styled.table`
   width: 100%;
   margin: 0.5rem 0;
@@ -96,6 +111,14 @@ const StylePane = ({
   const { uuid } = useContext(LayoutContext);
   const [availableFields, setAvailableFields] = useState([]);
   const { dynamicMapLayers } = useContext(AppContext);
+  // A dynamic plugin layer is typed by the plugin's label, not "GeoTIFF", so
+  // whether it is a raster comes from what the plugin declares it drives.
+  const isRuntimeGeoTIFF =
+    getDynamicLayerSourceType(dynamicMapLayers, sourceProps) === "GeoTIFF";
+  const isRaster =
+    sourceProps.type === "GeoTIFF" ||
+    sourceProps.type === "Zarr" ||
+    isRuntimeGeoTIFF;
 
   useEffect(() => {
     // A shapefile's fields come from the shared, author-triggered discovery
@@ -135,14 +158,10 @@ const StylePane = ({
   ]);
 
   useEffect(() => {
-    if (
-      (sourceProps.type === "GeoTIFF" || sourceProps.type === "Zarr") &&
-      !sourceProps.rampName &&
-      setSourceProps
-    ) {
+    if (isRaster && !sourceProps.rampName && setSourceProps) {
       setSourceProps((prev) => ({ ...prev, rampName: "turbo" }));
     }
-  }, [sourceProps.type, sourceProps.rampName, setSourceProps]);
+  }, [isRaster, sourceProps.rampName, setSourceProps]);
 
   useEffect(() => {
     const fetchJSON = async () => {
@@ -233,43 +252,65 @@ const StylePane = ({
     }
   }
 
-  if (sourceProps.type === "GeoTIFF" || sourceProps.type === "Zarr") {
+  if (isRaster) {
     const selectedRamp = sourceProps.rampName ?? null;
     const rampMin = sourceProps.rampMin ?? "";
     const rampMax = sourceProps.rampMax ?? "";
     const rampReverse = sourceProps.rampReverse === true;
+    const maskBelow = sourceProps.props?.mask_below ?? "";
+    // Absent means the layer follows the plugin's styling.
+    const followsPlugin = sourceProps.stylePinned !== true;
 
-    const handleRampSelect = (rampName) => {
+    // Every author edit to a dynamic GeoTIFF's style pins it, so later fetches
+    // stop replacing it. The plugin is followed again only when the author
+    // says so with the toggle.
+    const editRasterStyle = (patch) => {
       if (!setSourceProps) return;
-      setSourceProps((prev) => ({ ...prev, rampName }));
+      setSourceProps((prev) => {
+        const next = { ...prev, ...patch(prev) };
+        if (isRuntimeGeoTIFF) next.stylePinned = true;
+        return next;
+      });
     };
-    const handleReverseToggle = (e) => {
+
+    const handleFollowPluginToggle = (e) => {
       if (!setSourceProps) return;
+      const follow = e.target.checked;
+      // The fields stay as they are: unpinned, they are the fallback for a
+      // fetch that returns no styling.
+      setSourceProps((prev) => {
+        const next = { ...prev };
+        if (follow) delete next.stylePinned;
+        else next.stylePinned = true;
+        return next;
+      });
+    };
+    const handleRampSelect = (rampName) =>
+      editRasterStyle(() => ({ rampName }));
+    const handleReverseToggle = (e) => {
       const checked = e.target.checked;
-      setSourceProps((prev) => ({ ...prev, rampReverse: checked }));
+      editRasterStyle(() => ({ rampReverse: checked }));
     };
     const handleMinChange = (e) => {
-      if (!setSourceProps) return;
       const value = e.target.value;
-      setSourceProps((prev) => ({ ...prev, rampMin: value }));
+      editRasterStyle(() => ({ rampMin: value }));
     };
     const handleMaxChange = (e) => {
-      if (!setSourceProps) return;
       const value = e.target.value;
-      setSourceProps((prev) => ({ ...prev, rampMax: value }));
+      editRasterStyle(() => ({ rampMax: value }));
+    };
+    const handleMaskBelowChange = (e) => {
+      const value = e.target.value;
+      editRasterStyle((prev) => ({
+        props: { ...(prev.props ?? {}), mask_below: value },
+      }));
     };
 
     const isCategorical = sourceProps.styleMode === "categorical";
     const classes = sourceProps.classes ?? [];
 
-    const setMode = (mode) => {
-      if (!setSourceProps) return;
-      setSourceProps((prev) => ({ ...prev, styleMode: mode }));
-    };
-    const updateClasses = (next) => {
-      if (!setSourceProps) return;
-      setSourceProps((prev) => ({ ...prev, classes: next }));
-    };
+    const setMode = (mode) => editRasterStyle(() => ({ styleMode: mode }));
+    const updateClasses = (next) => editRasterStyle(() => ({ classes: next }));
     // New rows borrow a color from the selected ramp, spread across however many
     // classes exist, so a usable style appears without picking colors by hand.
     const addClass = () => {
@@ -292,6 +333,28 @@ const StylePane = ({
 
     return (
       <GeoTIFFSection>
+        {isRuntimeGeoTIFF && (
+          <div>
+            <Form.Check
+              type="switch"
+              role="switch"
+              id="follow-plugin-styling"
+              label="Follow plugin styling"
+              checked={followsPlugin}
+              onChange={handleFollowPluginToggle}
+              aria-describedby="follow-plugin-styling-help"
+            />
+            {/* Polite live region: the switch also flips by itself when a
+                field below is edited, and that change should be heard. */}
+            <HelperText
+              id="follow-plugin-styling-help"
+              role="status"
+              aria-live="polite"
+            >
+              {followsPlugin ? FOLLOW_PLUGIN_ON_TEXT : FOLLOW_PLUGIN_OFF_TEXT}
+            </HelperText>
+          </div>
+        )}
         <SectionHeading>
           {isCategorical ? "Classes" : "Color Ramp"}
         </SectionHeading>
@@ -407,10 +470,7 @@ const StylePane = ({
                   label="Other values"
                   color={sourceProps.fallbackColor ?? ""}
                   onChange={(color) =>
-                    setSourceProps((prev) => ({
-                      ...prev,
-                      fallbackColor: color,
-                    }))
+                    editRasterStyle(() => ({ fallbackColor: color }))
                   }
                   containerRef={containerRef}
                 />
@@ -436,6 +496,29 @@ const StylePane = ({
                 type="number"
                 onChange={handleMaxChange}
                 ariaLabel="Ramp Max"
+                allowEmpty
+              />
+            </RangeCell>
+          </RangeRow>
+        )}
+        {isRuntimeGeoTIFF && !isCategorical && (
+          <HelperText>
+            Leave Min/Max empty to fit the range to each file the plugin
+            returns.
+          </HelperText>
+        )}
+        {/* A static layer sets this in its Source tab; a dynamic one has no
+            source properties to set there, only plugin arguments. */}
+        {isRuntimeGeoTIFF && (
+          <RangeRow>
+            <RangeCell>
+              <NormalInput
+                label="Mask below"
+                value={maskBelow}
+                type="number"
+                onChange={handleMaskBelowChange}
+                ariaLabel="Mask Below"
+                placeholder="Mask values at or below this"
                 allowEmpty
               />
             </RangeCell>
@@ -576,9 +659,13 @@ StylePane.propTypes = {
       }),
     ),
     fallbackColor: PropTypes.string,
+    // Dynamic GeoTIFF only: true once the author's style overrides the
+    // plugin's. Absent means the layer follows the plugin.
+    stylePinned: PropTypes.bool,
     geojson: PropTypes.oneOfType([PropTypes.string, PropTypes.object]),
     props: PropTypes.shape({
       sources: PropTypes.arrayOf(PropTypes.shape({ url: PropTypes.string })),
+      mask_below: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
     }),
   }),
   setSourceProps: PropTypes.func,

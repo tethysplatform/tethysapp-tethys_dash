@@ -45,6 +45,10 @@ import {
   updateObjectWithVariableInputs,
 } from "components/visualizations/utilities";
 import { useMapContext } from "components/contexts/MapContext";
+import {
+  getDynamicLayerSourceType,
+  RASTER_STYLE_FIELDS,
+} from "components/modals/MapLayer/runtimeLayerSource";
 import Select from "react-select";
 import appAPI from "services/api/app";
 import "components/modals/wideModal.css";
@@ -93,6 +97,56 @@ const DYNAMIC_LAYER_PLACEHOLDER_GEOJSON = {
   features: [],
   crs: { type: "name", properties: { name: "EPSG:4326" } },
 };
+
+// A ramp bound the author set. An empty one means "resolve it from the file".
+const isBoundSet = (v) =>
+  typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v));
+
+/**
+ * The saved source of a dynamic GeoTIFF layer: the editor's ramp fields with
+ * no URL, since each plugin fetch names the file.
+ *
+ * Only the fields are saved, never a compiled style: the style is compiled per
+ * fetch, against whichever style is in effect for that file (see
+ * resolveEffectiveRasterConfig in components/map/runtimeRaster.js).
+ *
+ * @param {object} sourceProps The editor's source props.
+ * @param {object} validSourceProps sourceProps.props with empty values removed.
+ * @returns {object} `{type: "GeoTIFF", props, rampName?, rampMin?, rampMax?,
+ *   rampReverse?, styleMode?, classes?, fallbackColor?}`.
+ */
+export function buildRuntimeRasterSource(sourceProps, validSourceProps) {
+  // eslint-disable-next-line no-unused-vars
+  const { url, ...props } = validSourceProps;
+  const source = { type: "GeoTIFF", props };
+  const {
+    rampName,
+    rampMin,
+    rampMax,
+    rampReverse,
+    styleMode,
+    classes,
+    fallbackColor,
+  } = sourceProps;
+  const hasRampName = typeof rampName === "string" && rampName.trim() !== "";
+  const usableClasses = (classes ?? []).filter(isUsableClass);
+
+  if (styleMode === "categorical" && usableClasses.length > 0) {
+    source.styleMode = "categorical";
+    source.classes = usableClasses;
+    if (fallbackColor) source.fallbackColor = fallbackColor;
+    if (hasRampName) source.rampName = rampName;
+    if (rampReverse === true) source.rampReverse = true;
+    return source;
+  }
+  if (hasRampName) {
+    source.rampName = rampName;
+    if (isBoundSet(rampMin)) source.rampMin = rampMin;
+    if (isBoundSet(rampMax)) source.rampMax = rampMax;
+    if (rampReverse === true) source.rampReverse = true;
+  }
+  return source;
+}
 
 export function rekeyAttributeMapToLayer(map, targetLayerName) {
   if (!map || typeof map !== "object" || !targetLayerName) return map;
@@ -271,6 +325,9 @@ const MapLayerModal = ({
       dynamicMapLayers,
       sourceProps.type,
     );
+    const isRuntimeGeoTIFF =
+      isRuntime &&
+      getDynamicLayerSourceType(dynamicMapLayers, sourceProps) === "GeoTIFF";
 
     const { layerVisibility, ...layerProperties } = layerProps;
     const validSourceProps = removeEmptyValues(sourceProps.props);
@@ -302,18 +359,25 @@ const MapLayerModal = ({
       const layerId = existingLayerId || uuidv4();
       mapConfiguration = {
         configuration: {
-          type: applyRenderAsImage("VectorLayer", validLayerProps),
+          type: isRuntimeGeoTIFF
+            ? "WebGLTile"
+            : applyRenderAsImage("VectorLayer", validLayerProps),
           props: {
             ...validLayerProps,
             layerId,
-            source: {
-              type: "GeoJSON",
-              props: {},
-              geojson: DYNAMIC_LAYER_PLACEHOLDER_GEOJSON,
-            },
+            source: isRuntimeGeoTIFF
+              ? buildRuntimeRasterSource(sourceProps, validSourceProps)
+              : {
+                  type: "GeoJSON",
+                  props: {},
+                  geojson: DYNAMIC_LAYER_PLACEHOLDER_GEOJSON,
+                },
             pluginSource: {
               source: sourceProps.source,
               args: sourceProps.args,
+              // Absent means a dynamic GeoTIFF follows the plugin's styling.
+              ...(isRuntimeGeoTIFF &&
+                sourceProps.stylePinned === true && { stylePinned: true }),
             },
           },
         },
@@ -414,7 +478,10 @@ const MapLayerModal = ({
       }
     }
 
-    if (sourceProps.type === "GeoTIFF" || sourceProps.type === "Zarr") {
+    if (
+      !isRuntime &&
+      (sourceProps.type === "GeoTIFF" || sourceProps.type === "Zarr")
+    ) {
       const {
         rampName,
         rampMin,
@@ -458,8 +525,6 @@ const MapLayerModal = ({
       }
       // Each bound is independent: a set one pins that end of the ramp, an
       // empty one is resolved from the file's statistics at render time.
-      const isBoundSet = (v) =>
-        typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v));
       const hasMin = isBoundSet(rampMin);
       const hasMax = isBoundSet(rampMax);
       const hasRange = hasMin && hasMax;
@@ -498,7 +563,13 @@ const MapLayerModal = ({
           mapConfiguration.configuration.props.source.rampMax = rampMax;
         }
       }
-    } else if (style && style !== "{}") {
+    } else if (
+      // A dynamic GeoTIFF's style is its ramp fields, saved on its source above;
+      // the vector style JSON has no meaning for it.
+      !isRuntimeGeoTIFF &&
+      style &&
+      style !== "{}"
+    ) {
       const apiResponse = await saveLayerJSON({
         stringJSON: style,
         csrf,
@@ -628,6 +699,27 @@ const MapLayerModal = ({
         );
         setStyle(config.style);
         setLegend(scaffold.legend);
+
+        // A dynamic GeoTIFF's style lives in its ramp fields, so the scaffold's
+        // are loaded into the Style tab in place of the editor's. The pin goes
+        // with them: these are the plugin's styling, not the author's.
+        if (
+          getDynamicLayerSourceType(dynamicMapLayers, { source }) === "GeoTIFF"
+        ) {
+          const scaffoldSource = config.props?.source ?? {};
+          setSourceProps((prev) => {
+            // The author picked another plugin while this one was answering.
+            if (prev?.source !== source) return prev;
+            const next = { ...prev };
+            delete next.stylePinned;
+            RASTER_STYLE_FIELDS.forEach((field) => {
+              if (scaffoldSource[field] === undefined) delete next[field];
+              else next[field] = scaffoldSource[field];
+            });
+            next.props = { ...(scaffoldSource.props ?? {}) };
+            return next;
+          });
+        }
         return { success: true };
       } catch (err) {
         return {
@@ -638,6 +730,7 @@ const MapLayerModal = ({
     },
     [
       layerProps?.name,
+      dynamicMapLayers,
       setLayerProps,
       setAttributeProps,
       setStyle,

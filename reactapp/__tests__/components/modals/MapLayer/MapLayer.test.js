@@ -28,6 +28,7 @@ import { getLayerAttributes } from "components/map/utilities";
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
 import { fullMapLayer } from "__tests__/utilities/constants";
+import { rehydratePluginSourceProps } from "components/inputs/custom/AddMapLayer";
 
 jest.mock("components/map/utilities", () => {
   const originalModule = jest.requireActual("components/map/utilities");
@@ -1711,7 +1712,7 @@ test("MapLayerModal falls back to EPSG:3857 when visualizationRef is null", asyn
 });
 
 describe("MapLayerModal GeoTIFF save path", () => {
-  const renderModal = (props, addMapLayer, extra = {}) => {
+  const openModal = (props, addMapLayer, extra = {}) => {
     render(
       <TestingComponent
         showModal={true}
@@ -1728,7 +1729,7 @@ describe("MapLayerModal GeoTIFF save path", () => {
 
   test("saves the flat url/nodata/projection fields", async () => {
     const addMapLayer = jest.fn();
-    renderModal(
+    openModal(
       { url: "https://example.com/a.tif", projection: "EPSG:32615" },
       addMapLayer,
     );
@@ -1750,7 +1751,7 @@ describe("MapLayerModal GeoTIFF save path", () => {
 
   test("blocks save when the required url is missing", async () => {
     const addMapLayer = jest.fn();
-    renderModal({}, addMapLayer);
+    openModal({}, addMapLayer);
 
     fireEvent.click(await screen.findByLabelText("Create Layer Button"));
 
@@ -3762,6 +3763,440 @@ describe("applyRenderAsImage", () => {
     );
     expect(applyRenderAsImage("ImageLayer", { renderAsImage: true })).toBe(
       "ImageLayer",
+    );
+  });
+});
+
+describe("MapLayerModal dynamic GeoTIFF plugin layer", () => {
+  // The raster echo fixture (tests/fixtures/echo_runtime_raster_plugin.py) as
+  // the plugin list reports it, and the scaffold its run() builds.
+  const rasterPlugin = {
+    source: "echo_runtime_raster",
+    value: "Echo Runtime Raster",
+    label: "Echo Runtime Raster",
+    // The fixture declares {mode: "text"}; left out so the Source tab renders
+    // no argument inputs, which need a data viewer context this file lacks.
+    args: {},
+    type: "map_layer",
+    tags: [],
+    description: "",
+    dynamic_map_layer: true,
+    dynamic_map_layer_source: "GeoTIFF",
+  };
+  const otherRasterPlugin = {
+    ...rasterPlugin,
+    source: "other_runtime_raster",
+    value: "Other Runtime Raster",
+    label: "Other Runtime Raster",
+  };
+  const geojsonPlugin = {
+    source: "custom_layer_test",
+    value: "Stream Gauges (Dynamic)",
+    label: "Stream Gauges (Dynamic)",
+    args: {},
+    type: "map_layer",
+    tags: [],
+    description: "",
+    dynamic_map_layer: true,
+    dynamic_map_layer_source: "GeoJSON",
+  };
+  const dynamicMapLayers = [
+    {
+      label: "Dynamic Map Layers",
+      options: [rasterPlugin, otherRasterPlugin, geojsonPlugin],
+    },
+  ];
+  const echoScaffold = {
+    configuration: {
+      type: "WebGLTile",
+      props: {
+        name: "Echo Raster",
+        source: { type: "GeoTIFF", props: {}, rampName: "viridis" },
+        pluginSource: { source: "echo_runtime_raster", args: { mode: "" } },
+      },
+    },
+  };
+  const otherScaffold = {
+    configuration: {
+      type: "WebGLTile",
+      props: {
+        name: "Rain",
+        source: {
+          type: "GeoTIFF",
+          props: { mask_below: "-9999" },
+          rampName: "magma",
+          rampMin: "1.5",
+          rampMax: "9",
+          rampReverse: true,
+        },
+        pluginSource: { source: "other_runtime_raster", args: {} },
+      },
+    },
+  };
+
+  const serveScaffolds = (scaffolds) =>
+    server.use(
+      rest.get(
+        "http://api.test/apps/tethysdash/visualizations/get/",
+        (req, res, ctx) =>
+          res(
+            ctx.status(200),
+            ctx.json({
+              success: true,
+              data: scaffolds[req.url.searchParams.get("source")],
+            }),
+            ctx.set("Content-Type", "application/json"),
+          ),
+      ),
+    );
+
+  const openModal = (layerInfo, plugins = dynamicMapLayers) => {
+    const addMapLayer = jest.fn();
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={jest.fn()}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+        dynamicMapLayers={plugins}
+      />,
+    );
+    return addMapLayer;
+  };
+
+  const pickSource = async (label) => {
+    fireEvent.click(screen.getByText("Source"));
+    selectEvent.openMenu(screen.getByLabelText("Source Type Input"));
+    fireEvent.click(await screen.findByText(label));
+  };
+
+  const save = async (addMapLayer) => {
+    fireEvent.click(screen.getByLabelText("Create Layer Button"));
+    await waitFor(() => expect(addMapLayer).toHaveBeenCalledTimes(1));
+    return addMapLayer.mock.calls[0][0];
+  };
+
+  const styleTab = () => screen.getByLabelText("layer-style-tab");
+  const followSwitch = () =>
+    within(styleTab()).getByRole("switch", { name: /follow plugin styling/i });
+
+  // A saved layer reopened the way AddMapLayer reopens one.
+  const savedLayerInfo = (source, pluginSource) => ({
+    layerProps: {
+      name: "Echo Raster",
+      layerId: "saved-layer-id",
+      pluginSource,
+    },
+    sourceProps: rehydratePluginSourceProps(rasterPlugin, pluginSource, {
+      type: "GeoTIFF",
+      ...source,
+    }),
+  });
+
+  test("selecting the raster echo plugin shows its scaffold ramp and saves a URL-less WebGLTile that follows the plugin", async () => {
+    serveScaffolds({ echo_runtime_raster: echoScaffold });
+    const addMapLayer = openModal({ layerProps: {}, sourceProps: {} });
+
+    await pickSource("Echo Runtime Raster");
+
+    await waitFor(() => {
+      expect(
+        within(styleTab()).getByRole("radio", { name: "Select viridis ramp" }),
+      ).toHaveAttribute("aria-checked", "true");
+    });
+    expect(followSwitch()).toBeChecked();
+
+    const saved = await save(addMapLayer);
+    expect(saved).toEqual({
+      configuration: {
+        type: "WebGLTile",
+        props: {
+          name: "Echo Raster",
+          layerId: 12345678,
+          source: { type: "GeoTIFF", props: {}, rampName: "viridis" },
+          pluginSource: { source: "echo_runtime_raster", args: {} },
+        },
+      },
+    });
+    // The style is compiled per fetch, never saved.
+    expect(saved.configuration.style).toBeUndefined();
+  });
+
+  test("a scaffold's full ramp, range, reverse and mask carry into the save", async () => {
+    serveScaffolds({ other_runtime_raster: otherScaffold });
+    const addMapLayer = openModal({ layerProps: {}, sourceProps: {} });
+
+    await pickSource("Other Runtime Raster");
+    await waitFor(() => {
+      expect(within(styleTab()).getByLabelText("Mask Below")).toHaveValue(
+        "-9999",
+      );
+    });
+    expect(within(styleTab()).getByLabelText("Ramp Min")).toHaveValue("1.5");
+    expect(
+      within(styleTab()).getByLabelText("Reverse Color Ramp"),
+    ).toBeChecked();
+
+    const saved = await save(addMapLayer);
+    expect(saved.configuration).toEqual({
+      type: "WebGLTile",
+      props: {
+        name: "Rain",
+        layerId: 12345678,
+        source: {
+          type: "GeoTIFF",
+          props: { mask_below: "-9999" },
+          rampName: "magma",
+          rampMin: "1.5",
+          rampMax: "9",
+          rampReverse: true,
+        },
+        pluginSource: { source: "other_runtime_raster", args: {} },
+      },
+    });
+  });
+
+  test("Covers AE2. Changing the ramp pins the author's style", async () => {
+    serveScaffolds({ echo_runtime_raster: echoScaffold });
+    const addMapLayer = openModal({ layerProps: {}, sourceProps: {} });
+
+    await pickSource("Echo Runtime Raster");
+    await waitFor(() => {
+      expect(
+        within(styleTab()).getByRole("radio", { name: "Select viridis ramp" }),
+      ).toHaveAttribute("aria-checked", "true");
+    });
+    expect(followSwitch()).toBeChecked();
+    fireEvent.click(
+      within(styleTab()).getByRole("radio", { name: "Select Blues ramp" }),
+    );
+    await waitFor(() => expect(followSwitch()).not.toBeChecked());
+
+    const saved = await save(addMapLayer);
+    expect(saved.configuration.props.source).toEqual({
+      type: "GeoTIFF",
+      props: {},
+      rampName: "Blues",
+    });
+    expect(saved.configuration.props.pluginSource).toEqual({
+      source: "echo_runtime_raster",
+      args: {},
+      stylePinned: true,
+    });
+  });
+
+  test("Covers AE3. Following the plugin again on a pinned layer drops the pin and keeps the ramp as the fallback", async () => {
+    const addMapLayer = openModal(
+      savedLayerInfo(
+        { props: {}, rampName: "Blues", rampMin: "0", rampMax: "5" },
+        {
+          source: "echo_runtime_raster",
+          args: { mode: "happy" },
+          stylePinned: true,
+        },
+      ),
+    );
+
+    const toggle = await waitFor(() => followSwitch());
+    expect(toggle).not.toBeChecked();
+    fireEvent.click(toggle);
+    await waitFor(() => expect(followSwitch()).toBeChecked());
+
+    const saved = await save(addMapLayer);
+    expect(saved.configuration).toEqual({
+      type: "WebGLTile",
+      props: {
+        name: "Echo Raster",
+        layerId: "saved-layer-id",
+        source: {
+          type: "GeoTIFF",
+          props: {},
+          rampName: "Blues",
+          rampMin: "0",
+          rampMax: "5",
+        },
+        pluginSource: {
+          source: "echo_runtime_raster",
+          args: { mode: "happy" },
+        },
+      },
+    });
+  });
+
+  test("reopening shows the toggle on for an unpinned layer and keeps it unpinned", async () => {
+    const addMapLayer = openModal(
+      savedLayerInfo(
+        { props: {}, rampName: "viridis" },
+        { source: "echo_runtime_raster", args: { mode: "happy" } },
+      ),
+    );
+
+    expect(await waitFor(() => followSwitch())).toBeChecked();
+    const saved = await save(addMapLayer);
+    expect(saved.configuration.props.pluginSource).toEqual({
+      source: "echo_runtime_raster",
+      args: { mode: "happy" },
+    });
+  });
+
+  test("reopening a pinned layer shows the toggle off and the pin survives a save", async () => {
+    const addMapLayer = openModal(
+      savedLayerInfo(
+        { props: {}, rampName: "Blues" },
+        {
+          source: "echo_runtime_raster",
+          args: { mode: "happy" },
+          stylePinned: true,
+        },
+      ),
+    );
+
+    expect(await waitFor(() => followSwitch())).not.toBeChecked();
+    const saved = await save(addMapLayer);
+    expect(saved.configuration.props.pluginSource.stylePinned).toBe(true);
+    expect(saved.configuration.props.source.rampName).toBe("Blues");
+  });
+
+  test("switching to another plugin resets the pin and reloads the ramp from its scaffold", async () => {
+    serveScaffolds({ other_runtime_raster: otherScaffold });
+    const addMapLayer = openModal(
+      savedLayerInfo(
+        { props: {}, rampName: "Blues", rampMin: "0" },
+        {
+          source: "echo_runtime_raster",
+          args: { mode: "happy" },
+          stylePinned: true,
+        },
+      ),
+    );
+    expect(await waitFor(() => followSwitch())).not.toBeChecked();
+
+    await pickSource("Other Runtime Raster");
+    await waitFor(() => {
+      expect(
+        within(styleTab()).getByRole("radio", { name: "Select magma ramp" }),
+      ).toHaveAttribute("aria-checked", "true");
+    });
+    expect(followSwitch()).toBeChecked();
+
+    const saved = await save(addMapLayer);
+    expect(saved.configuration.props.pluginSource).toEqual({
+      source: "other_runtime_raster",
+      args: {},
+    });
+    expect(saved.configuration.props.source).toEqual(
+      otherScaffold.configuration.props.source,
+    );
+  });
+
+  test("Fetch defaults reloads the plugin's styling and clears the pin", async () => {
+    serveScaffolds({ echo_runtime_raster: echoScaffold });
+    const addMapLayer = openModal(
+      savedLayerInfo(
+        { props: { mask_below: "0" }, rampName: "Blues", rampMax: "3" },
+        {
+          source: "echo_runtime_raster",
+          args: { mode: "happy" },
+          stylePinned: true,
+        },
+      ),
+    );
+    expect(await waitFor(() => followSwitch())).not.toBeChecked();
+
+    fireEvent.click(screen.getByLabelText("Fetch plugin defaults"));
+    await waitFor(() => expect(followSwitch()).toBeChecked());
+
+    const saved = await save(addMapLayer);
+    expect(saved.configuration.props.source).toEqual({
+      type: "GeoTIFF",
+      props: {},
+      rampName: "viridis",
+    });
+    expect(saved.configuration.props.pluginSource).toEqual({
+      source: "echo_runtime_raster",
+      args: { mode: "happy" },
+    });
+  });
+
+  test("a dynamic plugin with no declared source type saves as GeoJSON (older backend)", async () => {
+    const { dynamic_map_layer_source: _omit, ...undeclared } = rasterPlugin;
+    serveScaffolds({ echo_runtime_raster: echoScaffold });
+    const addMapLayer = openModal({ layerProps: {}, sourceProps: {} }, [
+      { label: "Dynamic Map Layers", options: [undeclared] },
+    ]);
+
+    await pickSource("Echo Runtime Raster");
+    await waitFor(() =>
+      expect(screen.getByLabelText("Name Input")).toHaveValue("Echo Raster"),
+    );
+    expect(
+      within(styleTab()).queryByRole("switch", {
+        name: /follow plugin styling/i,
+      }),
+    ).not.toBeInTheDocument();
+
+    const saved = await save(addMapLayer);
+    expect(saved.configuration.type).toBe("VectorLayer");
+    expect(saved.configuration.props.source).toEqual({
+      type: "GeoJSON",
+      props: {},
+      geojson: {
+        type: "FeatureCollection",
+        features: [],
+        crs: { type: "name", properties: { name: "EPSG:4326" } },
+      },
+    });
+  });
+
+  test("regression: a declared GeoJSON plugin saves exactly the shape it did before", async () => {
+    serveScaffolds({
+      custom_layer_test: {
+        configuration: {
+          props: {
+            name: "Gauges",
+            opacity: 0.5,
+            source: { type: "GeoJSON", props: {} },
+            pluginSource: { source: "custom_layer_test", args: {} },
+          },
+        },
+        legend: "default",
+      },
+    });
+    const addMapLayer = openModal({ layerProps: {}, sourceProps: {} });
+
+    await pickSource("Stream Gauges (Dynamic)");
+    await waitFor(() =>
+      expect(screen.getByLabelText("Name Input")).toHaveValue("Gauges"),
+    );
+    expect(
+      within(styleTab()).queryByRole("switch", {
+        name: /follow plugin styling/i,
+      }),
+    ).not.toBeInTheDocument();
+
+    const saved = await save(addMapLayer);
+    expect(JSON.stringify(saved)).toBe(
+      JSON.stringify({
+        configuration: {
+          type: "VectorLayer",
+          props: {
+            name: "Gauges",
+            opacity: 0.5,
+            layerId: 12345678,
+            source: {
+              type: "GeoJSON",
+              props: {},
+              geojson: {
+                type: "FeatureCollection",
+                features: [],
+                crs: { type: "name", properties: { name: "EPSG:4326" } },
+              },
+            },
+            pluginSource: { source: "custom_layer_test", args: {} },
+          },
+        },
+        legend: "default",
+      }),
     );
   });
 });

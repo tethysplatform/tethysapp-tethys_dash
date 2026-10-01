@@ -5,7 +5,10 @@ import {
   fireEvent,
   waitFor,
 } from "@testing-library/react";
-import { AddMapLayer } from "components/inputs/custom/AddMapLayer";
+import {
+  AddMapLayer,
+  rehydratePluginSourceProps,
+} from "components/inputs/custom/AddMapLayer";
 import {
   layerConfigImageArcGISRest,
   layerConfigImageWMS,
@@ -549,4 +552,153 @@ it("AddMapLayer reorder", async () => {
       },
     },
   ]);
+});
+
+describe("AddMapLayer dynamic GeoTIFF layers", () => {
+  const rasterPlugin = {
+    source: "echo_runtime_raster",
+    value: "Echo Runtime Raster",
+    label: "Echo Runtime Raster",
+    args: {},
+    type: "map_layer",
+    tags: [],
+    description: "",
+    dynamic_map_layer: true,
+    dynamic_map_layer_source: "GeoTIFF",
+  };
+  const savedRasterLayer = (pluginSource) => ({
+    configuration: {
+      type: "WebGLTile",
+      props: {
+        name: "Echo Raster",
+        layerId: "raster-layer-id",
+        source: {
+          type: "GeoTIFF",
+          props: { mask_below: "-9999" },
+          rampName: "Blues",
+          rampMin: "0",
+          rampMax: "5",
+          rampReverse: true,
+        },
+        pluginSource,
+      },
+    },
+  });
+
+  const mountWithLayer = (layer) => {
+    const onChange = jest.fn();
+    render(
+      createLoadedComponent({
+        children: (
+          <AddMapLayer
+            values={[layer]}
+            onChange={onChange}
+            setShowingSubModal={jest.fn()}
+            gridItemIndex={0}
+          />
+        ),
+        options: {
+          visualizations: [{ label: "Other", options: [rasterPlugin] }],
+        },
+      }),
+    );
+    return onChange;
+  };
+
+  const followSwitch = () =>
+    within(screen.getByLabelText("layer-style-tab")).getByRole("switch", {
+      name: /follow plugin styling/i,
+    });
+
+  it.each([
+    ["a pinned", { stylePinned: true }, false],
+    ["an unpinned", {}, true],
+  ])(
+    "reopening %s layer restores its ramp, mask and pin, and saves it back unchanged",
+    async (_label, pin, followsPlugin) => {
+      const layer = savedRasterLayer({
+        source: "echo_runtime_raster",
+        args: { mode: "happy" },
+        ...pin,
+      });
+      const onChange = mountWithLayer(layer);
+
+      fireEvent.click(await screen.findByTestId("editMapLayer"));
+      expect(await screen.findByRole("dialog")).toBeInTheDocument();
+
+      const toggle = await waitFor(() => followSwitch());
+      expect(toggle.checked).toBe(followsPlugin);
+      const style = within(screen.getByLabelText("layer-style-tab"));
+      expect(
+        style.getByRole("radio", { name: "Select Blues ramp" }),
+      ).toHaveAttribute("aria-checked", "true");
+      expect(style.getByLabelText("Ramp Min")).toHaveValue("0");
+      expect(style.getByLabelText("Ramp Max")).toHaveValue("5");
+      expect(style.getByLabelText("Reverse Color Ramp")).toBeChecked();
+      expect(style.getByLabelText("Mask Below")).toHaveValue("-9999");
+
+      fireEvent.click(screen.getByLabelText("Create Layer Button"));
+      await waitFor(() => expect(onChange).toHaveBeenCalled());
+      expect(onChange).toHaveBeenLastCalledWith([layer]);
+    },
+  );
+});
+
+describe("rehydratePluginSourceProps", () => {
+  const savedRasterSource = {
+    type: "GeoTIFF",
+    props: { mask_below: "0" },
+    rampName: "magma",
+    rampMax: "9",
+  };
+
+  it("restores a GeoTIFF layer's declared type, ramp fields, props and pin", () => {
+    expect(
+      rehydratePluginSourceProps(
+        {
+          value: "Rain",
+          source: "rain",
+          dynamic_map_layer_source: "GeoTIFF",
+        },
+        { source: "rain", args: { day: "1" }, stylePinned: true },
+        savedRasterSource,
+      ),
+    ).toEqual({
+      type: "Rain",
+      source: "rain",
+      args: { day: "1" },
+      props: { mask_below: "0" },
+      dynamic_map_layer_source: "GeoTIFF",
+      rampName: "magma",
+      rampMax: "9",
+      stylePinned: true,
+    });
+  });
+
+  it("falls back to the saved source type when the plugin declares none", () => {
+    const sourceProps = rehydratePluginSourceProps(
+      { value: "Rain", source: "rain" },
+      { source: "rain", args: {} },
+      savedRasterSource,
+    );
+    expect(sourceProps.dynamic_map_layer_source).toBe("GeoTIFF");
+    expect(sourceProps.rampName).toBe("magma");
+    expect(sourceProps.stylePinned).toBeUndefined();
+  });
+
+  it("restores only the plugin binding for a GeoJSON layer", () => {
+    expect(
+      rehydratePluginSourceProps(
+        { value: "Gauges", source: "gauges" },
+        { source: "gauges", args: {}, stylePinned: true },
+        { type: "GeoJSON", props: {}, geojson: {} },
+      ),
+    ).toEqual({
+      type: "Gauges",
+      source: "gauges",
+      args: {},
+      props: {},
+      dynamic_map_layer_source: "GeoJSON",
+    });
+  });
 });

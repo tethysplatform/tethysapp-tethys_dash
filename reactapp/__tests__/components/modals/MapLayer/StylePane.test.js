@@ -94,7 +94,11 @@ const TestingComponent = ({
   );
 };
 
-const GeoTIFFTestHarness = ({ initialSourceProps, sourcePropsSpy }) => {
+const GeoTIFFTestHarness = ({
+  initialSourceProps,
+  sourcePropsSpy,
+  dynamicMapLayers = [],
+}) => {
   const [sourceProps, setSourceProps] = useState(initialSourceProps);
 
   const spyingSetSourceProps = (updater) => {
@@ -106,7 +110,7 @@ const GeoTIFFTestHarness = ({ initialSourceProps, sourcePropsSpy }) => {
   };
 
   return (
-    <AppContext.Provider value={{ dynamicMapLayers: [] }}>
+    <AppContext.Provider value={{ dynamicMapLayers }}>
       <LayoutContext.Provider value={{ uuid: "123" }}>
         <StylePane
           style={undefined}
@@ -115,6 +119,8 @@ const GeoTIFFTestHarness = ({ initialSourceProps, sourcePropsSpy }) => {
           sourceProps={sourceProps}
           setSourceProps={spyingSetSourceProps}
         />
+        <p data-testid="stylePinned">{String(sourceProps.stylePinned)}</p>
+        <p data-testid="maskBelow">{sourceProps.props?.mask_below ?? ""}</p>
         <p data-testid="rampName">{sourceProps.rampName ?? ""}</p>
         <p data-testid="rampMin">{sourceProps.rampMin ?? ""}</p>
         <p data-testid="rampMax">{sourceProps.rampMax ?? ""}</p>
@@ -607,6 +613,7 @@ TestingComponent.propTypes = {
 GeoTIFFTestHarness.propTypes = {
   initialSourceProps: PropTypes.object,
   sourcePropsSpy: PropTypes.func,
+  dynamicMapLayers: PropTypes.array,
 };
 
 test("StylePane renders Color Ramp section for GeoTIFF source type", async () => {
@@ -1184,4 +1191,259 @@ test("StylePane offers no fields when the field read fails", async () => {
     spy.mockRestore();
   }
   expect(typeof getStyleFields).toBe("function");
+});
+
+describe("StylePane dynamic GeoTIFF layers", () => {
+  const rasterPlugin = {
+    source: "echo_runtime_raster",
+    value: "Echo Runtime Raster",
+    label: "Echo Runtime Raster",
+    args: { mode: "text" },
+    type: "map_layer",
+    dynamic_map_layer: true,
+    dynamic_map_layer_source: "GeoTIFF",
+  };
+  const geojsonPlugin = {
+    source: "custom_layer_test",
+    value: "Stream Gauges (Dynamic)",
+    label: "Stream Gauges (Dynamic)",
+    args: {},
+    type: "map_layer",
+    dynamic_map_layer: true,
+    dynamic_map_layer_source: "GeoJSON",
+  };
+  const dynamicMapLayers = [
+    { label: "Dynamic Map Layers", options: [rasterPlugin, geojsonPlugin] },
+  ];
+  const rasterSourceProps = (extra = {}) => ({
+    type: "Echo Runtime Raster",
+    source: "echo_runtime_raster",
+    args: { mode: "happy" },
+    props: {},
+    rampName: "viridis",
+    ...extra,
+  });
+  const followSwitch = () =>
+    screen.getByRole("switch", { name: /follow plugin styling/i });
+
+  test("shows the ramp section and an accessible follow toggle for a plugin that declares GeoTIFF", async () => {
+    render(
+      <GeoTIFFTestHarness
+        initialSourceProps={rasterSourceProps()}
+        dynamicMapLayers={dynamicMapLayers}
+      />,
+    );
+
+    expect(await screen.findByText("Color Ramp")).toBeInTheDocument();
+    expect(
+      screen.getByRole("radio", { name: "Select viridis ramp" }),
+    ).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByLabelText("Mask Below")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Leave Min/Max empty to fit the range to each file the plugin returns.",
+      ),
+    ).toBeInTheDocument();
+
+    const toggle = followSwitch();
+    expect(toggle).toBeChecked();
+    // The description is a polite live region, so the flip an edit causes is
+    // announced, not only shown.
+    const help = screen.getByRole("status");
+    expect(help).toHaveAttribute("aria-live", "polite");
+    expect(toggle).toHaveAttribute("aria-describedby", help.id);
+    expect(toggle).toHaveAccessibleDescription(
+      "The plugin's styling is applied on each fetch. The settings below " +
+        "are used only when the plugin returns no styling. Editing any of " +
+        "them pins your style.",
+    );
+  });
+
+  test("a pinned layer opens with the toggle off", async () => {
+    render(
+      <GeoTIFFTestHarness
+        initialSourceProps={rasterSourceProps({ stylePinned: true })}
+        dynamicMapLayers={dynamicMapLayers}
+      />,
+    );
+
+    const toggle = await screen.findByRole("switch", {
+      name: /follow plugin styling/i,
+    });
+    expect(toggle).not.toBeChecked();
+    expect(toggle).toHaveAccessibleDescription(
+      "Your style is pinned. The plugin's styling is ignored until you turn " +
+        "this back on.",
+    );
+  });
+
+  test.each([
+    [
+      "selecting a ramp",
+      () =>
+        userEvent.click(
+          screen.getByRole("radio", { name: "Select magma ramp" }),
+        ),
+    ],
+    [
+      "reversing the ramp",
+      () => userEvent.click(screen.getByLabelText("Reverse Color Ramp")),
+    ],
+    [
+      "typing a min",
+      () =>
+        fireEvent.change(screen.getByLabelText("Ramp Min"), {
+          target: { value: "1" },
+        }),
+    ],
+    [
+      "typing a max",
+      () =>
+        fireEvent.change(screen.getByLabelText("Ramp Max"), {
+          target: { value: "9" },
+        }),
+    ],
+    [
+      "typing a mask value",
+      () =>
+        fireEvent.change(screen.getByLabelText("Mask Below"), {
+          target: { value: "-9999" },
+        }),
+    ],
+    [
+      "switching to categorical",
+      () => userEvent.click(screen.getByRole("radio", { name: /Categorical/ })),
+    ],
+  ])("%s pins the style", async (_label, edit) => {
+    render(
+      <GeoTIFFTestHarness
+        initialSourceProps={rasterSourceProps()}
+        dynamicMapLayers={dynamicMapLayers}
+      />,
+    );
+    await screen.findByText("Color Ramp");
+    expect(screen.getByTestId("stylePinned")).toHaveTextContent("undefined");
+
+    await edit();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("stylePinned")).toHaveTextContent("true");
+    });
+    expect(followSwitch()).not.toBeChecked();
+  });
+
+  test("the mask value is written to the source props", async () => {
+    render(
+      <GeoTIFFTestHarness
+        initialSourceProps={rasterSourceProps()}
+        dynamicMapLayers={dynamicMapLayers}
+      />,
+    );
+    fireEvent.change(await screen.findByLabelText("Mask Below"), {
+      target: { value: "-9999" },
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("maskBelow")).toHaveTextContent("-9999");
+    });
+  });
+
+  test("turning the toggle on clears the pin and leaves the fields as they are", async () => {
+    render(
+      <GeoTIFFTestHarness
+        initialSourceProps={rasterSourceProps({
+          stylePinned: true,
+          rampName: "blues",
+          rampMin: "0",
+          rampMax: "5",
+        })}
+        dynamicMapLayers={dynamicMapLayers}
+      />,
+    );
+
+    await userEvent.click(
+      await screen.findByRole("switch", { name: /follow plugin styling/i }),
+    );
+
+    expect(screen.getByTestId("stylePinned")).toHaveTextContent("undefined");
+    expect(followSwitch()).toBeChecked();
+    expect(screen.getByTestId("rampName")).toHaveTextContent("blues");
+    expect(screen.getByTestId("rampMin")).toHaveTextContent("0");
+    expect(screen.getByTestId("rampMax")).toHaveTextContent("5");
+    // Still editable while following: they are the fallback style.
+    expect(screen.getByLabelText("Ramp Min")).not.toBeDisabled();
+
+    // Turning it back off pins again.
+    await userEvent.click(followSwitch());
+    expect(screen.getByTestId("stylePinned")).toHaveTextContent("true");
+  });
+
+  test("defaults a dynamic GeoTIFF without a ramp to turbo, without pinning", async () => {
+    render(
+      <GeoTIFFTestHarness
+        initialSourceProps={rasterSourceProps({ rampName: undefined })}
+        dynamicMapLayers={dynamicMapLayers}
+      />,
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId("rampName")).toHaveTextContent("turbo");
+    });
+    expect(screen.getByTestId("stylePinned")).toHaveTextContent("undefined");
+  });
+
+  test("no toggle for a static GeoTIFF layer, and edits there set no pin", async () => {
+    render(
+      <GeoTIFFTestHarness
+        initialSourceProps={{ type: "GeoTIFF", rampName: "viridis" }}
+        dynamicMapLayers={dynamicMapLayers}
+      />,
+    );
+    await screen.findByText("Color Ramp");
+    expect(
+      screen.queryByRole("switch", { name: /follow plugin styling/i }),
+    ).not.toBeInTheDocument();
+    // A static layer sets its mask in the Source tab.
+    expect(screen.queryByLabelText("Mask Below")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Ramp Min"), {
+      target: { value: "1" },
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("rampMin")).toHaveTextContent("1");
+    });
+    expect(screen.getByTestId("stylePinned")).toHaveTextContent("undefined");
+  });
+
+  test("a GeoJSON dynamic layer keeps the vector style editor and has no toggle", async () => {
+    render(
+      <GeoTIFFTestHarness
+        initialSourceProps={{
+          type: "Stream Gauges (Dynamic)",
+          source: "custom_layer_test",
+          args: {},
+          props: {},
+        }}
+        dynamicMapLayers={dynamicMapLayers}
+      />,
+    );
+    expect(await screen.findByText("Upload style file")).toBeInTheDocument();
+    expect(screen.queryByText("Color Ramp")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("switch", { name: /follow plugin styling/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  test("a dynamic plugin that declares no source type is treated as GeoJSON", async () => {
+    const { dynamic_map_layer_source: _omit, ...undeclared } = rasterPlugin;
+    render(
+      <GeoTIFFTestHarness
+        initialSourceProps={rasterSourceProps()}
+        dynamicMapLayers={[{ label: "Dynamic", options: [undeclared] }]}
+      />,
+    );
+    expect(await screen.findByText("Upload style file")).toBeInTheDocument();
+    expect(screen.queryByText("Color Ramp")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("switch", { name: /follow plugin styling/i }),
+    ).not.toBeInTheDocument();
+  });
 });

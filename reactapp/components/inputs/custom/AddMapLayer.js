@@ -11,6 +11,10 @@ import { RxDragHandleHorizontal } from "react-icons/rx";
 import { layerPropType, resolveTablePopupType } from "components/map/utilities";
 import { AppContext } from "components/contexts/Contexts";
 import { findSelectOptionByValue } from "components/visualizations/utilities";
+import {
+  DEFAULT_DYNAMIC_LAYER_SOURCE,
+  RASTER_STYLE_FIELDS,
+} from "components/modals/MapLayer/runtimeLayerSource";
 
 const FixedTable = styled(Table)`
   table-layout: fixed;
@@ -43,6 +47,45 @@ const SpacedDiv = styled.div`
 const HoverDiv = styled.div`
   cursor: pointer;
 `;
+
+/**
+ * The editor's source props for a saved dynamic plugin layer.
+ *
+ * A dynamic GeoJSON layer's saved source is a placeholder, so only the plugin
+ * binding comes back. A dynamic GeoTIFF's saved source *is* its style -- the
+ * ramp fields and its props (mask_below) -- so those come back too, with the
+ * pin, or the Style tab would open on defaults and a save would discard them.
+ */
+export function rehydratePluginSourceProps(
+  pluginOption,
+  pluginSource,
+  savedSource,
+) {
+  const sourceProps = {
+    type: pluginOption.value,
+    source: pluginSource.source,
+    args: pluginSource.args ?? {},
+    props: {},
+  };
+  // The plugin's declaration wins; a saved raster source stands in for an
+  // older backend that does not send one.
+  const declaredSource =
+    pluginOption.dynamic_map_layer_source ??
+    (savedSource?.type === "GeoTIFF"
+      ? "GeoTIFF"
+      : DEFAULT_DYNAMIC_LAYER_SOURCE);
+  sourceProps.dynamic_map_layer_source = declaredSource;
+  if (declaredSource !== "GeoTIFF") return sourceProps;
+
+  RASTER_STYLE_FIELDS.forEach((field) => {
+    if (savedSource?.[field] !== undefined) {
+      sourceProps[field] = savedSource[field];
+    }
+  });
+  sourceProps.props = { ...(savedSource?.props ?? {}) };
+  if (pluginSource.stylePinned === true) sourceProps.stylePinned = true;
+  return sourceProps;
+}
 
 const MapLayerTemplate = ({
   index,
@@ -92,12 +135,11 @@ const MapLayerTemplate = ({
       ? findSelectOptionByValue(dynamicMapLayers, pluginSource.source, "source")
       : null;
     const sourceProps = pluginSource
-      ? {
-          type: pluginOption.value,
-          source: pluginSource.source,
-          args: pluginSource.args ?? {},
-          props: {},
-        }
+      ? rehydratePluginSourceProps(
+          pluginOption,
+          pluginSource,
+          existingMapLayer.configuration.props.source,
+        )
       : existingMapLayer.configuration.props.source;
 
     const updatedLayerInfo = {
