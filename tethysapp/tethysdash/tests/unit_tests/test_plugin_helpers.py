@@ -4,6 +4,9 @@ from tethysapp.tethysdash.plugin_helpers import (
     send_websocket_message,
     TethysDashPlugin,
     DATE_PRESET_SENTINELS,
+    geotiff_source,
+    is_allowed_layer_url,
+    validate_layer_source_description,
 )
 import requests
 import pytest
@@ -1439,7 +1442,10 @@ def test_builder_set_plugin_source_happy_path():
 
 def test_builder_set_plugin_source_rejects_non_geojson():
     builder = LayerConfigurationBuilder("wms layer", "WMS")
-    with pytest.raises(ValueError, match="must use LayerConfigurationBuilder"):
+    with pytest.raises(
+        ValueError,
+        match="must use LayerConfigurationBuilder.*'GeoJSON' or 'GeoTIFF'.*'WMS'",
+    ):
         builder.set_plugin_source("some_plugin", {})
 
 
@@ -1540,3 +1546,523 @@ def test_builder_exposes_shapefile_source_properties():
 def test_builder_still_refuses_a_source_it_does_not_know():
     with pytest.raises(ValueError, match="Invalid layer_source"):
         LayerConfigurationBuilder("test", "Shapefile Tile")
+
+
+# --- Dynamic GeoTIFF plugin contract ----------------------------------------
+
+
+def _raster_plugin_class(**attrs):
+    namespace = {
+        "name": "raster_runtime",
+        "group": "g",
+        "label": "l",
+        "type": "map_layer",
+        "dynamic_map_layer": True,
+        "dynamic_map_layer_source": "GeoTIFF",
+        "fetch_source": lambda self: geotiff_source("https://x/a.tif"),
+    }
+    namespace.update(attrs)
+    return type("RasterRuntime", (TethysDashPlugin,), namespace)
+
+
+def test_dynamic_map_layer_source_defaults_to_geojson():
+    plugin = MinimalRuntimePlugin()
+    assert plugin.dynamic_map_layer_source == "GeoJSON"
+    assert TethysDashPlugin.dynamic_map_layer_source == "GeoJSON"
+
+
+def test_geotiff_runtime_plugin_read_source():
+    plugin = _raster_plugin_class()()
+
+    result = plugin.read_source("sess:grid:layer-9")
+
+    assert plugin.dynamic_map_layer_source == "GeoTIFF"
+    assert plugin.request_id == "sess:grid:layer-9"
+    assert plugin._pending_layer_id == "layer-9"
+    assert result == {"type": "GeoTIFF", "props": {"url": "https://x/a.tif"}}
+    assert validate_layer_source_description(result, "GeoTIFF") is True
+
+
+def test_read_features_attaches_layer_id_like_read_source():
+    plugin = MinimalRuntimePlugin()
+    plugin.read_features("sess:grid:layer-3")
+    assert plugin._pending_layer_id == "layer-3"
+
+    flat = MinimalRuntimePlugin()
+    flat.read_features("flat-id")
+    assert flat._pending_layer_id is None
+
+    empty_suffix = MinimalRuntimePlugin()
+    empty_suffix.read_features("sess:grid:")
+    assert empty_suffix._pending_layer_id is None
+
+
+def test_geotiff_plugin_send_update_routes_to_layer(monkeypatch):
+    called = {}
+
+    def fetch_source(self):
+        self.send_update("reading", percentage_complete=10)
+        return geotiff_source("https://x/a.tif")
+
+    def fake_send_websocket_message(request_id, message, **kwargs):
+        called["request_id"] = request_id
+        called["kwargs"] = kwargs
+
+    monkeypatch.setattr(
+        "tethysapp.tethysdash.plugin_helpers.send_websocket_message",
+        fake_send_websocket_message,
+    )
+    _raster_plugin_class(fetch_source=fetch_source)().read_source("s:g:layer-5")
+
+    assert called["request_id"] == "s:g:layer-5"
+    assert called["kwargs"]["layer_id"] == "layer-5"
+
+
+def test_geotiff_plugin_without_fetch_source_raises():
+    namespace = {"fetch_source": TethysDashPlugin.fetch_source}
+    with pytest.raises(ValueError, match="'GeoTIFF' requires fetch_source"):
+        _raster_plugin_class(**namespace)()
+
+
+def test_geotiff_plugin_with_only_fetch_features_raises():
+    plugin_class = _raster_plugin_class(
+        fetch_source=TethysDashPlugin.fetch_source,
+        fetch_features=lambda self: {},
+    )
+    with pytest.raises(ValueError, match="requires fetch_source to be overridden"):
+        plugin_class()
+
+
+def test_geojson_plugin_with_only_fetch_source_raises():
+    plugin_class = _raster_plugin_class(dynamic_map_layer_source="GeoJSON")
+    with pytest.raises(ValueError, match="requires fetch_features to be overridden"):
+        plugin_class()
+
+
+def test_fetch_source_on_geojson_plugin_warns():
+    plugin_class = _raster_plugin_class(
+        dynamic_map_layer_source="GeoJSON",
+        fetch_features=MinimalRuntimePlugin.fetch_features,
+    )
+    with pytest.warns(UserWarning, match="fetch_source is overridden but .*'GeoJSON'"):
+        plugin_class()
+
+
+def test_fetch_features_on_geotiff_plugin_warns():
+    plugin_class = _raster_plugin_class(
+        fetch_features=MinimalRuntimePlugin.fetch_features
+    )
+    with pytest.warns(
+        UserWarning, match="fetch_features is overridden but .*'GeoTIFF'"
+    ):
+        plugin_class()
+
+
+def test_fetch_source_without_flag_warns():
+    plugin_class = _raster_plugin_class(dynamic_map_layer=False)
+    with pytest.warns(
+        UserWarning, match="fetch_source is overridden but dynamic_map_layer = False"
+    ):
+        plugin_class()
+
+
+def test_invalid_dynamic_map_layer_source_raises():
+    with pytest.raises(
+        ValueError,
+        match="dynamic_map_layer_source 'XYZ' is not valid.*GeoJSON, GeoTIFF",
+    ):
+        _raster_plugin_class(dynamic_map_layer_source="XYZ")()
+
+
+def test_dynamic_map_layer_source_is_a_reserved_arg_name():
+    plugin_class = _raster_plugin_class(args={"dynamic_map_layer_source": "text"})
+    with pytest.raises(ValueError, match="reserved keys"):
+        plugin_class()
+
+
+def test_fetch_source_not_implemented_by_default():
+    with pytest.raises(NotImplementedError, match="fetch_source"):
+        MinimalRuntimePlugin().fetch_source()
+
+
+# --- geotiff_source ----------------------------------------------------------
+
+
+def test_geotiff_source_url_only_omits_projection_and_style():
+    assert geotiff_source("https://x/a.tif") == {
+        "type": "GeoTIFF",
+        "props": {"url": "https://x/a.tif"},
+    }
+
+
+def test_geotiff_source_full():
+    description = geotiff_source(
+        "/files/a.tif",
+        projection="EPSG:32612",
+        ramp_name="viridis",
+        ramp_min=0,
+        ramp_max="50",
+        ramp_reverse=False,
+        mask_below=-1,
+    )
+
+    assert description == {
+        "type": "GeoTIFF",
+        "props": {"url": "/files/a.tif", "projection": "EPSG:32612"},
+        "style": {
+            "rampName": "viridis",
+            "rampMin": 0,
+            "rampMax": "50",
+            "rampReverse": False,
+            "maskBelow": -1,
+        },
+    }
+    assert validate_layer_source_description(description, "GeoTIFF") is True
+
+
+def test_geotiff_source_partial_style_omits_unset_keys():
+    assert geotiff_source("https://x/a.tif", ramp_name="magma") == {
+        "type": "GeoTIFF",
+        "props": {"url": "https://x/a.tif"},
+        "style": {"rampName": "magma"},
+    }
+
+
+# --- is_allowed_layer_url ----------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://example.com/x.tif",
+        "http://example.com/x.tif",
+        "HTTP://h/x.tif",
+        "HttpS://h/x.tif?time=2026-01-01",
+        "/files/x.tif",
+        "/tethysdash/files/a b.tif",
+    ],
+)
+def test_is_allowed_layer_url_accepts(url):
+    assert is_allowed_layer_url(url) is True
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "//host/x.tif",
+        "/\\host/x.tif",
+        "\\\\host",
+        " javascript:alert(1)",
+        "javascript:alert(1)",
+        "JavaScript:alert(1)",
+        "file:///etc/passwd",
+        "data:image/tiff;base64,AAAA",
+        "ftp://host/x.tif",
+        "relative/x.tif",
+        "x.tif",
+        "/",
+        "",
+        "https://",
+        "https:/x.tif",
+        "https://h/x.tif ",
+        "https://h/x\\y.tif",
+        "java\tscript:alert(1)",
+        "https://h/x.tif\n",
+        "/files/x\x00.tif",
+        "\x7f/files/x.tif",
+        None,
+        42,
+    ],
+)
+def test_is_allowed_layer_url_rejects(url):
+    assert is_allowed_layer_url(url) is False
+
+
+# --- validate_layer_source_description ---------------------------------------
+
+
+def test_validate_layer_source_description_happy_path():
+    assert (
+        validate_layer_source_description(geotiff_source("https://x/a.tif"), "GeoTIFF")
+        is True
+    )
+
+
+def test_validate_layer_source_description_allows_null_bounds_and_style_omission():
+    description = {
+        "type": "GeoTIFF",
+        "props": {"url": "https://x/a.tif"},
+        "style": {"rampName": "viridis", "rampMin": None, "rampMax": "1e3"},
+    }
+    assert validate_layer_source_description(description, "GeoTIFF") is True
+
+
+@pytest.mark.parametrize(
+    "data,message",
+    [
+        (None, "returned None"),
+        ("https://x/a.tif", "must return a source description dict, not str"),
+        (["https://x/a.tif"], "not list"),
+        (
+            {"configuration": {}, "type": "GeoTIFF"},
+            "configure-time scaffold",
+        ),
+        ({"legend": "default"}, "configure-time scaffold"),
+        ({"source": {"type": "GeoTIFF"}}, "configure-time scaffold"),
+        (
+            {"type": "XYZ", "props": {"url": "https://x/a.tif"}},
+            "type 'XYZ', but the plugin declares dynamic_map_layer_source = 'GeoTIFF'",
+        ),
+        ({"props": {"url": "https://x/a.tif"}}, "type None"),
+        (
+            {"type": "GeoTIFF", "props": {"url": "https://x/a.tif"}, "url": "u"},
+            "unknown keys: url",
+        ),
+        ({"type": "GeoTIFF"}, "must carry a 'props' dict"),
+        ({"type": "GeoTIFF", "props": "https://x/a.tif"}, "must carry a 'props' dict"),
+        (
+            {"type": "GeoTIFF", "props": {"url": "https://x/a.tif", "mask_below": 0}},
+            "props has unknown keys: mask_below.*maskBelow",
+        ),
+        ({"type": "GeoTIFF", "props": {}}, "props.url must be a non-empty string"),
+        ({"type": "GeoTIFF", "props": {"url": ""}}, "non-empty string"),
+        ({"type": "GeoTIFF", "props": {"url": 5}}, "non-empty string"),
+        (geotiff_source("file:///etc/passwd"), "'file:///etc/passwd' is not allowed"),
+        (geotiff_source("javascript:alert(1)"), "is not allowed"),
+        (geotiff_source("//host/x.tif"), "is not allowed"),
+        (
+            geotiff_source("https://x/a.tif", projection=4326),
+            "projection must be a string",
+        ),
+        (
+            geotiff_source("https://x/a.tif", projection="x" * 2001),
+            "longer than 2000 characters",
+        ),
+        (
+            {"type": "GeoTIFF", "props": {"url": "https://x/a.tif"}, "style": "x"},
+            "style must be a dict",
+        ),
+        (
+            {
+                "type": "GeoTIFF",
+                "props": {"url": "https://x/a.tif"},
+                "style": {"ramp": "viridis"},
+            },
+            "style has unknown keys: ramp",
+        ),
+        (
+            geotiff_source("https://x/a.tif", ramp_name="viridis", ramp_min="abc"),
+            "style.rampMin must be a finite number or numeric string, got 'abc'",
+        ),
+        (
+            geotiff_source("https://x/a.tif", ramp_max=float("inf")),
+            "style.rampMax must be a finite number",
+        ),
+        (
+            geotiff_source("https://x/a.tif", ramp_max="nan"),
+            "style.rampMax must be a finite number",
+        ),
+        (
+            geotiff_source("https://x/a.tif", ramp_min=True),
+            "style.rampMin must be a finite number",
+        ),
+        (
+            geotiff_source("https://x/a.tif", ramp_reverse="yes"),
+            "rampReverse must be True or False",
+        ),
+        (
+            geotiff_source("https://x/a.tif", mask_below="0"),
+            "maskBelow must be a finite number",
+        ),
+        (
+            geotiff_source("https://x/a.tif", mask_below=float("nan")),
+            "maskBelow must be a finite number",
+        ),
+        (
+            geotiff_source("https://x/a.tif", ramp_name=""),
+            "rampName must be a non-empty ramp name",
+        ),
+        (
+            geotiff_source("https://x/a.tif", ramp_name=3),
+            "rampName must be a non-empty ramp name",
+        ),
+    ],
+)
+def test_validate_layer_source_description_rejects(data, message):
+    with pytest.raises(ValueError, match=message):
+        validate_layer_source_description(data, "GeoTIFF")
+
+
+def test_validate_layer_source_description_messages_are_distinct():
+    bad_returns = [
+        None,
+        {"configuration": {}},
+        {"type": "XYZ", "props": {"url": "https://x/a.tif"}},
+        geotiff_source(""),
+        geotiff_source("file:///etc/passwd"),
+        geotiff_source("https://x/a.tif", ramp_min="abc"),
+    ]
+    messages = set()
+    for data in bad_returns:
+        with pytest.raises(ValueError) as excinfo:
+            validate_layer_source_description(data, "GeoTIFF")
+        messages.add(str(excinfo.value))
+    assert len(messages) == len(bad_returns)
+
+
+# --- LayerConfigurationBuilder runtime GeoTIFF -------------------------------
+
+
+def test_builder_runtime_geotiff_scaffold():
+    config = (
+        LayerConfigurationBuilder("Rain", "GeoTIFF")
+        .set_plugin_source("rain_plugin", {"date": "${Date}"})
+        .build()
+    )
+
+    assert config == {
+        "configuration": {
+            "type": "WebGLTile",
+            "props": {
+                "name": "Rain",
+                "source": {"type": "GeoTIFF", "props": {}},
+                "pluginSource": {"source": "rain_plugin", "args": {"date": "${Date}"}},
+            },
+        }
+    }
+
+
+def test_builder_runtime_geotiff_drops_url_and_skips_required_fields():
+    # A static GeoTIFF requires a url; a runtime one gets its url per fetch, so
+    # any url set on the scaffold is dropped rather than shipped as stale.
+    builder = LayerConfigurationBuilder("Rain", "GeoTIFF")
+    with pytest.raises(ValueError, match="Missing required key 'url'"):
+        builder.build()
+
+    builder.set_source_properties(url="https://x/a.tif", projection="EPSG:3857")
+    builder.set_plugin_source("p", {})
+    source = builder.build()["configuration"]["props"]["source"]
+
+    assert source == {"type": "GeoTIFF", "props": {"projection": "EPSG:3857"}}
+
+
+def test_builder_set_raster_ramp_writes_editor_keys():
+    config = (
+        LayerConfigurationBuilder("Rain", "GeoTIFF")
+        .set_plugin_source("p", {})
+        .set_raster_ramp("viridis", 0, 50)
+        .build()
+    )
+
+    source = config["configuration"]["props"]["source"]
+    assert source == {
+        "type": "GeoTIFF",
+        "props": {},
+        "rampName": "viridis",
+        "rampMin": "0",
+        "rampMax": "50",
+    }
+    # The compiled OL style is built at render time, not by the builder.
+    assert "style" not in config["configuration"]
+
+
+def test_builder_set_raster_ramp_full_and_replace():
+    builder = LayerConfigurationBuilder("Rain", "GeoTIFF").set_plugin_source("p", {})
+    builder.set_raster_ramp("magma", 1.5, "9", reverse=True, mask_below=-9999)
+    source = builder.build()["configuration"]["props"]["source"]
+    assert source == {
+        "type": "GeoTIFF",
+        "props": {"mask_below": "-9999"},
+        "rampName": "magma",
+        "rampMin": "1.5",
+        "rampMax": "9",
+        "rampReverse": True,
+    }
+
+    # A second call replaces the ramp; unset values are removed, not kept.
+    builder.set_raster_ramp("blues")
+    source = builder.build()["configuration"]["props"]["source"]
+    assert source == {"type": "GeoTIFF", "props": {}, "rampName": "blues"}
+
+
+def test_builder_set_raster_ramp_on_static_geotiff():
+    source = (
+        LayerConfigurationBuilder("Rain", "GeoTIFF")
+        .set_source_properties(url="https://x/a.tif")
+        .set_raster_ramp("viridis")
+        .build()["configuration"]["props"]["source"]
+    )
+    assert source["props"]["url"] == "https://x/a.tif"
+    assert source["rampName"] == "viridis"
+
+
+def test_builder_set_raster_ramp_rejects_non_geotiff():
+    builder = LayerConfigurationBuilder("Vectors", "GeoJSON")
+    with pytest.raises(ValueError, match="set_raster_ramp requires.*'GeoJSON'"):
+        builder.set_raster_ramp("viridis")
+
+
+@pytest.mark.parametrize(
+    "kwargs,message",
+    [
+        ({"ramp_name": ""}, "ramp_name must be a non-empty"),
+        ({"ramp_name": None}, "ramp_name must be a non-empty"),
+        ({"ramp_name": "viridis", "ramp_min": "abc"}, "ramp_min must be a finite"),
+        ({"ramp_name": "viridis", "ramp_max": float("inf")}, "ramp_max must be"),
+        ({"ramp_name": "viridis", "mask_below": "x"}, "mask_below must be"),
+        ({"ramp_name": "viridis", "reverse": "yes"}, "reverse must be True or False"),
+    ],
+)
+def test_builder_set_raster_ramp_rejects_bad_values(kwargs, message):
+    builder = LayerConfigurationBuilder("Rain", "GeoTIFF")
+    with pytest.raises(ValueError, match=message):
+        builder.set_raster_ramp(**kwargs)
+
+
+def test_builder_runtime_geojson_output_unchanged():
+    config = (
+        LayerConfigurationBuilder("runtime layer", "GeoJSON")
+        .set_plugin_source("p", {"a": "${A}"})
+        .build()
+    )
+
+    assert config == {
+        "configuration": {
+            "type": "VectorLayer",
+            "props": {
+                "name": "runtime layer",
+                "source": {
+                    "type": "GeoJSON",
+                    "props": {},
+                    "geojson": {
+                        "type": "FeatureCollection",
+                        "features": [],
+                        "crs": {"type": "name", "properties": {"name": "EPSG:4326"}},
+                    },
+                },
+                "pluginSource": {"source": "p", "args": {"a": "${A}"}},
+            },
+        }
+    }
+
+
+def test_echo_raster_fixture_scaffold_round_trips():
+    from tethysapp.tethysdash.tests.fixtures.echo_runtime_raster_plugin import (
+        EchoRuntimeRasterPlugin,
+    )
+
+    scaffold = EchoRuntimeRasterPlugin(mode="happy").run()
+
+    assert scaffold == {
+        "configuration": {
+            "type": "WebGLTile",
+            "props": {
+                "name": "Echo Raster",
+                "source": {"type": "GeoTIFF", "props": {}, "rampName": "viridis"},
+                "pluginSource": {
+                    "source": "echo_runtime_raster",
+                    "args": {"mode": "happy"},
+                },
+            },
+        }
+    }

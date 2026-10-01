@@ -4,6 +4,7 @@ from tethysapp.tethysdash.exceptions import VisualizationError
 from tethysapp.tethysdash.plugin_helpers import (
     get_plugin_prop,
     validate_feature_collection,
+    validate_layer_source_description,
 )
 import inspect
 
@@ -32,6 +33,9 @@ def build_plugin_metadata(plugin, source):
         "loading_icon": get_plugin_prop(plugin, "loading_icon", True),
         "restricted": get_plugin_prop(plugin, "restricted", False),
         "dynamic_map_layer": get_plugin_prop(plugin, "dynamic_map_layer", False),
+        "dynamic_map_layer_source": get_plugin_prop(
+            plugin, "dynamic_map_layer_source", "GeoJSON"
+        ),
     }
 
 
@@ -174,12 +178,17 @@ def get_visualization(viz_source, viz_args, user, viz_request_id, mode="scaffold
             progress messages carry it.
         mode (str): ``"scaffold"`` (default) invokes the configure-time
             :py:meth:`TethysDashPlugin.run` method. ``"features"`` invokes
-            :py:meth:`TethysDashPlugin.fetch_features` via ``read_features``
-            and validates the return as a GeoJSON FeatureCollection.
+            the plugin's render-time method for its declared
+            ``dynamic_map_layer_source``: a GeoJSON plugin's
+            :py:meth:`TethysDashPlugin.fetch_features` (validated as a
+            FeatureCollection) or a GeoTIFF plugin's
+            :py:meth:`TethysDashPlugin.fetch_source` (validated as a source
+            description).
     Returns:
         tuple: (visualization_type, data)
-            - visualization_type (str): Type of visualization (``"features"``
-              for mode=features responses).
+            - visualization_type (str): Type of visualization. For
+              mode=features, ``"features"`` for a GeoJSON plugin and
+              ``"source"`` for a GeoTIFF plugin.
             - data: The actual visualization data.
 
     Raises:
@@ -242,16 +251,16 @@ def get_visualization(viz_source, viz_args, user, viz_request_id, mode="scaffold
                 f"Visualization ({viz_source}) does not support dynamic features."
             )
 
-        # Parse the composite requestId suffix as layer_id when present, so
-        # send_update calls within fetch_features automatically attach the id
-        # for per-layer progress routing. Gated on mode=features to avoid
-        # changing behavior for scaffold callers that may legitimately use `:`.
-        # Empty suffixes (e.g., "a:b:") are rejected to prevent layerId=""
-        # from polluting the WebSocket routing on the frontend.
-        if viz_request_id and ":" in viz_request_id:
-            layer_id_suffix = viz_request_id.rsplit(":", 1)[-1]
-            if layer_id_suffix:
-                plugin_instance._pending_layer_id = layer_id_suffix
+        # read_features/read_source parse the composite requestId's suffix as
+        # the layer id, so send_update calls within the runtime method attach
+        # it for per-layer progress routing.
+        layer_source = get_plugin_prop(
+            plugin_instance, "dynamic_map_layer_source", "GeoJSON"
+        )
+        if layer_source == "GeoTIFF":
+            data = plugin_instance.read_source(request_id=viz_request_id)
+            validate_layer_source_description(data, layer_source)
+            return "source", data
 
         data = plugin_instance.read_features(request_id=viz_request_id)
         validate_feature_collection(data)
