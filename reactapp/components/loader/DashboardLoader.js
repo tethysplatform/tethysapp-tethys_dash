@@ -34,18 +34,22 @@ import { clearPreloadedVisualizations } from "components/visualizations/preloade
  *
  * Returns `seeds` (key -> the seeded value, plus the Variable Input's options
  * source when its value needs the same coercion VariableInput applies), the
- * `dateFormats` those inputs register, and `keysByTab`, the keys each tab
- * owns. Pure, so the value a seed resolves to can be computed against the
- * latest state inside a functional update.
+ * `dateFormats` those inputs register, `keysByTab`, the keys each tab owns,
+ * and `uuidsByTab`, the grid item uuids each tab holds. Pure, so the value a
+ * seed resolves to can be computed against the latest state inside a
+ * functional update.
  */
 function buildVariableInputSeeds(tabs) {
   const seeds = {};
   const dateFormats = {};
   const keysByTab = new Map();
+  const uuidsByTab = new Map();
 
   for (let tab of tabs) {
     const tabKeys = new Set();
+    const tabUUIDs = new Set();
     for (let gridItem of tab.gridItems) {
+      if (gridItem.uuid) tabUUIDs.add(gridItem.uuid);
       let gridItemValues = {};
       const args = JSON.parse(gridItem.args_string);
 
@@ -67,6 +71,11 @@ function buildVariableInputSeeds(tabs) {
             for (let attributeVariableInput of Object.values(layerAttributes)) {
               if (!(attributeVariableInput in seeds)) {
                 gridItemValues[attributeVariableInput] = null;
+              } else {
+                // Already seeded, by an earlier grid item or tab, but this
+                // tab uses it too: it owns the key, so updating the other
+                // tab alone does not release it.
+                tabKeys.add(attributeVariableInput);
               }
             }
           }
@@ -101,9 +110,10 @@ function buildVariableInputSeeds(tabs) {
       }
     }
     keysByTab.set(tab.id, tabKeys);
+    uuidsByTab.set(tab.id, tabUUIDs);
   }
 
-  return { seeds, dateFormats, keysByTab };
+  return { seeds, dateFormats, keysByTab, uuidsByTab };
 }
 
 /**
@@ -119,8 +129,9 @@ function applyVariableInputSeeds(previousValues, seeds, released = []) {
     delete nextValues[key];
   }
   for (const [key, { value, variableOptionsSource }] of Object.entries(seeds)) {
-    let initialValue =
-      previousValues[key] === undefined ? value : previousValues[key];
+    // Read after the release, so a key released here and seeded by a new
+    // owner in the same pass starts from the new owner's value.
+    let initialValue = nextValues[key] === undefined ? value : nextValues[key];
 
     if (variableOptionsSource === "checkbox" && initialValue === null) {
       initialValue = false;
@@ -179,6 +190,14 @@ const DashboardLoader = ({
   const originalTabs = useRef({});
   // tab id -> the variable input keys that tab's built-in grid items own.
   const ownedVariableInputKeys = useRef(new Map());
+  // tab id -> the uuids of that tab's grid items, as of the last scan.
+  const gridItemUUIDsByTab = useRef(new Map());
+  // Plugin variable inputs publish values no scan can see, since they exist
+  // only in a run() response, so they register them instead -- the preload,
+  // and VariableInput whenever it publishes: grid item uuid ->
+  // { variableName, keys }. A rebuild releases the keys of a grid item that
+  // is gone. Unmounting is not the signal: switching tabs unmounts tiles.
+  const pluginVariableInputOwners = useRef(new Map());
   const editable = ["admin", "editor"].includes(userPermission);
 
   useEffect(() => {
@@ -208,15 +227,31 @@ const DashboardLoader = ({
           // budget; whatever it does not finish loads in its own tile. The
           // dashboard always mounts outside the data viewer, where
           // VariableInput publishes, so there is no mode in which to skip it.
-          const preloaded = await preloadPluginVariableInputs({
-            tabs: dashboardTabs,
-            visualizations,
-            variableInputValues: applyVariableInputSeeds({}, seeds),
-            variableInputDateFormats: dateFormats,
-            onProgress: setVariableInputPreload,
-            isAbandoned: () => abandoned,
-          });
+          //
+          // Best-effort: a preload that throws costs only its head start,
+          // never the dashboard, which renders and loads each tile normally.
+          let preloaded = { values: {}, dateFormats: {}, owners: {} };
+          try {
+            preloaded = await preloadPluginVariableInputs({
+              tabs: dashboardTabs,
+              visualizations,
+              variableInputValues: applyVariableInputSeeds({}, seeds),
+              variableInputDateFormats: dateFormats,
+              onProgress: setVariableInputPreload,
+              isAbandoned: () => abandoned,
+            });
+          } catch (error) {
+            // Fall through with nothing preloaded.
+          }
           if (abandoned) return;
+          for (const [gridItemUUID, owner] of Object.entries(
+            preloaded.owners ?? {},
+          )) {
+            pluginVariableInputOwners.current.set(gridItemUUID, {
+              variableName: owner.variableName,
+              keys: new Set(owner.keys),
+            });
+          }
           setVariableInputValues((prev) => ({ ...prev, ...preloaded.values }));
           setVariableInputDateFormats((prev) => ({
             ...prev,
@@ -257,7 +292,7 @@ const DashboardLoader = ({
   // last time are tracked and any key no tab owns any more is released.
   const updateVariableInputValuesWithGridItems = useCallback(
     (updatedTabs, { replacesAllTabs = false } = {}) => {
-      const { seeds, dateFormats, keysByTab } =
+      const { seeds, dateFormats, keysByTab, uuidsByTab } =
         buildVariableInputSeeds(updatedTabs);
 
       const previousOwners = ownedVariableInputKeys.current;
@@ -266,10 +301,47 @@ const DashboardLoader = ({
         nextOwners.set(tabId, tabKeys);
       }
       ownedVariableInputKeys.current = nextOwners;
+      const previouslyOwned = unionOfKeys(previousOwners);
       const stillOwned = unionOfKeys(nextOwners);
-      const released = [...unionOfKeys(previousOwners)].filter(
+      const released = [...previouslyOwned].filter(
         (key) => !stillOwned.has(key),
       );
+
+      // Plugin variable inputs: release the keys of every grid item the last
+      // scan saw and this one does not. A one-tab update replaces only that
+      // tab's uuids, so only a grid item that tab held can go. A grid item
+      // no scan has seen yet (one in an imported tab) is left alone.
+      const previousUUIDs = unionOfKeys(gridItemUUIDsByTab.current);
+      const nextUUIDsByTab = replacesAllTabs
+        ? new Map()
+        : new Map(gridItemUUIDsByTab.current);
+      for (const [tabId, tabUUIDs] of uuidsByTab) {
+        nextUUIDsByTab.set(tabId, tabUUIDs);
+      }
+      gridItemUUIDsByTab.current = nextUUIDsByTab;
+      const presentUUIDs = unionOfKeys(nextUUIDsByTab);
+      const pluginOwners = pluginVariableInputOwners.current;
+      const releasedPluginKeys = new Set();
+      for (const [gridItemUUID, owner] of [...pluginOwners]) {
+        if (
+          previousUUIDs.has(gridItemUUID) &&
+          !presentUUIDs.has(gridItemUUID)
+        ) {
+          pluginOwners.delete(gridItemUUID);
+          for (const key of owner.keys) releasedPluginKeys.add(key);
+        }
+      }
+      for (const key of releasedPluginKeys) {
+        // Kept while another plugin variable input publishes it, or a
+        // built-in one that already owned it still does. A built-in Variable
+        // Input that only now takes the name is seeded fresh rather than
+        // inheriting the deleted one's value.
+        const ownedByPlugin = [...pluginOwners.values()].some((owner) =>
+          owner.keys.has(key),
+        );
+        const ownedByBuiltIn = previouslyOwned.has(key) && stillOwned.has(key);
+        if (!ownedByPlugin && !ownedByBuiltIn) released.push(key);
+      }
 
       setVariableInputValues((prev) =>
         applyVariableInputSeeds(prev, seeds, released),
@@ -284,6 +356,40 @@ const DashboardLoader = ({
         ...dateFormats,
       }));
       return { seeds, dateFormats };
+    },
+    [],
+  );
+
+  // VariableInput's publish path for a plugin variable input: records which
+  // keys its grid item publishes, so a rebuild can release them once the
+  // grid item is gone. A new variable name for the same grid item (the plugin
+  // renamed it) releases the old name's keys at once.
+  const registerPluginVariableInput = useCallback(
+    (gridItemUUID, variableName, keys) => {
+      if (!gridItemUUID || !variableName) return;
+      const owners = pluginVariableInputOwners.current;
+      const previous = owners.get(gridItemUUID);
+      const renamed = previous && previous.variableName !== variableName;
+      const nextKeys = new Set(keys);
+      if (previous && !renamed) {
+        for (const key of previous.keys) nextKeys.add(key);
+      }
+      owners.set(gridItemUUID, { variableName, keys: nextKeys });
+      if (!renamed) return;
+
+      const builtInOwned = unionOfKeys(ownedVariableInputKeys.current);
+      const released = [...previous.keys].filter(
+        (key) =>
+          !nextKeys.has(key) &&
+          !builtInOwned.has(key) &&
+          ![...owners.values()].some((owner) => owner.keys.has(key)),
+      );
+      if (released.length === 0) return;
+      setVariableInputValues((prev) => {
+        const next = { ...prev };
+        for (const key of released) delete next[key];
+        return next;
+      });
     },
     [],
   );
@@ -344,9 +450,11 @@ const DashboardLoader = ({
           // A saved tab can come back under a new id (a tab added since the
           // load is named until the server assigns one), so re-key which
           // variable inputs each tab owns; the values themselves are as-is.
-          ownedVariableInputKeys.current = buildVariableInputSeeds(
+          const { keysByTab, uuidsByTab } = buildVariableInputSeeds(
             updatedDashboard.tabs,
-          ).keysByTab;
+          );
+          ownedVariableInputKeys.current = keysByTab;
+          gridItemUUIDsByTab.current = uuidsByTab;
           setActiveTabId(updatedDashboard.tabs[originalActiveTabIndex].id);
         }
       }
@@ -416,6 +524,7 @@ const DashboardLoader = ({
       setVariableInputDateFormats,
       variableInputSliderMeta,
       setVariableInputSliderMeta,
+      registerPluginVariableInput,
     }),
     [
       variableInputValues,
@@ -424,6 +533,7 @@ const DashboardLoader = ({
       setVariableInputDateFormats,
       variableInputSliderMeta,
       setVariableInputSliderMeta,
+      registerPluginVariableInput,
     ],
   );
 

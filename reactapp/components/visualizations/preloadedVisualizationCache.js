@@ -1,14 +1,17 @@
-// One-shot cache of visualization responses fetched before the dashboard
-// rendered. DashboardLoader preloads plugin-sourced variable inputs so the
+// One-shot cache of visualization requests DashboardLoader started before the
+// dashboard rendered. It preloads plugin-sourced variable inputs so the
 // visualizations that depend on them can fetch with a value on their first
-// render; the variable input's own tile then takes its response from here
-// instead of running the plugin a second time.
+// render; the variable input's own tile then awaits the same request instead
+// of running the plugin a second time -- whether that request has already
+// settled or is still running past the preload's budget.
 //
 // Deliberately module-level rather than React state: nothing renders from
 // it, an entry is read exactly once and then discarded, and putting it in
 // VariableInputsContext would re-render every consumer when an entry is
 // taken. DashboardLoader clears it whenever a dashboard mounts or unmounts,
 // so an entry can never outlive the dashboard that fetched it.
+//
+// requestId (the grid item's uuid) -> { key, promise, settled }
 const preloadedVisualizations = new Map();
 
 // Key order is normalized so the key does not depend on how the args object
@@ -26,28 +29,69 @@ function stableStringify(value) {
   return JSON.stringify(value) ?? "null";
 }
 
-/** Cache key for a request: its source plus its fully resolved args. */
-export function buildPreloadedVisualizationKey({ source, args }) {
-  return stableStringify({ source: source ?? null, args: args ?? null });
-}
-
-export function setPreloadedVisualization(request, response) {
-  preloadedVisualizations.set(
-    buildPreloadedVisualizationKey(request),
-    response,
-  );
+/**
+ * What a request is built from, rather than the request itself: the source,
+ * the grid item's raw (unresolved) args, and the value and date format of
+ * every variable input those args reference (`tokens`).
+ *
+ * Built from the inputs to substitution, not its output, on purpose.
+ * Resolving the same args twice is not guaranteed to give the same request:
+ * relative date math ("now-1D") resolves against the clock, so the preload
+ * and the tile, a few seconds apart, would build different requests for the
+ * same configuration and the plugin would run twice. Equal inputs can differ
+ * in their resolution only by when they were resolved, so they may share a
+ * response; any genuine difference -- an edited arg, a changed variable
+ * value -- changes the key.
+ */
+export function buildPreloadedVisualizationKey({
+  source,
+  args,
+  variableInputValues = {},
+  variableInputDateFormats = {},
+  tokens = [],
+}) {
+  const values = {};
+  const dateFormats = {};
+  for (const token of tokens) {
+    values[token] = variableInputValues?.[token] ?? null;
+    dateFormats[token] = variableInputDateFormats?.[token] ?? null;
+  }
+  return stableStringify({
+    source: source ?? null,
+    args: args ?? null,
+    values,
+    dateFormats,
+  });
 }
 
 /**
- * Returns the preloaded response for this request and removes it, or
- * undefined. Removing on read is what makes a later args change refetch.
+ * Records a preload request for the grid item `requestId`, while it is still
+ * in flight. `key` is the request's buildPreloadedVisualizationKey.
  */
-export function takePreloadedVisualization(request) {
-  const key = buildPreloadedVisualizationKey(request);
-  if (!preloadedVisualizations.has(key)) return undefined;
-  const response = preloadedVisualizations.get(key);
-  preloadedVisualizations.delete(key);
-  return response;
+export function setPreloadedVisualization(requestId, key, promise) {
+  if (requestId === undefined || requestId === null) return;
+  const entry = { key, promise, settled: false };
+  const markSettled = () => {
+    entry.settled = true;
+  };
+  promise.then(markSettled, markSettled);
+  preloadedVisualizations.set(requestId, entry);
+}
+
+/**
+ * Returns `{ promise, settled }` for the grid item's preloaded request when
+ * it was built from the same `key`, or undefined. The entry is removed either
+ * way: removing on read is what makes a later args change or a refresh fetch
+ * normally, and an entry that did not match is for a configuration the tile
+ * no longer has.
+ */
+export function takePreloadedVisualization(requestId, key) {
+  if (requestId === undefined || requestId === null) return undefined;
+  const entry = preloadedVisualizations.get(requestId);
+  if (!entry) return undefined;
+  preloadedVisualizations.delete(requestId);
+  if (entry.key !== key) return undefined;
+  return { promise: entry.promise, settled: entry.settled };
 }
 
 export function clearPreloadedVisualizations() {

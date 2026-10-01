@@ -7,7 +7,10 @@ import {
   isPreset,
 } from "components/inputs/dateUtils";
 import { format } from "date-fns";
-import { takePreloadedVisualization } from "components/visualizations/preloadedVisualizationCache";
+import {
+  buildPreloadedVisualizationKey,
+  takePreloadedVisualization,
+} from "components/visualizations/preloadedVisualizationCache";
 
 // In-memory cache of resolved image-visualization results, keyed by the
 // request (source + resolved args). Image plugins are deterministic for a
@@ -156,6 +159,27 @@ export function getVariableInputDateFormat({
     return metadata?.outputFormat || null;
   }
   return null;
+}
+
+/**
+ * The preloaded-visualization cache key for a grid item's request: built from
+ * its raw args and the variable inputs they reference, with the same
+ * tokenizer the substituter uses. See buildPreloadedVisualizationKey for why
+ * the inputs to substitution, not its output.
+ */
+export function buildPreloadedRequestKey({
+  source,
+  args,
+  variableInputValues,
+  variableInputDateFormats,
+}) {
+  return buildPreloadedVisualizationKey({
+    source,
+    args,
+    variableInputValues,
+    variableInputDateFormats,
+    tokens: findUnresolvedVariableInputTokens(args),
+  });
 }
 
 /**
@@ -375,22 +399,37 @@ export async function getVisualization({
     }
   }
 
-  // A plugin variable input DashboardLoader already ran before the dashboard
-  // rendered: take its response instead of running the plugin again. Taken,
-  // not read, so a later args change (a different key anyway) or a refresh
-  // fetches normally. Only the dashboard's own tiles consume it -- the data
-  // viewer previews a configuration rather than the loaded dashboard.
-  const preloadedResponse = dashboardView
-    ? takePreloadedVisualization(itemData)
+  // A plugin variable input DashboardLoader already started before the
+  // dashboard rendered: await that request instead of running the plugin
+  // again, whether it has settled or is still running past the preload's
+  // budget. Taken, not read, so a later args change or a refresh fetches
+  // normally. Only the dashboard's own tiles consume it -- the data viewer
+  // previews a configuration rather than the loaded dashboard.
+  const preloaded = dashboardView
+    ? takePreloadedVisualization(
+        itemData.requestId,
+        buildPreloadedRequestKey({
+          source: itemData.source,
+          args: JSON.parse(argsString),
+          variableInputValues,
+          variableInputDateFormats,
+        }),
+      )
     : undefined;
-  const usePreloaded = preloadedResponse !== undefined && !refresh;
+  const usePreloaded = preloaded !== undefined && !refresh;
 
-  if (!usePreloaded && vizLoadingIcon && sourceType !== "map") {
+  // No loader flash for a response that is already here; one still on its
+  // way shows the loader like any other fetch.
+  if (
+    !(usePreloaded && preloaded.settled) &&
+    vizLoadingIcon &&
+    sourceType !== "map"
+  ) {
     setVizType("loader");
   }
 
   const apiResponse = usePreloaded
-    ? preloadedResponse
+    ? await preloaded.promise
     : await appAPI.getVisualizationData(itemData);
   if (apiResponse.success === true) {
     let responseData = JSON.parse(JSON.stringify(apiResponse.data));

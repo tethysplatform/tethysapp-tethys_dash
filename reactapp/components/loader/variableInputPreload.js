@@ -7,6 +7,7 @@ import {
   normalizeVariableInputValue,
   getPublishedVariableInputValues,
   getVariableInputDateFormat,
+  buildPreloadedRequestKey,
 } from "components/visualizations/utilities";
 import { setPreloadedVisualization } from "components/visualizations/preloadedVisualizationCache";
 
@@ -67,16 +68,20 @@ function isRunnable({ args }, values) {
  * whose args resolve from the values known so far, and its results may make
  * further ones runnable. It stops when a wave makes nothing new runnable (a
  * cycle, or a variable nothing sets) or when `budgetMs` runs out, whichever
- * comes first. A response that lands after that is ignored: it is neither
- * cached nor reported, so its tile simply loads it again after render.
+ * comes first. A response that lands after that adds no values, but its
+ * request is not lost: see below.
  *
- * Each successful response is put in the one-shot preloaded-visualization
- * cache, keyed by the same source + resolved args getVisualization will
- * build, so the variable input's own tile does not run the plugin again.
+ * Each request is put in the one-shot preloaded-visualization cache as soon
+ * as it starts, under its grid item's uuid, so the variable input's own tile
+ * awaits it instead of running the plugin again -- including a request still
+ * running when the budget ran out, which would otherwise run twice and
+ * stream progress from both runs to the same tile.
  *
  * Returns only what the preload adds: `values` to merge into the variable
- * input values, normalized exactly as VariableInput would publish them, and
- * the `dateFormats` those variable inputs would self-register.
+ * input values, normalized exactly as VariableInput would publish them, the
+ * `dateFormats` those variable inputs would self-register, and `owners`, the
+ * keys each grid item published (uuid -> { variableName, keys }), so the
+ * dashboard can release them when that grid item goes away.
  */
 export async function preloadPluginVariableInputs({
   tabs,
@@ -90,8 +95,9 @@ export async function preloadPluginVariableInputs({
   let pending = collectPluginVariableInputs(tabs, visualizations);
   const values = {};
   const dateFormats = {};
+  const owners = {};
   const total = pending.length;
-  if (total === 0) return { values, dateFormats };
+  if (total === 0) return { values, dateFormats, owners };
 
   const knownValues = { ...variableInputValues };
   const knownDateFormats = { ...variableInputDateFormats };
@@ -107,12 +113,10 @@ export async function preloadPluginVariableInputs({
   const isOver = () => expired || isAbandoned();
 
   const run = async ({ gridItem, args, sourceArgs }) => {
-    // The request getVisualization builds for this grid item, so the cache
-    // key matches the one its tile will look up.
-    let itemData;
+    // The request getVisualization builds for this grid item.
     let response;
     try {
-      itemData = {
+      const itemData = {
         source: gridItem.source,
         args: updateObjectWithVariableInputs({
           args,
@@ -123,7 +127,20 @@ export async function preloadPluginVariableInputs({
         }),
         requestId: gridItem.uuid,
       };
-      response = await appAPI.getVisualizationData(itemData);
+      const request = appAPI.getVisualizationData(itemData);
+      // Cached before it settles, keyed by what it was built from, so the
+      // tile shares it even if the budget runs out first.
+      setPreloadedVisualization(
+        gridItem.uuid,
+        buildPreloadedRequestKey({
+          source: gridItem.source,
+          args,
+          variableInputValues: knownValues,
+          variableInputDateFormats: knownDateFormats,
+        }),
+        request,
+      );
+      response = await request;
     } catch (error) {
       response = null;
     }
@@ -153,7 +170,6 @@ export async function preloadPluginVariableInputs({
     } catch (error) {
       return;
     }
-    setPreloadedVisualization(itemData, response);
     const { variable_name, initial_value, variable_options_source, metadata } =
       data;
     // VariableInput publishes nothing without a variable_options_source.
@@ -162,6 +178,10 @@ export async function preloadPluginVariableInputs({
       variable_name,
       normalizeVariableInputValue({ variable_options_source, initial_value }),
     );
+    owners[gridItem.uuid] = {
+      variableName: variable_name,
+      keys: published ? Object.keys(published) : [variable_name],
+    };
     if (published) {
       Object.assign(values, published);
       Object.assign(knownValues, published);
@@ -189,5 +209,5 @@ export async function preloadPluginVariableInputs({
     // Anything still in flight is abandoned from here on.
     expired = true;
   }
-  return { values, dateFormats };
+  return { values, dateFormats, owners };
 }

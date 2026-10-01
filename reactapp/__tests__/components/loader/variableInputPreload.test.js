@@ -10,6 +10,7 @@ import {
   clearPreloadedVisualizations,
   takePreloadedVisualization,
 } from "components/visualizations/preloadedVisualizationCache";
+import { buildPreloadedRequestKey } from "components/visualizations/utilities";
 
 const visualizations = [
   {
@@ -48,6 +49,13 @@ const mockPlugins = (responses) =>
       typeof response === "function" ? response(itemData) : response,
     );
   });
+
+// What a tile with these raw args and variable values would take.
+const takeFor = (uuid, source, args, variableInputValues = {}) =>
+  takePreloadedVisualization(
+    uuid,
+    buildPreloadedRequestKey({ source, args, variableInputValues }),
+  );
 
 const flushMicrotasks = async () => {
   for (let i = 0; i < 10; i += 1) await Promise.resolve();
@@ -90,7 +98,7 @@ it("does nothing when the dashboard has no plugin variable inputs", async () => 
     visualizations,
     onProgress,
   });
-  expect(result).toEqual({ values: {}, dateFormats: {} });
+  expect(result).toEqual({ values: {}, dateFormats: {}, owners: {} });
   expect(spy).not.toHaveBeenCalled();
   expect(onProgress).not.toHaveBeenCalled();
 });
@@ -137,13 +145,23 @@ it("loads a chain in waves, resolving each wave's args from the last", async () 
     { completed: 1, total: 2 },
     { completed: 2, total: 2 },
   ]);
-  // Both responses are waiting for their tiles, under the args they ran with.
-  expect(
-    takePreloadedVisualization({
-      source: "picker_b",
-      args: { station: "west" },
-    }),
-  ).toEqual(viResponse({ variable_name: "Station", initial_value: "west-1" }));
+  // Each grid item's request is waiting for its tile, keyed by the raw args
+  // and the variable values it was built from.
+  const entry = takeFor(
+    "picker_b",
+    "picker_b",
+    { station: "${Region}" },
+    { Region: "west" },
+  );
+  expect(entry.settled).toBe(true);
+  await expect(entry.promise).resolves.toEqual(
+    viResponse({ variable_name: "Station", initial_value: "west-1" }),
+  );
+  // And it reports which keys each grid item published.
+  expect(result.owners).toEqual({
+    picker_a: { variableName: "Region", keys: ["Region"] },
+    picker_b: { variableName: "Station", keys: ["Station"] },
+  });
 });
 
 it("skips cyclic and unresolvable plugin variable inputs", async () => {
@@ -196,9 +214,22 @@ it("leaves a failing plugin to its tile and keeps going", async () => {
   });
 
   expect(result.values).toEqual({ B: "b" });
-  expect(
-    takePreloadedVisualization({ source: "picker_a", args: { region: "x" } }),
-  ).toBe(undefined);
+  // The tile reports the failure from the same request rather than running
+  // the plugin a second time.
+  await expect(
+    takeFor("picker_a", "picker_a", { region: "x" }).promise,
+  ).resolves.toEqual({ success: false, data: { error: "boom" } });
+});
+
+it("throws from a helper rather than swallowing it, for the loader to catch", async () => {
+  jest.spyOn(appAPI, "getVisualizationData");
+  await expect(
+    preloadPluginVariableInputs({
+      tabs: [{ id: 1, gridItems: [gridItem("picker_a", {})] }],
+      // A malformed registry entry makes collectPluginVariableInputs throw.
+      visualizations: [null],
+    }),
+  ).rejects.toThrow();
 });
 
 it("publishes nothing for an empty initial value, the same as VariableInput", async () => {
@@ -290,14 +321,18 @@ it("stops at the budget and ignores what arrives afterwards", async () => {
   // What arrived inside the budget counts...
   expect(result.values).toEqual({ A: "a" });
 
-  // ...and the hanging plugin's late answer goes nowhere.
+  // ...the hanging plugin's request is left for its tile, still pending...
+  const entry = takeFor("picker_b", "picker_b", { station: "y" });
+  expect(entry.settled).toBe(false);
+
+  // ...and its late answer adds no values, but reaches the tile.
   resolveSlow(viResponse({ variable_name: "B", initial_value: "late" }));
   await flushMicrotasks();
   expect(result.values).toEqual({ A: "a" });
   expect(onProgress).toHaveBeenLastCalledWith({ completed: 1, total: 2 });
-  expect(
-    takePreloadedVisualization({ source: "picker_b", args: { station: "y" } }),
-  ).toBe(undefined);
+  await expect(entry.promise).resolves.toEqual(
+    viResponse({ variable_name: "B", initial_value: "late" }),
+  );
 });
 
 it("writes nothing once abandoned", async () => {
@@ -314,7 +349,5 @@ it("writes nothing once abandoned", async () => {
     isAbandoned: () => abandoned,
   });
   expect(result.values).toEqual({});
-  expect(takePreloadedVisualization({ source: "picker_a", args: {} })).toBe(
-    undefined,
-  );
+  expect(result.owners).toEqual({});
 });

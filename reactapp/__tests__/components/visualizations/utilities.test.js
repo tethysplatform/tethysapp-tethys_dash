@@ -23,6 +23,7 @@ import {
   normalizeVariableInputValue,
   getPublishedVariableInputValues,
   getVariableInputDateFormat,
+  buildPreloadedRequestKey,
 } from "components/visualizations/utilities";
 import appAPI from "services/api/app";
 import {
@@ -2336,7 +2337,7 @@ describe("preloaded visualization cache", () => {
     jest.restoreAllMocks();
   });
 
-  it("keys a request by source and args regardless of key order", () => {
+  it("keys a request by what it is built from, regardless of key order", () => {
     expect(
       buildPreloadedVisualizationKey({ source: "s", args: { a: 1, b: 2 } }),
     ).toBe(
@@ -2345,17 +2346,31 @@ describe("preloaded visualization cache", () => {
     expect(
       buildPreloadedVisualizationKey({ source: "s", args: { a: 1 } }),
     ).not.toBe(buildPreloadedVisualizationKey({ source: "s", args: { a: 2 } }));
+    // Only the referenced variables' values count.
+    const key = (variableInputValues) =>
+      buildPreloadedVisualizationKey({
+        source: "s",
+        args: { a: "${X}" },
+        variableInputValues,
+        tokens: ["X"],
+      });
+    expect(key({ X: 1, Y: 1 })).toBe(key({ X: 1, Y: 2 }));
+    expect(key({ X: 1 })).not.toBe(key({ X: 2 }));
   });
 
-  it("hands an entry out once", () => {
+  it("hands an entry out once, and only for the key it was built from", async () => {
     const response = { success: true };
-    setPreloadedVisualization({ source: "s", args: {} }, response);
-    expect(takePreloadedVisualization({ source: "s", args: {} })).toBe(
-      response,
-    );
-    expect(takePreloadedVisualization({ source: "s", args: {} })).toBe(
-      undefined,
-    );
+    setPreloadedVisualization("uuid", "key", Promise.resolve(response));
+    expect(takePreloadedVisualization("uuid", "other")).toBe(undefined);
+    // A miss discards the entry: it was for a configuration now gone.
+    expect(takePreloadedVisualization("uuid", "key")).toBe(undefined);
+
+    setPreloadedVisualization("uuid", "key", Promise.resolve(response));
+    await Promise.resolve();
+    const entry = takePreloadedVisualization("uuid", "key");
+    expect(entry.settled).toBe(true);
+    await expect(entry.promise).resolves.toBe(response);
+    expect(takePreloadedVisualization("uuid", "key")).toBe(undefined);
   });
 
   const preloadedResponse = {
@@ -2376,7 +2391,7 @@ describe("preloaded visualization cache", () => {
       setVizData,
       sourceType: "variable_input",
       sourceArgs: { region: "text" },
-      itemData: { source: "station_picker", args: {} },
+      itemData: { source: "station_picker", args: {}, requestId: "uuid-1" },
       argsString: JSON.stringify({ region: "west" }),
       metadataString: "{}",
       variableInputValues: {},
@@ -2385,14 +2400,27 @@ describe("preloaded visualization cache", () => {
     }).then(() => ({ setVizType, setVizData }));
   };
 
+  const preload = (
+    promise = Promise.resolve(preloadedResponse),
+    args = { region: "west" },
+    variableInputValues = {},
+  ) =>
+    setPreloadedVisualization(
+      "uuid-1",
+      buildPreloadedRequestKey({
+        source: "station_picker",
+        args,
+        variableInputValues,
+      }),
+      promise,
+    );
+
   it("serves a preloaded response to the tile once, then fetches", async () => {
     const spy = jest
       .spyOn(appAPI, "getVisualizationData")
       .mockResolvedValue(preloadedResponse);
-    setPreloadedVisualization(
-      { source: "station_picker", args: { region: "west" } },
-      preloadedResponse,
-    );
+    preload();
+    await Promise.resolve();
 
     const first = await runGetVisualization();
     expect(spy).not.toHaveBeenCalled();
@@ -2411,56 +2439,105 @@ describe("preloaded visualization cache", () => {
     expect(spy).toHaveBeenCalledTimes(1);
   });
 
+  it("awaits a preload still in flight, showing the loader meanwhile", async () => {
+    const spy = jest.spyOn(appAPI, "getVisualizationData");
+    let resolvePreload;
+    preload(
+      new Promise((resolve) => {
+        resolvePreload = resolve;
+      }),
+    );
+
+    const tile = runGetVisualization({ vizLoadingIcon: true });
+    await Promise.resolve();
+    resolvePreload(preloadedResponse);
+    const { setVizType } = await tile;
+
+    expect(spy).not.toHaveBeenCalled();
+    expect(setVizType.mock.calls.map((call) => call[0])).toEqual([
+      "loader",
+      "variableInput",
+    ]);
+  });
+
+  it("matches across date math resolved at different times", async () => {
+    jest.useFakeTimers({ now: new Date("2026-01-01T00:00:00Z") });
+    try {
+      const spy = jest.spyOn(appAPI, "getVisualizationData");
+      const args = { region: "now-1D" };
+      preload(Promise.resolve(preloadedResponse), args);
+      jest.setSystemTime(new Date("2026-01-01T00:00:07Z"));
+
+      await runGetVisualization({
+        argsString: JSON.stringify(args),
+        sourceArgs: { region: "date" },
+      });
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it("is not consumed outside the dashboard view", async () => {
     const spy = jest
       .spyOn(appAPI, "getVisualizationData")
       .mockResolvedValue(preloadedResponse);
-    setPreloadedVisualization(
-      { source: "station_picker", args: { region: "west" } },
-      preloadedResponse,
-    );
+    preload();
 
     await runGetVisualization({ dashboardView: false });
     expect(spy).toHaveBeenCalledTimes(1);
     expect(
-      takePreloadedVisualization({
-        source: "station_picker",
-        args: { region: "west" },
-      }),
-    ).toBe(preloadedResponse);
+      takePreloadedVisualization(
+        "uuid-1",
+        buildPreloadedRequestKey({
+          source: "station_picker",
+          args: { region: "west" },
+        }),
+      ),
+    ).toBeDefined();
   });
 
   it("is bypassed, and discarded, on a refresh", async () => {
     const spy = jest
       .spyOn(appAPI, "getVisualizationData")
       .mockResolvedValue(preloadedResponse);
-    setPreloadedVisualization(
-      { source: "station_picker", args: { region: "west" } },
-      preloadedResponse,
-    );
+    preload();
 
     await runGetVisualization({ refresh: true });
     expect(spy).toHaveBeenCalledTimes(1);
-    expect(
-      takePreloadedVisualization({
-        source: "station_picker",
-        args: { region: "west" },
-      }),
-    ).toBe(undefined);
+    await runGetVisualization();
+    expect(spy).toHaveBeenCalledTimes(2);
   });
 
-  it("misses when the resolved args differ from the preloaded ones", async () => {
+  it("misses when the args differ from the preloaded ones", async () => {
     const spy = jest
       .spyOn(appAPI, "getVisualizationData")
       .mockResolvedValue(preloadedResponse);
-    setPreloadedVisualization(
-      { source: "station_picker", args: { region: "west" } },
-      preloadedResponse,
-    );
+    preload();
 
     await runGetVisualization({
       argsString: JSON.stringify({ region: "east" }),
     });
     expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it("misses when a referenced variable's value differs", async () => {
+    const spy = jest
+      .spyOn(appAPI, "getVisualizationData")
+      .mockResolvedValue(preloadedResponse);
+    preload(
+      Promise.resolve(preloadedResponse),
+      { region: "${Region}" },
+      {
+        Region: "west",
+      },
+    );
+
+    await runGetVisualization({
+      argsString: JSON.stringify({ region: "${Region}" }),
+      variableInputValues: { Region: "east" },
+    });
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0][0].args).toEqual({ region: "east" });
   });
 });

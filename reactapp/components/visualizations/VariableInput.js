@@ -6,6 +6,7 @@ import {
   AppContext,
   VariableInputsContext,
   DataViewerModeContext,
+  GridItemContext,
 } from "components/contexts/Contexts";
 import {
   nonDropDownVariableInputTypes,
@@ -66,7 +67,13 @@ const VariableInput = ({
     variableInputValues,
     setVariableInputValues,
     setVariableInputDateFormats,
+    registerPluginVariableInput,
   } = useContext(VariableInputsContext);
+  const { gridItemUUID, gridItemSource } = useContext(GridItemContext) ?? {};
+  // A plugin-sourced variable input, whose values only it can publish. The
+  // built-in "Variable Input" is seeded from its args by DashboardLoader.
+  const isPluginVariableInput =
+    gridItemSource !== undefined && gridItemSource !== "Variable Input";
 
   // Initialize updatedMetadata when metadata or variableInputValues change
   useEffect(() => {
@@ -117,9 +124,25 @@ const VariableInput = ({
           ...newVariableValues,
         }));
       }
+      // Tell the dashboard which keys this grid item publishes, so they are
+      // released when it is deleted or renamed. Absent inside a popup, whose
+      // scoped provider does not track ownership.
+      if (isPluginVariableInput) {
+        registerPluginVariableInput?.(
+          gridItemUUID,
+          variable_name,
+          newVariableValues ? Object.keys(newVariableValues) : [variable_name],
+        );
+      }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [variable_name, setVariableInputValues],
+    [
+      variable_name,
+      setVariableInputValues,
+      registerPluginVariableInput,
+      gridItemUUID,
+      isPluginVariableInput,
+    ],
   );
 
   useEffect(() => {

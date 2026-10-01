@@ -3,7 +3,8 @@ import { screen, render, waitFor, act } from "@testing-library/react";
 import appAPI from "services/api/app";
 import { VARIABLE_INPUT_PRELOAD_BUDGET_MS } from "components/loader/variableInputPreload";
 import { clearPreloadedVisualizations } from "components/visualizations/preloadedVisualizationCache";
-import { useContext } from "react";
+import { useContext, useState } from "react";
+import VariableInput from "components/visualizations/VariableInput";
 import { AvailableDashboardsContext } from "components/contexts/Contexts";
 import {
   userDashboard,
@@ -31,6 +32,7 @@ import {
   DisabledEditingMovementContext,
   TabContext,
   AppContext,
+  GridItemContext,
 } from "components/contexts/Contexts";
 import PropTypes from "prop-types";
 
@@ -1470,6 +1472,7 @@ describe("DashboardLoader plugin variable input preload", () => {
         name: "Tab 1",
         gridItems: [builtInVariableInput, pluginVariableInput],
       },
+      { id: 2, name: "Tab 2", gridItems: [] },
     ],
   };
 
@@ -1483,9 +1486,31 @@ describe("DashboardLoader plugin variable input preload", () => {
     },
   };
 
-  const renderPreloadingDashboard = () =>
+  // The plugin variable input's own tile, publishing through the real
+  // VariableInput. `variableName` stands in for what its run() returned.
+  const PluginVariableInputTile = ({ variableName }) => (
+    <GridItemContext.Provider
+      value={{
+        gridItemUUID: pluginVariableInput.uuid,
+        gridItemSource: pluginVariableInput.source,
+      }}
+    >
+      <VariableInput
+        variable_name={variableName}
+        initial_value="SALEM"
+        variable_options_source="text"
+        onChange={() => {}}
+      />
+    </GridItemContext.Provider>
+  );
+  PluginVariableInputTile.propTypes = { variableName: PropTypes.string };
+
+  const renderPreloadingDashboard = ({
+    visualizations = pluginVisualizations,
+    children = null,
+  } = {}) =>
     render(
-      <AppContext.Provider value={{ visualizations: pluginVisualizations }}>
+      <AppContext.Provider value={{ visualizations, visualizationArgs: [] }}>
         <AvailableDashboardsContext.Provider
           value={{ updateDashboard: jest.fn() }}
         >
@@ -1511,9 +1536,39 @@ describe("DashboardLoader plugin variable input preload", () => {
                       updateTab(1, { gridItems: [pluginVariableInput] })
                     }
                   ></button>
+                  <button
+                    data-testid="removePluginButton"
+                    onClick={() =>
+                      updateTab(1, { gridItems: [builtInVariableInput] })
+                    }
+                  ></button>
+                  <button
+                    data-testid="replacePluginWithBuiltInButton"
+                    onClick={() =>
+                      updateTab(1, {
+                        gridItems: [
+                          builtInVariableInput,
+                          {
+                            ...builtInVariableInput,
+                            uuid: "new-built-in-uuid",
+                            args_string: JSON.stringify({
+                              initial_value: "fresh",
+                              variable_name: "Station",
+                              variable_options_source: "text",
+                            }),
+                          },
+                        ],
+                      })
+                    }
+                  ></button>
+                  <button
+                    data-testid="updateOtherTabButton"
+                    onClick={() => updateTab(2, { gridItems: [] })}
+                  ></button>
                 </>
               )}
             </TabContext.Consumer>
+            {children}
           </DashboardLoader>
         </AvailableDashboardsContext.Provider>
       </AppContext.Provider>,
@@ -1619,6 +1674,167 @@ describe("DashboardLoader plugin variable input preload", () => {
       JSON.stringify({ "Built In": "built in" }),
     );
   });
+
+  test("releases a deleted plugin variable input's value, but not for another tab's update", async () => {
+    jest
+      .spyOn(appAPI, "getVisualizationData")
+      .mockResolvedValue(stationResponse);
+
+    renderPreloadingDashboard();
+    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({ "Built In": "built in", Station: "SALEM" }),
+    );
+
+    // Another tab's update only considers that tab's grid items.
+    await userEvent.click(screen.getByTestId("updateOtherTabButton"));
+    expect(screen.getByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({ "Built In": "built in", Station: "SALEM" }),
+    );
+
+    await userEvent.click(screen.getByTestId("removePluginButton"));
+    expect(screen.getByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({ "Built In": "built in" }),
+    );
+  });
+
+  test("seeds a built-in that takes a deleted plugin's name fresh", async () => {
+    jest
+      .spyOn(appAPI, "getVisualizationData")
+      .mockResolvedValue(stationResponse);
+
+    renderPreloadingDashboard();
+    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({ "Built In": "built in", Station: "SALEM" }),
+    );
+
+    await userEvent.click(screen.getByTestId("replacePluginWithBuiltInButton"));
+    expect(screen.getByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({ "Built In": "built in", Station: "fresh" }),
+    );
+  });
+
+  test("releases the old name when a plugin variable input is renamed", async () => {
+    jest
+      .spyOn(appAPI, "getVisualizationData")
+      .mockResolvedValue(stationResponse);
+    const RenamingTile = () => {
+      const [variableName, setVariableName] = useState("Station");
+      return (
+        <>
+          <PluginVariableInputTile variableName={variableName} />
+          <button
+            data-testid="renameButton"
+            onClick={() => setVariableName("Gauge")}
+          ></button>
+        </>
+      );
+    };
+
+    renderPreloadingDashboard({ children: <RenamingTile /> });
+    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({ "Built In": "built in", Station: "SALEM" }),
+    );
+
+    await userEvent.click(screen.getByTestId("renameButton"));
+    await waitFor(() =>
+      expect(screen.getByTestId("input-variables")).toHaveTextContent(
+        JSON.stringify({ "Built In": "built in", Gauge: "SALEM" }),
+      ),
+    );
+
+    // And the new name is the one a deletion releases.
+    await userEvent.click(screen.getByTestId("removePluginButton"));
+    expect(screen.getByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({ "Built In": "built in" }),
+    );
+  });
+
+  test("keeps a plugin variable input's value when its tile unmounts for a tab switch", async () => {
+    jest
+      .spyOn(appAPI, "getVisualizationData")
+      .mockResolvedValue(stationResponse);
+    const SwitchingTabs = () => {
+      const [onFirstTab, setOnFirstTab] = useState(true);
+      return (
+        <>
+          {onFirstTab && <PluginVariableInputTile variableName="Station" />}
+          <button
+            data-testid="switchTabButton"
+            onClick={() => setOnFirstTab(!onFirstTab)}
+          ></button>
+        </>
+      );
+    };
+
+    renderPreloadingDashboard({ children: <SwitchingTabs /> });
+    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({ "Built In": "built in", Station: "SALEM" }),
+    );
+
+    await userEvent.click(screen.getByTestId("switchTabButton"));
+    expect(screen.queryByText("Station")).not.toBeInTheDocument();
+    // A layout update after the switch still finds the grid item present.
+    await userEvent.click(screen.getByTestId("moveGridItemButton"));
+    expect(screen.getByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({ "Built In": "built in", Station: "SALEM" }),
+    );
+  });
+
+  test("renders the dashboard without preloaded values when the preload throws", async () => {
+    const spy = jest.spyOn(appAPI, "getVisualizationData");
+
+    // A malformed registry entry makes the preload's own helpers throw,
+    // outside any request.
+    renderPreloadingDashboard({ visualizations: [null] });
+
+    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({ "Built In": "built in" }),
+    );
+    expect(
+      screen.queryByText("Dashboard Failed to Load"),
+    ).not.toBeInTheDocument();
+    expect(spy).not.toHaveBeenCalled();
+  });
+});
+
+test("keeps a map attribute variable another tab still uses when one tab is updated", async () => {
+  const mapWithAttribute = JSON.parse(JSON.stringify(mockedMapBase));
+  mapWithAttribute.args_string = JSON.stringify({
+    baseMap: "some_base_map",
+    layers: [{ attributeVariables: { NWC: { nws_lid: "Shared LID" } } }],
+  });
+  const twoTabDashboard = {
+    ...JSON.parse(JSON.stringify(userDashboard)),
+    tabs: [
+      { id: 1, name: "Tab 1", gridItems: [mapWithAttribute] },
+      {
+        id: 2,
+        name: "Tab 2",
+        gridItems: [{ ...mapWithAttribute, uuid: "second-map-uuid" }],
+      },
+    ],
+  };
+  jest
+    .spyOn(appAPI, "getDashboard")
+    .mockResolvedValue({ success: true, dashboard: twoTabDashboard });
+
+  render(
+    <AvailableDashboardsContext.Provider value={{ updateDashboard: jest.fn() }}>
+      <DashboardLoader {...twoTabDashboard}>
+        <TestingComponent TabID={1} updatedTabProperties={{ gridItems: [] }} />
+      </DashboardLoader>
+    </AvailableDashboardsContext.Provider>,
+  );
+
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({ "Shared LID": null }),
+  );
+  // Tab 1, the first to seed it, drops its map; tab 2's map still uses it.
+  await userEvent.click(screen.getByTestId("updatedTabButton"));
+  expect(screen.getByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({ "Shared LID": null }),
+  );
+  jest.restoreAllMocks();
 });
 
 TestingComponent.propTypes = {
