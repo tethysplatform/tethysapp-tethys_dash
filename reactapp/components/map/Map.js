@@ -452,6 +452,16 @@ const MapComponent = ({
   const viewGroupApplyRef = useRef(null);
   const previousShouldLoadRef = useRef(shouldLoad);
   const [viewGroupMismatch, setViewGroupMismatch] = useState(null);
+  // Same contract as the layer-failure alert: closing the notice hides only
+  // this exact mismatch, and a different group or projection brings it back.
+  const [dismissedViewGroupMismatchKey, setDismissedViewGroupMismatchKey] =
+    useState(null);
+  const viewGroupMismatchKey = viewGroupMismatch
+    ? `${viewGroupMismatch.groupName}|${viewGroupMismatch.mapCode}|${viewGroupMismatch.groupCode}`
+    : null;
+  const showViewGroupMismatch =
+    !!viewGroupMismatch &&
+    viewGroupMismatchKey !== dismissedViewGroupMismatchKey;
 
   // --- Coalesced `moveend` side effects (U4: R24, R29) --------------------
   // Unsettled motion is in flight on this member's own view. Held in a ref
@@ -1947,7 +1957,7 @@ const MapComponent = ({
         {(errorMessage ||
           showLayerFailure ||
           showLayerLoading ||
-          viewGroupMismatch) && (
+          showViewGroupMismatch) && (
           <AlertAnchor edges={ALERT_EDGES} mapDivRef={mapDivRef}>
             <AlertStack role="group" aria-label="Map Alerts">
               {errorMessage && (
@@ -1976,12 +1986,16 @@ const MapComponent = ({
                   {layerLoadingMessage}
                 </StyledAlert>
               )}
-              {viewGroupMismatch && (
+              {showViewGroupMismatch && (
                 <StyledAlert
                   variant="warning"
                   role="status"
                   aria-live="polite"
                   aria-label="View Group Projection Mismatch"
+                  dismissible={true}
+                  onClose={() =>
+                    setDismissedViewGroupMismatchKey(viewGroupMismatchKey)
+                  }
                 >
                   {`This map is not synced with the "${viewGroupMismatch.groupName}" ` +
                     `view group: it is in ${viewGroupMismatch.mapCode} and the ` +

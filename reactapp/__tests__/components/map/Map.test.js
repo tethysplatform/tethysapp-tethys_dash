@@ -4960,6 +4960,50 @@ describe("linked map view groups", () => {
     expect(stateOf(maps.b).resolution).toBe(resolutionB);
   });
 
+  test("the mismatch notice can be closed, and returns when the mismatch changes", async () => {
+    const { maps } = await renderDashboard([
+      grouped("a", "Basin"),
+      grouped("b", "Basin"),
+    ]);
+
+    await act(async () => {
+      maps.b.current.setView(
+        new View({ projection: "EPSG:4326", center: [10, 20], zoom: 4 }),
+      );
+    });
+    await frame(maps.b);
+    const notice = await screen.findByLabelText(
+      "View Group Projection Mismatch",
+    );
+
+    fireEvent.click(within(notice).getByRole("button", { name: /close/i }));
+    await waitFor(() =>
+      expect(
+        screen.queryByLabelText("View Group Projection Mismatch"),
+      ).not.toBeInTheDocument(),
+    );
+
+    // The same mismatch, re-reported on the next frame, stays closed.
+    await act(async () => {
+      viewOf(maps.b).setCenter([11, 21]);
+    });
+    await frame(maps.b);
+    expect(
+      screen.queryByLabelText("View Group Projection Mismatch"),
+    ).not.toBeInTheDocument();
+
+    // A different projection is a different mismatch, so the notice is back.
+    await act(async () => {
+      maps.b.current.setView(
+        new View({ projection: "EPSG:32612", center: [500000, 4000000] }),
+      );
+    });
+    await frame(maps.b);
+    expect(
+      await screen.findByLabelText("View Group Projection Mismatch"),
+    ).toHaveTextContent("EPSG:32612");
+  });
+
   test("a member that comes back into the group's projection drops the mismatch notice and syncs again", async () => {
     const { maps } = await renderDashboard([
       grouped("a", "Basin"),
