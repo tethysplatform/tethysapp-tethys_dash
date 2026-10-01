@@ -29,6 +29,25 @@ import { resolveRamp } from "components/map/colorRamps";
 // fails the build, and the layer goes on drawing the previous file.
 
 /**
+ * Whether a layer config is a runtime GeoTIFF: a WebGLTile over a GeoTIFF
+ * source whose file is chosen by a dynamic map layer plugin.
+ *
+ * Such a layer is built with no source at all, and the runtime fetcher hands it
+ * one per fetch. Takes the layer `configuration`, not the grid-item wrapper.
+ *
+ * @param {object} config
+ * @returns {boolean}
+ */
+export function isRuntimeRasterConfig(config) {
+  return Boolean(
+    config?.type === "WebGLTile" &&
+    config.props?.source?.type === "GeoTIFF" &&
+    config.props.pluginSource &&
+    config.props.layerId,
+  );
+}
+
+/**
  * How long a newly built source may stay "loading" before the build gives up.
  *
  * OpenLayers' GeoTIFF source has no timeout of its own: a host that accepts the
@@ -340,6 +359,12 @@ export function describeGeoTIFFSourceFailure(name, phase, detail = "") {
  *
  * Only the first: a broken file fails every tile, and one message says it.
  *
+ * OpenLayers' GeoTIFF source never dispatches an "error" event: a file it cannot
+ * open moves the source to the "error" state, which only a "change" listener
+ * sees, with the cause on getError(). The "error" listener stays for a source
+ * that does dispatch one. A source already in the error state when this is
+ * attached is reported at once, since its "change" has already fired.
+ *
  * @param {import("ol/source/Source.js").default} source
  * @param {string} name The layer's name, for the message.
  * @param {(message: string) => void} onError Called once with the message.
@@ -354,10 +379,17 @@ export function attachGeoTIFFSourceErrorHandlers(source, name, onError) {
     onError(describeGeoTIFFSourceFailure(name, phase, detail));
     console.warn(`GeoTIFF layer "${name}" (${phase}):`, evt?.error ?? evt);
   };
+  const surfaceStateError = surface("source error");
+  const checkState = () => {
+    if (source.getState?.() !== "error") return;
+    surfaceStateError({ error: source.getError?.() });
+  };
   const keys = [
     source.on("error", surface("source error")),
     source.on("tileloaderror", surface("tile load error")),
+    source.on("change", checkState),
   ];
+  checkState();
   return () => unByKey(keys);
 }
 

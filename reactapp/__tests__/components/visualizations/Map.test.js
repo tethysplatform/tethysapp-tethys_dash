@@ -8843,3 +8843,97 @@ describe("features with nothing to render are dropped from the popup", () => {
     });
   });
 });
+
+describe("the basemap's early publish beside a runtime GeoTIFF", () => {
+  // The basemap is held back from the early publish only when a raster will
+  // own the view projection. A raster a plugin drives never does, so it must
+  // not hold the basemap: with a layer's preparation stalled, the basemap is
+  // on the map regardless.
+  const baseMap =
+    "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer";
+
+  const rasterLayer = (extraProps) => ({
+    configuration: {
+      type: "WebGLTile",
+      props: {
+        name: "Depth",
+        source: { type: "GeoTIFF", props: {}, rampName: "viridis" },
+        ...extraProps,
+      },
+      // A saved style reference, so preparing the layer waits on a download
+      // the test never answers.
+      style: "held_style.json",
+    },
+  });
+
+  const renderWith = (layers) =>
+    render(
+      createLoadedComponent({
+        children: (
+          <MapContextProvider>
+            <TestingComponent
+              mapProps={{
+                mapConfig: {},
+                viewConfig: {},
+                layers,
+                baseMap,
+                layerControl: false,
+              }}
+            />
+          </MapContextProvider>
+        ),
+      }),
+    );
+
+  const addedSources = (spy) =>
+    spy.mock.calls.map((call) => call[0]?.getSource?.()?.key_);
+  const baseMapUrl =
+    "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}";
+
+  beforeEach(() => {
+    jest
+      .spyOn(appAPI, "downloadJSON")
+      .mockImplementation(() => new Promise(() => {}));
+    jest
+      .spyOn(appAPI, "getVisualizationFeatures")
+      .mockImplementation(() => new Promise(() => {}));
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it("publishes the basemap early when the only raster is plugin-driven", async () => {
+    const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+    renderWith([
+      rasterLayer({
+        layerId: "layer-1",
+        pluginSource: { source: "echo_raster", args: {} },
+      }),
+    ]);
+
+    await waitFor(() => {
+      expect(addedSources(addLayerSpy)).toContain(baseMapUrl);
+    });
+  });
+
+  it("still holds it back for a static raster", async () => {
+    const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+    renderWith([
+      rasterLayer({
+        source: {
+          type: "GeoTIFF",
+          props: { url: "https://h/a.tif" },
+          rampName: "viridis",
+        },
+      }),
+    ]);
+
+    expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+    // Give the early publish every chance to have happened.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+    expect(addedSources(addLayerSpy)).not.toContain(baseMapUrl);
+  });
+});

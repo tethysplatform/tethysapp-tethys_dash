@@ -780,12 +780,15 @@ const MapVisualization = ({
         // showing a white map while their layers prepare.
         // Not guarded: the line above already parsed `layers`, so reaching
         // here with nothing is not a state this block survives.
+        // A raster a plugin drives never owns the view (see Map.js), so it
+        // does not hold the basemap back either.
         const rasterWillOwnTheView = layers.some((layer) => {
           const configuration = layer?.configuration;
           return (
             configuration?.type === "WebGLTile" &&
             (configuration.props?.source?.type === "GeoTIFF" ||
-              configuration.props?.source?.type === "Zarr")
+              configuration.props?.source?.type === "Zarr") &&
+            !configuration.props?.pluginSource
           );
         });
         if (baseMapLayer && !rasterWillOwnTheView) {

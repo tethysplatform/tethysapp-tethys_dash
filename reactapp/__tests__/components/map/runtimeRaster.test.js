@@ -11,6 +11,7 @@ import {
   buildRuntimeRaster,
   describeGeoTIFFSourceFailure,
   isAllowedLayerUrl,
+  isRuntimeRasterConfig,
   normalizeLayerUrl,
   resolveEffectiveRasterConfig,
 } from "components/map/runtimeRaster";
@@ -712,11 +713,74 @@ describe("attachGeoTIFFSourceErrorHandlers", () => {
     expect(typeof detach).toBe("function");
   });
 
+  it("reports a source that fails by changing state, with its error", () => {
+    // OpenLayers' GeoTIFF source dispatches no "error" event; a file it cannot
+    // open moves it to the "error" state and leaves the cause on getError().
+    const source = new Source({ state: "loading" });
+    source.getError = () => new Error("Failed to fetch");
+    const onError = jest.fn();
+    attachGeoTIFFSourceErrorHandlers(source, "Depth", onError);
+
+    source.setState("ready");
+    expect(onError).not.toHaveBeenCalled();
+    source.setState("error");
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(onError.mock.calls[0][0]).toMatch(
+      /GeoTIFF layer "Depth" failed to fetch the file/,
+    );
+  });
+
+  it("reports a source that had already failed when it was attached", () => {
+    // Its "change" has fired already, so no listener would ever hear it.
+    const source = new Source({ state: "error" });
+    const onError = jest.fn();
+    attachGeoTIFFSourceErrorHandlers(source, "Depth", onError);
+
+    expect(onError).toHaveBeenCalledWith(
+      expect.stringMatching(/GeoTIFF layer "Depth" failed \(source error\)/),
+    );
+    source.changed();
+    expect(onError).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops watching the state once detached", () => {
+    const source = new Source({ state: "ready" });
+    const onError = jest.fn();
+    attachGeoTIFFSourceErrorHandlers(source, "Depth", onError)();
+    source.setState("error");
+    expect(onError).not.toHaveBeenCalled();
+  });
+
   it("omits the detail clause when the event carries none", () => {
     expect(describeGeoTIFFSourceFailure("Depth", "source error", "")).toBe(
       `GeoTIFF layer "Depth" failed (source error). ` +
         `The file may not be a Cloud Optimized GeoTIFF. Try converting with ` +
         "`gdal_translate -of COG -co COMPRESS=DEFLATE -co PREDICTOR=YES input.tif output.tif`.",
     );
+  });
+});
+
+describe("isRuntimeRasterConfig", () => {
+  it("is a WebGLTile GeoTIFF bound to a plugin, with an id", () => {
+    expect(isRuntimeRasterConfig(savedLayer())).toBe(true);
+  });
+
+  it.each([
+    ["a static GeoTIFF", { pluginSource: undefined }],
+    ["one with no layerId", { layerId: undefined }],
+  ])("is not %s", (_label, props) => {
+    const config = savedLayer();
+    Object.assign(config.props, props);
+    expect(isRuntimeRasterConfig(config)).toBe(false);
+  });
+
+  it("is not a vector runtime layer, nor another raster source", () => {
+    expect(
+      isRuntimeRasterConfig({ ...savedLayer(), type: "VectorLayer" }),
+    ).toBe(false);
+    const zarr = savedLayer();
+    zarr.props.source.type = "Zarr";
+    expect(isRuntimeRasterConfig(zarr)).toBe(false);
+    expect(isRuntimeRasterConfig(undefined)).toBe(false);
   });
 });

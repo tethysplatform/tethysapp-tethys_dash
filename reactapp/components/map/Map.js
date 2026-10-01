@@ -12,6 +12,10 @@ import moduleLoader, {
 // waited on anything async would race them.
 import { isNativelyResolvable } from "components/map/projectionCodes";
 import {
+  attachGeoTIFFSourceErrorHandlers,
+  isRuntimeRasterConfig,
+} from "components/map/runtimeRaster";
+import {
   CANCEL_REASON,
   errorKindFor,
   mergeLayerStatus,
@@ -118,6 +122,12 @@ async function applyLayerStyle(olLayer, layerConfig) {
       }
     }
   }
+}
+
+// A layer config with its source dropped, for a layer built before it has one.
+function withoutSource(layerConfig) {
+  const { source, ...props } = layerConfig.props;
+  return { ...layerConfig, props };
 }
 
 // Mirror a shapefile source's load state into React state so it can be
@@ -767,10 +777,16 @@ const MapComponent = ({
         });
 
         currentLayers.current.forEach((currentLayer) => {
+          // A runtime raster is preserved the same way, and for the same
+          // reason: the fetcher repointed it at a source the saved config does
+          // not carry, so a rebuild would drop it back to drawing nothing. A
+          // change to its saved style keeps it too; the fetcher refetches, and
+          // the next repoint compiles the style.
           const isRuntime =
             currentLayer?.props?.pluginSource &&
             currentLayer?.props?.layerId &&
-            isVectorLayerType(currentLayer.type);
+            (isVectorLayerType(currentLayer.type) ||
+              isRuntimeRasterConfig(currentLayer));
 
           if (isRuntime) {
             const incoming = incomingRuntimeIds.get(currentLayer.props.layerId);
@@ -784,7 +800,9 @@ const MapComponent = ({
               // preserved layer cannot pick up a change to either, so an edit
               // to one has to rebuild rather than silently do nothing.
               incoming.type === currentLayer.type &&
-              incoming.props.imageRatio === currentLayer.props.imageRatio
+              incoming.props.imageRatio === currentLayer.props.imageRatio &&
+              // A raster cannot become a vector source or the reverse in place.
+              incoming.props.source?.type === currentLayer.props.source?.type
             ) {
               // Identity match: preserve the OL layer. Track cosmetic props
               // to propagate after the loop. Use the INCOMING name for the
@@ -843,10 +861,14 @@ const MapComponent = ({
             }
           }
 
+          // A runtime layer that failed its identity match is rebuilt, never
+          // kept by name: matching props are what a duplicated layerId has.
           const shouldKeep =
             newLayerProps.some((newProps) =>
               valuesEqual(newProps, currentLayer.props),
-            ) && !isVectorLayerType(currentLayer.type);
+            ) &&
+            !isVectorLayerType(currentLayer.type) &&
+            !isRuntime;
           if (shouldKeep) {
             layersToKeep.push(currentLayer.props.name);
           }
@@ -938,11 +960,17 @@ const MapComponent = ({
       // Which raster, if any, gets to set the view projection. Resolved from
       // the author's array before anything is built, so it is the same answer
       // for every layer in this run no matter what order they finish in.
+      //
+      // Never a raster a plugin drives. It has no file until its first fetch,
+      // and each fetch may name one in another CRS, so owning the view would
+      // replace it -- and refetch the basemap -- on every fetch. It is
+      // reprojected into the view like any raster that does not own it.
       const viewProjectionOwner = customLayers.find(
         (candidate) =>
           candidate?.type === "WebGLTile" &&
           (candidate.props?.source?.type === "GeoTIFF" ||
-            candidate.props?.source?.type === "Zarr"),
+            candidate.props?.source?.type === "Zarr") &&
+          !candidate.props?.pluginSource,
       );
 
       // The basemap waits for whichever raster owns the view projection.
@@ -1002,13 +1030,22 @@ const MapComponent = ({
             }));
           }
 
+          // A raster a plugin drives is built with no source. Its file is
+          // whatever the plugin names on each fetch, so the saved config has no
+          // URL to open, range or place, and the fetcher hands the layer a
+          // ready source -- and the style compiled for it -- once it has one.
+          // OpenLayers draws a sourceless WebGLTile as nothing, without error.
+          const isRuntimeRaster = isRuntimeRasterConfig(layerConfig);
+
           try {
             // Resolve a Zarr layer's ramp from the slice's real value range
             // before the source is built — `normalize` is read at construction.
-            await applyAutoRamp(layerConfig);
+            if (!isRuntimeRaster) {
+              await applyAutoRamp(layerConfig);
+            }
 
             const newLayer = await moduleLoader(
-              layerConfig,
+              isRuntimeRaster ? withoutSource(layerConfig) : layerConfig,
               map.getView().getProjection().getCode(),
               // Read again when features are actually inserted. A source with a
               // long async load -- a shapefile -- can finish after a sibling
@@ -1115,39 +1152,17 @@ const MapComponent = ({
             watchVectorSourceLoad(newLayer, name, setLayerStatus);
 
             if (
+              !isRuntimeRaster &&
               layerConfig.type === "WebGLTile" &&
               (layerConfig.props?.source?.type === "GeoTIFF" ||
                 layerConfig.props?.source?.type === "Zarr")
             ) {
               const geoTIFFSource = newLayer.getSource();
-
-              let errorSurfaced = false;
-              const surface = (phase) => (evt) => {
-                if (errorSurfaced) return;
-                errorSurfaced = true;
-                const detail = evt?.error?.message || evt?.message || "";
-                const looksLikeFetchFailure =
-                  /request failed|AggregateError|CORS|blocked|Failed to fetch/i.test(
-                    detail,
-                  );
-                const message = looksLikeFetchFailure
-                  ? `GeoTIFF layer "${name}" failed to fetch the file. ` +
-                    `Check the Network tab — likely causes: CORS headers ` +
-                    `missing on the hosting server, no HTTP Range support, ` +
-                    `or the URL is unreachable. Detail: ${detail}.`
-                  : `GeoTIFF layer "${name}" failed (${phase}). ` +
-                    (detail ? `Detail: ${detail}. ` : "") +
-                    `The file may not be a Cloud Optimized GeoTIFF. ` +
-                    `Try converting with ` +
-                    `\`gdal_translate -of COG -co COMPRESS=DEFLATE -co PREDICTOR=YES input.tif output.tif\`.`;
-                setErrorMessage(message);
-                console.warn(
-                  `GeoTIFF layer "${name}" (${phase}):`,
-                  evt?.error ?? evt,
-                );
-              };
-              geoTIFFSource.on("error", surface("source error"));
-              geoTIFFSource.on("tileloaderror", surface("tile load error"));
+              attachGeoTIFFSourceErrorHandlers(
+                geoTIFFSource,
+                name,
+                setErrorMessage,
+              );
 
               // One raster owns the view projection. Every GeoTIFF and Zarr
               // layer used to assert its own CRS on the map's single view, so a
@@ -1293,7 +1308,11 @@ const MapComponent = ({
               }
             }
 
-            await applyLayerStyle(newLayer, layerConfig);
+            // A runtime raster's style is compiled per fetch, for the file
+            // that fetch named, and handed over with its source.
+            if (!isRuntimeRaster) {
+              await applyLayerStyle(newLayer, layerConfig);
+            }
 
             // A shapefile is not finished when its layer is: its features are
             // pulled by OpenLayers once the layer renders, and the watcher

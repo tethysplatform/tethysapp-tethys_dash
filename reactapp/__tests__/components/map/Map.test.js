@@ -5780,3 +5780,240 @@ describe("the basemap waits for the raster that owns the view projection", () =>
     addSpy.mockRestore();
   });
 });
+
+describe("runtime GeoTIFF layers", () => {
+  // A raster a dynamic map layer plugin drives. Saved with no URL: the map
+  // builds it sourceless and the runtime fetcher repoints it per fetch, which
+  // these tests stand in for with the real runtimeRaster module.
+  const runtimeRasterConfig = (overrides = {}) => ({
+    type: "WebGLTile",
+    props: {
+      name: "Depth",
+      layerId: "raster-1",
+      opacity: overrides.opacity ?? 1,
+      pluginSource: {
+        source: "echo_raster",
+        args: { storm: "ian" },
+        ...(overrides.pluginSource ?? {}),
+      },
+      source: {
+        type: "GeoTIFF",
+        props: {},
+        rampName: overrides.rampName ?? "viridis",
+        rampMin: "0",
+        rampMax: "50",
+      },
+    },
+  });
+
+  const staticRasterConfig = () => ({
+    type: "WebGLTile",
+    props: {
+      name: "Static Raster",
+      source: { type: "GeoTIFF", props: { url: "https://example.com/s.tif" } },
+    },
+  });
+
+  const baseMapConfig = (name) => ({
+    type: "WebGLTile",
+    isBaseMap: true,
+    props: {
+      name,
+      source: {
+        type: "Image Tile",
+        props: { url: `https://example.com/${name}/{z}/{y}/{x}` },
+      },
+    },
+  });
+
+  let capturedRef;
+  const RefCapture = ({ mapProps }) => {
+    const ref = useRef();
+    capturedRef = ref;
+    return (
+      <>
+        <MapComponent visualizationRef={ref} {...mapProps} />
+        <p>{useMapContext()?.mapReady ? "Map Ready" : "Map Not Ready"}</p>
+      </>
+    );
+  };
+  RefCapture.propTypes = { mapProps: PropTypes.object };
+
+  const tree = (layers) => (
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
+      <MapContextProvider>
+        <RefCapture mapProps={{ layers }} />
+      </MapContextProvider>
+    </VariableInputsContext.Provider>
+  );
+
+  const olLayerById = (layerId) =>
+    capturedRef.current
+      .getLayers()
+      .getArray()
+      .find((l) => l.get("layerId") === layerId);
+
+  // Repoint the map's layer the way the fetcher does, through the real module.
+  const repoint = async (config, url) => {
+    const runtimeRaster = jest.requireActual("components/map/runtimeRaster");
+    const built = await runtimeRaster.buildRuntimeRaster(
+      runtimeRaster.resolveEffectiveRasterConfig(config, {
+        type: "GeoTIFF",
+        props: { url },
+      }),
+      capturedRef.current.getView().getProjection().getCode(),
+    );
+    runtimeRaster.applyRuntimeRaster(olLayerById(config.props.layerId), built);
+    return built;
+  };
+
+  let addLayerSpy;
+  let removeLayerSpy;
+  beforeEach(() => {
+    addLayerSpy = jest.spyOn(OLMap.prototype, "addLayer");
+    removeLayerSpy = jest.spyOn(OLMap.prototype, "removeLayer");
+    GeoTIFFSource.getViewSpy.mockClear();
+    // The statistics sidecar: absent, as for a file that embeds its own.
+    jest.spyOn(global, "fetch").mockResolvedValue({ ok: false });
+  });
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it("builds a sourceless WebGLTile that does not claim the view", async () => {
+    render(tree([runtimeRasterConfig()]));
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+    await waitFor(() => expect(olLayerById("raster-1")).toBeDefined());
+
+    const olLayer = olLayerById("raster-1");
+    expect(olLayer).toBeInstanceOf(WebGLTileLayer);
+    expect(olLayer.getSource()).toBeNull();
+    expect(olLayer.get("pluginSource").source).toBe("echo_raster");
+    // Nothing to report: no URL is not a failure for a layer awaiting its fetch.
+    expect(screen.queryByText(/Failed to load/)).not.toBeInTheDocument();
+    // Not the view projection's owner, though it is the only raster.
+    expect(GeoTIFFSource.getViewSpy).not.toHaveBeenCalled();
+    expect(capturedRef.current.getView().getProjection().getCode()).toBe(
+      "EPSG:3857",
+    );
+  });
+
+  it("leaves the view to the first static raster after it", async () => {
+    render(tree([runtimeRasterConfig(), staticRasterConfig()]));
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+    await waitFor(() => expect(GeoTIFFSource.getViewSpy).toHaveBeenCalled());
+    expect(GeoTIFFSource.getViewSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the layer and its repointed source across an opacity change", async () => {
+    const { rerender } = render(tree([runtimeRasterConfig({ opacity: 0.8 })]));
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+    await waitFor(() => expect(olLayerById("raster-1")).toBeDefined());
+    const olLayer = olLayerById("raster-1");
+
+    const built = await repoint(runtimeRasterConfig(), "https://h/a.tif");
+    expect(olLayer.getSource()).toBe(built.source);
+    expect(built.source).toBeInstanceOf(GeoTIFFSource);
+    expect(built.source.options.sources[0].url).toBe("https://h/a.tif");
+    const adds = addLayerSpy.mock.calls.length;
+
+    rerender(tree([runtimeRasterConfig({ opacity: 0.3 })]));
+    await waitFor(() => expect(olLayer.getOpacity()).toBe(0.3));
+
+    expect(olLayerById("raster-1")).toBe(olLayer);
+    expect(olLayer.getSource()).toBe(built.source);
+    expect(addLayerSpy.mock.calls.length).toBe(adds);
+    expect(removeLayerSpy).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["pinning the style", { pluginSource: { stylePinned: true } }],
+    ["changing the ramp", { rampName: "magma" }],
+  ])(
+    "keeps the layer when %s, leaving the repaint to the fetcher",
+    async (_label, change) => {
+      const { rerender } = render(tree([runtimeRasterConfig()]));
+      expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+      await waitFor(() => expect(olLayerById("raster-1")).toBeDefined());
+      const olLayer = olLayerById("raster-1");
+      const built = await repoint(runtimeRasterConfig(), "https://h/a.tif");
+      const adds = addLayerSpy.mock.calls.length;
+
+      const edited = runtimeRasterConfig(change);
+      rerender(tree([edited]));
+      // The tag sync is the observable sign the reconcile ran: the preserved
+      // layer is handed the incoming config's own pluginSource object.
+      await waitFor(() =>
+        expect(olLayer.get("pluginSource")).toBe(edited.props.pluginSource),
+      );
+
+      expect(olLayerById("raster-1")).toBe(olLayer);
+      expect(olLayer.getSource()).toBe(built.source);
+      expect(addLayerSpy.mock.calls.length).toBe(adds);
+      expect(removeLayerSpy).not.toHaveBeenCalled();
+    },
+  );
+
+  it("keeps the layer and its source when the basemap changes", async () => {
+    const { rerender } = render(
+      tree([baseMapConfig("Light"), runtimeRasterConfig()]),
+    );
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+    await waitFor(() => expect(olLayerById("raster-1")).toBeDefined());
+    const olLayer = olLayerById("raster-1");
+    const built = await repoint(runtimeRasterConfig(), "https://h/a.tif");
+
+    rerender(tree([baseMapConfig("Dark"), runtimeRasterConfig()]));
+    const names = () =>
+      capturedRef.current
+        .getLayers()
+        .getArray()
+        .map((l) => l.get("name"));
+    await waitFor(() => expect(names()).toContain("Dark"));
+    expect(names()).not.toContain("Light");
+
+    // Preserved, not repainted: the same layer still draws the same file, and
+    // nothing had to fetch it again.
+    expect(olLayerById("raster-1")).toBe(olLayer);
+    expect(olLayer.getSource()).toBe(built.source);
+  });
+
+  it("rebuilds the layer when its plugin changes", async () => {
+    const { rerender } = render(tree([runtimeRasterConfig()]));
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+    await waitFor(() => expect(olLayerById("raster-1")).toBeDefined());
+    const olLayer = olLayerById("raster-1");
+
+    rerender(
+      tree([runtimeRasterConfig({ pluginSource: { source: "other" } })]),
+    );
+    await waitFor(() => expect(olLayerById("raster-1")).not.toBe(olLayer));
+    expect(olLayerById("raster-1").getSource()).toBeNull();
+  });
+
+  it("reports a static GeoTIFF whose source fails by changing state", async () => {
+    // OpenLayers' GeoTIFF source has no "error" event: a file it cannot open
+    // only moves it to the "error" state.
+    jest.spyOn(console, "warn").mockImplementation(() => {});
+    render(tree([staticRasterConfig()]));
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+    const staticLayer = () =>
+      capturedRef.current
+        .getLayers()
+        .getArray()
+        .find((l) => l.get("name") === "Static Raster");
+    await waitFor(() => expect(staticLayer()).toBeDefined());
+
+    act(() => {
+      staticLayer().getSource().setState("error");
+    });
+
+    expect(
+      await screen.findByText(
+        /GeoTIFF layer "Static Raster" failed \(source error\)/,
+      ),
+    ).toBeInTheDocument();
+  });
+});

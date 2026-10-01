@@ -3,6 +3,9 @@ import axios from "axios";
 import useRuntimeLayerFetcher from "components/visualizations/runtimeLayerFetcher";
 import appAPI from "services/api/app";
 import * as mapUtilities from "components/map/utilities";
+import * as runtimeRaster from "components/map/runtimeRaster";
+import { GeoTIFFError } from "components/map/ModuleLoader";
+import Source from "ol/source/Source.js";
 
 // Minimal fake OL Map + VectorLayer that exposes the surface the orchestrator
 // interacts with: getLayers().getArray().find(l => l.get("layerId") === id),
@@ -1631,5 +1634,638 @@ describe("useRuntimeLayerFetcher", () => {
 
       expect(errorSpy).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("useRuntimeLayerFetcher with a runtime GeoTIFF layer", () => {
+  // The resolve-and-build steps are runtimeRaster.js's own and have their own
+  // suite; mocked here so these tests are about when the fetcher calls them,
+  // what it does with the result, and which request a result belongs to. The
+  // apply and the error-listener helpers stay real, against a real OL source.
+  let getFeaturesMock;
+  let resolveSpy;
+  let buildSpy;
+  let swapSpy;
+
+  // A WebGLTile stand-in: enough of the surface applyRuntimeRaster touches.
+  function fakeRasterLayer(layerId) {
+    let source = null;
+    return {
+      get: (key) => (key === "layerId" ? layerId : undefined),
+      getSource: () => source,
+      setSource: jest.fn((next) => {
+        source = next;
+      }),
+      setStyle: jest.fn(),
+    };
+  }
+
+  function rasterLayerConfig({
+    layerId = "layer-1",
+    name = "Depth",
+    args = {},
+    stylePinned,
+    rampName = "viridis",
+    rampMin,
+    rampMax,
+    maskBelow,
+  } = {}) {
+    return {
+      configuration: {
+        type: "WebGLTile",
+        props: {
+          name,
+          layerId,
+          pluginSource: {
+            source: "echo_raster",
+            args,
+            ...(stylePinned === undefined ? {} : { stylePinned }),
+          },
+          source: {
+            type: "GeoTIFF",
+            props: maskBelow === undefined ? {} : { mask_below: maskBelow },
+            rampName,
+            ...(rampMin === undefined ? {} : { rampMin }),
+            ...(rampMax === undefined ? {} : { rampMax }),
+          },
+        },
+      },
+    };
+  }
+
+  const sourceResponse = (url) => ({
+    success: true,
+    viz_type: "source",
+    data: { type: "GeoTIFF", props: { url } },
+  });
+
+  // A build result whose source is real, so the error listeners attach to it.
+  const builtFor = (url, legendRamp = null) => {
+    const source = new Source({ state: "ready" });
+    source.url = url;
+    return { source, style: { color: url }, legendRamp };
+  };
+
+  const deferred = () => {
+    let resolve;
+    let reject;
+    const promise = new Promise((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    return { promise, resolve, reject };
+  };
+
+  const flush = async (ms = 250) => {
+    await act(async () => {
+      jest.advanceTimersByTime(ms);
+      for (let i = 0; i < 10; i += 1) {
+        await Promise.resolve();
+      }
+    });
+  };
+
+  const hookFor = (initialProps) =>
+    renderHook(
+      ({ layers, variableInputValues = noVariableInputs, mapRef }) =>
+        useRuntimeLayerFetcher({
+          layers,
+          gridItemUUID: "g",
+          sessionNonce: "n",
+          mapRef,
+          variableInputValues,
+          variableInputDateFormats: noDateFormats,
+        }),
+      { initialProps },
+    );
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+    getFeaturesMock = jest
+      .spyOn(appAPI, "getVisualizationFeatures")
+      .mockImplementation(async ({ args }) =>
+        sourceResponse(`https://h/${args?.storm ?? "a"}.tif`),
+      );
+    resolveSpy = jest
+      .spyOn(runtimeRaster, "resolveEffectiveRasterConfig")
+      .mockImplementation((saved, description) => ({
+        saved,
+        url: description.props.url,
+      }));
+    buildSpy = jest
+      .spyOn(runtimeRaster, "buildRuntimeRaster")
+      .mockImplementation(async (effective) =>
+        builtFor(effective.url, {
+          rampName: "viridis",
+          rampReverse: false,
+          rampMin: 0,
+          rampMax: 50,
+        }),
+      );
+    swapSpy = jest
+      .spyOn(mapUtilities, "swapVectorLayerFeatures")
+      .mockImplementation(() => {});
+    jest.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+    jest.restoreAllMocks();
+  });
+
+  test("a variable-input change refetches once and repoints the layer", async () => {
+    const olLayer = fakeRasterLayer("layer-1");
+    const mapRef = { current: fakeOlMap([olLayer]) };
+    // eslint-disable-next-line no-template-curly-in-string
+    const layers = [rasterLayerConfig({ args: { storm: "${Storm}" } })];
+
+    const { result, rerender } = hookFor({
+      layers,
+      mapRef,
+      variableInputValues: { Storm: "ian" },
+    });
+    await flush();
+    expect(olLayer.setSource).toHaveBeenCalledTimes(1);
+    expect(olLayer.getSource().url).toBe("https://h/ian.tif");
+
+    rerender({ layers, mapRef, variableInputValues: { Storm: "milton" } });
+    await flush();
+
+    expect(getFeaturesMock).toHaveBeenCalledTimes(2);
+    // The build starts from the layer's saved configuration and the fetched
+    // description, in the map's current projection.
+    expect(resolveSpy).toHaveBeenLastCalledWith(layers[0].configuration, {
+      type: "GeoTIFF",
+      props: { url: "https://h/milton.tif" },
+    });
+    expect(buildSpy.mock.calls[1][1]).toBe("EPSG:3857");
+    expect(olLayer.getSource().url).toBe("https://h/milton.tif");
+    expect(olLayer.setStyle).toHaveBeenLastCalledWith({
+      color: "https://h/milton.tif",
+    });
+    expect(swapSpy).not.toHaveBeenCalled();
+    expect(result.current.errorsByLayerId).toEqual({});
+    expect(result.current.loadingByLayerId).toEqual({});
+    expect(result.current.rasterLegendByLayerId).toEqual({
+      "layer-1": {
+        rampName: "viridis",
+        rampReverse: false,
+        rampMin: 0,
+        rampMax: 50,
+      },
+    });
+  });
+
+  test("Covers AE4. A failed fetch keeps the previous file drawn and sets the error", async () => {
+    const olLayer = fakeRasterLayer("layer-1");
+    const mapRef = { current: fakeOlMap([olLayer]) };
+    // eslint-disable-next-line no-template-curly-in-string
+    const layers = [rasterLayerConfig({ args: { storm: "${Storm}" } })];
+
+    const { result, rerender } = hookFor({
+      layers,
+      mapRef,
+      variableInputValues: { Storm: "a" },
+    });
+    await flush();
+    const fileA = olLayer.getSource();
+    expect(fileA.url).toBe("https://h/a.tif");
+
+    getFeaturesMock.mockResolvedValueOnce({
+      success: false,
+      viz_type: null,
+      data: { error: "No forecast for that storm" },
+    });
+    rerender({ layers, mapRef, variableInputValues: { Storm: "b" } });
+    await flush();
+
+    expect(olLayer.getSource()).toBe(fileA);
+    expect(olLayer.setSource).toHaveBeenCalledTimes(1);
+    expect(buildSpy).toHaveBeenCalledTimes(1);
+    expect(result.current.errorsByLayerId["layer-1"]).toEqual({
+      message: "No forecast for that storm",
+      kind: "error",
+    });
+    expect(result.current.loadingByLayerId).toEqual({});
+  });
+
+  test("a build that cannot range the file reports through the fetch error channel", async () => {
+    const olLayer = fakeRasterLayer("layer-1");
+    const mapRef = { current: fakeOlMap([olLayer]) };
+    // eslint-disable-next-line no-template-curly-in-string
+    const layers = [rasterLayerConfig({ args: { storm: "${Storm}" } })];
+
+    const { result, rerender } = hookFor({
+      layers,
+      mapRef,
+      variableInputValues: { Storm: "a" },
+    });
+    await flush();
+    const fileA = olLayer.getSource();
+
+    const rangeMessage =
+      "This GeoTIFF publishes no statistics and is too large to scan for " +
+      "its own value range";
+    buildSpy.mockRejectedValueOnce(new GeoTIFFError(rangeMessage));
+    rerender({ layers, mapRef, variableInputValues: { Storm: "huge" } });
+    await flush();
+
+    expect(olLayer.getSource()).toBe(fileA);
+    expect(result.current.errorsByLayerId["layer-1"]).toEqual({
+      message: rangeMessage,
+      kind: "error",
+    });
+    expect(result.current.loadingByLayerId).toEqual({});
+    // The legend still labels the file on screen.
+    expect(result.current.rasterLegendByLayerId["layer-1"]).not.toBeNull();
+  });
+
+  test("a resolve that throws is reported the same way, before any build", async () => {
+    const olLayer = fakeRasterLayer("layer-1");
+    const mapRef = { current: fakeOlMap([olLayer]) };
+    resolveSpy.mockImplementationOnce(() => {
+      throw new Error('returned a "XYZ" source');
+    });
+
+    const { result } = hookFor({ layers: [rasterLayerConfig()], mapRef });
+    await flush();
+
+    expect(buildSpy).not.toHaveBeenCalled();
+    expect(olLayer.setSource).not.toHaveBeenCalled();
+    expect(result.current.errorsByLayerId["layer-1"].message).toMatch(/XYZ/);
+    expect(result.current.loadingByLayerId).toEqual({});
+  });
+
+  test("the loading window stays open until the build settles", async () => {
+    const olLayer = fakeRasterLayer("layer-1");
+    const mapRef = { current: fakeOlMap([olLayer]) };
+    const build = deferred();
+    buildSpy.mockReturnValueOnce(build.promise);
+
+    const { result } = hookFor({ layers: [rasterLayerConfig()], mapRef });
+    await flush();
+
+    // The response is in; the header read is not.
+    expect(getFeaturesMock).toHaveBeenCalledTimes(1);
+    expect(result.current.loadingByLayerId["layer-1"]).toBe(true);
+
+    await act(async () => {
+      build.resolve(builtFor("https://h/a.tif"));
+      await Promise.resolve();
+    });
+    expect(result.current.loadingByLayerId).toEqual({});
+    expect(result.current.rasterLegendByLayerId).toEqual({ "layer-1": null });
+  });
+
+  test("a superseded build that finishes last is discarded", async () => {
+    const olLayer = fakeRasterLayer("layer-1");
+    const mapRef = { current: fakeOlMap([olLayer]) };
+    // eslint-disable-next-line no-template-curly-in-string
+    const layers = [rasterLayerConfig({ args: { storm: "${Storm}" } })];
+    const first = deferred();
+    const second = deferred();
+    buildSpy
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise);
+
+    const { result, rerender } = hookFor({
+      layers,
+      mapRef,
+      variableInputValues: { Storm: "one" },
+    });
+    await flush();
+    rerender({ layers, mapRef, variableInputValues: { Storm: "two" } });
+    await flush();
+    // Both responses are in and both builds are running.
+    expect(buildSpy).toHaveBeenCalledTimes(2);
+    expect(result.current.loadingByLayerId["layer-1"]).toBe(true);
+
+    await act(async () => {
+      second.resolve(builtFor("https://h/two.tif"));
+      await Promise.resolve();
+    });
+    expect(olLayer.getSource().url).toBe("https://h/two.tif");
+    expect(result.current.loadingByLayerId).toEqual({});
+
+    // The first build lands late, with a result and then with a failure: it
+    // may neither paint over the newer file nor reopen, close or error.
+    await act(async () => {
+      first.resolve(builtFor("https://h/one.tif"));
+      await Promise.resolve();
+    });
+    expect(olLayer.setSource).toHaveBeenCalledTimes(1);
+    expect(olLayer.getSource().url).toBe("https://h/two.tif");
+    expect(result.current.loadingByLayerId).toEqual({});
+    expect(result.current.errorsByLayerId).toEqual({});
+  });
+
+  test("a superseded build that fails cannot close the newer window", async () => {
+    const olLayer = fakeRasterLayer("layer-1");
+    const mapRef = { current: fakeOlMap([olLayer]) };
+    // eslint-disable-next-line no-template-curly-in-string
+    const layers = [rasterLayerConfig({ args: { storm: "${Storm}" } })];
+    const first = deferred();
+    const second = deferred();
+    buildSpy
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise);
+
+    const { result, rerender } = hookFor({
+      layers,
+      mapRef,
+      variableInputValues: { Storm: "one" },
+    });
+    await flush();
+    rerender({ layers, mapRef, variableInputValues: { Storm: "two" } });
+    await flush();
+
+    await act(async () => {
+      first.reject(new Error("stale failure"));
+      await Promise.resolve();
+    });
+    expect(result.current.loadingByLayerId["layer-1"]).toBe(true);
+    expect(result.current.errorsByLayerId).toEqual({});
+
+    await act(async () => {
+      second.resolve(builtFor("https://h/two.tif"));
+      await Promise.resolve();
+    });
+    expect(result.current.loadingByLayerId).toEqual({});
+  });
+
+  test("a layer removed mid-build is neither repointed nor given an error", async () => {
+    const olLayer = fakeRasterLayer("layer-1");
+    const mapRef = { current: fakeOlMap([olLayer]) };
+    const layers = [rasterLayerConfig()];
+    const build = deferred();
+    buildSpy.mockReturnValueOnce(build.promise);
+
+    const { result, rerender } = hookFor({ layers, mapRef });
+    await flush();
+    expect(buildSpy).toHaveBeenCalledTimes(1);
+
+    rerender({ layers: [], mapRef });
+    await flush();
+    expect(result.current.loadingByLayerId).toEqual({});
+
+    await act(async () => {
+      build.resolve(builtFor("https://h/a.tif"));
+      await Promise.resolve();
+    });
+    expect(olLayer.setSource).not.toHaveBeenCalled();
+    expect(result.current.errorsByLayerId).toEqual({});
+    expect(result.current.rasterLegendByLayerId).toEqual({});
+  });
+
+  test("a build failing after its layer was removed writes no error", async () => {
+    const olLayer = fakeRasterLayer("layer-1");
+    const mapRef = { current: fakeOlMap([olLayer]) };
+    const build = deferred();
+    buildSpy.mockReturnValueOnce(build.promise);
+
+    const { result, rerender } = hookFor({
+      layers: [rasterLayerConfig()],
+      mapRef,
+    });
+    await flush();
+    rerender({ layers: [], mapRef });
+    await flush();
+
+    await act(async () => {
+      build.reject(new Error("too late"));
+      await Promise.resolve();
+    });
+    expect(result.current.errorsByLayerId).toEqual({});
+    expect(result.current.loadingByLayerId).toEqual({});
+  });
+
+  test("removing a painted layer clears its legend entry", async () => {
+    const olLayer = fakeRasterLayer("layer-1");
+    const mapRef = { current: fakeOlMap([olLayer]) };
+
+    const { result, rerender } = hookFor({
+      layers: [rasterLayerConfig()],
+      mapRef,
+    });
+    await flush();
+    expect(result.current.rasterLegendByLayerId["layer-1"]).toBeDefined();
+
+    rerender({ layers: [], mapRef });
+    await flush();
+    expect(result.current.rasterLegendByLayerId).toEqual({});
+  });
+
+  test("a fetch landing before the layer exists builds when the layer appears", async () => {
+    const map = fakeOlMap([]);
+    const mapRef = { current: map };
+
+    const { result } = hookFor({ layers: [rasterLayerConfig()], mapRef });
+    await flush();
+
+    // Held, not built: there is nothing yet to hand a source to.
+    expect(getFeaturesMock).toHaveBeenCalledTimes(1);
+    expect(buildSpy).not.toHaveBeenCalled();
+    expect(map.pendingAddListeners()).toBe(1);
+    expect(result.current.loadingByLayerId).toEqual({});
+
+    const late = fakeRasterLayer("layer-1");
+    await act(async () => {
+      map.addLayerLate(late);
+      for (let i = 0; i < 5; i += 1) {
+        await Promise.resolve();
+      }
+    });
+
+    expect(buildSpy).toHaveBeenCalledTimes(1);
+    expect(late.getSource().url).toBe("https://h/a.tif");
+    expect(getFeaturesMock).toHaveBeenCalledTimes(1);
+    expect(map.pendingAddListeners()).toBe(0);
+    expect(result.current.loadingByLayerId).toEqual({});
+  });
+
+  test("a held description is dropped when a newer fetch replaces it", async () => {
+    const map = fakeOlMap([]);
+    const mapRef = { current: map };
+    // eslint-disable-next-line no-template-curly-in-string
+    const layers = [rasterLayerConfig({ args: { storm: "${Storm}" } })];
+    const { rerender } = hookFor({
+      layers,
+      mapRef,
+      variableInputValues: { Storm: "one" },
+    });
+    await flush();
+    rerender({ layers, mapRef, variableInputValues: { Storm: "two" } });
+    await flush();
+
+    const late = fakeRasterLayer("layer-1");
+    await act(async () => {
+      map.addLayerLate(late);
+      for (let i = 0; i < 5; i += 1) {
+        await Promise.resolve();
+      }
+    });
+    // Only the newer description is built.
+    expect(buildSpy).toHaveBeenCalledTimes(1);
+    expect(late.getSource().url).toBe("https://h/two.tif");
+  });
+
+  test("a layer gone by the time its build finishes is painted when it returns", async () => {
+    const olLayer = fakeRasterLayer("layer-1");
+    const olLayers = [olLayer];
+    const map = fakeOlMap(olLayers);
+    const mapRef = { current: map };
+    const build = deferred();
+    buildSpy.mockReturnValueOnce(build.promise);
+
+    hookFor({ layers: [rasterLayerConfig()], mapRef });
+    await flush();
+
+    // Map.js tears the OL layer down and rebuilds it while the build runs.
+    olLayers.splice(0, 1);
+    await act(async () => {
+      build.resolve(builtFor("https://h/a.tif"));
+      await Promise.resolve();
+    });
+    expect(olLayer.setSource).not.toHaveBeenCalled();
+    expect(map.pendingAddListeners()).toBe(1);
+
+    const rebuilt = fakeRasterLayer("layer-1");
+    await act(async () => {
+      map.addLayerLate(rebuilt);
+      for (let i = 0; i < 5; i += 1) {
+        await Promise.resolve();
+      }
+    });
+    expect(rebuilt.getSource().url).toBe("https://h/a.tif");
+  });
+
+  test.each([
+    ["pinning the style", { stylePinned: true }],
+    ["changing the ramp", { rampName: "magma" }],
+    ["changing a bound", { rampMin: "5" }],
+    ["changing the mask", { maskBelow: 0.1 }],
+  ])(
+    "%s refetches exactly once, with the same arguments",
+    async (_label, change) => {
+      const olLayer = fakeRasterLayer("layer-1");
+      const mapRef = { current: fakeOlMap([olLayer]) };
+
+      const { rerender } = hookFor({ layers: [rasterLayerConfig()], mapRef });
+      await flush();
+      expect(getFeaturesMock).toHaveBeenCalledTimes(1);
+
+      const edited = [rasterLayerConfig(change)];
+      rerender({ layers: edited, mapRef });
+      await flush();
+      expect(getFeaturesMock).toHaveBeenCalledTimes(2);
+      // The repaint starts from the edited saved style.
+      expect(resolveSpy.mock.calls[1][0]).toBe(edited[0].configuration);
+
+      // Re-rendering the same edit is not another change.
+      rerender({ layers: [rasterLayerConfig(change)], mapRef });
+      await flush();
+      expect(getFeaturesMock).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  test("un-pinning refetches", async () => {
+    const olLayer = fakeRasterLayer("layer-1");
+    const mapRef = { current: fakeOlMap([olLayer]) };
+    const { rerender } = hookFor({
+      layers: [rasterLayerConfig({ stylePinned: true })],
+      mapRef,
+    });
+    await flush();
+    rerender({ layers: [rasterLayerConfig()], mapRef });
+    await flush();
+    expect(getFeaturesMock).toHaveBeenCalledTimes(2);
+  });
+
+  test("a tile failure on the swapped-in source sets the layer's error", async () => {
+    const olLayer = fakeRasterLayer("layer-1");
+    const mapRef = { current: fakeOlMap([olLayer]) };
+    // eslint-disable-next-line no-template-curly-in-string
+    const layers = [rasterLayerConfig({ args: { storm: "${Storm}" } })];
+
+    const { result, rerender } = hookFor({
+      layers,
+      mapRef,
+      variableInputValues: { Storm: "a" },
+    });
+    await flush();
+    const fileA = olLayer.getSource();
+
+    rerender({ layers, mapRef, variableInputValues: { Storm: "b" } });
+    await flush();
+    const fileB = olLayer.getSource();
+    expect(fileB).not.toBe(fileA);
+
+    // The replaced source's listeners were detached with it.
+    await act(async () => {
+      fileA.dispatchEvent({
+        type: "tileloaderror",
+        error: new Error("old tile"),
+      });
+    });
+    expect(result.current.errorsByLayerId).toEqual({});
+
+    await act(async () => {
+      fileB.dispatchEvent({
+        type: "tileloaderror",
+        error: new Error("Failed to fetch"),
+      });
+    });
+    expect(result.current.errorsByLayerId["layer-1"].kind).toBe("error");
+    expect(result.current.errorsByLayerId["layer-1"].message).toMatch(
+      /GeoTIFF layer "Depth" failed to fetch the file/,
+    );
+  });
+
+  test("onBeforeSwap runs only once a build has succeeded", async () => {
+    const olLayer = fakeRasterLayer("layer-1");
+    const mapRef = { current: fakeOlMap([olLayer]) };
+    const onBeforeSwap = jest.fn();
+    buildSpy.mockRejectedValueOnce(new Error("unreadable"));
+
+    const { rerender } = renderHook(
+      ({ refreshTick }) =>
+        useRuntimeLayerFetcher({
+          layers: [rasterLayerConfig()],
+          gridItemUUID: "g",
+          sessionNonce: "n",
+          mapRef,
+          variableInputValues: noVariableInputs,
+          variableInputDateFormats: noDateFormats,
+          onBeforeSwap,
+          refreshTick,
+        }),
+      { initialProps: { refreshTick: 0 } },
+    );
+    await flush();
+    // A failed build leaves the open popup describing the file still drawn.
+    expect(onBeforeSwap).not.toHaveBeenCalled();
+
+    rerender({ refreshTick: 1 });
+    await flush();
+    expect(onBeforeSwap).toHaveBeenCalledWith("layer-1");
+    expect(olLayer.setSource).toHaveBeenCalledTimes(1);
+  });
+
+  test("a vector runtime layer still swaps features and never builds a raster", async () => {
+    getFeaturesMock.mockResolvedValue({
+      success: true,
+      viz_type: "features",
+      data: validFc,
+    });
+    const olLayer = fakeOlLayer("layer-1");
+    const mapRef = { current: fakeOlMap([olLayer]) };
+
+    const { result } = hookFor({ layers: [runtimeLayerConfig()], mapRef });
+    await flush();
+
+    expect(swapSpy).toHaveBeenCalledWith(olLayer, validFc, "EPSG:3857");
+    expect(resolveSpy).not.toHaveBeenCalled();
+    expect(buildSpy).not.toHaveBeenCalled();
+    expect(result.current.rasterLegendByLayerId).toEqual({});
   });
 });
