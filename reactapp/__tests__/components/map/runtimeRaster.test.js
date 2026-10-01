@@ -10,7 +10,7 @@ import {
   attachGeoTIFFSourceErrorHandlers,
   buildRuntimeRaster,
   describeGeoTIFFSourceFailure,
-  isAllowedLayerUrl,
+  disposeRuntimeSource,
   isRuntimeRasterConfig,
   normalizeLayerUrl,
   resolveEffectiveRasterConfig,
@@ -147,7 +147,6 @@ describe("layer URL rule", () => {
     ["HTTP://h/x.tif", "HTTP://h/x.tif"],
     ["/files/x.tif", `${origin}/files/x.tif`],
   ])("accepts %s", (url, normalized) => {
-    expect(isAllowedLayerUrl(url)).toBe(true);
     expect(normalizeLayerUrl(url)).toBe(normalized);
   });
 
@@ -172,7 +171,6 @@ describe("layer URL rule", () => {
     undefined,
     42,
   ])("rejects %p", (url) => {
-    expect(isAllowedLayerUrl(url)).toBe(false);
     expect(normalizeLayerUrl(url)).toBeNull();
   });
 });
@@ -613,6 +611,78 @@ describe("buildRuntimeRaster", () => {
       'GeoTIFF layer "Depth" timed out opening the file',
     );
     expect(GeoTIFF.constructorSpy).toHaveBeenCalled();
+  });
+
+  it("disposes a source that times out opening, detaching its listeners", async () => {
+    mockFiles({ "https://h/slow.tif": statsFile(0, 1) });
+    GeoTIFF.nextOutcome = "hang";
+    const dispose = jest.spyOn(Source.prototype, "dispose");
+    try {
+      await expect(
+        buildRuntimeRaster(
+          resolveEffectiveRasterConfig(
+            savedLayer({ source: { rampName: "viridis" } }),
+            description("https://h/slow.tif"),
+          ),
+          "EPSG:3857",
+          { timeoutMs: 20 },
+        ),
+      ).rejects.toThrow(/timed out/);
+      expect(dispose).toHaveBeenCalledTimes(1);
+      const [source] = dispose.mock.instances;
+      expect(source).toBeInstanceOf(GeoTIFF);
+      expect(source.hasListener("change")).toBe(false);
+    } finally {
+      dispose.mockRestore();
+    }
+  });
+
+  it("gives up on a header read that never answers, before building a source", async () => {
+    // The statistics read hangs, so applyAutoRamp never settles: the deadline
+    // covers the whole build, not only the source's own open.
+    fromUrl.mockImplementation(() => new Promise(() => {}));
+    const attempt = buildRuntimeRaster(
+      resolveEffectiveRasterConfig(
+        savedLayer({ source: { rampName: "viridis" } }),
+        description("https://h/hung.tif"),
+      ),
+      "EPSG:3857",
+      { timeoutMs: 20 },
+    );
+    await expect(attempt).rejects.toThrow(GeoTIFFError);
+    await expect(attempt).rejects.toThrow(
+      'GeoTIFF layer "Depth" timed out opening the file',
+    );
+    expect(GeoTIFF.constructorSpy).not.toHaveBeenCalled();
+  });
+
+  it("disposes a source that fails to open", async () => {
+    mockFiles({ "https://h/odd.tif": statsFile(0, 1) });
+    GeoTIFF.nextOutcome = "error";
+    GeoTIFF.nextErrorMessage = "Invalid byte order value.";
+    const dispose = jest.spyOn(Source.prototype, "dispose");
+    try {
+      await expect(
+        build(
+          savedLayer({ source: { rampName: "viridis" } }),
+          description("https://h/odd.tif"),
+        ),
+      ).rejects.toThrow(GeoTIFFError);
+      expect(dispose).toHaveBeenCalledTimes(1);
+    } finally {
+      dispose.mockRestore();
+    }
+  });
+});
+
+describe("disposeRuntimeSource", () => {
+  it("disposes a source, and tolerates none or one without dispose", () => {
+    const source = new Source({ state: "ready" });
+    source.on("change", () => {});
+    disposeRuntimeSource(source);
+    expect(source.hasListener("change")).toBe(false);
+    expect(() => disposeRuntimeSource(null)).not.toThrow();
+    expect(() => disposeRuntimeSource({})).not.toThrow();
   });
 });
 

@@ -1265,7 +1265,7 @@ catalog, a raster computed on demand. If the URL only varies with a variable
 input, a static GeoTIFF layer with ``${Variable Name}`` in its URL does the same
 job with no plugin (see :ref:`source_tab`).
 
-A dynamic GeoTIFF plugin sets three class attributes and implements two
+A dynamic GeoTIFF plugin sets two class attributes and implements two
 methods:
 
 - ``dynamic_map_layer = True`` and ``dynamic_map_layer_source = "GeoTIFF"``.

@@ -11,10 +11,8 @@ import { RxDragHandleHorizontal } from "react-icons/rx";
 import { layerPropType, resolveTablePopupType } from "components/map/utilities";
 import { AppContext } from "components/contexts/Contexts";
 import { findSelectOptionByValue } from "components/visualizations/utilities";
-import {
-  DEFAULT_DYNAMIC_LAYER_SOURCE,
-  RASTER_STYLE_FIELDS,
-} from "components/modals/MapLayer/runtimeLayerSource";
+import { DEFAULT_DYNAMIC_LAYER_SOURCE } from "components/modals/MapLayer/runtimeLayerSource";
+import { RASTER_STYLE_FIELDS } from "components/map/runtimeRaster";
 
 const FixedTable = styled(Table)`
   table-layout: fixed;

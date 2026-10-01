@@ -45,10 +45,8 @@ import {
   updateObjectWithVariableInputs,
 } from "components/visualizations/utilities";
 import { useMapContext } from "components/contexts/MapContext";
-import {
-  getDynamicLayerSourceType,
-  RASTER_STYLE_FIELDS,
-} from "components/modals/MapLayer/runtimeLayerSource";
+import { getDynamicLayerSourceType } from "components/modals/MapLayer/runtimeLayerSource";
+import { RASTER_STYLE_FIELDS } from "components/map/runtimeRaster";
 import Select from "react-select";
 import appAPI from "services/api/app";
 import "components/modals/wideModal.css";

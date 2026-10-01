@@ -5,20 +5,6 @@ import { findSelectOptionByValue } from "components/visualizations/utilities";
 // the `dynamic_map_layer_source` metadata key.
 export const DEFAULT_DYNAMIC_LAYER_SOURCE = "GeoJSON";
 
-// The raster style fields the editor keeps on the top level of sourceProps and
-// a GeoTIFF layer saves on its source. A dynamic GeoTIFF's saved source is its
-// style, so these travel as a set: loaded from a plugin scaffold, restored on
-// reopen, saved without a URL.
-export const RASTER_STYLE_FIELDS = [
-  "rampName",
-  "rampMin",
-  "rampMax",
-  "rampReverse",
-  "styleMode",
-  "classes",
-  "fallbackColor",
-];
-
 /**
  * The dynamic map layer plugin option an editor's source props are bound to.
  *

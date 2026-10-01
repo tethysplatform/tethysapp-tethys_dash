@@ -48,14 +48,29 @@ export function isRuntimeRasterConfig(config) {
 }
 
 /**
- * How long a newly built source may stay "loading" before the build gives up.
+ * How long building a runtime raster may take before the build gives up.
  *
- * OpenLayers' GeoTIFF source has no timeout of its own: a host that accepts the
- * connection and never answers leaves it loading forever, and the fetch that
- * asked for it with it. Thirty seconds is long enough for a slow header read
- * over a poor connection and short enough that a stalled one is reported.
+ * The deadline covers the whole build -- the statistics and header reads as well
+ * as the source opening its file -- because none of them has a timeout of its
+ * own: a host that accepts the connection and never answers would otherwise
+ * leave the layer loading forever, and the fetch that asked for it with it.
+ * Thirty seconds is long enough for a slow header read over a poor connection
+ * and short enough that a stalled one is reported.
  */
 export const RUNTIME_RASTER_READY_TIMEOUT_MS = 30_000;
+
+/**
+ * Release a built source that will never be drawn.
+ *
+ * Detaches every listener on it -- OpenLayers' dispose clears them -- so a
+ * source abandoned mid-open cannot report into a layer it never reached.
+ * Tolerates a missing source, and one without a dispose.
+ *
+ * @param {import("ol/source/Source.js").default|null|undefined} source
+ */
+export function disposeRuntimeSource(source) {
+  source?.dispose?.();
+}
 
 // Fields applyAutoRamp writes back onto a source. They describe one file, so
 // carrying them into the next fetch's config would describe the wrong one -- and
@@ -69,10 +84,21 @@ const RUNTIME_SOURCE_FIELDS = [
   "rampRangeUnavailable",
 ];
 
-// The ramp fields a fetch's style replaces as a set. The categorical fields are
-// cleared with them: a fetch only ever carries a continuous ramp, and a saved
-// class table left beside it would win over the ramp it sent.
-const STYLE_SOURCE_FIELDS = [
+/**
+ * The raster style fields a GeoTIFF layer saves on the top level of its source,
+ * and the editor keeps on the top level of its source props.
+ *
+ * A dynamic GeoTIFF's saved source *is* its style, so these travel as a set:
+ * loaded from a plugin scaffold, restored on reopen, saved without a URL,
+ * replaced as a whole by a fetch's style, and compared to decide whether a
+ * style edit must refetch. The categorical fields belong to the set because a
+ * fetch only ever carries a continuous ramp, and a saved class table left
+ * beside it would win over the ramp it sent.
+ *
+ * `mask_below` is styling too, but it lives on `source.props` beside the URL,
+ * not here, so every user of this list handles it explicitly.
+ */
+export const RASTER_STYLE_FIELDS = [
   "rampName",
   "rampMin",
   "rampMax",
@@ -138,16 +164,6 @@ export function normalizeLayerUrl(url) {
   return parsed.href;
 }
 
-/**
- * Whether a plugin-supplied layer URL may be fetched. See normalizeLayerUrl.
- *
- * @param {*} url
- * @returns {boolean}
- */
-export function isAllowedLayerUrl(url) {
-  return normalizeLayerUrl(url) !== null;
-}
-
 // A bound the author or the plugin set, as a number, or undefined when it is
 // empty -- which means "resolve it from the file", not zero.
 function boundValue(value) {
@@ -169,7 +185,7 @@ function isCategorical(source) {
 // means "auto-range this one", which inheriting the saved bounds would undo.
 function overlayFetchStyle(source, style) {
   const wasCategorical = source.styleMode === "categorical";
-  STYLE_SOURCE_FIELDS.forEach((field) => delete source[field]);
+  RASTER_STYLE_FIELDS.forEach((field) => delete source[field]);
   delete source.props.mask_below;
   // Written by a categorical save so class labels are not blended. Meaningless
   // for the ramp that replaces it, and it would blur nothing but nodata edges.
@@ -398,15 +414,14 @@ export function attachGeoTIFFSourceErrorHandlers(source, name, onError) {
 // This is the pre-flight's real check. The header reads that run before the
 // source is built swallow their failures -- they leave the error to the source,
 // which reports it with more to go on -- so a dead URL gets this far, and only
-// the source's own state says so.
-function awaitSourceReady(source, name, timeoutMs) {
+// the source's own state says so. Unbounded: buildRuntimeRaster's deadline
+// covers it, and disposing the source on that deadline drops the listener.
+function awaitSourceReady(source, name) {
   return new Promise((resolve, reject) => {
-    let timer;
     const settle = () => {
       const state = source.getState();
       if (state === "loading") return false;
       source.removeEventListener("change", onChange);
-      clearTimeout(timer);
       if (state === "ready") {
         resolve(source);
       } else {
@@ -422,15 +437,6 @@ function awaitSourceReady(source, name, timeoutMs) {
     const onChange = () => settle();
     if (settle()) return;
     source.addEventListener("change", onChange);
-    timer = setTimeout(() => {
-      source.removeEventListener("change", onChange);
-      reject(
-        new GeoTIFFError(
-          `GeoTIFF layer "${name}" timed out opening the file after ` +
-            `${Math.round(timeoutMs / 1000)} seconds.`,
-        ),
-      );
-    }, timeoutMs);
   });
 }
 
@@ -482,22 +488,63 @@ export async function buildRuntimeRaster(
   viewProjCode,
   { timeoutMs = RUNTIME_RASTER_READY_TIMEOUT_MS } = {},
 ) {
-  await applyAutoRamp(effectiveConfig);
-  const sourceConfig = effectiveConfig.props.source;
-  // moduleLoader's GeoTIFF branch places the CRS and raises the unrangeable
-  // float raster applyAutoRamp recorded, so neither is repeated here. It
-  // rewrites the props it is given, which is why it gets a copy: the config's
-  // own source stays in the saved shape the legend reads.
-  const source = await moduleLoader(
-    { ...sourceConfig, props: { ...sourceConfig.props } },
-    viewProjCode,
-  );
-  await awaitSourceReady(source, effectiveConfig.props.name, timeoutMs);
-  return {
-    source,
-    style: effectiveConfig.style,
-    legendRamp: legendRampFor(sourceConfig),
+  const name = effectiveConfig.props.name;
+  // Once the deadline has passed, whatever the build goes on to make is thrown
+  // away: the steps before it cannot be cancelled, only outlived.
+  let abandoned = false;
+  let openingSource = null;
+  let timer;
+  const deadline = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      abandoned = true;
+      disposeRuntimeSource(openingSource);
+      reject(
+        new GeoTIFFError(
+          `GeoTIFF layer "${name}" timed out opening the file after ` +
+            `${Math.round(timeoutMs / 1000)} seconds.`,
+        ),
+      );
+    }, timeoutMs);
+  });
+
+  const build = async () => {
+    await applyAutoRamp(effectiveConfig);
+    if (abandoned) return null;
+    const sourceConfig = effectiveConfig.props.source;
+    // moduleLoader's GeoTIFF branch places the CRS and raises the unrangeable
+    // float raster applyAutoRamp recorded, so neither is repeated here. It
+    // rewrites the props it is given, which is why it gets a copy: the config's
+    // own source stays in the saved shape the legend reads.
+    const source = await moduleLoader(
+      { ...sourceConfig, props: { ...sourceConfig.props } },
+      viewProjCode,
+    );
+    // istanbul ignore next -- the deadline landing inside moduleLoader's own
+    // header reads; not schedulable from the suite, which cannot hold those
+    // reads open past a deadline and then release them.
+    if (abandoned) {
+      disposeRuntimeSource(source);
+      return null;
+    }
+    openingSource = source;
+    try {
+      await awaitSourceReady(source, name);
+    } catch (err) {
+      disposeRuntimeSource(source);
+      throw err;
+    }
+    return {
+      source,
+      style: effectiveConfig.style,
+      legendRamp: legendRampFor(sourceConfig),
+    };
   };
+
+  try {
+    return await Promise.race([build(), deadline]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /**

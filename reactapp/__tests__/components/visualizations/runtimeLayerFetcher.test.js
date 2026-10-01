@@ -28,15 +28,23 @@ function fakeOlMap(olLayers) {
   // fetch that lands before its layer exists waits on the collection's "add"
   // event rather than discarding the payload.
   const addListeners = [];
+  const lengthListeners = [];
+  const listenersFor = (type) =>
+    type === "add"
+      ? addListeners
+      : type === "change:length"
+        ? lengthListeners
+        : null;
   const collection = {
     getArray: () => olLayers,
     on: (type, fn) => {
-      if (type === "add") addListeners.push(fn);
+      listenersFor(type)?.push(fn);
     },
     un: (type, fn) => {
-      if (type !== "add") return;
-      const i = addListeners.indexOf(fn);
-      if (i !== -1) addListeners.splice(i, 1);
+      const listeners = listenersFor(type);
+      if (!listeners) return;
+      const i = listeners.indexOf(fn);
+      if (i !== -1) listeners.splice(i, 1);
     },
   };
   return {
@@ -50,6 +58,14 @@ function fakeOlMap(olLayers) {
       addListeners.slice().forEach((fn) => fn());
     },
     pendingAddListeners: () => addListeners.length,
+    // Mimics a Map.js layer sync rebuilding a layer: the replacement is added
+    // before the layer it replaces is removed, each changing the length.
+    rebuildLayer: (index, layer) => {
+      olLayers.push(layer);
+      lengthListeners.slice().forEach((fn) => fn());
+      olLayers.splice(index, 1);
+      lengthListeners.slice().forEach((fn) => fn());
+    },
   };
 }
 
@@ -1669,6 +1685,7 @@ describe("useRuntimeLayerFetcher with a runtime GeoTIFF layer", () => {
     rampMin,
     rampMax,
     maskBelow,
+    fallbackColor,
   } = {}) {
     return {
       configuration: {
@@ -1687,6 +1704,7 @@ describe("useRuntimeLayerFetcher with a runtime GeoTIFF layer", () => {
             rampName,
             ...(rampMin === undefined ? {} : { rampMin }),
             ...(rampMax === undefined ? {} : { rampMax }),
+            ...(fallbackColor === undefined ? {} : { fallbackColor }),
           },
         },
       },
@@ -2144,6 +2162,7 @@ describe("useRuntimeLayerFetcher with a runtime GeoTIFF layer", () => {
     ["changing the ramp", { rampName: "magma" }],
     ["changing a bound", { rampMin: "5" }],
     ["changing the mask", { maskBelow: 0.1 }],
+    ['changing only the "Other values" color', { fallbackColor: "#ff00ff" }],
   ])(
     "%s refetches exactly once, with the same arguments",
     async (_label, change) => {
@@ -2249,6 +2268,225 @@ describe("useRuntimeLayerFetcher with a runtime GeoTIFF layer", () => {
     await flush();
     expect(onBeforeSwap).toHaveBeenCalledWith("layer-1");
     expect(olLayer.setSource).toHaveBeenCalledTimes(1);
+  });
+
+  test("a request settling during a newer one's debounce neither closes the window nor paints", async () => {
+    const olLayer = fakeRasterLayer("layer-1");
+    const mapRef = { current: fakeOlMap([olLayer]) };
+    // eslint-disable-next-line no-template-curly-in-string
+    const layers = [rasterLayerConfig({ args: { storm: "${Storm}" } })];
+    const first = deferred();
+    getFeaturesMock.mockReturnValueOnce(first.promise);
+
+    const { result, rerender } = hookFor({
+      layers,
+      mapRef,
+      variableInputValues: { Storm: "one" },
+    });
+    await flush();
+    expect(getFeaturesMock).toHaveBeenCalledTimes(1);
+
+    // A newer request is queued but not yet dispatched...
+    rerender({ layers, mapRef, variableInputValues: { Storm: "two" } });
+    await flush(100);
+    expect(getFeaturesMock).toHaveBeenCalledTimes(1);
+
+    // ...when the older one lands.
+    await act(async () => {
+      first.resolve(sourceResponse("https://h/one.tif"));
+      for (let i = 0; i < 5; i += 1) {
+        await Promise.resolve();
+      }
+    });
+    expect(result.current.loadingByLayerId["layer-1"]).toBe(true);
+    expect(buildSpy).not.toHaveBeenCalled();
+    expect(olLayer.setSource).not.toHaveBeenCalled();
+
+    await flush(150);
+    expect(getFeaturesMock).toHaveBeenCalledTimes(2);
+    expect(buildSpy).toHaveBeenCalledTimes(1);
+    expect(olLayer.getSource().url).toBe("https://h/two.tif");
+    expect(result.current.loadingByLayerId).toEqual({});
+  });
+
+  test("a superseded build's source is disposed, never applied", async () => {
+    const olLayer = fakeRasterLayer("layer-1");
+    const mapRef = { current: fakeOlMap([olLayer]) };
+    // eslint-disable-next-line no-template-curly-in-string
+    const layers = [rasterLayerConfig({ args: { storm: "${Storm}" } })];
+    const first = deferred();
+    buildSpy.mockReturnValueOnce(first.promise);
+
+    const { rerender } = hookFor({
+      layers,
+      mapRef,
+      variableInputValues: { Storm: "one" },
+    });
+    await flush();
+    rerender({ layers, mapRef, variableInputValues: { Storm: "two" } });
+    await flush();
+    expect(olLayer.getSource().url).toBe("https://h/two.tif");
+    const painted = olLayer.getSource();
+    jest.spyOn(painted, "dispose");
+
+    const stale = builtFor("https://h/one.tif");
+    const dispose = jest.spyOn(stale.source, "dispose");
+    await act(async () => {
+      first.resolve(stale);
+      await Promise.resolve();
+    });
+    expect(dispose).toHaveBeenCalledTimes(1);
+    expect(olLayer.getSource()).toBe(painted);
+    expect(painted.dispose).not.toHaveBeenCalled();
+  });
+
+  test("a build whose layer vanished is disposed, and the layer that returns gets its own", async () => {
+    const olLayers = [fakeRasterLayer("layer-1")];
+    const map = fakeOlMap(olLayers);
+    const mapRef = { current: map };
+    const build = deferred();
+    buildSpy.mockReturnValueOnce(build.promise);
+
+    hookFor({ layers: [rasterLayerConfig()], mapRef });
+    await flush();
+    olLayers.splice(0, 1);
+
+    const orphan = builtFor("https://h/a.tif");
+    const dispose = jest.spyOn(orphan.source, "dispose");
+    await act(async () => {
+      build.resolve(orphan);
+      await Promise.resolve();
+    });
+    expect(dispose).toHaveBeenCalledTimes(1);
+
+    const rebuilt = fakeRasterLayer("layer-1");
+    await act(async () => {
+      map.addLayerLate(rebuilt);
+      for (let i = 0; i < 5; i += 1) {
+        await Promise.resolve();
+      }
+    });
+    expect(rebuilt.getSource()).not.toBe(orphan.source);
+    expect(rebuilt.getSource().url).toBe("https://h/a.tif");
+  });
+
+  test("a build that hits its deadline reports the timeout as the layer's error", async () => {
+    const olLayer = fakeRasterLayer("layer-1");
+    const mapRef = { current: fakeOlMap([olLayer]) };
+    buildSpy.mockRejectedValueOnce(
+      new GeoTIFFError(
+        'GeoTIFF layer "Depth" timed out opening the file after 30 seconds.',
+      ),
+    );
+
+    const { result } = hookFor({ layers: [rasterLayerConfig()], mapRef });
+    await flush();
+    expect(result.current.errorsByLayerId["layer-1"]).toEqual({
+      message:
+        'GeoTIFF layer "Depth" timed out opening the file after 30 seconds.',
+      kind: "error",
+    });
+    expect(result.current.loadingByLayerId).toEqual({});
+    expect(olLayer.setSource).not.toHaveBeenCalled();
+  });
+
+  test("a raster layer rebuilt behind the fetcher's back is repainted", async () => {
+    const olLayer = fakeRasterLayer("layer-1");
+    const map = fakeOlMap([olLayer]);
+    const mapRef = { current: map };
+    const layers = [rasterLayerConfig()];
+
+    const { result } = hookFor({ layers, mapRef });
+    await flush();
+    expect(olLayer.getSource().url).toBe("https://h/a.tif");
+
+    // A layer sync rebuilds the layer -- a new, sourceless WebGLTile -- while
+    // nothing the fetcher compares has changed.
+    const rebuilt = fakeRasterLayer("layer-1");
+    await act(async () => {
+      map.rebuildLayer(0, rebuilt);
+      for (let i = 0; i < 5; i += 1) {
+        await Promise.resolve();
+      }
+    });
+
+    // Rebuilt from the last description, not refetched, and not the old
+    // layer's source: an OL source cannot be shared between layers.
+    expect(getFeaturesMock).toHaveBeenCalledTimes(1);
+    expect(buildSpy).toHaveBeenCalledTimes(2);
+    expect(rebuilt.getSource().url).toBe("https://h/a.tif");
+    expect(rebuilt.getSource()).not.toBe(olLayer.getSource());
+    expect(result.current.loadingByLayerId).toEqual({});
+
+    // Once repainted, the same layer is not repainted again.
+    await act(async () => {
+      map.rebuildLayer(0, rebuilt);
+      await Promise.resolve();
+    });
+    expect(buildSpy).toHaveBeenCalledTimes(2);
+  });
+
+  test("a rebuild while a fetch is outstanding is left to that fetch", async () => {
+    const olLayer = fakeRasterLayer("layer-1");
+    const map = fakeOlMap([olLayer]);
+    const mapRef = { current: map };
+    // eslint-disable-next-line no-template-curly-in-string
+    const layers = [rasterLayerConfig({ args: { storm: "${Storm}" } })];
+    const { rerender } = hookFor({
+      layers,
+      mapRef,
+      variableInputValues: { Storm: "one" },
+    });
+    await flush();
+
+    rerender({ layers, mapRef, variableInputValues: { Storm: "two" } });
+    const rebuilt = fakeRasterLayer("layer-1");
+    await act(async () => {
+      map.rebuildLayer(0, rebuilt);
+      await Promise.resolve();
+    });
+    await flush();
+    // Only the queued request paints, and it paints the rebuilt layer.
+    expect(buildSpy).toHaveBeenCalledTimes(2);
+    expect(rebuilt.getSource().url).toBe("https://h/two.tif");
+  });
+
+  const vectorLayers = [runtimeLayerConfig()];
+
+  test("a vector layer rebuilt behind the fetcher's back gets its features back", async () => {
+    getFeaturesMock.mockResolvedValue({
+      success: true,
+      viz_type: "features",
+      data: validFc,
+    });
+    const olLayer = fakeOlLayer("layer-1");
+    const map = fakeOlMap([olLayer]);
+    const mapRef = { current: map };
+    const onBeforeSwap = jest.fn();
+    renderHook(() =>
+      useRuntimeLayerFetcher({
+        layers: vectorLayers,
+        gridItemUUID: "g",
+        sessionNonce: "n",
+        mapRef,
+        variableInputValues: noVariableInputs,
+        variableInputDateFormats: noDateFormats,
+        onBeforeSwap,
+      }),
+    );
+    await flush();
+    expect(swapSpy).toHaveBeenCalledTimes(1);
+    expect(onBeforeSwap).toHaveBeenCalledTimes(1);
+
+    const rebuilt = fakeOlLayer("layer-1");
+    await act(async () => {
+      map.rebuildLayer(0, rebuilt);
+    });
+    expect(getFeaturesMock).toHaveBeenCalledTimes(1);
+    expect(swapSpy).toHaveBeenCalledTimes(2);
+    expect(swapSpy).toHaveBeenLastCalledWith(rebuilt, validFc, "EPSG:3857");
+    // The repaint replaces the features under any open popup, as a fetch does.
+    expect(onBeforeSwap).toHaveBeenCalledTimes(2);
   });
 
   test("a vector runtime layer still swaps features and never builds a raster", async () => {
