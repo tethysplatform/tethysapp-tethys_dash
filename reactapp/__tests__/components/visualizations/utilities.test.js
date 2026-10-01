@@ -20,7 +20,17 @@ import {
   argsContainPreset,
   IMAGE_VIZ_CACHE_LIMIT,
   toNumberOrEmpty,
+  normalizeVariableInputValue,
+  getPublishedVariableInputValues,
+  getVariableInputDateFormat,
 } from "components/visualizations/utilities";
+import appAPI from "services/api/app";
+import {
+  buildPreloadedVisualizationKey,
+  clearPreloadedVisualizations,
+  setPreloadedVisualization,
+  takePreloadedVisualization,
+} from "components/visualizations/preloadedVisualizationCache";
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
 import { format } from "date-fns";
@@ -2253,5 +2263,204 @@ describe("toNumberOrEmpty", () => {
     expect(toNumberOrEmpty("abc")).toBe("");
     expect(toNumberOrEmpty("")).toBe("");
     expect(toNumberOrEmpty(undefined)).toBe("");
+  });
+});
+
+describe("variable input publishing helpers", () => {
+  it("normalizes initial values the way VariableInput publishes them", () => {
+    expect(
+      normalizeVariableInputValue({
+        variable_options_source: "number",
+        initial_value: "0.3",
+      }),
+    ).toBe(0.3);
+    expect(
+      normalizeVariableInputValue({
+        variable_options_source: "checkbox",
+        initial_value: null,
+      }),
+    ).toBe(false);
+    expect(
+      normalizeVariableInputValue({
+        variable_options_source: "text",
+        initial_value: null,
+      }),
+    ).toBeNull();
+  });
+
+  it("publishes nothing for an empty value but publishes 0 and false", () => {
+    expect(getPublishedVariableInputValues("A", "")).toBeNull();
+    expect(getPublishedVariableInputValues("A", null)).toBeNull();
+    expect(getPublishedVariableInputValues("A", undefined)).toBeNull();
+    expect(getPublishedVariableInputValues("A", 0)).toEqual({ A: 0 });
+    expect(getPublishedVariableInputValues("A", false)).toEqual({ A: false });
+  });
+
+  it("spreads an object value's keys alongside the variable", () => {
+    const range = { "Start Date": "a", "End Date": "b" };
+    expect(getPublishedVariableInputValues("Range", range)).toEqual({
+      Range: range,
+      "Start Date": "a",
+      "End Date": "b",
+    });
+  });
+
+  it("finds the date format a variable input registers", () => {
+    expect(
+      getVariableInputDateFormat({
+        variable_options_source: "date-range",
+        metadata: { format: "MM/dd/yyyy" },
+      }),
+    ).toBe("MM/dd/yyyy");
+    expect(
+      getVariableInputDateFormat({
+        variable_options_source: "slider",
+        metadata: { dataType: "Date", outputFormat: "yyyy" },
+      }),
+    ).toBe("yyyy");
+    expect(
+      getVariableInputDateFormat({
+        variable_options_source: "slider",
+        metadata: { dataType: "Number" },
+      }),
+    ).toBeNull();
+    expect(
+      getVariableInputDateFormat({ variable_options_source: ["a"] }),
+    ).toBeNull();
+  });
+});
+
+describe("preloaded visualization cache", () => {
+  afterEach(() => {
+    clearPreloadedVisualizations();
+    jest.restoreAllMocks();
+  });
+
+  it("keys a request by source and args regardless of key order", () => {
+    expect(
+      buildPreloadedVisualizationKey({ source: "s", args: { a: 1, b: 2 } }),
+    ).toBe(
+      buildPreloadedVisualizationKey({ source: "s", args: { b: 2, a: 1 } }),
+    );
+    expect(
+      buildPreloadedVisualizationKey({ source: "s", args: { a: 1 } }),
+    ).not.toBe(buildPreloadedVisualizationKey({ source: "s", args: { a: 2 } }));
+  });
+
+  it("hands an entry out once", () => {
+    const response = { success: true };
+    setPreloadedVisualization({ source: "s", args: {} }, response);
+    expect(takePreloadedVisualization({ source: "s", args: {} })).toBe(
+      response,
+    );
+    expect(takePreloadedVisualization({ source: "s", args: {} })).toBe(
+      undefined,
+    );
+  });
+
+  const preloadedResponse = {
+    success: true,
+    viz_type: "variable_input",
+    data: {
+      variable_name: "Station",
+      initial_value: "ABC",
+      variable_options_source: "text",
+    },
+  };
+
+  const runGetVisualization = (overrides = {}) => {
+    const setVizType = jest.fn();
+    const setVizData = jest.fn();
+    return getVisualization({
+      setVizType,
+      setVizData,
+      sourceType: "variable_input",
+      sourceArgs: { region: "text" },
+      itemData: { source: "station_picker", args: {} },
+      argsString: JSON.stringify({ region: "west" }),
+      metadataString: "{}",
+      variableInputValues: {},
+      dashboardView: true,
+      ...overrides,
+    }).then(() => ({ setVizType, setVizData }));
+  };
+
+  it("serves a preloaded response to the tile once, then fetches", async () => {
+    const spy = jest
+      .spyOn(appAPI, "getVisualizationData")
+      .mockResolvedValue(preloadedResponse);
+    setPreloadedVisualization(
+      { source: "station_picker", args: { region: "west" } },
+      preloadedResponse,
+    );
+
+    const first = await runGetVisualization();
+    expect(spy).not.toHaveBeenCalled();
+    // No loader flash for a response that is already here.
+    expect(first.setVizType.mock.calls.map((call) => call[0])).toEqual([
+      "variableInput",
+    ]);
+    expect(first.setVizData).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variable_name: "Station",
+        initial_value: "ABC",
+      }),
+    );
+
+    await runGetVisualization();
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it("is not consumed outside the dashboard view", async () => {
+    const spy = jest
+      .spyOn(appAPI, "getVisualizationData")
+      .mockResolvedValue(preloadedResponse);
+    setPreloadedVisualization(
+      { source: "station_picker", args: { region: "west" } },
+      preloadedResponse,
+    );
+
+    await runGetVisualization({ dashboardView: false });
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(
+      takePreloadedVisualization({
+        source: "station_picker",
+        args: { region: "west" },
+      }),
+    ).toBe(preloadedResponse);
+  });
+
+  it("is bypassed, and discarded, on a refresh", async () => {
+    const spy = jest
+      .spyOn(appAPI, "getVisualizationData")
+      .mockResolvedValue(preloadedResponse);
+    setPreloadedVisualization(
+      { source: "station_picker", args: { region: "west" } },
+      preloadedResponse,
+    );
+
+    await runGetVisualization({ refresh: true });
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(
+      takePreloadedVisualization({
+        source: "station_picker",
+        args: { region: "west" },
+      }),
+    ).toBe(undefined);
+  });
+
+  it("misses when the resolved args differ from the preloaded ones", async () => {
+    const spy = jest
+      .spyOn(appAPI, "getVisualizationData")
+      .mockResolvedValue(preloadedResponse);
+    setPreloadedVisualization(
+      { source: "station_picker", args: { region: "west" } },
+      preloadedResponse,
+    );
+
+    await runGetVisualization({
+      argsString: JSON.stringify({ region: "east" }),
+    });
+    expect(spy).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,5 +1,8 @@
 import DashboardLoader from "components/loader/DashboardLoader";
-import { screen, render, waitFor } from "@testing-library/react";
+import { screen, render, waitFor, act } from "@testing-library/react";
+import appAPI from "services/api/app";
+import { VARIABLE_INPUT_PRELOAD_BUDGET_MS } from "components/loader/variableInputPreload";
+import { clearPreloadedVisualizations } from "components/visualizations/preloadedVisualizationCache";
 import { useContext } from "react";
 import { AvailableDashboardsContext } from "components/contexts/Contexts";
 import {
@@ -27,6 +30,7 @@ import {
   EditingContext,
   DisabledEditingMovementContext,
   TabContext,
+  AppContext,
 } from "components/contexts/Contexts";
 import PropTypes from "prop-types";
 
@@ -1427,6 +1431,194 @@ test("DashboardLoader updateTabs writes every tab in one commit", async () => {
       "Tab Two Variable": "two",
     }),
   );
+});
+
+describe("DashboardLoader plugin variable input preload", () => {
+  const pluginVisualizations = [
+    {
+      label: "Plugins",
+      options: [
+        {
+          source: "station_picker",
+          type: "variable_input",
+          args: { basin: "text" },
+        },
+      ],
+    },
+  ];
+
+  const pluginVariableInput = {
+    ...mockedTextVariable,
+    id: 7,
+    uuid: "plugin-vi-uuid",
+    i: "7",
+    source: "station_picker",
+    args_string: JSON.stringify({ basin: "willamette" }),
+  };
+  const builtInVariableInput = JSON.parse(JSON.stringify(mockedTextVariable));
+  builtInVariableInput.args_string = JSON.stringify({
+    initial_value: "built in",
+    variable_name: "Built In",
+    variable_options_source: "text",
+  });
+
+  const preloadDashboard = {
+    ...JSON.parse(JSON.stringify(userDashboard)),
+    tabs: [
+      {
+        id: 1,
+        name: "Tab 1",
+        gridItems: [builtInVariableInput, pluginVariableInput],
+      },
+    ],
+  };
+
+  const stationResponse = {
+    success: true,
+    viz_type: "variable_input",
+    data: {
+      variable_name: "Station",
+      initial_value: "SALEM",
+      variable_options_source: "text",
+    },
+  };
+
+  const renderPreloadingDashboard = () =>
+    render(
+      <AppContext.Provider value={{ visualizations: pluginVisualizations }}>
+        <AvailableDashboardsContext.Provider
+          value={{ updateDashboard: jest.fn() }}
+        >
+          <DashboardLoader {...preloadDashboard}>
+            <InputVariablePComponent />
+            <TabContext.Consumer>
+              {({ updateTab }) => (
+                <>
+                  <button
+                    data-testid="moveGridItemButton"
+                    onClick={() =>
+                      updateTab(1, {
+                        gridItems: [
+                          { ...builtInVariableInput, x: 5 },
+                          pluginVariableInput,
+                        ],
+                      })
+                    }
+                  ></button>
+                  <button
+                    data-testid="removeBuiltInButton"
+                    onClick={() =>
+                      updateTab(1, { gridItems: [pluginVariableInput] })
+                    }
+                  ></button>
+                </>
+              )}
+            </TabContext.Consumer>
+          </DashboardLoader>
+        </AvailableDashboardsContext.Provider>
+      </AppContext.Provider>,
+    );
+
+  beforeEach(() => {
+    jest
+      .spyOn(appAPI, "getDashboard")
+      .mockResolvedValue({ success: true, dashboard: preloadDashboard });
+  });
+
+  afterEach(() => {
+    clearPreloadedVisualizations();
+    jest.restoreAllMocks();
+    jest.useRealTimers();
+  });
+
+  test("shows its progress, then renders with the plugin's value", async () => {
+    let resolvePlugin;
+    const spy = jest.spyOn(appAPI, "getVisualizationData").mockReturnValue(
+      new Promise((resolve) => {
+        resolvePlugin = resolve;
+      }),
+    );
+
+    renderPreloadingDashboard();
+
+    const status = await screen.findByRole("status");
+    expect(status).toHaveTextContent("Loading Dashboard...");
+    await waitFor(() =>
+      expect(status).toHaveTextContent("Loading variable inputs… (0 of 1)"),
+    );
+    expect(screen.queryByTestId("input-variables")).not.toBeInTheDocument();
+    expect(spy).toHaveBeenCalledWith({
+      source: "station_picker",
+      args: { basin: "willamette" },
+      requestId: "plugin-vi-uuid",
+    });
+
+    await act(async () => resolvePlugin(stationResponse));
+
+    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({ "Built In": "built in", Station: "SALEM" }),
+    );
+  });
+
+  test("keeps the plugin's value through a layout update, and still releases a removed built-in", async () => {
+    jest
+      .spyOn(appAPI, "getVisualizationData")
+      .mockResolvedValue(stationResponse);
+
+    renderPreloadingDashboard();
+
+    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({ "Built In": "built in", Station: "SALEM" }),
+    );
+
+    // The drag/resize stop path: DashboardLayout.updateLayout -> updateTab.
+    await userEvent.click(screen.getByTestId("moveGridItemButton"));
+    expect(screen.getByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({ "Built In": "built in", Station: "SALEM" }),
+    );
+
+    await userEvent.click(screen.getByTestId("removeBuiltInButton"));
+    expect(screen.getByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({ Station: "SALEM" }),
+    );
+  });
+
+  test("renders at the budget without a hanging plugin, and ignores its late answer", async () => {
+    jest.useFakeTimers();
+    let resolvePlugin;
+    jest.spyOn(appAPI, "getVisualizationData").mockReturnValue(
+      new Promise((resolve) => {
+        resolvePlugin = resolve;
+      }),
+    );
+
+    renderPreloadingDashboard();
+    // Let the dashboard arrive and the preload start; the budget runs from
+    // there.
+    await act(async () => {
+      await Promise.resolve();
+      jest.advanceTimersByTime(0);
+    });
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Loading variable inputs… (0 of 1)",
+    );
+    await act(async () => {
+      jest.advanceTimersByTime(VARIABLE_INPUT_PRELOAD_BUDGET_MS - 1);
+    });
+    expect(screen.queryByTestId("input-variables")).not.toBeInTheDocument();
+
+    await act(async () => {
+      jest.advanceTimersByTime(1);
+    });
+    expect(screen.getByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({ "Built In": "built in" }),
+    );
+
+    await act(async () => resolvePlugin(stationResponse));
+    expect(screen.getByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({ "Built In": "built in" }),
+    );
+  });
 });
 
 TestingComponent.propTypes = {

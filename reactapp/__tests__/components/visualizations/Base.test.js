@@ -37,6 +37,7 @@ import {
   VariableInputsContext,
 } from "components/contexts/Contexts";
 import { WebsocketContext } from "components/contexts/WebSocketContext";
+import appAPI from "services/api/app";
 
 jest.mock("components/visualizations/ModuleLoader", () => {
   const MockModuleLoader = () => <div>ModuleLoader Mock</div>;
@@ -1881,5 +1882,205 @@ describe("source change with identical resolved args", () => {
       "disdrometer_plot",
     );
     spyGetVisualization.mockRestore();
+  });
+});
+
+/* eslint-disable no-template-curly-in-string */
+// Grid-item args below reference variable inputs with literal `${...}`.
+describe("plugin variable inputs preloaded before render", () => {
+  const pluginVisualizations = [
+    {
+      label: "Plugins",
+      options: ["picker_a", "picker_b", "picker_c", "picker_d"].map(
+        (source) => ({
+          source,
+          value: source,
+          label: source,
+          type: "variable_input",
+          args: { region: "text", station: "text", other: "text" },
+          tags: [],
+          description: "",
+        }),
+      ),
+    },
+    {
+      label: "Plots",
+      options: [
+        {
+          source: "text_plugin",
+          value: "text_plugin",
+          label: "text_plugin",
+          type: "text",
+          args: { station: "text" },
+          tags: [],
+          description: "",
+        },
+      ],
+    },
+  ];
+
+  const gridItem = (i, source, args) => ({
+    id: i,
+    uuid: `uuid-${i}`,
+    i: `${i}`,
+    x: 0,
+    y: 0,
+    w: 10,
+    h: 10,
+    source,
+    args_string: JSON.stringify(args),
+    metadata_string: JSON.stringify({ refreshRate: 0 }),
+  });
+
+  const variableInputResponse = (variable_name, initial_value) => ({
+    success: true,
+    viz_type: "variable_input",
+    data: { variable_name, initial_value, variable_options_source: "text" },
+  });
+
+  const renderDashboard = (gridItems) => {
+    const dashboard = {
+      ...JSON.parse(JSON.stringify(userDashboard)),
+      tabs: [{ id: 1, name: "Tab 1", gridItems }],
+    };
+    return render(
+      createLoadedComponent({
+        children: (
+          <>
+            {gridItems.map((item) => (
+              <GridItemContext.Provider
+                key={item.uuid}
+                value={{
+                  gridItemSource: item.source,
+                  gridItemArgsString: item.args_string,
+                  gridItemMetadataString: item.metadata_string,
+                  gridItemUUID: item.uuid,
+                  shouldLoad: true,
+                }}
+              >
+                <BaseVisualization />
+              </GridItemContext.Provider>
+            ))}
+            <InputVariablePComponent />
+          </>
+        ),
+        options: {
+          dashboards: { dashboards: [dashboard] },
+          initialDashboard: dashboard,
+          visualizations: pluginVisualizations,
+        },
+      }),
+    );
+  };
+
+  const callsFor = (spy, source) =>
+    spy.mock.calls
+      .map(([itemData]) => itemData)
+      .filter((itemData) => itemData.source === source);
+
+  // Records whether an empty-variable warning was ever on screen, not just
+  // whether one is there at the end.
+  const watchForEmptyVariableWarnings = () => {
+    const seen = [];
+    const observer = new MutationObserver(() => {
+      // eslint-disable-next-line testing-library/no-node-access
+      const text = document.body.textContent;
+      if (text.includes("variable is empty")) seen.push(text);
+    });
+    // eslint-disable-next-line testing-library/no-node-access
+    observer.observe(document.body, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+    });
+    return { seen, stop: () => observer.disconnect() };
+  };
+
+  it("loads a chain before render, so its dependent fetches once with the value", async () => {
+    const spy = jest
+      .spyOn(appAPI, "getVisualizationData")
+      .mockImplementation(({ source, args }) => {
+        if (source === "picker_a") {
+          return Promise.resolve(variableInputResponse("Region", "west"));
+        }
+        if (source === "picker_b") {
+          return Promise.resolve(
+            variableInputResponse("Station", `${args.region}-station`),
+          );
+        }
+        return Promise.resolve({
+          success: true,
+          viz_type: "text",
+          data: { text: `Station ${args.station}` },
+        });
+      });
+    const warnings = watchForEmptyVariableWarnings();
+
+    renderDashboard([
+      gridItem(1, "text_plugin", { station: "${Station}" }),
+      gridItem(2, "picker_b", { region: "${Region}" }),
+      gridItem(3, "picker_a", {}),
+    ]);
+
+    expect(await screen.findByText("Station west-station")).toBeInTheDocument();
+    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({ Region: "west", Station: "west-station" }),
+    );
+    warnings.stop();
+
+    // A ran first, then B with A's value; neither ran again for its own tile.
+    expect(callsFor(spy, "picker_a")).toHaveLength(1);
+    expect(callsFor(spy, "picker_b")).toEqual([
+      { source: "picker_b", args: { region: "west" }, requestId: "uuid-2" },
+    ]);
+    expect(spy.mock.calls[0][0].source).toBe("picker_a");
+    // The dependent fetched once, with the resolved value, and never warned.
+    expect(callsFor(spy, "text_plugin")).toEqual([
+      {
+        source: "text_plugin",
+        args: { station: "west-station" },
+        requestId: "uuid-1",
+      },
+    ]);
+    expect(warnings.seen).toEqual([]);
+    // Both variable inputs rendered from their preloaded responses.
+    expect(await screen.findByText("Region")).toBeInTheDocument();
+    expect(screen.getByText("Station")).toBeInTheDocument();
+  });
+
+  it("leaves cyclic, unresolvable, and failing plugins to load normally after render", async () => {
+    const spy = jest
+      .spyOn(appAPI, "getVisualizationData")
+      .mockImplementation(({ source }) => {
+        if (source === "picker_d") {
+          return Promise.resolve({
+            success: false,
+            data: { error: "Plugin exploded" },
+          });
+        }
+        return Promise.resolve(variableInputResponse(source, "value"));
+      });
+
+    renderDashboard([
+      gridItem(1, "picker_a", { region: "${picker_b}" }),
+      gridItem(2, "picker_b", { station: "${picker_a}" }),
+      gridItem(3, "picker_c", { other: "${Never Set}" }),
+      gridItem(4, "picker_d", {}),
+    ]);
+
+    // Each tile reports what it always has.
+    expect(
+      await screen.findByText("picker_b variable is empty"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("picker_a variable is empty")).toBeInTheDocument();
+    expect(screen.getByText("Never Set variable is empty")).toBeInTheDocument();
+    expect(await screen.findByText("Plugin exploded")).toBeInTheDocument();
+
+    // The preload never ran the stuck ones; the failure ran in the preload and
+    // again in its tile, since only successes are kept for the tile.
+    expect(callsFor(spy, "picker_a")).toHaveLength(0);
+    expect(callsFor(spy, "picker_b")).toHaveLength(0);
+    expect(callsFor(spy, "picker_c")).toHaveLength(0);
+    expect(callsFor(spy, "picker_d")).toHaveLength(2);
   });
 });

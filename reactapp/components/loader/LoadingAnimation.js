@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 
 import "components/loader/LoadingAnimation.scss";
 
-const LoadingAnimation = ({ delay, text = "Loading..." }) => {
+const LoadingAnimation = ({ delay, text = "Loading...", detail }) => {
   const [show, setShow] = useState(false);
 
   useEffect(() => {
@@ -35,7 +35,12 @@ const LoadingAnimation = ({ delay, text = "Loading..." }) => {
             <div className="outer-moon-a"></div>
             <div className="outer-moon-b"></div>
           </div>
-          <div className="loading-text">{text}</div>
+          {/* A live region, so a screen reader hears the text and any detail
+              (e.g. a progress count) change while the page waits. */}
+          <div className="loading-text" role="status" aria-live="polite">
+            {text}
+            {detail && <div className="loading-detail">{detail}</div>}
+          </div>
         </div>
       )}
     </>
@@ -45,6 +50,8 @@ const LoadingAnimation = ({ delay, text = "Loading..." }) => {
 LoadingAnimation.propTypes = {
   delay: PropTypes.number,
   text: PropTypes.string,
+  // A secondary line under `text` describing what is still loading.
+  detail: PropTypes.string,
 };
 
 export default LoadingAnimation;

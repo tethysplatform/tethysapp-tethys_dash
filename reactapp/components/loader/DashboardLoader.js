@@ -18,11 +18,134 @@ import {
   DataViewerModeContext,
   AvailableDashboardsContext,
   TabContext,
+  AppContext,
 } from "components/contexts/Contexts";
 import ViewGroupProvider from "components/contexts/ViewGroupContext";
 import { toNumberOrEmpty } from "components/visualizations/utilities";
 import Error from "components/error/Error";
 import errorImage from "assets/error404.png";
+import { preloadPluginVariableInputs } from "components/loader/variableInputPreload";
+import { clearPreloadedVisualizations } from "components/visualizations/preloadedVisualizationCache";
+
+/**
+ * Scans grid items for the variable input values the dashboard owns: each
+ * built-in Variable Input's initial value (and a date range's endpoints), and
+ * a null placeholder for every map layer attribute variable.
+ *
+ * Returns `seeds` (key -> the seeded value, plus the Variable Input's options
+ * source when its value needs the same coercion VariableInput applies), the
+ * `dateFormats` those inputs register, and `keysByTab`, the keys each tab
+ * owns. Pure, so the value a seed resolves to can be computed against the
+ * latest state inside a functional update.
+ */
+function buildVariableInputSeeds(tabs) {
+  const seeds = {};
+  const dateFormats = {};
+  const keysByTab = new Map();
+
+  for (let tab of tabs) {
+    const tabKeys = new Set();
+    for (let gridItem of tab.gridItems) {
+      let gridItemValues = {};
+      const args = JSON.parse(gridItem.args_string);
+
+      if (gridItem.source === "Variable Input") {
+        gridItemValues[args.variable_name] = args.initial_value;
+
+        if (args.initial_value && typeof args.initial_value === "object") {
+          for (let [key, value] of Object.entries(args.initial_value)) {
+            gridItemValues[key] = value;
+          }
+        }
+      }
+
+      if (gridItem.source === "Map") {
+        const mapLayers = args.layers || [];
+        for (let layer of mapLayers) {
+          const layerVariableInputs = layer.attributeVariables || {};
+          for (let layerAttributes of Object.values(layerVariableInputs)) {
+            for (let attributeVariableInput of Object.values(layerAttributes)) {
+              if (!(attributeVariableInput in seeds)) {
+                gridItemValues[attributeVariableInput] = null;
+              }
+            }
+          }
+        }
+      }
+
+      for (let [key, value] of Object.entries(gridItemValues)) {
+        let dateFormat;
+        if (gridItem.source === "Variable Input") {
+          if (args.variable_options_source.includes("date")) {
+            dateFormat =
+              args?.["variable_options_source.metadata"]?.format || "";
+          } else if (
+            args.variable_options_source === "slider" &&
+            args["variable_options_source.metadata"]?.dataType === "Date"
+          ) {
+            dateFormat = args["variable_options_source.metadata"].outputFormat;
+          }
+        }
+
+        seeds[key] = {
+          value,
+          variableOptionsSource:
+            gridItem.source === "Variable Input"
+              ? args.variable_options_source
+              : null,
+        };
+        tabKeys.add(key);
+        if (dateFormat) {
+          dateFormats[key] = dateFormat;
+        }
+      }
+    }
+    keysByTab.set(tab.id, tabKeys);
+  }
+
+  return { seeds, dateFormats, keysByTab };
+}
+
+/**
+ * Merges seeds into `previousValues`. A key that already holds a value keeps
+ * it, so an edit does not reset a variable the user has changed; `released`
+ * keys, owned by a grid item that no longer exists, are removed. Every other
+ * key -- a plugin variable input's value above all, which no scan can see --
+ * is left as it is.
+ */
+function applyVariableInputSeeds(previousValues, seeds, released = []) {
+  const nextValues = { ...previousValues };
+  for (const key of released) {
+    delete nextValues[key];
+  }
+  for (const [key, { value, variableOptionsSource }] of Object.entries(seeds)) {
+    let initialValue =
+      previousValues[key] === undefined ? value : previousValues[key];
+
+    if (variableOptionsSource === "checkbox" && initialValue === null) {
+      initialValue = false;
+    }
+
+    // Seed the same type VariableInput itself publishes. Without this the
+    // boot-time seed is the raw string ("0.3") while the mount effect
+    // publishes a number (0.3), so the context value's type depended on which
+    // landed last.
+    if (variableOptionsSource === "number") {
+      initialValue = toNumberOrEmpty(initialValue);
+    }
+
+    nextValues[key] = initialValue;
+  }
+  return nextValues;
+}
+
+function unionOfKeys(keysByTab) {
+  const keys = new Set();
+  for (const tabKeys of keysByTab.values()) {
+    for (const key of tabKeys) keys.add(key);
+  }
+  return keys;
+}
 
 const DashboardLoader = ({
   children,
@@ -48,30 +171,72 @@ const DashboardLoader = ({
   const [isEditing, setIsEditing] = useState(false);
   const [disabledEditingMovement, setDisabledEditingMovement] = useState(false);
   const [inDataViewerMode, setInDataViewerMode] = useState(false);
+  // Progress of the pre-render plugin variable input preload, or null when
+  // none is running: { completed, total }.
+  const [variableInputPreload, setVariableInputPreload] = useState(null);
   const { updateDashboard } = useContext(AvailableDashboardsContext);
+  const { visualizations } = useContext(AppContext) ?? {};
   const originalTabs = useRef({});
+  // tab id -> the variable input keys that tab's built-in grid items own.
+  const ownedVariableInputKeys = useRef(new Map());
   const editable = ["admin", "editor"].includes(userPermission);
 
   useEffect(() => {
+    // Set on unmount, so a dashboard left mid-load writes nothing afterwards.
+    let abandoned = false;
+    // Preloaded responses belong to the dashboard that fetched them.
+    clearPreloadedVisualizations();
+
     const fetchDashboard = async () => {
       try {
         const response = await appAPI.getDashboard({ id });
+        if (abandoned) return;
         if (response.success) {
-          updateVariableInputValuesWithGridItems(response.dashboard.tabs);
-          originalTabs.current = response.dashboard.tabs;
+          const dashboardTabs = response.dashboard.tabs;
+          const { seeds, dateFormats } = updateVariableInputValuesWithGridItems(
+            dashboardTabs,
+            { replacesAllTabs: true },
+          );
+          originalTabs.current = dashboardTabs;
           setNotes(response.dashboard.notes);
-          setTabs(response.dashboard.tabs);
-          setActiveTabId(response.dashboard.tabs[0].id);
+          setTabs(dashboardTabs);
+          setActiveTabId(dashboardTabs[0].id);
+
+          // Run plugin variable inputs before rendering, so visualizations
+          // that reference them fetch once with a value instead of first
+          // warning that the variable is empty. Bounded by the preload's
+          // budget; whatever it does not finish loads in its own tile. The
+          // dashboard always mounts outside the data viewer, where
+          // VariableInput publishes, so there is no mode in which to skip it.
+          const preloaded = await preloadPluginVariableInputs({
+            tabs: dashboardTabs,
+            visualizations,
+            variableInputValues: applyVariableInputSeeds({}, seeds),
+            variableInputDateFormats: dateFormats,
+            onProgress: setVariableInputPreload,
+            isAbandoned: () => abandoned,
+          });
+          if (abandoned) return;
+          setVariableInputValues((prev) => ({ ...prev, ...preloaded.values }));
+          setVariableInputDateFormats((prev) => ({
+            ...prev,
+            ...preloaded.dateFormats,
+          }));
+          setVariableInputPreload(null);
           setIsLoaded(true);
         } else {
           setLoadError(true);
         }
       } catch (error) {
-        setLoadError(true);
+        if (!abandoned) setLoadError(true);
       }
     };
 
     fetchDashboard();
+    return () => {
+      abandoned = true;
+      clearPreloadedVisualizations();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -81,87 +246,34 @@ const DashboardLoader = ({
     }
   }, [isEditing]);
 
+  // Rebuilds the built-in variable input values from grid items. Called with
+  // one tab (`updateTab`, which every drag and resize stop reaches) or with
+  // the whole list (`replacesAllTabs`: boot, `updateTabs`, `resetTabs`).
+  //
+  // A merge, not a replacement: the rebuild owns only the keys its scan
+  // computes, so values it cannot see -- a plugin variable input's, which
+  // exists only in its run() response -- survive it. Removing a built-in
+  // Variable Input still removes its value, because the keys each tab owned
+  // last time are tracked and any key no tab owns any more is released.
   const updateVariableInputValuesWithGridItems = useCallback(
-    (updatedTabs) => {
-      let updatedVariableInputValues = {};
-      let updatedVariableInputDateFormats = {};
-      // update to use any date range values as well
-      // when a griditem is deleted, I want to remove its variable inputs as well
+    (updatedTabs, { replacesAllTabs = false } = {}) => {
+      const { seeds, dateFormats, keysByTab } =
+        buildVariableInputSeeds(updatedTabs);
 
-      for (let tab of updatedTabs) {
-        for (let gridItem of tab.gridItems) {
-          let gridItemValues = {};
-          const args = JSON.parse(gridItem.args_string);
-
-          if (gridItem.source === "Variable Input") {
-            gridItemValues[args.variable_name] = args.initial_value;
-
-            if (args.initial_value && typeof args.initial_value === "object") {
-              for (let [key, value] of Object.entries(args.initial_value)) {
-                gridItemValues[key] = value;
-              }
-            }
-          }
-
-          if (gridItem.source === "Map") {
-            const mapLayers = JSON.parse(gridItem.args_string).layers || [];
-            for (let layer of mapLayers) {
-              const layerVariableInputs = layer.attributeVariables || {};
-              for (let layerAttributes of Object.values(layerVariableInputs)) {
-                for (let attributeVariableInput of Object.values(
-                  layerAttributes,
-                )) {
-                  if (!(attributeVariableInput in updatedVariableInputValues)) {
-                    gridItemValues[attributeVariableInput] = null;
-                  }
-                }
-              }
-            }
-          }
-
-          for (let [key, value] of Object.entries(gridItemValues)) {
-            let initialValue =
-              variableInputValues[key] === undefined
-                ? value
-                : variableInputValues[key];
-
-            let dateFormat;
-            if (gridItem.source === "Variable Input") {
-              if (
-                args.variable_options_source === "checkbox" &&
-                initialValue === null
-              ) {
-                initialValue = false;
-              }
-
-              // Seed the same type VariableInput itself publishes. Without this
-              // the boot-time seed is the raw string ("0.3") while the mount
-              // effect publishes a number (0.3), so the context value's type
-              // depended on which landed last.
-              if (args.variable_options_source === "number") {
-                initialValue = toNumberOrEmpty(initialValue);
-              }
-
-              if (args.variable_options_source.includes("date")) {
-                dateFormat =
-                  args?.["variable_options_source.metadata"]?.format || "";
-              } else if (
-                args.variable_options_source === "slider" &&
-                args["variable_options_source.metadata"]?.dataType === "Date"
-              ) {
-                dateFormat =
-                  args["variable_options_source.metadata"].outputFormat;
-              }
-            }
-
-            updatedVariableInputValues[key] = initialValue;
-            if (dateFormat) {
-              updatedVariableInputDateFormats[key] = dateFormat;
-            }
-          }
-        }
+      const previousOwners = ownedVariableInputKeys.current;
+      const nextOwners = replacesAllTabs ? new Map() : new Map(previousOwners);
+      for (const [tabId, tabKeys] of keysByTab) {
+        nextOwners.set(tabId, tabKeys);
       }
-      setVariableInputValues(updatedVariableInputValues);
+      ownedVariableInputKeys.current = nextOwners;
+      const stillOwned = unionOfKeys(nextOwners);
+      const released = [...unionOfKeys(previousOwners)].filter(
+        (key) => !stillOwned.has(key),
+      );
+
+      setVariableInputValues((prev) =>
+        applyVariableInputSeeds(prev, seeds, released),
+      );
       // Merge instead of replace: popup-internal Variable Inputs register
       // their date formats from inside their own subtree (they never appear
       // in tab.gridItems and so were invisible to this boot-time scan).
@@ -169,10 +281,11 @@ const DashboardLoader = ({
       // whenever the host dashboard's gridItems changed.
       setVariableInputDateFormats((prev) => ({
         ...prev,
-        ...updatedVariableInputDateFormats,
+        ...dateFormats,
       }));
+      return { seeds, dateFormats };
     },
-    [variableInputValues],
+    [],
   );
 
   const updateTab = useCallback(
@@ -183,28 +296,26 @@ const DashboardLoader = ({
         ),
       );
       if ("gridItems" in updatedProperties) {
-        updateVariableInputValuesWithGridItems([updatedProperties]);
+        updateVariableInputValuesWithGridItems([
+          { id: tabId, ...updatedProperties },
+        ]);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [tabs, activeTabId, variableInputValues],
   );
 
-  // Commit a whole tab list in one write.
-  //
-  // `updateTab` looks tab-keyed but is not safe to call for a tab that is not
-  // the active one: when its payload carries grid items it rebuilds the
-  // dashboard's variable input values from only the tabs it was handed and
-  // sets them as a full replacement, so naming another tab would blank every
-  // variable input defined elsewhere. Batching several `updateTab` calls does
-  // not help either -- `setTabs` is functional but `setVariableInputValues`
-  // is not, so the last call would win. Callers that must edit grid items on
-  // more than one tab at once use this instead: one `setTabs`, and one
-  // variable-input rebuild over the complete list.
+  // Commit a whole tab list in one write: one `setTabs`, and one
+  // variable-input rebuild over the complete list. Callers that edit grid
+  // items on more than one tab at once use this rather than several
+  // `updateTab` calls, and a tab missing from the list releases the variable
+  // inputs it owned.
   const updateTabs = useCallback(
     (nextTabs) => {
       setTabs(nextTabs);
-      updateVariableInputValuesWithGridItems(nextTabs);
+      updateVariableInputValuesWithGridItems(nextTabs, {
+        replacesAllTabs: true,
+      });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [variableInputValues],
@@ -213,7 +324,9 @@ const DashboardLoader = ({
   const resetTabs = useCallback(() => {
     setTabs(originalTabs.current);
     setActiveTabId(originalTabs.current[0].id);
-    updateVariableInputValuesWithGridItems(originalTabs.current);
+    updateVariableInputValuesWithGridItems(originalTabs.current, {
+      replacesAllTabs: true,
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [originalTabs, variableInputValues]);
 
@@ -228,6 +341,12 @@ const DashboardLoader = ({
           );
           setTabs(updatedDashboard.tabs);
           originalTabs.current = updatedDashboard.tabs;
+          // A saved tab can come back under a new id (a tab added since the
+          // load is named until the server assigns one), so re-key which
+          // variable inputs each tab owns; the values themselves are as-is.
+          ownedVariableInputKeys.current = buildVariableInputSeeds(
+            updatedDashboard.tabs,
+          ).keysByTab;
           setActiveTabId(updatedDashboard.tabs[originalActiveTabIndex].id);
         }
       }
@@ -391,7 +510,16 @@ const DashboardLoader = ({
     );
   }
   if (!isLoaded) {
-    return <LoadingAnimation text="Loading Dashboard..." />;
+    return (
+      <LoadingAnimation
+        text="Loading Dashboard..."
+        detail={
+          variableInputPreload
+            ? `Loading variable inputs… (${variableInputPreload.completed} of ${variableInputPreload.total})`
+            : undefined
+        }
+      />
+    );
   }
   return (
     <VariableInputsContext.Provider value={variableInputsContextValue}>
