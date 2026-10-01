@@ -539,7 +539,8 @@ Masking low values
 ~~~~~~~~~~~~~~~~~~
 
 Both source types accept an optional **Mask Below** threshold — on the :ref:`source_tab`
-for GeoTIFF, and as the ``mask_below`` source property for Zarr. Cells at or below it render
+for GeoTIFF (on this tab for a GeoTIFF Custom Layer), and as the ``mask_below`` source
+property for Zarr. Cells at or below it render
 transparent, which is the usual way to hide dry ground or sub-threshold noise.
 
 When the ramp minimum is auto-fitted it starts at the threshold rather than the file's
@@ -563,3 +564,25 @@ would otherwise fill the bottom of the ramp.
     TethysDash writes these into every COG it generates for a Zarr source. If a GeoTIFF
     lacks them, the layer still renders and clicking still reports values, but no colorbar
     legend is produced — enter a range manually in that case.
+
+Custom GeoTIFF layers: Follow plugin styling
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A GeoTIFF Custom Layer (see :ref:`source_tab`) gets its file from a plugin on each fetch,
+and the plugin may send a color ramp with it. A **Follow plugin styling** switch above the
+Color Ramp section decides which ramp is drawn:
+
+- **On** (the default): each fetch's ramp replaces the settings on this tab as a whole. The
+  settings here are the fallback for a fetch that returns no styling. They start as the
+  plugin's own defaults.
+- **Off**: your style is *pinned*. The layer always draws with the settings on this tab, and
+  the plugin's ramp is ignored.
+
+Editing any setting in the section (the ramp, Ramp Min / Max, Reverse, the class table, or
+Mask Below) turns the switch off, so the edit is not overwritten by the next fetch. Turn it
+back on to follow the plugin again; your settings are kept as the fallback. **Fetch defaults**
+on the Source tab reloads the plugin's defaults and turns the switch back on.
+
+Pinning the *style* is separate from pinning the *range* in the table above. In either switch
+state, an empty Ramp Min or Ramp Max is fitted to each file the plugin returns, and a filled
+one is used as entered.

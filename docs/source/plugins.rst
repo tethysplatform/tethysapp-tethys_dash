@@ -1048,7 +1048,8 @@ from the plugin
     - ``set_snap_to_features(bool)`` — Snap the cursor to the layer's nearest feature on hover and select it on click. See maps :ref:`feature_snapping`.
     - ``set_snap_sublayer(int)`` — MapServer sublayer used to load snapping features (ESRI Image and Map Service sources only).
     - ``set_geojson(dict)`` — Attach a GeoJSON object (for GeoJSON source type only).
-    - ``set_plugin_source(source, args)`` — Mark the layer as a dynamic ``map_layer`` and bind it to a plugin that will be invoked at render time via ``fetch_features()``. GeoJSON source only. See `Dynamic map_layer plugins`_.
+    - ``set_plugin_source(source, args)`` — Mark the layer as a dynamic ``map_layer`` and bind it to a plugin that will be invoked at render time: ``fetch_features()`` for a ``"GeoJSON"`` builder, ``fetch_source()`` for a ``"GeoTIFF"`` builder. Raises for any other source type. See `Dynamic map_layer plugins`_.
+    - ``set_raster_ramp(ramp_name, ramp_min=None, ramp_max=None, reverse=False, mask_below=None)`` — Set a GeoTIFF layer's color ramp where the layer editor saves it, so the Style tab opens on it. ``"GeoTIFF"`` builders only. For a dynamic GeoTIFF layer this is the fallback style. See `Dynamic GeoTIFF layers`_.
     - ``set_legend(dict | "default" | None)`` — Set the legend configuration.
     - ``set_style(dict | str)`` — Set the layer style.
     - ``add_attribute_alias(key, alias, layer_name)`` — Add a display alias for a layer attribute.
@@ -1122,12 +1123,23 @@ tabs and is then frozen into the saved dashboard. A plugin may opt into
 map is viewed and when bound variable inputs change, without re-running any
 of the configure-time panes.
 
-To opt in, set ``dynamic_map_layer = True`` on the plugin class **and**
-implement a second method ``fetch_features()`` that returns a GeoJSON
-``FeatureCollection``. Both conditions are required — the framework raises at
-initialization if ``dynamic_map_layer = True`` without a ``fetch_features``
-override, and warns if ``fetch_features`` is overridden without the flag
-(the method would never be invoked)::
+A dynamic plugin drives one of two layer types, named by the
+``dynamic_map_layer_source`` class attribute:
+
+- ``"GeoJSON"`` (the default): the plugin implements ``fetch_features()``,
+  which returns a GeoJSON ``FeatureCollection`` swapped into a vector layer.
+  This is the case described first below.
+- ``"GeoTIFF"``: the plugin implements ``fetch_source()``, which returns a
+  description of a GeoTIFF file that the raster layer is repointed at. See
+  `Dynamic GeoTIFF layers`_.
+
+To opt in to the GeoJSON case, set ``dynamic_map_layer = True`` on the plugin
+class **and** implement a second method ``fetch_features()`` that returns a
+GeoJSON ``FeatureCollection``. Both conditions are required — the framework
+raises at initialization if ``dynamic_map_layer = True`` without an override
+of the method its ``dynamic_map_layer_source`` calls, and warns if a runtime
+method is overridden that will never be invoked (``dynamic_map_layer`` is
+``False``, or the method belongs to the other source type)::
 
     from tethysapp.tethysdash.plugin_helpers import (
         TethysDashPlugin,
@@ -1196,12 +1208,15 @@ The runtime validator (:py:func:`validate_feature_collection`) rejects:
 
 **Interaction model**
 
-- Runtime plugins are GeoJSON-only in v1. ``LayerConfigurationBuilder.set_plugin_source``
-  requires ``layer_source="GeoJSON"``.
+- Runtime plugins drive GeoJSON or GeoTIFF layers.
+  ``LayerConfigurationBuilder.set_plugin_source`` requires
+  ``layer_source="GeoJSON"`` or ``layer_source="GeoTIFF"``, matching the
+  plugin's ``dynamic_map_layer_source``. This section describes GeoJSON; see
+  `Dynamic GeoTIFF layers`_ for how a raster differs.
 - Style, legend, and attribute metadata are **snapshot at save time** — the
   author's edits are never silently overwritten by plugin updates. Authors
-  can explicitly click "Reset to plugin defaults" in the Add Layer modal to
-  pick up new defaults on demand.
+  can explicitly click **Fetch defaults** on the layer's Source tab to re-run
+  ``run()`` and pick up new defaults on demand.
 - At render time, only features refresh. The backing OpenLayers ``VectorLayer``
   is preserved in place (``source.clear() + addFeatures()``), so popup and
   highlight state survive updates.
@@ -1236,6 +1251,255 @@ renamed or removed arg), a plugin that absorbs unknown arguments via
 ``**kwargs`` can silently succeed with stale args. TethysDash does not detect
 this automatically in v1. Treat plugin arg/default changes as breaking changes
 and communicate them to dashboard authors.
+
+.. _dynamic_geotiff_layers:
+
+Dynamic GeoTIFF layers
+::::::::::::::::::::::
+
+A dynamic plugin can drive a GeoTIFF layer instead of a GeoJSON one. Each
+fetch names a GeoTIFF file, and the layer is repointed at it and redrawn
+without the dashboard being re-saved. Use one when the file to draw has to be
+*discovered* or *generated*: the newest model run, a file found by searching a
+catalog, a raster computed on demand. If the URL only varies with a variable
+input, a static GeoTIFF layer with ``${Variable Name}`` in its URL does the same
+job with no plugin (see :ref:`source_tab`).
+
+A dynamic GeoTIFF plugin sets three class attributes and implements two
+methods:
+
+- ``dynamic_map_layer = True`` and ``dynamic_map_layer_source = "GeoTIFF"``.
+  The framework raises at initialization if ``dynamic_map_layer_source`` is
+  anything other than ``"GeoJSON"`` or ``"GeoTIFF"``, or if a GeoTIFF plugin
+  does not override ``fetch_source()``. The value is reported to the editor in
+  the plugin's metadata, so the editor knows to build a raster layer before
+  it calls the plugin, and it is a reserved name that cannot be used as an
+  arg.
+- ``run()`` returns the configure-time scaffold, built with
+  ``LayerConfigurationBuilder(name, "GeoTIFF")`` and ``set_plugin_source()``.
+  The scaffold is a ``WebGLTile`` layer whose GeoTIFF source has no URL; the
+  map builds it with no source, and it draws nothing until the first
+  successful fetch. ``set_raster_ramp()`` sets the scaffold's color ramp, which
+  the Style tab opens on.
+- ``fetch_source()`` runs at render time, in place of ``fetch_features()``,
+  and returns a *source description* naming the file and, optionally, how to
+  color it. It runs over the same runtime request as ``fetch_features()``, so
+  progress from ``self.send_update(...)`` routes to the layer's indicator the
+  same way.
+
+**Example**: ::
+
+    import datetime
+
+    from tethysapp.tethysdash.plugin_helpers import (
+        LayerConfigurationBuilder,
+        TethysDashPlugin,
+        geotiff_source,
+    )
+
+
+    class DailyPrecipLayer(TethysDashPlugin):
+        name = "daily_precip"
+        group = "Example"
+        label = "Daily Precipitation"
+        type = "map_layer"
+        args = {"day": "text"}
+        dynamic_map_layer = True
+        dynamic_map_layer_source = "GeoTIFF"
+
+        def run(self):
+            """Configure-time scaffold: a GeoTIFF layer with no URL."""
+            builder = LayerConfigurationBuilder("Daily Precipitation", "GeoTIFF")
+            builder.set_plugin_source("daily_precip", {"day": self.day})
+            # The fallback style, used by any fetch that returns no style.
+            builder.set_raster_ramp("viridis")
+            builder.set_legend("default")
+            return builder.build()
+
+        def fetch_source(self):
+            """Runtime source: invoked on load and on variable-input change."""
+            # `day` can come from a variable input, so it is viewer input.
+            # Parse it rather than pasting it into the URL.
+            day = datetime.date.fromisoformat(self.day)
+            self.send_update("Locating the file...", percentage_complete=50)
+            return geotiff_source(
+                f"https://data.example.com/precip/{day:%Y%m%d}.tif",
+                ramp_name="Blues",
+                ramp_min=0,
+                ramp_max=50,
+            )
+
+**Return contract for fetch_source**
+
+The method MUST return a dict of this shape. ``geotiff_source()`` builds it;
+it is a convenience, and returning the dict directly is equally valid::
+
+    {
+        "type": "GeoTIFF",                       # must equal dynamic_map_layer_source
+        "props": {
+            "url": "https://example.com/a.tif",  # required
+            "projection": "EPSG:32612",          # optional
+        },
+        "style": {                               # optional; omit to keep the saved style
+            "rampName": "viridis",
+            "rampMin": 0,
+            "rampMax": 50,
+            "rampReverse": False,
+            "maskBelow": -9999,
+        },
+    }
+
+``geotiff_source(url, projection=None, ramp_name=None, ramp_min=None,
+ramp_max=None, ramp_reverse=None, mask_below=None)`` maps its arguments onto
+these keys and leaves out every one that is ``None``. With no style argument
+set, it leaves out ``style`` entirely.
+
+- ``props.url`` is the file to draw. See the URL rules below.
+- ``props.projection`` is the CRS to read the file in when its own GeoKeys are
+  missing or wrong. When it is sent it takes precedence over the file's
+  GeoKeys. It resolves through the same CRS lookup as a static GeoTIFF layer's,
+  and a code that cannot be resolved fails the fetch with the same message.
+  Omit it to use the file's own CRS.
+- ``style`` uses the Style tab's vocabulary: a ramp name, its min and max, a
+  reverse flag, and ``maskBelow``, which hides values at or below it. (On a
+  saved layer ``maskBelow`` is the source's ``mask_below`` prop. It is under
+  ``style`` here because it is a styling choice.) A fetch can only send a
+  continuous ramp, not a categorical class table.
+
+The runtime validator (:py:func:`validate_layer_source_description`) rejects,
+with a message naming the fix:
+
+- ``None``, or anything that is not a dict.
+- A configure-time scaffold: a dict with ``configuration``, ``legend`` or
+  ``source`` at the top level. This catches returning ``run()``'s output.
+- A ``type`` other than the plugin's ``dynamic_map_layer_source``. The message
+  names both types.
+- Unknown keys at any level. The allowed keys are ``type``/``props``/``style``
+  at the top, ``url``/``projection`` in ``props``, and the five keys above in
+  ``style``.
+- A missing, empty or disallowed ``url``.
+- A ``projection`` that is not a string, or is longer than 2000 characters.
+- An empty ``rampName``; a ``rampMin`` or ``rampMax`` that is not a finite
+  number or numeric string (``None`` is allowed and means "fit to the file");
+  a ``rampReverse`` that is not a boolean; a ``maskBelow`` that is not a finite
+  number.
+
+A ramp name that does not exist passes the backend and fails the fetch in the
+browser, with a message naming the ramp.
+
+**Styling: follow the plugin, or pin the author's style**
+
+A dynamic GeoTIFF layer has two styles: the one saved on the layer (the
+scaffold's ``set_raster_ramp()`` ramp, plus any edits made in the Style tab)
+and whatever ``style`` each fetch returns. Which one a fetch is drawn with
+depends on whether the author has *pinned* the saved style:
+
+.. list-table::
+    :header-rows: 1
+    :widths: 20 30 50
+
+    * - Pinned?
+      - Fetch returned ``style``?
+      - Style drawn
+    * - No
+      - Yes
+      - The fetch's style. It replaces the saved ramp fields **as a whole**,
+        with no field-by-field merge: a fetch style that sends a ramp and no
+        min/max means "fit this file", and one that sends no ``rampName``
+        draws the layer with no color ramp.
+    * - No
+      - No
+      - The saved style.
+    * - Yes
+      - Either
+      - The saved style. The fetch's style is ignored.
+
+In every row, an empty min or max is fitted to each returned file, the same
+way a static GeoTIFF's auto-fit works (the file's statistics, then a
+``.aux.xml`` sidecar, then a read of the pixels; see :ref:`raster_color_ramp`).
+When the layer's legend is ``"default"``, its colorbar shows the ramp and range
+of the last file drawn. No colorbar is shown before the first successful
+fetch.
+
+The author pins the style in the layer's Style tab. Editing any ramp field
+(the ramp, min, max, reverse, the class table, or **Mask below**) pins it.
+A **Follow plugin styling** switch at the top of the tab shows which state the
+layer is in, and turning it back on un-pins the style. The saved fields are
+kept, and become the fallback for fetches that return no style again. Clicking
+**Fetch defaults** on the Source tab reloads the scaffold's ramp and un-pins
+the style. The pin is saved on the layer as ``pluginSource.stylePinned: true``,
+and its absence means "follows the plugin". A pinned categorical style keeps
+working, because it is the saved style.
+
+**URL rules**
+
+``props.url`` must be one of:
+
+- an absolute ``http`` or ``https`` URL with a host, or
+- a path on the dashboard's own server, starting with exactly one ``/``
+  (for example ``/media/rasters/a.tif``). The browser resolves it against the
+  dashboard's origin.
+
+Every other URL is rejected: other schemes (``javascript:``, ``file:``,
+``data:``, ``blob:``, ``ftp:``), protocol-relative ``//host/...`` URLs, paths
+relative to the current page, and any URL with a backslash, an ASCII control
+character, or whitespace at either end. The backend validates the URL, and the
+browser checks it again before it builds a source.
+
+**Hosting requirements**
+
+The viewer's browser reads the GeoTIFF directly with HTTP range requests; the
+TethysDash server does not proxy it. The host must therefore:
+
+- send CORS headers that allow the dashboard's origin (not needed for a path
+  on the dashboard's own server), and
+- support HTTP ``Range`` requests.
+
+Serve a **Cloud Optimized GeoTIFF** (tiled, with overviews). A striped file
+with no overviews still works, but every view has to read far more of it, and
+that looks like a slow dashboard. A file that does not open within 30 seconds
+fails the fetch. ``gdal_translate -of COG input.tif output.tif`` converts a
+file. Embed ``STATISTICS_MINIMUM``/``STATISTICS_MAXIMUM`` (``gdalinfo -stats``)
+so an empty min/max can be fitted without reading the pixels. A float raster
+that publishes no statistics and is too large to scan fails the fetch with a
+message saying so.
+
+**Failure behavior**
+
+A failed fetch never blanks the layer. The new file is opened *before* the
+layer is touched: its CRS is resolved, its range is fitted, and the source must
+report itself ready. Only then is the layer repointed. If any step fails, the
+layer keeps drawing the previous file, and the error is shown for that layer
+in the map's failure alert and beside its entry in the layer control. Causes
+include a validation error, an exception raised by ``fetch_source()``, an
+unreachable or non-CORS host, an unresolvable CRS, an unknown ramp, a float
+raster with no range to fit, and a 30-second timeout. A later failure reading
+tiles from the file now drawn is reported the same way.
+
+Variable-input re-fetches, debouncing, cancellation of superseded requests,
+the refresh-rate tick, and the per-layer loading indicator all behave as they
+do for a GeoJSON plugin. A fetch that returns the same URL as the current one
+still re-draws, so a style change on its own takes effect.
+
+**Projection**
+
+A dynamic GeoTIFF **never sets the map's projection**, even when it is the
+only raster on the map. A static GeoTIFF can become the map's projection
+owner, but a dynamic one has no file until its first fetch, and each fetch may
+name a file in a different CRS. Owning the view would replace it, and refetch
+the basemap, on every fetch. The raster is instead reprojected into the map's
+view like any raster that does not own it.
+
+.. warning::
+    **Do not build the URL from unvalidated viewer input.** The URL that
+    ``fetch_source()`` returns is fetched by the viewer's browser. Plugin args
+    can be bound to variable inputs, so their values come from whoever is
+    viewing the dashboard. Interpolating one into the URL as-is (for example
+    ``f"https://host/{self.path}"``) lets a viewer point the layer at any file
+    or path on that host. Parse args into the type you expect (a date, a
+    number, a member of a fixed list) and build the URL from the parsed value,
+    as the example above does. The URL rules above stop dangerous schemes. They
+    do not stop a valid ``https`` URL to the wrong place.
 
 |
 
