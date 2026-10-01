@@ -4,8 +4,8 @@ from tethysapp.tethysdash.exceptions import VisualizationError
 from tethysapp.tethysdash.plugin_helpers import (
     get_plugin_prop,
     validate_feature_collection,
-    validate_layer_source_description,
 )
+from tethysapp.tethysdash.layer_sources import validate_layer_source_description
 import inspect
 
 
