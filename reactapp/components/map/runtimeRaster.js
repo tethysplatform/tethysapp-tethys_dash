@@ -6,7 +6,9 @@ import moduleLoader, {
 } from "components/map/ModuleLoader";
 import {
   buildGeoTIFFStyleColor,
-  isUsableClass,
+  classLegendItems,
+  hasClassStyle,
+  isClassStyleMode,
 } from "components/map/geoTIFFStyle";
 import { resolveRamp } from "components/map/colorRamps";
 
@@ -173,23 +175,17 @@ function boundValue(value) {
   return Number.isFinite(number) ? number : undefined;
 }
 
-function isCategorical(source) {
-  return (
-    source.styleMode === "categorical" &&
-    (source.classes ?? []).some(isUsableClass)
-  );
-}
-
 // Overlay a fetch's style onto the source, replacing every ramp field the saved
 // style had. No field-by-field merge: a plugin that sends a ramp and no bounds
 // means "auto-range this one", which inheriting the saved bounds would undo.
 function overlayFetchStyle(source, style) {
-  const wasCategorical = source.styleMode === "categorical";
+  const wasClassStyled = isClassStyleMode(source.styleMode);
   RASTER_STYLE_FIELDS.forEach((field) => delete source[field]);
   delete source.props.mask_below;
-  // Written by a categorical save so class labels are not blended. Meaningless
-  // for the ramp that replaces it, and it would blur nothing but nodata edges.
-  if (wasCategorical && source.props.interpolate === false) {
+  // Written by a class-table (Categorical or Ranges) style so class colors are
+  // not blended. Meaningless for the ramp that replaces it, and it would blur
+  // nothing but nodata edges.
+  if (wasClassStyled && source.props.interpolate === false) {
     delete source.props.interpolate;
   }
 
@@ -219,7 +215,7 @@ function compileStartingStyle(config) {
   const source = config.props.source;
   // A class table's style needs no range, and applyAutoRamp compiles it with the
   // file's nodata once the header is read. The saved one stands until then.
-  if (isCategorical(source)) return;
+  if (hasClassStyle(source)) return;
 
   const { rampName } = source;
   if (typeof rampName !== "string" || rampName.trim() === "") {
@@ -442,9 +438,11 @@ function awaitSourceReady(source, name) {
 
 // The ramp the legend should label, chosen the way the static default legend
 // chooses it: a set bound, then the resolved one, then 0..1 for a raster left
-// on OpenLayers' normalized scale. Null when there is no colorbar to draw.
+// on OpenLayers' normalized scale. A class-table style (Categorical or Ranges)
+// has no colorbar; it gets the static legend's per-class swatches instead, as
+// `{items}`. Null when there is nothing to draw.
 function legendRampFor(source) {
-  if (isCategorical(source)) return null;
+  if (hasClassStyle(source)) return { items: classLegendItems(source) };
   const { rampName } = source;
   if (typeof rampName !== "string" || !resolveRamp(rampName)) return null;
 
@@ -479,7 +477,7 @@ function legendRampFor(source) {
  * @param {{timeoutMs?: number}} [options]
  * @returns {Promise<{source: object, style: object|undefined,
  *   legendRamp: {rampName: string, rampReverse: boolean, rampMin: number,
- *   rampMax: number}|null}>}
+ *   rampMax: number}|{items: object[]}|null}>}
  * @throws {GeoTIFFError|LayerSourceError} On an unplaceable CRS, a float raster
  *   with no range to fit, an unreadable or unreachable file, or a timeout.
  */

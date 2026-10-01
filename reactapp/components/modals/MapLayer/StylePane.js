@@ -9,6 +9,7 @@ import RuleStyleEditor from "components/inputs/RuleStyleEditor";
 import RampPicker from "components/modals/MapLayer/RampPicker";
 import ColorPickerPopOver from "components/inputs/ColorPickerPopOver";
 import { resolveRamp } from "components/map/colorRamps";
+import { isClassStyleMode } from "components/map/geoTIFFStyle";
 import Button from "react-bootstrap/Button";
 import Form from "react-bootstrap/Form";
 import { LayoutContext, AppContext } from "components/contexts/Contexts";
@@ -79,6 +80,9 @@ const FOLLOW_PLUGIN_ON_TEXT =
 const FOLLOW_PLUGIN_OFF_TEXT =
   "Your style is pinned. The plugin's styling is ignored until you turn this " +
   "back on.";
+const RANGES_HELP_TEXT =
+  "Each class covers values above the previous class's bound, up to and " +
+  "including its own.";
 
 const ClassTable = styled.table`
   width: 100%;
@@ -306,7 +310,12 @@ const StylePane = ({
       }));
     };
 
-    const isCategorical = sourceProps.styleMode === "categorical";
+    // Categorical and Ranges share the class table; only how a class's value
+    // is read differs (an exact value, or the top of an interval). Switching
+    // between them keeps the rows, since `classes` is untouched by a mode
+    // switch.
+    const isRanges = sourceProps.styleMode === "ranges";
+    const isClassStyled = isClassStyleMode(sourceProps.styleMode);
     const classes = sourceProps.classes ?? [];
 
     const setMode = (mode) => editRasterStyle(() => ({ styleMode: mode }));
@@ -356,14 +365,14 @@ const StylePane = ({
           </div>
         )}
         <SectionHeading>
-          {isCategorical ? "Classes" : "Color Ramp"}
+          {isClassStyled ? "Classes" : "Color Ramp"}
         </SectionHeading>
         <ModeRow role="radiogroup" aria-label="Raster Style Mode">
           <label>
             <input
               type="radio"
               name="raster-style-mode"
-              checked={!isCategorical}
+              checked={!isClassStyled}
               onChange={() => setMode("continuous")}
             />{" "}
             Continuous
@@ -372,17 +381,26 @@ const StylePane = ({
             <input
               type="radio"
               name="raster-style-mode"
-              checked={isCategorical}
+              checked={isClassStyled && !isRanges}
               onChange={() => setMode("categorical")}
             />{" "}
             Categorical
+          </label>
+          <label>
+            <input
+              type="radio"
+              name="raster-style-mode"
+              checked={isRanges}
+              onChange={() => setMode("ranges")}
+            />{" "}
+            Ranges
           </label>
         </ModeRow>
 
         {/* A ramp has no meaning for discrete classes; each class carries its
             own color. The selection is still kept so switching back to
             Continuous restores it, and it seeds new class colors. */}
-        {!isCategorical && (
+        {!isClassStyled && (
           <>
             <RampPicker
               selectedRamp={selectedRamp}
@@ -403,12 +421,13 @@ const StylePane = ({
           </>
         )}
 
-        {isCategorical ? (
+        {isClassStyled ? (
           <>
+            {isRanges && <HelperText>{RANGES_HELP_TEXT}</HelperText>}
             <ClassTable>
               <thead>
                 <tr>
-                  <th>Value</th>
+                  <th>{isRanges ? "Up to" : "Value"}</th>
                   <th>Color</th>
                   <th>Label</th>
                   <th aria-label="Remove" />
@@ -501,7 +520,7 @@ const StylePane = ({
             </RangeCell>
           </RangeRow>
         )}
-        {isRuntimeGeoTIFF && !isCategorical && (
+        {isRuntimeGeoTIFF && !isClassStyled && (
           <HelperText>
             Leave Min/Max empty to fit the range to each file the plugin
             returns.
@@ -649,7 +668,8 @@ StylePane.propTypes = {
     rampMax: PropTypes.string,
     // Flip the ramp so its last color lands on the low end of the range.
     rampReverse: PropTypes.bool,
-    // "categorical" colors by exact class value instead of a ramp range.
+    // "categorical" colors by exact class value instead of a ramp range;
+    // "ranges" colors each interval up to and including a class's value.
     styleMode: PropTypes.string,
     classes: PropTypes.arrayOf(
       PropTypes.shape({

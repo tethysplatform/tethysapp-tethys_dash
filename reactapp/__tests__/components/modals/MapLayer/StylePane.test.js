@@ -982,6 +982,117 @@ describe("StylePane categorical raster styling", () => {
   });
 });
 
+describe("StylePane ranges raster styling", () => {
+  const renderPane = (sourceProps, spy) =>
+    render(
+      <GeoTIFFTestHarness
+        initialSourceProps={{
+          type: "GeoTIFF",
+          rampName: "turbo",
+          props: { url: "flow.tif" },
+          ...sourceProps,
+        }}
+        sourcePropsSpy={spy}
+      />,
+    );
+  const classRows = [
+    { value: "1", color: "#aaa", label: "0.1 to 1" },
+    { value: "2", color: "#bbb", label: "1 to 2" },
+  ];
+  const modeRadio = async (name) =>
+    within(
+      await screen.findByRole("radiogroup", { name: "Raster Style Mode" }),
+    ).getByRole("radio", { name });
+
+  test("offers Ranges beside Continuous and Categorical", async () => {
+    renderPane({});
+
+    const group = await screen.findByRole("radiogroup", {
+      name: "Raster Style Mode",
+    });
+    const radios = within(group).getAllByRole("radio");
+    expect(radios).toEqual([
+      within(group).getByRole("radio", { name: "Continuous" }),
+      within(group).getByRole("radio", { name: "Categorical" }),
+      within(group).getByRole("radio", { name: "Ranges" }),
+    ]);
+    expect(await modeRadio("Continuous")).toBeChecked();
+  });
+
+  test("Ranges mode shows the class table headed Up to, with its helper line", async () => {
+    renderPane({ styleMode: "ranges", classes: classRows });
+
+    expect(await screen.findByText("Classes")).toBeInTheDocument();
+    expect(await modeRadio("Ranges")).toBeChecked();
+    expect(await modeRadio("Categorical")).not.toBeChecked();
+    expect(
+      screen.getByRole("columnheader", { name: "Up to" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("columnheader", { name: "Value" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Each class covers values above the previous class's bound, up to and including its own.",
+      ),
+    ).toBeInTheDocument();
+    // The continuous controls are gone, as in Categorical.
+    expect(screen.queryByLabelText("Ramp Min")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("radiogroup", { name: "Color ramp picker" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Other values")).toBeInTheDocument();
+  });
+
+  test("Categorical mode heads the value column Value, with no helper line", async () => {
+    renderPane({ styleMode: "categorical", classes: classRows });
+
+    expect(
+      await screen.findByRole("columnheader", { name: "Value" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("columnheader", { name: "Up to" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/covers values above the previous class/),
+    ).not.toBeInTheDocument();
+  });
+
+  test("switching between Categorical and Ranges keeps the class rows", async () => {
+    let last;
+    renderPane({ styleMode: "categorical", classes: classRows }, (next) => {
+      last = next;
+    });
+
+    fireEvent.click(await modeRadio("Ranges"));
+    await waitFor(() => expect(last?.styleMode).toBe("ranges"));
+    expect(last.classes).toEqual(classRows);
+    expect(
+      await screen.findByRole("columnheader", { name: "Up to" }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Class 2 Label")).toHaveValue("1 to 2");
+
+    fireEvent.click(await modeRadio("Categorical"));
+    await waitFor(() => expect(last?.styleMode).toBe("categorical"));
+    expect(last.classes).toEqual(classRows);
+    expect(screen.getByLabelText("Class 1 Value")).toHaveValue("1");
+  });
+
+  test("switching to Continuous from Ranges brings the ramp back", async () => {
+    let last;
+    renderPane({ styleMode: "ranges", classes: classRows }, (next) => {
+      last = next;
+    });
+
+    fireEvent.click(await modeRadio("Continuous"));
+
+    await waitFor(() => expect(last?.styleMode).toBe("continuous"));
+    expect(await screen.findByLabelText("Ramp Min")).toBeInTheDocument();
+    // Kept, so returning to a class mode does not lose the table.
+    expect(last.classes).toEqual(classRows);
+  });
+});
+
 describe("StylePane categorical editing edges", () => {
   const renderBare = (sourceProps) =>
     render(
@@ -1313,6 +1424,10 @@ describe("StylePane dynamic GeoTIFF layers", () => {
     [
       "switching to categorical",
       () => userEvent.click(screen.getByRole("radio", { name: /Categorical/ })),
+    ],
+    [
+      "switching to ranges",
+      () => userEvent.click(screen.getByRole("radio", { name: /Ranges/ })),
     ],
   ])("%s pins the style", async (_label, edit) => {
     render(

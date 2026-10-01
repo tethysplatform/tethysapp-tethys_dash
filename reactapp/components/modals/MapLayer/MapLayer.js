@@ -32,7 +32,8 @@ import {
 } from "components/map/utilities";
 import {
   buildGeoTIFFStyleColor,
-  buildCategoricalStyleColor,
+  buildClassStyleColor,
+  isClassStyleMode,
   isUsableClass,
 } from "components/map/geoTIFFStyle";
 import {
@@ -129,8 +130,8 @@ export function buildRuntimeRasterSource(sourceProps, validSourceProps) {
   const hasRampName = typeof rampName === "string" && rampName.trim() !== "";
   const usableClasses = (classes ?? []).filter(isUsableClass);
 
-  if (styleMode === "categorical" && usableClasses.length > 0) {
-    source.styleMode = "categorical";
+  if (isClassStyleMode(styleMode) && usableClasses.length > 0) {
+    source.styleMode = styleMode;
     source.classes = usableClasses;
     if (fallbackColor) source.fallbackColor = fallbackColor;
     if (hasRampName) source.rampName = rampName;
@@ -492,16 +493,18 @@ const MapLayerModal = ({
       const hasRampName =
         typeof rampName === "string" && rampName.trim() !== "";
 
-      // A categorical layer colors by exact value, so it carries a class list
-      // instead of a range. Raw band values are required for the match to line
-      // up, so normalization is off from the start rather than at render time.
+      // A class-table layer -- Categorical (exact values) or Ranges (value
+      // intervals) -- carries a class list instead of a range. Raw band values
+      // are required for the class values to line up, so normalization is off
+      // from the start rather than at render time.
       const usableClasses = (classes ?? []).filter(isUsableClass);
-      const isCategorical =
-        styleMode === "categorical" && usableClasses.length > 0;
-      if (isCategorical) {
+      const isClassStyled =
+        isClassStyleMode(styleMode) && usableClasses.length > 0;
+      if (isClassStyled) {
         const savedSource = mapConfiguration.configuration.props.source;
         mapConfiguration.configuration.style = {
-          color: buildCategoricalStyleColor({
+          color: buildClassStyleColor({
+            styleMode,
             classes: usableClasses,
             hasNodata: true,
             maskBelow: validSourceProps.mask_below,
@@ -509,10 +512,11 @@ const MapLayerModal = ({
           }),
         };
         savedSource.props.normalize = false;
-        // Nearest neighbor: interpolating class labels is meaningless and
-        // fringes nodata boundaries with the fallback color.
+        // Nearest neighbor: interpolating class labels is meaningless, and in
+        // either mode it fringes nodata boundaries with the fallback color and
+        // paints the in-between classes along every sharp value edge.
         savedSource.props.interpolate = false;
-        savedSource.styleMode = "categorical";
+        savedSource.styleMode = styleMode;
         savedSource.classes = usableClasses;
         if (fallbackColor) savedSource.fallbackColor = fallbackColor;
         // Kept so switching back to a ramp does not lose the chosen palette.
@@ -526,7 +530,7 @@ const MapLayerModal = ({
       const hasMin = isBoundSet(rampMin);
       const hasMax = isBoundSet(rampMax);
       const hasRange = hasMin && hasMax;
-      if (hasRampName && !isCategorical) {
+      if (hasRampName && !isClassStyled) {
         // buildGeoTIFFStyleColor needs both bounds or neither. When only one is
         // set, save the normalized placeholder — applyAutoRamp rebuilds the
         // style at render time once it has resolved the missing bound.

@@ -328,6 +328,25 @@ describe("resolveEffectiveRasterConfig", () => {
     expect(source.props).not.toHaveProperty("interpolate");
   });
 
+  it("drops a saved ranges style when an unpinned fetch supplies a ramp", () => {
+    const effective = resolveEffectiveRasterConfig(
+      savedLayer({
+        source: {
+          rampName: "Blues",
+          styleMode: "ranges",
+          classes: [{ value: 1, color: "#ff0000" }],
+        },
+        sourceProps: { normalize: false, interpolate: false },
+      }),
+      description("https://h/a.tif", { style: { rampName: "viridis" } }),
+    );
+    const source = effective.props.source;
+    expect(source).not.toHaveProperty("styleMode");
+    expect(source).not.toHaveProperty("classes");
+    expect(source.props).not.toHaveProperty("interpolate");
+    expect(source.rampName).toBe("viridis");
+  });
+
   it("uses the saved style when the fetch supplies none", () => {
     const effective = resolveEffectiveRasterConfig(
       savedLayer({ source: { rampName: "Blues", rampMax: "9" } }),
@@ -499,7 +518,7 @@ describe("buildRuntimeRaster", () => {
     expect(built.source).toBeInstanceOf(GeoTIFF);
   });
 
-  it("keeps a pinned categorical style and reports no colorbar for it", async () => {
+  it("keeps a pinned categorical style and reports its swatches, not a colorbar", async () => {
     mockFiles({ "https://h/a.tif": statsFile(0, 1) });
     const built = await build(
       savedLayer({
@@ -512,8 +531,40 @@ describe("buildRuntimeRaster", () => {
       }),
       description("https://h/a.tif", { style: { rampName: "viridis" } }),
     );
-    expect(built.legendRamp).toBeNull();
+    expect(built.legendRamp).toEqual({
+      items: [{ color: "#ff0000", label: "1", symbol: "square" }],
+    });
     expect(JSON.stringify(built.style.color)).toContain("match");
+    expect(built.source.options.interpolate).toBe(false);
+  });
+
+  it("keeps a pinned ranges style, drawn by interval with ascending swatches", async () => {
+    mockFiles({ "https://h/a.tif": statsFile(0, 1) });
+    const built = await build(
+      savedLayer({
+        source: {
+          rampName: "Blues",
+          styleMode: "ranges",
+          classes: [
+            { value: "10", color: "#0000ff", label: "1 to 10" },
+            { value: "1", color: "#ff0000" },
+          ],
+        },
+        pluginSource: { stylePinned: true },
+      }),
+      description("https://h/a.tif", { style: { rampName: "viridis" } }),
+    );
+    expect(built.legendRamp).toEqual({
+      items: [
+        { color: "#ff0000", label: "Up to 1", symbol: "square" },
+        { color: "#0000ff", label: "1 to 10", symbol: "square" },
+      ],
+    });
+    const color = built.style.color;
+    expect(color[0]).toBe("case");
+    expect(color).toContainEqual(["<=", ["band", 1], 1]);
+    expect(color).toContainEqual(["<=", ["band", 1], 10]);
+    expect(JSON.stringify(color)).not.toContain("match");
     expect(built.source.options.interpolate).toBe(false);
   });
 

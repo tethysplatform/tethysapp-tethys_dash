@@ -10,6 +10,7 @@ import {
 } from "@testing-library/react";
 import selectEvent from "react-select-event";
 import MapLayerModal, {
+  buildRuntimeRasterSource,
   getLayerType,
   rekeyAttributeMapToLayer,
   renameLayerInAttributeProps,
@@ -1978,6 +1979,128 @@ describe("MapLayerModal categorical raster save path", () => {
     const saved = addMapLayer.mock.calls[0][0];
     expect(saved.configuration.props.source.styleMode).toBeUndefined();
     expect(saved.configuration.style.color[3][0]).toBe("interpolate");
+  });
+});
+
+describe("MapLayerModal ranges raster save path", () => {
+  const renderRanges = (sourceProps, addMapLayer) =>
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={jest.fn()}
+        addMapLayer={addMapLayer}
+        layerInfo={{
+          layerProps: { name: "Streamflow" },
+          sourceProps: {
+            type: "GeoTIFF",
+            rampName: "turbo",
+            props: { url: "flow.tif", mask_below: "0" },
+            ...sourceProps,
+          },
+        }}
+      />,
+    );
+
+  test("saves a case style, the class list, and normalize and interpolate off", async () => {
+    const addMapLayer = jest.fn();
+    renderRanges(
+      {
+        styleMode: "ranges",
+        // Entry order is kept in the saved table; only the style is sorted.
+        classes: [
+          { value: "10", color: "#ccc", label: "2 to 10" },
+          { value: "2", color: "#bbb", label: "up to 2" },
+        ],
+        fallbackColor: "#999999",
+      },
+      addMapLayer,
+    );
+
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+    await waitFor(() => expect(addMapLayer).toHaveBeenCalledTimes(1));
+
+    const saved = addMapLayer.mock.calls[0][0];
+    const source = saved.configuration.props.source;
+    expect(source.styleMode).toBe("ranges");
+    expect(source.classes).toEqual([
+      { value: "10", color: "#ccc", label: "2 to 10" },
+      { value: "2", color: "#bbb", label: "up to 2" },
+    ]);
+    expect(source.fallbackColor).toBe("#999999");
+    expect(source.props.normalize).toBe(false);
+    expect(source.props.interpolate).toBe(false);
+    expect(source.rampName).toBe("turbo");
+    expect(saved.configuration.style.color).toEqual([
+      "case",
+      ["==", ["band", 2], 0],
+      [0, 0, 0, 0],
+      ["<=", ["band", 1], 0],
+      [0, 0, 0, 0],
+      ["<=", ["band", 1], 2],
+      "#bbb",
+      ["<=", ["band", 1], 10],
+      "#ccc",
+      "#999999",
+    ]);
+  });
+
+  test("falls back to the ramp when no class is usable", async () => {
+    const addMapLayer = jest.fn();
+    renderRanges(
+      { styleMode: "ranges", classes: [{ value: "", color: "#aaa" }] },
+      addMapLayer,
+    );
+
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+    await waitFor(() => expect(addMapLayer).toHaveBeenCalledTimes(1));
+
+    const saved = addMapLayer.mock.calls[0][0];
+    expect(saved.configuration.props.source.styleMode).toBeUndefined();
+    // Normalized until the range resolves, so the raw mask is not compiled in.
+    expect(saved.configuration.style.color[3][0]).toBe("interpolate");
+  });
+});
+
+describe("buildRuntimeRasterSource", () => {
+  test.each(["categorical", "ranges"])(
+    "saves a %s class table without a URL or compiled style",
+    (styleMode) => {
+      const source = buildRuntimeRasterSource(
+        {
+          rampName: "turbo",
+          rampMin: "0",
+          styleMode,
+          classes: [
+            { value: "1", color: "#aaa" },
+            { value: "", color: "#bbb" },
+          ],
+          fallbackColor: "#999999",
+        },
+        { url: "ignored.tif", mask_below: "0" },
+      );
+
+      expect(source).toEqual({
+        type: "GeoTIFF",
+        props: { mask_below: "0" },
+        styleMode,
+        classes: [{ value: "1", color: "#aaa" }],
+        fallbackColor: "#999999",
+        rampName: "turbo",
+      });
+    },
+  );
+
+  test("an unknown mode saves as a ramp", () => {
+    const source = buildRuntimeRasterSource(
+      {
+        rampName: "turbo",
+        styleMode: "bogus",
+        classes: [{ value: "1", color: "#aaa" }],
+      },
+      {},
+    );
+
+    expect(source).toEqual({ type: "GeoTIFF", props: {}, rampName: "turbo" });
   });
 });
 
@@ -4055,6 +4178,33 @@ describe("MapLayerModal dynamic GeoTIFF plugin layer", () => {
     const saved = await save(addMapLayer);
     expect(saved.configuration.props.pluginSource.stylePinned).toBe(true);
     expect(saved.configuration.props.source.rampName).toBe("Blues");
+  });
+
+  test("reopening a pinned ranges layer restores its class table and saves it back", async () => {
+    const classes = [
+      { value: "1", color: "#aaa", label: "0.1 to 1" },
+      { value: "2", color: "#bbb", label: "1 to 2" },
+    ];
+    const addMapLayer = openModal(
+      savedLayerInfo(
+        { props: {}, rampName: "Blues", styleMode: "ranges", classes },
+        {
+          source: "echo_runtime_raster",
+          args: { mode: "happy" },
+          stylePinned: true,
+        },
+      ),
+    );
+
+    fireEvent.click(styleTab());
+    expect(
+      await screen.findByRole("columnheader", { name: "Up to" }),
+    ).toBeInTheDocument();
+    const saved = await save(addMapLayer);
+    expect(saved.configuration.props.pluginSource.stylePinned).toBe(true);
+    expect(saved.configuration.props.source.styleMode).toBe("ranges");
+    expect(saved.configuration.props.source.classes).toEqual(classes);
+    expect(saved.configuration.props.source.props).not.toHaveProperty("url");
   });
 
   test("switching to another plugin resets the pin and reloads the ramp from its scaffold", async () => {

@@ -38,6 +38,10 @@ import useSnapping, {
 } from "components/visualizations/useSnapping";
 import PropTypes from "prop-types";
 import { COLOR_RAMPS, resolveRamp } from "components/map/colorRamps";
+import {
+  classLegendItems,
+  isClassStyleMode,
+} from "components/map/geoTIFFStyle";
 import { applyAutoRamp } from "components/map/ModuleLoader";
 import { getBaseMapLayer } from "components/visualizations/utilities";
 import { LAYER_STATE, parseProgress } from "components/map/layerStatus";
@@ -917,19 +921,17 @@ const MapVisualization = ({
             }
             if (layer.legend === "default") {
               const rampSource = layer.configuration?.props?.source;
-              // A categorical raster gets one swatch per class rather than a
-              // colorbar — a gradient would imply a continuum between classes.
+              // A class-table raster (Categorical or Ranges) gets one swatch
+              // per class rather than a colorbar — a gradient would imply a
+              // continuum the classes do not have. Ranges lists them in
+              // ascending bound order, the order it colors them in.
               if (
-                rampSource?.styleMode === "categorical" &&
+                isClassStyleMode(rampSource?.styleMode) &&
                 rampSource?.classes?.length
               ) {
                 newMapLegend.push({
                   title: layer.configuration?.props?.name,
-                  items: rampSource.classes.map((entry) => ({
-                    color: entry.color,
-                    label: entry.label || String(entry.value),
-                    symbol: "square",
-                  })),
+                  items: classLegendItems(rampSource),
                 });
                 continue;
               }
@@ -1048,6 +1050,12 @@ const MapVisualization = ({
       const layerId = entry?.[RUNTIME_RASTER_LEGEND_SLOT];
       if (!layerId) return [entry];
       const ramp = rasterLegendByLayerId?.[layerId];
+      // A class-table style publishes its swatches rather than a ramp.
+      if (ramp?.items) {
+        return ramp.items.length > 0
+          ? [{ title: entry.title, items: ramp.items }]
+          : [];
+      }
       const colorbar =
         ramp && buildRampColorbar({ ...ramp, title: entry.title });
       return colorbar ? [colorbar] : [];

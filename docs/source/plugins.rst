@@ -1364,7 +1364,7 @@ set, it leaves out ``style`` entirely.
   reverse flag, and ``maskBelow``, which hides values at or below it. (On a
   saved layer ``maskBelow`` is the source's ``mask_below`` prop. It is under
   ``style`` here because it is a styling choice.) A fetch can only send a
-  continuous ramp, not a categorical class table.
+  continuous ramp, not a Categorical or Ranges class table.
 
 The runtime validator (:py:func:`validate_layer_source_description`) rejects,
 with a message naming the fix:
@@ -1428,8 +1428,8 @@ layer is in, and turning it back on un-pins the style. The saved fields are
 kept, and become the fallback for fetches that return no style again. Clicking
 **Fetch defaults** on the Source tab reloads the scaffold's ramp and un-pins
 the style. The pin is saved on the layer as ``pluginSource.stylePinned: true``,
-and its absence means "follows the plugin". A pinned categorical style keeps
-working, because it is the saved style.
+and its absence means "follows the plugin". A pinned Categorical or Ranges
+style keeps working, because it is the saved style.
 
 **URL rules**
 

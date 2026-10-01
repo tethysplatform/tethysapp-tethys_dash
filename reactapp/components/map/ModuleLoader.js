@@ -19,8 +19,8 @@ import { interpretShapefile } from "components/map/shapefile/index";
 import { CANCEL_REASON } from "components/map/layerStatus";
 import {
   buildGeoTIFFStyleColor,
-  buildCategoricalStyleColor,
-  isUsableClass,
+  buildClassStyleColor,
+  hasClassStyle,
 } from "components/map/geoTIFFStyle";
 import proj4 from "proj4";
 import { register as registerProj4 } from "ol/proj/proj4.js";
@@ -480,27 +480,27 @@ export async function applyZarrRamp(layerConfig) {
   const { rampName, rampMin, rampMax } = source ?? {};
   const hasMin = (rampMin ?? "") !== "";
   const hasMax = (rampMax ?? "") !== "";
-  const isCategorical =
-    source?.styleMode === "categorical" &&
-    (source.classes ?? []).some(isUsableClass);
+  // Categorical or Ranges: either way the class table is the whole style.
+  const isClassStyled = hasClassStyle(source);
   // With no ramp and no classes there is still a style to build. A DataTile
   // carries raw values with no normalization (unlike the GeoTIFF source this
   // replaced, which rendered `normalize: true` grayscale), so leaving the layer
   // unstyled paints raw floats straight into the color channels. Fit grayscale
   // to the slice instead, which is what the old backend path effectively did.
-  // Never empty for a non-categorical layer: the grayscale fallback covers it,
-  // so there is always either a ramp to fit or a class list to match.
-  const effectiveRamp = rampName || (isCategorical ? null : "grayscale");
+  // Never empty for a ramp-styled layer: the grayscale fallback covers it, so
+  // there is always either a ramp to fit or a class list to match.
+  const effectiveRamp = rampName || (isClassStyled ? null : "grayscale");
 
   // Gates the slice read, not the style: ramp settings are not part of the
   // slice key, so the style is rebuilt on every call from the resolved slice.
   const key = zarrSliceKey(source);
 
   try {
-    if (isCategorical) {
+    if (isClassStyled) {
       layerConfig.style = {
         ...(layerConfig.style ?? {}),
-        color: buildCategoricalStyleColor({
+        color: buildClassStyleColor({
+          styleMode: source.styleMode,
           classes: source.classes,
           hasNodata: true,
           maskBelow: source.props?.mask_below,
@@ -683,15 +683,14 @@ export async function applyAutoRamp(layerConfig) {
   const { rampName, rampMin, rampMax } = source ?? {};
   const hasMin = (rampMin ?? "") !== "";
   const hasMax = (rampMax ?? "") !== "";
-  // A categorical layer colors by exact class value, so it needs no range at
-  // all — but it still needs the header read to settle nodata, and it must
-  // style raw values rather than OL's normalized bytes for the match to line up.
-  const isCategorical =
-    source?.styleMode === "categorical" &&
-    (source.classes ?? []).some(isUsableClass);
+  // A class-table layer (Categorical or Ranges) is scaled by its class values,
+  // so it needs no range at all — but it still needs the header read to settle
+  // nodata, and it must style raw values rather than OL's normalized bytes for
+  // the class values to line up.
+  const isClassStyled = hasClassStyle(source);
   // The header is read even when both bounds are pinned, because it also
   // settles nodata — a pinned layer still needs its transparency right.
-  if (!rampName && !isCategorical) return layerConfig;
+  if (!rampName && !isClassStyled) return layerConfig;
 
   // Keyed on the URL so this is safe to call from more than one place per
   // render, while still re-resolving when the source points at another file.
@@ -729,7 +728,7 @@ export async function applyAutoRamp(layerConfig) {
       }),
     });
 
-    if (isCategorical) {
+    if (isClassStyled) {
       // No statistics needed: the class values are the scale. Raw band values
       // are required though, so normalization goes off unconditionally.
       //
@@ -737,7 +736,11 @@ export async function applyAutoRamp(layerConfig) {
       // meaningless for class labels -- halfway between class 1 and 2 is not a
       // class -- and it fringes every nodata boundary: band 1 blends into a
       // value matching no class (so it takes the fallback color) while band 2
-      // blends off 0 (so the nodata guard stops firing).
+      // blends off 0 (so the nodata guard stops firing). Ranges keeps it off
+      // for the same nodata reason, and because a blended cell would take the
+      // color of a range its real neighbors are in neither of: the edge between
+      // a 0.5 cell and a 30 cell would otherwise draw a band of every class in
+      // between.
       source.props = {
         ...source.props,
         normalize: false,
@@ -745,7 +748,8 @@ export async function applyAutoRamp(layerConfig) {
       };
       layerConfig.style = {
         ...(layerConfig.style ?? {}),
-        color: buildCategoricalStyleColor({
+        color: buildClassStyleColor({
+          styleMode: source.styleMode,
           classes: source.classes,
           hasNodata: true,
           maskBelow: source.props?.mask_below,

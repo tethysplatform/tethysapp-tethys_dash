@@ -1,7 +1,13 @@
 import {
   buildGeoTIFFStyleColor,
   buildCategoricalStyleColor,
+  buildClassStyleColor,
+  buildRangesStyleColor,
+  classLegendItems,
+  hasClassStyle,
+  isClassStyleMode,
   isUsableClass,
+  sortedRangeClasses,
 } from "components/map/geoTIFFStyle";
 import { COLOR_RAMPS, RAMP_STOPS } from "components/map/colorRamps";
 
@@ -449,5 +455,279 @@ describe("isUsableClass", () => {
   it("rejects a class that is not numeric, or has no color to draw with", () => {
     expect(isUsableClass({ value: "forest", color: "#fff" })).toBe(false);
     expect(isUsableClass({ value: 3 })).toBe(false);
+  });
+});
+
+// Evaluates the subset of OL's WebGL expression language these styles compile
+// to, so a ranges style can be checked against the pixels it colors rather
+// than only against its shape. `band2` is the alpha band OL appends for nodata.
+function evaluate(expr, band1, band2 = 1) {
+  if (!Array.isArray(expr) || typeof expr[0] !== "string") return expr;
+  const [op, ...args] = expr;
+  switch (op) {
+    case "band":
+      return args[0] === 1 ? band1 : band2;
+    case "<=":
+      return evaluate(args[0], band1, band2) <= evaluate(args[1], band1, band2);
+    case "==":
+      return (
+        evaluate(args[0], band1, band2) === evaluate(args[1], band1, band2)
+      );
+    case "case": {
+      for (let i = 0; i < args.length - 1; i += 2) {
+        if (evaluate(args[i], band1, band2)) return args[i + 1];
+      }
+      return args[args.length - 1];
+    }
+    // istanbul ignore next -- guards the evaluator itself
+    default:
+      throw new Error(`Unsupported operator in test evaluator: ${op}`);
+  }
+}
+
+const TRANSPARENT = [0, 0, 0, 0];
+
+// The streamflow classes from a real dashboard, as saved: string values.
+const STREAMFLOW_CLASSES = [
+  { value: "1", color: "#bdbdbd", label: "0.1 to 1" },
+  { value: "2", color: "#d9ef8b", label: "1 to 2" },
+  { value: "4", color: "#fdae61", label: "2 to 4" },
+  { value: "6", color: "#d73027", label: "4 to 6" },
+  { value: "10", color: "#c51b7d", label: "6 to 10" },
+  { value: "20", color: "#2c7bb6", label: "10 to 20" },
+  { value: "100000000", color: "#08306b", label: "20+" },
+];
+
+describe("buildRangesStyleColor", () => {
+  test("compiles an ascending case chain of <= tests", () => {
+    const expr = buildRangesStyleColor({
+      classes: [
+        { value: 1, color: "#a" },
+        { value: 2, color: "#b" },
+      ],
+    });
+
+    expect(expr).toEqual([
+      "case",
+      ["<=", ["band", 1], 1],
+      "#a",
+      ["<=", ["band", 1], 2],
+      "#b",
+      TRANSPARENT,
+    ]);
+  });
+
+  test("compiles the streamflow classes behind the nodata and mask guards", () => {
+    const expr = buildRangesStyleColor({
+      classes: STREAMFLOW_CLASSES,
+      hasNodata: true,
+      maskBelow: "0",
+    });
+
+    expect(expr).toEqual([
+      "case",
+      ["==", ["band", 2], 0],
+      TRANSPARENT,
+      ["<=", ["band", 1], 0],
+      TRANSPARENT,
+      ["<=", ["band", 1], 1],
+      "#bdbdbd",
+      ["<=", ["band", 1], 2],
+      "#d9ef8b",
+      ["<=", ["band", 1], 4],
+      "#fdae61",
+      ["<=", ["band", 1], 6],
+      "#d73027",
+      ["<=", ["band", 1], 10],
+      "#c51b7d",
+      ["<=", ["band", 1], 20],
+      "#2c7bb6",
+      ["<=", ["band", 1], 100000000],
+      "#08306b",
+      TRANSPARENT,
+    ]);
+  });
+
+  describe("colors each value by the interval it falls in", () => {
+    const expr = buildRangesStyleColor({
+      classes: STREAMFLOW_CLASSES,
+      hasNodata: true,
+      maskBelow: "0",
+      fallbackColor: "#ff00ff",
+    });
+
+    test("a value exactly at a bound takes that bound's class", () => {
+      // Upper-inclusive: 2.0 closes "1 to 2", it does not open "2 to 4".
+      expect(evaluate(expr, 2)).toBe("#d9ef8b");
+      expect(evaluate(expr, 1)).toBe("#bdbdbd");
+      expect(evaluate(expr, 20)).toBe("#2c7bb6");
+    });
+
+    test("a value between bounds takes the class above it", () => {
+      expect(evaluate(expr, 1.37)).toBe("#d9ef8b");
+      expect(evaluate(expr, 2.0001)).toBe("#fdae61");
+      expect(evaluate(expr, 15)).toBe("#2c7bb6");
+    });
+
+    test("a value below the first bound but above the mask takes the first class", () => {
+      expect(evaluate(expr, 0.05)).toBe("#bdbdbd");
+    });
+
+    test("a value at or below the mask is transparent", () => {
+      expect(evaluate(expr, 0)).toEqual(TRANSPARENT);
+      expect(evaluate(expr, -3)).toEqual(TRANSPARENT);
+    });
+
+    test("a nodata cell is transparent whatever its value", () => {
+      expect(evaluate(expr, 5, 0)).toEqual(TRANSPARENT);
+    });
+
+    test("a value above the last bound takes the fallback color", () => {
+      expect(evaluate(expr, 1e9)).toBe("#ff00ff");
+    });
+  });
+
+  test("a value above the last bound is transparent without a fallback", () => {
+    const expr = buildRangesStyleColor({
+      classes: [{ value: 10, color: "#a" }],
+    });
+
+    expect(evaluate(expr, 11)).toEqual(TRANSPARENT);
+    expect(evaluate(expr, -50)).toBe("#a");
+  });
+
+  test("sorts classes numerically, whatever the entry order", () => {
+    // A string sort would put "10" ahead of "2" and "4".
+    const expr = buildRangesStyleColor({
+      classes: [
+        { value: "10", color: "#ten" },
+        { value: "2", color: "#two" },
+        { value: "4", color: "#four" },
+      ],
+    });
+
+    expect(expr).toEqual([
+      "case",
+      ["<=", ["band", 1], 2],
+      "#two",
+      ["<=", ["band", 1], 4],
+      "#four",
+      ["<=", ["band", 1], 10],
+      "#ten",
+      TRANSPARENT,
+    ]);
+    expect(evaluate(expr, 3)).toBe("#four");
+  });
+
+  test("drops a class whose bound repeats a lower one", () => {
+    const expr = buildRangesStyleColor({
+      classes: [
+        { value: "2", color: "#first" },
+        { value: 2, color: "#duplicate" },
+        { value: "1", color: "#low" },
+      ],
+    });
+
+    expect(expr).toEqual([
+      "case",
+      ["<=", ["band", 1], 1],
+      "#low",
+      ["<=", ["band", 1], 2],
+      "#first",
+      TRANSPARENT,
+    ]);
+  });
+
+  test("drops rows with no value, no color, or a non-numeric value", () => {
+    const expr = buildRangesStyleColor({
+      classes: [
+        { value: 5, color: "#a" },
+        { value: "", color: "#b" },
+        { value: 7 },
+        { value: "nope", color: "#c" },
+      ],
+    });
+
+    expect(expr).toEqual(["case", ["<=", ["band", 1], 5], "#a", TRANSPARENT]);
+  });
+
+  test("throws when no class is usable", () => {
+    expect(() => buildRangesStyleColor({ classes: [{ value: "" }] })).toThrow(
+      /at least one class/i,
+    );
+    expect(() => buildRangesStyleColor({})).toThrow(/at least one class/i);
+  });
+});
+
+describe("class style mode helpers", () => {
+  test("isClassStyleMode names categorical and ranges only", () => {
+    expect(isClassStyleMode("categorical")).toBe(true);
+    expect(isClassStyleMode("ranges")).toBe(true);
+    expect(isClassStyleMode("continuous")).toBe(false);
+    expect(isClassStyleMode(undefined)).toBe(false);
+  });
+
+  test("hasClassStyle needs a class mode and a usable class", () => {
+    const usable = [{ value: 1, color: "#a" }];
+    expect(hasClassStyle({ styleMode: "ranges", classes: usable })).toBe(true);
+    expect(hasClassStyle({ styleMode: "categorical", classes: usable })).toBe(
+      true,
+    );
+    expect(
+      hasClassStyle({ styleMode: "ranges", classes: [{ value: "" }] }),
+    ).toBe(false);
+    expect(hasClassStyle({ styleMode: "continuous", classes: usable })).toBe(
+      false,
+    );
+    expect(hasClassStyle(undefined)).toBe(false);
+  });
+
+  test("buildClassStyleColor dispatches on the mode", () => {
+    const classes = [{ value: 1, color: "#a" }];
+    expect(buildClassStyleColor({ styleMode: "ranges", classes })[0]).toBe(
+      "case",
+    );
+    expect(buildClassStyleColor({ styleMode: "categorical", classes })[0]).toBe(
+      "match",
+    );
+  });
+
+  test("sortedRangeClasses keeps the entries themselves, ascending", () => {
+    const low = { value: "1", color: "#a" };
+    const high = { value: "10", color: "#b" };
+    expect(sortedRangeClasses([high, low])).toEqual([low, high]);
+    expect(sortedRangeClasses(undefined)).toEqual([]);
+  });
+
+  test("classLegendItems lists ranges ascending with an up-to fallback", () => {
+    expect(
+      classLegendItems({
+        styleMode: "ranges",
+        classes: [
+          { value: "10", color: "#b" },
+          { value: "2", color: "#a", label: "Low" },
+          { value: "", color: "#c" },
+        ],
+      }),
+    ).toEqual([
+      { color: "#a", label: "Low", symbol: "square" },
+      { color: "#b", label: "Up to 10", symbol: "square" },
+    ]);
+  });
+
+  test("classLegendItems keeps categorical entries in their saved order", () => {
+    expect(
+      classLegendItems({
+        styleMode: "categorical",
+        classes: [
+          { value: 3, color: "#b" },
+          { value: 1, color: "#a", label: "One" },
+        ],
+      }),
+    ).toEqual([
+      { color: "#b", label: "3", symbol: "square" },
+      { color: "#a", label: "One", symbol: "square" },
+    ]);
+    expect(classLegendItems({ styleMode: "categorical" })).toEqual([]);
   });
 });

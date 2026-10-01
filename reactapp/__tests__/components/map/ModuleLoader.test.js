@@ -953,6 +953,30 @@ describe("applyZarrRamp", () => {
     ]);
   });
 
+  test("styles ranges Zarr layers by interval without a range", async () => {
+    const config = zarrRampLayer({
+      rampName: undefined,
+      styleMode: "ranges",
+      classes: [
+        { value: "10", color: "#bbb" },
+        { value: "1", color: "#aaa" },
+      ],
+    });
+
+    await applyAutoRamp(config);
+
+    expect(config.style.color).toEqual([
+      "case",
+      ["==", ["band", 2], 0],
+      [0, 0, 0, 0],
+      ["<=", ["band", 1], 1],
+      "#aaa",
+      ["<=", ["band", 1], 10],
+      "#bbb",
+      [0, 0, 0, 0],
+    ]);
+  });
+
   test("falls back to grayscale fitted to the slice without a ramp or classes", async () => {
     // A DataTile carries raw values with no normalization, so an unstyled layer
     // would paint raw floats into the color channels. The GeoTIFF source this
@@ -1532,6 +1556,99 @@ describe("applyAutoRamp", () => {
 
       expect(fromUrl).not.toHaveBeenCalled();
       expect(config.style).toBeUndefined();
+    });
+  });
+
+  describe("ranges layers", () => {
+    // Shaped like the "Ensemble Mean Streamflow" layer of a real dashboard,
+    // saved as categorical with labels that read as ranges, switched to the
+    // mode its author meant. Class values are strings, as the editor saves them.
+    const streamflowLayer = (source = {}) => ({
+      type: "WebGLTile",
+      props: {
+        name: "Ensemble Mean Streamflow (m³/s per km²)",
+        opacity: ".5",
+        source: {
+          type: "GeoTIFF",
+          props: {
+            url: "https://example.com/maxunitq_forecast_median.tif",
+            mask_below: "0",
+            normalize: false,
+            interpolate: false,
+          },
+          styleMode: "ranges",
+          classes: [
+            { value: "1", color: "#bdbdbd", label: "0.1 to 1" },
+            { value: "2", color: "#d9ef8b", label: "1 to 2" },
+            { value: "4", color: "#fdae61", label: "2 to 4" },
+            { value: "6", color: "#d73027", label: "4 to 6" },
+            { value: "10", color: "#c51b7d", label: "6 to 10" },
+            { value: "20", color: "#2c7bb6", label: "10 to 20" },
+            { value: "100000000", color: "#08306b", label: "20+" },
+          ],
+          rampName: "turbo",
+          ...source,
+        },
+      },
+    });
+
+    test("styles the streamflow layer by range on raw band values", async () => {
+      mockGDALMetadata({ fileNodata: -9999 });
+      global.fetch = jest.fn();
+      const config = streamflowLayer();
+
+      await applyAutoRamp(config);
+
+      // Same source handling as Categorical: the bounds are raw values, and a
+      // blended cell would take a class none of its neighbors are in.
+      expect(config.props.source.props.normalize).toBe(false);
+      expect(config.props.source.props.interpolate).toBe(false);
+      expect(config.props.source.props.nodata).toBe(-9999);
+      // The class values are the scale: no statistics, no sidecar, no scan.
+      expect(global.fetch).not.toHaveBeenCalled();
+      expect(config.props.source.resolvedRampMin).toBeUndefined();
+      expect(config.style.color).toEqual([
+        "case",
+        ["==", ["band", 2], 0],
+        [0, 0, 0, 0],
+        ["<=", ["band", 1], 0],
+        [0, 0, 0, 0],
+        ["<=", ["band", 1], 1],
+        "#bdbdbd",
+        ["<=", ["band", 1], 2],
+        "#d9ef8b",
+        ["<=", ["band", 1], 4],
+        "#fdae61",
+        ["<=", ["band", 1], 6],
+        "#d73027",
+        ["<=", ["band", 1], 10],
+        "#c51b7d",
+        ["<=", ["band", 1], 20],
+        "#2c7bb6",
+        ["<=", ["band", 1], 100000000],
+        "#08306b",
+        [0, 0, 0, 0],
+      ]);
+    });
+
+    test("applies the fallback color past the last bound", async () => {
+      mockGDALMetadata({ fileNodata: -9999 });
+      const config = streamflowLayer({ fallbackColor: "#ff00ff" });
+
+      await applyAutoRamp(config);
+
+      const color = config.style.color;
+      expect(color[color.length - 1]).toBe("#ff00ff");
+    });
+
+    test("ignores a ranges mode with no usable class", async () => {
+      mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "2" });
+      const config = streamflowLayer({ classes: [{ value: "", color: "#a" }] });
+
+      await applyAutoRamp(config);
+
+      expect(config.style.color[5][0]).toBe("interpolate");
+      expect(config.props.source.resolvedRampMax).toBe(2);
     });
   });
 

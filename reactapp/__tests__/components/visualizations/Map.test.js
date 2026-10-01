@@ -1151,6 +1151,53 @@ test("Map categorical raster emits discrete legend items, not a colorbar", async
   expect(screen.queryByLabelText(/^Color ramp from/)).not.toBeInTheDocument();
 });
 
+test("Map ranges raster emits one swatch per class in ascending order", async () => {
+  fromUrl.mockResolvedValue({
+    getImage: jest.fn().mockResolvedValue({
+      getGDALMetadata: jest.fn(() => null),
+      getGDALNoData: jest.fn(() => -9999),
+    }),
+  });
+
+  renderMapWithLayers([
+    {
+      configuration: {
+        type: "WebGLTile",
+        props: {
+          name: "Streamflow",
+          source: {
+            type: "GeoTIFF",
+            styleMode: "ranges",
+            rampName: "turbo",
+            // Entered out of order, and one unlabelled: the legend reads in
+            // the order the style colors, with the bound standing in.
+            classes: [
+              { value: "20", color: "#2c7bb6", label: "10 to 20" },
+              { value: "2", color: "#d9ef8b", label: "1 to 2" },
+              { value: "1", color: "#bdbdbd", label: "0.1 to 1" },
+              { value: "100000000", color: "#08306b" },
+            ],
+            props: { url: "https://example.com/flow.tif", mask_below: "0" },
+          },
+        },
+      },
+      legend: "default",
+    },
+  ]);
+  fireEvent.click(await screen.findByLabelText("Show Legend Control"));
+
+  const first = await screen.findByText("0.1 to 1");
+  const second = screen.getByText("1 to 2");
+  const third = screen.getByText("10 to 20");
+  const last = screen.getByText("Up to 100000000");
+  const follows = (a, b) =>
+    Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+  expect(follows(first, second)).toBe(true);
+  expect(follows(second, third)).toBe(true);
+  expect(follows(third, last)).toBe(true);
+  expect(screen.queryByLabelText(/^Color ramp from/)).not.toBeInTheDocument();
+});
+
 test("Map ESRI with default legend", async () => {
   const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
   const layer = layerConfigImageArcGISRest;
@@ -9145,6 +9192,36 @@ describe("the legend of a runtime GeoTIFF", () => {
     ).not.toBeInTheDocument();
     expect(screen.queryByText("Forecast Depth")).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("shows a class-styled fetch's swatches in place of a colorbar", async () => {
+    renderLayers([runtimeRaster()]);
+    publish({
+      "runtime-1": {
+        items: [
+          { color: "#bdbdbd", label: "0.1 to 1", symbol: "square" },
+          { color: "#d9ef8b", label: "1 to 2", symbol: "square" },
+        ],
+      },
+    });
+    fireEvent.click(await screen.findByLabelText("Show Legend Control"));
+
+    expect(await screen.findByText("0.1 to 1")).toBeInTheDocument();
+    expect(screen.getByText("1 to 2")).toBeInTheDocument();
+    expect(screen.getByText("Forecast Depth")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("img", { name: /^Color ramp/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows nothing for a class-styled fetch with no swatches", async () => {
+    renderLayers([runtimeRaster(), staticRaster]);
+    publish({ "runtime-1": { items: [] } });
+    fireEvent.click(await screen.findByLabelText("Show Legend Control"));
+    expect(
+      await screen.findByLabelText("Color ramp from 0 to 100"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Forecast Depth")).not.toBeInTheDocument();
   });
 
   it("shows no colorbar for a fetch that drew none", async () => {
