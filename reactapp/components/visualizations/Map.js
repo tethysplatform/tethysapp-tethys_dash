@@ -43,6 +43,7 @@ import { getBaseMapLayer } from "components/visualizations/utilities";
 import { LAYER_STATE, parseProgress } from "components/map/layerStatus";
 import { WebsocketContext } from "components/contexts/WebSocketContext";
 import useRuntimeLayerFetcher from "components/visualizations/runtimeLayerFetcher";
+import { isRuntimeRasterConfig } from "components/map/runtimeRaster";
 import {
   AppContext,
   DataViewerModeContext,
@@ -164,6 +165,25 @@ function defaultVectorSwatchSymbol(source) {
   if (type.includes("Polygon")) return "polygon";
   return "circle";
 }
+
+// The colorbar legend entry for a continuous ramp, or null when the ramp name
+// is not one the app knows. Shared by the saved-config legend and the runtime
+// raster legend so both resolve colors (and reversal) the same way.
+function buildRampColorbar({ rampName, rampReverse, rampMin, rampMax, title }) {
+  if (typeof rampName !== "string" || !COLOR_RAMPS[rampName]) return null;
+  return {
+    rampColors: resolveRamp(rampName, rampReverse === true),
+    rampMin,
+    rampMax,
+    title,
+  };
+}
+
+// Marks the legend position a runtime GeoTIFF's colorbar fills. Its ramp is
+// whatever the last successful fetch drew, which only the runtime fetcher
+// knows, so the legend built from the saved configs holds a slot in layer order
+// and the colorbar is dropped into it at render time.
+const RUNTIME_RASTER_LEGEND_SLOT = Symbol("runtimeRasterLegendSlot");
 
 export const Popup = ({
   layerAttributes,
@@ -407,16 +427,17 @@ const MapVisualization = ({
   }, []);
 
   const { getMessageForRequest } = useContext(WebsocketContext) ?? {};
-  const { errorsByLayerId, loadingByLayerId } = useRuntimeLayerFetcher({
-    layers,
-    gridItemUUID,
-    sessionNonce,
-    mapRef: visualizationRef,
-    variableInputValues,
-    variableInputDateFormats,
-    onBeforeSwap: dismissPopupBeforeSwap,
-    refreshTick: refreshCount,
-  });
+  const { errorsByLayerId, loadingByLayerId, rasterLegendByLayerId } =
+    useRuntimeLayerFetcher({
+      layers,
+      gridItemUUID,
+      sessionNonce,
+      mapRef: visualizationRef,
+      variableInputValues,
+      variableInputDateFormats,
+      onBeforeSwap: dismissPopupBeforeSwap,
+      refreshTick: refreshCount,
+    });
 
   const runtimeLayerState = { errorsByLayerId };
 
@@ -871,12 +892,29 @@ const MapVisualization = ({
         // the layer itself does not need the legend, and the map resolves the
         // same ramp for its own construction. So the legend arrives when the
         // stats do (the two reads share one fetch; see applyAutoRamp).
+        //
+        // A runtime raster is skipped: it has no file until its plugin runs,
+        // and its range is resolved per fetch by the runtime fetcher instead.
         await Promise.all(
-          layers.map((layer) => applyAutoRamp(layer.configuration)),
+          layers.map((layer) =>
+            isRuntimeRasterConfig(layer.configuration)
+              ? undefined
+              : applyAutoRamp(layer.configuration),
+          ),
         );
 
         for (const layer of layers) {
           if (layer.legend) {
+            if (
+              layer.legend === "default" &&
+              isRuntimeRasterConfig(layer.configuration)
+            ) {
+              newMapLegend.push({
+                [RUNTIME_RASTER_LEGEND_SLOT]: layer.configuration.props.layerId,
+                title: layer.configuration.props.name,
+              });
+              continue;
+            }
             if (layer.legend === "default") {
               const rampSource = layer.configuration?.props?.source;
               // A categorical raster gets one swatch per class rather than a
@@ -913,23 +951,21 @@ const MapVisualization = ({
                 rampSource?.normalize === true;
               const effRampMin = rampMin ?? (normalized ? 0 : undefined);
               const effRampMax = rampMax ?? (normalized ? 1 : undefined);
-              if (
+              const colorbar =
                 (rampSource?.type === "GeoTIFF" ||
                   rampSource?.type === "Zarr") &&
-                typeof rampSource.rampName === "string" &&
-                COLOR_RAMPS[rampSource.rampName] &&
                 effRampMin !== undefined &&
                 effRampMax !== undefined
-              ) {
-                newMapLegend.push({
-                  rampColors: resolveRamp(
-                    rampSource.rampName,
-                    rampSource.rampReverse === true,
-                  ),
-                  rampMin: effRampMin,
-                  rampMax: effRampMax,
-                  title: layer.configuration?.props?.name,
-                });
+                  ? buildRampColorbar({
+                      rampName: rampSource.rampName,
+                      rampReverse: rampSource.rampReverse,
+                      rampMin: effRampMin,
+                      rampMax: effRampMax,
+                      title: layer.configuration?.props?.name,
+                    })
+                  : null;
+              if (colorbar) {
+                newMapLegend.push(colorbar);
                 continue;
               }
               // If the layer has a style JSON, pass it as legend metadata
@@ -997,6 +1033,26 @@ const MapVisualization = ({
     updateLayers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layers, baseMap]);
+
+  // The legend the map shows: the one built from the saved configs, with each
+  // runtime raster's slot filled from the ramp its last successful fetch drew.
+  // A slot with no fetch yet (or a fetch that drew no colorbar) is dropped, so
+  // the raster shows nothing rather than its saved scaffold ramp, which may not
+  // be what is on screen. Only "default" legends hold a slot; an author's own
+  // legend went through untouched above.
+  const displayedMapLegend = useMemo(() => {
+    if (!mapLegend?.some((entry) => entry?.[RUNTIME_RASTER_LEGEND_SLOT])) {
+      return mapLegend;
+    }
+    return mapLegend.flatMap((entry) => {
+      const layerId = entry?.[RUNTIME_RASTER_LEGEND_SLOT];
+      if (!layerId) return [entry];
+      const ramp = rasterLegendByLayerId?.[layerId];
+      const colorbar =
+        ramp && buildRampColorbar({ ...ramp, title: entry.title });
+      return colorbar ? [colorbar] : [];
+    });
+  }, [mapLegend, rasterLegendByLayerId]);
 
   // Swiping the table popup just moves the shared index; the active-feature
   // effect does the rest (highlight, anchor, variable inputs, and opening or
@@ -1702,7 +1758,7 @@ const MapVisualization = ({
         mapConfig={mapConfig}
         mapExtent={mapExtent}
         layers={mapLayers}
-        legend={mapLegend}
+        legend={displayedMapLegend}
         layerControl={layerControl}
         mapDrawing={mapDrawing}
         drawing={drawing}
