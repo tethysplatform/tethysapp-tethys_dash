@@ -3225,14 +3225,19 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
     expect(await screen.findByText("Map Ready")).toBeInTheDocument();
     expect(await screen.findByLabelText("Map Legend")).toBeInTheDocument();
 
-    // The control itself must sit outside the map div. A fill-viewport tile is
-    // position:fixed, which seals its subtree into a stacking context that no
-    // descendant z-index can escape -- so a control rendered inside the map
-    // cannot paint above a grid item overlapping it, whatever its z-index.
+    // An ordinary tile seals nothing in, so the control stays inside the map.
+    // Leaving would cost it its place in the dashboard's paint order -- grid
+    // items carry no z-index and are ordered by the DOM alone, so a portalled
+    // control paints above every tile, including one sent to the front over
+    // this map. Only a fill-viewport tile (position:fixed, a stacking context
+    // no descendant z-index escapes) is worth paying that for; the two paths
+    // are covered directly in FloatingMapControl.test.js.
     const mapDiv = await screen.findByLabelText("Map Div");
     const control = await screen.findByLabelText("Show Legend Control");
-    expect(mapDiv).not.toContainElement(control);
-    expect(document.body).toContainElement(control);
+    expect(mapDiv).toContainElement(control);
+    expect(
+      screen.queryByTestId("floating-map-control"),
+    ).not.toBeInTheDocument();
   });
 
   test("Auto-fit skips inner extent block when clampedPrev is non-finite", async () => {

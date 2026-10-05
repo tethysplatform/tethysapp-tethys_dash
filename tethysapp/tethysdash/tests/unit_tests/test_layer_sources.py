@@ -1,3 +1,5 @@
+from urllib.parse import urlsplit
+
 import pytest
 
 from tethysapp.tethysdash import layer_sources, plugin_helpers
@@ -39,13 +41,16 @@ def test_geotiff_source_full():
 
     assert description == {
         "type": "GeoTIFF",
-        "props": {"url": "/files/a.tif", "projection": "EPSG:32612"},
+        "props": {
+            "url": "/files/a.tif",
+            "projection": "EPSG:32612",
+            "mask_below": -1,
+        },
         "style": {
             "rampName": "viridis",
             "rampMin": 0,
             "rampMax": "50",
             "rampReverse": False,
-            "maskBelow": -1,
         },
     }
     assert validate_layer_source_description(description, "GeoTIFF") is True
@@ -109,6 +114,24 @@ def test_is_allowed_layer_url_rejects(url):
     assert is_allowed_layer_url(url) is False
 
 
+@pytest.mark.parametrize(
+    "url",
+    ["http://[::1/x.tif", "https://[v1.fe80::a+en1]x/y.tif", "http://[]x/a.tif"],
+)
+def test_is_allowed_layer_url_rejects_an_unparseable_url(url):
+    """A URL that urlsplit itself refuses is refused, not raised through.
+
+    Every other rejection is a decision made about the parts urlsplit returns.
+    A malformed IPv6 literal is the one input that never gets that far: urlsplit
+    raises ValueError before there are parts to judge. Letting that escape would
+    turn a plugin returning a bad URL into a crash rather than the per-layer
+    error message every other bad URL produces.
+    """
+    with pytest.raises(ValueError):
+        urlsplit(url)
+    assert is_allowed_layer_url(url) is False
+
+
 # --- validate_layer_source_description ---------------------------------------
 
 
@@ -152,8 +175,8 @@ def test_validate_layer_source_description_allows_null_bounds_and_style_omission
         ({"type": "GeoTIFF"}, "must carry a 'props' dict"),
         ({"type": "GeoTIFF", "props": "https://x/a.tif"}, "must carry a 'props' dict"),
         (
-            {"type": "GeoTIFF", "props": {"url": "https://x/a.tif", "mask_below": 0}},
-            "props has unknown keys: mask_below.*maskBelow",
+            {"type": "GeoTIFF", "props": {"url": "https://x/a.tif", "nodata": 0}},
+            "props has unknown keys: nodata.*ramp settings",
         ),
         ({"type": "GeoTIFF", "props": {}}, "props.url must be a non-empty string"),
         ({"type": "GeoTIFF", "props": {"url": ""}}, "non-empty string"),
@@ -203,11 +226,11 @@ def test_validate_layer_source_description_allows_null_bounds_and_style_omission
         ),
         (
             geotiff_source("https://x/a.tif", mask_below="0"),
-            "maskBelow must be a finite number",
+            "props.mask_below must be a finite number",
         ),
         (
             geotiff_source("https://x/a.tif", mask_below=float("nan")),
-            "maskBelow must be a finite number",
+            "props.mask_below must be a finite number",
         ),
         (
             geotiff_source("https://x/a.tif", ramp_name=""),

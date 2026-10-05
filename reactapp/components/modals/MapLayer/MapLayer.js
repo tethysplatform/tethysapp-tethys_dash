@@ -31,10 +31,10 @@ import {
   resolveTablePopupType,
 } from "components/map/utilities";
 import {
-  buildGeoTIFFStyleColor,
-  buildClassStyleColor,
   isClassStyleMode,
+  isRampBoundSet,
   isUsableClass,
+  rasterStyleSettings,
 } from "components/map/geoTIFFStyle";
 import {
   removeEmptyValues,
@@ -47,7 +47,6 @@ import {
 } from "components/visualizations/utilities";
 import { useMapContext } from "components/contexts/MapContext";
 import { getDynamicLayerSourceType } from "components/modals/MapLayer/runtimeLayerSource";
-import { RASTER_STYLE_FIELDS } from "components/map/runtimeRaster";
 import Select from "react-select";
 import appAPI from "services/api/app";
 import "components/modals/wideModal.css";
@@ -97,27 +96,29 @@ const DYNAMIC_LAYER_PLACEHOLDER_GEOJSON = {
   crs: { type: "name", properties: { name: "EPSG:4326" } },
 };
 
-// A ramp bound the author set. An empty one means "resolve it from the file".
-const isBoundSet = (v) =>
-  typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v));
-
 /**
- * The saved source of a dynamic GeoTIFF layer: the editor's ramp fields with
- * no URL, since each plugin fetch names the file.
+ * The saved style of a raster layer (GeoTIFF or Zarr, static or dynamic): the
+ * editor's ramp settings, and only those.
  *
- * Only the fields are saved, never a compiled style: the style is compiled per
- * fetch, against whichever style is in effect for that file (see
- * resolveEffectiveRasterConfig in components/map/runtimeRaster.js).
+ * Never a compiled OpenLayers style. That depends on the file -- its nodata, its
+ * value range -- so it is compiled each time the layer loads (applyAutoRamp in
+ * components/map/ModuleLoader.js), and for a dynamic layer per fetch.
  *
- * @param {object} sourceProps The editor's source props.
- * @param {object} validSourceProps sourceProps.props with empty values removed.
- * @returns {object} `{type: "GeoTIFF", props, rampName?, rampMin?, rampMax?,
- *   rampReverse?, styleMode?, classes?, fallbackColor?}`.
+ * A class table is saved only when it has a class that can be drawn, and then
+ * in place of the range; the ramp name is kept beside it so switching back to a
+ * ramp does not lose the chosen palette. Each bound is independent: a set one
+ * pins that end of the ramp, an empty one is resolved from the file. Values keep
+ * the type the editor's inputs give them, so bounds are saved as numeric
+ * strings. The mask is not here: it is a source property, edited on the
+ * Source pane and saved as `source.props.mask_below`, because the Zarr reader
+ * writes it into the slice's alpha band as it reads -- it describes the data
+ * being read, not how the result is coloured.
+ *
+ * @param {object} rasterStyle The editor's raster style settings.
+ * @returns {object} `{rampName?, rampMin?, rampMax?, rampReverse?, styleMode?,
+ *   classes?, fallbackColor?}`, empty when nothing is set.
  */
-export function buildRuntimeRasterSource(sourceProps, validSourceProps) {
-  // eslint-disable-next-line no-unused-vars
-  const { url, ...props } = validSourceProps;
-  const source = { type: "GeoTIFF", props };
+export function buildRasterStyleSettings(rasterStyle) {
   const {
     rampName,
     rampMin,
@@ -126,25 +127,41 @@ export function buildRuntimeRasterSource(sourceProps, validSourceProps) {
     styleMode,
     classes,
     fallbackColor,
-  } = sourceProps;
+  } = rasterStyle ?? {};
+  const style = {};
   const hasRampName = typeof rampName === "string" && rampName.trim() !== "";
   const usableClasses = (classes ?? []).filter(isUsableClass);
 
   if (isClassStyleMode(styleMode) && usableClasses.length > 0) {
-    source.styleMode = styleMode;
-    source.classes = usableClasses;
-    if (fallbackColor) source.fallbackColor = fallbackColor;
-    if (hasRampName) source.rampName = rampName;
-    if (rampReverse === true) source.rampReverse = true;
-    return source;
+    style.styleMode = styleMode;
+    style.classes = usableClasses;
+    if (fallbackColor) style.fallbackColor = fallbackColor;
+    if (hasRampName) style.rampName = rampName;
+    if (rampReverse === true) style.rampReverse = true;
+  } else if (hasRampName) {
+    style.rampName = rampName;
+    if (isRampBoundSet(rampMin)) style.rampMin = rampMin;
+    if (isRampBoundSet(rampMax)) style.rampMax = rampMax;
+    // Kept only when set, so an unreversed layer's config is unchanged from
+    // before this option existed.
+    if (rampReverse === true) style.rampReverse = true;
   }
-  if (hasRampName) {
-    source.rampName = rampName;
-    if (isBoundSet(rampMin)) source.rampMin = rampMin;
-    if (isBoundSet(rampMax)) source.rampMax = rampMax;
-    if (rampReverse === true) source.rampReverse = true;
-  }
-  return source;
+  return style;
+}
+
+/**
+ * The saved source of a dynamic GeoTIFF layer: its source props with no URL,
+ * since each plugin fetch names the file. Its styling is its saved style (see
+ * buildRasterStyleSettings), not part of its source.
+ *
+ * @param {object} validSourceProps The editor's source props with empty values
+ *   removed.
+ * @returns {object} `{type: "GeoTIFF", props}`.
+ */
+export function buildRuntimeRasterSource(validSourceProps) {
+  // eslint-disable-next-line no-unused-vars
+  const { url, ...props } = validSourceProps ?? {};
+  return { type: "GeoTIFF", props };
 }
 
 export function rekeyAttributeMapToLayer(map, targetLayerName) {
@@ -224,6 +241,12 @@ const MapLayerModal = ({
     layerInfo.attributeProps ?? {},
   );
   const [style, setStyle] = useState(layerInfo.style);
+  // A raster's style is its ramp settings rather than a style JSON, so it is
+  // edited apart from `style`, in the shape it is saved in. A saved style that
+  // carries no settings -- every non-raster layer's -- reads as none.
+  const [rasterStyle, setRasterStyle] = useState(() =>
+    rasterStyleSettings(layerInfo.style),
+  );
   const [legend, setLegend] = useState(layerInfo.legend);
   const [popupConfig, setPopupConfig] = useState(layerInfo.popupConfig ?? null);
   const [selectedOption, setSelectedOption] = useState(null);
@@ -365,7 +388,7 @@ const MapLayerModal = ({
             ...validLayerProps,
             layerId,
             source: isRuntimeGeoTIFF
-              ? buildRuntimeRasterSource(sourceProps, validSourceProps)
+              ? buildRuntimeRasterSource(validSourceProps)
               : {
                   type: "GeoJSON",
                   props: {},
@@ -477,101 +500,24 @@ const MapLayerModal = ({
       }
     }
 
-    if (
-      !isRuntime &&
-      (sourceProps.type === "GeoTIFF" || sourceProps.type === "Zarr")
-    ) {
-      const {
-        rampName,
-        rampMin,
-        rampMax,
-        rampReverse,
-        styleMode,
-        classes,
-        fallbackColor,
-      } = sourceProps;
-      const hasRampName =
-        typeof rampName === "string" && rampName.trim() !== "";
-
-      // A class-table layer -- Categorical (exact values) or Ranges (value
-      // intervals) -- carries a class list instead of a range. Raw band values
-      // are required for the class values to line up, so normalization is off
-      // from the start rather than at render time.
-      const usableClasses = (classes ?? []).filter(isUsableClass);
-      const isClassStyled =
-        isClassStyleMode(styleMode) && usableClasses.length > 0;
-      if (isClassStyled) {
-        const savedSource = mapConfiguration.configuration.props.source;
-        mapConfiguration.configuration.style = {
-          color: buildClassStyleColor({
-            styleMode,
-            classes: usableClasses,
-            hasNodata: true,
-            maskBelow: validSourceProps.mask_below,
-            fallbackColor,
-          }),
-        };
-        savedSource.props.normalize = false;
-        // Nearest neighbor: interpolating class labels is meaningless, and in
-        // either mode it fringes nodata boundaries with the fallback color and
-        // paints the in-between classes along every sharp value edge.
-        savedSource.props.interpolate = false;
-        savedSource.styleMode = styleMode;
-        savedSource.classes = usableClasses;
-        if (fallbackColor) savedSource.fallbackColor = fallbackColor;
-        // Kept so switching back to a ramp does not lose the chosen palette.
-        // Always present here: only a raster carries a class list, and the
-        // Style tab gives every raster a ramp name the moment it has none.
-        savedSource.rampName = rampName;
-        if (rampReverse === true) savedSource.rampReverse = true;
+    const isRasterLayer =
+      isRuntimeGeoTIFF ||
+      (!isRuntime &&
+        (sourceProps.type === "GeoTIFF" || sourceProps.type === "Zarr"));
+    if (isRasterLayer) {
+      // The ramp settings are the whole saved style. The compiled OpenLayers
+      // style, and the `normalize`/`interpolate` source behavior that goes with
+      // it, are derived from them each time the layer loads.
+      const rasterStyleToSave = buildRasterStyleSettings(rasterStyle);
+      // The Style tab defaults a raster's ramp to turbo as it mounts, so by
+      // the time this runs there is always at least a ramp name to save. The
+      // guard keeps an empty `style` key out of the saved config if that ever
+      // stops being true.
+      // istanbul ignore else -- unreachable; see above
+      if (Object.keys(rasterStyleToSave).length > 0) {
+        mapConfiguration.configuration.style = rasterStyleToSave;
       }
-      // Each bound is independent: a set one pins that end of the ramp, an
-      // empty one is resolved from the file's statistics at render time.
-      const hasMin = isBoundSet(rampMin);
-      const hasMax = isBoundSet(rampMax);
-      const hasRange = hasMin && hasMax;
-      if (hasRampName && !isClassStyled) {
-        // buildGeoTIFFStyleColor needs both bounds or neither. When only one is
-        // set, save the normalized placeholder — applyAutoRamp rebuilds the
-        // style at render time once it has resolved the missing bound.
-        //
-        // Both raster types end up with a nodata value at render time (a Zarr
-        // COG's -9999 sentinel, or the GeoTIFF's own tag / the NaN default), so
-        // OL always appends an alpha band for the style to guard.
-        const color = buildGeoTIFFStyleColor({
-          rampName,
-          rampMin: hasRange ? rampMin : "",
-          rampMax: hasRange ? rampMax : "",
-          rampReverse: rampReverse === true,
-          hasNodata: true,
-          maskBelow: validSourceProps.mask_below,
-        });
-        mapConfiguration.configuration.style = { color };
-        mapConfiguration.configuration.props.source.rampName = rampName;
-        // Persisted only when set, so an unreversed layer's config is unchanged
-        // from before this option existed.
-        if (rampReverse === true) {
-          mapConfiguration.configuration.props.source.rampReverse = true;
-        }
-        // Raw range styles raw band values; anything less than a full range
-        // normalizes band 1 from stats until the render-time resolve lands.
-        mapConfiguration.configuration.props.source.props.normalize = !hasRange;
-        // Persist each bound that is set. A missing one means "resolve it from
-        // the file", so a half-pinned range has to survive the save.
-        if (hasMin) {
-          mapConfiguration.configuration.props.source.rampMin = rampMin;
-        }
-        if (hasMax) {
-          mapConfiguration.configuration.props.source.rampMax = rampMax;
-        }
-      }
-    } else if (
-      // A dynamic GeoTIFF's style is its ramp fields, saved on its source above;
-      // the vector style JSON has no meaning for it.
-      !isRuntimeGeoTIFF &&
-      style &&
-      style !== "{}"
-    ) {
+    } else if (style && style !== "{}") {
       const apiResponse = await saveLayerJSON({
         stringJSON: style,
         csrf,
@@ -642,8 +588,14 @@ const MapLayerModal = ({
       ),
     );
     setStyle(apiResponse.data.configuration.style);
+    setRasterStyle(rasterStyleSettings(apiResponse.data.configuration.style));
     setLegend(apiResponse.data.legend);
   };
+
+  // Which plugin is selected now, for a plugin's defaults that arrive after the
+  // author has already moved on to another.
+  const selectedPluginSourceRef = useRef(sourceProps?.source);
+  selectedPluginSourceRef.current = sourceProps?.source;
 
   const fetchPluginDefaults = useCallback(
     async (source, args) => {
@@ -702,22 +654,22 @@ const MapLayerModal = ({
         setStyle(config.style);
         setLegend(scaffold.legend);
 
-        // A dynamic GeoTIFF's style lives in its ramp fields, so the scaffold's
-        // are loaded into the Style tab in place of the editor's. The pin goes
-        // with them: these are the plugin's styling, not the author's.
+        // A dynamic GeoTIFF's style is its ramp settings, so the scaffold's are
+        // loaded into the Style tab in place of the editor's, and its source
+        // props with them. The pin is cleared: these are the plugin's styling,
+        // not the author's.
         if (
           getDynamicLayerSourceType(dynamicMapLayers, { source }) === "GeoTIFF"
         ) {
+          // The author picked another plugin while this one was answering.
+          if (selectedPluginSourceRef.current !== source) {
+            return { success: true };
+          }
           const scaffoldSource = config.props?.source ?? {};
+          setRasterStyle(rasterStyleSettings(config.style));
           setSourceProps((prev) => {
-            // The author picked another plugin while this one was answering.
-            if (prev?.source !== source) return prev;
             const next = { ...prev };
             delete next.stylePinned;
-            RASTER_STYLE_FIELDS.forEach((field) => {
-              if (scaffoldSource[field] === undefined) delete next[field];
-              else next[field] = scaffoldSource[field];
-            });
             next.props = { ...(scaffoldSource.props ?? {}) };
             return next;
           });
@@ -736,6 +688,7 @@ const MapLayerModal = ({
       setLayerProps,
       setAttributeProps,
       setStyle,
+      setRasterStyle,
       setLegend,
       variableInputValues,
       variableInputDateFormats,
@@ -813,6 +766,8 @@ const MapLayerModal = ({
                   layerProps={layerProps}
                   sourceProps={sourceProps}
                   setSourceProps={setSourceProps}
+                  rasterStyle={rasterStyle}
+                  setRasterStyle={setRasterStyle}
                   shapefileDiscovery={shapefileDiscovery}
                 />
               </div>

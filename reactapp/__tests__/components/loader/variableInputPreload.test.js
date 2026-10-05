@@ -90,6 +90,107 @@ it("collects only plugin variable inputs from every tab", () => {
   ).toEqual(["picker_a", "picker_b"]);
 });
 
+it("finds nothing in a dashboard that has not loaded yet", () => {
+  // Called before the tabs or the plugin registry are in hand, which is the
+  // state DashboardLoader is in for its first render.
+  expect(collectPluginVariableInputs()).toEqual([]);
+  expect(collectPluginVariableInputs(undefined, visualizations)).toEqual([]);
+  expect(
+    collectPluginVariableInputs([
+      { id: 1, gridItems: [gridItem("picker_a", {})] },
+    ]),
+  ).toEqual([]);
+});
+
+it("tolerates a tab with no grid items and an item with no source", () => {
+  // A newly added tab holds no grid items until one is dropped on it, and a
+  // half-written item can reach this scan without a source.
+  const tabs = [
+    { id: 1 },
+    { id: 2, gridItems: [{ uuid: "no-source" }, gridItem("picker_a", {})] },
+  ];
+  expect(
+    collectPluginVariableInputs(tabs, visualizations).map(
+      ({ gridItem }) => gridItem.source,
+    ),
+  ).toEqual(["picker_a"]);
+});
+
+it("publishes nothing for a response with no options source", async () => {
+  // VariableInput publishes nothing without one -- it is what decides how the
+  // value is read -- so the preload must not either, or the dashboard would
+  // start with a value its own tile then disagrees with.
+  mockPlugins({
+    picker_a: {
+      success: true,
+      viz_type: "variable_input",
+      data: { variable_name: "A", initial_value: "a" },
+    },
+    picker_b: viResponse({ variable_name: "B", initial_value: "b" }),
+  });
+
+  const result = await preloadPluginVariableInputs({
+    tabs: [
+      {
+        id: 1,
+        gridItems: [gridItem("picker_a", {}), gridItem("picker_b", {})],
+      },
+    ],
+    visualizations,
+  });
+
+  expect(result.values).toEqual({ B: "b" });
+  expect(result.owners).not.toHaveProperty("picker_a");
+});
+
+it("skips a grid item whose args do not parse", () => {
+  // Hand-authored and script-generated dashboards reach this scan too, so a
+  // malformed args_string is expected traffic. The item is left out and the
+  // rest of the dashboard still preloads; its own tile reports the problem.
+  const tabs = [
+    {
+      id: 1,
+      gridItems: [
+        { source: "picker_a", uuid: "bad", args_string: "{oops" },
+        gridItem("picker_b", {}),
+      ],
+    },
+  ];
+  expect(
+    collectPluginVariableInputs(tabs, visualizations).map(
+      ({ gridItem }) => gridItem.source,
+    ),
+  ).toEqual(["picker_b"]);
+});
+
+it("leaves a response the substituter cannot process to its tile", async () => {
+  // getVisualization substitutes variable inputs into a tile's response before
+  // VariableInput sees it, and that pass copies the response through JSON. What
+  // it cannot copy it cannot substitute into -- and neither could the tile's
+  // own pass, so the item is left for the tile to report rather than failing
+  // the preload. A self-referencing object stands in for whatever the
+  // substituter chokes on; the point is that the dashboard still loads.
+  const circular = { variable_name: "A", variable_options_source: "text" };
+  circular.self = circular;
+  mockPlugins({
+    picker_a: { success: true, viz_type: "variable_input", data: circular },
+    picker_b: viResponse({ variable_name: "B", initial_value: "b" }),
+  });
+
+  const result = await preloadPluginVariableInputs({
+    tabs: [
+      {
+        id: 1,
+        gridItems: [gridItem("picker_a", {}), gridItem("picker_b", {})],
+      },
+    ],
+    visualizations,
+  });
+
+  expect(result.values).toEqual({ B: "b" });
+  expect(result.owners).not.toHaveProperty("picker_a");
+});
+
 it("does nothing when the dashboard has no plugin variable inputs", async () => {
   const spy = jest.spyOn(appAPI, "getVisualizationData");
   const onProgress = jest.fn();

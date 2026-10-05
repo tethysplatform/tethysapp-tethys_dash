@@ -814,20 +814,12 @@ test("Map GeoTIFF with default legend shows a 0..1 colorbar when normalized with
         source: {
           type: "GeoTIFF",
           props: { url: "https://example.com/norm.tif", normalize: true },
-          rampName: "viridis",
-          // no rampMin/rampMax
         },
       },
+      // The layer's saved style is its ramp settings; no bounds, so the ramp
+      // is fitted to the file -- or stays on 0..1 when that read fails.
       style: {
-        color: [
-          "interpolate",
-          ["linear"],
-          ["band", 1],
-          0,
-          "#000000",
-          1,
-          "#ffffff",
-        ],
+        rampName: "viridis",
       },
     },
     legend: "default",
@@ -925,10 +917,10 @@ test("Map GeoJSON with legend and bad format", async () => {
 });
 
 test("Map GeoTIFF with default legend emits a ramp colorbar from sourceProps metadata", async () => {
-  // Covers lines 353-360: when a GeoTIFF layer carries persisted
-  // rampName/rampMin/rampMax on its source, `legend: "default"` should
-  // bypass the style/url legend paths and produce a colorbar legend
-  // straight from COLOR_RAMPS[rampName] + the persisted bounds.
+  // Covers lines 353-360: when a GeoTIFF layer's saved style carries
+  // rampName/rampMin/rampMax, `legend: "default"` should bypass the
+  // style/url legend paths and produce a colorbar legend straight from
+  // COLOR_RAMPS[rampName] + the persisted bounds.
   const layer = {
     configuration: {
       type: "WebGLTile",
@@ -939,22 +931,9 @@ test("Map GeoTIFF with default legend emits a ramp colorbar from sourceProps met
           props: {
             url: "https://example.com/ramp.tif",
           },
-          rampName: "viridis",
-          rampMin: "0",
-          rampMax: "100",
         },
       },
-      style: {
-        color: [
-          "interpolate",
-          ["linear"],
-          ["band", 1],
-          0,
-          "#000000",
-          100,
-          "#ffffff",
-        ],
-      },
+      style: { rampName: "viridis", rampMin: "0", rampMax: "100" },
     },
     legend: "default",
   };
@@ -990,18 +969,17 @@ test("Map GeoTIFF with default legend emits a ramp colorbar from sourceProps met
   expect(screen.getByText("Ramp Raster Layer")).toBeInTheDocument();
 });
 
-const zarrRampLayer = (source = {}) => ({
+const zarrRampLayer = (style = {}) => ({
   configuration: {
     type: "WebGLTile",
     props: {
       name: "Flood Depth",
       source: {
         type: "Zarr",
-        rampName: "viridis",
         props: { url: "https://example.com/store.zarr", variable: "depth" },
-        ...source,
       },
     },
+    style: { rampName: "viridis", ...style },
   },
   legend: "default",
 });
@@ -1061,14 +1039,20 @@ test("Map Zarr with default legend prefers an author-pinned range over the slice
   ).toBeInTheDocument();
 });
 
-test("Map Zarr with default legend omits the colorbar when the slice cannot be read", async () => {
-  // Unreadable store: no slice range to resolve, so the layer cannot build and
-  // no colorbar is emitted.
+test("Map Zarr with default legend omits the legend when the slice cannot be read", async () => {
+  // Unreadable store: no slice range to resolve and the layer never renders
+  // normalized either, so there is nothing to label. The whole entry is
+  // dropped rather than a colorbar over a range nobody knows -- which leaves
+  // no legend to open at all.
   readSlice.mockRejectedValue(new Error("network"));
 
   renderMapWithLayers([zarrRampLayer()]);
-  fireEvent.click(await screen.findByLabelText("Show Legend Control"));
+  expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
 
+  await waitFor(() => expect(readSlice).toHaveBeenCalled());
+  expect(
+    screen.queryByLabelText("Show Legend Control"),
+  ).not.toBeInTheDocument();
   expect(screen.queryByLabelText(/^Color ramp from/)).not.toBeInTheDocument();
 });
 
@@ -1093,10 +1077,10 @@ test("Map GeoTIFF with an empty range auto-fits the legend to the file statistic
           name: "Depth Raster",
           source: {
             type: "GeoTIFF",
-            rampName: "viridis",
             props: { url: "https://example.com/depth.tif" },
           },
         },
+        style: { rampName: "viridis" },
       },
       legend: "default",
     },
@@ -1108,6 +1092,45 @@ test("Map GeoTIFF with an empty range auto-fits the legend to the file statistic
     await screen.findByLabelText("Color ramp from 0.05 to 11.73"),
   ).toBeInTheDocument();
   expect(screen.getByText("Depth Raster")).toBeInTheDocument();
+});
+
+test("Map default legend draws no colorbar for a ramp the app does not know", async () => {
+  // A hand-edited config, or one saved against a ramp a later version dropped.
+  // The colorbar is the one thing the legend cannot fake -- there are no
+  // colors to draw -- so the entry is left out rather than drawn blank.
+  fromUrl.mockResolvedValue({
+    getImage: jest.fn().mockResolvedValue({
+      getGDALMetadata: jest.fn(() => ({
+        STATISTICS_MINIMUM: "0",
+        STATISTICS_MAXIMUM: "1",
+      })),
+      getGDALNoData: jest.fn(() => null),
+    }),
+  });
+
+  renderMapWithLayers([
+    {
+      configuration: {
+        type: "WebGLTile",
+        props: {
+          name: "Mystery Raster",
+          source: {
+            type: "GeoTIFF",
+            props: { url: "https://example.com/mystery.tif" },
+          },
+        },
+        style: { rampName: "not-a-real-ramp", rampMin: "0", rampMax: "1" },
+      },
+      legend: "default",
+    },
+  ]);
+
+  expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+  await waitFor(() => expect(fromUrl).toHaveBeenCalled());
+  expect(
+    screen.queryByLabelText("Show Legend Control"),
+  ).not.toBeInTheDocument();
+  expect(screen.queryByLabelText(/^Color ramp from/)).not.toBeInTheDocument();
 });
 
 test("Map categorical raster emits discrete legend items, not a colorbar", async () => {
@@ -1127,15 +1150,17 @@ test("Map categorical raster emits discrete legend items, not a colorbar", async
           name: "Land Use",
           source: {
             type: "GeoTIFF",
-            styleMode: "categorical",
-            rampName: "viridis",
-            classes: [
-              { value: "0", color: "#aaaaaa", label: "Bare" },
-              { value: "1", color: "#bbbbbb", label: "Crop" },
-              { value: "2", color: "#cccccc" },
-            ],
             props: { url: "https://example.com/landuse.tif" },
           },
+        },
+        style: {
+          styleMode: "categorical",
+          rampName: "viridis",
+          classes: [
+            { value: "0", color: "#aaaaaa", label: "Bare" },
+            { value: "1", color: "#bbbbbb", label: "Crop" },
+            { value: "2", color: "#cccccc" },
+          ],
         },
       },
       legend: "default",
@@ -1167,18 +1192,20 @@ test("Map ranges raster emits one swatch per class in ascending order", async ()
           name: "Streamflow",
           source: {
             type: "GeoTIFF",
-            styleMode: "ranges",
-            rampName: "turbo",
-            // Entered out of order, and one unlabelled: the legend reads in
-            // the order the style colors, with the bound standing in.
-            classes: [
-              { value: "20", color: "#2c7bb6", label: "10 to 20" },
-              { value: "2", color: "#d9ef8b", label: "1 to 2" },
-              { value: "1", color: "#bdbdbd", label: "0.1 to 1" },
-              { value: "100000000", color: "#08306b" },
-            ],
             props: { url: "https://example.com/flow.tif", mask_below: "0" },
           },
+        },
+        style: {
+          styleMode: "ranges",
+          rampName: "turbo",
+          // Entered out of order, and one unlabelled: the legend reads in
+          // the order the style colors, with the bound standing in.
+          classes: [
+            { value: "20", color: "#2c7bb6", label: "10 to 20" },
+            { value: "2", color: "#d9ef8b", label: "1 to 2" },
+            { value: "1", color: "#bdbdbd", label: "0.1 to 1" },
+            { value: "100000000", color: "#08306b" },
+          ],
         },
       },
       legend: "default",
@@ -8952,7 +8979,7 @@ describe("the basemap's early publish beside a runtime GeoTIFF", () => {
       type: "WebGLTile",
       props: {
         name: "Depth",
-        source: { type: "GeoTIFF", props: {}, rampName: "viridis" },
+        source: { type: "GeoTIFF", props: {} },
         ...extraProps,
       },
       // A saved style reference, so preparing the layer waits on a download
@@ -9016,11 +9043,7 @@ describe("the basemap's early publish beside a runtime GeoTIFF", () => {
     const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
     renderWith([
       rasterLayer({
-        source: {
-          type: "GeoTIFF",
-          props: { url: "https://h/a.tif" },
-          rampName: "viridis",
-        },
+        source: { type: "GeoTIFF", props: { url: "https://h/a.tif" } },
       }),
     ]);
 
@@ -9043,14 +9066,9 @@ describe("the legend of a runtime GeoTIFF", () => {
         name: "Forecast Depth",
         layerId: "runtime-1",
         pluginSource: { source: "echo_raster", args: {} },
-        source: {
-          type: "GeoTIFF",
-          props: {},
-          rampName: "Blues",
-          rampMin: "100",
-          rampMax: "200",
-        },
+        source: { type: "GeoTIFF", props: {} },
       },
+      style: { rampName: "Blues", rampMin: "100", rampMax: "200" },
     },
     legend: "default",
     ...overrides,
@@ -9064,11 +9082,9 @@ describe("the legend of a runtime GeoTIFF", () => {
         source: {
           type: "GeoTIFF",
           props: { url: "https://example.com/static.tif" },
-          rampName: "viridis",
-          rampMin: "0",
-          rampMax: "100",
         },
       },
+      style: { rampName: "viridis", rampMin: "0", rampMax: "100" },
     },
     legend: "default",
   };

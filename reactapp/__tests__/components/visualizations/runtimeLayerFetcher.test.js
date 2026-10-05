@@ -1701,11 +1701,13 @@ describe("useRuntimeLayerFetcher with a runtime GeoTIFF layer", () => {
           source: {
             type: "GeoTIFF",
             props: maskBelow === undefined ? {} : { mask_below: maskBelow },
-            rampName,
-            ...(rampMin === undefined ? {} : { rampMin }),
-            ...(rampMax === undefined ? {} : { rampMax }),
-            ...(fallbackColor === undefined ? {} : { fallbackColor }),
           },
+        },
+        style: {
+          rampName,
+          ...(rampMin === undefined ? {} : { rampMin }),
+          ...(rampMax === undefined ? {} : { rampMax }),
+          ...(fallbackColor === undefined ? {} : { fallbackColor }),
         },
       },
     };
@@ -2240,6 +2242,48 @@ describe("useRuntimeLayerFetcher with a runtime GeoTIFF layer", () => {
     );
   });
 
+  test("reports a build that failed without saying why", async () => {
+    // Whatever rejected the build is reported as-is where it has a message. A
+    // rejection carrying none -- a thrown non-Error -- still has to leave the
+    // layer in an error state rather than a silent loading one.
+    buildSpy.mockRejectedValue({ notAnError: true });
+    const olLayer = fakeRasterLayer("layer-1");
+    const { result } = hookFor({
+      layers: [rasterLayerConfig()],
+      mapRef: { current: fakeOlMap([olLayer]) },
+    });
+    await flush();
+
+    expect(result.current.errorsByLayerId["layer-1"]).toEqual({
+      message: "Failed to load the raster",
+      kind: "error",
+    });
+    expect(result.current.loadingByLayerId).toEqual({});
+    // Nothing was repointed, so the previous file stays drawn.
+    expect(olLayer.setSource).not.toHaveBeenCalled();
+  });
+
+  test("hands the resolver a null description when the plugin sends no data", async () => {
+    // A success with nothing in it. The resolver is what reports the shape --
+    // it is the one that knows what a source description has to look like --
+    // so this passes it an explicit null rather than undefined, and its
+    // complaint reaches the layer's error state.
+    getFeaturesMock.mockResolvedValue({ success: true });
+    resolveSpy.mockImplementation(() => {
+      throw new Error("did not return a source description");
+    });
+    const { result } = hookFor({
+      layers: [rasterLayerConfig()],
+      mapRef: { current: fakeOlMap([fakeRasterLayer("layer-1")]) },
+    });
+    await flush();
+
+    expect(resolveSpy).toHaveBeenCalledWith(expect.anything(), null);
+    expect(result.current.errorsByLayerId["layer-1"].message).toBe(
+      "did not return a source description",
+    );
+  });
+
   test("onBeforeSwap runs only once a build has succeeded", async () => {
     const olLayer = fakeRasterLayer("layer-1");
     const mapRef = { current: fakeOlMap([olLayer]) };
@@ -2487,6 +2531,38 @@ describe("useRuntimeLayerFetcher with a runtime GeoTIFF layer", () => {
     expect(swapSpy).toHaveBeenLastCalledWith(rebuilt, validFc, "EPSG:3857");
     // The repaint replaces the features under any open popup, as a fetch does.
     expect(onBeforeSwap).toHaveBeenCalledTimes(2);
+  });
+
+  test("a rebuilt vector layer repaints without an onBeforeSwap to call", async () => {
+    // onBeforeSwap is the host map's hook for closing a popup over features
+    // that are about to be replaced. A host that passes none -- the popup
+    // editor's preview, for one -- must still get its features back.
+    getFeaturesMock.mockResolvedValue({
+      success: true,
+      viz_type: "features",
+      data: validFc,
+    });
+    const olLayer = fakeOlLayer("layer-1");
+    const map = fakeOlMap([olLayer]);
+    renderHook(() =>
+      useRuntimeLayerFetcher({
+        layers: vectorLayers,
+        gridItemUUID: "g",
+        sessionNonce: "n",
+        mapRef: { current: map },
+        variableInputValues: noVariableInputs,
+        variableInputDateFormats: noDateFormats,
+      }),
+    );
+    await flush();
+    expect(swapSpy).toHaveBeenCalledTimes(1);
+
+    const rebuilt = fakeOlLayer("layer-1");
+    await act(async () => {
+      map.rebuildLayer(0, rebuilt);
+    });
+    expect(swapSpy).toHaveBeenCalledTimes(2);
+    expect(swapSpy).toHaveBeenLastCalledWith(rebuilt, validFc, "EPSG:3857");
   });
 
   test("a vector runtime layer still swaps features and never builds a raster", async () => {

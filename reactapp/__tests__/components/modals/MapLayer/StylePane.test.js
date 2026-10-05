@@ -94,18 +94,52 @@ const TestingComponent = ({
   );
 };
 
+// A raster's ramp settings are saved as `configuration.style` and reach
+// StylePane as `rasterStyle`, separately from the source props. The tests here
+// describe a layer as one flat object -- a source with its styling -- and this
+// splits it into the two the pane takes, so each test reads as the layer an
+// author sees rather than as two stores. The keys are disjoint, so the split
+// and the merge below are both lossless.
+const RASTER_STYLE_KEYS = [
+  "rampName",
+  "rampMin",
+  "rampMax",
+  "rampReverse",
+  "styleMode",
+  "classes",
+  "fallbackColor",
+];
+
+const splitLayer = (flat = {}) => {
+  const sourceProps = {};
+  const rasterStyle = {};
+  Object.entries(flat).forEach(([key, value]) => {
+    if (RASTER_STYLE_KEYS.includes(key)) rasterStyle[key] = value;
+    else sourceProps[key] = value;
+  });
+  return { sourceProps, rasterStyle };
+};
+
 const GeoTIFFTestHarness = ({
   initialSourceProps,
   sourcePropsSpy,
   dynamicMapLayers = [],
 }) => {
-  const [sourceProps, setSourceProps] = useState(initialSourceProps);
+  const [layer, setLayer] = useState(initialSourceProps ?? {});
+  const { sourceProps, rasterStyle } = splitLayer(layer);
 
-  const spyingSetSourceProps = (updater) => {
-    setSourceProps((prev) => {
-      const next = typeof updater === "function" ? updater(prev) : updater;
-      if (typeof sourcePropsSpy === "function") sourcePropsSpy(next);
-      return next;
+  // One setter per half. Each replaces its own half wholesale -- so a style
+  // that drops `classes` really drops it -- and leaves the other standing.
+  const setHalf = (half) => (updater) => {
+    setLayer((prev) => {
+      const parts = splitLayer(prev);
+      const next =
+        typeof updater === "function" ? updater(parts[half]) : updater;
+      const other =
+        half === "sourceProps" ? parts.rasterStyle : parts.sourceProps;
+      const merged = { ...other, ...next };
+      if (typeof sourcePropsSpy === "function") sourcePropsSpy(merged);
+      return merged;
     });
   };
 
@@ -117,16 +151,16 @@ const GeoTIFFTestHarness = ({
           setStyle={() => {}}
           setErrorMessage={() => {}}
           sourceProps={sourceProps}
-          setSourceProps={spyingSetSourceProps}
+          setSourceProps={setHalf("sourceProps")}
+          rasterStyle={rasterStyle}
+          setRasterStyle={setHalf("rasterStyle")}
         />
-        <p data-testid="stylePinned">{String(sourceProps.stylePinned)}</p>
-        <p data-testid="maskBelow">{sourceProps.props?.mask_below ?? ""}</p>
-        <p data-testid="rampName">{sourceProps.rampName ?? ""}</p>
-        <p data-testid="rampMin">{sourceProps.rampMin ?? ""}</p>
-        <p data-testid="rampMax">{sourceProps.rampMax ?? ""}</p>
-        <p data-testid="rampReverse">
-          {String(sourceProps.rampReverse ?? false)}
-        </p>
+        <p data-testid="stylePinned">{String(layer.stylePinned)}</p>
+        <p data-testid="maskBelow">{layer.props?.mask_below ?? ""}</p>
+        <p data-testid="rampName">{layer.rampName ?? ""}</p>
+        <p data-testid="rampMin">{layer.rampMin ?? ""}</p>
+        <p data-testid="rampMax">{layer.rampMax ?? ""}</p>
+        <p data-testid="rampReverse">{String(layer.rampReverse ?? false)}</p>
       </LayoutContext.Provider>
     </AppContext.Provider>
   );
@@ -1094,8 +1128,14 @@ describe("StylePane ranges raster styling", () => {
 });
 
 describe("StylePane categorical editing edges", () => {
-  const renderBare = (sourceProps) =>
-    render(
+  // Deliberately without setRasterStyle: these cover the read-only rendering,
+  // where every writer has to no-op rather than throw.
+  const renderBare = (flat) => {
+    const { sourceProps, rasterStyle } = splitLayer({
+      rampName: "turbo",
+      ...flat,
+    });
+    return render(
       <AppContext.Provider value={{ dynamicMapLayers: [] }}>
         <LayoutContext.Provider value={{ uuid: "123" }}>
           <StylePane
@@ -1104,14 +1144,15 @@ describe("StylePane categorical editing edges", () => {
             setErrorMessage={() => {}}
             sourceProps={{
               type: "GeoTIFF",
-              rampName: "turbo",
               props: { url: "lu.tif" },
               ...sourceProps,
             }}
+            rasterStyle={rasterStyle}
           />
         </LayoutContext.Provider>
       </AppContext.Provider>,
     );
+  };
 
   test("class editing is inert without a way to save it", async () => {
     // The pane is rendered read-only in places; every writer has to no-op
@@ -1349,7 +1390,9 @@ describe("StylePane dynamic GeoTIFF layers", () => {
     expect(
       screen.getByRole("radio", { name: "Select viridis ramp" }),
     ).toHaveAttribute("aria-checked", "true");
-    expect(screen.getByLabelText("Mask Below")).toBeInTheDocument();
+    // The mask is a source property, edited on the Source pane, so it is not
+    // here -- see the dynamic-layer mask field in SourcePane.test.js.
+    expect(screen.queryByLabelText("Mask Below")).not.toBeInTheDocument();
     expect(
       screen.getByText(
         "Leave Min/Max empty to fit the range to each file the plugin returns.",
@@ -1415,13 +1458,6 @@ describe("StylePane dynamic GeoTIFF layers", () => {
         }),
     ],
     [
-      "typing a mask value",
-      () =>
-        fireEvent.change(screen.getByLabelText("Mask Below"), {
-          target: { value: "-9999" },
-        }),
-    ],
-    [
       "switching to categorical",
       () => userEvent.click(screen.getByRole("radio", { name: /Categorical/ })),
     ],
@@ -1445,21 +1481,6 @@ describe("StylePane dynamic GeoTIFF layers", () => {
       expect(screen.getByTestId("stylePinned")).toHaveTextContent("true");
     });
     expect(followSwitch()).not.toBeChecked();
-  });
-
-  test("the mask value is written to the source props", async () => {
-    render(
-      <GeoTIFFTestHarness
-        initialSourceProps={rasterSourceProps()}
-        dynamicMapLayers={dynamicMapLayers}
-      />,
-    );
-    fireEvent.change(await screen.findByLabelText("Mask Below"), {
-      target: { value: "-9999" },
-    });
-    await waitFor(() => {
-      expect(screen.getByTestId("maskBelow")).toHaveTextContent("-9999");
-    });
   });
 
   test("turning the toggle on clears the pin and leaves the fields as they are", async () => {
@@ -1560,5 +1581,92 @@ describe("StylePane dynamic GeoTIFF layers", () => {
     expect(
       screen.queryByRole("switch", { name: /follow plugin styling/i }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("StylePane dynamic GeoTIFF pinning edges", () => {
+  const rasterPlugin = {
+    source: "echo_runtime_raster",
+    value: "Echo Runtime Raster",
+    label: "Echo Runtime Raster",
+    args: {},
+    type: "map_layer",
+    dynamic_map_layer: true,
+    dynamic_map_layer_source: "GeoTIFF",
+  };
+  const dynamicMapLayers = [
+    { label: "Dynamic Map Layers", options: [rasterPlugin] },
+  ];
+
+  // Rendered directly rather than through the harness: these are about the
+  // updater StylePane hands setSourceProps, which a harness that applies it
+  // would hide.
+  const renderPinned = ({ setSourceProps, rasterStyle = {} } = {}) =>
+    render(
+      <AppContext.Provider value={{ dynamicMapLayers }}>
+        <LayoutContext.Provider value={{ uuid: "123" }}>
+          <StylePane
+            style={undefined}
+            setStyle={() => {}}
+            setErrorMessage={() => {}}
+            sourceProps={{
+              type: "Echo Runtime Raster",
+              source: "echo_runtime_raster",
+              props: {},
+              stylePinned: true,
+            }}
+            setSourceProps={setSourceProps}
+            rasterStyle={{ rampName: "viridis", ...rasterStyle }}
+            setRasterStyle={jest.fn()}
+          />
+        </LayoutContext.Provider>
+      </AppContext.Provider>,
+    );
+
+  test("editing an already-pinned layer leaves its source props as they are", async () => {
+    // The pin is set once. Returning a fresh object on every later edit would
+    // re-render every consumer of sourceProps on each keystroke in the range
+    // inputs, and re-run the field discovery effect that is keyed on it.
+    const setSourceProps = jest.fn();
+    renderPinned({ setSourceProps });
+
+    fireEvent.click(
+      await screen.findByRole("radio", { name: "Select Blues ramp" }),
+    );
+
+    expect(setSourceProps).toHaveBeenCalledTimes(1);
+    const updater = setSourceProps.mock.calls[0][0];
+    const previous = { type: "Echo Runtime Raster", stylePinned: true };
+    expect(updater(previous)).toBe(previous);
+  });
+
+  test("an unpinned layer's first edit does set the pin", () => {
+    // The other side of the same ternary, so the identity check above is read
+    // as "no change needed" rather than "the pin never gets written".
+    const setSourceProps = jest.fn();
+    renderPinned({ setSourceProps });
+
+    fireEvent.change(screen.getByLabelText("Ramp Min"), {
+      target: { value: "5" },
+    });
+
+    const updater = setSourceProps.mock.calls.at(-1)[0];
+    const previous = { type: "Echo Runtime Raster" };
+    expect(updater(previous)).toEqual({
+      type: "Echo Runtime Raster",
+      stylePinned: true,
+    });
+    expect(previous).not.toHaveProperty("stylePinned");
+  });
+
+  test("the follow toggle is inert without a way to save it", () => {
+    // The pane renders read-only in places. Every writer no-ops rather than
+    // throwing, and the toggle is one.
+    renderPinned({ setSourceProps: undefined });
+
+    const toggle = screen.getByRole("switch", {
+      name: /follow plugin styling/i,
+    });
+    expect(() => fireEvent.click(toggle)).not.toThrow();
   });
 });

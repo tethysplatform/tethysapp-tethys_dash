@@ -30,10 +30,20 @@
 // `pluginSource`, a nested uuid at a popup grid item's root, and the view-group
 // keys inside `map_extent` in any of its historical shapes.
 //
+// One more rule converts rather than re-mints: `applyLegacyRasterStyleRules`
+// moves a raster layer's ramp settings from the source it used to be saved on
+// into its style, so a file exported before that change imports in the shape
+// the app reads. It runs on import only, ahead of the file walk, and mirrors the
+// 09d4203a610a data migration that converted the saved dashboards.
+//
 // Nothing here touches React or OpenLayers, so the rules are testable without
 // mounting anything.
 
 import { v4 as uuidv4 } from "uuid";
+import {
+  RASTER_STYLE_FIELDS,
+  rasterStyleSettings,
+} from "components/map/geoTIFFStyle";
 import {
   BUILT_IN_MAP_SOURCE,
   clearGridItemGroupInitialExtent,
@@ -204,6 +214,143 @@ function normalizeGridItemLayers(gridItem, descend = true) {
     ...gridItem,
     args_string: read.wasString ? JSON.stringify(nextArgs) : nextArgs,
   };
+}
+
+const RASTER_SOURCE_TYPES = ["GeoTIFF", "Zarr"];
+// The ramp settings an old raster layer saved on its source, under the names
+// its style now uses. `mask_below` is not among them: it was a source property
+// before this change and stays one.
+const LEGACY_SOURCE_STYLE_FIELDS = RASTER_STYLE_FIELDS;
+
+/**
+ * Convert one map layer from the old raster shape to the current one.
+ *
+ * A raster layer (a GeoTIFF or Zarr source) used to save its ramp settings on
+ * its source and a compiled OpenLayers expression in its style. They now live
+ * in its style, as the settings alone:
+ *
+ *   - `rampName`, `rampMin`, `rampMax`, `rampReverse`, `styleMode`, `classes`
+ *     and `fallbackColor` move from the source into the style, values as they
+ *     were (the bounds stay numeric strings);
+ *   - the old style -- the compiled expression, inline or as an uploaded file's
+ *     name -- is dropped, since the app compiles it at load;
+ *   - `normalize`, and a GeoTIFF's `interpolate`, are dropped from the source's
+ *     props: the old editor derived them from the settings, and the app now
+ *     derives them at load. A Zarr's `interpolate` is the author's, and stays.
+ *
+ * A layer with none of those fields on its source -- not a raster, a raster
+ * with a hand-authored OpenLayers style, or one already converted -- is
+ * returned by reference, which is what makes running it twice a no-op.
+ * Mirrors `upgrade_layer` in the 09d4203a610a migration; the two are tested
+ * against the same cases.
+ *
+ * @param {*} layer one entry of a map's `layers` array
+ * @returns {*} the converted layer, or the original reference
+ */
+export function convertLegacyRasterLayer(layer) {
+  const configuration = layer?.configuration;
+  const source = configuration?.props?.source;
+  if (!isPlainObject(source) || !RASTER_SOURCE_TYPES.includes(source.type)) {
+    return layer;
+  }
+  if (!LEGACY_SOURCE_STYLE_FIELDS.some((field) => field in source)) {
+    return layer;
+  }
+
+  // Settings already in the style (a half-converted layer) are kept where the
+  // source does not override them.
+  const style = rasterStyleSettings(configuration.style);
+  const nextSource = { ...source };
+  LEGACY_SOURCE_STYLE_FIELDS.forEach((field) => {
+    if (field in nextSource) {
+      style[field] = nextSource[field];
+      delete nextSource[field];
+    }
+  });
+
+  const sourceProps = isPlainObject(source.props) ? { ...source.props } : {};
+  // `mask_below` is left where it is: it describes the data the source reads,
+  // not how the result is coloured, so it was never part of this move.
+  delete sourceProps.normalize;
+  if (source.type === "GeoTIFF") delete sourceProps.interpolate;
+  if ("props" in source) nextSource.props = sourceProps;
+
+  // Always set, never conditionally: this is only reached when the source
+  // carried at least one setting, and every setting it carried has just been
+  // moved here, so the style cannot come out empty.
+  const { style: _oldStyle, ...rest } = configuration;
+  return {
+    ...layer,
+    configuration: {
+      ...rest,
+      props: { ...configuration.props, source: nextSource },
+      style,
+    },
+  };
+}
+
+/**
+ * Apply a layer rule to every layer of a Map grid item, and to the layers of
+ * every Map grid item nested in those layers' popup layouts.
+ *
+ * Reference-preserving at every level: a grid item, layer list or popup subtree
+ * the rule leaves alone comes back as the same object, and `args_string` comes
+ * back in whichever representation it arrived in.
+ *
+ * @param {*} gridItem
+ * @param {(layer: *) => *} layerRule returns the layer, or a replacement
+ * @returns {*} the converted grid item, or the original reference
+ */
+function mapGridItemLayers(gridItem, layerRule) {
+  if (!isPlainObject(gridItem) || gridItem.source !== BUILT_IN_MAP_SOURCE) {
+    return gridItem;
+  }
+  const read = readArgs(gridItem);
+  if (!read || !Array.isArray(read.args.layers)) return gridItem;
+
+  let changed = false;
+  const layers = read.args.layers.map((layer) => {
+    let next = layerRule(layer);
+    const nestedItems = next?.popupConfig?.gridItems;
+    if (Array.isArray(nestedItems)) {
+      let nestedChanged = false;
+      const nested = nestedItems.map((item) => {
+        const converted = mapGridItemLayers(item, layerRule);
+        if (converted !== item) nestedChanged = true;
+        return converted;
+      });
+      if (nestedChanged) {
+        next = {
+          ...next,
+          popupConfig: { ...next.popupConfig, gridItems: nested },
+        };
+      }
+    }
+    if (next !== layer) changed = true;
+    return next;
+  });
+  if (!changed) return gridItem;
+
+  const nextArgs = { ...read.args, layers };
+  return {
+    ...gridItem,
+    args_string: read.wasString ? JSON.stringify(nextArgs) : nextArgs,
+  };
+}
+
+/**
+ * Convert every old-shape raster layer of an imported grid item, popup layouts
+ * included (see convertLegacyRasterLayer).
+ *
+ * Total and reference-preserving like the identity rules: a grid item with
+ * nothing to convert -- including any that is not a Map -- is returned as it
+ * is, and it never throws.
+ *
+ * @param {*} gridItem the grid item to convert
+ * @returns {*} the converted grid item, or the original reference
+ */
+export function applyLegacyRasterStyleRules(gridItem) {
+  return mapGridItemLayers(gridItem, convertLegacyRasterLayer);
 }
 
 /**

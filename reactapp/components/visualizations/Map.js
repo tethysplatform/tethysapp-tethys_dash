@@ -41,6 +41,7 @@ import { COLOR_RAMPS, resolveRamp } from "components/map/colorRamps";
 import {
   classLegendItems,
   isClassStyleMode,
+  rasterStyleSettings,
 } from "components/map/geoTIFFStyle";
 import { applyAutoRamp } from "components/map/ModuleLoader";
 import { getBaseMapLayer } from "components/visualizations/utilities";
@@ -921,46 +922,48 @@ const MapVisualization = ({
             }
             if (layer.legend === "default") {
               const rampSource = layer.configuration?.props?.source;
+              const isRaster =
+                rampSource?.type === "GeoTIFF" || rampSource?.type === "Zarr";
+              // A raster's ramp settings are its saved style. What was
+              // resolved about its file -- the range, whether it stayed
+              // normalized -- is on its source.
+              const rampStyle = isRaster
+                ? rasterStyleSettings(layer.configuration.style)
+                : {};
               // A class-table raster (Categorical or Ranges) gets one swatch
               // per class rather than a colorbar — a gradient would imply a
               // continuum the classes do not have. Ranges lists them in
               // ascending bound order, the order it colors them in.
               if (
-                isClassStyleMode(rampSource?.styleMode) &&
-                rampSource?.classes?.length
+                isClassStyleMode(rampStyle.styleMode) &&
+                rampStyle.classes?.length
               ) {
                 newMapLegend.push({
                   title: layer.configuration?.props?.name,
-                  items: classLegendItems(rampSource),
+                  items: classLegendItems(rampStyle),
                 });
                 continue;
               }
               // Zarr renders through a GeoTIFF source, so it gets the same
               // colorbar. In auto mode the range comes from the resolved
               // stats rather than author-entered values.
-              const rampMin =
-                rampSource?.rampMin ?? rampSource?.resolvedRampMin;
-              const rampMax =
-                rampSource?.rampMax ?? rampSource?.resolvedRampMax;
+              const rampMin = rampStyle.rampMin ?? rampSource?.resolvedRampMin;
+              const rampMax = rampStyle.rampMax ?? rampSource?.resolvedRampMax;
               // When no range can be resolved (a file with no embedded
               // statistics), applyAutoRamp leaves the raster rendering on a
               // normalized 0..1 scale. Label the colorbar 0..1 in that case
               // rather than dropping the legend entirely; without this a
               // ramp-styled raster shows no legend at all. `normalize` is an OL
-              // GeoTIFF source prop, so it lives under `source.props`.
-              const normalized =
-                rampSource?.props?.normalize === true ||
-                rampSource?.normalize === true;
+              // GeoTIFF source prop, which applyAutoRamp sets under
+              // `source.props` when the layer loads.
+              const normalized = rampSource?.props?.normalize === true;
               const effRampMin = rampMin ?? (normalized ? 0 : undefined);
               const effRampMax = rampMax ?? (normalized ? 1 : undefined);
               const colorbar =
-                (rampSource?.type === "GeoTIFF" ||
-                  rampSource?.type === "Zarr") &&
-                effRampMin !== undefined &&
-                effRampMax !== undefined
+                isRaster && effRampMin !== undefined && effRampMax !== undefined
                   ? buildRampColorbar({
-                      rampName: rampSource.rampName,
-                      rampReverse: rampSource.rampReverse,
+                      rampName: rampStyle.rampName,
+                      rampReverse: rampStyle.rampReverse,
                       rampMin: effRampMin,
                       rampMax: effRampMax,
                       title: layer.configuration?.props?.name,

@@ -6,7 +6,12 @@ import {
   classLegendItems,
   hasClassStyle,
   isClassStyleMode,
+  isRampBoundSet,
+  isRasterStyleSettings,
   isUsableClass,
+  rasterLayerStyle,
+  rasterStyleSettings,
+  setCompiledStyle,
   sortedRangeClasses,
 } from "components/map/geoTIFFStyle";
 import { COLOR_RAMPS, RAMP_STOPS } from "components/map/colorRamps";
@@ -729,5 +734,169 @@ describe("class style mode helpers", () => {
       { color: "#a", label: "One", symbol: "square" },
     ]);
     expect(classLegendItems({ styleMode: "categorical" })).toEqual([]);
+  });
+});
+
+// A raster's saved `style` is either the author's ramp settings, to be compiled
+// for the file at load, or a hand-authored OpenLayers style, to be handed to
+// setStyle as it is. Telling the two apart is what keeps a `{"color": [...]}`
+// band expression from being read as a malformed ramp, and a ramp from being
+// handed to OpenLayers as a style it cannot draw.
+describe("telling ramp settings from a hand-authored OpenLayers style", () => {
+  test.each([
+    ["a ramp name", { rampName: "turbo" }],
+    ["a style mode", { styleMode: "categorical" }],
+    ["a class table", { classes: [{ value: 1, color: "#aaa" }] }],
+  ])("%s marks a style as settings", (_label, style) => {
+    expect(isRasterStyleSettings(style)).toBe(true);
+  });
+
+  test.each([
+    ["an OpenLayers color expression", { color: ["band", 1] }],
+    ["bounds with no ramp to apply them to", { rampMin: "0", rampMax: "5" }],
+    ["an empty style", {}],
+    ["an uploaded style file's name", "style.json"],
+    ["an array", [{ rampName: "turbo" }]],
+    ["null", null],
+    ["nothing at all", undefined],
+  ])("%s does not", (_label, style) => {
+    expect(isRasterStyleSettings(style)).toBe(false);
+  });
+
+  test("rasterStyleSettings keeps the settings and drops everything else", () => {
+    expect(
+      rasterStyleSettings({
+        rampName: "turbo",
+        rampMin: "0",
+        rampReverse: true,
+        styleMode: "ranges",
+        classes: [{ value: 1, color: "#aaa" }],
+        fallbackColor: "#999",
+        // Not a setting: an OpenLayers key that rode along on a converted or
+        // hand-edited style.
+        color: ["band", 1],
+      }),
+    ).toEqual({
+      rampName: "turbo",
+      rampMin: "0",
+      rampReverse: true,
+      styleMode: "ranges",
+      classes: [{ value: 1, color: "#aaa" }],
+      fallbackColor: "#999",
+    });
+  });
+
+  test("rasterStyleSettings reads a hand-authored style as no settings", () => {
+    expect(rasterStyleSettings({ color: ["band", 1] })).toEqual({});
+    expect(rasterStyleSettings("style.json")).toEqual({});
+    expect(rasterStyleSettings(undefined)).toEqual({});
+  });
+});
+
+describe("rasterLayerStyle", () => {
+  test("prefers the style compiled for this load", () => {
+    const config = { style: { rampName: "turbo" } };
+    setCompiledStyle(config, { color: ["band", 1] });
+    expect(rasterLayerStyle(config)).toEqual({ color: ["band", 1] });
+  });
+
+  test("hands a hand-authored OpenLayers style through untouched", () => {
+    const style = { color: ["band", 1], variables: { x: 1 } };
+    expect(rasterLayerStyle({ style })).toBe(style);
+  });
+
+  test("passes a style file's name through, for the loader to fetch", () => {
+    expect(rasterLayerStyle({ style: "style.json" })).toBe("style.json");
+  });
+
+  test("drops the settings from a style that also carries real style keys", () => {
+    // A layer converted from the old shape, or one an author hand-edited: the
+    // settings mean nothing to OpenLayers, and leaving them in would have it
+    // reject the whole style rather than ignore the keys it does not know.
+    expect(
+      rasterLayerStyle({
+        style: { rampName: "turbo", rampMin: "0", color: ["band", 1] },
+      }),
+    ).toEqual({ color: ["band", 1] });
+  });
+
+  test("a style of nothing but settings is no style at all", () => {
+    // Uncompiled settings are not drawable. Returning them would paint the
+    // raster with a style OpenLayers cannot read; returning undefined leaves
+    // it unstyled until applyAutoRamp compiles them.
+    expect(rasterLayerStyle({ style: { rampName: "turbo" } })).toBeUndefined();
+  });
+
+  test("tolerates a layer config with no style, and no config at all", () => {
+    expect(rasterLayerStyle({})).toBeUndefined();
+    expect(rasterLayerStyle(undefined)).toBeUndefined();
+  });
+});
+
+describe("setCompiledStyle", () => {
+  test("keeps the compiled style out of saves, copies and comparisons", () => {
+    // Non-enumerable is the guarantee: a save, an export or a layer diff that
+    // carried the compiled expression along would persist a style built for
+    // one file against whatever file the layer points at next.
+    const config = { type: "WebGLTile", style: { rampName: "turbo" } };
+    setCompiledStyle(config, { color: ["band", 1] });
+
+    expect(config.compiledStyle).toEqual({ color: ["band", 1] });
+    expect(Object.keys(config)).not.toContain("compiledStyle");
+    expect(JSON.parse(JSON.stringify(config))).not.toHaveProperty(
+      "compiledStyle",
+    );
+    expect({ ...config }).not.toHaveProperty("compiledStyle");
+  });
+
+  test("clears a previously compiled style", () => {
+    const config = {};
+    setCompiledStyle(config, { color: ["band", 1] });
+    setCompiledStyle(config, undefined);
+    expect(config.compiledStyle).toBeUndefined();
+    expect(rasterLayerStyle(config)).toBeUndefined();
+  });
+});
+
+describe("isRampBoundSet", () => {
+  test.each([
+    ["a number", 0, true],
+    ["a negative number", -9999, true],
+    ["a numeric string, as the editor saves them", "0.5", true],
+    ["an empty string, which means resolve it from the file", "", false],
+    ["whitespace", "   ", false],
+    ["a word", "abc", false],
+    ["null", null, false],
+    ["undefined", undefined, false],
+    // Number(true) is 1 and Number(false) is 0, so without the explicit check
+    // a boolean would read as a pinned bound of 1 or 0.
+    ["true", true, false],
+    ["false", false, false],
+  ])("%s", (_label, value, expected) => {
+    expect(isRampBoundSet(value)).toBe(expected);
+  });
+});
+
+describe("hasClassStyle", () => {
+  test("a class mode with a drawable class colors by the table", () => {
+    expect(
+      hasClassStyle({
+        styleMode: "categorical",
+        classes: [{ value: 1, color: "#aaa" }],
+      }),
+    ).toBe(true);
+  });
+
+  test.each([
+    ["a class mode with no table at all", { styleMode: "ranges" }],
+    ["a class mode with an empty table", { styleMode: "ranges", classes: [] }],
+    [
+      "a class mode whose rows are all half-filled",
+      { styleMode: "categorical", classes: [{ value: "", color: "#aaa" }] },
+    ],
+    ["a continuous style", { rampName: "turbo" }],
+    ["no style", undefined],
+  ])("%s falls back to the ramp", (_label, style) => {
+    expect(hasClassStyle(style)).toBe(false);
   });
 });

@@ -5,10 +5,10 @@ import moduleLoader, {
   LayerSourceError,
 } from "components/map/ModuleLoader";
 import {
-  buildGeoTIFFStyleColor,
   classLegendItems,
   hasClassStyle,
-  isClassStyleMode,
+  isRampBoundSet,
+  rasterStyleSettings,
 } from "components/map/geoTIFFStyle";
 import { resolveRamp } from "components/map/colorRamps";
 
@@ -86,30 +86,6 @@ const RUNTIME_SOURCE_FIELDS = [
   "rampRangeUnavailable",
 ];
 
-/**
- * The raster style fields a GeoTIFF layer saves on the top level of its source,
- * and the editor keeps on the top level of its source props.
- *
- * A dynamic GeoTIFF's saved source *is* its style, so these travel as a set:
- * loaded from a plugin scaffold, restored on reopen, saved without a URL,
- * replaced as a whole by a fetch's style, and compared to decide whether a
- * style edit must refetch. The categorical fields belong to the set because a
- * fetch only ever carries a continuous ramp, and a saved class table left
- * beside it would win over the ramp it sent.
- *
- * `mask_below` is styling too, but it lives on `source.props` beside the URL,
- * not here, so every user of this list handles it explicitly.
- */
-export const RASTER_STYLE_FIELDS = [
-  "rampName",
-  "rampMin",
-  "rampMax",
-  "rampReverse",
-  "styleMode",
-  "classes",
-  "fallbackColor",
-];
-
 // ASCII control characters, DEL included. A URL carrying one is either broken or
 // built to read differently to two parsers, and neither is worth fetching.
 // eslint-disable-next-line no-control-regex
@@ -140,6 +116,9 @@ export function normalizeLayerUrl(url) {
   if (/^https?:\/\//i.test(url)) {
     try {
       const parsed = new URL(url);
+      // The regex has already matched the scheme, so this agrees with it by
+      // construction; it is the same fail-closed re-check as below.
+      // istanbul ignore next -- unreachable; see above
       return parsed.protocol === "http:" || parsed.protocol === "https:"
         ? url
         : null;
@@ -160,8 +139,14 @@ export function normalizeLayerUrl(url) {
     return null;
   }
   // Re-checked after resolution rather than trusted from the string: what
-  // matters is where the browser will actually send the request.
+  // matters is where the browser will actually send the request. Neither can
+  // fail for a single-slash path resolved against this page's own origin, so
+  // these are fail-closed guards against a URL parser that normalizes
+  // differently to the one these rules were written against -- the same reason
+  // the catch above exists.
+  // istanbul ignore next -- unreachable; see above
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
+  // istanbul ignore next -- unreachable; see above
   if (parsed.origin !== origin) return null;
   return parsed.href;
 }
@@ -169,82 +154,52 @@ export function normalizeLayerUrl(url) {
 // A bound the author or the plugin set, as a number, or undefined when it is
 // empty -- which means "resolve it from the file", not zero.
 function boundValue(value) {
-  if (value === undefined || value === null) return undefined;
-  if (typeof value === "string" && value.trim() === "") return undefined;
-  const number = Number(value);
-  return Number.isFinite(number) ? number : undefined;
+  return isRampBoundSet(value) ? Number(value) : undefined;
 }
 
-// Overlay a fetch's style onto the source, replacing every ramp field the saved
-// style had. No field-by-field merge: a plugin that sends a ramp and no bounds
+// Replace the saved style with a fetch's. The wire's style keys are the saved
+// style's, so this is a key-for-key copy -- but of the fetch's keys only, with
+// nothing kept from the saved style: a plugin that sends a ramp and no bounds
 // means "auto-range this one", which inheriting the saved bounds would undo.
-function overlayFetchStyle(source, style) {
-  const wasClassStyled = isClassStyleMode(source.styleMode);
-  RASTER_STYLE_FIELDS.forEach((field) => delete source[field]);
-  delete source.props.mask_below;
-  // Written by a class-table (Categorical or Ranges) style so class colors are
-  // not blended. Meaningless for the ramp that replaces it, and it would blur
-  // nothing but nodata edges.
-  if (wasClassStyled && source.props.interpolate === false) {
-    delete source.props.interpolate;
-  }
-
-  const { rampName, rampMin, rampMax, rampReverse, maskBelow } = style;
+function overlayFetchStyle(config, fetchStyle) {
+  const wasClassStyled = hasClassStyle(rasterStyleSettings(config.style));
+  const { rampName, rampMin, rampMax, rampReverse } = fetchStyle;
+  const style = {};
   if (typeof rampName === "string" && rampName !== "") {
-    source.rampName = rampName;
+    style.rampName = rampName;
   }
-  if (rampMin !== undefined && rampMin !== null) source.rampMin = rampMin;
-  if (rampMax !== undefined && rampMax !== null) source.rampMax = rampMax;
-  // Persisted only when set, as the editor does.
-  if (rampReverse === true) source.rampReverse = true;
-  // `maskBelow` on the wire, `mask_below` on the source: the wire groups it with
-  // the styling it is, the source keeps it where the static layer has it.
-  if (maskBelow !== undefined && maskBelow !== null) {
-    source.props.mask_below = maskBelow;
+  if (rampMin !== undefined && rampMin !== null) style.rampMin = rampMin;
+  if (rampMax !== undefined && rampMax !== null) style.rampMax = rampMax;
+  // Kept only when set, as the editor saves it.
+  if (rampReverse === true) style.rampReverse = true;
+  config.style = style;
+  // Nearest-neighbor resampling is written onto the source by a class-table
+  // (Categorical or Ranges) style, and is meaningless for the ramp replacing
+  // it -- it would blur nothing but nodata edges. The source behavior is
+  // derived from the style at load, but only ever set there, never cleared, so
+  // a layer that stops being class-styled has to be cleaned up here.
+  const sourceProps = config.props.source.props;
+  if (wasClassStyled && sourceProps?.interpolate === false) {
+    delete sourceProps.interpolate;
   }
 }
 
-// The style to start from, compiled the way the editor's save compiles a static
-// layer's, so the layer has something correct to draw if the resolve that
-// follows cannot read the file's statistics. A full range styles raw values; any
-// less normalizes until applyAutoRamp has resolved the missing bound.
-//
-// Compiled here rather than saved because the saved one belongs to whichever
-// style was in effect when the author last saved, which a fetch may replace.
-function compileStartingStyle(config) {
-  const source = config.props.source;
-  // A class table's style needs no range, and applyAutoRamp compiles it with the
-  // file's nodata once the header is read. The saved one stands until then.
-  if (hasClassStyle(source)) return;
-
-  const { rampName } = source;
-  if (typeof rampName !== "string" || rampName.trim() === "") {
-    // Nothing to color by. Any style left from a saved ramp would color by a
-    // ramp that is no longer in effect.
-    delete config.style;
-    return;
-  }
+// Check the style in effect before anything is read: a ramp name that does not
+// exist is the plugin's or the author's mistake, and is reported as such rather
+// than leaving the layer to draw without a style. applyAutoRamp compiles the
+// style itself -- a starting style before the file is read, refined once its
+// range is known -- so nothing is compiled here.
+function checkEffectiveStyle(config) {
+  const style = rasterStyleSettings(config.style);
+  if (hasClassStyle(style)) return;
+  const { rampName } = style;
+  if (typeof rampName !== "string" || rampName.trim() === "") return;
   if (!resolveRamp(rampName)) {
     throw new LayerSourceError(
       `Layer "${config.props.name}" was given the color ramp "${rampName}", ` +
         `which does not exist.`,
     );
   }
-
-  const hasRange =
-    boundValue(source.rampMin) !== undefined &&
-    boundValue(source.rampMax) !== undefined;
-  config.style = {
-    color: buildGeoTIFFStyleColor({
-      rampName,
-      rampMin: hasRange ? source.rampMin : "",
-      rampMax: hasRange ? source.rampMax : "",
-      rampReverse: source.rampReverse === true,
-      hasNodata: true,
-      maskBelow: source.props.mask_below,
-    }),
-  };
-  source.props.normalize = !hasRange;
 }
 
 /**
@@ -265,11 +220,16 @@ function compileStartingStyle(config) {
  * In every case an empty min or max is resolved from the returned file when the
  * config is built.
  *
+ * The style in effect is the config's `style`: ramp settings, in the same keys
+ * the fetch's `style` uses. It is compiled for the returned file by
+ * buildRuntimeRaster, never here and never into the saved config.
+ *
  * @param {object} savedConfig The layer's saved `configuration`: a WebGLTile
- *   whose `props.source` is a GeoTIFF with no URL.
+ *   whose `props.source` is a GeoTIFF with no URL, and whose `style` holds its
+ *   ramp settings.
  * @param {object} description The fetch's source description,
- *   `{type, props: {url, projection?}, style?: {rampName?, rampMin?, rampMax?,
- *   rampReverse?, maskBelow?}}`.
+ *   `{type, props: {url, projection?, mask_below?}, style?: {rampName?,
+ *   rampMin?, rampMax?, rampReverse?}}`.
  * @returns {object} A new layer config, ready for buildRuntimeRaster.
  * @throws {LayerSourceError} When the description is malformed, names another
  *   source type than the layer's, carries a URL that must not be fetched, or
@@ -329,12 +289,24 @@ export function resolveEffectiveRasterConfig(savedConfig, description) {
   if (typeof projection === "string" && projection.trim() !== "") {
     source.props.projection = projection;
   }
+  // A source property, so it arrives with the props and is applied whether or
+  // not the author pinned the style: the mask describes which values the file
+  // publishes as real data, not how they are coloured. An omitted one leaves
+  // the author's setting standing; an explicit empty clears it.
+  const { mask_below: maskBelow } = description.props;
+  if (maskBelow !== undefined) {
+    if (maskBelow === null || maskBelow === "") {
+      delete source.props.mask_below;
+    } else {
+      source.props.mask_below = maskBelow;
+    }
+  }
 
   const pinned = config.props.pluginSource?.stylePinned === true;
   if (!pinned && description.style && typeof description.style === "object") {
-    overlayFetchStyle(source, description.style);
+    overlayFetchStyle(config, description.style);
   }
-  compileStartingStyle(config);
+  checkEffectiveStyle(config);
 
   return config;
 }
@@ -441,27 +413,34 @@ function awaitSourceReady(source, name) {
 // on OpenLayers' normalized scale. A class-table style (Categorical or Ranges)
 // has no colorbar; it gets the static legend's per-class swatches instead, as
 // `{items}`. Null when there is nothing to draw.
-function legendRampFor(source) {
-  if (hasClassStyle(source)) return { items: classLegendItems(source) };
-  const { rampName } = source;
+//
+// The settings come from the config's style; what was resolved about the file
+// -- its range, whether it stayed normalized -- from its source.
+function legendRampFor(config) {
+  const style = rasterStyleSettings(config.style);
+  const source = config.props.source;
+  if (hasClassStyle(style)) return { items: classLegendItems(style) };
+  const { rampName } = style;
   if (typeof rampName !== "string" || !resolveRamp(rampName)) return null;
 
-  const normalized = source.props?.normalize === true;
-  const rampMin =
-    boundValue(source.rampMin) ??
-    source.resolvedRampMin ??
-    (normalized ? 0 : undefined);
-  const rampMax =
-    boundValue(source.rampMax) ??
-    source.resolvedRampMax ??
-    (normalized ? 1 : undefined);
-  if (rampMin === undefined || rampMax === undefined) return null;
-  return {
-    rampName,
-    rampReverse: source.rampReverse === true,
-    rampMin,
-    rampMax,
-  };
+  const rampReverse = style.rampReverse === true;
+  const rampMin = boundValue(style.rampMin) ?? source.resolvedRampMin;
+  const rampMax = boundValue(style.rampMax) ?? source.resolvedRampMax;
+  if (rampMin !== undefined && rampMax !== undefined) {
+    return { rampName, rampReverse, rampMin, rampMax };
+  }
+  // Nothing pinned and nothing resolved: the raster is drawing on OpenLayers'
+  // normalized 0..1 scale, and the colorbar says so rather than being dropped
+  // -- a drawn raster with no legend reads as a bug.
+  //
+  // applyAutoRamp writes `normalize` on every build and leaves it true exactly
+  // when it had no range to pin, so for a runtime raster the other case cannot
+  // arise. The guard is kept so this stays in step with the static default
+  // legend in visualizations/Map.js, which reads author-written source props
+  // and does meet a raster with neither a range nor normalization.
+  // istanbul ignore next -- unreachable here; see above
+  if (!source.props?.normalize) return null;
+  return { rampName, rampReverse, rampMin: 0, rampMax: 1 };
 }
 
 /**
@@ -472,7 +451,8 @@ function legendRampFor(source) {
  * success keeps the previous file drawn.
  *
  * @param {object} effectiveConfig From resolveEffectiveRasterConfig. Mutated:
- *   applyAutoRamp writes the resolved range and style onto it.
+ *   applyAutoRamp writes the resolved range onto its source and the compiled
+ *   style onto its (non-enumerable) `compiledStyle`.
  * @param {string} viewProjCode The map view's projection code.
  * @param {{timeoutMs?: number}} [options]
  * @returns {Promise<{source: object, style: object|undefined,
@@ -533,8 +513,10 @@ export async function buildRuntimeRaster(
     }
     return {
       source,
-      style: effectiveConfig.style,
-      legendRamp: legendRampFor(sourceConfig),
+      // The style compiled for this file. Never the saved style, which is
+      // settings OpenLayers cannot draw.
+      style: effectiveConfig.compiledStyle,
+      legendRamp: legendRampFor(effectiveConfig),
     };
   };
 

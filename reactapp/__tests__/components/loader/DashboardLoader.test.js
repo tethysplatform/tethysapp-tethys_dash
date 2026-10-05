@@ -1,6 +1,7 @@
 import DashboardLoader from "components/loader/DashboardLoader";
 import { screen, render, waitFor, act } from "@testing-library/react";
 import appAPI from "services/api/app";
+import * as variableInputPreload from "components/loader/variableInputPreload";
 import { VARIABLE_INPUT_PRELOAD_BUDGET_MS } from "components/loader/variableInputPreload";
 import { clearPreloadedVisualizations } from "components/visualizations/preloadedVisualizationCache";
 import { useContext, useState } from "react";
@@ -1694,6 +1695,269 @@ describe("DashboardLoader plugin variable input preload", () => {
     await userEvent.click(screen.getByTestId("removePluginButton"));
     expect(screen.getByTestId("input-variables")).toHaveTextContent(
       JSON.stringify({ "Built In": "built in" }),
+    );
+  });
+
+  test("writes nothing when the dashboard is left before it answers", async () => {
+    // Navigating away mid-load. The response lands on an unmounted component,
+    // and anything written then is a React warning at best and a value from
+    // the wrong dashboard at worst.
+    let resolveDashboard;
+    jest.spyOn(appAPI, "getDashboard").mockReturnValue(
+      new Promise((resolve) => {
+        resolveDashboard = resolve;
+      }),
+    );
+    const getData = jest.spyOn(appAPI, "getVisualizationData");
+
+    const { unmount } = renderPreloadingDashboard();
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Loading Dashboard...",
+    );
+    unmount();
+
+    await act(async () => {
+      resolveDashboard({ success: true, dashboard: preloadDashboard });
+      for (let i = 0; i < 10; i += 1) await Promise.resolve();
+    });
+    // It stopped before even starting the preload.
+    expect(getData).not.toHaveBeenCalled();
+  });
+
+  test("writes nothing when the dashboard is left during the preload", async () => {
+    // One step later: the tabs are in hand and a plugin variable input is
+    // still running when the dashboard goes away.
+    let resolvePlugin;
+    jest.spyOn(appAPI, "getVisualizationData").mockReturnValue(
+      new Promise((resolve) => {
+        resolvePlugin = resolve;
+      }),
+    );
+
+    const { unmount } = renderPreloadingDashboard();
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Loading variable inputs",
+      ),
+    );
+    unmount();
+
+    await act(async () => {
+      resolvePlugin(stationResponse);
+      for (let i = 0; i < 10; i += 1) await Promise.resolve();
+    });
+    expect(screen.queryByTestId("input-variables")).not.toBeInTheDocument();
+  });
+
+  test("renders without owners when the preload reports none", async () => {
+    // The preload returns what it added, and a build of it that adds nothing
+    // may report nothing at all; the dashboard still has to come up.
+    jest
+      .spyOn(variableInputPreload, "preloadPluginVariableInputs")
+      .mockResolvedValue({ values: { Station: "SALEM" }, dateFormats: {} });
+
+    renderPreloadingDashboard();
+
+    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({ "Built In": "built in", Station: "SALEM" }),
+    );
+  });
+
+  test("shows the error page when the dashboard cannot be fetched", async () => {
+    jest.spyOn(appAPI, "getDashboard").mockResolvedValue({ success: false });
+
+    renderPreloadingDashboard();
+
+    expect(
+      await screen.findByText("Dashboard Failed to Load"),
+    ).toBeInTheDocument();
+  });
+
+  test("writes no error when the fetch fails after the dashboard is left", async () => {
+    // The other half of leaving mid-load: the request rejects rather than
+    // resolving, and the error page must not be put up on an unmounted tree.
+    let rejectDashboard;
+    jest.spyOn(appAPI, "getDashboard").mockReturnValue(
+      new Promise((_resolve, reject) => {
+        rejectDashboard = reject;
+      }),
+    );
+
+    const { unmount } = renderPreloadingDashboard();
+    await screen.findByRole("status");
+    unmount();
+
+    await act(async () => {
+      rejectDashboard(new Error("network"));
+      for (let i = 0; i < 10; i += 1) await Promise.resolve();
+    });
+    expect(
+      screen.queryByText("Dashboard Failed to Load"),
+    ).not.toBeInTheDocument();
+  });
+
+  describe("a plugin and a built-in that share a name", () => {
+    // The built-in publishes "Station" from its args; the plugin publishes the
+    // same name from its run(). Whichever goes away, the other is still
+    // publishing it, so the value has to stay.
+    const sharedBuiltIn = {
+      ...builtInVariableInput,
+      uuid: "shared-built-in-uuid",
+      i: "9",
+      args_string: JSON.stringify({
+        initial_value: "shared",
+        variable_name: "Station",
+        variable_options_source: "text",
+      }),
+    };
+    const sharedDashboard = {
+      ...preloadDashboard,
+      tabs: [
+        {
+          id: 1,
+          name: "Tab 1",
+          gridItems: [sharedBuiltIn, pluginVariableInput],
+        },
+        { id: 2, name: "Tab 2", gridItems: [] },
+      ],
+    };
+
+    const renderShared = (children) => {
+      jest
+        .spyOn(appAPI, "getDashboard")
+        .mockResolvedValue({ success: true, dashboard: sharedDashboard });
+      jest
+        .spyOn(appAPI, "getVisualizationData")
+        .mockResolvedValue(stationResponse);
+      return render(
+        <AppContext.Provider
+          value={{
+            visualizations: pluginVisualizations,
+            visualizationArgs: [],
+          }}
+        >
+          <AvailableDashboardsContext.Provider
+            value={{ updateDashboard: jest.fn() }}
+          >
+            <DashboardLoader {...sharedDashboard}>
+              <InputVariablePComponent />
+              <TabContext.Consumer>
+                {({ updateTab }) => (
+                  <button
+                    data-testid="removeSharedPluginButton"
+                    onClick={() => updateTab(1, { gridItems: [sharedBuiltIn] })}
+                  ></button>
+                )}
+              </TabContext.Consumer>
+              {children}
+            </DashboardLoader>
+          </AvailableDashboardsContext.Provider>
+        </AppContext.Provider>,
+      );
+    };
+
+    test("deleting the plugin leaves the built-in's value standing", async () => {
+      renderShared();
+      expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+        JSON.stringify({ Station: "SALEM" }),
+      );
+
+      await userEvent.click(screen.getByTestId("removeSharedPluginButton"));
+      expect(screen.getByTestId("input-variables")).toHaveTextContent(
+        JSON.stringify({ Station: "SALEM" }),
+      );
+    });
+
+    test("renaming the plugin releases nothing the built-in still owns", async () => {
+      const RenamingTile = () => {
+        const [variableName, setVariableName] = useState("Station");
+        return (
+          <>
+            <PluginVariableInputTile variableName={variableName} />
+            <button
+              data-testid="renameSharedButton"
+              onClick={() => setVariableName("Gauge")}
+            ></button>
+          </>
+        );
+      };
+
+      renderShared(<RenamingTile />);
+      expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+        JSON.stringify({ Station: "SALEM" }),
+      );
+
+      await userEvent.click(screen.getByTestId("renameSharedButton"));
+      await waitFor(() =>
+        expect(screen.getByTestId("input-variables")).toHaveTextContent(
+          JSON.stringify({ Station: "SALEM", Gauge: "SALEM" }),
+        ),
+      );
+    });
+  });
+
+  test("keeps a key a second plugin variable input still publishes", async () => {
+    // Two plugin variable inputs can publish the same name -- the same picker
+    // on two tabs, or two plugins that agree on one. Deleting one must not take
+    // the value with it while the other is still publishing it, or every
+    // visualization bound to that name would go empty.
+    const secondPlugin = {
+      ...pluginVariableInput,
+      id: 8,
+      uuid: "plugin-vi-uuid-b",
+      i: "8",
+    };
+    const twoPluginDashboard = {
+      ...preloadDashboard,
+      tabs: [
+        {
+          id: 1,
+          name: "Tab 1",
+          gridItems: [builtInVariableInput, pluginVariableInput, secondPlugin],
+        },
+        { id: 2, name: "Tab 2", gridItems: [] },
+      ],
+    };
+    jest
+      .spyOn(appAPI, "getDashboard")
+      .mockResolvedValue({ success: true, dashboard: twoPluginDashboard });
+    jest
+      .spyOn(appAPI, "getVisualizationData")
+      .mockResolvedValue(stationResponse);
+
+    render(
+      <AppContext.Provider
+        value={{ visualizations: pluginVisualizations, visualizationArgs: [] }}
+      >
+        <AvailableDashboardsContext.Provider
+          value={{ updateDashboard: jest.fn() }}
+        >
+          <DashboardLoader {...twoPluginDashboard}>
+            <InputVariablePComponent />
+            <TabContext.Consumer>
+              {({ updateTab }) => (
+                <button
+                  data-testid="removeOnePluginButton"
+                  onClick={() =>
+                    updateTab(1, {
+                      gridItems: [builtInVariableInput, pluginVariableInput],
+                    })
+                  }
+                ></button>
+              )}
+            </TabContext.Consumer>
+          </DashboardLoader>
+        </AvailableDashboardsContext.Provider>
+      </AppContext.Provider>,
+    );
+
+    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({ "Built In": "built in", Station: "SALEM" }),
+    );
+
+    await userEvent.click(screen.getByTestId("removeOnePluginButton"));
+    expect(screen.getByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({ "Built In": "built in", Station: "SALEM" }),
     );
   });
 

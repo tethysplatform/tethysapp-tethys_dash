@@ -15,6 +15,7 @@ import {
   attachGeoTIFFSourceErrorHandlers,
   isRuntimeRasterConfig,
 } from "components/map/runtimeRaster";
+import { rasterLayerStyle } from "components/map/geoTIFFStyle";
 import {
   CANCEL_REASON,
   errorKindFor,
@@ -97,26 +98,34 @@ const InfoDiv = styled.div`
 // Preservation keeps the layer instance, and the cosmetic prop sync handles only
 // the props OL has first-class setters for -- so without this, editing a
 // preserved layer's style rules would change nothing on the map.
+//
+// A raster's saved style is its ramp settings, which OpenLayers cannot draw:
+// what it draws with is the style applyAutoRamp compiled from them at load. A
+// raster whose saved style is a hand-authored OpenLayers style passes it
+// through unchanged (see rasterLayerStyle).
 async function applyLayerStyle(olLayer, layerConfig) {
-  if (!layerConfig.style) return;
+  const style =
+    layerConfig.type === "WebGLTile"
+      ? rasterLayerStyle(layerConfig)
+      : layerConfig.style;
+  if (!style) return;
 
-  const isWebGLTileRampStyle =
+  const isWebGLTileColorStyle =
     layerConfig.type === "WebGLTile" &&
-    layerConfig.style &&
-    typeof layerConfig.style === "object" &&
-    !Array.isArray(layerConfig.style) &&
-    "color" in layerConfig.style;
+    typeof style === "object" &&
+    !Array.isArray(style) &&
+    "color" in style;
 
-  if (isWebGLTileRampStyle) {
-    olLayer.setStyle(layerConfig.style);
+  if (isWebGLTileColorStyle) {
+    olLayer.setStyle(style);
     return;
   }
 
   try {
-    await applyStyle(olLayer, layerConfig.style);
+    await applyStyle(olLayer, style);
   } catch (err) {
     if (err.message !== "Cannot read properties of undefined (reading 'crs')") {
-      const styleFunction = createJsonStyleFunction(layerConfig.style);
+      const styleFunction = createJsonStyleFunction(style);
       if (typeof olLayer.setStyle === "function") {
         olLayer.setStyle(styleFunction);
       }
@@ -762,8 +771,6 @@ const MapComponent = ({
       const shapefileLayerUpdates = [];
 
       if (currentLayers.current.length) {
-        const newLayerProps = (layers ?? []).map((l) => l.props);
-
         // Build a map of incoming runtime-layer ids → {props, count} so we
         // can detect duplicate-layerId collisions (e.g., from layer-paste).
         // When duplicates exist, both are rebuilt and a console warning is
@@ -873,9 +880,16 @@ const MapComponent = ({
 
           // A runtime layer that failed its identity match is rebuilt, never
           // kept by name: matching props are what a duplicated layerId has.
+          //
+          // A raster also has to match on its style. Its ramp settings are its
+          // saved style, not its props, and a kept layer is never restyled --
+          // so a style edit alone would otherwise change nothing on the map.
           const shouldKeep =
-            newLayerProps.some((newProps) =>
-              valuesEqual(newProps, currentLayer.props),
+            (layers ?? []).some(
+              (incoming) =>
+                valuesEqual(incoming?.props, currentLayer.props) &&
+                (currentLayer.type !== "WebGLTile" ||
+                  valuesEqual(incoming.style, currentLayer.style)),
             ) &&
             !isVectorLayerType(currentLayer.type) &&
             !isRuntime;
@@ -1048,8 +1062,10 @@ const MapComponent = ({
           const isRuntimeRaster = isRuntimeRasterConfig(layerConfig);
 
           try {
-            // Resolve a Zarr layer's ramp from the slice's real value range
-            // before the source is built — `normalize` is read at construction.
+            // Compile a raster's style from its saved settings, resolving the
+            // ramp's range from the file (or a Zarr's slice), before the source
+            // is built -- `normalize` and `interpolate` are read at
+            // construction, and applyAutoRamp derives both.
             if (!isRuntimeRaster) {
               await applyAutoRamp(layerConfig);
             }
@@ -1953,7 +1969,23 @@ const MapComponent = ({
 
   return (
     <>
-      <div aria-label="Map Div" ref={mapDivRef} {...customMapConfig}>
+      <div
+        aria-label="Map Div"
+        ref={mapDivRef}
+        {...customMapConfig}
+        /* An isolated stacking context, so the controls inside -- legend,
+           layer control, alert stack, each at z-index 1000 -- are ordered
+           against the map and each other, and never against another grid
+           item. A grid tile is position:relative with no z-index, so it is
+           not a stacking context of its own: without this, a control's
+           z-index is resolved somewhere above the tile and paints over tiles
+           an author deliberately sent to the front.
+
+           Applied after the spread rather than in defaultMapConfig: a
+           dashboard-supplied mapConfig.style replaces that object outright,
+           and this must not be something a map config can drop. */
+        style={{ ...customMapConfig.style, isolation: "isolate" }}
+      >
         {(errorMessage ||
           showLayerFailure ||
           showLayerLoading ||

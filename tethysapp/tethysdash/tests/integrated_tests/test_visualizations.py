@@ -540,13 +540,16 @@ def test_get_visualization_features_mode_geotiff_styled(echo_runtime_raster_inta
     assert viz_type == "source"
     assert data == {
         "type": "GeoTIFF",
-        "props": {"url": ECHO_RASTER_URL, "projection": "EPSG:32612"},
+        "props": {
+            "url": ECHO_RASTER_URL,
+            "projection": "EPSG:32612",
+            "mask_below": -9999,
+        },
         "style": {
             "rampName": "magma",
             "rampMin": 0,
             "rampMax": 50,
             "rampReverse": True,
-            "maskBelow": -9999,
         },
     }
 
@@ -600,4 +603,5 @@ def test_get_visualization_scaffold_mode_geotiff_runtime(echo_runtime_raster_int
     assert props["source"]["type"] == "GeoTIFF"
     assert "url" not in props["source"]["props"]
     assert props["pluginSource"]["source"] == "echo_runtime_raster"
-    assert props["source"]["rampName"] == "viridis"
+    assert data["configuration"]["style"] == {"rampName": "viridis"}
+    assert "rampName" not in props["source"]

@@ -3,6 +3,135 @@ import PropTypes from "prop-types";
 
 const TRANSPARENT = [0, 0, 0, 0];
 
+// --- Saved raster style ------------------------------------------------------
+//
+// A raster layer -- a WebGLTile over a GeoTIFF or Zarr source -- saves the
+// author's styling in `configuration.style`, where every other layer type keeps
+// its style, as settings rather than as OpenLayers style:
+//
+//   {rampName?, rampMin?, rampMax?, rampReverse?, styleMode?, classes?,
+//    fallbackColor?}
+//
+// The bounds are saved as the numeric strings the editor's inputs produce. The
+// mask is not among them: `mask_below` stays a source property, edited on the
+// Source pane, because it decides which values the file publishes as data --
+// the Zarr reader writes it into the slice's alpha band as it reads. The OpenLayers expression these compile to is never saved: it
+// depends on the file (its nodata, its value range), so applyAutoRamp builds it
+// each time the layer loads and holds it on the layer config as a
+// non-enumerable `compiledStyle`. Non-enumerable is the guarantee that it stays
+// out of saves: JSON.stringify, object spreads, deep copies and valuesEqual all
+// skip it, so no save, export or layer comparison can carry it along.
+//
+// A raster's `style` may instead be a hand-authored OpenLayers style -- an RGB
+// band expression, say. The two are told apart by the settings that decide how
+// a raster is colored: a style carrying `rampName`, `styleMode` or `classes` is
+// ramp settings, and draws with its compiled form. Anything else is passed to
+// `setStyle` unchanged. None of the settings keys is an OpenLayers WebGLTile
+// style key, so neither can be mistaken for the other.
+
+// Every authored raster style setting. One list, so a setting added here is
+// saved, restored, compared and overlaid by every user of it.
+export const RASTER_STYLE_FIELDS = [
+  "rampName",
+  "rampMin",
+  "rampMax",
+  "rampReverse",
+  "styleMode",
+  "classes",
+  "fallbackColor",
+];
+
+// The settings whose presence makes a style ramp settings (see above).
+const RASTER_STYLE_MARKERS = ["rampName", "styleMode", "classes"];
+
+const isPlainObject = (value) =>
+  Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
+/**
+ * Whether a raster layer's saved `style` is ramp settings, to be compiled,
+ * rather than a hand-authored OpenLayers style, to be passed through.
+ *
+ * @param {*} style A layer config's `style`.
+ * @returns {boolean}
+ */
+export function isRasterStyleSettings(style) {
+  return (
+    isPlainObject(style) && RASTER_STYLE_MARKERS.some((key) => key in style)
+  );
+}
+
+/**
+ * The raster style settings a layer's saved `style` carries: only the
+ * RASTER_STYLE_FIELDS keys, or an empty object for a style that is not an
+ * object at all.
+ *
+ * Read by everything that colors, labels or edits a raster, so a hand-authored
+ * OpenLayers style reads as "no settings" rather than as a malformed ramp.
+ *
+ * @param {*} style A layer config's `style`.
+ * @returns {object}
+ */
+export function rasterStyleSettings(style) {
+  if (!isPlainObject(style)) return {};
+  const settings = {};
+  RASTER_STYLE_FIELDS.forEach((field) => {
+    if (style[field] !== undefined) settings[field] = style[field];
+  });
+  return settings;
+}
+
+/**
+ * Hold the OpenLayers style a raster layer draws with on its config, for this
+ * load only. Non-enumerable, so it is never serialized, copied or compared
+ * (see the note at the top of this module).
+ *
+ * @param {object} layerConfig A layer `configuration`.
+ * @param {object|undefined} style The compiled style; undefined clears it.
+ */
+export function setCompiledStyle(layerConfig, style) {
+  Object.defineProperty(layerConfig, "compiledStyle", {
+    value: style,
+    enumerable: false,
+    configurable: true,
+    writable: true,
+  });
+}
+
+/**
+ * The OpenLayers style a raster layer draws with: the style compiled from its
+ * settings at load, or its saved style passed through when that is a
+ * hand-authored OpenLayers style. A settings key left on a passed-through style
+ * is dropped, since OpenLayers has no use for it; a style left with nothing
+ * else is no style.
+ *
+ * @param {object} layerConfig A WebGLTile layer `configuration`.
+ * @returns {object|string|undefined}
+ */
+export function rasterLayerStyle(layerConfig) {
+  if (layerConfig?.compiledStyle) return layerConfig.compiledStyle;
+  const style = layerConfig?.style;
+  if (!isPlainObject(style)) return style;
+  if (!RASTER_STYLE_FIELDS.some((field) => field in style)) return style;
+  const rest = Object.fromEntries(
+    Object.entries(style).filter(([key]) => !RASTER_STYLE_FIELDS.includes(key)),
+  );
+  return Object.keys(rest).length > 0 ? rest : undefined;
+}
+
+/**
+ * Whether a ramp bound is set. An empty one means "resolve it from the file",
+ * not zero.
+ *
+ * @param {*} value A saved (string) or fetched (number) bound.
+ * @returns {boolean}
+ */
+export function isRampBoundSet(value) {
+  if (value === undefined || value === null) return false;
+  if (typeof value === "boolean") return false;
+  if (typeof value === "string" && value.trim() === "") return false;
+  return Number.isFinite(Number(value));
+}
+
 // Guards that run ahead of whichever coloring expression follows: nodata cells
 // first, then anything the author asked to mask. Both are evaluated before the
 // value is colored, so a masked cell never reaches the ramp or the class lookup.
@@ -79,13 +208,13 @@ export function isClassStyleMode(mode) {
   return CLASS_STYLE_MODES.includes(mode);
 }
 
-// True when a raster source is styled by its class table: a class mode with at
-// least one class that can be drawn. A class mode with an empty table falls
-// back to the ramp, as it always has for Categorical.
-export function hasClassStyle(source) {
+// True when a raster's style settings color it by their class table: a class
+// mode with at least one class that can be drawn. A class mode with an empty
+// table falls back to the ramp, as it always has for Categorical.
+export function hasClassStyle(style) {
   return (
-    isClassStyleMode(source?.styleMode) &&
-    (source.classes ?? []).some(isUsableClass)
+    isClassStyleMode(style?.styleMode) &&
+    (style.classes ?? []).some(isUsableClass)
   );
 }
 
@@ -140,15 +269,15 @@ export function buildClassStyleColor({ styleMode, ...options }) {
 // The default legend's swatches for a class-table style: one per class, with
 // its label, or its value when it has none. Ranges lists them in the order it
 // draws them, ascending, and says what an unlabelled bound means.
-export function classLegendItems(source) {
-  if (source?.styleMode === "ranges") {
-    return sortedRangeClasses(source.classes).map((entry) => ({
+export function classLegendItems(style) {
+  if (style?.styleMode === "ranges") {
+    return sortedRangeClasses(style.classes).map((entry) => ({
       color: entry.color,
       label: entry.label || `Up to ${entry.value}`,
       symbol: "square",
     }));
   }
-  return (source?.classes ?? []).map((entry) => ({
+  return (style?.classes ?? []).map((entry) => ({
     color: entry.color,
     label: entry.label || String(entry.value),
     symbol: "square",

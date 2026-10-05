@@ -2,6 +2,7 @@ import { applyRenderAsImage } from "components/modals/MapLayer/MapLayer";
 import PropTypes from "prop-types";
 import { useRef } from "react";
 import {
+  act,
   render,
   screen,
   fireEvent,
@@ -10,6 +11,7 @@ import {
 } from "@testing-library/react";
 import selectEvent from "react-select-event";
 import MapLayerModal, {
+  buildRasterStyleSettings,
   buildRuntimeRasterSource,
   getLayerType,
   rekeyAttributeMapToLayer,
@@ -30,6 +32,30 @@ import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
 import { fullMapLayer } from "__tests__/utilities/constants";
 import { rehydratePluginSourceProps } from "components/inputs/custom/AddMapLayer";
+
+// A raster's ramp settings are the layer's saved style (`configuration.style`),
+// not part of its source. The fixtures below describe a layer as one flat
+// object -- a source with its styling -- and this splits it into the two the
+// modal opens with. The key sets are disjoint, so the split is lossless.
+const RASTER_STYLE_KEYS = [
+  "rampName",
+  "rampMin",
+  "rampMax",
+  "rampReverse",
+  "styleMode",
+  "classes",
+  "fallbackColor",
+];
+
+const splitLayerInfo = (flat = {}) => {
+  const sourceProps = {};
+  const style = {};
+  Object.entries(flat).forEach(([key, value]) => {
+    if (RASTER_STYLE_KEYS.includes(key)) style[key] = value;
+    else sourceProps[key] = value;
+  });
+  return { sourceProps, style };
+};
 
 jest.mock("components/map/utilities", () => {
   const originalModule = jest.requireActual("components/map/utilities");
@@ -1804,13 +1830,8 @@ describe("MapLayerModal save-path nullish fallbacks and sub-modal zIndex", () =>
     const addMapLayer = jest.fn();
     const layerInfo = {
       layerProps: { name: "Nodata Ramp GeoTIFF" },
-      sourceProps: {
-        type: "GeoTIFF",
-        props: { url: "x.tif" },
-        rampName: "viridis",
-        rampMin: "0",
-        rampMax: "100",
-      },
+      sourceProps: { type: "GeoTIFF", props: { url: "x.tif" } },
+      style: { rampName: "viridis", rampMin: "0", rampMax: "100" },
     };
 
     render(
@@ -1827,10 +1848,14 @@ describe("MapLayerModal save-path nullish fallbacks and sub-modal zIndex", () =>
       expect(addMapLayer).toHaveBeenCalledTimes(1);
     });
 
-    // hasNodata=true wraps the interpolate in a `case` against band 2.
-    const color = addMapLayer.mock.calls[0][0].configuration.style.color;
-    expect(color[0]).toBe("case");
-    expect(color[1]).toEqual(["==", ["band", 2], 0]);
+    // The alpha guard is part of the compiled style, which applyAutoRamp
+    // builds for the file at load (covered in geoTIFFStyle.test.js); the save
+    // carries the settings it is built from.
+    expect(addMapLayer.mock.calls[0][0].configuration.style).toEqual({
+      rampName: "viridis",
+      rampMin: "0",
+      rampMax: "100",
+    });
   });
 });
 
@@ -1875,25 +1900,24 @@ describe("MapLayerModal GeoJSON URL/filename path", () => {
 });
 
 describe("MapLayerModal categorical raster save path", () => {
-  const renderCategorical = (sourceProps, addMapLayer) =>
-    render(
+  const renderCategorical = (flat, addMapLayer) => {
+    const { sourceProps, style } = splitLayerInfo({
+      type: "GeoTIFF",
+      rampName: "turbo",
+      props: { url: "lu.tif" },
+      ...flat,
+    });
+    return render(
       <TestingComponent
         showModal={true}
         handleModalClose={jest.fn()}
         addMapLayer={addMapLayer}
-        layerInfo={{
-          layerProps: { name: "Land Use" },
-          sourceProps: {
-            type: "GeoTIFF",
-            rampName: "turbo",
-            props: { url: "lu.tif" },
-            ...sourceProps,
-          },
-        }}
+        layerInfo={{ layerProps: { name: "Land Use" }, sourceProps, style }}
       />,
     );
+  };
 
-  test("saves a match style, the class list, and normalize off", async () => {
+  test("saves the class table as the layer's style settings", async () => {
     const addMapLayer = jest.fn();
     renderCategorical(
       {
@@ -1911,17 +1935,19 @@ describe("MapLayerModal categorical raster save path", () => {
     await waitFor(() => expect(addMapLayer).toHaveBeenCalledTimes(1));
 
     const saved = addMapLayer.mock.calls[0][0];
-    const source = saved.configuration.props.source;
-    expect(source.styleMode).toBe("categorical");
-    expect(source.classes).toHaveLength(2);
-    expect(source.fallbackColor).toBe("#999999");
-    // Raw band values are required for the match to line up.
-    expect(source.props.normalize).toBe(false);
-    // Nearest neighbor: interpolated class labels fringe nodata boundaries.
-    expect(source.props.interpolate).toBe(false);
-    expect(saved.configuration.style.color[3][0]).toBe("match");
+    const style = saved.configuration.style;
+    expect(style.styleMode).toBe("categorical");
+    expect(style.classes).toHaveLength(2);
+    expect(style.fallbackColor).toBe("#999999");
     // The ramp name survives so switching back does not lose the palette.
-    expect(source.rampName).toBe("turbo");
+    expect(style.rampName).toBe("turbo");
+    // The compiled match expression, and the raw-value/nearest-neighbor source
+    // behavior that goes with it, are derived from these at load -- see
+    // applyStartingRasterStyle in ModuleLoader.test.js -- so neither is saved.
+    expect(style).not.toHaveProperty("color");
+    expect(saved.configuration.props.source.props).not.toHaveProperty(
+      "normalize",
+    );
   });
 
   test("keeps a reversed palette on a categorical layer", async () => {
@@ -1941,9 +1967,9 @@ describe("MapLayerModal categorical raster save path", () => {
     fireEvent.click(await screen.findByLabelText("Create Layer Button"));
     await waitFor(() => expect(addMapLayer).toHaveBeenCalledTimes(1));
 
-    const source = addMapLayer.mock.calls[0][0].configuration.props.source;
-    expect(source.rampReverse).toBe(true);
-    expect(source.rampName).toBe("turbo");
+    const style = addMapLayer.mock.calls[0][0].configuration.style;
+    expect(style.rampReverse).toBe(true);
+    expect(style.rampName).toBe("turbo");
   });
 
   test("drops half-filled class rows rather than saving them as class 0", async () => {
@@ -1962,8 +1988,8 @@ describe("MapLayerModal categorical raster save path", () => {
     fireEvent.click(await screen.findByLabelText("Create Layer Button"));
     await waitFor(() => expect(addMapLayer).toHaveBeenCalledTimes(1));
 
-    const source = addMapLayer.mock.calls[0][0].configuration.props.source;
-    expect(source.classes).toEqual([{ value: "2", color: "#ccc" }]);
+    const style = addMapLayer.mock.calls[0][0].configuration.style;
+    expect(style.classes).toEqual([{ value: "2", color: "#ccc" }]);
   });
 
   test("falls back to the ramp when no class is usable", async () => {
@@ -1977,31 +2003,31 @@ describe("MapLayerModal categorical raster save path", () => {
     await waitFor(() => expect(addMapLayer).toHaveBeenCalledTimes(1));
 
     const saved = addMapLayer.mock.calls[0][0];
-    expect(saved.configuration.props.source.styleMode).toBeUndefined();
-    expect(saved.configuration.style.color[3][0]).toBe("interpolate");
+    expect(saved.configuration.style.styleMode).toBeUndefined();
+    expect(saved.configuration.style.classes).toBeUndefined();
+    expect(saved.configuration.style.rampName).toBe("turbo");
   });
 });
 
 describe("MapLayerModal ranges raster save path", () => {
-  const renderRanges = (sourceProps, addMapLayer) =>
-    render(
+  const renderRanges = (flat, addMapLayer) => {
+    const { sourceProps, style } = splitLayerInfo({
+      type: "GeoTIFF",
+      rampName: "turbo",
+      props: { url: "flow.tif", mask_below: "0" },
+      ...flat,
+    });
+    return render(
       <TestingComponent
         showModal={true}
         handleModalClose={jest.fn()}
         addMapLayer={addMapLayer}
-        layerInfo={{
-          layerProps: { name: "Streamflow" },
-          sourceProps: {
-            type: "GeoTIFF",
-            rampName: "turbo",
-            props: { url: "flow.tif", mask_below: "0" },
-            ...sourceProps,
-          },
-        }}
+        layerInfo={{ layerProps: { name: "Streamflow" }, sourceProps, style }}
       />,
     );
+  };
 
-  test("saves a case style, the class list, and normalize and interpolate off", async () => {
+  test("saves the ranges table as the layer's style settings", async () => {
     const addMapLayer = jest.fn();
     renderRanges(
       {
@@ -2020,28 +2046,19 @@ describe("MapLayerModal ranges raster save path", () => {
     await waitFor(() => expect(addMapLayer).toHaveBeenCalledTimes(1));
 
     const saved = addMapLayer.mock.calls[0][0];
-    const source = saved.configuration.props.source;
-    expect(source.styleMode).toBe("ranges");
-    expect(source.classes).toEqual([
+    const style = saved.configuration.style;
+    expect(style.styleMode).toBe("ranges");
+    // Entry order is kept in the saved table; sorting belongs to the compiled
+    // style, which is built at load from these settings.
+    expect(style.classes).toEqual([
       { value: "10", color: "#ccc", label: "2 to 10" },
       { value: "2", color: "#bbb", label: "up to 2" },
     ]);
-    expect(source.fallbackColor).toBe("#999999");
-    expect(source.props.normalize).toBe(false);
-    expect(source.props.interpolate).toBe(false);
-    expect(source.rampName).toBe("turbo");
-    expect(saved.configuration.style.color).toEqual([
-      "case",
-      ["==", ["band", 2], 0],
-      [0, 0, 0, 0],
-      ["<=", ["band", 1], 0],
-      [0, 0, 0, 0],
-      ["<=", ["band", 1], 2],
-      "#bbb",
-      ["<=", ["band", 1], 10],
-      "#ccc",
-      "#999999",
-    ]);
+    expect(style.fallbackColor).toBe("#999999");
+    expect(style.rampName).toBe("turbo");
+    expect(style).not.toHaveProperty("color");
+    // The mask stays a source property, outside the style entirely.
+    expect(saved.configuration.props.source.props.mask_below).toBe("0");
   });
 
   test("falls back to the ramp when no class is usable", async () => {
@@ -2055,71 +2072,51 @@ describe("MapLayerModal ranges raster save path", () => {
     await waitFor(() => expect(addMapLayer).toHaveBeenCalledTimes(1));
 
     const saved = addMapLayer.mock.calls[0][0];
-    expect(saved.configuration.props.source.styleMode).toBeUndefined();
-    // Normalized until the range resolves, so the raw mask is not compiled in.
-    expect(saved.configuration.style.color[3][0]).toBe("interpolate");
+    expect(saved.configuration.style.styleMode).toBeUndefined();
+    expect(saved.configuration.style.classes).toBeUndefined();
+    expect(saved.configuration.style.rampName).toBe("turbo");
   });
 });
 
 describe("buildRuntimeRasterSource", () => {
-  test.each(["categorical", "ranges"])(
-    "saves a %s class table without a URL or compiled style",
-    (styleMode) => {
-      const source = buildRuntimeRasterSource(
-        {
-          rampName: "turbo",
-          rampMin: "0",
-          styleMode,
-          classes: [
-            { value: "1", color: "#aaa" },
-            { value: "", color: "#bbb" },
-          ],
-          fallbackColor: "#999999",
-        },
-        { url: "ignored.tif", mask_below: "0" },
-      );
+  test("drops the URL and keeps the rest of the source props", () => {
+    // Each plugin fetch names the file, so a dynamic layer saves no URL of its
+    // own. Everything else describing the file is kept, the mask included.
+    expect(
+      buildRuntimeRasterSource({
+        url: "ignored.tif",
+        mask_below: "0",
+        projection: "EPSG:3857",
+      }),
+    ).toEqual({
+      type: "GeoTIFF",
+      props: { mask_below: "0", projection: "EPSG:3857" },
+    });
+  });
 
-      expect(source).toEqual({
-        type: "GeoTIFF",
-        props: { mask_below: "0" },
-        styleMode,
-        classes: [{ value: "1", color: "#aaa" }],
-        fallbackColor: "#999999",
-        rampName: "turbo",
-      });
-    },
-  );
+  test("carries no styling: that is the layer's saved style", () => {
+    expect(buildRuntimeRasterSource({ url: "ignored.tif" })).toEqual({
+      type: "GeoTIFF",
+      props: {},
+    });
+  });
 
-  test("an unknown mode saves as a ramp", () => {
-    const source = buildRuntimeRasterSource(
-      {
-        rampName: "turbo",
-        styleMode: "bogus",
-        classes: [{ value: "1", color: "#aaa" }],
-      },
-      {},
-    );
-
-    expect(source).toEqual({ type: "GeoTIFF", props: {}, rampName: "turbo" });
+  test("tolerates being given nothing", () => {
+    expect(buildRuntimeRasterSource()).toEqual({ type: "GeoTIFF", props: {} });
   });
 });
 
 describe("MapLayerModal GeoTIFF ramp round-trip persistence", () => {
-  test("persists rampName/rampMin/rampMax on configuration.props.source", async () => {
+  test("persists rampName/rampMin/rampMax on configuration.style", async () => {
     // Regression: without this, re-opening a ramp-styled GeoTIFF layer in the
-    // modal shows empty ramp inputs because sourceProps doesn't carry them
-    // back. StylePane reads sourceProps.rampName/rampMin/rampMax directly.
+    // modal shows empty ramp inputs, because the saved style is what the pane
+    // reads them back from.
     const handleModalClose = jest.fn();
     const addMapLayer = jest.fn();
     const layerInfo = {
       layerProps: { name: "Ramped Round-Trip" },
-      sourceProps: {
-        type: "GeoTIFF",
-        props: { url: "rt.tif" },
-        rampName: "RdYlBu",
-        rampMin: "277",
-        rampMax: "300",
-      },
+      sourceProps: { type: "GeoTIFF", props: { url: "rt.tif" } },
+      style: { rampName: "RdYlBu", rampMin: "277", rampMax: "300" },
     };
 
     render(
@@ -2135,15 +2132,17 @@ describe("MapLayerModal GeoTIFF ramp round-trip persistence", () => {
       expect(addMapLayer).toHaveBeenCalledTimes(1);
     });
 
-    const savedSource = addMapLayer.mock.calls[0][0].configuration.props.source;
-    expect(savedSource.rampName).toBe("RdYlBu");
-    expect(savedSource.rampMin).toBe("277");
-    expect(savedSource.rampMax).toBe("300");
-    // The generated color expression still lands on configuration.style.
-    // Always guarded now: both raster types end up with a nodata value.
-    const rtColor = addMapLayer.mock.calls[0][0].configuration.style.color;
-    expect(rtColor[0]).toBe("case");
-    expect(rtColor[3][0]).toBe("interpolate");
+    const savedStyle = addMapLayer.mock.calls[0][0].configuration.style;
+    expect(savedStyle).toEqual({
+      rampName: "RdYlBu",
+      rampMin: "277",
+      rampMax: "300",
+    });
+    // The bounds are the author's; nothing resolved or compiled rides along.
+    expect(addMapLayer.mock.calls[0][0].configuration.props.source).toEqual({
+      type: "GeoTIFF",
+      props: { url: "rt.tif" },
+    });
   });
 });
 
@@ -2164,15 +2163,8 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
     const addMapLayer = jest.fn();
     const layerInfo = {
       layerProps: { name: "Viridis Raster" },
-      sourceProps: {
-        type: "GeoTIFF",
-        rampName: "viridis",
-        rampMin: "0",
-        rampMax: "100",
-        props: {
-          url: "a.tif",
-        },
-      },
+      sourceProps: { type: "GeoTIFF", props: { url: "a.tif" } },
+      style: { rampName: "viridis", rampMin: "0", rampMax: "100" },
     };
 
     render(
@@ -2200,27 +2192,19 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
     expect(typeof savedStyle).toBe("object");
     expect(savedStyle).not.toBeNull();
     expect(Array.isArray(savedStyle)).toBe(false);
-    expect(savedStyle).toHaveProperty("color");
-    expect(Array.isArray(savedStyle.color)).toBe(true);
-
-    // The expression header confirms it's a WebGLTile interpolate expression.
-    // ["case", <alpha guard>, <transparent>, <interpolate>]
-    expect(savedStyle.color[0]).toBe("case");
-    const interp = savedStyle.color[3];
-    expect(interp[0]).toBe("interpolate");
-    expect(interp[1]).toEqual(["linear"]);
-    expect(interp[2]).toEqual(["band", 1]);
-    expect(interp[3]).toBe(0);
-    // Last stop pair ends at rampMax.
-    expect(interp[interp.length - 2]).toBe(100);
-    // Explicit range = raw band values, so the source is not normalized.
-    expect(savedConfig.configuration.props.source.props.normalize).toBe(false);
+    // Settings, not a compiled expression: the OpenLayers style depends on the
+    // file, so it is built at load (geoTIFFStyle.test.js covers it).
+    expect(savedStyle).toEqual({
+      rampName: "viridis",
+      rampMin: "0",
+      rampMax: "100",
+    });
 
     // Most important regression guard: the backend upload was NOT called.
     expect(uploadSpy).not.toHaveBeenCalled();
   });
 
-  test("GeoTIFF with no explicit range gets a normalized style (turbo default)", async () => {
+  test("GeoTIFF with no explicit range saves the turbo default and no bounds", async () => {
     const uploadSpy = jest
       .spyOn(appAPI, "uploadJSON")
       .mockResolvedValue({ success: true, filename: "x.json" });
@@ -2256,15 +2240,9 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
     });
 
     const savedConfig = addMapLayer.mock.calls[0][0];
-    const savedStyle = savedConfig.configuration.style;
-    // Turbo default + normalized [0,1] interpolate; no persisted range.
-    expect(Array.isArray(savedStyle.color)).toBe(true);
-    expect(savedStyle.color[0]).toBe("case");
-    expect(savedStyle.color[3][0]).toBe("interpolate");
-    expect(savedStyle.color[3][savedStyle.color[3].length - 2]).toBe(1);
-    expect(savedConfig.configuration.props.source.rampName).toBe("turbo");
-    expect(savedConfig.configuration.props.source.rampMin).toBeUndefined();
-    expect(savedConfig.configuration.props.source.props.normalize).toBe(true);
+    // Turbo default, and no bounds -- empty means "fit it to the file", which
+    // applyAutoRamp does at load.
+    expect(savedConfig.configuration.style).toEqual({ rampName: "turbo" });
     expect(uploadSpy).not.toHaveBeenCalled();
   });
 
@@ -2305,14 +2283,8 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
     expect(source.props.url).toBe("https://x/store.zarr");
     expect(source.props.variable).toBe("depth");
     expect(source.props.index).toBe("5");
-    // Turbo default + per-slice auto-scaling (normalized ramp). Zarr COGs always
-    // carry a -9999 nodata sentinel, so the ramp is wrapped in a transparency
-    // `case` expression (a GeoTIFF with no nodata set would be bare interpolate).
-    const color = savedConfig.configuration.style.color;
-    expect(color[0]).toBe("case");
-    expect(JSON.stringify(color)).toContain("interpolate");
-    expect(source.rampName).toBe("turbo");
-    expect(source.props.normalize).toBe(true);
+    // Turbo default and no bounds, so each slice is auto-scaled at load.
+    expect(savedConfig.configuration.style).toEqual({ rampName: "turbo" });
   });
 
   test("GeoTIFF with rampName and empty range gets a normalized style", async () => {
@@ -2324,15 +2296,8 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
     const addMapLayer = jest.fn();
     const layerInfo = {
       layerProps: { name: "Auto Ramp GeoTIFF" },
-      sourceProps: {
-        type: "GeoTIFF",
-        rampName: "viridis",
-        rampMin: "",
-        rampMax: "",
-        props: {
-          url: "a.tif",
-        },
-      },
+      sourceProps: { type: "GeoTIFF", props: { url: "a.tif" } },
+      style: { rampName: "viridis", rampMin: "", rampMax: "" },
     };
 
     render(
@@ -2354,20 +2319,15 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
     });
 
     const savedConfig = addMapLayer.mock.calls[0][0];
-    const savedStyle = savedConfig.configuration.style;
-    expect(Array.isArray(savedStyle.color)).toBe(true);
-    expect(savedStyle.color[0]).toBe("case");
-    expect(savedStyle.color[3][0]).toBe("interpolate");
-    expect(savedStyle.color[3][savedStyle.color[3].length - 2]).toBe(1);
-    expect(savedConfig.configuration.props.source.rampMin).toBeUndefined();
-    expect(savedConfig.configuration.props.source.props.normalize).toBe(true);
+    // Empty bounds are dropped rather than saved as empty strings, so they
+    // read as "fit to the file" when the layer loads.
+    expect(savedConfig.configuration.style).toEqual({ rampName: "viridis" });
     expect(uploadSpy).not.toHaveBeenCalled();
   });
 
   test("saves a half-pinned ramp range without throwing", async () => {
-    // Only one bound entered. buildGeoTIFFStyleColor rejects a partial range,
-    // so the save has to store the normalized placeholder and keep the bound
-    // that was set — applyAutoRamp completes the other at render time.
+    // Only one bound entered. The bound that was set is kept and the empty one
+    // stays absent, so applyAutoRamp resolves it from the file at load.
     jest
       .spyOn(appAPI, "uploadJSON")
       .mockResolvedValue({ success: true, filename: "x.json" });
@@ -2380,13 +2340,8 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
         addMapLayer={addMapLayer}
         layerInfo={{
           layerProps: { name: "Half Pinned GeoTIFF" },
-          sourceProps: {
-            type: "GeoTIFF",
-            rampName: "viridis",
-            rampMin: "0",
-            rampMax: "",
-            props: { url: "a.tif" },
-          },
+          sourceProps: { type: "GeoTIFF", props: { url: "a.tif" } },
+          style: { rampName: "viridis", rampMin: "0", rampMax: "" },
         }}
       />,
     );
@@ -2394,17 +2349,14 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
     fireEvent.click(await screen.findByLabelText("Create Layer Button"));
     await waitFor(() => expect(addMapLayer).toHaveBeenCalledTimes(1));
 
-    const savedConfig = addMapLayer.mock.calls[0][0];
-    const savedSource = savedConfig.configuration.props.source;
     // The pinned bound survives; the empty one stays absent so it gets resolved.
-    expect(savedSource.rampMin).toBe("0");
-    expect(savedSource.rampMax).toBeUndefined();
-    // Placeholder style until the render-time resolve lands.
-    expect(savedConfig.configuration.style.color[0]).toBe("case");
-    expect(savedSource.props.normalize).toBe(true);
+    expect(addMapLayer.mock.calls[0][0].configuration.style).toEqual({
+      rampName: "viridis",
+      rampMin: "0",
+    });
   });
 
-  test("switching ramps on resave regenerates the color expression", async () => {
+  test("a resave carries whichever ramp the layer was opened with", async () => {
     jest
       .spyOn(appAPI, "uploadJSON")
       .mockResolvedValue({ success: true, filename: "x.json" });
@@ -2413,13 +2365,8 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
     const addMapLayerA = jest.fn();
     const layerInfoA = {
       layerProps: { name: "Ramp Layer A" },
-      sourceProps: {
-        type: "GeoTIFF",
-        rampName: "viridis",
-        rampMin: "0",
-        rampMax: "100",
-        props: { url: "a.tif" },
-      },
+      sourceProps: { type: "GeoTIFF", props: { url: "a.tif" } },
+      style: { rampName: "viridis", rampMin: "0", rampMax: "100" },
     };
 
     const { unmount } = render(
@@ -2434,21 +2381,15 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
     await waitFor(() => {
       expect(addMapLayerA).toHaveBeenCalledTimes(1);
     });
-    const viridisColor =
-      addMapLayerA.mock.calls[0][0].configuration.style.color;
+    const viridis = addMapLayerA.mock.calls[0][0].configuration.style;
     unmount();
 
     // Second render: turbo.
     const addMapLayerB = jest.fn();
     const layerInfoB = {
       layerProps: { name: "Ramp Layer B" },
-      sourceProps: {
-        type: "GeoTIFF",
-        rampName: "turbo",
-        rampMin: "0",
-        rampMax: "100",
-        props: { url: "a.tif" },
-      },
+      sourceProps: { type: "GeoTIFF", props: { url: "a.tif" } },
+      style: { rampName: "turbo", rampMin: "0", rampMax: "100" },
     };
 
     render(
@@ -2463,14 +2404,16 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
     await waitFor(() => {
       expect(addMapLayerB).toHaveBeenCalledTimes(1);
     });
-    const turboColor = addMapLayerB.mock.calls[0][0].configuration.style.color;
+    const turbo = addMapLayerB.mock.calls[0][0].configuration.style;
 
-    // Same structure, but the color hex strings differ between the ramps.
-    expect(viridisColor).toHaveLength(turboColor.length);
-    // The interpolate sits inside the `case` guard, so reach through index 3.
-    // Index 4 there is the first color stop: viridis starts near dark-purple,
-    // turbo near dark-red — they must not match.
-    expect(viridisColor[3][4]).not.toBe(turboColor[3][4]);
+    // Same bounds, different palette. The colors the two compile to differ as
+    // well, which colorRamps.test.js covers; what is saved is the name.
+    expect(viridis).toEqual({
+      rampName: "viridis",
+      rampMin: "0",
+      rampMax: "100",
+    });
+    expect(turbo).toEqual({ rampName: "turbo", rampMin: "0", rampMax: "100" });
   });
 
   test("non-GeoTIFF vector layer with a style still uploads via saveLayerJSON", async () => {
@@ -2516,7 +2459,7 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
     expect(savedStyle).toBe("vector-style.json");
   });
 
-  test("GeoTIFF ramp save with rampMin === rampMax does not crash", async () => {
+  test("GeoTIFF ramp save with rampMin === rampMax saves both bounds", async () => {
     jest
       .spyOn(appAPI, "uploadJSON")
       .mockResolvedValue({ success: true, filename: "x.json" });
@@ -2524,13 +2467,8 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
     const addMapLayer = jest.fn();
     const layerInfo = {
       layerProps: { name: "Degenerate Ramp" },
-      sourceProps: {
-        type: "GeoTIFF",
-        rampName: "viridis",
-        rampMin: "50",
-        rampMax: "50",
-        props: { url: "a.tif" },
-      },
+      sourceProps: { type: "GeoTIFF", props: { url: "a.tif" } },
+      style: { rampName: "viridis", rampMin: "50", rampMax: "50" },
     };
 
     render(
@@ -2547,12 +2485,14 @@ describe("MapLayerModal GeoTIFF ramp-style save path (Unit 7)", () => {
       expect(addMapLayer).toHaveBeenCalledTimes(1);
     });
 
-    const savedStyle = addMapLayer.mock.calls[0][0].configuration.style;
-    expect(savedStyle).toHaveProperty("color");
-    // All stop values collapse to 50, colors still vary.
-    // Degenerate range: every stop collapses onto the same value.
-    expect(savedStyle.color[3][3]).toBe(50);
-    expect(savedStyle.color[3][savedStyle.color[3].length - 2]).toBe(50);
+    // A degenerate range is the author's to make, and is saved as entered.
+    // What it compiles to is applyAutoRamp's problem, which falls back to
+    // normalized rendering (ModuleLoader.test.js covers that).
+    expect(addMapLayer.mock.calls[0][0].configuration.style).toEqual({
+      rampName: "viridis",
+      rampMin: "50",
+      rampMax: "50",
+    });
   });
 });
 
@@ -3812,12 +3752,8 @@ test("MapLayerModal keeps a reversed continuous ramp", async () => {
       addMapLayer={addMapLayer}
       layerInfo={{
         layerProps: { name: "Depth" },
-        sourceProps: {
-          type: "GeoTIFF",
-          rampName: "turbo",
-          rampReverse: true,
-          props: { url: "d.tif" },
-        },
+        sourceProps: { type: "GeoTIFF", props: { url: "d.tif" } },
+        style: { rampName: "turbo", rampReverse: true },
       }}
     />,
   );
@@ -3825,8 +3761,8 @@ test("MapLayerModal keeps a reversed continuous ramp", async () => {
   fireEvent.click(await screen.findByLabelText("Create Layer Button"));
   await waitFor(() => expect(addMapLayer).toHaveBeenCalledTimes(1));
 
-  const source = addMapLayer.mock.calls[0][0].configuration.props.source;
-  expect(source.rampReverse).toBe(true);
+  const style = addMapLayer.mock.calls[0][0].configuration.style;
+  expect(style.rampReverse).toBe(true);
 });
 
 test("MapLayerModal carries attribute settings across a layer rename", async () => {
@@ -3934,9 +3870,10 @@ describe("MapLayerModal dynamic GeoTIFF plugin layer", () => {
       type: "WebGLTile",
       props: {
         name: "Echo Raster",
-        source: { type: "GeoTIFF", props: {}, rampName: "viridis" },
+        source: { type: "GeoTIFF", props: {} },
         pluginSource: { source: "echo_runtime_raster", args: { mode: "" } },
       },
+      style: { rampName: "viridis" },
     },
   };
   const otherScaffold = {
@@ -3944,15 +3881,16 @@ describe("MapLayerModal dynamic GeoTIFF plugin layer", () => {
       type: "WebGLTile",
       props: {
         name: "Rain",
-        source: {
-          type: "GeoTIFF",
-          props: { mask_below: "-9999" },
-          rampName: "magma",
-          rampMin: "1.5",
-          rampMax: "9",
-          rampReverse: true,
-        },
+        // The mask stays a source property: it says which values the file
+        // publishes as data, not how they are coloured.
+        source: { type: "GeoTIFF", props: { mask_below: "-9999" } },
         pluginSource: { source: "other_runtime_raster", args: {} },
+      },
+      style: {
+        rampName: "magma",
+        rampMin: "1.5",
+        rampMax: "9",
+        rampReverse: true,
       },
     },
   };
@@ -4000,21 +3938,29 @@ describe("MapLayerModal dynamic GeoTIFF plugin layer", () => {
   };
 
   const styleTab = () => screen.getByLabelText("layer-style-tab");
+  const sourceTab = () => screen.getByLabelText("layer-source-tab");
   const followSwitch = () =>
     within(styleTab()).getByRole("switch", { name: /follow plugin styling/i });
 
-  // A saved layer reopened the way AddMapLayer reopens one.
-  const savedLayerInfo = (source, pluginSource) => ({
-    layerProps: {
-      name: "Echo Raster",
-      layerId: "saved-layer-id",
-      pluginSource,
-    },
-    sourceProps: rehydratePluginSourceProps(rasterPlugin, pluginSource, {
-      type: "GeoTIFF",
-      ...source,
-    }),
-  });
+  // A saved layer reopened the way AddMapLayer reopens one. Takes the layer
+  // flat -- a source with its styling -- and splits it into the source props
+  // and the saved style the modal opens with.
+  const savedLayerInfo = (flat, pluginSource) => {
+    const { sourceProps, style } = splitLayerInfo({ type: "GeoTIFF", ...flat });
+    return {
+      layerProps: {
+        name: "Echo Raster",
+        layerId: "saved-layer-id",
+        pluginSource,
+      },
+      sourceProps: rehydratePluginSourceProps(
+        rasterPlugin,
+        pluginSource,
+        sourceProps,
+      ),
+      style,
+    };
+  };
 
   test("selecting the raster echo plugin shows its scaffold ramp and saves a URL-less WebGLTile that follows the plugin", async () => {
     serveScaffolds({ echo_runtime_raster: echoScaffold });
@@ -4036,13 +3982,15 @@ describe("MapLayerModal dynamic GeoTIFF plugin layer", () => {
         props: {
           name: "Echo Raster",
           layerId: 12345678,
-          source: { type: "GeoTIFF", props: {}, rampName: "viridis" },
+          // No URL: each fetch names the file.
+          source: { type: "GeoTIFF", props: {} },
           pluginSource: { source: "echo_runtime_raster", args: {} },
         },
+        // The plugin's ramp, saved as the layer's fallback style. What it
+        // compiles to depends on the file, so that is left to each fetch.
+        style: { rampName: "viridis" },
       },
     });
-    // The style is compiled per fetch, never saved.
-    expect(saved.configuration.style).toBeUndefined();
   });
 
   test("a scaffold's full ramp, range, reverse and mask carry into the save", async () => {
@@ -4051,9 +3999,10 @@ describe("MapLayerModal dynamic GeoTIFF plugin layer", () => {
 
     await pickSource("Other Runtime Raster");
     await waitFor(() => {
-      expect(within(styleTab()).getByLabelText("Mask Below")).toHaveValue(
-        "-9999",
-      );
+      // A source property, so the Source tab is where it surfaces.
+      expect(
+        within(sourceTab()).getByDisplayValue("-9999"),
+      ).toBeInTheDocument();
     });
     expect(within(styleTab()).getByLabelText("Ramp Min")).toHaveValue("1.5");
     expect(
@@ -4066,15 +4015,14 @@ describe("MapLayerModal dynamic GeoTIFF plugin layer", () => {
       props: {
         name: "Rain",
         layerId: 12345678,
-        source: {
-          type: "GeoTIFF",
-          props: { mask_below: "-9999" },
-          rampName: "magma",
-          rampMin: "1.5",
-          rampMax: "9",
-          rampReverse: true,
-        },
+        source: { type: "GeoTIFF", props: { mask_below: "-9999" } },
         pluginSource: { source: "other_runtime_raster", args: {} },
+      },
+      style: {
+        rampName: "magma",
+        rampMin: "1.5",
+        rampMax: "9",
+        rampReverse: true,
       },
     });
   });
@@ -4099,8 +4047,8 @@ describe("MapLayerModal dynamic GeoTIFF plugin layer", () => {
     expect(saved.configuration.props.source).toEqual({
       type: "GeoTIFF",
       props: {},
-      rampName: "Blues",
     });
+    expect(saved.configuration.style).toEqual({ rampName: "Blues" });
     expect(saved.configuration.props.pluginSource).toEqual({
       source: "echo_runtime_raster",
       args: {},
@@ -4131,18 +4079,14 @@ describe("MapLayerModal dynamic GeoTIFF plugin layer", () => {
       props: {
         name: "Echo Raster",
         layerId: "saved-layer-id",
-        source: {
-          type: "GeoTIFF",
-          props: {},
-          rampName: "Blues",
-          rampMin: "0",
-          rampMax: "5",
-        },
+        source: { type: "GeoTIFF", props: {} },
         pluginSource: {
           source: "echo_runtime_raster",
           args: { mode: "happy" },
         },
       },
+      // Kept as the fallback the layer draws with when a fetch sends none.
+      style: { rampName: "Blues", rampMin: "0", rampMax: "5" },
     });
   });
 
@@ -4177,7 +4121,7 @@ describe("MapLayerModal dynamic GeoTIFF plugin layer", () => {
     expect(await waitFor(() => followSwitch())).not.toBeChecked();
     const saved = await save(addMapLayer);
     expect(saved.configuration.props.pluginSource.stylePinned).toBe(true);
-    expect(saved.configuration.props.source.rampName).toBe("Blues");
+    expect(saved.configuration.style.rampName).toBe("Blues");
   });
 
   test("reopening a pinned ranges layer restores its class table and saves it back", async () => {
@@ -4202,8 +4146,8 @@ describe("MapLayerModal dynamic GeoTIFF plugin layer", () => {
     ).toBeInTheDocument();
     const saved = await save(addMapLayer);
     expect(saved.configuration.props.pluginSource.stylePinned).toBe(true);
-    expect(saved.configuration.props.source.styleMode).toBe("ranges");
-    expect(saved.configuration.props.source.classes).toEqual(classes);
+    expect(saved.configuration.style.styleMode).toBe("ranges");
+    expect(saved.configuration.style.classes).toEqual(classes);
     expect(saved.configuration.props.source.props).not.toHaveProperty("url");
   });
 
@@ -4237,6 +4181,9 @@ describe("MapLayerModal dynamic GeoTIFF plugin layer", () => {
     expect(saved.configuration.props.source).toEqual(
       otherScaffold.configuration.props.source,
     );
+    expect(saved.configuration.style).toEqual(
+      otherScaffold.configuration.style,
+    );
   });
 
   test("Fetch defaults reloads the plugin's styling and clears the pin", async () => {
@@ -4260,17 +4207,107 @@ describe("MapLayerModal dynamic GeoTIFF plugin layer", () => {
     expect(saved.configuration.props.source).toEqual({
       type: "GeoTIFF",
       props: {},
-      rampName: "viridis",
     });
+    expect(saved.configuration.style).toEqual({ rampName: "viridis" });
     expect(saved.configuration.props.pluginSource).toEqual({
       source: "echo_runtime_raster",
       args: { mode: "happy" },
     });
   });
 
+  test("takes a scaffold that describes no source at all", async () => {
+    // A plugin that styles but leaves the source entirely to its fetches. The
+    // editor still has to open it: the ramp loads and the source props come
+    // out empty rather than the pane failing on a missing key.
+    serveScaffolds({
+      echo_runtime_raster: {
+        configuration: {
+          type: "WebGLTile",
+          props: { name: "Echo Raster" },
+          style: { rampName: "magma" },
+        },
+      },
+    });
+    const addMapLayer = openModal({ layerProps: {}, sourceProps: {} });
+
+    await pickSource("Echo Runtime Raster");
+    await waitFor(() => {
+      expect(
+        within(styleTab()).getByRole("radio", { name: "Select magma ramp" }),
+      ).toHaveAttribute("aria-checked", "true");
+    });
+
+    const saved = await save(addMapLayer);
+    expect(saved.configuration.props.source).toEqual({
+      type: "GeoTIFF",
+      props: {},
+    });
+    expect(saved.configuration.style).toEqual({ rampName: "magma" });
+  });
+
+  test("a scaffold that lands after the author moved on is ignored", async () => {
+    // Two plugins answering out of order. The author picks the echo plugin,
+    // then picks another before the first has answered; the first scaffold
+    // must not then overwrite the style the second one loaded, which would
+    // leave the Style tab describing a plugin the layer is no longer bound to.
+    let releaseEcho;
+    const echoHeld = new Promise((resolve) => {
+      releaseEcho = resolve;
+    });
+    server.use(
+      rest.get(
+        "http://api.test/apps/tethysdash/visualizations/get/",
+        async (req, res, ctx) => {
+          const source = req.url.searchParams.get("source");
+          if (source === "echo_runtime_raster") await echoHeld;
+          return res(
+            ctx.status(200),
+            ctx.json({
+              success: true,
+              data:
+                source === "echo_runtime_raster" ? echoScaffold : otherScaffold,
+            }),
+            ctx.set("Content-Type", "application/json"),
+          );
+        },
+      ),
+    );
+    openModal({ layerProps: {}, sourceProps: {} });
+
+    await pickSource("Echo Runtime Raster");
+    await pickSource("Other Runtime Raster");
+    await waitFor(() => {
+      expect(
+        within(styleTab()).getByRole("radio", { name: "Select magma ramp" }),
+      ).toHaveAttribute("aria-checked", "true");
+    });
+
+    await act(async () => {
+      releaseEcho();
+      await echoHeld;
+      // Let the held response work through msw and the component's await.
+      for (let i = 0; i < 20; i += 1) await Promise.resolve();
+    });
+
+    // Still the plugin the author actually selected.
+    expect(
+      within(styleTab()).getByRole("radio", { name: "Select magma ramp" }),
+    ).toHaveAttribute("aria-checked", "true");
+    expect(
+      within(styleTab()).getByRole("radio", { name: "Select viridis ramp" }),
+    ).toHaveAttribute("aria-checked", "false");
+  });
+
   test("a dynamic plugin with no declared source type saves as GeoJSON (older backend)", async () => {
     const { dynamic_map_layer_source: _omit, ...undeclared } = rasterPlugin;
-    serveScaffolds({ echo_runtime_raster: echoScaffold });
+    // A backend old enough not to declare the layer type is old enough not to
+    // send raster style settings either, so the scaffold carries none -- they
+    // would otherwise reach the GeoJSON path, where `style` is a JSON string.
+    const { style: _noStyle, ...undeclaredConfiguration } =
+      echoScaffold.configuration;
+    serveScaffolds({
+      echo_runtime_raster: { configuration: undeclaredConfiguration },
+    });
     const addMapLayer = openModal({ layerProps: {}, sourceProps: {} }, [
       { label: "Dynamic Map Layers", options: [undeclared] },
     ]);
@@ -4348,5 +4385,67 @@ describe("MapLayerModal dynamic GeoTIFF plugin layer", () => {
         legend: "default",
       }),
     );
+  });
+});
+
+describe("buildRasterStyleSettings", () => {
+  test("saves a ramp with only the bounds that are set", () => {
+    expect(
+      buildRasterStyleSettings({
+        rampName: "viridis",
+        rampMin: "0",
+        rampMax: "",
+      }),
+    ).toEqual({ rampName: "viridis", rampMin: "0" });
+  });
+
+  test("saves a class table in place of the range, keeping the palette", () => {
+    // The ramp name rides along so switching back to Continuous does not lose
+    // the chosen palette, and it is what seeds new class colors.
+    expect(
+      buildRasterStyleSettings({
+        styleMode: "ranges",
+        classes: [
+          { value: "1", color: "#aaa" },
+          { value: "", color: "#bbb" },
+        ],
+        fallbackColor: "#999",
+        rampName: "turbo",
+        rampReverse: true,
+        rampMin: "0",
+        rampMax: "5",
+      }),
+    ).toEqual({
+      styleMode: "ranges",
+      // Half-filled rows are dropped rather than saved as class 0.
+      classes: [{ value: "1", color: "#aaa" }],
+      fallbackColor: "#999",
+      rampName: "turbo",
+      rampReverse: true,
+    });
+  });
+
+  test("saves a class table that has neither a palette nor a fallback", () => {
+    expect(
+      buildRasterStyleSettings({
+        styleMode: "categorical",
+        classes: [{ value: "1", color: "#aaa" }],
+      }),
+    ).toEqual({
+      styleMode: "categorical",
+      classes: [{ value: "1", color: "#aaa" }],
+    });
+  });
+
+  test.each([
+    ["nothing at all", undefined],
+    ["an empty style", {}],
+    ["a blank ramp name", { rampName: "   " }],
+    [
+      "a class mode with no drawable class and no ramp to fall back on",
+      { styleMode: "ranges", classes: [{ value: "", color: "#aaa" }] },
+    ],
+  ])("saves no settings for %s", (_label, rasterStyle) => {
+    expect(buildRasterStyleSettings(rasterStyle)).toEqual({});
   });
 });

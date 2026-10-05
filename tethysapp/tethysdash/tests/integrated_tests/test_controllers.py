@@ -227,13 +227,16 @@ def test_data_features_mode_geotiff_source(
         "viz_type": "source",
         "data": {
             "type": "GeoTIFF",
-            "props": {"url": ECHO_RASTER_URL, "projection": "EPSG:32612"},
+            "props": {
+                "url": ECHO_RASTER_URL,
+                "projection": "EPSG:32612",
+                "mask_below": -9999,
+            },
             "style": {
                 "rampName": "magma",
                 "rampMin": 0,
                 "rampMax": 50,
                 "rampReverse": True,
-                "maskBelow": -9999,
             },
         },
     }

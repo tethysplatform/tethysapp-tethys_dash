@@ -2,8 +2,8 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import axios from "axios";
 import { updateObjectWithVariableInputs } from "components/visualizations/utilities";
 import { swapVectorLayerFeatures } from "components/map/utilities";
+import { rasterStyleSettings } from "components/map/geoTIFFStyle";
 import {
-  RASTER_STYLE_FIELDS,
   applyRuntimeRaster,
   attachGeoTIFFSourceErrorHandlers,
   buildRuntimeRaster,
@@ -104,16 +104,15 @@ function changeIdentity(configuration) {
     imageRatio: configuration.props.imageRatio,
   };
   if (isRuntimeRasterConfig(configuration)) {
-    const source = configuration.props.source;
-    // From the shared list, so a style field added there refetches here too.
-    // `mask_below` is the one style field kept on the source's props.
+    // The saved style's settings, picked by the shared list so a style field
+    // added there refetches here too, plus the mask -- which is a source
+    // property rather than a style one, and so has to be named separately or
+    // an edit to it would repaint with the old threshold still applied.
     identity.style = {
       stylePinned: configuration.props.pluginSource.stylePinned === true,
-      maskBelow: source.props?.mask_below,
+      maskBelow: configuration.props.source?.props?.mask_below,
+      ...rasterStyleSettings(configuration.style),
     };
-    RASTER_STYLE_FIELDS.forEach((field) => {
-      identity.style[field] = source[field];
-    });
   }
   return identity;
 }
@@ -257,6 +256,12 @@ export default function useRuntimeLayerFetcher({
   // source built but never applied is disposed.
   const paintRaster = useCallback(
     async (layerId, state, description, isCurrent) => {
+      // Belt and braces. No caller can reach this already stale: a fetch has
+      // just claimed its generation, a repaint claims one as it calls, and the
+      // layer-appeared retry runs under a claim that nothing could have
+      // superseded -- everything that claims a generation also cancels the
+      // listener that retry is waiting on.
+      // istanbul ignore next -- unreachable; see above
       if (!isCurrent()) return;
       const map = mapRef.current;
       // Reopened for a build that waited for its layer to appear; idempotent

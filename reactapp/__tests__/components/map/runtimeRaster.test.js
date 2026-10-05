@@ -43,6 +43,14 @@ jest.mock("ol/source/GeoTIFF.js", () => {
         } else if (outcome === "error") {
           this.error_ = new Error(MockGeoTIFFSource.nextErrorMessage);
           this.setState("error");
+        } else if (outcome === "silent-error") {
+          // Errored with nothing on it to say why, which the real source does
+          // when the failure came from a layer it has no error object for.
+          this.setState("error");
+        } else if (outcome === "deferred") {
+          // Still opening when the build starts waiting on it -- a large file,
+          // or a slow host. The test settles it by hand.
+          MockGeoTIFFSource.pending = this;
         }
       });
     }
@@ -54,6 +62,7 @@ jest.mock("ol/source/GeoTIFF.js", () => {
   MockGeoTIFFSource.constructorSpy = spy;
   MockGeoTIFFSource.nextOutcome = "ready";
   MockGeoTIFFSource.nextErrorMessage = "";
+  MockGeoTIFFSource.pending = null;
   return { __esModule: true, default: MockGeoTIFFSource };
 });
 
@@ -98,6 +107,7 @@ const savedLayer = ({
   source = {},
   sourceProps = {},
   pluginSource = {},
+  style = {},
 } = {}) => ({
   type: "WebGLTile",
   props: {
@@ -114,11 +124,12 @@ const savedLayer = ({
       ...pluginSource,
     },
   },
+  style: { ...style },
 });
 
-const description = (url, { projection, style } = {}) => ({
+const description = (url, { projection, style, props } = {}) => ({
   type: "GeoTIFF",
-  props: { url, ...(projection ? { projection } : {}) },
+  props: { url, ...(projection ? { projection } : {}), ...(props ?? {}) },
   ...(style ? { style } : {}),
 });
 
@@ -177,7 +188,7 @@ describe("layer URL rule", () => {
 
 describe("resolveEffectiveRasterConfig", () => {
   it("overlays the URL and projection onto a copy of the saved config", () => {
-    const saved = savedLayer({ source: { rampName: "viridis" } });
+    const saved = savedLayer({ style: { rampName: "viridis" } });
     const before = JSON.parse(JSON.stringify(saved));
 
     const effective = resolveEffectiveRasterConfig(
@@ -199,8 +210,8 @@ describe("resolveEffectiveRasterConfig", () => {
     // applyAutoRamp skips a source whose resolvedRampUrl matches its URL, so a
     // copy that kept those fields would keep the previous file's style.
     const saved = savedLayer({
+      style: { rampName: "viridis" },
       source: {
-        rampName: "viridis",
         resolvedRampUrl: "https://h/a.tif",
         resolvedRampMin: 1,
         resolvedRampMax: 2,
@@ -251,7 +262,7 @@ describe("resolveEffectiveRasterConfig", () => {
   it("rejects a javascript: URL before any network call", async () => {
     const run = () =>
       resolveEffectiveRasterConfig(
-        savedLayer({ source: { rampName: "viridis" } }),
+        savedLayer({ style: { rampName: "viridis" } }),
         // eslint-disable-next-line no-script-url -- the scheme under test
         description("javascript:alert(1)"),
       );
@@ -273,37 +284,61 @@ describe("resolveEffectiveRasterConfig", () => {
 
   it("replaces the saved style wholesale with the fetch's when unpinned", () => {
     const saved = savedLayer({
-      source: {
+      style: {
         rampName: "Blues",
         rampMin: "1",
         rampMax: "9",
         rampReverse: true,
       },
-      sourceProps: { mask_below: "0.5" },
     });
     const effective = resolveEffectiveRasterConfig(
       saved,
       description("https://h/a.tif", {
-        style: { rampName: "viridis", rampMin: 0, maskBelow: 2 },
+        style: { rampName: "viridis", rampMin: 0 },
       }),
     );
-    const source = effective.props.source;
-
-    expect(source.rampName).toBe("viridis");
-    expect(source.rampMin).toBe(0);
+    expect(effective.style.rampName).toBe("viridis");
+    expect(effective.style.rampMin).toBe(0);
     // Absent from the fetch's style, so cleared rather than inherited.
-    expect(source).not.toHaveProperty("rampMax");
-    expect(source).not.toHaveProperty("rampReverse");
-    expect(source.props.mask_below).toBe(2);
+    expect(effective.style).not.toHaveProperty("rampMax");
+    expect(effective.style).not.toHaveProperty("rampReverse");
   });
 
-  it("clears the saved mask when the fetch's style names none", () => {
+  it("leaves the saved mask alone when a fetch does not mention it", () => {
+    // The mask is a source property, not part of the style a fetch replaces
+    // wholesale: it decides which values the file publishes as data. A fetch
+    // that says nothing about it leaves the author's setting standing.
     const effective = resolveEffectiveRasterConfig(
       savedLayer({
-        source: { rampName: "Blues" },
+        style: { rampName: "Blues" },
         sourceProps: { mask_below: "0.5" },
       }),
       description("https://h/a.tif", { style: { rampName: "viridis" } }),
+    );
+    expect(effective.props.source.props.mask_below).toBe("0.5");
+  });
+
+  it("applies a fetched mask even when the author pinned the style", () => {
+    // Pinning governs styling. The mask is not styling, so it follows the
+    // plugin regardless.
+    const effective = resolveEffectiveRasterConfig(
+      savedLayer({
+        style: { rampName: "Blues" },
+        sourceProps: { mask_below: "0.5" },
+        pluginSource: { stylePinned: true },
+      }),
+      description("https://h/a.tif", { props: { mask_below: "-9999" } }),
+    );
+    expect(effective.props.source.props.mask_below).toBe("-9999");
+  });
+
+  it("clears the saved mask when a fetch sends an empty one", () => {
+    const effective = resolveEffectiveRasterConfig(
+      savedLayer({
+        style: { rampName: "Blues" },
+        sourceProps: { mask_below: "0.5" },
+      }),
+      description("https://h/a.tif", { props: { mask_below: "" } }),
     );
     expect(effective.props.source.props).not.toHaveProperty("mask_below");
   });
@@ -311,7 +346,7 @@ describe("resolveEffectiveRasterConfig", () => {
   it("drops a saved categorical style when an unpinned fetch supplies a ramp", () => {
     const effective = resolveEffectiveRasterConfig(
       savedLayer({
-        source: {
+        style: {
           rampName: "Blues",
           styleMode: "categorical",
           classes: [{ value: 1, color: "#ff0000" }],
@@ -321,17 +356,16 @@ describe("resolveEffectiveRasterConfig", () => {
       }),
       description("https://h/a.tif", { style: { rampName: "viridis" } }),
     );
-    const source = effective.props.source;
-    expect(source).not.toHaveProperty("styleMode");
-    expect(source).not.toHaveProperty("classes");
-    expect(source).not.toHaveProperty("fallbackColor");
-    expect(source.props).not.toHaveProperty("interpolate");
+    expect(effective.style).not.toHaveProperty("styleMode");
+    expect(effective.style).not.toHaveProperty("classes");
+    expect(effective.style).not.toHaveProperty("fallbackColor");
+    expect(effective.props.source.props).not.toHaveProperty("interpolate");
   });
 
   it("drops a saved ranges style when an unpinned fetch supplies a ramp", () => {
     const effective = resolveEffectiveRasterConfig(
       savedLayer({
-        source: {
+        style: {
           rampName: "Blues",
           styleMode: "ranges",
           classes: [{ value: 1, color: "#ff0000" }],
@@ -340,20 +374,19 @@ describe("resolveEffectiveRasterConfig", () => {
       }),
       description("https://h/a.tif", { style: { rampName: "viridis" } }),
     );
-    const source = effective.props.source;
-    expect(source).not.toHaveProperty("styleMode");
-    expect(source).not.toHaveProperty("classes");
-    expect(source.props).not.toHaveProperty("interpolate");
-    expect(source.rampName).toBe("viridis");
+    expect(effective.style).not.toHaveProperty("styleMode");
+    expect(effective.style).not.toHaveProperty("classes");
+    expect(effective.props.source.props).not.toHaveProperty("interpolate");
+    expect(effective.style.rampName).toBe("viridis");
   });
 
   it("uses the saved style when the fetch supplies none", () => {
     const effective = resolveEffectiveRasterConfig(
-      savedLayer({ source: { rampName: "Blues", rampMax: "9" } }),
+      savedLayer({ style: { rampName: "Blues", rampMax: "9" } }),
       description("https://h/a.tif"),
     );
-    expect(effective.props.source.rampName).toBe("Blues");
-    expect(effective.props.source.rampMax).toBe("9");
+    expect(effective.style.rampName).toBe("Blues");
+    expect(effective.style.rampMax).toBe("9");
   });
 
   it("ignores a fetch style on a pinned layer, even one whose saved style has no ramp", () => {
@@ -363,31 +396,33 @@ describe("resolveEffectiveRasterConfig", () => {
         style: { rampName: "viridis", rampMin: 0, rampMax: 50 },
       }),
     );
-    const source = effective.props.source;
-    expect(source).not.toHaveProperty("rampName");
-    expect(source).not.toHaveProperty("rampMin");
-    expect(source).not.toHaveProperty("rampMax");
-    expect(effective).not.toHaveProperty("style");
+    expect(effective.style).toEqual({});
   });
 
-  it("compiles a starting style the way the editor's save does", () => {
-    // Full range: raw values. Anything less: normalized until the file's own
-    // range is resolved.
+  it("hands the fetch's settings on as settings, compiling nothing", () => {
+    // The compiled style depends on the file -- its nodata, its value range --
+    // so it is built by applyAutoRamp once the file is open, not here. What
+    // this returns is the settings, and the source behavior that goes with
+    // them is derived from those at load.
     const pinnedRange = resolveEffectiveRasterConfig(
       savedLayer(),
       description("https://h/a.tif", {
         style: { rampName: "viridis", rampMin: 0, rampMax: 50 },
       }),
     );
-    expect(pinnedRange.props.source.props.normalize).toBe(false);
-    expect(JSON.stringify(pinnedRange.style.color)).toContain("50");
+    expect(pinnedRange.style).toEqual({
+      rampName: "viridis",
+      rampMin: 0,
+      rampMax: 50,
+    });
+    expect(pinnedRange.style).not.toHaveProperty("color");
+    expect(pinnedRange.props.source.props).not.toHaveProperty("normalize");
 
     const open = resolveEffectiveRasterConfig(
       savedLayer(),
       description("https://h/a.tif", { style: { rampName: "magma" } }),
     );
-    expect(open.props.source.props.normalize).toBe(true);
-    expect(open.style.color).toBeDefined();
+    expect(open.style).toEqual({ rampName: "magma" });
   });
 
   it("fails a fetch naming a ramp that does not exist", () => {
@@ -409,7 +444,7 @@ describe("buildRuntimeRaster", () => {
       "https://h/a.tif": statsFile(10, 20),
       "https://h/b.tif": statsFile(3, 9),
     });
-    const saved = savedLayer({ source: { rampName: "Blues" } });
+    const saved = savedLayer({ style: { rampName: "Blues" } });
 
     const first = await build(
       saved,
@@ -444,7 +479,7 @@ describe("buildRuntimeRaster", () => {
   it("Covers AE2. keeps the author's pinned style while following the plugin's URL", async () => {
     mockFiles({ "https://h/a.tif": statsFile(0, 5) });
     const saved = savedLayer({
-      source: { rampName: "Blues" },
+      style: { rampName: "Blues" },
       pluginSource: { stylePinned: true },
     });
 
@@ -466,7 +501,7 @@ describe("buildRuntimeRaster", () => {
   it("Covers AE6. a URL-only fetch draws with the saved ramp, ranged to the returned file", async () => {
     mockFiles({ "https://h/c.tif": statsFile(-2, 7.5) });
     const built = await build(
-      savedLayer({ source: { rampName: "viridis", rampReverse: true } }),
+      savedLayer({ style: { rampName: "viridis", rampReverse: true } }),
       description("https://h/c.tif"),
     );
     expect(built.legendRamp).toEqual({
@@ -500,7 +535,7 @@ describe("buildRuntimeRaster", () => {
     // normalized and the legend says so rather than vanishing.
     mockFiles({ "https://h/flat.tif": {} });
     const built = await build(
-      savedLayer({ source: { rampName: "viridis" } }),
+      savedLayer({ style: { rampName: "viridis" } }),
       description("https://h/flat.tif"),
     );
     expect(built.legendRamp).toEqual({
@@ -522,7 +557,7 @@ describe("buildRuntimeRaster", () => {
     mockFiles({ "https://h/a.tif": statsFile(0, 1) });
     const built = await build(
       savedLayer({
-        source: {
+        style: {
           rampName: "Blues",
           styleMode: "categorical",
           classes: [{ value: 1, color: "#ff0000" }],
@@ -542,7 +577,7 @@ describe("buildRuntimeRaster", () => {
     mockFiles({ "https://h/a.tif": statsFile(0, 1) });
     const built = await build(
       savedLayer({
-        source: {
+        style: {
           rampName: "Blues",
           styleMode: "ranges",
           classes: [
@@ -572,7 +607,7 @@ describe("buildRuntimeRaster", () => {
     mockFiles({ "https://h/a.tif": statsFile(0, 1) });
     await expect(
       build(
-        savedLayer({ source: { rampName: "viridis" } }),
+        savedLayer({ style: { rampName: "viridis" } }),
         description("https://h/a.tif", { projection: "EPSG:999999" }),
       ),
     ).rejects.toThrow(/EPSG:999999/);
@@ -589,7 +624,7 @@ describe("buildRuntimeRaster", () => {
     await expect(
       (async () => {
         built = await build(
-          savedLayer({ source: { rampName: "viridis" } }),
+          savedLayer({ style: { rampName: "viridis" } }),
           description("https://h/huge.tif"),
         );
         applyRuntimeRaster(layer, built);
@@ -597,7 +632,7 @@ describe("buildRuntimeRaster", () => {
     ).rejects.toThrow(GeoTIFFError);
     await expect(
       build(
-        savedLayer({ source: { rampName: "viridis" } }),
+        savedLayer({ style: { rampName: "viridis" } }),
         description("https://h/huge.tif"),
       ),
     ).rejects.toThrow(/Set the ramp's Min and Max/);
@@ -618,7 +653,7 @@ describe("buildRuntimeRaster", () => {
     const apply = jest.fn(applyRuntimeRaster);
 
     const attempt = build(
-      savedLayer({ source: { rampName: "viridis" } }),
+      savedLayer({ style: { rampName: "viridis" } }),
       description("https://h/gone.tif"),
     ).then((built) => apply(layer, built));
 
@@ -637,7 +672,7 @@ describe("buildRuntimeRaster", () => {
     GeoTIFF.nextErrorMessage = "Invalid byte order value.";
     await expect(
       build(
-        savedLayer({ source: { rampName: "viridis" } }),
+        savedLayer({ style: { rampName: "viridis" } }),
         description("https://h/odd.tif"),
       ),
     ).rejects.toThrow(/may not be a Cloud Optimized GeoTIFF/);
@@ -651,7 +686,7 @@ describe("buildRuntimeRaster", () => {
     GeoTIFF.nextOutcome = "hang";
     const attempt = buildRuntimeRaster(
       resolveEffectiveRasterConfig(
-        savedLayer({ source: { rampName: "viridis" } }),
+        savedLayer({ style: { rampName: "viridis" } }),
         description("https://h/slow.tif"),
       ),
       "EPSG:3857",
@@ -672,7 +707,7 @@ describe("buildRuntimeRaster", () => {
       await expect(
         buildRuntimeRaster(
           resolveEffectiveRasterConfig(
-            savedLayer({ source: { rampName: "viridis" } }),
+            savedLayer({ style: { rampName: "viridis" } }),
             description("https://h/slow.tif"),
           ),
           "EPSG:3857",
@@ -694,7 +729,7 @@ describe("buildRuntimeRaster", () => {
     fromUrl.mockImplementation(() => new Promise(() => {}));
     const attempt = buildRuntimeRaster(
       resolveEffectiveRasterConfig(
-        savedLayer({ source: { rampName: "viridis" } }),
+        savedLayer({ style: { rampName: "viridis" } }),
         description("https://h/hung.tif"),
       ),
       "EPSG:3857",
@@ -715,7 +750,7 @@ describe("buildRuntimeRaster", () => {
     try {
       await expect(
         build(
-          savedLayer({ source: { rampName: "viridis" } }),
+          savedLayer({ style: { rampName: "viridis" } }),
           description("https://h/odd.tif"),
         ),
       ).rejects.toThrow(GeoTIFFError);
@@ -903,5 +938,192 @@ describe("isRuntimeRasterConfig", () => {
     zarr.props.source.type = "Zarr";
     expect(isRuntimeRasterConfig(zarr)).toBe(false);
     expect(isRuntimeRasterConfig(undefined)).toBe(false);
+  });
+});
+
+describe("resolveEffectiveRasterConfig style and source edges", () => {
+  it("ignores a fetch style whose ramp name is empty", () => {
+    // "No opinion" and "" mean the same thing from a plugin: the style is
+    // still replaced wholesale, but with nothing to name a palette, so the
+    // layer draws grayscale rather than taking "" as a ramp and failing.
+    const effective = resolveEffectiveRasterConfig(
+      savedLayer({ style: { rampName: "Blues", rampMin: "1" } }),
+      description("https://h/a.tif", { style: { rampName: "", rampMax: 9 } }),
+    );
+    expect(effective.style).toEqual({ rampMax: 9 });
+  });
+
+  it("carries a fetch's reversed ramp, and only when it is set", () => {
+    const reversed = resolveEffectiveRasterConfig(
+      savedLayer(),
+      description("https://h/a.tif", {
+        style: { rampName: "viridis", rampReverse: true },
+      }),
+    );
+    expect(reversed.style).toEqual({ rampName: "viridis", rampReverse: true });
+
+    // Saved only when true, as the editor saves it, so an unreversed layer's
+    // config is unchanged from before the option existed.
+    const plain = resolveEffectiveRasterConfig(
+      savedLayer(),
+      description("https://h/a.tif", {
+        style: { rampName: "viridis", rampReverse: false },
+      }),
+    );
+    expect(plain.style).toEqual({ rampName: "viridis" });
+  });
+
+  it("builds the props of a saved source that has none", () => {
+    // A layer saved before a source prop existed carries no `props` key at
+    // all; the URL still has to land somewhere.
+    const saved = savedLayer();
+    delete saved.props.source.props;
+
+    const effective = resolveEffectiveRasterConfig(
+      saved,
+      description("https://h/a.tif"),
+    );
+    expect(effective.props.source.props).toEqual({ url: "https://h/a.tif" });
+  });
+});
+
+describe("the legend a runtime raster reports", () => {
+  it("labels a ramp left on the normalized scale 0..1", async () => {
+    // No bounds set and none resolvable from the file, so OpenLayers scales
+    // band 1 to 0..1 and the colorbar says so -- rather than being dropped,
+    // which would leave a drawn raster with no legend at all.
+    fromUrl.mockRejectedValue(new Error("no header"));
+    const built = await buildRuntimeRaster(
+      resolveEffectiveRasterConfig(
+        savedLayer({ style: { rampName: "viridis" } }),
+        description("https://h/a.tif"),
+      ),
+      "EPSG:3857",
+    );
+    expect(built.legendRamp).toEqual({
+      rampName: "viridis",
+      rampReverse: false,
+      rampMin: 0,
+      rampMax: 1,
+    });
+  });
+});
+
+describe("describeGeoTIFFSourceFailure", () => {
+  it("names the phase when nothing else is known", () => {
+    // Called with no detail at all: a source that moved to the error state
+    // without an error object on it.
+    const message = describeGeoTIFFSourceFailure("Depth", "source error");
+    expect(message).toContain('GeoTIFF layer "Depth" failed (source error)');
+    expect(message).toContain("Cloud Optimized GeoTIFF");
+    expect(message).not.toContain("Detail:");
+  });
+});
+
+describe("awaiting a source that fails without saying why", () => {
+  it("still reports the failure", async () => {
+    // A source that errors with no error object on it must not make the
+    // message-building throw; the layer still has to report that it failed,
+    // with the generic advice rather than a detail it does not have.
+    GeoTIFF.nextOutcome = "silent-error";
+    mockFiles({ "https://h/a.tif": statsFile(0, 1) });
+
+    await expect(
+      buildRuntimeRaster(
+        resolveEffectiveRasterConfig(
+          savedLayer({ style: { rampName: "viridis" } }),
+          description("https://h/a.tif"),
+        ),
+        "EPSG:3857",
+      ),
+    ).rejects.toThrow(/GeoTIFF layer "Depth" failed/);
+  });
+});
+
+describe("a build the deadline has already given up on", () => {
+  it("stops instead of opening a file nothing will draw", async () => {
+    // The steps before the deadline cannot be cancelled, only outlived. A
+    // header read that lands after the timeout must not go on to construct an
+    // OpenLayers source: nothing would ever draw it, and nothing would dispose
+    // it either, so it would sit open holding its listeners.
+    mockFiles({ "https://h/a.tif": statsFile(0, 1) });
+    const readHeader = fromUrl.getMockImplementation();
+    let releaseHeader;
+    const held = new Promise((resolve) => {
+      releaseHeader = resolve;
+    });
+    fromUrl.mockImplementation(async (url) => {
+      await held;
+      return readHeader(url);
+    });
+
+    const effective = resolveEffectiveRasterConfig(
+      savedLayer({ style: { rampName: "viridis" } }),
+      description("https://h/a.tif"),
+    );
+    const build = buildRuntimeRaster(effective, "EPSG:3857", { timeoutMs: 1 });
+
+    await expect(build).rejects.toThrow(/timed out opening the file/);
+    expect(GeoTIFF.constructorSpy).not.toHaveBeenCalled();
+
+    releaseHeader();
+    for (let i = 0; i < 50; i += 1) await Promise.resolve();
+
+    // Still nothing built, now that the read it was waiting on has landed.
+    expect(GeoTIFF.constructorSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("a source still opening when the build waits on it", () => {
+  // Every other test's source is ready by the time the build gets to it: the
+  // statistics and header reads take enough microtasks that it has settled
+  // already. This is the path where the build actually waits -- the listener
+  // it attaches, and what that listener does when the state finally changes.
+  const buildAgainst = () =>
+    buildRuntimeRaster(
+      resolveEffectiveRasterConfig(
+        savedLayer({ style: { rampName: "viridis" } }),
+        description("https://h/a.tif"),
+      ),
+      "EPSG:3857",
+    );
+
+  const waitForPendingSource = async () => {
+    for (let i = 0; i < 50 && !GeoTIFF.pending; i += 1) {
+      await Promise.resolve();
+    }
+    return GeoTIFF.pending;
+  };
+
+  beforeEach(() => {
+    mockFiles({ "https://h/a.tif": statsFile(0, 1) });
+    GeoTIFF.nextOutcome = "deferred";
+    GeoTIFF.pending = null;
+  });
+
+  it("resolves once the file opens", async () => {
+    const build = buildAgainst();
+    const source = await waitForPendingSource();
+    expect(source).toBeTruthy();
+
+    source.setState("ready");
+    const built = await build;
+    expect(built.source).toBe(source);
+    expect(built.legendRamp).toEqual({
+      rampName: "viridis",
+      rampReverse: false,
+      rampMin: 0,
+      rampMax: 1,
+    });
+  });
+
+  it("rejects once the file fails to open", async () => {
+    const build = buildAgainst();
+    const source = await waitForPendingSource();
+
+    source.error_ = new Error("request failed: https://h/a.tif");
+    source.setState("error");
+
+    await expect(build).rejects.toThrow(/failed to fetch the file/i);
   });
 });

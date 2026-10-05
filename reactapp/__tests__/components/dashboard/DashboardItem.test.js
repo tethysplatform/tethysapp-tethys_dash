@@ -3337,6 +3337,102 @@ test("Dashboard Item copy of a plugin-backed layer re-mints its layer id", async
   expect(copyArgs.layers[0].configuration.props.layerId).toBe("12345678");
 });
 
+// A raster's style is its ramp settings, edited in place on the Style tab. The
+// import walk uploads a layer's style as a file so the dashboard can fetch it,
+// which would turn those settings into a filename the editor cannot edit back.
+describe("handleGridItemImport raster styles", () => {
+  const rasterGridItem = (sourceType, style) => ({
+    i: "1",
+    x: 0,
+    y: 0,
+    w: 20,
+    h: 20,
+    source: "Map",
+    args_string: {
+      layers: [
+        {
+          configuration: {
+            type: "WebGLTile",
+            props: {
+              name: "Depth",
+              source: {
+                type: sourceType,
+                props: { url: "https://example.com/depth.tif" },
+              },
+            },
+            style,
+          },
+        },
+      ],
+    },
+    metadata_string: { refreshRate: 0 },
+  });
+
+  const savedStyleOf = (response) =>
+    JSON.parse(response.importedGridItem.args_string).layers[0].configuration
+      .style;
+
+  test.each(["GeoTIFF", "Zarr"])(
+    "keeps a %s layer's ramp settings inline rather than uploading them",
+    async (sourceType) => {
+      const mockUploadJSON = jest.fn();
+      jest.spyOn(appAPI, "uploadJSON").mockImplementation(mockUploadJSON);
+      const style = { rampName: "viridis", rampMin: "0", rampMax: "50" };
+
+      const response = await handleGridItemImport(
+        rasterGridItem(sourceType, style),
+        "csrf",
+        "dash-uuid",
+      );
+
+      expect(response.success).toBe(true);
+      expect(savedStyleOf(response)).toEqual(style);
+      expect(mockUploadJSON).not.toHaveBeenCalled();
+    },
+  );
+
+  test.each(["GeoTIFF", "Zarr"])(
+    "keeps a %s layer's class table inline too",
+    async (sourceType) => {
+      // The marker is `classes` rather than `rampName` here, so this covers the
+      // other way a style is recognized as settings.
+      const mockUploadJSON = jest.fn();
+      jest.spyOn(appAPI, "uploadJSON").mockImplementation(mockUploadJSON);
+      const style = {
+        styleMode: "ranges",
+        classes: [{ value: "1", color: "#aaa" }],
+      };
+
+      const response = await handleGridItemImport(
+        rasterGridItem(sourceType, style),
+        "csrf",
+        "dash-uuid",
+      );
+
+      expect(savedStyleOf(response)).toEqual(style);
+      expect(mockUploadJSON).not.toHaveBeenCalled();
+    },
+  );
+
+  test("uploads a raster's hand-authored OpenLayers style, as for any layer", async () => {
+    // Not ramp settings, so there is nothing for the Style tab to edit and it
+    // is a style file like any other.
+    const mockUploadJSON = jest
+      .fn()
+      .mockResolvedValue({ success: true, filename: "style.json" });
+    jest.spyOn(appAPI, "uploadJSON").mockImplementation(mockUploadJSON);
+
+    const response = await handleGridItemImport(
+      rasterGridItem("GeoTIFF", { color: ["band", 1] }),
+      "csrf",
+      "dash-uuid",
+    );
+
+    expect(savedStyleOf(response)).toBe("style.json");
+    expect(mockUploadJSON).toHaveBeenCalledTimes(1);
+  });
+});
+
 test("handleGridItemImport reports an unparseable args_string", async () => {
   // A hand-authored file is the expected traffic here, so this must come back
   // as a reported failure rather than a throw: neither call site catches, so a

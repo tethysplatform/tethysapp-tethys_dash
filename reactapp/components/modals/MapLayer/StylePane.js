@@ -105,6 +105,8 @@ const StylePane = ({
   containerRef,
   sourceProps,
   setSourceProps,
+  rasterStyle = {},
+  setRasterStyle,
   layerProps,
   shapefileDiscovery,
 }) => {
@@ -162,10 +164,10 @@ const StylePane = ({
   ]);
 
   useEffect(() => {
-    if (isRaster && !sourceProps.rampName && setSourceProps) {
-      setSourceProps((prev) => ({ ...prev, rampName: "turbo" }));
+    if (isRaster && !rasterStyle.rampName && setRasterStyle) {
+      setRasterStyle((prev) => ({ ...prev, rampName: "turbo" }));
     }
-  }, [isRaster, sourceProps.rampName, setSourceProps]);
+  }, [isRaster, rasterStyle.rampName, setRasterStyle]);
 
   useEffect(() => {
     const fetchJSON = async () => {
@@ -257,11 +259,13 @@ const StylePane = ({
   }
 
   if (isRaster) {
-    const selectedRamp = sourceProps.rampName ?? null;
-    const rampMin = sourceProps.rampMin ?? "";
-    const rampMax = sourceProps.rampMax ?? "";
-    const rampReverse = sourceProps.rampReverse === true;
-    const maskBelow = sourceProps.props?.mask_below ?? "";
+    // The settings are edited in the shape they are saved in, the layer's
+    // `configuration.style`. The pin is the plugin binding's, so it stays on the
+    // source props, which become the saved `pluginSource`.
+    const selectedRamp = rasterStyle.rampName ?? null;
+    const rampMin = rasterStyle.rampMin ?? "";
+    const rampMax = rasterStyle.rampMax ?? "";
+    const rampReverse = rasterStyle.rampReverse === true;
     // Absent means the layer follows the plugin's styling.
     const followsPlugin = sourceProps.stylePinned !== true;
 
@@ -269,12 +273,13 @@ const StylePane = ({
     // stop replacing it. The plugin is followed again only when the author
     // says so with the toggle.
     const editRasterStyle = (patch) => {
-      if (!setSourceProps) return;
-      setSourceProps((prev) => {
-        const next = { ...prev, ...patch(prev) };
-        if (isRuntimeGeoTIFF) next.stylePinned = true;
-        return next;
-      });
+      if (!setRasterStyle) return;
+      setRasterStyle((prev) => ({ ...prev, ...patch(prev) }));
+      if (isRuntimeGeoTIFF && setSourceProps) {
+        setSourceProps((prev) =>
+          prev.stylePinned === true ? prev : { ...prev, stylePinned: true },
+        );
+      }
     };
 
     const handleFollowPluginToggle = (e) => {
@@ -303,20 +308,13 @@ const StylePane = ({
       const value = e.target.value;
       editRasterStyle(() => ({ rampMax: value }));
     };
-    const handleMaskBelowChange = (e) => {
-      const value = e.target.value;
-      editRasterStyle((prev) => ({
-        props: { ...(prev.props ?? {}), mask_below: value },
-      }));
-    };
-
     // Categorical and Ranges share the class table; only how a class's value
     // is read differs (an exact value, or the top of an interval). Switching
     // between them keeps the rows, since `classes` is untouched by a mode
     // switch.
-    const isRanges = sourceProps.styleMode === "ranges";
-    const isClassStyled = isClassStyleMode(sourceProps.styleMode);
-    const classes = sourceProps.classes ?? [];
+    const isRanges = rasterStyle.styleMode === "ranges";
+    const isClassStyled = isClassStyleMode(rasterStyle.styleMode);
+    const classes = rasterStyle.classes ?? [];
 
     const setMode = (mode) => editRasterStyle(() => ({ styleMode: mode }));
     const updateClasses = (next) => editRasterStyle(() => ({ classes: next }));
@@ -487,7 +485,7 @@ const StylePane = ({
               <RangeCell>
                 <ColorPickerPopOver
                   label="Other values"
-                  color={sourceProps.fallbackColor ?? ""}
+                  color={rasterStyle.fallbackColor ?? ""}
                   onChange={(color) =>
                     editRasterStyle(() => ({ fallbackColor: color }))
                   }
@@ -525,23 +523,6 @@ const StylePane = ({
             Leave Min/Max empty to fit the range to each file the plugin
             returns.
           </HelperText>
-        )}
-        {/* A static layer sets this in its Source tab; a dynamic one has no
-            source properties to set there, only plugin arguments. */}
-        {isRuntimeGeoTIFF && (
-          <RangeRow>
-            <RangeCell>
-              <NormalInput
-                label="Mask below"
-                value={maskBelow}
-                type="number"
-                onChange={handleMaskBelowChange}
-                ariaLabel="Mask Below"
-                placeholder="Mask values at or below this"
-                allowEmpty
-              />
-            </RangeCell>
-          </RangeRow>
         )}
       </GeoTIFFSection>
     );
@@ -663,9 +644,20 @@ StylePane.propTypes = {
   setErrorMessage: PropTypes.func,
   sourceProps: PropTypes.shape({
     type: PropTypes.string,
+    // Dynamic GeoTIFF only: true once the author's style overrides the
+    // plugin's. Absent means the layer follows the plugin.
+    stylePinned: PropTypes.bool,
+    geojson: PropTypes.oneOfType([PropTypes.string, PropTypes.object]),
+    props: PropTypes.shape({
+      sources: PropTypes.arrayOf(PropTypes.shape({ url: PropTypes.string })),
+    }),
+  }),
+  setSourceProps: PropTypes.func,
+  // A raster's style settings, in the shape saved as its configuration.style.
+  rasterStyle: PropTypes.shape({
     rampName: PropTypes.string,
-    rampMin: PropTypes.string,
-    rampMax: PropTypes.string,
+    rampMin: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    rampMax: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
     // Flip the ramp so its last color lands on the low end of the range.
     rampReverse: PropTypes.bool,
     // "categorical" colors by exact class value instead of a ramp range;
@@ -679,16 +671,9 @@ StylePane.propTypes = {
       }),
     ),
     fallbackColor: PropTypes.string,
-    // Dynamic GeoTIFF only: true once the author's style overrides the
-    // plugin's. Absent means the layer follows the plugin.
-    stylePinned: PropTypes.bool,
-    geojson: PropTypes.oneOfType([PropTypes.string, PropTypes.object]),
-    props: PropTypes.shape({
-      sources: PropTypes.arrayOf(PropTypes.shape({ url: PropTypes.string })),
-      mask_below: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
-    }),
+    // Cells at or below this raw value render transparent.
   }),
-  setSourceProps: PropTypes.func,
+  setRasterStyle: PropTypes.func,
   layerProps: PropTypes.shape({
     name: PropTypes.string, // name of the layer
     opacity: PropTypes.oneOfType([PropTypes.number, PropTypes.string]), // opacity of the layer (0-1)

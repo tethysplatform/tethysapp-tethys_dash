@@ -12,7 +12,6 @@ import { layerPropType, resolveTablePopupType } from "components/map/utilities";
 import { AppContext } from "components/contexts/Contexts";
 import { findSelectOptionByValue } from "components/visualizations/utilities";
 import { DEFAULT_DYNAMIC_LAYER_SOURCE } from "components/modals/MapLayer/runtimeLayerSource";
-import { RASTER_STYLE_FIELDS } from "components/map/runtimeRaster";
 
 const FixedTable = styled(Table)`
   table-layout: fixed;
@@ -50,9 +49,9 @@ const HoverDiv = styled.div`
  * The editor's source props for a saved dynamic plugin layer.
  *
  * A dynamic GeoJSON layer's saved source is a placeholder, so only the plugin
- * binding comes back. A dynamic GeoTIFF's saved source *is* its style -- the
- * ramp fields and its props (mask_below) -- so those come back too, with the
- * pin, or the Style tab would open on defaults and a save would discard them.
+ * binding comes back. A dynamic GeoTIFF's source props come back too, with the
+ * pin, or a save would discard them. Its ramp settings are its saved style, and
+ * reach the Style tab from there with every other raster's.
  */
 export function rehydratePluginSourceProps(
   pluginOption,
@@ -75,11 +74,6 @@ export function rehydratePluginSourceProps(
   sourceProps.dynamic_map_layer_source = declaredSource;
   if (declaredSource !== "GeoTIFF") return sourceProps;
 
-  RASTER_STYLE_FIELDS.forEach((field) => {
-    if (savedSource?.[field] !== undefined) {
-      sourceProps[field] = savedSource[field];
-    }
-  });
   sourceProps.props = { ...(savedSource?.props ?? {}) };
   if (pluginSource.stylePinned === true) sourceProps.stylePinned = true;
   return sourceProps;

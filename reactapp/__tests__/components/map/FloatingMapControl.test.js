@@ -9,6 +9,7 @@ import FloatingMapControl, {
   MapSizedControlContainer,
 } from "components/map/FloatingMapControl";
 import { makeMapDiv } from "__tests__/utilities/mapDiv";
+import PropTypes from "prop-types";
 
 // jsdom does no layout, so every rect is stubbed. These tests pin the mapping
 // from anchor rect to fixed-position style and the escape from the parent tree;
@@ -28,6 +29,17 @@ beforeEach(() => {
 afterEach(() => {
   jest.restoreAllMocks();
 });
+
+// A fill-viewport tile: position:fixed, which seals its descendants into a
+// stacking context they cannot paint out of. The control only portals out of
+// one of these -- inside an ordinary tile it stays put, so that an author who
+// sends another grid item to the front still covers it.
+const FixedTile = ({ children }) => (
+  <div data-testid="map-tile" style={{ position: "fixed" }}>
+    {children}
+  </div>
+);
+FixedTile.propTypes = { children: PropTypes.node };
 
 describe("styleFromAnchor", () => {
   // A bottom-left anchor collapses to a point once its content is portalled
@@ -68,7 +80,12 @@ describe("styleFromAnchor", () => {
 });
 
 describe("FloatingMapControl", () => {
-  test("renders its children outside the parent tree", () => {
+  test("stays inside an ordinary tile, so a tile sent to the front covers it", () => {
+    // The reported bug: grid items carry no z-index and are painted in DOM
+    // order, so a control portalled onto document.body outranks every tile --
+    // a text box an author sent to the front covered the map but not its
+    // legend. Nothing seals an ordinary tile, so nothing is portalled out of
+    // one and the control is ordered with the tile that owns it.
     stubRect({
       left: 16,
       right: 16,
@@ -83,6 +100,30 @@ describe("FloatingMapControl", () => {
           <button type="button">Show Legend</button>
         </FloatingMapControl>
       </div>,
+    );
+
+    const control = screen.getByRole("button", { name: "Show Legend" });
+    expect(screen.getByTestId("map-tile")).toContainElement(control);
+    expect(
+      screen.queryByTestId("floating-map-control"),
+    ).not.toBeInTheDocument();
+  });
+
+  test("renders its children outside the parent tree", () => {
+    stubRect({
+      left: 16,
+      right: 16,
+      top: 700,
+      bottom: 700,
+      width: 0,
+      height: 0,
+    });
+    render(
+      <FixedTile>
+        <FloatingMapControl edges={["bottom", "left"]}>
+          <button type="button">Show Legend</button>
+        </FloatingMapControl>
+      </FixedTile>,
     );
 
     const control = screen.getByRole("button", { name: "Show Legend" });
@@ -103,9 +144,11 @@ describe("FloatingMapControl", () => {
       height: 0,
     });
     render(
-      <FloatingMapControl edges={["bottom", "left"]}>
-        <span>content</span>
-      </FloatingMapControl>,
+      <FixedTile>
+        <FloatingMapControl edges={["bottom", "left"]}>
+          <span>content</span>
+        </FloatingMapControl>
+      </FixedTile>,
     );
 
     const floated = screen.getByTestId("floating-map-control");
@@ -127,9 +170,11 @@ describe("FloatingMapControl", () => {
       height: 0,
     });
     render(
-      <FloatingMapControl edges={["bottom", "left"]}>
-        <span>content</span>
-      </FloatingMapControl>,
+      <FixedTile>
+        <FloatingMapControl edges={["bottom", "left"]}>
+          <span>content</span>
+        </FloatingMapControl>
+      </FixedTile>,
     );
     expect(screen.getByTestId("floating-map-control")).toHaveStyle({
       bottom: "100px",
@@ -174,9 +219,11 @@ describe("FloatingMapControl", () => {
     global.ResizeObserver = jest.fn(() => ({ observe, disconnect }));
 
     const { unmount } = render(
-      <FloatingMapControl edges={["bottom", "left"]}>
-        <span>content</span>
-      </FloatingMapControl>,
+      <FixedTile>
+        <FloatingMapControl edges={["bottom", "left"]}>
+          <span>content</span>
+        </FloatingMapControl>
+      </FixedTile>,
     );
     expect(addSpy).toHaveBeenCalledWith("resize", expect.any(Function));
     expect(addSpy).toHaveBeenCalledWith("scroll", expect.any(Function), true);
@@ -201,9 +248,11 @@ describe("FloatingMapControl", () => {
       height: 0,
     });
     render(
-      <FloatingMapControl edges={["bottom", "left"]} className="anchor-class">
-        <span>content</span>
-      </FloatingMapControl>,
+      <FixedTile>
+        <FloatingMapControl edges={["bottom", "left"]} className="anchor-class">
+          <span>content</span>
+        </FloatingMapControl>
+      </FixedTile>,
     );
 
     // The caller's positioning CSS rides on the anchor, so it has to remain in

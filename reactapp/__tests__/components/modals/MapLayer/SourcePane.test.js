@@ -725,6 +725,91 @@ describe("generatePropertiesArrayWithValues", () => {
 });
 
 describe("SourcePane Dynamic Map Layer", () => {
+  test("a dynamic raster layer offers a mask field; a GeoJSON one does not", async () => {
+    // The plugin owns the file, so the Source tab offers none of its props --
+    // except the mask, which says which of the file's values count as data.
+    // That is the author's call about their map, not the plugin's about its
+    // file, so it has to be editable here or nowhere.
+    const plugin = (declared) => [
+      {
+        label: "Dynamic Map Layers",
+        options: [
+          {
+            source: "raster_plugin",
+            value: "Flood Depth",
+            label: "Flood Depth",
+            args: {},
+            type: "map_layer",
+            dynamic_map_layer: true,
+            dynamic_map_layer_source: declared,
+          },
+        ],
+      },
+    ];
+
+    const { unmount } = render(
+      <TestingComponent
+        initialSourceProps={{ source: "raster_plugin", type: "map_layer" }}
+        dynamicMapLayers={plugin("GeoTIFF")}
+      />,
+    );
+    expect(await screen.findByLabelText("Mask Below")).toBeInTheDocument();
+    unmount();
+
+    render(
+      <TestingComponent
+        initialSourceProps={{ source: "raster_plugin", type: "map_layer" }}
+        dynamicMapLayers={plugin("GeoJSON")}
+      />,
+    );
+    await screen.findByLabelText("Fetch plugin defaults");
+    expect(screen.queryByLabelText("Mask Below")).not.toBeInTheDocument();
+  });
+
+  test("editing the mask on a dynamic raster writes it to the source props", async () => {
+    const sourcePropsSpy = jest.fn();
+    render(
+      <TestingComponent
+        sourcePropsSpy={sourcePropsSpy}
+        initialSourceProps={{ source: "raster_plugin", type: "map_layer" }}
+        dynamicMapLayers={[
+          {
+            label: "Dynamic Map Layers",
+            options: [
+              {
+                source: "raster_plugin",
+                value: "Flood Depth",
+                label: "Flood Depth",
+                args: {},
+                type: "map_layer",
+                dynamic_map_layer: true,
+                dynamic_map_layer_source: "GeoTIFF",
+              },
+            ],
+          },
+        ]}
+      />,
+    );
+
+    fireEvent.change(await screen.findByLabelText("Mask Below"), {
+      target: { value: "-9999" },
+    });
+
+    await waitFor(() => {
+      const last = sourcePropsSpy.mock.calls.at(-1)[0];
+      expect(last.props.mask_below).toBe("-9999");
+    });
+
+    // Clearing it removes the key rather than saving an empty string.
+    fireEvent.change(screen.getByLabelText("Mask Below"), {
+      target: { value: "" },
+    });
+    await waitFor(() => {
+      const last = sourcePropsSpy.mock.calls.at(-1)[0];
+      expect(last.props).not.toHaveProperty("mask_below");
+    });
+  });
+
   test("Dynamic Map Layer option appears in source-type dropdown", async () => {
     const sourcePropsSpy = jest.fn();
 

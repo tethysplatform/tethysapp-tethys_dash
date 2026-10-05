@@ -46,6 +46,11 @@ const Anchor = styled.div`
   pointer-events: none;
 `;
 
+/* The control in its own tile, which is the usual case. Carries the same
+   positioning CSS the anchor would have, but is the real control rather than a
+   placeholder -- so no aria-hidden and no pointer-events override. */
+const InPlace = styled.div``;
+
 const Floating = styled.div`
   position: fixed;
   z-index: ${FLOATING_CONTROL_Z_INDEX};
@@ -194,6 +199,32 @@ MapSizedControlContainer.propTypes = {
   children: PropTypes.node,
 };
 
+/**
+ * Whether an ancestor seals this control into a stacking context it cannot
+ * paint out of.
+ *
+ * Keyed on the condition itself rather than on who caused it. A fill-viewport
+ * tile is `position: fixed`, and that is the case this component exists for --
+ * but asking the DOM means this cannot drift from however that decision is
+ * made, and it answers for any future ancestor that does the same thing.
+ *
+ * The walk stops at the dashboard surface: the app's own fixed header is an
+ * ancestor of nothing here, and going further would find the odd fixed wrapper
+ * that encloses the whole page rather than this tile.
+ */
+function sealedInStackingContext(node) {
+  // istanbul ignore next -- defensive: callers check the ref first
+  if (!node) return false;
+  for (
+    let el = node.parentElement;
+    el && el !== document.body;
+    el = el.parentElement
+  ) {
+    if (window.getComputedStyle(el).position === "fixed") return true;
+  }
+  return false;
+}
+
 const FloatingMapControl = ({
   edges,
   className,
@@ -204,6 +235,7 @@ const FloatingMapControl = ({
   const anchorRef = useRef(null);
   const [style, setStyle] = useState(null);
   const [mapDivHeight, setMapDivHeight] = useState(null);
+  const [trapped, setTrapped] = useState(false);
 
   const reposition = useCallback(() => {
     const anchor = anchorRef.current;
@@ -213,6 +245,9 @@ const FloatingMapControl = ({
     // being observed. A callback delivered in that window finds no anchor, and
     // has nothing left to position.
     if (!anchor) return;
+    // Re-asked on every reposition rather than once on mount: toggling fill
+    // viewport on a tile changes the answer without remounting the control.
+    setTrapped(sealedInStackingContext(anchor));
     setStyle(
       styleFromAnchor(anchor.getBoundingClientRect(), edges, {
         width: window.innerWidth,
@@ -283,6 +318,30 @@ const FloatingMapControl = ({
     };
   }, [reposition, mapDivRef]);
 
+  // Leaving the tile costs the control its place in the dashboard's paint
+  // order: grid items have no z-index of their own and are ordered by the DOM
+  // alone, so a portalled control sits above every tile no matter which one an
+  // author sent to the front. That is only worth paying where the control
+  // would otherwise be sealed in, so it is paid only there.
+  const content = (
+    <MapDivHeightContext.Provider value={mapDivHeight}>
+      {children}
+    </MapDivHeightContext.Provider>
+  );
+
+  if (!trapped) {
+    return (
+      <InPlace
+        ref={anchorRef}
+        className={className}
+        data-testid="floating-map-control-inplace"
+        {...rest}
+      >
+        {content}
+      </InPlace>
+    );
+  }
+
   return (
     <>
       <Anchor
@@ -294,9 +353,7 @@ const FloatingMapControl = ({
       {style &&
         ReactDOM.createPortal(
           <Floating style={style} data-testid="floating-map-control" {...rest}>
-            <MapDivHeightContext.Provider value={mapDivHeight}>
-              {children}
-            </MapDivHeightContext.Provider>
+            {content}
           </Floating>,
           document.body,
         )}

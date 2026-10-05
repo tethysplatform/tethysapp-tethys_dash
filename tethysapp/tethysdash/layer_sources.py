@@ -48,9 +48,9 @@ def is_allowed_layer_url(url):
 
 
 _LAYER_SOURCE_DESCRIPTION_KEYS = frozenset({"type", "props", "style"})
-_LAYER_SOURCE_PROPS_KEYS = frozenset({"url", "projection"})
+_LAYER_SOURCE_PROPS_KEYS = frozenset({"url", "projection", "mask_below"})
 _LAYER_SOURCE_STYLE_KEYS = frozenset(
-    {"rampName", "rampMin", "rampMax", "rampReverse", "maskBelow"}
+    {"rampName", "rampMin", "rampMax", "rampReverse"}
 )
 # A source description legitimately carries "props" and "style", so a
 # scaffold is recognized by the keys only a configure-time layer config has.
@@ -81,9 +81,9 @@ def validate_layer_source_description(data, expected_type):
     """
     Validate the return value of a dynamic-map-layer plugin's ``fetch_source``.
 
-    The shape is ``{"type": expected_type, "props": {"url", "projection"?},
-    "style"?: {"rampName", "rampMin", "rampMax", "rampReverse",
-    "maskBelow"}}``, the keys :py:func:`geotiff_source` writes. Every rejection
+    The shape is ``{"type": expected_type, "props": {"url", "projection"?,
+    "mask_below"?}, "style"?: {"rampName", "rampMin", "rampMax",
+    "rampReverse"}}``, the keys :py:func:`geotiff_source` writes. Every rejection
     names what to change, so plugin authors can self-diagnose from the
     per-layer error UI.
 
@@ -144,8 +144,8 @@ def validate_layer_source_description(data, expected_type):
     if unknown_props:
         raise ValueError(
             f"source description props has unknown keys: {', '.join(unknown_props)}. "
-            "Allowed keys are url and projection; styling such as mask_below "
-            "goes in style (maskBelow)."
+            "Allowed keys are url, projection and mask_below; ramp settings "
+            "go in style."
         )
 
     url = props.get("url")
@@ -175,6 +175,12 @@ def validate_layer_source_description(data, expected_type):
                 f"{_MAX_PROJECTION_LENGTH} characters; pass an EPSG code or a "
                 "shorter definition."
             )
+
+    if "mask_below" in props and not _is_finite_number(props["mask_below"]):
+        raise ValueError(
+            "source description props.mask_below must be a finite number, got "
+            f"{props['mask_below']!r}; omit it to mask nothing."
+        )
 
     if "style" not in data:
         return True
@@ -210,11 +216,6 @@ def validate_layer_source_description(data, expected_type):
             "source description style.rampReverse must be True or False, got "
             f"{style['rampReverse']!r}."
         )
-    if "maskBelow" in style and not _is_finite_number(style["maskBelow"]):
-        raise ValueError(
-            "source description style.maskBelow must be a finite number, got "
-            f"{style['maskBelow']!r}; omit it to mask nothing."
-        )
     return True
 
 
@@ -234,7 +235,9 @@ def geotiff_source(
     style argument is set, in which case the layer keeps its saved style. When
     a ``style`` is returned it replaces the layer's saved ramp settings as a
     whole (unless the dashboard author has pinned the style); a missing
-    ``ramp_min``/``ramp_max`` is resolved from the file's statistics.
+    ``ramp_min``/``ramp_max`` is resolved from the file's statistics. The
+    ``style`` keys are the ones a raster layer saves in its
+    ``configuration.style``, so no translation happens between the two.
 
     Args:
         url (str): ``http(s)`` URL, or a path on this server, of the GeoTIFF.
@@ -244,24 +247,30 @@ def geotiff_source(
         ramp_min (float | str, optional): Value at the ramp's low end.
         ramp_max (float | str, optional): Value at the ramp's high end.
         ramp_reverse (bool, optional): Reverse the ramp.
-        mask_below (float, optional): Hide values at or below this.
+        mask_below (float, optional): Hide values at or below this. A source
+            property, so it applies even when the author has pinned styling.
 
     Example:
         return geotiff_source(f"https://example.com/{self.date}.tif",
                               ramp_name="viridis", ramp_min=0, ramp_max=50)
 
     Returns:
-        dict: ``{"type": "GeoTIFF", "props": {...}, "style"?: {...}}``.
+        dict: ``{"type": "GeoTIFF", "props": {url, projection?, mask_below?},
+        "style"?: {...}}``.
     """
     props = {"url": url}
     if projection is not None:
         props["projection"] = projection
+    # A source property, not a style one: it decides which values the file
+    # publishes as data. It is therefore applied whether or not the dashboard
+    # author has pinned the layer's styling.
+    if mask_below is not None:
+        props["mask_below"] = mask_below
     style_values = {
         "rampName": ramp_name,
         "rampMin": ramp_min,
         "rampMax": ramp_max,
         "rampReverse": ramp_reverse,
-        "maskBelow": mask_below,
     }
     style = {key: value for key, value in style_values.items() if value is not None}
 

@@ -1728,25 +1728,29 @@ def test_builder_set_raster_ramp_writes_editor_keys():
         .build()
     )
 
-    source = config["configuration"]["props"]["source"]
-    assert source == {
+    # The ramp settings are the layer's style; the source carries none of them.
+    assert config["configuration"]["props"]["source"] == {
         "type": "GeoTIFF",
         "props": {},
+    }
+    # Only the authored settings: the compiled OL style is built at render
+    # time, never by the builder.
+    assert config["configuration"]["style"] == {
         "rampName": "viridis",
         "rampMin": "0",
         "rampMax": "50",
     }
-    # The compiled OL style is built at render time, not by the builder.
-    assert "style" not in config["configuration"]
 
 
 def test_builder_set_raster_ramp_full_and_replace():
     builder = LayerConfigurationBuilder("Rain", "GeoTIFF").set_plugin_source("p", {})
     builder.set_raster_ramp("magma", 1.5, "9", reverse=True, mask_below=-9999)
-    source = builder.build()["configuration"]["props"]["source"]
-    assert source == {
+    configuration = builder.build()["configuration"]
+    assert configuration["props"]["source"] == {
         "type": "GeoTIFF",
         "props": {"mask_below": "-9999"},
+    }
+    assert configuration["style"] == {
         "rampName": "magma",
         "rampMin": "1.5",
         "rampMax": "9",
@@ -1755,19 +1759,43 @@ def test_builder_set_raster_ramp_full_and_replace():
 
     # A second call replaces the ramp; unset values are removed, not kept.
     builder.set_raster_ramp("blues")
-    source = builder.build()["configuration"]["props"]["source"]
-    assert source == {"type": "GeoTIFF", "props": {}, "rampName": "blues"}
+    assert builder.build()["configuration"]["style"] == {"rampName": "blues"}
 
 
 def test_builder_set_raster_ramp_on_static_geotiff():
-    source = (
+    configuration = (
         LayerConfigurationBuilder("Rain", "GeoTIFF")
         .set_source_properties(url="https://x/a.tif")
         .set_raster_ramp("viridis")
-        .build()["configuration"]["props"]["source"]
+        .build()["configuration"]
     )
-    assert source["props"]["url"] == "https://x/a.tif"
-    assert source["rampName"] == "viridis"
+    assert configuration["props"]["source"] == {
+        "type": "GeoTIFF",
+        "props": {"url": "https://x/a.tif"},
+    }
+    assert configuration["style"] == {"rampName": "viridis"}
+
+
+def test_builder_set_raster_ramp_on_zarr():
+    configuration = (
+        LayerConfigurationBuilder("Depth", "Zarr")
+        .set_source_properties(url="https://x/a.zarr", variable="depth")
+        .set_raster_ramp("blues", mask_below=0.1)
+        .build()["configuration"]
+    )
+    assert configuration["type"] == "WebGLTile"
+    assert configuration["style"] == {"rampName": "blues"}
+    # A source property, so it lands beside the url rather than in the style.
+    assert configuration["props"]["source"]["props"]["mask_below"] == "0.1"
+
+
+def test_raster_source_properties_list_mask_below():
+    # It is edited on the Source tab, which is driven by this list.
+    for source in ("GeoTIFF", "Zarr"):
+        optional = LayerConfigurationBuilder(
+            "x", source
+        ).get_available_source_properties()["optional"]
+        assert "mask_below" in optional
 
 
 def test_builder_set_raster_ramp_rejects_non_geotiff():
@@ -1832,11 +1860,12 @@ def test_echo_raster_fixture_scaffold_round_trips():
             "type": "WebGLTile",
             "props": {
                 "name": "Echo Raster",
-                "source": {"type": "GeoTIFF", "props": {}, "rampName": "viridis"},
+                "source": {"type": "GeoTIFF", "props": {}},
                 "pluginSource": {
                     "source": "echo_runtime_raster",
                     "args": {"mode": "happy"},
                 },
             },
+            "style": {"rampName": "viridis"},
         }
     }

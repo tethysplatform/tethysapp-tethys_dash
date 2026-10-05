@@ -572,15 +572,15 @@ describe("AddMapLayer dynamic GeoTIFF layers", () => {
       props: {
         name: "Echo Raster",
         layerId: "raster-layer-id",
-        source: {
-          type: "GeoTIFF",
-          props: { mask_below: "-9999" },
-          rampName: "Blues",
-          rampMin: "0",
-          rampMax: "5",
-          rampReverse: true,
-        },
+        // The mask stays a source property; the ramp is the layer's style.
+        source: { type: "GeoTIFF", props: { mask_below: "-9999" } },
         pluginSource,
+      },
+      style: {
+        rampName: "Blues",
+        rampMin: "0",
+        rampMax: "5",
+        rampReverse: true,
       },
     },
   });
@@ -635,7 +635,12 @@ describe("AddMapLayer dynamic GeoTIFF layers", () => {
       expect(style.getByLabelText("Ramp Min")).toHaveValue("0");
       expect(style.getByLabelText("Ramp Max")).toHaveValue("5");
       expect(style.getByLabelText("Reverse Color Ramp")).toBeChecked();
-      expect(style.getByLabelText("Mask Below")).toHaveValue("-9999");
+      // The mask is a source property, so it is restored on the Source tab.
+      expect(
+        within(screen.getByLabelText("layer-source-tab")).getByDisplayValue(
+          "-9999",
+        ),
+      ).toBeInTheDocument();
 
       fireEvent.click(screen.getByLabelText("Create Layer Button"));
       await waitFor(() => expect(onChange).toHaveBeenCalled());
@@ -645,14 +650,9 @@ describe("AddMapLayer dynamic GeoTIFF layers", () => {
 });
 
 describe("rehydratePluginSourceProps", () => {
-  const savedRasterSource = {
-    type: "GeoTIFF",
-    props: { mask_below: "0" },
-    rampName: "magma",
-    rampMax: "9",
-  };
+  const savedRasterSource = { type: "GeoTIFF", props: { mask_below: "0" } };
 
-  it("restores a GeoTIFF layer's declared type, ramp fields, props and pin", () => {
+  it("restores a GeoTIFF layer's declared type, props and pin", () => {
     expect(
       rehydratePluginSourceProps(
         {
@@ -669,8 +669,6 @@ describe("rehydratePluginSourceProps", () => {
       args: { day: "1" },
       props: { mask_below: "0" },
       dynamic_map_layer_source: "GeoTIFF",
-      rampName: "magma",
-      rampMax: "9",
       stylePinned: true,
     });
   });
@@ -682,8 +680,27 @@ describe("rehydratePluginSourceProps", () => {
       savedRasterSource,
     );
     expect(sourceProps.dynamic_map_layer_source).toBe("GeoTIFF");
-    expect(sourceProps.rampName).toBe("magma");
+    expect(sourceProps.props).toEqual({ mask_below: "0" });
     expect(sourceProps.stylePinned).toBeUndefined();
+  });
+
+  it("gives a GeoTIFF layer empty props when the saved source has none", () => {
+    // A layer saved before any source prop existed, or one whose plugin needs
+    // none. The pane still needs a props object to edit into.
+    expect(
+      rehydratePluginSourceProps(
+        { value: "Rain", source: "rain", dynamic_map_layer_source: "GeoTIFF" },
+        { source: "rain", args: {} },
+        { type: "GeoTIFF" },
+      ).props,
+    ).toEqual({});
+    expect(
+      rehydratePluginSourceProps(
+        { value: "Rain", source: "rain", dynamic_map_layer_source: "GeoTIFF" },
+        { source: "rain", args: {} },
+        undefined,
+      ).props,
+    ).toEqual({});
   });
 
   it("restores only the plugin binding for a GeoJSON layer", () => {

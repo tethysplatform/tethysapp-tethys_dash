@@ -571,6 +571,10 @@ def validate_feature_collection(data):
     return True
 
 
+# Layer sources drawn as a WebGLTile raster, whose styling is saved as
+# authored ramp settings in ``configuration.style`` (see set_raster_ramp).
+RASTER_LAYER_SOURCES = ("GeoTIFF", "Zarr")
+
 available_source_properties = {
     "ESRI Image and Map Service": {
         "required": {"url": "ArcGIS Rest service URL"},
@@ -850,19 +854,23 @@ class LayerConfigurationBuilder:
         self, ramp_name, ramp_min=None, ramp_max=None, reverse=False, mask_below=None
     ):
         """
-        Set a GeoTIFF layer's color ramp, written where the layer editor
-        saves it so the Style tab opens on it.
+        Set a GeoTIFF or Zarr layer's color ramp, written where the layer
+        editor saves it so the Style tab opens on it.
 
         For a dynamic GeoTIFF layer this is the fallback style: it applies to
         any fetch whose source description carries no ``style``. A bound left
         as ``None`` is resolved from each file's statistics at render time.
 
         Mirrors the editor's save: ``rampName``/``rampMin``/``rampMax``/
-        ``rampReverse`` go on the layer's source and ``mask_below`` on the
-        source's props, with numbers stored as strings and ``rampReverse``
-        only when True. The compiled OpenLayers style is not written; it is
-        built from these keys at render time. Calling it again replaces the
-        previous ramp.
+        ``rampReverse`` go in the layer's ``configuration.style``, and
+        ``mask_below`` goes on the source's props, where the Source tab edits
+        it -- it decides which values the file publishes as data rather than
+        how they are coloured. Numbers are stored as strings and
+        ``rampReverse`` only when True. These are the authored settings only:
+        the compiled OpenLayers style is never written, because the frontend
+        builds it from these keys every time the layer loads. Calling it again
+        replaces the previous ramp, and replaces any style set with
+        :py:meth:`set_style`.
 
         Args:
             ramp_name (str): Color ramp name, e.g. ``"viridis"``.
@@ -872,16 +880,17 @@ class LayerConfigurationBuilder:
             mask_below (float | str, optional): Hide values at or below this.
 
         Raises:
-            ValueError: If the builder is not a ``"GeoTIFF"`` builder, or a
-                value is of the wrong type.
+            ValueError: If the builder is not a ``"GeoTIFF"`` or ``"Zarr"``
+                builder, or a value is of the wrong type.
 
         Returns:
             LayerConfigurationBuilder: self (for chaining)
         """
-        if self.layer_source != "GeoTIFF":
+        if self.layer_source not in RASTER_LAYER_SOURCES:
             raise ValueError(
                 "set_raster_ramp requires LayerConfigurationBuilder(name, "
-                f"'GeoTIFF'); current layer_source is '{self.layer_source}'."
+                f"'GeoTIFF') or (name, 'Zarr'); current layer_source is "
+                f"'{self.layer_source}'."
             )
         if not isinstance(ramp_name, str) or not ramp_name.strip():
             raise ValueError("ramp_name must be a non-empty ramp name.")
@@ -898,22 +907,21 @@ class LayerConfigurationBuilder:
         if not isinstance(reverse, bool):
             raise ValueError("reverse must be True or False.")
 
-        source = self.config["configuration"]["props"]["source"]
-        source["rampName"] = ramp_name
-        for key, value in (("rampMin", ramp_min), ("rampMax", ramp_max)):
-            if value is None:
-                source.pop(key, None)
-            else:
-                source[key] = str(value)
+        style = {"rampName": ramp_name}
+        for key, value in (
+            ("rampMin", ramp_min),
+            ("rampMax", ramp_max),
+        ):
+            if value is not None:
+                style[key] = str(value)
         if reverse:
-            source["rampReverse"] = True
-        else:
-            source.pop("rampReverse", None)
-        if mask_below is None:
-            source["props"].pop("mask_below", None)
-        else:
-            source["props"]["mask_below"] = str(mask_below)
+            style["rampReverse"] = True
+        self.config["configuration"]["style"] = style
+        if mask_below is not None:
+            source_props = self.config["configuration"]["props"]["source"]["props"]
+            source_props["mask_below"] = str(mask_below)
         return self
+
 
     def set_geojson(self, geojson: dict):
         """

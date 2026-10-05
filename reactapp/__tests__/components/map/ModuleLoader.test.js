@@ -842,17 +842,16 @@ describe.each([
 });
 
 describe("applyZarrRamp", () => {
-  const zarrRampLayer = (source = {}) => ({
+  const zarrRampLayer = (style = {}) => ({
     type: "WebGLTile",
     props: {
       name: "flood",
       source: {
         type: "Zarr",
-        rampName: "turbo",
         props: { url: "https://x/store.zarr", variable: "depth", index: "7" },
-        ...source,
       },
     },
+    style: { rampName: "turbo", ...style },
   });
 
   const sliceWith = (over = {}) => ({
@@ -879,7 +878,7 @@ describe("applyZarrRamp", () => {
 
     expect(config.props.source.resolvedRampMin).toBe(0);
     expect(config.props.source.resolvedRampMax).toBeCloseTo(17.45, 4);
-    const color = config.style.color;
+    const color = config.compiledStyle.color;
     expect(color[0]).toBe("case"); // hasNodata wraps the ramp in an alpha guard
     const interpolate = color[3];
     expect(interpolate[0]).toBe("interpolate");
@@ -892,7 +891,7 @@ describe("applyZarrRamp", () => {
 
     await applyAutoRamp(config);
 
-    const interpolate = config.style.color[3];
+    const interpolate = config.compiledStyle.color[3];
     expect(interpolate[interpolate.length - 2]).toBe(5);
     expect(config.props.source.resolvedRampMax).toBe(5);
   });
@@ -926,7 +925,7 @@ describe("applyZarrRamp", () => {
     await applyAutoRamp(config);
 
     // nodata guard is branch 1; the mask is branch 2 on band 1.
-    expect(config.style.color[3]).toEqual(["<=", ["band", 1], 0.05]);
+    expect(config.compiledStyle.color[3]).toEqual(["<=", ["band", 1], 0.05]);
   });
 
   test("styles categorical Zarr layers by class without a range", async () => {
@@ -941,8 +940,8 @@ describe("applyZarrRamp", () => {
 
     await applyAutoRamp(config);
 
-    expect(config.style.color[0]).toBe("case");
-    expect(config.style.color[3]).toEqual([
+    expect(config.compiledStyle.color[0]).toBe("case");
+    expect(config.compiledStyle.color[3]).toEqual([
       "match",
       ["band", 1],
       0,
@@ -965,7 +964,7 @@ describe("applyZarrRamp", () => {
 
     await applyAutoRamp(config);
 
-    expect(config.style.color).toEqual([
+    expect(config.compiledStyle.color).toEqual([
       "case",
       ["==", ["band", 2], 0],
       [0, 0, 0, 0],
@@ -986,7 +985,7 @@ describe("applyZarrRamp", () => {
     await applyAutoRamp(config);
 
     expect(readSlice).toHaveBeenCalledTimes(1);
-    expect(config.style.color).toBeDefined();
+    expect(config.compiledStyle.color).toBeDefined();
     expect(config.props.source.resolvedRampMax).toBeGreaterThan(
       config.props.source.resolvedRampMin,
     );
@@ -1059,17 +1058,16 @@ describe("loadZarr", () => {
 });
 
 describe("applyAutoRamp", () => {
-  const geotiffRampLayer = (source = {}) => ({
+  const geotiffRampLayer = (style = {}) => ({
     type: "WebGLTile",
     props: {
       name: "flood",
       source: {
         type: "GeoTIFF",
-        rampName: "turbo",
         props: { url: "https://x/depth.tif" },
-        ...source,
       },
     },
+    style: { rampName: "turbo", ...style },
   });
 
   // geotiff.js: getGDALMetadata(0) returns items tagged for sample 0, while
@@ -1127,7 +1125,7 @@ describe("applyAutoRamp", () => {
     expect(config.props.source.rampMin).toBeUndefined();
     expect(config.props.source.rampMax).toBeUndefined();
 
-    const color = config.style.color;
+    const color = config.compiledStyle.color;
     // hasNodata wraps the interpolate in a `case` against the alpha band.
     expect(color[0]).toBe("case");
     const interpolate = color[3];
@@ -1208,7 +1206,7 @@ describe("applyAutoRamp", () => {
     await applyAutoRamp(config);
 
     expect(fromUrl).not.toHaveBeenCalled();
-    expect(config.style).toBeUndefined();
+    expect(config.compiledStyle).toBeUndefined();
   });
 
   test("honors an author-pinned range instead of auto-fitting", async () => {
@@ -1218,9 +1216,9 @@ describe("applyAutoRamp", () => {
     await applyAutoRamp(config);
 
     // The file's 0-99 range is ignored; the ramp keeps the author's 0-5.
-    const interpolate = config.style.color[3];
+    const interpolate = config.compiledStyle.color[3];
     expect(interpolate[interpolate.length - 2]).toBe(5);
-    expect(config.props.source.rampMax).toBe("5");
+    expect(config.style.rampMax).toBe("5");
   });
 
   test("does nothing without a ramp style", async () => {
@@ -1229,7 +1227,7 @@ describe("applyAutoRamp", () => {
     await applyAutoRamp(config);
 
     expect(fromUrl).not.toHaveBeenCalled();
-    expect(config.style).toBeUndefined();
+    expect(config.compiledStyle).toBeUndefined();
   });
 
   test("writes nothing to a source it has no ramp to fit", async () => {
@@ -1271,10 +1269,10 @@ describe("applyAutoRamp", () => {
     await applyAutoRamp(config);
 
     // No usable range, so raw-value styling is not switched on...
-    expect(config.props.source.props.normalize).toBeUndefined();
+    expect(config.props.source.props.normalize).toBe(true);
     // ...but the style is still rebuilt so nodata cells stay transparent.
-    expect(config.style.color[0]).toBe("case");
-    expect(config.style.color[3][0]).toBe("interpolate");
+    expect(config.compiledStyle.color[0]).toBe("case");
+    expect(config.compiledStyle.color[3][0]).toBe("interpolate");
   });
 
   test("falls back to normalized rendering when the header cannot be read", async () => {
@@ -1283,7 +1281,7 @@ describe("applyAutoRamp", () => {
 
     await expect(applyAutoRamp(config)).resolves.toBeTruthy();
 
-    expect(config.props.source.props.normalize).toBeUndefined();
+    expect(config.props.source.props.normalize).toBe(true);
     expect(config.props.source.resolvedRampMin).toBeUndefined();
   });
 
@@ -1326,7 +1324,7 @@ describe("applyAutoRamp", () => {
     expect(config.props.source.resolvedRampMin).toBe(0);
     expect(config.props.source.resolvedRampMax).toBeCloseTo(17.45, 4);
     expect(config.props.source.props.normalize).toBe(false);
-    const interpolate = config.style.color[3];
+    const interpolate = config.compiledStyle.color[3];
     expect(interpolate[3]).toBe(0);
     expect(interpolate[interpolate.length - 2]).toBeCloseTo(17.45, 4);
   });
@@ -1372,7 +1370,7 @@ describe("applyAutoRamp", () => {
 
     await applyAutoRamp(config);
 
-    expect(config.props.source.props.normalize).toBeUndefined();
+    expect(config.props.source.props.normalize).toBe(true);
     expect(config.props.source.resolvedRampMin).toBeUndefined();
   });
 
@@ -1382,7 +1380,7 @@ describe("applyAutoRamp", () => {
 
     await applyAutoRamp(config);
 
-    expect(config.props.source.props.normalize).toBeUndefined();
+    expect(config.props.source.props.normalize).toBe(true);
     expect(config.props.source.resolvedRampMin).toBeUndefined();
   });
 
@@ -1408,7 +1406,7 @@ describe("applyAutoRamp", () => {
     await applyAutoRamp(config);
 
     // Zarr sets hasNodata, so nodata is guard 1 and the mask is guard 2.
-    expect(config.style.color[3]).toEqual(["<=", ["band", 1], 0.05]);
+    expect(config.compiledStyle.color[3]).toEqual(["<=", ["band", 1], 0.05]);
   });
 
   test("leaves a pinned min alone even when a mask threshold is higher", async () => {
@@ -1442,7 +1440,7 @@ describe("applyAutoRamp", () => {
 
     expect(config.props.source.resolvedRampMin).toBe(0);
     expect(config.props.source.resolvedRampMax).toBe(1);
-    expect(config.style.color[3]).toEqual(["<=", ["band", 1], 5]);
+    expect(config.compiledStyle.color[3]).toEqual(["<=", ["band", 1], 5]);
   });
 
   test("tolerates getGDALMetadata returning null for a file with no GDAL tags", async () => {
@@ -1456,25 +1454,82 @@ describe("applyAutoRamp", () => {
 
     await expect(applyAutoRamp(config)).resolves.toBeTruthy();
 
-    expect(config.props.source.props.normalize).toBeUndefined();
+    expect(config.props.source.props.normalize).toBe(true);
     expect(config.props.source.resolvedRampMin).toBeUndefined();
   });
 
+  test("reads no statistics for a ramp style on a source that is not a raster", async () => {
+    // A hand-authored config can put ramp settings on any layer. There is no
+    // file to read statistics from, so the layer is styled from the settings
+    // alone and nothing is fetched -- rather than a header read against a
+    // shapefile's URL.
+    const config = {
+      type: "WebGLTile",
+      props: {
+        name: "Basins",
+        source: {
+          type: "Shapefile",
+          props: { url: "https://example.com/basins.zip" },
+        },
+      },
+      style: { rampName: "turbo" },
+    };
+
+    await applyAutoRamp(config);
+
+    expect(fromUrl).not.toHaveBeenCalled();
+    expect(config.props.source.resolvedRampMin).toBeUndefined();
+  });
+
+  test("leaves a layer unstyled when its ramp does not exist", async () => {
+    // A ramp name that resolves to nothing cannot be compiled, and a half-built
+    // style is worse than none: OpenLayers would reject it and the layer would
+    // report an error from inside the renderer on every frame. Nothing is read
+    // from the file either, since there is no style to refine.
+    mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "1" });
+    const config = geotiffRampLayer({ rampName: "not-a-real-ramp" });
+
+    await applyAutoRamp(config);
+
+    expect(config.compiledStyle).toBeUndefined();
+    expect(config.props.source.resolvedRampMin).toBeUndefined();
+  });
+
+  test("leaves a class-styled layer unstyled when its classes cannot compile", async () => {
+    // The same guard on the class-table side: a mode with classes present but
+    // none of them drawable throws out of the builder rather than compiling an
+    // empty match expression.
+    mockStats({ STATISTICS_MINIMUM: "0", STATISTICS_MAXIMUM: "1" });
+    const config = geotiffRampLayer({
+      rampName: "",
+      styleMode: "categorical",
+      classes: [{ value: "1", color: "#aaa" }],
+    });
+    // Drawable at detection, then emptied, so hasClassStyle still routes here.
+    config.style.classes = [{ value: "1" }];
+
+    await applyAutoRamp(config);
+
+    expect(config.compiledStyle).toBeUndefined();
+  });
+
   describe("categorical layers", () => {
-    const categoricalLayer = (source = {}) => ({
+    const categoricalLayer = (style = {}) => ({
       type: "WebGLTile",
       props: {
         name: "land use",
         source: {
           type: "GeoTIFF",
-          styleMode: "categorical",
-          classes: [
-            { value: "0", color: "#aaa", label: "Bare" },
-            { value: "1", color: "#bbb", label: "Crop" },
-          ],
           props: { url: "https://example.com/landuse.tif" },
-          ...source,
         },
+      },
+      style: {
+        styleMode: "categorical",
+        classes: [
+          { value: "0", color: "#aaa", label: "Bare" },
+          { value: "1", color: "#bbb", label: "Crop" },
+        ],
+        ...style,
       },
     });
 
@@ -1490,8 +1545,8 @@ describe("applyAutoRamp", () => {
       // Nearest neighbor, or resampling blends band 1 into values matching no
       // class and blends band 2 off 0, fringing every nodata boundary.
       expect(config.props.source.props.interpolate).toBe(false);
-      expect(config.style.color[0]).toBe("case");
-      expect(config.style.color[3]).toEqual([
+      expect(config.compiledStyle.color[0]).toBe("case");
+      expect(config.compiledStyle.color[3]).toEqual([
         "match",
         ["band", 1],
         0,
@@ -1530,8 +1585,8 @@ describe("applyAutoRamp", () => {
 
       await applyAutoRamp(config);
 
-      expect(config.style.color[3]).toEqual(["<=", ["band", 1], 0]);
-      const match = config.style.color[5];
+      expect(config.compiledStyle.color[3]).toEqual(["<=", ["band", 1], 0]);
+      const match = config.compiledStyle.color[5];
       expect(match[match.length - 1]).toBe("#999999");
     });
 
@@ -1545,7 +1600,7 @@ describe("applyAutoRamp", () => {
 
       await applyAutoRamp(config);
 
-      expect(config.style.color[3][0]).toBe("interpolate");
+      expect(config.compiledStyle.color[3][0]).toBe("interpolate");
       expect(config.props.source.resolvedRampMax).toBe(2);
     });
 
@@ -1555,7 +1610,7 @@ describe("applyAutoRamp", () => {
       await applyAutoRamp(config);
 
       expect(fromUrl).not.toHaveBeenCalled();
-      expect(config.style).toBeUndefined();
+      expect(config.compiledStyle).toBeUndefined();
     });
   });
 
@@ -1563,7 +1618,7 @@ describe("applyAutoRamp", () => {
     // Shaped like the "Ensemble Mean Streamflow" layer of a real dashboard,
     // saved as categorical with labels that read as ranges, switched to the
     // mode its author meant. Class values are strings, as the editor saves them.
-    const streamflowLayer = (source = {}) => ({
+    const streamflowLayer = (style = {}) => ({
       type: "WebGLTile",
       props: {
         name: "Ensemble Mean Streamflow (m³/s per km²)",
@@ -1576,19 +1631,21 @@ describe("applyAutoRamp", () => {
             normalize: false,
             interpolate: false,
           },
-          styleMode: "ranges",
-          classes: [
-            { value: "1", color: "#bdbdbd", label: "0.1 to 1" },
-            { value: "2", color: "#d9ef8b", label: "1 to 2" },
-            { value: "4", color: "#fdae61", label: "2 to 4" },
-            { value: "6", color: "#d73027", label: "4 to 6" },
-            { value: "10", color: "#c51b7d", label: "6 to 10" },
-            { value: "20", color: "#2c7bb6", label: "10 to 20" },
-            { value: "100000000", color: "#08306b", label: "20+" },
-          ],
-          rampName: "turbo",
-          ...source,
         },
+      },
+      style: {
+        styleMode: "ranges",
+        classes: [
+          { value: "1", color: "#bdbdbd", label: "0.1 to 1" },
+          { value: "2", color: "#d9ef8b", label: "1 to 2" },
+          { value: "4", color: "#fdae61", label: "2 to 4" },
+          { value: "6", color: "#d73027", label: "4 to 6" },
+          { value: "10", color: "#c51b7d", label: "6 to 10" },
+          { value: "20", color: "#2c7bb6", label: "10 to 20" },
+          { value: "100000000", color: "#08306b", label: "20+" },
+        ],
+        rampName: "turbo",
+        ...style,
       },
     });
 
@@ -1607,7 +1664,7 @@ describe("applyAutoRamp", () => {
       // The class values are the scale: no statistics, no sidecar, no scan.
       expect(global.fetch).not.toHaveBeenCalled();
       expect(config.props.source.resolvedRampMin).toBeUndefined();
-      expect(config.style.color).toEqual([
+      expect(config.compiledStyle.color).toEqual([
         "case",
         ["==", ["band", 2], 0],
         [0, 0, 0, 0],
@@ -1637,7 +1694,7 @@ describe("applyAutoRamp", () => {
 
       await applyAutoRamp(config);
 
-      const color = config.style.color;
+      const color = config.compiledStyle.color;
       expect(color[color.length - 1]).toBe("#ff00ff");
     });
 
@@ -1647,23 +1704,22 @@ describe("applyAutoRamp", () => {
 
       await applyAutoRamp(config);
 
-      expect(config.style.color[5][0]).toBe("interpolate");
+      expect(config.compiledStyle.color[5][0]).toBe("interpolate");
       expect(config.props.source.resolvedRampMax).toBe(2);
     });
   });
 
   describe("GeoTIFF sources", () => {
-    const geotiffLayer = (source = {}, props = {}) => ({
+    const geotiffLayer = (style = {}, props = {}) => ({
       type: "WebGLTile",
       props: {
         name: "depth",
         source: {
           type: "GeoTIFF",
-          rampName: "turbo",
           props: { url: "https://example.com/depth.tif", ...props },
-          ...source,
         },
       },
+      style: { rampName: "turbo", ...style },
     });
 
     test("fits the ramp to the file's stats and turns normalize off", async () => {
@@ -1685,7 +1741,7 @@ describe("applyAutoRamp", () => {
 
       await applyAutoRamp(config);
 
-      expect(config.style.color[0]).toBe("case");
+      expect(config.compiledStyle.color[0]).toBe("case");
       expect(Number.isNaN(config.props.source.props.nodata)).toBe(true);
     });
 
@@ -1699,7 +1755,7 @@ describe("applyAutoRamp", () => {
       await applyAutoRamp(config);
 
       expect(config.props.source.props.nodata).toBe(255);
-      expect(config.style.color[0]).toBe("case");
+      expect(config.compiledStyle.color[0]).toBe("case");
     });
 
     test("a NaN nodata declared by the file is kept, not replaced", async () => {
@@ -1824,7 +1880,7 @@ describe("applyAutoRamp", () => {
       expect(config.props.source.resolvedRampMin).toBeUndefined();
       // Nodata still resolved, so the style still guards the alpha band.
       expect(config.props.source.props.nodata).toBe(255);
-      expect(config.style.color[0]).toBe("case");
+      expect(config.compiledStyle.color[0]).toBe("case");
     });
 
     test("tolerates an unreachable or unparseable sidecar", async () => {
@@ -1937,7 +1993,7 @@ describe("applyAutoRamp", () => {
       expect(config.props.source.rampRangeUnavailable).toBeUndefined();
       // The style is still rebuilt, so nodata cells are transparent rather
       // than painted at band 1 = 0 by the zero-filled tile array.
-      expect(config.style).toBeTruthy();
+      expect(config.compiledStyle).toBeTruthy();
     });
 
     test("leaves an unscannable integer raster on normalized rendering", async () => {
@@ -1982,7 +2038,7 @@ describe("applyAutoRamp", () => {
       await applyAutoRamp(config);
 
       expect(config.props.source.rampRangeUnavailable).toBeFalsy();
-      expect(config.style.color[0]).toBe("case");
+      expect(config.compiledStyle.color[0]).toBe("case");
     });
 
     test("clears the flag when a later file does carry a range", async () => {
@@ -2015,10 +2071,10 @@ describe("applyAutoRamp", () => {
       await applyAutoRamp(config);
 
       expect(config.props.source.props.nodata).toBe(255);
-      expect(config.style.color[0]).toBe("case");
+      expect(config.compiledStyle.color[0]).toBe("case");
       // Normalized mode: the ramp still spans OL's 0-1 scaled band.
-      expect(config.style.color[3][0]).toBe("interpolate");
-      expect(config.props.source.props.normalize).toBeUndefined();
+      expect(config.compiledStyle.color[3][0]).toBe("interpolate");
+      expect(config.props.source.props.normalize).toBe(true);
     });
 
     test("refits when a variable input swaps the URL", async () => {
@@ -2040,7 +2096,11 @@ describe("applyAutoRamp", () => {
       await applyAutoRamp(config);
 
       expect(fromUrl).not.toHaveBeenCalled();
-      expect(config.style).toBeUndefined();
+      // Not fetching is not the same as not drawing: the starting style is
+      // compiled before any read, so the layer still paints its ramp over
+      // OpenLayers' normalized band rather than coming out blank.
+      expect(config.compiledStyle.color[3][0]).toBe("interpolate");
+      expect(config.props.source.props.normalize).toBe(true);
     });
 
     test.each([
@@ -2054,7 +2114,11 @@ describe("applyAutoRamp", () => {
       await applyAutoRamp(config);
 
       expect(fromUrl).not.toHaveBeenCalled();
-      expect(config.style).toBeUndefined();
+      // Not fetching is not the same as not drawing: the starting style is
+      // compiled before any read, so the layer still paints its ramp over
+      // OpenLayers' normalized band rather than coming out blank.
+      expect(config.compiledStyle.color[3][0]).toBe("interpolate");
+      expect(config.props.source.props.normalize).toBe(true);
     });
 
     test("skips a source with no url at all", async () => {
@@ -3055,17 +3119,16 @@ describe("loadZarr - review findings", () => {
 });
 
 describe("applyZarrRamp - review findings", () => {
-  const rampLayer = (source = {}) => ({
+  const rampLayer = (style = {}) => ({
     type: "WebGLTile",
     props: {
       name: "flood",
       source: {
         type: "Zarr",
-        rampName: "turbo",
         props: { url: "https://x/store.zarr", variable: "depth", index: "7" },
-        ...source,
       },
     },
+    style: { rampName: "turbo", ...style },
   });
 
   beforeEach(() => {
@@ -3090,7 +3153,7 @@ describe("applyZarrRamp - review findings", () => {
     const source = config.props.source;
 
     expect(source.resolvedRampMax).toBeGreaterThan(source.resolvedRampMin);
-    expect(JSON.stringify(config.style.color)).not.toMatch(/null|NaN/);
+    expect(JSON.stringify(config.compiledStyle.color)).not.toMatch(/null|NaN/);
   });
 
   test("widens an inverted author-pinned range", async () => {
@@ -3104,10 +3167,10 @@ describe("applyZarrRamp - review findings", () => {
   test("rebuilds the style when the ramp changes but the slice does not", async () => {
     // The gate keys on the slice, so a ramp-only edit must still restyle.
     const first = await applyAutoRamp(rampLayer({ rampName: "turbo" }));
-    const firstColor = JSON.stringify(first.style.color);
+    const firstColor = JSON.stringify(first.compiledStyle.color);
 
     const second = await applyAutoRamp(rampLayer({ rampName: "viridis" }));
-    expect(JSON.stringify(second.style.color)).not.toEqual(firstColor);
+    expect(JSON.stringify(second.compiledStyle.color)).not.toEqual(firstColor);
   });
 });
 
@@ -3745,17 +3808,16 @@ describe("GeoParquet metadata edges", () => {
 });
 
 describe("ramp bounds that cannot be used", () => {
-  const zarrLayer = (source = {}) => ({
+  const zarrLayer = (style = {}) => ({
     type: "WebGLTile",
     props: {
       name: "flood",
       source: {
         type: "Zarr",
-        rampName: "turbo",
         props: { url: "https://x/bounds.zarr", variable: "depth" },
-        ...source,
       },
     },
+    style: { rampName: "turbo", ...style },
   });
 
   beforeEach(() => {
@@ -3791,7 +3853,7 @@ describe("ramp bounds that cannot be used", () => {
 
     await applyZarrRamp(config);
 
-    expect(config.style.color).toBeDefined();
+    expect(config.compiledStyle.color).toBeDefined();
     expect(config.props.source.resolvedSliceKey).toBeDefined();
   });
 

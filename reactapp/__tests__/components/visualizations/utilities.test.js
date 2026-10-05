@@ -2358,6 +2358,86 @@ describe("preloaded visualization cache", () => {
     expect(key({ X: 1 })).not.toBe(key({ X: 2 }));
   });
 
+  it("keys an array arg by its order, and descends into it", () => {
+    // An args value is often a list -- a multi-select's selection, a bbox --
+    // and order is meaningful in both. Serializing one as a plain object would
+    // key [1, 2] and [2, 1] alike and hand the tile the wrong response.
+    const key = (args) => buildPreloadedVisualizationKey({ source: "s", args });
+    expect(key({ a: [1, 2] })).toBe(key({ a: [1, 2] }));
+    expect(key({ a: [1, 2] })).not.toBe(key({ a: [2, 1] }));
+    expect(key({ a: [1, 2] })).not.toBe(key({ a: [1, 2, 3] }));
+    // Key order is normalized at every depth, inside a list as well as outside.
+    expect(key({ a: [{ x: 1, y: 2 }] })).toBe(key({ a: [{ y: 2, x: 1 }] }));
+    expect(key({ a: [{ x: 1 }] })).not.toBe(key({ a: [{ x: 2 }] }));
+  });
+
+  it("keys the values JSON cannot carry without collapsing them", () => {
+    // JSON.stringify returns undefined rather than a string for these, so the
+    // fallback is what keeps them from reading as the same key.
+    const key = (args) => buildPreloadedVisualizationKey({ source: "s", args });
+    expect(key({ a: undefined })).toBe(key({ a: null }));
+    expect(key({ a: 1 })).not.toBe(key({ a: null }));
+  });
+
+  it("keys a request with no source or args without collapsing them", () => {
+    // Neither is guaranteed: a key is built from whatever the grid item has,
+    // and JSON.stringify gives nothing back for undefined, which would make
+    // every such key identical.
+    const bare = buildPreloadedVisualizationKey({});
+    expect(bare).toBe(
+      buildPreloadedVisualizationKey({ source: null, args: null }),
+    );
+    expect(bare).not.toBe(buildPreloadedVisualizationKey({ source: "s" }));
+    expect(bare).not.toBe(buildPreloadedVisualizationKey({ args: {} }));
+  });
+
+  it("caches nothing for a grid item with no request id", () => {
+    // A popup-nested item, or one not yet saved, has no uuid to key on. There
+    // is nothing to hand back to later, so the preload simply does not cache
+    // it -- rather than storing every such item under one shared key.
+    expect(() =>
+      setPreloadedVisualization(undefined, "key", Promise.resolve({})),
+    ).not.toThrow();
+    expect(takePreloadedVisualization(undefined, "key")).toBe(undefined);
+    expect(takePreloadedVisualization(null, "key")).toBe(undefined);
+  });
+
+  it("keys an unset variable the same as one explicitly null", () => {
+    // A referenced variable with no value yet is part of the key, as null, so
+    // the request built before it was set does not match the one built after.
+    const key = (variableInputValues) =>
+      buildPreloadedVisualizationKey({
+        source: "s",
+        args: { a: "${X}" },
+        variableInputValues,
+        tokens: ["X"],
+      });
+    expect(key({})).toBe(key({ X: null }));
+    expect(key(undefined)).toBe(key({ X: null }));
+    // Explicitly null, which skips the default parameter: the variable inputs
+    // context holds null until its provider mounts, and a key built then has
+    // to match one built from an empty map rather than throwing.
+    expect(key(null)).toBe(key({ X: null }));
+    expect(key({})).not.toBe(key({ X: "set" }));
+  });
+
+  it("keys a referenced variable's date format as well as its value", () => {
+    // The format decides what a date value resolves to, so two requests with
+    // the same value and different formats are different requests.
+    const key = (variableInputDateFormats) =>
+      buildPreloadedVisualizationKey({
+        source: "s",
+        args: { a: "${When}" },
+        variableInputValues: { When: "now-1D" },
+        variableInputDateFormats,
+        tokens: ["When"],
+      });
+    expect(key({ When: "YYYY-MM-DD" })).not.toBe(key({ When: "YYYY" }));
+    expect(key({ When: "YYYY-MM-DD" })).not.toBe(key({}));
+    expect(key({})).toBe(key(undefined));
+    expect(key({})).toBe(key(null));
+  });
+
   it("hands an entry out once, and only for the key it was built from", async () => {
     const response = { success: true };
     setPreloadedVisualization("uuid", "key", Promise.resolve(response));

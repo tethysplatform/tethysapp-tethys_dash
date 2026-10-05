@@ -22,6 +22,7 @@ import {
 import {
   applyBatchIdentityRules,
   applyItemIdentityRules,
+  applyLegacyRasterStyleRules,
 } from "components/dashboard/importIdentity";
 import DashboardItemDropdown from "components/dashboard/DashboardItemDropdown";
 import BaseVisualization from "components/visualizations/Base";
@@ -36,6 +37,7 @@ import {
   useLayoutWarningAlertContext,
 } from "components/contexts/LayoutAlertContext";
 import { loadLayerJSONs, saveLayerJSON } from "components/map/utilities";
+import { rasterStyleSettings } from "components/map/geoTIFFStyle";
 import { valuesEqual } from "components/modals/utilities";
 import { v4 as uuidv4 } from "uuid";
 
@@ -301,6 +303,12 @@ export const handleGridItemImport = async (gridItem, csrf, dashboard_uuid) => {
     }
   }
 
+  // A file exported before raster ramp settings moved into the layer style
+  // carries them on the layer source, beside a compiled style the app no longer
+  // reads. Converted first, so the walk below sees the shape it keeps: a
+  // raster's style is its settings, and stays inline rather than uploaded.
+  importedGridItem = applyLegacyRasterStyleRules(importedGridItem);
+
   if (importedGridItem.source === "Map") {
     if (
       "layers" in importedGridItem.args_string &&
@@ -338,7 +346,14 @@ export const handleGridItemImport = async (gridItem, csrf, dashboard_uuid) => {
           }
         }
 
-        if (mapLayer.configuration.style) {
+        // A raster's style is its ramp settings, which the Style tab edits in
+        // place, so it is saved inline as the editor saves it -- never as a file.
+        const sourceType = mapLayer.configuration.props.source.type;
+        const isRasterStyle =
+          (sourceType === "GeoTIFF" || sourceType === "Zarr") &&
+          Object.keys(rasterStyleSettings(mapLayer.configuration.style))
+            .length > 0;
+        if (mapLayer.configuration.style && !isRasterStyle) {
           const apiResponse = await saveLayerJSON({
             stringJSON: JSON.stringify(mapLayer.configuration.style),
             csrf,
