@@ -11,7 +11,6 @@ import ColorPickerPopOver from "components/inputs/ColorPickerPopOver";
 import { resolveRamp } from "components/map/colorRamps";
 import { isClassStyleMode } from "components/map/geoTIFFStyle";
 import Button from "react-bootstrap/Button";
-import Form from "react-bootstrap/Form";
 import { LayoutContext, AppContext } from "components/contexts/Contexts";
 import { getStyleFields } from "components/map/utilities";
 import { findSelectOptionByValue } from "components/visualizations/utilities";
@@ -73,13 +72,6 @@ const HelperText = styled.small`
   color: #6c757d;
 `;
 
-const FOLLOW_PLUGIN_ON_TEXT =
-  "The plugin's styling is applied on each fetch. The settings below are " +
-  "used only when the plugin returns no styling. Editing any of them pins " +
-  "your style.";
-const FOLLOW_PLUGIN_OFF_TEXT =
-  "Your style is pinned. The plugin's styling is ignored until you turn this " +
-  "back on.";
 const RANGES_HELP_TEXT =
   "Each class covers values above the previous class's bound, up to and " +
   "including its own.";
@@ -104,7 +96,6 @@ const StylePane = ({
   setErrorMessage,
   containerRef,
   sourceProps,
-  setSourceProps,
   rasterStyle = {},
   setRasterStyle,
   layerProps,
@@ -260,40 +251,20 @@ const StylePane = ({
 
   if (isRaster) {
     // The settings are edited in the shape they are saved in, the layer's
-    // `configuration.style`. The pin is the plugin binding's, so it stays on the
-    // source props, which become the saved `pluginSource`.
+    // `configuration.style`, and that is the style the layer draws with --
+    // for a dynamic layer too. A plugin offers a starting point through its
+    // scaffold (and through Fetch defaults on the Source tab); from there the
+    // settings here are the author's and no fetch overrides them.
     const selectedRamp = rasterStyle.rampName ?? null;
     const rampMin = rasterStyle.rampMin ?? "";
     const rampMax = rasterStyle.rampMax ?? "";
     const rampReverse = rasterStyle.rampReverse === true;
-    // Absent means the layer follows the plugin's styling.
-    const followsPlugin = sourceProps.stylePinned !== true;
 
-    // Every author edit to a dynamic GeoTIFF's style pins it, so later fetches
-    // stop replacing it. The plugin is followed again only when the author
-    // says so with the toggle.
     const editRasterStyle = (patch) => {
       if (!setRasterStyle) return;
       setRasterStyle((prev) => ({ ...prev, ...patch(prev) }));
-      if (isRuntimeGeoTIFF && setSourceProps) {
-        setSourceProps((prev) =>
-          prev.stylePinned === true ? prev : { ...prev, stylePinned: true },
-        );
-      }
     };
 
-    const handleFollowPluginToggle = (e) => {
-      if (!setSourceProps) return;
-      const follow = e.target.checked;
-      // The fields stay as they are: unpinned, they are the fallback for a
-      // fetch that returns no styling.
-      setSourceProps((prev) => {
-        const next = { ...prev };
-        if (follow) delete next.stylePinned;
-        else next.stylePinned = true;
-        return next;
-      });
-    };
     const handleRampSelect = (rampName) =>
       editRasterStyle(() => ({ rampName }));
     const handleReverseToggle = (e) => {
@@ -340,28 +311,6 @@ const StylePane = ({
 
     return (
       <GeoTIFFSection>
-        {isRuntimeGeoTIFF && (
-          <div>
-            <Form.Check
-              type="switch"
-              role="switch"
-              id="follow-plugin-styling"
-              label="Follow plugin styling"
-              checked={followsPlugin}
-              onChange={handleFollowPluginToggle}
-              aria-describedby="follow-plugin-styling-help"
-            />
-            {/* Polite live region: the switch also flips by itself when a
-                field below is edited, and that change should be heard. */}
-            <HelperText
-              id="follow-plugin-styling-help"
-              role="status"
-              aria-live="polite"
-            >
-              {followsPlugin ? FOLLOW_PLUGIN_ON_TEXT : FOLLOW_PLUGIN_OFF_TEXT}
-            </HelperText>
-          </div>
-        )}
         <SectionHeading>
           {isClassStyled ? "Classes" : "Color Ramp"}
         </SectionHeading>
@@ -644,15 +593,11 @@ StylePane.propTypes = {
   setErrorMessage: PropTypes.func,
   sourceProps: PropTypes.shape({
     type: PropTypes.string,
-    // Dynamic GeoTIFF only: true once the author's style overrides the
-    // plugin's. Absent means the layer follows the plugin.
-    stylePinned: PropTypes.bool,
     geojson: PropTypes.oneOfType([PropTypes.string, PropTypes.object]),
     props: PropTypes.shape({
       sources: PropTypes.arrayOf(PropTypes.shape({ url: PropTypes.string })),
     }),
   }),
-  setSourceProps: PropTypes.func,
   // A raster's style settings, in the shape saved as its configuration.style.
   rasterStyle: PropTypes.shape({
     rampName: PropTypes.string,

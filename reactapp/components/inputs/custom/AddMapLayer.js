@@ -75,7 +75,6 @@ export function rehydratePluginSourceProps(
   if (declaredSource !== "GeoTIFF") return sourceProps;
 
   sourceProps.props = { ...(savedSource?.props ?? {}) };
-  if (pluginSource.stylePinned === true) sourceProps.stylePinned = true;
   return sourceProps;
 }
 

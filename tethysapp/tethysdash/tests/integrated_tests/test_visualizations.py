@@ -534,7 +534,8 @@ def test_get_visualization_features_mode_geotiff_happy(echo_runtime_raster_intak
     assert data == {"type": "GeoTIFF", "props": {"url": ECHO_RASTER_URL}}
 
 
-def test_get_visualization_features_mode_geotiff_styled(echo_runtime_raster_intake):
+def test_get_visualization_features_mode_geotiff_full(echo_runtime_raster_intake):
+    """A fetch carries the file and what describes the data in it, never style."""
     viz_type, data = _fetch_raster("styled")
 
     assert viz_type == "source"
@@ -544,12 +545,6 @@ def test_get_visualization_features_mode_geotiff_styled(echo_runtime_raster_inta
             "url": ECHO_RASTER_URL,
             "projection": "EPSG:32612",
             "mask_below": -9999,
-        },
-        "style": {
-            "rampName": "magma",
-            "rampMin": 0,
-            "rampMax": 50,
-            "rampReverse": True,
         },
     }
 
@@ -562,7 +557,8 @@ def test_get_visualization_features_mode_geotiff_styled(echo_runtime_raster_inta
         ("wrong_type", "type 'XYZ'.*dynamic_map_layer_source = 'GeoTIFF'"),
         ("empty_url", "props.url must be a non-empty string"),
         ("file_url", "'file:///etc/passwd' is not allowed"),
-        ("bad_min", "style.rampMin must be a finite number"),
+        ("bad_mask", "props.mask_below must be a finite number"),
+        ("with_style", "unknown keys: style"),
     ],
 )
 def test_get_visualization_features_mode_geotiff_invalid_returns(

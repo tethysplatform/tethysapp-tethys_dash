@@ -605,54 +605,42 @@ describe("AddMapLayer dynamic GeoTIFF layers", () => {
     return onChange;
   };
 
-  const followSwitch = () =>
-    within(screen.getByLabelText("layer-style-tab")).getByRole("switch", {
-      name: /follow plugin styling/i,
+  it("reopening a layer restores its ramp and mask, and saves it back unchanged", async () => {
+    const layer = savedRasterLayer({
+      source: "echo_runtime_raster",
+      args: { mode: "happy" },
     });
+    const onChange = mountWithLayer(layer);
 
-  it.each([
-    ["a pinned", { stylePinned: true }, false],
-    ["an unpinned", {}, true],
-  ])(
-    "reopening %s layer restores its ramp, mask and pin, and saves it back unchanged",
-    async (_label, pin, followsPlugin) => {
-      const layer = savedRasterLayer({
-        source: "echo_runtime_raster",
-        args: { mode: "happy" },
-        ...pin,
-      });
-      const onChange = mountWithLayer(layer);
+    fireEvent.click(await screen.findByTestId("editMapLayer"));
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
 
-      fireEvent.click(await screen.findByTestId("editMapLayer"));
-      expect(await screen.findByRole("dialog")).toBeInTheDocument();
-
-      const toggle = await waitFor(() => followSwitch());
-      expect(toggle.checked).toBe(followsPlugin);
-      const style = within(screen.getByLabelText("layer-style-tab"));
+    const style = within(screen.getByLabelText("layer-style-tab"));
+    await waitFor(() =>
       expect(
         style.getByRole("radio", { name: "Select Blues ramp" }),
-      ).toHaveAttribute("aria-checked", "true");
-      expect(style.getByLabelText("Ramp Min")).toHaveValue("0");
-      expect(style.getByLabelText("Ramp Max")).toHaveValue("5");
-      expect(style.getByLabelText("Reverse Color Ramp")).toBeChecked();
-      // The mask is a source property, so it is restored on the Source tab.
-      expect(
-        within(screen.getByLabelText("layer-source-tab")).getByDisplayValue(
-          "-9999",
-        ),
-      ).toBeInTheDocument();
+      ).toHaveAttribute("aria-checked", "true"),
+    );
+    expect(style.getByLabelText("Ramp Min")).toHaveValue("0");
+    expect(style.getByLabelText("Ramp Max")).toHaveValue("5");
+    expect(style.getByLabelText("Reverse Color Ramp")).toBeChecked();
+    // The mask is a source property, so it is restored on the Source tab.
+    expect(
+      within(screen.getByLabelText("layer-source-tab")).getByDisplayValue(
+        "-9999",
+      ),
+    ).toBeInTheDocument();
 
-      fireEvent.click(screen.getByLabelText("Create Layer Button"));
-      await waitFor(() => expect(onChange).toHaveBeenCalled());
-      expect(onChange).toHaveBeenLastCalledWith([layer]);
-    },
-  );
+    fireEvent.click(screen.getByLabelText("Create Layer Button"));
+    await waitFor(() => expect(onChange).toHaveBeenCalled());
+    expect(onChange).toHaveBeenLastCalledWith([layer]);
+  });
 });
 
 describe("rehydratePluginSourceProps", () => {
   const savedRasterSource = { type: "GeoTIFF", props: { mask_below: "0" } };
 
-  it("restores a GeoTIFF layer's declared type, props and pin", () => {
+  it("restores a GeoTIFF layer's declared type and props, but no styling", () => {
     expect(
       rehydratePluginSourceProps(
         {
@@ -660,7 +648,7 @@ describe("rehydratePluginSourceProps", () => {
           source: "rain",
           dynamic_map_layer_source: "GeoTIFF",
         },
-        { source: "rain", args: { day: "1" }, stylePinned: true },
+        { source: "rain", args: { day: "1" } },
         savedRasterSource,
       ),
     ).toEqual({
@@ -669,8 +657,20 @@ describe("rehydratePluginSourceProps", () => {
       args: { day: "1" },
       props: { mask_below: "0" },
       dynamic_map_layer_source: "GeoTIFF",
-      stylePinned: true,
     });
+  });
+
+  it("ignores a pin left on an older saved layer", () => {
+    // `stylePinned` was written by a version that let a fetch override the
+    // author's style. Nothing reads it now, and it disappears the next time
+    // the layer is saved.
+    expect(
+      rehydratePluginSourceProps(
+        { value: "Rain", source: "rain", dynamic_map_layer_source: "GeoTIFF" },
+        { source: "rain", args: {}, stylePinned: true },
+        savedRasterSource,
+      ),
+    ).not.toHaveProperty("stylePinned");
   });
 
   it("falls back to the saved source type when the plugin declares none", () => {

@@ -47,11 +47,13 @@ def is_allowed_layer_url(url):
     return parts.scheme.lower() in {"http", "https"} and bool(parts.netloc)
 
 
-_LAYER_SOURCE_DESCRIPTION_KEYS = frozenset({"type", "props", "style"})
+# A fetch names a file and describes the data in it. It carries no styling: a
+# raster layer's style is the author's, saved as ``configuration.style`` and
+# edited on the Style tab. A plugin offers its preferred styling once, through
+# the scaffold ``run()`` returns (see ``LayerConfigurationBuilder``), which the
+# editor loads when the plugin is picked or Fetch defaults is pressed.
+_LAYER_SOURCE_DESCRIPTION_KEYS = frozenset({"type", "props"})
 _LAYER_SOURCE_PROPS_KEYS = frozenset({"url", "projection", "mask_below"})
-_LAYER_SOURCE_STYLE_KEYS = frozenset(
-    {"rampName", "rampMin", "rampMax", "rampReverse"}
-)
 # A source description legitimately carries "props" and "style", so a
 # scaffold is recognized by the keys only a configure-time layer config has.
 _LAYER_SOURCE_SCAFFOLD_KEYS = frozenset({"configuration", "legend", "source"})
@@ -82,8 +84,7 @@ def validate_layer_source_description(data, expected_type):
     Validate the return value of a dynamic-map-layer plugin's ``fetch_source``.
 
     The shape is ``{"type": expected_type, "props": {"url", "projection"?,
-    "mask_below"?}, "style"?: {"rampName", "rampMin", "rampMax",
-    "rampReverse"}}``, the keys :py:func:`geotiff_source` writes. Every rejection
+    "mask_below"?}}``, the keys :py:func:`geotiff_source` writes. Every rejection
     names what to change, so plugin authors can self-diagnose from the
     per-layer error UI.
 
@@ -93,10 +94,10 @@ def validate_layer_source_description(data, expected_type):
 
     Raises:
         ValueError: If ``data`` is ``None``, not a dict, a configure-time
-            scaffold, of another source type, carries unknown keys, has a
-            missing or disallowed URL (see :py:func:`is_allowed_layer_url`), a
-            projection that is not a string of at most 2000 characters, or
-            style values of the wrong type.
+            scaffold, of another source type, carries unknown keys -- a
+            ``style`` among them, which a fetch no longer supplies -- has a
+            missing or disallowed URL (see :py:func:`is_allowed_layer_url`), or
+            a projection that is not a string of at most 2000 characters.
 
     Returns:
         True when ``data`` is a valid source description.
@@ -131,7 +132,8 @@ def validate_layer_source_description(data, expected_type):
     if unknown_keys:
         raise ValueError(
             f"source description has unknown keys: {', '.join(unknown_keys)}. "
-            "Allowed keys are type, props and style."
+            "Allowed keys are type and props; a layer's styling is the "
+            "author's, set on the Style tab, and a fetch does not carry it."
         )
 
     props = data.get("props")
@@ -144,8 +146,7 @@ def validate_layer_source_description(data, expected_type):
     if unknown_props:
         raise ValueError(
             f"source description props has unknown keys: {', '.join(unknown_props)}. "
-            "Allowed keys are url, projection and mask_below; ramp settings "
-            "go in style."
+            "Allowed keys are url, projection and mask_below."
         )
 
     url = props.get("url")
@@ -182,99 +183,39 @@ def validate_layer_source_description(data, expected_type):
             f"{props['mask_below']!r}; omit it to mask nothing."
         )
 
-    if "style" not in data:
-        return True
-    style = data["style"]
-    if not isinstance(style, dict):
-        raise ValueError(
-            "source description style must be a dict of ramp settings; omit it "
-            "to keep the layer's saved style."
-        )
-    unknown_style = sorted(set(style) - _LAYER_SOURCE_STYLE_KEYS)
-    if unknown_style:
-        raise ValueError(
-            f"source description style has unknown keys: {', '.join(unknown_style)}. "
-            "Allowed keys are " + ", ".join(sorted(_LAYER_SOURCE_STYLE_KEYS)) + "."
-        )
-    if "rampName" in style and (
-        not isinstance(style["rampName"], str) or not style["rampName"].strip()
-    ):
-        raise ValueError(
-            "source description style.rampName must be a non-empty ramp name "
-            "such as 'viridis'."
-        )
-    for bound in ("rampMin", "rampMax"):
-        value = style.get(bound)
-        if value is not None and not _is_numeric_bound(value):
-            raise ValueError(
-                f"source description style.{bound} must be a finite number or "
-                f"numeric string, got {value!r}; omit it (or pass None) to "
-                "resolve it from the file."
-            )
-    if "rampReverse" in style and not isinstance(style["rampReverse"], bool):
-        raise ValueError(
-            "source description style.rampReverse must be True or False, got "
-            f"{style['rampReverse']!r}."
-        )
     return True
 
 
-def geotiff_source(
-    url,
-    projection=None,
-    ramp_name=None,
-    ramp_min=None,
-    ramp_max=None,
-    ramp_reverse=None,
-    mask_below=None,
-):
+def geotiff_source(url, projection=None, mask_below=None):
     """
     Build the source description a GeoTIFF plugin's ``fetch_source`` returns.
 
-    Unset arguments are omitted, and ``style`` is omitted entirely when no
-    style argument is set, in which case the layer keeps its saved style. When
-    a ``style`` is returned it replaces the layer's saved ramp settings as a
-    whole (unless the dashboard author has pinned the style); a missing
-    ``ramp_min``/``ramp_max`` is resolved from the file's statistics. The
-    ``style`` keys are the ones a raster layer saves in its
-    ``configuration.style``, so no translation happens between the two.
+    It names the file and describes the data in it. It carries no styling: a
+    raster layer's style is the author's, saved as ``configuration.style`` and
+    edited on the Style tab, and a fetch never overrides it. A plugin offers its
+    preferred styling once, through the scaffold ``run()`` returns -- see
+    :py:meth:`LayerConfigurationBuilder.set_raster_ramp` -- which the editor
+    loads when the plugin is picked, and again when the author presses Fetch
+    defaults. Unset arguments are omitted.
 
     Args:
         url (str): ``http(s)`` URL, or a path on this server, of the GeoTIFF.
         projection (str, optional): CRS to read the file in, e.g.
             ``"EPSG:32612"``, when its own GeoKeys are missing or wrong.
-        ramp_name (str, optional): Color ramp name, e.g. ``"viridis"``.
-        ramp_min (float | str, optional): Value at the ramp's low end.
-        ramp_max (float | str, optional): Value at the ramp's high end.
-        ramp_reverse (bool, optional): Reverse the ramp.
-        mask_below (float, optional): Hide values at or below this. A source
-            property, so it applies even when the author has pinned styling.
+        mask_below (float, optional): Hide values at or below this. A property
+            of the data rather than of the palette -- the value decides what the
+            file publishes as real data -- so it travels with each fetch.
 
     Example:
         return geotiff_source(f"https://example.com/{self.date}.tif",
-                              ramp_name="viridis", ramp_min=0, ramp_max=50)
+                              mask_below=0)
 
     Returns:
-        dict: ``{"type": "GeoTIFF", "props": {url, projection?, mask_below?},
-        "style"?: {...}}``.
+        dict: ``{"type": "GeoTIFF", "props": {url, projection?, mask_below?}}``.
     """
     props = {"url": url}
     if projection is not None:
         props["projection"] = projection
-    # A source property, not a style one: it decides which values the file
-    # publishes as data. It is therefore applied whether or not the dashboard
-    # author has pinned the layer's styling.
     if mask_below is not None:
         props["mask_below"] = mask_below
-    style_values = {
-        "rampName": ramp_name,
-        "rampMin": ramp_min,
-        "rampMax": ramp_max,
-        "rampReverse": ramp_reverse,
-    }
-    style = {key: value for key, value in style_values.items() if value is not None}
-
-    description = {"type": "GeoTIFF", "props": props}
-    if style:
-        description["style"] = style
-    return description
+    return {"type": "GeoTIFF", "props": props}

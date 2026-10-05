@@ -397,9 +397,6 @@ const MapLayerModal = ({
             pluginSource: {
               source: sourceProps.source,
               args: sourceProps.args,
-              // Absent means a dynamic GeoTIFF follows the plugin's styling.
-              ...(isRuntimeGeoTIFF &&
-                sourceProps.stylePinned === true && { stylePinned: true }),
             },
           },
         },
@@ -656,8 +653,8 @@ const MapLayerModal = ({
 
         // A dynamic GeoTIFF's style is its ramp settings, so the scaffold's are
         // loaded into the Style tab in place of the editor's, and its source
-        // props with them. The pin is cleared: these are the plugin's styling,
-        // not the author's.
+        // props with them. From here they are the author's to change: this is
+        // the plugin offering a starting point, not claiming the style.
         if (
           getDynamicLayerSourceType(dynamicMapLayers, { source }) === "GeoTIFF"
         ) {
@@ -667,12 +664,10 @@ const MapLayerModal = ({
           }
           const scaffoldSource = config.props?.source ?? {};
           setRasterStyle(rasterStyleSettings(config.style));
-          setSourceProps((prev) => {
-            const next = { ...prev };
-            delete next.stylePinned;
-            next.props = { ...(scaffoldSource.props ?? {}) };
-            return next;
-          });
+          setSourceProps((prev) => ({
+            ...prev,
+            props: { ...(scaffoldSource.props ?? {}) },
+          }));
         }
         return { success: true };
       } catch (err) {
@@ -765,7 +760,6 @@ const MapLayerModal = ({
                   containerRef={styleContainerRef}
                   layerProps={layerProps}
                   sourceProps={sourceProps}
-                  setSourceProps={setSourceProps}
                   rasterStyle={rasterStyle}
                   setRasterStyle={setRasterStyle}
                   shapefileDiscovery={shapefileDiscovery}

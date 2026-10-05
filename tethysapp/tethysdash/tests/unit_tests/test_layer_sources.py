@@ -21,7 +21,7 @@ def test_plugin_helpers_re_exports_layer_sources(name):
 # --- geotiff_source ----------------------------------------------------------
 
 
-def test_geotiff_source_url_only_omits_projection_and_style():
+def test_geotiff_source_url_only_omits_everything_else():
     assert geotiff_source("https://x/a.tif") == {
         "type": "GeoTIFF",
         "props": {"url": "https://x/a.tif"},
@@ -30,13 +30,7 @@ def test_geotiff_source_url_only_omits_projection_and_style():
 
 def test_geotiff_source_full():
     description = geotiff_source(
-        "/files/a.tif",
-        projection="EPSG:32612",
-        ramp_name="viridis",
-        ramp_min=0,
-        ramp_max="50",
-        ramp_reverse=False,
-        mask_below=-1,
+        "/files/a.tif", projection="EPSG:32612", mask_below=-1
     )
 
     assert description == {
@@ -46,22 +40,20 @@ def test_geotiff_source_full():
             "projection": "EPSG:32612",
             "mask_below": -1,
         },
-        "style": {
-            "rampName": "viridis",
-            "rampMin": 0,
-            "rampMax": "50",
-            "rampReverse": False,
-        },
     }
     assert validate_layer_source_description(description, "GeoTIFF") is True
 
 
-def test_geotiff_source_partial_style_omits_unset_keys():
-    assert geotiff_source("https://x/a.tif", ramp_name="magma") == {
-        "type": "GeoTIFF",
-        "props": {"url": "https://x/a.tif"},
-        "style": {"rampName": "magma"},
-    }
+def test_geotiff_source_takes_no_styling():
+    """A fetch names a file; the layer's style is the author's.
+
+    The plugin offers its preferred styling once, through the scaffold ``run()``
+    returns, which the editor loads when the plugin is picked and again on Fetch
+    defaults. Passing a ramp here is a mistake, and a loud one rather than a
+    value that would be quietly ignored on every fetch.
+    """
+    with pytest.raises(TypeError):
+        geotiff_source("https://x/a.tif", ramp_name="magma")
 
 
 # --- is_allowed_layer_url ----------------------------------------------------
@@ -142,13 +134,20 @@ def test_validate_layer_source_description_happy_path():
     )
 
 
-def test_validate_layer_source_description_allows_null_bounds_and_style_omission():
+def test_validate_layer_source_description_rejects_a_style():
+    """A style on a fetch is refused, not ignored.
+
+    A plugin that still sends one is styling a layer it does not own, and
+    silently dropping it would leave its author wondering why the map never
+    changes.
+    """
     description = {
         "type": "GeoTIFF",
         "props": {"url": "https://x/a.tif"},
-        "style": {"rampName": "viridis", "rampMin": None, "rampMax": "1e3"},
+        "style": {"rampName": "viridis"},
     }
-    assert validate_layer_source_description(description, "GeoTIFF") is True
+    with pytest.raises(ValueError, match="unknown keys: style"):
+        validate_layer_source_description(description, "GeoTIFF")
 
 
 @pytest.mark.parametrize(
@@ -176,7 +175,7 @@ def test_validate_layer_source_description_allows_null_bounds_and_style_omission
         ({"type": "GeoTIFF", "props": "https://x/a.tif"}, "must carry a 'props' dict"),
         (
             {"type": "GeoTIFF", "props": {"url": "https://x/a.tif", "nodata": 0}},
-            "props has unknown keys: nodata.*ramp settings",
+            "props has unknown keys: nodata",
         ),
         ({"type": "GeoTIFF", "props": {}}, "props.url must be a non-empty string"),
         ({"type": "GeoTIFF", "props": {"url": ""}}, "non-empty string"),
@@ -194,35 +193,14 @@ def test_validate_layer_source_description_allows_null_bounds_and_style_omission
         ),
         (
             {"type": "GeoTIFF", "props": {"url": "https://x/a.tif"}, "style": "x"},
-            "style must be a dict",
+            "unknown keys: style",
         ),
         (
             {
                 "type": "GeoTIFF",
-                "props": {"url": "https://x/a.tif"},
-                "style": {"ramp": "viridis"},
+                "props": {"url": "https://x/a.tif", "rampName": "viridis"},
             },
-            "style has unknown keys: ramp",
-        ),
-        (
-            geotiff_source("https://x/a.tif", ramp_name="viridis", ramp_min="abc"),
-            "style.rampMin must be a finite number or numeric string, got 'abc'",
-        ),
-        (
-            geotiff_source("https://x/a.tif", ramp_max=float("inf")),
-            "style.rampMax must be a finite number",
-        ),
-        (
-            geotiff_source("https://x/a.tif", ramp_max="nan"),
-            "style.rampMax must be a finite number",
-        ),
-        (
-            geotiff_source("https://x/a.tif", ramp_min=True),
-            "style.rampMin must be a finite number",
-        ),
-        (
-            geotiff_source("https://x/a.tif", ramp_reverse="yes"),
-            "rampReverse must be True or False",
+            "props has unknown keys: rampName",
         ),
         (
             geotiff_source("https://x/a.tif", mask_below="0"),
@@ -231,14 +209,6 @@ def test_validate_layer_source_description_allows_null_bounds_and_style_omission
         (
             geotiff_source("https://x/a.tif", mask_below=float("nan")),
             "props.mask_below must be a finite number",
-        ),
-        (
-            geotiff_source("https://x/a.tif", ramp_name=""),
-            "rampName must be a non-empty ramp name",
-        ),
-        (
-            geotiff_source("https://x/a.tif", ramp_name=3),
-            "rampName must be a non-empty ramp name",
         ),
     ],
 )
@@ -254,7 +224,7 @@ def test_validate_layer_source_description_messages_are_distinct():
         {"type": "XYZ", "props": {"url": "https://x/a.tif"}},
         geotiff_source(""),
         geotiff_source("file:///etc/passwd"),
-        geotiff_source("https://x/a.tif", ramp_min="abc"),
+        geotiff_source("https://x/a.tif", mask_below="0"),
     ]
     messages = set()
     for data in bad_returns:

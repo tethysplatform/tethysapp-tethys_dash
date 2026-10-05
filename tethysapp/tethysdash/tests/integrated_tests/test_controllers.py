@@ -232,12 +232,6 @@ def test_data_features_mode_geotiff_source(
                 "projection": "EPSG:32612",
                 "mask_below": -9999,
             },
-            "style": {
-                "rampName": "magma",
-                "rampMin": 0,
-                "rampMax": 50,
-                "rampReverse": True,
-            },
         },
     }
 

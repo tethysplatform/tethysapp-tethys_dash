@@ -3939,9 +3939,6 @@ describe("MapLayerModal dynamic GeoTIFF plugin layer", () => {
 
   const styleTab = () => screen.getByLabelText("layer-style-tab");
   const sourceTab = () => screen.getByLabelText("layer-source-tab");
-  const followSwitch = () =>
-    within(styleTab()).getByRole("switch", { name: /follow plugin styling/i });
-
   // A saved layer reopened the way AddMapLayer reopens one. Takes the layer
   // flat -- a source with its styling -- and splits it into the source props
   // and the saved style the modal opens with.
@@ -3973,7 +3970,12 @@ describe("MapLayerModal dynamic GeoTIFF plugin layer", () => {
         within(styleTab()).getByRole("radio", { name: "Select viridis ramp" }),
       ).toHaveAttribute("aria-checked", "true");
     });
-    expect(followSwitch()).toBeChecked();
+    // A dynamic raster styles like any other layer: no follow toggle.
+    expect(
+      within(styleTab()).queryByRole("switch", {
+        name: /follow plugin styling/i,
+      }),
+    ).not.toBeInTheDocument();
 
     const saved = await save(addMapLayer);
     expect(saved).toEqual({
@@ -4027,7 +4029,7 @@ describe("MapLayerModal dynamic GeoTIFF plugin layer", () => {
     });
   });
 
-  test("Covers AE2. Changing the ramp pins the author's style", async () => {
+  test("Covers AE2. Changing the ramp saves the author's ramp", async () => {
     serveScaffolds({ echo_runtime_raster: echoScaffold });
     const addMapLayer = openModal({ layerProps: {}, sourceProps: {} });
 
@@ -4037,11 +4039,9 @@ describe("MapLayerModal dynamic GeoTIFF plugin layer", () => {
         within(styleTab()).getByRole("radio", { name: "Select viridis ramp" }),
       ).toHaveAttribute("aria-checked", "true");
     });
-    expect(followSwitch()).toBeChecked();
     fireEvent.click(
       within(styleTab()).getByRole("radio", { name: "Select Blues ramp" }),
     );
-    await waitFor(() => expect(followSwitch()).not.toBeChecked());
 
     const saved = await save(addMapLayer);
     expect(saved.configuration.props.source).toEqual({
@@ -4049,82 +4049,14 @@ describe("MapLayerModal dynamic GeoTIFF plugin layer", () => {
       props: {},
     });
     expect(saved.configuration.style).toEqual({ rampName: "Blues" });
+    // Nothing is recorded about whose style it is: it is the layer's.
     expect(saved.configuration.props.pluginSource).toEqual({
       source: "echo_runtime_raster",
       args: {},
-      stylePinned: true,
     });
   });
 
-  test("Covers AE3. Following the plugin again on a pinned layer drops the pin and keeps the ramp as the fallback", async () => {
-    const addMapLayer = openModal(
-      savedLayerInfo(
-        { props: {}, rampName: "Blues", rampMin: "0", rampMax: "5" },
-        {
-          source: "echo_runtime_raster",
-          args: { mode: "happy" },
-          stylePinned: true,
-        },
-      ),
-    );
-
-    const toggle = await waitFor(() => followSwitch());
-    expect(toggle).not.toBeChecked();
-    fireEvent.click(toggle);
-    await waitFor(() => expect(followSwitch()).toBeChecked());
-
-    const saved = await save(addMapLayer);
-    expect(saved.configuration).toEqual({
-      type: "WebGLTile",
-      props: {
-        name: "Echo Raster",
-        layerId: "saved-layer-id",
-        source: { type: "GeoTIFF", props: {} },
-        pluginSource: {
-          source: "echo_runtime_raster",
-          args: { mode: "happy" },
-        },
-      },
-      // Kept as the fallback the layer draws with when a fetch sends none.
-      style: { rampName: "Blues", rampMin: "0", rampMax: "5" },
-    });
-  });
-
-  test("reopening shows the toggle on for an unpinned layer and keeps it unpinned", async () => {
-    const addMapLayer = openModal(
-      savedLayerInfo(
-        { props: {}, rampName: "viridis" },
-        { source: "echo_runtime_raster", args: { mode: "happy" } },
-      ),
-    );
-
-    expect(await waitFor(() => followSwitch())).toBeChecked();
-    const saved = await save(addMapLayer);
-    expect(saved.configuration.props.pluginSource).toEqual({
-      source: "echo_runtime_raster",
-      args: { mode: "happy" },
-    });
-  });
-
-  test("reopening a pinned layer shows the toggle off and the pin survives a save", async () => {
-    const addMapLayer = openModal(
-      savedLayerInfo(
-        { props: {}, rampName: "Blues" },
-        {
-          source: "echo_runtime_raster",
-          args: { mode: "happy" },
-          stylePinned: true,
-        },
-      ),
-    );
-
-    expect(await waitFor(() => followSwitch())).not.toBeChecked();
-    const saved = await save(addMapLayer);
-    expect(saved.configuration.props.pluginSource.stylePinned).toBe(true);
-    expect(saved.configuration.style.rampName).toBe("Blues");
-  });
-
-  test("reopening a pinned ranges layer restores its class table and saves it back", async () => {
+  test("reopening a ranges layer restores its class table and saves it back", async () => {
     const classes = [
       { value: "1", color: "#aaa", label: "0.1 to 1" },
       { value: "2", color: "#bbb", label: "1 to 2" },
@@ -4132,11 +4064,7 @@ describe("MapLayerModal dynamic GeoTIFF plugin layer", () => {
     const addMapLayer = openModal(
       savedLayerInfo(
         { props: {}, rampName: "Blues", styleMode: "ranges", classes },
-        {
-          source: "echo_runtime_raster",
-          args: { mode: "happy" },
-          stylePinned: true,
-        },
+        { source: "echo_runtime_raster", args: { mode: "happy" } },
       ),
     );
 
@@ -4145,25 +4073,19 @@ describe("MapLayerModal dynamic GeoTIFF plugin layer", () => {
       await screen.findByRole("columnheader", { name: "Up to" }),
     ).toBeInTheDocument();
     const saved = await save(addMapLayer);
-    expect(saved.configuration.props.pluginSource.stylePinned).toBe(true);
     expect(saved.configuration.style.styleMode).toBe("ranges");
     expect(saved.configuration.style.classes).toEqual(classes);
     expect(saved.configuration.props.source.props).not.toHaveProperty("url");
   });
 
-  test("switching to another plugin resets the pin and reloads the ramp from its scaffold", async () => {
+  test("switching to another plugin reloads the ramp from its scaffold", async () => {
     serveScaffolds({ other_runtime_raster: otherScaffold });
     const addMapLayer = openModal(
       savedLayerInfo(
         { props: {}, rampName: "Blues", rampMin: "0" },
-        {
-          source: "echo_runtime_raster",
-          args: { mode: "happy" },
-          stylePinned: true,
-        },
+        { source: "echo_runtime_raster", args: { mode: "happy" } },
       ),
     );
-    expect(await waitFor(() => followSwitch())).not.toBeChecked();
 
     await pickSource("Other Runtime Raster");
     await waitFor(() => {
@@ -4171,7 +4093,6 @@ describe("MapLayerModal dynamic GeoTIFF plugin layer", () => {
         within(styleTab()).getByRole("radio", { name: "Select magma ramp" }),
       ).toHaveAttribute("aria-checked", "true");
     });
-    expect(followSwitch()).toBeChecked();
 
     const saved = await save(addMapLayer);
     expect(saved.configuration.props.pluginSource).toEqual({
@@ -4186,22 +4107,26 @@ describe("MapLayerModal dynamic GeoTIFF plugin layer", () => {
     );
   });
 
-  test("Fetch defaults reloads the plugin's styling and clears the pin", async () => {
+  test("Fetch defaults reloads the plugin's styling into the Style tab", async () => {
     serveScaffolds({ echo_runtime_raster: echoScaffold });
     const addMapLayer = openModal(
       savedLayerInfo(
         { props: { mask_below: "0" }, rampName: "Blues", rampMax: "3" },
-        {
-          source: "echo_runtime_raster",
-          args: { mode: "happy" },
-          stylePinned: true,
-        },
+        { source: "echo_runtime_raster", args: { mode: "happy" } },
       ),
     );
-    expect(await waitFor(() => followSwitch())).not.toBeChecked();
+    await waitFor(() =>
+      expect(
+        within(styleTab()).getByRole("radio", { name: "Select Blues ramp" }),
+      ).toHaveAttribute("aria-checked", "true"),
+    );
 
     fireEvent.click(screen.getByLabelText("Fetch plugin defaults"));
-    await waitFor(() => expect(followSwitch()).toBeChecked());
+    await waitFor(() =>
+      expect(
+        within(styleTab()).getByRole("radio", { name: "Select viridis ramp" }),
+      ).toHaveAttribute("aria-checked", "true"),
+    );
 
     const saved = await save(addMapLayer);
     expect(saved.configuration.props.source).toEqual({

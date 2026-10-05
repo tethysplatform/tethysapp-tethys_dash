@@ -857,9 +857,12 @@ class LayerConfigurationBuilder:
         Set a GeoTIFF or Zarr layer's color ramp, written where the layer
         editor saves it so the Style tab opens on it.
 
-        For a dynamic GeoTIFF layer this is the fallback style: it applies to
-        any fetch whose source description carries no ``style``. A bound left
-        as ``None`` is resolved from each file's statistics at render time.
+        For a dynamic GeoTIFF layer this is where the plugin offers its
+        preferred styling: the editor loads it when the plugin is picked and
+        again when the author presses Fetch defaults, after which the settings
+        are the author's to change and a fetch never overrides them. A bound
+        left as ``None`` is resolved from each file's statistics at render
+        time.
 
         Mirrors the editor's save: ``rampName``/``rampMin``/``rampMax``/
         ``rampReverse`` go in the layer's ``configuration.style``, and

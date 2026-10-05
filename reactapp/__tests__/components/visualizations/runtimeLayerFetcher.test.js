@@ -1680,7 +1680,6 @@ describe("useRuntimeLayerFetcher with a runtime GeoTIFF layer", () => {
     layerId = "layer-1",
     name = "Depth",
     args = {},
-    stylePinned,
     rampName = "viridis",
     rampMin,
     rampMax,
@@ -1693,11 +1692,7 @@ describe("useRuntimeLayerFetcher with a runtime GeoTIFF layer", () => {
         props: {
           name,
           layerId,
-          pluginSource: {
-            source: "echo_raster",
-            args,
-            ...(stylePinned === undefined ? {} : { stylePinned }),
-          },
+          pluginSource: { source: "echo_raster", args },
           source: {
             type: "GeoTIFF",
             props: maskBelow === undefined ? {} : { mask_below: maskBelow },
@@ -2160,7 +2155,6 @@ describe("useRuntimeLayerFetcher with a runtime GeoTIFF layer", () => {
   });
 
   test.each([
-    ["pinning the style", { stylePinned: true }],
     ["changing the ramp", { rampName: "magma" }],
     ["changing a bound", { rampMin: "5" }],
     ["changing the mask", { maskBelow: 0.1 }],
@@ -2188,19 +2182,6 @@ describe("useRuntimeLayerFetcher with a runtime GeoTIFF layer", () => {
       expect(getFeaturesMock).toHaveBeenCalledTimes(2);
     },
   );
-
-  test("un-pinning refetches", async () => {
-    const olLayer = fakeRasterLayer("layer-1");
-    const mapRef = { current: fakeOlMap([olLayer]) };
-    const { rerender } = hookFor({
-      layers: [rasterLayerConfig({ stylePinned: true })],
-      mapRef,
-    });
-    await flush();
-    rerender({ layers: [rasterLayerConfig()], mapRef });
-    await flush();
-    expect(getFeaturesMock).toHaveBeenCalledTimes(2);
-  });
 
   test("a tile failure on the swapped-in source sets the layer's error", async () => {
     const olLayer = fakeRasterLayer("layer-1");

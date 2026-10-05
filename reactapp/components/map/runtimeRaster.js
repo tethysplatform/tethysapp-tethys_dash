@@ -157,38 +157,11 @@ function boundValue(value) {
   return isRampBoundSet(value) ? Number(value) : undefined;
 }
 
-// Replace the saved style with a fetch's. The wire's style keys are the saved
-// style's, so this is a key-for-key copy -- but of the fetch's keys only, with
-// nothing kept from the saved style: a plugin that sends a ramp and no bounds
-// means "auto-range this one", which inheriting the saved bounds would undo.
-function overlayFetchStyle(config, fetchStyle) {
-  const wasClassStyled = hasClassStyle(rasterStyleSettings(config.style));
-  const { rampName, rampMin, rampMax, rampReverse } = fetchStyle;
-  const style = {};
-  if (typeof rampName === "string" && rampName !== "") {
-    style.rampName = rampName;
-  }
-  if (rampMin !== undefined && rampMin !== null) style.rampMin = rampMin;
-  if (rampMax !== undefined && rampMax !== null) style.rampMax = rampMax;
-  // Kept only when set, as the editor saves it.
-  if (rampReverse === true) style.rampReverse = true;
-  config.style = style;
-  // Nearest-neighbor resampling is written onto the source by a class-table
-  // (Categorical or Ranges) style, and is meaningless for the ramp replacing
-  // it -- it would blur nothing but nodata edges. The source behavior is
-  // derived from the style at load, but only ever set there, never cleared, so
-  // a layer that stops being class-styled has to be cleaned up here.
-  const sourceProps = config.props.source.props;
-  if (wasClassStyled && sourceProps?.interpolate === false) {
-    delete sourceProps.interpolate;
-  }
-}
-
-// Check the style in effect before anything is read: a ramp name that does not
-// exist is the plugin's or the author's mistake, and is reported as such rather
-// than leaving the layer to draw without a style. applyAutoRamp compiles the
-// style itself -- a starting style before the file is read, refined once its
-// range is known -- so nothing is compiled here.
+// Check the saved style before anything is read: a ramp name that does not
+// exist is the author's mistake, and is reported as such rather than leaving
+// the layer to draw without a style. applyAutoRamp compiles the style itself
+// -- a starting style before the file is read, refined once its range is known
+// -- so nothing is compiled here.
 function checkEffectiveStyle(config) {
   const style = rasterStyleSettings(config.style);
   if (hasClassStyle(style)) return;
@@ -210,30 +183,21 @@ function checkEffectiveStyle(config) {
  * from the *saved* config, not from a previous fetch's result: what one fetch
  * resolved about its file says nothing about the next one's.
  *
- * Style precedence:
- *
- *   pinned (`pluginSource.stylePinned`)   the saved style, whatever the fetch sent
- *   unpinned, fetch sent a style          the fetch's style, replacing the saved
- *                                         one as a whole
- *   unpinned, fetch sent none             the saved style
- *
- * In every case an empty min or max is resolved from the returned file when the
- * config is built.
- *
- * The style in effect is the config's `style`: ramp settings, in the same keys
- * the fetch's `style` uses. It is compiled for the returned file by
- * buildRuntimeRaster, never here and never into the saved config.
+ * The layer's saved `style` is the style, always: a fetch names a file and
+ * describes the data in it, and carries no styling of its own. An empty min or
+ * max is resolved from the returned file when the config is built, and the
+ * style is compiled for that file by buildRuntimeRaster -- never here, and
+ * never back into the saved config.
  *
  * @param {object} savedConfig The layer's saved `configuration`: a WebGLTile
  *   whose `props.source` is a GeoTIFF with no URL, and whose `style` holds its
  *   ramp settings.
  * @param {object} description The fetch's source description,
- *   `{type, props: {url, projection?, mask_below?}, style?: {rampName?,
- *   rampMin?, rampMax?, rampReverse?}}`.
+ *   `{type, props: {url, projection?, mask_below?}}`.
  * @returns {object} A new layer config, ready for buildRuntimeRaster.
  * @throws {LayerSourceError} When the description is malformed, names another
  *   source type than the layer's, carries a URL that must not be fetched, or
- *   names a ramp that does not exist.
+ *   the layer's saved style names a ramp that does not exist.
  */
 export function resolveEffectiveRasterConfig(savedConfig, description) {
   const name = savedConfig?.props?.name;
@@ -302,10 +266,6 @@ export function resolveEffectiveRasterConfig(savedConfig, description) {
     }
   }
 
-  const pinned = config.props.pluginSource?.stylePinned === true;
-  if (!pinned && description.style && typeof description.style === "object") {
-    overlayFetchStyle(config, description.style);
-  }
   checkEffectiveStyle(config);
 
   return config;

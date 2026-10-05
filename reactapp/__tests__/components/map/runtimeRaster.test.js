@@ -282,28 +282,6 @@ describe("resolveEffectiveRasterConfig", () => {
     );
   });
 
-  it("replaces the saved style wholesale with the fetch's when unpinned", () => {
-    const saved = savedLayer({
-      style: {
-        rampName: "Blues",
-        rampMin: "1",
-        rampMax: "9",
-        rampReverse: true,
-      },
-    });
-    const effective = resolveEffectiveRasterConfig(
-      saved,
-      description("https://h/a.tif", {
-        style: { rampName: "viridis", rampMin: 0 },
-      }),
-    );
-    expect(effective.style.rampName).toBe("viridis");
-    expect(effective.style.rampMin).toBe(0);
-    // Absent from the fetch's style, so cleared rather than inherited.
-    expect(effective.style).not.toHaveProperty("rampMax");
-    expect(effective.style).not.toHaveProperty("rampReverse");
-  });
-
   it("leaves the saved mask alone when a fetch does not mention it", () => {
     // The mask is a source property, not part of the style a fetch replaces
     // wholesale: it decides which values the file publishes as data. A fetch
@@ -343,93 +321,51 @@ describe("resolveEffectiveRasterConfig", () => {
     expect(effective.props.source.props).not.toHaveProperty("mask_below");
   });
 
-  it("drops a saved categorical style when an unpinned fetch supplies a ramp", () => {
-    const effective = resolveEffectiveRasterConfig(
-      savedLayer({
-        style: {
-          rampName: "Blues",
-          styleMode: "categorical",
-          classes: [{ value: 1, color: "#ff0000" }],
-          fallbackColor: "#000000",
-        },
-        sourceProps: { normalize: false, interpolate: false },
-      }),
-      description("https://h/a.tif", { style: { rampName: "viridis" } }),
-    );
-    expect(effective.style).not.toHaveProperty("styleMode");
-    expect(effective.style).not.toHaveProperty("classes");
-    expect(effective.style).not.toHaveProperty("fallbackColor");
-    expect(effective.props.source.props).not.toHaveProperty("interpolate");
-  });
-
-  it("drops a saved ranges style when an unpinned fetch supplies a ramp", () => {
-    const effective = resolveEffectiveRasterConfig(
-      savedLayer({
-        style: {
-          rampName: "Blues",
-          styleMode: "ranges",
-          classes: [{ value: 1, color: "#ff0000" }],
-        },
-        sourceProps: { normalize: false, interpolate: false },
-      }),
-      description("https://h/a.tif", { style: { rampName: "viridis" } }),
-    );
-    expect(effective.style).not.toHaveProperty("styleMode");
-    expect(effective.style).not.toHaveProperty("classes");
-    expect(effective.props.source.props).not.toHaveProperty("interpolate");
-    expect(effective.style.rampName).toBe("viridis");
-  });
-
-  it("uses the saved style when the fetch supplies none", () => {
+  it("draws with the saved style, which is the only style there is", () => {
+    // A fetch names a file and describes the data in it. The styling is the
+    // author's, saved on the layer, and nothing a plugin returns displaces it.
     const effective = resolveEffectiveRasterConfig(
       savedLayer({ style: { rampName: "Blues", rampMax: "9" } }),
       description("https://h/a.tif"),
     );
-    expect(effective.style.rampName).toBe("Blues");
-    expect(effective.style.rampMax).toBe("9");
+    expect(effective.style).toEqual({ rampName: "Blues", rampMax: "9" });
   });
 
-  it("ignores a fetch style on a pinned layer, even one whose saved style has no ramp", () => {
+  it("leaves a layer with no saved style unstyled", () => {
+    // Nothing fills the gap: the layer draws with no ramp until its author
+    // gives it one on the Style tab.
     const effective = resolveEffectiveRasterConfig(
-      savedLayer({ pluginSource: { stylePinned: true } }),
-      description("https://h/a.tif", {
-        style: { rampName: "viridis", rampMin: 0, rampMax: 50 },
-      }),
+      savedLayer(),
+      description("https://h/a.tif"),
     );
     expect(effective.style).toEqual({});
   });
 
-  it("hands the fetch's settings on as settings, compiling nothing", () => {
+  it("hands the settings on as settings, compiling nothing", () => {
     // The compiled style depends on the file -- its nodata, its value range --
     // so it is built by applyAutoRamp once the file is open, not here. What
     // this returns is the settings, and the source behavior that goes with
     // them is derived from those at load.
-    const pinnedRange = resolveEffectiveRasterConfig(
-      savedLayer(),
-      description("https://h/a.tif", {
-        style: { rampName: "viridis", rampMin: 0, rampMax: 50 },
-      }),
+    const effective = resolveEffectiveRasterConfig(
+      savedLayer({ style: { rampName: "viridis", rampMin: 0, rampMax: 50 } }),
+      description("https://h/a.tif"),
     );
-    expect(pinnedRange.style).toEqual({
+    expect(effective.style).toEqual({
       rampName: "viridis",
       rampMin: 0,
       rampMax: 50,
     });
-    expect(pinnedRange.style).not.toHaveProperty("color");
-    expect(pinnedRange.props.source.props).not.toHaveProperty("normalize");
-
-    const open = resolveEffectiveRasterConfig(
-      savedLayer(),
-      description("https://h/a.tif", { style: { rampName: "magma" } }),
-    );
-    expect(open.style).toEqual({ rampName: "magma" });
+    expect(effective.style).not.toHaveProperty("color");
+    expect(effective.props.source.props).not.toHaveProperty("normalize");
   });
 
-  it("fails a fetch naming a ramp that does not exist", () => {
+  it("fails when the saved style names a ramp that does not exist", () => {
+    // Reported before the file is read, so the author is told the ramp is
+    // wrong rather than left with a layer that draws unstyled.
     expect(() =>
       resolveEffectiveRasterConfig(
-        savedLayer(),
-        description("https://h/a.tif", { style: { rampName: "nope" } }),
+        savedLayer({ style: { rampName: "nope" } }),
+        description("https://h/a.tif"),
       ),
     ).toThrow(/nope/);
   });
@@ -439,33 +375,27 @@ describe("buildRuntimeRaster", () => {
   const build = (saved, desc) =>
     buildRuntimeRaster(resolveEffectiveRasterConfig(saved, desc), "EPSG:3857");
 
-  it("Covers AE1. follows the plugin's ramp, and auto-ranges one that names no bounds", async () => {
+  it("Covers AE1. ranges the saved ramp to each file the plugin returns", async () => {
     mockFiles({
       "https://h/a.tif": statsFile(10, 20),
       "https://h/b.tif": statsFile(3, 9),
     });
-    const saved = savedLayer({ style: { rampName: "Blues" } });
+    // One saved ramp, no bounds: each file the plugin names is fitted to its
+    // own statistics, and the colorbar follows.
+    const saved = savedLayer({ style: { rampName: "viridis" } });
 
-    const first = await build(
-      saved,
-      description("https://h/a.tif", {
-        style: { rampName: "viridis", rampMin: 0, rampMax: 50 },
-      }),
-    );
+    const first = await build(saved, description("https://h/a.tif"));
     expect(first.legendRamp).toEqual({
       rampName: "viridis",
       rampReverse: false,
-      rampMin: 0,
-      rampMax: 50,
+      rampMin: 10,
+      rampMax: 20,
     });
     expect(first.source.options.sources[0].url).toBe("https://h/a.tif");
 
-    const second = await build(
-      saved,
-      description("https://h/b.tif", { style: { rampName: "magma" } }),
-    );
+    const second = await build(saved, description("https://h/b.tif"));
     expect(second.legendRamp).toEqual({
-      rampName: "magma",
+      rampName: "viridis",
       rampReverse: false,
       rampMin: 3,
       rampMax: 9,
@@ -476,19 +406,11 @@ describe("buildRuntimeRaster", () => {
     expect(second.style).not.toEqual(first.style);
   });
 
-  it("Covers AE2. keeps the author's pinned style while following the plugin's URL", async () => {
+  it("Covers AE2. keeps the author's style while following the plugin's URL", async () => {
     mockFiles({ "https://h/a.tif": statsFile(0, 5) });
-    const saved = savedLayer({
-      style: { rampName: "Blues" },
-      pluginSource: { stylePinned: true },
-    });
+    const saved = savedLayer({ style: { rampName: "Blues" } });
 
-    const built = await build(
-      saved,
-      description("https://h/a.tif", {
-        style: { rampName: "viridis", rampMin: 0, rampMax: 50 },
-      }),
-    );
+    const built = await build(saved, description("https://h/a.tif"));
     expect(built.legendRamp).toEqual({
       rampName: "Blues",
       rampReverse: false,
@@ -513,21 +435,44 @@ describe("buildRuntimeRaster", () => {
   });
 
   it("rebuilds for the same URL, so a style change is not skipped", async () => {
+    // applyAutoRamp short-circuits when a source's resolvedRampUrl repeats, so
+    // an edited style against an unchanged file has to start from the saved
+    // config rather than from the last fetch's result.
     mockFiles({ "https://h/a.tif": statsFile(0, 10) });
-    const saved = savedLayer();
 
     const first = await build(
-      saved,
-      description("https://h/a.tif", { style: { rampName: "viridis" } }),
+      savedLayer({ style: { rampName: "viridis" } }),
+      description("https://h/a.tif"),
     );
     const second = await build(
-      saved,
-      description("https://h/a.tif", { style: { rampName: "magma" } }),
+      savedLayer({ style: { rampName: "magma" } }),
+      description("https://h/a.tif"),
     );
     expect(first.legendRamp.rampName).toBe("viridis");
     expect(second.legendRamp.rampName).toBe("magma");
     expect(second.legendRamp.rampMax).toBe(10);
     expect(second.source).not.toBe(first.source);
+  });
+
+  it("labels a pinned range with the author's bounds, not the file's", async () => {
+    // Pinning is what an author does when the file's own range is not the one
+    // the map should be read against -- a shared scale across several layers,
+    // say. The colorbar has to agree with what is drawn.
+    mockFiles({ "https://h/a.tif": statsFile(0, 10) });
+    const built = await build(
+      savedLayer({
+        style: { rampName: "viridis", rampMin: "0", rampMax: "50" },
+      }),
+      description("https://h/a.tif"),
+    );
+    expect(built.legendRamp).toEqual({
+      rampName: "viridis",
+      rampReverse: false,
+      rampMin: 0,
+      rampMax: 50,
+    });
+    // Raw values, since the range is known without reading the file.
+    expect(built.source.options.normalize).toBe(false);
   });
 
   it("labels a ramp left on the normalized scale 0..1", async () => {
@@ -553,7 +498,7 @@ describe("buildRuntimeRaster", () => {
     expect(built.source).toBeInstanceOf(GeoTIFF);
   });
 
-  it("keeps a pinned categorical style and reports its swatches, not a colorbar", async () => {
+  it("reports a class table's swatches, not a colorbar", async () => {
     mockFiles({ "https://h/a.tif": statsFile(0, 1) });
     const built = await build(
       savedLayer({
@@ -573,7 +518,7 @@ describe("buildRuntimeRaster", () => {
     expect(built.source.options.interpolate).toBe(false);
   });
 
-  it("keeps a pinned ranges style, drawn by interval with ascending swatches", async () => {
+  it("draws a ranges table by interval, with ascending swatches", async () => {
     mockFiles({ "https://h/a.tif": statsFile(0, 1) });
     const built = await build(
       savedLayer({
@@ -785,8 +730,8 @@ describe("applyRuntimeRaster", () => {
 
     const built = await buildRuntimeRaster(
       resolveEffectiveRasterConfig(
-        savedLayer(),
-        description("https://h/b.tif", { style: { rampName: "magma" } }),
+        savedLayer({ style: { rampName: "magma" } }),
+        description("https://h/b.tif"),
       ),
       "EPSG:3857",
     );
@@ -942,37 +887,6 @@ describe("isRuntimeRasterConfig", () => {
 });
 
 describe("resolveEffectiveRasterConfig style and source edges", () => {
-  it("ignores a fetch style whose ramp name is empty", () => {
-    // "No opinion" and "" mean the same thing from a plugin: the style is
-    // still replaced wholesale, but with nothing to name a palette, so the
-    // layer draws grayscale rather than taking "" as a ramp and failing.
-    const effective = resolveEffectiveRasterConfig(
-      savedLayer({ style: { rampName: "Blues", rampMin: "1" } }),
-      description("https://h/a.tif", { style: { rampName: "", rampMax: 9 } }),
-    );
-    expect(effective.style).toEqual({ rampMax: 9 });
-  });
-
-  it("carries a fetch's reversed ramp, and only when it is set", () => {
-    const reversed = resolveEffectiveRasterConfig(
-      savedLayer(),
-      description("https://h/a.tif", {
-        style: { rampName: "viridis", rampReverse: true },
-      }),
-    );
-    expect(reversed.style).toEqual({ rampName: "viridis", rampReverse: true });
-
-    // Saved only when true, as the editor saves it, so an unreversed layer's
-    // config is unchanged from before the option existed.
-    const plain = resolveEffectiveRasterConfig(
-      savedLayer(),
-      description("https://h/a.tif", {
-        style: { rampName: "viridis", rampReverse: false },
-      }),
-    );
-    expect(plain.style).toEqual({ rampName: "viridis" });
-  });
-
   it("builds the props of a saved source that has none", () => {
     // A layer saved before a source prop existed carries no `props` key at
     // all; the URL still has to land somewhere.

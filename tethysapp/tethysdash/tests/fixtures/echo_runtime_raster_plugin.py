@@ -28,13 +28,15 @@ class EchoRuntimeRasterPlugin(TethysDashPlugin):
     ``mode`` values:
 
     - ``"happy"`` — returns ``geotiff_source(ECHO_RASTER_URL)``.
-    - ``"styled"`` — returns a description with a projection and a full style.
+    - ``"styled"`` — returns a description with a projection and a mask.
+    - ``"with_style"`` — returns a description carrying a ``style``, which a
+      fetch may not: the layer's styling is its author's.
     - ``"none"`` — returns ``None`` (protocol error).
     - ``"scaffold"`` — returns the configure-time scaffold (shape error).
     - ``"wrong_type"`` — returns a description of type ``"XYZ"``.
     - ``"empty_url"`` — returns a description with an empty URL.
     - ``"file_url"`` — returns a ``file:///`` URL (disallowed scheme).
-    - ``"bad_min"`` — returns a non-numeric ``rampMin``.
+    - ``"bad_mask"`` — returns a non-numeric ``mask_below``.
     - ``"raise"`` — raises ``RuntimeError`` during fetch.
     - ``"slow_progress"`` — emits one ``send_update`` then returns happy.
     """
@@ -61,12 +63,13 @@ class EchoRuntimeRasterPlugin(TethysDashPlugin):
             return geotiff_source(
                 ECHO_RASTER_URL,
                 projection="EPSG:32612",
-                ramp_name="magma",
-                ramp_min=0,
-                ramp_max=50,
-                ramp_reverse=True,
                 mask_below=-9999,
             )
+        if mode == "with_style":
+            return {
+                **geotiff_source(ECHO_RASTER_URL),
+                "style": {"rampName": "magma"},
+            }
         if mode == "none":
             return None
         if mode == "scaffold":
@@ -77,8 +80,8 @@ class EchoRuntimeRasterPlugin(TethysDashPlugin):
             return geotiff_source("")
         if mode == "file_url":
             return geotiff_source("file:///etc/passwd")
-        if mode == "bad_min":
-            return geotiff_source(ECHO_RASTER_URL, ramp_name="viridis", ramp_min="abc")
+        if mode == "bad_mask":
+            return geotiff_source(ECHO_RASTER_URL, mask_below="abc")
         if mode == "raise":
             raise RuntimeError("Echo raster plugin intentional failure")
         if mode == "slow_progress":

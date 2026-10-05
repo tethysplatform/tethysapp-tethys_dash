@@ -93,10 +93,10 @@ function detachSourceErrors(state) {
  * means a fresh, empty layer is about to be built, and a rebuilt layer has to
  * be repainted even when the plugin arguments are identical.
  *
- * A runtime raster adds its saved style. Map.js preserves the layer across a
- * style edit -- the style is compiled per fetch, from the saved one and the
- * plugin's -- so pinning, un-pinning or editing a pinned style changes nothing
- * on screen until the next fetch, and this is what makes there be one.
+ * A runtime raster adds its saved style, which is the only style it has. Map.js
+ * preserves the layer across a style edit, and the compiled expression is built
+ * per fetch against the file, so editing the style changes nothing on screen
+ * until the next fetch -- this is what makes there be one.
  */
 function changeIdentity(configuration) {
   const identity = {
@@ -109,7 +109,6 @@ function changeIdentity(configuration) {
     // property rather than a style one, and so has to be named separately or
     // an edit to it would repaint with the old threshold still applied.
     identity.style = {
-      stylePinned: configuration.props.pluginSource.stylePinned === true,
       maskBelow: configuration.props.source?.props?.mask_below,
       ...rasterStyleSettings(configuration.style),
     };

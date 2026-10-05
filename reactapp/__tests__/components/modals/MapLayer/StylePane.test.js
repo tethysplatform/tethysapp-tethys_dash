@@ -1375,10 +1375,7 @@ describe("StylePane dynamic GeoTIFF layers", () => {
     rampName: "viridis",
     ...extra,
   });
-  const followSwitch = () =>
-    screen.getByRole("switch", { name: /follow plugin styling/i });
-
-  test("shows the ramp section and an accessible follow toggle for a plugin that declares GeoTIFF", async () => {
+  test("shows the ramp section, and no follow toggle, for a plugin that declares GeoTIFF", async () => {
     render(
       <GeoTIFFTestHarness
         initialSourceProps={rasterSourceProps()}
@@ -1399,36 +1396,11 @@ describe("StylePane dynamic GeoTIFF layers", () => {
       ),
     ).toBeInTheDocument();
 
-    const toggle = followSwitch();
-    expect(toggle).toBeChecked();
-    // The description is a polite live region, so the flip an edit causes is
-    // announced, not only shown.
-    const help = screen.getByRole("status");
-    expect(help).toHaveAttribute("aria-live", "polite");
-    expect(toggle).toHaveAttribute("aria-describedby", help.id);
-    expect(toggle).toHaveAccessibleDescription(
-      "The plugin's styling is applied on each fetch. The settings below " +
-        "are used only when the plugin returns no styling. Editing any of " +
-        "them pins your style.",
-    );
-  });
-
-  test("a pinned layer opens with the toggle off", async () => {
-    render(
-      <GeoTIFFTestHarness
-        initialSourceProps={rasterSourceProps({ stylePinned: true })}
-        dynamicMapLayers={dynamicMapLayers}
-      />,
-    );
-
-    const toggle = await screen.findByRole("switch", {
-      name: /follow plugin styling/i,
-    });
-    expect(toggle).not.toBeChecked();
-    expect(toggle).toHaveAccessibleDescription(
-      "Your style is pinned. The plugin's styling is ignored until you turn " +
-        "this back on.",
-    );
+    // No follow toggle: a dynamic raster's style is the author's like any
+    // other layer's, and a fetch never displaces it.
+    expect(
+      screen.queryByRole("switch", { name: /follow plugin styling/i }),
+    ).not.toBeInTheDocument();
   });
 
   test.each([
@@ -1438,10 +1410,12 @@ describe("StylePane dynamic GeoTIFF layers", () => {
         userEvent.click(
           screen.getByRole("radio", { name: "Select magma ramp" }),
         ),
+      () => screen.getByTestId("rampName").textContent === "magma",
     ],
     [
       "reversing the ramp",
       () => userEvent.click(screen.getByLabelText("Reverse Color Ramp")),
+      () => screen.getByTestId("rampReverse").textContent === "true",
     ],
     [
       "typing a min",
@@ -1449,6 +1423,7 @@ describe("StylePane dynamic GeoTIFF layers", () => {
         fireEvent.change(screen.getByLabelText("Ramp Min"), {
           target: { value: "1" },
         }),
+      () => screen.getByTestId("rampMin").textContent === "1",
     ],
     [
       "typing a max",
@@ -1456,64 +1431,40 @@ describe("StylePane dynamic GeoTIFF layers", () => {
         fireEvent.change(screen.getByLabelText("Ramp Max"), {
           target: { value: "9" },
         }),
+      () => screen.getByTestId("rampMax").textContent === "9",
     ],
     [
       "switching to categorical",
       () => userEvent.click(screen.getByRole("radio", { name: /Categorical/ })),
+      () => screen.getByRole("columnheader", { name: "Value" }),
     ],
     [
       "switching to ranges",
       () => userEvent.click(screen.getByRole("radio", { name: /Ranges/ })),
+      () => screen.getByRole("columnheader", { name: "Up to" }),
     ],
-  ])("%s pins the style", async (_label, edit) => {
-    render(
-      <GeoTIFFTestHarness
-        initialSourceProps={rasterSourceProps()}
-        dynamicMapLayers={dynamicMapLayers}
-      />,
-    );
-    await screen.findByText("Color Ramp");
-    expect(screen.getByTestId("stylePinned")).toHaveTextContent("undefined");
+  ])(
+    "%s writes to the style, and nowhere else",
+    async (_label, edit, landed) => {
+      // Every control on this pane edits the layer's saved style. None of them
+      // touches the source props any more -- there is no pin to set, because a
+      // fetch never competes with what is here.
+      render(
+        <GeoTIFFTestHarness
+          initialSourceProps={rasterSourceProps()}
+          dynamicMapLayers={dynamicMapLayers}
+        />,
+      );
+      await screen.findByText("Color Ramp");
 
-    await edit();
+      await edit();
 
-    await waitFor(() => {
-      expect(screen.getByTestId("stylePinned")).toHaveTextContent("true");
-    });
-    expect(followSwitch()).not.toBeChecked();
-  });
+      await waitFor(() => expect(landed()).toBeTruthy());
+      expect(screen.getByTestId("stylePinned")).toHaveTextContent("undefined");
+    },
+  );
 
-  test("turning the toggle on clears the pin and leaves the fields as they are", async () => {
-    render(
-      <GeoTIFFTestHarness
-        initialSourceProps={rasterSourceProps({
-          stylePinned: true,
-          rampName: "blues",
-          rampMin: "0",
-          rampMax: "5",
-        })}
-        dynamicMapLayers={dynamicMapLayers}
-      />,
-    );
-
-    await userEvent.click(
-      await screen.findByRole("switch", { name: /follow plugin styling/i }),
-    );
-
-    expect(screen.getByTestId("stylePinned")).toHaveTextContent("undefined");
-    expect(followSwitch()).toBeChecked();
-    expect(screen.getByTestId("rampName")).toHaveTextContent("blues");
-    expect(screen.getByTestId("rampMin")).toHaveTextContent("0");
-    expect(screen.getByTestId("rampMax")).toHaveTextContent("5");
-    // Still editable while following: they are the fallback style.
-    expect(screen.getByLabelText("Ramp Min")).not.toBeDisabled();
-
-    // Turning it back off pins again.
-    await userEvent.click(followSwitch());
-    expect(screen.getByTestId("stylePinned")).toHaveTextContent("true");
-  });
-
-  test("defaults a dynamic GeoTIFF without a ramp to turbo, without pinning", async () => {
+  test("defaults a dynamic GeoTIFF without a ramp to turbo", async () => {
     render(
       <GeoTIFFTestHarness
         initialSourceProps={rasterSourceProps({ rampName: undefined })}
@@ -1523,10 +1474,9 @@ describe("StylePane dynamic GeoTIFF layers", () => {
     await waitFor(() => {
       expect(screen.getByTestId("rampName")).toHaveTextContent("turbo");
     });
-    expect(screen.getByTestId("stylePinned")).toHaveTextContent("undefined");
   });
 
-  test("no toggle for a static GeoTIFF layer, and edits there set no pin", async () => {
+  test("a static GeoTIFF layer styles the same way, with no toggle", async () => {
     render(
       <GeoTIFFTestHarness
         initialSourceProps={{ type: "GeoTIFF", rampName: "viridis" }}
@@ -1546,7 +1496,6 @@ describe("StylePane dynamic GeoTIFF layers", () => {
     await waitFor(() => {
       expect(screen.getByTestId("rampMin")).toHaveTextContent("1");
     });
-    expect(screen.getByTestId("stylePinned")).toHaveTextContent("undefined");
   });
 
   test("a GeoJSON dynamic layer keeps the vector style editor and has no toggle", async () => {
@@ -1581,92 +1530,5 @@ describe("StylePane dynamic GeoTIFF layers", () => {
     expect(
       screen.queryByRole("switch", { name: /follow plugin styling/i }),
     ).not.toBeInTheDocument();
-  });
-});
-
-describe("StylePane dynamic GeoTIFF pinning edges", () => {
-  const rasterPlugin = {
-    source: "echo_runtime_raster",
-    value: "Echo Runtime Raster",
-    label: "Echo Runtime Raster",
-    args: {},
-    type: "map_layer",
-    dynamic_map_layer: true,
-    dynamic_map_layer_source: "GeoTIFF",
-  };
-  const dynamicMapLayers = [
-    { label: "Dynamic Map Layers", options: [rasterPlugin] },
-  ];
-
-  // Rendered directly rather than through the harness: these are about the
-  // updater StylePane hands setSourceProps, which a harness that applies it
-  // would hide.
-  const renderPinned = ({ setSourceProps, rasterStyle = {} } = {}) =>
-    render(
-      <AppContext.Provider value={{ dynamicMapLayers }}>
-        <LayoutContext.Provider value={{ uuid: "123" }}>
-          <StylePane
-            style={undefined}
-            setStyle={() => {}}
-            setErrorMessage={() => {}}
-            sourceProps={{
-              type: "Echo Runtime Raster",
-              source: "echo_runtime_raster",
-              props: {},
-              stylePinned: true,
-            }}
-            setSourceProps={setSourceProps}
-            rasterStyle={{ rampName: "viridis", ...rasterStyle }}
-            setRasterStyle={jest.fn()}
-          />
-        </LayoutContext.Provider>
-      </AppContext.Provider>,
-    );
-
-  test("editing an already-pinned layer leaves its source props as they are", async () => {
-    // The pin is set once. Returning a fresh object on every later edit would
-    // re-render every consumer of sourceProps on each keystroke in the range
-    // inputs, and re-run the field discovery effect that is keyed on it.
-    const setSourceProps = jest.fn();
-    renderPinned({ setSourceProps });
-
-    fireEvent.click(
-      await screen.findByRole("radio", { name: "Select Blues ramp" }),
-    );
-
-    expect(setSourceProps).toHaveBeenCalledTimes(1);
-    const updater = setSourceProps.mock.calls[0][0];
-    const previous = { type: "Echo Runtime Raster", stylePinned: true };
-    expect(updater(previous)).toBe(previous);
-  });
-
-  test("an unpinned layer's first edit does set the pin", () => {
-    // The other side of the same ternary, so the identity check above is read
-    // as "no change needed" rather than "the pin never gets written".
-    const setSourceProps = jest.fn();
-    renderPinned({ setSourceProps });
-
-    fireEvent.change(screen.getByLabelText("Ramp Min"), {
-      target: { value: "5" },
-    });
-
-    const updater = setSourceProps.mock.calls.at(-1)[0];
-    const previous = { type: "Echo Runtime Raster" };
-    expect(updater(previous)).toEqual({
-      type: "Echo Runtime Raster",
-      stylePinned: true,
-    });
-    expect(previous).not.toHaveProperty("stylePinned");
-  });
-
-  test("the follow toggle is inert without a way to save it", () => {
-    // The pane renders read-only in places. Every writer no-ops rather than
-    // throwing, and the toggle is one.
-    renderPinned({ setSourceProps: undefined });
-
-    const toggle = screen.getByRole("switch", {
-      name: /follow plugin styling/i,
-    });
-    expect(() => fireEvent.click(toggle)).not.toThrow();
   });
 });
