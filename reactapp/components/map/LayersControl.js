@@ -13,7 +13,6 @@ const ControlWrapper = styled(FloatingMapControl)`
   bottom: 1rem;
   right: 1rem;
 `;
-const LAYERS_EDGES = ["bottom", "right"];
 
 const ErrorBadge = styled.div`
   display: flex;
@@ -117,7 +116,7 @@ const LayersControl = ({
   }
 
   return (
-    <ControlWrapper edges={LAYERS_EDGES} mapDivRef={mapDivRef}>
+    <ControlWrapper mapDivRef={mapDivRef}>
       <MapSizedControlContainer
         container={LayerControlContainer}
         expanded={isexpanded}

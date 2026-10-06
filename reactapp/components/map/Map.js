@@ -73,7 +73,6 @@ const AlertAnchor = styled(FloatingMapControl)`
      sit at this level. */
   z-index: 1000;
 `;
-const ALERT_EDGES = ["top", "left", "right"];
 
 const StyledAlert = styled(Alert)`
   margin: 0;
@@ -1998,7 +1997,7 @@ const MapComponent = ({
           showLayerFailure ||
           showLayerLoading ||
           showViewGroupMismatch) && (
-          <AlertAnchor edges={ALERT_EDGES} mapDivRef={mapDivRef}>
+          <AlertAnchor mapDivRef={mapDivRef}>
             <AlertStack role="group" aria-label="Map Alerts">
               {errorMessage && (
                 <StyledAlert
