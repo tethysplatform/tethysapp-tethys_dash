@@ -64,6 +64,14 @@ const AlertAnchor = styled(FloatingMapControl)`
   top: 1rem;
   left: 1rem;
   right: 1rem;
+  /* Above the OpenLayers viewport, which is appended to the map div after
+     React's children and so paints over anything left at z-index auto. Without
+     this an alert showed for a frame and was then covered by the canvas --
+     all but its close button, which Bootstrap gives a z-index of its own
+     (.alert-dismissible .btn-close) that escapes the unpositioned alert and
+     lifts the button clear on its own. The layer and legend controls already
+     sit at this level. */
+  z-index: 1000;
 `;
 const ALERT_EDGES = ["top", "left", "right"];
 

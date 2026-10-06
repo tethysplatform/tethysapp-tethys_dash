@@ -2281,6 +2281,42 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
     );
   });
 
+  test("the alert stack is lifted above the OpenLayers viewport", async () => {
+    // OpenLayers appends its viewport to the map div after React's children,
+    // so anything left at z-index auto is painted under the canvas. The alert
+    // body went under it while Bootstrap's own z-index on
+    // `.alert-dismissible .btn-close` escaped the unpositioned alert and left
+    // the close button floating over the map on its own -- a message that
+    // flashed once and then showed as a bare X.
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent
+            mapProps={{
+              layers: [],
+              layerPrepStatus: {
+                "Basin Boundaries": {
+                  state: "error",
+                  message: "boom",
+                  kind: "fetch",
+                },
+              },
+            }}
+          />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    await screen.findByRole("group", { name: "Map Alerts" });
+    const anchor = screen
+      .getAllByTestId("floating-map-control-inplace")
+      .find((el) => within(el).queryByRole("group", { name: "Map Alerts" }));
+    expect(anchor).toBeTruthy();
+    expect(window.getComputedStyle(anchor).zIndex).toBe("1000");
+  });
+
   test("dismissing a failure leaves the loading report on screen", async () => {
     render(
       <VariableInputsContext.Provider

@@ -94,6 +94,10 @@ function makeRuntimeOlLayer({
 function mountLayersControl({
   olLayer,
   runtimeLayerState = {},
+  // The merged layer status, as visualizations/Map.js supplies it. Dropping it
+  // here is what hid a failure being reported twice: without it the panel only
+  // ever saw one of its two sources.
+  layerStatus = {},
   websocketValue = {},
   expanded = true,
 }) {
@@ -106,6 +110,7 @@ function mountLayersControl({
       <LayersControl
         visualizationRef={visualizationRef}
         runtimeLayerState={runtimeLayerState}
+        layerStatus={layerStatus}
         updater={false}
       />
     </WebsocketContext.Provider>,
@@ -160,6 +165,26 @@ test("LayersControl hides progress bar once an error is recorded", async () => {
   // Error badge visible; nothing reports loading here any more.
   expect(await screen.findByRole("alert")).toHaveTextContent("boom");
   expect(screen.queryByRole("status")).not.toBeInTheDocument();
+});
+
+test("LayersControl reports a runtime failure once, not twice", async () => {
+  // The merged layer status is where a runtime fetch's failure already
+  // arrives, so the panel sees the same message from two directions. Reading
+  // both printed every dynamic layer's error twice, one badge under the other.
+  const olLayer = makeRuntimeOlLayer({ layerId: "layer-1" });
+  const message = 'GeoTIFF layer "test" failed to fetch the file.';
+
+  mountLayersControl({
+    olLayer,
+    runtimeLayerState: {
+      errorsByLayerId: { "layer-1": { message, kind: "error" } },
+    },
+    layerStatus: { "Runtime Layer": { state: "error", message } },
+  });
+
+  const badges = await screen.findAllByRole("alert");
+  expect(badges).toHaveLength(1);
+  expect(badges[0]).toHaveTextContent(message);
 });
 
 test("LayersControl shows a failure message with no action on it", async () => {
