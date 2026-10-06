@@ -601,9 +601,10 @@ would pick up the same fringe as a categorical layer's.
 Masking low values
 ~~~~~~~~~~~~~~~~~~
 
-Both source types accept an optional **Mask Below** threshold — on the :ref:`source_tab`
-for GeoTIFF (on this tab for a GeoTIFF Custom Layer), and as the ``mask_below`` source
-property for Zarr. Cells at or below it render
+Both source types accept an optional **Mask Below** threshold, set on the
+:ref:`source_tab` as the ``mask_below`` source property — for a GeoTIFF Custom Layer too.
+It belongs there rather than here because it decides which values the file publishes as
+real data rather than how those values are colored. Cells at or below it render
 transparent, which is the usual way to hide dry ground or sub-threshold noise.
 
 When the ramp minimum is auto-fitted it starts at the threshold rather than the file's
@@ -628,24 +629,18 @@ would otherwise fill the bottom of the ramp.
     lacks them, the layer still renders and clicking still reports values, but no colorbar
     legend is produced — enter a range manually in that case.
 
-Custom GeoTIFF layers: Follow plugin styling
+Custom GeoTIFF layers: this tab is the style
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 A GeoTIFF Custom Layer (see :ref:`source_tab`) gets its file from a plugin on each fetch,
-and the plugin may send a color ramp with it. A **Follow plugin styling** switch above the
-Color Ramp section decides which ramp is drawn:
+but not its styling. The settings on this tab are what the layer draws with, exactly as for
+an ordinary GeoTIFF layer, and no fetch replaces them.
 
-- **On** (the default): each fetch's ramp replaces the settings on this tab as a whole. The
-  settings here are the fallback for a fetch that returns no styling. They start as the
-  plugin's own defaults.
-- **Off**: your style is *pinned*. The layer always draws with the settings on this tab, and
-  the plugin's ramp is ignored.
+A plugin offers its preferred styling once, when you pick it as the layer's source — a color
+ramp, or a Categorical or Ranges class table. That is what this tab opens on. From there the
+settings are yours. **Fetch defaults** on the Source tab loads the plugin's styling again,
+replacing what is here; nothing else does.
 
-Editing any setting in the section (the ramp, Ramp Min / Max, Reverse, the class table, or
-Mask Below) turns the switch off, so the edit is not overwritten by the next fetch. Turn it
-back on to follow the plugin again; your settings are kept as the fallback. **Fetch defaults**
-on the Source tab reloads the plugin's defaults and turns the switch back on.
-
-Pinning the *style* is separate from pinning the *range* in the table above. In either switch
-state, an empty Ramp Min or Ramp Max is fitted to each file the plugin returns, and a filled
-one is used as entered.
+An empty Ramp Min or Ramp Max is still fitted to each file the plugin returns, and a filled
+one is used as entered — so a layer whose file changes can keep one scale across every file,
+or follow each file's own range, whichever you set.

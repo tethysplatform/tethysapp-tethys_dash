@@ -1049,7 +1049,8 @@ from the plugin
     - ``set_snap_sublayer(int)`` — MapServer sublayer used to load snapping features (ESRI Image and Map Service sources only).
     - ``set_geojson(dict)`` — Attach a GeoJSON object (for GeoJSON source type only).
     - ``set_plugin_source(source, args)`` — Mark the layer as a dynamic ``map_layer`` and bind it to a plugin that will be invoked at render time: ``fetch_features()`` for a ``"GeoJSON"`` builder, ``fetch_source()`` for a ``"GeoTIFF"`` builder. Raises for any other source type. See `Dynamic map_layer plugins`_.
-    - ``set_raster_ramp(ramp_name, ramp_min=None, ramp_max=None, reverse=False, mask_below=None)`` — Set a GeoTIFF layer's color ramp where the layer editor saves it, so the Style tab opens on it. ``"GeoTIFF"`` builders only. For a dynamic GeoTIFF layer this is the fallback style. See `Dynamic GeoTIFF layers`_.
+    - ``set_raster_ramp(ramp_name, ramp_min=None, ramp_max=None, reverse=False, mask_below=None)`` — Set a GeoTIFF layer's color ramp where the layer editor saves it, so the Style tab opens on it. ``"GeoTIFF"`` and ``"Zarr"`` builders only. For a dynamic GeoTIFF layer this is the styling the plugin *offers*; see `Dynamic GeoTIFF layers`_.
+    - ``set_raster_classes(style_mode, classes, fallback_color=None, ramp_name=None, reverse=False)`` — Color the layer by a class table instead of a ramp, for data whose values are labels. ``style_mode`` is ``"categorical"`` (exact values) or ``"ranges"`` (the interval each class's value closes). Each class is ``{"value", "color", "label"?}``; rows without both a color and a numeric value are dropped, and a table with no usable row raises. ``ramp_name`` is kept beside the table so switching the layer back to Continuous in the editor does not lose the palette. Replaces any ramp set with ``set_raster_ramp()``, and is replaced by one.
     - ``set_legend(dict | "default" | None)`` — Set the legend configuration.
     - ``set_style(dict | str)`` — Set the layer style.
     - ``add_attribute_alias(key, alias, layer_name)`` — Add a display alias for a layer attribute.
@@ -1279,13 +1280,14 @@ methods:
   ``LayerConfigurationBuilder(name, "GeoTIFF")`` and ``set_plugin_source()``.
   The scaffold is a ``WebGLTile`` layer whose GeoTIFF source has no URL; the
   map builds it with no source, and it draws nothing until the first
-  successful fetch. ``set_raster_ramp()`` sets the scaffold's color ramp, which
-  the Style tab opens on.
+  successful fetch. ``set_raster_ramp()`` or ``set_raster_classes()`` sets the
+  styling the scaffold offers, which the Style tab opens on.
 - ``fetch_source()`` runs at render time, in place of ``fetch_features()``,
-  and returns a *source description* naming the file and, optionally, how to
-  color it. It runs over the same runtime request as ``fetch_features()``, so
-  progress from ``self.send_update(...)`` routes to the layer's indicator the
-  same way.
+  and returns a *source description* naming the file and describing the data
+  in it. It carries no styling — see
+  :ref:`Styling is the author's <styling_is_the_authors>`. It runs over
+  the same runtime request as ``fetch_features()``, so progress from
+  ``self.send_update(...)`` routes to the layer's indicator the same way.
 
 **Example**: ::
 
@@ -1311,7 +1313,9 @@ methods:
             """Configure-time scaffold: a GeoTIFF layer with no URL."""
             builder = LayerConfigurationBuilder("Daily Precipitation", "GeoTIFF")
             builder.set_plugin_source("daily_precip", {"day": self.day})
-            # The fallback style, used by any fetch that returns no style.
+            # The styling this plugin offers. The editor loads it when the
+            # plugin is picked and again on Fetch defaults; after that it is
+            # the dashboard author's to change.
             builder.set_raster_ramp("viridis")
             builder.set_legend("default")
             return builder.build()
@@ -1324,9 +1328,7 @@ methods:
             self.send_update("Locating the file...", percentage_complete=50)
             return geotiff_source(
                 f"https://data.example.com/precip/{day:%Y%m%d}.tif",
-                ramp_name="Blues",
-                ramp_min=0,
-                ramp_max=50,
+                mask_below=0,
             )
 
 **Return contract for fetch_source**
@@ -1339,20 +1341,12 @@ it is a convenience, and returning the dict directly is equally valid::
         "props": {
             "url": "https://example.com/a.tif",  # required
             "projection": "EPSG:32612",          # optional
-        },
-        "style": {                               # optional; omit to keep the saved style
-            "rampName": "viridis",
-            "rampMin": 0,
-            "rampMax": 50,
-            "rampReverse": False,
-            "maskBelow": -9999,
+            "mask_below": 0,                     # optional
         },
     }
 
-``geotiff_source(url, projection=None, ramp_name=None, ramp_min=None,
-ramp_max=None, ramp_reverse=None, mask_below=None)`` maps its arguments onto
-these keys and leaves out every one that is ``None``. With no style argument
-set, it leaves out ``style`` entirely.
+``geotiff_source(url, projection=None, mask_below=None)`` maps its arguments
+onto these keys and leaves out every one that is ``None``.
 
 - ``props.url`` is the file to draw. See the URL rules below.
 - ``props.projection`` is the CRS to read the file in when its own GeoKeys are
@@ -1360,11 +1354,10 @@ set, it leaves out ``style`` entirely.
   GeoKeys. It resolves through the same CRS lookup as a static GeoTIFF layer's,
   and a code that cannot be resolved fails the fetch with the same message.
   Omit it to use the file's own CRS.
-- ``style`` uses the Style tab's vocabulary: a ramp name, its min and max, a
-  reverse flag, and ``maskBelow``, which hides values at or below it. (On a
-  saved layer ``maskBelow`` is the source's ``mask_below`` prop. It is under
-  ``style`` here because it is a styling choice.) A fetch can only send a
-  continuous ramp, not a Categorical or Ranges class table.
+- ``props.mask_below`` hides cells at or below the given value. It travels with
+  the fetch because it describes the *data* — which values the file publishes
+  as real — rather than how those values are colored. It is edited on the
+  layer's Source tab, not its Style tab.
 
 The runtime validator (:py:func:`validate_layer_source_description`) rejects,
 with a message naming the fix:
@@ -1374,62 +1367,49 @@ with a message naming the fix:
   ``source`` at the top level. This catches returning ``run()``'s output.
 - A ``type`` other than the plugin's ``dynamic_map_layer_source``. The message
   names both types.
-- Unknown keys at any level. The allowed keys are ``type``/``props``/``style``
-  at the top, ``url``/``projection`` in ``props``, and the five keys above in
-  ``style``.
+- Unknown keys at any level. The allowed keys are ``type`` and ``props`` at the
+  top, and ``url``/``projection``/``mask_below`` in ``props``. A ``style`` key
+  is rejected here rather than ignored — see below.
 - A missing, empty or disallowed ``url``.
 - A ``projection`` that is not a string, or is longer than 2000 characters.
-- An empty ``rampName``; a ``rampMin`` or ``rampMax`` that is not a finite
-  number or numeric string (``None`` is allowed and means "fit to the file");
-  a ``rampReverse`` that is not a boolean; a ``maskBelow`` that is not a finite
-  number.
+- A ``mask_below`` that is not a finite number.
 
-A ramp name that does not exist passes the backend and fails the fetch in the
-browser, with a message naming the ramp.
+.. _styling_is_the_authors:
 
-**Styling: follow the plugin, or pin the author's style**
+**Styling is the author's**
 
-A dynamic GeoTIFF layer has two styles: the one saved on the layer (the
-scaffold's ``set_raster_ramp()`` ramp, plus any edits made in the Style tab)
-and whatever ``style`` each fetch returns. Which one a fetch is drawn with
-depends on whether the author has *pinned* the saved style:
+A fetch names a file; it never carries styling. The layer's saved style — what
+the dashboard author set on its Style tab — is what it draws with, for a
+dynamic layer exactly as for a static one.
 
-.. list-table::
-    :header-rows: 1
-    :widths: 20 30 50
+A plugin offers its preferred styling *once*, through the scaffold ``run()``
+returns. The editor loads that styling when the author picks the plugin, and
+again whenever they press **Fetch defaults** on the Source tab. From there the
+settings belong to the author and no fetch displaces them.
 
-    * - Pinned?
-      - Fetch returned ``style``?
-      - Style drawn
-    * - No
-      - Yes
-      - The fetch's style. It replaces the saved ramp fields **as a whole**,
-        with no field-by-field merge: a fetch style that sends a ramp and no
-        min/max means "fit this file", and one that sends no ``rampName``
-        draws the layer with no color ramp.
-    * - No
-      - No
-      - The saved style.
-    * - Yes
-      - Either
-      - The saved style. The fetch's style is ignored.
+This is why returning a ``style`` from ``fetch_source()`` is an error rather
+than something quietly ignored: a plugin that sends one is styling a layer it
+does not own, and dropping it silently would leave its author wondering why the
+map never changes.
 
-In every row, an empty min or max is fitted to each returned file, the same
-way a static GeoTIFF's auto-fit works (the file's statistics, then a
+An empty min or max on the saved style is fitted to each returned file, the
+same way a static GeoTIFF's auto-fit works (the file's statistics, then a
 ``.aux.xml`` sidecar, then a read of the pixels; see :ref:`raster_color_ramp`).
 When the layer's legend is ``"default"``, its colorbar shows the ramp and range
-of the last file drawn. No colorbar is shown before the first successful
+of the file currently drawn. No colorbar is shown before the first successful
 fetch.
 
-The author pins the style in the layer's Style tab. Editing any ramp field
-(the ramp, min, max, reverse, the class table, or **Mask below**) pins it.
-A **Follow plugin styling** switch at the top of the tab shows which state the
-layer is in, and turning it back on un-pins the style. The saved fields are
-kept, and become the fallback for fetches that return no style again. Clicking
-**Fetch defaults** on the Source tab reloads the scaffold's ramp and un-pins
-the style. The pin is saved on the layer as ``pluginSource.stylePinned: true``,
-and its absence means "follows the plugin". A pinned Categorical or Ranges
-style keeps working, because it is the saved style.
+**When a fetch fails**
+
+A failed fetch takes the raster off the map: the layer is left drawing nothing
+and the failure is reported on the map and against the layer in the Layers
+control. It does not keep the file an earlier fetch returned, because that file
+would be drawn under a configuration that no longer names it and would read as
+current. The OpenLayers layer itself survives, so the next successful fetch
+draws into it with its opacity, ordering and popups intact.
+
+A ramp name that does not exist is reported in the browser, which is the only
+side that knows the ramp table.
 
 **URL rules**
 

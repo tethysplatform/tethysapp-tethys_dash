@@ -463,18 +463,17 @@ When adding a layer, dynamic plugins are listed under the **Custom Layers** grou
     - A GeoTIFF layer is repointed in place at the file each fetch names. The new file is opened first, and the layer switches only once it is ready. Until the first fetch succeeds, the layer draws nothing.
     - Re-fetches on variable-input change are debounced and the older in-flight request is cancelled when a new one starts.
     - While a layer is loading, the map names it in its loading alert, with the percentage from ``self.send_update(...)`` when the plugin reports one. See :ref:`create_map`.
-    - A layer that fails (an unreachable host, a plugin that is not installed on the server) is named in the map's failure alert and beside its entry in the layer control. The rest of the map still renders. A GeoTIFF layer whose fetch fails keeps drawing the previous file.
+    - A layer that fails (an unreachable host, a plugin that is not installed on the server) is named in the map's failure alert and beside its entry in the layer control. The rest of the map still renders. A GeoTIFF layer whose fetch fails is taken off the map rather than left drawing the file an earlier fetch returned, which would be shown under a configuration that no longer names it. The next successful fetch draws into the same layer, keeping its opacity, ordering and popups.
     - A GeoTIFF Custom Layer never sets the map's projection. It is reprojected into the map's view, even when it is the only raster on the map.
 
-**GeoTIFF styling: Follow plugin styling**
-    A GeoTIFF plugin may return a color ramp with each file. The **Follow plugin styling** switch at the top of the layer's Style tab decides whether that ramp is used:
+**GeoTIFF styling**
+    A fetch names a file; it does not style it. The layer's Style tab is what it draws with, exactly as for an ordinary GeoTIFF layer.
 
-    - **On** (the default): each fetch's ramp replaces the layer's saved ramp as a whole. The ramp settings on the Style tab are used only for a fetch that returns no styling.
-    - **Off** (the style is *pinned*): the layer always uses the ramp settings on the Style tab, and the plugin's ramp is ignored.
+    A plugin offers its preferred styling once, when you pick it as the layer's source — a color ramp, or a Categorical or Ranges class table — and that is what the Style tab opens on. From there the settings are yours, and no fetch replaces them. **Fetch defaults** on this tab loads the plugin's styling again, replacing what is on the Style tab; nothing else does.
 
-    Editing any ramp setting (the ramp, Min, Max, Reverse, the class table, or **Mask below**) turns the switch off, so your edit sticks. Turn it back on to follow the plugin again. In both states an empty Min or Max is fitted to each file the plugin returns.
+    An empty Min or Max is fitted to each file the plugin returns, so a layer can follow each file's own range or hold one scale across all of them.
 
-    A GeoTIFF Custom Layer's **Mask below** is set on the Style tab. A static GeoTIFF layer's is set on this tab.
+    **Mask below** is set on this tab for every GeoTIFF layer, static or custom. It decides which values the file publishes as real data rather than how they are colored, so a plugin can send it with each fetch even though it sends no styling.
 
 For the plugin-author contract (``dynamic_map_layer``, ``dynamic_map_layer_source``, ``fetch_features``, ``fetch_source``, ``LayerConfigurationBuilder.set_plugin_source``, the return-shape validators, and progress streaming), see :ref:`visualizationplugins`. For GeoTIFF plugins in particular, see :ref:`dynamic_geotiff_layers`.
 
