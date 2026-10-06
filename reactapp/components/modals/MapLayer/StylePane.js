@@ -9,10 +9,12 @@ import RuleStyleEditor from "components/inputs/RuleStyleEditor";
 import RampPicker from "components/modals/MapLayer/RampPicker";
 import ColorPickerPopOver from "components/inputs/ColorPickerPopOver";
 import { resolveRamp } from "components/map/colorRamps";
+import { isClassStyleMode } from "components/map/geoTIFFStyle";
 import Button from "react-bootstrap/Button";
 import { LayoutContext, AppContext } from "components/contexts/Contexts";
 import { getStyleFields } from "components/map/utilities";
 import { findSelectOptionByValue } from "components/visualizations/utilities";
+import { getDynamicLayerSourceType } from "components/modals/MapLayer/runtimeLayerSource";
 
 const EditorModeRow = styled.div`
   display: flex;
@@ -65,6 +67,15 @@ const ModeRow = styled.div`
   font-size: 0.9rem;
 `;
 
+const HelperText = styled.small`
+  display: block;
+  color: #6c757d;
+`;
+
+const RANGES_HELP_TEXT =
+  "Each class covers values above the previous class's bound, up to and " +
+  "including its own.";
+
 const ClassTable = styled.table`
   width: 100%;
   margin: 0.5rem 0;
@@ -85,7 +96,8 @@ const StylePane = ({
   setErrorMessage,
   containerRef,
   sourceProps,
-  setSourceProps,
+  rasterStyle = {},
+  setRasterStyle,
   layerProps,
   shapefileDiscovery,
 }) => {
@@ -96,6 +108,14 @@ const StylePane = ({
   const { uuid } = useContext(LayoutContext);
   const [availableFields, setAvailableFields] = useState([]);
   const { dynamicMapLayers } = useContext(AppContext);
+  // A dynamic plugin layer is typed by the plugin's label, not "GeoTIFF", so
+  // whether it is a raster comes from what the plugin declares it drives.
+  const isRuntimeGeoTIFF =
+    getDynamicLayerSourceType(dynamicMapLayers, sourceProps) === "GeoTIFF";
+  const isRaster =
+    sourceProps.type === "GeoTIFF" ||
+    sourceProps.type === "Zarr" ||
+    isRuntimeGeoTIFF;
 
   useEffect(() => {
     // A shapefile's fields come from the shared, author-triggered discovery
@@ -135,14 +155,10 @@ const StylePane = ({
   ]);
 
   useEffect(() => {
-    if (
-      (sourceProps.type === "GeoTIFF" || sourceProps.type === "Zarr") &&
-      !sourceProps.rampName &&
-      setSourceProps
-    ) {
-      setSourceProps((prev) => ({ ...prev, rampName: "turbo" }));
+    if (isRaster && !rasterStyle.rampName && setRasterStyle) {
+      setRasterStyle((prev) => ({ ...prev, rampName: "turbo" }));
     }
-  }, [sourceProps.type, sourceProps.rampName, setSourceProps]);
+  }, [isRaster, rasterStyle.rampName, setRasterStyle]);
 
   useEffect(() => {
     const fetchJSON = async () => {
@@ -233,43 +249,46 @@ const StylePane = ({
     }
   }
 
-  if (sourceProps.type === "GeoTIFF" || sourceProps.type === "Zarr") {
-    const selectedRamp = sourceProps.rampName ?? null;
-    const rampMin = sourceProps.rampMin ?? "";
-    const rampMax = sourceProps.rampMax ?? "";
-    const rampReverse = sourceProps.rampReverse === true;
+  if (isRaster) {
+    // The settings are edited in the shape they are saved in, the layer's
+    // `configuration.style`, and that is the style the layer draws with --
+    // for a dynamic layer too. A plugin offers a starting point through its
+    // scaffold (and through Fetch defaults on the Source tab); from there the
+    // settings here are the author's and no fetch overrides them.
+    const selectedRamp = rasterStyle.rampName ?? null;
+    const rampMin = rasterStyle.rampMin ?? "";
+    const rampMax = rasterStyle.rampMax ?? "";
+    const rampReverse = rasterStyle.rampReverse === true;
 
-    const handleRampSelect = (rampName) => {
-      if (!setSourceProps) return;
-      setSourceProps((prev) => ({ ...prev, rampName }));
+    const editRasterStyle = (patch) => {
+      if (!setRasterStyle) return;
+      setRasterStyle((prev) => ({ ...prev, ...patch(prev) }));
     };
+
+    const handleRampSelect = (rampName) =>
+      editRasterStyle(() => ({ rampName }));
     const handleReverseToggle = (e) => {
-      if (!setSourceProps) return;
       const checked = e.target.checked;
-      setSourceProps((prev) => ({ ...prev, rampReverse: checked }));
+      editRasterStyle(() => ({ rampReverse: checked }));
     };
     const handleMinChange = (e) => {
-      if (!setSourceProps) return;
       const value = e.target.value;
-      setSourceProps((prev) => ({ ...prev, rampMin: value }));
+      editRasterStyle(() => ({ rampMin: value }));
     };
     const handleMaxChange = (e) => {
-      if (!setSourceProps) return;
       const value = e.target.value;
-      setSourceProps((prev) => ({ ...prev, rampMax: value }));
+      editRasterStyle(() => ({ rampMax: value }));
     };
+    // Categorical and Ranges share the class table; only how a class's value
+    // is read differs (an exact value, or the top of an interval). Switching
+    // between them keeps the rows, since `classes` is untouched by a mode
+    // switch.
+    const isRanges = rasterStyle.styleMode === "ranges";
+    const isClassStyled = isClassStyleMode(rasterStyle.styleMode);
+    const classes = rasterStyle.classes ?? [];
 
-    const isCategorical = sourceProps.styleMode === "categorical";
-    const classes = sourceProps.classes ?? [];
-
-    const setMode = (mode) => {
-      if (!setSourceProps) return;
-      setSourceProps((prev) => ({ ...prev, styleMode: mode }));
-    };
-    const updateClasses = (next) => {
-      if (!setSourceProps) return;
-      setSourceProps((prev) => ({ ...prev, classes: next }));
-    };
+    const setMode = (mode) => editRasterStyle(() => ({ styleMode: mode }));
+    const updateClasses = (next) => editRasterStyle(() => ({ classes: next }));
     // New rows borrow a color from the selected ramp, spread across however many
     // classes exist, so a usable style appears without picking colors by hand.
     const addClass = () => {
@@ -293,14 +312,14 @@ const StylePane = ({
     return (
       <GeoTIFFSection>
         <SectionHeading>
-          {isCategorical ? "Classes" : "Color Ramp"}
+          {isClassStyled ? "Classes" : "Color Ramp"}
         </SectionHeading>
         <ModeRow role="radiogroup" aria-label="Raster Style Mode">
           <label>
             <input
               type="radio"
               name="raster-style-mode"
-              checked={!isCategorical}
+              checked={!isClassStyled}
               onChange={() => setMode("continuous")}
             />{" "}
             Continuous
@@ -309,17 +328,26 @@ const StylePane = ({
             <input
               type="radio"
               name="raster-style-mode"
-              checked={isCategorical}
+              checked={isClassStyled && !isRanges}
               onChange={() => setMode("categorical")}
             />{" "}
             Categorical
+          </label>
+          <label>
+            <input
+              type="radio"
+              name="raster-style-mode"
+              checked={isRanges}
+              onChange={() => setMode("ranges")}
+            />{" "}
+            Ranges
           </label>
         </ModeRow>
 
         {/* A ramp has no meaning for discrete classes; each class carries its
             own color. The selection is still kept so switching back to
             Continuous restores it, and it seeds new class colors. */}
-        {!isCategorical && (
+        {!isClassStyled && (
           <>
             <RampPicker
               selectedRamp={selectedRamp}
@@ -340,12 +368,13 @@ const StylePane = ({
           </>
         )}
 
-        {isCategorical ? (
+        {isClassStyled ? (
           <>
+            {isRanges && <HelperText>{RANGES_HELP_TEXT}</HelperText>}
             <ClassTable>
               <thead>
                 <tr>
-                  <th>Value</th>
+                  <th>{isRanges ? "Up to" : "Value"}</th>
                   <th>Color</th>
                   <th>Label</th>
                   <th aria-label="Remove" />
@@ -405,12 +434,9 @@ const StylePane = ({
               <RangeCell>
                 <ColorPickerPopOver
                   label="Other values"
-                  color={sourceProps.fallbackColor ?? ""}
+                  color={rasterStyle.fallbackColor ?? ""}
                   onChange={(color) =>
-                    setSourceProps((prev) => ({
-                      ...prev,
-                      fallbackColor: color,
-                    }))
+                    editRasterStyle(() => ({ fallbackColor: color }))
                   }
                   containerRef={containerRef}
                 />
@@ -440,6 +466,12 @@ const StylePane = ({
               />
             </RangeCell>
           </RangeRow>
+        )}
+        {isRuntimeGeoTIFF && !isClassStyled && (
+          <HelperText>
+            Leave Min/Max empty to fit the range to each file the plugin
+            returns.
+          </HelperText>
         )}
       </GeoTIFFSection>
     );
@@ -561,12 +593,20 @@ StylePane.propTypes = {
   setErrorMessage: PropTypes.func,
   sourceProps: PropTypes.shape({
     type: PropTypes.string,
+    geojson: PropTypes.oneOfType([PropTypes.string, PropTypes.object]),
+    props: PropTypes.shape({
+      sources: PropTypes.arrayOf(PropTypes.shape({ url: PropTypes.string })),
+    }),
+  }),
+  // A raster's style settings, in the shape saved as its configuration.style.
+  rasterStyle: PropTypes.shape({
     rampName: PropTypes.string,
-    rampMin: PropTypes.string,
-    rampMax: PropTypes.string,
+    rampMin: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    rampMax: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
     // Flip the ramp so its last color lands on the low end of the range.
     rampReverse: PropTypes.bool,
-    // "categorical" colors by exact class value instead of a ramp range.
+    // "categorical" colors by exact class value instead of a ramp range;
+    // "ranges" colors each interval up to and including a class's value.
     styleMode: PropTypes.string,
     classes: PropTypes.arrayOf(
       PropTypes.shape({
@@ -576,12 +616,9 @@ StylePane.propTypes = {
       }),
     ),
     fallbackColor: PropTypes.string,
-    geojson: PropTypes.oneOfType([PropTypes.string, PropTypes.object]),
-    props: PropTypes.shape({
-      sources: PropTypes.arrayOf(PropTypes.shape({ url: PropTypes.string })),
-    }),
+    // Cells at or below this raw value render transparent.
   }),
-  setSourceProps: PropTypes.func,
+  setRasterStyle: PropTypes.func,
   layerProps: PropTypes.shape({
     name: PropTypes.string, // name of the layer
     opacity: PropTypes.oneOfType([PropTypes.number, PropTypes.string]), // opacity of the layer (0-1)

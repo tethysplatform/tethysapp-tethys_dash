@@ -94,33 +94,73 @@ const TestingComponent = ({
   );
 };
 
-const GeoTIFFTestHarness = ({ initialSourceProps, sourcePropsSpy }) => {
-  const [sourceProps, setSourceProps] = useState(initialSourceProps);
+// A raster's ramp settings are saved as `configuration.style` and reach
+// StylePane as `rasterStyle`, separately from the source props. The tests here
+// describe a layer as one flat object -- a source with its styling -- and this
+// splits it into the two the pane takes, so each test reads as the layer an
+// author sees rather than as two stores. The keys are disjoint, so the split
+// and the merge below are both lossless.
+const RASTER_STYLE_KEYS = [
+  "rampName",
+  "rampMin",
+  "rampMax",
+  "rampReverse",
+  "styleMode",
+  "classes",
+  "fallbackColor",
+];
 
-  const spyingSetSourceProps = (updater) => {
-    setSourceProps((prev) => {
-      const next = typeof updater === "function" ? updater(prev) : updater;
-      if (typeof sourcePropsSpy === "function") sourcePropsSpy(next);
-      return next;
+const splitLayer = (flat = {}) => {
+  const sourceProps = {};
+  const rasterStyle = {};
+  Object.entries(flat).forEach(([key, value]) => {
+    if (RASTER_STYLE_KEYS.includes(key)) rasterStyle[key] = value;
+    else sourceProps[key] = value;
+  });
+  return { sourceProps, rasterStyle };
+};
+
+const GeoTIFFTestHarness = ({
+  initialSourceProps,
+  sourcePropsSpy,
+  dynamicMapLayers = [],
+}) => {
+  const [layer, setLayer] = useState(initialSourceProps ?? {});
+  const { sourceProps, rasterStyle } = splitLayer(layer);
+
+  // One setter per half. Each replaces its own half wholesale -- so a style
+  // that drops `classes` really drops it -- and leaves the other standing.
+  const setHalf = (half) => (updater) => {
+    setLayer((prev) => {
+      const parts = splitLayer(prev);
+      const next =
+        typeof updater === "function" ? updater(parts[half]) : updater;
+      const other =
+        half === "sourceProps" ? parts.rasterStyle : parts.sourceProps;
+      const merged = { ...other, ...next };
+      if (typeof sourcePropsSpy === "function") sourcePropsSpy(merged);
+      return merged;
     });
   };
 
   return (
-    <AppContext.Provider value={{ dynamicMapLayers: [] }}>
+    <AppContext.Provider value={{ dynamicMapLayers }}>
       <LayoutContext.Provider value={{ uuid: "123" }}>
         <StylePane
           style={undefined}
           setStyle={() => {}}
           setErrorMessage={() => {}}
           sourceProps={sourceProps}
-          setSourceProps={spyingSetSourceProps}
+          setSourceProps={setHalf("sourceProps")}
+          rasterStyle={rasterStyle}
+          setRasterStyle={setHalf("rasterStyle")}
         />
-        <p data-testid="rampName">{sourceProps.rampName ?? ""}</p>
-        <p data-testid="rampMin">{sourceProps.rampMin ?? ""}</p>
-        <p data-testid="rampMax">{sourceProps.rampMax ?? ""}</p>
-        <p data-testid="rampReverse">
-          {String(sourceProps.rampReverse ?? false)}
-        </p>
+        <p data-testid="stylePinned">{String(layer.stylePinned)}</p>
+        <p data-testid="maskBelow">{layer.props?.mask_below ?? ""}</p>
+        <p data-testid="rampName">{layer.rampName ?? ""}</p>
+        <p data-testid="rampMin">{layer.rampMin ?? ""}</p>
+        <p data-testid="rampMax">{layer.rampMax ?? ""}</p>
+        <p data-testid="rampReverse">{String(layer.rampReverse ?? false)}</p>
       </LayoutContext.Provider>
     </AppContext.Provider>
   );
@@ -607,6 +647,7 @@ TestingComponent.propTypes = {
 GeoTIFFTestHarness.propTypes = {
   initialSourceProps: PropTypes.object,
   sourcePropsSpy: PropTypes.func,
+  dynamicMapLayers: PropTypes.array,
 };
 
 test("StylePane renders Color Ramp section for GeoTIFF source type", async () => {
@@ -975,9 +1016,126 @@ describe("StylePane categorical raster styling", () => {
   });
 });
 
-describe("StylePane categorical editing edges", () => {
-  const renderBare = (sourceProps) =>
+describe("StylePane ranges raster styling", () => {
+  const renderPane = (sourceProps, spy) =>
     render(
+      <GeoTIFFTestHarness
+        initialSourceProps={{
+          type: "GeoTIFF",
+          rampName: "turbo",
+          props: { url: "flow.tif" },
+          ...sourceProps,
+        }}
+        sourcePropsSpy={spy}
+      />,
+    );
+  const classRows = [
+    { value: "1", color: "#aaa", label: "0.1 to 1" },
+    { value: "2", color: "#bbb", label: "1 to 2" },
+  ];
+  const modeRadio = async (name) =>
+    within(
+      await screen.findByRole("radiogroup", { name: "Raster Style Mode" }),
+    ).getByRole("radio", { name });
+
+  test("offers Ranges beside Continuous and Categorical", async () => {
+    renderPane({});
+
+    const group = await screen.findByRole("radiogroup", {
+      name: "Raster Style Mode",
+    });
+    const radios = within(group).getAllByRole("radio");
+    expect(radios).toEqual([
+      within(group).getByRole("radio", { name: "Continuous" }),
+      within(group).getByRole("radio", { name: "Categorical" }),
+      within(group).getByRole("radio", { name: "Ranges" }),
+    ]);
+    expect(await modeRadio("Continuous")).toBeChecked();
+  });
+
+  test("Ranges mode shows the class table headed Up to, with its helper line", async () => {
+    renderPane({ styleMode: "ranges", classes: classRows });
+
+    expect(await screen.findByText("Classes")).toBeInTheDocument();
+    expect(await modeRadio("Ranges")).toBeChecked();
+    expect(await modeRadio("Categorical")).not.toBeChecked();
+    expect(
+      screen.getByRole("columnheader", { name: "Up to" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("columnheader", { name: "Value" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Each class covers values above the previous class's bound, up to and including its own.",
+      ),
+    ).toBeInTheDocument();
+    // The continuous controls are gone, as in Categorical.
+    expect(screen.queryByLabelText("Ramp Min")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("radiogroup", { name: "Color ramp picker" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Other values")).toBeInTheDocument();
+  });
+
+  test("Categorical mode heads the value column Value, with no helper line", async () => {
+    renderPane({ styleMode: "categorical", classes: classRows });
+
+    expect(
+      await screen.findByRole("columnheader", { name: "Value" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("columnheader", { name: "Up to" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/covers values above the previous class/),
+    ).not.toBeInTheDocument();
+  });
+
+  test("switching between Categorical and Ranges keeps the class rows", async () => {
+    let last;
+    renderPane({ styleMode: "categorical", classes: classRows }, (next) => {
+      last = next;
+    });
+
+    fireEvent.click(await modeRadio("Ranges"));
+    await waitFor(() => expect(last?.styleMode).toBe("ranges"));
+    expect(last.classes).toEqual(classRows);
+    expect(
+      await screen.findByRole("columnheader", { name: "Up to" }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Class 2 Label")).toHaveValue("1 to 2");
+
+    fireEvent.click(await modeRadio("Categorical"));
+    await waitFor(() => expect(last?.styleMode).toBe("categorical"));
+    expect(last.classes).toEqual(classRows);
+    expect(screen.getByLabelText("Class 1 Value")).toHaveValue("1");
+  });
+
+  test("switching to Continuous from Ranges brings the ramp back", async () => {
+    let last;
+    renderPane({ styleMode: "ranges", classes: classRows }, (next) => {
+      last = next;
+    });
+
+    fireEvent.click(await modeRadio("Continuous"));
+
+    await waitFor(() => expect(last?.styleMode).toBe("continuous"));
+    expect(await screen.findByLabelText("Ramp Min")).toBeInTheDocument();
+    // Kept, so returning to a class mode does not lose the table.
+    expect(last.classes).toEqual(classRows);
+  });
+});
+
+describe("StylePane categorical editing edges", () => {
+  // Deliberately without setRasterStyle: these cover the read-only rendering,
+  // where every writer has to no-op rather than throw.
+  const renderBare = (flat) => {
+    const { sourceProps, rasterStyle } = splitLayer({
+      rampName: "turbo",
+      ...flat,
+    });
+    return render(
       <AppContext.Provider value={{ dynamicMapLayers: [] }}>
         <LayoutContext.Provider value={{ uuid: "123" }}>
           <StylePane
@@ -986,14 +1144,15 @@ describe("StylePane categorical editing edges", () => {
             setErrorMessage={() => {}}
             sourceProps={{
               type: "GeoTIFF",
-              rampName: "turbo",
               props: { url: "lu.tif" },
               ...sourceProps,
             }}
+            rasterStyle={rasterStyle}
           />
         </LayoutContext.Provider>
       </AppContext.Provider>,
     );
+  };
 
   test("class editing is inert without a way to save it", async () => {
     // The pane is rendered read-only in places; every writer has to no-op
@@ -1184,4 +1343,192 @@ test("StylePane offers no fields when the field read fails", async () => {
     spy.mockRestore();
   }
   expect(typeof getStyleFields).toBe("function");
+});
+
+describe("StylePane dynamic GeoTIFF layers", () => {
+  const rasterPlugin = {
+    source: "echo_runtime_raster",
+    value: "Echo Runtime Raster",
+    label: "Echo Runtime Raster",
+    args: { mode: "text" },
+    type: "map_layer",
+    dynamic_map_layer: true,
+    dynamic_map_layer_source: "GeoTIFF",
+  };
+  const geojsonPlugin = {
+    source: "custom_layer_test",
+    value: "Stream Gauges (Dynamic)",
+    label: "Stream Gauges (Dynamic)",
+    args: {},
+    type: "map_layer",
+    dynamic_map_layer: true,
+    dynamic_map_layer_source: "GeoJSON",
+  };
+  const dynamicMapLayers = [
+    { label: "Dynamic Map Layers", options: [rasterPlugin, geojsonPlugin] },
+  ];
+  const rasterSourceProps = (extra = {}) => ({
+    type: "Echo Runtime Raster",
+    source: "echo_runtime_raster",
+    args: { mode: "happy" },
+    props: {},
+    rampName: "viridis",
+    ...extra,
+  });
+  test("shows the ramp section, and no follow toggle, for a plugin that declares GeoTIFF", async () => {
+    render(
+      <GeoTIFFTestHarness
+        initialSourceProps={rasterSourceProps()}
+        dynamicMapLayers={dynamicMapLayers}
+      />,
+    );
+
+    expect(await screen.findByText("Color Ramp")).toBeInTheDocument();
+    expect(
+      screen.getByRole("radio", { name: "Select viridis ramp" }),
+    ).toHaveAttribute("aria-checked", "true");
+    // The mask is a source property, edited on the Source pane, so it is not
+    // here -- see the dynamic-layer mask field in SourcePane.test.js.
+    expect(screen.queryByLabelText("Mask Below")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Leave Min/Max empty to fit the range to each file the plugin returns.",
+      ),
+    ).toBeInTheDocument();
+
+    // No follow toggle: a dynamic raster's style is the author's like any
+    // other layer's, and a fetch never displaces it.
+    expect(
+      screen.queryByRole("switch", { name: /follow plugin styling/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  test.each([
+    [
+      "selecting a ramp",
+      () =>
+        userEvent.click(
+          screen.getByRole("radio", { name: "Select magma ramp" }),
+        ),
+      () => screen.getByTestId("rampName").textContent === "magma",
+    ],
+    [
+      "reversing the ramp",
+      () => userEvent.click(screen.getByLabelText("Reverse Color Ramp")),
+      () => screen.getByTestId("rampReverse").textContent === "true",
+    ],
+    [
+      "typing a min",
+      () =>
+        fireEvent.change(screen.getByLabelText("Ramp Min"), {
+          target: { value: "1" },
+        }),
+      () => screen.getByTestId("rampMin").textContent === "1",
+    ],
+    [
+      "typing a max",
+      () =>
+        fireEvent.change(screen.getByLabelText("Ramp Max"), {
+          target: { value: "9" },
+        }),
+      () => screen.getByTestId("rampMax").textContent === "9",
+    ],
+    [
+      "switching to categorical",
+      () => userEvent.click(screen.getByRole("radio", { name: /Categorical/ })),
+      () => screen.getByRole("columnheader", { name: "Value" }),
+    ],
+    [
+      "switching to ranges",
+      () => userEvent.click(screen.getByRole("radio", { name: /Ranges/ })),
+      () => screen.getByRole("columnheader", { name: "Up to" }),
+    ],
+  ])(
+    "%s writes to the style, and nowhere else",
+    async (_label, edit, landed) => {
+      // Every control on this pane edits the layer's saved style. None of them
+      // touches the source props any more -- there is no pin to set, because a
+      // fetch never competes with what is here.
+      render(
+        <GeoTIFFTestHarness
+          initialSourceProps={rasterSourceProps()}
+          dynamicMapLayers={dynamicMapLayers}
+        />,
+      );
+      await screen.findByText("Color Ramp");
+
+      await edit();
+
+      await waitFor(() => expect(landed()).toBeTruthy());
+      expect(screen.getByTestId("stylePinned")).toHaveTextContent("undefined");
+    },
+  );
+
+  test("defaults a dynamic GeoTIFF without a ramp to turbo", async () => {
+    render(
+      <GeoTIFFTestHarness
+        initialSourceProps={rasterSourceProps({ rampName: undefined })}
+        dynamicMapLayers={dynamicMapLayers}
+      />,
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId("rampName")).toHaveTextContent("turbo");
+    });
+  });
+
+  test("a static GeoTIFF layer styles the same way, with no toggle", async () => {
+    render(
+      <GeoTIFFTestHarness
+        initialSourceProps={{ type: "GeoTIFF", rampName: "viridis" }}
+        dynamicMapLayers={dynamicMapLayers}
+      />,
+    );
+    await screen.findByText("Color Ramp");
+    expect(
+      screen.queryByRole("switch", { name: /follow plugin styling/i }),
+    ).not.toBeInTheDocument();
+    // A static layer sets its mask in the Source tab.
+    expect(screen.queryByLabelText("Mask Below")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Ramp Min"), {
+      target: { value: "1" },
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("rampMin")).toHaveTextContent("1");
+    });
+  });
+
+  test("a GeoJSON dynamic layer keeps the vector style editor and has no toggle", async () => {
+    render(
+      <GeoTIFFTestHarness
+        initialSourceProps={{
+          type: "Stream Gauges (Dynamic)",
+          source: "custom_layer_test",
+          args: {},
+          props: {},
+        }}
+        dynamicMapLayers={dynamicMapLayers}
+      />,
+    );
+    expect(await screen.findByText("Upload style file")).toBeInTheDocument();
+    expect(screen.queryByText("Color Ramp")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("switch", { name: /follow plugin styling/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  test("a dynamic plugin that declares no source type is treated as GeoJSON", async () => {
+    const { dynamic_map_layer_source: _omit, ...undeclared } = rasterPlugin;
+    render(
+      <GeoTIFFTestHarness
+        initialSourceProps={rasterSourceProps()}
+        dynamicMapLayers={[{ label: "Dynamic", options: [undeclared] }]}
+      />,
+    );
+    expect(await screen.findByText("Upload style file")).toBeInTheDocument();
+    expect(screen.queryByText("Color Ramp")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("switch", { name: /follow plugin styling/i }),
+    ).not.toBeInTheDocument();
+  });
 });

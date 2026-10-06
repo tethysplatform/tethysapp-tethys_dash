@@ -2092,8 +2092,10 @@ def cleanup_old_jsons():
                         except Exception:
                             pass
 
+                        # A raster layer's style is an inline dict of its
+                        # ramp settings, never a file.
                         if (
-                            style_file
+                            isinstance(style_file, str)
                             and style_file.endswith(".json")
                             and "/" not in style_file
                             and "\\" not in style_file

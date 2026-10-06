@@ -19,8 +19,11 @@ import { interpretShapefile } from "components/map/shapefile/index";
 import { CANCEL_REASON } from "components/map/layerStatus";
 import {
   buildGeoTIFFStyleColor,
-  buildCategoricalStyleColor,
-  isUsableClass,
+  buildClassStyleColor,
+  hasClassStyle,
+  isRampBoundSet,
+  rasterStyleSettings,
+  setCompiledStyle,
 } from "components/map/geoTIFFStyle";
 import proj4 from "proj4";
 import { register as registerProj4 } from "ol/proj/proj4.js";
@@ -203,6 +206,11 @@ function assertRenderableTileSize(width, height) {
 // The slice a Zarr source currently points at, as readSlice args. Used both to
 // key the single slice read and to gate applyZarrRamp from restyling an
 // unchanged slice.
+//
+// The mask is part of the slice, not only of its colouring: readSlice writes
+// it into the slice's alpha band as it reads. That is why it is a source
+// property rather than a style one -- it describes the data being read, so it
+// belongs to the thing the loader is handed.
 function zarrSliceParams(source) {
   const { url, variable, index, mask_below } = source?.props ?? {};
   return {
@@ -211,8 +219,7 @@ function zarrSliceParams(source) {
     url: s3UrlToHttps(url),
     variable,
     index: Number(index ?? 0),
-    maskBelow:
-      mask_below === "" || mask_below == null ? undefined : Number(mask_below),
+    maskBelow: isRampBoundSet(mask_below) ? Number(mask_below) : undefined,
   };
 }
 
@@ -320,7 +327,7 @@ export async function loadZarr(config, mapProjection) {
 // rather than making authors write it. `nodata` is not authored — applyAutoRamp
 // puts the raster's own value here before this runs.
 export function geotiffSourceToOL(config) {
-  const { url, nodata, projection, mask_below, ...rest } = config.props ?? {};
+  const { url, nodata, projection, ...rest } = config.props ?? {};
   const sourceInfo = { url };
   if (nodata !== undefined) sourceInfo.nodata = nodata;
   const props = { ...rest, sources: [sourceInfo] };
@@ -434,7 +441,7 @@ function autoRampStatsUrl(source) {
 
 // Settle which nodata value a GeoTIFF renders with. Authors do not set this:
 // the value is the raster's own business, read from its GDAL_NODATA tag. To hide
-// a range of real values, `mask_below` is the control.
+// a range of real values, the source's `mask_below` is the control.
 //
 // When the file declares nothing, default to NaN: OL has a dedicated NaN branch
 // (plain equality would never match, since NaN !== NaN), and NaN is never
@@ -477,36 +484,39 @@ async function fetchSidecarStats(url) {
 // it restyles only when the slice changes (e.g. a variable input swaps it).
 export async function applyZarrRamp(layerConfig) {
   const source = layerConfig?.props?.source;
-  const { rampName, rampMin, rampMax } = source ?? {};
+  const style = rasterStyleSettings(layerConfig?.style);
+  const { rampName, rampMin, rampMax } = style;
+  // The mask is a source property, not a style one: readSlice writes it into
+  // the slice's alpha band, so it describes the slice being read.
+  const maskBelow = source?.props?.mask_below;
   const hasMin = (rampMin ?? "") !== "";
   const hasMax = (rampMax ?? "") !== "";
-  const isCategorical =
-    source?.styleMode === "categorical" &&
-    (source.classes ?? []).some(isUsableClass);
+  // Categorical or Ranges: either way the class table is the whole style.
+  const isClassStyled = hasClassStyle(style);
   // With no ramp and no classes there is still a style to build. A DataTile
   // carries raw values with no normalization (unlike the GeoTIFF source this
   // replaced, which rendered `normalize: true` grayscale), so leaving the layer
   // unstyled paints raw floats straight into the color channels. Fit grayscale
   // to the slice instead, which is what the old backend path effectively did.
-  // Never empty for a non-categorical layer: the grayscale fallback covers it,
-  // so there is always either a ramp to fit or a class list to match.
-  const effectiveRamp = rampName || (isCategorical ? null : "grayscale");
+  // Never empty for a ramp-styled layer: the grayscale fallback covers it, so
+  // there is always either a ramp to fit or a class list to match.
+  const effectiveRamp = rampName || (isClassStyled ? null : "grayscale");
 
   // Gates the slice read, not the style: ramp settings are not part of the
   // slice key, so the style is rebuilt on every call from the resolved slice.
   const key = zarrSliceKey(source);
 
   try {
-    if (isCategorical) {
-      layerConfig.style = {
-        ...(layerConfig.style ?? {}),
-        color: buildCategoricalStyleColor({
-          classes: source.classes,
+    if (isClassStyled) {
+      setCompiledStyle(layerConfig, {
+        color: buildClassStyleColor({
+          styleMode: style.styleMode,
+          classes: style.classes,
           hasNodata: true,
-          maskBelow: source.props?.mask_below,
-          fallbackColor: source.fallbackColor,
+          maskBelow,
+          fallbackColor: style.fallbackColor,
         }),
-      };
+      });
       source.resolvedSliceKey = key;
       return layerConfig;
     }
@@ -526,22 +536,21 @@ export async function applyZarrRamp(layerConfig) {
     // low end rather than as NaN.
     if (hi <= lo) hi = lo + 1;
 
-    layerConfig.style = {
-      ...(layerConfig.style ?? {}),
+    setCompiledStyle(layerConfig, {
       color: buildGeoTIFFStyleColor({
         rampName: effectiveRamp,
         rampMin: lo,
         rampMax: hi,
-        rampReverse: source.rampReverse === true,
+        rampReverse: style.rampReverse === true,
         hasNodata: true,
-        maskBelow: source.props?.mask_below,
+        maskBelow,
       }),
-    };
+    });
     source.resolvedSliceKey = key;
     source.resolvedRampMin = lo;
     source.resolvedRampMax = hi;
   } catch {
-    // Slice unreadable: leave the style; loadZarr surfaces the error on build.
+    // Slice unreadable: nothing to style; loadZarr surfaces the error on build.
   }
   return layerConfig;
 }
@@ -660,8 +669,12 @@ async function readRasterRange(url, nodata) {
 // timestep is a different file with a different range, and the ramp refits to
 // each one. The stats live in the header of the very URL the source is about to
 // fetch, so the browser serves OL's own header read from cache. Any failure is
-// non-fatal: the config is left untouched and rendering falls back to
-// normalized mode.
+// non-fatal: the layer keeps the starting style compiled before the read (see
+// applyStartingRasterStyle), normalized unless both bounds are pinned.
+//
+// The settings are read from the layer's saved `style`, and the compiled style
+// is written to its non-enumerable `compiledStyle` (see geoTIFFStyle.js), never
+// back onto `style`, so a saved config never carries an expression.
 //
 // Each bound is independent: whichever the author left empty is resolved from
 // the file, and whichever they set is honored as a pinned end of the ramp. So a
@@ -680,23 +693,42 @@ export async function applyAutoRamp(layerConfig) {
   // that passes through here -- shapefiles included -- makes each of them look
   // changed, and every layer reloads on every render.
   if (source) delete source.rampRangeUnavailable;
-  const { rampName, rampMin, rampMax } = source ?? {};
+  // The ramp settings are the layer's saved style. A hand-authored OpenLayers
+  // style carries none, and is left to draw as it is.
+  const style = rasterStyleSettings(layerConfig?.style);
+  const { rampName, rampMin, rampMax } = style;
+  // Source property rather than style: it hides raw values before they are
+  // coloured, so it is part of describing the file, not the palette.
+  const maskBelow = source?.props?.mask_below;
   const hasMin = (rampMin ?? "") !== "";
   const hasMax = (rampMax ?? "") !== "";
-  // A categorical layer colors by exact class value, so it needs no range at
-  // all — but it still needs the header read to settle nodata, and it must
-  // style raw values rather than OL's normalized bytes for the match to line up.
-  const isCategorical =
-    source?.styleMode === "categorical" &&
-    (source.classes ?? []).some(isUsableClass);
+  // A class-table layer (Categorical or Ranges) is scaled by its class values,
+  // so it needs no range at all — but it still needs the header read to settle
+  // nodata, and it must style raw values rather than OL's normalized bytes for
+  // the class values to line up.
+  const isClassStyled = hasClassStyle(style);
   // The header is read even when both bounds are pinned, because it also
   // settles nodata — a pinned layer still needs its transparency right.
-  if (!rampName && !isCategorical) return layerConfig;
+  if (!rampName && !isClassStyled) return layerConfig;
 
   // Keyed on the URL so this is safe to call from more than one place per
   // render, while still re-resolving when the source points at another file.
+  // Only while the compiled style is still on hand: it is never copied with
+  // the config, so a copy of a resolved config has to compile again.
   const statsUrl = autoRampStatsUrl(source);
-  if (!statsUrl || source.resolvedRampUrl === statsUrl) return layerConfig;
+  if (
+    statsUrl &&
+    source.resolvedRampUrl === statsUrl &&
+    layerConfig.compiledStyle
+  ) {
+    return layerConfig;
+  }
+
+  // Compiled before anything is read, so the layer has a correct style to draw
+  // with whatever the reads below find -- including when there is nothing to
+  // read, as for a URL this cannot fetch statistics from.
+  if (!applyStartingRasterStyle(layerConfig, style)) return layerConfig;
+  if (!statsUrl) return layerConfig;
 
   try {
     const image = await readGeoTIFFHeader(statsUrl);
@@ -718,40 +750,20 @@ export async function applyAutoRamp(layerConfig) {
     // Every path below leaves the source with a nodata value, so OL appends an
     // alpha band and the style always has a band 2 to guard.
     const styleFor = (rampMinValue, rampMaxValue) => ({
-      ...(layerConfig.style ?? {}),
       color: buildGeoTIFFStyleColor({
         rampName,
         rampMin: rampMinValue,
         rampMax: rampMaxValue,
-        rampReverse: source.rampReverse === true,
+        rampReverse: style.rampReverse === true,
         hasNodata: true,
-        maskBelow: source.props?.mask_below,
+        maskBelow,
       }),
     });
 
-    if (isCategorical) {
-      // No statistics needed: the class values are the scale. Raw band values
-      // are required though, so normalization goes off unconditionally.
-      //
-      // Nearest-neighbor resampling too. OL interpolates by default, which is
-      // meaningless for class labels -- halfway between class 1 and 2 is not a
-      // class -- and it fringes every nodata boundary: band 1 blends into a
-      // value matching no class (so it takes the fallback color) while band 2
-      // blends off 0 (so the nodata guard stops firing).
-      source.props = {
-        ...source.props,
-        normalize: false,
-        interpolate: false,
-      };
-      layerConfig.style = {
-        ...(layerConfig.style ?? {}),
-        color: buildCategoricalStyleColor({
-          classes: source.classes,
-          hasNodata: true,
-          maskBelow: source.props?.mask_below,
-          fallbackColor: source.fallbackColor,
-        }),
-      };
+    if (isClassStyled) {
+      // No statistics needed: the class values are the scale, and the style
+      // and source behavior applyStartingRasterStyle set already stand. The
+      // header read above only settled nodata.
       source.resolvedRampUrl = statsUrl;
       return layerConfig;
     }
@@ -792,7 +804,7 @@ export async function applyAutoRamp(layerConfig) {
       // No usable range, so rendering stays normalized — but rebuild the style
       // anyway so nodata cells are transparent rather than painted at band 1 = 0,
       // which is what the zero-filled tile array leaves them as.
-      layerConfig.style = styleFor("", "");
+      setCompiledStyle(layerConfig, styleFor("", ""));
       // For float data, staying normalized is not a degraded rendering, it is a
       // blank one: OpenLayers scales by the range of the data type, and against
       // a float32 ceiling of 3.4e38 every real value rounds to zero. Raised only
@@ -817,7 +829,7 @@ export async function applyAutoRamp(layerConfig) {
     // and this is a no-op. A pinned min is the author's call and is left alone.
     // Skipped when the threshold covers the whole range: clamping there would
     // invert it, and the mask alone correctly renders everything transparent.
-    const maskValue = Number(source.props?.mask_below);
+    const maskValue = isRampBoundSet(maskBelow) ? Number(maskBelow) : NaN;
     if (
       !hasMin &&
       Number.isFinite(maskValue) &&
@@ -828,7 +840,7 @@ export async function applyAutoRamp(layerConfig) {
     }
 
     source.props = { ...source.props, normalize: false };
-    layerConfig.style = styleFor(lo, hi);
+    setCompiledStyle(layerConfig, styleFor(lo, hi));
     // Published for the colorbar legend. Kept in separate fields so the
     // author's own (empty) rampMin/rampMax keep meaning "auto" — writing back
     // onto those would read as a pinned range and freeze the ramp.
@@ -836,9 +848,73 @@ export async function applyAutoRamp(layerConfig) {
     source.resolvedRampMin = lo;
     source.resolvedRampMax = hi;
   } catch {
-    // No stats, unreachable file, or an unreadable header: keep normalized mode.
+    // No stats, unreachable file, or an unreadable header: keep the starting
+    // style, which is normalized unless both bounds are pinned.
   }
   return layerConfig;
+}
+
+/**
+ * Compile the style a ramp-styled GeoTIFF draws with before -- or without --
+ * any read of its file, and set the source behavior that style needs.
+ *
+ * This is what the editor used to compile and save alongside the settings, and
+ * is now derived at load instead, so a saved layer carries only the settings:
+ *
+ *   class table  raw band values (`normalize: false`) and nearest-neighbor
+ *                resampling (`interpolate: false`), colored by class
+ *   ramp         raw values over the pinned range when both bounds are set;
+ *                otherwise `normalize: true` and the ramp over 0..1, until the
+ *                file's range is resolved
+ *
+ * Nearest-neighbor for a class table because OL interpolates by default, which
+ * is meaningless for class labels -- halfway between class 1 and 2 is not a
+ * class -- and it fringes every nodata boundary: band 1 blends into a value
+ * matching no class (so it takes the fallback color) while band 2 blends off 0
+ * (so the nodata guard stops firing). Ranges keeps it off for the same nodata
+ * reason, and because a blended cell would take the color of a range its real
+ * neighbors are in neither of: the edge between a 0.5 cell and a 30 cell would
+ * otherwise draw a band of every class in between.
+ *
+ * @param {object} layerConfig The layer `configuration`. Mutated.
+ * @param {object} style Its raster style settings.
+ * @returns {boolean} False when the settings cannot be compiled (an unknown
+ *   ramp), in which case the layer is left with no compiled style.
+ */
+function applyStartingRasterStyle(layerConfig, style) {
+  const source = layerConfig.props.source;
+  try {
+    if (hasClassStyle(style)) {
+      setCompiledStyle(layerConfig, {
+        color: buildClassStyleColor({
+          styleMode: style.styleMode,
+          classes: style.classes,
+          hasNodata: true,
+          maskBelow: source?.props?.mask_below,
+          fallbackColor: style.fallbackColor,
+        }),
+      });
+      source.props = { ...source.props, normalize: false, interpolate: false };
+      return true;
+    }
+    const hasRange =
+      isRampBoundSet(style.rampMin) && isRampBoundSet(style.rampMax);
+    setCompiledStyle(layerConfig, {
+      color: buildGeoTIFFStyleColor({
+        rampName: style.rampName,
+        rampMin: hasRange ? style.rampMin : "",
+        rampMax: hasRange ? style.rampMax : "",
+        rampReverse: style.rampReverse === true,
+        hasNodata: true,
+        maskBelow: source?.props?.mask_below,
+      }),
+    });
+    source.props = { ...source.props, normalize: !hasRange };
+    return true;
+  } catch {
+    setCompiledStyle(layerConfig, undefined);
+    return false;
+  }
 }
 
 export class GeoPackageError extends LayerSourceError {}

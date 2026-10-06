@@ -7,6 +7,10 @@ import {
   isPreset,
 } from "components/inputs/dateUtils";
 import { format } from "date-fns";
+import {
+  buildPreloadedVisualizationKey,
+  takePreloadedVisualization,
+} from "components/visualizations/preloadedVisualizationCache";
 
 // In-memory cache of resolved image-visualization results, keyed by the
 // request (source + resolved args). Image plugins are deterministic for a
@@ -96,6 +100,86 @@ export function toNumberOrEmpty(value) {
  */
 export function hasVariableInputValue(value) {
   return value !== undefined && value !== null && value !== "";
+}
+
+/**
+ * The value a variable input publishes for its initial value: a number input
+ * publishes a number (or "" when it does not parse), and a checkbox with no
+ * initial value publishes false, since null is not a valid checkbox value.
+ *
+ * Shared by VariableInput and DashboardLoader's pre-render preload, so a
+ * preloaded value is the same value the component would publish on mount.
+ */
+export function normalizeVariableInputValue({
+  variable_options_source,
+  initial_value,
+}) {
+  if (variable_options_source === "number") {
+    return toNumberOrEmpty(initial_value);
+  }
+  if (variable_options_source === "checkbox" && initial_value === null) {
+    return false;
+  }
+  return initial_value;
+}
+
+/**
+ * The entries a variable input merges into the dashboard's variable input
+ * values when it publishes `value`, or null when it publishes nothing.
+ *
+ * Truthiness plus 0 and false, not hasVariableInputValue: an initial value of
+ * null or "" leaves the variable unset. An object value (a date range's
+ * endpoints) also publishes each of its own keys.
+ */
+export function getPublishedVariableInputValues(variable_name, value) {
+  if (!(value || value === false || value === 0)) return null;
+  let published = { [variable_name]: value };
+  if (typeof value === "object") {
+    published = { ...published, ...value };
+  }
+  return published;
+}
+
+/**
+ * The date format a variable input registers under its name, or null when its
+ * value is not a date: date-type inputs use `metadata.format`, and a date
+ * slider uses `metadata.outputFormat`.
+ */
+export function getVariableInputDateFormat({
+  variable_options_source,
+  metadata,
+}) {
+  if (
+    typeof variable_options_source === "string" &&
+    variable_options_source.includes("date")
+  ) {
+    return metadata?.format || null;
+  }
+  if (variable_options_source === "slider" && metadata?.dataType === "Date") {
+    return metadata?.outputFormat || null;
+  }
+  return null;
+}
+
+/**
+ * The preloaded-visualization cache key for a grid item's request: built from
+ * its raw args and the variable inputs they reference, with the same
+ * tokenizer the substituter uses. See buildPreloadedVisualizationKey for why
+ * the inputs to substitution, not its output.
+ */
+export function buildPreloadedRequestKey({
+  source,
+  args,
+  variableInputValues,
+  variableInputDateFormats,
+}) {
+  return buildPreloadedVisualizationKey({
+    source,
+    args,
+    variableInputValues,
+    variableInputDateFormats,
+    tokens: findUnresolvedVariableInputTokens(args),
+  });
 }
 
 /**
@@ -315,11 +399,38 @@ export async function getVisualization({
     }
   }
 
-  if (vizLoadingIcon && sourceType !== "map") {
+  // A plugin variable input DashboardLoader already started before the
+  // dashboard rendered: await that request instead of running the plugin
+  // again, whether it has settled or is still running past the preload's
+  // budget. Taken, not read, so a later args change or a refresh fetches
+  // normally. Only the dashboard's own tiles consume it -- the data viewer
+  // previews a configuration rather than the loaded dashboard.
+  const preloaded = dashboardView
+    ? takePreloadedVisualization(
+        itemData.requestId,
+        buildPreloadedRequestKey({
+          source: itemData.source,
+          args: JSON.parse(argsString),
+          variableInputValues,
+          variableInputDateFormats,
+        }),
+      )
+    : undefined;
+  const usePreloaded = preloaded !== undefined && !refresh;
+
+  // No loader flash for a response that is already here; one still on its
+  // way shows the loader like any other fetch.
+  if (
+    !(usePreloaded && preloaded.settled) &&
+    vizLoadingIcon &&
+    sourceType !== "map"
+  ) {
     setVizType("loader");
   }
 
-  const apiResponse = await appAPI.getVisualizationData(itemData);
+  const apiResponse = usePreloaded
+    ? await preloaded.promise
+    : await appAPI.getVisualizationData(itemData);
   if (apiResponse.success === true) {
     let responseData = JSON.parse(JSON.stringify(apiResponse.data));
     if (typeof apiResponse.data === "string") {

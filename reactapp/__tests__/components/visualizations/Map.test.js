@@ -46,6 +46,7 @@ import MapContextProvider, {
   useMapContext,
 } from "components/contexts/MapContext";
 import { WebsocketContext } from "components/contexts/WebSocketContext";
+import { resolveRamp } from "components/map/colorRamps";
 
 jest.mock("components/map/ModuleLoader", () => {
   const actual = jest.requireActual("components/map/ModuleLoader");
@@ -59,6 +60,53 @@ jest.mock("components/map/ModuleLoader", () => {
     // layer's message is meant for the author.
     LayerSourceError: actual.LayerSourceError,
   };
+});
+
+// The real fetcher runs, but a test can stand in for the ramps it publishes:
+// building a runtime raster for real means opening a GeoTIFF, which is the
+// fetcher's own suite's business. Not a jest.fn, which resetMocks would strip.
+const mockRasterLegendStore = {
+  value: null,
+  listeners: new Set(),
+  set(value) {
+    this.value = value;
+    this.listeners.forEach((listener) => listener());
+  },
+};
+jest.mock("components/visualizations/runtimeLayerFetcher", () => {
+  const actual = jest.requireActual(
+    "components/visualizations/runtimeLayerFetcher",
+  );
+  const { useSyncExternalStore } = jest.requireActual("react");
+  const subscribe = (listener) => {
+    mockRasterLegendStore.listeners.add(listener);
+    return () => mockRasterLegendStore.listeners.delete(listener);
+  };
+  const getSnapshot = () => mockRasterLegendStore.value;
+  const useRuntimeLayerFetcherWithLegends = (args) => {
+    const result = actual.default(args);
+    const override = useSyncExternalStore(subscribe, getSnapshot);
+    return override ? { ...result, rasterLegendByLayerId: override } : result;
+  };
+  return {
+    ...actual,
+    __esModule: true,
+    default: useRuntimeLayerFetcherWithLegends,
+  };
+});
+
+// Records each legend entry the legend renders, so a test can read the colors
+// a colorbar was given: jsdom drops a linear-gradient background, so they are
+// not on the rendered element.
+const mockRenderedLegends = [];
+jest.mock("components/map/LegendRenderer", () => {
+  const actual = jest.requireActual("components/map/LegendRenderer");
+  const { createElement } = jest.requireActual("react");
+  const RecordingLegendRenderer = (props) => {
+    mockRenderedLegends.push(props.legend);
+    return createElement(actual.default, props);
+  };
+  return { ...actual, __esModule: true, default: RecordingLegendRenderer };
 });
 
 jest.mock("geotiff", () => ({ fromUrl: jest.fn() }));
@@ -766,20 +814,12 @@ test("Map GeoTIFF with default legend shows a 0..1 colorbar when normalized with
         source: {
           type: "GeoTIFF",
           props: { url: "https://example.com/norm.tif", normalize: true },
-          rampName: "viridis",
-          // no rampMin/rampMax
         },
       },
+      // The layer's saved style is its ramp settings; no bounds, so the ramp
+      // is fitted to the file -- or stays on 0..1 when that read fails.
       style: {
-        color: [
-          "interpolate",
-          ["linear"],
-          ["band", 1],
-          0,
-          "#000000",
-          1,
-          "#ffffff",
-        ],
+        rampName: "viridis",
       },
     },
     legend: "default",
@@ -877,10 +917,10 @@ test("Map GeoJSON with legend and bad format", async () => {
 });
 
 test("Map GeoTIFF with default legend emits a ramp colorbar from sourceProps metadata", async () => {
-  // Covers lines 353-360: when a GeoTIFF layer carries persisted
-  // rampName/rampMin/rampMax on its source, `legend: "default"` should
-  // bypass the style/url legend paths and produce a colorbar legend
-  // straight from COLOR_RAMPS[rampName] + the persisted bounds.
+  // Covers lines 353-360: when a GeoTIFF layer's saved style carries
+  // rampName/rampMin/rampMax, `legend: "default"` should bypass the
+  // style/url legend paths and produce a colorbar legend straight from
+  // COLOR_RAMPS[rampName] + the persisted bounds.
   const layer = {
     configuration: {
       type: "WebGLTile",
@@ -891,22 +931,9 @@ test("Map GeoTIFF with default legend emits a ramp colorbar from sourceProps met
           props: {
             url: "https://example.com/ramp.tif",
           },
-          rampName: "viridis",
-          rampMin: "0",
-          rampMax: "100",
         },
       },
-      style: {
-        color: [
-          "interpolate",
-          ["linear"],
-          ["band", 1],
-          0,
-          "#000000",
-          100,
-          "#ffffff",
-        ],
-      },
+      style: { rampName: "viridis", rampMin: "0", rampMax: "100" },
     },
     legend: "default",
   };
@@ -942,18 +969,17 @@ test("Map GeoTIFF with default legend emits a ramp colorbar from sourceProps met
   expect(screen.getByText("Ramp Raster Layer")).toBeInTheDocument();
 });
 
-const zarrRampLayer = (source = {}) => ({
+const zarrRampLayer = (style = {}) => ({
   configuration: {
     type: "WebGLTile",
     props: {
       name: "Flood Depth",
       source: {
         type: "Zarr",
-        rampName: "viridis",
         props: { url: "https://example.com/store.zarr", variable: "depth" },
-        ...source,
       },
     },
+    style: { rampName: "viridis", ...style },
   },
   legend: "default",
 });
@@ -1013,14 +1039,20 @@ test("Map Zarr with default legend prefers an author-pinned range over the slice
   ).toBeInTheDocument();
 });
 
-test("Map Zarr with default legend omits the colorbar when the slice cannot be read", async () => {
-  // Unreadable store: no slice range to resolve, so the layer cannot build and
-  // no colorbar is emitted.
+test("Map Zarr with default legend omits the legend when the slice cannot be read", async () => {
+  // Unreadable store: no slice range to resolve and the layer never renders
+  // normalized either, so there is nothing to label. The whole entry is
+  // dropped rather than a colorbar over a range nobody knows -- which leaves
+  // no legend to open at all.
   readSlice.mockRejectedValue(new Error("network"));
 
   renderMapWithLayers([zarrRampLayer()]);
-  fireEvent.click(await screen.findByLabelText("Show Legend Control"));
+  expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
 
+  await waitFor(() => expect(readSlice).toHaveBeenCalled());
+  expect(
+    screen.queryByLabelText("Show Legend Control"),
+  ).not.toBeInTheDocument();
   expect(screen.queryByLabelText(/^Color ramp from/)).not.toBeInTheDocument();
 });
 
@@ -1045,10 +1077,10 @@ test("Map GeoTIFF with an empty range auto-fits the legend to the file statistic
           name: "Depth Raster",
           source: {
             type: "GeoTIFF",
-            rampName: "viridis",
             props: { url: "https://example.com/depth.tif" },
           },
         },
+        style: { rampName: "viridis" },
       },
       legend: "default",
     },
@@ -1060,6 +1092,45 @@ test("Map GeoTIFF with an empty range auto-fits the legend to the file statistic
     await screen.findByLabelText("Color ramp from 0.05 to 11.73"),
   ).toBeInTheDocument();
   expect(screen.getByText("Depth Raster")).toBeInTheDocument();
+});
+
+test("Map default legend draws no colorbar for a ramp the app does not know", async () => {
+  // A hand-edited config, or one saved against a ramp a later version dropped.
+  // The colorbar is the one thing the legend cannot fake -- there are no
+  // colors to draw -- so the entry is left out rather than drawn blank.
+  fromUrl.mockResolvedValue({
+    getImage: jest.fn().mockResolvedValue({
+      getGDALMetadata: jest.fn(() => ({
+        STATISTICS_MINIMUM: "0",
+        STATISTICS_MAXIMUM: "1",
+      })),
+      getGDALNoData: jest.fn(() => null),
+    }),
+  });
+
+  renderMapWithLayers([
+    {
+      configuration: {
+        type: "WebGLTile",
+        props: {
+          name: "Mystery Raster",
+          source: {
+            type: "GeoTIFF",
+            props: { url: "https://example.com/mystery.tif" },
+          },
+        },
+        style: { rampName: "not-a-real-ramp", rampMin: "0", rampMax: "1" },
+      },
+      legend: "default",
+    },
+  ]);
+
+  expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+  await waitFor(() => expect(fromUrl).toHaveBeenCalled());
+  expect(
+    screen.queryByLabelText("Show Legend Control"),
+  ).not.toBeInTheDocument();
+  expect(screen.queryByLabelText(/^Color ramp from/)).not.toBeInTheDocument();
 });
 
 test("Map categorical raster emits discrete legend items, not a colorbar", async () => {
@@ -1079,15 +1150,17 @@ test("Map categorical raster emits discrete legend items, not a colorbar", async
           name: "Land Use",
           source: {
             type: "GeoTIFF",
-            styleMode: "categorical",
-            rampName: "viridis",
-            classes: [
-              { value: "0", color: "#aaaaaa", label: "Bare" },
-              { value: "1", color: "#bbbbbb", label: "Crop" },
-              { value: "2", color: "#cccccc" },
-            ],
             props: { url: "https://example.com/landuse.tif" },
           },
+        },
+        style: {
+          styleMode: "categorical",
+          rampName: "viridis",
+          classes: [
+            { value: "0", color: "#aaaaaa", label: "Bare" },
+            { value: "1", color: "#bbbbbb", label: "Crop" },
+            { value: "2", color: "#cccccc" },
+          ],
         },
       },
       legend: "default",
@@ -1100,6 +1173,55 @@ test("Map categorical raster emits discrete legend items, not a colorbar", async
   // A class with no label falls back to its value.
   expect(screen.getByText("2")).toBeInTheDocument();
   // No colorbar for a categorical layer.
+  expect(screen.queryByLabelText(/^Color ramp from/)).not.toBeInTheDocument();
+});
+
+test("Map ranges raster emits one swatch per class in ascending order", async () => {
+  fromUrl.mockResolvedValue({
+    getImage: jest.fn().mockResolvedValue({
+      getGDALMetadata: jest.fn(() => null),
+      getGDALNoData: jest.fn(() => -9999),
+    }),
+  });
+
+  renderMapWithLayers([
+    {
+      configuration: {
+        type: "WebGLTile",
+        props: {
+          name: "Streamflow",
+          source: {
+            type: "GeoTIFF",
+            props: { url: "https://example.com/flow.tif", mask_below: "0" },
+          },
+        },
+        style: {
+          styleMode: "ranges",
+          rampName: "turbo",
+          // Entered out of order, and one unlabelled: the legend reads in
+          // the order the style colors, with the bound standing in.
+          classes: [
+            { value: "20", color: "#2c7bb6", label: "10 to 20" },
+            { value: "2", color: "#d9ef8b", label: "1 to 2" },
+            { value: "1", color: "#bdbdbd", label: "0.1 to 1" },
+            { value: "100000000", color: "#08306b" },
+          ],
+        },
+      },
+      legend: "default",
+    },
+  ]);
+  fireEvent.click(await screen.findByLabelText("Show Legend Control"));
+
+  const first = await screen.findByText("0.1 to 1");
+  const second = screen.getByText("1 to 2");
+  const third = screen.getByText("10 to 20");
+  const last = screen.getByText("Up to 100000000");
+  const follows = (a, b) =>
+    Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+  expect(follows(first, second)).toBe(true);
+  expect(follows(second, third)).toBe(true);
+  expect(follows(third, last)).toBe(true);
   expect(screen.queryByLabelText(/^Color ramp from/)).not.toBeInTheDocument();
 });
 
@@ -8841,5 +8963,398 @@ describe("features with nothing to render are dropped from the popup", () => {
         JSON.stringify({ "Test Variable": "published value" }),
       );
     });
+  });
+});
+
+describe("the basemap's early publish beside a runtime GeoTIFF", () => {
+  // The basemap is held back from the early publish only when a raster will
+  // own the view projection. A raster a plugin drives never does, so it must
+  // not hold the basemap: with a layer's preparation stalled, the basemap is
+  // on the map regardless.
+  const baseMap =
+    "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer";
+
+  const rasterLayer = (extraProps) => ({
+    configuration: {
+      type: "WebGLTile",
+      props: {
+        name: "Depth",
+        source: { type: "GeoTIFF", props: {} },
+        ...extraProps,
+      },
+      // A saved style reference, so preparing the layer waits on a download
+      // the test never answers.
+      style: "held_style.json",
+    },
+  });
+
+  const renderWith = (layers) =>
+    render(
+      createLoadedComponent({
+        children: (
+          <MapContextProvider>
+            <TestingComponent
+              mapProps={{
+                mapConfig: {},
+                viewConfig: {},
+                layers,
+                baseMap,
+                layerControl: false,
+              }}
+            />
+          </MapContextProvider>
+        ),
+      }),
+    );
+
+  const addedSources = (spy) =>
+    spy.mock.calls.map((call) => call[0]?.getSource?.()?.key_);
+  const baseMapUrl =
+    "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}";
+
+  beforeEach(() => {
+    jest
+      .spyOn(appAPI, "downloadJSON")
+      .mockImplementation(() => new Promise(() => {}));
+    jest
+      .spyOn(appAPI, "getVisualizationFeatures")
+      .mockImplementation(() => new Promise(() => {}));
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it("publishes the basemap early when the only raster is plugin-driven", async () => {
+    const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+    renderWith([
+      rasterLayer({
+        layerId: "layer-1",
+        pluginSource: { source: "echo_raster", args: {} },
+      }),
+    ]);
+
+    await waitFor(() => {
+      expect(addedSources(addLayerSpy)).toContain(baseMapUrl);
+    });
+  });
+
+  it("still holds it back for a static raster", async () => {
+    const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+    renderWith([
+      rasterLayer({
+        source: { type: "GeoTIFF", props: { url: "https://h/a.tif" } },
+      }),
+    ]);
+
+    expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+    // Give the early publish every chance to have happened.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+    expect(addedSources(addLayerSpy)).not.toContain(baseMapUrl);
+  });
+});
+
+describe("the legend of a runtime GeoTIFF", () => {
+  // A runtime raster's colorbar shows the ramp its last successful fetch drew,
+  // which only the fetcher knows; the saved scaffold ramp may not be on screen.
+  const runtimeRaster = (overrides = {}) => ({
+    configuration: {
+      type: "WebGLTile",
+      props: {
+        name: "Forecast Depth",
+        layerId: "runtime-1",
+        pluginSource: { source: "echo_raster", args: {} },
+        source: { type: "GeoTIFF", props: {} },
+      },
+      style: { rampName: "Blues", rampMin: "100", rampMax: "200" },
+    },
+    legend: "default",
+    ...overrides,
+  });
+
+  const staticRaster = {
+    configuration: {
+      type: "WebGLTile",
+      props: {
+        name: "Static Depth",
+        source: {
+          type: "GeoTIFF",
+          props: { url: "https://example.com/static.tif" },
+        },
+      },
+      style: { rampName: "viridis", rampMin: "0", rampMax: "100" },
+    },
+    legend: "default",
+  };
+
+  const LayerSwitcher = ({ initialLayers, nextLayers }) => {
+    const [layers, setLayers] = useState(initialLayers);
+    return (
+      <>
+        <button type="button" onClick={() => setLayers(nextLayers)}>
+          Swap Layers
+        </button>
+        <TestingComponent
+          mapProps={{
+            mapConfig: {},
+            viewConfig: {},
+            layers,
+            baseMap: null,
+            layerControl: false,
+          }}
+        />
+      </>
+    );
+  };
+  LayerSwitcher.propTypes = {
+    initialLayers: PropTypes.array,
+    nextLayers: PropTypes.array,
+  };
+
+  const renderLayers = (initialLayers, nextLayers = []) =>
+    render(
+      createLoadedComponent({
+        children: (
+          <MapContextProvider>
+            <LayerSwitcher
+              initialLayers={initialLayers}
+              nextLayers={nextLayers}
+            />
+          </MapContextProvider>
+        ),
+      }),
+    );
+
+  const publish = (legendByLayerId) =>
+    act(() => {
+      mockRasterLegendStore.set(legendByLayerId);
+    });
+
+  // The colors the most recent render gave the colorbar with this range.
+  const expectRamp = (rampMin, rampMax, rampName, reverse = false) => {
+    const rendered = mockRenderedLegends.filter(
+      (legend) => legend?.rampMin === rampMin && legend?.rampMax === rampMax,
+    );
+    expect(rendered.length).toBeGreaterThan(0);
+    expect(rendered.at(-1).rampColors).toEqual(resolveRamp(rampName, reverse));
+  };
+
+  // Whether `first` comes before `second` in the document.
+  const precedes = (first, second) =>
+    Boolean(
+      first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+
+  beforeEach(() => {
+    mockRasterLegendStore.set(null);
+    mockRenderedLegends.length = 0;
+    jest
+      .spyOn(appAPI, "getVisualizationFeatures")
+      .mockImplementation(() => new Promise(() => {}));
+  });
+
+  afterEach(() => {
+    mockRasterLegendStore.set(null);
+    jest.restoreAllMocks();
+  });
+
+  it("shows each fetch's ramp and range in turn", async () => {
+    // Covers AE1.
+    renderLayers([runtimeRaster()]);
+    expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+
+    publish({
+      "runtime-1": {
+        rampName: "viridis",
+        rampReverse: false,
+        rampMin: 0,
+        rampMax: 50,
+      },
+    });
+    fireEvent.click(await screen.findByLabelText("Show Legend Control"));
+    await screen.findByLabelText("Color ramp from 0 to 50");
+    expectRamp(0, 50, "viridis");
+    expect(screen.getByText("Forecast Depth")).toBeInTheDocument();
+
+    publish({
+      "runtime-1": {
+        rampName: "magma",
+        rampReverse: true,
+        rampMin: 3,
+        rampMax: 9,
+      },
+    });
+    await screen.findByLabelText("Color ramp from 3 to 9");
+    expectRamp(3, 9, "magma", true);
+    expect(
+      screen.queryByLabelText("Color ramp from 0 to 50"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows no colorbar and no error before the first fetch", async () => {
+    renderLayers([runtimeRaster(), staticRaster]);
+    fireEvent.click(await screen.findByLabelText("Show Legend Control"));
+    expect(
+      await screen.findByLabelText("Color ramp from 0 to 100"),
+    ).toBeInTheDocument();
+
+    // Neither the saved scaffold range nor any other colorbar stands in for
+    // the ramp no fetch has drawn yet.
+    expect(screen.getAllByRole("img", { name: /^Color ramp/ })).toHaveLength(1);
+    expect(
+      screen.queryByLabelText("Color ramp from 100 to 200"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Forecast Depth")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("shows a class-styled fetch's swatches in place of a colorbar", async () => {
+    renderLayers([runtimeRaster()]);
+    publish({
+      "runtime-1": {
+        items: [
+          { color: "#bdbdbd", label: "0.1 to 1", symbol: "square" },
+          { color: "#d9ef8b", label: "1 to 2", symbol: "square" },
+        ],
+      },
+    });
+    fireEvent.click(await screen.findByLabelText("Show Legend Control"));
+
+    expect(await screen.findByText("0.1 to 1")).toBeInTheDocument();
+    expect(screen.getByText("1 to 2")).toBeInTheDocument();
+    expect(screen.getByText("Forecast Depth")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("img", { name: /^Color ramp/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows nothing for a class-styled fetch with no swatches", async () => {
+    renderLayers([runtimeRaster(), staticRaster]);
+    publish({ "runtime-1": { items: [] } });
+    fireEvent.click(await screen.findByLabelText("Show Legend Control"));
+    expect(
+      await screen.findByLabelText("Color ramp from 0 to 100"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Forecast Depth")).not.toBeInTheDocument();
+  });
+
+  it("shows no colorbar for a fetch that drew none", async () => {
+    renderLayers([runtimeRaster(), staticRaster]);
+    publish({ "runtime-1": null });
+    fireEvent.click(await screen.findByLabelText("Show Legend Control"));
+    expect(
+      await screen.findByLabelText("Color ramp from 0 to 100"),
+    ).toBeInTheDocument();
+    expect(screen.getAllByRole("img", { name: /^Color ramp/ })).toHaveLength(1);
+  });
+
+  it("never replaces an author-edited legend with runtime data", async () => {
+    const authored = {
+      title: "Authored Legend",
+      userEdited: true,
+      items: [
+        { label: "Deep water", color: "#0000ff", symbol: "square" },
+        { label: "Shallow water", color: "#00ffff", symbol: "square" },
+      ],
+    };
+    renderLayers([runtimeRaster({ legend: authored })]);
+    publish({
+      "runtime-1": {
+        rampName: "viridis",
+        rampReverse: false,
+        rampMin: 0,
+        rampMax: 50,
+      },
+    });
+    fireEvent.click(await screen.findByLabelText("Show Legend Control"));
+
+    expect(await screen.findByText("Authored Legend")).toBeInTheDocument();
+    expect(screen.getByText("Deep water")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("img", { name: /^Color ramp/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("leaves a static GeoTIFF's colorbar as it was", async () => {
+    renderLayers([staticRaster]);
+    fireEvent.click(await screen.findByLabelText("Show Legend Control"));
+    await screen.findByLabelText("Color ramp from 0 to 100");
+    expectRamp("0", "100", "viridis");
+    expect(screen.getByText("Static Depth")).toBeInTheDocument();
+  });
+
+  it("keeps the legend in layer order beside static layers", async () => {
+    const authored = {
+      title: "Authored Legend",
+      items: [
+        { label: "Deep water", color: "#0000ff", symbol: "square" },
+        { label: "Shallow water", color: "#00ffff", symbol: "square" },
+      ],
+    };
+    renderLayers([
+      staticRaster,
+      runtimeRaster(),
+      {
+        configuration: {
+          type: "VectorLayer",
+          props: {
+            name: "Outlines",
+            source: { type: "GeoJSON", geojson: exampleGeoJSON },
+          },
+        },
+        legend: authored,
+      },
+    ]);
+    publish({
+      "runtime-1": {
+        rampName: "magma",
+        rampReverse: false,
+        rampMin: 3,
+        rampMax: 9,
+      },
+    });
+    fireEvent.click(await screen.findByLabelText("Show Legend Control"));
+    await screen.findByLabelText("Color ramp from 3 to 9");
+    await screen.findByText("Authored Legend");
+
+    const staticTitle = screen.getByText("Static Depth");
+    const runtimeTitle = screen.getByText("Forecast Depth");
+    const authoredTitle = screen.getByText("Authored Legend");
+    expect(precedes(staticTitle, runtimeTitle)).toBe(true);
+    expect(precedes(runtimeTitle, authoredTitle)).toBe(true);
+    expect(
+      screen
+        .getAllByRole("img", { name: /^Color ramp/ })
+        .map((node) => node.getAttribute("aria-label")),
+    ).toEqual(["Color ramp from 0 to 100", "Color ramp from 3 to 9"]);
+  });
+
+  it("drops a removed runtime layer's colorbar", async () => {
+    renderLayers([staticRaster, runtimeRaster()], [staticRaster]);
+    publish({
+      "runtime-1": {
+        rampName: "viridis",
+        rampReverse: false,
+        rampMin: 0,
+        rampMax: 50,
+      },
+    });
+    fireEvent.click(await screen.findByLabelText("Show Legend Control"));
+    expect(
+      await screen.findByLabelText("Color ramp from 0 to 50"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Swap Layers"));
+    await waitFor(() => {
+      expect(
+        screen.queryByLabelText("Color ramp from 0 to 50"),
+      ).not.toBeInTheDocument();
+    });
+    expect(screen.queryByText("Forecast Depth")).not.toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Color ramp from 0 to 100"),
+    ).toBeInTheDocument();
   });
 });

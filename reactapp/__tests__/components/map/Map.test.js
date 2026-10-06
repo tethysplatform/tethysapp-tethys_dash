@@ -2281,6 +2281,42 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
     );
   });
 
+  test("the alert stack is lifted above the OpenLayers viewport", async () => {
+    // OpenLayers appends its viewport to the map div after React's children,
+    // so anything left at z-index auto is painted under the canvas. The alert
+    // body went under it while Bootstrap's own z-index on
+    // `.alert-dismissible .btn-close` escaped the unpositioned alert and left
+    // the close button floating over the map on its own -- a message that
+    // flashed once and then showed as a bare X.
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent
+            mapProps={{
+              layers: [],
+              layerPrepStatus: {
+                "Basin Boundaries": {
+                  state: "error",
+                  message: "boom",
+                  kind: "fetch",
+                },
+              },
+            }}
+          />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    await screen.findByRole("group", { name: "Map Alerts" });
+    const anchor = screen
+      .getAllByTestId("floating-map-control-inplace")
+      .find((el) => within(el).queryByRole("group", { name: "Map Alerts" }));
+    expect(anchor).toBeTruthy();
+    expect(window.getComputedStyle(anchor).zIndex).toBe("1000");
+  });
+
   test("dismissing a failure leaves the loading report on screen", async () => {
     render(
       <VariableInputsContext.Provider
@@ -3225,14 +3261,19 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
     expect(await screen.findByText("Map Ready")).toBeInTheDocument();
     expect(await screen.findByLabelText("Map Legend")).toBeInTheDocument();
 
-    // The control itself must sit outside the map div. A fill-viewport tile is
-    // position:fixed, which seals its subtree into a stacking context that no
-    // descendant z-index can escape -- so a control rendered inside the map
-    // cannot paint above a grid item overlapping it, whatever its z-index.
+    // An ordinary tile seals nothing in, so the control stays inside the map.
+    // Leaving would cost it its place in the dashboard's paint order -- grid
+    // items carry no z-index and are ordered by the DOM alone, so a portalled
+    // control paints above every tile, including one sent to the front over
+    // this map. Only a fill-viewport tile (position:fixed, a stacking context
+    // no descendant z-index escapes) is worth paying that for; the two paths
+    // are covered directly in FloatingMapControl.test.js.
     const mapDiv = await screen.findByLabelText("Map Div");
     const control = await screen.findByLabelText("Show Legend Control");
-    expect(mapDiv).not.toContainElement(control);
-    expect(document.body).toContainElement(control);
+    expect(mapDiv).toContainElement(control);
+    expect(
+      screen.queryByTestId("floating-map-control"),
+    ).not.toBeInTheDocument();
   });
 
   test("Auto-fit skips inner extent block when clampedPrev is non-finite", async () => {
@@ -4960,6 +5001,50 @@ describe("linked map view groups", () => {
     expect(stateOf(maps.b).resolution).toBe(resolutionB);
   });
 
+  test("the mismatch notice can be closed, and returns when the mismatch changes", async () => {
+    const { maps } = await renderDashboard([
+      grouped("a", "Basin"),
+      grouped("b", "Basin"),
+    ]);
+
+    await act(async () => {
+      maps.b.current.setView(
+        new View({ projection: "EPSG:4326", center: [10, 20], zoom: 4 }),
+      );
+    });
+    await frame(maps.b);
+    const notice = await screen.findByLabelText(
+      "View Group Projection Mismatch",
+    );
+
+    fireEvent.click(within(notice).getByRole("button", { name: /close/i }));
+    await waitFor(() =>
+      expect(
+        screen.queryByLabelText("View Group Projection Mismatch"),
+      ).not.toBeInTheDocument(),
+    );
+
+    // The same mismatch, re-reported on the next frame, stays closed.
+    await act(async () => {
+      viewOf(maps.b).setCenter([11, 21]);
+    });
+    await frame(maps.b);
+    expect(
+      screen.queryByLabelText("View Group Projection Mismatch"),
+    ).not.toBeInTheDocument();
+
+    // A different projection is a different mismatch, so the notice is back.
+    await act(async () => {
+      maps.b.current.setView(
+        new View({ projection: "EPSG:32612", center: [500000, 4000000] }),
+      );
+    });
+    await frame(maps.b);
+    expect(
+      await screen.findByLabelText("View Group Projection Mismatch"),
+    ).toHaveTextContent("EPSG:32612");
+  });
+
   test("a member that comes back into the group's projection drops the mismatch notice and syncs again", async () => {
     const { maps } = await renderDashboard([
       grouped("a", "Basin"),
@@ -5778,5 +5863,242 @@ describe("the basemap waits for the raster that owns the view projection", () =>
     await waitFor(() => expect(addedNames(addSpy)).toContain("World Imagery"));
     getViewSpy.mockRestore();
     addSpy.mockRestore();
+  });
+});
+
+describe("runtime GeoTIFF layers", () => {
+  // A raster a dynamic map layer plugin drives. Saved with no URL: the map
+  // builds it sourceless and the runtime fetcher repoints it per fetch, which
+  // these tests stand in for with the real runtimeRaster module.
+  const runtimeRasterConfig = (overrides = {}) => ({
+    type: "WebGLTile",
+    props: {
+      name: "Depth",
+      layerId: "raster-1",
+      opacity: overrides.opacity ?? 1,
+      pluginSource: {
+        source: "echo_raster",
+        args: { storm: "ian" },
+        ...(overrides.pluginSource ?? {}),
+      },
+      source: {
+        type: "GeoTIFF",
+        props: {},
+        rampName: overrides.rampName ?? "viridis",
+        rampMin: "0",
+        rampMax: "50",
+      },
+    },
+  });
+
+  const staticRasterConfig = () => ({
+    type: "WebGLTile",
+    props: {
+      name: "Static Raster",
+      source: { type: "GeoTIFF", props: { url: "https://example.com/s.tif" } },
+    },
+  });
+
+  const baseMapConfig = (name) => ({
+    type: "WebGLTile",
+    isBaseMap: true,
+    props: {
+      name,
+      source: {
+        type: "Image Tile",
+        props: { url: `https://example.com/${name}/{z}/{y}/{x}` },
+      },
+    },
+  });
+
+  let capturedRef;
+  const RefCapture = ({ mapProps }) => {
+    const ref = useRef();
+    capturedRef = ref;
+    return (
+      <>
+        <MapComponent visualizationRef={ref} {...mapProps} />
+        <p>{useMapContext()?.mapReady ? "Map Ready" : "Map Not Ready"}</p>
+      </>
+    );
+  };
+  RefCapture.propTypes = { mapProps: PropTypes.object };
+
+  const tree = (layers) => (
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
+      <MapContextProvider>
+        <RefCapture mapProps={{ layers }} />
+      </MapContextProvider>
+    </VariableInputsContext.Provider>
+  );
+
+  const olLayerById = (layerId) =>
+    capturedRef.current
+      .getLayers()
+      .getArray()
+      .find((l) => l.get("layerId") === layerId);
+
+  // Repoint the map's layer the way the fetcher does, through the real module.
+  const repoint = async (config, url) => {
+    const runtimeRaster = jest.requireActual("components/map/runtimeRaster");
+    const built = await runtimeRaster.buildRuntimeRaster(
+      runtimeRaster.resolveEffectiveRasterConfig(config, {
+        type: "GeoTIFF",
+        props: { url },
+      }),
+      capturedRef.current.getView().getProjection().getCode(),
+    );
+    runtimeRaster.applyRuntimeRaster(olLayerById(config.props.layerId), built);
+    return built;
+  };
+
+  let addLayerSpy;
+  let removeLayerSpy;
+  beforeEach(() => {
+    addLayerSpy = jest.spyOn(OLMap.prototype, "addLayer");
+    removeLayerSpy = jest.spyOn(OLMap.prototype, "removeLayer");
+    GeoTIFFSource.getViewSpy.mockClear();
+    // The statistics sidecar: absent, as for a file that embeds its own.
+    jest.spyOn(global, "fetch").mockResolvedValue({ ok: false });
+  });
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it("builds a sourceless WebGLTile that does not claim the view", async () => {
+    render(tree([runtimeRasterConfig()]));
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+    await waitFor(() => expect(olLayerById("raster-1")).toBeDefined());
+
+    const olLayer = olLayerById("raster-1");
+    expect(olLayer).toBeInstanceOf(WebGLTileLayer);
+    expect(olLayer.getSource()).toBeNull();
+    expect(olLayer.get("pluginSource").source).toBe("echo_raster");
+    // Nothing to report: no URL is not a failure for a layer awaiting its fetch.
+    expect(screen.queryByText(/Failed to load/)).not.toBeInTheDocument();
+    // Not the view projection's owner, though it is the only raster.
+    expect(GeoTIFFSource.getViewSpy).not.toHaveBeenCalled();
+    expect(capturedRef.current.getView().getProjection().getCode()).toBe(
+      "EPSG:3857",
+    );
+  });
+
+  it("leaves the view to the first static raster after it", async () => {
+    render(tree([runtimeRasterConfig(), staticRasterConfig()]));
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+    await waitFor(() => expect(GeoTIFFSource.getViewSpy).toHaveBeenCalled());
+    expect(GeoTIFFSource.getViewSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the layer and its repointed source across an opacity change", async () => {
+    const { rerender } = render(tree([runtimeRasterConfig({ opacity: 0.8 })]));
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+    await waitFor(() => expect(olLayerById("raster-1")).toBeDefined());
+    const olLayer = olLayerById("raster-1");
+
+    const built = await repoint(runtimeRasterConfig(), "https://h/a.tif");
+    expect(olLayer.getSource()).toBe(built.source);
+    expect(built.source).toBeInstanceOf(GeoTIFFSource);
+    expect(built.source.options.sources[0].url).toBe("https://h/a.tif");
+    const adds = addLayerSpy.mock.calls.length;
+
+    rerender(tree([runtimeRasterConfig({ opacity: 0.3 })]));
+    await waitFor(() => expect(olLayer.getOpacity()).toBe(0.3));
+
+    expect(olLayerById("raster-1")).toBe(olLayer);
+    expect(olLayer.getSource()).toBe(built.source);
+    expect(addLayerSpy.mock.calls.length).toBe(adds);
+    expect(removeLayerSpy).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["pinning the style", { pluginSource: { stylePinned: true } }],
+    ["changing the ramp", { rampName: "magma" }],
+  ])(
+    "keeps the layer when %s, leaving the repaint to the fetcher",
+    async (_label, change) => {
+      const { rerender } = render(tree([runtimeRasterConfig()]));
+      expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+      await waitFor(() => expect(olLayerById("raster-1")).toBeDefined());
+      const olLayer = olLayerById("raster-1");
+      const built = await repoint(runtimeRasterConfig(), "https://h/a.tif");
+      const adds = addLayerSpy.mock.calls.length;
+
+      const edited = runtimeRasterConfig(change);
+      rerender(tree([edited]));
+      // The tag sync is the observable sign the reconcile ran: the preserved
+      // layer is handed the incoming config's own pluginSource object.
+      await waitFor(() =>
+        expect(olLayer.get("pluginSource")).toBe(edited.props.pluginSource),
+      );
+
+      expect(olLayerById("raster-1")).toBe(olLayer);
+      expect(olLayer.getSource()).toBe(built.source);
+      expect(addLayerSpy.mock.calls.length).toBe(adds);
+      expect(removeLayerSpy).not.toHaveBeenCalled();
+    },
+  );
+
+  it("keeps the layer and its source when the basemap changes", async () => {
+    const { rerender } = render(
+      tree([baseMapConfig("Light"), runtimeRasterConfig()]),
+    );
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+    await waitFor(() => expect(olLayerById("raster-1")).toBeDefined());
+    const olLayer = olLayerById("raster-1");
+    const built = await repoint(runtimeRasterConfig(), "https://h/a.tif");
+
+    rerender(tree([baseMapConfig("Dark"), runtimeRasterConfig()]));
+    const names = () =>
+      capturedRef.current
+        .getLayers()
+        .getArray()
+        .map((l) => l.get("name"));
+    await waitFor(() => expect(names()).toContain("Dark"));
+    expect(names()).not.toContain("Light");
+
+    // Preserved, not repainted: the same layer still draws the same file, and
+    // nothing had to fetch it again.
+    expect(olLayerById("raster-1")).toBe(olLayer);
+    expect(olLayer.getSource()).toBe(built.source);
+  });
+
+  it("rebuilds the layer when its plugin changes", async () => {
+    const { rerender } = render(tree([runtimeRasterConfig()]));
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+    await waitFor(() => expect(olLayerById("raster-1")).toBeDefined());
+    const olLayer = olLayerById("raster-1");
+
+    rerender(
+      tree([runtimeRasterConfig({ pluginSource: { source: "other" } })]),
+    );
+    await waitFor(() => expect(olLayerById("raster-1")).not.toBe(olLayer));
+    expect(olLayerById("raster-1").getSource()).toBeNull();
+  });
+
+  it("reports a static GeoTIFF whose source fails by changing state", async () => {
+    // OpenLayers' GeoTIFF source has no "error" event: a file it cannot open
+    // only moves it to the "error" state.
+    jest.spyOn(console, "warn").mockImplementation(() => {});
+    render(tree([staticRasterConfig()]));
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+    const staticLayer = () =>
+      capturedRef.current
+        .getLayers()
+        .getArray()
+        .find((l) => l.get("name") === "Static Raster");
+    await waitFor(() => expect(staticLayer()).toBeDefined());
+
+    act(() => {
+      staticLayer().getSource().setState("error");
+    });
+
+    expect(
+      await screen.findByText(
+        /GeoTIFF layer "Static Raster" failed \(source error\)/,
+      ),
+    ).toBeInTheDocument();
   });
 });

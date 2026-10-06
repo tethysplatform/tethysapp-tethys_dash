@@ -12,6 +12,11 @@ import moduleLoader, {
 // waited on anything async would race them.
 import { isNativelyResolvable } from "components/map/projectionCodes";
 import {
+  attachGeoTIFFSourceErrorHandlers,
+  isRuntimeRasterConfig,
+} from "components/map/runtimeRaster";
+import { rasterLayerStyle } from "components/map/geoTIFFStyle";
+import {
   CANCEL_REASON,
   errorKindFor,
   mergeLayerStatus,
@@ -59,8 +64,15 @@ const AlertAnchor = styled(FloatingMapControl)`
   top: 1rem;
   left: 1rem;
   right: 1rem;
+  /* Above the OpenLayers viewport, which is appended to the map div after
+     React's children and so paints over anything left at z-index auto. Without
+     this an alert showed for a frame and was then covered by the canvas --
+     all but its close button, which Bootstrap gives a z-index of its own
+     (.alert-dismissible .btn-close) that escapes the unpositioned alert and
+     lifts the button clear on its own. The layer and legend controls already
+     sit at this level. */
+  z-index: 1000;
 `;
-const ALERT_EDGES = ["top", "left", "right"];
 
 const StyledAlert = styled(Alert)`
   margin: 0;
@@ -93,31 +105,45 @@ const InfoDiv = styled.div`
 // Preservation keeps the layer instance, and the cosmetic prop sync handles only
 // the props OL has first-class setters for -- so without this, editing a
 // preserved layer's style rules would change nothing on the map.
+//
+// A raster's saved style is its ramp settings, which OpenLayers cannot draw:
+// what it draws with is the style applyAutoRamp compiled from them at load. A
+// raster whose saved style is a hand-authored OpenLayers style passes it
+// through unchanged (see rasterLayerStyle).
 async function applyLayerStyle(olLayer, layerConfig) {
-  if (!layerConfig.style) return;
+  const style =
+    layerConfig.type === "WebGLTile"
+      ? rasterLayerStyle(layerConfig)
+      : layerConfig.style;
+  if (!style) return;
 
-  const isWebGLTileRampStyle =
+  const isWebGLTileColorStyle =
     layerConfig.type === "WebGLTile" &&
-    layerConfig.style &&
-    typeof layerConfig.style === "object" &&
-    !Array.isArray(layerConfig.style) &&
-    "color" in layerConfig.style;
+    typeof style === "object" &&
+    !Array.isArray(style) &&
+    "color" in style;
 
-  if (isWebGLTileRampStyle) {
-    olLayer.setStyle(layerConfig.style);
+  if (isWebGLTileColorStyle) {
+    olLayer.setStyle(style);
     return;
   }
 
   try {
-    await applyStyle(olLayer, layerConfig.style);
+    await applyStyle(olLayer, style);
   } catch (err) {
     if (err.message !== "Cannot read properties of undefined (reading 'crs')") {
-      const styleFunction = createJsonStyleFunction(layerConfig.style);
+      const styleFunction = createJsonStyleFunction(style);
       if (typeof olLayer.setStyle === "function") {
         olLayer.setStyle(styleFunction);
       }
     }
   }
+}
+
+// A layer config with its source dropped, for a layer built before it has one.
+function withoutSource(layerConfig) {
+  const { source, ...props } = layerConfig.props;
+  return { ...layerConfig, props };
 }
 
 // Mirror a shapefile source's load state into React state so it can be
@@ -442,6 +468,16 @@ const MapComponent = ({
   const viewGroupApplyRef = useRef(null);
   const previousShouldLoadRef = useRef(shouldLoad);
   const [viewGroupMismatch, setViewGroupMismatch] = useState(null);
+  // Same contract as the layer-failure alert: closing the notice hides only
+  // this exact mismatch, and a different group or projection brings it back.
+  const [dismissedViewGroupMismatchKey, setDismissedViewGroupMismatchKey] =
+    useState(null);
+  const viewGroupMismatchKey = viewGroupMismatch
+    ? `${viewGroupMismatch.groupName}|${viewGroupMismatch.mapCode}|${viewGroupMismatch.groupCode}`
+    : null;
+  const showViewGroupMismatch =
+    !!viewGroupMismatch &&
+    viewGroupMismatchKey !== dismissedViewGroupMismatchKey;
 
   // --- Coalesced `moveend` side effects (U4: R24, R29) --------------------
   // Unsettled motion is in flight on this member's own view. Held in a ref
@@ -742,8 +778,6 @@ const MapComponent = ({
       const shapefileLayerUpdates = [];
 
       if (currentLayers.current.length) {
-        const newLayerProps = (layers ?? []).map((l) => l.props);
-
         // Build a map of incoming runtime-layer ids → {props, count} so we
         // can detect duplicate-layerId collisions (e.g., from layer-paste).
         // When duplicates exist, both are rebuilt and a console warning is
@@ -767,10 +801,16 @@ const MapComponent = ({
         });
 
         currentLayers.current.forEach((currentLayer) => {
+          // A runtime raster is preserved the same way, and for the same
+          // reason: the fetcher repointed it at a source the saved config does
+          // not carry, so a rebuild would drop it back to drawing nothing. A
+          // change to its saved style keeps it too; the fetcher refetches, and
+          // the next repoint compiles the style.
           const isRuntime =
             currentLayer?.props?.pluginSource &&
             currentLayer?.props?.layerId &&
-            isVectorLayerType(currentLayer.type);
+            (isVectorLayerType(currentLayer.type) ||
+              isRuntimeRasterConfig(currentLayer));
 
           if (isRuntime) {
             const incoming = incomingRuntimeIds.get(currentLayer.props.layerId);
@@ -784,7 +824,9 @@ const MapComponent = ({
               // preserved layer cannot pick up a change to either, so an edit
               // to one has to rebuild rather than silently do nothing.
               incoming.type === currentLayer.type &&
-              incoming.props.imageRatio === currentLayer.props.imageRatio
+              incoming.props.imageRatio === currentLayer.props.imageRatio &&
+              // A raster cannot become a vector source or the reverse in place.
+              incoming.props.source?.type === currentLayer.props.source?.type
             ) {
               // Identity match: preserve the OL layer. Track cosmetic props
               // to propagate after the loop. Use the INCOMING name for the
@@ -843,10 +885,21 @@ const MapComponent = ({
             }
           }
 
+          // A runtime layer that failed its identity match is rebuilt, never
+          // kept by name: matching props are what a duplicated layerId has.
+          //
+          // A raster also has to match on its style. Its ramp settings are its
+          // saved style, not its props, and a kept layer is never restyled --
+          // so a style edit alone would otherwise change nothing on the map.
           const shouldKeep =
-            newLayerProps.some((newProps) =>
-              valuesEqual(newProps, currentLayer.props),
-            ) && !isVectorLayerType(currentLayer.type);
+            (layers ?? []).some(
+              (incoming) =>
+                valuesEqual(incoming?.props, currentLayer.props) &&
+                (currentLayer.type !== "WebGLTile" ||
+                  valuesEqual(incoming.style, currentLayer.style)),
+            ) &&
+            !isVectorLayerType(currentLayer.type) &&
+            !isRuntime;
           if (shouldKeep) {
             layersToKeep.push(currentLayer.props.name);
           }
@@ -938,11 +991,17 @@ const MapComponent = ({
       // Which raster, if any, gets to set the view projection. Resolved from
       // the author's array before anything is built, so it is the same answer
       // for every layer in this run no matter what order they finish in.
+      //
+      // Never a raster a plugin drives. It has no file until its first fetch,
+      // and each fetch may name one in another CRS, so owning the view would
+      // replace it -- and refetch the basemap -- on every fetch. It is
+      // reprojected into the view like any raster that does not own it.
       const viewProjectionOwner = customLayers.find(
         (candidate) =>
           candidate?.type === "WebGLTile" &&
           (candidate.props?.source?.type === "GeoTIFF" ||
-            candidate.props?.source?.type === "Zarr"),
+            candidate.props?.source?.type === "Zarr") &&
+          !candidate.props?.pluginSource,
       );
 
       // The basemap waits for whichever raster owns the view projection.
@@ -1002,13 +1061,24 @@ const MapComponent = ({
             }));
           }
 
+          // A raster a plugin drives is built with no source. Its file is
+          // whatever the plugin names on each fetch, so the saved config has no
+          // URL to open, range or place, and the fetcher hands the layer a
+          // ready source -- and the style compiled for it -- once it has one.
+          // OpenLayers draws a sourceless WebGLTile as nothing, without error.
+          const isRuntimeRaster = isRuntimeRasterConfig(layerConfig);
+
           try {
-            // Resolve a Zarr layer's ramp from the slice's real value range
-            // before the source is built — `normalize` is read at construction.
-            await applyAutoRamp(layerConfig);
+            // Compile a raster's style from its saved settings, resolving the
+            // ramp's range from the file (or a Zarr's slice), before the source
+            // is built -- `normalize` and `interpolate` are read at
+            // construction, and applyAutoRamp derives both.
+            if (!isRuntimeRaster) {
+              await applyAutoRamp(layerConfig);
+            }
 
             const newLayer = await moduleLoader(
-              layerConfig,
+              isRuntimeRaster ? withoutSource(layerConfig) : layerConfig,
               map.getView().getProjection().getCode(),
               // Read again when features are actually inserted. A source with a
               // long async load -- a shapefile -- can finish after a sibling
@@ -1115,39 +1185,17 @@ const MapComponent = ({
             watchVectorSourceLoad(newLayer, name, setLayerStatus);
 
             if (
+              !isRuntimeRaster &&
               layerConfig.type === "WebGLTile" &&
               (layerConfig.props?.source?.type === "GeoTIFF" ||
                 layerConfig.props?.source?.type === "Zarr")
             ) {
               const geoTIFFSource = newLayer.getSource();
-
-              let errorSurfaced = false;
-              const surface = (phase) => (evt) => {
-                if (errorSurfaced) return;
-                errorSurfaced = true;
-                const detail = evt?.error?.message || evt?.message || "";
-                const looksLikeFetchFailure =
-                  /request failed|AggregateError|CORS|blocked|Failed to fetch/i.test(
-                    detail,
-                  );
-                const message = looksLikeFetchFailure
-                  ? `GeoTIFF layer "${name}" failed to fetch the file. ` +
-                    `Check the Network tab — likely causes: CORS headers ` +
-                    `missing on the hosting server, no HTTP Range support, ` +
-                    `or the URL is unreachable. Detail: ${detail}.`
-                  : `GeoTIFF layer "${name}" failed (${phase}). ` +
-                    (detail ? `Detail: ${detail}. ` : "") +
-                    `The file may not be a Cloud Optimized GeoTIFF. ` +
-                    `Try converting with ` +
-                    `\`gdal_translate -of COG -co COMPRESS=DEFLATE -co PREDICTOR=YES input.tif output.tif\`.`;
-                setErrorMessage(message);
-                console.warn(
-                  `GeoTIFF layer "${name}" (${phase}):`,
-                  evt?.error ?? evt,
-                );
-              };
-              geoTIFFSource.on("error", surface("source error"));
-              geoTIFFSource.on("tileloaderror", surface("tile load error"));
+              attachGeoTIFFSourceErrorHandlers(
+                geoTIFFSource,
+                name,
+                setErrorMessage,
+              );
 
               // One raster owns the view projection. Every GeoTIFF and Zarr
               // layer used to assert its own CRS on the map's single view, so a
@@ -1293,7 +1341,11 @@ const MapComponent = ({
               }
             }
 
-            await applyLayerStyle(newLayer, layerConfig);
+            // A runtime raster's style is compiled per fetch, for the file
+            // that fetch named, and handed over with its source.
+            if (!isRuntimeRaster) {
+              await applyLayerStyle(newLayer, layerConfig);
+            }
 
             // A shapefile is not finished when its layer is: its features are
             // pulled by OpenLayers once the layer renders, and the watcher
@@ -1924,12 +1976,28 @@ const MapComponent = ({
 
   return (
     <>
-      <div aria-label="Map Div" ref={mapDivRef} {...customMapConfig}>
+      <div
+        aria-label="Map Div"
+        ref={mapDivRef}
+        {...customMapConfig}
+        /* An isolated stacking context, so the controls inside -- legend,
+           layer control, alert stack, each at z-index 1000 -- are ordered
+           against the map and each other, and never against another grid
+           item. A grid tile is position:relative with no z-index, so it is
+           not a stacking context of its own: without this, a control's
+           z-index is resolved somewhere above the tile and paints over tiles
+           an author deliberately sent to the front.
+
+           Applied after the spread rather than in defaultMapConfig: a
+           dashboard-supplied mapConfig.style replaces that object outright,
+           and this must not be something a map config can drop. */
+        style={{ ...customMapConfig.style, isolation: "isolate" }}
+      >
         {(errorMessage ||
           showLayerFailure ||
           showLayerLoading ||
-          viewGroupMismatch) && (
-          <AlertAnchor edges={ALERT_EDGES} mapDivRef={mapDivRef}>
+          showViewGroupMismatch) && (
+          <AlertAnchor mapDivRef={mapDivRef}>
             <AlertStack role="group" aria-label="Map Alerts">
               {errorMessage && (
                 <StyledAlert
@@ -1957,12 +2025,16 @@ const MapComponent = ({
                   {layerLoadingMessage}
                 </StyledAlert>
               )}
-              {viewGroupMismatch && (
+              {showViewGroupMismatch && (
                 <StyledAlert
                   variant="warning"
                   role="status"
                   aria-live="polite"
                   aria-label="View Group Projection Mismatch"
+                  dismissible={true}
+                  onClose={() =>
+                    setDismissedViewGroupMismatchKey(viewGroupMismatchKey)
+                  }
                 >
                   {`This map is not synced with the "${viewGroupMismatch.groupName}" ` +
                     `view group: it is in ${viewGroupMismatch.mapCode} and the ` +

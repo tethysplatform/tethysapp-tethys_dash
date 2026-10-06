@@ -9,6 +9,10 @@ from tethysapp.tethysdash.exceptions import VisualizationError
 from tethysapp.tethysdash.tests.fixtures.echo_runtime_plugin import (
     EchoRuntimePlugin,
 )
+from tethysapp.tethysdash.tests.fixtures.echo_runtime_raster_plugin import (
+    ECHO_RASTER_URL,
+    EchoRuntimeRasterPlugin,
+)
 
 
 @pytest.fixture
@@ -21,6 +25,23 @@ def echo_runtime_intake(mocker):
         @staticmethod
         def open_echo_runtime(**kwargs):
             return EchoRuntimePlugin(**kwargs)
+
+    mocker.patch("tethysapp.tethysdash.visualizations.intake", new=MockIntake())
+    return MockIntake
+
+
+@pytest.fixture
+def echo_runtime_raster_intake(mocker):
+    """Wire the EchoRuntimeRasterPlugin fixture into a mocked intake registry."""
+
+    class MockIntake:
+        source = type(
+            "Source", (), {"registry": {"echo_runtime_raster": EchoRuntimeRasterPlugin}}
+        )
+
+        @staticmethod
+        def open_echo_runtime_raster(**kwargs):
+            return EchoRuntimeRasterPlugin(**kwargs)
 
     mocker.patch("tethysapp.tethysdash.visualizations.intake", new=MockIntake())
     return MockIntake
@@ -480,3 +501,103 @@ def test_get_visualization_features_mode_empty_suffix_request_id(
     _, kwargs = mock_send.call_args
     # Empty suffix is rejected: layer_id falls back to None, not "".
     assert kwargs.get("layer_id") is None
+
+
+# --- Runtime GeoTIFF source mode tests ---------------------------------------
+
+
+def _fetch_raster(mode, request_id="n:g:layer-1"):
+    return get_visualization(
+        "echo_runtime_raster",
+        {"mode": mode},
+        None,
+        request_id,
+        mode="features",
+    )
+
+
+def test_build_plugin_metadata_reports_dynamic_map_layer_source():
+    from tethysapp.tethysdash.visualizations import build_plugin_metadata
+
+    raster = build_plugin_metadata(EchoRuntimeRasterPlugin, "echo_runtime_raster")
+    vector = build_plugin_metadata(EchoRuntimePlugin, "echo_runtime")
+
+    assert raster["dynamic_map_layer"] is True
+    assert raster["dynamic_map_layer_source"] == "GeoTIFF"
+    assert vector["dynamic_map_layer_source"] == "GeoJSON"
+
+
+def test_get_visualization_features_mode_geotiff_happy(echo_runtime_raster_intake):
+    viz_type, data = _fetch_raster("happy")
+
+    assert viz_type == "source"
+    assert data == {"type": "GeoTIFF", "props": {"url": ECHO_RASTER_URL}}
+
+
+def test_get_visualization_features_mode_geotiff_full(echo_runtime_raster_intake):
+    """A fetch carries the file and what describes the data in it, never style."""
+    viz_type, data = _fetch_raster("styled")
+
+    assert viz_type == "source"
+    assert data == {
+        "type": "GeoTIFF",
+        "props": {
+            "url": ECHO_RASTER_URL,
+            "projection": "EPSG:32612",
+            "mask_below": -9999,
+        },
+    }
+
+
+@pytest.mark.parametrize(
+    "mode,message",
+    [
+        ("none", "fetch_source\\(\\) returned None"),
+        ("scaffold", "configure-time scaffold"),
+        ("wrong_type", "type 'XYZ'.*dynamic_map_layer_source = 'GeoTIFF'"),
+        ("empty_url", "props.url must be a non-empty string"),
+        ("file_url", "'file:///etc/passwd' is not allowed"),
+        ("bad_mask", "props.mask_below must be a finite number"),
+        ("with_style", "unknown keys: style"),
+    ],
+)
+def test_get_visualization_features_mode_geotiff_invalid_returns(
+    echo_runtime_raster_intake, mode, message
+):
+    with pytest.raises(ValueError, match=message):
+        _fetch_raster(mode)
+
+
+def test_get_visualization_features_mode_geotiff_raise_propagates(
+    echo_runtime_raster_intake,
+):
+    with pytest.raises(RuntimeError, match="intentional failure"):
+        _fetch_raster("raise")
+
+
+def test_get_visualization_features_mode_geotiff_progress_carries_layer_id(
+    echo_runtime_raster_intake, mocker
+):
+    mock_send = mocker.patch(
+        "tethysapp.tethysdash.plugin_helpers.send_websocket_message"
+    )
+
+    viz_type, _ = _fetch_raster("slow_progress", request_id="sess:grid:layer-xyz")
+
+    assert viz_type == "source"
+    args, kwargs = mock_send.call_args
+    assert args[0] == "sess:grid:layer-xyz"
+    assert kwargs.get("layer_id") == "layer-xyz"
+
+
+def test_get_visualization_scaffold_mode_geotiff_runtime(echo_runtime_raster_intake):
+    # The configure-time scaffold the editor opens: a sourceless GeoTIFF.
+    _, data = get_visualization("echo_runtime_raster", {"mode": "happy"}, None, "req-1")
+
+    props = data["configuration"]["props"]
+    assert data["configuration"]["type"] == "WebGLTile"
+    assert props["source"]["type"] == "GeoTIFF"
+    assert "url" not in props["source"]["props"]
+    assert props["pluginSource"]["source"] == "echo_runtime_raster"
+    assert data["configuration"]["style"] == {"rampName": "viridis"}
+    assert "rampName" not in props["source"]

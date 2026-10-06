@@ -1,0 +1,36 @@
+diff --git a/node_modules/react-grid-layout/build/calculateUtils.js b/node_modules/react-grid-layout/build/calculateUtils.js
+index b004168..e519a5c 100644
+--- a/node_modules/react-grid-layout/build/calculateUtils.js
++++ b/node_modules/react-grid-layout/build/calculateUtils.js
+@@ -39,6 +39,15 @@ function calcGridItemWHPx(gridUnits /*: number*/, colOrRowSize /*: number*/, mar
+   return Math.round(colOrRowSize * gridUnits + Math.max(0, gridUnits - 1) * marginPx);
+ }
+ 
++// Pixel size of an item spanning gridUnits from gridPos, as the difference of
++// its rounded edges. Matches the rounding of left/top in calcGridItemPosition.
++function calcGridItemEdgeSpanPx(gridPos /*: number*/, gridUnits /*: number*/, colOrRowSize /*: number*/, marginPx /*: number*/, paddingPx /*: number*/) /*: number*/{
++  if (!Number.isFinite(gridUnits)) return gridUnits;
++  const start = (colOrRowSize + marginPx) * gridPos + paddingPx;
++  const end = start + colOrRowSize * gridUnits + Math.max(0, gridUnits - 1) * marginPx;
++  return Math.round(end) - Math.round(start);
++}
++
+ /**
+  * Return position on the page given an x, y, w, h.
+  * left, top, width, height are all in pixels.
+@@ -63,10 +72,12 @@ function calcGridItemPosition(positionParams /*: PositionParams*/, x /*: number*
+     out.width = Math.round(state.resizing.width);
+     out.height = Math.round(state.resizing.height);
+   }
+-  // Otherwise, calculate from grid units.
++  // Otherwise, calculate from grid units. Round the item's edges rather than
++  // its size, so an item ending at a grid line and the next one starting there
++  // land on the same pixel (no 1px gap or overlap between adjacent items).
+   else {
+-    out.width = calcGridItemWHPx(w, colWidth, margin[0]);
+-    out.height = calcGridItemWHPx(h, rowHeight, margin[1]);
++    out.width = calcGridItemEdgeSpanPx(x, w, colWidth, margin[0], containerPadding[0]);
++    out.height = calcGridItemEdgeSpanPx(y, h, rowHeight, margin[1], containerPadding[1]);
+   }
+ 
+   // If dragging, use the exact width and height as returned from dragging callbacks.

@@ -181,6 +181,86 @@ def test_data_features_mode_happy_path(client, mock_app, mocker):
     assert response.json()["data"] == fc
 
 
+@pytest.fixture
+def echo_runtime_raster_intake(mocker):
+    """Route the real get_visualization to the GeoTIFF echo fixture."""
+    from tethysapp.tethysdash.tests.fixtures.echo_runtime_raster_plugin import (
+        EchoRuntimeRasterPlugin,
+    )
+
+    class MockIntake:
+        source = type(
+            "Source", (), {"registry": {"echo_runtime_raster": EchoRuntimeRasterPlugin}}
+        )
+
+        @staticmethod
+        def open_echo_runtime_raster(**kwargs):
+            return EchoRuntimeRasterPlugin(**kwargs)
+
+    mocker.patch("tethysapp.tethysdash.visualizations.intake", new=MockIntake())
+
+
+@pytest.mark.django_db
+def test_data_features_mode_geotiff_source(
+    client, mock_app, echo_runtime_raster_intake
+):
+    """A GeoTIFF runtime fetch responds with viz_type=source and the
+    validated source description, through the same mode=features request."""
+    from tethysapp.tethysdash.tests.fixtures.echo_runtime_raster_plugin import (
+        ECHO_RASTER_URL,
+    )
+
+    mock_app("tethysapp.tethysdash.controllers.App")
+    response = client.get(
+        reverse("tethysdash:visualization"),
+        {
+            "source": "echo_runtime_raster",
+            "args": json.dumps({"mode": "styled"}),
+            "requestId": "n:g:layer-1",
+            "mode": "features",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "success": True,
+        "viz_type": "source",
+        "data": {
+            "type": "GeoTIFF",
+            "props": {
+                "url": ECHO_RASTER_URL,
+                "projection": "EPSG:32612",
+                "mask_below": -9999,
+            },
+        },
+    }
+
+
+@pytest.mark.django_db
+def test_data_features_mode_geotiff_invalid_source(
+    client, mock_app, echo_runtime_raster_intake
+):
+    """A malformed GeoTIFF description fails per-layer with the validator's
+    actionable message passed through, like any features-mode error."""
+    mock_app("tethysapp.tethysdash.controllers.App")
+    response = client.get(
+        reverse("tethysdash:visualization"),
+        {
+            "source": "echo_runtime_raster",
+            "args": json.dumps({"mode": "wrong_type"}),
+            "requestId": "n:g:layer-1",
+            "mode": "features",
+        },
+    )
+
+    body = response.json()
+    assert response.status_code == 200
+    assert body["success"] is False
+    assert body["viz_type"] is None
+    assert "type 'XYZ'" in body["data"]["error"]
+    assert "dynamic_map_layer_source = 'GeoTIFF'" in body["data"]["error"]
+
+
 @pytest.mark.django_db
 def test_data_scaffold_mode_default(client, mock_app, mocker):
     """Omitting mode defaults to scaffold (backward compat)."""

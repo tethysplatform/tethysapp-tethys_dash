@@ -20,7 +20,18 @@ import {
   argsContainPreset,
   IMAGE_VIZ_CACHE_LIMIT,
   toNumberOrEmpty,
+  normalizeVariableInputValue,
+  getPublishedVariableInputValues,
+  getVariableInputDateFormat,
+  buildPreloadedRequestKey,
 } from "components/visualizations/utilities";
+import appAPI from "services/api/app";
+import {
+  buildPreloadedVisualizationKey,
+  clearPreloadedVisualizations,
+  setPreloadedVisualization,
+  takePreloadedVisualization,
+} from "components/visualizations/preloadedVisualizationCache";
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
 import { format } from "date-fns";
@@ -2253,5 +2264,360 @@ describe("toNumberOrEmpty", () => {
     expect(toNumberOrEmpty("abc")).toBe("");
     expect(toNumberOrEmpty("")).toBe("");
     expect(toNumberOrEmpty(undefined)).toBe("");
+  });
+});
+
+describe("variable input publishing helpers", () => {
+  it("normalizes initial values the way VariableInput publishes them", () => {
+    expect(
+      normalizeVariableInputValue({
+        variable_options_source: "number",
+        initial_value: "0.3",
+      }),
+    ).toBe(0.3);
+    expect(
+      normalizeVariableInputValue({
+        variable_options_source: "checkbox",
+        initial_value: null,
+      }),
+    ).toBe(false);
+    expect(
+      normalizeVariableInputValue({
+        variable_options_source: "text",
+        initial_value: null,
+      }),
+    ).toBeNull();
+  });
+
+  it("publishes nothing for an empty value but publishes 0 and false", () => {
+    expect(getPublishedVariableInputValues("A", "")).toBeNull();
+    expect(getPublishedVariableInputValues("A", null)).toBeNull();
+    expect(getPublishedVariableInputValues("A", undefined)).toBeNull();
+    expect(getPublishedVariableInputValues("A", 0)).toEqual({ A: 0 });
+    expect(getPublishedVariableInputValues("A", false)).toEqual({ A: false });
+  });
+
+  it("spreads an object value's keys alongside the variable", () => {
+    const range = { "Start Date": "a", "End Date": "b" };
+    expect(getPublishedVariableInputValues("Range", range)).toEqual({
+      Range: range,
+      "Start Date": "a",
+      "End Date": "b",
+    });
+  });
+
+  it("finds the date format a variable input registers", () => {
+    expect(
+      getVariableInputDateFormat({
+        variable_options_source: "date-range",
+        metadata: { format: "MM/dd/yyyy" },
+      }),
+    ).toBe("MM/dd/yyyy");
+    expect(
+      getVariableInputDateFormat({
+        variable_options_source: "slider",
+        metadata: { dataType: "Date", outputFormat: "yyyy" },
+      }),
+    ).toBe("yyyy");
+    expect(
+      getVariableInputDateFormat({
+        variable_options_source: "slider",
+        metadata: { dataType: "Number" },
+      }),
+    ).toBeNull();
+    expect(
+      getVariableInputDateFormat({ variable_options_source: ["a"] }),
+    ).toBeNull();
+  });
+});
+
+describe("preloaded visualization cache", () => {
+  afterEach(() => {
+    clearPreloadedVisualizations();
+    jest.restoreAllMocks();
+  });
+
+  it("keys a request by what it is built from, regardless of key order", () => {
+    expect(
+      buildPreloadedVisualizationKey({ source: "s", args: { a: 1, b: 2 } }),
+    ).toBe(
+      buildPreloadedVisualizationKey({ source: "s", args: { b: 2, a: 1 } }),
+    );
+    expect(
+      buildPreloadedVisualizationKey({ source: "s", args: { a: 1 } }),
+    ).not.toBe(buildPreloadedVisualizationKey({ source: "s", args: { a: 2 } }));
+    // Only the referenced variables' values count.
+    const key = (variableInputValues) =>
+      buildPreloadedVisualizationKey({
+        source: "s",
+        args: { a: "${X}" },
+        variableInputValues,
+        tokens: ["X"],
+      });
+    expect(key({ X: 1, Y: 1 })).toBe(key({ X: 1, Y: 2 }));
+    expect(key({ X: 1 })).not.toBe(key({ X: 2 }));
+  });
+
+  it("keys an array arg by its order, and descends into it", () => {
+    // An args value is often a list -- a multi-select's selection, a bbox --
+    // and order is meaningful in both. Serializing one as a plain object would
+    // key [1, 2] and [2, 1] alike and hand the tile the wrong response.
+    const key = (args) => buildPreloadedVisualizationKey({ source: "s", args });
+    expect(key({ a: [1, 2] })).toBe(key({ a: [1, 2] }));
+    expect(key({ a: [1, 2] })).not.toBe(key({ a: [2, 1] }));
+    expect(key({ a: [1, 2] })).not.toBe(key({ a: [1, 2, 3] }));
+    // Key order is normalized at every depth, inside a list as well as outside.
+    expect(key({ a: [{ x: 1, y: 2 }] })).toBe(key({ a: [{ y: 2, x: 1 }] }));
+    expect(key({ a: [{ x: 1 }] })).not.toBe(key({ a: [{ x: 2 }] }));
+  });
+
+  it("keys the values JSON cannot carry without collapsing them", () => {
+    // JSON.stringify returns undefined rather than a string for these, so the
+    // fallback is what keeps them from reading as the same key.
+    const key = (args) => buildPreloadedVisualizationKey({ source: "s", args });
+    expect(key({ a: undefined })).toBe(key({ a: null }));
+    expect(key({ a: 1 })).not.toBe(key({ a: null }));
+  });
+
+  it("keys a request with no source or args without collapsing them", () => {
+    // Neither is guaranteed: a key is built from whatever the grid item has,
+    // and JSON.stringify gives nothing back for undefined, which would make
+    // every such key identical.
+    const bare = buildPreloadedVisualizationKey({});
+    expect(bare).toBe(
+      buildPreloadedVisualizationKey({ source: null, args: null }),
+    );
+    expect(bare).not.toBe(buildPreloadedVisualizationKey({ source: "s" }));
+    expect(bare).not.toBe(buildPreloadedVisualizationKey({ args: {} }));
+  });
+
+  it("caches nothing for a grid item with no request id", () => {
+    // A popup-nested item, or one not yet saved, has no uuid to key on. There
+    // is nothing to hand back to later, so the preload simply does not cache
+    // it -- rather than storing every such item under one shared key.
+    expect(() =>
+      setPreloadedVisualization(undefined, "key", Promise.resolve({})),
+    ).not.toThrow();
+    expect(takePreloadedVisualization(undefined, "key")).toBe(undefined);
+    expect(takePreloadedVisualization(null, "key")).toBe(undefined);
+  });
+
+  it("keys an unset variable the same as one explicitly null", () => {
+    // A referenced variable with no value yet is part of the key, as null, so
+    // the request built before it was set does not match the one built after.
+    const key = (variableInputValues) =>
+      buildPreloadedVisualizationKey({
+        source: "s",
+        args: { a: "${X}" },
+        variableInputValues,
+        tokens: ["X"],
+      });
+    expect(key({})).toBe(key({ X: null }));
+    expect(key(undefined)).toBe(key({ X: null }));
+    // Explicitly null, which skips the default parameter: the variable inputs
+    // context holds null until its provider mounts, and a key built then has
+    // to match one built from an empty map rather than throwing.
+    expect(key(null)).toBe(key({ X: null }));
+    expect(key({})).not.toBe(key({ X: "set" }));
+  });
+
+  it("keys a referenced variable's date format as well as its value", () => {
+    // The format decides what a date value resolves to, so two requests with
+    // the same value and different formats are different requests.
+    const key = (variableInputDateFormats) =>
+      buildPreloadedVisualizationKey({
+        source: "s",
+        args: { a: "${When}" },
+        variableInputValues: { When: "now-1D" },
+        variableInputDateFormats,
+        tokens: ["When"],
+      });
+    expect(key({ When: "YYYY-MM-DD" })).not.toBe(key({ When: "YYYY" }));
+    expect(key({ When: "YYYY-MM-DD" })).not.toBe(key({}));
+    expect(key({})).toBe(key(undefined));
+    expect(key({})).toBe(key(null));
+  });
+
+  it("hands an entry out once, and only for the key it was built from", async () => {
+    const response = { success: true };
+    setPreloadedVisualization("uuid", "key", Promise.resolve(response));
+    expect(takePreloadedVisualization("uuid", "other")).toBe(undefined);
+    // A miss discards the entry: it was for a configuration now gone.
+    expect(takePreloadedVisualization("uuid", "key")).toBe(undefined);
+
+    setPreloadedVisualization("uuid", "key", Promise.resolve(response));
+    await Promise.resolve();
+    const entry = takePreloadedVisualization("uuid", "key");
+    expect(entry.settled).toBe(true);
+    await expect(entry.promise).resolves.toBe(response);
+    expect(takePreloadedVisualization("uuid", "key")).toBe(undefined);
+  });
+
+  const preloadedResponse = {
+    success: true,
+    viz_type: "variable_input",
+    data: {
+      variable_name: "Station",
+      initial_value: "ABC",
+      variable_options_source: "text",
+    },
+  };
+
+  const runGetVisualization = (overrides = {}) => {
+    const setVizType = jest.fn();
+    const setVizData = jest.fn();
+    return getVisualization({
+      setVizType,
+      setVizData,
+      sourceType: "variable_input",
+      sourceArgs: { region: "text" },
+      itemData: { source: "station_picker", args: {}, requestId: "uuid-1" },
+      argsString: JSON.stringify({ region: "west" }),
+      metadataString: "{}",
+      variableInputValues: {},
+      dashboardView: true,
+      ...overrides,
+    }).then(() => ({ setVizType, setVizData }));
+  };
+
+  const preload = (
+    promise = Promise.resolve(preloadedResponse),
+    args = { region: "west" },
+    variableInputValues = {},
+  ) =>
+    setPreloadedVisualization(
+      "uuid-1",
+      buildPreloadedRequestKey({
+        source: "station_picker",
+        args,
+        variableInputValues,
+      }),
+      promise,
+    );
+
+  it("serves a preloaded response to the tile once, then fetches", async () => {
+    const spy = jest
+      .spyOn(appAPI, "getVisualizationData")
+      .mockResolvedValue(preloadedResponse);
+    preload();
+    await Promise.resolve();
+
+    const first = await runGetVisualization();
+    expect(spy).not.toHaveBeenCalled();
+    // No loader flash for a response that is already here.
+    expect(first.setVizType.mock.calls.map((call) => call[0])).toEqual([
+      "variableInput",
+    ]);
+    expect(first.setVizData).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variable_name: "Station",
+        initial_value: "ABC",
+      }),
+    );
+
+    await runGetVisualization();
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it("awaits a preload still in flight, showing the loader meanwhile", async () => {
+    const spy = jest.spyOn(appAPI, "getVisualizationData");
+    let resolvePreload;
+    preload(
+      new Promise((resolve) => {
+        resolvePreload = resolve;
+      }),
+    );
+
+    const tile = runGetVisualization({ vizLoadingIcon: true });
+    await Promise.resolve();
+    resolvePreload(preloadedResponse);
+    const { setVizType } = await tile;
+
+    expect(spy).not.toHaveBeenCalled();
+    expect(setVizType.mock.calls.map((call) => call[0])).toEqual([
+      "loader",
+      "variableInput",
+    ]);
+  });
+
+  it("matches across date math resolved at different times", async () => {
+    jest.useFakeTimers({ now: new Date("2026-01-01T00:00:00Z") });
+    try {
+      const spy = jest.spyOn(appAPI, "getVisualizationData");
+      const args = { region: "now-1D" };
+      preload(Promise.resolve(preloadedResponse), args);
+      jest.setSystemTime(new Date("2026-01-01T00:00:07Z"));
+
+      await runGetVisualization({
+        argsString: JSON.stringify(args),
+        sourceArgs: { region: "date" },
+      });
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("is not consumed outside the dashboard view", async () => {
+    const spy = jest
+      .spyOn(appAPI, "getVisualizationData")
+      .mockResolvedValue(preloadedResponse);
+    preload();
+
+    await runGetVisualization({ dashboardView: false });
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(
+      takePreloadedVisualization(
+        "uuid-1",
+        buildPreloadedRequestKey({
+          source: "station_picker",
+          args: { region: "west" },
+        }),
+      ),
+    ).toBeDefined();
+  });
+
+  it("is bypassed, and discarded, on a refresh", async () => {
+    const spy = jest
+      .spyOn(appAPI, "getVisualizationData")
+      .mockResolvedValue(preloadedResponse);
+    preload();
+
+    await runGetVisualization({ refresh: true });
+    expect(spy).toHaveBeenCalledTimes(1);
+    await runGetVisualization();
+    expect(spy).toHaveBeenCalledTimes(2);
+  });
+
+  it("misses when the args differ from the preloaded ones", async () => {
+    const spy = jest
+      .spyOn(appAPI, "getVisualizationData")
+      .mockResolvedValue(preloadedResponse);
+    preload();
+
+    await runGetVisualization({
+      argsString: JSON.stringify({ region: "east" }),
+    });
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it("misses when a referenced variable's value differs", async () => {
+    const spy = jest
+      .spyOn(appAPI, "getVisualizationData")
+      .mockResolvedValue(preloadedResponse);
+    preload(
+      Promise.resolve(preloadedResponse),
+      { region: "${Region}" },
+      {
+        Region: "west",
+      },
+    );
+
+    await runGetVisualization({
+      argsString: JSON.stringify({ region: "${Region}" }),
+      variableInputValues: { Region: "east" },
+    });
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0][0].args).toEqual({ region: "east" });
   });
 });

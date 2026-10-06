@@ -535,11 +535,75 @@ Only the class values matter for rendering, so a categorical layer needs no stat
 ignores Ramp Min / Ramp Max. The ramp selection is still remembered, so switching back to
 Continuous does not lose it.
 
+Value ranges
+~~~~~~~~~~~~
+
+**Ranges** sits between the other two modes: it colors a **continuous** raster — streamflow,
+depth, precipitation — with a handful of **discrete bands** instead of a gradient. Categorical
+matches exact values only, so a streamflow of ``1.37`` matches no class there; Ranges gives it
+the color of the band it falls in.
+
+Ranges uses the same class table as Categorical, and switching between the two keeps every
+row. The difference is how a class's value is read: in Ranges it is the class's **upper
+bound**, which is why the column is headed **Up to**.
+
+* Classes are sorted by value, whatever order you entered them in. Each class covers the values
+  **above the previous class's value, up to and including its own** — ``(previous, value]``.
+* The first class reaches down to everything left visible: everything above **Mask Below**
+  when it is set.
+* Values **above the last bound** use the **Other values** color, or render transparent when it
+  is unset. To color everything above a final threshold, give the last class a very large
+  bound rather than relying on the fallback.
+* A class whose value repeats an earlier class's is ignored, since it could never be reached.
+
+For example, a forecast of streamflow per unit area, with **Mask Below** set to ``0``:
+
+.. list-table::
+    :header-rows: 1
+    :widths: 15 20 30
+
+    * - Up to
+      - Label
+      - Colors values
+    * - ``1``
+      - 0.1 to 1
+      - above ``0`` (the mask), up to and including ``1``
+    * - ``2``
+      - 1 to 2
+      - above ``1``, up to and including ``2``
+    * - ``4``
+      - 2 to 4
+      - above ``2``, up to and including ``4``
+    * - ``6``
+      - 4 to 6
+      - above ``4``, up to and including ``6``
+    * - ``10``
+      - 6 to 10
+      - above ``6``, up to and including ``10``
+    * - ``20``
+      - 10 to 20
+      - above ``10``, up to and including ``20``
+    * - ``100000000``
+      - 20+
+      - above ``20``
+
+A cell of ``1.37`` is drawn in the "1 to 2" color, and a cell of exactly ``2`` is too: a bound
+belongs to the class it closes, not the one it opens. A cell of ``0`` or below is hidden by the
+mask before any class is tested.
+
+As with Categorical, setting ``legend`` to ``default`` produces one swatch per class, listed in
+ascending order; a class with no label is shown as "Up to" its value. A Ranges layer also reads
+raw (not normalized) values, needs no statistics, ignores Ramp Min / Ramp Max, and is resampled
+with nearest-neighbor. Interpolation would be wrong here too: the boundary between a ``0.5`` cell
+and a ``30`` cell would otherwise be drawn as a stripe of every band in between, and nodata edges
+would pick up the same fringe as a categorical layer's.
+
 Masking low values
 ~~~~~~~~~~~~~~~~~~
 
 Both source types accept an optional **Mask Below** threshold — on the :ref:`source_tab`
-for GeoTIFF, and as the ``mask_below`` source property for Zarr. Cells at or below it render
+for GeoTIFF (on this tab for a GeoTIFF Custom Layer), and as the ``mask_below`` source
+property for Zarr. Cells at or below it render
 transparent, which is the usual way to hide dry ground or sub-threshold noise.
 
 When the ramp minimum is auto-fitted it starts at the threshold rather than the file's
@@ -563,3 +627,25 @@ would otherwise fill the bottom of the ramp.
     TethysDash writes these into every COG it generates for a Zarr source. If a GeoTIFF
     lacks them, the layer still renders and clicking still reports values, but no colorbar
     legend is produced — enter a range manually in that case.
+
+Custom GeoTIFF layers: Follow plugin styling
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A GeoTIFF Custom Layer (see :ref:`source_tab`) gets its file from a plugin on each fetch,
+and the plugin may send a color ramp with it. A **Follow plugin styling** switch above the
+Color Ramp section decides which ramp is drawn:
+
+- **On** (the default): each fetch's ramp replaces the settings on this tab as a whole. The
+  settings here are the fallback for a fetch that returns no styling. They start as the
+  plugin's own defaults.
+- **Off**: your style is *pinned*. The layer always draws with the settings on this tab, and
+  the plugin's ramp is ignored.
+
+Editing any setting in the section (the ramp, Ramp Min / Max, Reverse, the class table, or
+Mask Below) turns the switch off, so the edit is not overwritten by the next fetch. Turn it
+back on to follow the plugin again; your settings are kept as the fallback. **Fetch defaults**
+on the Source tab reloads the plugin's defaults and turns the switch back on.
+
+Pinning the *style* is separate from pinning the *range* in the table above. In either switch
+state, an empty Ramp Min or Ramp Max is fitted to each file the plugin returns, and a filled
+one is used as entered.

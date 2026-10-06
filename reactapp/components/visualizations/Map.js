@@ -38,11 +38,17 @@ import useSnapping, {
 } from "components/visualizations/useSnapping";
 import PropTypes from "prop-types";
 import { COLOR_RAMPS, resolveRamp } from "components/map/colorRamps";
+import {
+  classLegendItems,
+  isClassStyleMode,
+  rasterStyleSettings,
+} from "components/map/geoTIFFStyle";
 import { applyAutoRamp } from "components/map/ModuleLoader";
 import { getBaseMapLayer } from "components/visualizations/utilities";
 import { LAYER_STATE, parseProgress } from "components/map/layerStatus";
 import { WebsocketContext } from "components/contexts/WebSocketContext";
 import useRuntimeLayerFetcher from "components/visualizations/runtimeLayerFetcher";
+import { isRuntimeRasterConfig } from "components/map/runtimeRaster";
 import {
   AppContext,
   DataViewerModeContext,
@@ -164,6 +170,25 @@ function defaultVectorSwatchSymbol(source) {
   if (type.includes("Polygon")) return "polygon";
   return "circle";
 }
+
+// The colorbar legend entry for a continuous ramp, or null when the ramp name
+// is not one the app knows. Shared by the saved-config legend and the runtime
+// raster legend so both resolve colors (and reversal) the same way.
+function buildRampColorbar({ rampName, rampReverse, rampMin, rampMax, title }) {
+  if (typeof rampName !== "string" || !COLOR_RAMPS[rampName]) return null;
+  return {
+    rampColors: resolveRamp(rampName, rampReverse === true),
+    rampMin,
+    rampMax,
+    title,
+  };
+}
+
+// Marks the legend position a runtime GeoTIFF's colorbar fills. Its ramp is
+// whatever the last successful fetch drew, which only the runtime fetcher
+// knows, so the legend built from the saved configs holds a slot in layer order
+// and the colorbar is dropped into it at render time.
+const RUNTIME_RASTER_LEGEND_SLOT = Symbol("runtimeRasterLegendSlot");
 
 export const Popup = ({
   layerAttributes,
@@ -407,16 +432,17 @@ const MapVisualization = ({
   }, []);
 
   const { getMessageForRequest } = useContext(WebsocketContext) ?? {};
-  const { errorsByLayerId, loadingByLayerId } = useRuntimeLayerFetcher({
-    layers,
-    gridItemUUID,
-    sessionNonce,
-    mapRef: visualizationRef,
-    variableInputValues,
-    variableInputDateFormats,
-    onBeforeSwap: dismissPopupBeforeSwap,
-    refreshTick: refreshCount,
-  });
+  const { errorsByLayerId, loadingByLayerId, rasterLegendByLayerId } =
+    useRuntimeLayerFetcher({
+      layers,
+      gridItemUUID,
+      sessionNonce,
+      mapRef: visualizationRef,
+      variableInputValues,
+      variableInputDateFormats,
+      onBeforeSwap: dismissPopupBeforeSwap,
+      refreshTick: refreshCount,
+    });
 
   const runtimeLayerState = { errorsByLayerId };
 
@@ -780,12 +806,15 @@ const MapVisualization = ({
         // showing a white map while their layers prepare.
         // Not guarded: the line above already parsed `layers`, so reaching
         // here with nothing is not a state this block survives.
+        // A raster a plugin drives never owns the view (see Map.js), so it
+        // does not hold the basemap back either.
         const rasterWillOwnTheView = layers.some((layer) => {
           const configuration = layer?.configuration;
           return (
             configuration?.type === "WebGLTile" &&
             (configuration.props?.source?.type === "GeoTIFF" ||
-              configuration.props?.source?.type === "Zarr")
+              configuration.props?.source?.type === "Zarr") &&
+            !configuration.props?.pluginSource
           );
         });
         if (baseMapLayer && !rasterWillOwnTheView) {
@@ -868,65 +897,80 @@ const MapVisualization = ({
         // the layer itself does not need the legend, and the map resolves the
         // same ramp for its own construction. So the legend arrives when the
         // stats do (the two reads share one fetch; see applyAutoRamp).
+        //
+        // A runtime raster is skipped: it has no file until its plugin runs,
+        // and its range is resolved per fetch by the runtime fetcher instead.
         await Promise.all(
-          layers.map((layer) => applyAutoRamp(layer.configuration)),
+          layers.map((layer) =>
+            isRuntimeRasterConfig(layer.configuration)
+              ? undefined
+              : applyAutoRamp(layer.configuration),
+          ),
         );
 
         for (const layer of layers) {
           if (layer.legend) {
+            if (
+              layer.legend === "default" &&
+              isRuntimeRasterConfig(layer.configuration)
+            ) {
+              newMapLegend.push({
+                [RUNTIME_RASTER_LEGEND_SLOT]: layer.configuration.props.layerId,
+                title: layer.configuration.props.name,
+              });
+              continue;
+            }
             if (layer.legend === "default") {
               const rampSource = layer.configuration?.props?.source;
-              // A categorical raster gets one swatch per class rather than a
-              // colorbar — a gradient would imply a continuum between classes.
+              const isRaster =
+                rampSource?.type === "GeoTIFF" || rampSource?.type === "Zarr";
+              // A raster's ramp settings are its saved style. What was
+              // resolved about its file -- the range, whether it stayed
+              // normalized -- is on its source.
+              const rampStyle = isRaster
+                ? rasterStyleSettings(layer.configuration.style)
+                : {};
+              // A class-table raster (Categorical or Ranges) gets one swatch
+              // per class rather than a colorbar — a gradient would imply a
+              // continuum the classes do not have. Ranges lists them in
+              // ascending bound order, the order it colors them in.
               if (
-                rampSource?.styleMode === "categorical" &&
-                rampSource?.classes?.length
+                isClassStyleMode(rampStyle.styleMode) &&
+                rampStyle.classes?.length
               ) {
                 newMapLegend.push({
                   title: layer.configuration?.props?.name,
-                  items: rampSource.classes.map((entry) => ({
-                    color: entry.color,
-                    label: entry.label || String(entry.value),
-                    symbol: "square",
-                  })),
+                  items: classLegendItems(rampStyle),
                 });
                 continue;
               }
               // Zarr renders through a GeoTIFF source, so it gets the same
               // colorbar. In auto mode the range comes from the resolved
               // stats rather than author-entered values.
-              const rampMin =
-                rampSource?.rampMin ?? rampSource?.resolvedRampMin;
-              const rampMax =
-                rampSource?.rampMax ?? rampSource?.resolvedRampMax;
+              const rampMin = rampStyle.rampMin ?? rampSource?.resolvedRampMin;
+              const rampMax = rampStyle.rampMax ?? rampSource?.resolvedRampMax;
               // When no range can be resolved (a file with no embedded
               // statistics), applyAutoRamp leaves the raster rendering on a
               // normalized 0..1 scale. Label the colorbar 0..1 in that case
               // rather than dropping the legend entirely; without this a
               // ramp-styled raster shows no legend at all. `normalize` is an OL
-              // GeoTIFF source prop, so it lives under `source.props`.
-              const normalized =
-                rampSource?.props?.normalize === true ||
-                rampSource?.normalize === true;
+              // GeoTIFF source prop, which applyAutoRamp sets under
+              // `source.props` when the layer loads.
+              const normalized = rampSource?.props?.normalize === true;
               const effRampMin = rampMin ?? (normalized ? 0 : undefined);
               const effRampMax = rampMax ?? (normalized ? 1 : undefined);
-              if (
-                (rampSource?.type === "GeoTIFF" ||
-                  rampSource?.type === "Zarr") &&
-                typeof rampSource.rampName === "string" &&
-                COLOR_RAMPS[rampSource.rampName] &&
-                effRampMin !== undefined &&
-                effRampMax !== undefined
-              ) {
-                newMapLegend.push({
-                  rampColors: resolveRamp(
-                    rampSource.rampName,
-                    rampSource.rampReverse === true,
-                  ),
-                  rampMin: effRampMin,
-                  rampMax: effRampMax,
-                  title: layer.configuration?.props?.name,
-                });
+              const colorbar =
+                isRaster && effRampMin !== undefined && effRampMax !== undefined
+                  ? buildRampColorbar({
+                      rampName: rampStyle.rampName,
+                      rampReverse: rampStyle.rampReverse,
+                      rampMin: effRampMin,
+                      rampMax: effRampMax,
+                      title: layer.configuration?.props?.name,
+                    })
+                  : null;
+              if (colorbar) {
+                newMapLegend.push(colorbar);
                 continue;
               }
               // If the layer has a style JSON, pass it as legend metadata
@@ -994,6 +1038,32 @@ const MapVisualization = ({
     updateLayers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layers, baseMap]);
+
+  // The legend the map shows: the one built from the saved configs, with each
+  // runtime raster's slot filled from the ramp its last successful fetch drew.
+  // A slot with no fetch yet (or a fetch that drew no colorbar) is dropped, so
+  // the raster shows nothing rather than its saved scaffold ramp, which may not
+  // be what is on screen. Only "default" legends hold a slot; an author's own
+  // legend went through untouched above.
+  const displayedMapLegend = useMemo(() => {
+    if (!mapLegend?.some((entry) => entry?.[RUNTIME_RASTER_LEGEND_SLOT])) {
+      return mapLegend;
+    }
+    return mapLegend.flatMap((entry) => {
+      const layerId = entry?.[RUNTIME_RASTER_LEGEND_SLOT];
+      if (!layerId) return [entry];
+      const ramp = rasterLegendByLayerId?.[layerId];
+      // A class-table style publishes its swatches rather than a ramp.
+      if (ramp?.items) {
+        return ramp.items.length > 0
+          ? [{ title: entry.title, items: ramp.items }]
+          : [];
+      }
+      const colorbar =
+        ramp && buildRampColorbar({ ...ramp, title: entry.title });
+      return colorbar ? [colorbar] : [];
+    });
+  }, [mapLegend, rasterLegendByLayerId]);
 
   // Swiping the table popup just moves the shared index; the active-feature
   // effect does the rest (highlight, anchor, variable inputs, and opening or
@@ -1699,7 +1769,7 @@ const MapVisualization = ({
         mapConfig={mapConfig}
         mapExtent={mapExtent}
         layers={mapLayers}
-        legend={mapLegend}
+        legend={displayedMapLegend}
         layerControl={layerControl}
         mapDrawing={mapDrawing}
         drawing={drawing}

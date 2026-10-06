@@ -79,6 +79,10 @@ const RampPicker = ({ selectedRamp, onChange, reversed }) => {
                 role="radio"
                 aria-checked={isSelected}
                 aria-label={`Select ${name} ramp`}
+                // The row is nothing but its gradient, so the name is otherwise
+                // readable only by a screen reader. A native tooltip says which
+                // one a swatch is without taking the width to print 18 names.
+                title={name}
                 data-testid={`ramp-option-${name}`}
                 data-selected={isSelected ? "true" : "false"}
                 $selected={isSelected}
