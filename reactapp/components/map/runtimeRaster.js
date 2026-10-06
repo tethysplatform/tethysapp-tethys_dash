@@ -28,7 +28,8 @@ import { resolveRamp } from "components/map/colorRamps";
 //
 // Only the last touches the layer, and it is only reached once the file has been
 // opened. An unreachable URL, an unplaceable CRS or an unrangeable float raster
-// fails the build, and the layer goes on drawing the previous file.
+// fails the build, and the fetcher then clears the layer rather than leaving the
+// previous file drawn under a config that no longer names it.
 
 /**
  * Whether a layer config is a runtime GeoTIFF: a WebGLTile over a GeoTIFF

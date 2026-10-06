@@ -1854,14 +1854,98 @@ describe("useRuntimeLayerFetcher with a runtime GeoTIFF layer", () => {
     rerender({ layers, mapRef, variableInputValues: { Storm: "b" } });
     await flush();
 
-    expect(olLayer.getSource()).toBe(fileA);
-    expect(olLayer.setSource).toHaveBeenCalledTimes(1);
+    // The previous file goes with the fetch that failed. Leaving it would
+    // show storm A's raster under storm B's name.
+    expect(olLayer.getSource()).toBeNull();
+    expect(olLayer.setSource).toHaveBeenLastCalledWith(null);
     expect(buildSpy).toHaveBeenCalledTimes(1);
     expect(result.current.errorsByLayerId["layer-1"]).toEqual({
       message: "No forecast for that storm",
       kind: "error",
     });
     expect(result.current.loadingByLayerId).toEqual({});
+    // Nothing is drawn, so there is nothing for the legend to label.
+    expect(result.current.rasterLegendByLayerId).not.toHaveProperty("layer-1");
+  });
+
+  test("repointing a drawn layer at a broken file takes the old one down", async () => {
+    // The author's own edit, which is the case that matters: the layer is
+    // drawing file A, its args are changed to name a file that cannot be
+    // opened, and what is left on screen must not be A under B's name.
+    const olLayer = fakeRasterLayer("layer-1");
+    const mapRef = { current: fakeOlMap([olLayer]) };
+    // eslint-disable-next-line no-template-curly-in-string
+    const layers = [rasterLayerConfig({ args: { storm: "${Storm}" } })];
+
+    const { result, rerender } = hookFor({
+      layers,
+      mapRef,
+      variableInputValues: { Storm: "a" },
+    });
+    await flush();
+    expect(olLayer.getSource().url).toBe("https://h/a.tif");
+    expect(result.current.rasterLegendByLayerId["layer-1"]).toBeTruthy();
+
+    buildSpy.mockRejectedValueOnce(
+      new GeoTIFFError('GeoTIFF layer "Depth" failed to fetch the file.'),
+    );
+    rerender({ layers, mapRef, variableInputValues: { Storm: "broken" } });
+    await flush();
+
+    expect(olLayer.getSource()).toBeNull();
+    expect(result.current.rasterLegendByLayerId).not.toHaveProperty("layer-1");
+    expect(result.current.errorsByLayerId["layer-1"].message).toMatch(
+      /failed to fetch the file/,
+    );
+
+    // And a later good fetch puts a raster back on the same OL layer.
+    rerender({ layers, mapRef, variableInputValues: { Storm: "c" } });
+    await flush();
+    expect(olLayer.getSource().url).toBe("https://h/c.tif");
+    expect(result.current.errorsByLayerId).not.toHaveProperty("layer-1");
+  });
+
+  test("a request that never lands clears the layer too", async () => {
+    // The plugin call itself failing, rather than the file. Same outcome: the
+    // layer cannot be drawn for the config it now has, so it is not drawn.
+    const olLayer = fakeRasterLayer("layer-1");
+    const mapRef = { current: fakeOlMap([olLayer]) };
+    // eslint-disable-next-line no-template-curly-in-string
+    const layers = [rasterLayerConfig({ args: { storm: "${Storm}" } })];
+
+    const { result, rerender } = hookFor({
+      layers,
+      mapRef,
+      variableInputValues: { Storm: "a" },
+    });
+    await flush();
+    expect(olLayer.getSource().url).toBe("https://h/a.tif");
+
+    getFeaturesMock.mockRejectedValueOnce(new Error("Network Error"));
+    rerender({ layers, mapRef, variableInputValues: { Storm: "b" } });
+    await flush();
+
+    expect(olLayer.getSource()).toBeNull();
+    expect(result.current.errorsByLayerId["layer-1"]).toEqual({
+      message: "Network Error",
+      kind: "error",
+    });
+    expect(result.current.rasterLegendByLayerId).not.toHaveProperty("layer-1");
+  });
+
+  test("a failure with no map yet is reported without reaching for one", async () => {
+    // Map.js builds its map asynchronously, so a first fetch can fail before
+    // there is anything to clear. The error still has to be reported.
+    const mapRef = { current: null };
+    getFeaturesMock.mockRejectedValueOnce(new Error("Network Error"));
+
+    const { result } = hookFor({ layers: [rasterLayerConfig()], mapRef });
+    await flush();
+
+    expect(result.current.errorsByLayerId["layer-1"]).toEqual({
+      message: "Network Error",
+      kind: "error",
+    });
   });
 
   test("a build that cannot range the file reports through the fetch error channel", async () => {
@@ -1876,7 +1960,6 @@ describe("useRuntimeLayerFetcher with a runtime GeoTIFF layer", () => {
       variableInputValues: { Storm: "a" },
     });
     await flush();
-    const fileA = olLayer.getSource();
 
     const rangeMessage =
       "This GeoTIFF publishes no statistics and is too large to scan for " +
@@ -1885,14 +1968,14 @@ describe("useRuntimeLayerFetcher with a runtime GeoTIFF layer", () => {
     rerender({ layers, mapRef, variableInputValues: { Storm: "huge" } });
     await flush();
 
-    expect(olLayer.getSource()).toBe(fileA);
+    expect(olLayer.getSource()).toBeNull();
     expect(result.current.errorsByLayerId["layer-1"]).toEqual({
       message: rangeMessage,
       kind: "error",
     });
     expect(result.current.loadingByLayerId).toEqual({});
-    // The legend still labels the file on screen.
-    expect(result.current.rasterLegendByLayerId["layer-1"]).not.toBeNull();
+    // The colourbar went with the raster it labelled.
+    expect(result.current.rasterLegendByLayerId).not.toHaveProperty("layer-1");
   });
 
   test("a resolve that throws is reported the same way, before any build", async () => {
@@ -1906,7 +1989,7 @@ describe("useRuntimeLayerFetcher with a runtime GeoTIFF layer", () => {
     await flush();
 
     expect(buildSpy).not.toHaveBeenCalled();
-    expect(olLayer.setSource).not.toHaveBeenCalled();
+    expect(olLayer.setSource).toHaveBeenCalledWith(null);
     expect(result.current.errorsByLayerId["layer-1"].message).toMatch(/XYZ/);
     expect(result.current.loadingByLayerId).toEqual({});
   });
@@ -2240,8 +2323,8 @@ describe("useRuntimeLayerFetcher with a runtime GeoTIFF layer", () => {
       kind: "error",
     });
     expect(result.current.loadingByLayerId).toEqual({});
-    // Nothing was repointed, so the previous file stays drawn.
-    expect(olLayer.setSource).not.toHaveBeenCalled();
+    // Cleared rather than repointed: a failure leaves nothing drawn.
+    expect(olLayer.setSource).toHaveBeenLastCalledWith(null);
   });
 
   test("hands the resolver a null description when the plugin sends no data", async () => {
@@ -2286,13 +2369,14 @@ describe("useRuntimeLayerFetcher with a runtime GeoTIFF layer", () => {
       { initialProps: { refreshTick: 0 } },
     );
     await flush();
-    // A failed build leaves the open popup describing the file still drawn.
+    // onBeforeSwap announces a swap, and a failure is not one: the layer is
+    // cleared instead, which a popup over it has nothing to be told about.
     expect(onBeforeSwap).not.toHaveBeenCalled();
 
     rerender({ refreshTick: 1 });
     await flush();
     expect(onBeforeSwap).toHaveBeenCalledWith("layer-1");
-    expect(olLayer.setSource).toHaveBeenCalledTimes(1);
+    expect(olLayer.getSource()).not.toBeNull();
   });
 
   test("a request settling during a newer one's debounce neither closes the window nor paints", async () => {
@@ -2412,7 +2496,8 @@ describe("useRuntimeLayerFetcher with a runtime GeoTIFF layer", () => {
       kind: "error",
     });
     expect(result.current.loadingByLayerId).toEqual({});
-    expect(olLayer.setSource).not.toHaveBeenCalled();
+    // A timeout is a failure like any other: nothing is left drawn.
+    expect(olLayer.setSource).toHaveBeenLastCalledWith(null);
   });
 
   test("a raster layer rebuilt behind the fetcher's back is repainted", async () => {

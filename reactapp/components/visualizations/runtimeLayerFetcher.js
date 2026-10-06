@@ -77,6 +77,28 @@ function swapWhenLayerAppears(state, map, layerId, featureCollection) {
   );
 }
 
+/**
+ * Take a runtime raster off the map.
+ *
+ * A fetch that cannot be drawn leaves nothing drawn. The alternative -- keeping
+ * the file the last good fetch returned -- shows data from a file the layer no
+ * longer names, which reads as current and is not: an author who repoints a
+ * layer at something broken would see the old raster and believe it.
+ *
+ * The OL layer itself is kept, with its identity tags, z-order and opacity, so
+ * the next successful fetch repoints it as usual.
+ */
+function clearRasterPaint(state, map, layerId) {
+  const olLayer = map ? findOlLayer(map, layerId) : null;
+  // A null source draws nothing; the layer stays where it is in the stack.
+  olLayer?.setSource(null);
+  // Nothing is drawn, so nothing is left to report a failure about.
+  detachSourceErrors(state);
+  // Not a repaint candidate any more: there is no payload worth restoring to a
+  // layer Map.js rebuilds, because that payload is the one that just failed.
+  state.lastPaint = null;
+}
+
 /** Detach the error listeners on the source a raster was last repointed at. */
 function detachSourceErrors(state) {
   if (state.detachSourceErrors) {
@@ -279,6 +301,8 @@ export default function useRuntimeLayerFetcher({
       } catch (err) {
         if (!isMountedRef.current || !isCurrent()) return;
         closeLoading(layerId);
+        clearRasterPaint(state, map, layerId);
+        clearLegend(layerId);
         setError(layerId, {
           message: err?.message ?? "Failed to load the raster",
           kind: "error",
@@ -328,6 +352,7 @@ export default function useRuntimeLayerFetcher({
       setError,
       clearError,
       publishLegend,
+      clearLegend,
     ],
   );
 
@@ -409,6 +434,12 @@ export default function useRuntimeLayerFetcher({
               errorText.includes("does not support")
                 ? "unavailable"
                 : "error";
+            // A raster whose plugin reports a failure is in the same position
+            // as one whose build failed: there is no file to draw.
+            if (isRuntimeRasterConfig(state.configuration)) {
+              clearRasterPaint(state, map, layerId);
+              clearLegend(layerId);
+            }
             setError(layerId, { message: errorText, kind });
             return;
           }
@@ -439,6 +470,10 @@ export default function useRuntimeLayerFetcher({
           if (!isMountedRef.current) return;
           if (!isCurrent()) return;
           closeLoading(layerId);
+          if (isRuntimeRasterConfig(state.configuration)) {
+            clearRasterPaint(state, mapRef?.current, layerId);
+            clearLegend(layerId);
+          }
           setError(layerId, {
             message: err?.message ?? "Fetch failed",
             kind: "error",
@@ -454,6 +489,7 @@ export default function useRuntimeLayerFetcher({
       clearError,
       openLoading,
       closeLoading,
+      clearLegend,
       paintRaster,
       claimGeneration,
     ],
