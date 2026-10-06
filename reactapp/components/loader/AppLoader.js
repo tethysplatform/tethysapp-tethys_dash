@@ -291,6 +291,10 @@ function Loader({ children }) {
         support_github: contactUsGitHub,
         ...(dashboards.support_info || {}),
       };
+      // The TethysDash version the server is running, shown in the app info
+      // modal: a plugin author needs to know which documentation matches what
+      // they are developing against, and nothing else in the app says.
+      tethysApp.appVersion = dashboards.app_version ?? null;
 
       setAppContext({
         tethysApp,

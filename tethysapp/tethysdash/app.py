@@ -1,6 +1,35 @@
+from functools import cache
+from importlib.metadata import PackageNotFoundError, version
+
 from tethys_sdk.base import TethysAppBase
 from tethys_sdk.app_settings import PersistentStoreDatabaseSetting, CustomSetting
 from tethys_sdk.permissions import Permission
+
+
+@cache
+def get_app_version():
+    """
+    The installed TethysDash version, or None when it cannot be determined.
+
+    Read from the installed distribution rather than from a constant in the
+    source, so it is the version actually running. Plugin authors are shown it
+    in the app info modal, because the documentation they need is the
+    documentation for this version and nothing in the app otherwise says which
+    that is.
+
+    None when TethysDash is being run from a source tree that was never
+    installed; the caller leaves the version out rather than showing a
+    placeholder that would be worse than silence.
+
+    Returns:
+        str | None: e.g. ``"0.20.0"``.
+    """
+    try:
+        # The distribution name in pyproject.toml, which is not the package
+        # name on disk ("tethysapp.tethysdash").
+        return version("tethysdash")
+    except PackageNotFoundError:  # pragma: no cover - needs an uninstalled tree
+        return None
 
 
 class App(TethysAppBase):

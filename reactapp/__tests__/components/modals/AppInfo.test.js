@@ -302,3 +302,53 @@ test("does not show support section if neither email nor github is provided", as
   expect(screen.queryByText("support@example.com")).not.toBeInTheDocument();
   expect(screen.queryByText("GitHub")).not.toBeInTheDocument();
 });
+
+// The version is what tells a plugin author which documentation matches the
+// application they are developing against -- nothing else in the app says.
+const serveDashboards = (extra) =>
+  server.use(
+    rest.get(
+      "http://api.test/apps/tethysdash/dashboards/list/",
+      (req, res, ctx) =>
+        res(
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            dashboards: [mockedDashboards],
+            ...extra,
+          }),
+          ctx.set("Content-Type", "application/json"),
+        ),
+    ),
+  );
+
+test("app info modal names the running version", async () => {
+  serveDashboards({ app_version: "0.20.0" });
+
+  render(
+    createLoadedComponent({
+      children: <AppInfoModal showModal={true} setShowModal={jest.fn()} />,
+    }),
+  );
+
+  expect(await screen.findByLabelText("App Version")).toHaveTextContent(
+    "v0.20.0",
+  );
+});
+
+test("app info modal says nothing when the server reports no version", async () => {
+  // TethysDash run from a source tree that was never installed. Silence beats
+  // a placeholder that reads as a real version.
+  serveDashboards({});
+
+  render(
+    createLoadedComponent({
+      children: <AppInfoModal showModal={true} setShowModal={jest.fn()} />,
+    }),
+  );
+
+  expect(
+    await screen.findByText("TethysDash Landing Page"),
+  ).toBeInTheDocument();
+  expect(screen.queryByLabelText("App Version")).not.toBeInTheDocument();
+});

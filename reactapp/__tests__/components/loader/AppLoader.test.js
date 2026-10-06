@@ -123,6 +123,9 @@ test("AppLoader", async () => {
         support_email: "env_support@tethys.org",
         support_github: "https://github.com/tethysplatform/tethysdash",
       },
+      // Null when the server did not report one: the app info modal then says
+      // nothing rather than showing a placeholder.
+      appVersion: null,
     }),
   );
 
@@ -435,6 +438,7 @@ test("AppLoader, support info from dashboards.support_info", async () => {
         support_email: "override@tethys.org",
         support_github: "https://github.com/override/tethysdash",
       },
+      appVersion: null,
     }),
   );
 });

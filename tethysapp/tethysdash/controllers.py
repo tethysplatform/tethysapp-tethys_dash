@@ -15,7 +15,7 @@ from tethys_sdk.permissions import has_permission
 from django.contrib.sessions.backends.db import SessionStore
 from django.conf import settings
 from tethys_sdk.routing import controller
-from tethysapp.tethysdash.app import App
+from tethysapp.tethysdash.app import App, get_app_version
 from tethysapp.tethysdash.model import (
     get_dashboards,
     add_new_dashboard,
@@ -277,11 +277,13 @@ def dashboards(request):
             - dashboards: List of dashboard objects accessible to the user
             - permission_groups: List of permission groups for the user
             - support_info: Dictionary containing support email and GitHub URL
+            - app_version: The installed TethysDash version
     """
     user = request.user
     response = {
         "dashboards": get_dashboards(user),
         "permission_groups": get_user_permission_groups(user),
+        "app_version": get_app_version(),
     }
 
     support_info = {}

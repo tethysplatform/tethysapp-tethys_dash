@@ -16,7 +16,17 @@ import erdcLogo from "assets/ERDCLogo.png";
 import usaceLogo from "assets/USACE_logo.png";
 
 const StyledCheck = styled(Form.Check)`
-  width: 100%;
+  /* Takes the row, so the version is pushed to the far edge. */
+  flex: 1;
+  margin: 0;
+`;
+
+/* Which TethysDash this is. Plugin documentation is versioned alongside the
+   application, and nothing else in the app says which version is running. */
+const VersionNote = styled.span`
+  font-size: 0.8em;
+  color: #6c757d;
+  white-space: nowrap;
 `;
 
 const StyledBody = styled(Modal.Body)`
@@ -229,6 +239,11 @@ function AppInfoModal({ showModal, setShowModal, view }) {
             checked={checked}
             aria-label="dontShowOnStartup"
           />
+          {tethysApp.appVersion && (
+            <VersionNote aria-label="App Version">
+              v{tethysApp.appVersion}
+            </VersionNote>
+          )}
         </Modal.Footer>
       </Modal>
     </>

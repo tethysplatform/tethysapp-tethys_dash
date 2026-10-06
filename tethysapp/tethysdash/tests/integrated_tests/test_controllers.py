@@ -1,6 +1,7 @@
 import pytest
 import json
 from django.urls import reverse
+from tethysapp.tethysdash.app import get_app_version
 from tethysapp.tethysdash.model import Dashboard, Message
 from unittest.mock import MagicMock, mock_open, patch
 import os
@@ -352,6 +353,9 @@ def test_dashboards(
     ]
     assert len(response_json["permission_groups"]) == 1
     assert "support_info" not in response_json
+    # The running version, for the app info modal: a plugin author needs to know
+    # which documentation matches what they are developing against.
+    assert response_json["app_version"] == get_app_version()
 
 
 @pytest.mark.django_db
