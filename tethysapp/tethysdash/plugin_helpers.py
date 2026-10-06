@@ -575,6 +575,11 @@ def validate_feature_collection(data):
 # authored ramp settings in ``configuration.style`` (see set_raster_ramp).
 RASTER_LAYER_SOURCES = ("GeoTIFF", "Zarr")
 
+# The style modes that colour by a class table rather than a ramp. Mirrors
+# CLASS_STYLE_MODES in reactapp/components/map/geoTIFFStyle.js, which is where
+# the compiling is done and so where the list is authoritative.
+CLASS_STYLE_MODES = ("categorical", "ranges")
+
 available_source_properties = {
     "ESRI Image and Map Service": {
         "required": {"url": "ArcGIS Rest service URL"},
@@ -925,6 +930,115 @@ class LayerConfigurationBuilder:
             source_props["mask_below"] = str(mask_below)
         return self
 
+    def set_raster_classes(
+        self,
+        style_mode,
+        classes,
+        fallback_color=None,
+        ramp_name=None,
+        reverse=False,
+    ):
+        """
+        Colour a GeoTIFF or Zarr layer by a class table rather than a ramp.
+
+        For data whose values are labels -- land cover, hazard class -- where a
+        gradient would imply a continuum between categories that does not exist.
+        ``"categorical"`` colours exact values; ``"ranges"`` colours the
+        interval each class's value closes, so a cell takes the first class
+        whose bound is at or above it.
+
+        Written where the layer editor saves it, so the Style tab opens on this
+        table and the author can change it. For a dynamic layer this is the
+        plugin offering its preference: the editor loads it when the plugin is
+        picked and again on Fetch defaults, and a fetch never overrides it.
+
+        A row needs a colour and a genuinely numeric value. Blank is checked
+        before the number, because ``float("")`` is an error but an empty string
+        reaching the frontend's ``Number("")`` would be 0 -- an unfilled row
+        would silently become class 0 and shadow a real one. Unusable rows are
+        dropped, exactly as the editor's own save drops them; a table with no
+        usable row at all raises, since it would colour nothing.
+
+        ``ramp_name`` is kept beside the table rather than instead of it, so an
+        author who switches the layer back to Continuous does not lose the
+        palette. Calling this replaces any previous ramp or style.
+
+        Args:
+            style_mode (str): ``"categorical"`` or ``"ranges"``.
+            classes (list[dict]): ``{"value", "color", "label"?}`` rows. Values
+                are stored as strings, as the editor's inputs produce them.
+            fallback_color (str, optional): Colour for values matching no class.
+                Transparent when omitted.
+            ramp_name (str, optional): Palette to keep for Continuous mode.
+            reverse (bool): Reverse that palette (default False).
+
+        Raises:
+            ValueError: If the builder is not a ``"GeoTIFF"`` or ``"Zarr"``
+                builder, the mode is not a class mode, no row is usable, or a
+                value is of the wrong type.
+
+        Returns:
+            LayerConfigurationBuilder: self (for chaining)
+        """
+        if self.layer_source not in RASTER_LAYER_SOURCES:
+            raise ValueError(
+                "set_raster_classes requires LayerConfigurationBuilder(name, "
+                f"'GeoTIFF') or (name, 'Zarr'); current layer_source is "
+                f"'{self.layer_source}'."
+            )
+        if style_mode not in CLASS_STYLE_MODES:
+            raise ValueError(
+                "style_mode must be one of "
+                f"{', '.join(CLASS_STYLE_MODES)}, got {style_mode!r}."
+            )
+        if not isinstance(classes, (list, tuple)):
+            raise ValueError(
+                "classes must be a list of {'value', 'color'} rows, got "
+                f"{type(classes).__name__}."
+            )
+        if ramp_name is not None and (
+            not isinstance(ramp_name, str) or not ramp_name.strip()
+        ):
+            raise ValueError("ramp_name must be a non-empty ramp name.")
+        if not isinstance(reverse, bool):
+            raise ValueError("reverse must be True or False.")
+        if fallback_color is not None and not isinstance(fallback_color, str):
+            raise ValueError("fallback_color must be a color string.")
+
+        usable = []
+        for entry in classes:
+            if not isinstance(entry, dict):
+                raise ValueError(
+                    "each class must be a dict with 'value' and 'color', got "
+                    f"{type(entry).__name__}."
+                )
+            color = entry.get("color")
+            value = entry.get("value")
+            if not color or not isinstance(color, str):
+                continue
+            if not _is_numeric_bound(value):
+                continue
+            row = {"value": str(value), "color": color}
+            label = entry.get("label")
+            if label:
+                row["label"] = str(label)
+            usable.append(row)
+
+        if not usable:
+            raise ValueError(
+                "at least one class needs both a color and a numeric value; "
+                f"none of the {len(classes)} given has both."
+            )
+
+        style = {"styleMode": style_mode, "classes": usable}
+        if fallback_color:
+            style["fallbackColor"] = fallback_color
+        if ramp_name is not None:
+            style["rampName"] = ramp_name
+        if reverse:
+            style["rampReverse"] = True
+        self.config["configuration"]["style"] = style
+        return self
 
     def set_geojson(self, geojson: dict):
         """

@@ -1789,6 +1789,96 @@ def test_builder_set_raster_ramp_on_zarr():
     assert configuration["props"]["source"]["props"]["mask_below"] == "0.1"
 
 
+def test_builder_set_raster_classes_keeps_only_drawable_rows():
+    """Half-filled rows are dropped, exactly as the editor's own save drops them.
+
+    A row with no colour cannot be drawn, and a row with no value would reach
+    the frontend's ``Number("")`` as class 0 and shadow a real class.
+    """
+    builder = LayerConfigurationBuilder("Land Use", "GeoTIFF").set_plugin_source(
+        "p", {}
+    )
+    builder.set_raster_classes(
+        "categorical",
+        [
+            {"value": 1, "color": "#aaa", "label": "Bare"},
+            {"value": "", "color": "#bbb"},
+            {"value": 3, "color": ""},
+            {"value": "2", "color": "#ccc"},
+        ],
+        fallback_color="#999999",
+        ramp_name="turbo",
+    )
+
+    assert builder.build()["configuration"]["style"] == {
+        "styleMode": "categorical",
+        # Values are stored as the strings the editor's inputs produce.
+        "classes": [
+            {"value": "1", "color": "#aaa", "label": "Bare"},
+            {"value": "2", "color": "#ccc"},
+        ],
+        "fallbackColor": "#999999",
+        # Kept beside the table so switching back to Continuous in the editor
+        # does not lose the palette.
+        "rampName": "turbo",
+    }
+
+
+def test_builder_set_raster_classes_minimal_and_replace():
+    builder = LayerConfigurationBuilder("Land Use", "GeoTIFF").set_plugin_source(
+        "p", {}
+    )
+    builder.set_raster_classes("ranges", [{"value": 10, "color": "#aaa"}])
+    assert builder.build()["configuration"]["style"] == {
+        "styleMode": "ranges",
+        "classes": [{"value": "10", "color": "#aaa"}],
+    }
+
+    # A ramp set afterwards replaces the table, and the reverse.
+    builder.set_raster_ramp("viridis")
+    assert builder.build()["configuration"]["style"] == {"rampName": "viridis"}
+    builder.set_raster_classes(
+        "categorical", [{"value": 1, "color": "#bbb"}], reverse=True
+    )
+    assert builder.build()["configuration"]["style"] == {
+        "styleMode": "categorical",
+        "classes": [{"value": "1", "color": "#bbb"}],
+        "rampReverse": True,
+    }
+
+
+@pytest.mark.parametrize(
+    "kwargs,message",
+    [
+        ({"style_mode": "bogus", "classes": [{"value": 1, "color": "#a"}]},
+         "style_mode must be one of"),
+        ({"style_mode": "ranges", "classes": "nope"}, "classes must be a list"),
+        ({"style_mode": "ranges", "classes": [["value", 1]]}, "each class must be a dict"),
+        ({"style_mode": "ranges", "classes": []}, "at least one class needs"),
+        ({"style_mode": "ranges", "classes": [{"value": "", "color": "#a"}]},
+         "at least one class needs"),
+        ({"style_mode": "ranges", "classes": [{"value": "abc", "color": "#a"}]},
+         "at least one class needs"),
+        ({"style_mode": "ranges", "classes": [{"value": 1, "color": "#a"}],
+          "ramp_name": ""}, "ramp_name must be"),
+        ({"style_mode": "ranges", "classes": [{"value": 1, "color": "#a"}],
+          "reverse": "yes"}, "reverse must be True or False"),
+        ({"style_mode": "ranges", "classes": [{"value": 1, "color": "#a"}],
+          "fallback_color": 3}, "fallback_color must be"),
+    ],
+)
+def test_builder_set_raster_classes_rejects(kwargs, message):
+    builder = LayerConfigurationBuilder("Land Use", "GeoTIFF")
+    with pytest.raises(ValueError, match=message):
+        builder.set_raster_classes(**kwargs)
+
+
+def test_builder_set_raster_classes_requires_a_raster_builder():
+    builder = LayerConfigurationBuilder("Gauges", "GeoJSON")
+    with pytest.raises(ValueError, match="set_raster_classes requires"):
+        builder.set_raster_classes("ranges", [{"value": 1, "color": "#a"}])
+
+
 def test_raster_source_properties_list_mask_below():
     # It is edited on the Source tab, which is driven by this list.
     for source in ("GeoTIFF", "Zarr"):
