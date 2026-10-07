@@ -10,6 +10,7 @@ import LabelsPane, {
 import {
   defaultLabelAnchor,
   defaultLabelColor,
+  defaultLabelHaloColor,
   defaultLabelSize,
 } from "components/map/labelStyle";
 
@@ -68,6 +69,7 @@ test("typing a template, choosing an anchor and setting size emit the whole conf
     template: "${feature.station_id}",
     anchor: defaultLabelAnchor,
     color: defaultLabelColor,
+    haloColor: defaultLabelHaloColor,
     size: defaultLabelSize,
     minZoom: "",
     allowOverlap: false,
@@ -213,6 +215,7 @@ test("editing one field does not drop the others", () => {
     template: "${feature.name}",
     anchor: "e",
     color: "#00ff00",
+    haloColor: defaultLabelHaloColor,
     size: 19,
     minZoom: 4,
     allowOverlap: false,
@@ -225,6 +228,7 @@ test("withDefaults merges on read without writing into the stored object", () =>
     template: "a",
     anchor: defaultLabelAnchor,
     color: defaultLabelColor,
+    haloColor: defaultLabelHaloColor,
     size: defaultLabelSize,
     minZoom: "",
     allowOverlap: false,

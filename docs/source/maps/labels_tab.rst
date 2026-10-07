@@ -63,7 +63,7 @@ A feature made of several parts — a basin with islands, or a reach in several 
 Appearance
 ++++++++++
 
-Text color and size are set per layer. An outline is always drawn behind the text, sized in proportion to the text, so labels stay readable over satellite imagery, terrain, and street basemaps alike without being configured for each.
+Text color, outline color and size are set per layer. An outline is always drawn behind the text and sized in proportion to it, which is what keeps a label readable over satellite imagery, terrain and street basemaps alike. Light text wants a dark outline and dark text a light one.
 
 
 .. _label_density:

@@ -104,6 +104,13 @@ function resolveLabelColor(color) {
   return defaultLabelColor;
 }
 
+// The outline, same discipline as the text color: a blank or non-string value
+// is an unset field, not a request for an invisible outline.
+function resolveLabelHaloColor(color) {
+  if (typeof color === "string" && color.trim() !== "") return color;
+  return defaultLabelHaloColor;
+}
+
 /**
  * Classify a feature's geometry into the three buckets the style pipeline
  * branches on: "point", "linestring" or "polygon".
@@ -256,6 +263,7 @@ export function clearLabelTextCache() {
 function cachedLabelText(labelConfig, bucket) {
   const size = resolveLabelSize(labelConfig.size);
   const color = resolveLabelColor(labelConfig.color);
+  const haloColor = resolveLabelHaloColor(labelConfig.haloColor);
   // `String()` rather than `JSON.stringify`: a template that arrived as an
   // object must not throw here, and a collision between two such templates is
   // harmless because the text is written per feature anyway.
@@ -263,6 +271,7 @@ function cachedLabelText(labelConfig, bucket) {
     bucket,
     size,
     color,
+    haloColor,
     String(labelConfig.anchor ?? ""),
     String(labelConfig.template ?? ""),
   ].join(" ");
@@ -276,7 +285,7 @@ function cachedLabelText(labelConfig, bucket) {
     // The halo renders under the fill, which is the only thing keeping dark
     // text legible over a dark basemap.
     stroke: new Stroke({
-      color: defaultLabelHaloColor,
+      color: haloColor,
       width: haloWidthForSize(size),
     }),
   };
@@ -323,7 +332,7 @@ function cachedLabelText(labelConfig, bucket) {
  *
  * @param {Object} args
  * @param {Object} args.labelConfig
- *   `{ template, anchor, color, size, minZoom, allowOverlap }`
+ *   `{ template, anchor, color, haloColor, size, minZoom, allowOverlap }`
  * @param {Object} args.feature the OpenLayers feature being styled
  * @param {number} args.resolution the style function's second argument
  * @param {number} args.symbolSize the **effective pixel radius** of this
@@ -395,6 +404,7 @@ buildLabelStyle.propTypes = {
     template: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
     anchor: PropTypes.oneOf(LABEL_ANCHOR_OPTIONS),
     color: PropTypes.string,
+    haloColor: PropTypes.string,
     size: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
     // Authored zoom level. Not read here -- the map scope converts it and
     // passes the result as `minZoomResolution`.

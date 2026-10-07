@@ -968,6 +968,7 @@ MapLayerModal.propTypes = {
       template: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
       anchor: PropTypes.string,
       color: PropTypes.string,
+      haloColor: PropTypes.string,
       size: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
       minZoom: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
       // Draw every label rather than hiding the ones that collide.

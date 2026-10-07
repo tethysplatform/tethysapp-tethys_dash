@@ -14,6 +14,7 @@ import AnchorPicker, { normalizeAnchor } from "components/inputs/AnchorPicker";
 import {
   defaultLabelAnchor,
   defaultLabelColor,
+  defaultLabelHaloColor,
   defaultLabelSize,
 } from "components/map/labelStyle";
 
@@ -71,6 +72,7 @@ export function withDefaults(labelConfig) {
     template: "",
     anchor: defaultLabelAnchor,
     color: defaultLabelColor,
+    haloColor: defaultLabelHaloColor,
     size: defaultLabelSize,
     minZoom: NO_ZOOM_FLOOR,
     allowOverlap: false,
@@ -83,6 +85,7 @@ export function withDefaults(labelConfig) {
     // editor has to show the default too.
     anchor: normalizeAnchor(labelConfig.anchor ?? base.anchor),
     color: labelConfig.color ?? base.color,
+    haloColor: labelConfig.haloColor ?? base.haloColor,
     // `??` rather than `||`: a size or a zoom floor of 0 is a value the author
     // set, not an absent one.
     size: labelConfig.size ?? base.size,
@@ -149,6 +152,11 @@ const LabelsPane = ({ layerName, labelConfig, onChange, containerRef }) => {
     [emit],
   );
 
+  const handleHaloColorChange = useCallback(
+    (color) => emit("haloColor", color?.hex ?? color),
+    [emit],
+  );
+
   const handleAllowOverlapChange = useCallback(
     (checked) => emit("allowOverlap", !!checked),
     [emit],
@@ -169,8 +177,8 @@ const LabelsPane = ({ layerName, labelConfig, onChange, containerRef }) => {
       <Field>
         <FieldLabel>
           <InfoTip id="Template">
-            Text drawn beside each feature. Use ${"${feature.<key>}"} to insert
-            that feature&apos;s own attribute, and ${"${Variable Name}"} for a
+            Text drawn beside each feature. Use {"${feature.<key>}"} to insert
+            that feature&apos;s own attribute, and {"${Variable Name}"} for a
             dashboard variable input. A feature missing an attribute still draws
             the rest of the template. Leave empty to draw no labels.
           </InfoTip>
@@ -242,6 +250,26 @@ const LabelsPane = ({ layerName, labelConfig, onChange, containerRef }) => {
 
       <Field>
         <FieldLabel>
+          <InfoTip id="Outline Color">
+            An outline is always drawn behind the text so it stays readable over
+            any basemap. Light text wants a dark outline and dark text a light
+            one.
+          </InfoTip>
+          <SectionLabel>Outline Color</SectionLabel>
+        </FieldLabel>
+        <Control $width="auto">
+          <ColorPickerPopOver
+            label="Outline Color"
+            color={resolved.haloColor}
+            onChange={handleHaloColorChange}
+            containerRef={containerRef}
+            hideLabel
+          />
+        </Control>
+      </Field>
+
+      <Field>
+        <FieldLabel>
           <SectionLabel>Text Size</SectionLabel>
         </FieldLabel>
         <Control $width="6rem">
@@ -285,6 +313,7 @@ LabelsPane.propTypes = {
     template: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
     anchor: PropTypes.string,
     color: PropTypes.string,
+    haloColor: PropTypes.string,
     size: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
     // A zoom level, matching the layer's own minZoom/maxZoom settings --
     // never a resolution, which is what the layer's flat `maxResolution`

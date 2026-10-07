@@ -853,3 +853,70 @@ describe("buildLabelStyle caches the Text per label configuration", () => {
     expect(drawn.getText()).toBe("Alpha");
   });
 });
+
+describe("buildLabelStyle outline color", () => {
+  const feature = () => mockFeature({ name: "Alpha" });
+
+  it("uses the authored outline color", () => {
+    const style = buildLabelStyle({
+      labelConfig: { template: "${feature.name}", haloColor: "#102030" },
+      feature: feature(),
+      geometryBucket: "point",
+    });
+
+    expect(style.getStroke().getColor()).toBe("#102030");
+  });
+
+  it("falls back to the default when unset or blank", () => {
+    for (const haloColor of [undefined, "", "   ", null, 42]) {
+      const style = buildLabelStyle({
+        labelConfig: { template: "${feature.name}", haloColor },
+        feature: feature(),
+        geometryBucket: "point",
+      });
+      expect(style.getStroke().getColor()).toBe(defaultLabelHaloColor);
+    }
+  });
+
+  it("does not share one cached Text between two outline colors", () => {
+    const dark = buildLabelStyle({
+      labelConfig: { template: "${feature.name}", haloColor: "#000000" },
+      feature: feature(),
+      geometryBucket: "point",
+    });
+    const light = buildLabelStyle({
+      labelConfig: { template: "${feature.name}", haloColor: "#ffffff" },
+      feature: feature(),
+      geometryBucket: "point",
+    });
+
+    expect(dark).not.toBe(light);
+    expect(dark.getStroke().getColor()).toBe("#000000");
+    expect(light.getStroke().getColor()).toBe("#ffffff");
+  });
+
+  it("still scales the outline width with the font size", () => {
+    const small = buildLabelStyle({
+      labelConfig: {
+        template: "${feature.name}",
+        haloColor: "#000000",
+        size: 9,
+      },
+      feature: feature(),
+      geometryBucket: "point",
+    });
+    const large = buildLabelStyle({
+      labelConfig: {
+        template: "${feature.name}",
+        haloColor: "#000000",
+        size: 26,
+      },
+      feature: feature(),
+      geometryBucket: "point",
+    });
+
+    expect(large.getStroke().getWidth()).toBeGreaterThan(
+      small.getStroke().getWidth(),
+    );
+  });
+});
