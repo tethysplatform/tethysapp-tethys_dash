@@ -1886,10 +1886,13 @@ test("checkForEmptyVariableInputs ignores variable inputs referenced only by a l
     baseMap: "https://example.com/basemap",
     layers: [
       {
-        configuration: { type: "VectorLayer", props: { name: "Stations" } },
-        labelConfig: {
-          template: "${Station Filter} — ${feature.station}",
-          anchor: "top-center",
+        configuration: {
+          type: "VectorLayer",
+          props: { name: "Stations" },
+          labels: {
+            template: "${Station Filter} — ${feature.station}",
+            anchor: "top-center",
+          },
         },
       },
     ],
@@ -1907,15 +1910,18 @@ test("checkForEmptyVariableInputs ignores variable inputs referenced only by a l
 });
 
 test("checkForEmptyVariableInputs still warns for an unset input referenced outside a label template", () => {
-  // Regression guard, direction 2: the labelConfig skip must not silence the
+  // Regression guard, direction 2: the label skip must not silence the
   // check for the rest of the widget. Same empty input, referenced both in a
   // label and in a real arg — the real arg still warns.
   const argsString = JSON.stringify({
     baseMap: "${Station Filter}",
     layers: [
       {
-        configuration: { type: "VectorLayer", props: { name: "Stations" } },
-        labelConfig: { template: "${Station Filter}" },
+        configuration: {
+          type: "VectorLayer",
+          props: { name: "Stations" },
+          labels: { template: "${Station Filter}" },
+        },
       },
     ],
   });
@@ -1933,13 +1939,14 @@ test("checkForEmptyVariableInputs still warns for an unset input referenced outs
   ]);
 });
 
-test("checkForEmptyVariableInputs warns for an unset input under a non-map labelConfig", () => {
-  // The labelConfig exemption is scoped to a map layer. A plugin argument that
-  // merely shares the name is ordinary args, so clearing an input it
-  // references must still raise the warning rather than be swallowed.
+test("checkForEmptyVariableInputs warns for an unset input under a non-map `labels` key", () => {
+  // The exemption is scoped to a map layer's `configuration.labels`. `labels`
+  // is an ordinary word other visualizations use, so a plugin argument that
+  // merely shares the name is ordinary args: clearing an input it references
+  // must still raise the warning rather than be swallowed.
   const argsString = JSON.stringify({
     chart_title: "Timeseries",
-    labelConfig: { template: "${Station Filter}" },
+    subplot_toggle: { labels: { 1: "${Station Filter}" } },
   });
   const metadataString = JSON.stringify({});
   const variableInputValues = { "Station Filter": "" };
@@ -1956,16 +1963,19 @@ test("checkForEmptyVariableInputs warns for an unset input under a non-map label
 });
 
 test("updateObjectWithVariableInputs still substitutes inside a label template", () => {
-  // Substitution consults no skip set, so exempting labelConfig from the
+  // Substitution consults no skip set, so exempting a layer's labels from the
   // scanners must not stop a label picking up variable input changes.
   const args = {
     baseMap: "https://example.com/basemap",
     layers: [
       {
-        configuration: { type: "VectorLayer", props: { name: "Stations" } },
-        labelConfig: {
-          template: "${Station Filter} — ${feature.station}",
-          anchor: "top-center",
+        configuration: {
+          type: "VectorLayer",
+          props: { name: "Stations" },
+          labels: {
+            template: "${Station Filter} — ${feature.station}",
+            anchor: "top-center",
+          },
         },
       },
     ],
@@ -1979,7 +1989,7 @@ test("updateObjectWithVariableInputs still substitutes inside a label template",
 
   // The variable input resolves; the per-feature token is preserved for the
   // style function to resolve at draw time.
-  expect(result.layers[0].labelConfig.template).toBe(
+  expect(result.layers[0].configuration.labels.template).toBe(
     "Snow — ${feature.station}",
   );
 
@@ -1989,7 +1999,7 @@ test("updateObjectWithVariableInputs still substitutes inside a label template",
     variableInputs: { "Station Filter": "Rain" },
     variableInputDateFormats: {},
   });
-  expect(updated.layers[0].labelConfig.template).toBe(
+  expect(updated.layers[0].configuration.labels.template).toBe(
     "Rain — ${feature.station}",
   );
 });
@@ -2258,38 +2268,22 @@ describe("findUnresolvedFeatureTokens", () => {
     expect(findUnresolvedFeatureTokens(args)).toEqual(["feature.comid"]);
   });
 
-  test("skips subtrees under `labelConfig` (resolved per feature at draw time)", () => {
+  test("skips a map layer's `labels` (resolved per feature at draw time)", () => {
     // A map layer's label template resolves inside the OpenLayers style
     // function, one feature at a time. If the gate saw it, every labeled
     // layer would flip the Map widget to `featurePending` and blank it.
-    const mapArgs = {
-      baseMap: "https://example.com/basemap",
-      layers: [
-        {
-          configuration: { type: "VectorLayer", props: { name: "Stations" } },
-          labelConfig: {
-            template: "${feature.station} (${feature.elevation})",
-            anchor: "top-center",
-          },
-        },
-      ],
-    };
-    expect(findUnresolvedFeatureTokens(mapArgs)).toEqual([]);
-  });
-
-  test("skips a labelConfig at its real path (layers[i].configuration.props)", () => {
-    // Where the layer editor actually writes it — the skip is scoped to a
-    // `layers` ancestor, not to the immediate parent key, so the extra
-    // configuration/props nesting must not defeat it.
+    // Written at the path the layer editor saves it to: beside
+    // `configuration.style`, under the map's `layers`.
     const mapArgs = {
       baseMap: "https://example.com/basemap",
       layers: [
         {
           configuration: {
             type: "VectorLayer",
-            props: {
-              name: "Stations",
-              labelConfig: { template: "${feature.station}" },
+            props: { name: "Stations" },
+            labels: {
+              template: "${feature.station} (${feature.elevation})",
+              anchor: "top-center",
             },
           },
         },
@@ -2298,26 +2292,52 @@ describe("findUnresolvedFeatureTokens", () => {
     expect(findUnresolvedFeatureTokens(mapArgs)).toEqual([]);
   });
 
-  test("does NOT skip a labelConfig outside a map's layers", () => {
-    // The exemption means "a map layer's label configuration". A non-map
-    // plugin whose args merely happen to carry a key of the same name must
-    // still gate on a real unresolved feature reference, or the token would
-    // reach the plugin as a literal.
-    const args = {
-      chart_title: "Timeseries",
-      labelConfig: { template: "${feature.station}" },
+  test("does NOT skip a `labels` under `layers` whose parent is not `configuration`", () => {
+    // The scope pins the whole path, not just the `layers` ancestor: a key
+    // named `labels` sitting anywhere else inside a map's layers is ordinary
+    // args and must still gate the fetch.
+    const mapArgs = {
+      baseMap: "https://example.com/basemap",
+      layers: [
+        {
+          configuration: {
+            type: "VectorLayer",
+            props: { name: "Stations", labels: "${feature.station}" },
+          },
+        },
+      ],
     };
-    expect(findUnresolvedFeatureTokens(args)).toEqual(["feature.station"]);
+    expect(findUnresolvedFeatureTokens(mapArgs)).toEqual(["feature.station"]);
   });
 
-  test("still reports feature tokens outside both labelConfig and popupConfig", () => {
+  test("does NOT skip a `labels` outside a map's layers", () => {
+    // The exemption means "a map layer's label configuration". `labels` is a
+    // far more ordinary word than the other skip keys, and other
+    // visualizations really do use it, so args that merely carry a key of the
+    // same name must still gate on a real unresolved feature reference --
+    // otherwise the token would reach the plugin as a literal.
+    expect(
+      findUnresolvedFeatureTokens({
+        chart_title: "Timeseries",
+        subplot_toggle: { labels: { 1: "${feature.station}" } },
+      }),
+    ).toEqual(["feature.station"]);
+    // Even the exact parent key, with no `layers` ancestor above it.
+    expect(
+      findUnresolvedFeatureTokens({
+        configuration: { labels: { template: "${feature.station}" } },
+      }),
+    ).toEqual(["feature.station"]);
+  });
+
+  test("still reports feature tokens outside both a layer's labels and popupConfig", () => {
     // Both directions of the guard on one object: the two exempt subtrees
     // stay exempt, and a sibling reference still gates the fetch.
     const mapArgs = {
       river_id: "${feature.comid}",
       layers: [
         {
-          labelConfig: { template: "${feature.label_only}" },
+          configuration: { labels: { template: "${feature.label_only}" } },
           popupConfig: { titleTemplate: "${feature.popup_only}" },
         },
       ],
@@ -2428,7 +2448,7 @@ describe("findUnresolvedVariableInputTokens", () => {
     expect(findUnresolvedVariableInputTokens(args)).toEqual(["Host Base"]);
   });
 
-  test("skips subtrees under `labelConfig` but still reports siblings", () => {
+  test("skips a map layer's `labels` but still reports siblings", () => {
     // Same skip set as the feature scanner, so a variable input referenced
     // only by a label stays invisible to the empty-input check while a
     // sibling reference on the same widget still surfaces.
@@ -2436,26 +2456,10 @@ describe("findUnresolvedVariableInputTokens", () => {
       baseMap: "${Host Base}",
       layers: [
         {
-          labelConfig: {
-            template: "${Station Filter}: ${feature.station}",
-          },
-        },
-      ],
-    };
-    expect(findUnresolvedVariableInputTokens(mapArgs)).toEqual(["Host Base"]);
-  });
-
-  test("skips a labelConfig at its real path (layers[i].configuration.props)", () => {
-    // Same scoping check as the feature scanner: the skip keys are shared, so
-    // the real nesting must stay exempt for both.
-    const mapArgs = {
-      baseMap: "${Host Base}",
-      layers: [
-        {
           configuration: {
-            props: {
-              name: "Stations",
-              labelConfig: { template: "${Station Filter}" },
+            props: { name: "Stations" },
+            labels: {
+              template: "${Station Filter}: ${feature.station}",
             },
           },
         },
@@ -2464,15 +2468,41 @@ describe("findUnresolvedVariableInputTokens", () => {
     expect(findUnresolvedVariableInputTokens(mapArgs)).toEqual(["Host Base"]);
   });
 
-  test("does NOT skip a labelConfig outside a map's layers", () => {
-    // A non-map plugin arg that happens to be named labelConfig is walked
-    // normally, so an unset input referenced under it still surfaces to
-    // checkForEmptyVariableInputs instead of being silently swallowed.
-    const args = {
-      chart_title: "Timeseries",
-      labelConfig: { template: "${Some Input}" },
+  test("does NOT skip a `labels` under `layers` whose parent is not `configuration`", () => {
+    // Same scoping check as the feature scanner: the skip keys are shared, so
+    // the full path has to match for both.
+    const mapArgs = {
+      baseMap: "${Host Base}",
+      layers: [
+        {
+          configuration: {
+            props: { name: "Stations", labels: "${Station Filter}" },
+          },
+        },
+      ],
     };
-    expect(findUnresolvedVariableInputTokens(args)).toEqual(["Some Input"]);
+    expect(findUnresolvedVariableInputTokens(mapArgs)).toEqual([
+      "Host Base",
+      "Station Filter",
+    ]);
+  });
+
+  test("does NOT skip a `labels` outside a map's layers", () => {
+    // A variable input's `metadata.labels` is walked normally, so an unset
+    // input referenced under it still surfaces to checkForEmptyVariableInputs
+    // instead of being silently swallowed.
+    expect(
+      findUnresolvedVariableInputTokens({
+        chart_title: "Timeseries",
+        metadata: { labels: { 1: "${Some Input}" } },
+      }),
+    ).toEqual(["Some Input"]);
+    // Even the exact parent key, with no `layers` ancestor above it.
+    expect(
+      findUnresolvedVariableInputTokens({
+        configuration: { labels: { template: "${Some Input}" } },
+      }),
+    ).toEqual(["Some Input"]);
   });
 
   test("safe to call repeatedly without leaking regex state", () => {

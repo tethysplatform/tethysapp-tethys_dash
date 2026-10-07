@@ -260,9 +260,7 @@ const MapLayerModal = ({
   // It is held as its own slice rather than edited in place inside `layerProps`
   // so the save path can write it past the empty-value pruning that would
   // otherwise strip a size or zoom floor of 0.
-  const [labelConfig, setLabelConfig] = useState(
-    layerInfo.layerProps?.labelConfig ?? null,
-  );
+  const [labels, setLabels] = useState(layerInfo.labels ?? null);
   const [selectedOption, setSelectedOption] = useState(null);
   const [hiddenForExtentDraw, setHiddenForExtentDraw] = useState(false);
   const [showLayoutEditor, setShowLayoutEditor] = useState(false);
@@ -386,7 +384,6 @@ const MapLayerModal = ({
     // The copy that rode in on `layerProps` is stale the moment the Labels tab
     // is touched, and it has already been through the pruning above. The live
     // slice is written back onto `configuration.props` below instead.
-    delete validLayerProps.labelConfig;
 
     if (!isRuntime) {
       const missingRequiredProps = checkRequiredKeys(
@@ -575,8 +572,8 @@ const MapLayerModal = ({
     // `configuration.props` is also what makes it round-trip with no load
     // wiring -- AddMapLayer's edit path hands everything but `source` back as
     // `layerProps`.
-    if (labelConfig && typeof labelConfig === "object") {
-      mapConfiguration.configuration.props.labelConfig = labelConfig;
+    if (labels && typeof labels === "object") {
+      mapConfiguration.configuration.labels = labels;
     }
 
     addMapLayer(mapConfiguration);
@@ -612,9 +609,9 @@ const MapLayerModal = ({
 
     setSourceProps(apiResponse.data.configuration.props.source);
     setLayerProps(updatedLayerProps);
-    // A template may ship its own labels; they belong in the Labels tab rather
-    // than left buried in layerProps where nothing renders them.
-    setLabelConfig(updatedLayerProps.labelConfig ?? null);
+    // A template may ship its own labels; they belong in the Labels tab
+    // rather than left buried in the configuration where nothing renders them.
+    setLabels(apiResponse.data.configuration.labels ?? null);
 
     const effectiveName = layerProps?.name || updatedLayerProps.name;
     setAttributeProps(
@@ -680,9 +677,9 @@ const MapLayerModal = ({
           name: effectiveName,
           layerId: prev?.layerId,
         }));
-        // Same reason as the template path: a plugin-supplied label config has
-        // to be editable in the Labels tab.
-        setLabelConfig(updatedLayerProps.labelConfig ?? null);
+        // Same reason as the template path: a plugin-supplied label config
+        // has to be editable in the Labels tab.
+        setLabels(config.labels ?? null);
 
         setAttributeProps(
           normalizeAttributePropsForLayer(
@@ -823,8 +820,8 @@ const MapLayerModal = ({
                 <div ref={labelsContainerRef}>
                   <LabelsPane
                     layerName={layerProps?.name}
-                    labelConfig={labelConfig}
-                    onChange={setLabelConfig}
+                    labelConfig={labels}
+                    onChange={setLabels}
                     containerRef={labelsContainerRef}
                   />
                 </div>
@@ -961,20 +958,19 @@ MapLayerModal.propTypes = {
       // Stable UUID for runtime dynamic_map_layer reconciliation identity.
       // Populated when reopening a saved runtime layer; absent for static.
       layerId: PropTypes.string,
-      // Label configuration rides inside configuration.props, so it arrives
-      // folded into layerProps rather than as a sibling of configuration.
-      // `minZoom` holds an authored zoom level; the map scope converts it to a
-      // resolution at render time.
-      labelConfig: PropTypes.shape({
-        template: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
-        anchor: PropTypes.string,
-        color: PropTypes.string,
-        size: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
-        minZoom: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
-      }),
     }), // an object of layer properties like opacity, zoom, etc. see components/map/utilities.js (layerPropertiesOptions) for examples
     legend: legendPropType,
     style: PropTypes.string, // name of .json file that is save with the application that contain the actual style json
+    // Label configuration sits beside `style` on the layer's configuration, not
+    // among its props. `minZoom` holds an authored zoom level; the map scope
+    // converts it to a resolution at render time.
+    labels: PropTypes.shape({
+      template: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+      anchor: PropTypes.string,
+      color: PropTypes.string,
+      size: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+      minZoom: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    }),
     attributeProps: attributePropsPropType,
     popupConfig: PropTypes.shape({
       id: PropTypes.number,

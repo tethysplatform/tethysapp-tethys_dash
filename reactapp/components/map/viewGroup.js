@@ -218,16 +218,11 @@ export const POPUP_TAB_ID = "popup";
  */
 export function stripLabelsInPopup(layers, activeTabId) {
   if (activeTabId !== POPUP_TAB_ID || !Array.isArray(layers)) return layers;
-  if (
-    !layers.some((layer) => layer?.props?.labelConfig || layer?.labelConfig)
-  ) {
-    return layers;
-  }
+  if (!layers.some((layer) => layer?.labels)) return layers;
   return layers.map((layer) => {
-    if (!layer?.props?.labelConfig && !layer?.labelConfig) return layer;
-    const { labelConfig: _fromProps, ...props } = layer.props ?? {};
-    const { labelConfig: _fromLayer, ...rest } = layer;
-    return { ...rest, props };
+    if (!layer?.labels) return layer;
+    const { labels: _dropped, ...rest } = layer;
+    return rest;
   });
 }
 

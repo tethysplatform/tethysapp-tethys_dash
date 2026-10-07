@@ -28,9 +28,9 @@ const labelledLayer = () => ({
     type: "VectorLayer",
     props: {
       name: "Gauges",
-      labelConfig: { template: "${feature.name}", size: 14 }, // eslint-disable-line no-template-curly-in-string
       source: { type: "GeoJSON", props: {}, geojson: "some.json" },
     },
+    labels: { template: "${feature.name}", size: 14 }, // eslint-disable-line no-template-curly-in-string
   },
 });
 
@@ -74,7 +74,7 @@ beforeEach(() => {
 test("a map outside a popup keeps its layers' label config", async () => {
   renderMap("tab-1");
   await waitFor(() => expect(gaugesLayer()).toBeTruthy());
-  expect(gaugesLayer().props.labelConfig).toEqual({
+  expect(gaugesLayer().labels).toEqual({
     template: "${feature.name}", // eslint-disable-line no-template-curly-in-string
     size: 14,
   });
@@ -85,7 +85,7 @@ test("a map nested in a popup is handed its layers with no label config", async 
   await waitFor(() => expect(gaugesLayer()).toBeTruthy());
   // Dropped at render, so a label saved before the layer was reused in a popup
   // -- or one a plugin supplied -- never reaches the map.
-  expect(gaugesLayer().props).not.toHaveProperty("labelConfig");
+  expect(gaugesLayer()).not.toHaveProperty("labels");
   // ...and the rest of the layer is untouched.
   expect(gaugesLayer().props.name).toBe("Gauges");
   expect(gaugesLayer().props.source).toBeTruthy();

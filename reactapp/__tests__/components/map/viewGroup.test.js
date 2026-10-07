@@ -648,7 +648,8 @@ describe("stripLabelsInPopup", () => {
   const TEMPLATE = "${feature.station_id}";
   const labeled = (name) => ({
     type: "VectorLayer",
-    props: { name, labelConfig: { template: TEMPLATE, anchor: "n" } },
+    props: { name },
+    labels: { template: TEMPLATE, anchor: "n" },
   });
   const plain = (name) => ({ type: "VectorLayer", props: { name } });
 
@@ -658,18 +659,25 @@ describe("stripLabelsInPopup", () => {
       POPUP_TAB_ID,
     );
 
-    expect(result[0].props.labelConfig).toBeUndefined();
+    expect(result[0]).not.toHaveProperty("labels");
     expect(result[0].props.name).toBe("Gauges");
     expect(result[1]).toEqual(plain("Basins"));
   });
 
-  it("drops a label config written at the top level of a layer too", () => {
+  it("keeps the rest of a labeled layer when its labels are dropped", () => {
+    const style = { default: { point: { shape: "circle" } } };
     const result = stripLabelsInPopup(
-      [{ type: "VectorLayer", props: { name: "Gauges" }, labelConfig: {} }],
+      [{ ...labeled("Gauges"), style }],
       POPUP_TAB_ID,
     );
 
-    expect(result[0].labelConfig).toBeUndefined();
+    // `labels` is a sibling of `style` on the layer configuration, so the drop
+    // has to take that one key and leave everything standing beside it.
+    expect(result[0]).toEqual({
+      type: "VectorLayer",
+      props: { name: "Gauges" },
+      style,
+    });
   });
 
   it("leaves labels alone on a map that is not popup-nested", () => {
@@ -677,7 +685,7 @@ describe("stripLabelsInPopup", () => {
     const result = stripLabelsInPopup(layers, "dashboard-tab-1");
 
     expect(result).toBe(layers);
-    expect(result[0].props.labelConfig).toEqual({
+    expect(result[0].labels).toEqual({
       template: TEMPLATE,
       anchor: "n",
     });

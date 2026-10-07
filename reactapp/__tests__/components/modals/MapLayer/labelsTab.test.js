@@ -113,15 +113,12 @@ test("a saved label reopens showing its values", async () => {
   mountModal({
     layerInfo: {
       ...vectorLayerInfo,
-      layerProps: {
-        ...vectorLayerInfo.layerProps,
-        labelConfig: {
-          template: "${feature.station_id}",
-          anchor: "top",
-          color: "#ff0000",
-          size: 18,
-          minZoom: 7,
-        },
+      labels: {
+        template: "${feature.station_id}",
+        anchor: "top",
+        color: "#ff0000",
+        size: 18,
+        minZoom: 7,
       },
     },
   });
@@ -140,10 +137,7 @@ test("editing an unrelated field preserves the label config through pruning", as
   const addMapLayer = mountModal({
     layerInfo: {
       ...vectorLayerInfo,
-      layerProps: {
-        ...vectorLayerInfo.layerProps,
-        labelConfig: { template: "${feature.name}", size: 14, minZoom: 5 },
-      },
+      labels: { template: "${feature.name}", size: 14, minZoom: 5 },
     },
   });
 
@@ -154,7 +148,9 @@ test("editing an unrelated field preserves the label config through pruning", as
 
   const config = await savedConfig(addMapLayer);
   expect(config.configuration.props.name).toBe("Renamed Gauges");
-  expect(config.configuration.props.labelConfig).toEqual({
+  // Saved beside `configuration.style`, not inside `configuration.props`.
+  expect(config.configuration.props).not.toHaveProperty("labels");
+  expect(config.configuration.labels).toEqual({
     template: "${feature.name}",
     size: 14,
     minZoom: 5,
@@ -165,10 +161,7 @@ test("a zero-like label size and zoom floor survive the save", async () => {
   const addMapLayer = mountModal({
     layerInfo: {
       ...vectorLayerInfo,
-      layerProps: {
-        ...vectorLayerInfo.layerProps,
-        labelConfig: { template: "${feature.name}", size: 12, minZoom: 6 },
-      },
+      labels: { template: "${feature.name}", size: 12, minZoom: 6 },
     },
   });
 
@@ -183,7 +176,7 @@ test("a zero-like label size and zoom floor survive the save", async () => {
   });
 
   const config = await savedConfig(addMapLayer);
-  expect(config.configuration.props.labelConfig).toMatchObject({
+  expect(config.configuration.labels).toMatchObject({
     template: "${feature.name}",
     size: 0,
     minZoom: 0,

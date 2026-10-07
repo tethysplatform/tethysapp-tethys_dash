@@ -194,7 +194,7 @@ export function checkForEmptyVariableInputs({
 }) {
   const metadata = JSON.parse(metadataString);
   // Walk the parsed args, NOT the JSON string, so the recursion can skip the
-  // exempt subtrees (popupConfig, and a map layer's labelConfig — see
+  // exempt subtrees (popupConfig, and a map layer's labels — see
   // FEATURE_SCAN_SKIP_KEYS). A flat regex over the JSON string would surface
   // popup-scoped variable inputs (e.g. `${Start Time}` declared inside the
   // popup) at the host level — those resolve inside the popup's own
@@ -746,15 +746,18 @@ const VARIABLE_INPUT_TOKEN_RE = /\$\{([^}]+)\}/g;
 // modal gates the entire Map widget on the popup's deferred tokens (both
 // `${feature.*}` AND popup-internal variable input names such as
 // `${Start Time}` declared by inner Variable Input grid items).
-// It sits at `layers[i].popupConfig`, so it could be scoped to `layers` exactly
-// as `labelConfig` is; it is deliberately left unscoped so its long-standing
-// behaviour is untouched. Tightening it later is a one-word change here.
+// It sits at `layers[i].popupConfig`, so it could be scoped exactly as `labels`
+// is; it is deliberately left unscoped so its long-standing behaviour is
+// untouched. Tightening it later is a one-line change here.
 //
-// `labelConfig` (only inside a map's `layers`) — a map layer's label template
-// is written to `layers[i].configuration.props.labelConfig` (with an older
-// `layers[i].configuration.labelConfig` still honored), so requiring a `layers`
-// ancestor covers every place a real one lives while a same-named argument on a
-// non-map plugin is walked normally. A label is resolved per feature at draw
+// `labels` (only at `layers[i].configuration.labels`) — a map layer's label
+// template sits beside `configuration.style`, so the scope requires both a
+// `layers` ancestor and `configuration` as the immediate parent. `labels` is a
+// far more ordinary word than the keys above, and other visualizations really
+// do use it — a plotly plugin's `subplot_toggle.labels`, a variable input's
+// `metadata.labels` — so a bare-name match here would silently suppress a
+// genuine gate on those. Pinning the full path is what keeps the exemption
+// honest. A label is resolved per feature at draw
 // time by the OpenLayers style function, so its `${feature.*}` references are
 // never "unresolved" in the sense either scanner means. Both scanners must skip
 // it, or a label alone can stop the map from rendering:
@@ -773,8 +776,20 @@ const VARIABLE_INPUT_TOKEN_RE = /\$\{([^}]+)\}/g;
 // interpolated regardless of what is skipped here.
 const FEATURE_SCAN_SKIP_KEYS = new Map([
   ["popupConfig", null],
-  ["labelConfig", "layers"],
+  ["labels", { ancestor: "layers", parent: "configuration" }],
 ]);
+
+// Does the path to the key being visited satisfy its scope? `null` means any
+// depth; a string names an ancestor that must appear anywhere on the trail; an
+// object can additionally pin the immediate parent.
+function skipScopeMatches(scope, trail) {
+  if (scope === null) return true;
+  if (typeof scope === "string") return trail.includes(scope);
+  return (
+    (!scope.ancestor || trail.includes(scope.ancestor)) &&
+    (!scope.parent || trail[trail.length - 1] === scope.parent)
+  );
+}
 
 // Shared recursive walker. Returns the deduped set of capture-group-1 matches
 // of `regex` across every string leaf, skipping any object key in `skipKeys`
@@ -801,9 +816,8 @@ function collectTokens(value, regex, skipKeys) {
       for (const item of v) visit(item);
     } else if (v && typeof v === "object") {
       for (const key of Object.keys(v)) {
-        if (skipKeys.has(key)) {
-          const scopedTo = skipKeys.get(key);
-          if (scopedTo === null || trail.includes(scopedTo)) continue;
+        if (skipKeys.has(key) && skipScopeMatches(skipKeys.get(key), trail)) {
+          continue;
         }
         trail.push(key);
         visit(v[key]);

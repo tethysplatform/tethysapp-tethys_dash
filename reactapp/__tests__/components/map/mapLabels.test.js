@@ -142,9 +142,7 @@ afterEach(() => {
 describe("map layer labels", () => {
   test("a layer with label config and no style rules receives a working style function", async () => {
     const { layers } = await renderMap([
-      vectorLayer("Stations", {
-        labelConfig: { template: STATION_TEMPLATE },
-      }),
+      vectorLayer("Stations", {}, { labels: { template: STATION_TEMPLATE } }),
     ]);
 
     const styleFunction = layers.Stations.getStyle();
@@ -174,8 +172,8 @@ describe("map layer labels", () => {
     const { layers } = await renderMap([
       vectorLayer(
         "Basemap Vector",
-        { labelConfig: { template: STATION_TEMPLATE } },
-        { style: mapboxStyle },
+        {},
+        { labels: { template: STATION_TEMPLATE }, style: mapboxStyle },
       ),
     ]);
 
@@ -201,11 +199,11 @@ describe("map layer labels", () => {
             type: "Image Tile",
             props: { url: "https://example.org/{z}/{y}/{x}" },
           },
-          // A misconfiguration -- a raster draws no per-feature labels -- and
-          // the one thing it must not cost the layer is its rendering.
-          labelConfig: { template: STATION_TEMPLATE },
           zIndex: 0,
         },
+        // A misconfiguration -- a raster draws no per-feature labels -- and
+        // the one thing it must not cost the layer is its rendering.
+        labels: { template: STATION_TEMPLATE },
       },
     ]);
 
@@ -221,12 +219,8 @@ describe("map layer labels", () => {
 
   test("each labeled layer declutters in its own group", async () => {
     const { layers } = await renderMap([
-      vectorLayer("Stations", {
-        labelConfig: { template: STATION_TEMPLATE },
-      }),
-      vectorLayer("Gauges", {
-        labelConfig: { template: STATION_TEMPLATE },
-      }),
+      vectorLayer("Stations", {}, { labels: { template: STATION_TEMPLATE } }),
+      vectorLayer("Gauges", {}, { labels: { template: STATION_TEMPLATE } }),
       vectorLayer("Unlabeled", {}, { style: styleRules }),
     ]);
 
@@ -247,9 +241,7 @@ describe("map layer labels", () => {
     const setDeclutterSpy = jest.spyOn(VectorLayer.prototype, "setDeclutter");
 
     const { layers } = await renderMap([
-      vectorLayer("Stations", {
-        labelConfig: { template: STATION_TEMPLATE },
-      }),
+      vectorLayer("Stations", {}, { labels: { template: STATION_TEMPLATE } }),
     ]);
 
     const group = layers.Stations.getDeclutter();
@@ -267,24 +259,26 @@ describe("map layer labels", () => {
       // wrong shape.
       vectorLayer(
         "Wrong Shape",
-        { labelConfig: "station_id" },
+        {},
         {
+          labels: "station_id",
           style: styleRules,
         },
       ),
       // An object whose every field but the template is unusable.
       vectorLayer(
         "Bad Fields",
+        {},
         {
-          labelConfig: {
+          labels: {
             template: STATION_TEMPLATE,
             anchor: "nowhere",
             size: "huge",
             color: 12,
             minZoom: "soon",
           },
+          style: styleRules,
         },
-        { style: styleRules },
       ),
     ]);
 
@@ -310,9 +304,7 @@ describe("map layer labels", () => {
 
   test("a vector layer is constructed with the raised render buffer whether or not it carries a label", async () => {
     const { layers } = await renderMap([
-      vectorLayer("Stations", {
-        labelConfig: { template: STATION_TEMPLATE },
-      }),
+      vectorLayer("Stations", {}, { labels: { template: STATION_TEMPLATE } }),
       vectorLayer("Plain"),
       vectorLayer("Authored", { renderBuffer: 42 }),
     ]);
@@ -329,10 +321,12 @@ describe("map layer labels", () => {
 
   test("the label zoom floor is compared as a resolution derived from the live view", async () => {
     const { layers, map } = await renderMap([
-      vectorLayer("Stations", {
+      vectorLayer(
+        "Stations",
+        {},
         // Authored as a zoom level, the way the layer's own minZoom/maxZoom are.
-        labelConfig: { template: STATION_TEMPLATE, minZoom: 8 },
-      }),
+        { labels: { template: STATION_TEMPLATE, minZoom: 8 } },
+      ),
     ]);
 
     const styleFunction = layers.Stations.getStyle();
@@ -362,9 +356,11 @@ describe("map layer labels", () => {
 
   test("a blank zoom floor is not read as zero", async () => {
     const { layers } = await renderMap([
-      vectorLayer("Stations", {
-        labelConfig: { template: STATION_TEMPLATE, minZoom: "" },
-      }),
+      vectorLayer(
+        "Stations",
+        {},
+        { labels: { template: STATION_TEMPLATE, minZoom: "" } },
+      ),
     ]);
 
     // `Number("")` is 0, a real resolution floor that would hide the label
@@ -425,16 +421,17 @@ describe("preserved layers", () => {
 
   test("editing a label on a preserved runtime layer re-applies the style and retains the layer's existing features", async () => {
     const { olLayer, addLayerSpy, removeLayerSpy, update } = await renderMap([
-      runtimeLayer({ labelConfig: { template: STATION_TEMPLATE } }),
+      runtimeLayer({}, { labels: { template: STATION_TEMPLATE } }),
     ]);
     const painted = paintRuntimeFeature(olLayer);
     expect(textOf(olLayer.getStyle()(painted, 10))).toBe("ABC1");
 
     update([
-      runtimeLayer({
+      runtimeLayer(
+        {},
         // eslint-disable-next-line no-template-curly-in-string
-        labelConfig: { template: "Gauge ${feature.station_id}" },
-      }),
+        { labels: { template: "Gauge ${feature.station_id}" } },
+      ),
     ]);
 
     await waitFor(() => {
@@ -449,7 +446,7 @@ describe("preserved layers", () => {
 
   test("clearing a label on a preserved layer removes the text rather than leaving the last label drawn", async () => {
     const { olLayer, addLayerSpy, update } = await renderMap([
-      runtimeLayer({ labelConfig: { template: STATION_TEMPLATE } }),
+      runtimeLayer({}, { labels: { template: STATION_TEMPLATE } }),
     ]);
     const painted = paintRuntimeFeature(olLayer);
     expect(textOf(olLayer.getStyle()(painted, 10))).toBe("ABC1");
@@ -473,17 +470,17 @@ describe("preserved layers", () => {
 
   test("editing an unrelated property on a labeled preserved layer does not drop the label", async () => {
     const { olLayer, addLayerSpy, update } = await renderMap([
-      runtimeLayer({ labelConfig: { template: STATION_TEMPLATE } }),
+      runtimeLayer({}, { labels: { template: STATION_TEMPLATE } }),
     ]);
     const painted = paintRuntimeFeature(olLayer);
     const group = olLayer.getDeclutter();
     expect(group).toBeTruthy();
 
     update([
-      runtimeLayer({
-        opacity: 0.3,
-        labelConfig: { template: STATION_TEMPLATE },
-      }),
+      runtimeLayer(
+        { opacity: 0.3 },
+        { labels: { template: STATION_TEMPLATE } },
+      ),
     ]);
 
     await waitFor(() => {
@@ -498,17 +495,17 @@ describe("preserved layers", () => {
     const setStyleSpy = jest.spyOn(VectorLayer.prototype, "setStyle");
     const setDeclutterSpy = jest.spyOn(VectorLayer.prototype, "setDeclutter");
     const { olLayer, update } = await renderMap([
-      runtimeLayer({ labelConfig: { template: STATION_TEMPLATE } }),
+      runtimeLayer({}, { labels: { template: STATION_TEMPLATE } }),
     ]);
     const styleFunction = olLayer.getStyle();
     const styleCalls = setStyleSpy.mock.calls.length;
     const declutterCalls = setDeclutterSpy.mock.calls.length;
 
     update([
-      runtimeLayer({
-        opacity: 0.3,
-        labelConfig: { template: STATION_TEMPLATE },
-      }),
+      runtimeLayer(
+        { opacity: 0.3 },
+        { labels: { template: STATION_TEMPLATE } },
+      ),
     ]);
 
     await waitFor(() => {
@@ -533,8 +530,8 @@ describe("preserved layers", () => {
 
     update([
       runtimeLayer(
-        { labelConfig: { template: STATION_TEMPLATE } },
-        { style: styleRules },
+        {},
+        { labels: { template: STATION_TEMPLATE }, style: styleRules },
       ),
     ]);
 
@@ -560,8 +557,8 @@ describe("preserved layers", () => {
     // what the old change check compared.
     update([
       shapefileLayer(
-        { labelConfig: { template: STATION_TEMPLATE } },
-        { style: styleRules },
+        {},
+        { labels: { template: STATION_TEMPLATE }, style: styleRules },
       ),
     ]);
 
@@ -576,8 +573,8 @@ describe("preserved layers", () => {
   test("clearing a label on a preserved shapefile layer removes the text and stops decluttering", async () => {
     const { olLayer, addLayerSpy, update } = await renderMap([
       shapefileLayer(
-        { labelConfig: { template: STATION_TEMPLATE } },
-        { style: styleRules },
+        {},
+        { labels: { template: STATION_TEMPLATE }, style: styleRules },
       ),
     ]);
     const feature = pointFeature({ station_id: "ABC1" });
@@ -601,36 +598,28 @@ describe("label config edge cases", () => {
     // Opening the Labels tab and leaving without typing persists a config
     // object. Treating its existence as "has labels" would declutter the layer
     // and divert its styling for something that draws nothing.
-    expect(
-      readLabelConfig({ props: { labelConfig: { template: "" } } }),
-    ).toBeNull();
-    expect(
-      readLabelConfig({ props: { labelConfig: { template: "   " } } }),
-    ).toBeNull();
-    expect(
-      readLabelConfig({ props: { labelConfig: { anchor: "n" } } }),
-    ).toBeNull();
+    expect(readLabelConfig({ labels: { template: "" } })).toBeNull();
+    expect(readLabelConfig({ labels: { template: "   " } })).toBeNull();
+    expect(readLabelConfig({ labels: { anchor: "n" } })).toBeNull();
   });
 
   it("reads anything that is not a plain object as no label", () => {
     expect(readLabelConfig(undefined)).toBeNull();
     expect(readLabelConfig({})).toBeNull();
-    expect(
-      readLabelConfig({ props: { labelConfig: "station_id" } }),
-    ).toBeNull();
-    expect(
-      readLabelConfig({ props: { labelConfig: [{ template: TEMPLATE }] } }),
-    ).toBeNull();
+    expect(readLabelConfig({ labels: "station_id" })).toBeNull();
+    expect(readLabelConfig({ labels: [{ template: TEMPLATE }] })).toBeNull();
   });
 
-  it("reads a populated template as a label, from props or from the top level", () => {
-    expect(
-      readLabelConfig({ props: { labelConfig: { template: TEMPLATE } } }),
-    ).toEqual({ template: TEMPLATE });
-    // The top-level fallback, for a config written without the props wrapper.
-    expect(readLabelConfig({ labelConfig: { template: TEMPLATE } })).toEqual({
+  it("reads a populated template from the layer's own `labels` key", () => {
+    expect(readLabelConfig({ labels: { template: TEMPLATE } })).toEqual({
       template: TEMPLATE,
     });
+    // `labels` is a sibling of `style` on the layer configuration. Nothing
+    // nested under `props` is a label, so a config written that way draws none
+    // rather than being picked up from two places at once.
+    expect(
+      readLabelConfig({ props: { labels: { template: TEMPLATE } } }),
+    ).toBeNull();
   });
 
   it("does not treat a vector-tile style document as rule-based", () => {

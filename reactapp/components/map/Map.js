@@ -106,8 +106,7 @@ const InfoDiv = styled.div`
 // read as "no label" rather than guarded at each use: this ends up inside the
 // render path, where a throw takes down the layer rather than the label.
 export function readLabelConfig(layerConfig) {
-  const labelConfig =
-    layerConfig?.props?.labelConfig ?? layerConfig?.labelConfig;
+  const labelConfig = layerConfig?.labels;
   if (!labelConfig || typeof labelConfig !== "object") return null;
   if (Array.isArray(labelConfig)) return null;
   // A blank template draws nothing, so treating the object's existence as
