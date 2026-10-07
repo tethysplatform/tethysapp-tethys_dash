@@ -74,7 +74,7 @@ Crowding and Zoom
 
 Labels that would overlap are thinned automatically: some are not drawn so the rest stay readable, and the hidden ones reappear as you zoom in. Layers are thinned independently, so a busy layer never suppresses labels on another one.
 
-Thinning is all or nothing for a given label — it is drawn or it is not, and nothing says which label lost. On a layer where every label matters, check **Allow Overlapping Labels** in the Placement section. Thinning is then switched off for that layer and every label draws, each one on a semi-opaque background box so the label in front stays readable where two of them land on top of each other. The box is light, like the outline behind the text, so it suits dark text better than light text.
+Thinning is all or nothing for a given label — it is drawn or it is not, and nothing says which label lost. On a layer where every label matters, check **Allow Overlapping Labels** in the Placement section. Thinning is then switched off for that layer and every label draws, relying on the outline behind each one to keep it legible where two land on top of each other.
 
 For a layer dense enough that thinning is not enough, set a **Minimum Display Zoom**. Below that zoom the layer draws its geometry with no labels at all; at or above it the labels return. Leaving the field empty means the labels always draw.
 

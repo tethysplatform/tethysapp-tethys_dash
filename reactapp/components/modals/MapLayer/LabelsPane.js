@@ -159,8 +159,7 @@ const LabelsPane = ({ layerName, labelConfig, onChange, containerRef }) => {
         <Note>
           Labels that would collide are hidden by default, so only some of a
           crowded layer&apos;s labels draw. Allow overlap to draw every one of
-          them; overlapping labels are given a background so the label in front
-          stays readable.
+          them instead.
         </Note>
       </Section>
 

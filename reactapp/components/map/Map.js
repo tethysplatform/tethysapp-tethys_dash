@@ -211,7 +211,7 @@ function applyVectorStyleFunction(olLayer, style, labelConfig, map) {
   // with the label exempted through `declutterMode`: switching decluttering on
   // for any one layer makes every vector layer on the map rebuild its replay
   // group on the next frame, and a layer that does not want collision hiding
-  // should not pay that. The labels stay readable through the background box
+  // should not pay that. Overlapping labels are separated by their halo
   // `buildLabelStyle` gives them instead.
   const declutters = !!labelConfig && !labelConfig.allowOverlap;
   const group = declutters ? declutterGroupFor(olLayer) : undefined;
