@@ -929,9 +929,9 @@ describe("buildLabelStyle outline color", () => {
 });
 
 describe("line labels clear the stroke they are drawn along", () => {
-  const lineLabel = (symbolSize) =>
+  const lineLabel = (symbolSize, anchor = "n") =>
     buildLabelStyle({
-      labelConfig: { template: "${feature.name}" },
+      labelConfig: { template: "${feature.name}", anchor },
       feature: mockFeature({ name: "North Santiam" }, "LineString"),
       geometryBucket: "linestring",
       symbolSize,
@@ -979,11 +979,12 @@ describe("a line label's side comes from the anchor", () => {
     }
   });
 
-  it("puts the middle row above rather than on the line", () => {
-    // Centred on the line is the unreadable case the lift exists to avoid,
-    // and `center` is the default anchor -- so the default has to land above.
+  it("draws the middle row along the line itself", () => {
+    // Taken literally rather than rounded to a side: centred on the line is a
+    // real style, the way a street map labels a road. `center` is the default
+    // anchor, so a line layer starts here until its author picks a row.
     for (const anchor of ["center", "e", "w", undefined, "nonsense"]) {
-      expect(sideFor(anchor)).toBe(-lift);
+      expect(sideFor(anchor)).toBe(0);
     }
   });
 

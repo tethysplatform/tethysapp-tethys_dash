@@ -384,19 +384,21 @@ export function buildLabelStyle({
     //
     // `offsetX` genuinely is dropped under line placement; `offsetY` is not,
     // so the anchor's vertical half is the part that still means something
-    // here and it chooses the side: a bottom-row anchor puts the name under
-    // the line, anything else above it.
+    // here, and it is taken literally: top row above the line, bottom row
+    // below it, middle row centred on it.
     //
-    // The middle row reads as "above" rather than "centred on the line",
-    // because centred is the unreadable case this lift exists to avoid -- and
-    // the default anchor is `center`, so the default has to be the good one.
+    // Centred is a real style rather than a mistake -- it is how a street map
+    // labels a road, with the halo doing the separating -- so the control
+    // offers it instead of quietly rounding the middle row to one side. The
+    // cost is that `center` is the default anchor, so a line layer starts
+    // centred until its author picks a row.
     const halfWidth = Number(symbolSize);
     const lift =
       (Number.isFinite(halfWidth) ? Math.max(halfWidth, 0) : 0) +
       labelAnchorPadding;
     const { offsetY: verticalSign } = resolveAnchor(labelConfig.anchor, 1);
     label.setOffsetX(0);
-    label.setOffsetY(verticalSign > 0 ? lift : -lift);
+    label.setOffsetY(verticalSign * lift);
   } else {
     // The gap is measured from the geometry, not from the rendered symbol, so
     // it has to carry the symbol's own radius or the label lands on top of a

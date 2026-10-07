@@ -52,7 +52,7 @@ Placement behaves differently by geometry, and the layer decides this for you ra
 
 * **Points** sit at the chosen compass position.
 * **Polygons** place their label inside the shape, at a point guaranteed to fall within it even when the outline is concave.
-* **Lines** follow the line itself, so a river name bends along the river, sitting clear of it rather than across it — a thicker line pushes its label further away. Only the vertical half of the placement applies: a bottom-row position puts the name under the line, anything else above it. Left and right have no meaning once the text is following a curve.
+* **Lines** follow the line itself, so a river name bends along the river. Only the vertical half of the placement applies: the top row draws the name above the line, the bottom row below it, and the middle row along the line itself the way a street map labels a road. Above and below clear the line by its own width, so a thicker line pushes its name further away. Left and right have no meaning once the text is following a curve.
 
 A feature made of several parts — a basin with islands, or a reach in several segments — draws one label, not one per part.
 

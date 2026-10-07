@@ -199,9 +199,9 @@ const LabelsPane = ({ layerName, labelConfig, onChange, containerRef }) => {
         <FieldLabel>
           <InfoTip id="Placement">
             Where the label sits relative to each feature. Line features follow
-            the line, so only the top or bottom row applies to them: a
-            bottom-row anchor puts the name under the line, anything else above
-            it.
+            the line, so only the vertical half applies to them: the top row
+            draws the name above the line, the bottom row below it, and the
+            middle row along the line itself.
           </InfoTip>
           <SectionLabel>Placement</SectionLabel>
         </FieldLabel>
