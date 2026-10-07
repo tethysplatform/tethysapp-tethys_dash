@@ -21,6 +21,7 @@ import {
   defaultLabelColor,
   defaultLabelSize,
   defaultLabelHaloColor,
+  defaultLabelBackgroundColor,
   defaultLabelHaloWidth,
   defaultLabelPadding,
   labelAnchorPadding,
@@ -544,6 +545,115 @@ describe("buildLabelStyle font, color and halo", () => {
       resolution: 10,
     });
     expect(big.getStroke().getWidth()).toBe(haloWidthForSize(30));
+  });
+});
+
+describe("buildLabelStyle background box for overlapping labels", () => {
+  const feature = mockFeature({ name: "Station 12" });
+
+  // Each case builds its own Text, and the cache is keyed on the option, so a
+  // stale entry from a neighbouring test cannot answer for the one under test.
+  beforeEach(() => {
+    clearLabelTextCache();
+  });
+
+  it("gives a point label a background box when overlap is allowed", () => {
+    const style = buildLabelStyle({
+      labelConfig: labelOf({ allowOverlap: true }),
+      feature,
+      resolution: 10,
+    });
+    // The box is what keeps the front label of a colliding pair readable once
+    // the layer has stopped hiding either of them.
+    expect(style.getBackgroundFill()).not.toBeNull();
+    expect(style.getBackgroundFill().getColor()).toBe(
+      defaultLabelBackgroundColor,
+    );
+    // Sized by the same padding the declutter box uses.
+    expect(style.getPadding()).toEqual(defaultLabelPadding);
+  });
+
+  it("gives a point label no background box by default", () => {
+    for (const labelConfig of [
+      labelOf(),
+      labelOf({ allowOverlap: false }),
+      labelOf({ allowOverlap: undefined }),
+    ]) {
+      const style = buildLabelStyle({ labelConfig, feature, resolution: 10 });
+      expect(style.getBackgroundFill()).toBeNull();
+      expect(style.getBackgroundStroke()).toBeNull();
+    }
+  });
+
+  it("never gives a line label a background box, even when overlap is allowed", () => {
+    const style = buildLabelStyle({
+      labelConfig: labelOf({ allowOverlap: true }),
+      feature: mockFeature({ name: "Reach 4" }, "LineString"),
+      resolution: 10,
+    });
+    // OpenLayers ignores the background options entirely under line placement,
+    // so setting them would promise a box that never draws.
+    expect(style.getPlacement()).toBe("line");
+    expect(style.getBackgroundFill()).toBeNull();
+    expect(style.getBackgroundStroke()).toBeNull();
+    expect(style.getText()).toBe("Reach 4");
+  });
+
+  it("leaves the text, anchor and halo exactly as they are without the option", () => {
+    const args = {
+      labelConfig: labelOf({ anchor: "ne", size: 20, color: "#123456" }),
+      feature,
+      resolution: 10,
+      symbolSize: 8,
+    };
+    const plain = buildLabelStyle(args);
+    const plainState = {
+      text: plain.getText(),
+      textAlign: plain.getTextAlign(),
+      textBaseline: plain.getTextBaseline(),
+      offsetX: plain.getOffsetX(),
+      offsetY: plain.getOffsetY(),
+      font: plain.getFont(),
+      fill: plain.getFill().getColor(),
+      haloColor: plain.getStroke().getColor(),
+      haloWidth: plain.getStroke().getWidth(),
+    };
+
+    const overlapping = buildLabelStyle({
+      ...args,
+      labelConfig: { ...args.labelConfig, allowOverlap: true },
+    });
+
+    expect({
+      text: overlapping.getText(),
+      textAlign: overlapping.getTextAlign(),
+      textBaseline: overlapping.getTextBaseline(),
+      offsetX: overlapping.getOffsetX(),
+      offsetY: overlapping.getOffsetY(),
+      font: overlapping.getFont(),
+      fill: overlapping.getFill().getColor(),
+      haloColor: overlapping.getStroke().getColor(),
+      haloWidth: overlapping.getStroke().getWidth(),
+    }).toEqual(plainState);
+    expect(overlapping.getBackgroundFill()).not.toBeNull();
+  });
+
+  it("does not share one cached Text between the two settings", () => {
+    const plain = buildLabelStyle({
+      labelConfig: labelOf(),
+      feature,
+      resolution: 10,
+    });
+    const overlapping = buildLabelStyle({
+      labelConfig: labelOf({ allowOverlap: true }),
+      feature,
+      resolution: 10,
+    });
+    // The Text is cached per configuration; sharing one here would hand the
+    // decluttered layer the overlapping layer's box.
+    expect(overlapping).not.toBe(plain);
+    expect(plain.getBackgroundFill()).toBeNull();
+    expect(overlapping.getBackgroundFill()).not.toBeNull();
   });
 });
 

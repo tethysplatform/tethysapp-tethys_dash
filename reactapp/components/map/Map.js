@@ -186,7 +186,7 @@ export function labelConfigForMap(labelConfig, map) {
 }
 
 // Attach the rule-based style function, and switch decluttering on for a layer
-// that carries labels.
+// that carries labels -- unless the label asked to be allowed to overlap.
 function applyVectorStyleFunction(olLayer, style, labelConfig, map) {
   // A raster layer has no per-feature style function. A label on one is a
   // misconfiguration, not a reason to throw inside the layer sync. `setStyle`
@@ -207,7 +207,14 @@ function applyVectorStyleFunction(olLayer, style, labelConfig, map) {
   // `setDeclutter` rather than `set("declutter", ...)`: the value lives in a
   // private field the property bag does not write, and the setter raises the
   // change the renderer needs to pick it up.
-  const group = labelConfig ? declutterGroupFor(olLayer) : undefined;
+  // `allowOverlap` leaves the layer undecluttered rather than decluttering it
+  // with the label exempted through `declutterMode`: switching decluttering on
+  // for any one layer makes every vector layer on the map rebuild its replay
+  // group on the next frame, and a layer that does not want collision hiding
+  // should not pay that. The labels stay readable through the background box
+  // `buildLabelStyle` gives them instead.
+  const declutters = !!labelConfig && !labelConfig.allowOverlap;
+  const group = declutters ? declutterGroupFor(olLayer) : undefined;
   if (olLayer.getDeclutter?.() !== group) {
     olLayer.setDeclutter(group ?? false);
   }

@@ -5,6 +5,7 @@ import { memo, useCallback } from "react";
 import Form from "react-bootstrap/Form";
 import styled from "styled-components";
 import NormalInput from "components/inputs/NormalInput";
+import CheckboxInput from "components/inputs/CheckboxInput";
 import ColorPickerPopOver from "components/inputs/ColorPickerPopOver";
 import AnchorPicker, { normalizeAnchor } from "components/inputs/AnchorPicker";
 import {
@@ -51,6 +52,7 @@ export function withDefaults(labelConfig) {
     color: defaultLabelColor,
     size: defaultLabelSize,
     minZoom: NO_ZOOM_FLOOR,
+    allowOverlap: false,
   };
   if (!labelConfig || typeof labelConfig !== "object") return base;
   return {
@@ -64,6 +66,9 @@ export function withDefaults(labelConfig) {
     // set, not an absent one.
     size: labelConfig.size ?? base.size,
     minZoom: labelConfig.minZoom ?? base.minZoom,
+    // `??` again: a stored `false` is the author having turned this off, not an
+    // absent value to fill in from the default.
+    allowOverlap: labelConfig.allowOverlap ?? base.allowOverlap,
   };
 }
 
@@ -105,6 +110,11 @@ const LabelsPane = ({ layerName, labelConfig, onChange, containerRef }) => {
     [emit],
   );
 
+  const handleAllowOverlapChange = useCallback(
+    (checked) => emit("allowOverlap", !!checked),
+    [emit],
+  );
+
   const handleSizeChange = useCallback(
     (e) => emit("size", coerceNumericField(e.target.value)),
     [emit],
@@ -139,6 +149,19 @@ const LabelsPane = ({ layerName, labelConfig, onChange, containerRef }) => {
           onChange={handleAnchorChange}
           label="Label Anchor"
         />
+        <CheckboxInput
+          label="Allow Overlapping Labels"
+          type="checkbox"
+          value={resolved.allowOverlap}
+          onChange={handleAllowOverlapChange}
+          divProps={{ style: { marginTop: "0.75rem" } }}
+        />
+        <Note>
+          Labels that would collide are hidden by default, so only some of a
+          crowded layer&apos;s labels draw. Allow overlap to draw every one of
+          them; overlapping labels are given a background so the label in front
+          stays readable.
+        </Note>
       </Section>
 
       <Section>
@@ -194,6 +217,8 @@ LabelsPane.propTypes = {
     // property holds. The map scope converts this to a resolution at render
     // time, because the conversion needs the live view's projection.
     minZoom: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    // Draw every label rather than hiding the ones that collide.
+    allowOverlap: PropTypes.bool,
   }),
   onChange: PropTypes.func.isRequired,
   containerRef: PropTypes.object,

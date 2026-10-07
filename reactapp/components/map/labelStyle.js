@@ -11,6 +11,12 @@ export const defaultLabelAnchor = "center";
 export const defaultLabelColor = "#000000";
 export const defaultLabelSize = 13;
 export const defaultLabelHaloColor = "rgba(255, 255, 255, 0.85)";
+// Box drawn behind a label when the author allows overlapping labels, so the
+// later-drawn label of a colliding pair stays readable over the one beneath.
+// Same light semi-opaque family as the halo, and it carries the halo's existing
+// assumption rather than a new one: both are built for dark-ish text, so an
+// author who picks a light text color gets light text on a light box.
+export const defaultLabelBackgroundColor = "rgba(255, 255, 255, 0.75)";
 // Width at `defaultLabelSize`; scaled with the font so a small label is not
 // swallowed by its own outline (see `haloWidthForSize`).
 export const defaultLabelHaloWidth = 3;
@@ -263,6 +269,9 @@ function cachedLabelText(labelConfig, bucket) {
     bucket,
     size,
     color,
+    // Shapes the cached object too: an overlapping label is built with a
+    // background box and a decluttered one without.
+    labelConfig.allowOverlap ? "overlap" : "declutter",
     String(labelConfig.anchor ?? ""),
     String(labelConfig.template ?? ""),
   ].join(" ");
@@ -295,6 +304,17 @@ function cachedLabelText(labelConfig, bucket) {
     options.textAlign = textAlign;
     options.textBaseline = textBaseline;
     options.padding = defaultLabelPadding;
+    if (labelConfig.allowOverlap) {
+      // Only ever set under point placement: OpenLayers ignores
+      // `backgroundFill`/`backgroundStroke` entirely under line placement, so
+      // setting them there would promise a box that never draws. The padding
+      // above sizes this box as well as the declutter box.
+      //
+      // Whether the layer declutters at all is a layer-level decision made by
+      // `applyVectorStyleFunction` in `map/Map.js`, not a `declutterMode` on
+      // this Text.
+      options.backgroundFill = new Fill({ color: defaultLabelBackgroundColor });
+    }
     if (bucket === "polygon") {
       // Without this OpenLayers measures the polygon's horizontal chord at the
       // label row and silently skips any label wider than it.
@@ -322,7 +342,8 @@ function cachedLabelText(labelConfig, bucket) {
  * label, it takes down the layer.
  *
  * @param {Object} args
- * @param {Object} args.labelConfig `{ template, anchor, color, size, minZoom }`
+ * @param {Object} args.labelConfig
+ *   `{ template, anchor, color, size, minZoom, allowOverlap }`
  * @param {Object} args.feature the OpenLayers feature being styled
  * @param {number} args.resolution the style function's second argument
  * @param {number} args.symbolSize the **effective pixel radius** of this
@@ -398,6 +419,9 @@ buildLabelStyle.propTypes = {
     // Authored zoom level. Not read here -- the map scope converts it and
     // passes the result as `minZoomResolution`.
     minZoom: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    // Draw every label, colliding or not, each with a background box. The
+    // layer-level declutter switch reads the same field (see `map/Map.js`).
+    allowOverlap: PropTypes.bool,
   }),
   feature: PropTypes.object,
   resolution: PropTypes.number,

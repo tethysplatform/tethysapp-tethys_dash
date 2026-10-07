@@ -36,11 +36,13 @@ Harness.propTypes = {
   onChange: PropTypes.func,
 };
 
-test("renders the five controls seeded from the render defaults when nothing is stored", () => {
+test("renders the six controls seeded from the render defaults when nothing is stored", () => {
   render(<Harness onChange={jest.fn()} />);
 
   expect(screen.getByLabelText("Template")).toHaveValue("");
-  expect(screen.getByLabelText("Text Size")).toHaveValue(String(defaultLabelSize));
+  expect(screen.getByLabelText("Text Size")).toHaveValue(
+    String(defaultLabelSize),
+  );
   expect(screen.getByLabelText("Minimum Display Zoom")).toHaveValue("");
   expect(screen.getByLabelText("Center Anchor")).toHaveAttribute(
     "aria-checked",
@@ -49,6 +51,10 @@ test("renders the five controls seeded from the render defaults when nothing is 
   expect(
     screen.getByLabelText("Text Color color popover square"),
   ).toBeInTheDocument();
+  // Overlap off by default: labels keep hiding where they collide.
+  expect(
+    screen.getByLabelText("Allow Overlapping Labels Input"),
+  ).not.toBeChecked();
 });
 
 test("typing a template, choosing an anchor and setting size emit the whole configuration", () => {
@@ -64,6 +70,7 @@ test("typing a template, choosing an anchor and setting size emit the whole conf
     color: defaultLabelColor,
     size: defaultLabelSize,
     minZoom: "",
+    allowOverlap: false,
   });
 
   fireEvent.click(screen.getByLabelText("Northeast Anchor"));
@@ -208,6 +215,7 @@ test("editing one field does not drop the others", () => {
     color: "#00ff00",
     size: 19,
     minZoom: 4,
+    allowOverlap: false,
   });
 });
 
@@ -219,6 +227,7 @@ test("withDefaults merges on read without writing into the stored object", () =>
     color: defaultLabelColor,
     size: defaultLabelSize,
     minZoom: "",
+    allowOverlap: false,
   });
   // `null` stays a legal stored value: nothing is written back.
   expect(stored).toEqual({ template: "a" });
@@ -228,6 +237,70 @@ test("withDefaults merges on read without writing into the stored object", () =>
   // Zero-like values survive the merge.
   expect(withDefaults({ size: 0, minZoom: 0 }).size).toBe(0);
   expect(withDefaults({ size: 0, minZoom: 0 }).minZoom).toBe(0);
+  // A stored `false` is the author having turned the option off, not an absent
+  // value for the default to fill in.
+  expect(withDefaults({ allowOverlap: false }).allowOverlap).toBe(false);
+  expect(withDefaults({ allowOverlap: true }).allowOverlap).toBe(true);
+});
+
+test("the overlap checkbox renders unchecked by default and emits when ticked", () => {
+  const onChange = jest.fn();
+  render(<Harness initial={{ template: "x" }} onChange={onChange} />);
+
+  const checkbox = screen.getByLabelText("Allow Overlapping Labels Input");
+  expect(checkbox).not.toBeChecked();
+
+  fireEvent.click(checkbox);
+
+  expect(onChange).toHaveBeenLastCalledWith(
+    expect.objectContaining({ template: "x", allowOverlap: true }),
+  );
+  // Fully controlled, like every other field on the pane.
+  expect(screen.getByLabelText("Allow Overlapping Labels Input")).toBeChecked();
+});
+
+test("a stored overlap setting reopens as the author left it", () => {
+  render(
+    <Harness
+      initial={{ template: "x", allowOverlap: true }}
+      onChange={jest.fn()}
+    />,
+  );
+
+  expect(screen.getByLabelText("Allow Overlapping Labels Input")).toBeChecked();
+});
+
+test("a stored false survives a round trip through an unrelated edit", () => {
+  const onChange = jest.fn();
+  render(
+    <Harness
+      initial={{ template: "x", size: 14, allowOverlap: false }}
+      onChange={onChange}
+    />,
+  );
+
+  expect(
+    screen.getByLabelText("Allow Overlapping Labels Input"),
+  ).not.toBeChecked();
+
+  fireEvent.change(screen.getByLabelText("Text Size"), {
+    target: { value: "15" },
+  });
+
+  // `??` rather than `||` in `withDefaults`: a stored `false` must come back
+  // out as `false` rather than being refilled from the default.
+  expect(onChange).toHaveBeenLastCalledWith(
+    expect.objectContaining({ size: 15, allowOverlap: false }),
+  );
+
+  fireEvent.click(screen.getByLabelText("Allow Overlapping Labels Input"));
+  expect(onChange).toHaveBeenLastCalledWith(
+    expect.objectContaining({ size: 15, allowOverlap: true }),
+  );
+  fireEvent.click(screen.getByLabelText("Allow Overlapping Labels Input"));
+  expect(onChange).toHaveBeenLastCalledWith(
+    expect.objectContaining({ size: 15, allowOverlap: false }),
+  );
 });
 
 test("coerceNumericField keeps blanks blank and numbers numeric", () => {

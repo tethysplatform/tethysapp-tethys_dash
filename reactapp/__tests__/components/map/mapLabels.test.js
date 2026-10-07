@@ -237,6 +237,43 @@ describe("map layer labels", () => {
     expect(layers.Unlabeled.getDeclutter()).toBeUndefined();
   });
 
+  test("a layer whose label allows overlap is not decluttered at all", async () => {
+    const { layers } = await renderMap([
+      vectorLayer(
+        "Overlapping",
+        {},
+        { labels: { template: STATION_TEMPLATE, allowOverlap: true } },
+      ),
+      vectorLayer("Thinned", {}, { labels: { template: STATION_TEMPLATE } }),
+    ]);
+
+    // Decluttering is switched off for the whole layer rather than the label
+    // being exempted from it: enabling it on any one layer costs every vector
+    // layer on the map a replay-group rebuild on the next frame.
+    expect(layers.Overlapping.getDeclutter()).toBeUndefined();
+    // The label itself still draws -- this is a collision setting, not an
+    // "off" switch.
+    expect(
+      textOf(
+        layers.Overlapping.getStyle()(pointFeature({ station_id: "ABC1" }), 10),
+      ),
+    ).toBe("ABC1");
+    // A layer alongside it that did not ask for overlap still thins.
+    expect(layers.Thinned.getDeclutter()).toBeTruthy();
+  });
+
+  test("allowOverlap set to false declutters exactly as an absent setting does", async () => {
+    const { layers } = await renderMap([
+      vectorLayer(
+        "Stations",
+        {},
+        { labels: { template: STATION_TEMPLATE, allowOverlap: false } },
+      ),
+    ]);
+
+    expect(layers.Stations.getDeclutter()).toBeTruthy();
+  });
+
   test("decluttering is applied through the setter rather than as a plain property", async () => {
     const setDeclutterSpy = jest.spyOn(VectorLayer.prototype, "setDeclutter");
 
@@ -541,6 +578,52 @@ describe("preserved layers", () => {
     // `setDeclutter` is a live setter, so the layer never had to be rebuilt to
     // gain it -- which it could not be without losing its features.
     expect(textOf(olLayer.getStyle()(painted, 10))).toBe("ABC1");
+    expect(olLayer.getSource().getFeatures()).toContain(painted);
+    expect(addLayerSpy.mock.calls.length).toBe(1);
+    expect(removeLayerSpy.mock.calls.length).toBe(0);
+  });
+
+  test("toggling overlap on a preserved layer repaints it: the stamp carries the whole label config", async () => {
+    const { olLayer, addLayerSpy, removeLayerSpy, update } = await renderMap([
+      runtimeLayer({}, { labels: { template: STATION_TEMPLATE } }),
+    ]);
+    const painted = paintRuntimeFeature(olLayer);
+    const group = olLayer.getDeclutter();
+    expect(group).toBeTruthy();
+
+    // Only `allowOverlap` changed. `appliedLabelConfig` stamps the whole label
+    // config and is compared field by field, so a new key is a change -- the
+    // repaint does not need a stamp of its own.
+    update([
+      runtimeLayer(
+        {},
+        { labels: { template: STATION_TEMPLATE, allowOverlap: true } },
+      ),
+    ]);
+
+    await waitFor(() => {
+      expect(olLayer.getDeclutter()).toBeUndefined();
+    });
+    expect(olLayer.get("appliedLabelConfig")).toEqual({
+      template: STATION_TEMPLATE,
+      allowOverlap: true,
+    });
+    expect(textOf(olLayer.getStyle()(painted, 10))).toBe("ABC1");
+
+    // And back off again: a stored `false` has to repaint just as a removal
+    // does, not sit behind the value it replaced.
+    update([
+      runtimeLayer(
+        {},
+        { labels: { template: STATION_TEMPLATE, allowOverlap: false } },
+      ),
+    ]);
+
+    await waitFor(() => {
+      expect(olLayer.getDeclutter()).toBeTruthy();
+    });
+    expect(textOf(olLayer.getStyle()(painted, 10))).toBe("ABC1");
+    // Preserved throughout: a rebuild would have dropped the plugin's features.
     expect(olLayer.getSource().getFeatures()).toContain(painted);
     expect(addLayerSpy.mock.calls.length).toBe(1);
     expect(removeLayerSpy.mock.calls.length).toBe(0);

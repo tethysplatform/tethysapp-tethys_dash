@@ -882,9 +882,9 @@ export function collectStyleFields(styleJson) {
  *   may be absent: a layer configured with a label and no style rules still
  *   needs this function, and reaches it with nothing to merge.
  * @param {Object} [labelConfig] `{ template, anchor, color, size,
- *   minZoomResolution }`, a sibling of the style on the layer config -- the
- *   authored `minZoom` having been converted to a resolution by the map scope,
- *   which owns the view that can convert it.
+ *   allowOverlap, minZoomResolution }`, a sibling of the style on the layer
+ *   config -- the authored `minZoom` having been converted to a resolution by
+ *   the map scope, which owns the view that can convert it.
  * @returns {Function} `(feature, resolution) => Style | Style[]`. The
  *   resolution is OpenLayers' own second argument and is what the label's zoom
  *   floor is compared against.

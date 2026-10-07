@@ -970,6 +970,8 @@ MapLayerModal.propTypes = {
       color: PropTypes.string,
       size: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
       minZoom: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+      // Draw every label rather than hiding the ones that collide.
+      allowOverlap: PropTypes.bool,
     }),
     attributeProps: attributePropsPropType,
     popupConfig: PropTypes.shape({
