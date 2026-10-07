@@ -5,17 +5,21 @@ Labels Tab
 ----------
 
 
-
-The labels tab draws text on the map next to each feature of a vector layer. The text comes from a template you write, so a layer of gauges can print each gauge's station name, and a layer of basins can print each basin's name, without anyone clicking a feature to find out.
+The labels tab draws text on the map beside each feature of a vector layer. The text comes from a template you write, so a layer of gauges can print each gauge's station name, and a layer of basins can print each basin's name, without anyone clicking a feature to find out.
 
 Labels are available for the same vector layers that support custom styling — GeoJSON, ESRI Feature Service, PMTiles Vector, Shapefile, GeoPackage, GeoParquet, and layers produced by a plugin. Raster, tile, and WMS layers have no features to read text from, so the tab is hidden for them.
+
+.. Screenshot slot: the Labels tab with a template filled in. Add
+   docs/images/labels_tab.png, then replace this comment with:
+   .. figure:: ../../images/labels_tab.png
+       :align: center
 
 
 .. _label_template:
 
-++++++++++++++
-Label Template
-++++++++++++++
+++++++++
+Template
+++++++++
 
 The template is ordinary text with references to feature attributes mixed in. A reference looks like ``${feature.station}``, using the same syntax as a popup title.
 
@@ -37,7 +41,9 @@ A template may also reference a dashboard variable input, which resolves once fo
 
    ${feature.station} as of ${Selected Date}
 
-If a feature is missing an attribute the template names, the rest of the template still draws for that feature and the other features are unaffected. Nothing reports the mistake, so a blank label usually means a misspelled attribute name.
+If a feature is missing an attribute the template names, the rest of the template still draws for that feature and the other features are unaffected. Nothing reports the mistake, so a blank label usually means a misspelled attribute name — the **Attributes** tab lists the names a layer actually carries.
+
+Leaving the template empty draws no labels at all.
 
 
 .. _label_placement:
@@ -48,6 +54,11 @@ Placement
 
 Placement is chosen from a grid of nine positions — the eight compass directions plus center — and applies to every feature on the layer. The label offsets itself from the feature's symbol so it does not cover it, and the offset grows with the symbol, so a layer whose point sizes vary by attribute keeps its labels clear.
 
+.. Screenshot slot: the 3x3 placement grid in the editor. Add
+   docs/images/label_placement.png, then replace this comment with:
+   .. figure:: ../../images/label_placement.png
+       :align: center
+
 Placement behaves differently by geometry, and the layer decides this for you rather than asking:
 
 * **Points** sit at the chosen compass position.
@@ -56,25 +67,41 @@ Placement behaves differently by geometry, and the layer decides this for you ra
 
 A feature made of several parts — a basin with islands, or a reach in several segments — draws one label, not one per part.
 
+.. Screenshot slot: a line layer labelled above, along, and below the line. Add
+   docs/images/label_line_placement.png, then replace this comment with:
+   .. figure:: ../../images/label_line_placement.png
+       :align: center
+
+       The same reaches labelled above the line, along it, and below it.
+
 
 .. _label_appearance:
 
-++++++++++
-Appearance
-++++++++++
++++++++++++++++++++
+Text Color and Size
++++++++++++++++++++
 
-Text color, outline color and size are set per layer. An outline is always drawn behind the text and sized in proportion to it, which is what keeps a label readable over satellite imagery, terrain and street basemaps alike. Light text wants a dark outline and dark text a light one.
+**Text Color**, **Text Outline Color** and **Text Size** are set per layer.
+
+An outline is always drawn behind the text and sized in proportion to it, which is what keeps a label readable over satellite imagery, terrain and street basemaps alike. The two colors work together: light text wants a dark outline, and dark text a light one. The default is dark text with a light outline, so a layer labelled over imagery usually wants both changed rather than only the text.
 
 
 .. _label_density:
 
-+++++++++++++++++++
++++++++++++++++++
 Crowding and Zoom
-+++++++++++++++++++
++++++++++++++++++
 
 Labels that would overlap are thinned automatically: some are not drawn so the rest stay readable, and the hidden ones reappear as you zoom in. Layers are thinned independently, so a busy layer never suppresses labels on another one.
 
-Thinning is all or nothing for a given label — it is drawn or it is not, and nothing says which label lost. On a layer where every label matters, check **Allow Overlapping Labels** in the Placement section. Thinning is then switched off for that layer and every label draws, relying on the outline behind each one to keep it legible where two land on top of each other.
+Thinning is all or nothing for a given label — it is drawn or it is not, and nothing says which label lost. On a layer where every label matters, check **Allow Overlapping Labels**. Thinning is then switched off for that layer and every label draws, relying on the outline behind each one to keep it legible where two land on top of each other.
+
+.. Screenshot slot: the same crowded layer thinned, then with overlap allowed.
+   Add docs/images/label_overlap.png, then replace this comment with:
+   .. figure:: ../../images/label_overlap.png
+       :align: center
+
+       The same gauges with thinning on, and with Allow Overlapping Labels checked.
 
 For a layer dense enough that thinning is not enough, set a **Minimum Display Zoom**. Below that zoom the layer draws its geometry with no labels at all; at or above it the labels return. Leaving the field empty means the labels always draw.
 
@@ -85,17 +112,17 @@ For a layer dense enough that thinning is not enough, set a **Minimum Display Zo
 
 .. _label_plugins:
 
-++++++++++++++++++
++++++++++++++++++++
 Labels From Plugins
-++++++++++++++++++
++++++++++++++++++++
 
 A plugin that returns map layers can supply label settings with them. They are stored exactly as the editor stores them, so a plugin-supplied label opens in this tab and can be edited or overridden like any other.
 
 
 .. _label_popups:
 
-++++++++++++++++++++++
++++++++++++++++++++++++
 Labels and Popup Modals
-++++++++++++++++++++++
++++++++++++++++++++++++
 
 The labels tab is hidden for layers on a map inside a popup modal. Inside a popup, a ``${feature.*}`` reference means the feature that was clicked to open the popup, not each feature of the inner layer, so a label there would resolve to something other than what it appears to say.
