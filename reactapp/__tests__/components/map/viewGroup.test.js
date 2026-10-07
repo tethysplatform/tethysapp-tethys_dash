@@ -15,6 +15,8 @@ import {
   resolutionsAreEqual,
   rotationsAreEqual,
   viewsAreEqual,
+  stripLabelsInPopup,
+  POPUP_TAB_ID,
 } from "components/map/viewGroup";
 
 describe("normalizeViewGroupName", () => {
@@ -639,5 +641,55 @@ describe("enforceSingleGroupInitialExtent", () => {
       viewGroup: "Basin",
       isInitialExtent: false,
     });
+  });
+});
+describe("stripLabelsInPopup", () => {
+  // eslint-disable-next-line no-template-curly-in-string
+  const TEMPLATE = "${feature.station_id}";
+  const labeled = (name) => ({
+    type: "VectorLayer",
+    props: { name, labelConfig: { template: TEMPLATE, anchor: "n" } },
+  });
+  const plain = (name) => ({ type: "VectorLayer", props: { name } });
+
+  it("drops label config from every layer on a popup-nested map", () => {
+    const result = stripLabelsInPopup(
+      [labeled("Gauges"), plain("Basins")],
+      POPUP_TAB_ID,
+    );
+
+    expect(result[0].props.labelConfig).toBeUndefined();
+    expect(result[0].props.name).toBe("Gauges");
+    expect(result[1]).toEqual(plain("Basins"));
+  });
+
+  it("drops a label config written at the top level of a layer too", () => {
+    const result = stripLabelsInPopup(
+      [{ type: "VectorLayer", props: { name: "Gauges" }, labelConfig: {} }],
+      POPUP_TAB_ID,
+    );
+
+    expect(result[0].labelConfig).toBeUndefined();
+  });
+
+  it("leaves labels alone on a map that is not popup-nested", () => {
+    const layers = [labeled("Gauges")];
+    const result = stripLabelsInPopup(layers, "dashboard-tab-1");
+
+    expect(result).toBe(layers);
+    expect(result[0].props.labelConfig).toEqual({
+      template: TEMPLATE,
+      anchor: "n",
+    });
+  });
+
+  it("returns the same array when a popup map has no labels to drop", () => {
+    const layers = [plain("Basins")];
+    expect(stripLabelsInPopup(layers, POPUP_TAB_ID)).toBe(layers);
+  });
+
+  it("tolerates absent or non-array layers", () => {
+    expect(stripLabelsInPopup(undefined, POPUP_TAB_ID)).toBeUndefined();
+    expect(stripLabelsInPopup(null, POPUP_TAB_ID)).toBeNull();
   });
 });
