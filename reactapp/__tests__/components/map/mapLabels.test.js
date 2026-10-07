@@ -17,6 +17,7 @@ import PropTypes from "prop-types";
 import MapComponent, {
   readLabelConfig,
   isRuleBasedStyle,
+  labelConfigForMap,
 } from "components/map/Map";
 import MapContextProvider, {
   useMapContext,
@@ -716,5 +717,38 @@ describe("label config edge cases", () => {
     expect(isRuleBasedStyle([{ rules: [] }])).toBe(false);
     expect(isRuleBasedStyle({ default: { point: {} } })).toBe(true);
     expect(isRuleBasedStyle({ rules: [] })).toBe(true);
+  });
+});
+
+describe("labelConfigForMap's zoom conversion", () => {
+  const withFloor = (map) => labelConfigForMap({ minZoom: 8 }, map);
+
+  it("reports no floor when the view cannot be reached", () => {
+    // Read per feature per frame from inside the render path: a map mid-teardown,
+    // or one whose view is being swapped, must mean "no floor" rather than an
+    // exception that takes the layer down with it.
+    const throwingMap = {
+      getView() {
+        throw new Error("view unavailable");
+      },
+    };
+
+    expect(withFloor(throwingMap).minZoomResolution).toBeUndefined();
+    expect(withFloor(undefined).minZoomResolution).toBeUndefined();
+    expect(withFloor({}).minZoomResolution).toBeUndefined();
+  });
+
+  it("reports no floor when the view answers with something unusable", () => {
+    const nanMap = {
+      getView: () => ({ getResolutionForZoom: () => NaN }),
+    };
+    expect(withFloor(nanMap).minZoomResolution).toBeUndefined();
+  });
+
+  it("converts through the live view when it can", () => {
+    const map = {
+      getView: () => ({ getResolutionForZoom: (zoom) => zoom * 10 }),
+    };
+    expect(withFloor(map).minZoomResolution).toBe(80);
   });
 });

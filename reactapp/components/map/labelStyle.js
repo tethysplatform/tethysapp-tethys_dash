@@ -267,13 +267,17 @@ function cachedLabelText(labelConfig, bucket) {
   // `String()` rather than `JSON.stringify`: a template that arrived as an
   // object must not throw here, and a collision between two such templates is
   // harmless because the text is written per feature anyway.
+  //
+  // No nullish guard on the template: `buildLabelStyle` returns null for an
+  // empty resolved text before it ever calls this, so a nullish one cannot
+  // reach the key. The anchor keeps its guard -- that field really is optional.
   const key = [
     bucket,
     size,
     color,
     haloColor,
     String(labelConfig.anchor ?? ""),
-    String(labelConfig.template ?? ""),
+    String(labelConfig.template),
   ].join(" ");
 
   const cached = labelTextCache.get(key);

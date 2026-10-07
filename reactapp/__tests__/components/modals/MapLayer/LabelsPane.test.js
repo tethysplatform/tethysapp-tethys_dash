@@ -2,7 +2,7 @@
 // This file exercises literal `${feature.x}` label-template syntax.
 import { useRef, useState } from "react";
 import PropTypes from "prop-types";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import LabelsPane, {
   withDefaults,
   coerceNumericField,
@@ -316,4 +316,60 @@ test("coerceNumericField keeps blanks blank and numbers numeric", () => {
   expect(coerceNumericField("12.5")).toBe(12.5);
   // A variable-input template is left as typed rather than becoming NaN.
   expect(coerceNumericField("${Size}")).toBe("${Size}");
+});
+
+describe("the color controls", () => {
+  // react-color-palette measures its saturation area; jsdom has no observer.
+  let realResizeObserver;
+  beforeAll(() => {
+    realResizeObserver = global.ResizeObserver;
+    global.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+  });
+  afterAll(() => {
+    if (realResizeObserver) global.ResizeObserver = realResizeObserver;
+    else delete global.ResizeObserver;
+  });
+
+  test("picking a text color emits it", async () => {
+    const onChange = jest.fn();
+    render(
+      <Harness initial={{ template: "${feature.name}" }} onChange={onChange} />,
+    );
+
+    fireEvent.click(screen.getByLabelText("Text Color color popover square"));
+    fireEvent.change(screen.getByRole("textbox", { name: "HEX" }), {
+      target: { value: "#2aff00" },
+    });
+
+    await waitFor(() => expect(onChange).toHaveBeenCalled());
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ color: "#2aff00" }),
+    );
+  });
+
+  test("picking a text outline color emits it without disturbing the text color", async () => {
+    const onChange = jest.fn();
+    render(
+      <Harness
+        initial={{ template: "${feature.name}", color: "#112233" }}
+        onChange={onChange}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByLabelText("Text Outline Color color popover square"),
+    );
+    fireEvent.change(screen.getByRole("textbox", { name: "HEX" }), {
+      target: { value: "#000000" },
+    });
+
+    await waitFor(() => expect(onChange).toHaveBeenCalled());
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ haloColor: "#000000", color: "#112233" }),
+    );
+  });
 });
