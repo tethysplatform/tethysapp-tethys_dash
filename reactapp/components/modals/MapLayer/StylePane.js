@@ -90,6 +90,44 @@ const ClassTable = styled.table`
   }
 `;
 
+// Absent from this list, the Style tab renders a dead-end "not available for
+// this source type" panel instead of the rule editor -- so styling a shapefile
+// layer would be impossible regardless of what field discovery returned.
+//
+// Exported because it is the app's definition of "a vector layer an author can
+// style per feature". The Labels tab gates on exactly the same set, and a second
+// copy would drift the moment a source type is added.
+export const STYLEABLE_VECTOR_SOURCE_TYPES = [
+  "GeoJSON",
+  "ESRI Feature Service",
+  "PMTiles Vector",
+  "Shapefile",
+  "GeoPackage",
+  "GeoParquet",
+];
+
+/**
+ * Whether a source carries per-feature vector geometry the editor can style
+ * (and therefore label).
+ *
+ * A dynamic plugin layer is typed by the plugin's own label rather than by a
+ * source type, so membership comes from what the plugin declares it drives: a
+ * dynamic GeoJSON layer is built as a VectorLayer and can be styled per
+ * feature, a dynamic GeoTIFF is a raster and has no features to style or label.
+ *
+ * @param {object} sourceProps The editor's source props.
+ * @param {Array} dynamicMapLayers The grouped plugin options from AppContext.
+ * @returns {boolean}
+ */
+export function supportsVectorStyling(sourceProps, dynamicMapLayers) {
+  if (STYLEABLE_VECTOR_SOURCE_TYPES.includes(sourceProps?.type)) return true;
+  const dynamicSource = getDynamicLayerSourceType(
+    dynamicMapLayers,
+    sourceProps,
+  );
+  return dynamicSource !== null && dynamicSource !== "GeoTIFF";
+}
+
 const StylePane = ({
   style,
   setStyle,
@@ -477,25 +515,11 @@ const StylePane = ({
     );
   }
 
-  // Absent from this list, the Style tab renders a dead-end "not available for
-  // this source type" panel instead of the rule editor -- so styling a shapefile
-  // layer would be impossible regardless of what field discovery returned.
-  const supportedTypes = [
-    "GeoJSON",
-    "ESRI Feature Service",
-    "PMTiles Vector",
-    "Shapefile",
-    "GeoPackage",
-    "GeoParquet",
-  ];
-  const isDynamicMapLayer = findSelectOptionByValue(
-    dynamicMapLayers,
-    sourceProps.type,
-  );
-  if (!supportedTypes.includes(sourceProps.type) && !isDynamicMapLayer) {
+  if (!supportsVectorStyling(sourceProps, dynamicMapLayers)) {
     return (
       <CenteredDiv>
-        Custom Styling is only available for {supportedTypes.join(", ")} layers.
+        Custom Styling is only available for{" "}
+        {STYLEABLE_VECTOR_SOURCE_TYPES.join(", ")} layers.
       </CenteredDiv>
     );
   }

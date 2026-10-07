@@ -62,6 +62,7 @@ import { useViewGroupContext } from "components/contexts/ViewGroupContext";
 import {
   isViewGroupMember,
   readViewGroupSettings,
+  stripLabelsInPopup,
 } from "components/map/viewGroup";
 import PopupModal from "components/modals/PopupModal/PopupModal";
 import PopupModalChrome from "components/modals/PopupModal/PopupModalChrome";
@@ -516,6 +517,15 @@ const MapVisualization = ({
   // reconciliation would eventually sweep it away.
   const viewGroupContext = useViewGroupContext();
   const { activeTabId } = useContext(TabContext) ?? {};
+  // A map nested in a popup modal draws no labels -- see stripLabelsInPopup
+  // for why a per-feature label cannot mean anything in that scope. Dropped at
+  // render rather than on save, so a label saved before the layer was reused in
+  // a popup, or one a plugin supplied, is covered too.
+  const layersForMap = useMemo(
+    () => stripLabelsInPopup(mapLayers, activeTabId),
+    [mapLayers, activeTabId],
+  );
+
   const viewGroupName = readViewGroupSettings(mapExtent).viewGroup;
   // The same membership rules MapComponent applies to the view half of a
   // group, so the two halves are never enabled independently of each other.
@@ -1768,7 +1778,7 @@ const MapVisualization = ({
       <MapComponent
         mapConfig={mapConfig}
         mapExtent={mapExtent}
-        layers={mapLayers}
+        layers={layersForMap}
         legend={displayedMapLegend}
         layerControl={layerControl}
         mapDrawing={mapDrawing}
