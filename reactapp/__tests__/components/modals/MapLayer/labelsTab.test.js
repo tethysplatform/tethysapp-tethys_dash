@@ -129,10 +129,10 @@ test("a saved label reopens showing its values", async () => {
   expect(await screen.findByRole("dialog")).toBeInTheDocument();
   openLabelsTab();
 
-  expect(await screen.findByLabelText("Label Template")).toHaveValue(
+  expect(await screen.findByLabelText("Template")).toHaveValue(
     "${feature.station_id}",
   );
-  expect(screen.getByLabelText("Label Size")).toHaveValue("18");
+  expect(screen.getByLabelText("Size")).toHaveValue("18");
   expect(screen.getByLabelText("Label Minimum Zoom")).toHaveValue("7");
 });
 
@@ -175,7 +175,7 @@ test("a zero-like label size and zoom floor survive the save", async () => {
   expect(await screen.findByRole("dialog")).toBeInTheDocument();
   openLabelsTab();
 
-  fireEvent.change(await screen.findByLabelText("Label Size"), {
+  fireEvent.change(await screen.findByLabelText("Size"), {
     target: { value: "0" },
   });
   fireEvent.change(screen.getByLabelText("Label Minimum Zoom"), {
@@ -188,30 +188,4 @@ test("a zero-like label size and zoom floor survive the save", async () => {
     size: 0,
     minZoom: 0,
   });
-});
-
-test("attribute discovery is reachable from the Labels pane", async () => {
-  mockedGetLayerAttributes.mockResolvedValue({
-    Gauges: [{ name: "station_id", alias: "Station" }],
-  });
-
-  mountModal({ layerInfo: vectorLayerInfo });
-
-  expect(await screen.findByRole("dialog")).toBeInTheDocument();
-  openLabelsTab();
-
-  // Discovery is author-triggered: nothing is read until the menu opens.
-  expect(mockedGetLayerAttributes).not.toHaveBeenCalled();
-
-  fireEvent.click(await screen.findByLabelText("Insert Attribute"));
-
-  const option = await screen.findByText("Station (station_id)");
-  expect(mockedGetLayerAttributes).toHaveBeenCalled();
-
-  fireEvent.click(option);
-  await waitFor(() =>
-    expect(screen.getByLabelText("Label Template")).toHaveValue(
-      "${feature.station_id}",
-    ),
-  );
 });

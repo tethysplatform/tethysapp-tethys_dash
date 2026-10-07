@@ -17,7 +17,6 @@ import StylePane, {
   supportsVectorStyling,
 } from "components/modals/MapLayer/StylePane";
 import LabelsPane from "components/modals/MapLayer/LabelsPane";
-import { useLabelAttributeDiscovery } from "components/modals/MapLayer/labelAttributeDiscovery";
 import PopupConfigPane from "components/modals/MapLayer/PopupConfigPane";
 import PopupLayoutEditor from "components/modals/MapLayer/PopupLayoutEditor";
 import {
@@ -310,16 +309,6 @@ const MapLayerModal = ({
     sourceProps,
     variableInputValues,
     variableInputDateFormats,
-  });
-
-  // Hoisted beside the other discovery hooks, per the convention that reads
-  // belong to the modal rather than to a pane -- a pane unmounts when its tab
-  // is left, and a re-read on every tab switch would re-run a plugin.
-  const labelAttributeDiscovery = useLabelAttributeDiscovery({
-    sourceProps,
-    layerName: layerProps?.name,
-    dynamicMapLayers,
-    shapefileDiscovery,
   });
 
   const onRequestHideModal = useCallback(() => {
@@ -837,7 +826,6 @@ const MapLayerModal = ({
                     labelConfig={labelConfig}
                     onChange={setLabelConfig}
                     containerRef={labelsContainerRef}
-                    attributeDiscovery={labelAttributeDiscovery}
                   />
                 </div>
               </Tab>

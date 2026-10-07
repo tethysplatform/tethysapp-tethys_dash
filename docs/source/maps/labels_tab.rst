@@ -39,10 +39,6 @@ A template may also reference a dashboard variable input, which resolves once fo
 
 If a feature is missing an attribute the template names, the rest of the template still draws for that feature and the other features are unaffected. Nothing reports the mistake, so a blank label usually means a misspelled attribute name.
 
-**Insert Attribute** reads the layer's own attributes and inserts a reference for the one you pick, at the cursor, without disturbing the rest of the template. The list is read when you open it rather than when the tab opens, because for a plugin-produced layer that read runs the plugin.
-
-You can always type a reference by hand instead. Some sources report no attributes — a plugin declares them separately from the features it returns, so one that declares none has nothing to list — and some cannot be read at all. In both cases the field says why and stays typeable.
-
 
 .. _label_placement:
 
@@ -63,9 +59,9 @@ A feature made of several parts — a basin with islands, or a reach in several 
 
 .. _label_appearance:
 
-++++++++++
-Appearance
-++++++++++
+++++
+Text
+++++
 
 Text color and size are set per layer. An outline is always drawn behind the text, sized in proportion to the text, so labels stay readable over satellite imagery, terrain, and street basemaps alike without being configured for each.
 

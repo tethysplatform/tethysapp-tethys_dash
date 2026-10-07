@@ -1,13 +1,9 @@
 /* eslint-disable no-template-curly-in-string */
-// The help text quotes literal `${feature.<key>}` template syntax.
+// The template placeholder quotes literal `${feature.<key>}` syntax.
 import PropTypes from "prop-types";
-import { memo, useCallback, useRef } from "react";
-import Dropdown from "react-bootstrap/Dropdown";
+import { memo, useCallback } from "react";
 import Form from "react-bootstrap/Form";
-import OverlayTrigger from "react-bootstrap/OverlayTrigger";
-import Tooltip from "react-bootstrap/Tooltip";
 import styled from "styled-components";
-import { BsQuestionCircle } from "react-icons/bs";
 import NormalInput from "components/inputs/NormalInput";
 import ColorPickerPopOver from "components/inputs/ColorPickerPopOver";
 import AnchorPicker, { normalizeAnchor } from "components/inputs/AnchorPicker";
@@ -21,13 +17,6 @@ const Section = styled.div`
   margin-bottom: 1.25rem;
 `;
 
-const Row = styled.div`
-  display: flex;
-  gap: 1.5rem;
-  flex-wrap: wrap;
-  align-items: flex-start;
-`;
-
 const FieldCol = styled.div`
   flex: 1;
   min-width: 8rem;
@@ -38,29 +27,11 @@ const SectionLabel = styled(Form.Label)`
   margin-bottom: 0;
 `;
 
-const HelpRow = styled.div`
-  display: flex;
-  align-items: center;
-  margin-bottom: 0.25rem;
-`;
-
-const TooltipIcon = styled(BsQuestionCircle)`
-  margin-left: 0.4rem;
-  cursor: help;
-  color: #6c757d;
-`;
-
 const Note = styled.p`
   font-size: 0.85rem;
   color: #6c757d;
   margin-top: 0.5rem;
 `;
-
-const TEMPLATE_TOOLTIP_TEXT =
-  "Use ${feature.<key>} to substitute each feature's own attributes " +
-  '(e.g., "${feature.station_id}"). Dashboard variable inputs may also be ' +
-  "referenced with ${Variable Name}. A feature missing an attribute renders " +
-  "the rest of the template. An empty template draws no labels.";
 
 // "No floor" is an empty field, not 0 -- 0 is a real zoom level, and coercing a
 // blank field to it would suppress labels everywhere but the whole world view.
@@ -109,33 +80,8 @@ export function coerceNumericField(raw) {
   return Number.isFinite(parsed) ? parsed : str;
 }
 
-/**
- * Splice a feature reference into a template at the caret.
- *
- * A template is usually literal text with references mixed in, so inserting has
- * to preserve what is already typed and land where the author was working --
- * replacing the field would make the picker useless for anything but a
- * single-attribute label. Returns the new template and where the caret should
- * end up, so focus can be restored after the controlled re-render.
- */
-export function insertAtSelection(template, token, start, end) {
-  const text = String(template ?? "");
-  const from = Number.isInteger(start) ? start : text.length;
-  const to = Number.isInteger(end) ? end : from;
-  const head = text.slice(0, from);
-  const tail = text.slice(to);
-  return { value: `${head}${token}${tail}`, caret: from + token.length };
-}
-
-const LabelsPane = ({
-  layerName,
-  labelConfig,
-  onChange,
-  containerRef,
-  attributeDiscovery,
-}) => {
+const LabelsPane = ({ layerName, labelConfig, onChange, containerRef }) => {
   const resolved = withDefaults(labelConfig);
-  const templateWrapRef = useRef(null);
 
   const emit = useCallback(
     (key, value) => {
@@ -169,122 +115,17 @@ const LabelsPane = ({
     [emit],
   );
 
-  // NormalInput does not forward a ref, so the caret is read off the rendered
-  // input. Scoped to this pane's own wrapper, not the document.
-  const templateInput = () =>
-    templateWrapRef.current?.querySelector(
-      'input[aria-label="Label Template"]',
-    );
-
-  const handleAttributeMenuToggle = useCallback(
-    (nextShown) => {
-      if (nextShown) attributeDiscovery?.open?.();
-    },
-    [attributeDiscovery],
-  );
-
-  const handleInsertAttribute = useCallback(
-    (name) => {
-      const input = templateInput();
-      const { value, caret } = insertAtSelection(
-        resolved.template,
-        `\${feature.${name}}`,
-        input?.selectionStart,
-        input?.selectionEnd,
-      );
-      emit("template", value);
-      // The field is controlled, so the caret has to be restored after React
-      // writes the new value back.
-      if (input) {
-        requestAnimationFrame(() => {
-          input.focus();
-          try {
-            input.setSelectionRange(caret, caret);
-          } catch {
-            // Some input types reject selection ranges; focus alone is fine.
-          }
-        });
-      }
-    },
-    [emit, resolved.template],
-  );
-
-  const discoveryState = attributeDiscovery?.state ?? "idle";
-  const discoveredFields = attributeDiscovery?.fields ?? [];
-
   return (
     <div data-testid="labels-pane" data-layer-name={layerName ?? ""}>
       <Section>
-        <HelpRow>
-          <SectionLabel>Label Template</SectionLabel>
-          <OverlayTrigger
-            placement="top"
-            trigger={["hover", "focus"]}
-            overlay={
-              <Tooltip id="label-template-tooltip">
-                {TEMPLATE_TOOLTIP_TEXT}
-              </Tooltip>
-            }
-          >
-            <span tabIndex={0} role="button" aria-label="Label Template Help">
-              <TooltipIcon size="0.95rem" />
-            </span>
-          </OverlayTrigger>
-        </HelpRow>
-        <div ref={templateWrapRef}>
-          <NormalInput
-            value={resolved.template}
-            type="text"
-            onChange={handleTemplateChange}
-            ariaLabel="Label Template"
-            placeholder="${feature.station_id}"
-          />
-        </div>
-        {attributeDiscovery && (
-          <Dropdown onToggle={handleAttributeMenuToggle}>
-            <Dropdown.Toggle
-              size="sm"
-              variant="outline-secondary"
-              id="label-attribute-picker"
-              aria-label="Insert Attribute"
-            >
-              Insert Attribute
-            </Dropdown.Toggle>
-            <Dropdown.Menu aria-label="Label Attribute List">
-              {discoveryState === "loading" && (
-                <Dropdown.ItemText>Reading attributes…</Dropdown.ItemText>
-              )}
-              {discoveryState === "failed" && (
-                <Dropdown.ItemText>
-                  {attributeDiscovery.error ??
-                    "Could not read this layer's attributes."}{" "}
-                  Type the attribute name instead.
-                </Dropdown.ItemText>
-              )}
-              {discoveryState === "ready" && discoveredFields.length === 0 && (
-                <Dropdown.ItemText>
-                  This source reports no attributes. Type the attribute name
-                  instead.
-                </Dropdown.ItemText>
-              )}
-              {discoveryState === "ready" &&
-                discoveredFields.map((field) => (
-                  <Dropdown.Item
-                    key={field.name}
-                    onClick={() => handleInsertAttribute(field.name)}
-                  >
-                    {field.alias && field.alias !== field.name
-                      ? `${field.alias} (${field.name})`
-                      : field.name}
-                  </Dropdown.Item>
-                ))}
-            </Dropdown.Menu>
-          </Dropdown>
-        )}
-        <Note>
-          Leave empty to draw no labels. Labels follow the layer&apos;s own
-          visibility.
-        </Note>
+        <SectionLabel>Template</SectionLabel>
+        <NormalInput
+          value={resolved.template}
+          type="text"
+          onChange={handleTemplateChange}
+          ariaLabel="Template"
+          placeholder="${feature.station_id}"
+        />
       </Section>
 
       <Section>
@@ -301,28 +142,26 @@ const LabelsPane = ({
       </Section>
 
       <Section>
-        <SectionLabel>Appearance</SectionLabel>
-        <Row style={{ marginTop: "0.5rem" }}>
-          <FieldCol>
-            <ColorPickerPopOver
-              label="Label Text"
-              color={resolved.color}
-              onChange={handleColorChange}
-              containerRef={containerRef}
-            />
-          </FieldCol>
-          <FieldCol>
-            <NormalInput
-              label="Label Size"
-              value={resolved.size}
-              type="number"
-              min={1}
-              onChange={handleSizeChange}
-              ariaLabel="Label Size"
-              allowEmpty
-            />
-          </FieldCol>
-        </Row>
+        <SectionLabel>Text</SectionLabel>
+        <FieldCol style={{ marginTop: "0.5rem" }}>
+          <ColorPickerPopOver
+            label="Color"
+            color={resolved.color}
+            onChange={handleColorChange}
+            containerRef={containerRef}
+          />
+        </FieldCol>
+        <FieldCol style={{ marginTop: "0.75rem" }}>
+          <NormalInput
+            label="Size"
+            value={resolved.size}
+            type="number"
+            min={1}
+            onChange={handleSizeChange}
+            ariaLabel="Size"
+            allowEmpty
+          />
+        </FieldCol>
       </Section>
 
       <Section>
@@ -359,14 +198,6 @@ LabelsPane.propTypes = {
   }),
   onChange: PropTypes.func.isRequired,
   containerRef: PropTypes.object,
-  // Author-triggered attribute discovery. Absent when the editor has no reader
-  // for this source, in which case the template stays a plain typed field.
-  attributeDiscovery: PropTypes.shape({
-    state: PropTypes.oneOf(["idle", "loading", "ready", "failed"]),
-    fields: PropTypes.array,
-    error: PropTypes.string,
-    open: PropTypes.func,
-  }),
 };
 
 export default memo(LabelsPane);
