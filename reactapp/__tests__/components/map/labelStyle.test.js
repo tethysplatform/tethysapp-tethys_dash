@@ -396,9 +396,12 @@ describe("buildLabelStyle placement by geometry", () => {
     // OpenLayers repurposes/ignores these under line placement.
     expect(style.getTextAlign()).toBeUndefined();
     expect(style.getOffsetX()).toBe(0);
-    expect(style.getOffsetY()).toBe(0);
     expect(style.getPadding()).toBeNull();
     expect(style.getOverflow()).toBe(false);
+    // `offsetY` is the exception -- line placement honors it, and the label is
+    // lifted clear of the stroke it would otherwise be drawn through. The lift
+    // carries the caller's clearance (half the line's width) plus the padding.
+    expect(style.getOffsetY()).toBe(-(12 + labelAnchorPadding));
   });
 
   it("uses line placement for a multilinestring", () => {
@@ -820,19 +823,23 @@ describe("buildLabelStyle caches the Text per label configuration", () => {
     expect(small.getOffsetX()).toBe(2 + labelAnchorPadding);
   });
 
-  it("leaves no offsets on a line label from an earlier point call", () => {
+  it("leaves no point offsets on a line label from an earlier point call", () => {
     // Buckets key separately, so this is belt and braces: the shared object is
     // left fully defined on every path rather than carrying a stale offset.
     const labelConfig = labelOf({ anchor: "ne" });
-    build(labelConfig, mockFeature({ name: "Alpha" }), 20);
+    const point = build(labelConfig, mockFeature({ name: "Alpha" }), 20);
+    const pointOffsetY = point.getOffsetY();
 
     const line = build(
       labelConfig,
       mockFeature({ name: "Creek" }, "LineString"),
     );
 
+    // The horizontal half of the anchor is dropped outright, and the vertical
+    // half is replaced by the line's own lift rather than inherited.
     expect(line.getOffsetX()).toBe(0);
-    expect(line.getOffsetY()).toBe(0);
+    expect(line.getOffsetY()).toBe(-labelAnchorPadding);
+    expect(line.getOffsetY()).not.toBe(pointOffsetY);
   });
 
   it("returns null without disturbing the cached Text when a feature draws no label", () => {
@@ -918,5 +925,33 @@ describe("buildLabelStyle outline color", () => {
     expect(large.getStroke().getWidth()).toBeGreaterThan(
       small.getStroke().getWidth(),
     );
+  });
+});
+
+describe("line labels clear the stroke they are drawn along", () => {
+  const lineLabel = (symbolSize) =>
+    buildLabelStyle({
+      labelConfig: { template: "${feature.name}" },
+      feature: mockFeature({ name: "North Santiam" }, "LineString"),
+      geometryBucket: "linestring",
+      symbolSize,
+    });
+
+  it("lifts the label by the caller's clearance plus the padding", () => {
+    expect(lineLabel(0).getOffsetY()).toBe(-labelAnchorPadding);
+    expect(lineLabel(4).getOffsetY()).toBe(-(4 + labelAnchorPadding));
+  });
+
+  it("lifts a thicker line's label further", () => {
+    // The symptom this exists for: text drawn centred on the path has the
+    // stroke running through the glyphs, and a wider stroke covers more of
+    // them. The lift has to track the width, not be a constant.
+    expect(lineLabel(8).getOffsetY()).toBeLessThan(lineLabel(2).getOffsetY());
+  });
+
+  it("tolerates a missing or nonsense clearance", () => {
+    for (const bad of [undefined, null, NaN, -5, "wide"]) {
+      expect(lineLabel(bad).getOffsetY()).toBe(-labelAnchorPadding);
+    }
   });
 });

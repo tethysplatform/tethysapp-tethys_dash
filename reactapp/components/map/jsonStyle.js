@@ -711,7 +711,13 @@ export function applyLabelToStyle(
     resolution,
     // A pixel radius, resolved from the authored size and the drawn symbol --
     // the two are the same number for every shape but a URL icon.
-    symbolSize: effectiveSymbolRadius(symbol?.shape, symbol?.size, image),
+    // How many pixels the geometry covers from its own centre, which is what
+    // the label has to clear: a symbol's radius for a point, half the stroke
+    // for a line drawn through the middle of its own width.
+    symbolSize:
+      geometryBucket === "linestring"
+        ? Math.max(Number(style.getStroke?.()?.getWidth?.()) || 0, 0) / 2
+        : effectiveSymbolRadius(symbol?.shape, symbol?.size, image),
     geometryBucket,
     // The authored `minZoom` is a zoom level and this compares resolutions;
     // the map scope owns the only view that can convert between them and

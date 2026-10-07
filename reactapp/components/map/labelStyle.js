@@ -292,8 +292,9 @@ function cachedLabelText(labelConfig, bucket) {
 
   if (bucket === "linestring") {
     // Under line placement OpenLayers repurposes textAlign and ignores
-    // offsets, rotation, padding and the background options, so setting the
-    // anchor here would present settings that silently do nothing.
+    // offsetX, rotation and padding, so the anchor's horizontal half would
+    // present a setting that silently does nothing. Its vertical lift is
+    // applied per call below, because `offsetY` IS honored here.
     options.placement = "line";
   } else {
     options.placement = "point";
@@ -376,11 +377,19 @@ export function buildLabelStyle({
 
   label.setText(text);
   if (bucket === "linestring") {
-    // Line placement ignores offsets, but the shared object is left in a fully
-    // defined state on every path rather than carrying whatever the last
-    // caller wrote.
+    // Line placement draws the text along the path itself, so without a lift
+    // the stroke runs straight through the glyphs -- the label is on top of
+    // the line (OpenLayers draws Text after LineString) but still unreadable.
+    // Raising it clear is also how a river name reads on a paper map.
+    //
+    // `offsetX` genuinely is dropped under line placement; `offsetY` is not,
+    // and is the only part of the anchor that still means anything here.
+    const halfWidth = Number(symbolSize);
+    const lift =
+      (Number.isFinite(halfWidth) ? Math.max(halfWidth, 0) : 0) +
+      labelAnchorPadding;
     label.setOffsetX(0);
-    label.setOffsetY(0);
+    label.setOffsetY(-lift);
   } else {
     // The gap is measured from the geometry, not from the rendered symbol, so
     // it has to carry the symbol's own radius or the label lands on top of a
