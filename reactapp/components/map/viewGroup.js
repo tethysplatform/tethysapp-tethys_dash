@@ -201,6 +201,37 @@ export function readViewGroupSettings(mapExtent) {
 export const POPUP_TAB_ID = "popup";
 
 /**
+ * Drop label configuration from layers on a map nested inside a popup modal.
+ *
+ * Inside a popup, host-scope substitution runs in feature scope, so a
+ * `${feature.x}` reference in a label template resolves against the feature
+ * that *opened* the popup before the inner map renders. Every feature of the
+ * inner layer would then draw the same text, taken from a different feature
+ * entirely -- the label would say something other than what it appears to say.
+ *
+ * The layer editor hides the Labels tab for these maps, but that only stops new
+ * ones being authored. A label saved before the layer was reused in a popup, or
+ * one supplied by a plugin, still arrives here and has to be dropped.
+ *
+ * Returns the array unchanged when nothing needs dropping, so the common path
+ * costs one comparison and no allocation.
+ */
+export function stripLabelsInPopup(layers, activeTabId) {
+  if (activeTabId !== POPUP_TAB_ID || !Array.isArray(layers)) return layers;
+  if (
+    !layers.some((layer) => layer?.props?.labelConfig || layer?.labelConfig)
+  ) {
+    return layers;
+  }
+  return layers.map((layer) => {
+    if (!layer?.props?.labelConfig && !layer?.labelConfig) return layer;
+    const { labelConfig: _fromProps, ...props } = layer.props ?? {};
+    const { labelConfig: _fromLayer, ...rest } = layer;
+    return { ...rest, props };
+  });
+}
+
+/**
  * Whether a map may join a view group.
  *
  * The view half (`components/map/Map.js`) and the cursor half
