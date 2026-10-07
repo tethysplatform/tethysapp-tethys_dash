@@ -83,7 +83,10 @@ const Dot = styled.span`
   background: ${({ $selected }) => ($selected ? "#007bff" : "#adb5bd")};
 `;
 
-const positionOf = (anchor) => {
+// Exported for its own test: the fallback below is unreachable while
+// ANCHOR_GRID and LABEL_ANCHORS hold the same nine keys, which the component
+// guarantees by normalizing first -- it is a guard against the two drifting.
+export const positionOf = (anchor) => {
   for (let row = 0; row < ANCHOR_GRID.length; row += 1) {
     const col = ANCHOR_GRID[row].indexOf(anchor);
     if (col !== -1) return { row, col };

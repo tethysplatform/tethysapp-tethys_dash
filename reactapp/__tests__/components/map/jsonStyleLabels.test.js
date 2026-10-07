@@ -14,7 +14,7 @@ import path from "path";
 
 import Feature from "ol/Feature";
 import { LineString, MultiPolygon, Point, Polygon } from "ol/geom";
-import { Fill, Stroke } from "ol/style";
+import { Fill, Stroke, Style, Text } from "ol/style";
 
 import {
   applyLabelToStyle,
@@ -626,5 +626,63 @@ describe("applyLabelToStyle", () => {
 
     expect(result).toBe(labeled);
     expect(result.getText()).toBeUndefined();
+  });
+});
+
+describe("applyLabelToStyle without a label", () => {
+  it("clears and returns the style when called with no arguments at all", () => {
+    // The default `= {}` exists because an unlabeled layer reaches this with
+    // nothing to attach, and destructuring undefined would throw inside the
+    // render path rather than losing one label.
+    const style = new Style({
+      stroke: new Stroke({ color: "#000", width: 2 }),
+    });
+    style.setText(new Text({ text: "stale" }));
+
+    const returned = applyLabelToStyle(style);
+
+    expect(returned).toBe(style);
+    expect(style.getText()).toBeUndefined();
+    expect(style.getGeometry()).toBeUndefined();
+  });
+});
+
+describe("a line label's clearance when the style has no stroke", () => {
+  const lineArgs = (style) => ({
+    labelConfig: { template: "${feature.name}", anchor: "n" },
+    feature: new Feature({ geometry: new Point([0, 0]), name: "Creek" }),
+    geometryBucket: "linestring",
+  });
+
+  it("falls back to no clearance when the style carries no stroke", () => {
+    // A rule-built line style always has one, but the label attach reads it
+    // defensively: this runs per feature inside the render path, where a
+    // throw costs the layer rather than the label.
+    const style = new Style({});
+    const returned = applyLabelToStyle(style, lineArgs(style));
+
+    expect([].concat(returned)[0].getText().getOffsetY()).toBe(
+      -labelAnchorPadding,
+    );
+  });
+
+  it("falls back when the stroke carries no width", () => {
+    const style = new Style({ stroke: new Stroke({ color: "#000" }) });
+    const returned = applyLabelToStyle(style, lineArgs(style));
+
+    expect([].concat(returned)[0].getText().getOffsetY()).toBe(
+      -labelAnchorPadding,
+    );
+  });
+
+  it("uses half the stroke width when it has one", () => {
+    const style = new Style({
+      stroke: new Stroke({ color: "#000", width: 8 }),
+    });
+    const returned = applyLabelToStyle(style, lineArgs(style));
+
+    expect([].concat(returned)[0].getText().getOffsetY()).toBe(
+      -(4 + labelAnchorPadding),
+    );
   });
 });

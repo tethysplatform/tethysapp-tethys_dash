@@ -253,7 +253,7 @@ export function resolveLabelText(template, feature) {
 // cache is emptied wholesale once it passes the cap rather than growing the
 // way the geometry `styleCache` does.
 const labelTextCache = new Map();
-const LABEL_TEXT_CACHE_LIMIT = 200;
+export const LABEL_TEXT_CACHE_LIMIT = 200;
 
 /** Test seam, and the reset a long-lived page would need if one is ever added. */
 export function clearLabelTextCache() {

@@ -5,6 +5,7 @@ import AnchorPicker, {
   ANCHOR_GRID,
   ANCHOR_LABELS,
   normalizeAnchor,
+  positionOf,
 } from "components/inputs/AnchorPicker";
 import { LABEL_ANCHOR_OPTIONS } from "components/map/labelStyle";
 
@@ -154,4 +155,21 @@ test("only the roving cell is in the tab order, and it follows the selection", (
 test("the group is exposed as a radiogroup with a name", () => {
   render(<Harness onChange={jest.fn()} />);
   expect(screen.getByRole("radiogroup")).toHaveAccessibleName("Label Anchor");
+});
+
+describe("positionOf", () => {
+  it("locates every anchor in the grid", () => {
+    expect(positionOf("nw")).toEqual({ row: 0, col: 0 });
+    expect(positionOf("n")).toEqual({ row: 0, col: 1 });
+    expect(positionOf("center")).toEqual({ row: 1, col: 1 });
+    expect(positionOf("se")).toEqual({ row: 2, col: 2 });
+  });
+
+  it("falls back to the centre cell for an anchor the grid does not hold", () => {
+    // Unreachable through the component, which normalizes before it asks --
+    // this guards the case where ANCHOR_GRID and LABEL_ANCHORS drift apart,
+    // which would otherwise send the arrow keys off a cell that is not there.
+    expect(positionOf("nowhere")).toEqual({ row: 1, col: 1 });
+    expect(positionOf(undefined)).toEqual({ row: 1, col: 1 });
+  });
 });

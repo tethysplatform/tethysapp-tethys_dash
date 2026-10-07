@@ -725,10 +725,10 @@ const FEATURE_TOKEN_RE = /\$\{(feature\.[^}]+)\}/g;
 const VARIABLE_INPUT_TOKEN_RE = /\$\{([^}]+)\}/g;
 
 // Object keys whose subtree is intentionally NOT scanned for unresolved
-// tokens. Shared by BOTH scanners below. Each entry maps the key to the
-// ancestor key its exemption is scoped to: the subtree is skipped only when
-// that ancestor appears somewhere on the path from the args root, and `null`
-// means "at any depth".
+// tokens. Shared by BOTH scanners below. Each entry maps the key to the path
+// its exemption is scoped to -- an ancestor that must appear somewhere above
+// it, optionally plus the immediate parent it must sit under -- or `null` for
+// "at any depth".
 //
 // The scoping is what keeps the exemption honest. These walkers run over EVERY
 // visualization's args, not just the Map widget's, so a bare name match lets
@@ -780,11 +780,10 @@ const FEATURE_SCAN_SKIP_KEYS = new Map([
 ]);
 
 // Does the path to the key being visited satisfy its scope? `null` means any
-// depth; a string names an ancestor that must appear anywhere on the trail; an
-// object can additionally pin the immediate parent.
+// depth; an object names an ancestor that must appear somewhere on the trail
+// and, optionally, the immediate parent the key must sit directly under.
 function skipScopeMatches(scope, trail) {
   if (scope === null) return true;
-  if (typeof scope === "string") return trail.includes(scope);
   return (
     (!scope.ancestor || trail.includes(scope.ancestor)) &&
     (!scope.parent || trail[trail.length - 1] === scope.parent)

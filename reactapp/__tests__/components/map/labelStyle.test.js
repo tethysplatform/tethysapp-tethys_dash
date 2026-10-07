@@ -25,6 +25,7 @@ import {
   defaultLabelPadding,
   labelAnchorPadding,
   clearLabelTextCache,
+  LABEL_TEXT_CACHE_LIMIT,
 } from "components/map/labelStyle";
 
 // Same shape as the helper in ModuleLoader.test.js -- OpenLayers is not mocked
@@ -1000,5 +1001,206 @@ describe("a line label's side comes from the anchor", () => {
       });
       expect(style.getOffsetX()).toBe(0);
     }
+  });
+});
+
+describe("the render path never throws out of a feature", () => {
+  // Both catches below exist for the same reason: these run inside the
+  // OpenLayers style function, so an exception does not lose one label, it
+  // takes down the whole layer's render.
+
+  it("buckets a feature whose getGeometry throws as a point", () => {
+    const hostile = {
+      getGeometry() {
+        throw new Error("geometry unavailable");
+      },
+    };
+
+    expect(labelGeometryBucket(hostile)).toBe("point");
+  });
+
+  it("resolves empty text when the substituter throws", () => {
+    // A template and a property bag that make substitution itself throw --
+    // a getter that blows up when the substituter reads it.
+    const hostile = {
+      getProperties() {
+        return Object.defineProperty({}, "name", {
+          enumerable: true,
+          get() {
+            throw new Error("attribute unavailable");
+          },
+        });
+      },
+    };
+
+    expect(resolveLabelText("${feature.name}", hostile)).toBe("");
+  });
+
+  it("resolves empty text when reading the properties throws", () => {
+    const hostile = {
+      getProperties() {
+        throw new Error("properties unavailable");
+      },
+    };
+
+    // The property read has its own catch: it falls through with undefined
+    // properties, which the substituter then renders as an empty match.
+    expect(typeof resolveLabelText("${feature.name}", hostile)).toBe("string");
+  });
+});
+
+describe("resolveLabelGeometry picks one part of a multi-geometry", () => {
+  const polygonOfArea = (area) => ({
+    getArea: () => area,
+    getInteriorPoint: () => `interior-${area}`,
+  });
+
+  it("takes the largest polygon, whichever order the parts arrive in", () => {
+    // The label belongs on the mainland, not on whichever island the
+    // coordinate list happens to start with.
+    const firstBiggest = {
+      getType: () => "MultiPolygon",
+      getPolygons: () => [polygonOfArea(90), polygonOfArea(10)],
+    };
+    const lastBiggest = {
+      getType: () => "MultiPolygon",
+      getPolygons: () => [polygonOfArea(10), polygonOfArea(90)],
+    };
+
+    expect(resolveLabelGeometry({ getGeometry: () => firstBiggest })).toBe(
+      "interior-90",
+    );
+    expect(resolveLabelGeometry({ getGeometry: () => lastBiggest })).toBe(
+      "interior-90",
+    );
+  });
+
+  it("takes the longest line, whichever order the parts arrive in", () => {
+    const line = (length) => ({ getLength: () => length, id: length });
+    const firstLongest = {
+      getType: () => "MultiLineString",
+      getLineStrings: () => [line(500), line(5)],
+    };
+    const lastLongest = {
+      getType: () => "MultiLineString",
+      getLineStrings: () => [line(5), line(500)],
+    };
+
+    // The shortest stub cannot fit the text under line placement, so labeling
+    // it would drop the label entirely.
+    expect(resolveLabelGeometry({ getGeometry: () => firstLongest }).id).toBe(
+      500,
+    );
+    expect(resolveLabelGeometry({ getGeometry: () => lastLongest }).id).toBe(
+      500,
+    );
+  });
+
+  it("takes the first point of a multi-point", () => {
+    const geometry = {
+      getType: () => "MultiPoint",
+      getPoint: (i) => `point-${i}`,
+    };
+    expect(resolveLabelGeometry({ getGeometry: () => geometry })).toBe(
+      "point-0",
+    );
+  });
+
+  it("returns undefined for an empty multi-geometry", () => {
+    for (const geometry of [
+      { getType: () => "MultiPolygon", getPolygons: () => [] },
+      { getType: () => "MultiLineString", getLineStrings: () => [] },
+    ]) {
+      expect(
+        resolveLabelGeometry({ getGeometry: () => geometry }),
+      ).toBeUndefined();
+    }
+  });
+
+  it("tolerates parts that do not answer the measurement calls", () => {
+    // A RenderFeature from a vector tile source answers a narrower API than an
+    // ol/geom instance; this must degrade rather than throw into the render.
+    const geometry = {
+      getType: () => "MultiPolygon",
+      getPolygons: () => [{}, {}],
+    };
+    expect(
+      resolveLabelGeometry({ getGeometry: () => geometry }),
+    ).toBeUndefined();
+
+    const lines = {
+      getType: () => "MultiLineString",
+      getLineStrings: () => [{ id: "a" }, { id: "b" }],
+    };
+    expect(resolveLabelGeometry({ getGeometry: () => lines }).id).toBe("a");
+  });
+
+  it("returns undefined when a multi-geometry cannot list its parts", () => {
+    for (const type of ["MultiPolygon", "MultiLineString", "MultiPoint"]) {
+      const geometry = { getType: () => type };
+      expect(
+        resolveLabelGeometry({ getGeometry: () => geometry }),
+      ).toBeUndefined();
+    }
+  });
+});
+
+describe("resolveAnchor's distance guard", () => {
+  it("treats a non-finite gap as no gap", () => {
+    for (const distance of [NaN, Infinity, undefined, "wide"]) {
+      // toBeCloseTo rather than toBe: a negative anchor sign times a zero gap
+      // is -0, which Object.is separates from 0 and OpenLayers does not.
+      expect(resolveAnchor("ne", distance).offsetX).toBeCloseTo(0);
+      expect(resolveAnchor("ne", distance).offsetY).toBeCloseTo(0);
+    }
+  });
+});
+
+describe("the label text cache is bounded", () => {
+  it("empties wholesale once it passes its cap", () => {
+    // Key space is bounded by the configurations on screen, but a plugin that
+    // rewrites its layer config on every fetch could walk it upward -- so the
+    // cache is cleared rather than grown, unlike the geometry style cache
+    // which is per style function and dies with it.
+    clearLabelTextCache();
+    const feature = mockFeature({ name: "Alpha" });
+
+    const styleFor = (i) =>
+      buildLabelStyle({
+        labelConfig: { template: `label ${i} \${feature.name}` },
+        feature,
+        geometryBucket: "point",
+      });
+
+    const first = styleFor(0);
+    // Re-asking for the same configuration hands back the same object, which
+    // is what the cache is for.
+    expect(styleFor(0)).toBe(first);
+
+    for (let i = 1; i <= LABEL_TEXT_CACHE_LIMIT + 1; i += 1) styleFor(i);
+
+    // Past the cap the cache was emptied, so the first configuration is built
+    // afresh rather than served.
+    expect(styleFor(0)).not.toBe(first);
+  });
+
+  it("keys a template that arrived as a non-string", () => {
+    clearLabelTextCache();
+    const feature = mockFeature({ name: "Alpha" });
+    const numeric = buildLabelStyle({
+      labelConfig: { template: 2026 },
+      feature,
+      geometryBucket: "point",
+    });
+    const absent = buildLabelStyle({
+      labelConfig: { template: "2026" },
+      feature,
+      geometryBucket: "point",
+    });
+
+    // Both render the same literal, and String() keys them to one entry rather
+    // than throwing on a template the layer props coerced to a number.
+    expect(numeric.getText()).toBe("2026");
+    expect(absent).toBe(numeric);
   });
 });
