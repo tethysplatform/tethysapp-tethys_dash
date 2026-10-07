@@ -40,14 +40,14 @@ test("renders the five controls seeded from the render defaults when nothing is 
   render(<Harness onChange={jest.fn()} />);
 
   expect(screen.getByLabelText("Template")).toHaveValue("");
-  expect(screen.getByLabelText("Size")).toHaveValue(String(defaultLabelSize));
-  expect(screen.getByLabelText("Label Minimum Zoom")).toHaveValue("");
+  expect(screen.getByLabelText("Text Size")).toHaveValue(String(defaultLabelSize));
+  expect(screen.getByLabelText("Minimum Display Zoom")).toHaveValue("");
   expect(screen.getByLabelText("Center Anchor")).toHaveAttribute(
     "aria-checked",
     "true",
   );
   expect(
-    screen.getByLabelText("Color color popover square"),
+    screen.getByLabelText("Text Color color popover square"),
   ).toBeInTheDocument();
 });
 
@@ -74,7 +74,7 @@ test("typing a template, choosing an anchor and setting size emit the whole conf
     }),
   );
 
-  fireEvent.change(screen.getByLabelText("Size"), {
+  fireEvent.change(screen.getByLabelText("Text Size"), {
     target: { value: "18" },
   });
   expect(onChange).toHaveBeenLastCalledWith(
@@ -99,7 +99,7 @@ test("setting a label zoom floor emits it as an authored zoom level", () => {
   const onChange = jest.fn();
   render(<Harness onChange={onChange} />);
 
-  fireEvent.change(screen.getByLabelText("Label Minimum Zoom"), {
+  fireEvent.change(screen.getByLabelText("Minimum Display Zoom"), {
     target: { value: "9" },
   });
 
@@ -108,7 +108,7 @@ test("setting a label zoom floor emits it as an authored zoom level", () => {
   expect(onChange).toHaveBeenLastCalledWith(
     expect.objectContaining({ minZoom: 9 }),
   );
-  expect(screen.getByLabelText("Label Minimum Zoom")).toHaveValue("9");
+  expect(screen.getByLabelText("Minimum Display Zoom")).toHaveValue("9");
 });
 
 test("a stored configuration reopens showing its own values", () => {
@@ -130,8 +130,8 @@ test("a stored configuration reopens showing its own values", () => {
     "aria-checked",
     "true",
   );
-  expect(screen.getByLabelText("Size")).toHaveValue("21");
-  expect(screen.getByLabelText("Label Minimum Zoom")).toHaveValue("7");
+  expect(screen.getByLabelText("Text Size")).toHaveValue("21");
+  expect(screen.getByLabelText("Minimum Display Zoom")).toHaveValue("7");
 });
 
 test("a plugin-supplied config with an unrecognized anchor shows the default, not a blank control", () => {
@@ -163,8 +163,8 @@ test("zero-like stored values are shown as authored rather than replaced by defa
     />,
   );
 
-  expect(screen.getByLabelText("Size")).toHaveValue("0");
-  expect(screen.getByLabelText("Label Minimum Zoom")).toHaveValue("0");
+  expect(screen.getByLabelText("Text Size")).toHaveValue("0");
+  expect(screen.getByLabelText("Minimum Display Zoom")).toHaveValue("0");
 });
 
 test("clearing the zoom floor emits an empty value, not zero", () => {
@@ -173,7 +173,7 @@ test("clearing the zoom floor emits an empty value, not zero", () => {
     <Harness initial={{ template: "x", minZoom: 9 }} onChange={onChange} />,
   );
 
-  fireEvent.change(screen.getByLabelText("Label Minimum Zoom"), {
+  fireEvent.change(screen.getByLabelText("Minimum Display Zoom"), {
     target: { value: "" },
   });
 
@@ -198,7 +198,7 @@ test("editing one field does not drop the others", () => {
     />,
   );
 
-  fireEvent.change(screen.getByLabelText("Size"), {
+  fireEvent.change(screen.getByLabelText("Text Size"), {
     target: { value: "19" },
   });
 

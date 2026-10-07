@@ -142,10 +142,9 @@ const LabelsPane = ({ layerName, labelConfig, onChange, containerRef }) => {
       </Section>
 
       <Section>
-        <SectionLabel>Text</SectionLabel>
-        <FieldCol style={{ marginTop: "0.5rem" }}>
+        <FieldCol>
           <ColorPickerPopOver
-            label="Color"
+            label="Text Color"
             color={resolved.color}
             onChange={handleColorChange}
             containerRef={containerRef}
@@ -153,19 +152,19 @@ const LabelsPane = ({ layerName, labelConfig, onChange, containerRef }) => {
         </FieldCol>
         <FieldCol style={{ marginTop: "0.75rem" }}>
           <NormalInput
-            label="Size"
+            label="Text Size"
             value={resolved.size}
             type="number"
             min={1}
             onChange={handleSizeChange}
-            ariaLabel="Size"
+            ariaLabel="Text Size"
             allowEmpty
           />
         </FieldCol>
       </Section>
 
       <Section>
-        <SectionLabel>Label Minimum Zoom</SectionLabel>
+        <SectionLabel>Minimum Display Zoom</SectionLabel>
         <Note>
           Labels are hidden below this zoom level while the layer&apos;s
           geometry keeps drawing. Leave empty to always draw labels.
@@ -175,7 +174,7 @@ const LabelsPane = ({ layerName, labelConfig, onChange, containerRef }) => {
           type="number"
           min={0}
           onChange={handleZoomFloorChange}
-          ariaLabel="Label Minimum Zoom"
+          ariaLabel="Minimum Display Zoom"
           allowEmpty
         />
       </Section>

@@ -132,8 +132,8 @@ test("a saved label reopens showing its values", async () => {
   expect(await screen.findByLabelText("Template")).toHaveValue(
     "${feature.station_id}",
   );
-  expect(screen.getByLabelText("Size")).toHaveValue("18");
-  expect(screen.getByLabelText("Label Minimum Zoom")).toHaveValue("7");
+  expect(screen.getByLabelText("Text Size")).toHaveValue("18");
+  expect(screen.getByLabelText("Minimum Display Zoom")).toHaveValue("7");
 });
 
 test("editing an unrelated field preserves the label config through pruning", async () => {
@@ -175,10 +175,10 @@ test("a zero-like label size and zoom floor survive the save", async () => {
   expect(await screen.findByRole("dialog")).toBeInTheDocument();
   openLabelsTab();
 
-  fireEvent.change(await screen.findByLabelText("Size"), {
+  fireEvent.change(await screen.findByLabelText("Text Size"), {
     target: { value: "0" },
   });
-  fireEvent.change(screen.getByLabelText("Label Minimum Zoom"), {
+  fireEvent.change(screen.getByLabelText("Minimum Display Zoom"), {
     target: { value: "0" },
   });
 

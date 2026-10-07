@@ -59,9 +59,9 @@ A feature made of several parts — a basin with islands, or a reach in several 
 
 .. _label_appearance:
 
-++++
-Text
-++++
+++++++++++
+Appearance
+++++++++++
 
 Text color and size are set per layer. An outline is always drawn behind the text, sized in proportion to the text, so labels stay readable over satellite imagery, terrain, and street basemaps alike without being configured for each.
 
@@ -74,7 +74,7 @@ Crowding and Zoom
 
 Labels that would overlap are thinned automatically: some are not drawn so the rest stay readable, and the hidden ones reappear as you zoom in. Layers are thinned independently, so a busy layer never suppresses labels on another one.
 
-For a layer dense enough that thinning is not enough, set a **Label Minimum Zoom**. Below that zoom the layer draws its geometry with no labels at all; at or above it the labels return. Leaving the field empty means the labels always draw.
+For a layer dense enough that thinning is not enough, set a **Minimum Display Zoom**. Below that zoom the layer draws its geometry with no labels at all; at or above it the labels return. Leaving the field empty means the labels always draw.
 
 .. note::
 
