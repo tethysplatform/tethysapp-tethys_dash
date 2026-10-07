@@ -3,6 +3,9 @@
 import PropTypes from "prop-types";
 import { memo, useCallback } from "react";
 import Form from "react-bootstrap/Form";
+import OverlayTrigger from "react-bootstrap/OverlayTrigger";
+import Tooltip from "react-bootstrap/Tooltip";
+import { BsQuestionCircle } from "react-icons/bs";
 import styled from "styled-components";
 import NormalInput from "components/inputs/NormalInput";
 import CheckboxInput from "components/inputs/CheckboxInput";
@@ -14,24 +17,42 @@ import {
   defaultLabelSize,
 } from "components/map/labelStyle";
 
-const Section = styled.div`
-  margin-bottom: 1.25rem;
+// One row per setting: the label on the left, the control on the right, and
+// the explanation folded into a hover tip rather than a paragraph under the
+// field. Keeps the pane scannable -- six settings read as six lines.
+const Field = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
 `;
 
-const FieldCol = styled.div`
-  flex: 1;
-  min-width: 8rem;
+const FieldLabel = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 0 0 auto;
+  min-width: 10rem;
+`;
+
+// Inputs are sized to what they hold: a zoom level and a font size are two or
+// three characters, and a template is a short phrase -- none of them want the
+// full width of the pane.
+const Control = styled.div`
+  flex: 0 1 auto;
+  max-width: ${(props) => props.$width || "16rem"};
+  width: 100%;
+`;
+
+const TooltipIcon = styled(BsQuestionCircle)`
+  cursor: help;
+  color: #6c757d;
+  flex: 0 0 auto;
 `;
 
 const SectionLabel = styled(Form.Label)`
   font-weight: bold;
   margin-bottom: 0;
-`;
-
-const Note = styled.p`
-  font-size: 0.85rem;
-  color: #6c757d;
-  margin-top: 0.5rem;
 `;
 
 // "No floor" is an empty field, not 0 -- 0 is a real zoom level, and coercing a
@@ -85,6 +106,24 @@ export function coerceNumericField(raw) {
   return Number.isFinite(parsed) ? parsed : str;
 }
 
+/** The explanation for a setting, on hover, to the left of its label. */
+const InfoTip = ({ id, children }) => (
+  <OverlayTrigger
+    placement="bottom"
+    trigger={["hover", "focus"]}
+    overlay={<Tooltip id={id}>{children}</Tooltip>}
+  >
+    <span tabIndex={0} role="button" aria-label={`${id} help`}>
+      <TooltipIcon size="0.95rem" />
+    </span>
+  </OverlayTrigger>
+);
+
+InfoTip.propTypes = {
+  id: PropTypes.string.isRequired,
+  children: PropTypes.node,
+};
+
 const LabelsPane = ({ layerName, labelConfig, onChange, containerRef }) => {
   const resolved = withDefaults(labelConfig);
 
@@ -127,54 +166,86 @@ const LabelsPane = ({ layerName, labelConfig, onChange, containerRef }) => {
 
   return (
     <div data-testid="labels-pane" data-layer-name={layerName ?? ""}>
-      <Section>
-        <SectionLabel>Template</SectionLabel>
-        <NormalInput
-          value={resolved.template}
-          type="text"
-          onChange={handleTemplateChange}
-          ariaLabel="Template"
-          placeholder="${feature.station_id}"
-        />
-      </Section>
+      <Field>
+        <FieldLabel>
+          <InfoTip id="Template">
+            Text drawn beside each feature. Use ${"${feature.<key>}"} to insert
+            that feature&apos;s own attribute, and ${"${Variable Name}"} for a
+            dashboard variable input. A feature missing an attribute still draws
+            the rest of the template. Leave empty to draw no labels.
+          </InfoTip>
+          <SectionLabel>Template</SectionLabel>
+        </FieldLabel>
+        <Control>
+          <NormalInput
+            value={resolved.template}
+            type="text"
+            onChange={handleTemplateChange}
+            ariaLabel="Template"
+            placeholder="${feature.station_id}"
+          />
+        </Control>
+      </Field>
 
-      <Section>
-        <SectionLabel>Placement</SectionLabel>
-        <Note>
-          Where the label sits relative to each feature. Line features follow
-          the line and ignore this setting.
-        </Note>
-        <AnchorPicker
-          value={resolved.anchor}
-          onChange={handleAnchorChange}
-          label="Label Anchor"
-        />
-        <CheckboxInput
-          label="Allow Overlapping Labels"
-          type="checkbox"
-          value={resolved.allowOverlap}
-          onChange={handleAllowOverlapChange}
-          divProps={{ style: { marginTop: "0.75rem" } }}
-        />
-        <Note>
-          Labels that would collide are hidden by default, so only some of a
-          crowded layer&apos;s labels draw. Allow overlap to draw every one of
-          them instead.
-        </Note>
-      </Section>
+      <Field>
+        <FieldLabel>
+          <InfoTip id="Placement">
+            Where the label sits relative to each feature. Line features follow
+            the line and ignore this setting.
+          </InfoTip>
+          <SectionLabel>Placement</SectionLabel>
+        </FieldLabel>
+        <Control $width="auto">
+          <AnchorPicker
+            value={resolved.anchor}
+            onChange={handleAnchorChange}
+            label="Label Anchor"
+          />
+        </Control>
+      </Field>
 
-      <Section>
-        <FieldCol>
+      <Field>
+        <FieldLabel>
+          <InfoTip id="Allow Overlapping Labels">
+            Labels that would collide are hidden by default, so only some of a
+            crowded layer&apos;s labels draw. Allow overlap to draw every one of
+            them instead.
+          </InfoTip>
+          <SectionLabel>Allow Overlapping Labels</SectionLabel>
+        </FieldLabel>
+        <Control $width="auto">
+          <CheckboxInput
+            label="Allow Overlapping Labels"
+            type="checkbox"
+            value={resolved.allowOverlap}
+            onChange={handleAllowOverlapChange}
+            divProps={{ style: { gap: 0 } }}
+            hideLabel
+          />
+        </Control>
+      </Field>
+
+      <Field>
+        <FieldLabel>
+          <SectionLabel>Text Color</SectionLabel>
+        </FieldLabel>
+        <Control $width="auto">
           <ColorPickerPopOver
             label="Text Color"
             color={resolved.color}
             onChange={handleColorChange}
             containerRef={containerRef}
+            hideLabel
           />
-        </FieldCol>
-        <FieldCol style={{ marginTop: "0.75rem" }}>
+        </Control>
+      </Field>
+
+      <Field>
+        <FieldLabel>
+          <SectionLabel>Text Size</SectionLabel>
+        </FieldLabel>
+        <Control $width="6rem">
           <NormalInput
-            label="Text Size"
             value={resolved.size}
             type="number"
             min={1}
@@ -182,24 +253,28 @@ const LabelsPane = ({ layerName, labelConfig, onChange, containerRef }) => {
             ariaLabel="Text Size"
             allowEmpty
           />
-        </FieldCol>
-      </Section>
+        </Control>
+      </Field>
 
-      <Section>
-        <SectionLabel>Minimum Display Zoom</SectionLabel>
-        <Note>
-          Labels are hidden below this zoom level while the layer&apos;s
-          geometry keeps drawing. Leave empty to always draw labels.
-        </Note>
-        <NormalInput
-          value={resolved.minZoom}
-          type="number"
-          min={0}
-          onChange={handleZoomFloorChange}
-          ariaLabel="Minimum Display Zoom"
-          allowEmpty
-        />
-      </Section>
+      <Field>
+        <FieldLabel>
+          <InfoTip id="Minimum Display Zoom">
+            Labels are hidden below this zoom level while the layer&apos;s
+            geometry keeps drawing. Leave empty to always draw labels.
+          </InfoTip>
+          <SectionLabel>Minimum Display Zoom</SectionLabel>
+        </FieldLabel>
+        <Control $width="6rem">
+          <NormalInput
+            value={resolved.minZoom}
+            type="number"
+            min={0}
+            onChange={handleZoomFloorChange}
+            ariaLabel="Minimum Display Zoom"
+            allowEmpty
+          />
+        </Control>
+      </Field>
     </div>
   );
 };
