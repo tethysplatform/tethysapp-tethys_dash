@@ -250,16 +250,11 @@ const LabelsPane = ({ layerName, labelConfig, onChange, containerRef }) => {
 
       <Field>
         <FieldLabel>
-          <InfoTip id="Outline Color">
-            An outline is always drawn behind the text so it stays readable over
-            any basemap. Light text wants a dark outline and dark text a light
-            one.
-          </InfoTip>
-          <SectionLabel>Outline Color</SectionLabel>
+          <SectionLabel>Text Outline Color</SectionLabel>
         </FieldLabel>
         <Control $width="auto">
           <ColorPickerPopOver
-            label="Outline Color"
+            label="Text Outline Color"
             color={resolved.haloColor}
             onChange={handleHaloColorChange}
             containerRef={containerRef}
