@@ -383,13 +383,20 @@ export function buildLabelStyle({
     // Raising it clear is also how a river name reads on a paper map.
     //
     // `offsetX` genuinely is dropped under line placement; `offsetY` is not,
-    // and is the only part of the anchor that still means anything here.
+    // so the anchor's vertical half is the part that still means something
+    // here and it chooses the side: a bottom-row anchor puts the name under
+    // the line, anything else above it.
+    //
+    // The middle row reads as "above" rather than "centred on the line",
+    // because centred is the unreadable case this lift exists to avoid -- and
+    // the default anchor is `center`, so the default has to be the good one.
     const halfWidth = Number(symbolSize);
     const lift =
       (Number.isFinite(halfWidth) ? Math.max(halfWidth, 0) : 0) +
       labelAnchorPadding;
+    const { offsetY: verticalSign } = resolveAnchor(labelConfig.anchor, 1);
     label.setOffsetX(0);
-    label.setOffsetY(-lift);
+    label.setOffsetY(verticalSign > 0 ? lift : -lift);
   } else {
     // The gap is measured from the geometry, not from the rendered symbol, so
     // it has to carry the symbol's own radius or the label lands on top of a

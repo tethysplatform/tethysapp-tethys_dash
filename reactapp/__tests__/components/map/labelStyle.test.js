@@ -955,3 +955,49 @@ describe("line labels clear the stroke they are drawn along", () => {
     }
   });
 });
+
+describe("a line label's side comes from the anchor", () => {
+  const sideFor = (anchor) =>
+    buildLabelStyle({
+      labelConfig: { template: "${feature.name}", anchor },
+      feature: mockFeature({ name: "North Santiam" }, "LineString"),
+      geometryBucket: "linestring",
+      symbolSize: 4,
+    }).getOffsetY();
+
+  const lift = 4 + labelAnchorPadding;
+
+  it("puts a bottom-row anchor below the line", () => {
+    for (const anchor of ["s", "se", "sw"]) {
+      expect(sideFor(anchor)).toBe(lift);
+    }
+  });
+
+  it("puts a top-row anchor above the line", () => {
+    for (const anchor of ["n", "ne", "nw"]) {
+      expect(sideFor(anchor)).toBe(-lift);
+    }
+  });
+
+  it("puts the middle row above rather than on the line", () => {
+    // Centred on the line is the unreadable case the lift exists to avoid,
+    // and `center` is the default anchor -- so the default has to land above.
+    for (const anchor of ["center", "e", "w", undefined, "nonsense"]) {
+      expect(sideFor(anchor)).toBe(-lift);
+    }
+  });
+
+  it("keeps the horizontal half of the anchor out of it", () => {
+    // OpenLayers drops offsetX under line placement; a left/right anchor must
+    // not leak in as a horizontal shift that silently does nothing.
+    for (const anchor of ["ne", "nw", "se", "sw"]) {
+      const style = buildLabelStyle({
+        labelConfig: { template: "${feature.name}", anchor },
+        feature: mockFeature({ name: "Creek" }, "LineString"),
+        geometryBucket: "linestring",
+        symbolSize: 4,
+      });
+      expect(style.getOffsetX()).toBe(0);
+    }
+  });
+});
