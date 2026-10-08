@@ -55,6 +55,7 @@ import {
   viewsAreEqual,
 } from "components/map/viewGroup";
 import GeoJSON from "ol/format/GeoJSON";
+import { getUid } from "ol/util.js";
 import { valuesEqual } from "components/modals/utilities";
 
 // Pinned on both sides, so the anchor spans the map's width and the floated copy
@@ -99,6 +100,126 @@ const InfoDiv = styled.div`
   z-index: 1000;
 `;
 
+// Label configuration rides with the layer's other per-layer properties, which
+// is what makes it round-trip through the editor and reach plugin-supplied
+// layers with no load wiring of its own. Anything that is not an object is
+// read as "no label" rather than guarded at each use: this ends up inside the
+// render path, where a throw takes down the layer rather than the label.
+export function readLabelConfig(layerConfig) {
+  const labelConfig = layerConfig?.labels;
+  if (!labelConfig || typeof labelConfig !== "object") return null;
+  if (Array.isArray(labelConfig)) return null;
+  // A blank template draws nothing, so treating the object's existence as
+  // "this layer has labels" would declutter the layer and divert its styling
+  // for no visible gain -- and opening the Labels tab and leaving without
+  // typing is enough to persist one.
+  if (String(labelConfig.template ?? "").trim() === "") return null;
+  return labelConfig;
+}
+
+// The rule-based style the Style tab writes: geometry defaults and match rules.
+// The other things that can sit on `style` are inputs to different renderers --
+// a Mapbox/vector-tile style document, or a WebGLTile color ramp -- and keep
+// the paths they have today.
+export function isRuleBasedStyle(style) {
+  return (
+    !!style &&
+    typeof style === "object" &&
+    !Array.isArray(style) &&
+    ("rules" in style || "default" in style)
+  );
+}
+
+// OpenLayers groups every layer whose declutter value stringifies the same, so
+// enabling it with `true` everywhere would make separate layers compete for one
+// another's label space -- the opposite of the boundary this feature draws. The
+// OL instance's own uid is the per-layer identifier: unique by construction,
+// stable for as long as the instance is on the map (which is what a preserved
+// layer needs, since it is restyled without being rebuilt), and unlike the
+// layer name it is neither user-editable nor already carrying another meaning.
+export function declutterGroupFor(olLayer) {
+  return `tethysdash-labels-${getUid(olLayer)}`;
+}
+
+// A blank zoom floor means "no floor". `Number("")` is 0, a real zoom level, so
+// blanks are separated from values before anything converts them.
+function isBlankZoom(value) {
+  return value == null || (typeof value === "string" && value.trim() === "");
+}
+
+/**
+ * Hand the style function a label config carrying `minZoomResolution`.
+ *
+ * The author writes `minZoom`, a zoom level, and the style function compares
+ * resolutions; only the live view can convert between the two. The converted
+ * value is published under its own name rather than replacing `minZoom`,
+ * because a layer's flat `maxResolution` property is a literal OpenLayers
+ * resolution and two fields in one object graph must not read as one unit and
+ * mean another.
+ *
+ * The conversion cannot be done once and kept: this app adopts a raster's
+ * projection at runtime (see `map.setView` in the layer sync below), and a
+ * resolution derived under one projection names a different zoom under another
+ * -- while the style is applied once and the view may change many times after
+ * it. So the value is read through a getter, which re-derives it from whatever
+ * view the map holds at the moment the style function runs.
+ */
+export function labelConfigForMap(labelConfig, map) {
+  if (!labelConfig) return labelConfig;
+  const { minZoom: zoomFloor, ...rest } = labelConfig;
+  return Object.defineProperty(rest, "minZoomResolution", {
+    enumerable: true,
+    get() {
+      if (isBlankZoom(zoomFloor)) return undefined;
+      const zoom = Number(zoomFloor);
+      if (!Number.isFinite(zoom)) return undefined;
+      // Read per feature per frame from inside the render path, where a throw
+      // would take down the layer, so an unusable view means "no floor".
+      try {
+        const resolution = map?.getView?.()?.getResolutionForZoom?.(zoom);
+        return Number.isFinite(resolution) ? resolution : undefined;
+      } catch {
+        return undefined;
+      }
+    },
+  });
+}
+
+// Attach the rule-based style function, and switch decluttering on for a layer
+// that carries labels -- unless the label asked to be allowed to overlap.
+function applyVectorStyleFunction(olLayer, style, labelConfig, map) {
+  // A raster layer has no per-feature style function. A label on one is a
+  // misconfiguration, not a reason to throw inside the layer sync. `setStyle`
+  // is the wrong probe -- a WebGLTile layer has one and would take a vector
+  // style function that breaks its rendering; only a vector layer declutters,
+  // so that is the capability to test.
+  if (
+    typeof olLayer.setStyle !== "function" ||
+    typeof olLayer.setDeclutter !== "function"
+  ) {
+    return;
+  }
+
+  olLayer.setStyle(
+    createJsonStyleFunction(style, labelConfigForMap(labelConfig, map)),
+  );
+
+  // `setDeclutter` rather than `set("declutter", ...)`: the value lives in a
+  // private field the property bag does not write, and the setter raises the
+  // change the renderer needs to pick it up.
+  // `allowOverlap` leaves the layer undecluttered rather than decluttering it
+  // with the label exempted through `declutterMode`: switching decluttering on
+  // for any one layer makes every vector layer on the map rebuild its replay
+  // group on the next frame, and a layer that does not want collision hiding
+  // should not pay that. Overlapping labels are separated by their halo
+  // `buildLabelStyle` gives them instead.
+  const declutters = !!labelConfig && !labelConfig.allowOverlap;
+  const group = declutters ? declutterGroupFor(olLayer) : undefined;
+  if (olLayer.getDeclutter?.() !== group) {
+    olLayer.setDeclutter(group ?? false);
+  }
+}
+
 // Apply a layer config's style to an OL layer.
 //
 // Extracted from the add path so a *preserved* layer can be restyled too.
@@ -110,12 +231,18 @@ const InfoDiv = styled.div`
 // what it draws with is the style applyAutoRamp compiled from them at load. A
 // raster whose saved style is a hand-authored OpenLayers style passes it
 // through unchanged (see rasterLayerStyle).
-async function applyLayerStyle(olLayer, layerConfig) {
+//
+// `map` is the OL map the layer belongs to; the label's zoom floor is converted
+// through its view (see `labelConfigForMap`).
+async function applyLayerStyle(olLayer, layerConfig, map) {
   const style =
     layerConfig.type === "WebGLTile"
       ? rasterLayerStyle(layerConfig)
       : layerConfig.style;
-  if (!style) return;
+  const labelConfig = readLabelConfig(layerConfig);
+  // A layer carrying a label and no style at all still has to be styled: the
+  // label is drawn by the same per-feature style function the rules are.
+  if (!style && !labelConfig) return;
 
   const isWebGLTileColorStyle =
     layerConfig.type === "WebGLTile" &&
@@ -125,6 +252,19 @@ async function applyLayerStyle(olLayer, layerConfig) {
 
   if (isWebGLTileColorStyle) {
     olLayer.setStyle(style);
+    return;
+  }
+
+  // Decided here rather than discovered in the catch below: a layer wants the
+  // rule-based style function when it has style rules, a label, or both. A
+  // label-only layer has no style to hand ol-mapbox-style, and pushing an
+  // absent one through it ends in a dereference of undefined with no style
+  // function ever set -- the layer draws its geometry in OpenLayers' default
+  // symbol and never its label. A layer styled by a vector-tile style document
+  // keeps that path and does not get labels: diverting it here would silently
+  // throw its whole style away, which is a worse outcome than a missing label.
+  if (isRuleBasedStyle(style) || (labelConfig && !style)) {
+    applyVectorStyleFunction(olLayer, style, labelConfig, map);
     return;
   }
 
@@ -138,6 +278,57 @@ async function applyLayerStyle(olLayer, layerConfig) {
       }
     }
   }
+}
+
+// What a preserved layer's paint was last built from. Stamped on the OL
+// instance so an edit that changes the paint can be told apart from one that
+// does not -- restyling on every reconciliation would re-run the styling
+// attempt and raise a change event for every unrelated edit, making a layer
+// replay its whole render when someone nudged another layer's opacity.
+//
+// Two keys rather than one object: `appliedStyle` predates labels and is read
+// elsewhere as the style itself. The pair is written and compared together, so
+// the label is covered by the same stamp the style is.
+const STYLE_STAMP = "appliedStyle";
+const LABEL_STAMP = "appliedLabelConfig";
+
+function stampAppliedStyle(olLayer, layerConfig) {
+  olLayer.set(STYLE_STAMP, layerConfig.style);
+  // Normalized to null, because `valuesEqual` reads null and undefined as
+  // different values and the two would otherwise alternate across the compare.
+  olLayer.set(LABEL_STAMP, readLabelConfig(layerConfig) ?? null);
+}
+
+function appliedStyleChanged(olLayer, layerConfig) {
+  return (
+    !valuesEqual(olLayer.get(STYLE_STAMP), layerConfig.style) ||
+    !valuesEqual(
+      olLayer.get(LABEL_STAMP) ?? null,
+      readLabelConfig(layerConfig) ?? null,
+    )
+  );
+}
+
+/**
+ * Re-apply a preserved layer's paint after its style or label changed.
+ *
+ * `applyLayerStyle` exits when a config carries neither, which is right on the
+ * add path -- a freshly built layer is already unstyled. A preserved layer is
+ * not: it is still carrying whatever it was last given, so here "nothing to
+ * apply" means the author removed something, and the layer has to be put back
+ * into the unstyled state rather than left drawing what it no longer has.
+ * Clearing the label on a label-only layer is exactly that case, and it is the
+ * one where nothing else in the config changed to carry the repaint.
+ */
+function repaintPreservedLayer(olLayer, layerConfig, map) {
+  if (!layerConfig.style && !readLabelConfig(layerConfig)) {
+    // Same call the layer would get from `applyLayerStyle` with a style and no
+    // label, minus the style: the geometry keeps drawing, the text goes away
+    // and decluttering is switched back off.
+    applyVectorStyleFunction(olLayer, layerConfig.style, null, map);
+    return;
+  }
+  applyLayerStyle(olLayer, layerConfig, map);
 }
 
 // A layer config with its source dropped, for a layer built before it has one.
@@ -794,6 +985,11 @@ const MapComponent = ({
               incomingRuntimeIds.set(id, {
                 props: l.props,
                 type: l.type,
+                // The whole config, because the preserved-layer repaint below
+                // needs the style and the label -- neither of which lives in
+                // `props` -- and there is no other handle on the incoming
+                // config by the time that runs.
+                config: l,
                 count: 1,
               });
             }
@@ -837,6 +1033,7 @@ const MapComponent = ({
                 layerId: currentLayer.props.layerId,
                 oldName: currentLayer.props.name,
                 newProps: incoming.props,
+                config: incoming.config,
               });
               return;
             }
@@ -937,13 +1134,22 @@ const MapComponent = ({
         // proved subtle enough to be worth the belt, and a miss here would
         // otherwise depend on `updateOlLayerProps` tolerating undefined, which
         // is a promise made by another module.
-        runtimeLayerUpdates.forEach(({ layerId, newProps }) => {
+        runtimeLayerUpdates.forEach(({ layerId, newProps, config }) => {
           const olLayer = currentMapLayers.find(
             (l) => l.get("layerId") === layerId,
           );
           /* istanbul ignore else -- unreachable: see above */
           if (olLayer) {
             updateOlLayerProps(olLayer, newProps);
+            // The prop sync is an allow-list of OL's own setters, so a style or
+            // label edit passes through it untouched. Without this, editing a
+            // label on a runtime layer changed nothing on the map -- and the
+            // layer cannot simply be rebuilt instead, because a rebuild would
+            // discard the features its plugin fetched.
+            if (appliedStyleChanged(olLayer, config)) {
+              stampAppliedStyle(olLayer, config);
+              repaintPreservedLayer(olLayer, config, map);
+            }
           }
         });
 
@@ -960,9 +1166,12 @@ const MapComponent = ({
              that produced this entry */
           if (!olLayer) return;
           updateOlLayerProps(olLayer, newProps);
-          if (!valuesEqual(olLayer.get("appliedStyle"), config.style)) {
-            olLayer.set("appliedStyle", config.style);
-            applyLayerStyle(olLayer, config);
+          // Compared against the label as well as the style: a label-only edit
+          // leaves the style rules identical, so a style-only comparison never
+          // fires and the edit is silently dropped.
+          if (appliedStyleChanged(olLayer, config)) {
+            stampAppliedStyle(olLayer, config);
+            repaintPreservedLayer(olLayer, config, map);
           }
         });
       }
@@ -1179,7 +1388,7 @@ const MapComponent = ({
                 return;
               }
             }
-            newLayer.set("appliedStyle", layerConfig.style);
+            stampAppliedStyle(newLayer, layerConfig);
             map.addLayer(newLayer);
             watchShapefileLoad(newLayer, name, setLayerStatus);
             watchVectorSourceLoad(newLayer, name, setLayerStatus);
@@ -1344,7 +1553,7 @@ const MapComponent = ({
             // A runtime raster's style is compiled per fetch, for the file
             // that fetch named, and handed over with its source.
             if (!isRuntimeRaster) {
-              await applyLayerStyle(newLayer, layerConfig);
+              await applyLayerStyle(newLayer, layerConfig, map);
             }
 
             // A shapefile is not finished when its layer is: its features are

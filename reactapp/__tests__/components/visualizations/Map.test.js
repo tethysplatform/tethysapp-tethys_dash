@@ -488,7 +488,11 @@ test("Map GeoJSON with legend and rule-based style", async () => {
       .getFeatures()[0]
       .getGeometry() instanceof Point,
   ).toBe(true);
-  expect(mockedApplyStyle).toHaveBeenCalledTimes(1);
+  // A rule-based style goes straight to the style function now. It used to
+  // reach createJsonStyleFunction only via the catch of a failed applyStyle
+  // attempt, which also meant a layer carrying a label but no rules never got
+  // styled at all. ol-mapbox-style is still used for Mapbox style documents.
+  expect(mockedApplyStyle).toHaveBeenCalledTimes(0);
   expect(createJsonStyleFunction).toHaveBeenCalledTimes(1);
   expect(await screen.findByLabelText("Legend Control")).toBeInTheDocument();
 });

@@ -6,7 +6,10 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import StylePane from "components/modals/MapLayer/StylePane";
+import StylePane, {
+  STYLEABLE_VECTOR_SOURCE_TYPES,
+  supportsVectorStyling,
+} from "components/modals/MapLayer/StylePane";
 import appAPI from "services/api/app";
 import PropTypes from "prop-types";
 import userEvent from "@testing-library/user-event";
@@ -1530,5 +1533,61 @@ describe("StylePane dynamic GeoTIFF layers", () => {
     expect(
       screen.queryByRole("switch", { name: /follow plugin styling/i }),
     ).not.toBeInTheDocument();
+  });
+});
+
+// The Labels tab gates on exactly this predicate, so it is exported rather than
+// inlined in the pane -- a second copy would drift the moment a source type is
+// added. These cases pin the shared definition.
+describe("supportsVectorStyling", () => {
+  const rasterPlugin = {
+    source: "echo_runtime_raster",
+    value: "Echo Runtime Raster",
+    label: "Echo Runtime Raster",
+    dynamic_map_layer: true,
+    dynamic_map_layer_source: "GeoTIFF",
+  };
+  const geojsonPlugin = {
+    source: "custom_layer_test",
+    value: "Stream Gauges (Dynamic)",
+    label: "Stream Gauges (Dynamic)",
+    dynamic_map_layer: true,
+    dynamic_map_layer_source: "GeoJSON",
+  };
+  const dynamicMapLayers = [
+    { label: "Dynamic", options: [rasterPlugin, geojsonPlugin] },
+  ];
+
+  test.each(STYLEABLE_VECTOR_SOURCE_TYPES)("%s carries features", (type) => {
+    expect(supportsVectorStyling({ type }, dynamicMapLayers)).toBe(true);
+  });
+
+  test.each(["GeoTIFF", "Zarr", "WMS", "Image Tile", "Vector Tile"])(
+    "%s does not",
+    (type) => {
+      expect(supportsVectorStyling({ type }, dynamicMapLayers)).toBe(false);
+    },
+  );
+
+  test("a dynamic plugin layer follows the source type the plugin declares", () => {
+    expect(
+      supportsVectorStyling(
+        { type: geojsonPlugin.value, source: geojsonPlugin.source },
+        dynamicMapLayers,
+      ),
+    ).toBe(true);
+    expect(
+      supportsVectorStyling(
+        { type: rasterPlugin.value, source: rasterPlugin.source },
+        dynamicMapLayers,
+      ),
+    ).toBe(false);
+  });
+
+  test("a plugin that is no longer installed carries no features", () => {
+    expect(
+      supportsVectorStyling({ type: "Uninstalled Plugin" }, dynamicMapLayers),
+    ).toBe(false);
+    expect(supportsVectorStyling(undefined, dynamicMapLayers)).toBe(false);
   });
 });

@@ -194,10 +194,12 @@ export function checkForEmptyVariableInputs({
 }) {
   const metadata = JSON.parse(metadataString);
   // Walk the parsed args, NOT the JSON string, so the recursion can skip the
-  // popupConfig subtree. A flat regex over the JSON string would surface
+  // exempt subtrees (popupConfig, and a map layer's labels — see
+  // FEATURE_SCAN_SKIP_KEYS). A flat regex over the JSON string would surface
   // popup-scoped variable inputs (e.g. `${Start Time}` declared inside the
   // popup) at the host level — those resolve inside the popup's own
-  // FeatureScopedVariableInputs provider, not in the host context.
+  // FeatureScopedVariableInputs provider, not in the host context — and could
+  // not tell a map layer's label template from an ordinary arg at all.
   const parsedArgs = JSON.parse(argsString);
   const allDependentVariableInputs =
     findUnresolvedVariableInputTokens(parsedArgs);
@@ -723,20 +725,82 @@ const FEATURE_TOKEN_RE = /\$\{(feature\.[^}]+)\}/g;
 const VARIABLE_INPUT_TOKEN_RE = /\$\{([^}]+)\}/g;
 
 // Object keys whose subtree is intentionally NOT scanned for unresolved
-// tokens. The Map widget's args carry per-layer `popupConfig` (titleTemplate
-// + nested popup gridItems' args_string) for round-tripping — those tokens
-// are meant to resolve later inside the popup's own FeatureScopedVariableInputs
-// scope, NOT against the Map widget's host scope. Without this skip, opening
-// any dashboard with a configured popup modal gates the entire Map widget on
-// the popup's deferred tokens (both `${feature.*}` AND popup-internal
-// variable input names such as `${Start Time}` declared by inner Variable
-// Input grid items).
-const FEATURE_SCAN_SKIP_KEYS = new Set(["popupConfig"]);
+// tokens. Shared by BOTH scanners below. Each entry maps the key to the path
+// its exemption is scoped to -- an ancestor that must appear somewhere above
+// it, optionally plus the immediate parent it must sit under -- or `null` for
+// "at any depth".
+//
+// The scoping is what keeps the exemption honest. These walkers run over EVERY
+// visualization's args, not just the Map widget's, so a bare name match lets
+// any plugin argument that merely happens to share the name suppress a real
+// gate: a genuine `${feature.x}` beneath it would reach the plugin as an
+// unresolved literal, and a genuine `${Some Input}` beneath it would never
+// raise the unset-input warning. A distinctive compound name makes that
+// collision unlikely; it does not make it impossible.
+//
+// `popupConfig` (any depth) — the Map widget's args carry a per-layer
+// `popupConfig` (titleTemplate + nested popup gridItems' args_string) for
+// round-tripping. Those tokens are meant to resolve later inside the popup's
+// own FeatureScopedVariableInputs scope, NOT against the Map widget's host
+// scope. Without this skip, opening any dashboard with a configured popup
+// modal gates the entire Map widget on the popup's deferred tokens (both
+// `${feature.*}` AND popup-internal variable input names such as
+// `${Start Time}` declared by inner Variable Input grid items).
+// It sits at `layers[i].popupConfig`, so it could be scoped exactly as `labels`
+// is; it is deliberately left unscoped so its long-standing behaviour is
+// untouched. Tightening it later is a one-line change here.
+//
+// `labels` (only at `layers[i].configuration.labels`) — a map layer's label
+// template sits beside `configuration.style`, so the scope requires both a
+// `layers` ancestor and `configuration` as the immediate parent. `labels` is a
+// far more ordinary word than the keys above, and other visualizations really
+// do use it — a plotly plugin's `subplot_toggle.labels`, a variable input's
+// `metadata.labels` — so a bare-name match here would silently suppress a
+// genuine gate on those. Pinning the full path is what keeps the exemption
+// honest. A label is resolved per feature at draw
+// time by the OpenLayers style function, so its `${feature.*}` references are
+// never "unresolved" in the sense either scanner means. Both scanners must skip
+// it, or a label alone can stop the map from rendering:
+//   * the feature scanner gates the fetch in Base.js — one `${feature.station}`
+//     in a label would flip the widget to `featurePending` and blank the map;
+//   * the variable-input scanner feeds `checkForEmptyVariableInputs`, which
+//     replaces the whole widget with a warning panel when any referenced input
+//     is empty — and `hasVariableInputValue` counts "" as empty, so a viewer
+//     clearing a text box referenced by a label would blank the map too.
+// Accepted consequence: a variable input referenced ONLY inside a label
+// template no longer raises the unset-input warning. That is the deliberate
+// trade for not letting a label blank the map.
+//
+// Substitution is a separate path: `updateObjectWithVariableInputs` does not
+// consult this set, so label templates keep getting their variable inputs
+// interpolated regardless of what is skipped here.
+const FEATURE_SCAN_SKIP_KEYS = new Map([
+  ["popupConfig", null],
+  ["labels", { ancestor: "layers", parent: "configuration" }],
+]);
+
+// Does the path to the key being visited satisfy its scope? `null` means any
+// depth; an object names an ancestor that must appear somewhere on the trail
+// and, optionally, the immediate parent the key must sit directly under.
+function skipScopeMatches(scope, trail) {
+  if (scope === null) return true;
+  return (
+    (!scope.ancestor || trail.includes(scope.ancestor)) &&
+    (!scope.parent || trail[trail.length - 1] === scope.parent)
+  );
+}
 
 // Shared recursive walker. Returns the deduped set of capture-group-1 matches
-// of `regex` across every string leaf, skipping any object key in `skipKeys`.
+// of `regex` across every string leaf, skipping any object key in `skipKeys`
+// whose scoping ancestor (see the constant) is on the current path.
 function collectTokens(value, regex, skipKeys) {
   const found = new Set();
+  // Object keys on the path from the root to the node being visited, outermost
+  // first. Array indices are not recorded, so `layers[0].configuration` leaves
+  // the trail as ["layers", "configuration"]. Pushed and popped around each
+  // descent so the walk stays a single pass; the linear `includes` below runs
+  // only when a skip key name is actually hit.
+  const trail = [];
 
   const visit = (v) => {
     if (typeof v === "string") {
@@ -751,8 +815,12 @@ function collectTokens(value, regex, skipKeys) {
       for (const item of v) visit(item);
     } else if (v && typeof v === "object") {
       for (const key of Object.keys(v)) {
-        if (skipKeys.has(key)) continue;
+        if (skipKeys.has(key) && skipScopeMatches(skipKeys.get(key), trail)) {
+          continue;
+        }
+        trail.push(key);
         visit(v[key]);
+        trail.pop();
       }
     }
   };
@@ -770,8 +838,9 @@ function collectTokens(value, regex, skipKeys) {
  * of a friendly "awaiting feature selection" placeholder, instead of
  * letting plugins error out on the unresolved literal.
  *
- * Subtrees under keys in `FEATURE_SCAN_SKIP_KEYS` are skipped — see the
- * constant for why.
+ * Subtrees under keys in `FEATURE_SCAN_SKIP_KEYS` are skipped, each within the
+ * path its entry scopes it to (`labelConfig` only inside a map's `layers`) —
+ * see the constant for why.
  *
  * Returns an array of feature.<key> strings (without the `${}` wrapper),
  * deduplicated and in encounter order. Empty/non-string/non-object inputs
@@ -784,7 +853,9 @@ export function findUnresolvedFeatureTokens(value) {
 /**
  * Recursively walk an args object/array and return the unique set of
  * `${<name>}` variable-input references embedded in any string value,
- * EXCLUDING the popupConfig subtree.
+ * EXCLUDING the subtrees named in `FEATURE_SCAN_SKIP_KEYS` (popupConfig at any
+ * depth, and labelConfig inside a map's `layers` — see the constant for why
+ * each is exempt and how far each exemption reaches).
  *
  * Used by `checkForEmptyVariableInputs` so that a Map widget hosting a
  * popup modal whose inner gridItems define their own variable inputs

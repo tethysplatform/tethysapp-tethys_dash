@@ -68,6 +68,37 @@ export function withAntimeridianFix(type, props) {
   };
 }
 
+// Every layer class built on OpenLayers' `BaseVector`, which is where
+// `renderBuffer` is read. `VectorImageLayer` is one of them even though
+// `isVectorLayerType` in `map/utilities` answers a different question and
+// leaves `VectorTileLayer` out.
+const RENDER_BUFFER_LAYER_TYPES = new Set([
+  "VectorLayer",
+  "VectorImageLayer",
+  "VectorTileLayer",
+]);
+
+// How far beyond the viewport a vector layer keeps drawing. A label is drawn
+// outside the geometry it belongs to, so a feature just off screen can own a
+// label that falls on screen, and OpenLayers' default of 100px clips those
+// labels as the map pans.
+//
+// Raised at construction for every vector layer, not when a label appears:
+// `renderBuffer` is read once in the BaseVector constructor and has no setter,
+// so a layer built without the room could only gain it by being rebuilt -- and
+// a preserved runtime layer cannot be rebuilt without discarding the features
+// it has already fetched. Giving every vector layer the room up front is what
+// lets a label added later reach a preserved layer at all.
+export const LABEL_RENDER_BUFFER = 250;
+
+export function withLabelRenderBuffer(type, props) {
+  if (!RENDER_BUFFER_LAYER_TYPES.has(type)) return props;
+  // An explicitly authored buffer wins, the same way an authored crossOrigin
+  // wins over detection.
+  if (props?.renderBuffer !== undefined) return props;
+  return { ...props, renderBuffer: LABEL_RENDER_BUFFER };
+}
+
 export function withIsolatedCanvas(type, props) {
   if (!ISOLATED_LAYER_TYPES.has(type)) return props;
   if (props?.className) return props;
@@ -128,9 +159,12 @@ export async function withAutoCrossOrigin(type, props) {
 }
 
 async function prepareProps(type, props) {
-  return withIsolatedCanvas(
+  return withLabelRenderBuffer(
     type,
-    await withAutoCrossOrigin(type, withAntimeridianFix(type, props)),
+    withIsolatedCanvas(
+      type,
+      await withAutoCrossOrigin(type, withAntimeridianFix(type, props)),
+    ),
   );
 }
 

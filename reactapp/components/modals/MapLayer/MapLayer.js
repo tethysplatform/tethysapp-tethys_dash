@@ -13,14 +13,19 @@ import LayerPane from "components/modals/MapLayer/LayerPane";
 import SourcePane from "components/modals/MapLayer/SourcePane";
 import LegendPane from "components/modals/MapLayer/LegendPane";
 import AttributesPane from "components/modals/MapLayer/AttributesPane";
-import StylePane from "components/modals/MapLayer/StylePane";
+import StylePane, {
+  supportsVectorStyling,
+} from "components/modals/MapLayer/StylePane";
+import LabelsPane from "components/modals/MapLayer/LabelsPane";
 import PopupConfigPane from "components/modals/MapLayer/PopupConfigPane";
 import PopupLayoutEditor from "components/modals/MapLayer/PopupLayoutEditor";
 import {
   AppContext,
   LayoutContext,
+  TabContext,
   VariableInputsContext,
 } from "components/contexts/Contexts";
+import { POPUP_TAB_ID } from "components/map/viewGroup";
 import {
   sourcePropertiesOptions,
   layerPropType,
@@ -249,17 +254,37 @@ const MapLayerModal = ({
   );
   const [legend, setLegend] = useState(layerInfo.legend);
   const [popupConfig, setPopupConfig] = useState(layerInfo.popupConfig ?? null);
+  // Label configuration is stored inside `configuration.props`, so it arrives
+  // here already folded into `layerProps` by AddMapLayer's edit path -- no
+  // separate load line, and it reaches a plugin-supplied layer the same way.
+  // It is held as its own slice rather than edited in place inside `layerProps`
+  // so the save path can write it past the empty-value pruning that would
+  // otherwise strip a size or zoom floor of 0.
+  const [labels, setLabels] = useState(layerInfo.labels ?? null);
   const [selectedOption, setSelectedOption] = useState(null);
   const [hiddenForExtentDraw, setHiddenForExtentDraw] = useState(false);
   const [showLayoutEditor, setShowLayoutEditor] = useState(false);
   const legendContainerRef = useRef(null);
   const styleContainerRef = useRef(null);
+  const labelsContainerRef = useRef(null);
   const { csrf, mapLayerTemplates, dynamicMapLayers } = useContext(AppContext);
   const { uuid, editable: hostDashboardEditable } = useContext(LayoutContext);
   const { variableInputValues, variableInputDateFormats } = useContext(
     VariableInputsContext,
   );
   const mapContext = useMapContext();
+  // The popup layout editor and the runtime popup modal both mount their reused
+  // dashboard layout under a synthetic tab, and this modal is opened from inside
+  // that subtree -- so the same signal MapExtent reads reaches the layer editor
+  // through context. Feature references inside a popup resolve against the
+  // feature that opened it, so a per-feature label there has no coherent
+  // meaning and the tab is hidden rather than silently mis-resolving.
+  const activeTabId = useContext(TabContext)?.activeTabId;
+  const inPopupLayout = activeTabId === POPUP_TAB_ID;
+  // Same predicate the Style tab uses to decide a source carries per-feature
+  // vector geometry. Rasters, tiles and WMS images have no features to label.
+  const showLabelsTab =
+    !inPopupLayout && supportsVectorStyling(sourceProps, dynamicMapLayers);
 
   // Field discovery for a shapefile source, held here rather than in either pane
   // because both read from it. The modal already hoists every pane's state, so a
@@ -356,6 +381,9 @@ const MapLayerModal = ({
     // Layer props keep numeric 0 (snapSublayer: 0 is an explicit override),
     // which removeEmptyValues' truthy filter would silently strip on save.
     const validLayerProps = removeEmptyLayerProps(layerProperties);
+    // The copy that rode in on `layerProps` is stale the moment the Labels tab
+    // is touched, and it has already been through the pruning above. The live
+    // slice is written back onto `configuration.props` below instead.
 
     if (!isRuntime) {
       const missingRequiredProps = checkRequiredKeys(
@@ -538,6 +566,16 @@ const MapLayerModal = ({
       mapConfiguration.popupConfig = popupConfig;
     }
 
+    // Written straight onto `configuration.props`, past `removeEmptyLayerProps`:
+    // a label size or a zoom floor of 0 is a value the author set, and the flat
+    // pruning above drops nested objects' falsy members. Living inside
+    // `configuration.props` is also what makes it round-trip with no load
+    // wiring -- AddMapLayer's edit path hands everything but `source` back as
+    // `layerProps`.
+    if (labels && typeof labels === "object") {
+      mapConfiguration.configuration.labels = labels;
+    }
+
     addMapLayer(mapConfiguration);
     handleModalClose();
   }
@@ -571,6 +609,9 @@ const MapLayerModal = ({
 
     setSourceProps(apiResponse.data.configuration.props.source);
     setLayerProps(updatedLayerProps);
+    // A template may ship its own labels; they belong in the Labels tab
+    // rather than left buried in the configuration where nothing renders them.
+    setLabels(apiResponse.data.configuration.labels ?? null);
 
     const effectiveName = layerProps?.name || updatedLayerProps.name;
     setAttributeProps(
@@ -636,6 +677,9 @@ const MapLayerModal = ({
           name: effectiveName,
           layerId: prev?.layerId,
         }));
+        // Same reason as the template path: a plugin-supplied label config
+        // has to be editable in the Labels tab.
+        setLabels(config.labels ?? null);
 
         setAttributeProps(
           normalizeAttributePropsForLayer(
@@ -766,6 +810,23 @@ const MapLayerModal = ({
                 />
               </div>
             </Tab>
+            {showLabelsTab && (
+              <Tab
+                eventKey="labels"
+                title="Labels"
+                aria-label="layer-labels-tab"
+                className="layer-labels-tab"
+              >
+                <div ref={labelsContainerRef}>
+                  <LabelsPane
+                    layerName={layerProps?.name}
+                    labelConfig={labels}
+                    onChange={setLabels}
+                    containerRef={labelsContainerRef}
+                  />
+                </div>
+              </Tab>
+            )}
             <Tab
               eventKey="legend"
               title="Legend"
@@ -900,6 +961,19 @@ MapLayerModal.propTypes = {
     }), // an object of layer properties like opacity, zoom, etc. see components/map/utilities.js (layerPropertiesOptions) for examples
     legend: legendPropType,
     style: PropTypes.string, // name of .json file that is save with the application that contain the actual style json
+    // Label configuration sits beside `style` on the layer's configuration, not
+    // among its props. `minZoom` holds an authored zoom level; the map scope
+    // converts it to a resolution at render time.
+    labels: PropTypes.shape({
+      template: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+      anchor: PropTypes.string,
+      color: PropTypes.string,
+      haloColor: PropTypes.string,
+      size: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+      minZoom: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+      // Draw every label rather than hiding the ones that collide.
+      allowOverlap: PropTypes.bool,
+    }),
     attributeProps: attributePropsPropType,
     popupConfig: PropTypes.shape({
       id: PropTypes.number,
