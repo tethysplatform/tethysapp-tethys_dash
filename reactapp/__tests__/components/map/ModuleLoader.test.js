@@ -55,6 +55,7 @@ import {
 import { get as getProjection } from "ol/proj";
 import proj4 from "proj4";
 import { loadGpkg } from "ol-load-geopackage";
+import { PMTiles } from "pmtiles";
 import Feature from "ol/Feature";
 import Point from "ol/geom/Point";
 import {
@@ -188,6 +189,12 @@ test("ArcGIS Feature Service Instance", async () => {
 });
 
 test("PMTiles Vector Layer Instance", async () => {
+  // Building a PMTiles source starts a header read that nothing waits on. Hold
+  // it open rather than let it reach the fixture's real bucket, or fail after
+  // this test has finished and take down whichever test is running then.
+  jest
+    .spyOn(PMTiles.prototype, "getHeader")
+    .mockReturnValue(new Promise(() => {}));
   const layerInstance = await moduleLoader(
     layerConfigPMTilesVector.configuration,
   );
@@ -199,6 +206,12 @@ test("PMTiles Vector Layer Instance", async () => {
 });
 
 test("PMTiles Raster Layer Instance", async () => {
+  // Building a PMTiles source starts a header read that nothing waits on. Hold
+  // it open rather than let it reach the fixture's real bucket, or fail after
+  // this test has finished and take down whichever test is running then.
+  jest
+    .spyOn(PMTiles.prototype, "getHeader")
+    .mockReturnValue(new Promise(() => {}));
   const layerInstance = await moduleLoader(
     layerConfigPMTilesRaster.configuration,
   );
