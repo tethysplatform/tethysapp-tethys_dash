@@ -210,6 +210,9 @@ test("PMTiles Raster Layer Instance", async () => {
 });
 
 test("Static Image Layer Instance", async () => {
+  // A static image is CORS-probed before it is built. Answer the probe here
+  // rather than letting it reach the real host the fixture names.
+  jest.spyOn(global, "fetch").mockResolvedValue({ ok: true });
   const layerInstance = await moduleLoader(
     layerConfigStaticImage.configuration,
   );
