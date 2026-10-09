@@ -3,6 +3,10 @@ import { useState, useRef, useEffect } from "react";
 import Table from "react-bootstrap/Table";
 import styled from "styled-components";
 import DataSelect from "components/inputs/DataSelect";
+import RowMoveButtons, {
+  moveRow,
+  useRowMoveFocus,
+} from "components/inputs/RowMoveButtons";
 
 const FullInput = styled.input`
   width: 100%;
@@ -69,6 +73,7 @@ const InputTable = ({
   disabledFields,
   hiddenFields = [],
   allowRowCreation,
+  allowRowReorder = false,
   headers,
   placeholders,
   show_placeholder_on_hover,
@@ -78,6 +83,7 @@ const InputTable = ({
   const [tableRows, setTableRows] = useState([]);
   const [tableHeaders, setTableHeaders] = useState([]);
   const [inputPlaceholders, setInputPlaceholders] = useState([]);
+  const [focusRequestFor, requestFocus] = useRowMoveFocus();
   const inputRefs = useRef([]);
 
   // get a new row with empty values that will be appended to table
@@ -145,12 +151,20 @@ const InputTable = ({
       setTableRows(newTableRows);
       onChange({ fullChange: newTableRows });
 
-      // Focus the previous row's first input
+      // Focus the previous row's first input. A reordered table can put a
+      // blank row first, which has no previous row to land on.
       const prevRowIndex = rowIndex - 1;
       const prevInputIndex = prevRowIndex * Object.keys(tableRows[0]).length;
       const prevInput = inputRefs.current[prevInputIndex];
-      prevInput.focus();
+      prevInput?.focus();
     }
+  };
+
+  const handleMove = (rowIndex, delta) => {
+    const newTableRows = moveRow(tableRows, rowIndex, delta);
+    setTableRows(newTableRows);
+    requestFocus(rowIndex, delta);
+    onChange({ fullChange: newTableRows });
   };
 
   const handleChange = (newValue, rowIndex, field) => {
@@ -168,6 +182,11 @@ const InputTable = ({
         <Table striped bordered hover size="sm">
           <thead>
             <tr>
+              {allowRowReorder && (
+                <th className="text-center" style={{ width: "1%" }}>
+                  Order
+                </th>
+              )}
               {tableHeaders.map((colHeader, index) => {
                 if (hiddenFields.includes(colHeader)) return null;
 
@@ -182,6 +201,17 @@ const InputTable = ({
           <tbody>
             {tableRows.map((row, rowIndex) => (
               <tr key={rowIndex}>
+                {allowRowReorder && (
+                  <CenteredTD>
+                    <RowMoveButtons
+                      index={rowIndex}
+                      count={tableRows.length}
+                      label={`row ${rowIndex + 1}`}
+                      onMove={handleMove}
+                      focusRequest={focusRequestFor(rowIndex)}
+                    />
+                  </CenteredTD>
+                )}
                 {Object.keys(row).map((field, fieldIndex) => {
                   if (hiddenFields.includes(field)) return null;
 
@@ -342,6 +372,7 @@ InputTable.propTypes = {
   disabledFields: PropTypes.arrayOf(PropTypes.string), // array of fields to not have an input
   hiddenFields: PropTypes.arrayOf(PropTypes.string), // array of fields to hide
   allowRowCreation: PropTypes.bool, // determines if the table rows can be added
+  allowRowReorder: PropTypes.bool, // shows up/down buttons that move each row
   headers: PropTypes.arrayOf(PropTypes.string), // array of strings to use for table headers
   placeholders: PropTypes.arrayOf(PropTypes.objectOf(PropTypes.string)), // object with key as field and value as placeholder
   show_placeholder_on_hover: PropTypes.bool, // makes the input title the same as the placeholder so it can be seen on hover

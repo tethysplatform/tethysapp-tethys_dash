@@ -584,3 +584,131 @@ describe("select rows with nothing chosen", () => {
     );
   });
 });
+
+describe("InputTable row reordering", () => {
+  const rows = () => [
+    { name: "a", alias: "Alpha" },
+    { name: "b", alias: "Beta" },
+    { name: "c", alias: "Gamma" },
+  ];
+
+  const names = () =>
+    [0, 1, 2].map((i) => screen.getByLabelText(`name Input ${i}`).value);
+
+  it("shows no move buttons unless asked", () => {
+    render(<InputTable label="Table" onChange={jest.fn()} values={rows()} />);
+    expect(screen.queryByLabelText("Move row 1 down")).not.toBeInTheDocument();
+    expect(screen.queryByText("Order")).not.toBeInTheDocument();
+  });
+
+  it("moves a row up and reports the reordered rows", () => {
+    const onChange = jest.fn();
+    render(
+      <InputTable
+        label="Table"
+        onChange={onChange}
+        values={rows()}
+        allowRowReorder
+      />,
+    );
+    fireEvent.click(screen.getByLabelText("Move row 2 up"));
+    expect(onChange).toHaveBeenLastCalledWith({
+      fullChange: [
+        { name: "b", alias: "Beta" },
+        { name: "a", alias: "Alpha" },
+        { name: "c", alias: "Gamma" },
+      ],
+    });
+    expect(names()).toEqual(["b", "a", "c"]);
+    // the alias travels with its row
+    expect(screen.getByLabelText("alias Input 0").value).toBe("Beta");
+  });
+
+  it("moves a row down", () => {
+    const onChange = jest.fn();
+    render(
+      <InputTable
+        label="Table"
+        onChange={onChange}
+        values={rows()}
+        allowRowReorder
+      />,
+    );
+    fireEvent.click(screen.getByLabelText("Move row 2 down"));
+    expect(onChange.mock.calls.at(-1)[0].fullChange.map((r) => r.name)).toEqual(
+      ["a", "c", "b"],
+    );
+  });
+
+  it("disables moving past either end", () => {
+    render(
+      <InputTable
+        label="Table"
+        onChange={jest.fn()}
+        values={rows()}
+        allowRowReorder
+      />,
+    );
+    expect(screen.getByLabelText("Move row 1 up")).toBeDisabled();
+    expect(screen.getByLabelText("Move row 3 down")).toBeDisabled();
+    expect(screen.getByLabelText("Move row 1 down")).toBeEnabled();
+    expect(screen.getByLabelText("Move row 3 up")).toBeEnabled();
+  });
+
+  it("keeps focus on the moved row", () => {
+    render(
+      <InputTable
+        label="Table"
+        onChange={jest.fn()}
+        values={rows()}
+        allowRowReorder
+      />,
+    );
+    fireEvent.click(screen.getByLabelText("Move row 3 up"));
+    expect(screen.getByLabelText("Move row 2 up")).toHaveFocus();
+
+    // reaching the top disables up, so focus moves to the row's down button
+    fireEvent.click(screen.getByLabelText("Move row 2 up"));
+    expect(screen.getByLabelText("Move row 1 down")).toHaveFocus();
+    expect(names()).toEqual(["c", "a", "b"]);
+  });
+
+  it("deletes a blank row that was moved to the top", async () => {
+    const onChange = jest.fn();
+    render(
+      <InputTable
+        label="Table"
+        onChange={onChange}
+        values={[
+          { name: "a", alias: "" },
+          { name: "", alias: "" },
+        ]}
+        allowRowCreation
+        allowRowReorder
+      />,
+    );
+    fireEvent.click(screen.getByLabelText("Move row 2 up"));
+    screen.getByLabelText("name Input 0").focus();
+    await userEvent.keyboard("{backspace}");
+    expect(onChange.mock.calls.at(-1)[0].fullChange).toEqual([
+      { name: "a", alias: "" },
+    ]);
+  });
+
+  it("still adds a row on tab from the last field", async () => {
+    const onChange = jest.fn();
+    render(
+      <InputTable
+        label="Table"
+        onChange={onChange}
+        values={rows()}
+        allowRowCreation
+        allowRowReorder
+      />,
+    );
+    screen.getByLabelText("alias Input 2").focus();
+    await userEvent.tab();
+    expect(screen.getByLabelText("name Input 3")).toBeInTheDocument();
+    expect(onChange.mock.calls.at(-1)[0].fullChange).toHaveLength(4);
+  });
+});

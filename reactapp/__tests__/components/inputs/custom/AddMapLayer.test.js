@@ -46,6 +46,7 @@ it("AddMapLayer update existing", async () => {
     states: { the_geom: "some variable" },
   };
   layerConfiguration.omittedPopupAttributes = { states: ["the_geom"] };
+  layerConfiguration.attributeOrder = { states: ["STATE_NAME", "the_geom"] };
   layerConfiguration.queryable = false;
 
   const onChange = jest.fn();
@@ -125,6 +126,9 @@ it("AddMapLayer update existing", async () => {
       },
       omittedPopupAttributes: {
         states: ["the_geom"],
+      },
+      attributeOrder: {
+        states: ["STATE_NAME", "the_geom"],
       },
       tablePopupType: "none",
     },

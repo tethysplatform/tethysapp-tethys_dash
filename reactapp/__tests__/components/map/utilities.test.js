@@ -31,6 +31,8 @@ import {
   formatAttributeValue,
   coerceOptionalBoolean,
   RASTER_SOURCE_TYPES,
+  orderAttributeNames,
+  collectLayerAttributeMaps,
 } from "components/map/utilities";
 import {
   classifyGeometryForRanking,
@@ -5448,5 +5450,95 @@ describe("imageRatio is editable in the layer properties GUI", () => {
     expect(layerPropertiesOptions.imageRatio.placeholder).toEqual(
       expect.stringContaining("Vector Image Layer"),
     );
+  });
+});
+
+describe("orderAttributeNames", () => {
+  test("puts saved fields first and the rest after in their own order", () => {
+    expect(
+      orderAttributeNames(
+        ["STATUS", "GAUGE_ID", "NAME", "FLOW"],
+        ["NAME", "FLOW", "STATUS"],
+      ),
+    ).toEqual(["NAME", "FLOW", "STATUS", "GAUGE_ID"]);
+  });
+
+  test("skips saved fields the names do not include", () => {
+    expect(
+      orderAttributeNames(["FLOW", "EXTRA"], ["NAME", "FLOW", "STATUS"]),
+    ).toEqual(["FLOW", "EXTRA"]);
+  });
+
+  test("appends newly discovered fields below the saved ones", () => {
+    expect(orderAttributeNames(["C", "A", "B"], ["A", "B"])).toEqual([
+      "A",
+      "B",
+      "C",
+    ]);
+  });
+
+  test("places integer-like names where the saved order puts them", () => {
+    expect(orderAttributeNames(["2020", "NAME"], ["NAME", "2020"])).toEqual([
+      "NAME",
+      "2020",
+    ]);
+  });
+
+  test("returns the natural order when nothing is saved", () => {
+    expect(orderAttributeNames(["b", "a"], undefined)).toEqual(["b", "a"]);
+    expect(orderAttributeNames(["b", "a"], [])).toEqual(["b", "a"]);
+  });
+
+  test("lists a duplicated name once, at its first position", () => {
+    expect(orderAttributeNames(["a", "b", "a"], ["b", "a", "b"])).toEqual([
+      "b",
+      "a",
+    ]);
+  });
+
+  test("ignores a saved order that is not a list", () => {
+    expect(orderAttributeNames(["b", "a"], "a,b")).toEqual(["b", "a"]);
+    expect(orderAttributeNames(["b", "a"], { 0: "a" })).toEqual(["b", "a"]);
+  });
+
+  test("does not mutate its inputs", () => {
+    const names = ["b", "a"];
+    const saved = ["a"];
+    orderAttributeNames(names, saved);
+    expect(names).toEqual(["b", "a"]);
+    expect(saved).toEqual(["a"]);
+  });
+});
+
+describe("collectLayerAttributeMaps", () => {
+  test("merges each kind of attribute map across layers by sublayer name", () => {
+    const maps = collectLayerAttributeMaps([
+      {
+        attributeAliases: { a: { f: "F" } },
+        attributeVariables: { a: { f: "Var" } },
+        omittedPopupAttributes: { a: ["g"] },
+        attributeOrder: { a: ["g", "f"] },
+      },
+      {
+        attributeAliases: { b: { x: "X" } },
+        attributeOrder: { b: ["x"] },
+      },
+      { configuration: {} },
+    ]);
+    expect(maps).toEqual({
+      aliases: { a: { f: "F" }, b: { x: "X" } },
+      variables: { a: { f: "Var" } },
+      omitted: { a: ["g"] },
+      order: { a: ["g", "f"], b: ["x"] },
+    });
+  });
+
+  test("returns empty maps for no layers", () => {
+    expect(collectLayerAttributeMaps([])).toEqual({
+      aliases: {},
+      variables: {},
+      omitted: {},
+      order: {},
+    });
   });
 });

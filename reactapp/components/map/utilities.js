@@ -1843,9 +1843,73 @@ export const omittedPopupAttributesPropType = PropTypes.objectOf(
   PropTypes.arrayOf(PropTypes.string),
 );
 
+// the author's row order for each layer's attributes, structure is {layerName: ["field2", "field1"]}
+export const attributeOrderPropType = PropTypes.objectOf(
+  PropTypes.arrayOf(PropTypes.string),
+);
+
+/**
+ * Applies an author's saved field order to a list of field names.
+ *
+ * The order is a list rather than the key order of an object because
+ * JSON.parse moves integer-like keys ("2020") to the front of every object,
+ * so an author's position for a year or ID column would not survive a reload.
+ *
+ * @param {string[]} names Field names in their natural order (as discovered,
+ *   or as the source returned them).
+ * @param {string[]} [savedOrder] The author's order. May list fields that are
+ *   absent from `names`, and may omit fields that are present.
+ * @returns {string[]} The saved names that are present, in saved order,
+ *   followed by the remaining names in their natural order, each once.
+ */
+export function orderAttributeNames(names, savedOrder) {
+  const present = new Set(names);
+  const ordered = new Set();
+  // A hand-edited or imported config may carry anything here; ignore what is
+  // not a list rather than fail the popup render.
+  for (const name of Array.isArray(savedOrder) ? savedOrder : []) {
+    if (present.has(name)) ordered.add(name);
+  }
+  for (const name of names) {
+    ordered.add(name);
+  }
+  return Array.from(ordered);
+}
+
+const LAYER_ATTRIBUTE_MAP_KEYS = {
+  aliases: "attributeAliases",
+  variables: "attributeVariables",
+  omitted: "omittedPopupAttributes",
+  order: "attributeOrder",
+};
+
+/**
+ * Merges each layer's attribute maps into one map per kind, keyed by sublayer
+ * name, for the popup and the variable-input write-back to look up by the
+ * clicked feature's layer. Click and hover both build these from their own
+ * layer sets, so they share this rather than each keeping a copy.
+ *
+ * @param {object[]} layers Saved layer configs.
+ * @returns {{aliases: object, variables: object, omitted: object, order: object}}
+ */
+export function collectLayerAttributeMaps(layers) {
+  const maps = {};
+  for (const [kind, configKey] of Object.entries(LAYER_ATTRIBUTE_MAP_KEYS)) {
+    maps[kind] = {};
+    for (const layer of layers) {
+      const layerMap = layer[configKey];
+      if (layerMap && typeof layerMap === "object") {
+        Object.assign(maps[kind], layerMap);
+      }
+    }
+  }
+  return maps;
+}
+
 export const attributePropsPropType = PropTypes.shape({
   variables: attributeVariablesPropType,
   omitted: omittedPopupAttributesPropType,
+  order: attributeOrderPropType,
   tablePopupType: PropTypes.oneOf(["none", "click", "hover"]),
   // Legacy: superseded by tablePopupType. Kept on the PropType so dashboards
   // saved before the migration still pass type-checking until they're re-saved.
@@ -1973,6 +2037,7 @@ export const layerPropType = PropTypes.shape({
   configuration: configurationPropType,
   attributeVariables: attributeVariablesPropType,
   omittedPopupAttributes: omittedPopupAttributesPropType,
+  attributeOrder: attributeOrderPropType,
   style: PropTypes.string,
   legend: legendPropType,
 });
@@ -1986,6 +2051,7 @@ export const layerInfoPropType = PropTypes.shape({
   style: PropTypes.string, // name of .json file that is save with the application that contain the actual style json
   attributeVariables: attributeVariablesPropType,
   omittedPopupAttributes: omittedPopupAttributesPropType,
+  attributeOrder: attributeOrderPropType,
 });
 
 export const mapDrawingPropType = PropTypes.shape({

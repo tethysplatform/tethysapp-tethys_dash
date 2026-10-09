@@ -22,6 +22,9 @@ import {
   loadLayerJSONs,
   resolveTablePopupType,
   formatAttributeValue,
+  orderAttributeNames,
+  collectLayerAttributeMaps,
+  attributeOrderPropType,
   CLIENT_VECTOR_SOURCE_TYPES,
 } from "components/map/utilities";
 import { rankQueriedFeatures } from "components/map/ranking";
@@ -197,16 +200,26 @@ export const Popup = ({
   onSwiper,
   omittedPopupAttributes,
   aliases,
+  order = {},
 }) => {
+  // Rows are built as a list rather than an object keyed by display name: an
+  // object would move integer-like names ("2020") back to the front, and two
+  // fields sharing an alias would collapse into one row.
   const filteredLayerAttributes = layerAttributes.map((feature) => {
     const omittedFields = omittedPopupAttributes[feature.layerName] || [];
     const aliasMap = aliases[feature.layerName] || {};
-    const filteredAttributes = Object.fromEntries(
-      Object.entries(feature.attributes)
-        .filter(([key]) => !omittedFields.includes(key))
-        .map(([key, value]) => [aliasMap[key] || key, value]),
+    const visibleFields = Object.keys(feature.attributes).filter(
+      (key) => !omittedFields.includes(key),
     );
-    return { ...feature, attributes: filteredAttributes };
+    const rows = orderAttributeNames(
+      visibleFields,
+      order[feature.layerName],
+    ).map((key) => ({
+      key,
+      label: aliasMap[key] || key,
+      value: feature.attributes[key],
+    }));
+    return { ...feature, rows };
   });
 
   return (
@@ -245,8 +258,7 @@ export const Popup = ({
                   </tr>
                 </thead>
                 <tbody>
-                  {Object.keys(selectedFeature.attributes).map((field) => {
-                    const value = selectedFeature.attributes[field];
+                  {selectedFeature.rows.map(({ key, label, value }) => {
                     // Simple URL regex: matches http(s)://, ftp://, or www.
                     const urlRegex =
                       /^(https?:\/\/|ftp:\/\/|www\.)[\w-]+(\.[\w-]+)+([\w\-.,@?^=%&:/~+#]*[\w\-@?^=%&/~+#])?/i;
@@ -270,8 +282,8 @@ export const Popup = ({
                       renderedValue = formatAttributeValue(value);
                     }
                     return (
-                      <tr key={field}>
-                        <OverflowTD>{field}</OverflowTD>
+                      <tr key={key}>
+                        <OverflowTD>{label}</OverflowTD>
                         <OverflowTD>{renderedValue}</OverflowTD>
                       </tr>
                     );
@@ -359,6 +371,7 @@ const MapVisualization = ({
   const mapAttributeVariablesRef = useRef({});
   const mapOmittedPopupAttributesRef = useRef({});
   const mapAttributeAliasesRef = useRef({});
+  const mapAttributeOrderRef = useRef({});
   const mapContainerRef = useRef(null);
   // Debounces pointermove-driven hover queries. The handler restarts a 250ms
   // timer on every move so the actual query only fires once the cursor
@@ -665,6 +678,7 @@ const MapVisualization = ({
                 }}
                 omittedPopupAttributes={mapOmittedPopupAttributesRef.current}
                 aliases={mapAttributeAliasesRef.current}
+                order={mapAttributeOrderRef.current}
               />
             ) : (
               <CenteredP>No Attributes Found</CenteredP>
@@ -1089,6 +1103,13 @@ const MapVisualization = ({
     setActiveFeatureIndex(swiper.activeIndex);
   };
 
+  const setAttributeMapRefs = ({ aliases, variables, omitted, order }) => {
+    mapAttributeAliasesRef.current = aliases;
+    mapAttributeVariablesRef.current = variables;
+    mapOmittedPopupAttributesRef.current = omitted;
+    mapAttributeOrderRef.current = order;
+  };
+
   const updateVariableInputsForFeature = (selectedFeature) => {
     const layerName = selectedFeature.layerName;
     const mapAttributeVariables = mapAttributeVariablesRef.current;
@@ -1232,50 +1253,9 @@ const MapVisualization = ({
     markerLayer.current = newMarkerLayer;
     map.addLayer(newMarkerLayer);
 
-    // reduce the layer attributes variables values into a simplified object of layer names and then values
-    const mapAttributeAliases = queryableLayers.reduce((combined, current) => {
-      if (
-        current.attributeAliases &&
-        typeof current.attributeAliases === "object"
-      ) {
-        // Merge the example object into the combined object
-        Object.assign(combined, current.attributeAliases);
-      }
-      return combined;
-    }, {});
-    mapAttributeAliasesRef.current = mapAttributeAliases;
-
-    // reduce the layer attributes variables values into a simplified object of layer names and then values
-    const mapAttributeVariables = queryableLayers.reduce(
-      (combined, current) => {
-        if (
-          current.attributeVariables &&
-          typeof current.attributeVariables === "object"
-        ) {
-          // Merge the example object into the combined object
-          Object.assign(combined, current.attributeVariables);
-        }
-        return combined;
-      },
-      {},
-    );
-    mapAttributeVariablesRef.current = mapAttributeVariables;
-
-    // reduce the layer omitted popup attribute values into a simplified object of layer names and then values
-    const mapOmittedPopupAttributes = queryableLayers.reduce(
-      (combined, current) => {
-        if (
-          current.omittedPopupAttributes &&
-          typeof current.omittedPopupAttributes === "object"
-        ) {
-          // Merge the example object into the combined object
-          Object.assign(combined, current.omittedPopupAttributes);
-        }
-        return combined;
-      },
-      {},
-    );
-    mapOmittedPopupAttributesRef.current = mapOmittedPopupAttributes;
+    // merge every queryable layer's attribute maps into one per kind, keyed by
+    // layer name, for the popup and the variable write-back to read
+    setAttributeMapRefs(collectLayerAttributeMaps(queryableLayers));
 
     // query the layers
     //
@@ -1434,41 +1414,9 @@ const MapVisualization = ({
     });
     if (hoverLayers.length === 0) return;
 
-    // Refresh the alias / variable / omitted-attribute refs from the
+    // Refresh the alias / variable / omitted-attribute / order refs from the
     // hover-eligible layer set so popup formatting honors per-layer overrides.
-    mapAttributeAliasesRef.current = hoverLayers.reduce((combined, current) => {
-      if (
-        current.attributeAliases &&
-        typeof current.attributeAliases === "object"
-      ) {
-        Object.assign(combined, current.attributeAliases);
-      }
-      return combined;
-    }, {});
-    mapAttributeVariablesRef.current = hoverLayers.reduce(
-      (combined, current) => {
-        if (
-          current.attributeVariables &&
-          typeof current.attributeVariables === "object"
-        ) {
-          Object.assign(combined, current.attributeVariables);
-        }
-        return combined;
-      },
-      {},
-    );
-    mapOmittedPopupAttributesRef.current = hoverLayers.reduce(
-      (combined, current) => {
-        if (
-          current.omittedPopupAttributes &&
-          typeof current.omittedPopupAttributes === "object"
-        ) {
-          Object.assign(combined, current.omittedPopupAttributes);
-        }
-        return combined;
-      },
-      {},
-    );
+    setAttributeMapRefs(collectLayerAttributeMaps(hoverLayers));
 
     const queryCalls = hoverLayers.map(async (layer) => {
       try {
@@ -1868,6 +1816,7 @@ Popup.propTypes = {
   onSwiper: PropTypes.func, // receives the Swiper instance so the popup modal can drive it
   omittedPopupAttributes: PropTypes.object,
   aliases: PropTypes.object,
+  order: attributeOrderPropType, // the author's field order per layer; unlisted fields follow
 };
 
 export default memo(MapVisualization);
