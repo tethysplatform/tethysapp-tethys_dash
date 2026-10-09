@@ -32,6 +32,7 @@ import {
   coerceOptionalBoolean,
   RASTER_SOURCE_TYPES,
   orderAttributeNames,
+  collectLayerAttributeMaps,
 } from "components/map/utilities";
 import {
   classifyGeometryForRanking,
@@ -5501,5 +5502,38 @@ describe("orderAttributeNames", () => {
     orderAttributeNames(names, saved);
     expect(names).toEqual(["b", "a"]);
     expect(saved).toEqual(["a"]);
+  });
+});
+
+describe("collectLayerAttributeMaps", () => {
+  test("merges each kind of attribute map across layers by sublayer name", () => {
+    const maps = collectLayerAttributeMaps([
+      {
+        attributeAliases: { a: { f: "F" } },
+        attributeVariables: { a: { f: "Var" } },
+        omittedPopupAttributes: { a: ["g"] },
+        attributeOrder: { a: ["g", "f"] },
+      },
+      {
+        attributeAliases: { b: { x: "X" } },
+        attributeOrder: { b: ["x"] },
+      },
+      { configuration: {} },
+    ]);
+    expect(maps).toEqual({
+      aliases: { a: { f: "F" }, b: { x: "X" } },
+      variables: { a: { f: "Var" } },
+      omitted: { a: ["g"] },
+      order: { a: ["g", "f"], b: ["x"] },
+    });
+  });
+
+  test("returns empty maps for no layers", () => {
+    expect(collectLayerAttributeMaps([])).toEqual({
+      aliases: {},
+      variables: {},
+      omitted: {},
+      order: {},
+    });
   });
 });

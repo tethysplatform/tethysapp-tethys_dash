@@ -1874,6 +1874,36 @@ export function orderAttributeNames(names, savedOrder) {
   return Array.from(ordered);
 }
 
+const LAYER_ATTRIBUTE_MAP_KEYS = {
+  aliases: "attributeAliases",
+  variables: "attributeVariables",
+  omitted: "omittedPopupAttributes",
+  order: "attributeOrder",
+};
+
+/**
+ * Merges each layer's attribute maps into one map per kind, keyed by sublayer
+ * name, for the popup and the variable-input write-back to look up by the
+ * clicked feature's layer. Click and hover both build these from their own
+ * layer sets, so they share this rather than each keeping a copy.
+ *
+ * @param {object[]} layers Saved layer configs.
+ * @returns {{aliases: object, variables: object, omitted: object, order: object}}
+ */
+export function collectLayerAttributeMaps(layers) {
+  const maps = {};
+  for (const [kind, configKey] of Object.entries(LAYER_ATTRIBUTE_MAP_KEYS)) {
+    maps[kind] = {};
+    for (const layer of layers) {
+      const layerMap = layer[configKey];
+      if (layerMap && typeof layerMap === "object") {
+        Object.assign(maps[kind], layerMap);
+      }
+    }
+  }
+  return maps;
+}
+
 export const attributePropsPropType = PropTypes.shape({
   variables: attributeVariablesPropType,
   omitted: omittedPopupAttributesPropType,

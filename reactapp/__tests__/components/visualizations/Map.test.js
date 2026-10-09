@@ -9362,3 +9362,214 @@ describe("the legend of a runtime GeoTIFF", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("Popup field order", () => {
+  // The first cell of each body row is the field's display label.
+  const rowLabels = () =>
+    screen
+      .getAllByRole("row")
+      .slice(1)
+      .map((row) => within(row).getAllByRole("cell")[0].textContent);
+
+  const renderPopup = ({ attributes, order, aliases, omitted }) =>
+    render(
+      <Popup
+        layerAttributes={[{ layerName: "Gauges", attributes }]}
+        onSwipe={jest.fn()}
+        omittedPopupAttributes={omitted ?? {}}
+        aliases={aliases ?? {}}
+        order={order}
+      />,
+    );
+
+  it("lists saved fields first and unlisted ones after", () => {
+    // Covers AE1.
+    renderPopup({
+      attributes: { STATUS: "up", GAUGE_ID: "G1", NAME: "Creek", FLOW: 3 },
+      order: { Gauges: ["NAME", "FLOW", "STATUS"] },
+    });
+    expect(rowLabels()).toEqual(["NAME", "FLOW", "STATUS", "GAUGE_ID"]);
+  });
+
+  it("skips saved fields the feature does not have", () => {
+    // Covers AE2.
+    renderPopup({
+      attributes: { FLOW: 3, EXTRA: "x" },
+      order: { Gauges: ["NAME", "FLOW", "STATUS"] },
+    });
+    expect(rowLabels()).toEqual(["FLOW", "EXTRA"]);
+  });
+
+  it("leaves hidden fields out without disturbing the order", () => {
+    // Covers AE3.
+    renderPopup({
+      attributes: { FLOW: 3, SECRET: "s", NAME: "Creek" },
+      order: { Gauges: ["NAME", "SECRET", "FLOW"] },
+      omitted: { Gauges: ["SECRET"] },
+    });
+    expect(rowLabels()).toEqual(["NAME", "FLOW"]);
+  });
+
+  it("places an integer-like field where the order puts it", () => {
+    // Covers AE4.
+    renderPopup({
+      attributes: { 2020: 5, NAME: "Creek" },
+      order: { Gauges: ["NAME", "2020"] },
+    });
+    expect(rowLabels()).toEqual(["NAME", "2020"]);
+  });
+
+  it("keeps the source order when no order is saved", () => {
+    renderPopup({ attributes: { b: 1, a: 2 } });
+    expect(rowLabels()).toEqual(["b", "a"]);
+  });
+
+  it("shows both fields when two share an alias", () => {
+    renderPopup({
+      attributes: { flow_a: 1, flow_b: 2 },
+      aliases: { Gauges: { flow_a: "Flow", flow_b: "Flow" } },
+    });
+    expect(rowLabels()).toEqual(["Flow", "Flow"]);
+    expect(screen.getByText("1")).toBeInTheDocument();
+    expect(screen.getByText("2")).toBeInTheDocument();
+  });
+
+  it("still renders a zero value", () => {
+    renderPopup({
+      attributes: { FLOW: 0, NAME: "Creek" },
+      order: { Gauges: ["FLOW", "NAME"] },
+    });
+    expect(rowLabels()).toEqual(["FLOW", "NAME"]);
+    const flowRow = screen.getAllByRole("row")[1];
+    expect(within(flowRow).getAllByRole("cell")[1].textContent).toBe("0");
+  });
+});
+
+describe("Map popup follows the saved attribute order", () => {
+  const feature = {
+    attributes: { STATUS: "up", GAUGE_ID: "G1", NAME: "Creek" },
+    geometry: { x: 0, y: 0 },
+    layerName: "Gauges",
+  };
+  const layer = (extra) => ({
+    attributeOrder: { Gauges: ["NAME", "STATUS"] },
+    configuration: {
+      type: "ImageLayer",
+      props: {
+        name: "Gauges",
+        source: { type: "ESRI Image and Map Service", props: { url: "u" } },
+      },
+    },
+    ...extra,
+  });
+
+  const popupRowLabels = async () => {
+    const popup = await screen.findByLabelText("Map Popup Content");
+    await within(popup).findByText("Creek");
+    // The overlay is not laid out in jsdom, so its rows are not in the
+    // accessibility tree; read the table directly.
+    return Array.from(popup.querySelectorAll("tbody tr")).map(
+      (row) => row.querySelector("td").textContent,
+    );
+  };
+
+  const renderMap = (layers, trigger) => {
+    mockedQueryLayerFeatures.mockResolvedValue([feature]);
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+    render(
+      createLoadedComponent({
+        children: (
+          <MapContextProvider>
+            <TestingComponent
+              {...trigger}
+              clickCoordinates={[10, 20]}
+              mapProps={{
+                mapConfig: {},
+                viewConfig: {},
+                layers,
+                baseMap: null,
+                layerControl: false,
+              }}
+            />
+          </MapContextProvider>
+        ),
+      }),
+    );
+  };
+
+  test("on click", async () => {
+    renderMap([layer()], { onMapClick: jest.fn() });
+    expect(await popupRowLabels()).toEqual(["NAME", "STATUS", "GAUGE_ID"]);
+  });
+
+  test("on hover", async () => {
+    renderMap([layer({ tablePopupType: "hover" })], {
+      onMapPointerMove: true,
+    });
+    expect(await popupRowLabels()).toEqual(["NAME", "STATUS", "GAUGE_ID"]);
+  });
+});
+
+test("Map click writes the bound field's value when two fields share an alias", async () => {
+  // The popup shows both fields under one alias; the variable binding is keyed
+  // by field name and must still read that field, not its alias twin.
+  mockedQueryLayerFeatures.mockResolvedValue([
+    {
+      attributes: { flow_a: "first", flow_b: "second" },
+      geometry: { x: 0, y: 0 },
+      layerName: "Gauges",
+    },
+  ]);
+  jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+  const dashboard = JSON.parse(JSON.stringify(userDashboard));
+  dashboard.tabs[0].gridItems = [mockedTextVariable];
+  const varInputArgs = JSON.parse(mockedTextVariable.args_string);
+
+  const layers = [
+    {
+      attributeAliases: { Gauges: { flow_a: "Flow", flow_b: "Flow" } },
+      attributeVariables: { Gauges: { flow_b: "Test Variable" } },
+      attributeOrder: { Gauges: ["flow_b", "flow_a"] },
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "Gauges",
+          source: { type: "ESRI Image and Map Service", props: { url: "u" } },
+        },
+      },
+    },
+  ];
+  render(
+    createLoadedComponent({
+      children: (
+        <MapContextProvider>
+          <TestingComponent
+            onMapClick={jest.fn()}
+            clickCoordinates={[10, 20]}
+            mapProps={{
+              mapConfig: {},
+              viewConfig: {},
+              layers,
+              baseMap: null,
+              layerControl: false,
+            }}
+          />
+          <VariableInput
+            variable_name={varInputArgs.variable_name}
+            initial_value={varInputArgs.initial_value}
+            variable_options_source={varInputArgs.variable_options_source}
+            onChange={jest.fn()}
+          />
+        </MapContextProvider>
+      ),
+      options: { dashboards: { dashboards: [dashboard] } },
+    }),
+  );
+
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  await waitFor(async () => {
+    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({ "Test Variable": "second" }),
+    );
+  });
+});
