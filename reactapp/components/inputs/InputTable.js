@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import Table from "react-bootstrap/Table";
 import styled from "styled-components";
 import DataSelect from "components/inputs/DataSelect";
+import RowMoveButtons, { moveRow } from "components/inputs/RowMoveButtons";
 
 const FullInput = styled.input`
   width: 100%;
@@ -69,6 +70,7 @@ const InputTable = ({
   disabledFields,
   hiddenFields = [],
   allowRowCreation,
+  allowRowReorder = false,
   headers,
   placeholders,
   show_placeholder_on_hover,
@@ -78,6 +80,7 @@ const InputTable = ({
   const [tableRows, setTableRows] = useState([]);
   const [tableHeaders, setTableHeaders] = useState([]);
   const [inputPlaceholders, setInputPlaceholders] = useState([]);
+  const [moveFocus, setMoveFocus] = useState(null);
   const inputRefs = useRef([]);
 
   // get a new row with empty values that will be appended to table
@@ -153,6 +156,17 @@ const InputTable = ({
     }
   };
 
+  const handleMove = (rowIndex, delta) => {
+    const newTableRows = moveRow(tableRows, rowIndex, delta);
+    if (!newTableRows) return;
+    setTableRows(newTableRows);
+    setMoveFocus({
+      index: rowIndex + delta,
+      request: { direction: delta < 0 ? "up" : "down" },
+    });
+    onChange({ fullChange: newTableRows });
+  };
+
   const handleChange = (newValue, rowIndex, field) => {
     const newTableRows = [...tableRows];
     newTableRows[rowIndex][field] = newValue;
@@ -168,6 +182,11 @@ const InputTable = ({
         <Table striped bordered hover size="sm">
           <thead>
             <tr>
+              {allowRowReorder && (
+                <th className="text-center" style={{ width: "1%" }}>
+                  Order
+                </th>
+              )}
               {tableHeaders.map((colHeader, index) => {
                 if (hiddenFields.includes(colHeader)) return null;
 
@@ -182,6 +201,21 @@ const InputTable = ({
           <tbody>
             {tableRows.map((row, rowIndex) => (
               <tr key={rowIndex}>
+                {allowRowReorder && (
+                  <CenteredTD>
+                    <RowMoveButtons
+                      index={rowIndex}
+                      count={tableRows.length}
+                      label={`row ${rowIndex + 1}`}
+                      onMove={handleMove}
+                      focusRequest={
+                        moveFocus?.index === rowIndex
+                          ? moveFocus.request
+                          : undefined
+                      }
+                    />
+                  </CenteredTD>
+                )}
                 {Object.keys(row).map((field, fieldIndex) => {
                   if (hiddenFields.includes(field)) return null;
 
@@ -342,6 +376,7 @@ InputTable.propTypes = {
   disabledFields: PropTypes.arrayOf(PropTypes.string), // array of fields to not have an input
   hiddenFields: PropTypes.arrayOf(PropTypes.string), // array of fields to hide
   allowRowCreation: PropTypes.bool, // determines if the table rows can be added
+  allowRowReorder: PropTypes.bool, // shows up/down buttons that move each row
   headers: PropTypes.arrayOf(PropTypes.string), // array of strings to use for table headers
   placeholders: PropTypes.arrayOf(PropTypes.objectOf(PropTypes.string)), // object with key as field and value as placeholder
   show_placeholder_on_hover: PropTypes.bool, // makes the input title the same as the placeholder so it can be seen on hover
