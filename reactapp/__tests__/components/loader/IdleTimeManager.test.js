@@ -4,11 +4,15 @@ import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
 import userEvent from "@testing-library/user-event";
 import IdleTimerManager from "components/loader/IdleTimerManager";
+import {
+  useIdleClock,
+  restoreIdleClock,
+  pingApplied,
+  advanceIdleClock,
+} from "__tests__/utilities/idleClock";
 import { ModalPriorityProvider } from "components/contexts/ModalPriorityContext";
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+afterEach(restoreIdleClock);
 
 test("IdleTimerManager, user signed out", async () => {
   server.use(
@@ -41,7 +45,8 @@ test("IdleTimerManager, user signed out", async () => {
 });
 
 test("IdleTimerManager, check if user signed in", async () => {
-  const user = userEvent.setup();
+  const ping = useIdleClock();
+  const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
 
   const availableVisualizations = [
     {
@@ -90,9 +95,9 @@ test("IdleTimerManager, check if user signed in", async () => {
 
   expect(screen.queryByText("Are you still here?")).not.toBeInTheDocument();
 
-  // This is 6 seconds to match with the test.env settings. If you update this test,
-  // make sure to update the "delays signing out if activity is detected" test and vice versa
-  await sleep(6000);
+  // The ping above warns at 3 seconds idle and signs out at 10.
+  await pingApplied(ping);
+  advanceIdleClock(6000);
 
   rerender(
     <ModalPriorityProvider>
@@ -115,13 +120,14 @@ test("IdleTimerManager, check if user signed in", async () => {
   );
 
   expect(screen.queryByText("Are you still here?")).not.toBeInTheDocument();
-  await sleep(6000);
+  advanceIdleClock(6000);
 
   expect(screen.getByText("Are you still here?")).toBeInTheDocument();
-  await sleep(5000);
+  advanceIdleClock(5000);
 
-  expect(window.location.assign).toHaveBeenCalledTimes(1);
-}, 30000);
+  // Signing out tells the server first, so the redirect follows a request.
+  await waitFor(() => expect(window.location.assign).toHaveBeenCalledTimes(1));
+});
 
 test("IdleTimerManager, public session and continue", async () => {
   server.use(
@@ -203,6 +209,8 @@ test("IdleTimerManager, failed ping", async () => {
 });
 
 test("IdleTimerManager, delays signing out if activity is detected", async () => {
+  const ping = useIdleClock();
+  const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
   const availableVisualizations = [
     {
       label: "Other",
@@ -229,6 +237,19 @@ test("IdleTimerManager, delays signing out if activity is detected", async () =>
         );
       },
     ),
+    // Without these the default ping switches the timer off, and nothing here
+    // could ever show the prompt -- with or without the activity.
+    rest.get("http://api.test/apps/tethysdash/ping/", (req, res, ctx) => {
+      return res(
+        ctx.status(200),
+        ctx.json({
+          status: 1,
+          EXPIRE_AFTER: 10,
+          WARN_AFTER: 3,
+        }),
+        ctx.set("Content-Type", "application/json"),
+      );
+    }),
   );
 
   const { rerender } = render(
@@ -242,13 +263,15 @@ test("IdleTimerManager, delays signing out if activity is detected", async () =>
   window.location = { assign: jest.fn() }; // Mock location.assign
 
   expect(screen.queryByText("Are you still here?")).not.toBeInTheDocument();
-  await sleep(3000);
+  await pingApplied(ping);
 
-  // Splits the original 6 seconds by an activity.If you update this test,
-  // make sure to update the "check if user signed in" test and vice versa
-  fireEvent.click(await screen.findByText("Click me"));
-
-  await sleep(3000);
+  // Four seconds in all, past the 3-second warning -- but the click in the
+  // middle restarts the idle clock, so only two of them count.
+  advanceIdleClock(2000);
+  // A real click, not a bare click event: the idle timer counts mousedown as
+  // activity, and click alone is not in its list.
+  await user.click(screen.getByText("Click me"));
+  advanceIdleClock(2000);
   rerender(
     <ModalPriorityProvider>
       <IdleTimerManager />
@@ -256,7 +279,7 @@ test("IdleTimerManager, delays signing out if activity is detected", async () =>
     </ModalPriorityProvider>,
   );
   expect(screen.queryByText("Are you still here?")).not.toBeInTheDocument();
-}, 30000);
+});
 
 test("IdleTimerManager, public session and no sign in prompt", async () => {
   server.use(
