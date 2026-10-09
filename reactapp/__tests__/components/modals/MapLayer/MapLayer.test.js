@@ -8,6 +8,7 @@ import {
   fireEvent,
   within,
   waitFor,
+  cleanup,
 } from "@testing-library/react";
 import selectEvent from "react-select-event";
 import MapLayerModal, {
@@ -2714,6 +2715,74 @@ describe("MapLayerModal plugin layer", () => {
     });
   });
 
+  test("fetchPluginDefaults resets the attribute row order", async () => {
+    // Plugins never supply an order, so taking a plugin's defaults resets the
+    // order along with the aliases, variables and popup rows it replaces.
+    const addMapLayer = jest.fn();
+    server.use(
+      rest.get(
+        "http://api.test/apps/tethysdash/visualizations/get/",
+        (req, res, ctx) =>
+          res(
+            ctx.status(200),
+            ctx.json({
+              success: true,
+              data: {
+                configuration: { props: { name: "Some Plugin Layer" } },
+                attributeAliases: { test: { name: "Name Alias" } },
+              },
+            }),
+            ctx.set("Content-Type", "application/json"),
+          ),
+      ),
+    );
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={jest.fn()}
+        addMapLayer={addMapLayer}
+        layerInfo={{
+          layerProps: { name: "Some Plugin Layer" },
+          sourceProps: {
+            type: "Stream Gauges (Dynamic)",
+            source: "custom_layer_test",
+            args: {},
+            props: {},
+          },
+          attributeProps: {
+            order: { "Some Plugin Layer": ["id", "name"] },
+          },
+        }}
+        dynamicMapLayers={[
+          {
+            label: "Dynamic Map Layers",
+            options: [
+              {
+                source: "custom_layer_test",
+                value: "Stream Gauges (Dynamic)",
+                label: "Stream Gauges (Dynamic)",
+                args: {},
+                type: "map_layer",
+                dynamic_map_layer: true,
+              },
+            ],
+          },
+        ]}
+      />,
+    );
+
+    fireEvent.click(await screen.findByLabelText("Fetch plugin defaults"));
+    expect(await screen.findByText(/Fetching/)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText(/Fetching/)).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+    await waitFor(() => expect(addMapLayer).toHaveBeenCalledTimes(1));
+    expect(addMapLayer.mock.calls[0][0]).not.toHaveProperty("attributeOrder");
+  });
+
   test("fetchPluginDefaults sets configuration without data returned", async () => {
     const handleModalClose = jest.fn();
     const addMapLayer = jest.fn();
@@ -3501,6 +3570,9 @@ describe("renameLayerInAttributeProps", () => {
           flow_cfs: "Flow (cfs)",
         },
       },
+      order: {
+        "Old Layer Name": ["flow_cfs", "gauge_id"],
+      },
       queryable: true,
     };
     const oldName = "Old Layer Name";
@@ -3523,6 +3595,9 @@ describe("renameLayerInAttributeProps", () => {
         "New Layer Name": {
           flow_cfs: "Flow (cfs)",
         },
+      },
+      order: {
+        "New Layer Name": ["flow_cfs", "gauge_id"],
       },
       queryable: true,
     });
@@ -3628,6 +3703,9 @@ describe("normalizeAttributePropsForLayer", () => {
           flow_cfs: "Flow (cfs)",
         },
       },
+      order: {
+        "Layer Name": ["flow_cfs", "gauge_id"],
+      },
       queryable: true,
     };
     const layerName = "New Layer Name";
@@ -3648,6 +3726,9 @@ describe("normalizeAttributePropsForLayer", () => {
         "New Layer Name": {
           flow_cfs: "Flow (cfs)",
         },
+      },
+      order: {
+        "New Layer Name": ["flow_cfs", "gauge_id"],
       },
       queryable: true,
     });
@@ -3779,6 +3860,7 @@ test("MapLayerModal carries attribute settings across a layer rename", async () 
         sourceProps: { type: "GeoTIFF", props: { url: "d.tif" } },
         attributeProps: {
           variables: { "Old Name": { field1: "Some Variable" } },
+          order: { "Old Name": ["field2", "field1"] },
         },
       }}
     />,
@@ -3793,6 +3875,69 @@ test("MapLayerModal carries attribute settings across a layer rename", async () 
   const saved = addMapLayer.mock.calls[0][0];
   expect(saved.attributeVariables).toEqual({
     "Renamed Layer": { field1: "Some Variable" },
+  });
+  expect(saved.attributeOrder).toEqual({
+    "Renamed Layer": ["field2", "field1"],
+  });
+});
+
+describe("MapLayerModal saves the attribute row order", () => {
+  const saveWithAttributeProps = async (attributeProps) => {
+    const addMapLayer = jest.fn();
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={jest.fn()}
+        addMapLayer={addMapLayer}
+        layerInfo={{
+          layerProps: { name: "states" },
+          sourceProps: { type: "GeoTIFF", props: { url: "d.tif" } },
+          attributeProps,
+        }}
+      />,
+    );
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+    await waitFor(() => expect(addMapLayer).toHaveBeenCalledTimes(1));
+    return addMapLayer.mock.calls[0][0];
+  };
+
+  test("writes the order map beside the aliases", async () => {
+    const saved = await saveWithAttributeProps({
+      aliases: { states: { a: "Alpha", b: "Beta" } },
+      order: { states: ["b", "a"] },
+    });
+    expect(saved.attributeOrder).toEqual({ states: ["b", "a"] });
+  });
+
+  test("writes the order even when every alias is blank", async () => {
+    // A blank alias shows the field name as-is, and an all-blank alias map is
+    // not saved at all -- the order must not ride on that gate.
+    const saved = await saveWithAttributeProps({
+      aliases: { states: { a: "", b: "" } },
+      order: { states: ["b", "a"] },
+    });
+    expect(saved.attributeAliases).toBeUndefined();
+    expect(saved.attributeOrder).toEqual({ states: ["b", "a"] });
+  });
+
+  test("writes no order key when there is no order", async () => {
+    const saved = await saveWithAttributeProps({
+      aliases: { states: { a: "Alpha" } },
+    });
+    expect(saved).not.toHaveProperty("attributeOrder");
+  });
+
+  test("drops empty order lists", async () => {
+    const saved = await saveWithAttributeProps({
+      order: { states: [], other: ["x"] },
+    });
+    expect(saved.attributeOrder).toEqual({ other: ["x"] });
+
+    cleanup();
+    const savedEmpty = await saveWithAttributeProps({
+      order: { states: [] },
+    });
+    expect(savedEmpty).not.toHaveProperty("attributeOrder");
   });
 });
 

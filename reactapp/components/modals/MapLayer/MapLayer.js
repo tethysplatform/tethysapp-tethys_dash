@@ -190,6 +190,7 @@ export function normalizeAttributePropsForLayer(
     ),
     omitted: rekeyAttributeMapToLayer(attributeProps?.omitted, targetLayerName),
     aliases: rekeyAttributeMapToLayer(attributeProps?.aliases, targetLayerName),
+    order: rekeyAttributeMapToLayer(attributeProps?.order, targetLayerName),
   };
 }
 
@@ -205,6 +206,7 @@ export function renameLayerInAttributeProps(attributeProps, oldName, newName) {
     variables: renameKey(attributeProps?.variables),
     omitted: renameKey(attributeProps?.omitted),
     aliases: renameKey(attributeProps?.aliases),
+    order: renameKey(attributeProps?.order),
   };
 }
 
@@ -469,6 +471,17 @@ const MapLayerModal = ({
       mapConfiguration.omittedPopupAttributes = attributeProps.omitted;
     }
 
+    // Gated on its own rather than riding on the alias check: a layer whose
+    // aliases are all blank saves no alias map, but its row order still counts.
+    const attributeOrder = Object.fromEntries(
+      Object.entries(attributeProps.order ?? {}).filter(
+        ([, fields]) => Array.isArray(fields) && fields.length > 0,
+      ),
+    );
+    if (Object.keys(attributeOrder).length > 0) {
+      mapConfiguration.attributeOrder = attributeOrder;
+    }
+
     const resolvedTablePopupType = resolveTablePopupType(attributeProps);
     if (resolvedTablePopupType !== "click") {
       mapConfiguration.tablePopupType = resolvedTablePopupType;
@@ -598,6 +611,7 @@ const MapLayerModal = ({
     const attributeAliases = apiResponse.data.attributeAliases ?? {};
     const omittedPopupAttributes =
       apiResponse.data.omittedPopupAttributes ?? {};
+    const attributeOrder = apiResponse.data.attributeOrder ?? {};
     const layerTablePopupType = resolveTablePopupType(apiResponse.data);
     const updatedLayerProps = Object.fromEntries(
       Object.entries(apiResponse.data.configuration.props).filter(
@@ -620,6 +634,7 @@ const MapLayerModal = ({
           variables: attributeVariables,
           omitted: omittedPopupAttributes,
           aliases: attributeAliases,
+          order: attributeOrder,
           tablePopupType: layerTablePopupType,
         },
         effectiveName,
@@ -660,6 +675,7 @@ const MapLayerModal = ({
         const attributeVariables = scaffold.attributeVariables ?? {};
         const attributeAliases = scaffold.attributeAliases ?? {};
         const omittedPopupAttributes = scaffold.omittedPopupAttributes ?? {};
+        const attributeOrder = scaffold.attributeOrder ?? {};
         const scaffoldTablePopupType = resolveTablePopupType(scaffold);
 
         const updatedLayerProps = Object.fromEntries(
@@ -687,6 +703,7 @@ const MapLayerModal = ({
               variables: attributeVariables,
               omitted: omittedPopupAttributes,
               aliases: attributeAliases,
+              order: attributeOrder,
               tablePopupType: scaffoldTablePopupType,
             },
             effectiveName,

@@ -31,6 +31,7 @@ import {
   formatAttributeValue,
   coerceOptionalBoolean,
   RASTER_SOURCE_TYPES,
+  orderAttributeNames,
 } from "components/map/utilities";
 import {
   classifyGeometryForRanking,
@@ -5448,5 +5449,57 @@ describe("imageRatio is editable in the layer properties GUI", () => {
     expect(layerPropertiesOptions.imageRatio.placeholder).toEqual(
       expect.stringContaining("Vector Image Layer"),
     );
+  });
+});
+
+describe("orderAttributeNames", () => {
+  test("puts saved fields first and the rest after in their own order", () => {
+    expect(
+      orderAttributeNames(
+        ["STATUS", "GAUGE_ID", "NAME", "FLOW"],
+        ["NAME", "FLOW", "STATUS"],
+      ),
+    ).toEqual(["NAME", "FLOW", "STATUS", "GAUGE_ID"]);
+  });
+
+  test("skips saved fields the names do not include", () => {
+    expect(
+      orderAttributeNames(["FLOW", "EXTRA"], ["NAME", "FLOW", "STATUS"]),
+    ).toEqual(["FLOW", "EXTRA"]);
+  });
+
+  test("appends newly discovered fields below the saved ones", () => {
+    expect(orderAttributeNames(["C", "A", "B"], ["A", "B"])).toEqual([
+      "A",
+      "B",
+      "C",
+    ]);
+  });
+
+  test("places integer-like names where the saved order puts them", () => {
+    expect(orderAttributeNames(["2020", "NAME"], ["NAME", "2020"])).toEqual([
+      "NAME",
+      "2020",
+    ]);
+  });
+
+  test("returns the natural order when nothing is saved", () => {
+    expect(orderAttributeNames(["b", "a"], undefined)).toEqual(["b", "a"]);
+    expect(orderAttributeNames(["b", "a"], [])).toEqual(["b", "a"]);
+  });
+
+  test("lists a duplicated name once, at its first position", () => {
+    expect(orderAttributeNames(["a", "b", "a"], ["b", "a", "b"])).toEqual([
+      "b",
+      "a",
+    ]);
+  });
+
+  test("does not mutate its inputs", () => {
+    const names = ["b", "a"];
+    const saved = ["a"];
+    orderAttributeNames(names, saved);
+    expect(names).toEqual(["b", "a"]);
+    expect(saved).toEqual(["a"]);
   });
 });

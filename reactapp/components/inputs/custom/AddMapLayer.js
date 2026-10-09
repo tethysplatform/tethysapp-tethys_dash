@@ -113,6 +113,7 @@ const MapLayerTemplate = ({
     const attributeAliases = existingMapLayer.attributeAliases ?? {};
     const omittedPopupAttributes =
       existingMapLayer.omittedPopupAttributes ?? {};
+    const attributeOrder = existingMapLayer.attributeOrder ?? {};
     const layerTablePopupType = resolveTablePopupType(existingMapLayer);
     const layerProps = Object.fromEntries(
       Object.entries(existingMapLayer.configuration.props).filter(
@@ -143,6 +144,7 @@ const MapLayerTemplate = ({
         variables: attributeVariables,
         omitted: omittedPopupAttributes,
         aliases: attributeAliases,
+        order: attributeOrder,
         tablePopupType: layerTablePopupType,
       },
       popupConfig: existingMapLayer.popupConfig ?? null,
