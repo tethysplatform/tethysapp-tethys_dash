@@ -986,6 +986,9 @@ test("MapLayerModal attribute variables and omitted popups", async () => {
   fireEvent.click(createLayerButton);
 
   expect(addMapLayer).toHaveBeenCalledWith({
+    attributeOrder: {
+      "New Layer Name": ["the_geom", "STATE_NAME"],
+    },
     attributeVariables: {
       "New Layer Name": {
         the_geom: "Some Variable",
@@ -1499,6 +1502,9 @@ test("MapLayerModal update ImageArcGISRest layer", async () => {
   fireEvent.click(createLayerButton);
 
   expect(addMapLayer).toHaveBeenCalledWith({
+    attributeOrder: {
+      "New Layer Name": ["the_geom", "STATE_NAME"],
+    },
     configuration: {
       props: {
         name: "New Layer Name",

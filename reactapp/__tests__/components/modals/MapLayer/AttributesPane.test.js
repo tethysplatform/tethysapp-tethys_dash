@@ -49,6 +49,7 @@ const TestingComponent = ({
         {JSON.stringify(attributeProps.tablePopupType)}
       </p>
       <p data-testid="queryable">{JSON.stringify(attributeProps.queryable)}</p>
+      <p data-testid="attributeOrder">{JSON.stringify(attributeProps.order)}</p>
     </AppContext.Provider>
   );
 };
@@ -883,5 +884,194 @@ describe("a shapefile's fields come from the Source tab's read", () => {
     // fetched from here -- the Source tab owns that read.
     expect(await screen.findByLabelText("name Input 0")).toHaveValue("");
     expect(mockedGetLayerAttributes).not.toHaveBeenCalled();
+  });
+});
+
+describe("AttributesPane row order", () => {
+  const esriSource = {
+    type: "ESRI Image and Map Service",
+    props: {
+      url: "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer",
+    },
+  };
+
+  const renderPane = (initialAttributeProps) =>
+    render(
+      <TestingComponent
+        sourceProps={esriSource}
+        layerProps={{ name: "esri" }}
+        tabKey="attributes"
+        initialAttributeProps={initialAttributeProps}
+      />,
+    );
+
+  const order = () =>
+    JSON.parse(screen.getByTestId("attributeOrder").textContent);
+
+  // The discovered table shows each field name as plain text in the cell after
+  // the move buttons, so the move buttons' labels give the row order.
+  const discoveredRowNames = () =>
+    screen
+      .getAllByRole("button", { name: /^Move .* up$/ })
+      .map((button) => button.getAttribute("aria-label").slice(5, -3));
+
+  test("records the discovered order when nothing is saved", async () => {
+    mockedGetLayerAttributes.mockResolvedValue({
+      states: [
+        { name: "a", alias: "a" },
+        { name: "b", alias: "b" },
+        { name: "c", alias: "c" },
+      ],
+    });
+    renderPane();
+
+    await screen.findByLabelText("Move a down");
+    expect(discoveredRowNames()).toEqual(["a", "b", "c"]);
+    await waitFor(() => expect(order()).toEqual({ states: ["a", "b", "c"] }));
+  });
+
+  test("shows discovered rows in the saved order, new fields last", async () => {
+    // Covers AE5.
+    mockedGetLayerAttributes.mockResolvedValue({
+      states: [
+        { name: "c", alias: "c" },
+        { name: "a", alias: "a" },
+        { name: "b", alias: "b" },
+      ],
+    });
+    renderPane({ order: { states: ["a", "b"] } });
+
+    await screen.findByLabelText("Move a down");
+    expect(discoveredRowNames()).toEqual(["a", "b", "c"]);
+    await waitFor(() => expect(order()).toEqual({ states: ["a", "b", "c"] }));
+  });
+
+  test("keeps an integer-like name where the saved order put it", async () => {
+    // Covers AE4.
+    mockedGetLayerAttributes.mockResolvedValue({
+      states: [
+        { name: "2020", alias: "2020" },
+        { name: "NAME", alias: "NAME" },
+      ],
+    });
+    renderPane({ order: { states: ["NAME", "2020"] } });
+
+    await screen.findByLabelText("Move NAME down");
+    expect(discoveredRowNames()).toEqual(["NAME", "2020"]);
+  });
+
+  test("moving a discovered row carries its settings with it", async () => {
+    mockedGetLayerAttributes.mockResolvedValue({
+      states: [
+        { name: "a", alias: "a" },
+        { name: "b", alias: "b" },
+        { name: "c", alias: "c" },
+      ],
+    });
+    renderPane({
+      aliases: { states: { c: "Gamma" } },
+      variables: { states: { c: "Some Variable" } },
+      omitted: { states: ["c"] },
+    });
+
+    fireEvent.click(await screen.findByLabelText("Move c up"));
+
+    expect(discoveredRowNames()).toEqual(["a", "c", "b"]);
+    expect(order()).toEqual({ states: ["a", "c", "b"] });
+    expect(screen.getAllByLabelText("alias row")[1].value).toBe("Gamma");
+    expect(screen.getAllByLabelText("variable row")[1].value).toBe(
+      "Some Variable",
+    );
+    // a hidden row moves and stays hidden
+    expect(screen.getAllByLabelText("Show in popup row")[1].checked).toBe(
+      false,
+    );
+    expect(
+      JSON.parse(screen.getByTestId("omittedPopupAttributes").textContent),
+    ).toEqual({ states: ["c"] });
+    expect(screen.getByLabelText("Move c up")).toHaveFocus();
+  });
+
+  test("editing an alias after a move leaves the order alone", async () => {
+    mockedGetLayerAttributes.mockResolvedValue({
+      states: [
+        { name: "a", alias: "a" },
+        { name: "b", alias: "b" },
+      ],
+    });
+    renderPane();
+
+    fireEvent.click(await screen.findByLabelText("Move b up"));
+    fireEvent.change(screen.getAllByLabelText("alias row")[0], {
+      target: { value: "Beta" },
+    });
+
+    expect(discoveredRowNames()).toEqual(["b", "a"]);
+    expect(order()).toEqual({ states: ["b", "a"] });
+    expect(
+      JSON.parse(screen.getByTestId("attributeAliases").textContent),
+    ).toEqual({ states: { b: "Beta", a: "a" } });
+  });
+
+  test("orders each layer on its own", async () => {
+    mockedGetLayerAttributes.mockResolvedValue({
+      first: [
+        { name: "a", alias: "a" },
+        { name: "b", alias: "b" },
+      ],
+      second: [
+        { name: "x", alias: "x" },
+        { name: "y", alias: "y" },
+      ],
+    });
+    renderPane();
+
+    fireEvent.click(await screen.findByLabelText("Move y up"));
+    expect(order()).toEqual({ first: ["a", "b"], second: ["y", "x"] });
+  });
+
+  test("seeds the manual table from the saved order", async () => {
+    mockedGetLayerAttributes.mockRejectedValue({ message: "Unreachable" });
+    renderPane({
+      aliases: { esri: { x: "Ex", y: "Why" } },
+      order: { esri: ["y", "x"] },
+    });
+
+    expect(await screen.findByLabelText("name Input 0")).toHaveValue("y");
+    expect(screen.getByLabelText("name Input 1")).toHaveValue("x");
+
+    fireEvent.click(screen.getByLabelText("Move row 2 up"));
+    expect(screen.getByLabelText("name Input 0")).toHaveValue("x");
+    expect(screen.getByLabelText("alias Input 0")).toHaveValue("Ex");
+    expect(order()).toEqual({ esri: ["x", "y"] });
+  });
+
+  test("leaves blank manual rows out of the order", async () => {
+    mockedGetLayerAttributes.mockRejectedValue({ message: "Unreachable" });
+    renderPane({ order: { esri: ["x"] } });
+
+    await screen.findByLabelText("name Input 0");
+    screen.getByLabelText("variableInput Input 0").focus();
+    await userEvent.tab();
+    expect(screen.getByLabelText("name Input 1")).toHaveValue("");
+    expect(order()).toEqual({ esri: ["x"] });
+  });
+
+  test("a manual edit changes only the row it was made in", async () => {
+    // The manual table once reported the sublayer's index instead of the row's,
+    // so editing row 2 also overwrote row 0.
+    mockedGetLayerAttributes.mockRejectedValue({ message: "Unreachable" });
+    renderPane({
+      aliases: { esri: { x: "Ex", y: "Why" } },
+      order: { esri: ["x", "y"] },
+    });
+
+    fireEvent.change(await screen.findByLabelText("alias Input 1"), {
+      target: { value: "Changed" },
+    });
+    expect(screen.getByLabelText("alias Input 0")).toHaveValue("Ex");
+    expect(
+      JSON.parse(screen.getByTestId("attributeAliases").textContent),
+    ).toEqual({ esri: { x: "Ex", y: "Changed" } });
   });
 });

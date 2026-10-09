@@ -9,6 +9,7 @@ import {
   attributePropsPropType,
   sourcePropType,
   resolveTablePopupType,
+  orderAttributeNames,
 } from "components/map/utilities";
 import DataRadioSelect from "components/inputs/DataRadioSelect";
 import Spinner from "react-bootstrap/Spinner";
@@ -19,6 +20,7 @@ import {
   removeEmptyValues,
 } from "components/modals/utilities";
 import InputTable from "components/inputs/InputTable";
+import RowMoveButtons, { moveRow } from "components/inputs/RowMoveButtons";
 import "components/modals/wideModal.css";
 import JSON5 from "json5";
 import { AppContext } from "components/contexts/Contexts";
@@ -80,6 +82,7 @@ const AttributesPane = ({
   const previousAttributeProps = useRef({});
   const [customAttributes, setCustomAttributes] = useState(null);
   const [layerPopupSwitch, setLayerPopupSwitch] = useState({});
+  const [moveFocus, setMoveFocus] = useState(null);
   const [tablePopupType, setTablePopupType] = useState(
     resolveTablePopupType(attributeProps),
   );
@@ -258,11 +261,15 @@ const AttributesPane = ({
     if (queriedLayerAttributes) {
       setCustomAttributes(true);
 
-      // remove an layers where no attributes were found
+      // remove an layers where no attributes were found, and show the rest in
+      // the author's saved order, anything the order does not list going last
       layerAttributes = Object.fromEntries(
-        Object.entries(queriedLayerAttributes).filter(
-          ([_, value]) => !(Array.isArray(value) && value.length === 0),
-        ),
+        Object.entries(queriedLayerAttributes)
+          .filter(([_, value]) => !(Array.isArray(value) && value.length === 0))
+          .map(([layerName, rows]) => [
+            layerName,
+            applySavedOrder(layerName, rows),
+          ]),
       );
 
       // if the query failed, allow the user to create their own fields for configuration
@@ -301,10 +308,13 @@ const AttributesPane = ({
         );
         const existingOmittedPopupAttributesFields =
           attributeProps?.omitted?.[layerName] || [];
+        const existingAttributeOrder = attributeProps?.order?.[layerName] || [];
 
-        // get a unique array of attributes already configured for either popups or attributes
+        // get a unique array of attributes already configured for either popups or attributes,
+        // led by the saved order so the rows come back the way the author left them
         const existingAttributes = [
           ...new Set([
+            ...existingAttributeOrder,
             ...existingLayerattributeVariableFields,
             ...existingOmittedPopupAttributesFields,
             ...existingLayerAttributeAliases,
@@ -338,8 +348,22 @@ const AttributesPane = ({
         variables: extractVariableInputs(layerAttributes),
         omitted: extractFalsePopups(layerAttributes),
         aliases: extractAliases(layerAttributes),
+        order: extractOrder(layerAttributes),
       },
     }));
+  }
+
+  // Sort one layer's discovered rows into the saved order. A stable sort by
+  // rank rather than a rebuild from the ordered names, so two rows that share a
+  // name both survive.
+  function applySavedOrder(layerName, rows) {
+    const rank = new Map(
+      orderAttributeNames(
+        rows.map(({ name }) => name),
+        attributeProps?.order?.[layerName],
+      ).map((name, index) => [name, index]),
+    );
+    return [...rows].sort((a, b) => rank.get(a.name) - rank.get(b.name));
   }
 
   async function handleLoadAttributesFromUrl() {
@@ -402,6 +426,17 @@ const AttributesPane = ({
     });
 
     return result;
+  }
+
+  // The row order of each layer, by field name. Blank rows (the manual table's
+  // trailing row) are left out, and a repeated name keeps its first position.
+  function extractOrder(layerData) {
+    return Object.fromEntries(
+      Object.entries(layerData).map(([layerName, layerAttributes]) => [
+        layerName,
+        [...new Set(layerAttributes.map(({ name }) => name).filter(Boolean))],
+      ]),
+    );
   }
 
   function extractVariableInputs(layerData) {
@@ -470,6 +505,7 @@ const AttributesPane = ({
         variables: extractVariableInputs(updatedAttributes),
         omitted: extractFalsePopups(updatedAttributes),
         aliases: extractAliases(updatedAttributes),
+        order: extractOrder(updatedAttributes),
       },
     }));
 
@@ -487,6 +523,17 @@ const AttributesPane = ({
 
       setLayerPopupSwitch(updatedLayerPopupSwitch);
     }
+  }
+
+  function handleMoveRow(layerName, rowIndex, delta) {
+    const movedRows = moveRow(attributes[layerName], rowIndex, delta);
+    if (!movedRows) return;
+    setMoveFocus({
+      layerName,
+      index: rowIndex + delta,
+      request: { direction: delta < 0 ? "up" : "down" },
+    });
+    updateAttributes({ layerName, fullChange: movedRows });
   }
 
   function handleLayerPopup(layerName, checkedValue) {
@@ -566,10 +613,13 @@ const AttributesPane = ({
                 <FixedTable striped bordered hover size="sm">
                   <thead>
                     <tr>
-                      <th className="text-center" style={{ width: "25%" }}>
+                      <th className="text-center" style={{ width: "10%" }}>
+                        Order
+                      </th>
+                      <th className="text-center" style={{ width: "22%" }}>
                         Name
                       </th>
-                      <th className="text-center" style={{ width: "25%" }}>
+                      <th className="text-center" style={{ width: "22%" }}>
                         Alias
                       </th>
                       <th className="text-center" style={{ width: "20%" }}>
@@ -590,6 +640,22 @@ const AttributesPane = ({
                   <tbody>
                     {attributes[layerName].map(({ name }, index) => (
                       <tr key={index}>
+                        <CenteredTD>
+                          <RowMoveButtons
+                            index={index}
+                            count={attributes[layerName].length}
+                            label={name || `row ${index + 1}`}
+                            onMove={(rowIndex, delta) =>
+                              handleMoveRow(layerName, rowIndex, delta)
+                            }
+                            focusRequest={
+                              moveFocus?.layerName === layerName &&
+                              moveFocus.index === index
+                                ? moveFocus.request
+                                : undefined
+                            }
+                          />
+                        </CenteredTD>
                         <OverflowTD>{name}</OverflowTD>
                         <td>
                           <StyledInput
@@ -663,9 +729,9 @@ const AttributesPane = ({
                 <InputTable
                   key={index}
                   label={layerName}
-                  onChange={({ newValue, field, fullChange }) =>
+                  onChange={({ newValue, rowIndex, field, fullChange }) =>
                     updateAttributes({
-                      index,
+                      index: rowIndex,
                       layerName,
                       field,
                       fieldChange: newValue,
@@ -674,6 +740,7 @@ const AttributesPane = ({
                   }
                   values={attributes[layerName]}
                   allowRowCreation={true}
+                  allowRowReorder={true}
                   headers={[
                     "Name",
                     "Alias",
