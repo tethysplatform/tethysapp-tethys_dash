@@ -1,5 +1,5 @@
 import PropTypes from "prop-types";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
  * Up/down buttons that move one row of a table by one position.
@@ -7,9 +7,9 @@ import { useEffect, useRef } from "react";
  * A moved row is re-rendered at its new index, so the button that was pressed
  * unmounts with the old position and keyboard focus would fall back to the
  * page. The table hands the row at the new index a fresh `focusRequest` object
- * after each move, and that row takes focus on the same direction's button --
- * or on the other one when the row has just reached the end it was moving
- * towards and that button is now disabled.
+ * after each move (see useRowMoveFocus), and that row takes focus on the same
+ * direction's button -- or on the other one when the row has just reached the
+ * end it was moving towards and that button is now disabled.
  */
 const RowMoveButtons = ({ index, count, label, onMove, focusRequest }) => {
   const upRef = useRef(null);
@@ -52,6 +52,31 @@ const RowMoveButtons = ({ index, count, label, onMove, focusRequest }) => {
       </button>
     </div>
   );
+};
+
+/**
+ * Tracks where keyboard focus belongs after a move, for a table of
+ * RowMoveButtons. Call `requestFocus` with a move's index and delta, and pass
+ * `focusRequestFor(index)` to each row's `focusRequest`. A page holding several
+ * tables passes a `scope` naming the table to both, so a move in one table does
+ * not pull focus into the same row of another.
+ *
+ * @returns {[Function, Function]} `[focusRequestFor, requestFocus]`.
+ */
+export const useRowMoveFocus = () => {
+  const [pending, setPending] = useState(null);
+  const requestFocus = (index, delta, scope) =>
+    setPending({
+      scope,
+      index: index + delta,
+      // a new object per move, so a move landing on the same index refocuses
+      request: { direction: delta < 0 ? "up" : "down" },
+    });
+  const focusRequestFor = (index, scope) =>
+    pending && pending.scope === scope && pending.index === index
+      ? pending.request
+      : undefined;
+  return [focusRequestFor, requestFocus];
 };
 
 /**

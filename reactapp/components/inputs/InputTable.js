@@ -3,7 +3,10 @@ import { useState, useRef, useEffect } from "react";
 import Table from "react-bootstrap/Table";
 import styled from "styled-components";
 import DataSelect from "components/inputs/DataSelect";
-import RowMoveButtons, { moveRow } from "components/inputs/RowMoveButtons";
+import RowMoveButtons, {
+  moveRow,
+  useRowMoveFocus,
+} from "components/inputs/RowMoveButtons";
 
 const FullInput = styled.input`
   width: 100%;
@@ -80,7 +83,7 @@ const InputTable = ({
   const [tableRows, setTableRows] = useState([]);
   const [tableHeaders, setTableHeaders] = useState([]);
   const [inputPlaceholders, setInputPlaceholders] = useState([]);
-  const [moveFocus, setMoveFocus] = useState(null);
+  const [focusRequestFor, requestFocus] = useRowMoveFocus();
   const inputRefs = useRef([]);
 
   // get a new row with empty values that will be appended to table
@@ -160,10 +163,7 @@ const InputTable = ({
     const newTableRows = moveRow(tableRows, rowIndex, delta);
     if (!newTableRows) return;
     setTableRows(newTableRows);
-    setMoveFocus({
-      index: rowIndex + delta,
-      request: { direction: delta < 0 ? "up" : "down" },
-    });
+    requestFocus(rowIndex, delta);
     onChange({ fullChange: newTableRows });
   };
 
@@ -208,11 +208,7 @@ const InputTable = ({
                       count={tableRows.length}
                       label={`row ${rowIndex + 1}`}
                       onMove={handleMove}
-                      focusRequest={
-                        moveFocus?.index === rowIndex
-                          ? moveFocus.request
-                          : undefined
-                      }
+                      focusRequest={focusRequestFor(rowIndex)}
                     />
                   </CenteredTD>
                 )}

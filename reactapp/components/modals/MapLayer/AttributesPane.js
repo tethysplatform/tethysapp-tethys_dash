@@ -20,7 +20,10 @@ import {
   removeEmptyValues,
 } from "components/modals/utilities";
 import InputTable from "components/inputs/InputTable";
-import RowMoveButtons, { moveRow } from "components/inputs/RowMoveButtons";
+import RowMoveButtons, {
+  moveRow,
+  useRowMoveFocus,
+} from "components/inputs/RowMoveButtons";
 import "components/modals/wideModal.css";
 import JSON5 from "json5";
 import { AppContext } from "components/contexts/Contexts";
@@ -82,7 +85,7 @@ const AttributesPane = ({
   const previousAttributeProps = useRef({});
   const [customAttributes, setCustomAttributes] = useState(null);
   const [layerPopupSwitch, setLayerPopupSwitch] = useState({});
-  const [moveFocus, setMoveFocus] = useState(null);
+  const [focusRequestFor, requestFocus] = useRowMoveFocus();
   const [tablePopupType, setTablePopupType] = useState(
     resolveTablePopupType(attributeProps),
   );
@@ -528,11 +531,7 @@ const AttributesPane = ({
   function handleMoveRow(layerName, rowIndex, delta) {
     const movedRows = moveRow(attributes[layerName], rowIndex, delta);
     if (!movedRows) return;
-    setMoveFocus({
-      layerName,
-      index: rowIndex + delta,
-      request: { direction: delta < 0 ? "up" : "down" },
-    });
+    requestFocus(rowIndex, delta, layerName);
     updateAttributes({ layerName, fullChange: movedRows });
   }
 
@@ -648,12 +647,7 @@ const AttributesPane = ({
                             onMove={(rowIndex, delta) =>
                               handleMoveRow(layerName, rowIndex, delta)
                             }
-                            focusRequest={
-                              moveFocus?.layerName === layerName &&
-                              moveFocus.index === index
-                                ? moveFocus.request
-                                : undefined
-                            }
+                            focusRequest={focusRequestFor(index, layerName)}
                           />
                         </CenteredTD>
                         <OverflowTD>{name}</OverflowTD>
