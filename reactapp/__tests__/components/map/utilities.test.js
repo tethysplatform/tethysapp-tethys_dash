@@ -5496,6 +5496,11 @@ describe("orderAttributeNames", () => {
     ]);
   });
 
+  test("ignores a saved order that is not a list", () => {
+    expect(orderAttributeNames(["b", "a"], "a,b")).toEqual(["b", "a"]);
+    expect(orderAttributeNames(["b", "a"], { 0: "a" })).toEqual(["b", "a"]);
+  });
+
   test("does not mutate its inputs", () => {
     const names = ["b", "a"];
     const saved = ["a"];

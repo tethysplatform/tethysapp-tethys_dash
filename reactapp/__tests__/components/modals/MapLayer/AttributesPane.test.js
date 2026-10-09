@@ -1,5 +1,11 @@
 import { useState } from "react";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import {
+  render,
+  screen,
+  waitFor,
+  fireEvent,
+  act,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { getLayerAttributes } from "components/map/utilities";
 import AttributesPane from "components/modals/MapLayer/AttributesPane";
@@ -1055,6 +1061,40 @@ describe("AttributesPane row order", () => {
     await userEvent.tab();
     expect(screen.getByLabelText("name Input 1")).toHaveValue("");
     expect(order()).toEqual({ esri: ["x"] });
+  });
+
+  test("a re-read of the source does not pull focus back to a moved row", async () => {
+    mockedGetLayerAttributes.mockResolvedValue({
+      states: [
+        { name: "a", alias: "a" },
+        { name: "b", alias: "b" },
+      ],
+    });
+    const { rerender } = renderPane();
+
+    fireEvent.click(await screen.findByLabelText("Move b up"));
+    expect(screen.getByLabelText("Move b up")).toBeDisabled();
+    expect(screen.getByLabelText("Move b down")).toHaveFocus();
+
+    // the author moves on, then the source changes and the table is rebuilt
+    const alias = screen.getAllByLabelText("alias row")[1];
+    alias.focus();
+    rerender(
+      <TestingComponent
+        sourceProps={{ ...esriSource, props: { url: "https://other.test" } }}
+        layerProps={{ name: "esri" }}
+        tabKey="attributes"
+      />,
+    );
+    // the rows give way to the spinner while the source is re-read, then
+    // mount afresh
+    expect(await screen.findByTestId("Loading...")).toBeInTheDocument();
+    await screen.findByLabelText("Move b down");
+    // the rebuilt rows mount after the query settles; give their effects a
+    // real tick to run before looking at focus
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+    expect(screen.getByLabelText("Move b down")).not.toHaveFocus();
+    expect(screen.getByLabelText("Move a up")).not.toHaveFocus();
   });
 
   test("a manual edit changes only the row it was made in", async () => {

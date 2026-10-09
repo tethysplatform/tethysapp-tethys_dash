@@ -673,6 +673,28 @@ describe("InputTable row reordering", () => {
     expect(names()).toEqual(["c", "a", "b"]);
   });
 
+  it("deletes a blank row that was moved to the top", async () => {
+    const onChange = jest.fn();
+    render(
+      <InputTable
+        label="Table"
+        onChange={onChange}
+        values={[
+          { name: "a", alias: "" },
+          { name: "", alias: "" },
+        ]}
+        allowRowCreation
+        allowRowReorder
+      />,
+    );
+    fireEvent.click(screen.getByLabelText("Move row 2 up"));
+    screen.getByLabelText("name Input 0").focus();
+    await userEvent.keyboard("{backspace}");
+    expect(onChange.mock.calls.at(-1)[0].fullChange).toEqual([
+      { name: "a", alias: "" },
+    ]);
+  });
+
   it("still adds a row on tab from the last field", async () => {
     const onChange = jest.fn();
     render(

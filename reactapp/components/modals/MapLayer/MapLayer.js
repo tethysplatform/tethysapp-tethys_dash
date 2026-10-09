@@ -675,7 +675,6 @@ const MapLayerModal = ({
         const attributeVariables = scaffold.attributeVariables ?? {};
         const attributeAliases = scaffold.attributeAliases ?? {};
         const omittedPopupAttributes = scaffold.omittedPopupAttributes ?? {};
-        const attributeOrder = scaffold.attributeOrder ?? {};
         const scaffoldTablePopupType = resolveTablePopupType(scaffold);
 
         const updatedLayerProps = Object.fromEntries(
@@ -697,13 +696,17 @@ const MapLayerModal = ({
         // has to be editable in the Labels tab.
         setLabels(config.labels ?? null);
 
-        setAttributeProps(
+        // The row order is the author's, not the plugin's: no plugin supplies
+        // one, and the Attributes table is not re-read here, so it keeps
+        // showing the author's order. Resetting it would save a different
+        // order from the one on screen.
+        setAttributeProps((previous) =>
           normalizeAttributePropsForLayer(
             {
               variables: attributeVariables,
               omitted: omittedPopupAttributes,
               aliases: attributeAliases,
-              order: attributeOrder,
+              order: scaffold.attributeOrder ?? previous?.order ?? {},
               tablePopupType: scaffoldTablePopupType,
             },
             effectiveName,

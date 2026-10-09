@@ -151,11 +151,12 @@ const InputTable = ({
       setTableRows(newTableRows);
       onChange({ fullChange: newTableRows });
 
-      // Focus the previous row's first input
+      // Focus the previous row's first input. A reordered table can put a
+      // blank row first, which has no previous row to land on.
       const prevRowIndex = rowIndex - 1;
       const prevInputIndex = prevRowIndex * Object.keys(tableRows[0]).length;
       const prevInput = inputRefs.current[prevInputIndex];
-      prevInput.focus();
+      prevInput?.focus();
     }
   };
 

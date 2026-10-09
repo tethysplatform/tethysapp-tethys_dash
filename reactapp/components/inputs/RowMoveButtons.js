@@ -65,6 +65,14 @@ const RowMoveButtons = ({ index, count, label, onMove, focusRequest }) => {
  */
 export const useRowMoveFocus = () => {
   const [pending, setPending] = useState(null);
+  // One-shot: the row's focus effect runs in the commit that delivered the
+  // request (a child's effects run before its parent's), and the request is
+  // cleared straight after. Left in place, a table that later re-mounts -- the
+  // Attributes pane swaps its rows for a spinner while it re-reads a source --
+  // would pull focus onto that row's button long after the move.
+  useEffect(() => {
+    if (pending) setPending(null);
+  }, [pending]);
   const requestFocus = (index, delta, scope) =>
     setPending({
       scope,

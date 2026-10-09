@@ -2721,9 +2721,10 @@ describe("MapLayerModal plugin layer", () => {
     });
   });
 
-  test("fetchPluginDefaults resets the attribute row order", async () => {
-    // Plugins never supply an order, so taking a plugin's defaults resets the
-    // order along with the aliases, variables and popup rows it replaces.
+  test("fetchPluginDefaults keeps the author's attribute row order", async () => {
+    // Plugins never supply an order, and the Attributes table is not re-read
+    // on Fetch defaults, so the table keeps showing the author's order. The
+    // saved order has to match it rather than reset to source order.
     const addMapLayer = jest.fn();
     server.use(
       rest.get(
@@ -2786,7 +2787,9 @@ describe("MapLayerModal plugin layer", () => {
 
     fireEvent.click(await screen.findByLabelText("Create Layer Button"));
     await waitFor(() => expect(addMapLayer).toHaveBeenCalledTimes(1));
-    expect(addMapLayer.mock.calls[0][0]).not.toHaveProperty("attributeOrder");
+    expect(addMapLayer.mock.calls[0][0].attributeOrder).toEqual({
+      "Some Plugin Layer": ["id", "name"],
+    });
   });
 
   test("fetchPluginDefaults sets configuration without data returned", async () => {

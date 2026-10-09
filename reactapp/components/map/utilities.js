@@ -1865,7 +1865,9 @@ export const attributeOrderPropType = PropTypes.objectOf(
 export function orderAttributeNames(names, savedOrder) {
   const present = new Set(names);
   const ordered = new Set();
-  for (const name of savedOrder ?? []) {
+  // A hand-edited or imported config may carry anything here; ignore what is
+  // not a list rather than fail the popup render.
+  for (const name of Array.isArray(savedOrder) ? savedOrder : []) {
     if (present.has(name)) ordered.add(name);
   }
   for (const name of names) {
