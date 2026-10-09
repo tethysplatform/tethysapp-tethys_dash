@@ -130,6 +130,21 @@ async function drive() {
   await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
+// A tile layer rebuilt by a change is added hidden and revealed once it paints.
+// jsdom never paints, so the swap would otherwise sit out the five-second safety
+// timeout every time. Fire the event a browser would once the tiles arrive.
+async function paintReplacement(name) {
+  let replacement;
+  await waitFor(() => {
+    replacement = mapRef.current
+      .getLayers()
+      .getArray()
+      .find((layer) => layer.get("name") === name && layer.getOpacity() === 0);
+    expect(replacement).toBeDefined();
+  });
+  replacement.getSource().dispatchEvent("tileloadend");
+}
+
 // Wait on an observable post-condition rather than a fixed delay, so a slow
 // machine cannot turn these into flakes. Reconciliation is asynchronous, so
 // something it did has to be visible before the assertions run.
@@ -162,6 +177,7 @@ describe("shapefile layer preservation", () => {
     const original = layerNamed("Basins");
 
     setLayers([shapefileLayer(), otherLayer({ opacity: 0.4 })]);
+    await paintReplacement("Basemap");
     await reconciled(() =>
       expect(layerNamed("Basemap").getOpacity()).toBeCloseTo(0.4),
     );
@@ -187,6 +203,7 @@ describe("shapefile layer preservation", () => {
     expect(layerNamed("Basemap").getZIndex()).toBe(2);
 
     setLayers([otherLayer({ zIndex: 1 }), shapefileLayer({ zIndex: 2 })]);
+    await paintReplacement("Basemap");
     // Both sides, because they settle at different times: the preserved
     // shapefile is restacked during the synchronous reconciliation sweep, while
     // the raster is torn down and rebuilt behind a dynamic import and a
@@ -258,6 +275,7 @@ describe("shapefile layer preservation", () => {
     await mount([shapefileLayer(), otherLayer()]);
 
     setLayers([shapefileLayer(), otherLayer({ opacity: 0.5 })]);
+    await paintReplacement("Basemap");
     await reconciled(() =>
       expect(layerNamed("Basemap").getOpacity()).toBeCloseTo(0.5),
     );

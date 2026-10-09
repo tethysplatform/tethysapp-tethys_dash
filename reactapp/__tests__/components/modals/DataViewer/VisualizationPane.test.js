@@ -1010,13 +1010,20 @@ test("Visualization Pane Use Existing Args Map", async () => {
   expect(layerTable.rows.length).toBe(1); // just header
   expect(await screen.findByText("True")).toBeInTheDocument();
 
+  // The saved extent is a bare string, the shape older dashboards have. The
+  // extent input rewrites it into the object form once its map is ready --
+  // a moment after the rest has loaded -- so that is where this settles.
+  // Asserting the bare string passed only when the check happened to land in
+  // between.
   await waitFor(async () => {
     expect(mockSetVizMetadata).toHaveBeenLastCalledWith({
       args: {
         layers: [],
         baseMap:
           "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer",
-        map_extent: "-13149708.122672563, 5192159.850904623,6.900403428857136",
+        map_extent: {
+          extent: "-13149708.122672563, 5192159.850904623,6.900403428857136",
+        },
         layerControl: true,
       },
       source: "Map",
@@ -1032,7 +1039,9 @@ test("Visualization Pane Use Existing Args Map", async () => {
       "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer",
     layerControl: true,
     layers: [],
-    map_extent: "-13149708.122672563, 5192159.850904623,6.900403428857136",
+    map_extent: {
+      extent: "-13149708.122672563, 5192159.850904623,6.900403428857136",
+    },
   });
 });
 

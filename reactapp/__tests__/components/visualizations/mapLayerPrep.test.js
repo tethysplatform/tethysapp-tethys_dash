@@ -3,6 +3,8 @@ import { render, screen, waitFor, act } from "@testing-library/react";
 import createLoadedComponent from "__tests__/utilities/customRender";
 import PropTypes from "prop-types";
 import { Map } from "ol";
+import GeoTIFF from "ol/source/GeoTIFF.js";
+import { get as getProjection } from "ol/proj";
 import MapVisualization from "components/visualizations/Map";
 import MapContextProvider from "components/contexts/MapContext";
 import { loadLayerJSONs } from "components/map/utilities";
@@ -158,6 +160,15 @@ test("the basemap waits when a raster is going to decide the view projection", a
   // guaranteed they never did.
   const gate = deferred();
   loadLayerJSONs.mockImplementation(() => gate.promise);
+  // jsdom cannot read the raster's header, so its view would never settle and
+  // the basemap would only ever come out through the ten-second backstop. Give
+  // it a view so the owner releases the basemap the way it does in a browser.
+  jest.spyOn(GeoTIFF.prototype, "getView").mockResolvedValue({
+    projection: getProjection("EPSG:3857"),
+    extent: [-1e6, -1e6, 1e6, 1e6],
+    center: [0, 0],
+    zoom: 2,
+  });
 
   await mount([rasterLayer("Flood Probability")]);
 
@@ -177,9 +188,14 @@ test("the basemap waits when a raster is going to decide the view projection", a
 
   await gate.release();
 
-  await waitFor(() =>
-    expect(addedLayerNames(addLayerSpy)).toContain("World Light Gray Base"),
+  // Released by the owner settling its view, well inside the backstop. Waiting
+  // out the backstop instead would mean the release path is broken.
+  await waitFor(
+    () =>
+      expect(addedLayerNames(addLayerSpy)).toContain("World Light Gray Base"),
+    { timeout: 3000 },
   );
+  expect(addedLayerNames(addLayerSpy)).toContain("Flood Probability");
 });
 
 test("layers are prepared in parallel, not one after another", async () => {
