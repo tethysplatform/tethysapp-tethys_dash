@@ -9466,11 +9466,14 @@ describe("Map popup follows the saved attribute order", () => {
   const popupRowLabels = async () => {
     const popup = await screen.findByLabelText("Map Popup Content");
     await within(popup).findByText("Creek");
-    // The overlay is not laid out in jsdom, so its rows are not in the
-    // accessibility tree; read the table directly.
-    return Array.from(popup.querySelectorAll("tbody tr")).map(
-      (row) => row.querySelector("td").textContent,
-    );
+    // The overlay is not laid out in jsdom, so its rows count as hidden.
+    return within(popup)
+      .getAllByRole("row", { hidden: true })
+      .slice(1)
+      .map(
+        (row) =>
+          within(row).getAllByRole("cell", { hidden: true })[0].textContent,
+      );
   };
 
   const renderMap = (layers, trigger) => {
