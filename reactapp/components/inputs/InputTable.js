@@ -162,7 +162,6 @@ const InputTable = ({
 
   const handleMove = (rowIndex, delta) => {
     const newTableRows = moveRow(tableRows, rowIndex, delta);
-    if (!newTableRows) return;
     setTableRows(newTableRows);
     requestFocus(rowIndex, delta);
     onChange({ fullChange: newTableRows });

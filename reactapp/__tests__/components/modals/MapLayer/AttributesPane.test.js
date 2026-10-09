@@ -998,6 +998,19 @@ describe("AttributesPane row order", () => {
     expect(screen.getByLabelText("Move c up")).toHaveFocus();
   });
 
+  test("names an unnamed discovered field's buttons by its row", async () => {
+    mockedGetLayerAttributes.mockResolvedValue({
+      states: [
+        { name: "a", alias: "a" },
+        { name: "", alias: "" },
+      ],
+    });
+    renderPane();
+
+    expect(await screen.findByLabelText("Move row 2 up")).toBeEnabled();
+    expect(screen.getByLabelText("Move a down")).toBeEnabled();
+  });
+
   test("editing an alias after a move leaves the order alone", async () => {
     mockedGetLayerAttributes.mockResolvedValue({
       states: [

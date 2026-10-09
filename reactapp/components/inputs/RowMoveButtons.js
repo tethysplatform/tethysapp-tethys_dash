@@ -88,12 +88,13 @@ export const useRowMoveFocus = () => {
 };
 
 /**
- * Returns a copy of `rows` with the row at `index` moved by `delta` (-1 or 1),
- * or null when the move would leave the table.
+ * Returns a copy of `rows` with the row at `index` moved by `delta` (-1 or 1).
+ * Only ever asked for a move that stays inside the table: RowMoveButtons
+ * disables the button that would carry a row past either end, and a disabled
+ * button never fires its click.
  */
 export const moveRow = (rows, index, delta) => {
   const target = index + delta;
-  if (target < 0 || target >= rows.length) return null;
   const moved = [...rows];
   [moved[index], moved[target]] = [moved[target], moved[index]];
   return moved;

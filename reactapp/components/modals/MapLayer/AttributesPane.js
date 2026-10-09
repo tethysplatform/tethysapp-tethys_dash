@@ -529,10 +529,11 @@ const AttributesPane = ({
   }
 
   function handleMoveRow(layerName, rowIndex, delta) {
-    const movedRows = moveRow(attributes[layerName], rowIndex, delta);
-    if (!movedRows) return;
     requestFocus(rowIndex, delta, layerName);
-    updateAttributes({ layerName, fullChange: movedRows });
+    updateAttributes({
+      layerName,
+      fullChange: moveRow(attributes[layerName], rowIndex, delta),
+    });
   }
 
   function handleLayerPopup(layerName, checkedValue) {
