@@ -1622,7 +1622,7 @@ test("MapLayerModal re-shows and updates sourceProps when drawnExtent arrives", 
 
   // Fill in URL for the "Draw Extent on Map" button
   await waitFor(() => {
-    expect(screen.getByText("*url")).toBeInTheDocument();
+    expect(screen.getByText("*Url")).toBeInTheDocument();
   });
 
   // Click "Draw Extent on Map" — triggers onRequestHideModal (line 96)
@@ -1761,7 +1761,7 @@ test("MapLayerModal re-shows when extentDrawMode is cancelled", async () => {
   // Navigate to Source tab and click Draw Extent
   fireEvent.click(screen.getByText("Source"));
   await waitFor(() => {
-    expect(screen.getByText("*url")).toBeInTheDocument();
+    expect(screen.getByText("*Url")).toBeInTheDocument();
   });
 
   const drawButton = await screen.findByLabelText("Draw Extent on Map Button");
@@ -1805,7 +1805,7 @@ test("MapLayerModal falls back to EPSG:3857 when visualizationRef is null", asyn
   // Navigate to Source tab and trigger draw extent
   fireEvent.click(screen.getByText("Source"));
   await waitFor(() => {
-    expect(screen.getByText("*url")).toBeInTheDocument();
+    expect(screen.getByText("*Url")).toBeInTheDocument();
   });
 
   const drawButton = await screen.findByLabelText("Draw Extent on Map Button");

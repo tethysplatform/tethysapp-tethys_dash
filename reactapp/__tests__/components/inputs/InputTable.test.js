@@ -777,3 +777,26 @@ describe("color rows", () => {
     );
   });
 });
+
+test("display formatters change how a disabled field is shown, not its value", () => {
+  const onChange = jest.fn();
+  render(
+    <InputTable
+      label="Props"
+      onChange={onChange}
+      values={[{ property: "imageExtent", value: "" }]}
+      disabledFields={["property"]}
+      displayFormatters={{ property: (value) => value.toUpperCase() }}
+    />,
+  );
+  expect(screen.getByText("IMAGEEXTENT")).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("value Input 0"), {
+    target: { value: "1" },
+  });
+  expect(onChange).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      newValue: "1",
+      rowIndex: 0,
+    }),
+  );
+});

@@ -81,6 +81,7 @@ const InputTable = ({
   show_placeholder_on_hover,
   types,
   selectConfigs,
+  displayFormatters,
 }) => {
   const [tableRows, setTableRows] = useState([]);
   const [tableHeaders, setTableHeaders] = useState([]);
@@ -221,11 +222,16 @@ const InputTable = ({
                   if (hiddenFields.includes(field)) return null;
 
                   if (disabledFields && disabledFields.includes(field)) {
+                    const shown =
+                      typeof row[field] === "string"
+                        ? row[field]
+                        : JSON.stringify(row[field]);
+                    // Formatting is display-only: the row keeps the raw value,
+                    // which callers parse back (e.g. into config keys).
+                    const format = displayFormatters?.[field];
                     return (
                       <CenteredTD key={fieldIndex}>
-                        {typeof row[field] === "string"
-                          ? row[field]
-                          : JSON.stringify(row[field])}
+                        {format ? format(shown) : shown}
                       </CenteredTD>
                     );
                   } else {
@@ -307,7 +313,7 @@ const InputTable = ({
                       // opening at transparent would make every pick
                       // invisible.
                       return (
-                        <td key={fieldIndex}>
+                        <CenteredTD key={fieldIndex}>
                           <ColorPickerPopOver
                             label={`${field} Input ${rowIndex}`}
                             color={row[field] || "transparent"}
@@ -321,8 +327,11 @@ const InputTable = ({
                             }
                             containerRef={containerRef}
                             hideLabel
+                            divProps={{
+                              style: { justifyContent: "center" },
+                            }}
                           />
-                        </td>
+                        </CenteredTD>
                       );
                     } else if (
                       typeof row[field] === "boolean" ||
@@ -401,6 +410,9 @@ InputTable.propTypes = {
     ),
   ).isRequired, // array of objects (rows) that contain colum keys and values
   disabledFields: PropTypes.arrayOf(PropTypes.string), // array of fields to not have an input
+  // field -> function formatting how a disabled field's value is shown; the
+  // stored value is untouched
+  displayFormatters: PropTypes.objectOf(PropTypes.func),
   hiddenFields: PropTypes.arrayOf(PropTypes.string), // array of fields to hide
   allowRowCreation: PropTypes.bool, // determines if the table rows can be added
   allowRowReorder: PropTypes.bool, // shows up/down buttons that move each row
