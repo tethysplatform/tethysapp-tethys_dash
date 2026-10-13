@@ -7,7 +7,7 @@ import Static from "ol/source/ImageStatic.js";
 import { fromExtent } from "ol/geom/Polygon";
 import MultiPoint from "ol/geom/MultiPoint";
 import { Circle, Fill, Stroke, Style } from "ol/style";
-import { getIntersection, isEmpty } from "ol/extent";
+import { isEmpty } from "ol/extent";
 import { transformExtent } from "ol/proj";
 import { unByKey } from "ol/Observable";
 import { useMapContext } from "components/contexts/MapContext";
@@ -140,9 +140,17 @@ export async function reprojectSavedExtent(extent, code, viewProjection) {
     resolved.projection,
     viewProjection,
   );
+  // Clamp only north-south. An image crossing the antimeridian keeps its
+  // full width, as ImageStatic draws it, rather than being squeezed into the
+  // first world.
   const validExtent = viewProjection.getExtent();
   if (validExtent) {
-    transformed = getIntersection(transformed, validExtent);
+    transformed = [
+      transformed[0],
+      Math.max(transformed[1], validExtent[1]),
+      transformed[2],
+      Math.min(transformed[3], validExtent[3]),
+    ];
   }
   if (!transformed.every(Number.isFinite) || isEmpty(transformed)) {
     return {
@@ -297,6 +305,8 @@ const ExtentInteraction = ({ visualizationRef }) => {
               );
             } else {
               interaction.setExtent(result.extent);
+              // The author may have locked the ratio while this resolved.
+              interaction.setAspectRatio(interaction.getAspectRatio());
             }
           },
         );

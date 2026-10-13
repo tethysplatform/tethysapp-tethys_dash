@@ -29,7 +29,11 @@ import proj4 from "proj4";
 import { register as registerProj4 } from "ol/proj/proj4.js";
 import sqlWasmUrl from "sql.js/dist/sql-wasm.wasm";
 import { readSlice } from "components/map/zarrReader";
-import { attachImageBorder, normalizeBorder } from "components/map/imageBorder";
+import {
+  IMAGE_BORDER_KEY,
+  attachSourceBorder,
+  splitImageBorder,
+} from "components/map/imageBorder";
 
 const moduleCache = {};
 
@@ -1661,19 +1665,11 @@ export function geometryIntersectsBBox(geometry, box) {
   );
 }
 
-// The OL property a Static Image source carries its normalized border under,
-// for the ImageLayer built around it to draw.
-export const IMAGE_BORDER_KEY = "imageBorder";
-
 const moduleLoader = async (config, mapProjection, getMapProjection) => {
-  // A static image's border is drawn by its layer, not its source, so its
-  // settings are lifted out before ImageStatic is constructed (which would
-  // otherwise receive them) and carried on the built source instead.
+  // A static image's border is drawn by its layer, not its source.
   let imageBorder = null;
-  if (config.type === "Static Image" && config.props) {
-    const { borderColor, borderWidth, ...sourceProps } = config.props;
-    imageBorder = normalizeBorder(borderColor, borderWidth);
-    config = { ...config, props: sourceProps };
+  if (config.type === "Static Image") {
+    ({ config, border: imageBorder } = splitImageBorder(config));
   }
 
   const instance = await loadModule(config, mapProjection, getMapProjection);
@@ -1682,14 +1678,7 @@ const moduleLoader = async (config, mapProjection, getMapProjection) => {
     instance.set(IMAGE_BORDER_KEY, imageBorder);
   }
   if (config.type === "ImageLayer") {
-    const source = instance.getSource?.();
-    const border = source?.get?.(IMAGE_BORDER_KEY);
-    if (border) {
-      attachImageBorder(instance, border, {
-        extent: source.getImageExtent(),
-        projection: source.getProjection(),
-      });
-    }
+    attachSourceBorder(instance);
   }
   return instance;
 };

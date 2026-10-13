@@ -1,5 +1,5 @@
+import { IMAGE_BORDER_KEY } from "components/map/imageBorder";
 import moduleLoader, {
-  IMAGE_BORDER_KEY,
   loadESRIJSON,
   withAntimeridianFix,
   withIsolatedCanvas,

@@ -9,6 +9,13 @@ export const MIN_BORDER_WIDTH = 1;
 // Guards against a typo turning the border into a slab over the image.
 export const MAX_BORDER_WIDTH = 50;
 
+// The source props a static image's border is saved under.
+export const BORDER_PROP_KEYS = ["borderColor", "borderWidth"];
+
+// The OL property a Static Image source carries its normalized border under,
+// for the ImageLayer built around it to draw.
+export const IMAGE_BORDER_KEY = "imageBorder";
+
 // Points sampled along each edge of a reprojected footprint, so a curved edge
 // is traced rather than cut straight across.
 const EDGE_SAMPLES = 16;
@@ -90,6 +97,11 @@ function tracePath(context, pixels) {
 // image's own drawImage call.
 export function drawBorder(context, pixels, border, { opacity, pixelRatio }) {
   if (!border || pixels.length < 3) return;
+  // A footprint edge outside the view projection's domain transforms to a
+  // non-finite point, which would make a malformed clip path.
+  if (!pixels.every(([x, y]) => Number.isFinite(x) && Number.isFinite(y))) {
+    return;
+  }
   context.save();
   context.globalAlpha = opacity;
   tracePath(context, pixels);
@@ -132,4 +144,32 @@ export function attachImageBorder(layer, border, { extent, projection }) {
     });
   });
   return () => unByKey(key);
+}
+
+// Split a Static Image source config's border settings from the props
+// ImageStatic is built from (it would otherwise receive them). A config with
+// no border settings comes back as the same object, so a layer saved without
+// a border loads exactly as before.
+export function splitImageBorder(config) {
+  const props = config.props;
+  if (!props || !BORDER_PROP_KEYS.some((key) => key in props)) {
+    return { config, border: null };
+  }
+  const { borderColor, borderWidth, ...sourceProps } = props;
+  return {
+    config: { ...config, props: sourceProps },
+    border: normalizeBorder(borderColor, borderWidth),
+  };
+}
+
+// Draw the border a static image source carries (see splitImageBorder) around
+// the ImageLayer showing it. Returns a function that removes the border.
+export function attachSourceBorder(layer) {
+  const source = layer.getSource?.();
+  const border = source?.get?.(IMAGE_BORDER_KEY);
+  if (!border) return () => {};
+  return attachImageBorder(layer, border, {
+    extent: source.getImageExtent(),
+    projection: source.getProjection(),
+  });
 }

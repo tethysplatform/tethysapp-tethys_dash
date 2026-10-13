@@ -343,6 +343,22 @@ test("the preview draws the image and the configured border", async () => {
   expect(context.lineWidth).toBe(8);
 });
 
+test("a lock checked before the saved extent arrives is applied to it", async () => {
+  let resolve;
+  ensureProjectionAsync.mockReturnValue(
+    new Promise((r) => {
+      resolve = r;
+    }),
+  );
+  renderEditor({ initialExtent: [-10, 40, 10, 50], projection: "EPSG:4326" });
+  finishImageLoad(200, 100);
+  fireEvent.click(screen.getByLabelText("Keep aspect ratio"));
+  await act(() => resolve({ projection: getProjection("EPSG:4326") }));
+
+  const [minX, minY, maxX, maxY] = editorInteraction().getExtent();
+  expect((maxX - minX) / (maxY - minY)).toBeCloseTo(2);
+});
+
 describe("reprojectSavedExtent", () => {
   test("clamps a polar extent to the view projection's bounds", async () => {
     const view = getProjection("EPSG:3857");
@@ -353,6 +369,32 @@ describe("reprojectSavedExtent", () => {
     );
     expect(result.extent.every(Number.isFinite)).toBe(true);
     expect(result.extent[3]).toBeCloseTo(view.getExtent()[3]);
+  });
+
+  test("keeps the full width of an extent crossing the antimeridian", async () => {
+    const view = getProjection("EPSG:3857");
+    const result = await reprojectSavedExtent(
+      [170, -10, 190, 10],
+      "EPSG:4326",
+      view,
+    );
+    const expected = transformExtent(
+      [170, -10, 190, 10],
+      "EPSG:4326",
+      "EPSG:3857",
+    );
+    expect(result.extent[0]).toBeCloseTo(expected[0]);
+    expect(result.extent[2]).toBeCloseTo(expected[2]);
+    expect(result.extent[2]).toBeGreaterThan(view.getExtent()[2]);
+  });
+
+  test("reports an extent wholly outside the view's bounds", async () => {
+    const result = await reprojectSavedExtent(
+      [0, 3e7, 10, 4e7],
+      "EPSG:3857",
+      getProjection("EPSG:3857"),
+    );
+    expect(result.error).toMatch(/does not fall within the map's EPSG:3857/);
   });
 
   test("returns the registry's error detail for an unknown code", async () => {

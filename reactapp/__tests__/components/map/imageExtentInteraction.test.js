@@ -262,6 +262,15 @@ describe("ImageExtentInteraction routing", () => {
     expect(interaction.isModified()).toBe(false);
   });
 
+  test("setAspectRatio ignores float noise on a box already at the ratio", () => {
+    const interaction = new ImageExtentInteraction({
+      extent: [0.1, 0.2, 0.4, 0.3],
+    });
+    // 0.3 / 0.1 is not exactly 3 in floating point.
+    interaction.setAspectRatio((0.4 - 0.1) / (0.3 - 0.2));
+    expect(interaction.isModified()).toBe(false);
+  });
+
   test("setExtent places the box without counting as a modification", () => {
     const interaction = new ImageExtentInteraction();
     interaction.setExtent([5, 5, 10, 10]);

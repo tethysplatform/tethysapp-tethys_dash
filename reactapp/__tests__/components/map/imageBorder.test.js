@@ -2,9 +2,13 @@ import ImageLayer from "ol/layer/Image";
 import RenderEvent from "ol/render/Event";
 import { get as getProjection, transform } from "ol/proj";
 import { create as createTransform } from "ol/transform";
+import ImageStatic from "ol/source/ImageStatic";
 import {
   DEFAULT_BORDER_WIDTH,
+  IMAGE_BORDER_KEY,
   attachImageBorder,
+  attachSourceBorder,
+  splitImageBorder,
   drawBorder,
   footprintRing,
   isTransparentColor,
@@ -121,14 +125,25 @@ describe("drawBorder", () => {
     drawBorder(context, square, null, { opacity: 1, pixelRatio: 1 });
     expect(context.calls).toHaveLength(0);
   });
+
+  test("a footprint with non-finite points draws nothing", () => {
+    const context = mockContext();
+    drawBorder(
+      context,
+      [...square.slice(0, 3), [0, Infinity]],
+      { color: "#00ff00", width: 3 },
+      { opacity: 1, pixelRatio: 1 },
+    );
+    expect(context.calls).toHaveLength(0);
+  });
 });
 
 describe("attachImageBorder", () => {
-  function postrender(layer, context) {
+  function postrender(layer, context, viewCode = "EPSG:3857") {
     const frameState = {
       pixelRatio: 1,
       coordinateToPixelTransform: createTransform(),
-      viewState: { projection: getProjection("EPSG:3857") },
+      viewState: { projection: getProjection(viewCode) },
     };
     layer.dispatchEvent(
       new RenderEvent("postrender", createTransform(), frameState, context),
@@ -150,6 +165,23 @@ describe("attachImageBorder", () => {
     expect(context.calls).toContainEqual(["lineTo", 10, 10]);
   });
 
+  test("the footprint is recomputed when the view projection changes", () => {
+    const layer = new ImageLayer();
+    attachImageBorder(
+      layer,
+      { color: "#ff0000", width: 2 },
+      { extent: [0, 0, 10, 10], projection: "EPSG:4326" },
+    );
+    const inMercator = mockContext();
+    postrender(layer, inMercator, "EPSG:3857");
+    const inDegrees = mockContext();
+    postrender(layer, inDegrees, "EPSG:4326");
+
+    // In its own projection the footprint is just its four corners.
+    expect(inDegrees.calls).toContainEqual(["lineTo", 10, 10]);
+    expect(inMercator.calls).not.toContainEqual(["lineTo", 10, 10]);
+  });
+
   test("the returned function detaches the border", () => {
     const layer = new ImageLayer();
     const detach = attachImageBorder(
@@ -169,6 +201,47 @@ describe("attachImageBorder", () => {
       extent: [0, 0, 10, 10],
       projection: "EPSG:3857",
     });
+    expect(layer.hasListener("postrender")).toBe(false);
+  });
+});
+
+describe("splitImageBorder", () => {
+  test("a config without border settings comes back as the same object", () => {
+    const config = { type: "Static Image", props: { url: "a.png" } };
+    expect(splitImageBorder(config)).toEqual({ config, border: null });
+    expect(splitImageBorder(config).config).toBe(config);
+  });
+
+  test("border settings are lifted out of the source props", () => {
+    const config = {
+      type: "Static Image",
+      props: { url: "a.png", borderColor: "#ff0000", borderWidth: 3 },
+    };
+    const split = splitImageBorder(config);
+    expect(split.config.props).toEqual({ url: "a.png" });
+    expect(split.border).toEqual({ color: "#ff0000", width: 3 });
+    expect(config.props.borderColor).toBe("#ff0000");
+  });
+});
+
+describe("attachSourceBorder", () => {
+  test("draws the border its source carries", () => {
+    const source = new ImageStatic({
+      url: "a.png",
+      imageExtent: [0, 0, 10, 10],
+      projection: "EPSG:3857",
+    });
+    source.set(IMAGE_BORDER_KEY, { color: "#ff0000", width: 2 });
+    const layer = new ImageLayer({ source });
+    attachSourceBorder(layer);
+    expect(layer.hasListener("postrender")).toBe(true);
+  });
+
+  test("a source without a border attaches nothing", () => {
+    const layer = new ImageLayer({
+      source: new ImageStatic({ url: "a.png", imageExtent: [0, 0, 10, 10] }),
+    });
+    attachSourceBorder(layer);
     expect(layer.hasListener("postrender")).toBe(false);
   });
 });
