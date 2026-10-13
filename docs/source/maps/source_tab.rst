@@ -238,6 +238,15 @@ The Static Image source overlays a georeferenced image (PNG, GIF, JPG, etc.) on 
     - **attributions:** (optional) Attributions.
     - **crossOrigin:** (optional) Force cross-origin (CORS) requests for this layer so it can be captured in the dashboard thumbnail. CORS support is detected per host automatically, so leave this off unless the layer renders blank in thumbnails. Only enable it when the server sends ``Access-Control-Allow-Origin`` — if it does not, the layer will fail to load entirely.
 
+**Border:**
+
+Below the source properties, a static image can be given a border to help it stand out from the basemap:
+
+    - **Border color:** Picked with the color picker. Fully transparent by default, which draws no border; set the opacity back to zero to remove a border.
+    - **Border width (px):** Width in screen pixels, from 1 to 50. Defaults to 2 when left empty.
+
+The border is drawn just inside the edge of the image, stays the same width at every zoom level, and fades with the layer's opacity. In the saved configuration these appear as ``borderColor`` and ``borderWidth`` in the source properties.
+
 **Interactive Placement:**
 
 Instead of manually entering the ``imageExtent`` coordinates, you can use the **Draw Extent on Map** button to visually place the image:
@@ -245,8 +254,15 @@ Instead of manually entering the ``imageExtent`` coordinates, you can use the **
 1. Enter the image URL in the source properties.
 2. Click the **Draw Extent on Map** button. The layer configuration modal will temporarily hide, revealing the map.
 3. Click and drag on the map to draw a rectangle where the image should appear. A semi-transparent preview of the image will display over the drawn area.
-4. Adjust the rectangle corners to resize or reposition the image as needed.
-5. Click **Confirm** to accept the placement. The modal will reappear with the ``imageExtent`` and ``projection`` fields automatically populated.
+4. Adjust the placement:
+
+   - Drag inside the rectangle to move it.
+   - Drag an edge or corner to resize it.
+   - Drag anywhere outside the rectangle to pan the map, and use the mouse wheel to zoom.
+   - Hold **Shift** and drag to start a new rectangle.
+   - Check **Keep aspect ratio** to hold the rectangle to the image's own proportions. Checking it reshapes the current rectangle at once, keeping its width and center. The checkbox is available once the image has loaded.
+
+5. Click **Confirm** to accept the placement. The modal will reappear with the ``imageExtent`` and ``projection`` fields automatically populated in the map's projection. If you confirm without changing the rectangle, the saved values are left exactly as they were.
 6. Click **Cancel** to return to the modal without changes.
 
 .. note::
