@@ -66,6 +66,16 @@ export function footprintRing(extent, sourceProjection, viewProjection) {
   return ring;
 }
 
+// A view coordinate's position on a render event's canvas, in canvas pixels.
+export function toRenderPixel(event, coordinate) {
+  return getRenderPixel(
+    event,
+    applyTransform(event.frameState.coordinateToPixelTransform, [
+      ...coordinate,
+    ]),
+  );
+}
+
 function tracePath(context, pixels) {
   context.beginPath();
   pixels.forEach(([x, y], i) =>
@@ -114,10 +124,7 @@ export function attachImageBorder(layer, border, { extent, projection }) {
       cachedViewCode = viewCode;
     }
     const pixels = cachedRing.map((coordinate) =>
-      getRenderPixel(
-        event,
-        applyTransform(frameState.coordinateToPixelTransform, [...coordinate]),
-      ),
+      toRenderPixel(event, coordinate),
     );
     drawBorder(event.context, pixels, border, {
       opacity: layer.getOpacity(),

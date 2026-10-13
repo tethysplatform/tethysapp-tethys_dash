@@ -7,7 +7,7 @@ export const HIT_TOLERANCE_PX = 8;
 
 // How far, in screen pixels, a draw gesture must travel before it replaces the
 // existing box. A Shift+click without movement leaves the box alone.
-export const DRAW_THRESHOLD_PX = 3;
+const DRAW_THRESHOLD_PX = 3;
 
 export function normalizeExtent([x1, y1, x2, y2]) {
   return [
@@ -189,10 +189,14 @@ export default class ImageExtentInteraction extends PointerInteraction {
     this.shiftDown_ = false;
     this.cursorTarget_ = null;
     this.originalCursor_ = "";
+    this.cursor_ = null;
 
     this.handleKey_ = (event) => {
       if (event.key !== "Shift") return;
-      this.shiftDown_ = event.type === "keydown";
+      const shiftDown = event.type === "keydown";
+      // A held key repeats keydown; only a change of state moves the cursor.
+      if (shiftDown === this.shiftDown_) return;
+      this.shiftDown_ = shiftDown;
       this.refreshCursor_();
     };
   }
@@ -239,17 +243,13 @@ export default class ImageExtentInteraction extends PointerInteraction {
     this.onChange_?.(this.getExtent());
   }
 
-  tolerance_(mapBrowserEvent) {
-    const resolution = mapBrowserEvent.map.getView().getResolution() ?? 1;
-    return HIT_TOLERANCE_PX * resolution;
-  }
-
-  hitAt_(mapBrowserEvent) {
+  hitAt_(coordinate) {
     if (!this.extent_) return { type: "none" };
+    const resolution = this.getMap()?.getView().getResolution() ?? 1;
     return hitTestExtent(
       this.extent_,
-      mapBrowserEvent.coordinate,
-      this.tolerance_(mapBrowserEvent),
+      coordinate,
+      HIT_TOLERANCE_PX * resolution,
     );
   }
 
@@ -269,7 +269,7 @@ export default class ImageExtentInteraction extends PointerInteraction {
       return true;
     }
 
-    const hit = this.hitAt_(mapBrowserEvent);
+    const hit = this.hitAt_(coordinate);
     if (hit.type === "outside") return false;
     if (hit.type === "interior") {
       this.gesture_ = { ...base, type: "move" };
@@ -324,8 +324,8 @@ export default class ImageExtentInteraction extends PointerInteraction {
       } else {
         // A gesture that collapsed the box to zero area is undone.
         this.extent_ = gesture.startExtent;
+        this.notify_();
       }
-      this.notify_();
     }
     this.refreshCursor_();
     return false;
@@ -334,37 +334,35 @@ export default class ImageExtentInteraction extends PointerInteraction {
   handleMoveEvent(mapBrowserEvent) {
     this.lastCoordinate_ = mapBrowserEvent.coordinate;
     this.shiftDown_ = !!mapBrowserEvent.originalEvent?.shiftKey;
-    this.applyCursor_(
-      cursorForHit(this.hitAt_(mapBrowserEvent), { shift: this.shiftDown_ }),
-    );
+    this.refreshCursor_();
   }
 
   refreshCursor_() {
-    const map = this.getMap();
-    if (!map) return;
+    if (!this.getMap()) return;
     if (!this.lastCoordinate_ || !this.extent_) {
       this.applyCursor_(
         this.extent_ && !this.shiftDown_ ? "grab" : "crosshair",
       );
       return;
     }
-    const resolution = map.getView().getResolution() ?? 1;
-    const hit = hitTestExtent(
-      this.extent_,
-      this.lastCoordinate_,
-      HIT_TOLERANCE_PX * resolution,
+    this.applyCursor_(
+      cursorForHit(this.hitAt_(this.lastCoordinate_), {
+        shift: this.shiftDown_,
+      }),
     );
-    this.applyCursor_(cursorForHit(hit, { shift: this.shiftDown_ }));
   }
 
   applyCursor_(cursor) {
-    if (this.cursorTarget_) this.cursorTarget_.style.cursor = cursor;
+    if (!this.cursorTarget_ || cursor === this.cursor_) return;
+    this.cursor_ = cursor;
+    this.cursorTarget_.style.cursor = cursor;
   }
 
   setMap(map) {
     if (this.cursorTarget_) {
       this.cursorTarget_.style.cursor = this.originalCursor_;
       this.cursorTarget_ = null;
+      this.cursor_ = null;
     }
     if (typeof document !== "undefined") {
       document.removeEventListener("keydown", this.handleKey_);

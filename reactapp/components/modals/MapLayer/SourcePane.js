@@ -19,7 +19,12 @@ import InputTable from "components/inputs/InputTable";
 import DataRadioSelect from "components/inputs/DataRadioSelect";
 import NormalInput from "components/inputs/NormalInput";
 import ColorPickerPopOver from "components/inputs/ColorPickerPopOver";
-import { isTransparentColor } from "components/map/imageBorder";
+import {
+  DEFAULT_BORDER_WIDTH,
+  MAX_BORDER_WIDTH,
+  MIN_BORDER_WIDTH,
+  isTransparentColor,
+} from "components/map/imageBorder";
 import appAPI from "services/api/app";
 import { removeEmptyValues } from "components/modals/utilities";
 import { findSelectOptionByValue } from "components/visualizations/utilities";
@@ -140,6 +145,10 @@ const BorderField = styled.div`
 const BorderFieldLabel = styled.span`
   font-weight: bold;
   min-width: 10rem;
+`;
+
+const BorderWidthControl = styled.div`
+  max-width: 6rem;
 `;
 
 // What discovery has to say about one argument, rendered beneath its select.
@@ -620,17 +629,21 @@ const SourcePane = ({
   // The border color popover renders inside the pane, so it stays within the
   // modal.
   const borderContainerRef = useRef(null);
+  const borderColor = sourceProps.props?.borderColor;
 
-  // A fully transparent color is the "no border" value, so it removes the
-  // key rather than saving an invisible border.
-  const handleBorderColorChange = useCallback(
-    (color) => {
+  // Set a border prop, or remove it when `value` is undefined. Returns the
+  // same object when nothing changes, so a picker drag that repeats a value
+  // does not re-render the pane.
+  const setBorderProp = useCallback(
+    (key, value) => {
       setSourceProps((prev) => {
+        const current = prev?.props?.[key];
+        if (current === value) return prev;
         const nextProps = { ...(prev?.props ?? {}) };
-        if (!color || isTransparentColor(color)) {
-          delete nextProps.borderColor;
+        if (value === undefined) {
+          delete nextProps[key];
         } else {
-          nextProps.borderColor = color;
+          nextProps[key] = value;
         }
         return { ...prev, props: nextProps };
       });
@@ -638,22 +651,30 @@ const SourcePane = ({
     [setSourceProps],
   );
 
-  // Widths below 1 px are not saved; the layer then draws the default width.
+  // A fully transparent color is the "no border" value, so it removes the
+  // key rather than saving an invisible border.
+  const handleBorderColorChange = useCallback(
+    (color) =>
+      setBorderProp(
+        "borderColor",
+        !color || isTransparentColor(color) ? undefined : color,
+      ),
+    [setBorderProp],
+  );
+
+  // Widths below the minimum are not saved; the layer then draws the default.
   const handleBorderWidthChange = useCallback(
     (e) => {
       const raw = e.target.value;
       const width = Number(raw);
-      setSourceProps((prev) => {
-        const nextProps = { ...(prev?.props ?? {}) };
-        if (raw === "" || !Number.isFinite(width) || width < 1) {
-          delete nextProps.borderWidth;
-        } else {
-          nextProps.borderWidth = width;
-        }
-        return { ...prev, props: nextProps };
-      });
+      setBorderProp(
+        "borderWidth",
+        raw === "" || !Number.isFinite(width) || width < MIN_BORDER_WIDTH
+          ? undefined
+          : width,
+      );
     },
-    [setSourceProps],
+    [setBorderProp],
   );
 
   function handleLayerTypeChange(e) {
@@ -931,8 +952,8 @@ const SourcePane = ({
                     <BorderFieldLabel>Border color</BorderFieldLabel>
                     <ColorPickerPopOver
                       label="Border"
-                      color={sourceProps.props?.borderColor ?? "transparent"}
-                      pickerColor={sourceProps.props?.borderColor ?? "#000000"}
+                      color={borderColor ?? "transparent"}
+                      pickerColor={borderColor ?? "#000000"}
                       onChange={handleBorderColorChange}
                       containerRef={borderContainerRef}
                       hideLabel
@@ -940,18 +961,18 @@ const SourcePane = ({
                   </BorderField>
                   <BorderField>
                     <BorderFieldLabel>Border width (px)</BorderFieldLabel>
-                    <div style={{ maxWidth: "6rem" }}>
+                    <BorderWidthControl>
                       <NormalInput
                         value={sourceProps.props?.borderWidth ?? ""}
                         type="number"
-                        min={1}
-                        max={50}
-                        placeholder="2"
+                        min={MIN_BORDER_WIDTH}
+                        max={MAX_BORDER_WIDTH}
+                        placeholder={String(DEFAULT_BORDER_WIDTH)}
                         onChange={handleBorderWidthChange}
                         ariaLabel="Border Width"
                         allowEmpty
                       />
-                    </div>
+                    </BorderWidthControl>
                   </BorderField>
                 </div>
               )}

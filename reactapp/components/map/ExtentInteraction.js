@@ -7,14 +7,16 @@ import Static from "ol/source/ImageStatic.js";
 import { fromExtent } from "ol/geom/Polygon";
 import MultiPoint from "ol/geom/MultiPoint";
 import { Circle, Fill, Stroke, Style } from "ol/style";
-import { getRenderPixel } from "ol/render";
-import { apply as applyTransform } from "ol/transform";
 import { getIntersection, isEmpty } from "ol/extent";
 import { transformExtent } from "ol/proj";
 import { unByKey } from "ol/Observable";
 import { useMapContext } from "components/contexts/MapContext";
 import ImageExtentInteraction from "components/map/imageExtentInteraction";
-import { drawBorder, normalizeBorder } from "components/map/imageBorder";
+import {
+  drawBorder,
+  normalizeBorder,
+  toRenderPixel,
+} from "components/map/imageBorder";
 import { ensureProjectionAsync } from "components/map/projections";
 import styled from "styled-components";
 import PropTypes from "prop-types";
@@ -150,22 +152,13 @@ export async function reprojectSavedExtent(extent, code, viewProjection) {
   return { extent: transformed };
 }
 
-function toRenderPixel(event, coordinate) {
-  return getRenderPixel(
-    event,
-    applyTransform(event.frameState.coordinateToPixelTransform, [
-      ...coordinate,
-    ]),
-  );
-}
-
 // Draw the preview image stretched across the box, then its border. The box
 // is always in the view projection, so this matches an ImageStatic placed with
 // the same extent there. Drawing through the box's own corners keeps the
 // preview correct on a rotated view.
 function drawPreview(event, image, extent, border) {
   const context = event.context;
-  if (!context || !extent) return;
+  if (!context || !extent || (!image && !border)) return;
   const [minX, minY, maxX, maxY] = extent;
   const topLeft = toRenderPixel(event, [minX, maxY]);
   const topRight = toRenderPixel(event, [maxX, maxY]);
@@ -250,6 +243,7 @@ const ExtentInteraction = ({ visualizationRef }) => {
     });
 
     let image = null;
+    let loader = null;
     const prerenderKey = boxLayer.on("prerender", (event) =>
       drawPreview(event, image, interactionRef.current?.getExtent(), border),
     );
@@ -265,7 +259,7 @@ const ExtentInteraction = ({ visualizationRef }) => {
     boxLayer.setMap(map);
 
     if (extentDrawMode.imageUrl) {
-      const loader = new Image();
+      loader = new Image();
       loader.onload = () => {
         if (cancelled) return;
         if (loader.naturalWidth > 0 && loader.naturalHeight > 0) {
@@ -315,6 +309,10 @@ const ExtentInteraction = ({ visualizationRef }) => {
 
     return () => {
       cancelled = true;
+      if (loader) {
+        loader.onload = null;
+        loader.onerror = null;
+      }
       unByKey(viewKey);
       unByKey(prerenderKey);
       map.removeInteraction(interaction);
