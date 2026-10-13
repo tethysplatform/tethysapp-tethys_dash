@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import SourcePane, {
+  formatPropertyLabel,
   generatePropertiesArrayWithValues,
 } from "components/modals/MapLayer/SourcePane";
 import selectEvent from "react-select-event";
@@ -13,8 +14,40 @@ import {
   VariableInputsContext,
   DataViewerModeContext,
 } from "components/contexts/Contexts";
-import MapContextProvider from "components/contexts/MapContext";
+import MapContextProvider, {
+  useMapContext,
+} from "components/contexts/MapContext";
 import { sourcePropertiesOptions } from "components/map/utilities";
+
+// The real popover needs a positioned overlay; a stand-in exposes what the
+// pane hands it and lets a test pick a color directly.
+jest.mock("components/inputs/ColorPickerPopOver", () => {
+  const PropTypes = jest.requireActual("prop-types");
+  const MockColorPickerPopOver = ({ label, color, pickerColor, onChange }) => (
+    <div>
+      <span data-testid={`${label}-swatch`}>{color}</span>
+      <span data-testid={`${label}-picker`}>{pickerColor}</span>
+      <input
+        aria-label={`${label} color input`}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </div>
+  );
+  MockColorPickerPopOver.propTypes = {
+    label: PropTypes.string,
+    color: PropTypes.string,
+    pickerColor: PropTypes.string,
+    onChange: PropTypes.func,
+  };
+  return MockColorPickerPopOver;
+});
+
+const ExtentDrawModeProbe = () => {
+  const { extentDrawMode } = useMapContext();
+  return (
+    <p data-testid="extentDrawModeValue">{JSON.stringify(extentDrawMode)}</p>
+  );
+};
 
 const exampleGeoJSON = {
   type: "FeatureCollection",
@@ -78,6 +111,7 @@ const TestingComponent = ({
             onFetchPluginDefaults={onFetchPluginDefaults}
           />
           <p data-testid="sourceProps">{JSON.stringify(sourceProps)}</p>
+          <ExtentDrawModeProbe />
           <p data-testid="attributeVariables">
             {JSON.stringify(attributeProps.variables)}
           </p>
@@ -117,13 +151,13 @@ test("SourcePane ImageArcGISRest", async () => {
     JSON.stringify({ type: "ESRI Image and Map Service", props: {} }),
   );
 
-  expect(screen.getByText("*url")).toBeInTheDocument();
-  expect(screen.getByText("attributions")).toBeInTheDocument();
-  expect(screen.getByText("params - LAYERS")).toBeInTheDocument();
-  expect(screen.getByText("params - TIME")).toBeInTheDocument();
-  expect(screen.getByText("params - LAYERDEFS")).toBeInTheDocument();
-  expect(screen.getByText("params - mosaicRule")).toBeInTheDocument();
-  expect(screen.getByText("projection")).toBeInTheDocument();
+  expect(screen.getByText("*Url")).toBeInTheDocument();
+  expect(screen.getByText("Attributions")).toBeInTheDocument();
+  expect(screen.getByText("Params - LAYERS")).toBeInTheDocument();
+  expect(screen.getByText("Params - TIME")).toBeInTheDocument();
+  expect(screen.getByText("Params - LAYERDEFS")).toBeInTheDocument();
+  expect(screen.getByText("Params - Mosaic Rule")).toBeInTheDocument();
+  expect(screen.getByText("Projection")).toBeInTheDocument();
 
   const inputs = screen.getAllByRole("textbox");
   expect(inputs.length).toBe(7);
@@ -505,9 +539,9 @@ test("SourcePane Updating Existing VectorTiles", async () => {
     }),
   );
 
-  expect(screen.getByText("*urls")).toBeInTheDocument();
-  expect(screen.getByText("attributions")).toBeInTheDocument();
-  expect(screen.getByText("projection")).toBeInTheDocument();
+  expect(screen.getByText("*Urls")).toBeInTheDocument();
+  expect(screen.getByText("Attributions")).toBeInTheDocument();
+  expect(screen.getByText("Projection")).toBeInTheDocument();
 
   const inputs = screen.getAllByRole("textbox");
   const urlsInput = inputs[0];
@@ -1221,10 +1255,10 @@ test("SourcePane Static Image fields", async () => {
   fireEvent.click(sourceOption);
 
   expect(await screen.findByText("Source Properties")).toBeInTheDocument();
-  expect(screen.getByText("*url")).toBeInTheDocument();
-  expect(screen.getByText("*projection")).toBeInTheDocument();
-  expect(screen.getByText("*imageExtent")).toBeInTheDocument();
-  expect(screen.getByText("attributions")).toBeInTheDocument();
+  expect(screen.getByText("*Url")).toBeInTheDocument();
+  expect(screen.getByText("*Projection")).toBeInTheDocument();
+  expect(screen.getByText("*Image Extent")).toBeInTheDocument();
+  expect(screen.getByText("Attributions")).toBeInTheDocument();
 
   expect(await screen.findByTestId("sourceProps")).toHaveTextContent(
     JSON.stringify({ type: "Static Image", props: {} }),
@@ -1292,9 +1326,9 @@ test("SourcePane Static Image existing values", async () => {
   );
 
   expect(await screen.findByText("Source Type")).toBeInTheDocument();
-  expect(screen.getByText("*url")).toBeInTheDocument();
-  expect(screen.getByText("*projection")).toBeInTheDocument();
-  expect(screen.getByText("*imageExtent")).toBeInTheDocument();
+  expect(screen.getByText("*Url")).toBeInTheDocument();
+  expect(screen.getByText("*Projection")).toBeInTheDocument();
+  expect(screen.getByText("*Image Extent")).toBeInTheDocument();
 
   const inputs = await screen.findAllByRole("textbox");
   const urlInput = inputs[0];
@@ -1323,7 +1357,7 @@ test("SourcePane Static Image Draw Extent parses existing imageExtent", async ()
   );
 
   await waitFor(() => {
-    expect(screen.getByText("*imageExtent")).toBeInTheDocument();
+    expect(screen.getByText("*Image Extent")).toBeInTheDocument();
   });
 
   const drawButton = await screen.findByLabelText("Draw Extent on Map Button");
@@ -1352,7 +1386,7 @@ test("SourcePane switching from GeoTIFF to WMS renders InputTable", async () => 
   const geoTIFFOption = await screen.findByText("GeoTIFF");
   fireEvent.click(geoTIFFOption);
   expect(await screen.findByText("Source Properties")).toBeInTheDocument();
-  expect(screen.getByText("mask_below")).toBeInTheDocument();
+  expect(screen.getByText("Mask Below")).toBeInTheDocument();
 
   // Switch to WMS
   selectEvent.openMenu(sourceDropdown);
@@ -1361,7 +1395,7 @@ test("SourcePane switching from GeoTIFF to WMS renders InputTable", async () => 
 
   // Table is rebuilt for WMS, with no stale GeoTIFF fields.
   expect(await screen.findByText("Source Properties")).toBeInTheDocument();
-  expect(screen.queryByText("mask_below")).not.toBeInTheDocument();
+  expect(screen.queryByText("Mask Below")).not.toBeInTheDocument();
 });
 
 test("SourcePane GeoTIFF renders the shared InputTable with its own fields", async () => {
@@ -1370,11 +1404,11 @@ test("SourcePane GeoTIFF renders the shared InputTable with its own fields", asy
   render(<TestingComponent initialSourceProps={{ type: "GeoTIFF" }} />);
 
   expect(await screen.findByText("Source Properties")).toBeInTheDocument();
-  expect(screen.getByText("*url")).toBeInTheDocument();
-  expect(screen.getByText("projection")).toBeInTheDocument();
+  expect(screen.getByText("*Url")).toBeInTheDocument();
+  expect(screen.getByText("Projection")).toBeInTheDocument();
   // nodata is not authored — it comes from the raster's own tag.
   expect(screen.queryByText("nodata")).not.toBeInTheDocument();
-  expect(screen.getByText("mask_below")).toBeInTheDocument();
+  expect(screen.getByText("Mask Below")).toBeInTheDocument();
   // The sources sub-modal is gone.
   expect(
     screen.queryByRole("button", { name: "Add source" }),
@@ -1404,7 +1438,7 @@ test("SourcePane GeoTIFF regression: Vector Tile still renders InputTable", asyn
   fireEvent.click(sourceOption);
 
   expect(await screen.findByText("Source Properties")).toBeInTheDocument();
-  expect(screen.getByText("*urls")).toBeInTheDocument();
+  expect(screen.getByText("*Urls")).toBeInTheDocument();
   expect(
     screen.queryByText("Add at least one source to render this layer"),
   ).not.toBeInTheDocument();
@@ -1427,7 +1461,7 @@ test("SourcePane Static Image Draw Extent handles invalid imageExtent gracefully
   );
 
   await waitFor(() => {
-    expect(screen.getByText("*imageExtent")).toBeInTheDocument();
+    expect(screen.getByText("*Image Extent")).toBeInTheDocument();
   });
 
   const drawButton = await screen.findByLabelText("Draw Extent on Map Button");
@@ -1445,3 +1479,182 @@ TestingComponent.propTypes = {
   dynamicMapLayers: PropTypes.array,
   onFetchPluginDefaults: PropTypes.func,
 };
+
+describe("SourcePane Static Image aspect lock and border", () => {
+  const staticImage = (props = {}) => ({
+    type: "Static Image",
+    props: {
+      url: "https://example.com/image.png",
+      projection: "EPSG:3857",
+      imageExtent: "-100, 30, -90, 40",
+      ...props,
+    },
+  });
+
+  // Row order follows the Static Image registry: url, projection,
+  // imageExtent, crossOrigin, attributions, then these three.
+  const KEEP_ASPECT_ROW = "value Input 5";
+  const BORDER_COLOR_ROW = "value Input 6";
+  const BORDER_WIDTH_ROW = "value Input 7";
+
+  const currentProps = () =>
+    JSON.parse(screen.getByTestId("sourceProps").textContent).props;
+
+  const renderStaticImage = (props) =>
+    render(
+      <TestingComponent
+        initialSourceProps={staticImage(props)}
+        onRequestHideModal={jest.fn()}
+      />,
+    );
+
+  test("the three settings are rows in the source properties table", async () => {
+    renderStaticImage();
+    expect(await screen.findByText("Keep Aspect Ratio")).toBeInTheDocument();
+    expect(screen.getByText("Border Color")).toBeInTheDocument();
+    expect(screen.getByText("Border Width")).toBeInTheDocument();
+    expect(screen.getByLabelText(KEEP_ASPECT_ROW)).toHaveAttribute(
+      "type",
+      "checkbox",
+    );
+    expect(screen.getByLabelText(BORDER_WIDTH_ROW)).toHaveAttribute(
+      "type",
+      "number",
+    );
+    // Nothing is written until the author sets something.
+    expect(currentProps()).not.toHaveProperty("keepAspectRatio");
+    expect(currentProps()).not.toHaveProperty("borderColor");
+    expect(currentProps()).not.toHaveProperty("borderWidth");
+  });
+
+  test("the aspect lock saves only while checked", async () => {
+    renderStaticImage();
+    const checkbox = await screen.findByLabelText(KEEP_ASPECT_ROW);
+    fireEvent.click(checkbox);
+    expect(currentProps().keepAspectRatio).toBe(true);
+    fireEvent.click(checkbox);
+    expect(currentProps()).not.toHaveProperty("keepAspectRatio");
+  });
+
+  test("a saved aspect lock shows checked", async () => {
+    renderStaticImage({ keepAspectRatio: true });
+    expect(await screen.findByLabelText(KEEP_ASPECT_ROW)).toBeChecked();
+  });
+
+  test("with no border saved the swatch is transparent and the picker opens opaque", async () => {
+    renderStaticImage();
+    expect(
+      await screen.findByTestId(`${BORDER_COLOR_ROW}-swatch`),
+    ).toHaveTextContent("transparent");
+    expect(screen.getByTestId(`${BORDER_COLOR_ROW}-picker`)).toHaveTextContent(
+      "#000000",
+    );
+  });
+
+  test("picking a color saves it and a transparent color removes it", async () => {
+    renderStaticImage();
+    const input = await screen.findByLabelText(
+      `${BORDER_COLOR_ROW} color input`,
+    );
+    fireEvent.change(input, { target: { value: "#ff0000" } });
+    expect(currentProps().borderColor).toBe("#ff0000");
+
+    fireEvent.change(input, { target: { value: "#ff000000" } });
+    expect(currentProps()).not.toHaveProperty("borderColor");
+  });
+
+  test("a border width saves, and clearing it removes it", async () => {
+    renderStaticImage();
+    const width = await screen.findByLabelText(BORDER_WIDTH_ROW);
+    fireEvent.change(width, { target: { value: "4" } });
+    expect(Number(currentProps().borderWidth)).toBe(4);
+
+    fireEvent.change(width, { target: { value: "" } });
+    expect(currentProps()).not.toHaveProperty("borderWidth");
+  });
+
+  test("saved settings load into their rows and survive other edits", async () => {
+    renderStaticImage({
+      keepAspectRatio: true,
+      borderColor: "#00ff00",
+      borderWidth: 3,
+    });
+    expect(await screen.findByLabelText(BORDER_WIDTH_ROW)).toHaveValue(3);
+    expect(screen.getByTestId(`${BORDER_COLOR_ROW}-swatch`)).toHaveTextContent(
+      "#00ff00",
+    );
+
+    fireEvent.change(screen.getByLabelText("value Input 0"), {
+      target: { value: "https://example.com/other.png" },
+    });
+    expect(currentProps()).toMatchObject({
+      url: "https://example.com/other.png",
+      keepAspectRatio: true,
+      borderColor: "#00ff00",
+      borderWidth: 3,
+    });
+  });
+
+  test("changing the source type clears them", async () => {
+    renderStaticImage({ borderColor: "#00ff00", borderWidth: 3 });
+    selectEvent.openMenu(screen.getByRole("combobox"));
+    fireEvent.click(await screen.findByText("GeoJSON"));
+    await waitFor(() => {
+      expect(currentProps()).not.toHaveProperty("borderColor");
+    });
+    expect(currentProps()).not.toHaveProperty("borderWidth");
+  });
+
+  test("Draw Extent on Map hands the lock and border to the extent editor", async () => {
+    renderStaticImage({
+      keepAspectRatio: true,
+      borderColor: "#00ff00",
+      borderWidth: 3,
+    });
+    fireEvent.click(await screen.findByLabelText("Draw Extent on Map Button"));
+    expect(
+      JSON.parse(screen.getByTestId("extentDrawModeValue").textContent),
+    ).toMatchObject({
+      keepAspectRatio: true,
+      borderColor: "#00ff00",
+      borderWidth: 3,
+    });
+  });
+});
+
+describe("formatPropertyLabel", () => {
+  test("spaces and capitalizes a property name", () => {
+    expect(formatPropertyLabel("crossOrigin")).toBe("Cross Origin");
+    expect(formatPropertyLabel("mask_below")).toBe("Mask Below");
+  });
+
+  test("keeps the required marker", () => {
+    expect(formatPropertyLabel("*imageExtent")).toBe("*Image Extent");
+  });
+
+  test("formats each part of a nested property", () => {
+    expect(formatPropertyLabel("params - LAYERS")).toBe("Params - LAYERS");
+    expect(formatPropertyLabel("params - mosaicRule")).toBe(
+      "Params - Mosaic Rule",
+    );
+  });
+});
+
+test("a formatted label still saves under its raw key", async () => {
+  render(
+    <TestingComponent
+      initialSourceProps={{
+        type: "Static Image",
+        props: { url: "https://example.com/a.png" },
+      }}
+      onRequestHideModal={jest.fn()}
+    />,
+  );
+  expect(await screen.findByText("*Image Extent")).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("value Input 2"), {
+    target: { value: "1, 2, 3, 4" },
+  });
+  expect(
+    JSON.parse(screen.getByTestId("sourceProps").textContent).props,
+  ).toMatchObject({ imageExtent: "1, 2, 3, 4" });
+});

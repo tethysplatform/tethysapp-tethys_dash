@@ -1,3 +1,4 @@
+import { IMAGE_BORDER_KEY } from "components/map/imageBorder";
 import moduleLoader, {
   loadESRIJSON,
   withAntimeridianFix,
@@ -245,6 +246,58 @@ test("Static Image imageExtent string is parsed to numeric array", async () => {
   const source = layerInstance.getSource();
   const extent = source.getImageExtent();
   expect(extent).toEqual([-100.5, 30.2, -90.1, 40.8]);
+  // The caller's saved config is left as it was: Map.js compares the next
+  // config against it, and a rewritten extent made every static image look
+  // changed, so editing one rebuilt them all.
+  expect(config.props.source.props.imageExtent).toBe(
+    "-100.5, 30.2, -90.1, 40.8",
+  );
+});
+
+describe("Static Image border", () => {
+  function staticImageConfig(sourceProps) {
+    const config = JSON.parse(
+      JSON.stringify(layerConfigStaticImage.configuration),
+    );
+    Object.assign(config.props.source.props, sourceProps);
+    return config;
+  }
+
+  beforeEach(() => {
+    jest.spyOn(global, "fetch").mockResolvedValue({ ok: true });
+  });
+
+  test("a saved border is lifted onto the source and drawn by the layer", async () => {
+    const config = staticImageConfig({
+      borderColor: "#ff0000",
+      borderWidth: 3,
+    });
+    const layerInstance = await moduleLoader(config);
+    expect(layerInstance.getSource().get(IMAGE_BORDER_KEY)).toEqual({
+      color: "#ff0000",
+      width: 3,
+    });
+    expect(layerInstance.hasListener("postrender")).toBe(true);
+    // The saved config is left as it was.
+    expect(config.props.source.props.borderColor).toBe("#ff0000");
+    expect(config.props.source.props.borderWidth).toBe(3);
+  });
+
+  test("a layer saved without a border renders as before", async () => {
+    const layerInstance = await moduleLoader(staticImageConfig({}));
+    expect(layerInstance.getSource().get(IMAGE_BORDER_KEY)).toBeUndefined();
+    expect(layerInstance.hasListener("postrender")).toBe(false);
+    expect(layerInstance.getSource().getImageExtent()).toEqual([
+      -180, -90, 180, 90,
+    ]);
+  });
+
+  test("a fully transparent border color attaches nothing", async () => {
+    const layerInstance = await moduleLoader(
+      staticImageConfig({ borderColor: "#ff000000", borderWidth: 3 }),
+    );
+    expect(layerInstance.hasListener("postrender")).toBe(false);
+  });
 });
 
 test("KML Layer Instance", async () => {

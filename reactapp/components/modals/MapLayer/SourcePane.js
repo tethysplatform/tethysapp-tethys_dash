@@ -12,7 +12,10 @@ import InputTable from "components/inputs/InputTable";
 import DataRadioSelect from "components/inputs/DataRadioSelect";
 import NormalInput from "components/inputs/NormalInput";
 import appAPI from "services/api/app";
-import { removeEmptyValues } from "components/modals/utilities";
+import {
+  removeEmptyValues,
+  spaceAndCapitalize,
+} from "components/modals/utilities";
 import { findSelectOptionByValue } from "components/visualizations/utilities";
 import { getDynamicLayerSourceType } from "components/modals/MapLayer/runtimeLayerSource";
 import { VisualizationArguments } from "components/modals/DataViewer/VisualizationPane";
@@ -85,6 +88,19 @@ export const generatePropertiesArrayWithValues = (
 
   return { properties, placeholders, types, discovers };
 };
+
+// How a property row is labelled. The row's own value is the config key the
+// table parses back, so this is display-only: "*imageExtent" reads as
+// "*Image Extent", and a nested "params - LAYERS" as "Params - LAYERS" -- the
+// same formatting the DataViewer gives plugin arguments.
+export function formatPropertyLabel(property) {
+  const required = property.startsWith("*");
+  const name = required ? property.slice(1) : property;
+  const label = name.split(" - ").map(spaceAndCapitalize).join(" - ");
+  return required ? `*${label}` : label;
+}
+
+const PROPERTY_LABEL_FORMATTERS = { property: formatPropertyLabel };
 
 // coverts a flat object of properties from the generatePropertiesArrayWithValues function into a nested object
 function parsePropertiesArray(properties) {
@@ -650,6 +666,9 @@ const SourcePane = ({
       initialExtent,
       imageUrl,
       projection: projection || null,
+      keepAspectRatio: !!sourceProps.props?.keepAspectRatio,
+      borderColor: sourceProps.props?.borderColor,
+      borderWidth: sourceProps.props?.borderWidth,
     });
     onRequestHideModal();
   }
@@ -837,6 +856,7 @@ const SourcePane = ({
                     show_placeholder_on_hover={true}
                     types={propertyTypes}
                     selectConfigs={selectConfigs}
+                    displayFormatters={PROPERTY_LABEL_FORMATTERS}
                   />
                   <p>
                     <em>* indicates a required property</em>

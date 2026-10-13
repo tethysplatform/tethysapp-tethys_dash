@@ -1,0 +1,11 @@
+/* While the author places a static image on the map, the layer editor stays
+   mounted (so its unsaved state survives) but must neither show nor take
+   clicks. `visibility: hidden` on the modal alone is not enough: a descendant
+   that declares `visibility: visible` of its own -- react-select's text input
+   does -- shows through the hidden modal and swallows clicks meant for the
+   extent editor's buttons beneath it. */
+.map-layer-hidden-for-extent-draw,
+.map-layer-hidden-for-extent-draw * {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}

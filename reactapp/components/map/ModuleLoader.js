@@ -29,6 +29,11 @@ import proj4 from "proj4";
 import { register as registerProj4 } from "ol/proj/proj4.js";
 import sqlWasmUrl from "sql.js/dist/sql-wasm.wasm";
 import { readSlice } from "components/map/zarrReader";
+import {
+  IMAGE_BORDER_KEY,
+  attachSourceBorder,
+  splitStaticImageProps,
+} from "components/map/imageBorder";
 
 const moduleCache = {};
 
@@ -1661,6 +1666,24 @@ export function geometryIntersectsBBox(geometry, box) {
 }
 
 const moduleLoader = async (config, mapProjection, getMapProjection) => {
+  // A static image's border is drawn by its layer, not its source.
+  let imageBorder = null;
+  if (config.type === "Static Image") {
+    ({ config, border: imageBorder } = splitStaticImageProps(config));
+  }
+
+  const instance = await loadModule(config, mapProjection, getMapProjection);
+
+  if (imageBorder) {
+    instance.set(IMAGE_BORDER_KEY, imageBorder);
+  }
+  if (config.type === "ImageLayer") {
+    attachSourceBorder(instance);
+  }
+  return instance;
+};
+
+const loadModule = async (config, mapProjection, getMapProjection) => {
   // Before anything is constructed, and before the type-specific branches:
   // every source type accepts a `projection`, and an unregistered one is worse
   // than useless at every one of them. GeoTIFF resolves its own below, because
@@ -1696,13 +1719,23 @@ const moduleLoader = async (config, mapProjection, getMapProjection) => {
     }
     config = geotiffSourceToOL(config);
   }
+  // Parsed into a copy: this config is the caller's saved layer config, and
+  // Map.js compares the next one against it to decide which layers to keep.
+  // Rewriting it in place made every static image look changed on the next
+  // update, so editing one rebuilt them all.
   if (
     config.type === "Static Image" &&
     typeof config.props?.imageExtent === "string"
   ) {
-    config.props.imageExtent = config.props.imageExtent
-      .split(",")
-      .map((v) => parseFloat(v.trim()));
+    config = {
+      ...config,
+      props: {
+        ...config.props,
+        imageExtent: config.props.imageExtent
+          .split(",")
+          .map((v) => parseFloat(v.trim())),
+      },
+    };
   }
 
   if (config.type.includes("ESRI")) {

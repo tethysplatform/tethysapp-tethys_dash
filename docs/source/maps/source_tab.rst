@@ -7,6 +7,8 @@ Source Tab
 
 The source tab defines the data source for the layer and its properties. After selecting a source type, relevant properties will appear for further customization. Some properties are required for the layer to render, while others are optional. The available source types and their properties are listed below.
 
+In the **Source Properties** table, property names are shown spaced and capitalized: ``imageExtent`` appears as **Image Extent**, and a nested property such as ``params`` → ``LAYERS`` appears as **Params - LAYERS**. Required properties are marked with ``*``. Only the label is formatted — the saved configuration keeps the original keys listed below, which are also what a plugin or a hand-written configuration uses.
+
 .. _argument_discovery:
 
 +++++++++++++++++++++++++++
@@ -237,6 +239,9 @@ The Static Image source overlays a georeferenced image (PNG, GIF, JPG, etc.) on 
     - **imageExtent:** (required) Bounding extent of the image as a comma-separated string in the format ``minX, minY, maxX, maxY``, using coordinates in the specified projection.
     - **attributions:** (optional) Attributions.
     - **crossOrigin:** (optional) Force cross-origin (CORS) requests for this layer so it can be captured in the dashboard thumbnail. CORS support is detected per host automatically, so leave this off unless the layer renders blank in thumbnails. Only enable it when the server sends ``Access-Control-Allow-Origin`` — if it does not, the layer will fail to load entirely.
+    - **keepAspectRatio:** (optional) Keep the image's own proportions while placing it with **Draw Extent on Map**, so it is not stretched. Affects placement only, not how the layer renders.
+    - **borderColor:** (optional) Color of a border drawn just inside the edge of the image, to help it stand out from the basemap. Picked with the color picker; fully transparent (the default) draws no border.
+    - **borderWidth:** (optional) Border width in screen pixels, from 1 to 50; values outside that range are clamped. Defaults to 2 when empty. The border keeps this width at every zoom level and fades with the layer's opacity.
 
 **Interactive Placement:**
 
@@ -245,8 +250,15 @@ Instead of manually entering the ``imageExtent`` coordinates, you can use the **
 1. Enter the image URL in the source properties.
 2. Click the **Draw Extent on Map** button. The layer configuration modal will temporarily hide, revealing the map.
 3. Click and drag on the map to draw a rectangle where the image should appear. A semi-transparent preview of the image will display over the drawn area.
-4. Adjust the rectangle corners to resize or reposition the image as needed.
-5. Click **Confirm** to accept the placement. The modal will reappear with the ``imageExtent`` and ``projection`` fields automatically populated.
+4. Adjust the placement:
+
+   - Drag inside the rectangle to move it.
+   - Drag an edge or corner to resize it.
+   - Drag anywhere outside the rectangle to pan the map, and use the mouse wheel to zoom.
+   - Hold **Shift** and drag to start a new rectangle.
+   - If **keepAspectRatio** is checked in the source properties, the rectangle holds the image's own proportions while you draw and resize it. An existing rectangle is reshaped as soon as the image loads, keeping its width and center.
+
+5. Click **Confirm** to accept the placement. The modal will reappear with the ``imageExtent`` and ``projection`` fields automatically populated in the map's projection. If you confirm without changing the rectangle, the saved values are left exactly as they were.
 6. Click **Cancel** to return to the modal without changes.
 
 .. note::
@@ -265,11 +277,27 @@ Instead of manually entering the ``imageExtent`` coordinates, you can use the **
                 "props": {
                     "url": "https://example.com/radar.png",
                     "projection": "EPSG:3857",
-                    "imageExtent": "-14070864.27, 5265423.09, -12936622.21, 6254376.58"
+                    "imageExtent": "-14070864.27, 5265423.09, -12936622.21, 6254376.58",
+                    "keepAspectRatio": true,
+                    "borderColor": "#1f4e79",
+                    "borderWidth": 3
                 }
             }
         }
     }
+
+``keepAspectRatio``, ``borderColor`` and ``borderWidth`` are optional; leave them out for an unbordered image placed freely. ``borderColor`` accepts any CSS color, including 8-digit hex with transparency (``#rrggbbaa``); a fully transparent color draws no border. A plugin building the layer with ``LayerConfigurationBuilder`` sets them like any other source property:
+
+.. code-block:: python
+
+    builder = LayerConfigurationBuilder("Weather Radar", "Static Image")
+    builder.set_source_properties(
+        url="https://example.com/radar.png",
+        projection="EPSG:3857",
+        imageExtent="-14070864.27, 5265423.09, -12936622.21, 6254376.58",
+        borderColor="#1f4e79",
+        borderWidth=3,
+    )
 
 ------------------------------------------------------------------------------------------------------------------------
 

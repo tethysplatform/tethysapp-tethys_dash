@@ -1592,7 +1592,18 @@ const MapComponent = ({
       );
 
       if (layerLoadPromises.length > 0) {
-        await Promise.all(layerLoadPromises);
+        // A replacement that never starts loading -- an image outside the
+        // view never requests its file -- would otherwise hold every swap in
+        // the run until its safety timeout. The map's rendercomplete fires
+        // once nothing it draws is still loading, which is as soon as every
+        // replacement that *will* load has. The render is requested after
+        // listening because OpenLayers only works out whether a frame is
+        // complete when something is listening for it.
+        const renderSettled = new Promise((resolve) => {
+          map.once("rendercomplete", resolve);
+          map.render();
+        });
+        await Promise.race([Promise.all(layerLoadPromises), renderSettled]);
       }
 
       // Reveal painted replacements, then drop old layers in one frame.

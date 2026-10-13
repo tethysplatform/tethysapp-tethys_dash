@@ -1622,7 +1622,7 @@ test("MapLayerModal re-shows and updates sourceProps when drawnExtent arrives", 
 
   // Fill in URL for the "Draw Extent on Map" button
   await waitFor(() => {
-    expect(screen.getByText("*url")).toBeInTheDocument();
+    expect(screen.getByText("*Url")).toBeInTheDocument();
   });
 
   // Click "Draw Extent on Map" — triggers onRequestHideModal (line 96)
@@ -1634,6 +1634,13 @@ test("MapLayerModal re-shows and updates sourceProps when drawnExtent arrives", 
     expect(screen.getByTestId("extent-draw-mode")).toHaveTextContent("active");
   });
 
+  // While hidden, nothing in the editor may show or take clicks -- a
+  // react-select input declares its own `visibility: visible` and would
+  // otherwise sit invisibly over the extent editor's buttons.
+  expect(screen.getByRole("dialog", { hidden: true })).toHaveClass(
+    "map-layer-hidden-for-extent-draw",
+  );
+
   // Simulate drawnExtent arriving (lines 103-120)
   fireEvent.click(screen.getByTestId("set-drawn-extent"));
 
@@ -1641,6 +1648,9 @@ test("MapLayerModal re-shows and updates sourceProps when drawnExtent arrives", 
   await waitFor(() => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
+  expect(screen.getByRole("dialog")).not.toHaveClass(
+    "map-layer-hidden-for-extent-draw",
+  );
 
   // Verify sourceProps were updated with the extent
   // Navigate back to source tab to see updated values
@@ -1653,6 +1663,82 @@ test("MapLayerModal re-shows and updates sourceProps when drawnExtent arrives", 
     );
     expect(imageExtentInput).toBeDefined();
   });
+});
+
+test("MapLayerModal keeps the border settings when a drawn extent arrives", async () => {
+  render(
+    <MapContextProvider>
+      <ExtentTestComponent
+        layerInfo={{
+          sourceProps: {
+            type: "Static Image",
+            props: {
+              url: "https://example.com/image.png",
+              borderColor: "#00ff00",
+              borderWidth: 3,
+            },
+          },
+          layerProps: { name: "Test Layer" },
+        }}
+      />
+    </MapContextProvider>,
+  );
+
+  fireEvent.click(screen.getByText("Source"));
+  fireEvent.click(await screen.findByLabelText("Draw Extent on Map Button"));
+  await waitFor(() => {
+    expect(screen.getByTestId("extent-draw-mode")).toHaveTextContent("active");
+  });
+  fireEvent.click(screen.getByTestId("set-drawn-extent"));
+
+  fireEvent.click(screen.getByText("Source"));
+  await waitFor(() => {
+    const inputs = screen.getAllByRole("textbox");
+    expect(
+      inputs.find((input) => input.value === "10.00, 20.00, 30.00, 40.00"),
+    ).toBeDefined();
+  });
+  expect(
+    screen.getByPlaceholderText("Border width in pixels, 1-50 (default 2)"),
+  ).toHaveValue(3);
+});
+
+test("MapLayerModal leaves the saved extent untouched when the editor closes without a drawn extent", async () => {
+  render(
+    <MapContextProvider>
+      <ExtentTestComponent
+        layerInfo={{
+          sourceProps: {
+            type: "Static Image",
+            props: {
+              url: "https://example.com/image.png",
+              projection: "EPSG:4326",
+              imageExtent: "-10, 40, 10, 50",
+            },
+          },
+          layerProps: { name: "Test Layer" },
+        }}
+      />
+    </MapContextProvider>,
+  );
+
+  fireEvent.click(screen.getByText("Source"));
+  fireEvent.click(await screen.findByLabelText("Draw Extent on Map Button"));
+  await waitFor(() => {
+    expect(screen.getByTestId("extent-draw-mode")).toHaveTextContent("active");
+  });
+  // An untouched Confirm ends the editor without a drawn extent.
+  fireEvent.click(screen.getByTestId("clear-extent-draw-mode"));
+
+  fireEvent.click(screen.getByText("Source"));
+  await waitFor(() => {
+    expect(
+      screen.getAllByRole("textbox").map((input) => input.value),
+    ).toContain("-10, 40, 10, 50");
+  });
+  expect(screen.getAllByRole("textbox").map((input) => input.value)).toContain(
+    "EPSG:4326",
+  );
 });
 
 test("MapLayerModal re-shows when extentDrawMode is cancelled", async () => {
@@ -1675,7 +1761,7 @@ test("MapLayerModal re-shows when extentDrawMode is cancelled", async () => {
   // Navigate to Source tab and click Draw Extent
   fireEvent.click(screen.getByText("Source"));
   await waitFor(() => {
-    expect(screen.getByText("*url")).toBeInTheDocument();
+    expect(screen.getByText("*Url")).toBeInTheDocument();
   });
 
   const drawButton = await screen.findByLabelText("Draw Extent on Map Button");
@@ -1719,7 +1805,7 @@ test("MapLayerModal falls back to EPSG:3857 when visualizationRef is null", asyn
   // Navigate to Source tab and trigger draw extent
   fireEvent.click(screen.getByText("Source"));
   await waitFor(() => {
-    expect(screen.getByText("*url")).toBeInTheDocument();
+    expect(screen.getByText("*Url")).toBeInTheDocument();
   });
 
   const drawButton = await screen.findByLabelText("Draw Extent on Map Button");

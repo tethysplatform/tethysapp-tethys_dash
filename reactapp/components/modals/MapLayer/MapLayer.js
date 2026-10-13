@@ -55,6 +55,7 @@ import { getDynamicLayerSourceType } from "components/modals/MapLayer/runtimeLay
 import Select from "react-select";
 import appAPI from "services/api/app";
 import "components/modals/wideModal.css";
+import "components/modals/MapLayer/extentDrawHidden.css";
 
 const StyledModalHeader = styled(Modal.Header)`
   height: 7%;
@@ -759,7 +760,11 @@ const MapLayerModal = ({
       <Modal
         show={showModal}
         onHide={handleModalClose}
-        className="map-layer"
+        className={
+          hiddenForExtentDraw
+            ? "map-layer map-layer-hidden-for-extent-draw"
+            : "map-layer"
+        }
         dialogClassName="fiftyWideModalDialog"
         contentClassName="mapLayerContent"
         style={

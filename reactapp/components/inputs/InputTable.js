@@ -3,6 +3,8 @@ import { useState, useRef, useEffect } from "react";
 import Table from "react-bootstrap/Table";
 import styled from "styled-components";
 import DataSelect from "components/inputs/DataSelect";
+import ColorPickerPopOver from "components/inputs/ColorPickerPopOver";
+import { isTransparentColor } from "components/inputs/ColorPicker";
 import RowMoveButtons, {
   moveRow,
   useRowMoveFocus,
@@ -79,9 +81,13 @@ const InputTable = ({
   show_placeholder_on_hover,
   types,
   selectConfigs,
+  displayFormatters,
 }) => {
   const [tableRows, setTableRows] = useState([]);
   const [tableHeaders, setTableHeaders] = useState([]);
+  // The color popover renders inside the table, so it stays within whatever
+  // modal holds it.
+  const containerRef = useRef(null);
   const [inputPlaceholders, setInputPlaceholders] = useState([]);
   const [focusRequestFor, requestFocus] = useRowMoveFocus();
   const inputRefs = useRef([]);
@@ -176,7 +182,7 @@ const InputTable = ({
   };
 
   return (
-    <FullLabel>
+    <FullLabel ref={containerRef}>
       <b>{label}</b>:{" "}
       {tableRows.length > 0 && (
         <Table striped bordered hover size="sm">
@@ -216,11 +222,16 @@ const InputTable = ({
                   if (hiddenFields.includes(field)) return null;
 
                   if (disabledFields && disabledFields.includes(field)) {
+                    const shown =
+                      typeof row[field] === "string"
+                        ? row[field]
+                        : JSON.stringify(row[field]);
+                    // Formatting is display-only: the row keeps the raw value,
+                    // which callers parse back (e.g. into config keys).
+                    const format = displayFormatters?.[field];
                     return (
                       <CenteredTD key={fieldIndex}>
-                        {typeof row[field] === "string"
-                          ? row[field]
-                          : JSON.stringify(row[field])}
+                        {format ? format(shown) : shown}
                       </CenteredTD>
                     );
                   } else {
@@ -292,6 +303,35 @@ const InputTable = ({
                               table, detached from the row it describes. */}
                           {content}
                         </td>
+                      );
+                    } else if (types?.[rowIndex] === "color") {
+                      // A color row stores a plain string like every other
+                      // row, and a fully transparent pick -- "no color" --
+                      // stores "" so it reads as empty everywhere downstream.
+                      // The picker opens opaque when empty: it keeps the
+                      // current alpha as the author moves through hues, so
+                      // opening at transparent would make every pick
+                      // invisible.
+                      return (
+                        <CenteredTD key={fieldIndex}>
+                          <ColorPickerPopOver
+                            label={`${field} Input ${rowIndex}`}
+                            color={row[field] || "transparent"}
+                            pickerColor={row[field] || "#000000"}
+                            onChange={(color) =>
+                              handleChange(
+                                isTransparentColor(color) ? "" : color,
+                                rowIndex,
+                                field,
+                              )
+                            }
+                            containerRef={containerRef}
+                            hideLabel
+                            divProps={{
+                              style: { justifyContent: "center" },
+                            }}
+                          />
+                        </CenteredTD>
                       );
                     } else if (
                       typeof row[field] === "boolean" ||
@@ -370,6 +410,9 @@ InputTable.propTypes = {
     ),
   ).isRequired, // array of objects (rows) that contain colum keys and values
   disabledFields: PropTypes.arrayOf(PropTypes.string), // array of fields to not have an input
+  // field -> function formatting how a disabled field's value is shown; the
+  // stored value is untouched
+  displayFormatters: PropTypes.objectOf(PropTypes.func),
   hiddenFields: PropTypes.arrayOf(PropTypes.string), // array of fields to hide
   allowRowCreation: PropTypes.bool, // determines if the table rows can be added
   allowRowReorder: PropTypes.bool, // shows up/down buttons that move each row

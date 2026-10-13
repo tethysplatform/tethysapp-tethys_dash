@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import ColorPicker from "components/inputs/ColorPicker";
+import ColorPicker, { isTransparentColor } from "components/inputs/ColorPicker";
 
 global.ResizeObserver = require("resize-observer-polyfill");
 
@@ -34,4 +34,15 @@ it("ColorPicker Hide Input", async () => {
   expect(screen.getByText("HEX")).toBeInTheDocument();
   expect(screen.queryByText("RGB")).not.toBeInTheDocument();
   expect(screen.queryByText("HSV")).not.toBeInTheDocument();
+});
+
+describe("isTransparentColor", () => {
+  test("detects zero-alpha hex colors", () => {
+    expect(isTransparentColor("#ff000000")).toBe(true);
+    expect(isTransparentColor("#F000")).toBe(true);
+    expect(isTransparentColor("#ff000080")).toBe(false);
+    expect(isTransparentColor("#ff0000")).toBe(false);
+    expect(isTransparentColor("red")).toBe(false);
+    expect(isTransparentColor(undefined)).toBe(false);
+  });
 });

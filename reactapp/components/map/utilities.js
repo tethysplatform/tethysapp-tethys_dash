@@ -349,6 +349,20 @@ export const sourcePropertiesOptions = {
       attributions: {
         placeholder: "Attributions",
       },
+      keepAspectRatio: {
+        type: "checkbox",
+        placeholder:
+          "Keep the image's own proportions while placing it with Draw Extent on Map. Affects placement only, not how the layer renders.",
+      },
+      borderColor: {
+        type: "color",
+        placeholder:
+          "Color of a border drawn just inside the image's edge. Transparent (the default) draws no border.",
+      },
+      borderWidth: {
+        type: "number",
+        placeholder: "Border width in pixels, 1-50 (default 2)",
+      },
     },
   },
 };
