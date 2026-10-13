@@ -13,8 +13,40 @@ import {
   VariableInputsContext,
   DataViewerModeContext,
 } from "components/contexts/Contexts";
-import MapContextProvider from "components/contexts/MapContext";
+import MapContextProvider, {
+  useMapContext,
+} from "components/contexts/MapContext";
 import { sourcePropertiesOptions } from "components/map/utilities";
+
+// The real popover needs a positioned overlay; a stand-in exposes what the
+// pane hands it and lets a test pick a color directly.
+jest.mock("components/inputs/ColorPickerPopOver", () => {
+  const PropTypes = jest.requireActual("prop-types");
+  const MockColorPickerPopOver = ({ label, color, pickerColor, onChange }) => (
+    <div>
+      <span data-testid={`${label}-swatch`}>{color}</span>
+      <span data-testid={`${label}-picker`}>{pickerColor}</span>
+      <input
+        aria-label={`${label} color input`}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </div>
+  );
+  MockColorPickerPopOver.propTypes = {
+    label: PropTypes.string,
+    color: PropTypes.string,
+    pickerColor: PropTypes.string,
+    onChange: PropTypes.func,
+  };
+  return MockColorPickerPopOver;
+});
+
+const ExtentDrawModeProbe = () => {
+  const { extentDrawMode } = useMapContext();
+  return (
+    <p data-testid="extentDrawModeValue">{JSON.stringify(extentDrawMode)}</p>
+  );
+};
 
 const exampleGeoJSON = {
   type: "FeatureCollection",
@@ -78,6 +110,7 @@ const TestingComponent = ({
             onFetchPluginDefaults={onFetchPluginDefaults}
           />
           <p data-testid="sourceProps">{JSON.stringify(sourceProps)}</p>
+          <ExtentDrawModeProbe />
           <p data-testid="attributeVariables">
             {JSON.stringify(attributeProps.variables)}
           </p>
@@ -1445,3 +1478,155 @@ TestingComponent.propTypes = {
   dynamicMapLayers: PropTypes.array,
   onFetchPluginDefaults: PropTypes.func,
 };
+
+describe("SourcePane Static Image border", () => {
+  const staticImage = (props = {}) => ({
+    type: "Static Image",
+    props: {
+      url: "https://example.com/image.png",
+      projection: "EPSG:3857",
+      imageExtent: "-100, 30, -90, 40",
+      ...props,
+    },
+  });
+
+  const currentProps = () =>
+    JSON.parse(screen.getByTestId("sourceProps").textContent).props;
+
+  test("shows border controls only for Static Image sources", async () => {
+    const { unmount } = render(
+      <TestingComponent
+        initialSourceProps={staticImage()}
+        onRequestHideModal={jest.fn()}
+      />,
+    );
+    expect(await screen.findByText("Border color")).toBeInTheDocument();
+    expect(screen.getByLabelText("Border Width")).toBeInTheDocument();
+    unmount();
+
+    render(
+      <TestingComponent
+        initialSourceProps={{ type: "GeoJSON", props: {} }}
+        onRequestHideModal={jest.fn()}
+      />,
+    );
+    await screen.findByText("Source Type");
+    expect(screen.queryByText("Border color")).not.toBeInTheDocument();
+  });
+
+  test("with no border saved the swatch is transparent and the picker opens opaque", async () => {
+    render(
+      <TestingComponent
+        initialSourceProps={staticImage()}
+        onRequestHideModal={jest.fn()}
+      />,
+    );
+    expect(await screen.findByTestId("Border-swatch")).toHaveTextContent(
+      "transparent",
+    );
+    expect(screen.getByTestId("Border-picker")).toHaveTextContent("#000000");
+  });
+
+  test("picking a color saves it and a transparent color removes it", async () => {
+    render(
+      <TestingComponent
+        initialSourceProps={staticImage()}
+        onRequestHideModal={jest.fn()}
+      />,
+    );
+    const input = await screen.findByLabelText("Border color input");
+    fireEvent.change(input, { target: { value: "#ff0000" } });
+    expect(currentProps().borderColor).toBe("#ff0000");
+
+    fireEvent.change(input, { target: { value: "#ff000000" } });
+    expect(currentProps()).not.toHaveProperty("borderColor");
+  });
+
+  test("a width of 1 or more saves as a number; empty or below 1 removes it", async () => {
+    render(
+      <TestingComponent
+        initialSourceProps={staticImage()}
+        onRequestHideModal={jest.fn()}
+      />,
+    );
+    const width = await screen.findByLabelText("Border Width");
+    fireEvent.change(width, { target: { value: "4" } });
+    expect(currentProps().borderWidth).toBe(4);
+
+    fireEvent.change(width, { target: { value: "" } });
+    expect(currentProps()).not.toHaveProperty("borderWidth");
+
+    fireEvent.change(width, { target: { value: "0" } });
+    expect(currentProps()).not.toHaveProperty("borderWidth");
+  });
+
+  test("editing a table property keeps the border settings", async () => {
+    render(
+      <TestingComponent
+        initialSourceProps={staticImage({
+          borderColor: "#00ff00",
+          borderWidth: 3,
+        })}
+        onRequestHideModal={jest.fn()}
+      />,
+    );
+    const inputs = await screen.findAllByRole("textbox");
+    fireEvent.change(inputs[0], {
+      target: { value: "https://example.com/other.png" },
+    });
+    expect(currentProps()).toMatchObject({
+      url: "https://example.com/other.png",
+      borderColor: "#00ff00",
+      borderWidth: 3,
+    });
+  });
+
+  test("changing the source type clears the border settings", async () => {
+    render(
+      <TestingComponent
+        initialSourceProps={staticImage({
+          borderColor: "#00ff00",
+          borderWidth: 3,
+        })}
+        onRequestHideModal={jest.fn()}
+      />,
+    );
+    selectEvent.openMenu(screen.getByRole("combobox"));
+    fireEvent.click(await screen.findByText("GeoJSON"));
+    await waitFor(() => {
+      expect(currentProps()).not.toHaveProperty("borderColor");
+    });
+    expect(currentProps()).not.toHaveProperty("borderWidth");
+  });
+
+  test("a layer edited without touching the border gains no border keys", async () => {
+    render(
+      <TestingComponent
+        initialSourceProps={staticImage()}
+        onRequestHideModal={jest.fn()}
+      />,
+    );
+    const inputs = await screen.findAllByRole("textbox");
+    fireEvent.change(inputs[0], {
+      target: { value: "https://example.com/other.png" },
+    });
+    expect(currentProps()).not.toHaveProperty("borderColor");
+    expect(currentProps()).not.toHaveProperty("borderWidth");
+  });
+
+  test("Draw Extent on Map hands the border to the extent editor", async () => {
+    render(
+      <TestingComponent
+        initialSourceProps={staticImage({
+          borderColor: "#00ff00",
+          borderWidth: 3,
+        })}
+        onRequestHideModal={jest.fn()}
+      />,
+    );
+    fireEvent.click(await screen.findByLabelText("Draw Extent on Map Button"));
+    expect(
+      JSON.parse(screen.getByTestId("extentDrawModeValue").textContent),
+    ).toMatchObject({ borderColor: "#00ff00", borderWidth: 3 });
+  });
+});

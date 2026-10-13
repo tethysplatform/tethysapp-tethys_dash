@@ -1,6 +1,13 @@
 import PropTypes from "prop-types";
 import DataSelect from "components/inputs/DataSelect";
-import { useState, useEffect, useCallback, memo, useContext } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  memo,
+  useContext,
+  useRef,
+} from "react";
 import FileUpload from "components/inputs/FileUpload";
 import styled from "styled-components";
 import {
@@ -11,6 +18,8 @@ import {
 import InputTable from "components/inputs/InputTable";
 import DataRadioSelect from "components/inputs/DataRadioSelect";
 import NormalInput from "components/inputs/NormalInput";
+import ColorPickerPopOver from "components/inputs/ColorPickerPopOver";
+import { isTransparentColor } from "components/map/imageBorder";
 import appAPI from "services/api/app";
 import { removeEmptyValues } from "components/modals/utilities";
 import { findSelectOptionByValue } from "components/visualizations/utilities";
@@ -106,6 +115,32 @@ function parsePropertiesArray(properties) {
     return acc;
   }, {});
 }
+
+// A static image's border settings live in its source props but have no row in
+// the property table, so a rebuild of the props from the table must carry them
+// over.
+const BORDER_PROP_KEYS = ["borderColor", "borderWidth"];
+
+function pickBorderProps(props) {
+  return Object.fromEntries(
+    BORDER_PROP_KEYS.filter((key) => props?.[key] !== undefined).map((key) => [
+      key,
+      props[key],
+    ]),
+  );
+}
+
+const BorderField = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+`;
+
+const BorderFieldLabel = styled.span`
+  font-weight: bold;
+  min-width: 10rem;
+`;
 
 // What discovery has to say about one argument, rendered beneath its select.
 // It lives beside the row rather than inside the menu because a failure needs
@@ -574,10 +609,52 @@ const SourcePane = ({
     setSourceProps((previousSourceProps) => ({
       ...previousSourceProps,
       ...{
-        props: removeEmptyValues(parsedSourceProps),
+        props: {
+          ...pickBorderProps(previousSourceProps?.props),
+          ...removeEmptyValues(parsedSourceProps),
+        },
       },
     }));
   }
+
+  // The border color popover renders inside the pane, so it stays within the
+  // modal.
+  const borderContainerRef = useRef(null);
+
+  // A fully transparent color is the "no border" value, so it removes the
+  // key rather than saving an invisible border.
+  const handleBorderColorChange = useCallback(
+    (color) => {
+      setSourceProps((prev) => {
+        const nextProps = { ...(prev?.props ?? {}) };
+        if (!color || isTransparentColor(color)) {
+          delete nextProps.borderColor;
+        } else {
+          nextProps.borderColor = color;
+        }
+        return { ...prev, props: nextProps };
+      });
+    },
+    [setSourceProps],
+  );
+
+  // Widths below 1 px are not saved; the layer then draws the default width.
+  const handleBorderWidthChange = useCallback(
+    (e) => {
+      const raw = e.target.value;
+      const width = Number(raw);
+      setSourceProps((prev) => {
+        const nextProps = { ...(prev?.props ?? {}) };
+        if (raw === "" || !Number.isFinite(width) || width < 1) {
+          delete nextProps.borderWidth;
+        } else {
+          nextProps.borderWidth = width;
+        }
+        return { ...prev, props: nextProps };
+      });
+    },
+    [setSourceProps],
+  );
 
   function handleLayerTypeChange(e) {
     setSourceType(e);
@@ -650,6 +727,8 @@ const SourcePane = ({
       initialExtent,
       imageUrl,
       projection: projection || null,
+      borderColor: sourceProps.props?.borderColor,
+      borderWidth: sourceProps.props?.borderWidth,
     });
     onRequestHideModal();
   }
@@ -845,6 +924,36 @@ const SourcePane = ({
               )}
               {sourceType.value === "Shapefile" && shapefileDiscovery && (
                 <ShapefileDiscoveryPanel discovery={shapefileDiscovery} />
+              )}
+              {sourceType.value === "Static Image" && (
+                <div ref={borderContainerRef}>
+                  <BorderField>
+                    <BorderFieldLabel>Border color</BorderFieldLabel>
+                    <ColorPickerPopOver
+                      label="Border"
+                      color={sourceProps.props?.borderColor ?? "transparent"}
+                      pickerColor={sourceProps.props?.borderColor ?? "#000000"}
+                      onChange={handleBorderColorChange}
+                      containerRef={borderContainerRef}
+                      hideLabel
+                    />
+                  </BorderField>
+                  <BorderField>
+                    <BorderFieldLabel>Border width (px)</BorderFieldLabel>
+                    <div style={{ maxWidth: "6rem" }}>
+                      <NormalInput
+                        value={sourceProps.props?.borderWidth ?? ""}
+                        type="number"
+                        min={1}
+                        max={50}
+                        placeholder="2"
+                        onChange={handleBorderWidthChange}
+                        ariaLabel="Border Width"
+                        allowEmpty
+                      />
+                    </div>
+                  </BorderField>
+                </div>
               )}
               {sourceType.value === "Static Image" &&
                 mapContext &&
