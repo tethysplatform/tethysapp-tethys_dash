@@ -246,6 +246,12 @@ test("Static Image imageExtent string is parsed to numeric array", async () => {
   const source = layerInstance.getSource();
   const extent = source.getImageExtent();
   expect(extent).toEqual([-100.5, 30.2, -90.1, 40.8]);
+  // The caller's saved config is left as it was: Map.js compares the next
+  // config against it, and a rewritten extent made every static image look
+  // changed, so editing one rebuilt them all.
+  expect(config.props.source.props.imageExtent).toBe(
+    "-100.5, 30.2, -90.1, 40.8",
+  );
 });
 
 describe("Static Image border", () => {

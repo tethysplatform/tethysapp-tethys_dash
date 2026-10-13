@@ -1719,13 +1719,23 @@ const loadModule = async (config, mapProjection, getMapProjection) => {
     }
     config = geotiffSourceToOL(config);
   }
+  // Parsed into a copy: this config is the caller's saved layer config, and
+  // Map.js compares the next one against it to decide which layers to keep.
+  // Rewriting it in place made every static image look changed on the next
+  // update, so editing one rebuilt them all.
   if (
     config.type === "Static Image" &&
     typeof config.props?.imageExtent === "string"
   ) {
-    config.props.imageExtent = config.props.imageExtent
-      .split(",")
-      .map((v) => parseFloat(v.trim()));
+    config = {
+      ...config,
+      props: {
+        ...config.props,
+        imageExtent: config.props.imageExtent
+          .split(",")
+          .map((v) => parseFloat(v.trim())),
+      },
+    };
   }
 
   if (config.type.includes("ESRI")) {

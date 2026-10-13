@@ -1141,6 +1141,84 @@ test("ExtentInteraction renders when extentDrawMode is set", async () => {
   ).toBeInTheDocument();
 });
 
+test("A replacement that never loads does not hold the swap past render complete", async () => {
+  jest.useFakeTimers();
+  let olMap;
+  const realAddLayer = Map.prototype.addLayer;
+  const addLayerSpy = jest
+    .spyOn(Map.prototype, "addLayer")
+    .mockImplementation(function (layer) {
+      olMap = this;
+      return realAddLayer.call(this, layer);
+    });
+  const removeLayerSpy = jest.spyOn(Map.prototype, "removeLayer");
+  const countSettleListeners = () =>
+    olMap?.getListeners("rendercomplete")?.length ?? 0;
+
+  const layerWithUrl = (url) => [
+    {
+      type: "WebGLTile",
+      props: {
+        source: { type: "Image Tile", props: { url } },
+        name: "replaced_layer",
+        zIndex: 0,
+      },
+    },
+  ];
+
+  const { rerender } = render(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
+      <MapContextProvider>
+        <TestingComponent
+          mapProps={{
+            layers: layerWithUrl("https://example.com/tiles/v1/{z}/{y}/{x}"),
+          }}
+        />
+      </MapContextProvider>
+    </VariableInputsContext.Provider>,
+  );
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  await waitFor(() => {
+    expect(addLayerSpy.mock.calls.length).toBe(1);
+  });
+
+  const listenersBefore = countSettleListeners();
+
+  rerender(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
+      <MapContextProvider>
+        <TestingComponent
+          mapProps={{
+            layers: layerWithUrl("https://example.com/tiles/v2/{z}/{y}/{x}"),
+          }}
+        />
+      </MapContextProvider>
+    </VariableInputsContext.Provider>,
+  );
+
+  // jsdom never loads the new tiles, so only render complete can end the
+  // wait short of the 5 second safety timeout.
+  await waitFor(() => {
+    expect(countSettleListeners()).toBeGreaterThan(listenersBefore);
+  });
+  act(() => {
+    olMap.dispatchEvent("rendercomplete");
+  });
+  // The crossfade runs 250 ms; well short of the safety timeout.
+  act(() => jest.advanceTimersByTime(400));
+
+  await waitFor(() => {
+    expect(removeLayerSpy.mock.calls.length).toBe(1);
+  });
+  expect(removeLayerSpy.mock.calls[0][0].values_.name).toBe("replaced_layer");
+
+  jest.useRealTimers();
+});
+
 test("Replacing a layer with same name waits for load before removing old", async () => {
   jest.useFakeTimers();
   const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
