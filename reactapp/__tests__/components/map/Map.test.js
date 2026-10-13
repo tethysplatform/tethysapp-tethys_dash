@@ -1137,7 +1137,7 @@ test("ExtentInteraction renders when extentDrawMode is set", async () => {
   fireEvent.click(activateButton);
 
   expect(
-    await screen.findByText("Draw or adjust a rectangle to place the image"),
+    await screen.findByText("Drag on the map to draw a box for the image."),
   ).toBeInTheDocument();
 });
 
