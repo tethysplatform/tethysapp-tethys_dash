@@ -1634,6 +1634,13 @@ test("MapLayerModal re-shows and updates sourceProps when drawnExtent arrives", 
     expect(screen.getByTestId("extent-draw-mode")).toHaveTextContent("active");
   });
 
+  // While hidden, nothing in the editor may show or take clicks -- a
+  // react-select input declares its own `visibility: visible` and would
+  // otherwise sit invisibly over the extent editor's buttons.
+  expect(screen.getByRole("dialog", { hidden: true })).toHaveClass(
+    "map-layer-hidden-for-extent-draw",
+  );
+
   // Simulate drawnExtent arriving (lines 103-120)
   fireEvent.click(screen.getByTestId("set-drawn-extent"));
 
@@ -1641,6 +1648,9 @@ test("MapLayerModal re-shows and updates sourceProps when drawnExtent arrives", 
   await waitFor(() => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
+  expect(screen.getByRole("dialog")).not.toHaveClass(
+    "map-layer-hidden-for-extent-draw",
+  );
 
   // Verify sourceProps were updated with the extent
   // Navigate back to source tab to see updated values
