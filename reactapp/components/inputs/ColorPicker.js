@@ -4,6 +4,16 @@ import { useMemo } from "react";
 import debounce from "lodash.debounce";
 import "react-color-palette/css";
 
+// True for a hex color whose alpha is zero ("#rrggbb00" or "#rgb0") -- what
+// the picker hands back when its alpha is dragged to zero, i.e. "no color".
+export function isTransparentColor(color) {
+  if (typeof color !== "string") return false;
+  const hex = color.trim();
+  return /^#[0-9a-f]{8}$/i.test(hex)
+    ? hex.slice(7).toLowerCase() === "00"
+    : /^#[0-9a-f]{4}$/i.test(hex) && hex[4] === "0";
+}
+
 const ColorPicker = ({ color, onChange, hideInput }) => {
   const [pickerColor, setPickerColor] = useColor(color);
 

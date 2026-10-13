@@ -3,6 +3,29 @@ import userEvent from "@testing-library/user-event";
 import InputTable from "components/inputs/InputTable";
 import selectEvent from "react-select-event";
 
+// The real popover needs a positioned overlay; a stand-in shows what the table
+// hands it and lets a test pick a color directly.
+jest.mock("components/inputs/ColorPickerPopOver", () => {
+  const PropTypes = jest.requireActual("prop-types");
+  const MockColorPickerPopOver = ({ label, color, pickerColor, onChange }) => (
+    <div>
+      <span data-testid="swatch">{color}</span>
+      <span data-testid="picker">{pickerColor}</span>
+      <input
+        aria-label={`${label} color input`}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </div>
+  );
+  MockColorPickerPopOver.propTypes = {
+    label: PropTypes.string,
+    color: PropTypes.string,
+    pickerColor: PropTypes.string,
+    onChange: PropTypes.func,
+  };
+  return MockColorPickerPopOver;
+});
+
 it("InputTable", async () => {
   const label = "Test Table";
   const onChange = jest.fn();
@@ -710,5 +733,47 @@ describe("InputTable row reordering", () => {
     await userEvent.tab();
     expect(screen.getByLabelText("name Input 3")).toBeInTheDocument();
     expect(onChange.mock.calls.at(-1)[0].fullChange).toHaveLength(4);
+  });
+});
+
+describe("color rows", () => {
+  const showColorRow = (value, onChange = jest.fn()) => {
+    render(
+      <InputTable
+        label="Colors"
+        onChange={onChange}
+        values={[{ property: "borderColor", value }]}
+        disabledFields={["property"]}
+        types={["color"]}
+      />,
+    );
+  };
+
+  test("an empty color shows transparent and opens the picker opaque", () => {
+    showColorRow("");
+    expect(screen.getByTestId("swatch")).toHaveTextContent("transparent");
+    expect(screen.getByTestId("picker")).toHaveTextContent("#000000");
+  });
+
+  test("a saved color shows in the swatch and the picker", () => {
+    showColorRow("#00ff00");
+    expect(screen.getByTestId("swatch")).toHaveTextContent("#00ff00");
+    expect(screen.getByTestId("picker")).toHaveTextContent("#00ff00");
+  });
+
+  test("a picked color is stored, and a transparent one is stored empty", () => {
+    const onChange = jest.fn();
+    showColorRow("", onChange);
+    const input = screen.getByLabelText("value Input 0 color input");
+
+    fireEvent.change(input, { target: { value: "#ff0000" } });
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ newValue: "#ff0000", rowIndex: 0 }),
+    );
+
+    fireEvent.change(input, { target: { value: "#ff000000" } });
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ newValue: "", rowIndex: 0 }),
+    );
   });
 });

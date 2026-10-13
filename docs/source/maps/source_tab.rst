@@ -237,19 +237,9 @@ The Static Image source overlays a georeferenced image (PNG, GIF, JPG, etc.) on 
     - **imageExtent:** (required) Bounding extent of the image as a comma-separated string in the format ``minX, minY, maxX, maxY``, using coordinates in the specified projection.
     - **attributions:** (optional) Attributions.
     - **crossOrigin:** (optional) Force cross-origin (CORS) requests for this layer so it can be captured in the dashboard thumbnail. CORS support is detected per host automatically, so leave this off unless the layer renders blank in thumbnails. Only enable it when the server sends ``Access-Control-Allow-Origin`` — if it does not, the layer will fail to load entirely.
-
-**Aspect Ratio:**
-
-Below the source properties, **Keep aspect ratio when placing the image on the map** locks the placement rectangle to the image's proportions in the **Draw Extent on Map** editor, so the image is not stretched. It is saved with the layer as ``keepAspectRatio`` in the source properties and only affects placement, not how the layer renders.
-
-**Border:**
-
-Below the source properties, a static image can be given a border to help it stand out from the basemap:
-
-    - **Border color:** Picked with the color picker. Fully transparent by default, which draws no border; set the opacity back to zero to remove a border.
-    - **Border width (px):** Width in screen pixels, from 1 to 50. Defaults to 2 when left empty.
-
-The border is drawn just inside the edge of the image, stays the same width at every zoom level, and fades with the layer's opacity. In the saved configuration these appear as ``borderColor`` and ``borderWidth`` in the source properties.
+    - **keepAspectRatio:** (optional) Keep the image's own proportions while placing it with **Draw Extent on Map**, so it is not stretched. Affects placement only, not how the layer renders.
+    - **borderColor:** (optional) Color of a border drawn just inside the edge of the image, to help it stand out from the basemap. Picked with the color picker; fully transparent (the default) draws no border.
+    - **borderWidth:** (optional) Border width in screen pixels, from 1 to 50. Defaults to 2 when empty. The border keeps this width at every zoom level and fades with the layer's opacity.
 
 **Interactive Placement:**
 
@@ -264,7 +254,7 @@ Instead of manually entering the ``imageExtent`` coordinates, you can use the **
    - Drag an edge or corner to resize it.
    - Drag anywhere outside the rectangle to pan the map, and use the mouse wheel to zoom.
    - Hold **Shift** and drag to start a new rectangle.
-   - If **Keep aspect ratio when placing the image on the map** is checked on the Source tab, the rectangle holds the image's own proportions while you draw and resize it. An existing rectangle is reshaped as soon as the image loads, keeping its width and center.
+   - If **keepAspectRatio** is checked in the source properties, the rectangle holds the image's own proportions while you draw and resize it. An existing rectangle is reshaped as soon as the image loads, keeping its width and center.
 
 5. Click **Confirm** to accept the placement. The modal will reappear with the ``imageExtent`` and ``projection`` fields automatically populated in the map's projection. If you confirm without changing the rectangle, the saved values are left exactly as they were.
 6. Click **Cancel** to return to the modal without changes.

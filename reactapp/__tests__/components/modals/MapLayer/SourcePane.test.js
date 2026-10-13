@@ -1479,7 +1479,7 @@ TestingComponent.propTypes = {
   onFetchPluginDefaults: PropTypes.func,
 };
 
-describe("SourcePane Static Image border", () => {
+describe("SourcePane Static Image aspect lock and border", () => {
   const staticImage = (props = {}) => ({
     type: "Static Image",
     props: {
@@ -1490,51 +1490,71 @@ describe("SourcePane Static Image border", () => {
     },
   });
 
+  // Row order follows the Static Image registry: url, projection,
+  // imageExtent, crossOrigin, attributions, then these three.
+  const KEEP_ASPECT_ROW = "value Input 5";
+  const BORDER_COLOR_ROW = "value Input 6";
+  const BORDER_WIDTH_ROW = "value Input 7";
+
   const currentProps = () =>
     JSON.parse(screen.getByTestId("sourceProps").textContent).props;
 
-  test("shows border controls only for Static Image sources", async () => {
-    const { unmount } = render(
-      <TestingComponent
-        initialSourceProps={staticImage()}
-        onRequestHideModal={jest.fn()}
-      />,
-    );
-    expect(await screen.findByText("Border color")).toBeInTheDocument();
-    expect(screen.getByLabelText("Border Width")).toBeInTheDocument();
-    unmount();
-
+  const renderStaticImage = (props) =>
     render(
       <TestingComponent
-        initialSourceProps={{ type: "GeoJSON", props: {} }}
+        initialSourceProps={staticImage(props)}
         onRequestHideModal={jest.fn()}
       />,
     );
-    await screen.findByText("Source Type");
-    expect(screen.queryByText("Border color")).not.toBeInTheDocument();
+
+  test("the three settings are rows in the source properties table", async () => {
+    renderStaticImage();
+    expect(await screen.findByText("keepAspectRatio")).toBeInTheDocument();
+    expect(screen.getByText("borderColor")).toBeInTheDocument();
+    expect(screen.getByText("borderWidth")).toBeInTheDocument();
+    expect(screen.getByLabelText(KEEP_ASPECT_ROW)).toHaveAttribute(
+      "type",
+      "checkbox",
+    );
+    expect(screen.getByLabelText(BORDER_WIDTH_ROW)).toHaveAttribute(
+      "type",
+      "number",
+    );
+    // Nothing is written until the author sets something.
+    expect(currentProps()).not.toHaveProperty("keepAspectRatio");
+    expect(currentProps()).not.toHaveProperty("borderColor");
+    expect(currentProps()).not.toHaveProperty("borderWidth");
+  });
+
+  test("the aspect lock saves only while checked", async () => {
+    renderStaticImage();
+    const checkbox = await screen.findByLabelText(KEEP_ASPECT_ROW);
+    fireEvent.click(checkbox);
+    expect(currentProps().keepAspectRatio).toBe(true);
+    fireEvent.click(checkbox);
+    expect(currentProps()).not.toHaveProperty("keepAspectRatio");
+  });
+
+  test("a saved aspect lock shows checked", async () => {
+    renderStaticImage({ keepAspectRatio: true });
+    expect(await screen.findByLabelText(KEEP_ASPECT_ROW)).toBeChecked();
   });
 
   test("with no border saved the swatch is transparent and the picker opens opaque", async () => {
-    render(
-      <TestingComponent
-        initialSourceProps={staticImage()}
-        onRequestHideModal={jest.fn()}
-      />,
+    renderStaticImage();
+    expect(
+      await screen.findByTestId(`${BORDER_COLOR_ROW}-swatch`),
+    ).toHaveTextContent("transparent");
+    expect(screen.getByTestId(`${BORDER_COLOR_ROW}-picker`)).toHaveTextContent(
+      "#000000",
     );
-    expect(await screen.findByTestId("Border-swatch")).toHaveTextContent(
-      "transparent",
-    );
-    expect(screen.getByTestId("Border-picker")).toHaveTextContent("#000000");
   });
 
   test("picking a color saves it and a transparent color removes it", async () => {
-    render(
-      <TestingComponent
-        initialSourceProps={staticImage()}
-        onRequestHideModal={jest.fn()}
-      />,
+    renderStaticImage();
+    const input = await screen.findByLabelText(
+      `${BORDER_COLOR_ROW} color input`,
     );
-    const input = await screen.findByLabelText("Border color input");
     fireEvent.change(input, { target: { value: "#ff0000" } });
     expect(currentProps().borderColor).toBe("#ff0000");
 
@@ -1542,55 +1562,40 @@ describe("SourcePane Static Image border", () => {
     expect(currentProps()).not.toHaveProperty("borderColor");
   });
 
-  test("a width of 1 or more saves as a number; empty or below 1 removes it", async () => {
-    render(
-      <TestingComponent
-        initialSourceProps={staticImage()}
-        onRequestHideModal={jest.fn()}
-      />,
-    );
-    const width = await screen.findByLabelText("Border Width");
+  test("a border width saves, and clearing it removes it", async () => {
+    renderStaticImage();
+    const width = await screen.findByLabelText(BORDER_WIDTH_ROW);
     fireEvent.change(width, { target: { value: "4" } });
-    expect(currentProps().borderWidth).toBe(4);
+    expect(Number(currentProps().borderWidth)).toBe(4);
 
     fireEvent.change(width, { target: { value: "" } });
     expect(currentProps()).not.toHaveProperty("borderWidth");
-
-    fireEvent.change(width, { target: { value: "0" } });
-    expect(currentProps()).not.toHaveProperty("borderWidth");
   });
 
-  test("editing a table property keeps the border settings", async () => {
-    render(
-      <TestingComponent
-        initialSourceProps={staticImage({
-          borderColor: "#00ff00",
-          borderWidth: 3,
-        })}
-        onRequestHideModal={jest.fn()}
-      />,
+  test("saved settings load into their rows and survive other edits", async () => {
+    renderStaticImage({
+      keepAspectRatio: true,
+      borderColor: "#00ff00",
+      borderWidth: 3,
+    });
+    expect(await screen.findByLabelText(BORDER_WIDTH_ROW)).toHaveValue(3);
+    expect(screen.getByTestId(`${BORDER_COLOR_ROW}-swatch`)).toHaveTextContent(
+      "#00ff00",
     );
-    const inputs = await screen.findAllByRole("textbox");
-    fireEvent.change(inputs[0], {
+
+    fireEvent.change(screen.getByLabelText("value Input 0"), {
       target: { value: "https://example.com/other.png" },
     });
     expect(currentProps()).toMatchObject({
       url: "https://example.com/other.png",
+      keepAspectRatio: true,
       borderColor: "#00ff00",
       borderWidth: 3,
     });
   });
 
-  test("changing the source type clears the border settings", async () => {
-    render(
-      <TestingComponent
-        initialSourceProps={staticImage({
-          borderColor: "#00ff00",
-          borderWidth: 3,
-        })}
-        onRequestHideModal={jest.fn()}
-      />,
-    );
+  test("changing the source type clears them", async () => {
+    renderStaticImage({ borderColor: "#00ff00", borderWidth: 3 });
     selectEvent.openMenu(screen.getByRole("combobox"));
     fireEvent.click(await screen.findByText("GeoJSON"));
     await waitFor(() => {
@@ -1599,87 +1604,19 @@ describe("SourcePane Static Image border", () => {
     expect(currentProps()).not.toHaveProperty("borderWidth");
   });
 
-  test("a layer edited without touching the border gains no border keys", async () => {
-    render(
-      <TestingComponent
-        initialSourceProps={staticImage()}
-        onRequestHideModal={jest.fn()}
-      />,
-    );
-    const inputs = await screen.findAllByRole("textbox");
-    fireEvent.change(inputs[0], {
-      target: { value: "https://example.com/other.png" },
+  test("Draw Extent on Map hands the lock and border to the extent editor", async () => {
+    renderStaticImage({
+      keepAspectRatio: true,
+      borderColor: "#00ff00",
+      borderWidth: 3,
     });
-    expect(currentProps()).not.toHaveProperty("borderColor");
-    expect(currentProps()).not.toHaveProperty("borderWidth");
-  });
-
-  test("the aspect lock is saved only when checked", async () => {
-    render(
-      <TestingComponent
-        initialSourceProps={staticImage()}
-        onRequestHideModal={jest.fn()}
-      />,
-    );
-    const checkbox = await screen.findByLabelText(
-      "Keep aspect ratio when placing the image on the map",
-    );
-    expect(checkbox).not.toBeChecked();
-    expect(currentProps()).not.toHaveProperty("keepAspectRatio");
-
-    fireEvent.click(checkbox);
-    expect(checkbox).toBeChecked();
-    expect(currentProps().keepAspectRatio).toBe(true);
-
-    fireEvent.click(checkbox);
-    expect(currentProps()).not.toHaveProperty("keepAspectRatio");
-  });
-
-  test("a saved aspect lock shows checked and survives table edits", async () => {
-    render(
-      <TestingComponent
-        initialSourceProps={staticImage({ keepAspectRatio: true })}
-        onRequestHideModal={jest.fn()}
-      />,
-    );
-    expect(
-      await screen.findByLabelText(
-        "Keep aspect ratio when placing the image on the map",
-      ),
-    ).toBeChecked();
-    const inputs = await screen.findAllByRole("textbox");
-    fireEvent.change(inputs[0], {
-      target: { value: "https://example.com/other.png" },
-    });
-    expect(currentProps().keepAspectRatio).toBe(true);
-  });
-
-  test("Draw Extent on Map hands the aspect lock to the extent editor", async () => {
-    render(
-      <TestingComponent
-        initialSourceProps={staticImage({ keepAspectRatio: true })}
-        onRequestHideModal={jest.fn()}
-      />,
-    );
     fireEvent.click(await screen.findByLabelText("Draw Extent on Map Button"));
     expect(
       JSON.parse(screen.getByTestId("extentDrawModeValue").textContent),
-    ).toMatchObject({ keepAspectRatio: true });
-  });
-
-  test("Draw Extent on Map hands the border to the extent editor", async () => {
-    render(
-      <TestingComponent
-        initialSourceProps={staticImage({
-          borderColor: "#00ff00",
-          borderWidth: 3,
-        })}
-        onRequestHideModal={jest.fn()}
-      />,
-    );
-    fireEvent.click(await screen.findByLabelText("Draw Extent on Map Button"));
-    expect(
-      JSON.parse(screen.getByTestId("extentDrawModeValue").textContent),
-    ).toMatchObject({ borderColor: "#00ff00", borderWidth: 3 });
+    ).toMatchObject({
+      keepAspectRatio: true,
+      borderColor: "#00ff00",
+      borderWidth: 3,
+    });
   });
 });

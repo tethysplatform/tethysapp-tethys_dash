@@ -2,6 +2,7 @@ import { getRenderPixel } from "ol/render";
 import { apply as applyTransform } from "ol/transform";
 import { equivalent, get as getProjection, getTransform } from "ol/proj";
 import { unByKey } from "ol/Observable";
+import { isTransparentColor } from "components/inputs/ColorPicker";
 
 // Border width, in screen pixels, when none is saved.
 export const DEFAULT_BORDER_WIDTH = 2;
@@ -28,16 +29,6 @@ export const IMAGE_BORDER_KEY = "imageBorder";
 // Points sampled along each edge of a reprojected footprint, so a curved edge
 // is traced rather than cut straight across.
 const EDGE_SAMPLES = 16;
-
-// True for a hex color whose alpha is zero ("#rrggbb00" or "#rgb0") -- the
-// picker's "no border" value.
-export function isTransparentColor(color) {
-  if (typeof color !== "string") return false;
-  const hex = color.trim();
-  return /^#[0-9a-f]{8}$/i.test(hex)
-    ? hex.slice(7).toLowerCase() === "00"
-    : /^#[0-9a-f]{4}$/i.test(hex) && hex[4] === "0";
-}
 
 // The border to draw for saved `borderColor` / `borderWidth`, or null for no
 // border. A width that is absent or not a number takes the default; a numeric

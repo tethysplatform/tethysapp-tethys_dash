@@ -11,8 +11,6 @@ import {
 import InputTable from "components/inputs/InputTable";
 import DataRadioSelect from "components/inputs/DataRadioSelect";
 import NormalInput from "components/inputs/NormalInput";
-import { STATIC_IMAGE_EXTRA_PROP_KEYS } from "components/map/imageBorder";
-import StaticImageSourceFields from "components/modals/MapLayer/StaticImageSourceFields";
 import appAPI from "services/api/app";
 import { removeEmptyValues } from "components/modals/utilities";
 import { findSelectOptionByValue } from "components/visualizations/utilities";
@@ -107,17 +105,6 @@ function parsePropertiesArray(properties) {
 
     return acc;
   }, {});
-}
-
-// A static image's border and aspect-lock settings live in its source props
-// but have no row in the property table, so a rebuild of the props from the
-// table must carry them over.
-function pickStaticImageExtraProps(props) {
-  return Object.fromEntries(
-    STATIC_IMAGE_EXTRA_PROP_KEYS.filter(
-      (key) => props?.[key] !== undefined,
-    ).map((key) => [key, props[key]]),
-  );
 }
 
 // What discovery has to say about one argument, rendered beneath its select.
@@ -587,10 +574,7 @@ const SourcePane = ({
     setSourceProps((previousSourceProps) => ({
       ...previousSourceProps,
       ...{
-        props: {
-          ...pickStaticImageExtraProps(previousSourceProps?.props),
-          ...removeEmptyValues(parsedSourceProps),
-        },
+        props: removeEmptyValues(parsedSourceProps),
       },
     }));
   }
@@ -864,14 +848,6 @@ const SourcePane = ({
               )}
               {sourceType.value === "Shapefile" && shapefileDiscovery && (
                 <ShapefileDiscoveryPanel discovery={shapefileDiscovery} />
-              )}
-              {sourceType.value === "Static Image" && (
-                <StaticImageSourceFields
-                  borderColor={sourceProps.props?.borderColor}
-                  borderWidth={sourceProps.props?.borderWidth}
-                  keepAspectRatio={!!sourceProps.props?.keepAspectRatio}
-                  setSourceProps={setSourceProps}
-                />
               )}
               {sourceType.value === "Static Image" &&
                 mapContext &&

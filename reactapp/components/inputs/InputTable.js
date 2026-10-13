@@ -3,6 +3,8 @@ import { useState, useRef, useEffect } from "react";
 import Table from "react-bootstrap/Table";
 import styled from "styled-components";
 import DataSelect from "components/inputs/DataSelect";
+import ColorPickerPopOver from "components/inputs/ColorPickerPopOver";
+import { isTransparentColor } from "components/inputs/ColorPicker";
 import RowMoveButtons, {
   moveRow,
   useRowMoveFocus,
@@ -82,6 +84,9 @@ const InputTable = ({
 }) => {
   const [tableRows, setTableRows] = useState([]);
   const [tableHeaders, setTableHeaders] = useState([]);
+  // The color popover renders inside the table, so it stays within whatever
+  // modal holds it.
+  const containerRef = useRef(null);
   const [inputPlaceholders, setInputPlaceholders] = useState([]);
   const [focusRequestFor, requestFocus] = useRowMoveFocus();
   const inputRefs = useRef([]);
@@ -176,7 +181,7 @@ const InputTable = ({
   };
 
   return (
-    <FullLabel>
+    <FullLabel ref={containerRef}>
       <b>{label}</b>:{" "}
       {tableRows.length > 0 && (
         <Table striped bordered hover size="sm">
@@ -291,6 +296,32 @@ const InputTable = ({
                               Without it the caller has to render outside the
                               table, detached from the row it describes. */}
                           {content}
+                        </td>
+                      );
+                    } else if (types?.[rowIndex] === "color") {
+                      // A color row stores a plain string like every other
+                      // row, and a fully transparent pick -- "no color" --
+                      // stores "" so it reads as empty everywhere downstream.
+                      // The picker opens opaque when empty: it keeps the
+                      // current alpha as the author moves through hues, so
+                      // opening at transparent would make every pick
+                      // invisible.
+                      return (
+                        <td key={fieldIndex}>
+                          <ColorPickerPopOver
+                            label={`${field} Input ${rowIndex}`}
+                            color={row[field] || "transparent"}
+                            pickerColor={row[field] || "#000000"}
+                            onChange={(color) =>
+                              handleChange(
+                                isTransparentColor(color) ? "" : color,
+                                rowIndex,
+                                field,
+                              )
+                            }
+                            containerRef={containerRef}
+                            hideLabel
+                          />
                         </td>
                       );
                     } else if (

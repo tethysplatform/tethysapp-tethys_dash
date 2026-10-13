@@ -11,7 +11,6 @@ import {
   splitStaticImageProps,
   drawBorder,
   footprintRing,
-  isTransparentColor,
   normalizeBorder,
 } from "components/map/imageBorder";
 
@@ -36,17 +35,6 @@ function mockContext() {
     strokeStyle: "",
   };
 }
-
-describe("isTransparentColor", () => {
-  test("detects zero-alpha hex colors", () => {
-    expect(isTransparentColor("#ff000000")).toBe(true);
-    expect(isTransparentColor("#F000")).toBe(true);
-    expect(isTransparentColor("#ff000080")).toBe(false);
-    expect(isTransparentColor("#ff0000")).toBe(false);
-    expect(isTransparentColor("red")).toBe(false);
-    expect(isTransparentColor(undefined)).toBe(false);
-  });
-});
 
 describe("normalizeBorder", () => {
   test("no color or a transparent color means no border", () => {

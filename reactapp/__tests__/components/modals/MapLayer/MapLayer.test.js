@@ -1698,7 +1698,9 @@ test("MapLayerModal keeps the border settings when a drawn extent arrives", asyn
       inputs.find((input) => input.value === "10.00, 20.00, 30.00, 40.00"),
     ).toBeDefined();
   });
-  expect(screen.getByLabelText("Border Width")).toHaveValue("3");
+  expect(
+    screen.getByPlaceholderText("Border width in pixels, 1-50 (default 2)"),
+  ).toHaveValue(3);
 });
 
 test("MapLayerModal leaves the saved extent untouched when the editor closes without a drawn extent", async () => {
