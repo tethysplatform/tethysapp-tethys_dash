@@ -4,6 +4,8 @@ from tethysapp.tethysdash.plugin_helpers import (
     send_websocket_message,
     TethysDashPlugin,
     DATE_PRESET_SENTINELS,
+    geotiff_source,
+    validate_layer_source_description,
 )
 import requests
 import pytest
@@ -1439,7 +1441,10 @@ def test_builder_set_plugin_source_happy_path():
 
 def test_builder_set_plugin_source_rejects_non_geojson():
     builder = LayerConfigurationBuilder("wms layer", "WMS")
-    with pytest.raises(ValueError, match="must use LayerConfigurationBuilder"):
+    with pytest.raises(
+        ValueError,
+        match="must use LayerConfigurationBuilder.*'GeoJSON' or 'GeoTIFF'.*'WMS'",
+    ):
         builder.set_plugin_source("some_plugin", {})
 
 
@@ -1540,3 +1545,417 @@ def test_builder_exposes_shapefile_source_properties():
 def test_builder_still_refuses_a_source_it_does_not_know():
     with pytest.raises(ValueError, match="Invalid layer_source"):
         LayerConfigurationBuilder("test", "Shapefile Tile")
+
+
+# --- Dynamic GeoTIFF plugin contract ----------------------------------------
+
+
+def _raster_plugin_class(**attrs):
+    namespace = {
+        "name": "raster_runtime",
+        "group": "g",
+        "label": "l",
+        "type": "map_layer",
+        "dynamic_map_layer": True,
+        "dynamic_map_layer_source": "GeoTIFF",
+        "fetch_source": lambda self: geotiff_source("https://x/a.tif"),
+    }
+    namespace.update(attrs)
+    return type("RasterRuntime", (TethysDashPlugin,), namespace)
+
+
+def test_dynamic_map_layer_source_defaults_to_geojson():
+    plugin = MinimalRuntimePlugin()
+    assert plugin.dynamic_map_layer_source == "GeoJSON"
+    assert TethysDashPlugin.dynamic_map_layer_source == "GeoJSON"
+
+
+def test_geotiff_runtime_plugin_read_source():
+    plugin = _raster_plugin_class()()
+
+    result = plugin.read_source("sess:grid:layer-9")
+
+    assert plugin.dynamic_map_layer_source == "GeoTIFF"
+    assert plugin.request_id == "sess:grid:layer-9"
+    assert plugin._pending_layer_id == "layer-9"
+    assert result == {"type": "GeoTIFF", "props": {"url": "https://x/a.tif"}}
+    assert validate_layer_source_description(result, "GeoTIFF") is True
+
+
+def test_read_features_attaches_layer_id_like_read_source():
+    plugin = MinimalRuntimePlugin()
+    plugin.read_features("sess:grid:layer-3")
+    assert plugin._pending_layer_id == "layer-3"
+
+    flat = MinimalRuntimePlugin()
+    flat.read_features("flat-id")
+    assert flat._pending_layer_id is None
+
+    empty_suffix = MinimalRuntimePlugin()
+    empty_suffix.read_features("sess:grid:")
+    assert empty_suffix._pending_layer_id is None
+
+
+def test_geotiff_plugin_send_update_routes_to_layer(monkeypatch):
+    called = {}
+
+    def fetch_source(self):
+        self.send_update("reading", percentage_complete=10)
+        return geotiff_source("https://x/a.tif")
+
+    def fake_send_websocket_message(request_id, message, **kwargs):
+        called["request_id"] = request_id
+        called["kwargs"] = kwargs
+
+    monkeypatch.setattr(
+        "tethysapp.tethysdash.plugin_helpers.send_websocket_message",
+        fake_send_websocket_message,
+    )
+    _raster_plugin_class(fetch_source=fetch_source)().read_source("s:g:layer-5")
+
+    assert called["request_id"] == "s:g:layer-5"
+    assert called["kwargs"]["layer_id"] == "layer-5"
+
+
+def test_geotiff_plugin_without_fetch_source_raises():
+    namespace = {"fetch_source": TethysDashPlugin.fetch_source}
+    with pytest.raises(ValueError, match="'GeoTIFF' requires fetch_source"):
+        _raster_plugin_class(**namespace)()
+
+
+def test_geotiff_plugin_with_only_fetch_features_raises():
+    plugin_class = _raster_plugin_class(
+        fetch_source=TethysDashPlugin.fetch_source,
+        fetch_features=lambda self: {},
+    )
+    with pytest.raises(ValueError, match="requires fetch_source to be overridden"):
+        plugin_class()
+
+
+def test_geojson_plugin_with_only_fetch_source_raises():
+    plugin_class = _raster_plugin_class(dynamic_map_layer_source="GeoJSON")
+    with pytest.raises(ValueError, match="requires fetch_features to be overridden"):
+        plugin_class()
+
+
+def test_fetch_source_on_geojson_plugin_warns():
+    plugin_class = _raster_plugin_class(
+        dynamic_map_layer_source="GeoJSON",
+        fetch_features=MinimalRuntimePlugin.fetch_features,
+    )
+    with pytest.warns(UserWarning, match="fetch_source is overridden but .*'GeoJSON'"):
+        plugin_class()
+
+
+def test_fetch_features_on_geotiff_plugin_warns():
+    plugin_class = _raster_plugin_class(
+        fetch_features=MinimalRuntimePlugin.fetch_features
+    )
+    with pytest.warns(
+        UserWarning, match="fetch_features is overridden but .*'GeoTIFF'"
+    ):
+        plugin_class()
+
+
+def test_fetch_source_without_flag_warns():
+    plugin_class = _raster_plugin_class(dynamic_map_layer=False)
+    with pytest.warns(
+        UserWarning, match="fetch_source is overridden but dynamic_map_layer = False"
+    ):
+        plugin_class()
+
+
+def test_invalid_dynamic_map_layer_source_raises():
+    with pytest.raises(
+        ValueError,
+        match="dynamic_map_layer_source 'XYZ' is not valid.*GeoJSON, GeoTIFF",
+    ):
+        _raster_plugin_class(dynamic_map_layer_source="XYZ")()
+
+
+def test_dynamic_map_layer_source_is_a_reserved_arg_name():
+    plugin_class = _raster_plugin_class(args={"dynamic_map_layer_source": "text"})
+    with pytest.raises(ValueError, match="reserved keys"):
+        plugin_class()
+
+
+def test_fetch_source_not_implemented_by_default():
+    with pytest.raises(NotImplementedError, match="fetch_source"):
+        MinimalRuntimePlugin().fetch_source()
+
+
+# --- LayerConfigurationBuilder runtime GeoTIFF -------------------------------
+
+
+def test_builder_runtime_geotiff_scaffold():
+    config = (
+        LayerConfigurationBuilder("Rain", "GeoTIFF")
+        .set_plugin_source("rain_plugin", {"date": "${Date}"})
+        .build()
+    )
+
+    assert config == {
+        "configuration": {
+            "type": "WebGLTile",
+            "props": {
+                "name": "Rain",
+                "source": {"type": "GeoTIFF", "props": {}},
+                "pluginSource": {"source": "rain_plugin", "args": {"date": "${Date}"}},
+            },
+        }
+    }
+
+
+def test_builder_runtime_geotiff_drops_url_and_skips_required_fields():
+    # A static GeoTIFF requires a url; a runtime one gets its url per fetch, so
+    # any url set on the scaffold is dropped rather than shipped as stale.
+    builder = LayerConfigurationBuilder("Rain", "GeoTIFF")
+    with pytest.raises(ValueError, match="Missing required key 'url'"):
+        builder.build()
+
+    builder.set_source_properties(url="https://x/a.tif", projection="EPSG:3857")
+    builder.set_plugin_source("p", {})
+    source = builder.build()["configuration"]["props"]["source"]
+
+    assert source == {"type": "GeoTIFF", "props": {"projection": "EPSG:3857"}}
+
+
+def test_builder_set_raster_ramp_writes_editor_keys():
+    config = (
+        LayerConfigurationBuilder("Rain", "GeoTIFF")
+        .set_plugin_source("p", {})
+        .set_raster_ramp("viridis", 0, 50)
+        .build()
+    )
+
+    # The ramp settings are the layer's style; the source carries none of them.
+    assert config["configuration"]["props"]["source"] == {
+        "type": "GeoTIFF",
+        "props": {},
+    }
+    # Only the authored settings: the compiled OL style is built at render
+    # time, never by the builder.
+    assert config["configuration"]["style"] == {
+        "rampName": "viridis",
+        "rampMin": "0",
+        "rampMax": "50",
+    }
+
+
+def test_builder_set_raster_ramp_full_and_replace():
+    builder = LayerConfigurationBuilder("Rain", "GeoTIFF").set_plugin_source("p", {})
+    builder.set_raster_ramp("magma", 1.5, "9", reverse=True, mask_below=-9999)
+    configuration = builder.build()["configuration"]
+    assert configuration["props"]["source"] == {
+        "type": "GeoTIFF",
+        "props": {"mask_below": "-9999"},
+    }
+    assert configuration["style"] == {
+        "rampName": "magma",
+        "rampMin": "1.5",
+        "rampMax": "9",
+        "rampReverse": True,
+    }
+
+    # A second call replaces the ramp; unset values are removed, not kept.
+    builder.set_raster_ramp("blues")
+    assert builder.build()["configuration"]["style"] == {"rampName": "blues"}
+
+
+def test_builder_set_raster_ramp_on_static_geotiff():
+    configuration = (
+        LayerConfigurationBuilder("Rain", "GeoTIFF")
+        .set_source_properties(url="https://x/a.tif")
+        .set_raster_ramp("viridis")
+        .build()["configuration"]
+    )
+    assert configuration["props"]["source"] == {
+        "type": "GeoTIFF",
+        "props": {"url": "https://x/a.tif"},
+    }
+    assert configuration["style"] == {"rampName": "viridis"}
+
+
+def test_builder_set_raster_ramp_on_zarr():
+    configuration = (
+        LayerConfigurationBuilder("Depth", "Zarr")
+        .set_source_properties(url="https://x/a.zarr", variable="depth")
+        .set_raster_ramp("blues", mask_below=0.1)
+        .build()["configuration"]
+    )
+    assert configuration["type"] == "WebGLTile"
+    assert configuration["style"] == {"rampName": "blues"}
+    # A source property, so it lands beside the url rather than in the style.
+    assert configuration["props"]["source"]["props"]["mask_below"] == "0.1"
+
+
+def test_builder_set_raster_classes_keeps_only_drawable_rows():
+    """Half-filled rows are dropped, exactly as the editor's own save drops them.
+
+    A row with no colour cannot be drawn, and a row with no value would reach
+    the frontend's ``Number("")`` as class 0 and shadow a real class.
+    """
+    builder = LayerConfigurationBuilder("Land Use", "GeoTIFF").set_plugin_source(
+        "p", {}
+    )
+    builder.set_raster_classes(
+        "categorical",
+        [
+            {"value": 1, "color": "#aaa", "label": "Bare"},
+            {"value": "", "color": "#bbb"},
+            {"value": 3, "color": ""},
+            {"value": "2", "color": "#ccc"},
+        ],
+        fallback_color="#999999",
+        ramp_name="turbo",
+    )
+
+    assert builder.build()["configuration"]["style"] == {
+        "styleMode": "categorical",
+        # Values are stored as the strings the editor's inputs produce.
+        "classes": [
+            {"value": "1", "color": "#aaa", "label": "Bare"},
+            {"value": "2", "color": "#ccc"},
+        ],
+        "fallbackColor": "#999999",
+        # Kept beside the table so switching back to Continuous in the editor
+        # does not lose the palette.
+        "rampName": "turbo",
+    }
+
+
+def test_builder_set_raster_classes_minimal_and_replace():
+    builder = LayerConfigurationBuilder("Land Use", "GeoTIFF").set_plugin_source(
+        "p", {}
+    )
+    builder.set_raster_classes("ranges", [{"value": 10, "color": "#aaa"}])
+    assert builder.build()["configuration"]["style"] == {
+        "styleMode": "ranges",
+        "classes": [{"value": "10", "color": "#aaa"}],
+    }
+
+    # A ramp set afterwards replaces the table, and the reverse.
+    builder.set_raster_ramp("viridis")
+    assert builder.build()["configuration"]["style"] == {"rampName": "viridis"}
+    builder.set_raster_classes(
+        "categorical", [{"value": 1, "color": "#bbb"}], reverse=True
+    )
+    assert builder.build()["configuration"]["style"] == {
+        "styleMode": "categorical",
+        "classes": [{"value": "1", "color": "#bbb"}],
+        "rampReverse": True,
+    }
+
+
+@pytest.mark.parametrize(
+    "kwargs,message",
+    [
+        ({"style_mode": "bogus", "classes": [{"value": 1, "color": "#a"}]},
+         "style_mode must be one of"),
+        ({"style_mode": "ranges", "classes": "nope"}, "classes must be a list"),
+        ({"style_mode": "ranges", "classes": [["value", 1]]}, "each class must be a dict"),
+        ({"style_mode": "ranges", "classes": []}, "at least one class needs"),
+        ({"style_mode": "ranges", "classes": [{"value": "", "color": "#a"}]},
+         "at least one class needs"),
+        ({"style_mode": "ranges", "classes": [{"value": "abc", "color": "#a"}]},
+         "at least one class needs"),
+        ({"style_mode": "ranges", "classes": [{"value": 1, "color": "#a"}],
+          "ramp_name": ""}, "ramp_name must be"),
+        ({"style_mode": "ranges", "classes": [{"value": 1, "color": "#a"}],
+          "reverse": "yes"}, "reverse must be True or False"),
+        ({"style_mode": "ranges", "classes": [{"value": 1, "color": "#a"}],
+          "fallback_color": 3}, "fallback_color must be"),
+    ],
+)
+def test_builder_set_raster_classes_rejects(kwargs, message):
+    builder = LayerConfigurationBuilder("Land Use", "GeoTIFF")
+    with pytest.raises(ValueError, match=message):
+        builder.set_raster_classes(**kwargs)
+
+
+def test_builder_set_raster_classes_requires_a_raster_builder():
+    builder = LayerConfigurationBuilder("Gauges", "GeoJSON")
+    with pytest.raises(ValueError, match="set_raster_classes requires"):
+        builder.set_raster_classes("ranges", [{"value": 1, "color": "#a"}])
+
+
+def test_raster_source_properties_list_mask_below():
+    # It is edited on the Source tab, which is driven by this list.
+    for source in ("GeoTIFF", "Zarr"):
+        optional = LayerConfigurationBuilder(
+            "x", source
+        ).get_available_source_properties()["optional"]
+        assert "mask_below" in optional
+
+
+def test_builder_set_raster_ramp_rejects_non_geotiff():
+    builder = LayerConfigurationBuilder("Vectors", "GeoJSON")
+    with pytest.raises(ValueError, match="set_raster_ramp requires.*'GeoJSON'"):
+        builder.set_raster_ramp("viridis")
+
+
+@pytest.mark.parametrize(
+    "kwargs,message",
+    [
+        ({"ramp_name": ""}, "ramp_name must be a non-empty"),
+        ({"ramp_name": None}, "ramp_name must be a non-empty"),
+        ({"ramp_name": "viridis", "ramp_min": "abc"}, "ramp_min must be a finite"),
+        ({"ramp_name": "viridis", "ramp_max": float("inf")}, "ramp_max must be"),
+        ({"ramp_name": "viridis", "mask_below": "x"}, "mask_below must be"),
+        ({"ramp_name": "viridis", "reverse": "yes"}, "reverse must be True or False"),
+    ],
+)
+def test_builder_set_raster_ramp_rejects_bad_values(kwargs, message):
+    builder = LayerConfigurationBuilder("Rain", "GeoTIFF")
+    with pytest.raises(ValueError, match=message):
+        builder.set_raster_ramp(**kwargs)
+
+
+def test_builder_runtime_geojson_output_unchanged():
+    config = (
+        LayerConfigurationBuilder("runtime layer", "GeoJSON")
+        .set_plugin_source("p", {"a": "${A}"})
+        .build()
+    )
+
+    assert config == {
+        "configuration": {
+            "type": "VectorLayer",
+            "props": {
+                "name": "runtime layer",
+                "source": {
+                    "type": "GeoJSON",
+                    "props": {},
+                    "geojson": {
+                        "type": "FeatureCollection",
+                        "features": [],
+                        "crs": {"type": "name", "properties": {"name": "EPSG:4326"}},
+                    },
+                },
+                "pluginSource": {"source": "p", "args": {"a": "${A}"}},
+            },
+        }
+    }
+
+
+def test_echo_raster_fixture_scaffold_round_trips():
+    from tethysapp.tethysdash.tests.fixtures.echo_runtime_raster_plugin import (
+        EchoRuntimeRasterPlugin,
+    )
+
+    scaffold = EchoRuntimeRasterPlugin(mode="happy").run()
+
+    assert scaffold == {
+        "configuration": {
+            "type": "WebGLTile",
+            "props": {
+                "name": "Echo Raster",
+                "source": {"type": "GeoTIFF", "props": {}},
+                "pluginSource": {
+                    "source": "echo_runtime_raster",
+                    "args": {"mode": "happy"},
+                },
+            },
+            "style": {"rampName": "viridis"},
+        }
+    }

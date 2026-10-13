@@ -3,6 +3,29 @@ import userEvent from "@testing-library/user-event";
 import InputTable from "components/inputs/InputTable";
 import selectEvent from "react-select-event";
 
+// The real popover needs a positioned overlay; a stand-in shows what the table
+// hands it and lets a test pick a color directly.
+jest.mock("components/inputs/ColorPickerPopOver", () => {
+  const PropTypes = jest.requireActual("prop-types");
+  const MockColorPickerPopOver = ({ label, color, pickerColor, onChange }) => (
+    <div>
+      <span data-testid="swatch">{color}</span>
+      <span data-testid="picker">{pickerColor}</span>
+      <input
+        aria-label={`${label} color input`}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </div>
+  );
+  MockColorPickerPopOver.propTypes = {
+    label: PropTypes.string,
+    color: PropTypes.string,
+    pickerColor: PropTypes.string,
+    onChange: PropTypes.func,
+  };
+  return MockColorPickerPopOver;
+});
+
 it("InputTable", async () => {
   const label = "Test Table";
   const onChange = jest.fn();
@@ -583,4 +606,197 @@ describe("select rows with nothing chosen", () => {
       expect.objectContaining({ newValue: "", field: "value" }),
     );
   });
+});
+
+describe("InputTable row reordering", () => {
+  const rows = () => [
+    { name: "a", alias: "Alpha" },
+    { name: "b", alias: "Beta" },
+    { name: "c", alias: "Gamma" },
+  ];
+
+  const names = () =>
+    [0, 1, 2].map((i) => screen.getByLabelText(`name Input ${i}`).value);
+
+  it("shows no move buttons unless asked", () => {
+    render(<InputTable label="Table" onChange={jest.fn()} values={rows()} />);
+    expect(screen.queryByLabelText("Move row 1 down")).not.toBeInTheDocument();
+    expect(screen.queryByText("Order")).not.toBeInTheDocument();
+  });
+
+  it("moves a row up and reports the reordered rows", () => {
+    const onChange = jest.fn();
+    render(
+      <InputTable
+        label="Table"
+        onChange={onChange}
+        values={rows()}
+        allowRowReorder
+      />,
+    );
+    fireEvent.click(screen.getByLabelText("Move row 2 up"));
+    expect(onChange).toHaveBeenLastCalledWith({
+      fullChange: [
+        { name: "b", alias: "Beta" },
+        { name: "a", alias: "Alpha" },
+        { name: "c", alias: "Gamma" },
+      ],
+    });
+    expect(names()).toEqual(["b", "a", "c"]);
+    // the alias travels with its row
+    expect(screen.getByLabelText("alias Input 0").value).toBe("Beta");
+  });
+
+  it("moves a row down", () => {
+    const onChange = jest.fn();
+    render(
+      <InputTable
+        label="Table"
+        onChange={onChange}
+        values={rows()}
+        allowRowReorder
+      />,
+    );
+    fireEvent.click(screen.getByLabelText("Move row 2 down"));
+    expect(onChange.mock.calls.at(-1)[0].fullChange.map((r) => r.name)).toEqual(
+      ["a", "c", "b"],
+    );
+  });
+
+  it("disables moving past either end", () => {
+    render(
+      <InputTable
+        label="Table"
+        onChange={jest.fn()}
+        values={rows()}
+        allowRowReorder
+      />,
+    );
+    expect(screen.getByLabelText("Move row 1 up")).toBeDisabled();
+    expect(screen.getByLabelText("Move row 3 down")).toBeDisabled();
+    expect(screen.getByLabelText("Move row 1 down")).toBeEnabled();
+    expect(screen.getByLabelText("Move row 3 up")).toBeEnabled();
+  });
+
+  it("keeps focus on the moved row", () => {
+    render(
+      <InputTable
+        label="Table"
+        onChange={jest.fn()}
+        values={rows()}
+        allowRowReorder
+      />,
+    );
+    fireEvent.click(screen.getByLabelText("Move row 3 up"));
+    expect(screen.getByLabelText("Move row 2 up")).toHaveFocus();
+
+    // reaching the top disables up, so focus moves to the row's down button
+    fireEvent.click(screen.getByLabelText("Move row 2 up"));
+    expect(screen.getByLabelText("Move row 1 down")).toHaveFocus();
+    expect(names()).toEqual(["c", "a", "b"]);
+  });
+
+  it("deletes a blank row that was moved to the top", async () => {
+    const onChange = jest.fn();
+    render(
+      <InputTable
+        label="Table"
+        onChange={onChange}
+        values={[
+          { name: "a", alias: "" },
+          { name: "", alias: "" },
+        ]}
+        allowRowCreation
+        allowRowReorder
+      />,
+    );
+    fireEvent.click(screen.getByLabelText("Move row 2 up"));
+    screen.getByLabelText("name Input 0").focus();
+    await userEvent.keyboard("{backspace}");
+    expect(onChange.mock.calls.at(-1)[0].fullChange).toEqual([
+      { name: "a", alias: "" },
+    ]);
+  });
+
+  it("still adds a row on tab from the last field", async () => {
+    const onChange = jest.fn();
+    render(
+      <InputTable
+        label="Table"
+        onChange={onChange}
+        values={rows()}
+        allowRowCreation
+        allowRowReorder
+      />,
+    );
+    screen.getByLabelText("alias Input 2").focus();
+    await userEvent.tab();
+    expect(screen.getByLabelText("name Input 3")).toBeInTheDocument();
+    expect(onChange.mock.calls.at(-1)[0].fullChange).toHaveLength(4);
+  });
+});
+
+describe("color rows", () => {
+  const showColorRow = (value, onChange = jest.fn()) => {
+    render(
+      <InputTable
+        label="Colors"
+        onChange={onChange}
+        values={[{ property: "borderColor", value }]}
+        disabledFields={["property"]}
+        types={["color"]}
+      />,
+    );
+  };
+
+  test("an empty color shows transparent and opens the picker opaque", () => {
+    showColorRow("");
+    expect(screen.getByTestId("swatch")).toHaveTextContent("transparent");
+    expect(screen.getByTestId("picker")).toHaveTextContent("#000000");
+  });
+
+  test("a saved color shows in the swatch and the picker", () => {
+    showColorRow("#00ff00");
+    expect(screen.getByTestId("swatch")).toHaveTextContent("#00ff00");
+    expect(screen.getByTestId("picker")).toHaveTextContent("#00ff00");
+  });
+
+  test("a picked color is stored, and a transparent one is stored empty", () => {
+    const onChange = jest.fn();
+    showColorRow("", onChange);
+    const input = screen.getByLabelText("value Input 0 color input");
+
+    fireEvent.change(input, { target: { value: "#ff0000" } });
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ newValue: "#ff0000", rowIndex: 0 }),
+    );
+
+    fireEvent.change(input, { target: { value: "#ff000000" } });
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ newValue: "", rowIndex: 0 }),
+    );
+  });
+});
+
+test("display formatters change how a disabled field is shown, not its value", () => {
+  const onChange = jest.fn();
+  render(
+    <InputTable
+      label="Props"
+      onChange={onChange}
+      values={[{ property: "imageExtent", value: "" }]}
+      disabledFields={["property"]}
+      displayFormatters={{ property: (value) => value.toUpperCase() }}
+    />,
+  );
+  expect(screen.getByText("IMAGEEXTENT")).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("value Input 0"), {
+    target: { value: "1" },
+  });
+  expect(onChange).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      newValue: "1",
+      rowIndex: 0,
+    }),
+  );
 });

@@ -13,10 +13,28 @@ from datetime import datetime
 from intake.source import base
 from dateutil.parser import parse
 
+from .layer_sources import _is_numeric_bound
+
+# Re-exported so plugins keep importing these from plugin_helpers.
+from .layer_sources import (  # noqa: F401
+    geotiff_source,
+    is_allowed_layer_url,
+    validate_layer_source_description,
+)
+
 DEFAULT_RUNTIME_PLACEHOLDER_GEOJSON = {
     "type": "FeatureCollection",
     "features": [],
     "crs": {"type": "name", "properties": {"name": "EPSG:4326"}},
+}
+
+# Source types a dynamic map_layer plugin can drive, mapped to the runtime
+# method that serves each one. ``dynamic_map_layer_source`` picks the entry;
+# the backend calls that method in features mode and validates its return with
+# the matching validator (see visualizations.get_visualization).
+DYNAMIC_MAP_LAYER_METHODS = {
+    "GeoJSON": "fetch_features",
+    "GeoTIFF": "fetch_source",
 }
 
 
@@ -77,10 +95,16 @@ class TethysDashPlugin(base.DataSource):
     Plugin developers can subclass this base class when creating new plugins to
     ensure consistency and compatibility with the TethysDash system.
 
-    dynamic map_layer plugins may optionally set
-    ``dynamic_map_layer = True`` and override :py:meth:`fetch_features` to
-    return GeoJSON features at render time (in addition to the configure-time
-    scaffold produced by :py:meth:`run`).
+    dynamic map_layer plugins may optionally set ``dynamic_map_layer = True``
+    to refresh their layer at render time, in addition to the configure-time
+    scaffold produced by :py:meth:`run`. ``dynamic_map_layer_source`` names the
+    layer type the plugin drives and so which method it overrides:
+
+    - ``"GeoJSON"`` (default): override :py:meth:`fetch_features` to return a
+      GeoJSON FeatureCollection.
+    - ``"GeoTIFF"``: override :py:meth:`fetch_source` to return a source
+      description (build it with :py:func:`geotiff_source`), which repoints the
+      layer at a new GeoTIFF URL and optionally restyles it.
     """
 
     container = "python"
@@ -96,6 +120,7 @@ class TethysDashPlugin(base.DataSource):
     loading_icon = True
     attribution = ""
     dynamic_map_layer = False
+    dynamic_map_layer_source = "GeoJSON"
 
     def __init__(self, metadata=None, *args, **kwargs):
         super().__init__(metadata=metadata)
@@ -109,6 +134,9 @@ class TethysDashPlugin(base.DataSource):
         self.loading_icon = get_plugin_prop(self, "loading_icon", True)
         self.attribution = get_plugin_prop(self, "attribution", "")
         self.dynamic_map_layer = get_plugin_prop(self, "dynamic_map_layer", False)
+        self.dynamic_map_layer_source = get_plugin_prop(
+            self, "dynamic_map_layer_source", "GeoJSON"
+        )
         self._pending_layer_id = None
 
         if not self.name:
@@ -127,6 +155,14 @@ class TethysDashPlugin(base.DataSource):
             raise ValueError("Plugin args must be a dictionary.")
         if not isinstance(self.tags, list):
             raise ValueError("Plugin tags must be a list.")
+        if (
+            not isinstance(self.dynamic_map_layer_source, str)
+            or self.dynamic_map_layer_source not in DYNAMIC_MAP_LAYER_METHODS
+        ):
+            raise ValueError(
+                f"dynamic_map_layer_source {self.dynamic_map_layer_source!r} is "
+                "not valid. Must be one of: " + ", ".join(DYNAMIC_MAP_LAYER_METHODS)
+            )
 
         reserved_keys = {
             "args",
@@ -139,6 +175,7 @@ class TethysDashPlugin(base.DataSource):
             "loading_icon",
             "attribution",
             "dynamic_map_layer",
+            "dynamic_map_layer_source",
         }
 
         if self.args.keys() & reserved_keys:
@@ -157,16 +194,30 @@ class TethysDashPlugin(base.DataSource):
                 f"nested-arg path delimiter: {', '.join(dotted_arg_names)}"
             )  # noqa: E501
 
-        fetch_features_overridden = (
-            type(self).fetch_features is not TethysDashPlugin.fetch_features
-        )
-        if self.dynamic_map_layer and not fetch_features_overridden:
+        # Each declared source type is served by one runtime method. A dynamic
+        # plugin must override the one its type calls; any other override can
+        # never run, so it is flagged rather than silently ignored.
+        required_method = DYNAMIC_MAP_LAYER_METHODS[self.dynamic_map_layer_source]
+        if self.dynamic_map_layer and not self._overrides(required_method):
             raise ValueError(
-                "dynamic_map_layer = True requires fetch_features to be overridden."
+                "dynamic_map_layer = True with dynamic_map_layer_source = "
+                f"'{self.dynamic_map_layer_source}' requires {required_method} "
+                "to be overridden."
             )
-        if fetch_features_overridden and not self.dynamic_map_layer:
+        for method_name in sorted(set(DYNAMIC_MAP_LAYER_METHODS.values())):
+            if not self._overrides(method_name):
+                continue
+            if not self.dynamic_map_layer:
+                reason = "dynamic_map_layer = False"
+            elif method_name != required_method:
+                reason = (
+                    "dynamic_map_layer_source = "
+                    f"'{self.dynamic_map_layer_source}' calls {required_method}"
+                )
+            else:
+                continue
             warnings.warn(
-                "fetch_features is overridden but dynamic_map_layer = False; "
+                f"{method_name} is overridden but {reason}; "
                 "the method will not be invoked at runtime.",
                 UserWarning,
                 stacklevel=2,
@@ -187,6 +238,12 @@ class TethysDashPlugin(base.DataSource):
                 kwarg_value = parse(kwarg_value).replace(second=0, microsecond=0)
             setattr(self, kwarg_name, kwarg_value)
             self.received_args[kwarg_name] = kwarg_value
+
+    def _overrides(self, method_name):
+        """Whether this plugin's class overrides a base runtime method."""
+        return getattr(type(self), method_name) is not getattr(
+            TethysDashPlugin, method_name
+        )
 
     def get_arg(self, name, default=None):
         """Read a visualization arg by its flat (possibly dotted) name.
@@ -253,13 +310,14 @@ class TethysDashPlugin(base.DataSource):
 
     def fetch_features(self):
         """
-        Dynamic feature fetch for dynamic ``map_layer`` plugins.
+        Dynamic feature fetch for dynamic GeoJSON ``map_layer`` plugins.
 
-        Override this method when ``dynamic_map_layer = True``. It is invoked at
+        Override this method when ``dynamic_map_layer = True`` and
+        ``dynamic_map_layer_source = "GeoJSON"`` (the default). It is invoked at
         map-render time (distinct from configure-time :py:meth:`run`) and
         should return a GeoJSON ``FeatureCollection`` dict with a ``crs``
         property. See :py:func:`validate_feature_collection` for the shape
-        contract.
+        contract. GeoTIFF plugins override :py:meth:`fetch_source` instead.
 
         Plugin arguments that were passed from the frontend are available as
         class attributes after initialization, just as for :py:meth:`run`.
@@ -271,6 +329,31 @@ class TethysDashPlugin(base.DataSource):
         """
         raise NotImplementedError(
             "Dynamic map layer plugins must implement the fetch_features() method."
+        )
+
+    def fetch_source(self):
+        """
+        Dynamic source fetch for dynamic GeoTIFF ``map_layer`` plugins.
+
+        Override this method when ``dynamic_map_layer = True`` and
+        ``dynamic_map_layer_source = "GeoTIFF"``. It is invoked at map-render
+        time, like :py:meth:`fetch_features`, and returns a source description
+        that repoints the layer at a new file and optionally restyles it. Build
+        the return with :py:func:`geotiff_source`; see
+        :py:func:`validate_layer_source_description` for the shape contract.
+
+        Plugin arguments that were passed from the frontend are available as
+        class attributes after initialization, just as for :py:meth:`run`.
+
+        Returns:
+            dict: ``{"type": "GeoTIFF", "props": {"url": ..., "projection"?},
+                "style"?: {...}}``. The URL must be ``http(s)`` or a path on
+                this server (starting with a single ``/``), and the file must
+                be served with CORS and HTTP range requests.
+        """
+        raise NotImplementedError(
+            "Dynamic GeoTIFF map layer plugins must implement the fetch_source() "
+            "method."
         )
 
     def read(self, request_id):
@@ -290,13 +373,30 @@ class TethysDashPlugin(base.DataSource):
 
         return self.run()
 
+    def _read_runtime(self, request_id, method):
+        """Run a render-time method with request and layer routing attached.
+
+        Sets ``self.request_id`` for WebSocket messaging and, when the id is a
+        composite ``{sessionNonce}:{gridItemUUID}:{layerId}``, attaches its
+        final segment as the layer id :py:meth:`send_update` falls back to, so
+        progress from the method routes to that layer's indicator. An empty
+        suffix (e.g. ``"a:b:"``) attaches nothing, since ``layerId=""`` would
+        pollute the frontend's per-layer routing.
+        """
+        self.request_id = request_id
+        if isinstance(request_id, str) and ":" in request_id:
+            layer_id_suffix = request_id.rsplit(":", 1)[-1]
+            if layer_id_suffix:
+                self._pending_layer_id = layer_id_suffix
+        return method()
+
     def read_features(self, request_id):
         """
         DO NOT OVERRIDE THIS METHOD.
         Runtime entrypoint managed by the TethysDashPlugin base class.
 
-        Sets ``self.request_id`` for WebSocket messaging and delegates to
-        :py:meth:`fetch_features`.
+        Sets ``self.request_id`` (and the layer id parsed from it) for
+        WebSocket messaging and delegates to :py:meth:`fetch_features`.
 
         Args:
             request_id (str): The unique identifier for the plugin execution
@@ -307,8 +407,24 @@ class TethysDashPlugin(base.DataSource):
         Returns:
             dict: The FeatureCollection returned by ``fetch_features()``.
         """
-        self.request_id = request_id
-        return self.fetch_features()
+        return self._read_runtime(request_id, self.fetch_features)
+
+    def read_source(self, request_id):
+        """
+        DO NOT OVERRIDE THIS METHOD.
+        Runtime entrypoint managed by the TethysDashPlugin base class.
+
+        The GeoTIFF counterpart of :py:meth:`read_features`: identical request
+        and layer-id handling, delegating to :py:meth:`fetch_source`.
+
+        Args:
+            request_id (str): The unique identifier for the plugin execution
+                request; see :py:meth:`read_features`.
+
+        Returns:
+            dict: The source description returned by ``fetch_source()``.
+        """
+        return self._read_runtime(request_id, self.fetch_source)
 
     def send_update(
         self,
@@ -326,7 +442,8 @@ class TethysDashPlugin(base.DataSource):
             layer_id (str, optional): The stable identifier of the runtime
                 map-layer this message pertains to. When not explicitly passed,
                 falls back to the id attached by the framework before invoking
-                :py:meth:`fetch_features` (when applicable). Include this
+                :py:meth:`fetch_features` or :py:meth:`fetch_source` (when
+                applicable). Include this
                 automatically via the fallback when emitting progress from a
                 runtime features fetch.
         """
@@ -453,6 +570,15 @@ def validate_feature_collection(data):
     validate_geojson(data)
     return True
 
+
+# Layer sources drawn as a WebGLTile raster, whose styling is saved as
+# authored ramp settings in ``configuration.style`` (see set_raster_ramp).
+RASTER_LAYER_SOURCES = ("GeoTIFF", "Zarr")
+
+# The style modes that colour by a class table rather than a ramp. Mirrors
+# CLASS_STYLE_MODES in reactapp/components/map/geoTIFFStyle.js, which is where
+# the compiling is done and so where the list is authoritative.
+CLASS_STYLE_MODES = ("categorical", "ranges")
 
 available_source_properties = {
     "ESRI Image and Map Service": {
@@ -689,36 +815,229 @@ class LayerConfigurationBuilder:
         """
         Mark this layer as dynamic-map-layer by attaching a plugin reference.
 
-        At render time, the frontend invokes the referenced plugin's
-        ``fetch_features()`` and swaps the returned FeatureCollection into the
-        layer's OpenLayers VectorLayer in place. The scaffold produced by
-        :py:meth:`build` is preserved as the save-time snapshot.
+        At render time, the frontend invokes the referenced plugin's runtime
+        method and updates the layer's OpenLayers layer in place:
 
-        Runtime plugins are GeoJSON-only in v1; this method raises if the
-        builder was not constructed with ``layer_source="GeoJSON"``.
+        - ``"GeoJSON"`` builders: ``fetch_features()`` returns a
+          FeatureCollection that is swapped into the VectorLayer.
+        - ``"GeoTIFF"`` builders: ``fetch_source()`` returns a source
+          description that repoints the WebGLTile layer at a new file. The
+          scaffold carries no URL; set its fallback styling with
+          :py:meth:`set_raster_ramp`.
+
+        The scaffold produced by :py:meth:`build` is preserved as the
+        save-time snapshot. This method raises unless the builder was
+        constructed with ``layer_source`` ``"GeoJSON"`` or ``"GeoTIFF"``.
 
         Args:
             source (str): The Intake source name (plugin entry name) that will
-                be invoked at runtime to fetch features.
+                be invoked at runtime.
             args (dict): Raw argument template dictionary (variable-input
                 bindings like ``"${VarName}"`` are preserved as-is and
                 resolved at runtime).
 
         Raises:
-            ValueError: If ``layer_source`` is not ``"GeoJSON"``.
+            ValueError: If ``layer_source`` is not ``"GeoJSON"`` or
+                ``"GeoTIFF"``.
 
         Returns:
             LayerConfigurationBuilder: self (for chaining)
         """
-        if self.layer_source != "GeoJSON":
+        if self.layer_source not in DYNAMIC_MAP_LAYER_METHODS:
+            allowed = " or ".join(f"'{t}'" for t in DYNAMIC_MAP_LAYER_METHODS)
             raise ValueError(
                 "Runtime plugins must use LayerConfigurationBuilder(name, "
-                f"'GeoJSON'); current layer_source is '{self.layer_source}'."
+                f"{allowed}); current layer_source is '{self.layer_source}'."
             )
         if not isinstance(args, dict):
             raise ValueError("plugin_source args must be a dictionary.")
 
         self._plugin_source = {"source": source, "args": args}
+        return self
+
+    def set_raster_ramp(
+        self, ramp_name, ramp_min=None, ramp_max=None, reverse=False, mask_below=None
+    ):
+        """
+        Set a GeoTIFF or Zarr layer's color ramp, written where the layer
+        editor saves it so the Style tab opens on it.
+
+        For a dynamic GeoTIFF layer this is where the plugin offers its
+        preferred styling: the editor loads it when the plugin is picked and
+        again when the author presses Fetch defaults, after which the settings
+        are the author's to change and a fetch never overrides them. A bound
+        left as ``None`` is resolved from each file's statistics at render
+        time.
+
+        Mirrors the editor's save: ``rampName``/``rampMin``/``rampMax``/
+        ``rampReverse`` go in the layer's ``configuration.style``, and
+        ``mask_below`` goes on the source's props, where the Source tab edits
+        it -- it decides which values the file publishes as data rather than
+        how they are coloured. Numbers are stored as strings and
+        ``rampReverse`` only when True. These are the authored settings only:
+        the compiled OpenLayers style is never written, because the frontend
+        builds it from these keys every time the layer loads. Calling it again
+        replaces the previous ramp, and replaces any style set with
+        :py:meth:`set_style`.
+
+        Args:
+            ramp_name (str): Color ramp name, e.g. ``"viridis"``.
+            ramp_min (float | str, optional): Value at the ramp's low end.
+            ramp_max (float | str, optional): Value at the ramp's high end.
+            reverse (bool): Reverse the ramp (default False).
+            mask_below (float | str, optional): Hide values at or below this.
+
+        Raises:
+            ValueError: If the builder is not a ``"GeoTIFF"`` or ``"Zarr"``
+                builder, or a value is of the wrong type.
+
+        Returns:
+            LayerConfigurationBuilder: self (for chaining)
+        """
+        if self.layer_source not in RASTER_LAYER_SOURCES:
+            raise ValueError(
+                "set_raster_ramp requires LayerConfigurationBuilder(name, "
+                f"'GeoTIFF') or (name, 'Zarr'); current layer_source is "
+                f"'{self.layer_source}'."
+            )
+        if not isinstance(ramp_name, str) or not ramp_name.strip():
+            raise ValueError("ramp_name must be a non-empty ramp name.")
+        for label, value in (
+            ("ramp_min", ramp_min),
+            ("ramp_max", ramp_max),
+            ("mask_below", mask_below),
+        ):
+            if value is not None and not _is_numeric_bound(value):
+                raise ValueError(
+                    f"{label} must be a finite number or numeric string, "
+                    f"got {value!r}."
+                )
+        if not isinstance(reverse, bool):
+            raise ValueError("reverse must be True or False.")
+
+        style = {"rampName": ramp_name}
+        for key, value in (
+            ("rampMin", ramp_min),
+            ("rampMax", ramp_max),
+        ):
+            if value is not None:
+                style[key] = str(value)
+        if reverse:
+            style["rampReverse"] = True
+        self.config["configuration"]["style"] = style
+        if mask_below is not None:
+            source_props = self.config["configuration"]["props"]["source"]["props"]
+            source_props["mask_below"] = str(mask_below)
+        return self
+
+    def set_raster_classes(
+        self,
+        style_mode,
+        classes,
+        fallback_color=None,
+        ramp_name=None,
+        reverse=False,
+    ):
+        """
+        Colour a GeoTIFF or Zarr layer by a class table rather than a ramp.
+
+        For data whose values are labels -- land cover, hazard class -- where a
+        gradient would imply a continuum between categories that does not exist.
+        ``"categorical"`` colours exact values; ``"ranges"`` colours the
+        interval each class's value closes, so a cell takes the first class
+        whose bound is at or above it.
+
+        Written where the layer editor saves it, so the Style tab opens on this
+        table and the author can change it. For a dynamic layer this is the
+        plugin offering its preference: the editor loads it when the plugin is
+        picked and again on Fetch defaults, and a fetch never overrides it.
+
+        A row needs a colour and a genuinely numeric value. Blank is checked
+        before the number, because ``float("")`` is an error but an empty string
+        reaching the frontend's ``Number("")`` would be 0 -- an unfilled row
+        would silently become class 0 and shadow a real one. Unusable rows are
+        dropped, exactly as the editor's own save drops them; a table with no
+        usable row at all raises, since it would colour nothing.
+
+        ``ramp_name`` is kept beside the table rather than instead of it, so an
+        author who switches the layer back to Continuous does not lose the
+        palette. Calling this replaces any previous ramp or style.
+
+        Args:
+            style_mode (str): ``"categorical"`` or ``"ranges"``.
+            classes (list[dict]): ``{"value", "color", "label"?}`` rows. Values
+                are stored as strings, as the editor's inputs produce them.
+            fallback_color (str, optional): Colour for values matching no class.
+                Transparent when omitted.
+            ramp_name (str, optional): Palette to keep for Continuous mode.
+            reverse (bool): Reverse that palette (default False).
+
+        Raises:
+            ValueError: If the builder is not a ``"GeoTIFF"`` or ``"Zarr"``
+                builder, the mode is not a class mode, no row is usable, or a
+                value is of the wrong type.
+
+        Returns:
+            LayerConfigurationBuilder: self (for chaining)
+        """
+        if self.layer_source not in RASTER_LAYER_SOURCES:
+            raise ValueError(
+                "set_raster_classes requires LayerConfigurationBuilder(name, "
+                f"'GeoTIFF') or (name, 'Zarr'); current layer_source is "
+                f"'{self.layer_source}'."
+            )
+        if style_mode not in CLASS_STYLE_MODES:
+            raise ValueError(
+                "style_mode must be one of "
+                f"{', '.join(CLASS_STYLE_MODES)}, got {style_mode!r}."
+            )
+        if not isinstance(classes, (list, tuple)):
+            raise ValueError(
+                "classes must be a list of {'value', 'color'} rows, got "
+                f"{type(classes).__name__}."
+            )
+        if ramp_name is not None and (
+            not isinstance(ramp_name, str) or not ramp_name.strip()
+        ):
+            raise ValueError("ramp_name must be a non-empty ramp name.")
+        if not isinstance(reverse, bool):
+            raise ValueError("reverse must be True or False.")
+        if fallback_color is not None and not isinstance(fallback_color, str):
+            raise ValueError("fallback_color must be a color string.")
+
+        usable = []
+        for entry in classes:
+            if not isinstance(entry, dict):
+                raise ValueError(
+                    "each class must be a dict with 'value' and 'color', got "
+                    f"{type(entry).__name__}."
+                )
+            color = entry.get("color")
+            value = entry.get("value")
+            if not color or not isinstance(color, str):
+                continue
+            if not _is_numeric_bound(value):
+                continue
+            row = {"value": str(value), "color": color}
+            label = entry.get("label")
+            if label:
+                row["label"] = str(label)
+            usable.append(row)
+
+        if not usable:
+            raise ValueError(
+                "at least one class needs both a color and a numeric value; "
+                f"none of the {len(classes)} given has both."
+            )
+
+        style = {"styleMode": style_mode, "classes": usable}
+        if fallback_color:
+            style["fallbackColor"] = fallback_color
+        if ramp_name is not None:
+            style["rampName"] = ramp_name
+        if reverse:
+            style["rampReverse"] = True
+        self.config["configuration"]["style"] = style
         return self
 
     def set_geojson(self, geojson: dict):
@@ -1462,7 +1781,16 @@ class LayerConfigurationBuilder:
 
         built_config = copy.deepcopy(self.config)
 
-        if is_runtime:
+        if is_runtime and self.layer_source == "GeoTIFF":
+            # A runtime raster has no file until its first fetch, so the
+            # scaffold is a WebGLTile whose GeoTIFF source carries no URL; the
+            # map builds it sourceless and the fetch repoints it.
+            built_source = built_config["configuration"]["props"]["source"]
+            built_source["props"].pop("url", None)
+            built_config["configuration"]["props"]["pluginSource"] = copy.deepcopy(
+                self._plugin_source
+            )
+        elif is_runtime:
             # Ensure the scaffold snapshot is a valid GeoJSON VectorLayer so
             # existing Alembic migrations that iterate
             # configuration.props.source.type keep working, and so ModuleLoader

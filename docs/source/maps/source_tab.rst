@@ -7,6 +7,8 @@ Source Tab
 
 The source tab defines the data source for the layer and its properties. After selecting a source type, relevant properties will appear for further customization. Some properties are required for the layer to render, while others are optional. The available source types and their properties are listed below.
 
+In the **Source Properties** table, property names are shown spaced and capitalized: ``imageExtent`` appears as **Image Extent**, and a nested property such as ``params`` → ``LAYERS`` appears as **Params - LAYERS**. Required properties are marked with ``*``. Only the label is formatted — the saved configuration keeps the original keys listed below, which are also what a plugin or a hand-written configuration uses.
+
 .. _argument_discovery:
 
 +++++++++++++++++++++++++++
@@ -237,6 +239,9 @@ The Static Image source overlays a georeferenced image (PNG, GIF, JPG, etc.) on 
     - **imageExtent:** (required) Bounding extent of the image as a comma-separated string in the format ``minX, minY, maxX, maxY``, using coordinates in the specified projection.
     - **attributions:** (optional) Attributions.
     - **crossOrigin:** (optional) Force cross-origin (CORS) requests for this layer so it can be captured in the dashboard thumbnail. CORS support is detected per host automatically, so leave this off unless the layer renders blank in thumbnails. Only enable it when the server sends ``Access-Control-Allow-Origin`` — if it does not, the layer will fail to load entirely.
+    - **keepAspectRatio:** (optional) Keep the image's own proportions while placing it with **Draw Extent on Map**, so it is not stretched. Affects placement only, not how the layer renders.
+    - **borderColor:** (optional) Color of a border drawn just inside the edge of the image, to help it stand out from the basemap. Picked with the color picker; fully transparent (the default) draws no border.
+    - **borderWidth:** (optional) Border width in screen pixels, from 1 to 50; values outside that range are clamped. Defaults to 2 when empty. The border keeps this width at every zoom level and fades with the layer's opacity.
 
 **Interactive Placement:**
 
@@ -245,8 +250,15 @@ Instead of manually entering the ``imageExtent`` coordinates, you can use the **
 1. Enter the image URL in the source properties.
 2. Click the **Draw Extent on Map** button. The layer configuration modal will temporarily hide, revealing the map.
 3. Click and drag on the map to draw a rectangle where the image should appear. A semi-transparent preview of the image will display over the drawn area.
-4. Adjust the rectangle corners to resize or reposition the image as needed.
-5. Click **Confirm** to accept the placement. The modal will reappear with the ``imageExtent`` and ``projection`` fields automatically populated.
+4. Adjust the placement:
+
+   - Drag inside the rectangle to move it.
+   - Drag an edge or corner to resize it.
+   - Drag anywhere outside the rectangle to pan the map, and use the mouse wheel to zoom.
+   - Hold **Shift** and drag to start a new rectangle.
+   - If **keepAspectRatio** is checked in the source properties, the rectangle holds the image's own proportions while you draw and resize it. An existing rectangle is reshaped as soon as the image loads, keeping its width and center.
+
+5. Click **Confirm** to accept the placement. The modal will reappear with the ``imageExtent`` and ``projection`` fields automatically populated in the map's projection. If you confirm without changing the rectangle, the saved values are left exactly as they were.
 6. Click **Cancel** to return to the modal without changes.
 
 .. note::
@@ -265,11 +277,27 @@ Instead of manually entering the ``imageExtent`` coordinates, you can use the **
                 "props": {
                     "url": "https://example.com/radar.png",
                     "projection": "EPSG:3857",
-                    "imageExtent": "-14070864.27, 5265423.09, -12936622.21, 6254376.58"
+                    "imageExtent": "-14070864.27, 5265423.09, -12936622.21, 6254376.58",
+                    "keepAspectRatio": true,
+                    "borderColor": "#1f4e79",
+                    "borderWidth": 3
                 }
             }
         }
     }
+
+``keepAspectRatio``, ``borderColor`` and ``borderWidth`` are optional; leave them out for an unbordered image placed freely. ``borderColor`` accepts any CSS color, including 8-digit hex with transparency (``#rrggbbaa``); a fully transparent color draws no border. A plugin building the layer with ``LayerConfigurationBuilder`` sets them like any other source property:
+
+.. code-block:: python
+
+    builder = LayerConfigurationBuilder("Weather Radar", "Static Image")
+    builder.set_source_properties(
+        url="https://example.com/radar.png",
+        projection="EPSG:3857",
+        imageExtent="-14070864.27, 5265423.09, -12936622.21, 6254376.58",
+        borderColor="#1f4e79",
+        borderWidth=3,
+    )
 
 ------------------------------------------------------------------------------------------------------------------------
 
@@ -445,23 +473,41 @@ The GeoParquet source renders a **vector** layer from a public `GeoParquet <http
 Custom Layers
 +++++++++++++
 
-Custom Layers are GeoJSON layers backed by a Python plugin that opts into runtime behavior by setting ``dynamic_map_layer = True``. The plugin's ``run()`` method produces the configure-time scaffold (source, style, legend, attribute metadata) and its ``fetch_features()`` method returns a GeoJSON ``FeatureCollection`` at view time — including each time a bound variable input changes.
+Custom Layers are layers backed by a Python plugin that opts into runtime behavior by setting ``dynamic_map_layer = True``. The plugin's ``run()`` method produces the configure-time scaffold (source, style, legend, attribute metadata), and a second method supplies the layer's data at view time, including each time a bound variable input changes. The plugin declares which kind of layer it drives:
+
+- **GeoJSON** (the default): ``fetch_features()`` returns a GeoJSON ``FeatureCollection``, drawn in a vector layer.
+- **GeoTIFF**: ``fetch_source()`` returns the URL of a GeoTIFF file, and optionally a color ramp for it. The layer is repointed at that file on each fetch.
 
 **Where it appears:**
 
-When adding a layer, dynamic plugins are listed under the **Custom Layers** group in the source-type dropdown.
+When adding a layer, dynamic plugins are listed under the **Custom Layers** group in the source-type dropdown. A GeoTIFF plugin opens as a raster layer, and its Style tab shows the color-ramp controls (see :ref:`raster_color_ramp`).
 
 **Configure-time behavior:**
     - **Required arguments:** rendered automatically from the plugin's ``args`` schema. Variable inputs may be bound to args using the same syntax as other visualizations.
-    - **Style, legend, and attributes:** snapshot at save time so author edits are never silently overwritten by plugin updates. Click **Reset to plugin defaults** to pick up updated defaults on demand.
+    - **Style, legend, and attributes:** snapshot at save time so author edits are never silently overwritten by plugin updates. Click **Fetch defaults** to re-run the plugin and pick up updated defaults on demand.
 
 **Render-time behavior:**
-    - Features refresh in place — the underlying OpenLayers ``VectorLayer`` is preserved across updates, so popups and highlight selections survive re-fetches.
+    - GeoJSON features refresh in place. The underlying OpenLayers ``VectorLayer`` is preserved across updates, so popups and highlight selections survive re-fetches.
+    - A GeoTIFF layer is repointed in place at the file each fetch names. The new file is opened first, and the layer switches only once it is ready. Until the first fetch succeeds, the layer draws nothing.
     - Re-fetches on variable-input change are debounced and the older in-flight request is cancelled when a new one starts.
     - While a layer is loading, the map names it in its loading alert, with the percentage from ``self.send_update(...)`` when the plugin reports one. See :ref:`create_map`.
-    - A layer that fails — an unreachable host, a plugin that is not installed on the server — is named in the map's failure alert and beside its entry in the layer control. The rest of the map still renders.
+    - A layer that fails (an unreachable host, a plugin that is not installed on the server) is named in the map's failure alert and beside its entry in the layer control. The rest of the map still renders. A GeoTIFF layer whose fetch fails keeps drawing the previous file.
+    - A GeoTIFF Custom Layer never sets the map's projection. It is reprojected into the map's view, even when it is the only raster on the map.
 
-For the plugin-author contract — ``dynamic_map_layer``, ``fetch_features``, ``LayerConfigurationBuilder.set_plugin_source``, the return-shape validator, and progress streaming — see :ref:`visualizationplugins`.
+**GeoTIFF styling: Follow plugin styling**
+    A GeoTIFF plugin may return a color ramp with each file. The **Follow plugin styling** switch at the top of the layer's Style tab decides whether that ramp is used:
+
+    - **On** (the default): each fetch's ramp replaces the layer's saved ramp as a whole. The ramp settings on the Style tab are used only for a fetch that returns no styling.
+    - **Off** (the style is *pinned*): the layer always uses the ramp settings on the Style tab, and the plugin's ramp is ignored.
+
+    Editing any ramp setting (the ramp, Min, Max, Reverse, the class table, or **Mask below**) turns the switch off, so your edit sticks. Turn it back on to follow the plugin again. In both states an empty Min or Max is fitted to each file the plugin returns.
+
+    A GeoTIFF Custom Layer's **Mask below** is set on the Style tab. A static GeoTIFF layer's is set on this tab.
+
+For the plugin-author contract (``dynamic_map_layer``, ``dynamic_map_layer_source``, ``fetch_features``, ``fetch_source``, ``LayerConfigurationBuilder.set_plugin_source``, the return-shape validators, and progress streaming), see :ref:`visualizationplugins`. For GeoTIFF plugins in particular, see :ref:`dynamic_geotiff_layers`.
+
+.. tip::
+    If a GeoTIFF's URL only varies with a variable input, you do not need a plugin. Add a static **GeoTIFF** layer and put the variable in its URL, for example ``https://example.com/depth_${Year}.tif``. When the variable input changes, the layer is rebuilt on the new file. Leave the ramp's Min/Max empty to fit the ramp to each file. While the variable has no value, the map shows an "empty variable" warning instead of the map. Use a GeoTIFF Custom Layer when the file has to be discovered (the newest model run, a catalog search) or generated on demand.
 
 
 

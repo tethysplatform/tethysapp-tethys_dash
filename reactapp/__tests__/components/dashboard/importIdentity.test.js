@@ -1,6 +1,8 @@
 import {
   applyBatchIdentityRules,
   applyItemIdentityRules,
+  applyLegacyRasterStyleRules,
+  convertLegacyRasterLayer,
 } from "components/dashboard/importIdentity";
 import { readViewGroupSettings } from "components/map/viewGroup";
 
@@ -595,5 +597,271 @@ describe("applyBatchIdentityRules", () => {
   it("returns a non-array input unchanged", () => {
     expect(applyBatchIdentityRules(null, [])).toBeNull();
     expect(applyBatchIdentityRules(undefined, [])).toBeUndefined();
+  });
+});
+
+// A file exported before raster ramp settings moved into the layer style
+// carries them on the layer source, beside a compiled OpenLayers expression the
+// app no longer reads. These mirror `upgrade_layer` in the 09d4203a610a
+// migration, which converted the dashboards already in the database.
+describe("convertLegacyRasterLayer", () => {
+  const COMPILED = {
+    color: ["interpolate", ["linear"], ["band", 1], 0, "#000", 1, "#fff"],
+  };
+  const legacyRaster = (source = {}, configuration = {}) => ({
+    configuration: {
+      type: "WebGLTile",
+      props: {
+        name: "Depth",
+        source: {
+          type: "GeoTIFF",
+          props: { url: "https://x/a.tif", mask_below: "0", normalize: true },
+          rampName: "viridis",
+          rampMin: "0",
+          rampMax: "50",
+          ...source,
+        },
+      },
+      style: COMPILED,
+      ...configuration,
+    },
+  });
+
+  test("moves the ramp settings into the style and drops the compiled copy", () => {
+    const converted = convertLegacyRasterLayer(legacyRaster());
+
+    expect(converted.configuration.style).toEqual({
+      rampName: "viridis",
+      rampMin: "0",
+      rampMax: "50",
+    });
+    const source = converted.configuration.props.source;
+    expect(source).not.toHaveProperty("rampName");
+    expect(source).not.toHaveProperty("rampMin");
+    expect(source).not.toHaveProperty("rampMax");
+    // Bounds keep the numeric strings they were saved as.
+    expect(converted.configuration.style.rampMin).toBe("0");
+  });
+
+  test("leaves the mask on the source, where it has always lived", () => {
+    // It decides which values the file publishes as data rather than how they
+    // are coloured, so it was never part of this move.
+    const source =
+      convertLegacyRasterLayer(legacyRaster()).configuration.props.source;
+    expect(source.props.mask_below).toBe("0");
+  });
+
+  test("drops the source behavior the app now derives at load", () => {
+    const source = convertLegacyRasterLayer(
+      legacyRaster({
+        props: { url: "https://x/a.tif", normalize: false, interpolate: false },
+      }),
+    ).configuration.props.source;
+    expect(source.props).not.toHaveProperty("normalize");
+    expect(source.props).not.toHaveProperty("interpolate");
+  });
+
+  test("keeps a Zarr's interpolate, which is the author's own", () => {
+    // Unlike a GeoTIFF's, a Zarr's `interpolate` is a source property the
+    // Source pane offers, not something derived from the ramp.
+    const source = convertLegacyRasterLayer(
+      legacyRaster({
+        type: "Zarr",
+        props: { url: "https://x/s.zarr", normalize: true, interpolate: false },
+      }),
+    ).configuration.props.source;
+    expect(source.props.interpolate).toBe(false);
+    expect(source.props).not.toHaveProperty("normalize");
+  });
+
+  test("moves a class table, and keeps settings already in the style", () => {
+    const converted = convertLegacyRasterLayer(
+      legacyRaster(
+        {
+          rampName: undefined,
+          rampMin: undefined,
+          rampMax: undefined,
+          styleMode: "ranges",
+          classes: [{ value: "1", color: "#aaa" }],
+          fallbackColor: "#999",
+        },
+        // A half-converted layer: the reverse flag already moved, the rest
+        // has not. What the source carries wins, and the rest is kept.
+        { style: { rampReverse: true, ...COMPILED } },
+      ),
+    );
+    expect(converted.configuration.style).toEqual({
+      rampReverse: true,
+      rampName: undefined,
+      rampMin: undefined,
+      rampMax: undefined,
+      styleMode: "ranges",
+      classes: [{ value: "1", color: "#aaa" }],
+      fallbackColor: "#999",
+    });
+    expect(converted.configuration.style).not.toHaveProperty("color");
+  });
+
+  test("moves a setting saved as null, rather than dropping it", () => {
+    // JSON has no undefined, so a null is the emptiest a saved setting gets.
+    // It still counts as one: the layer is converted and the style carries it,
+    // which is what makes the style here never come out empty.
+    const converted = convertLegacyRasterLayer({
+      configuration: {
+        type: "WebGLTile",
+        props: {
+          source: { type: "GeoTIFF", props: {}, rampName: null },
+        },
+        style: { color: ["band", 1] },
+      },
+    });
+    expect(converted.configuration.style).toEqual({ rampName: null });
+    expect(converted.configuration.props.source).not.toHaveProperty("rampName");
+  });
+
+  test("keeps a source that carries no props key at all", () => {
+    const converted = convertLegacyRasterLayer({
+      configuration: {
+        type: "WebGLTile",
+        props: {
+          name: "Depth",
+          source: { type: "GeoTIFF", rampName: "turbo" },
+        },
+      },
+    });
+    expect(converted.configuration.props.source).toEqual({ type: "GeoTIFF" });
+    expect(converted.configuration.style).toEqual({ rampName: "turbo" });
+  });
+
+  test.each([
+    ["a vector layer", pluginLayer()],
+    ["a tile layer", staticLayer()],
+    [
+      "a raster with a hand-authored OpenLayers style",
+      {
+        configuration: {
+          type: "WebGLTile",
+          props: { source: { type: "GeoTIFF", props: { url: "a.tif" } } },
+          style: { color: ["band", 1] },
+        },
+      },
+    ],
+    [
+      "a raster already in the new shape",
+      {
+        configuration: {
+          type: "WebGLTile",
+          props: { source: { type: "GeoTIFF", props: {} } },
+          style: { rampName: "turbo" },
+        },
+      },
+    ],
+    ["a layer that is not an object", null],
+  ])("returns %s by reference", (_label, layer) => {
+    // Reference equality is what makes running the conversion twice a no-op,
+    // and what keeps the byte-identical import assertions elsewhere passing.
+    expect(convertLegacyRasterLayer(layer)).toBe(layer);
+  });
+
+  test("converting twice changes nothing the second time", () => {
+    const once = convertLegacyRasterLayer(legacyRaster());
+    expect(convertLegacyRasterLayer(once)).toBe(once);
+  });
+});
+
+describe("applyLegacyRasterStyleRules", () => {
+  const legacyLayer = (name) => ({
+    configuration: {
+      type: "WebGLTile",
+      props: {
+        name,
+        source: {
+          type: "GeoTIFF",
+          props: { url: `https://x/${name}.tif` },
+          rampName: "magma",
+        },
+      },
+      style: { color: ["band", 1] },
+    },
+  });
+
+  test("converts every layer of a map grid item", () => {
+    const converted = applyLegacyRasterStyleRules(
+      mapGridItem({ layers: [legacyLayer("a"), legacyLayer("b")] }),
+    );
+    const layers = argsOf(converted).layers;
+    expect(layers.map((l) => l.configuration.style)).toEqual([
+      { rampName: "magma" },
+      { rampName: "magma" },
+    ]);
+  });
+
+  test("descends into a layer's popup layout", () => {
+    // A popup layout holds whole grid items, maps included, and they are
+    // exported with the layer. Left unconverted, a raster down here would draw
+    // unstyled while the layer above it drew correctly.
+    const converted = applyLegacyRasterStyleRules(
+      mapGridItem({
+        layers: [
+          {
+            ...staticLayer(),
+            popupConfig: {
+              gridItems: [
+                mapGridItem({ layers: [legacyLayer("nested")] }, { i: "p1" }),
+              ],
+            },
+          },
+        ],
+      }),
+    );
+
+    const nested = argsOf(converted).layers[0].popupConfig.gridItems[0];
+    expect(argsOf(nested).layers[0].configuration.style).toEqual({
+      rampName: "magma",
+    });
+    expect(
+      argsOf(nested).layers[0].configuration.props.source,
+    ).not.toHaveProperty("rampName");
+  });
+
+  test("leaves a popup layout whose layers need no conversion alone", () => {
+    // The reference discipline holds at every level: an untouched popup
+    // subtree must not be rebuilt, or the grid item above it reads as changed.
+    const gridItem = mapGridItem({
+      layers: [
+        {
+          ...staticLayer(),
+          popupConfig: {
+            gridItems: [mapGridItem({ layers: [staticLayer()] }, { i: "p1" })],
+          },
+        },
+      ],
+    });
+    expect(applyLegacyRasterStyleRules(gridItem)).toBe(gridItem);
+  });
+
+  test.each([
+    ["a grid item that is not a Map", { source: "Text", args_string: "{}" }],
+    ["args that do not parse", mapGridItem({}, { args_string: "{oops" })],
+    ["args with no layers", mapGridItem({ map_extent: {} })],
+    ["a grid item that is not an object", null],
+  ])("returns %s by reference", (_label, gridItem) => {
+    expect(applyLegacyRasterStyleRules(gridItem)).toBe(gridItem);
+  });
+
+  test("hands the args back in the representation they arrived in", () => {
+    const asObject = {
+      i: "1",
+      source: "Map",
+      args_string: { layers: [legacyLayer("a")] },
+      metadata_string: "{}",
+    };
+    const converted = applyLegacyRasterStyleRules(asObject);
+    expect(typeof converted.args_string).toBe("object");
+
+    const asString = mapGridItem({ layers: [legacyLayer("a")] });
+    expect(typeof applyLegacyRasterStyleRules(asString).args_string).toBe(
+      "string",
+    );
   });
 });

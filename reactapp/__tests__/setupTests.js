@@ -34,7 +34,7 @@ beforeEach(() => {
 
 // Setup mocked Tethys API
 beforeAll(() => {
-  server.listen();
+  server.listen({ onUnhandledRequest: "error" });
   console.error = (...args) => {
     if (
       !args

@@ -6,6 +6,7 @@ import {
   baseMapLayers,
   downloadJSONFile,
 } from "components/visualizations/utilities";
+import { DEFAULT_DYNAMIC_LAYER_SOURCE } from "components/modals/MapLayer/runtimeLayerSource";
 import tethysAPI from "services/api/tethys";
 import appAPI from "services/api/app";
 import LoadingAnimation from "components/loader/LoadingAnimation";
@@ -150,9 +151,18 @@ function Loader({ children }) {
           (opt) => opt.type === "map_layer" && opt.dynamic_map_layer !== true,
         );
         mapLayerDynamicItems.push(
-          ...visualizationGroup.options.filter(
-            (opt) => opt.type === "map_layer" && opt.dynamic_map_layer === true,
-          ),
+          ...visualizationGroup.options
+            .filter(
+              (opt) =>
+                opt.type === "map_layer" && opt.dynamic_map_layer === true,
+            )
+            // The source type the plugin drives. A backend that predates the
+            // key only ever serves GeoJSON plugins.
+            .map((opt) => ({
+              ...opt,
+              dynamic_map_layer_source:
+                opt.dynamic_map_layer_source ?? DEFAULT_DYNAMIC_LAYER_SOURCE,
+            })),
         );
 
         // Collect map_layer items into flat array

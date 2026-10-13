@@ -6,6 +6,7 @@ import {
   AppContext,
   VariableInputsContext,
   DataViewerModeContext,
+  GridItemContext,
 } from "components/contexts/Contexts";
 import {
   nonDropDownVariableInputTypes,
@@ -13,6 +14,9 @@ import {
   hasVariableInputValue,
   toNumberOrEmpty,
   updateObjectWithVariableInputs,
+  normalizeVariableInputValue,
+  getPublishedVariableInputValues,
+  getVariableInputDateFormat,
 } from "components/visualizations/utilities";
 import TooltipButton from "components/buttons/TooltipButton";
 import { BsArrowClockwise } from "react-icons/bs";
@@ -63,7 +67,13 @@ const VariableInput = ({
     variableInputValues,
     setVariableInputValues,
     setVariableInputDateFormats,
+    registerPluginVariableInput,
   } = useContext(VariableInputsContext);
+  const { gridItemUUID, gridItemSource } = useContext(GridItemContext) ?? {};
+  // A plugin-sourced variable input, whose values only it can publish. The
+  // built-in "Variable Input" is seeded from its args by DashboardLoader.
+  const isPluginVariableInput =
+    gridItemSource !== undefined && gridItemSource !== "Variable Input";
 
   // Initialize updatedMetadata when metadata or variableInputValues change
   useEffect(() => {
@@ -86,18 +96,10 @@ const VariableInput = ({
   // can't parse the slider's outputFormat strings).
   useEffect(() => {
     if (!setVariableInputDateFormats || !variable_name) return;
-    let dateFormat = null;
-    if (
-      typeof variable_options_source === "string" &&
-      variable_options_source.includes("date")
-    ) {
-      dateFormat = metadata?.format || null;
-    } else if (
-      variable_options_source === "slider" &&
-      metadata?.dataType === "Date"
-    ) {
-      dateFormat = metadata?.outputFormat || null;
-    }
+    const dateFormat = getVariableInputDateFormat({
+      variable_options_source,
+      metadata,
+    });
     if (!dateFormat) return;
     setVariableInputDateFormats((prev) => {
       if (prev?.[variable_name] === dateFormat) return prev;
@@ -112,21 +114,35 @@ const VariableInput = ({
 
   const updateVariableInputs = useCallback(
     (new_value) => {
-      if (new_value || new_value === false || new_value === 0) {
-        setVariableInputValues((prevVariableInputValues) => {
-          let newVariableValues = { [variable_name]: new_value };
-          if (typeof new_value === "object") {
-            newVariableValues = { ...newVariableValues, ...new_value };
-          }
-          return {
-            ...prevVariableInputValues,
-            ...newVariableValues,
-          };
-        });
+      const newVariableValues = getPublishedVariableInputValues(
+        variable_name,
+        new_value,
+      );
+      if (newVariableValues) {
+        setVariableInputValues((prevVariableInputValues) => ({
+          ...prevVariableInputValues,
+          ...newVariableValues,
+        }));
+      }
+      // Tell the dashboard which keys this grid item publishes, so they are
+      // released when it is deleted or renamed. Absent inside a popup, whose
+      // scoped provider does not track ownership.
+      if (isPluginVariableInput) {
+        registerPluginVariableInput?.(
+          gridItemUUID,
+          variable_name,
+          newVariableValues ? Object.keys(newVariableValues) : [variable_name],
+        );
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [variable_name, setVariableInputValues],
+    [
+      variable_name,
+      setVariableInputValues,
+      registerPluginVariableInput,
+      gridItemUUID,
+      isPluginVariableInput,
+    ],
   );
 
   useEffect(() => {
@@ -161,19 +177,17 @@ const VariableInput = ({
         }
       }
 
-      if (variable_options_source === "number") {
-        // parseFloat, not parseInt: a number input must accept decimals.
-        // parseInt turned every fractional initial value into its integer part
-        // (0.15 -> 0), and 0 then read as unset everywhere downstream.
-        initialVariableValue = toNumberOrEmpty(initial_value);
-        variableValue = initialVariableValue;
-      } else if (
-        variable_options_source === "checkbox" &&
-        initial_value === null
+      // A number input publishes a parsed number and an unset checkbox
+      // publishes false. Shared with DashboardLoader's preload so a preloaded
+      // plugin value matches what this component publishes on mount.
+      if (
+        variable_options_source === "number" ||
+        (variable_options_source === "checkbox" && initial_value === null)
       ) {
-        // This sets to false because null isn't a valid value for a checkbox
-        // But I've never been able to get this to fire.
-        initialVariableValue = false;
+        initialVariableValue = normalizeVariableInputValue({
+          variable_options_source,
+          initial_value,
+        });
         variableValue = initialVariableValue;
       }
       setValue(initialVariableValue);

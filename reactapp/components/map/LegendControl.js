@@ -16,7 +16,6 @@ const LegendWrapper = styled(FloatingMapControl)`
   bottom: 1rem;
   left: 1rem;
 `;
-const LEGEND_EDGES = ["bottom", "left"];
 
 const LegendControlContainer = styled.div`
   background-color: white;
@@ -62,7 +61,7 @@ const LegendControl = ({ legendItems, mapDivRef }) => {
   return (
     <div aria-label="Map Legend">
       {legendItems.filter((item) => item !== null).length > 0 && (
-        <LegendWrapper edges={LEGEND_EDGES} mapDivRef={mapDivRef}>
+        <LegendWrapper mapDivRef={mapDivRef}>
           <MapSizedControlContainer
             container={LegendControlContainer}
             expanded={isexpanded}

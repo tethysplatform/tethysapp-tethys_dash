@@ -13,7 +13,6 @@ const ControlWrapper = styled(FloatingMapControl)`
   bottom: 1rem;
   right: 1rem;
 `;
-const LAYERS_EDGES = ["bottom", "right"];
 
 const ErrorBadge = styled.div`
   display: flex;
@@ -117,7 +116,7 @@ const LayersControl = ({
   }
 
   return (
-    <ControlWrapper edges={LAYERS_EDGES} mapDivRef={mapDivRef}>
+    <ControlWrapper mapDivRef={mapDivRef}>
       <MapSizedControlContainer
         container={LayerControlContainer}
         expanded={isexpanded}
@@ -143,14 +142,20 @@ const LayersControl = ({
                 // with a layerId. Static layers render only the visibility
                 // checkbox, as before.
                 const isRuntime = !!layerId;
-                const error = isRuntime ? errorsByLayerId[layerId] : undefined;
                 // Loading is reported by the map's banner, not here: this panel
                 // is collapsed by default, so a hairline bar inside it was the
                 // least visible place to say a layer is still working. Failures
-                // stay, because they carry a message and a retry action that
-                // only make sense against the layer they belong to.
+                // stay, because they carry a message that only makes sense
+                // against the layer it belongs to.
+                //
+                // One badge, from whichever source has it. The merged status is
+                // where a runtime fetch's failure already arrives, so reading
+                // both printed every dynamic layer's error twice; the status is
+                // preferred so this panel says exactly what the banner says.
                 const status = layerStatus?.[layerName];
                 const statusError = status?.state === "error" ? status : null;
+                const failure =
+                  statusError ?? (isRuntime ? errorsByLayerId[layerId] : null);
 
                 return (
                   <div
@@ -177,16 +182,10 @@ const LayersControl = ({
                         have failed and why; this repeats it against the layer
                         it belongs to, and there is no longer any action to
                         offer -- a failed layer is recovered by reloading. */}
-                    {statusError && (
+                    {failure && (
                       <ErrorBadge role="alert">
                         <FaExclamationTriangle aria-hidden="true" />
-                        <span style={{ flex: 1 }}>{statusError.message}</span>
-                      </ErrorBadge>
-                    )}
-                    {error && (
-                      <ErrorBadge role="alert">
-                        <FaExclamationTriangle aria-hidden="true" />
-                        <span style={{ flex: 1 }}>{error.message}</span>
+                        <span style={{ flex: 1 }}>{failure.message}</span>
                       </ErrorBadge>
                     )}
                   </div>

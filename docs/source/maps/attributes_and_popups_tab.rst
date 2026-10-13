@@ -29,11 +29,13 @@ At the top of the tab, the **Table Popup Type** radio chooses how (or whether) t
 Configuring attribute fields
 ============================
 
-Within this table, fields can be configured for interaction in two ways:
+Within this table, fields can be configured for interaction in three ways:
 
     1. When a feature is selected (via click or hover, depending on the Table Popup Type), the popup displays the feature's attributes. You can hide attributes from the popup by unchecking the "Show in popup" column.
 
-    2. Fields can be linked to variable inputs. See the :ref:`variableinputs` section for details. In the "Variable Input Name" column, add the desired variable input for the field whose value will be set when a feature is selected. Variable-input writes happen on both click and hover popups, so other widgets on the dashboard can follow the active feature.
+    2. The popup lists fields in the same order as the table. Use the **↑** and **↓** buttons in the "Order" column to move a field up or down. Hidden fields keep their place, so showing one again puts it back where it was.
+
+    3. Fields can be linked to variable inputs. See the :ref:`variableinputs` section for details. In the "Variable Input Name" column, add the desired variable input for the field whose value will be set when a feature is selected. Variable-input writes happen on both click and hover popups, so other widgets on the dashboard can follow the active feature.
 
 
 .. note::
@@ -43,6 +45,9 @@ Within this table, fields can be configured for interaction in two ways:
         :autoplay:
         :loop:
         :class: variable-input-video
+
+.. note::
+    A feature can carry fields the table does not list — a source that returns more columns than were discovered, features whose properties differ, or a source that has changed since the layer was configured. The popup still shows those fields, after the ordered ones, in the order the source returned them.
 
 |
 

@@ -20,6 +20,12 @@ import {
 } from "__tests__/utilities/constants";
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
+import {
+  useIdleClock,
+  restoreIdleClock,
+  pingApplied,
+  advanceIdleClock,
+} from "__tests__/utilities/idleClock";
 
 jest.mock("uuid", () => ({
   v4: () => "12345678",
@@ -42,6 +48,7 @@ afterEach(() => {
   server.resetHandlers();
   jest.restoreAllMocks();
   jest.resetAllMocks();
+  restoreIdleClock();
 });
 
 window.matchMedia =
@@ -53,10 +60,6 @@ window.matchMedia =
       removeListener: function () {},
     };
   };
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 test("LandingPageHeader, staff user", async () => {
   render(
@@ -466,6 +469,8 @@ test("LandingPageHeader Sign In shows first and then AppInfo after continue", as
 });
 
 test("LandingPageHeader AppInfo disappears on idle and reappears on still signed in", async () => {
+  const ping = useIdleClock();
+  const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
   server.use(
     rest.get("http://api.test/apps/tethysdash/ping/", (req, res, ctx) => {
       return res(
@@ -495,7 +500,9 @@ test("LandingPageHeader AppInfo disappears on idle and reappears on still signed
   ).toBeInTheDocument();
   expect(screen.queryByText("Are you still here?")).not.toBeInTheDocument();
 
-  await sleep(6000);
+  // The ping above warns at 3 seconds idle.
+  await pingApplied(ping);
+  advanceIdleClock(6000);
 
   expect(await screen.findByText("Are you still here?")).toBeInTheDocument();
   expect(screen.queryByText("TethysDash Landing Page")).not.toBeInTheDocument();
@@ -505,7 +512,7 @@ test("LandingPageHeader AppInfo disappears on idle and reappears on still signed
   });
   expect(staySignedInButton).toBeInTheDocument();
 
-  await userEvent.click(staySignedInButton);
+  await user.click(staySignedInButton);
 
   expect(
     await screen.findByText("TethysDash Landing Page"),
@@ -1051,17 +1058,15 @@ test("DashboardHeader, editable, edit and cancel", async () => {
 
   await userEvent.click(addGridItemButton);
 
-  gridItems = await screen.findAllByLabelText("gridItem");
+  // Queried inside the wait, so each retry sees the grid as it is now.
   await waitFor(() => {
-    expect(gridItems.length).toBe(2);
+    expect(screen.getAllByLabelText("gridItem")).toHaveLength(2);
   });
 
   await userEvent.click(cancelButton);
-  await sleep(200);
 
-  gridItems = await screen.findAllByLabelText("gridItem");
   await waitFor(() => {
-    expect(gridItems.length).toBe(1);
+    expect(screen.getAllByLabelText("gridItem")).toHaveLength(1);
   });
 });
 
@@ -1670,6 +1675,8 @@ test("DashboardHeader Sign In shows first and then AppInfo after continue", asyn
 });
 
 test("DashboardHeader AppInfo disappears on idle and reappears on still signed in", async () => {
+  const ping = useIdleClock();
+  const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
   server.use(
     rest.get("http://api.test/apps/tethysdash/ping/", (req, res, ctx) => {
       return res(
@@ -1699,7 +1706,9 @@ test("DashboardHeader AppInfo disappears on idle and reappears on still signed i
   expect(await screen.findByText("TethysDash Dashboards")).toBeInTheDocument();
   expect(screen.queryByText("Are you still here?")).not.toBeInTheDocument();
 
-  await sleep(6000);
+  // The ping above warns at 3 seconds idle.
+  await pingApplied(ping);
+  advanceIdleClock(6000);
 
   expect(await screen.findByText("Are you still here?")).toBeInTheDocument();
   expect(screen.queryByText("TethysDash Dashboards")).not.toBeInTheDocument();
@@ -1709,7 +1718,7 @@ test("DashboardHeader AppInfo disappears on idle and reappears on still signed i
   });
   expect(staySignedInButton).toBeInTheDocument();
 
-  await userEvent.click(staySignedInButton);
+  await user.click(staySignedInButton);
 
   expect(await screen.findByText("TethysDash Dashboards")).toBeInTheDocument();
   expect(screen.queryByText("Are you still here?")).not.toBeInTheDocument();

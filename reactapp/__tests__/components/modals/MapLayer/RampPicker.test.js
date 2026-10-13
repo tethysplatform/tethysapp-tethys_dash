@@ -102,6 +102,18 @@ describe("RampPicker", () => {
     }
   });
 
+  test("hovering a row names the ramp", () => {
+    // A row is nothing but its gradient: without a tooltip the name is there
+    // for a screen reader and for nobody else.
+    render(<RampPicker selectedRamp={null} onChange={() => {}} />);
+
+    for (const name of RAMP_NAMES) {
+      expect(
+        screen.getByRole("radio", { name: `Select ${name} ramp` }),
+      ).toHaveAttribute("title", name);
+    }
+  });
+
   test("picker container has role=radiogroup with accessible label", () => {
     render(<RampPicker selectedRamp={null} onChange={() => {}} />);
 

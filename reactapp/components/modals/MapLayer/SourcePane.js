@@ -6,13 +6,18 @@ import styled from "styled-components";
 import {
   sourcePropertiesOptions,
   sourcePropType,
+  RASTER_SOURCE_TYPES,
 } from "components/map/utilities";
 import InputTable from "components/inputs/InputTable";
 import DataRadioSelect from "components/inputs/DataRadioSelect";
 import NormalInput from "components/inputs/NormalInput";
 import appAPI from "services/api/app";
-import { removeEmptyValues } from "components/modals/utilities";
+import {
+  removeEmptyValues,
+  spaceAndCapitalize,
+} from "components/modals/utilities";
 import { findSelectOptionByValue } from "components/visualizations/utilities";
+import { getDynamicLayerSourceType } from "components/modals/MapLayer/runtimeLayerSource";
 import { VisualizationArguments } from "components/modals/DataViewer/VisualizationPane";
 import { AppContext, LayoutContext } from "components/contexts/Contexts";
 import { useMapContext } from "components/contexts/MapContext";
@@ -83,6 +88,19 @@ export const generatePropertiesArrayWithValues = (
 
   return { properties, placeholders, types, discovers };
 };
+
+// How a property row is labelled. The row's own value is the config key the
+// table parses back, so this is display-only: "*imageExtent" reads as
+// "*Image Extent", and a nested "params - LAYERS" as "Params - LAYERS" -- the
+// same formatting the DataViewer gives plugin arguments.
+export function formatPropertyLabel(property) {
+  const required = property.startsWith("*");
+  const name = required ? property.slice(1) : property;
+  const label = name.split(" - ").map(spaceAndCapitalize).join(" - ");
+  return required ? `*${label}` : label;
+}
+
+const PROPERTY_LABEL_FORMATTERS = { property: formatPropertyLabel };
 
 // coverts a flat object of properties from the generatePropertiesArrayWithValues function into a nested object
 function parsePropertiesArray(properties) {
@@ -387,12 +405,42 @@ const SourcePane = ({
     (sourceProps.type &&
       findSelectOptionByValue(dynamicMapLayers, sourceProps.type));
   const isDynamicMapLayer = !!selectedPluginOption;
+  // Only a raster has a mask to set; a GeoJSON-driven plugin has none.
+  const isRuntimeRasterLayer =
+    isDynamicMapLayer &&
+    RASTER_SOURCE_TYPES.includes(
+      getDynamicLayerSourceType(dynamicMapLayers, sourceProps),
+    );
   const savedAsDynamicPlugin = !!sourceProps.source;
   const pluginUnavailable = savedAsDynamicPlugin && !isDynamicMapLayer;
 
   const pluginArgSchema = selectedPluginOption?.args ?? {};
   const pluginVizArguments = Object.entries(pluginArgSchema).map(
     ([argName, argType]) => ({ name: argName, label: argName, type: argType }),
+  );
+
+  // The one file property an author still owns on a plugin-driven layer.
+  //
+  // The plugin supplies the file -- its url, its CRS -- so the Source tab
+  // offers none of that. The mask is different: it says which of the file's
+  // values count as data rather than as background, which is a decision about
+  // the map rather than about the file, and the plugin only supplies a
+  // default. The generic property table is not rendered for these layers, so
+  // this is its own field rather than a registry entry.
+  const handleRuntimeMaskChange = useCallback(
+    (e) => {
+      const value = e.target.value;
+      setSourceProps((prev) => {
+        const nextProps = { ...(prev?.props ?? {}) };
+        if (value === "") {
+          delete nextProps.mask_below;
+        } else {
+          nextProps.mask_below = value;
+        }
+        return { ...prev, props: nextProps };
+      });
+    },
+    [setSourceProps],
   );
 
   const handlePluginArgChange = useCallback(
@@ -618,6 +666,9 @@ const SourcePane = ({
       initialExtent,
       imageUrl,
       projection: projection || null,
+      keepAspectRatio: !!sourceProps.props?.keepAspectRatio,
+      borderColor: sourceProps.props?.borderColor,
+      borderWidth: sourceProps.props?.borderWidth,
     });
     onRequestHideModal();
   }
@@ -727,6 +778,19 @@ const SourcePane = ({
                   <em>This plugin takes no arguments.</em>
                 </p>
               )}
+              {isRuntimeRasterLayer && (
+                <div style={{ marginTop: "0.75rem", maxWidth: "20rem" }}>
+                  <NormalInput
+                    label="Mask below"
+                    value={sourceProps.props?.mask_below ?? ""}
+                    type="number"
+                    onChange={handleRuntimeMaskChange}
+                    ariaLabel="Mask Below"
+                    placeholder="Mask values at or below this"
+                    allowEmpty
+                  />
+                </div>
+              )}
               <div
                 style={{
                   display: "flex",
@@ -792,6 +856,7 @@ const SourcePane = ({
                     show_placeholder_on_hover={true}
                     types={propertyTypes}
                     selectConfigs={selectConfigs}
+                    displayFormatters={PROPERTY_LABEL_FORMATTERS}
                   />
                   <p>
                     <em>* indicates a required property</em>

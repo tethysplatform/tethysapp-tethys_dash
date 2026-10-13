@@ -7,6 +7,10 @@ import {
   isPreset,
 } from "components/inputs/dateUtils";
 import { format } from "date-fns";
+import {
+  buildPreloadedVisualizationKey,
+  takePreloadedVisualization,
+} from "components/visualizations/preloadedVisualizationCache";
 
 // In-memory cache of resolved image-visualization results, keyed by the
 // request (source + resolved args). Image plugins are deterministic for a
@@ -99,6 +103,86 @@ export function hasVariableInputValue(value) {
 }
 
 /**
+ * The value a variable input publishes for its initial value: a number input
+ * publishes a number (or "" when it does not parse), and a checkbox with no
+ * initial value publishes false, since null is not a valid checkbox value.
+ *
+ * Shared by VariableInput and DashboardLoader's pre-render preload, so a
+ * preloaded value is the same value the component would publish on mount.
+ */
+export function normalizeVariableInputValue({
+  variable_options_source,
+  initial_value,
+}) {
+  if (variable_options_source === "number") {
+    return toNumberOrEmpty(initial_value);
+  }
+  if (variable_options_source === "checkbox" && initial_value === null) {
+    return false;
+  }
+  return initial_value;
+}
+
+/**
+ * The entries a variable input merges into the dashboard's variable input
+ * values when it publishes `value`, or null when it publishes nothing.
+ *
+ * Truthiness plus 0 and false, not hasVariableInputValue: an initial value of
+ * null or "" leaves the variable unset. An object value (a date range's
+ * endpoints) also publishes each of its own keys.
+ */
+export function getPublishedVariableInputValues(variable_name, value) {
+  if (!(value || value === false || value === 0)) return null;
+  let published = { [variable_name]: value };
+  if (typeof value === "object") {
+    published = { ...published, ...value };
+  }
+  return published;
+}
+
+/**
+ * The date format a variable input registers under its name, or null when its
+ * value is not a date: date-type inputs use `metadata.format`, and a date
+ * slider uses `metadata.outputFormat`.
+ */
+export function getVariableInputDateFormat({
+  variable_options_source,
+  metadata,
+}) {
+  if (
+    typeof variable_options_source === "string" &&
+    variable_options_source.includes("date")
+  ) {
+    return metadata?.format || null;
+  }
+  if (variable_options_source === "slider" && metadata?.dataType === "Date") {
+    return metadata?.outputFormat || null;
+  }
+  return null;
+}
+
+/**
+ * The preloaded-visualization cache key for a grid item's request: built from
+ * its raw args and the variable inputs they reference, with the same
+ * tokenizer the substituter uses. See buildPreloadedVisualizationKey for why
+ * the inputs to substitution, not its output.
+ */
+export function buildPreloadedRequestKey({
+  source,
+  args,
+  variableInputValues,
+  variableInputDateFormats,
+}) {
+  return buildPreloadedVisualizationKey({
+    source,
+    args,
+    variableInputValues,
+    variableInputDateFormats,
+    tokens: findUnresolvedVariableInputTokens(args),
+  });
+}
+
+/**
  * Returns an array of warning messages when any variable inputs referenced by a
  * visualization's args have no value, or null if all inputs are populated.
  * Respects custom messaging configured in the grid item metadata.
@@ -110,10 +194,12 @@ export function checkForEmptyVariableInputs({
 }) {
   const metadata = JSON.parse(metadataString);
   // Walk the parsed args, NOT the JSON string, so the recursion can skip the
-  // popupConfig subtree. A flat regex over the JSON string would surface
+  // exempt subtrees (popupConfig, and a map layer's labels — see
+  // FEATURE_SCAN_SKIP_KEYS). A flat regex over the JSON string would surface
   // popup-scoped variable inputs (e.g. `${Start Time}` declared inside the
   // popup) at the host level — those resolve inside the popup's own
-  // FeatureScopedVariableInputs provider, not in the host context.
+  // FeatureScopedVariableInputs provider, not in the host context — and could
+  // not tell a map layer's label template from an ordinary arg at all.
   const parsedArgs = JSON.parse(argsString);
   const allDependentVariableInputs =
     findUnresolvedVariableInputTokens(parsedArgs);
@@ -315,11 +401,38 @@ export async function getVisualization({
     }
   }
 
-  if (vizLoadingIcon && sourceType !== "map") {
+  // A plugin variable input DashboardLoader already started before the
+  // dashboard rendered: await that request instead of running the plugin
+  // again, whether it has settled or is still running past the preload's
+  // budget. Taken, not read, so a later args change or a refresh fetches
+  // normally. Only the dashboard's own tiles consume it -- the data viewer
+  // previews a configuration rather than the loaded dashboard.
+  const preloaded = dashboardView
+    ? takePreloadedVisualization(
+        itemData.requestId,
+        buildPreloadedRequestKey({
+          source: itemData.source,
+          args: JSON.parse(argsString),
+          variableInputValues,
+          variableInputDateFormats,
+        }),
+      )
+    : undefined;
+  const usePreloaded = preloaded !== undefined && !refresh;
+
+  // No loader flash for a response that is already here; one still on its
+  // way shows the loader like any other fetch.
+  if (
+    !(usePreloaded && preloaded.settled) &&
+    vizLoadingIcon &&
+    sourceType !== "map"
+  ) {
     setVizType("loader");
   }
 
-  const apiResponse = await appAPI.getVisualizationData(itemData);
+  const apiResponse = usePreloaded
+    ? await preloaded.promise
+    : await appAPI.getVisualizationData(itemData);
   if (apiResponse.success === true) {
     let responseData = JSON.parse(JSON.stringify(apiResponse.data));
     if (typeof apiResponse.data === "string") {
@@ -346,6 +459,9 @@ export async function getVisualization({
         // Plugin-driven subplot toggle opt-in (top-level figure keys).
         toggle_subplots: responseData.toggle_subplots,
         subplot_toggle: responseData.subplot_toggle,
+        // Plugin-driven minimum plot size, in pixels (top-level keys).
+        min_plot_height: responseData.min_plot_height,
+        min_plot_width: responseData.min_plot_width,
       });
     } else if (apiResponse.viz_type === "card") {
       setVizType("card");
@@ -609,20 +725,82 @@ const FEATURE_TOKEN_RE = /\$\{(feature\.[^}]+)\}/g;
 const VARIABLE_INPUT_TOKEN_RE = /\$\{([^}]+)\}/g;
 
 // Object keys whose subtree is intentionally NOT scanned for unresolved
-// tokens. The Map widget's args carry per-layer `popupConfig` (titleTemplate
-// + nested popup gridItems' args_string) for round-tripping — those tokens
-// are meant to resolve later inside the popup's own FeatureScopedVariableInputs
-// scope, NOT against the Map widget's host scope. Without this skip, opening
-// any dashboard with a configured popup modal gates the entire Map widget on
-// the popup's deferred tokens (both `${feature.*}` AND popup-internal
-// variable input names such as `${Start Time}` declared by inner Variable
-// Input grid items).
-const FEATURE_SCAN_SKIP_KEYS = new Set(["popupConfig"]);
+// tokens. Shared by BOTH scanners below. Each entry maps the key to the path
+// its exemption is scoped to -- an ancestor that must appear somewhere above
+// it, optionally plus the immediate parent it must sit under -- or `null` for
+// "at any depth".
+//
+// The scoping is what keeps the exemption honest. These walkers run over EVERY
+// visualization's args, not just the Map widget's, so a bare name match lets
+// any plugin argument that merely happens to share the name suppress a real
+// gate: a genuine `${feature.x}` beneath it would reach the plugin as an
+// unresolved literal, and a genuine `${Some Input}` beneath it would never
+// raise the unset-input warning. A distinctive compound name makes that
+// collision unlikely; it does not make it impossible.
+//
+// `popupConfig` (any depth) — the Map widget's args carry a per-layer
+// `popupConfig` (titleTemplate + nested popup gridItems' args_string) for
+// round-tripping. Those tokens are meant to resolve later inside the popup's
+// own FeatureScopedVariableInputs scope, NOT against the Map widget's host
+// scope. Without this skip, opening any dashboard with a configured popup
+// modal gates the entire Map widget on the popup's deferred tokens (both
+// `${feature.*}` AND popup-internal variable input names such as
+// `${Start Time}` declared by inner Variable Input grid items).
+// It sits at `layers[i].popupConfig`, so it could be scoped exactly as `labels`
+// is; it is deliberately left unscoped so its long-standing behaviour is
+// untouched. Tightening it later is a one-line change here.
+//
+// `labels` (only at `layers[i].configuration.labels`) — a map layer's label
+// template sits beside `configuration.style`, so the scope requires both a
+// `layers` ancestor and `configuration` as the immediate parent. `labels` is a
+// far more ordinary word than the keys above, and other visualizations really
+// do use it — a plotly plugin's `subplot_toggle.labels`, a variable input's
+// `metadata.labels` — so a bare-name match here would silently suppress a
+// genuine gate on those. Pinning the full path is what keeps the exemption
+// honest. A label is resolved per feature at draw
+// time by the OpenLayers style function, so its `${feature.*}` references are
+// never "unresolved" in the sense either scanner means. Both scanners must skip
+// it, or a label alone can stop the map from rendering:
+//   * the feature scanner gates the fetch in Base.js — one `${feature.station}`
+//     in a label would flip the widget to `featurePending` and blank the map;
+//   * the variable-input scanner feeds `checkForEmptyVariableInputs`, which
+//     replaces the whole widget with a warning panel when any referenced input
+//     is empty — and `hasVariableInputValue` counts "" as empty, so a viewer
+//     clearing a text box referenced by a label would blank the map too.
+// Accepted consequence: a variable input referenced ONLY inside a label
+// template no longer raises the unset-input warning. That is the deliberate
+// trade for not letting a label blank the map.
+//
+// Substitution is a separate path: `updateObjectWithVariableInputs` does not
+// consult this set, so label templates keep getting their variable inputs
+// interpolated regardless of what is skipped here.
+const FEATURE_SCAN_SKIP_KEYS = new Map([
+  ["popupConfig", null],
+  ["labels", { ancestor: "layers", parent: "configuration" }],
+]);
+
+// Does the path to the key being visited satisfy its scope? `null` means any
+// depth; an object names an ancestor that must appear somewhere on the trail
+// and, optionally, the immediate parent the key must sit directly under.
+function skipScopeMatches(scope, trail) {
+  if (scope === null) return true;
+  return (
+    (!scope.ancestor || trail.includes(scope.ancestor)) &&
+    (!scope.parent || trail[trail.length - 1] === scope.parent)
+  );
+}
 
 // Shared recursive walker. Returns the deduped set of capture-group-1 matches
-// of `regex` across every string leaf, skipping any object key in `skipKeys`.
+// of `regex` across every string leaf, skipping any object key in `skipKeys`
+// whose scoping ancestor (see the constant) is on the current path.
 function collectTokens(value, regex, skipKeys) {
   const found = new Set();
+  // Object keys on the path from the root to the node being visited, outermost
+  // first. Array indices are not recorded, so `layers[0].configuration` leaves
+  // the trail as ["layers", "configuration"]. Pushed and popped around each
+  // descent so the walk stays a single pass; the linear `includes` below runs
+  // only when a skip key name is actually hit.
+  const trail = [];
 
   const visit = (v) => {
     if (typeof v === "string") {
@@ -637,8 +815,12 @@ function collectTokens(value, regex, skipKeys) {
       for (const item of v) visit(item);
     } else if (v && typeof v === "object") {
       for (const key of Object.keys(v)) {
-        if (skipKeys.has(key)) continue;
+        if (skipKeys.has(key) && skipScopeMatches(skipKeys.get(key), trail)) {
+          continue;
+        }
+        trail.push(key);
         visit(v[key]);
+        trail.pop();
       }
     }
   };
@@ -656,8 +838,9 @@ function collectTokens(value, regex, skipKeys) {
  * of a friendly "awaiting feature selection" placeholder, instead of
  * letting plugins error out on the unresolved literal.
  *
- * Subtrees under keys in `FEATURE_SCAN_SKIP_KEYS` are skipped — see the
- * constant for why.
+ * Subtrees under keys in `FEATURE_SCAN_SKIP_KEYS` are skipped, each within the
+ * path its entry scopes it to (`labelConfig` only inside a map's `layers`) —
+ * see the constant for why.
  *
  * Returns an array of feature.<key> strings (without the `${}` wrapper),
  * deduplicated and in encounter order. Empty/non-string/non-object inputs
@@ -670,7 +853,9 @@ export function findUnresolvedFeatureTokens(value) {
 /**
  * Recursively walk an args object/array and return the unique set of
  * `${<name>}` variable-input references embedded in any string value,
- * EXCLUDING the popupConfig subtree.
+ * EXCLUDING the subtrees named in `FEATURE_SCAN_SKIP_KEYS` (popupConfig at any
+ * depth, and labelConfig inside a map's `layers` — see the constant for why
+ * each is exempt and how far each exemption reaches).
  *
  * Used by `checkForEmptyVariableInputs` so that a Map widget hosting a
  * popup modal whose inner gridItems define their own variable inputs

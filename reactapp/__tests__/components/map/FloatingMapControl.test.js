@@ -1,7 +1,5 @@
 import { render, screen, act } from "@testing-library/react";
 import FloatingMapControl, {
-  FLOATING_CONTROL_Z_INDEX,
-  styleFromAnchor,
   normalizeMeasuredHeight,
   useMapDivHeight,
   deriveControlMaxHeight,
@@ -9,10 +7,10 @@ import FloatingMapControl, {
   MapSizedControlContainer,
 } from "components/map/FloatingMapControl";
 import { makeMapDiv } from "__tests__/utilities/mapDiv";
+import PropTypes from "prop-types";
 
-// jsdom does no layout, so every rect is stubbed. These tests pin the mapping
-// from anchor rect to fixed-position style and the escape from the parent tree;
-// they cannot prove paint order.
+// jsdom does no layout, so every rect is stubbed. These tests pin where the
+// control renders and how it measures its map; they cannot prove paint order.
 const VIEWPORT = { width: 1000, height: 800 };
 
 const stubRect = (rect) =>
@@ -29,194 +27,84 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
-describe("styleFromAnchor", () => {
-  // A bottom-left anchor collapses to a point once its content is portalled
-  // away, so only left/bottom carry meaning -- right/top are the same point and
-  // say nothing about the control's size.
-  test("bottom-left pins the corner and leaves size to the content", () => {
-    const style = styleFromAnchor(
-      { left: 16, right: 16, top: 700, bottom: 700, width: 0, height: 0 },
-      ["bottom", "left"],
-      VIEWPORT,
-    );
-    expect(style).toEqual({ left: "16px", bottom: "100px" });
-  });
-
-  test("bottom-right measures from the far edges", () => {
-    const style = styleFromAnchor(
-      { left: 984, right: 984, top: 700, bottom: 700, width: 0, height: 0 },
-      ["bottom", "right"],
-      VIEWPORT,
-    );
-    expect(style).toEqual({ right: "16px", bottom: "100px" });
-  });
-
-  test("pinned on both sides carries the width across", () => {
-    // The alert spans the map, so the floated copy must not shrink to content.
-    const style = styleFromAnchor(
-      { left: 16, right: 984, top: 16, bottom: 16, width: 968, height: 0 },
-      ["top", "left", "right"],
-      VIEWPORT,
-    );
-    expect(style).toEqual({ left: "16px", top: "16px", width: "968px" });
-    expect(style.right).toBeUndefined();
-  });
-
-  test("no rect yields no style", () => {
-    expect(styleFromAnchor(null, ["bottom", "left"], VIEWPORT)).toBeNull();
-  });
-});
+// A fill-viewport tile: position:fixed, which makes it a stacking context of
+// its own. The control stays inside it, exactly as it stays inside an ordinary
+// tile -- being sealed into the tile that owns you is the behaviour here.
+const FixedTile = ({ children }) => (
+  <div data-testid="map-tile" style={{ position: "fixed" }}>
+    {children}
+  </div>
+);
+FixedTile.propTypes = { children: PropTypes.node };
 
 describe("FloatingMapControl", () => {
-  test("renders its children outside the parent tree", () => {
-    stubRect({
-      left: 16,
-      right: 16,
-      top: 700,
-      bottom: 700,
-      width: 0,
-      height: 0,
-    });
-    render(
-      <div data-testid="map-tile">
-        <FloatingMapControl edges={["bottom", "left"]}>
-          <button type="button">Show Legend</button>
-        </FloatingMapControl>
-      </div>,
-    );
+  test.each([
+    [
+      "an ordinary tile",
+      ({ children }) => <div data-testid="map-tile">{children}</div>,
+    ],
+    ["a fill-viewport tile", FixedTile],
+  ])(
+    "stays inside %s, so a tile sent to the front covers it",
+    (_label, Tile) => {
+      // Grid items carry no z-index and are painted in DOM order, so a control
+      // on document.body outranked every tile: a text box an author sent to the
+      // front covered the map but not its legend. The control stays in the tile
+      // that owns it, and a fill-viewport tile is no exception -- being sealed
+      // into your own tile is the behaviour, not a problem to escape.
+      render(
+        <Tile>
+          <FloatingMapControl>
+            <button type="button">Show Legend</button>
+          </FloatingMapControl>
+        </Tile>,
+      );
 
-    const control = screen.getByRole("button", { name: "Show Legend" });
-    expect(control).toBeInTheDocument();
-    // The whole point: it must not be a descendant of the tile, or it stays
-    // sealed inside that tile's stacking context.
-    expect(screen.getByTestId("map-tile")).not.toContainElement(control);
-    expect(document.body).toContainElement(control);
-  });
+      const control = screen.getByRole("button", { name: "Show Legend" });
+      expect(screen.getByTestId("map-tile")).toContainElement(control);
+    },
+  );
 
-  test("positions the floated copy from the anchor's rect", () => {
-    stubRect({
-      left: 16,
-      right: 16,
-      top: 700,
-      bottom: 700,
-      width: 0,
-      height: 0,
-    });
-    render(
-      <FloatingMapControl edges={["bottom", "left"]}>
-        <span>content</span>
-      </FloatingMapControl>,
-    );
-
-    const floated = screen.getByTestId("floating-map-control");
-    expect(floated).toHaveStyle({
-      position: "fixed",
-      left: "16px",
-      bottom: "100px",
-    });
-    expect(floated).toHaveStyle({ zIndex: String(FLOATING_CONTROL_Z_INDEX) });
-  });
-
-  test("repositions when the window resizes", () => {
-    const rect = stubRect({
-      left: 16,
-      right: 16,
-      top: 700,
-      bottom: 700,
-      width: 0,
-      height: 0,
-    });
-    render(
-      <FloatingMapControl edges={["bottom", "left"]}>
-        <span>content</span>
-      </FloatingMapControl>,
-    );
-    expect(screen.getByTestId("floating-map-control")).toHaveStyle({
-      bottom: "100px",
-    });
-
-    // The map got shorter: same anchor offset from the bottom, different
-    // viewport, so the computed `bottom` has to change.
-    rect.mockReturnValue({
-      left: 16,
-      right: 16,
-      top: 500,
-      bottom: 500,
-      width: 0,
-      height: 0,
-      toJSON: () => ({}),
-    });
-    window.innerHeight = 600;
-    act(() => {
-      window.dispatchEvent(new Event("resize"));
-    });
-
-    expect(screen.getByTestId("floating-map-control")).toHaveStyle({
-      bottom: "100px",
-      left: "16px",
-    });
-  });
-
-  test("removes its listeners and observer on unmount", () => {
-    stubRect({
-      left: 16,
-      right: 16,
-      top: 700,
-      bottom: 700,
-      width: 0,
-      height: 0,
-    });
+  test("watches nothing but the map, and stops on unmount", () => {
+    // It used to track the window too, because a scroll or a resize moved the
+    // rectangle the floated copy was pinned to. In place there is no rectangle
+    // to track: CSS positions it, and the only thing left to measure is how
+    // tall the map is.
     const addSpy = jest.spyOn(window, "addEventListener");
-    const removeSpy = jest.spyOn(window, "removeEventListener");
     const disconnect = jest.fn();
     const observe = jest.fn();
     const original = global.ResizeObserver;
     global.ResizeObserver = jest.fn(() => ({ observe, disconnect }));
 
-    const { unmount } = render(
-      <FloatingMapControl edges={["bottom", "left"]}>
-        <span>content</span>
-      </FloatingMapControl>,
-    );
-    expect(addSpy).toHaveBeenCalledWith("resize", expect.any(Function));
-    expect(addSpy).toHaveBeenCalledWith("scroll", expect.any(Function), true);
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    jest
+      .spyOn(HTMLElement.prototype, "offsetParent", "get")
+      .mockReturnValue(parent);
 
-    unmount();
-    expect(removeSpy).toHaveBeenCalledWith("resize", expect.any(Function));
-    expect(removeSpy).toHaveBeenCalledWith(
+    const { unmount } = render(
+      <FixedTile>
+        <FloatingMapControl>
+          <span>content</span>
+        </FloatingMapControl>
+      </FixedTile>,
+    );
+    expect(addSpy).not.toHaveBeenCalledWith("resize", expect.any(Function));
+    expect(addSpy).not.toHaveBeenCalledWith(
       "scroll",
       expect.any(Function),
       true,
     );
+    expect(observe).toHaveBeenCalledWith(parent);
+
+    unmount();
+    expect(disconnect).toHaveBeenCalled();
     global.ResizeObserver = original;
-  });
-
-  test("the anchor stays behind and is inert", () => {
-    stubRect({
-      left: 16,
-      right: 16,
-      top: 700,
-      bottom: 700,
-      width: 0,
-      height: 0,
-    });
-    render(
-      <FloatingMapControl edges={["bottom", "left"]} className="anchor-class">
-        <span>content</span>
-      </FloatingMapControl>,
-    );
-
-    // The caller's positioning CSS rides on the anchor, so it has to remain in
-    // place rather than move to the portal.
-    const anchor = screen.getByTestId("floating-map-control-anchor");
-    expect(anchor).toHaveClass("anchor-class");
-    expect(anchor).toHaveAttribute("aria-hidden", "true");
-    expect(anchor).toBeEmptyDOMElement();
   });
 });
 
-describe("tracking the tile it floats above", () => {
-  it("observes the anchor's offset parent so a resized tile repositions it", () => {
+describe("tracking the map it belongs to", () => {
+  it("observes the offset parent, so a resized tile remeasures", () => {
     // Editing the layout resizes the tile without a window resize or a scroll,
     // so neither listener would fire.
     const observe = jest.fn();
@@ -240,7 +128,7 @@ describe("tracking the tile it floats above", () => {
 
     try {
       const { unmount } = render(
-        <FloatingMapControl edges={["bottom", "left"]}>
+        <FloatingMapControl>
           <span>content</span>
         </FloatingMapControl>,
       );
@@ -268,7 +156,7 @@ describe("tracking the tile it floats above", () => {
     try {
       expect(() =>
         render(
-          <FloatingMapControl edges={["top", "right"]}>
+          <FloatingMapControl>
             <span>content</span>
           </FloatingMapControl>,
         ),
@@ -302,7 +190,7 @@ describe("tracking the tile it floats above", () => {
 
     try {
       const { unmount } = render(
-        <FloatingMapControl edges={["top", "left"]}>
+        <FloatingMapControl>
           <span>content</span>
         </FloatingMapControl>,
       );
@@ -345,15 +233,12 @@ describe("map div height", () => {
     });
   });
 
-  test("reports the map div's height to a portalled child", () => {
+  test("reports the map div's height to its children", () => {
     stubRect(ANCHOR_RECT);
     const mapDiv = makeMapDiv(400);
 
     render(
-      <FloatingMapControl
-        edges={["bottom", "left"]}
-        mapDivRef={{ current: mapDiv }}
-      >
+      <FloatingMapControl mapDivRef={{ current: mapDiv }}>
         <HeightProbe />
       </FloatingMapControl>,
     );
@@ -368,10 +253,7 @@ describe("map div height", () => {
     const mapDiv = makeMapDiv(0);
 
     render(
-      <FloatingMapControl
-        edges={["bottom", "left"]}
-        mapDivRef={{ current: mapDiv }}
-      >
+      <FloatingMapControl mapDivRef={{ current: mapDiv }}>
         <HeightProbe />
       </FloatingMapControl>,
     );
@@ -409,10 +291,7 @@ describe("map div height", () => {
 
     try {
       render(
-        <FloatingMapControl
-          edges={["bottom", "left"]}
-          mapDivRef={{ current: mapDiv }}
-        >
+        <FloatingMapControl mapDivRef={{ current: mapDiv }}>
           <HeightProbe />
         </FloatingMapControl>,
       );
@@ -444,10 +323,7 @@ describe("map div height", () => {
     );
 
     render(
-      <FloatingMapControl
-        edges={["bottom", "left"]}
-        mapDivRef={{ current: mapDiv }}
-      >
+      <FloatingMapControl mapDivRef={{ current: mapDiv }}>
         <MapSizedControlContainer container={ProbeContainer} expanded>
           x
         </MapSizedControlContainer>
@@ -483,7 +359,7 @@ describe("map div height", () => {
 
     try {
       render(
-        <FloatingMapControl edges={["bottom", "left"]}>
+        <FloatingMapControl>
           <HeightProbe />
         </FloatingMapControl>,
       );
@@ -502,10 +378,7 @@ describe("map div height", () => {
 
     try {
       render(
-        <FloatingMapControl
-          edges={["bottom", "left"]}
-          mapDivRef={{ current: mapDiv }}
-        >
+        <FloatingMapControl mapDivRef={{ current: mapDiv }}>
           <HeightProbe />
         </FloatingMapControl>,
       );

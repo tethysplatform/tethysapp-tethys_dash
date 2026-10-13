@@ -13,14 +13,19 @@ import LayerPane from "components/modals/MapLayer/LayerPane";
 import SourcePane from "components/modals/MapLayer/SourcePane";
 import LegendPane from "components/modals/MapLayer/LegendPane";
 import AttributesPane from "components/modals/MapLayer/AttributesPane";
-import StylePane from "components/modals/MapLayer/StylePane";
+import StylePane, {
+  supportsVectorStyling,
+} from "components/modals/MapLayer/StylePane";
+import LabelsPane from "components/modals/MapLayer/LabelsPane";
 import PopupConfigPane from "components/modals/MapLayer/PopupConfigPane";
 import PopupLayoutEditor from "components/modals/MapLayer/PopupLayoutEditor";
 import {
   AppContext,
   LayoutContext,
+  TabContext,
   VariableInputsContext,
 } from "components/contexts/Contexts";
+import { POPUP_TAB_ID } from "components/map/viewGroup";
 import {
   sourcePropertiesOptions,
   layerPropType,
@@ -31,9 +36,10 @@ import {
   resolveTablePopupType,
 } from "components/map/utilities";
 import {
-  buildGeoTIFFStyleColor,
-  buildCategoricalStyleColor,
+  isClassStyleMode,
+  isRampBoundSet,
   isUsableClass,
+  rasterStyleSettings,
 } from "components/map/geoTIFFStyle";
 import {
   removeEmptyValues,
@@ -45,9 +51,11 @@ import {
   updateObjectWithVariableInputs,
 } from "components/visualizations/utilities";
 import { useMapContext } from "components/contexts/MapContext";
+import { getDynamicLayerSourceType } from "components/modals/MapLayer/runtimeLayerSource";
 import Select from "react-select";
 import appAPI from "services/api/app";
 import "components/modals/wideModal.css";
+import "components/modals/MapLayer/extentDrawHidden.css";
 
 const StyledModalHeader = styled(Modal.Header)`
   height: 7%;
@@ -94,6 +102,74 @@ const DYNAMIC_LAYER_PLACEHOLDER_GEOJSON = {
   crs: { type: "name", properties: { name: "EPSG:4326" } },
 };
 
+/**
+ * The saved style of a raster layer (GeoTIFF or Zarr, static or dynamic): the
+ * editor's ramp settings, and only those.
+ *
+ * Never a compiled OpenLayers style. That depends on the file -- its nodata, its
+ * value range -- so it is compiled each time the layer loads (applyAutoRamp in
+ * components/map/ModuleLoader.js), and for a dynamic layer per fetch.
+ *
+ * A class table is saved only when it has a class that can be drawn, and then
+ * in place of the range; the ramp name is kept beside it so switching back to a
+ * ramp does not lose the chosen palette. Each bound is independent: a set one
+ * pins that end of the ramp, an empty one is resolved from the file. Values keep
+ * the type the editor's inputs give them, so bounds are saved as numeric
+ * strings. The mask is not here: it is a source property, edited on the
+ * Source pane and saved as `source.props.mask_below`, because the Zarr reader
+ * writes it into the slice's alpha band as it reads -- it describes the data
+ * being read, not how the result is coloured.
+ *
+ * @param {object} rasterStyle The editor's raster style settings.
+ * @returns {object} `{rampName?, rampMin?, rampMax?, rampReverse?, styleMode?,
+ *   classes?, fallbackColor?}`, empty when nothing is set.
+ */
+export function buildRasterStyleSettings(rasterStyle) {
+  const {
+    rampName,
+    rampMin,
+    rampMax,
+    rampReverse,
+    styleMode,
+    classes,
+    fallbackColor,
+  } = rasterStyle ?? {};
+  const style = {};
+  const hasRampName = typeof rampName === "string" && rampName.trim() !== "";
+  const usableClasses = (classes ?? []).filter(isUsableClass);
+
+  if (isClassStyleMode(styleMode) && usableClasses.length > 0) {
+    style.styleMode = styleMode;
+    style.classes = usableClasses;
+    if (fallbackColor) style.fallbackColor = fallbackColor;
+    if (hasRampName) style.rampName = rampName;
+    if (rampReverse === true) style.rampReverse = true;
+  } else if (hasRampName) {
+    style.rampName = rampName;
+    if (isRampBoundSet(rampMin)) style.rampMin = rampMin;
+    if (isRampBoundSet(rampMax)) style.rampMax = rampMax;
+    // Kept only when set, so an unreversed layer's config is unchanged from
+    // before this option existed.
+    if (rampReverse === true) style.rampReverse = true;
+  }
+  return style;
+}
+
+/**
+ * The saved source of a dynamic GeoTIFF layer: its source props with no URL,
+ * since each plugin fetch names the file. Its styling is its saved style (see
+ * buildRasterStyleSettings), not part of its source.
+ *
+ * @param {object} validSourceProps The editor's source props with empty values
+ *   removed.
+ * @returns {object} `{type: "GeoTIFF", props}`.
+ */
+export function buildRuntimeRasterSource(validSourceProps) {
+  // eslint-disable-next-line no-unused-vars
+  const { url, ...props } = validSourceProps ?? {};
+  return { type: "GeoTIFF", props };
+}
+
 export function rekeyAttributeMapToLayer(map, targetLayerName) {
   if (!map || typeof map !== "object" || !targetLayerName) return map;
   const keys = Object.keys(map);
@@ -115,6 +191,7 @@ export function normalizeAttributePropsForLayer(
     ),
     omitted: rekeyAttributeMapToLayer(attributeProps?.omitted, targetLayerName),
     aliases: rekeyAttributeMapToLayer(attributeProps?.aliases, targetLayerName),
+    order: rekeyAttributeMapToLayer(attributeProps?.order, targetLayerName),
   };
 }
 
@@ -130,6 +207,7 @@ export function renameLayerInAttributeProps(attributeProps, oldName, newName) {
     variables: renameKey(attributeProps?.variables),
     omitted: renameKey(attributeProps?.omitted),
     aliases: renameKey(attributeProps?.aliases),
+    order: renameKey(attributeProps?.order),
   };
 }
 
@@ -171,19 +249,45 @@ const MapLayerModal = ({
     layerInfo.attributeProps ?? {},
   );
   const [style, setStyle] = useState(layerInfo.style);
+  // A raster's style is its ramp settings rather than a style JSON, so it is
+  // edited apart from `style`, in the shape it is saved in. A saved style that
+  // carries no settings -- every non-raster layer's -- reads as none.
+  const [rasterStyle, setRasterStyle] = useState(() =>
+    rasterStyleSettings(layerInfo.style),
+  );
   const [legend, setLegend] = useState(layerInfo.legend);
   const [popupConfig, setPopupConfig] = useState(layerInfo.popupConfig ?? null);
+  // Label configuration is stored inside `configuration.props`, so it arrives
+  // here already folded into `layerProps` by AddMapLayer's edit path -- no
+  // separate load line, and it reaches a plugin-supplied layer the same way.
+  // It is held as its own slice rather than edited in place inside `layerProps`
+  // so the save path can write it past the empty-value pruning that would
+  // otherwise strip a size or zoom floor of 0.
+  const [labels, setLabels] = useState(layerInfo.labels ?? null);
   const [selectedOption, setSelectedOption] = useState(null);
   const [hiddenForExtentDraw, setHiddenForExtentDraw] = useState(false);
   const [showLayoutEditor, setShowLayoutEditor] = useState(false);
   const legendContainerRef = useRef(null);
   const styleContainerRef = useRef(null);
+  const labelsContainerRef = useRef(null);
   const { csrf, mapLayerTemplates, dynamicMapLayers } = useContext(AppContext);
   const { uuid, editable: hostDashboardEditable } = useContext(LayoutContext);
   const { variableInputValues, variableInputDateFormats } = useContext(
     VariableInputsContext,
   );
   const mapContext = useMapContext();
+  // The popup layout editor and the runtime popup modal both mount their reused
+  // dashboard layout under a synthetic tab, and this modal is opened from inside
+  // that subtree -- so the same signal MapExtent reads reaches the layer editor
+  // through context. Feature references inside a popup resolve against the
+  // feature that opened it, so a per-feature label there has no coherent
+  // meaning and the tab is hidden rather than silently mis-resolving.
+  const activeTabId = useContext(TabContext)?.activeTabId;
+  const inPopupLayout = activeTabId === POPUP_TAB_ID;
+  // Same predicate the Style tab uses to decide a source carries per-feature
+  // vector geometry. Rasters, tiles and WMS images have no features to label.
+  const showLabelsTab =
+    !inPopupLayout && supportsVectorStyling(sourceProps, dynamicMapLayers);
 
   // Field discovery for a shapefile source, held here rather than in either pane
   // because both read from it. The modal already hoists every pane's state, so a
@@ -271,12 +375,18 @@ const MapLayerModal = ({
       dynamicMapLayers,
       sourceProps.type,
     );
+    const isRuntimeGeoTIFF =
+      isRuntime &&
+      getDynamicLayerSourceType(dynamicMapLayers, sourceProps) === "GeoTIFF";
 
     const { layerVisibility, ...layerProperties } = layerProps;
     const validSourceProps = removeEmptyValues(sourceProps.props);
     // Layer props keep numeric 0 (snapSublayer: 0 is an explicit override),
     // which removeEmptyValues' truthy filter would silently strip on save.
     const validLayerProps = removeEmptyLayerProps(layerProperties);
+    // The copy that rode in on `layerProps` is stale the moment the Labels tab
+    // is touched, and it has already been through the pruning above. The live
+    // slice is written back onto `configuration.props` below instead.
 
     if (!isRuntime) {
       const missingRequiredProps = checkRequiredKeys(
@@ -302,15 +412,19 @@ const MapLayerModal = ({
       const layerId = existingLayerId || uuidv4();
       mapConfiguration = {
         configuration: {
-          type: applyRenderAsImage("VectorLayer", validLayerProps),
+          type: isRuntimeGeoTIFF
+            ? "WebGLTile"
+            : applyRenderAsImage("VectorLayer", validLayerProps),
           props: {
             ...validLayerProps,
             layerId,
-            source: {
-              type: "GeoJSON",
-              props: {},
-              geojson: DYNAMIC_LAYER_PLACEHOLDER_GEOJSON,
-            },
+            source: isRuntimeGeoTIFF
+              ? buildRuntimeRasterSource(validSourceProps)
+              : {
+                  type: "GeoJSON",
+                  props: {},
+                  geojson: DYNAMIC_LAYER_PLACEHOLDER_GEOJSON,
+                },
             pluginSource: {
               source: sourceProps.source,
               args: sourceProps.args,
@@ -356,6 +470,17 @@ const MapLayerModal = ({
 
     if (Object.keys(attributeProps.omitted ?? []).length > 0) {
       mapConfiguration.omittedPopupAttributes = attributeProps.omitted;
+    }
+
+    // Gated on its own rather than riding on the alias check: a layer whose
+    // aliases are all blank saves no alias map, but its row order still counts.
+    const attributeOrder = Object.fromEntries(
+      Object.entries(attributeProps.order ?? {}).filter(
+        ([, fields]) => Array.isArray(fields) && fields.length > 0,
+      ),
+    );
+    if (Object.keys(attributeOrder).length > 0) {
+      mapConfiguration.attributeOrder = attributeOrder;
     }
 
     const resolvedTablePopupType = resolveTablePopupType(attributeProps);
@@ -414,89 +539,22 @@ const MapLayerModal = ({
       }
     }
 
-    if (sourceProps.type === "GeoTIFF" || sourceProps.type === "Zarr") {
-      const {
-        rampName,
-        rampMin,
-        rampMax,
-        rampReverse,
-        styleMode,
-        classes,
-        fallbackColor,
-      } = sourceProps;
-      const hasRampName =
-        typeof rampName === "string" && rampName.trim() !== "";
-
-      // A categorical layer colors by exact value, so it carries a class list
-      // instead of a range. Raw band values are required for the match to line
-      // up, so normalization is off from the start rather than at render time.
-      const usableClasses = (classes ?? []).filter(isUsableClass);
-      const isCategorical =
-        styleMode === "categorical" && usableClasses.length > 0;
-      if (isCategorical) {
-        const savedSource = mapConfiguration.configuration.props.source;
-        mapConfiguration.configuration.style = {
-          color: buildCategoricalStyleColor({
-            classes: usableClasses,
-            hasNodata: true,
-            maskBelow: validSourceProps.mask_below,
-            fallbackColor,
-          }),
-        };
-        savedSource.props.normalize = false;
-        // Nearest neighbor: interpolating class labels is meaningless and
-        // fringes nodata boundaries with the fallback color.
-        savedSource.props.interpolate = false;
-        savedSource.styleMode = "categorical";
-        savedSource.classes = usableClasses;
-        if (fallbackColor) savedSource.fallbackColor = fallbackColor;
-        // Kept so switching back to a ramp does not lose the chosen palette.
-        // Always present here: only a raster carries a class list, and the
-        // Style tab gives every raster a ramp name the moment it has none.
-        savedSource.rampName = rampName;
-        if (rampReverse === true) savedSource.rampReverse = true;
-      }
-      // Each bound is independent: a set one pins that end of the ramp, an
-      // empty one is resolved from the file's statistics at render time.
-      const isBoundSet = (v) =>
-        typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v));
-      const hasMin = isBoundSet(rampMin);
-      const hasMax = isBoundSet(rampMax);
-      const hasRange = hasMin && hasMax;
-      if (hasRampName && !isCategorical) {
-        // buildGeoTIFFStyleColor needs both bounds or neither. When only one is
-        // set, save the normalized placeholder — applyAutoRamp rebuilds the
-        // style at render time once it has resolved the missing bound.
-        //
-        // Both raster types end up with a nodata value at render time (a Zarr
-        // COG's -9999 sentinel, or the GeoTIFF's own tag / the NaN default), so
-        // OL always appends an alpha band for the style to guard.
-        const color = buildGeoTIFFStyleColor({
-          rampName,
-          rampMin: hasRange ? rampMin : "",
-          rampMax: hasRange ? rampMax : "",
-          rampReverse: rampReverse === true,
-          hasNodata: true,
-          maskBelow: validSourceProps.mask_below,
-        });
-        mapConfiguration.configuration.style = { color };
-        mapConfiguration.configuration.props.source.rampName = rampName;
-        // Persisted only when set, so an unreversed layer's config is unchanged
-        // from before this option existed.
-        if (rampReverse === true) {
-          mapConfiguration.configuration.props.source.rampReverse = true;
-        }
-        // Raw range styles raw band values; anything less than a full range
-        // normalizes band 1 from stats until the render-time resolve lands.
-        mapConfiguration.configuration.props.source.props.normalize = !hasRange;
-        // Persist each bound that is set. A missing one means "resolve it from
-        // the file", so a half-pinned range has to survive the save.
-        if (hasMin) {
-          mapConfiguration.configuration.props.source.rampMin = rampMin;
-        }
-        if (hasMax) {
-          mapConfiguration.configuration.props.source.rampMax = rampMax;
-        }
+    const isRasterLayer =
+      isRuntimeGeoTIFF ||
+      (!isRuntime &&
+        (sourceProps.type === "GeoTIFF" || sourceProps.type === "Zarr"));
+    if (isRasterLayer) {
+      // The ramp settings are the whole saved style. The compiled OpenLayers
+      // style, and the `normalize`/`interpolate` source behavior that goes with
+      // it, are derived from them each time the layer loads.
+      const rasterStyleToSave = buildRasterStyleSettings(rasterStyle);
+      // The Style tab defaults a raster's ramp to turbo as it mounts, so by
+      // the time this runs there is always at least a ramp name to save. The
+      // guard keeps an empty `style` key out of the saved config if that ever
+      // stops being true.
+      // istanbul ignore else -- unreachable; see above
+      if (Object.keys(rasterStyleToSave).length > 0) {
+        mapConfiguration.configuration.style = rasterStyleToSave;
       }
     } else if (style && style !== "{}") {
       const apiResponse = await saveLayerJSON({
@@ -522,6 +580,16 @@ const MapLayerModal = ({
       mapConfiguration.popupConfig = popupConfig;
     }
 
+    // Written straight onto `configuration.props`, past `removeEmptyLayerProps`:
+    // a label size or a zoom floor of 0 is a value the author set, and the flat
+    // pruning above drops nested objects' falsy members. Living inside
+    // `configuration.props` is also what makes it round-trip with no load
+    // wiring -- AddMapLayer's edit path hands everything but `source` back as
+    // `layerProps`.
+    if (labels && typeof labels === "object") {
+      mapConfiguration.configuration.labels = labels;
+    }
+
     addMapLayer(mapConfiguration);
     handleModalClose();
   }
@@ -544,6 +612,7 @@ const MapLayerModal = ({
     const attributeAliases = apiResponse.data.attributeAliases ?? {};
     const omittedPopupAttributes =
       apiResponse.data.omittedPopupAttributes ?? {};
+    const attributeOrder = apiResponse.data.attributeOrder ?? {};
     const layerTablePopupType = resolveTablePopupType(apiResponse.data);
     const updatedLayerProps = Object.fromEntries(
       Object.entries(apiResponse.data.configuration.props).filter(
@@ -555,6 +624,9 @@ const MapLayerModal = ({
 
     setSourceProps(apiResponse.data.configuration.props.source);
     setLayerProps(updatedLayerProps);
+    // A template may ship its own labels; they belong in the Labels tab
+    // rather than left buried in the configuration where nothing renders them.
+    setLabels(apiResponse.data.configuration.labels ?? null);
 
     const effectiveName = layerProps?.name || updatedLayerProps.name;
     setAttributeProps(
@@ -563,14 +635,21 @@ const MapLayerModal = ({
           variables: attributeVariables,
           omitted: omittedPopupAttributes,
           aliases: attributeAliases,
+          order: attributeOrder,
           tablePopupType: layerTablePopupType,
         },
         effectiveName,
       ),
     );
     setStyle(apiResponse.data.configuration.style);
+    setRasterStyle(rasterStyleSettings(apiResponse.data.configuration.style));
     setLegend(apiResponse.data.legend);
   };
+
+  // Which plugin is selected now, for a plugin's defaults that arrive after the
+  // author has already moved on to another.
+  const selectedPluginSourceRef = useRef(sourceProps?.source);
+  selectedPluginSourceRef.current = sourceProps?.source;
 
   const fetchPluginDefaults = useCallback(
     async (source, args) => {
@@ -614,13 +693,21 @@ const MapLayerModal = ({
           name: effectiveName,
           layerId: prev?.layerId,
         }));
+        // Same reason as the template path: a plugin-supplied label config
+        // has to be editable in the Labels tab.
+        setLabels(config.labels ?? null);
 
-        setAttributeProps(
+        // The row order is the author's, not the plugin's: no plugin supplies
+        // one, and the Attributes table is not re-read here, so it keeps
+        // showing the author's order. Resetting it would save a different
+        // order from the one on screen.
+        setAttributeProps((previous) =>
           normalizeAttributePropsForLayer(
             {
               variables: attributeVariables,
               omitted: omittedPopupAttributes,
               aliases: attributeAliases,
+              order: scaffold.attributeOrder ?? previous?.order ?? {},
               tablePopupType: scaffoldTablePopupType,
             },
             effectiveName,
@@ -628,6 +715,25 @@ const MapLayerModal = ({
         );
         setStyle(config.style);
         setLegend(scaffold.legend);
+
+        // A dynamic GeoTIFF's style is its ramp settings, so the scaffold's are
+        // loaded into the Style tab in place of the editor's, and its source
+        // props with them. From here they are the author's to change: this is
+        // the plugin offering a starting point, not claiming the style.
+        if (
+          getDynamicLayerSourceType(dynamicMapLayers, { source }) === "GeoTIFF"
+        ) {
+          // The author picked another plugin while this one was answering.
+          if (selectedPluginSourceRef.current !== source) {
+            return { success: true };
+          }
+          const scaffoldSource = config.props?.source ?? {};
+          setRasterStyle(rasterStyleSettings(config.style));
+          setSourceProps((prev) => ({
+            ...prev,
+            props: { ...(scaffoldSource.props ?? {}) },
+          }));
+        }
         return { success: true };
       } catch (err) {
         return {
@@ -638,9 +744,11 @@ const MapLayerModal = ({
     },
     [
       layerProps?.name,
+      dynamicMapLayers,
       setLayerProps,
       setAttributeProps,
       setStyle,
+      setRasterStyle,
       setLegend,
       variableInputValues,
       variableInputDateFormats,
@@ -652,7 +760,11 @@ const MapLayerModal = ({
       <Modal
         show={showModal}
         onHide={handleModalClose}
-        className="map-layer"
+        className={
+          hiddenForExtentDraw
+            ? "map-layer map-layer-hidden-for-extent-draw"
+            : "map-layer"
+        }
         dialogClassName="fiftyWideModalDialog"
         contentClassName="mapLayerContent"
         style={
@@ -717,11 +829,29 @@ const MapLayerModal = ({
                   containerRef={styleContainerRef}
                   layerProps={layerProps}
                   sourceProps={sourceProps}
-                  setSourceProps={setSourceProps}
+                  rasterStyle={rasterStyle}
+                  setRasterStyle={setRasterStyle}
                   shapefileDiscovery={shapefileDiscovery}
                 />
               </div>
             </Tab>
+            {showLabelsTab && (
+              <Tab
+                eventKey="labels"
+                title="Labels"
+                aria-label="layer-labels-tab"
+                className="layer-labels-tab"
+              >
+                <div ref={labelsContainerRef}>
+                  <LabelsPane
+                    layerName={layerProps?.name}
+                    labelConfig={labels}
+                    onChange={setLabels}
+                    containerRef={labelsContainerRef}
+                  />
+                </div>
+              </Tab>
+            )}
             <Tab
               eventKey="legend"
               title="Legend"
@@ -856,6 +986,19 @@ MapLayerModal.propTypes = {
     }), // an object of layer properties like opacity, zoom, etc. see components/map/utilities.js (layerPropertiesOptions) for examples
     legend: legendPropType,
     style: PropTypes.string, // name of .json file that is save with the application that contain the actual style json
+    // Label configuration sits beside `style` on the layer's configuration, not
+    // among its props. `minZoom` holds an authored zoom level; the map scope
+    // converts it to a resolution at render time.
+    labels: PropTypes.shape({
+      template: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+      anchor: PropTypes.string,
+      color: PropTypes.string,
+      haloColor: PropTypes.string,
+      size: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+      minZoom: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+      // Draw every label rather than hiding the ones that collide.
+      allowOverlap: PropTypes.bool,
+    }),
     attributeProps: attributePropsPropType,
     popupConfig: PropTypes.shape({
       id: PropTypes.number,

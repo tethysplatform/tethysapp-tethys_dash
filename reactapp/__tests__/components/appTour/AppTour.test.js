@@ -19,7 +19,21 @@ const mockedConfirm = jest.mocked(confirm);
 
 const { matchMedia } = window;
 
+const realGetComputedStyle = window.getComputedStyle;
+
 beforeEach(() => {
+  // The tour positions every step by reading computed styles up each target's
+  // whole ancestor chain -- the scroll parent search, react-joyride, popper and
+  // react-floater -- and jsdom answers each read by re-matching every rule
+  // styled-components has injected. That was nine of the fourteen seconds a
+  // tour took, and put the longest one within a second of the test timeout.
+  // These tests check the steps' content and navigation, not layout, so inline
+  // styles are all the positioning needs.
+  jest
+    .spyOn(window, "getComputedStyle")
+    .mockImplementation((element, pseudo) =>
+      element?.style ? element.style : realGetComputedStyle(element, pseudo),
+    );
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     value: jest.fn().mockImplementation((query) => ({

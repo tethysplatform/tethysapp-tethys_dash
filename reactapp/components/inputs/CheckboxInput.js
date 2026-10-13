@@ -16,6 +16,7 @@ const CheckboxInput = ({
   type,
   inputProps,
   divProps,
+  hideLabel = false,
 }) => {
   const changeHandler = (e) => {
     onChange(e.target.checked);
@@ -23,7 +24,10 @@ const CheckboxInput = ({
 
   return (
     <FlexDiv {...divProps}>
-      {label && (
+      {/* `label` still names the control for assistive tech even when it is
+          not drawn — for a caller that already renders its own label beside
+          the checkbox and would otherwise show it twice. */}
+      {label && !hideLabel && (
         <label className="no-caret">
           <b>{label}</b>:
         </label>
@@ -47,6 +51,7 @@ CheckboxInput.propTypes = {
   type: PropTypes.string, // type of input to use
   inputProps: PropTypes.object, // additional props to pass to the input
   divProps: PropTypes.object, // additional props to pass to the parent div
+  hideLabel: PropTypes.bool, // hide the visible label; the accessible name is unaffected
 };
 
 export default CheckboxInput;

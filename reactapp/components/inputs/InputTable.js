@@ -3,6 +3,12 @@ import { useState, useRef, useEffect } from "react";
 import Table from "react-bootstrap/Table";
 import styled from "styled-components";
 import DataSelect from "components/inputs/DataSelect";
+import ColorPickerPopOver from "components/inputs/ColorPickerPopOver";
+import { isTransparentColor } from "components/inputs/ColorPicker";
+import RowMoveButtons, {
+  moveRow,
+  useRowMoveFocus,
+} from "components/inputs/RowMoveButtons";
 
 const FullInput = styled.input`
   width: 100%;
@@ -69,15 +75,21 @@ const InputTable = ({
   disabledFields,
   hiddenFields = [],
   allowRowCreation,
+  allowRowReorder = false,
   headers,
   placeholders,
   show_placeholder_on_hover,
   types,
   selectConfigs,
+  displayFormatters,
 }) => {
   const [tableRows, setTableRows] = useState([]);
   const [tableHeaders, setTableHeaders] = useState([]);
+  // The color popover renders inside the table, so it stays within whatever
+  // modal holds it.
+  const containerRef = useRef(null);
   const [inputPlaceholders, setInputPlaceholders] = useState([]);
+  const [focusRequestFor, requestFocus] = useRowMoveFocus();
   const inputRefs = useRef([]);
 
   // get a new row with empty values that will be appended to table
@@ -145,12 +157,20 @@ const InputTable = ({
       setTableRows(newTableRows);
       onChange({ fullChange: newTableRows });
 
-      // Focus the previous row's first input
+      // Focus the previous row's first input. A reordered table can put a
+      // blank row first, which has no previous row to land on.
       const prevRowIndex = rowIndex - 1;
       const prevInputIndex = prevRowIndex * Object.keys(tableRows[0]).length;
       const prevInput = inputRefs.current[prevInputIndex];
-      prevInput.focus();
+      prevInput?.focus();
     }
+  };
+
+  const handleMove = (rowIndex, delta) => {
+    const newTableRows = moveRow(tableRows, rowIndex, delta);
+    setTableRows(newTableRows);
+    requestFocus(rowIndex, delta);
+    onChange({ fullChange: newTableRows });
   };
 
   const handleChange = (newValue, rowIndex, field) => {
@@ -162,12 +182,17 @@ const InputTable = ({
   };
 
   return (
-    <FullLabel>
+    <FullLabel ref={containerRef}>
       <b>{label}</b>:{" "}
       {tableRows.length > 0 && (
         <Table striped bordered hover size="sm">
           <thead>
             <tr>
+              {allowRowReorder && (
+                <th className="text-center" style={{ width: "1%" }}>
+                  Order
+                </th>
+              )}
               {tableHeaders.map((colHeader, index) => {
                 if (hiddenFields.includes(colHeader)) return null;
 
@@ -182,15 +207,31 @@ const InputTable = ({
           <tbody>
             {tableRows.map((row, rowIndex) => (
               <tr key={rowIndex}>
+                {allowRowReorder && (
+                  <CenteredTD>
+                    <RowMoveButtons
+                      index={rowIndex}
+                      count={tableRows.length}
+                      label={`row ${rowIndex + 1}`}
+                      onMove={handleMove}
+                      focusRequest={focusRequestFor(rowIndex)}
+                    />
+                  </CenteredTD>
+                )}
                 {Object.keys(row).map((field, fieldIndex) => {
                   if (hiddenFields.includes(field)) return null;
 
                   if (disabledFields && disabledFields.includes(field)) {
+                    const shown =
+                      typeof row[field] === "string"
+                        ? row[field]
+                        : JSON.stringify(row[field]);
+                    // Formatting is display-only: the row keeps the raw value,
+                    // which callers parse back (e.g. into config keys).
+                    const format = displayFormatters?.[field];
                     return (
                       <CenteredTD key={fieldIndex}>
-                        {typeof row[field] === "string"
-                          ? row[field]
-                          : JSON.stringify(row[field])}
+                        {format ? format(shown) : shown}
                       </CenteredTD>
                     );
                   } else {
@@ -262,6 +303,35 @@ const InputTable = ({
                               table, detached from the row it describes. */}
                           {content}
                         </td>
+                      );
+                    } else if (types?.[rowIndex] === "color") {
+                      // A color row stores a plain string like every other
+                      // row, and a fully transparent pick -- "no color" --
+                      // stores "" so it reads as empty everywhere downstream.
+                      // The picker opens opaque when empty: it keeps the
+                      // current alpha as the author moves through hues, so
+                      // opening at transparent would make every pick
+                      // invisible.
+                      return (
+                        <CenteredTD key={fieldIndex}>
+                          <ColorPickerPopOver
+                            label={`${field} Input ${rowIndex}`}
+                            color={row[field] || "transparent"}
+                            pickerColor={row[field] || "#000000"}
+                            onChange={(color) =>
+                              handleChange(
+                                isTransparentColor(color) ? "" : color,
+                                rowIndex,
+                                field,
+                              )
+                            }
+                            containerRef={containerRef}
+                            hideLabel
+                            divProps={{
+                              style: { justifyContent: "center" },
+                            }}
+                          />
+                        </CenteredTD>
                       );
                     } else if (
                       typeof row[field] === "boolean" ||
@@ -340,8 +410,12 @@ InputTable.propTypes = {
     ),
   ).isRequired, // array of objects (rows) that contain colum keys and values
   disabledFields: PropTypes.arrayOf(PropTypes.string), // array of fields to not have an input
+  // field -> function formatting how a disabled field's value is shown; the
+  // stored value is untouched
+  displayFormatters: PropTypes.objectOf(PropTypes.func),
   hiddenFields: PropTypes.arrayOf(PropTypes.string), // array of fields to hide
   allowRowCreation: PropTypes.bool, // determines if the table rows can be added
+  allowRowReorder: PropTypes.bool, // shows up/down buttons that move each row
   headers: PropTypes.arrayOf(PropTypes.string), // array of strings to use for table headers
   placeholders: PropTypes.arrayOf(PropTypes.objectOf(PropTypes.string)), // object with key as field and value as placeholder
   show_placeholder_on_hover: PropTypes.bool, // makes the input title the same as the placeholder so it can be seen on hover

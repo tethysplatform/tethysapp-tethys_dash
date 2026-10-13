@@ -167,6 +167,14 @@ const handlers = [
   rest.head(/.*/, (req, res) =>
     res.networkError("CORS probe blocked in tests"),
   ),
+  /* Anything else a test leaves unmocked - a fixture's example.com url, a
+     relative path jsdom resolves against localhost - gets an empty 404, as from
+     a host with nothing there. These used to reach the real network, which made
+     the suites that build layers slow and dependent on it. Failing them outright
+     instead left rejections nothing awaited, and one landing after its test had
+     finished failed whichever test was running then - even one in another file
+     run on the same worker. */
+  rest.all(/.*/, (req, res, ctx) => res(ctx.status(404))),
 ];
 
 export { handlers };

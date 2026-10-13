@@ -29,6 +29,7 @@ const StyledPopoverBody = styled(Popover.Body)`
 const ColorPickerPopover = ({
   label,
   color,
+  pickerColor,
   onChange,
   containerRef,
   divProps,
@@ -66,7 +67,7 @@ const ColorPickerPopover = ({
           <StyledPopoverBody>
             <ColorPicker
               hideInput={["rgb", "hsv"]}
-              color={color || "#cccccc"}
+              color={pickerColor || color || "#cccccc"}
               onChange={onChange}
             />
           </StyledPopoverBody>
@@ -79,6 +80,10 @@ const ColorPickerPopover = ({
 ColorPickerPopover.propTypes = {
   label: PropTypes.string.isRequired,
   color: PropTypes.string,
+  // Where the picker opens, when that should differ from what the swatch
+  // shows -- e.g. a transparent "none" swatch whose picker starts opaque, since
+  // the picker keeps the current alpha as the author moves through hues.
+  pickerColor: PropTypes.string,
   onChange: PropTypes.func.isRequired,
   containerRef: PropTypes.object.isRequired,
   divProps: PropTypes.object,

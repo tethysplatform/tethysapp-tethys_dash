@@ -20,7 +20,18 @@ import {
   argsContainPreset,
   IMAGE_VIZ_CACHE_LIMIT,
   toNumberOrEmpty,
+  normalizeVariableInputValue,
+  getPublishedVariableInputValues,
+  getVariableInputDateFormat,
+  buildPreloadedRequestKey,
 } from "components/visualizations/utilities";
+import appAPI from "services/api/app";
+import {
+  buildPreloadedVisualizationKey,
+  clearPreloadedVisualizations,
+  setPreloadedVisualization,
+  takePreloadedVisualization,
+} from "components/visualizations/preloadedVisualizationCache";
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
 import { format } from "date-fns";
@@ -196,17 +207,22 @@ test("getVisualization plotly", async () => {
     config: undefined,
     toggle_subplots: undefined,
     subplot_toggle: undefined,
+    min_plot_height: undefined,
+    min_plot_width: undefined,
   });
 });
 
 test("getVisualization plotly passes through subplot toggle opt-in keys", async () => {
-  // Regression: the plotly branch must forward plugin-returned top-level
-  // `toggle_subplots`/`subplot_toggle` keys, not strip them to data/layout/config.
+  // Regression: the plotly branch must forward the plugin-returned
+  // top-level `toggle_subplots`, `subplot_toggle`, `min_plot_height` and
+  // `min_plot_width` keys, not strip the response to data/layout/config.
   const plotData = {
     data: [],
     layout: {},
     toggle_subplots: true,
     subplot_toggle: { reflow: "vertical" },
+    min_plot_height: 800,
+    min_plot_width: 1200,
   };
   server.use(
     rest.get(
@@ -240,6 +256,8 @@ test("getVisualization plotly passes through subplot toggle opt-in keys", async 
     config: undefined,
     toggle_subplots: true,
     subplot_toggle: { reflow: "vertical" },
+    min_plot_height: 800,
+    min_plot_width: 1200,
   });
 });
 
@@ -1858,6 +1876,134 @@ test("checkForEmptyVariableInputs still warns for host-level vars when popupConf
   expect(emptyVariableWarnings).toStrictEqual(["Host Var variable is empty"]);
 });
 
+test("checkForEmptyVariableInputs ignores variable inputs referenced only by a label template", () => {
+  // Regression guard, direction 1: the empty-input check replaces the whole
+  // widget with a warning panel. `hasVariableInputValue` counts "" as empty,
+  // so a viewer clearing a text box referenced by a label would otherwise
+  // wipe out the map. The accepted trade is that a label-only reference
+  // never raises the unset-input warning.
+  const argsString = JSON.stringify({
+    baseMap: "https://example.com/basemap",
+    layers: [
+      {
+        configuration: {
+          type: "VectorLayer",
+          props: { name: "Stations" },
+          labels: {
+            template: "${Station Filter} — ${feature.station}",
+            anchor: "top-center",
+          },
+        },
+      },
+    ],
+  });
+  const metadataString = JSON.stringify({});
+  const variableInputValues = { "Station Filter": "" };
+
+  const emptyVariableWarnings = checkForEmptyVariableInputs({
+    metadataString,
+    argsString,
+    variableInputValues,
+  });
+
+  expect(emptyVariableWarnings).toStrictEqual(null);
+});
+
+test("checkForEmptyVariableInputs still warns for an unset input referenced outside a label template", () => {
+  // Regression guard, direction 2: the label skip must not silence the
+  // check for the rest of the widget. Same empty input, referenced both in a
+  // label and in a real arg — the real arg still warns.
+  const argsString = JSON.stringify({
+    baseMap: "${Station Filter}",
+    layers: [
+      {
+        configuration: {
+          type: "VectorLayer",
+          props: { name: "Stations" },
+          labels: { template: "${Station Filter}" },
+        },
+      },
+    ],
+  });
+  const metadataString = JSON.stringify({});
+  const variableInputValues = { "Station Filter": "" };
+
+  const emptyVariableWarnings = checkForEmptyVariableInputs({
+    metadataString,
+    argsString,
+    variableInputValues,
+  });
+
+  expect(emptyVariableWarnings).toStrictEqual([
+    "Station Filter variable is empty",
+  ]);
+});
+
+test("checkForEmptyVariableInputs warns for an unset input under a non-map `labels` key", () => {
+  // The exemption is scoped to a map layer's `configuration.labels`. `labels`
+  // is an ordinary word other visualizations use, so a plugin argument that
+  // merely shares the name is ordinary args: clearing an input it references
+  // must still raise the warning rather than be swallowed.
+  const argsString = JSON.stringify({
+    chart_title: "Timeseries",
+    subplot_toggle: { labels: { 1: "${Station Filter}" } },
+  });
+  const metadataString = JSON.stringify({});
+  const variableInputValues = { "Station Filter": "" };
+
+  const emptyVariableWarnings = checkForEmptyVariableInputs({
+    metadataString,
+    argsString,
+    variableInputValues,
+  });
+
+  expect(emptyVariableWarnings).toStrictEqual([
+    "Station Filter variable is empty",
+  ]);
+});
+
+test("updateObjectWithVariableInputs still substitutes inside a label template", () => {
+  // Substitution consults no skip set, so exempting a layer's labels from the
+  // scanners must not stop a label picking up variable input changes.
+  const args = {
+    baseMap: "https://example.com/basemap",
+    layers: [
+      {
+        configuration: {
+          type: "VectorLayer",
+          props: { name: "Stations" },
+          labels: {
+            template: "${Station Filter} — ${feature.station}",
+            anchor: "top-center",
+          },
+        },
+      },
+    ],
+  };
+
+  const result = updateObjectWithVariableInputs({
+    args,
+    variableInputs: { "Station Filter": "Snow" },
+    variableInputDateFormats: {},
+  });
+
+  // The variable input resolves; the per-feature token is preserved for the
+  // style function to resolve at draw time.
+  expect(result.layers[0].configuration.labels.template).toBe(
+    "Snow — ${feature.station}",
+  );
+
+  // And a later change to the same input flows through.
+  const updated = updateObjectWithVariableInputs({
+    args,
+    variableInputs: { "Station Filter": "Rain" },
+    variableInputDateFormats: {},
+  });
+  expect(updated.layers[0].configuration.labels.template).toBe(
+    "Rain — ${feature.station}",
+  );
+});
+
 test("getVisualization Custom Image with slider metadata returns imageSequence", async () => {
   const mockSetVizType = jest.fn();
   const mockSetVizData = jest.fn();
@@ -2121,6 +2267,83 @@ describe("findUnresolvedFeatureTokens", () => {
     };
     expect(findUnresolvedFeatureTokens(args)).toEqual(["feature.comid"]);
   });
+
+  test("skips a map layer's `labels` (resolved per feature at draw time)", () => {
+    // A map layer's label template resolves inside the OpenLayers style
+    // function, one feature at a time. If the gate saw it, every labeled
+    // layer would flip the Map widget to `featurePending` and blank it.
+    // Written at the path the layer editor saves it to: beside
+    // `configuration.style`, under the map's `layers`.
+    const mapArgs = {
+      baseMap: "https://example.com/basemap",
+      layers: [
+        {
+          configuration: {
+            type: "VectorLayer",
+            props: { name: "Stations" },
+            labels: {
+              template: "${feature.station} (${feature.elevation})",
+              anchor: "top-center",
+            },
+          },
+        },
+      ],
+    };
+    expect(findUnresolvedFeatureTokens(mapArgs)).toEqual([]);
+  });
+
+  test("does NOT skip a `labels` under `layers` whose parent is not `configuration`", () => {
+    // The scope pins the whole path, not just the `layers` ancestor: a key
+    // named `labels` sitting anywhere else inside a map's layers is ordinary
+    // args and must still gate the fetch.
+    const mapArgs = {
+      baseMap: "https://example.com/basemap",
+      layers: [
+        {
+          configuration: {
+            type: "VectorLayer",
+            props: { name: "Stations", labels: "${feature.station}" },
+          },
+        },
+      ],
+    };
+    expect(findUnresolvedFeatureTokens(mapArgs)).toEqual(["feature.station"]);
+  });
+
+  test("does NOT skip a `labels` outside a map's layers", () => {
+    // The exemption means "a map layer's label configuration". `labels` is a
+    // far more ordinary word than the other skip keys, and other
+    // visualizations really do use it, so args that merely carry a key of the
+    // same name must still gate on a real unresolved feature reference --
+    // otherwise the token would reach the plugin as a literal.
+    expect(
+      findUnresolvedFeatureTokens({
+        chart_title: "Timeseries",
+        subplot_toggle: { labels: { 1: "${feature.station}" } },
+      }),
+    ).toEqual(["feature.station"]);
+    // Even the exact parent key, with no `layers` ancestor above it.
+    expect(
+      findUnresolvedFeatureTokens({
+        configuration: { labels: { template: "${feature.station}" } },
+      }),
+    ).toEqual(["feature.station"]);
+  });
+
+  test("still reports feature tokens outside both a layer's labels and popupConfig", () => {
+    // Both directions of the guard on one object: the two exempt subtrees
+    // stay exempt, and a sibling reference still gates the fetch.
+    const mapArgs = {
+      river_id: "${feature.comid}",
+      layers: [
+        {
+          configuration: { labels: { template: "${feature.label_only}" } },
+          popupConfig: { titleTemplate: "${feature.popup_only}" },
+        },
+      ],
+    };
+    expect(findUnresolvedFeatureTokens(mapArgs)).toEqual(["feature.comid"]);
+  });
 });
 
 describe("findUnresolvedVariableInputTokens", () => {
@@ -2225,6 +2448,63 @@ describe("findUnresolvedVariableInputTokens", () => {
     expect(findUnresolvedVariableInputTokens(args)).toEqual(["Host Base"]);
   });
 
+  test("skips a map layer's `labels` but still reports siblings", () => {
+    // Same skip set as the feature scanner, so a variable input referenced
+    // only by a label stays invisible to the empty-input check while a
+    // sibling reference on the same widget still surfaces.
+    const mapArgs = {
+      baseMap: "${Host Base}",
+      layers: [
+        {
+          configuration: {
+            props: { name: "Stations" },
+            labels: {
+              template: "${Station Filter}: ${feature.station}",
+            },
+          },
+        },
+      ],
+    };
+    expect(findUnresolvedVariableInputTokens(mapArgs)).toEqual(["Host Base"]);
+  });
+
+  test("does NOT skip a `labels` under `layers` whose parent is not `configuration`", () => {
+    // Same scoping check as the feature scanner: the skip keys are shared, so
+    // the full path has to match for both.
+    const mapArgs = {
+      baseMap: "${Host Base}",
+      layers: [
+        {
+          configuration: {
+            props: { name: "Stations", labels: "${Station Filter}" },
+          },
+        },
+      ],
+    };
+    expect(findUnresolvedVariableInputTokens(mapArgs)).toEqual([
+      "Host Base",
+      "Station Filter",
+    ]);
+  });
+
+  test("does NOT skip a `labels` outside a map's layers", () => {
+    // A variable input's `metadata.labels` is walked normally, so an unset
+    // input referenced under it still surfaces to checkForEmptyVariableInputs
+    // instead of being silently swallowed.
+    expect(
+      findUnresolvedVariableInputTokens({
+        chart_title: "Timeseries",
+        metadata: { labels: { 1: "${Some Input}" } },
+      }),
+    ).toEqual(["Some Input"]);
+    // Even the exact parent key, with no `layers` ancestor above it.
+    expect(
+      findUnresolvedVariableInputTokens({
+        configuration: { labels: { template: "${Some Input}" } },
+      }),
+    ).toEqual(["Some Input"]);
+  });
+
   test("safe to call repeatedly without leaking regex state", () => {
     // Defends against the global-regex `lastIndex` pitfall shared with
     // findUnresolvedFeatureTokens.
@@ -2246,5 +2526,360 @@ describe("toNumberOrEmpty", () => {
     expect(toNumberOrEmpty("abc")).toBe("");
     expect(toNumberOrEmpty("")).toBe("");
     expect(toNumberOrEmpty(undefined)).toBe("");
+  });
+});
+
+describe("variable input publishing helpers", () => {
+  it("normalizes initial values the way VariableInput publishes them", () => {
+    expect(
+      normalizeVariableInputValue({
+        variable_options_source: "number",
+        initial_value: "0.3",
+      }),
+    ).toBe(0.3);
+    expect(
+      normalizeVariableInputValue({
+        variable_options_source: "checkbox",
+        initial_value: null,
+      }),
+    ).toBe(false);
+    expect(
+      normalizeVariableInputValue({
+        variable_options_source: "text",
+        initial_value: null,
+      }),
+    ).toBeNull();
+  });
+
+  it("publishes nothing for an empty value but publishes 0 and false", () => {
+    expect(getPublishedVariableInputValues("A", "")).toBeNull();
+    expect(getPublishedVariableInputValues("A", null)).toBeNull();
+    expect(getPublishedVariableInputValues("A", undefined)).toBeNull();
+    expect(getPublishedVariableInputValues("A", 0)).toEqual({ A: 0 });
+    expect(getPublishedVariableInputValues("A", false)).toEqual({ A: false });
+  });
+
+  it("spreads an object value's keys alongside the variable", () => {
+    const range = { "Start Date": "a", "End Date": "b" };
+    expect(getPublishedVariableInputValues("Range", range)).toEqual({
+      Range: range,
+      "Start Date": "a",
+      "End Date": "b",
+    });
+  });
+
+  it("finds the date format a variable input registers", () => {
+    expect(
+      getVariableInputDateFormat({
+        variable_options_source: "date-range",
+        metadata: { format: "MM/dd/yyyy" },
+      }),
+    ).toBe("MM/dd/yyyy");
+    expect(
+      getVariableInputDateFormat({
+        variable_options_source: "slider",
+        metadata: { dataType: "Date", outputFormat: "yyyy" },
+      }),
+    ).toBe("yyyy");
+    expect(
+      getVariableInputDateFormat({
+        variable_options_source: "slider",
+        metadata: { dataType: "Number" },
+      }),
+    ).toBeNull();
+    expect(
+      getVariableInputDateFormat({ variable_options_source: ["a"] }),
+    ).toBeNull();
+  });
+});
+
+describe("preloaded visualization cache", () => {
+  afterEach(() => {
+    clearPreloadedVisualizations();
+    jest.restoreAllMocks();
+  });
+
+  it("keys a request by what it is built from, regardless of key order", () => {
+    expect(
+      buildPreloadedVisualizationKey({ source: "s", args: { a: 1, b: 2 } }),
+    ).toBe(
+      buildPreloadedVisualizationKey({ source: "s", args: { b: 2, a: 1 } }),
+    );
+    expect(
+      buildPreloadedVisualizationKey({ source: "s", args: { a: 1 } }),
+    ).not.toBe(buildPreloadedVisualizationKey({ source: "s", args: { a: 2 } }));
+    // Only the referenced variables' values count.
+    const key = (variableInputValues) =>
+      buildPreloadedVisualizationKey({
+        source: "s",
+        args: { a: "${X}" },
+        variableInputValues,
+        tokens: ["X"],
+      });
+    expect(key({ X: 1, Y: 1 })).toBe(key({ X: 1, Y: 2 }));
+    expect(key({ X: 1 })).not.toBe(key({ X: 2 }));
+  });
+
+  it("keys an array arg by its order, and descends into it", () => {
+    // An args value is often a list -- a multi-select's selection, a bbox --
+    // and order is meaningful in both. Serializing one as a plain object would
+    // key [1, 2] and [2, 1] alike and hand the tile the wrong response.
+    const key = (args) => buildPreloadedVisualizationKey({ source: "s", args });
+    expect(key({ a: [1, 2] })).toBe(key({ a: [1, 2] }));
+    expect(key({ a: [1, 2] })).not.toBe(key({ a: [2, 1] }));
+    expect(key({ a: [1, 2] })).not.toBe(key({ a: [1, 2, 3] }));
+    // Key order is normalized at every depth, inside a list as well as outside.
+    expect(key({ a: [{ x: 1, y: 2 }] })).toBe(key({ a: [{ y: 2, x: 1 }] }));
+    expect(key({ a: [{ x: 1 }] })).not.toBe(key({ a: [{ x: 2 }] }));
+  });
+
+  it("keys the values JSON cannot carry without collapsing them", () => {
+    // JSON.stringify returns undefined rather than a string for these, so the
+    // fallback is what keeps them from reading as the same key.
+    const key = (args) => buildPreloadedVisualizationKey({ source: "s", args });
+    expect(key({ a: undefined })).toBe(key({ a: null }));
+    expect(key({ a: 1 })).not.toBe(key({ a: null }));
+  });
+
+  it("keys a request with no source or args without collapsing them", () => {
+    // Neither is guaranteed: a key is built from whatever the grid item has,
+    // and JSON.stringify gives nothing back for undefined, which would make
+    // every such key identical.
+    const bare = buildPreloadedVisualizationKey({});
+    expect(bare).toBe(
+      buildPreloadedVisualizationKey({ source: null, args: null }),
+    );
+    expect(bare).not.toBe(buildPreloadedVisualizationKey({ source: "s" }));
+    expect(bare).not.toBe(buildPreloadedVisualizationKey({ args: {} }));
+  });
+
+  it("caches nothing for a grid item with no request id", () => {
+    // A popup-nested item, or one not yet saved, has no uuid to key on. There
+    // is nothing to hand back to later, so the preload simply does not cache
+    // it -- rather than storing every such item under one shared key.
+    expect(() =>
+      setPreloadedVisualization(undefined, "key", Promise.resolve({})),
+    ).not.toThrow();
+    expect(takePreloadedVisualization(undefined, "key")).toBe(undefined);
+    expect(takePreloadedVisualization(null, "key")).toBe(undefined);
+  });
+
+  it("keys an unset variable the same as one explicitly null", () => {
+    // A referenced variable with no value yet is part of the key, as null, so
+    // the request built before it was set does not match the one built after.
+    const key = (variableInputValues) =>
+      buildPreloadedVisualizationKey({
+        source: "s",
+        args: { a: "${X}" },
+        variableInputValues,
+        tokens: ["X"],
+      });
+    expect(key({})).toBe(key({ X: null }));
+    expect(key(undefined)).toBe(key({ X: null }));
+    // Explicitly null, which skips the default parameter: the variable inputs
+    // context holds null until its provider mounts, and a key built then has
+    // to match one built from an empty map rather than throwing.
+    expect(key(null)).toBe(key({ X: null }));
+    expect(key({})).not.toBe(key({ X: "set" }));
+  });
+
+  it("keys a referenced variable's date format as well as its value", () => {
+    // The format decides what a date value resolves to, so two requests with
+    // the same value and different formats are different requests.
+    const key = (variableInputDateFormats) =>
+      buildPreloadedVisualizationKey({
+        source: "s",
+        args: { a: "${When}" },
+        variableInputValues: { When: "now-1D" },
+        variableInputDateFormats,
+        tokens: ["When"],
+      });
+    expect(key({ When: "YYYY-MM-DD" })).not.toBe(key({ When: "YYYY" }));
+    expect(key({ When: "YYYY-MM-DD" })).not.toBe(key({}));
+    expect(key({})).toBe(key(undefined));
+    expect(key({})).toBe(key(null));
+  });
+
+  it("hands an entry out once, and only for the key it was built from", async () => {
+    const response = { success: true };
+    setPreloadedVisualization("uuid", "key", Promise.resolve(response));
+    expect(takePreloadedVisualization("uuid", "other")).toBe(undefined);
+    // A miss discards the entry: it was for a configuration now gone.
+    expect(takePreloadedVisualization("uuid", "key")).toBe(undefined);
+
+    setPreloadedVisualization("uuid", "key", Promise.resolve(response));
+    await Promise.resolve();
+    const entry = takePreloadedVisualization("uuid", "key");
+    expect(entry.settled).toBe(true);
+    await expect(entry.promise).resolves.toBe(response);
+    expect(takePreloadedVisualization("uuid", "key")).toBe(undefined);
+  });
+
+  const preloadedResponse = {
+    success: true,
+    viz_type: "variable_input",
+    data: {
+      variable_name: "Station",
+      initial_value: "ABC",
+      variable_options_source: "text",
+    },
+  };
+
+  const runGetVisualization = (overrides = {}) => {
+    const setVizType = jest.fn();
+    const setVizData = jest.fn();
+    return getVisualization({
+      setVizType,
+      setVizData,
+      sourceType: "variable_input",
+      sourceArgs: { region: "text" },
+      itemData: { source: "station_picker", args: {}, requestId: "uuid-1" },
+      argsString: JSON.stringify({ region: "west" }),
+      metadataString: "{}",
+      variableInputValues: {},
+      dashboardView: true,
+      ...overrides,
+    }).then(() => ({ setVizType, setVizData }));
+  };
+
+  const preload = (
+    promise = Promise.resolve(preloadedResponse),
+    args = { region: "west" },
+    variableInputValues = {},
+  ) =>
+    setPreloadedVisualization(
+      "uuid-1",
+      buildPreloadedRequestKey({
+        source: "station_picker",
+        args,
+        variableInputValues,
+      }),
+      promise,
+    );
+
+  it("serves a preloaded response to the tile once, then fetches", async () => {
+    const spy = jest
+      .spyOn(appAPI, "getVisualizationData")
+      .mockResolvedValue(preloadedResponse);
+    preload();
+    await Promise.resolve();
+
+    const first = await runGetVisualization();
+    expect(spy).not.toHaveBeenCalled();
+    // No loader flash for a response that is already here.
+    expect(first.setVizType.mock.calls.map((call) => call[0])).toEqual([
+      "variableInput",
+    ]);
+    expect(first.setVizData).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variable_name: "Station",
+        initial_value: "ABC",
+      }),
+    );
+
+    await runGetVisualization();
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it("awaits a preload still in flight, showing the loader meanwhile", async () => {
+    const spy = jest.spyOn(appAPI, "getVisualizationData");
+    let resolvePreload;
+    preload(
+      new Promise((resolve) => {
+        resolvePreload = resolve;
+      }),
+    );
+
+    const tile = runGetVisualization({ vizLoadingIcon: true });
+    await Promise.resolve();
+    resolvePreload(preloadedResponse);
+    const { setVizType } = await tile;
+
+    expect(spy).not.toHaveBeenCalled();
+    expect(setVizType.mock.calls.map((call) => call[0])).toEqual([
+      "loader",
+      "variableInput",
+    ]);
+  });
+
+  it("matches across date math resolved at different times", async () => {
+    jest.useFakeTimers({ now: new Date("2026-01-01T00:00:00Z") });
+    try {
+      const spy = jest.spyOn(appAPI, "getVisualizationData");
+      const args = { region: "now-1D" };
+      preload(Promise.resolve(preloadedResponse), args);
+      jest.setSystemTime(new Date("2026-01-01T00:00:07Z"));
+
+      await runGetVisualization({
+        argsString: JSON.stringify(args),
+        sourceArgs: { region: "date" },
+      });
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("is not consumed outside the dashboard view", async () => {
+    const spy = jest
+      .spyOn(appAPI, "getVisualizationData")
+      .mockResolvedValue(preloadedResponse);
+    preload();
+
+    await runGetVisualization({ dashboardView: false });
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(
+      takePreloadedVisualization(
+        "uuid-1",
+        buildPreloadedRequestKey({
+          source: "station_picker",
+          args: { region: "west" },
+        }),
+      ),
+    ).toBeDefined();
+  });
+
+  it("is bypassed, and discarded, on a refresh", async () => {
+    const spy = jest
+      .spyOn(appAPI, "getVisualizationData")
+      .mockResolvedValue(preloadedResponse);
+    preload();
+
+    await runGetVisualization({ refresh: true });
+    expect(spy).toHaveBeenCalledTimes(1);
+    await runGetVisualization();
+    expect(spy).toHaveBeenCalledTimes(2);
+  });
+
+  it("misses when the args differ from the preloaded ones", async () => {
+    const spy = jest
+      .spyOn(appAPI, "getVisualizationData")
+      .mockResolvedValue(preloadedResponse);
+    preload();
+
+    await runGetVisualization({
+      argsString: JSON.stringify({ region: "east" }),
+    });
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it("misses when a referenced variable's value differs", async () => {
+    const spy = jest
+      .spyOn(appAPI, "getVisualizationData")
+      .mockResolvedValue(preloadedResponse);
+    preload(
+      Promise.resolve(preloadedResponse),
+      { region: "${Region}" },
+      {
+        Region: "west",
+      },
+    );
+
+    await runGetVisualization({
+      argsString: JSON.stringify({ region: "${Region}" }),
+      variableInputValues: { Region: "east" },
+    });
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy.mock.calls[0][0].args).toEqual({ region: "east" });
   });
 });

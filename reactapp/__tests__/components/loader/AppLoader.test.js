@@ -27,6 +27,7 @@ const TestingComponent = () => {
     visualizations,
     visualizationArgs,
     mapLayerTemplates,
+    dynamicMapLayers,
   } = useContext(AppContext);
   const { permissionGroups } = useContext(PermissionGroupContext);
   const { availableDashboards } = useContext(AvailableDashboardsContext);
@@ -41,6 +42,7 @@ const TestingComponent = () => {
       </p>
       <p data-testid="visualizations">{JSON.stringify(visualizations)}</p>
       <p data-testid="mapLayerTemplates">{JSON.stringify(mapLayerTemplates)}</p>
+      <p data-testid="dynamicMapLayers">{JSON.stringify(dynamicMapLayers)}</p>
       <p data-testid="visualizationArgs">{JSON.stringify(visualizationArgs)}</p>
       <p data-testid="availableDashboards">
         {JSON.stringify(availableDashboards)}
@@ -435,4 +437,68 @@ test("AppLoader, support info from dashboards.support_info", async () => {
       },
     }),
   );
+});
+
+test("AppLoader carries each dynamic map layer plugin's source type, defaulting to GeoJSON", async () => {
+  const rasterPlugin = {
+    source: "echo_runtime_raster",
+    value: "Echo Runtime Raster",
+    label: "Echo Runtime Raster",
+    args: { mode: "text" },
+    type: "map_layer",
+    tags: [],
+    description: "",
+    dynamic_map_layer: true,
+    dynamic_map_layer_source: "GeoTIFF",
+  };
+  // An older backend sends no dynamic_map_layer_source at all.
+  const undeclaredPlugin = {
+    source: "custom_layer_test",
+    value: "Stream Gauges (Dynamic)",
+    label: "Stream Gauges (Dynamic)",
+    args: {},
+    type: "map_layer",
+    tags: [],
+    description: "",
+    dynamic_map_layer: true,
+  };
+  server.use(
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/list/",
+      (req, res, ctx) =>
+        res(
+          ctx.status(200),
+          ctx.json({
+            visualizations: [
+              {
+                label: "Map Layers",
+                options: [rasterPlugin, undeclaredPlugin],
+              },
+            ],
+          }),
+          ctx.set("Content-Type", "application/json"),
+        ),
+    ),
+  );
+
+  render(
+    <ModalPriorityProvider>
+      <Loader>
+        <TestingComponent />
+      </Loader>
+    </ModalPriorityProvider>,
+  );
+
+  const dynamicMapLayers = JSON.parse(
+    (await screen.findByTestId("dynamicMapLayers")).textContent,
+  );
+  expect(dynamicMapLayers).toEqual([
+    {
+      label: "Dynamic Map Layers",
+      options: [
+        rasterPlugin,
+        { ...undeclaredPlugin, dynamic_map_layer_source: "GeoJSON" },
+      ],
+    },
+  ]);
 });

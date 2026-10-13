@@ -61,4 +61,19 @@ describe("LoadingAnimation", () => {
       });
     }).not.toThrow();
   });
+
+  it("announces its text and detail as a status", () => {
+    render(
+      <LoadingAnimation
+        text="Loading Dashboard..."
+        detail="Loading variable inputs… (1 of 2)"
+      />,
+    );
+    act(() => {
+      jest.runAllTimers();
+    });
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent("Loading Dashboard...");
+    expect(status).toHaveTextContent("Loading variable inputs… (1 of 2)");
+  });
 });

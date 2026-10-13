@@ -22,6 +22,9 @@ import {
   loadLayerJSONs,
   resolveTablePopupType,
   formatAttributeValue,
+  orderAttributeNames,
+  collectLayerAttributeMaps,
+  attributeOrderPropType,
   CLIENT_VECTOR_SOURCE_TYPES,
 } from "components/map/utilities";
 import { rankQueriedFeatures } from "components/map/ranking";
@@ -38,11 +41,17 @@ import useSnapping, {
 } from "components/visualizations/useSnapping";
 import PropTypes from "prop-types";
 import { COLOR_RAMPS, resolveRamp } from "components/map/colorRamps";
+import {
+  classLegendItems,
+  isClassStyleMode,
+  rasterStyleSettings,
+} from "components/map/geoTIFFStyle";
 import { applyAutoRamp } from "components/map/ModuleLoader";
 import { getBaseMapLayer } from "components/visualizations/utilities";
 import { LAYER_STATE, parseProgress } from "components/map/layerStatus";
 import { WebsocketContext } from "components/contexts/WebSocketContext";
 import useRuntimeLayerFetcher from "components/visualizations/runtimeLayerFetcher";
+import { isRuntimeRasterConfig } from "components/map/runtimeRaster";
 import {
   AppContext,
   DataViewerModeContext,
@@ -56,6 +65,7 @@ import { useViewGroupContext } from "components/contexts/ViewGroupContext";
 import {
   isViewGroupMember,
   readViewGroupSettings,
+  stripLabelsInPopup,
 } from "components/map/viewGroup";
 import PopupModal from "components/modals/PopupModal/PopupModal";
 import PopupModalChrome from "components/modals/PopupModal/PopupModalChrome";
@@ -165,22 +175,51 @@ function defaultVectorSwatchSymbol(source) {
   return "circle";
 }
 
+// The colorbar legend entry for a continuous ramp, or null when the ramp name
+// is not one the app knows. Shared by the saved-config legend and the runtime
+// raster legend so both resolve colors (and reversal) the same way.
+function buildRampColorbar({ rampName, rampReverse, rampMin, rampMax, title }) {
+  if (typeof rampName !== "string" || !COLOR_RAMPS[rampName]) return null;
+  return {
+    rampColors: resolveRamp(rampName, rampReverse === true),
+    rampMin,
+    rampMax,
+    title,
+  };
+}
+
+// Marks the legend position a runtime GeoTIFF's colorbar fills. Its ramp is
+// whatever the last successful fetch drew, which only the runtime fetcher
+// knows, so the legend built from the saved configs holds a slot in layer order
+// and the colorbar is dropped into it at render time.
+const RUNTIME_RASTER_LEGEND_SLOT = Symbol("runtimeRasterLegendSlot");
+
 export const Popup = ({
   layerAttributes,
   onSwipe,
   onSwiper,
   omittedPopupAttributes,
   aliases,
+  order = {},
 }) => {
+  // Rows are built as a list rather than an object keyed by display name: an
+  // object would move integer-like names ("2020") back to the front, and two
+  // fields sharing an alias would collapse into one row.
   const filteredLayerAttributes = layerAttributes.map((feature) => {
     const omittedFields = omittedPopupAttributes[feature.layerName] || [];
     const aliasMap = aliases[feature.layerName] || {};
-    const filteredAttributes = Object.fromEntries(
-      Object.entries(feature.attributes)
-        .filter(([key]) => !omittedFields.includes(key))
-        .map(([key, value]) => [aliasMap[key] || key, value]),
+    const visibleFields = Object.keys(feature.attributes).filter(
+      (key) => !omittedFields.includes(key),
     );
-    return { ...feature, attributes: filteredAttributes };
+    const rows = orderAttributeNames(
+      visibleFields,
+      order[feature.layerName],
+    ).map((key) => ({
+      key,
+      label: aliasMap[key] || key,
+      value: feature.attributes[key],
+    }));
+    return { ...feature, rows };
   });
 
   return (
@@ -219,8 +258,7 @@ export const Popup = ({
                   </tr>
                 </thead>
                 <tbody>
-                  {Object.keys(selectedFeature.attributes).map((field) => {
-                    const value = selectedFeature.attributes[field];
+                  {selectedFeature.rows.map(({ key, label, value }) => {
                     // Simple URL regex: matches http(s)://, ftp://, or www.
                     const urlRegex =
                       /^(https?:\/\/|ftp:\/\/|www\.)[\w-]+(\.[\w-]+)+([\w\-.,@?^=%&:/~+#]*[\w\-@?^=%&/~+#])?/i;
@@ -244,8 +282,8 @@ export const Popup = ({
                       renderedValue = formatAttributeValue(value);
                     }
                     return (
-                      <tr key={field}>
-                        <OverflowTD>{field}</OverflowTD>
+                      <tr key={key}>
+                        <OverflowTD>{label}</OverflowTD>
                         <OverflowTD>{renderedValue}</OverflowTD>
                       </tr>
                     );
@@ -333,6 +371,7 @@ const MapVisualization = ({
   const mapAttributeVariablesRef = useRef({});
   const mapOmittedPopupAttributesRef = useRef({});
   const mapAttributeAliasesRef = useRef({});
+  const mapAttributeOrderRef = useRef({});
   const mapContainerRef = useRef(null);
   // Debounces pointermove-driven hover queries. The handler restarts a 250ms
   // timer on every move so the actual query only fires once the cursor
@@ -407,16 +446,17 @@ const MapVisualization = ({
   }, []);
 
   const { getMessageForRequest } = useContext(WebsocketContext) ?? {};
-  const { errorsByLayerId, loadingByLayerId } = useRuntimeLayerFetcher({
-    layers,
-    gridItemUUID,
-    sessionNonce,
-    mapRef: visualizationRef,
-    variableInputValues,
-    variableInputDateFormats,
-    onBeforeSwap: dismissPopupBeforeSwap,
-    refreshTick: refreshCount,
-  });
+  const { errorsByLayerId, loadingByLayerId, rasterLegendByLayerId } =
+    useRuntimeLayerFetcher({
+      layers,
+      gridItemUUID,
+      sessionNonce,
+      mapRef: visualizationRef,
+      variableInputValues,
+      variableInputDateFormats,
+      onBeforeSwap: dismissPopupBeforeSwap,
+      refreshTick: refreshCount,
+    });
 
   const runtimeLayerState = { errorsByLayerId };
 
@@ -490,6 +530,15 @@ const MapVisualization = ({
   // reconciliation would eventually sweep it away.
   const viewGroupContext = useViewGroupContext();
   const { activeTabId } = useContext(TabContext) ?? {};
+  // A map nested in a popup modal draws no labels -- see stripLabelsInPopup
+  // for why a per-feature label cannot mean anything in that scope. Dropped at
+  // render rather than on save, so a label saved before the layer was reused in
+  // a popup, or one a plugin supplied, is covered too.
+  const layersForMap = useMemo(
+    () => stripLabelsInPopup(mapLayers, activeTabId),
+    [mapLayers, activeTabId],
+  );
+
   const viewGroupName = readViewGroupSettings(mapExtent).viewGroup;
   // The same membership rules MapComponent applies to the view half of a
   // group, so the two halves are never enabled independently of each other.
@@ -629,6 +678,7 @@ const MapVisualization = ({
                 }}
                 omittedPopupAttributes={mapOmittedPopupAttributesRef.current}
                 aliases={mapAttributeAliasesRef.current}
+                order={mapAttributeOrderRef.current}
               />
             ) : (
               <CenteredP>No Attributes Found</CenteredP>
@@ -780,12 +830,15 @@ const MapVisualization = ({
         // showing a white map while their layers prepare.
         // Not guarded: the line above already parsed `layers`, so reaching
         // here with nothing is not a state this block survives.
+        // A raster a plugin drives never owns the view (see Map.js), so it
+        // does not hold the basemap back either.
         const rasterWillOwnTheView = layers.some((layer) => {
           const configuration = layer?.configuration;
           return (
             configuration?.type === "WebGLTile" &&
             (configuration.props?.source?.type === "GeoTIFF" ||
-              configuration.props?.source?.type === "Zarr")
+              configuration.props?.source?.type === "Zarr") &&
+            !configuration.props?.pluginSource
           );
         });
         if (baseMapLayer && !rasterWillOwnTheView) {
@@ -868,65 +921,80 @@ const MapVisualization = ({
         // the layer itself does not need the legend, and the map resolves the
         // same ramp for its own construction. So the legend arrives when the
         // stats do (the two reads share one fetch; see applyAutoRamp).
+        //
+        // A runtime raster is skipped: it has no file until its plugin runs,
+        // and its range is resolved per fetch by the runtime fetcher instead.
         await Promise.all(
-          layers.map((layer) => applyAutoRamp(layer.configuration)),
+          layers.map((layer) =>
+            isRuntimeRasterConfig(layer.configuration)
+              ? undefined
+              : applyAutoRamp(layer.configuration),
+          ),
         );
 
         for (const layer of layers) {
           if (layer.legend) {
+            if (
+              layer.legend === "default" &&
+              isRuntimeRasterConfig(layer.configuration)
+            ) {
+              newMapLegend.push({
+                [RUNTIME_RASTER_LEGEND_SLOT]: layer.configuration.props.layerId,
+                title: layer.configuration.props.name,
+              });
+              continue;
+            }
             if (layer.legend === "default") {
               const rampSource = layer.configuration?.props?.source;
-              // A categorical raster gets one swatch per class rather than a
-              // colorbar — a gradient would imply a continuum between classes.
+              const isRaster =
+                rampSource?.type === "GeoTIFF" || rampSource?.type === "Zarr";
+              // A raster's ramp settings are its saved style. What was
+              // resolved about its file -- the range, whether it stayed
+              // normalized -- is on its source.
+              const rampStyle = isRaster
+                ? rasterStyleSettings(layer.configuration.style)
+                : {};
+              // A class-table raster (Categorical or Ranges) gets one swatch
+              // per class rather than a colorbar — a gradient would imply a
+              // continuum the classes do not have. Ranges lists them in
+              // ascending bound order, the order it colors them in.
               if (
-                rampSource?.styleMode === "categorical" &&
-                rampSource?.classes?.length
+                isClassStyleMode(rampStyle.styleMode) &&
+                rampStyle.classes?.length
               ) {
                 newMapLegend.push({
                   title: layer.configuration?.props?.name,
-                  items: rampSource.classes.map((entry) => ({
-                    color: entry.color,
-                    label: entry.label || String(entry.value),
-                    symbol: "square",
-                  })),
+                  items: classLegendItems(rampStyle),
                 });
                 continue;
               }
               // Zarr renders through a GeoTIFF source, so it gets the same
               // colorbar. In auto mode the range comes from the resolved
               // stats rather than author-entered values.
-              const rampMin =
-                rampSource?.rampMin ?? rampSource?.resolvedRampMin;
-              const rampMax =
-                rampSource?.rampMax ?? rampSource?.resolvedRampMax;
+              const rampMin = rampStyle.rampMin ?? rampSource?.resolvedRampMin;
+              const rampMax = rampStyle.rampMax ?? rampSource?.resolvedRampMax;
               // When no range can be resolved (a file with no embedded
               // statistics), applyAutoRamp leaves the raster rendering on a
               // normalized 0..1 scale. Label the colorbar 0..1 in that case
               // rather than dropping the legend entirely; without this a
               // ramp-styled raster shows no legend at all. `normalize` is an OL
-              // GeoTIFF source prop, so it lives under `source.props`.
-              const normalized =
-                rampSource?.props?.normalize === true ||
-                rampSource?.normalize === true;
+              // GeoTIFF source prop, which applyAutoRamp sets under
+              // `source.props` when the layer loads.
+              const normalized = rampSource?.props?.normalize === true;
               const effRampMin = rampMin ?? (normalized ? 0 : undefined);
               const effRampMax = rampMax ?? (normalized ? 1 : undefined);
-              if (
-                (rampSource?.type === "GeoTIFF" ||
-                  rampSource?.type === "Zarr") &&
-                typeof rampSource.rampName === "string" &&
-                COLOR_RAMPS[rampSource.rampName] &&
-                effRampMin !== undefined &&
-                effRampMax !== undefined
-              ) {
-                newMapLegend.push({
-                  rampColors: resolveRamp(
-                    rampSource.rampName,
-                    rampSource.rampReverse === true,
-                  ),
-                  rampMin: effRampMin,
-                  rampMax: effRampMax,
-                  title: layer.configuration?.props?.name,
-                });
+              const colorbar =
+                isRaster && effRampMin !== undefined && effRampMax !== undefined
+                  ? buildRampColorbar({
+                      rampName: rampStyle.rampName,
+                      rampReverse: rampStyle.rampReverse,
+                      rampMin: effRampMin,
+                      rampMax: effRampMax,
+                      title: layer.configuration?.props?.name,
+                    })
+                  : null;
+              if (colorbar) {
+                newMapLegend.push(colorbar);
                 continue;
               }
               // If the layer has a style JSON, pass it as legend metadata
@@ -995,6 +1063,32 @@ const MapVisualization = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layers, baseMap]);
 
+  // The legend the map shows: the one built from the saved configs, with each
+  // runtime raster's slot filled from the ramp its last successful fetch drew.
+  // A slot with no fetch yet (or a fetch that drew no colorbar) is dropped, so
+  // the raster shows nothing rather than its saved scaffold ramp, which may not
+  // be what is on screen. Only "default" legends hold a slot; an author's own
+  // legend went through untouched above.
+  const displayedMapLegend = useMemo(() => {
+    if (!mapLegend?.some((entry) => entry?.[RUNTIME_RASTER_LEGEND_SLOT])) {
+      return mapLegend;
+    }
+    return mapLegend.flatMap((entry) => {
+      const layerId = entry?.[RUNTIME_RASTER_LEGEND_SLOT];
+      if (!layerId) return [entry];
+      const ramp = rasterLegendByLayerId?.[layerId];
+      // A class-table style publishes its swatches rather than a ramp.
+      if (ramp?.items) {
+        return ramp.items.length > 0
+          ? [{ title: entry.title, items: ramp.items }]
+          : [];
+      }
+      const colorbar =
+        ramp && buildRampColorbar({ ...ramp, title: entry.title });
+      return colorbar ? [colorbar] : [];
+    });
+  }, [mapLegend, rasterLegendByLayerId]);
+
   // Swiping the table popup just moves the shared index; the active-feature
   // effect does the rest (highlight, anchor, variable inputs, and opening or
   // closing the modal). One list means the Swiper's index IS the shared index,
@@ -1007,6 +1101,13 @@ const MapVisualization = ({
     // bounds of the rendered slides.
     if (!features || !features[swiper.activeIndex]) return;
     setActiveFeatureIndex(swiper.activeIndex);
+  };
+
+  const setAttributeMapRefs = ({ aliases, variables, omitted, order }) => {
+    mapAttributeAliasesRef.current = aliases;
+    mapAttributeVariablesRef.current = variables;
+    mapOmittedPopupAttributesRef.current = omitted;
+    mapAttributeOrderRef.current = order;
   };
 
   const updateVariableInputsForFeature = (selectedFeature) => {
@@ -1152,50 +1253,9 @@ const MapVisualization = ({
     markerLayer.current = newMarkerLayer;
     map.addLayer(newMarkerLayer);
 
-    // reduce the layer attributes variables values into a simplified object of layer names and then values
-    const mapAttributeAliases = queryableLayers.reduce((combined, current) => {
-      if (
-        current.attributeAliases &&
-        typeof current.attributeAliases === "object"
-      ) {
-        // Merge the example object into the combined object
-        Object.assign(combined, current.attributeAliases);
-      }
-      return combined;
-    }, {});
-    mapAttributeAliasesRef.current = mapAttributeAliases;
-
-    // reduce the layer attributes variables values into a simplified object of layer names and then values
-    const mapAttributeVariables = queryableLayers.reduce(
-      (combined, current) => {
-        if (
-          current.attributeVariables &&
-          typeof current.attributeVariables === "object"
-        ) {
-          // Merge the example object into the combined object
-          Object.assign(combined, current.attributeVariables);
-        }
-        return combined;
-      },
-      {},
-    );
-    mapAttributeVariablesRef.current = mapAttributeVariables;
-
-    // reduce the layer omitted popup attribute values into a simplified object of layer names and then values
-    const mapOmittedPopupAttributes = queryableLayers.reduce(
-      (combined, current) => {
-        if (
-          current.omittedPopupAttributes &&
-          typeof current.omittedPopupAttributes === "object"
-        ) {
-          // Merge the example object into the combined object
-          Object.assign(combined, current.omittedPopupAttributes);
-        }
-        return combined;
-      },
-      {},
-    );
-    mapOmittedPopupAttributesRef.current = mapOmittedPopupAttributes;
+    // merge every queryable layer's attribute maps into one per kind, keyed by
+    // layer name, for the popup and the variable write-back to read
+    setAttributeMapRefs(collectLayerAttributeMaps(queryableLayers));
 
     // query the layers
     //
@@ -1354,41 +1414,9 @@ const MapVisualization = ({
     });
     if (hoverLayers.length === 0) return;
 
-    // Refresh the alias / variable / omitted-attribute refs from the
+    // Refresh the alias / variable / omitted-attribute / order refs from the
     // hover-eligible layer set so popup formatting honors per-layer overrides.
-    mapAttributeAliasesRef.current = hoverLayers.reduce((combined, current) => {
-      if (
-        current.attributeAliases &&
-        typeof current.attributeAliases === "object"
-      ) {
-        Object.assign(combined, current.attributeAliases);
-      }
-      return combined;
-    }, {});
-    mapAttributeVariablesRef.current = hoverLayers.reduce(
-      (combined, current) => {
-        if (
-          current.attributeVariables &&
-          typeof current.attributeVariables === "object"
-        ) {
-          Object.assign(combined, current.attributeVariables);
-        }
-        return combined;
-      },
-      {},
-    );
-    mapOmittedPopupAttributesRef.current = hoverLayers.reduce(
-      (combined, current) => {
-        if (
-          current.omittedPopupAttributes &&
-          typeof current.omittedPopupAttributes === "object"
-        ) {
-          Object.assign(combined, current.omittedPopupAttributes);
-        }
-        return combined;
-      },
-      {},
-    );
+    setAttributeMapRefs(collectLayerAttributeMaps(hoverLayers));
 
     const queryCalls = hoverLayers.map(async (layer) => {
       try {
@@ -1698,8 +1726,8 @@ const MapVisualization = ({
       <MapComponent
         mapConfig={mapConfig}
         mapExtent={mapExtent}
-        layers={mapLayers}
-        legend={mapLegend}
+        layers={layersForMap}
+        legend={displayedMapLegend}
         layerControl={layerControl}
         mapDrawing={mapDrawing}
         drawing={drawing}
@@ -1788,6 +1816,7 @@ Popup.propTypes = {
   onSwiper: PropTypes.func, // receives the Swiper instance so the popup modal can drive it
   omittedPopupAttributes: PropTypes.object,
   aliases: PropTypes.object,
+  order: attributeOrderPropType, // the author's field order per layer; unlisted fields follow
 };
 
 export default memo(MapVisualization);
