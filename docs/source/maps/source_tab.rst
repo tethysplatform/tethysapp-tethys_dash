@@ -238,6 +238,10 @@ The Static Image source overlays a georeferenced image (PNG, GIF, JPG, etc.) on 
     - **attributions:** (optional) Attributions.
     - **crossOrigin:** (optional) Force cross-origin (CORS) requests for this layer so it can be captured in the dashboard thumbnail. CORS support is detected per host automatically, so leave this off unless the layer renders blank in thumbnails. Only enable it when the server sends ``Access-Control-Allow-Origin`` — if it does not, the layer will fail to load entirely.
 
+**Aspect Ratio:**
+
+Below the source properties, **Keep aspect ratio when placing the image on the map** locks the placement rectangle to the image's proportions in the **Draw Extent on Map** editor, so the image is not stretched. It is saved with the layer as ``keepAspectRatio`` in the source properties and only affects placement, not how the layer renders.
+
 **Border:**
 
 Below the source properties, a static image can be given a border to help it stand out from the basemap:
@@ -260,7 +264,7 @@ Instead of manually entering the ``imageExtent`` coordinates, you can use the **
    - Drag an edge or corner to resize it.
    - Drag anywhere outside the rectangle to pan the map, and use the mouse wheel to zoom.
    - Hold **Shift** and drag to start a new rectangle.
-   - Check **Keep aspect ratio** to hold the rectangle to the image's own proportions. Checking it reshapes the current rectangle at once, keeping its width and center. The checkbox is available once the image has loaded.
+   - If **Keep aspect ratio when placing the image on the map** is checked on the Source tab, the rectangle holds the image's own proportions while you draw and resize it. An existing rectangle is reshaped as soon as the image loads, keeping its width and center.
 
 5. Click **Confirm** to accept the placement. The modal will reappear with the ``imageExtent`` and ``projection`` fields automatically populated in the map's projection. If you confirm without changing the rectangle, the saved values are left exactly as they were.
 6. Click **Cancel** to return to the modal without changes.

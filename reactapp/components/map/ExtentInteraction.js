@@ -77,15 +77,6 @@ const InstructionText = styled.span`
   color: #333;
 `;
 
-const CheckboxLabel = styled.label`
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 0.85rem;
-  color: #333;
-  margin: 0;
-`;
-
 const HelperText = styled.span`
   font-size: 0.8rem;
   color: #6c757d;
@@ -203,8 +194,6 @@ const ExtentInteraction = ({ visualizationRef }) => {
   const [projectionNote, setProjectionNote] = useState(null);
   // "loading" | "ready" | "error"
   const [imageStatus, setImageStatus] = useState("loading");
-  const [imageRatio, setImageRatio] = useState(null);
-  const [keepAspectRatio, setKeepAspectRatio] = useState(false);
 
   useEffect(() => {
     if (!extentDrawMode || !visualizationRef.current) return;
@@ -214,8 +203,6 @@ const ExtentInteraction = ({ visualizationRef }) => {
     setHasExtent(false);
     setProjectionNote(null);
     setImageStatus("loading");
-    setImageRatio(null);
-    setKeepAspectRatio(false);
 
     // Hide existing layers that match the image URL to avoid confusion
     const hiddenLayers = [];
@@ -272,7 +259,13 @@ const ExtentInteraction = ({ visualizationRef }) => {
         if (cancelled) return;
         if (loader.naturalWidth > 0 && loader.naturalHeight > 0) {
           image = loader;
-          setImageRatio(loader.naturalWidth / loader.naturalHeight);
+          // The lock is set on the Source tab; it takes hold once the image's
+          // proportions are known, snapping any box already placed.
+          if (extentDrawMode.keepAspectRatio) {
+            interaction.setAspectRatio(
+              loader.naturalWidth / loader.naturalHeight,
+            );
+          }
           setImageStatus("ready");
           boxLayer.changed();
         } else {
@@ -334,12 +327,6 @@ const ExtentInteraction = ({ visualizationRef }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [extentDrawMode]);
 
-  const handleKeepAspectRatio = (event) => {
-    const checked = event.target.checked;
-    setKeepAspectRatio(checked);
-    interactionRef.current?.setAspectRatio(checked ? imageRatio : null);
-  };
-
   const handleConfirm = () => {
     const interaction = interactionRef.current;
     if (!interaction) return;
@@ -369,20 +356,12 @@ const ExtentInteraction = ({ visualizationRef }) => {
         </InstructionText>
       </Row>
       <Row>
-        <CheckboxLabel>
-          <input
-            type="checkbox"
-            checked={keepAspectRatio}
-            disabled={imageStatus !== "ready"}
-            onChange={handleKeepAspectRatio}
-            aria-label="Keep aspect ratio"
-          />
-          Keep aspect ratio
-        </CheckboxLabel>
-        {imageStatus === "loading" && <HelperText>Loading image…</HelperText>}
-        {imageStatus === "error" && (
+        {extentDrawMode.keepAspectRatio && imageStatus === "loading" && (
+          <HelperText>Loading image to keep its aspect ratio…</HelperText>
+        )}
+        {extentDrawMode.keepAspectRatio && imageStatus === "error" && (
           <HelperText>
-            Image could not be loaded; aspect ratio unavailable
+            Image could not be loaded, so its aspect ratio can&apos;t be kept
           </HelperText>
         )}
         <ConfirmButton onClick={handleConfirm} disabled={!hasExtent}>

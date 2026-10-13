@@ -231,15 +231,18 @@ export default class ImageExtentInteraction extends PointerInteraction {
     this.aspectRatio_ = ratio || null;
     if (this.aspectRatio_ && this.extent_) {
       const locked = lockExtentToRatio(this.extent_, this.aspectRatio_);
-      // A box already at the ratio can still differ in the last float bits;
-      // that is not a change, so it must not count as an edit.
+      // A box already at the ratio -- one saved under the lock, whose numbers
+      // were then rounded -- moves by less than half a pixel. That is not a
+      // change, so it must not count as an edit (Confirm would otherwise
+      // rewrite the saved extent and projection).
       const height = this.extent_[3] - this.extent_[1];
-      const epsilon = Math.abs(height) * 1e-9;
+      const resolution = this.getMap()?.getView().getResolution() ?? 0;
+      const epsilon = Math.max(Math.abs(height) * 1e-9, resolution / 2);
       if (locked.some((v, i) => Math.abs(v - this.extent_[i]) > epsilon)) {
-        this.extent_ = locked;
         this.modified_ = true;
-        this.notify_();
       }
+      this.extent_ = locked;
+      this.notify_();
     }
   }
 

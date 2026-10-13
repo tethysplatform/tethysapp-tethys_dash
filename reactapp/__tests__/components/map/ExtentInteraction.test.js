@@ -216,51 +216,80 @@ test("a projection resolving after close does not throw", async () => {
   expect(screen.getByTestId("extentDrawMode")).toHaveTextContent("null");
 });
 
-test("the aspect checkbox waits for the image and locks to its ratio", async () => {
-  renderEditor({ initialExtent: [0, 0, 100, 100] });
+// A box a few hundred pixels across at the test view's zoom.
+const BIG_BOX = [0, 0, 1e7, 1e7];
+const BIG_BOX_AT_2_TO_1 = [0, 2.5e6, 1e7, 7.5e6];
+
+test("a lock set on the Source tab takes hold once the image loads", async () => {
+  renderEditor({ initialExtent: BIG_BOX, keepAspectRatio: true });
   await settle();
-  const checkbox = screen.getByLabelText("Keep aspect ratio");
-  expect(checkbox).toBeDisabled();
-  expect(checkbox).not.toBeChecked();
-  expect(screen.getByText("Loading image…")).toBeInTheDocument();
+  expect(
+    screen.getByText("Loading image to keep its aspect ratio…"),
+  ).toBeInTheDocument();
+  expect(editorInteraction().getAspectRatio()).toBeNull();
 
   finishImageLoad(200, 100);
-  expect(checkbox).not.toBeDisabled();
-  expect(screen.queryByText("Loading image…")).not.toBeInTheDocument();
-
-  fireEvent.click(checkbox);
+  expect(
+    screen.queryByText("Loading image to keep its aspect ratio…"),
+  ).not.toBeInTheDocument();
   expect(editorInteraction().getAspectRatio()).toBe(2);
-  expect(editorInteraction().getExtent()).toEqual([0, 25, 100, 75]);
+  expect(editorInteraction().getExtent()).toEqual(BIG_BOX_AT_2_TO_1);
 });
 
-test("the aspect checkbox stays disabled when the image fails to load", async () => {
-  renderEditor();
+test("without the lock the box stays free and no image status shows", async () => {
+  renderEditor({ initialExtent: [0, 0, 100, 100] });
+  await settle();
+  expect(screen.queryByText(/aspect ratio/)).not.toBeInTheDocument();
+  finishImageLoad(200, 100);
+  expect(editorInteraction().getAspectRatio()).toBeNull();
+  expect(editorInteraction().getExtent()).toEqual([0, 0, 100, 100]);
+});
+
+test("a requested lock reports an image that fails to load", async () => {
+  renderEditor({ keepAspectRatio: true });
   await settle();
   act(() => images[0].onerror());
-  expect(screen.getByLabelText("Keep aspect ratio")).toBeDisabled();
   expect(
-    screen.getByText("Image could not be loaded; aspect ratio unavailable"),
+    screen.getByText(
+      "Image could not be loaded, so its aspect ratio can't be kept",
+    ),
   ).toBeInTheDocument();
 });
 
 test("an image with no intrinsic size counts as a failed load", async () => {
-  renderEditor();
+  renderEditor({ keepAspectRatio: true });
   await settle();
   finishImageLoad(0, 0);
-  expect(screen.getByLabelText("Keep aspect ratio")).toBeDisabled();
+  expect(editorInteraction().getAspectRatio()).toBeNull();
+  expect(
+    screen.getByText(
+      "Image could not be loaded, so its aspect ratio can't be kept",
+    ),
+  ).toBeInTheDocument();
 });
 
 test("confirming a modified box sets drawnExtent", async () => {
-  renderEditor({ initialExtent: [0, 0, 100, 100] });
+  renderEditor({ initialExtent: BIG_BOX, keepAspectRatio: true });
   await settle();
+  // The lock snapping the box counts as a modification.
   finishImageLoad(200, 100);
-  // Checking the lock reshapes the box, which counts as a modification.
-  fireEvent.click(screen.getByLabelText("Keep aspect ratio"));
   fireEvent.click(screen.getByText("Confirm"));
   expect(screen.getByTestId("drawnExtent")).toHaveTextContent(
-    JSON.stringify([0, 25, 100, 75]),
+    JSON.stringify(BIG_BOX_AT_2_TO_1),
   );
   expect(screen.getByTestId("extentDrawMode")).toHaveTextContent("null");
+});
+
+test("reopening a box saved under the lock is not an edit", async () => {
+  // Saved at 2:1 and then rounded, as MapLayer's toFixed(2) does.
+  renderEditor({
+    initialExtent: [0, 2500000.01, 1e7, 7499999.99],
+    keepAspectRatio: true,
+  });
+  await settle();
+  finishImageLoad(200, 100);
+  fireEvent.click(screen.getByText("Confirm"));
+  expect(screen.getByTestId("drawnExtent")).toHaveTextContent("null");
 });
 
 test("confirming an untouched box writes nothing", async () => {
@@ -343,16 +372,19 @@ test("the preview draws the image and the configured border", async () => {
   expect(context.lineWidth).toBe(8);
 });
 
-test("a lock checked before the saved extent arrives is applied to it", async () => {
+test("a lock in force before the saved extent arrives is applied to it", async () => {
   let resolve;
   ensureProjectionAsync.mockReturnValue(
     new Promise((r) => {
       resolve = r;
     }),
   );
-  renderEditor({ initialExtent: [-10, 40, 10, 50], projection: "EPSG:4326" });
+  renderEditor({
+    initialExtent: [-10, 40, 10, 50],
+    projection: "EPSG:4326",
+    keepAspectRatio: true,
+  });
   finishImageLoad(200, 100);
-  fireEvent.click(screen.getByLabelText("Keep aspect ratio"));
   await act(() => resolve({ projection: getProjection("EPSG:4326") }));
 
   const [minX, minY, maxX, maxY] = editorInteraction().getExtent();

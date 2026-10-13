@@ -12,6 +12,15 @@ export const MAX_BORDER_WIDTH = 50;
 // The source props a static image's border is saved under.
 export const BORDER_PROP_KEYS = ["borderColor", "borderWidth"];
 
+// Static image source props that are not ImageStatic options: the border, and
+// the extent editor's aspect-ratio lock. The Source pane edits them outside
+// its property table, and the loader lifts them out before building the
+// source.
+export const STATIC_IMAGE_EXTRA_PROP_KEYS = [
+  ...BORDER_PROP_KEYS,
+  "keepAspectRatio",
+];
+
 // The OL property a Static Image source carries its normalized border under,
 // for the ImageLayer built around it to draw.
 export const IMAGE_BORDER_KEY = "imageBorder";
@@ -146,23 +155,24 @@ export function attachImageBorder(layer, border, { extent, projection }) {
   return () => unByKey(key);
 }
 
-// Split a Static Image source config's border settings from the props
-// ImageStatic is built from (it would otherwise receive them). A config with
-// no border settings comes back as the same object, so a layer saved without
-// a border loads exactly as before.
-export function splitImageBorder(config) {
+// Split a Static Image source config's extra settings (see
+// STATIC_IMAGE_EXTRA_PROP_KEYS) from the props ImageStatic is built from,
+// which would otherwise receive them. A config with none comes back as the
+// same object, so a layer saved without them loads exactly as before.
+export function splitStaticImageProps(config) {
   const props = config.props;
-  if (!props || !BORDER_PROP_KEYS.some((key) => key in props)) {
+  if (!props || !STATIC_IMAGE_EXTRA_PROP_KEYS.some((key) => key in props)) {
     return { config, border: null };
   }
-  const { borderColor, borderWidth, ...sourceProps } = props;
+  // eslint-disable-next-line no-unused-vars
+  const { borderColor, borderWidth, keepAspectRatio, ...sourceProps } = props;
   return {
     config: { ...config, props: sourceProps },
     border: normalizeBorder(borderColor, borderWidth),
   };
 }
 
-// Draw the border a static image source carries (see splitImageBorder) around
+// Draw the border a static image source carries (see splitStaticImageProps) around
 // the ImageLayer showing it. Returns a function that removes the border.
 export function attachSourceBorder(layer) {
   const source = layer.getSource?.();

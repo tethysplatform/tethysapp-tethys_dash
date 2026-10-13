@@ -8,7 +8,7 @@ import {
   IMAGE_BORDER_KEY,
   attachImageBorder,
   attachSourceBorder,
-  splitImageBorder,
+  splitStaticImageProps,
   drawBorder,
   footprintRing,
   isTransparentColor,
@@ -205,11 +205,11 @@ describe("attachImageBorder", () => {
   });
 });
 
-describe("splitImageBorder", () => {
+describe("splitStaticImageProps", () => {
   test("a config without border settings comes back as the same object", () => {
     const config = { type: "Static Image", props: { url: "a.png" } };
-    expect(splitImageBorder(config)).toEqual({ config, border: null });
-    expect(splitImageBorder(config).config).toBe(config);
+    expect(splitStaticImageProps(config)).toEqual({ config, border: null });
+    expect(splitStaticImageProps(config).config).toBe(config);
   });
 
   test("border settings are lifted out of the source props", () => {
@@ -217,10 +217,19 @@ describe("splitImageBorder", () => {
       type: "Static Image",
       props: { url: "a.png", borderColor: "#ff0000", borderWidth: 3 },
     };
-    const split = splitImageBorder(config);
+    const split = splitStaticImageProps(config);
     expect(split.config.props).toEqual({ url: "a.png" });
     expect(split.border).toEqual({ color: "#ff0000", width: 3 });
     expect(config.props.borderColor).toBe("#ff0000");
+  });
+
+  test("the editor's aspect lock is lifted out too", () => {
+    const split = splitStaticImageProps({
+      type: "Static Image",
+      props: { url: "a.png", keepAspectRatio: true },
+    });
+    expect(split.config.props).toEqual({ url: "a.png" });
+    expect(split.border).toBeNull();
   });
 });
 

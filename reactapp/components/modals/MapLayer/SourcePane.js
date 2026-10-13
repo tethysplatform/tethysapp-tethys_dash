@@ -11,8 +11,8 @@ import {
 import InputTable from "components/inputs/InputTable";
 import DataRadioSelect from "components/inputs/DataRadioSelect";
 import NormalInput from "components/inputs/NormalInput";
-import { BORDER_PROP_KEYS } from "components/map/imageBorder";
-import StaticImageBorderFields from "components/modals/MapLayer/StaticImageBorderFields";
+import { STATIC_IMAGE_EXTRA_PROP_KEYS } from "components/map/imageBorder";
+import StaticImageSourceFields from "components/modals/MapLayer/StaticImageSourceFields";
 import appAPI from "services/api/app";
 import { removeEmptyValues } from "components/modals/utilities";
 import { findSelectOptionByValue } from "components/visualizations/utilities";
@@ -109,15 +109,14 @@ function parsePropertiesArray(properties) {
   }, {});
 }
 
-// A static image's border settings live in its source props but have no row in
-// the property table, so a rebuild of the props from the table must carry them
-// over.
-function pickBorderProps(props) {
+// A static image's border and aspect-lock settings live in its source props
+// but have no row in the property table, so a rebuild of the props from the
+// table must carry them over.
+function pickStaticImageExtraProps(props) {
   return Object.fromEntries(
-    BORDER_PROP_KEYS.filter((key) => props?.[key] !== undefined).map((key) => [
-      key,
-      props[key],
-    ]),
+    STATIC_IMAGE_EXTRA_PROP_KEYS.filter(
+      (key) => props?.[key] !== undefined,
+    ).map((key) => [key, props[key]]),
   );
 }
 
@@ -589,7 +588,7 @@ const SourcePane = ({
       ...previousSourceProps,
       ...{
         props: {
-          ...pickBorderProps(previousSourceProps?.props),
+          ...pickStaticImageExtraProps(previousSourceProps?.props),
           ...removeEmptyValues(parsedSourceProps),
         },
       },
@@ -667,6 +666,7 @@ const SourcePane = ({
       initialExtent,
       imageUrl,
       projection: projection || null,
+      keepAspectRatio: !!sourceProps.props?.keepAspectRatio,
       borderColor: sourceProps.props?.borderColor,
       borderWidth: sourceProps.props?.borderWidth,
     });
@@ -866,9 +866,10 @@ const SourcePane = ({
                 <ShapefileDiscoveryPanel discovery={shapefileDiscovery} />
               )}
               {sourceType.value === "Static Image" && (
-                <StaticImageBorderFields
+                <StaticImageSourceFields
                   borderColor={sourceProps.props?.borderColor}
                   borderWidth={sourceProps.props?.borderWidth}
+                  keepAspectRatio={!!sourceProps.props?.keepAspectRatio}
                   setSourceProps={setSourceProps}
                 />
               )}

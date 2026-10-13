@@ -1614,6 +1614,59 @@ describe("SourcePane Static Image border", () => {
     expect(currentProps()).not.toHaveProperty("borderWidth");
   });
 
+  test("the aspect lock is saved only when checked", async () => {
+    render(
+      <TestingComponent
+        initialSourceProps={staticImage()}
+        onRequestHideModal={jest.fn()}
+      />,
+    );
+    const checkbox = await screen.findByLabelText(
+      "Keep aspect ratio when placing the image on the map",
+    );
+    expect(checkbox).not.toBeChecked();
+    expect(currentProps()).not.toHaveProperty("keepAspectRatio");
+
+    fireEvent.click(checkbox);
+    expect(checkbox).toBeChecked();
+    expect(currentProps().keepAspectRatio).toBe(true);
+
+    fireEvent.click(checkbox);
+    expect(currentProps()).not.toHaveProperty("keepAspectRatio");
+  });
+
+  test("a saved aspect lock shows checked and survives table edits", async () => {
+    render(
+      <TestingComponent
+        initialSourceProps={staticImage({ keepAspectRatio: true })}
+        onRequestHideModal={jest.fn()}
+      />,
+    );
+    expect(
+      await screen.findByLabelText(
+        "Keep aspect ratio when placing the image on the map",
+      ),
+    ).toBeChecked();
+    const inputs = await screen.findAllByRole("textbox");
+    fireEvent.change(inputs[0], {
+      target: { value: "https://example.com/other.png" },
+    });
+    expect(currentProps().keepAspectRatio).toBe(true);
+  });
+
+  test("Draw Extent on Map hands the aspect lock to the extent editor", async () => {
+    render(
+      <TestingComponent
+        initialSourceProps={staticImage({ keepAspectRatio: true })}
+        onRequestHideModal={jest.fn()}
+      />,
+    );
+    fireEvent.click(await screen.findByLabelText("Draw Extent on Map Button"));
+    expect(
+      JSON.parse(screen.getByTestId("extentDrawModeValue").textContent),
+    ).toMatchObject({ keepAspectRatio: true });
+  });
+
   test("Draw Extent on Map hands the border to the extent editor", async () => {
     render(
       <TestingComponent

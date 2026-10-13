@@ -32,7 +32,7 @@ import { readSlice } from "components/map/zarrReader";
 import {
   IMAGE_BORDER_KEY,
   attachSourceBorder,
-  splitImageBorder,
+  splitStaticImageProps,
 } from "components/map/imageBorder";
 
 const moduleCache = {};
@@ -1669,7 +1669,7 @@ const moduleLoader = async (config, mapProjection, getMapProjection) => {
   // A static image's border is drawn by its layer, not its source.
   let imageBorder = null;
   if (config.type === "Static Image") {
-    ({ config, border: imageBorder } = splitImageBorder(config));
+    ({ config, border: imageBorder } = splitStaticImageProps(config));
   }
 
   const instance = await loadModule(config, mapProjection, getMapProjection);
