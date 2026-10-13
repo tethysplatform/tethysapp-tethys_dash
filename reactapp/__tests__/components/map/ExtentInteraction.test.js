@@ -7,7 +7,8 @@ import VectorLayer from "ol/layer/Vector";
 import RenderEvent from "ol/render/Event";
 import { create as createTransform } from "ol/transform";
 import Static from "ol/source/ImageStatic";
-import { transformExtent, get as getProjection } from "ol/proj";
+import { addProjection, transformExtent, get as getProjection } from "ol/proj";
+import Projection from "ol/proj/Projection";
 import ExtentInteraction, {
   reprojectSavedExtent,
 } from "components/map/ExtentInteraction";
@@ -107,6 +108,18 @@ const Harness = ({ drawMode }) => {
 };
 
 Harness.propTypes = { drawMode: PropTypes.object };
+
+// Open the editor before the map exists.
+const NoMapHarness = () => {
+  const { extentDrawMode, setExtentDrawMode } = useMapContext();
+  useEffect(() => {
+    setExtentDrawMode({ imageUrl: IMAGE_URL, initialExtent: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return extentDrawMode ? (
+    <ExtentInteraction visualizationRef={{ current: null }} />
+  ) : null;
+};
 
 function renderEditor(drawMode = {}) {
   return render(
@@ -391,6 +404,122 @@ test("a lock in force before the saved extent arrives is applied to it", async (
   expect((maxX - minX) / (maxY - minY)).toBeCloseTo(2);
 });
 
+test("the box is drawn with handles at its four corners", async () => {
+  renderEditor();
+  await settle();
+  const style = capturedBoxLayer.getStyleFunction();
+  const [box] = capturedBoxLayer.getSource().getFeatures();
+  // No box yet: nothing to draw.
+  expect(style(box)).toBeNull();
+
+  act(() => editorInteraction().setExtent([0, 0, 10, 20]));
+  const [outline, handles] = style(box);
+  expect(outline.getStroke()).toBeTruthy();
+  // fromExtent's ring order: bottom-left, top-left, top-right, bottom-right.
+  expect(handles.getGeometryFunction()(box).getCoordinates()).toEqual([
+    [0, 0],
+    [0, 20],
+    [10, 20],
+    [10, 0],
+  ]);
+});
+
+// A prerender on the editor's layer, with a recording 2D context.
+function firePrerender(context) {
+  const frameState = {
+    pixelRatio: 1,
+    coordinateToPixelTransform: createTransform(),
+    viewState: { projection: getProjection("EPSG:3857") },
+  };
+  capturedBoxLayer.dispatchEvent(
+    new RenderEvent("prerender", createTransform(), frameState, context),
+  );
+}
+
+function recordingContext() {
+  return {
+    save: jest.fn(),
+    restore: jest.fn(),
+    transform: jest.fn(),
+    drawImage: jest.fn(),
+    beginPath: jest.fn(),
+    moveTo: jest.fn(),
+    lineTo: jest.fn(),
+    closePath: jest.fn(),
+    clip: jest.fn(),
+    stroke: jest.fn(),
+  };
+}
+
+test("before the image loads, a border still draws without the image", async () => {
+  renderEditor({ initialExtent: [0, 0, 100, 100], borderColor: "#ff0000" });
+  await settle();
+  const context = recordingContext();
+  firePrerender(context);
+  expect(context.drawImage).not.toHaveBeenCalled();
+  expect(context.stroke).toHaveBeenCalled();
+});
+
+test("with no image, no border or no box, the preview draws nothing", async () => {
+  renderEditor({ initialExtent: [0, 0, 100, 100] });
+  await settle();
+  // No image loaded and no border.
+  const bare = recordingContext();
+  firePrerender(bare);
+  expect(bare.save).not.toHaveBeenCalled();
+
+  // No canvas to draw on.
+  expect(() => firePrerender(null)).not.toThrow();
+
+  // No box.
+  finishImageLoad(200, 100);
+  act(() => editorInteraction().setExtent([0, 0, 0, 0]));
+  const noBox = recordingContext();
+  firePrerender(noBox);
+  expect(noBox.drawImage).not.toHaveBeenCalled();
+});
+
+test("clearing the box removes its outline and disables Confirm", async () => {
+  renderEditor({ initialExtent: [0, 0, 100, 100] });
+  await settle();
+  expect(screen.getByText("Confirm")).not.toBeDisabled();
+  act(() => editorInteraction().setExtent([0, 0, 0, 0]));
+  expect(screen.getByText("Confirm")).toBeDisabled();
+  const [box] = capturedBoxLayer.getSource().getFeatures();
+  expect(box.getGeometry()).toBeUndefined();
+});
+
+test("with no image URL, a requested lock reports it can't be kept", async () => {
+  renderEditor({ imageUrl: "", keepAspectRatio: true });
+  await settle();
+  expect(images).toHaveLength(0);
+  expect(
+    screen.getByText(
+      "Image could not be loaded, so its aspect ratio can't be kept",
+    ),
+  ).toBeInTheDocument();
+  fireEvent.click(screen.getByText("Cancel"));
+});
+
+test("without a map yet, the overlay shows but nothing is attached", () => {
+  render(
+    <MapContextProvider>
+      <NoMapHarness />
+    </MapContextProvider>,
+  );
+  expect(screen.getByText("Cancel")).toBeInTheDocument();
+  expect(editorInteraction()).toBeUndefined();
+});
+
+test("with no draw mode the editor renders nothing", () => {
+  render(
+    <MapContextProvider>
+      <ExtentInteraction visualizationRef={{ current: map }} />
+    </MapContextProvider>,
+  );
+  expect(screen.queryByText("Cancel")).not.toBeInTheDocument();
+});
+
 describe("reprojectSavedExtent", () => {
   test("clamps a polar extent to the view projection's bounds", async () => {
     const view = getProjection("EPSG:3857");
@@ -427,6 +556,18 @@ describe("reprojectSavedExtent", () => {
       getProjection("EPSG:3857"),
     );
     expect(result.error).toMatch(/does not fall within the map's EPSG:3857/);
+  });
+
+  test("a view projection with no valid extent is not clamped", async () => {
+    const local = new Projection({ code: "LOCAL:1", units: "m" });
+    addProjection(local);
+    ensureProjectionAsync.mockResolvedValue({ projection: local });
+    const result = await reprojectSavedExtent(
+      [0, 0, 5e7, 5e7],
+      "LOCAL:1",
+      local,
+    );
+    expect(result.extent).toEqual([0, 0, 5e7, 5e7]);
   });
 
   test("returns the registry's error detail for an unknown code", async () => {

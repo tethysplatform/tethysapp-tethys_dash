@@ -153,6 +153,20 @@ describe("attachImageBorder", () => {
     expect(context.calls).toContainEqual(["lineTo", 10, 10]);
   });
 
+  test("the footprint is reused while the view projection is unchanged", () => {
+    const layer = new ImageLayer();
+    attachImageBorder(
+      layer,
+      { color: "#ff0000", width: 2 },
+      { extent: [0, 0, 10, 10], projection: "EPSG:3857" },
+    );
+    const first = mockContext();
+    postrender(layer, first);
+    const second = mockContext();
+    postrender(layer, second);
+    expect(second.calls).toEqual(first.calls);
+  });
+
   test("the footprint is recomputed when the view projection changes", () => {
     const layer = new ImageLayer();
     attachImageBorder(
@@ -170,6 +184,41 @@ describe("attachImageBorder", () => {
     expect(inMercator.calls).not.toContainEqual(["lineTo", 10, 10]);
   });
 
+  test("a render event without a frame or canvas draws nothing", () => {
+    const layer = new ImageLayer();
+    attachImageBorder(
+      layer,
+      { color: "#ff0000", width: 2 },
+      { extent: [0, 0, 10, 10], projection: "EPSG:3857" },
+    );
+    const context = mockContext();
+    layer.dispatchEvent(
+      new RenderEvent("postrender", createTransform(), null, context),
+    );
+    const frameState = {
+      pixelRatio: 1,
+      coordinateToPixelTransform: createTransform(),
+      viewState: { projection: getProjection("EPSG:3857") },
+    };
+    layer.dispatchEvent(
+      new RenderEvent("postrender", createTransform(), frameState, null),
+    );
+    expect(context.calls).toHaveLength(0);
+  });
+
+  test("an image with no projection is placed in the view's", () => {
+    const layer = new ImageLayer();
+    attachImageBorder(
+      layer,
+      { color: "#ff0000", width: 2 },
+      { extent: [0, 0, 10, 10] },
+    );
+    const context = mockContext();
+    postrender(layer, context, "EPSG:4326");
+    // Taken as already in the view projection: just its four corners.
+    expect(context.calls).toContainEqual(["lineTo", 10, 10]);
+  });
+
   test("the returned function detaches the border", () => {
     const layer = new ImageLayer();
     const detach = attachImageBorder(
@@ -185,11 +234,12 @@ describe("attachImageBorder", () => {
 
   test("a null border attaches nothing", () => {
     const layer = new ImageLayer();
-    attachImageBorder(layer, null, {
+    const detach = attachImageBorder(layer, null, {
       extent: [0, 0, 10, 10],
       projection: "EPSG:3857",
     });
     expect(layer.hasListener("postrender")).toBe(false);
+    expect(() => detach()).not.toThrow();
   });
 });
 
@@ -238,7 +288,8 @@ describe("attachSourceBorder", () => {
     const layer = new ImageLayer({
       source: new ImageStatic({ url: "a.png", imageExtent: [0, 0, 10, 10] }),
     });
-    attachSourceBorder(layer);
+    const detach = attachSourceBorder(layer);
     expect(layer.hasListener("postrender")).toBe(false);
+    expect(() => detach()).not.toThrow();
   });
 });

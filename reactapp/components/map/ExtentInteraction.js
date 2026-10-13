@@ -254,9 +254,10 @@ const ExtentInteraction = ({ visualizationRef }) => {
     boxLayer.setMap(map);
 
     if (extentDrawMode.imageUrl) {
+      // Cleanup unhooks both handlers, so neither runs after the editor
+      // closes.
       loader = new Image();
       loader.onload = () => {
-        if (cancelled) return;
         if (loader.naturalWidth > 0 && loader.naturalHeight > 0) {
           image = loader;
           // The lock is set on the Source tab; it takes hold once the image's
@@ -272,9 +273,7 @@ const ExtentInteraction = ({ visualizationRef }) => {
           setImageStatus("error");
         }
       };
-      loader.onerror = () => {
-        if (!cancelled) setImageStatus("error");
-      };
+      loader.onerror = () => setImageStatus("error");
       loader.src = extentDrawMode.imageUrl;
     } else {
       setImageStatus("error");
@@ -327,15 +326,13 @@ const ExtentInteraction = ({ visualizationRef }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [extentDrawMode]);
 
+  // Confirm is enabled only while a box exists, which needs the interaction.
   const handleConfirm = () => {
     const interaction = interactionRef.current;
-    if (!interaction) return;
-
     // An untouched box writes nothing, so the saved extent and projection
     // keep their exact values; MapLayer reopens as it does on Cancel.
-    const extent = interaction.getExtent();
-    if (interaction.isModified() && extent?.every((v) => isFinite(v))) {
-      setDrawnExtent(extent);
+    if (interaction.isModified()) {
+      setDrawnExtent(interaction.getExtent());
     }
     setExtentDrawMode(null);
   };

@@ -104,6 +104,36 @@ describe("box geometry", () => {
     ]);
   });
 
+  test("an unlocked north edge resize changes only the top", () => {
+    expect(resizeExtent(BOX, "n", [999, 150])).toEqual([0, 0, 100, 150]);
+  });
+
+  test("a locked resize from the south-west corner anchors the north-east", () => {
+    expect(resizeExtent([0, 0, 200, 100], "sw", [-100, -100], 2)).toEqual([
+      -200, -100, 200, 100,
+    ]);
+  });
+
+  test("a locked west edge resize anchors the east edge", () => {
+    expect(resizeExtent([0, 0, 200, 100], "w", [-200, 0], 2)).toEqual([
+      -200, -50, 200, 150,
+    ]);
+  });
+
+  test("a locked south edge resize anchors the north edge", () => {
+    expect(resizeExtent([0, 0, 200, 100], "s", [0, -100], 2)).toEqual([
+      -100, -100, 300, 100,
+    ]);
+  });
+
+  test("a locked draw downward extends below the anchor", () => {
+    expect(drawExtent([0, 0], [100, -10], 2)).toEqual([0, -50, 100, 0]);
+  });
+
+  test("a locked draw driven by the taller axis derives the width", () => {
+    expect(drawExtent([0, 0], [10, 100], 2)).toEqual([0, 0, 200, 100]);
+  });
+
   test("a locked draw holds the ratio from the anchor", () => {
     const next = drawExtent([0, 0], [-100, 10], 2);
     expect(next).toEqual([-100, 0, 0, 50]);
@@ -114,7 +144,6 @@ describe("box geometry", () => {
     expect(cursorForHit({ type: "edge", handle: "e" })).toBe("e-resize");
     expect(cursorForHit({ type: "interior" })).toBe("move");
     expect(cursorForHit({ type: "outside" })).toBe("grab");
-    expect(cursorForHit({ type: "none" })).toBe("crosshair");
     expect(cursorForHit({ type: "interior" }, { shift: true })).toBe(
       "crosshair",
     );
@@ -271,6 +300,32 @@ describe("ImageExtentInteraction routing", () => {
     expect(interaction.isModified()).toBe(false);
   });
 
+  test("setExtent with a zero-area extent clears the box", () => {
+    const interaction = new ImageExtentInteraction({ extent: BOX });
+    interaction.setExtent([5, 5, 5, 10]);
+    expect(interaction.getExtent()).toBeNull();
+    expect(interaction.hasExtent()).toBe(false);
+  });
+
+  test("a draw keeps following the pointer after it passes the threshold", () => {
+    const interaction = new ImageExtentInteraction();
+    map.addInteraction(interaction);
+    interaction.handleEvent(mapEvent(map, "pointerdown", [0, 0]));
+    interaction.handleEvent(mapEvent(map, "pointerdrag", [20, 20]));
+    interaction.handleEvent(mapEvent(map, "pointerdrag", [40, 30]));
+    interaction.handleEvent(mapEvent(map, "pointerup", [40, 30]));
+    expect(interaction.getExtent()).toEqual([0, 0, 40, 30]);
+  });
+
+  test("before the view has a resolution, hits are tested at one unit per pixel", () => {
+    map.setView(new View());
+    const interaction = new ImageExtentInteraction({ extent: BOX });
+    map.addInteraction(interaction);
+    expect(
+      interaction.handleEvent(mapEvent(map, "pointerdown", [50, 50])),
+    ).toBe(false);
+  });
+
   test("setExtent places the box without counting as a modification", () => {
     const interaction = new ImageExtentInteraction();
     interaction.setExtent([5, 5, 10, 10]);
@@ -304,6 +359,11 @@ describe("ImageExtentInteraction routing", () => {
     interaction.handleEvent(mapEvent(map, "pointermove", [500, 500]));
     expect(target.style.cursor).toBe("grab");
 
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "a" }));
+    expect(target.style.cursor).toBe("grab");
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Shift" }));
+    expect(target.style.cursor).toBe("crosshair");
+    // A held key repeats keydown; that is not a change.
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Shift" }));
     expect(target.style.cursor).toBe("crosshair");
     document.dispatchEvent(new KeyboardEvent("keyup", { key: "Shift" }));
@@ -312,6 +372,19 @@ describe("ImageExtentInteraction routing", () => {
     map.removeInteraction(interaction);
     expect(target.style.cursor).toBe("default");
   });
+});
+
+test("a map without a target element still runs the interaction", () => {
+  const targetless = new Map({
+    view: new View({ center: [0, 0], resolution: 1 }),
+  });
+  const interaction = new ImageExtentInteraction({ extent: BOX });
+  targetless.addInteraction(interaction);
+  // No element to set a cursor on: hovering is a no-op, not an error.
+  expect(() =>
+    interaction.handleEvent(mapEvent(targetless, "pointermove", [50, 50])),
+  ).not.toThrow();
+  targetless.removeInteraction(interaction);
 });
 
 describe("ImageExtentInteraction alongside the map's default interactions", () => {

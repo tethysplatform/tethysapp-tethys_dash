@@ -51,10 +51,9 @@ export function hitTestExtent(extent, coordinate, tolerance) {
   if (horizontal || vertical) {
     return { type: "edge", handle: vertical || horizontal };
   }
-  if (x > minX && x < maxX && y > minY && y < maxY) {
-    return { type: "interior" };
-  }
-  return { type: "outside" };
+  // Within the tolerance band on both axes yet near no edge leaves only the
+  // strict interior.
+  return { type: "interior" };
 }
 
 export function moveExtent(extent, dx, dy) {
@@ -158,8 +157,6 @@ export function cursorForHit(hit, { shift = false } = {}) {
       return `${hit.handle}-resize`;
     case "interior":
       return "move";
-    case "none":
-      return "crosshair";
     default:
       return "grab";
   }
@@ -250,9 +247,10 @@ export default class ImageExtentInteraction extends PointerInteraction {
     this.onChange_?.(this.getExtent());
   }
 
+  // Only called with a box and a map: a pointerdown with no box draws, and
+  // the cursor shows a crosshair without asking.
   hitAt_(coordinate) {
-    if (!this.extent_) return { type: "none" };
-    const resolution = this.getMap()?.getView().getResolution() ?? 1;
+    const resolution = this.getMap().getView().getResolution() ?? 1;
     return hitTestExtent(
       this.extent_,
       coordinate,
@@ -287,8 +285,9 @@ export default class ImageExtentInteraction extends PointerInteraction {
   }
 
   handleDragEvent(mapBrowserEvent) {
+    // A drag only arrives after a pointerdown this interaction accepted, which
+    // always records a gesture.
     const gesture = this.gesture_;
-    if (!gesture) return;
     const coordinate = mapBrowserEvent.coordinate;
     this.lastCoordinate_ = coordinate;
 
@@ -344,8 +343,8 @@ export default class ImageExtentInteraction extends PointerInteraction {
     this.refreshCursor_();
   }
 
+  // Only reached with a map: the key listeners exist only while one is set.
   refreshCursor_() {
-    if (!this.getMap()) return;
     if (!this.lastCoordinate_ || !this.extent_) {
       this.applyCursor_(
         this.extent_ && !this.shiftDown_ ? "grab" : "crosshair",
@@ -371,18 +370,14 @@ export default class ImageExtentInteraction extends PointerInteraction {
       this.cursorTarget_ = null;
       this.cursor_ = null;
     }
-    if (typeof document !== "undefined") {
-      document.removeEventListener("keydown", this.handleKey_);
-      document.removeEventListener("keyup", this.handleKey_);
-    }
+    document.removeEventListener("keydown", this.handleKey_);
+    document.removeEventListener("keyup", this.handleKey_);
     super.setMap(map);
     if (map) {
-      this.cursorTarget_ = map.getTargetElement?.() ?? null;
+      this.cursorTarget_ = map.getTargetElement() ?? null;
       this.originalCursor_ = this.cursorTarget_?.style.cursor ?? "";
-      if (typeof document !== "undefined") {
-        document.addEventListener("keydown", this.handleKey_);
-        document.addEventListener("keyup", this.handleKey_);
-      }
+      document.addEventListener("keydown", this.handleKey_);
+      document.addEventListener("keyup", this.handleKey_);
       this.refreshCursor_();
     }
   }
