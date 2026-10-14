@@ -802,7 +802,9 @@ def copy_named_dashboard(user, id, new_name, dashboard_uuid):
     Create a copy of an existing dashboard.
 
     Duplicates a dashboard with all its grid items, creating a new dashboard
-    owned by the specified user. Only grants admin permission to the new owner.
+    owned by the specified user. Only grants admin permission to the new owner,
+    and the copy starts private whatever the original's setting: publishing it
+    is the new owner's decision.
 
     Args:
         user: User object who will own the copied dashboard
@@ -842,7 +844,7 @@ def copy_named_dashboard(user, id, new_name, dashboard_uuid):
             description=original_dashboard.description,
             name=new_name,
             notes=original_dashboard.notes,
-            public=original_dashboard.public,
+            public=False,
             owner=user.username,
             unrestricted_placement=original_dashboard.unrestricted_placement,
             auto_thumbnail=original_dashboard.auto_thumbnail,

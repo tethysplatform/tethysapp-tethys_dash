@@ -1032,7 +1032,7 @@ def test_copy_dashboard(
         "autoThumbnail": True,
         "owner": test_admin_user.username,
         "permissions": [{"permission": "admin", "username": test_admin_user.username}],
-        "publicDashboard": dashboard.public,
+        "publicDashboard": False,
         "userPermission": "admin",
     }
     assert response.json()["new_dashboard"] == expected_result

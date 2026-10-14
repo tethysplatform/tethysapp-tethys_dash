@@ -670,6 +670,24 @@ def test_thumbnail_urls_degrades_when_the_storage_fails(mock_app_get_ps_db, mock
 
 
 @pytest.mark.django_db
+def test_thumbnail_url_degrades_when_the_storage_fails(
+    mock_app_get_ps_db, mocker, capsys
+):
+    """A single dashboard's card loses its picture, not its page, on a storage error."""
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    mocker.patch(
+        "django.core.files.storage.filesystem.FileSystemStorage.exists",
+        side_effect=OSError("storage is unreachable"),
+    )
+
+    assert thumbnail_url("some_uuid") is None
+    assert (
+        "Could not resolve the thumbnail for some_uuid: storage is unreachable"
+        in capsys.readouterr().out
+    )
+
+
+@pytest.mark.django_db
 def test_thumbnail_urls_falls_back_when_the_backend_cannot_list(
     mock_app_get_ps_db, mocker
 ):
@@ -1082,7 +1100,7 @@ def test_copy_named_dashboard(
     assert copied_dashboard.description == new_description
     assert copied_dashboard.name == new_dashboard_name
     assert copied_dashboard.notes == dashboard.notes
-    assert copied_dashboard.public == dashboard.public
+    assert copied_dashboard.public is False
     assert copied_dashboard.owner == test_member_user.username
     assert copied_dashboard.unrestricted_placement == dashboard.unrestricted_placement
 
@@ -1135,6 +1153,9 @@ def test_copy_named_dashboard_allows_a_public_dashboard_without_permission(
         db_session.query(Dashboard).filter(Dashboard.id == new_dashboard_id).first()
     )
     assert copied.owner == admin_user.username
+    # The copy starts private: publishing it is the new owner's decision.
+    assert public_dashboard.public is True
+    assert copied.public is False
 
 
 @pytest.mark.django_db
