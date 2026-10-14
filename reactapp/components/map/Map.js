@@ -7,6 +7,7 @@ import moduleLoader, {
 } from "components/map/ModuleLoader";
 import { isDecorationLayerConfig } from "components/map/decorationLayers";
 import useLinkedExtentPublisher from "components/map/useLinkedExtentPublisher";
+import AnnotationEditor from "components/map/AnnotationEditor";
 // Importing this registers the coordinate reference systems that layers name by
 // code. Module evaluation completes before any render, so registration is in
 // place before the layer effect below constructs a single source -- which
@@ -2301,7 +2302,9 @@ const MapComponent = ({
             Projection: {projection}
           </InfoDiv>
         )}
-        {mapDrawing && (
+        {/* The viewer drawing tool would claim clicks meant for an annotation
+            editing session, so it steps aside while one is open. */}
+        {mapDrawing && !mapContext?.annotationEditSession && (
           <DrawInteractions
             mapDrawing={mapDrawing}
             visualizationRef={visualizationRef}
@@ -2310,6 +2313,9 @@ const MapComponent = ({
         )}
         {mapContext?.extentDrawMode && (
           <ExtentInteraction visualizationRef={visualizationRef} />
+        )}
+        {mapContext?.annotationEditSession && (
+          <AnnotationEditor visualizationRef={visualizationRef} />
         )}
         {layerControl && (
           <LayersControl

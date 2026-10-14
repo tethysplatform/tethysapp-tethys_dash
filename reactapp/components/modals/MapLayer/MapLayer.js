@@ -277,7 +277,9 @@ const MapLayerModal = ({
     layerInfo.annotations ?? { defaults: {}, items: [] },
   );
   const [selectedOption, setSelectedOption] = useState(null);
-  const [hiddenForExtentDraw, setHiddenForExtentDraw] = useState(false);
+  // Hidden, not closed, while the author works on the preview map -- drawing a
+  // static image's extent or editing annotations -- so its state survives.
+  const [hiddenForMapEdit, setHiddenForMapEdit] = useState(false);
   const [showLayoutEditor, setShowLayoutEditor] = useState(false);
   const legendContainerRef = useRef(null);
   const styleContainerRef = useRef(null);
@@ -332,7 +334,7 @@ const MapLayerModal = ({
   });
 
   const onRequestHideModal = useCallback(() => {
-    setHiddenForExtentDraw(true);
+    setHiddenForMapEdit(true);
   }, []);
 
   const handleLayerPropsChange = useCallback((updater) => {
@@ -349,7 +351,7 @@ const MapLayerModal = ({
 
   // When drawnExtent arrives, re-show modal and update sourceProps
   useEffect(() => {
-    if (!mapContext?.drawnExtent || !hiddenForExtentDraw) return;
+    if (!mapContext?.drawnExtent || !hiddenForMapEdit) return;
 
     const extent = mapContext.drawnExtent;
     const projection =
@@ -365,21 +367,53 @@ const MapLayerModal = ({
       },
     }));
 
-    setHiddenForExtentDraw(false);
+    setHiddenForMapEdit(false);
     mapContext.setDrawnExtent(null);
+  }, [mapContext?.drawnExtent, hiddenForMapEdit, mapContext, visualizationRef]);
+
+  // When the map edit ends with nothing to hand back (the user cancelled), re-show
+  // the modal. An annotation session's Done hands back items, picked up below.
+  useEffect(() => {
+    if (
+      hiddenForMapEdit &&
+      !mapContext?.extentDrawMode &&
+      !mapContext?.annotationEditSession &&
+      !mapContext?.editedAnnotations
+    ) {
+      setHiddenForMapEdit(false);
+    }
   }, [
-    mapContext?.drawnExtent,
-    hiddenForExtentDraw,
-    mapContext,
-    visualizationRef,
+    mapContext?.extentDrawMode,
+    mapContext?.annotationEditSession,
+    mapContext?.editedAnnotations,
+    hiddenForMapEdit,
   ]);
 
-  // When extentDrawMode becomes null while hidden (user cancelled), re-show modal
+  // An annotation session's Done: its items replace the draft's. The draft is
+  // still only the modal's -- nothing reaches the dashboard until Save.
   useEffect(() => {
-    if (hiddenForExtentDraw && !mapContext?.extentDrawMode) {
-      setHiddenForExtentDraw(false);
-    }
-  }, [mapContext?.extentDrawMode, hiddenForExtentDraw]);
+    if (!mapContext?.editedAnnotations || !hiddenForMapEdit) return;
+    const items = mapContext.editedAnnotations;
+    setAnnotations((previous) => ({ ...previous, items }));
+    setHiddenForMapEdit(false);
+    mapContext.setEditedAnnotations(null);
+  }, [mapContext?.editedAnnotations, hiddenForMapEdit, mapContext]);
+
+  // Start drawing on the preview map. Only offered where a MapContext exists:
+  // the DataViewer mounts one, so this is the only place a session can start.
+  const startAnnotationSession = mapContext?.setAnnotationEditSession
+    ? () => {
+        mapContext.setEditedAnnotations(null);
+        mapContext.setAnnotationEditSession({
+          // The saved layer drawn on the preview, hidden for the session. A
+          // layer not saved yet has none.
+          layerName: layerInfo.layerProps?.name ?? null,
+          defaults: annotations.defaults ?? {},
+          items: annotations.items ?? [],
+        });
+        setHiddenForMapEdit(true);
+      }
+    : undefined;
 
   async function saveLayer() {
     setErrorMessage(null);
@@ -791,20 +825,25 @@ const MapLayerModal = ({
         show={showModal}
         onHide={handleModalClose}
         className={
-          hiddenForExtentDraw
+          hiddenForMapEdit
             ? "map-layer map-layer-hidden-for-extent-draw"
             : "map-layer"
         }
         dialogClassName="fiftyWideModalDialog"
         contentClassName="mapLayerContent"
         style={
-          hiddenForExtentDraw
+          hiddenForMapEdit
             ? { visibility: "hidden" }
             : showLayoutEditor
               ? { zIndex: 1050 }
               : undefined
         }
-        backdrop={hiddenForExtentDraw ? false : true}
+        backdrop={hiddenForMapEdit ? false : true}
+        // While hidden, Escape belongs to the map editor -- it abandons a line
+        // there -- and must not close the modal and lose its draft. Focus is
+        // released for the same reason: the editor's text box takes it.
+        keyboard={!hiddenForMapEdit}
+        enforceFocus={!hiddenForMapEdit}
       >
         <StyledModalHeader closeButton>
           <Modal.Title>Add Map Layer</Modal.Title>
@@ -857,6 +896,7 @@ const MapLayerModal = ({
                   <AnnotationsPane
                     annotations={annotations}
                     onChange={setAnnotations}
+                    onEditOnMap={startAnnotationSession}
                     containerRef={annotationsContainerRef}
                   />
                 </div>

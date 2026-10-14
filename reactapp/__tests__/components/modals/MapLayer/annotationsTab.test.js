@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   render,
   screen,
@@ -6,6 +7,9 @@ import {
   waitFor,
 } from "@testing-library/react";
 import MapLayerModal from "components/modals/MapLayer/MapLayer";
+import MapContextProvider, {
+  useMapContext,
+} from "components/contexts/MapContext";
 import {
   AppContext,
   LayoutContext,
@@ -163,4 +167,129 @@ test("a layer saved while hidden stays hidden", async () => {
   const saved = await savedConfig(addMapLayer);
   expect(saved.configuration.layerVisibility).toBe(false);
   expect(saved.configuration.props).not.toHaveProperty("layerVisibility");
+});
+
+// The DataViewer is what mounts a MapContext. This stands in for it, plus a
+// handle on the context so a test can end the session as the map editor would.
+let mapContext;
+const ContextProbe = () => {
+  mapContext = useMapContext();
+  return null;
+};
+
+const mountInDataViewer = ({ layerInfo, handleModalClose = jest.fn() }) => {
+  const addMapLayer = jest.fn();
+  render(
+    <AppContext.Provider
+      value={{ csrf: "csrf", mapLayerTemplates: [], dynamicMapLayers: [] }}
+    >
+      <LayoutContext.Provider value={{ uuid: "123" }}>
+        <TabContext.Provider value={{ activeTabId: "tab-1" }}>
+          <VariableInputsContext.Provider
+            value={{ variableInputValues: {}, variableInputDateFormats: {} }}
+          >
+            <MapContextProvider>
+              <ContextProbe />
+              <MapLayerModal
+                showModal={true}
+                handleModalClose={handleModalClose}
+                addMapLayer={addMapLayer}
+                layerInfo={layerInfo}
+              />
+            </MapContextProvider>
+          </VariableInputsContext.Provider>
+        </TabContext.Provider>
+      </LayoutContext.Provider>
+    </AppContext.Provider>,
+  );
+  return { addMapLayer, handleModalClose };
+};
+
+const editOnMap = () => {
+  fireEvent.click(screen.getByRole("tab", { name: "Annotations" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Edit annotations on map" }),
+  );
+};
+
+// `hidden`: while hidden for a map edit the dialog is invisible, not gone.
+const modalDialog = () => screen.getByRole("dialog", { hidden: true });
+
+test("Edit on map is disabled outside the DataViewer", async () => {
+  mountModal({ layerInfo: annotationsLayerInfo() });
+
+  fireEvent.click(screen.getByRole("tab", { name: "Annotations" }));
+  expect(
+    await screen.findByRole("button", { name: "Edit annotations on map" }),
+  ).toBeDisabled();
+});
+
+test("Edit on map starts a session with the draft and hides the modal", async () => {
+  mountInDataViewer({
+    layerInfo: annotationsLayerInfo({
+      defaults: { lineColor: "#ff0000" },
+      items: [line],
+    }),
+  });
+
+  editOnMap();
+
+  expect(mapContext.annotationEditSession).toEqual({
+    layerName: "Callouts",
+    defaults: { lineColor: "#ff0000" },
+    items: [line],
+  });
+  await waitFor(() =>
+    expect(modalDialog()).toHaveStyle({ visibility: "hidden" }),
+  );
+});
+
+test("Escape while editing on the map does not close the hidden modal", async () => {
+  const { handleModalClose } = mountInDataViewer({
+    layerInfo: annotationsLayerInfo({ defaults: {}, items: [line] }),
+  });
+  editOnMap();
+
+  // react-bootstrap reads the legacy keyCode.
+  fireEvent.keyDown(document, { key: "Escape", keyCode: 27 });
+  fireEvent.keyDown(modalDialog(), { key: "Escape", keyCode: 27 });
+
+  expect(handleModalClose).not.toHaveBeenCalled();
+});
+
+test("Done replaces the draft's items and re-shows the modal", async () => {
+  const { addMapLayer } = mountInDataViewer({
+    layerInfo: annotationsLayerInfo({ defaults: {}, items: [line] }),
+  });
+  editOnMap();
+
+  act(() => {
+    mapContext.setEditedAnnotations([line, text]);
+    mapContext.setAnnotationEditSession(null);
+  });
+
+  await waitFor(() =>
+    expect(modalDialog()).not.toHaveStyle({ visibility: "hidden" }),
+  );
+  expect(screen.getByText("Text: 2026")).toBeInTheDocument();
+  expect(mapContext.editedAnnotations).toBeNull();
+  // Still a draft: nothing reached the dashboard until the layer is saved.
+  expect(addMapLayer).not.toHaveBeenCalled();
+  const saved = await savedConfig(addMapLayer);
+  expect(saved.configuration.annotations.items).toEqual([line, text]);
+});
+
+test("Cancel re-shows the modal with its draft unchanged", async () => {
+  const { addMapLayer } = mountInDataViewer({
+    layerInfo: annotationsLayerInfo({ defaults: {}, items: [line] }),
+  });
+  editOnMap();
+
+  act(() => mapContext.setAnnotationEditSession(null));
+
+  await waitFor(() =>
+    expect(modalDialog()).not.toHaveStyle({ visibility: "hidden" }),
+  );
+  const saved = await savedConfig(addMapLayer);
+  expect(saved.configuration.annotations.items).toEqual([line]);
 });

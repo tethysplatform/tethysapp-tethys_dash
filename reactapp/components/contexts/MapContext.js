@@ -6,6 +6,12 @@ const MapContextProvider = ({ children }) => {
   const [mapReady, setMapReady] = useState(false);
   const [extentDrawMode, setExtentDrawMode] = useState(null);
   const [drawnExtent, setDrawnExtent] = useState(null);
+  // An on-map annotation editing session: `{layerName, defaults, items}` while
+  // the author is drawing, null otherwise. Only the DataViewer mounts this
+  // provider, so a map on the dashboard itself can never start one.
+  const [annotationEditSession, setAnnotationEditSession] = useState(null);
+  // The items a session ended with on Done, for the layer editor to pick up.
+  const [editedAnnotations, setEditedAnnotations] = useState(null);
 
   return (
     <MapContext.Provider
@@ -16,6 +22,10 @@ const MapContextProvider = ({ children }) => {
         setExtentDrawMode,
         drawnExtent,
         setDrawnExtent,
+        annotationEditSession,
+        setAnnotationEditSession,
+        editedAnnotations,
+        setEditedAnnotations,
       }}
     >
       {children}

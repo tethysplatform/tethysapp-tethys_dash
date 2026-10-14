@@ -405,6 +405,7 @@ const MapVisualization = ({
   const { gridItemUUID } = useContext(GridItemContext) ?? {};
   const mapContextValue = useMapContext();
   const extentDrawMode = mapContextValue?.extentDrawMode ?? null;
+  const annotationEditSession = mapContextValue?.annotationEditSession ?? null;
 
   const safeActiveFeatureIndex =
     popupContent && popupContent.length > 0
@@ -415,11 +416,13 @@ const MapVisualization = ({
   // The modal is a view of the selected feature, not a separate list: it opens
   // only while that feature's layer configures one, so stepping onto a
   // table-only feature closes it and stepping back reopens it. Click-only, and
-  // suppressed while an extent is being drawn or after the user dismissed it.
+  // suppressed while an extent or annotations are being drawn, or after the
+  // user dismissed it.
   const showModal =
     popupSource === "click" &&
     !modalDismissed &&
     !extentDrawMode &&
+    !annotationEditSession &&
     hasModalPopup(activeFeature);
   const activeModalFeature = showModal ? activeFeature : null;
 
