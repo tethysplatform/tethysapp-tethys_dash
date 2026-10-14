@@ -6,7 +6,7 @@ import {
   isDecorationSourceType,
 } from "components/map/decorationLayers";
 import InputTable from "components/inputs/InputTable";
-import { useState, useEffect, memo } from "react";
+import { memo } from "react";
 import styled from "styled-components";
 import { spaceAndCapitalize } from "components/modals/utilities";
 import Toggle from "components/inputs/Toggle";
@@ -32,14 +32,11 @@ const layerPropertyKeys = (sourceType) =>
 
 const LayerPane = ({ layerProps, setLayerProps, sourceType }) => {
   const propertyKeys = layerPropertyKeys(sourceType);
-  const [layerProperties, setLayerProperties] = useState(
-    filterLayerProps(layerProps),
-  );
-
-  useEffect(() => {
-    setLayerProperties(filterLayerProps(layerProps));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [layerProps, sourceType]);
+  // Derived during render, not mirrored into state: the rows must always come
+  // from the same key list as the placeholders and types below. A copy synced
+  // by an effect lags one render behind a source-type change, and the table
+  // then reads a placeholder for a row that list no longer has.
+  const layerProperties = filterLayerProps(layerProps);
 
   function filterLayerProps(props) {
     return loadExistingArgs(

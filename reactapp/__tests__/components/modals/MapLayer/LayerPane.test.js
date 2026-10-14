@@ -190,3 +190,16 @@ test("LayerPane edits the right property after rows are hidden", async () => {
     JSON.stringify({ maxZoom: "12" }),
   );
 });
+
+test("LayerPane switches to a decoration source type without crashing", async () => {
+  // Rows, placeholders and types must change together on the same render.
+  const { rerender } = render(<TestingComponent sourceType="GeoJSON" />);
+  expect(await screen.findByText("Click Tolerance")).toBeInTheDocument();
+
+  rerender(<TestingComponent sourceType="Annotations" />);
+  expect(screen.queryByText("Click Tolerance")).not.toBeInTheDocument();
+  expect(screen.getByText("Max Zoom")).toBeInTheDocument();
+
+  rerender(<TestingComponent sourceType="GeoJSON" />);
+  expect(screen.getByText("Click Tolerance")).toBeInTheDocument();
+});

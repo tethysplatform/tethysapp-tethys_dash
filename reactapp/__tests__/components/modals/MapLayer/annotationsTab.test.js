@@ -5,7 +5,9 @@ import {
   screen,
   fireEvent,
   waitFor,
+  within,
 } from "@testing-library/react";
+import selectEvent from "react-select-event";
 import MapLayerModal from "components/modals/MapLayer/MapLayer";
 import MapContextProvider, {
   useMapContext,
@@ -292,4 +294,20 @@ test("Cancel re-shows the modal with its draft unchanged", async () => {
   );
   const saved = await savedConfig(addMapLayer);
   expect(saved.configuration.annotations.items).toEqual([line]);
+});
+
+test("choosing Annotations as the source type opens its tabs without an error", async () => {
+  mountModal({ layerInfo: {} });
+
+  fireEvent.click(screen.getByRole("tab", { name: "Source" }));
+  const select = await screen.findByLabelText("Source Type Input");
+  selectEvent.openMenu(within(select).queryByRole("combobox") ?? select);
+  fireEvent.click(await screen.findByText("Annotations"));
+
+  expect(
+    await screen.findByRole("tab", { name: "Annotations" }),
+  ).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("tab", { name: "Layer" }));
+  expect(await screen.findByText("Max Zoom")).toBeInTheDocument();
+  expect(screen.queryByText("Click Tolerance")).not.toBeInTheDocument();
 });
