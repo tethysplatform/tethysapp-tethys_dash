@@ -353,6 +353,47 @@ test("Delete is disabled with nothing selected", () => {
   ).toBeDisabled();
 });
 
+test("item order survives a session, past the spatial index's bulk-load size", () => {
+  const items = Array.from({ length: 12 }, (_, i) => ({
+    id: `a${i + 1}`,
+    kind: "text",
+    // Spread so a spatial index would order them differently.
+    coordinates: [-123 + ((11 - i) % 4) * 0.1, 44 + (i % 3) * 0.1],
+    text: `T${i + 1}`,
+  }));
+  mount(session({ items }));
+
+  // Move the first one, the way Translate would.
+  act(() => {
+    const [first] = workingFeatures();
+    const [x, y] = first.getGeometry().getCoordinates();
+    first.getGeometry().setCoordinates([x + 50000, y]);
+  });
+  done();
+
+  expect(context.editedAnnotations.map((i) => i.id)).toEqual(
+    items.map((i) => i.id),
+  );
+});
+
+test("the saved layer stays hidden when the layer control re-shows it", () => {
+  const saved = new VectorLayer({ source: new VectorSource() });
+  saved.set("name", "Callouts");
+  olMap.addLayer(saved);
+  mount(session({ items: [line] }));
+
+  // What LayersControl does when it re-syncs its stored visibility.
+  act(() => saved.setVisible(true));
+  expect(saved.getVisible()).toBe(false);
+
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(saved.getVisible()).toBe(true);
+  // And the guard is gone once the session ends.
+  act(() => saved.setVisible(false));
+  act(() => saved.setVisible(true));
+  expect(saved.getVisible()).toBe(true);
+});
+
 test("untouched items are handed back exactly as stored", () => {
   const stored = { ...line, style: { lineColor: "#ff0000" } };
   mount(session({ items: [stored, text] }));

@@ -1,3 +1,4 @@
+import Collection from "ol/Collection.js";
 import VectorSource from "ol/source/Vector.js";
 import { Fill, Stroke, Style } from "ol/style.js";
 import {
@@ -11,6 +12,7 @@ import {
   LINKED_EXTENT_LAYER_KEY,
   LINKED_EXTENT_SOURCE_TYPE,
 } from "components/map/linkedExtent";
+import { DECORATION_LAYER_KEY } from "components/map/decorationTypes";
 
 // Decoration layers: map layers whose content the author places rather than
 // reads from data -- Annotations and Linked Extents. They share four rules:
@@ -99,17 +101,22 @@ export function buildDecorationContent(config, viewProjection) {
   if (sourceType === ANNOTATION_SOURCE_TYPE) {
     const { defaults, items } = normalizeAnnotations(config.annotations);
     return {
+      // Collection-backed so features draw in item order; a spatially indexed
+      // source would stack overlapping annotations in arbitrary order.
       source: new VectorSource({
-        features: itemsToFeatures(items, viewProjection),
+        features: new Collection(itemsToFeatures(items, viewProjection)),
       }),
       style: createAnnotationStyleFunction(defaults),
-      properties: {},
+      properties: { [DECORATION_LAYER_KEY]: true },
     };
   }
   return {
     source: new VectorSource(),
     style: linkedExtentOlStyle(config?.linkedExtentStyle),
-    properties: { [LINKED_EXTENT_LAYER_KEY]: true },
+    properties: {
+      [DECORATION_LAYER_KEY]: true,
+      [LINKED_EXTENT_LAYER_KEY]: true,
+    },
   };
 }
 

@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import PropTypes from "prop-types";
 import styled from "styled-components";
 import { Map } from "ol";
+import Collection from "ol/Collection.js";
 import Overlay from "ol/Overlay.js";
 import VectorLayer from "ol/layer/Vector.js";
 import VectorSource from "ol/source/Vector.js";
@@ -186,8 +187,10 @@ const AnnotationEditor = ({ visualizationRef }) => {
 
     const code = map.getView().getProjection().getCode();
     projectionRef.current = code;
+    // Collection-backed: a spatially indexed source returns features in index
+    // order, and Done would hand the items back reordered.
     const source = new VectorSource({
-      features: itemsToFeatures(session.items, code),
+      features: new Collection(itemsToFeatures(session.items, code)),
     });
     sourceRef.current = source;
     const annotationStyle = createAnnotationStyleFunction(session.defaults);
@@ -209,15 +212,24 @@ const AnnotationEditor = ({ visualizationRef }) => {
     // Hide the saved layer -- and any rebuild of it the map adds while the
     // session is open -- so its annotations do not draw under the working copy.
     const hidden = [];
+    const visibleKeys = [];
     const hide = (candidate) => {
       if (
-        session.layerName &&
-        candidate.get("name") === session.layerName &&
-        candidate.getVisible()
+        !session.layerName ||
+        candidate.get("name") !== session.layerName ||
+        !candidate.getVisible()
       ) {
-        candidate.setVisible(false);
-        hidden.push(candidate);
+        return;
       }
+      candidate.setVisible(false);
+      hidden.push(candidate);
+      // The layer control re-applies its own stored visibility when it opens
+      // or re-syncs; the saved copy stays hidden for the session regardless.
+      visibleKeys.push(
+        candidate.on("change:visible", () => {
+          if (candidate.getVisible()) candidate.setVisible(false);
+        }),
+      );
     };
     map.getLayers().forEach(hide);
     const addKey = map.getLayers().on("add", (event) => hide(event.element));
@@ -249,6 +261,7 @@ const AnnotationEditor = ({ visualizationRef }) => {
       unByKey(viewKey);
       map.removeOverlay(overlay);
       layer.setMap(null);
+      unByKey(visibleKeys);
       hidden.forEach((candidate) => candidate.setVisible(true));
       sourceRef.current = null;
       layerRef.current = null;

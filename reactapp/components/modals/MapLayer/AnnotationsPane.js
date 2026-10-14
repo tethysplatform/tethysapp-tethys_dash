@@ -115,6 +115,7 @@ const NUMBER_FIELDS = ["lineWidth", "textSize"];
 const StyleControl = ({
   field,
   value,
+  storedValue,
   onChange,
   ariaPrefix,
   containerRef,
@@ -135,8 +136,12 @@ const StyleControl = ({
   }
   if (NUMBER_FIELDS.includes(field)) {
     return (
+      // Bound to what is stored, not to the resolved value: clearing the field
+      // to type a new number must leave it empty, not snap back to the value
+      // it inherits -- which shows as the placeholder instead.
       <NormalInput
-        value={value}
+        value={storedValue ?? ""}
+        placeholder={String(value)}
         type="number"
         min={1}
         onChange={(e) => {
@@ -184,6 +189,8 @@ const StyleControl = ({
 StyleControl.propTypes = {
   field: PropTypes.string.isRequired,
   value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  // The stored value (an override, or the authored default), if any.
+  storedValue: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
   onChange: PropTypes.func.isRequired,
   ariaPrefix: PropTypes.string,
   containerRef: PropTypes.object,
@@ -259,6 +266,7 @@ const AnnotationItem = ({
                   <StyleControl
                     field={field}
                     value={resolved[field]}
+                    storedValue={item.style?.[field]}
                     onChange={(value) => setOverride(field, value)}
                     ariaPrefix={`${name} `}
                     containerRef={containerRef}
@@ -361,6 +369,7 @@ const AnnotationsPane = ({
               <StyleControl
                 field={field}
                 value={resolvedDefaults[field]}
+                storedValue={defaults[field]}
                 onChange={(value) => setDefault(field, value)}
                 ariaPrefix="Default "
                 containerRef={containerRef}

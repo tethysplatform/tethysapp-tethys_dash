@@ -19,6 +19,7 @@ import Protobuf from "pbf";
 import { LINKED_EXTENT_LAYER_KEY } from "components/map/linkedExtent";
 import {
   ANNOTATION_SOURCE_TYPE,
+  DECORATION_LAYER_KEY,
   LINKED_EXTENT_SOURCE_TYPE,
 } from "components/map/decorationTypes";
 
@@ -1017,18 +1018,23 @@ function getGeoTIFFPixelValues(map, pixel, LayerName, layerInfo, coordinate) {
 
 function getVectorTileLayerFeatures(map, pixel) {
   const features = [];
-  map.forEachFeatureAtPixel(pixel, function (feature, layer) {
-    if (!feature) return;
-    let featureLayerName = feature.get("layer");
-    features.push({
-      layerName: featureLayerName,
-      attributes: feature.getProperties(),
-      geometry: {
-        type: toGeometry(feature).getType(),
-        coordinates: toGeometry(feature).getCoordinates(),
-      },
-    });
-  });
+  map.forEachFeatureAtPixel(
+    pixel,
+    function (feature) {
+      if (!feature) return;
+      let featureLayerName = feature.get("layer");
+      features.push({
+        layerName: featureLayerName,
+        attributes: feature.getProperties(),
+        geometry: {
+          type: toGeometry(feature).getType(),
+          coordinates: toGeometry(feature).getCoordinates(),
+        },
+      });
+    },
+    // Annotations and Linked Extents outlines are author-placed, not data.
+    { layerFilter: (layer) => !layer.get?.(DECORATION_LAYER_KEY) },
+  );
   return features;
 }
 

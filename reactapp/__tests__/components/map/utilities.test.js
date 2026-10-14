@@ -1900,6 +1900,7 @@ test("queryLayerFeatures PMTiles Vector", async () => {
   expect(mockMap.forEachFeatureAtPixel).toHaveBeenCalledWith(
     pixel,
     expect.any(Function),
+    { layerFilter: expect.any(Function) },
   );
   expect(features).toStrictEqual([
     {
@@ -1917,6 +1918,25 @@ test("queryLayerFeatures PMTiles Vector", async () => {
       },
     },
   ]);
+});
+
+test("queryLayerFeatures PMTiles Vector leaves decoration layers out", async () => {
+  let layerFilter;
+  const mockMap = {
+    getView: jest.fn(() => ({ getZoom: jest.fn(() => 10) })),
+    forEachFeatureAtPixel: jest.fn((pixelArg, callback, options) => {
+      layerFilter = options.layerFilter;
+    }),
+  };
+
+  await queryLayerFeatures(layerConfigPMTilesVector, mockMap, [0, 0], [1, 1]);
+
+  const decoration = new VectorLayer({ source: new VectorSource() });
+  decoration.set("decorationLayer", true);
+  expect(layerFilter(decoration)).toBe(false);
+  expect(layerFilter(new VectorLayer({ source: new VectorSource() }))).toBe(
+    true,
+  );
 });
 
 test("queryLayerFeatures PMTiles Vector Layer Name Mismatch", async () => {
@@ -1947,6 +1967,7 @@ test("queryLayerFeatures PMTiles Vector Layer Name Mismatch", async () => {
   expect(mockMap.forEachFeatureAtPixel).toHaveBeenCalledWith(
     pixel,
     expect.any(Function),
+    { layerFilter: expect.any(Function) },
   );
   expect(features).toStrictEqual([]);
 });
@@ -1978,6 +1999,7 @@ test("queryLayerFeatures PMTiles Vector No Features Found", async () => {
   expect(mockMap.forEachFeatureAtPixel).toHaveBeenCalledWith(
     pixel,
     expect.any(Function),
+    { layerFilter: expect.any(Function) },
   );
   expect(features).toStrictEqual([]);
 });

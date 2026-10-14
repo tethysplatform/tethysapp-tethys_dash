@@ -93,7 +93,8 @@ const LinkedExtentsPane = ({ style, onChange, mapExtent, containerRef }) => {
         <FieldLabel>Outline Width</FieldLabel>
         <Control $width="6rem">
           <NormalInput
-            value={resolved.width}
+            value={style?.width ?? ""}
+            placeholder={String(resolved.width)}
             type="number"
             min={1}
             onChange={(e) => set("width", coerceNumericField(e.target.value))}

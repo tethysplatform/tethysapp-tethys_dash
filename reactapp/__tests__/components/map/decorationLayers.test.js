@@ -51,7 +51,10 @@ describe("buildDecorationContent", () => {
     expect(source.getFeatures()).toEqual([]);
     expect(style.getStroke().getColor()).toBe("#00ff00");
     expect(style.getStroke().getWidth()).toBe(5);
-    expect(properties).toEqual({ linkedExtentOutlines: true });
+    expect(properties).toEqual({
+      decorationLayer: true,
+      linkedExtentOutlines: true,
+    });
   });
 });
 

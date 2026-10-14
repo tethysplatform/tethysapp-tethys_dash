@@ -93,9 +93,12 @@ test("an item override shows a reset that returns it to the default (AE1)", () =
   mount({ defaults: { lineWidth: 2 }, items: [arrow] });
   expand("Arrow 1");
 
-  fireEvent.change(screen.getByLabelText("Arrow 1 Line Width"), {
-    target: { value: "6" },
-  });
+  const width = screen.getByLabelText("Arrow 1 Line Width");
+  // Un-overridden: empty, with the inherited value as the placeholder.
+  expect(width).toHaveValue("");
+  expect(width).toHaveAttribute("placeholder", "2");
+
+  fireEvent.change(width, { target: { value: "6" } });
   expect(latest.items[0].style).toEqual({ lineWidth: 6 });
   expect(screen.getByLabelText("Arrow 1 Line Width")).toHaveValue("6");
 
@@ -103,7 +106,24 @@ test("an item override shows a reset that returns it to the default (AE1)", () =
     screen.getByRole("button", { name: "Reset Arrow 1 Line Width" }),
   );
   expect(latest.items[0]).not.toHaveProperty("style");
-  expect(screen.getByLabelText("Arrow 1 Line Width")).toHaveValue("2");
+  expect(screen.getByLabelText("Arrow 1 Line Width")).toHaveValue("");
+});
+
+test("clearing a number field leaves it empty to type into", () => {
+  mount({ defaults: { lineWidth: 4 }, items: [] });
+  const width = screen.getByLabelText("Default Line Width");
+  expect(width).toHaveValue("4");
+
+  fireEvent.change(width, { target: { value: "" } });
+  expect(screen.getByLabelText("Default Line Width")).toHaveValue("");
+  expect(screen.getByLabelText("Default Line Width")).toHaveAttribute(
+    "placeholder",
+    "2",
+  );
+  fireEvent.change(screen.getByLabelText("Default Line Width"), {
+    target: { value: "6" },
+  });
+  expect(latest.defaults).toEqual({ lineWidth: 6 });
 });
 
 test("an un-overridden item shows its layer default value", () => {
