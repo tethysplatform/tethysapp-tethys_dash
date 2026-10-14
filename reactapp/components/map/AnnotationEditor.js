@@ -85,6 +85,12 @@ const DoneButton = styled(ToolButton)`
   color: #fff;
 `;
 
+const DeleteButton = styled(ToolButton)`
+  background: #dc3545;
+  border-color: #dc3545;
+  color: #fff;
+`;
+
 const Instructions = styled.div`
   font-size: 0.8rem;
   color: #495057;
@@ -505,14 +511,14 @@ const AnnotationEditor = ({ visualizationRef }) => {
               {label}
             </ToolButton>
           ))}
-          <ToolButton
+          <DeleteButton
             type="button"
             onClick={deleteSelected}
             disabled={tool !== "select" || !selectedId}
             aria-label="Delete selected annotation"
           >
             Delete
-          </ToolButton>
+          </DeleteButton>
           <DoneButton type="button" onClick={handleDone}>
             Done
           </DoneButton>
