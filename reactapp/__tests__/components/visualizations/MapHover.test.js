@@ -226,6 +226,64 @@ test("Map hover — pointermove queries only hover-tagged layers and positions t
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 });
 
+test("Map hover never queries an Annotations layer, even one tagged hover", async () => {
+  mockedQueryLayerFeatures.mockResolvedValue([]);
+  jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+
+  const layers = [
+    {
+      tablePopupType: "hover",
+      configuration: {
+        type: "VectorLayer",
+        props: {
+          name: "Callouts",
+          source: { type: "Annotations", props: {} },
+        },
+        annotations: { defaults: {}, items: [] },
+      },
+    },
+    {
+      tablePopupType: "hover",
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "HoverLayer",
+          source: {
+            type: "ESRI Image and Map Service",
+            props: { url: "hover_url" },
+          },
+        },
+      },
+    },
+  ];
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent
+          onMapPointerMove={true}
+          clickCoordinates={[10, 20]}
+          mapProps={{
+            mapConfig: {},
+            viewConfig: {},
+            layers,
+            baseMap: null,
+            layerControl: false,
+          }}
+        />
+      </MapContextProvider>
+    ),
+  });
+  render(LoadedComponent);
+
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  await waitFor(() => {
+    expect(mockedQueryLayerFeatures.mock.calls.length).toBe(1);
+  });
+  expect(
+    mockedQueryLayerFeatures.mock.calls[0][0].configuration.props.name,
+  ).toBe("HoverLayer");
+});
+
 test("Map hover attribute variables update text variable input", async () => {
   // Hover-opened popups should drive variable inputs the same way click
   // does — enables hover-driven dashboards where other widgets follow

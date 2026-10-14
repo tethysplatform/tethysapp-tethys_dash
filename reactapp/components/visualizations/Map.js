@@ -8,6 +8,7 @@ import {
   useMemo,
 } from "react";
 import { createRoot } from "react-dom/client";
+import { isDecorationLayerEntry } from "components/map/decorationLayers";
 import MapComponent from "components/map/Map";
 import {
   queryLayerFeatures,
@@ -1204,6 +1205,9 @@ const MapVisualization = ({
     // Hover-triggered table layers are queried only by onMapHover, and a
     // table-popup-type of "none" with no modal turns the layer off entirely.
     const queryableLayers = layers.filter((item) => {
+      // Keyed on the source type rather than the popup settings, so a
+      // decoration saved without `tablePopupType` cannot default into queries.
+      if (isDecorationLayerEntry(item)) return false;
       const tablePopupType = resolveTablePopupType(item);
       const modalEnabled = item.popupConfig?.mode === "modal";
       if (!modalEnabled && tablePopupType !== "click") return false;
@@ -1407,6 +1411,7 @@ const MapVisualization = ({
     // Hover only handles layers whose table popup type is "hover", regardless
     // of whether their modal is configured. Modal popups never open on hover.
     const hoverLayers = layers.filter((item) => {
+      if (isDecorationLayerEntry(item)) return false;
       if (resolveTablePopupType(item) !== "hover") return false;
       const name = item.configuration?.props?.name;
       if (!name || !olLayerVisibility.has(name)) return true;

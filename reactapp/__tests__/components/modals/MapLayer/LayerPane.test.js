@@ -3,12 +3,16 @@ import PropTypes from "prop-types";
 import { render, screen, fireEvent } from "@testing-library/react";
 import LayerPane from "components/modals/MapLayer/LayerPane";
 
-const TestingComponent = ({ initialLayerProps = {} }) => {
+const TestingComponent = ({ initialLayerProps = {}, sourceType }) => {
   const [layerProps, setLayerProps] = useState(initialLayerProps);
 
   return (
     <>
-      <LayerPane layerProps={layerProps} setLayerProps={setLayerProps} />
+      <LayerPane
+        layerProps={layerProps}
+        setLayerProps={setLayerProps}
+        sourceType={sourceType}
+      />
       <p data-testid="layerProps">{JSON.stringify(layerProps)}</p>
     </>
   );
@@ -16,6 +20,7 @@ const TestingComponent = ({ initialLayerProps = {} }) => {
 
 TestingComponent.propTypes = {
   initialLayerProps: PropTypes.object,
+  sourceType: PropTypes.string,
 };
 
 test("LayerPane", async () => {
@@ -147,5 +152,41 @@ test("LayerPane clearing Click Tolerance leaves it an empty string (no coercion 
 
   expect(await screen.findByTestId("layerProps")).toHaveTextContent(
     JSON.stringify({ clickTolerance: "" }),
+  );
+});
+
+test.each(["Annotations", "Linked Extents"])(
+  "LayerPane omits query, snap and image rows for a %s layer",
+  async (sourceType) => {
+    render(<TestingComponent sourceType={sourceType} />);
+
+    expect(await screen.findByText("Opacity")).toBeInTheDocument();
+    expect(screen.getByText("Min Zoom")).toBeInTheDocument();
+    expect(screen.getByText("Max Resolution")).toBeInTheDocument();
+    for (const hidden of [
+      "Min Zoom Query",
+      "Click Tolerance",
+      "Snap To Features",
+      "Snap Sublayer",
+      "Render As Image",
+      "Image Ratio",
+    ]) {
+      expect(screen.queryByText(hidden)).not.toBeInTheDocument();
+    }
+  },
+);
+
+test("LayerPane edits the right property after rows are hidden", async () => {
+  render(<TestingComponent sourceType="Annotations" />);
+
+  // Rows, placeholders and types are filtered together, so Max Zoom is the
+  // last row and its input edits maxZoom.
+  fireEvent.change(await screen.findByLabelText("value Input 4"), {
+    target: { value: "12" },
+  });
+
+  expect(screen.queryByLabelText("value Input 5")).not.toBeInTheDocument();
+  expect(screen.getByTestId("layerProps")).toHaveTextContent(
+    JSON.stringify({ maxZoom: "12" }),
   );
 });

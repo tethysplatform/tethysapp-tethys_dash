@@ -25,6 +25,7 @@ import {
   TabContext,
   VariableInputsContext,
 } from "components/contexts/Contexts";
+import { isDecorationSourceType } from "components/map/decorationLayers";
 import { POPUP_TAB_ID } from "components/map/viewGroup";
 import {
   sourcePropertiesOptions,
@@ -226,6 +227,9 @@ export const getLayerType = (sourceType) => {
   // wrong layer class with no error. The label is load-bearing, and it is also
   // persisted user data: renaming one costs a migration over every dashboard.
   if (sourceType === "Shapefile") return "VectorLayer";
+  // Same reasoning: "Linked Extents" contains no keyword, but the mapping is
+  // load-bearing -- both decoration types must stay in every vector branch.
+  if (isDecorationSourceType(sourceType)) return "VectorLayer";
   if (sourceType.includes("Vector")) return "VectorTileLayer";
   if (sourceType.includes("Raster")) return "WebGLTile";
   if (sourceType.includes("Tile")) return "TileLayer";
@@ -795,6 +799,7 @@ const MapLayerModal = ({
               <LayerPane
                 layerProps={layerProps}
                 setLayerProps={handleLayerPropsChange}
+                sourceType={sourceProps?.type}
               />
             </Tab>
             <Tab

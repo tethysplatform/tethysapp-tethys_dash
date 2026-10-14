@@ -1,3 +1,7 @@
+import {
+  buildDecorationContent,
+  isDecorationLayerConfig,
+} from "components/map/decorationLayers";
 import { moduleMap } from "components/map/moduleMap";
 import { Vector as VectorSource } from "ol/source.js";
 import MVT from "ol/format/MVT.js";
@@ -1666,6 +1670,12 @@ export function geometryIntersectsBBox(geometry, box) {
 }
 
 const moduleLoader = async (config, mapProjection, getMapProjection) => {
+  // A decoration layer's content lives beside its props, not in its source, so
+  // it is built here where the whole layer configuration is in hand.
+  if (isDecorationLayerConfig(config)) {
+    return loadDecorationLayer(config, mapProjection, getMapProjection);
+  }
+
   // A static image's border is drawn by its layer, not its source.
   let imageBorder = null;
   if (config.type === "Static Image") {
@@ -1681,6 +1691,26 @@ const moduleLoader = async (config, mapProjection, getMapProjection) => {
     attachSourceBorder(instance);
   }
   return instance;
+};
+
+// Annotations and Linked Extents: the layer is constructed through the normal
+// path minus its marker source, then handed a source built from the config.
+// The projection is read late, as the shapefile loader does, because a sibling
+// raster can change the view projection while this layer is being built.
+const loadDecorationLayer = async (config, mapProjection, getMapProjection) => {
+  const { source: _marker, ...layerProps } = config.props;
+  const layer = await loadModule(
+    { type: config.type, props: layerProps },
+    mapProjection,
+    getMapProjection,
+  );
+  const { source, style } = buildDecorationContent(
+    config,
+    getMapProjection?.() ?? mapProjection,
+  );
+  layer.setSource(source);
+  if (style) layer.setStyle(style);
+  return layer;
 };
 
 const loadModule = async (config, mapProjection, getMapProjection) => {

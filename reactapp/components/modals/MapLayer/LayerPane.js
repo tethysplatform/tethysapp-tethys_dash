@@ -1,6 +1,10 @@
 import PropTypes from "prop-types";
 import NormalInput from "components/inputs/NormalInput";
 import { layerPropertiesOptions } from "components/map/utilities";
+import {
+  DECORATION_HIDDEN_LAYER_PROPS,
+  isDecorationSourceType,
+} from "components/map/decorationLayers";
 import InputTable from "components/inputs/InputTable";
 import { useState, useEffect, memo } from "react";
 import styled from "styled-components";
@@ -14,7 +18,20 @@ const PaddedDiv = styled.div`
   gap: 5rem;
 `;
 
-const LayerPane = ({ layerProps, setLayerProps }) => {
+// The registry rows this source type can use. Rows, placeholders and types are
+// all built from this one list: `handlePropertyChange` indexes rows by position,
+// so the three arrays have to be filtered together.
+const layerPropertyKeys = (sourceType) =>
+  Object.keys(layerPropertiesOptions).filter(
+    (key) =>
+      !(
+        isDecorationSourceType(sourceType) &&
+        DECORATION_HIDDEN_LAYER_PROPS.includes(key)
+      ),
+  );
+
+const LayerPane = ({ layerProps, setLayerProps, sourceType }) => {
+  const propertyKeys = layerPropertyKeys(sourceType);
   const [layerProperties, setLayerProperties] = useState(
     filterLayerProps(layerProps),
   );
@@ -22,7 +39,7 @@ const LayerPane = ({ layerProps, setLayerProps }) => {
   useEffect(() => {
     setLayerProperties(filterLayerProps(layerProps));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [layerProps]);
+  }, [layerProps, sourceType]);
 
   function filterLayerProps(props) {
     return loadExistingArgs(
@@ -35,19 +52,17 @@ const LayerPane = ({ layerProps, setLayerProps }) => {
   }
 
   // setup placeholders for the input table
-  const propertyPlaceholders = Object.keys(layerPropertiesOptions).map(
-    (key) => ({
-      value: layerPropertiesOptions[key].placeholder,
-    }),
-  );
+  const propertyPlaceholders = propertyKeys.map((key) => ({
+    value: layerPropertiesOptions[key].placeholder,
+  }));
   // setup placeholders for the input table
-  const propertyTypes = Object.keys(layerPropertiesOptions).map(
+  const propertyTypes = propertyKeys.map(
     (key) => layerPropertiesOptions[key].type,
   );
 
   function loadExistingArgs(existingProps) {
     // create an array for the input table of the various properties
-    return Object.keys(layerPropertiesOptions).map((key) => ({
+    return propertyKeys.map((key) => ({
       rawProperty: key,
       property: spaceAndCapitalize(key),
       value: existingProps[key] ?? "",
@@ -120,6 +135,8 @@ LayerPane.propTypes = {
     layerVisibility: PropTypes.bool,
   }),
   setLayerProps: PropTypes.func,
+  // The layer's source type; decoration layers omit rows that cannot apply.
+  sourceType: PropTypes.string,
 };
 
 export default memo(LayerPane);

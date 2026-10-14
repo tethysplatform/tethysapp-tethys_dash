@@ -771,12 +771,19 @@ const VARIABLE_INPUT_TOKEN_RE = /\$\{([^}]+)\}/g;
 // template no longer raises the unset-input warning. That is the deliberate
 // trade for not letting a label blank the map.
 //
+// `annotations` (only at `layers[i].configuration.annotations`) — an
+// Annotations layer's authored lines and callouts, scoped exactly like
+// `labels` and for the same reason. Callout text may reference a variable
+// input, but a callout is not the map's data: an unset variable draws as empty
+// text rather than replacing the whole map with the unset-input panel.
+//
 // Substitution is a separate path: `updateObjectWithVariableInputs` does not
-// consult this set, so label templates keep getting their variable inputs
-// interpolated regardless of what is skipped here.
+// consult this set, so label templates and annotation text keep getting their
+// variable inputs interpolated regardless of what is skipped here.
 const FEATURE_SCAN_SKIP_KEYS = new Map([
   ["popupConfig", null],
   ["labels", { ancestor: "layers", parent: "configuration" }],
+  ["annotations", { ancestor: "layers", parent: "configuration" }],
 ]);
 
 // Does the path to the key being visited satisfy its scope? `null` means any

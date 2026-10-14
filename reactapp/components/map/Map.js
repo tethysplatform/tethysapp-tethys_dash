@@ -10,6 +10,7 @@ import moduleLoader, {
 // place before the layer effect below constructs a single source -- which
 // matters, because layers are constructed concurrently and a registration that
 // waited on anything async would race them.
+import { isDecorationLayerConfig } from "components/map/decorationLayers";
 import useLinkedExtentPublisher from "components/map/useLinkedExtentPublisher";
 import { isNativelyResolvable } from "components/map/projectionCodes";
 import {
@@ -236,6 +237,10 @@ function applyVectorStyleFunction(olLayer, style, labelConfig, map) {
 // `map` is the OL map the layer belongs to; the label's zoom floor is converted
 // through its view (see `labelConfigForMap`).
 async function applyLayerStyle(olLayer, layerConfig, map) {
+  // A decoration layer is styled by its loader from its own config; a stray
+  // `style` or `labels` key must not replace that with a data-styling rule.
+  if (isDecorationLayerConfig(layerConfig)) return;
+
   const style =
     layerConfig.type === "WebGLTile"
       ? rasterLayerStyle(layerConfig)
@@ -1081,6 +1086,23 @@ const MapComponent = ({
               });
               return;
             }
+          }
+
+          // Annotations and Linked Extents are kept while their whole config
+          // is unchanged, so an unrelated edit, a variable input change or a
+          // time-slider frame leaves them -- and a Linked Extents layer's live
+          // outlines -- untouched. Any change to the layer's own config
+          // rebuilds it: both build from config alone with no network read,
+          // so a rebuild is cheap, and it applies every edit by construction
+          // rather than through a repaint path that could miss one.
+          if (isDecorationLayerConfig(currentLayer)) {
+            const unchanged = (layers ?? []).some((incoming) =>
+              valuesEqual(incoming, currentLayer),
+            );
+            if (unchanged) {
+              layersToKeep.push(currentLayer.props.name);
+            }
+            return;
           }
 
           // A runtime layer that failed its identity match is rebuilt, never

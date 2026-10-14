@@ -254,6 +254,83 @@ test("Static Image imageExtent string is parsed to numeric array", async () => {
   );
 });
 
+describe("Annotations layer", () => {
+  const annotationsConfig = (overrides = {}) => ({
+    type: "VectorLayer",
+    props: {
+      name: "Callouts",
+      opacity: 0.8,
+      zIndex: 2,
+      source: { type: "Annotations", props: {} },
+    },
+    annotations: {
+      defaults: { lineColor: "#ff0000", arrowheads: "end" },
+      items: [
+        {
+          id: "a1",
+          kind: "line",
+          coordinates: [
+            [-123.1, 44.05],
+            [-123.0, 44.1],
+          ],
+        },
+        { id: "a2", kind: "text", coordinates: [-123.05, 44.0], text: "Gauge" },
+      ],
+    },
+    ...overrides,
+  });
+
+  it("builds a VectorLayer from the inline items with no fetch", async () => {
+    const fetchSpy = jest.spyOn(global, "fetch");
+    const layer = await moduleLoader(annotationsConfig(), "EPSG:3857");
+
+    expect(layer).toBeInstanceOf(VectorLayer);
+    expect(layer.getOpacity()).toBe(0.8);
+    const features = layer.getSource().getFeatures();
+    expect(features.map((f) => f.getId()).sort()).toEqual(["a1", "a2"]);
+    // Read into the view projection, not left in lon/lat.
+    const [x] = features
+      .find((f) => f.getId() === "a2")
+      .getGeometry()
+      .getCoordinates();
+    expect(Math.abs(x)).toBeGreaterThan(1000);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+  });
+
+  it("styles features from the layer defaults", async () => {
+    const layer = await moduleLoader(annotationsConfig(), "EPSG:3857");
+    const line = layer.getSource().getFeatureById("a1");
+    const styles = layer.getStyleFunction()(line, 1);
+    expect(styles[0].getStroke().getColor()).toBe("#ff0000");
+    // An arrowhead, since the default is "end".
+    expect(styles).toHaveLength(2);
+  });
+
+  it("reads the projection late, after a sibling changed the view", async () => {
+    const layer = await moduleLoader(
+      annotationsConfig(),
+      "EPSG:3857",
+      () => "EPSG:4326",
+    );
+    const [x, y] = layer
+      .getSource()
+      .getFeatureById("a2")
+      .getGeometry()
+      .getCoordinates();
+    expect(x).toBeCloseTo(-123.05);
+    expect(y).toBeCloseTo(44.0);
+  });
+
+  it("builds an empty layer from a missing annotations config", async () => {
+    const layer = await moduleLoader(
+      annotationsConfig({ annotations: undefined }),
+      "EPSG:3857",
+    );
+    expect(layer.getSource().getFeatures()).toEqual([]);
+  });
+});
+
 describe("Static Image border", () => {
   function staticImageConfig(sourceProps) {
     const config = JSON.parse(
