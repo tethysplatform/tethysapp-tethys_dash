@@ -140,6 +140,7 @@ const MapLayerTemplate = ({
       legend: existingMapLayer.legend,
       style: existingMapLayer.configuration.style,
       labels: existingMapLayer.configuration.labels ?? null,
+      annotations: existingMapLayer.configuration.annotations ?? null,
       attributeProps: {
         variables: attributeVariables,
         omitted: omittedPopupAttributes,

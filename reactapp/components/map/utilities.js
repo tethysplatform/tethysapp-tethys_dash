@@ -190,6 +190,12 @@ export const sourcePropertiesOptions = {
     required: {},
     optional: {},
   },
+  // Content is drawn on the map in the layer editor rather than read from a
+  // source, so there is nothing to fill in on the Source tab.
+  Annotations: {
+    required: {},
+    optional: {},
+  },
   Shapefile: {
     required: {
       url: {

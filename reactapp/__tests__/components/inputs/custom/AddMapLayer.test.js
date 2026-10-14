@@ -723,3 +723,49 @@ describe("rehydratePluginSourceProps", () => {
     });
   });
 });
+
+it("AddMapLayer reopens an Annotations layer with its annotations and saves them back", async () => {
+  const annotations = {
+    defaults: { lineColor: "#ff0000" },
+    items: [
+      {
+        id: "a1",
+        kind: "text",
+        coordinates: [-123.05, 44.0],
+        text: "Gauge 1",
+      },
+    ],
+  };
+  const layer = {
+    configuration: {
+      type: "VectorLayer",
+      props: { name: "Callouts", source: { type: "Annotations", props: {} } },
+      annotations,
+    },
+    tablePopupType: "none",
+  };
+  const onChange = jest.fn();
+
+  render(
+    createLoadedComponent({
+      children: (
+        <AddMapLayer
+          values={[layer]}
+          onChange={onChange}
+          setShowingSubModal={jest.fn()}
+          gridItemIndex={0}
+        />
+      ),
+    }),
+  );
+
+  fireEvent.click(await screen.findByTestId("editMapLayer"));
+  expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("tab", { name: "Annotations" }));
+  expect(await screen.findByText("Text: Gauge 1")).toBeInTheDocument();
+
+  fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+
+  await waitFor(() => expect(onChange).toHaveBeenCalled());
+  expect(onChange).toHaveBeenLastCalledWith([layer]);
+});

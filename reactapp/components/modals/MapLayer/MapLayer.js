@@ -25,7 +25,12 @@ import {
   TabContext,
   VariableInputsContext,
 } from "components/contexts/Contexts";
-import { isDecorationSourceType } from "components/map/decorationLayers";
+import {
+  buildDecorationLayerEntry,
+  isDecorationSourceType,
+} from "components/map/decorationLayers";
+import { ANNOTATION_SOURCE_TYPE } from "components/map/annotations";
+import AnnotationsPane from "components/modals/MapLayer/AnnotationsPane";
 import { POPUP_TAB_ID } from "components/map/viewGroup";
 import {
   sourcePropertiesOptions,
@@ -261,19 +266,23 @@ const MapLayerModal = ({
   );
   const [legend, setLegend] = useState(layerInfo.legend);
   const [popupConfig, setPopupConfig] = useState(layerInfo.popupConfig ?? null);
-  // Label configuration is stored inside `configuration.props`, so it arrives
-  // here already folded into `layerProps` by AddMapLayer's edit path -- no
-  // separate load line, and it reaches a plugin-supplied layer the same way.
-  // It is held as its own slice rather than edited in place inside `layerProps`
-  // so the save path can write it past the empty-value pruning that would
-  // otherwise strip a size or zoom floor of 0.
+  // Label configuration is stored at `configuration.labels`, a sibling of
+  // `style`, and AddMapLayer's edit path loads it from there. It is held as its
+  // own slice so the save path can write it past the empty-value pruning that
+  // would otherwise strip a size or zoom floor of 0.
   const [labels, setLabels] = useState(layerInfo.labels ?? null);
+  // An Annotations layer's defaults and items, stored at
+  // `configuration.annotations` beside `style` for the same reason.
+  const [annotations, setAnnotations] = useState(
+    layerInfo.annotations ?? { defaults: {}, items: [] },
+  );
   const [selectedOption, setSelectedOption] = useState(null);
   const [hiddenForExtentDraw, setHiddenForExtentDraw] = useState(false);
   const [showLayoutEditor, setShowLayoutEditor] = useState(false);
   const legendContainerRef = useRef(null);
   const styleContainerRef = useRef(null);
   const labelsContainerRef = useRef(null);
+  const annotationsContainerRef = useRef(null);
   const { csrf, mapLayerTemplates, dynamicMapLayers } = useContext(AppContext);
   const { uuid, editable: hostDashboardEditable } = useContext(LayoutContext);
   const { variableInputValues, variableInputDateFormats } = useContext(
@@ -290,8 +299,14 @@ const MapLayerModal = ({
   const inPopupLayout = activeTabId === POPUP_TAB_ID;
   // Same predicate the Style tab uses to decide a source carries per-feature
   // vector geometry. Rasters, tiles and WMS images have no features to label.
+  // Annotations and Linked Extents draw what the author places, not data, so
+  // the data-styling, legend and popup tabs have nothing to configure.
+  const isDecoration = isDecorationSourceType(sourceProps?.type);
+  const isAnnotations = sourceProps?.type === ANNOTATION_SOURCE_TYPE;
   const showLabelsTab =
-    !inPopupLayout && supportsVectorStyling(sourceProps, dynamicMapLayers);
+    !isDecoration &&
+    !inPopupLayout &&
+    supportsVectorStyling(sourceProps, dynamicMapLayers);
 
   // Field discovery for a shapefile source, held here rather than in either pane
   // because both read from it. The modal already hoists every pane's state, so a
@@ -407,6 +422,19 @@ const MapLayerModal = ({
       if (sourceProps.type === "Vector Tile") {
         validSourceProps.urls = validSourceProps.urls.split(",");
       }
+    }
+
+    if (isDecorationSourceType(sourceProps.type)) {
+      addMapLayer(
+        buildDecorationLayerEntry({
+          sourceType: sourceProps.type,
+          layerProps: validLayerProps,
+          layerVisibility,
+          annotations,
+        }),
+      );
+      handleModalClose();
+      return;
     }
 
     let mapConfiguration;
@@ -584,12 +612,10 @@ const MapLayerModal = ({
       mapConfiguration.popupConfig = popupConfig;
     }
 
-    // Written straight onto `configuration.props`, past `removeEmptyLayerProps`:
-    // a label size or a zoom floor of 0 is a value the author set, and the flat
-    // pruning above drops nested objects' falsy members. Living inside
-    // `configuration.props` is also what makes it round-trip with no load
-    // wiring -- AddMapLayer's edit path hands everything but `source` back as
-    // `layerProps`.
+    // Written onto `configuration.labels`, past `removeEmptyLayerProps`: a
+    // label size or a zoom floor of 0 is a value the author set, and the flat
+    // pruning above drops nested objects' falsy members. AddMapLayer's edit
+    // path reads it back from the same key.
     if (labels && typeof labels === "object") {
       mapConfiguration.configuration.labels = labels;
     }
@@ -820,26 +846,44 @@ const MapLayerModal = ({
                 argumentDiscovery={argumentDiscovery}
               />
             </Tab>
-            <Tab
-              eventKey="style"
-              title="Style"
-              aria-label="layer-style-tab"
-              className="layer-style-tab"
-            >
-              <div ref={styleContainerRef}>
-                <StylePane
-                  style={style}
-                  setStyle={setStyle}
-                  setErrorMessage={setErrorMessage}
-                  containerRef={styleContainerRef}
-                  layerProps={layerProps}
-                  sourceProps={sourceProps}
-                  rasterStyle={rasterStyle}
-                  setRasterStyle={setRasterStyle}
-                  shapefileDiscovery={shapefileDiscovery}
-                />
-              </div>
-            </Tab>
+            {isAnnotations && (
+              <Tab
+                eventKey="annotations"
+                title="Annotations"
+                aria-label="layer-annotations-tab"
+                className="layer-annotations-tab"
+              >
+                <div ref={annotationsContainerRef}>
+                  <AnnotationsPane
+                    annotations={annotations}
+                    onChange={setAnnotations}
+                    containerRef={annotationsContainerRef}
+                  />
+                </div>
+              </Tab>
+            )}
+            {!isDecoration && (
+              <Tab
+                eventKey="style"
+                title="Style"
+                aria-label="layer-style-tab"
+                className="layer-style-tab"
+              >
+                <div ref={styleContainerRef}>
+                  <StylePane
+                    style={style}
+                    setStyle={setStyle}
+                    setErrorMessage={setErrorMessage}
+                    containerRef={styleContainerRef}
+                    layerProps={layerProps}
+                    sourceProps={sourceProps}
+                    rasterStyle={rasterStyle}
+                    setRasterStyle={setRasterStyle}
+                    shapefileDiscovery={shapefileDiscovery}
+                  />
+                </div>
+              </Tab>
+            )}
             {showLabelsTab && (
               <Tab
                 eventKey="labels"
@@ -857,50 +901,56 @@ const MapLayerModal = ({
                 </div>
               </Tab>
             )}
-            <Tab
-              eventKey="legend"
-              title="Legend"
-              aria-label="layer-legend-tab"
-              className="layer-legend-tab"
-            >
-              <div ref={legendContainerRef}>
-                <LegendPane
-                  legend={legend}
-                  setLegend={setLegend}
+            {!isDecoration && (
+              <Tab
+                eventKey="legend"
+                title="Legend"
+                aria-label="layer-legend-tab"
+                className="layer-legend-tab"
+              >
+                <div ref={legendContainerRef}>
+                  <LegendPane
+                    legend={legend}
+                    setLegend={setLegend}
+                    sourceProps={sourceProps}
+                    containerRef={legendContainerRef}
+                  />
+                </div>
+              </Tab>
+            )}
+            {!isDecoration && (
+              <Tab
+                eventKey="attributes"
+                title="Attributes/Table Popup"
+                aria-label="layer-attributes-tab"
+                className="layer-attributes-tab"
+              >
+                <AttributesPane
+                  attributeProps={attributeProps}
+                  setAttributeProps={setAttributeProps}
                   sourceProps={sourceProps}
-                  containerRef={legendContainerRef}
+                  layerProps={layerProps}
+                  tabKey={tabKey}
+                  shapefileDiscovery={shapefileDiscovery}
                 />
-              </div>
-            </Tab>
-            <Tab
-              eventKey="attributes"
-              title="Attributes/Table Popup"
-              aria-label="layer-attributes-tab"
-              className="layer-attributes-tab"
-            >
-              <AttributesPane
-                attributeProps={attributeProps}
-                setAttributeProps={setAttributeProps}
-                sourceProps={sourceProps}
-                layerProps={layerProps}
-                tabKey={tabKey}
-                shapefileDiscovery={shapefileDiscovery}
-              />
-            </Tab>
-            <Tab
-              eventKey="popup"
-              title="Custom Modal Popup"
-              aria-label="layer-popup-tab"
-              className="layer-popup-tab"
-            >
-              <PopupConfigPane
-                layerName={layerProps?.name}
-                popupConfig={popupConfig}
-                onChange={setPopupConfig}
-                onOpenLayoutEditor={() => setShowLayoutEditor(true)}
-                hostDashboardEditable={hostDashboardEditable !== false}
-              />
-            </Tab>
+              </Tab>
+            )}
+            {!isDecoration && (
+              <Tab
+                eventKey="popup"
+                title="Custom Modal Popup"
+                aria-label="layer-popup-tab"
+                className="layer-popup-tab"
+              >
+                <PopupConfigPane
+                  layerName={layerProps?.name}
+                  popupConfig={popupConfig}
+                  onChange={setPopupConfig}
+                  onOpenLayoutEditor={() => setShowLayoutEditor(true)}
+                  hostDashboardEditable={hostDashboardEditable !== false}
+                />
+              </Tab>
+            )}
           </Tabs>
         </StyledModalBody>
         <Modal.Footer>
@@ -994,6 +1044,10 @@ MapLayerModal.propTypes = {
     // Label configuration sits beside `style` on the layer's configuration, not
     // among its props. `minZoom` holds an authored zoom level; the map scope
     // converts it to a resolution at render time.
+    annotations: PropTypes.shape({
+      defaults: PropTypes.object,
+      items: PropTypes.array,
+    }),
     labels: PropTypes.shape({
       template: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
       anchor: PropTypes.string,

@@ -5,13 +5,13 @@ import moduleLoader, {
   createJsonStyleFunction,
   LayerSourceError,
 } from "components/map/ModuleLoader";
+import { isDecorationLayerConfig } from "components/map/decorationLayers";
+import useLinkedExtentPublisher from "components/map/useLinkedExtentPublisher";
 // Importing this registers the coordinate reference systems that layers name by
 // code. Module evaluation completes before any render, so registration is in
 // place before the layer effect below constructs a single source -- which
 // matters, because layers are constructed concurrently and a registration that
 // waited on anything async would race them.
-import { isDecorationLayerConfig } from "components/map/decorationLayers";
-import useLinkedExtentPublisher from "components/map/useLinkedExtentPublisher";
 import { isNativelyResolvable } from "components/map/projectionCodes";
 import {
   attachGeoTIFFSourceErrorHandlers,

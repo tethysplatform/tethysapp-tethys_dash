@@ -70,3 +70,28 @@ export function buildDecorationContent(config, viewProjection) {
   }
   return { source: new VectorSource(), style: undefined };
 }
+
+/**
+ * The saved `layers[i]` entry for a decoration layer, as the layer editor
+ * writes it. `tablePopupType: "none"` is a second guard behind the source-type
+ * exclusion from queries.
+ */
+export function buildDecorationLayerEntry({
+  sourceType,
+  layerProps,
+  layerVisibility,
+  annotations,
+}) {
+  const configuration = {
+    type: "VectorLayer",
+    props: { ...layerProps, source: { type: sourceType, props: {} } },
+  };
+  if (layerVisibility === false) {
+    configuration.layerVisibility = false;
+  }
+  if (sourceType === ANNOTATION_SOURCE_TYPE) {
+    const { defaults, items } = normalizeAnnotations(annotations);
+    configuration.annotations = { defaults, items };
+  }
+  return { configuration, tablePopupType: "none" };
+}

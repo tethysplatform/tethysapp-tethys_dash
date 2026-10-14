@@ -8,6 +8,7 @@ import {
   sourcePropType,
   RASTER_SOURCE_TYPES,
 } from "components/map/utilities";
+import { ANNOTATION_SOURCE_TYPE } from "components/map/annotations";
 import InputTable from "components/inputs/InputTable";
 import DataRadioSelect from "components/inputs/DataRadioSelect";
 import NormalInput from "components/inputs/NormalInput";
@@ -862,6 +863,14 @@ const SourcePane = ({
                     <em>* indicates a required property</em>
                   </p>
                 </>
+              )}
+              {sourceType.value === ANNOTATION_SOURCE_TYPE && (
+                <p>
+                  <em>
+                    An Annotations layer has no source to configure. Draw its
+                    lines, arrows and text from the Annotations tab.
+                  </em>
+                </p>
               )}
               {sourceType.value === "Shapefile" && shapefileDiscovery && (
                 <ShapefileDiscoveryPanel discovery={shapefileDiscovery} />
