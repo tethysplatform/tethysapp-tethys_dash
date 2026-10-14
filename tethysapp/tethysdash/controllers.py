@@ -32,6 +32,7 @@ from tethysapp.tethysdash.model import (
     Message,
     copy_thumbnail,
     delete_thumbnail,
+    canonical_dashboard_uuid,
 )
 from django.core.cache import cache
 from tethysapp.tethysdash.visualizations import (
@@ -682,7 +683,14 @@ def add_dashboard(request):
     tabs = dashboard_metadata.get("tabs", [])
     grid_items = dashboard_metadata.get("gridItems", [])
     owner = request.user
-    dashboard_uuid = dashboard_metadata.get("uuid", str(uuid.uuid4()))
+    try:
+        dashboard_uuid = canonical_dashboard_uuid(
+            dashboard_metadata.get("uuid") or str(uuid.uuid4())
+        )
+    except ValueError:
+        return JsonResponse(
+            {"success": False, "message": "The dashboard uuid must be a UUID."}
+        )
     print(f"Creating a dashboard named {name}")
 
     try:
@@ -745,7 +753,12 @@ def copy_dashboard(request):
             user, dashboard_id, new_name, dashboard_uuid
         )
 
-        copy_thumbnail(copied_dashboard_uuid, dashboard_uuid)
+        # The copy is committed by now, so a thumbnail the storage fails to copy must
+        # not report it as failed; a retry would only make a second copy.
+        try:
+            copy_thumbnail(copied_dashboard_uuid, dashboard_uuid)
+        except Exception as error:
+            print(f"Could not copy the thumbnail of dashboard {dashboard_id}: {error}")
         new_dashboard = get_dashboards(user, id=new_dashboard_id)
         print(f"Successfully copied dashboard {dashboard_id}")
 
@@ -786,7 +799,14 @@ def delete_dashboard(request):
         dashboard_uuid = delete_named_dashboard(user, dashboard_id)
         print(f"Successfully deleted dashboard {dashboard_id}")
 
-        delete_thumbnail(dashboard_uuid)
+        # The dashboard is gone by now, so a thumbnail the storage fails to delete must
+        # not report the deletion as failed.
+        try:
+            delete_thumbnail(dashboard_uuid)
+        except Exception as error:
+            print(
+                f"Could not delete the thumbnail of dashboard {dashboard_id}: {error}"
+            )
 
         return JsonResponse({"success": True})
     except Exception as e:

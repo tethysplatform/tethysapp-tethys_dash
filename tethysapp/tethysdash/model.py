@@ -34,7 +34,7 @@ from tethysapp.tethysdash.utilities import sanitize_html
 from django.contrib.auth import get_user_model
 import shutil
 import filecmp
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 Base = declarative_base()
 
@@ -46,12 +46,33 @@ def thumbnail_directory():
     return f"{App.package}/app"
 
 
+def canonical_dashboard_uuid(value):
+    """Return value as a canonical UUID string; raise ValueError if it is not a UUID.
+
+    A dashboard uuid becomes a storage name, so one taken from a request has to be a
+    UUID and nothing that could also be read as a path.
+    """
+    return str(UUID(str(value)))
+
+
+def _names_a_thumbnail(dashboard_uuid):
+    """Whether a uuid can name a thumbnail, which a path separator in it rules out."""
+    return not any(separator in str(dashboard_uuid) for separator in ("/", "\\"))
+
+
 def thumbnail_name(dashboard_uuid):
     """Return the default storage name for a dashboard thumbnail.
 
     The layout matches what get_app_media lays down under MEDIA_ROOT, so a portal on
-    local storage keeps the same files and the same URLs it had before.
+    local storage keeps the same files and the same URLs it had before. A uuid holding a
+    path separator is refused: "x/../../other/file" would otherwise name, and so let a
+    save, copy or delete reach, a file outside the thumbnail directory.
     """
+    if not _names_a_thumbnail(dashboard_uuid):
+        raise ValueError(
+            f"dashboard uuid {dashboard_uuid!r} cannot name a thumbnail: it holds a "
+            "path separator"
+        )
     return f"{thumbnail_directory()}/{dashboard_uuid}.png"
 
 
@@ -92,8 +113,10 @@ def thumbnail_url(dashboard_uuid):
     """Return the URL of one dashboard's thumbnail, or None when it has none.
 
     A storage failure yields None rather than propagating. A card without its picture beats
-    losing the page that holds it.
+    losing the page that holds it. A uuid that cannot name a thumbnail has none.
     """
+    if not _names_a_thumbnail(dashboard_uuid):
+        return None
     name = thumbnail_name(dashboard_uuid)
     try:
         if not default_storage.exists(name):
@@ -107,16 +130,15 @@ def thumbnail_url(dashboard_uuid):
 def thumbnail_urls(dashboard_uuids):
     """Map each uuid to its thumbnail URL, or None, for a whole page at once.
 
-    The landing page renders every dashboard a viewer can see, so asking the storage about
-    each one separately is a round trip per dashboard once the storage is remote. One
-    directory listing answers for all of them instead. Two kinds of uuid are asked about
-    individually anyway: a uuid holding a separator, whose object is nested and so is never a
-    direct child of the listed directory, and the lone uuid of a single dashboard view, where
-    a listing would be the more expensive of the two.
+    The landing page renders every dashboard a viewer can see, so asking the storage
+    about each one separately is a round trip per dashboard once the storage is remote.
+    One directory listing answers for all of them instead. The lone uuid of a single
+    dashboard view is asked about individually, where a listing would be the more
+    expensive of the two. A uuid that cannot name a thumbnail has none, and is never put
+    to the storage.
     """
     uuids = list(dashboard_uuids)
-    nested = {uuid for uuid in uuids if "/" in str(uuid)}
-    flat = [uuid for uuid in uuids if uuid not in nested]
+    flat = [uuid for uuid in uuids if _names_a_thumbnail(uuid)]
 
     if len(flat) <= 1:
         return {uuid: thumbnail_url(uuid) for uuid in uuids}
@@ -141,8 +163,7 @@ def thumbnail_urls(dashboard_uuids):
         print(f"Could not list the dashboard thumbnails: {error}")
         resolved = {uuid: None for uuid in flat}
 
-    resolved.update({uuid: thumbnail_url(uuid) for uuid in nested})
-    return {uuid: resolved[uuid] for uuid in uuids}
+    return {uuid: resolved.get(uuid) for uuid in uuids}
 
 
 def copy_thumbnail(source_uuid, target_uuid):
@@ -803,6 +824,17 @@ def copy_named_dashboard(user, id, new_name, dashboard_uuid):
 
     try:
         original_dashboard = session.query(Dashboard).filter(Dashboard.id == id).first()
+        if not original_dashboard:
+            raise Exception(f"A dashboard with the id {id} does not exist.")
+
+        # Copying hands over everything the dashboard holds, so it takes the same access
+        # as viewing it: a permission of any level, or a public dashboard.
+        user_permission = get_dashboard_user_permission(
+            session, original_dashboard, user
+        )
+        if not user_permission and not original_dashboard.public:
+            raise Exception("User does not have permission to copy the dashboard.")
+
         copied_dashboard_uuid = original_dashboard.uuid
 
         new_dashboard = Dashboard(

@@ -599,6 +599,28 @@ def test_add_dashboard(
 
 
 @pytest.mark.django_db
+def test_add_dashboard_rejects_a_uuid_that_is_not_one(
+    client, db_session, mock_app_get_ps_db, test_admin_user
+):
+    """A dashboard uuid becomes a storage name, so a path in its place is refused."""
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    itemData = {"name": "traversal", "uuid": "../../otherapp/app/logo"}
+
+    url = reverse("tethysdash:add_dashboard")
+    client.force_login(test_admin_user)
+
+    response = client.generic("POST", url, json.dumps(itemData))
+
+    assert response.json() == {
+        "success": False,
+        "message": "The dashboard uuid must be a UUID.",
+    }
+    assert (
+        db_session.query(Dashboard).filter(Dashboard.name == "traversal").count() == 0
+    )
+
+
+@pytest.mark.django_db
 def test_add_dashboard_failed(client, admin_user, mock_app, mocker, tmp_path):
     mock_app("tethysapp.tethysdash.controllers.App")
     mock_get_app_media = mocker.patch("tethys_apps.base.paths.get_app_media")
@@ -753,6 +775,28 @@ def test_delete_dashboard_with_thumbnail(
     )
 
     assert not default_storage.exists(thumbnail_name("some_user_dashboard_uuid"))
+
+
+@pytest.mark.django_db
+def test_delete_dashboard_succeeds_when_the_thumbnail_delete_fails(
+    client, test_owner_user, db_session, mock_app_get_ps_db, dashboard, mocker
+):
+    """The dashboard is already gone, so a storage error must not fail the delete."""
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    mocker.patch(
+        "tethysapp.tethysdash.controllers.delete_thumbnail",
+        side_effect=OSError("storage is unreachable"),
+    )
+
+    url = reverse("tethysdash:delete_dashboard")
+    client.force_login(test_owner_user)
+
+    response = client.generic("POST", url, json.dumps({"id": dashboard.id}))
+
+    assert response.json() == {"success": True}
+    assert (
+        db_session.query(Dashboard).filter(Dashboard.id == dashboard.id).first() is None
+    )
 
 
 @pytest.mark.django_db
@@ -948,7 +992,7 @@ def test_update_dashboard_failed_unknown_exception(
 @pytest.mark.django_db
 def test_copy_dashboard(
     client,
-    admin_user,
+    test_admin_user,
     dashboard,
     mock_app,
     db_session,
@@ -971,7 +1015,7 @@ def test_copy_dashboard(
     }
 
     url = reverse("tethysdash:copy_dashboard")
-    client.force_login(admin_user)
+    client.force_login(test_admin_user)
 
     response = client.generic("POST", url, json.dumps(itemData))
 
@@ -986,8 +1030,8 @@ def test_copy_dashboard(
         "uuid": dashboard_uuid,
         "unrestrictedPlacement": dashboard.unrestricted_placement,
         "autoThumbnail": True,
-        "owner": admin_user.username,
-        "permissions": [{"permission": "admin", "username": admin_user.username}],
+        "owner": test_admin_user.username,
+        "permissions": [{"permission": "admin", "username": test_admin_user.username}],
         "publicDashboard": dashboard.public,
         "userPermission": "admin",
     }
@@ -1002,7 +1046,7 @@ def test_copy_dashboard(
 @pytest.mark.django_db
 def test_copy_dashboard_with_thumbnail(
     client,
-    admin_user,
+    test_admin_user,
     dashboard,
     mock_app,
     db_session,
@@ -1028,10 +1072,11 @@ def test_copy_dashboard_with_thumbnail(
         "files/thumbnail.png",
     )
     with open(thumbnail, "rb") as handle:
-        save_thumbnail("some_user_dashboard_uuid", handle.read())
+        thumbnail_bytes = handle.read()
+    save_thumbnail("some_user_dashboard_uuid", thumbnail_bytes)
 
     url = reverse("tethysdash:copy_dashboard")
-    client.force_login(admin_user)
+    client.force_login(test_admin_user)
 
     response = client.generic("POST", url, json.dumps(itemData))
 
@@ -1046,17 +1091,66 @@ def test_copy_dashboard_with_thumbnail(
         "uuid": "123e4567-e89b-12d3-a456-426614174001",
         "unrestrictedPlacement": dashboard.unrestricted_placement,
         "autoThumbnail": True,
-        "owner": admin_user.username,
-        "permissions": [{"permission": "admin", "username": admin_user.username}],
+        "owner": test_admin_user.username,
+        "permissions": [{"permission": "admin", "username": test_admin_user.username}],
         "publicDashboard": dashboard.public,
         "userPermission": "admin",
     }
     assert response.json()["new_dashboard"] == expected_result
+    with default_storage.open(
+        thumbnail_name("123e4567-e89b-12d3-a456-426614174001"), "rb"
+    ) as handle:
+        assert handle.read() == thumbnail_bytes
+    assert default_storage.exists(thumbnail_name("some_user_dashboard_uuid"))
 
     added_dashboard = (
         db_session.query(Dashboard).filter(Dashboard.id == new_dashboard["id"]).first()
     )
     assert added_dashboard is not None
+
+
+@pytest.mark.django_db
+def test_copy_dashboard_succeeds_when_the_thumbnail_copy_fails(
+    client, test_admin_user, dashboard, db_session, mock_app_get_ps_db, mocker
+):
+    """The copy is already committed, so a storage error must not report it failed."""
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    mocker.patch(
+        "tethysapp.tethysdash.controllers.copy_thumbnail",
+        side_effect=OSError("storage is unreachable"),
+    )
+
+    url = reverse("tethysdash:copy_dashboard")
+    client.force_login(test_admin_user)
+
+    response = client.generic(
+        "POST", url, json.dumps({"id": dashboard.id, "newName": "the_copy"})
+    )
+
+    assert response.json()["success"]
+    assert response.json()["new_dashboard"]["image"] is None
+    assert db_session.query(Dashboard).filter(Dashboard.name == "the_copy").count() == 1
+
+
+@pytest.mark.django_db
+def test_copy_dashboard_refused_without_permission(
+    client, admin_user, dashboard, db_session, mock_app_get_ps_db
+):
+    """A private dashboard the user holds no permission on cannot be copied."""
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+
+    url = reverse("tethysdash:copy_dashboard")
+    client.force_login(admin_user)
+
+    response = client.generic(
+        "POST", url, json.dumps({"id": dashboard.id, "newName": "the_copy"})
+    )
+
+    assert response.json() == {
+        "success": False,
+        "message": "User does not have permission to copy the dashboard.",
+    }
+    assert db_session.query(Dashboard).filter(Dashboard.name == "the_copy").count() == 0
 
 
 @pytest.mark.django_db

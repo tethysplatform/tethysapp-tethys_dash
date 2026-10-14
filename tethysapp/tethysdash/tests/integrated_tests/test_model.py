@@ -25,6 +25,9 @@ from tethysapp.tethysdash.model import (
     get_visualization_permissions,
     update_visualization_permissions,
     save_thumbnail,
+    copy_thumbnail,
+    delete_thumbnail,
+    canonical_dashboard_uuid,
     thumbnail_directory,
     thumbnail_name,
     thumbnail_url,
@@ -527,10 +530,7 @@ def test_update_named_dashboard_image(
     existing_dashboard = parse_db_dashboard(
         db_session, [dashboard], test_owner_user, False
     )
-    assert (
-        existing_dashboard[0]["image"]
-        is None
-    )
+    assert existing_dashboard[0]["image"] is None
 
     example_image = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -594,9 +594,7 @@ def test_update_named_dashboard_image_remote_storage(
         test_owner_user, dashboard.id, {"image": image}
     )
 
-    assert default_storage.exists(
-        name
-    ), "thumbnail never reached the default storage"
+    assert default_storage.exists(name), "thumbnail never reached the default storage"
     assert updated_dashboard["image"] == default_storage.url(name)
     assert updated_dashboard["image"] == (
         "https://cdn.example.test/media/tethysdash/app/some_user_dashboard_uuid.png"
@@ -624,7 +622,9 @@ def test_save_thumbnail_replaces_rather_than_accumulates(mock_app_get_ps_db):
 
 @pytest.mark.django_db
 @override_settings(PREFIX_URL="test")
-def test_thumbnail_url_leaves_a_remote_url_unprefixed(mock_app_get_ps_db, tmp_path, settings):
+def test_thumbnail_url_leaves_a_remote_url_unprefixed(
+    mock_app_get_ps_db, tmp_path, settings
+):
     """PREFIX_URL belongs to URLs this portal serves, never to a backend's own absolute URL."""
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     remote = tmp_path / "remote"
@@ -689,17 +689,86 @@ def test_thumbnail_urls_falls_back_when_the_backend_cannot_list(
 
 
 @pytest.mark.django_db
-def test_thumbnail_urls_finds_a_nested_uuid(mock_app_get_ps_db):
-    """A uuid holding a separator nests its object, which a listing never reports as a file."""
+def test_save_thumbnail_removes_a_suffixed_copy_and_raises(mock_app_get_ps_db, mocker):
+    """A save the backend files under another name must not leave that object behind.
+
+    Every read rebuilds the canonical name, so a suffixed object is never served. It is
+    removed and the caller told, rather than left as an orphan.
+    """
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
-    save_thumbnail("team/alpha", b"png")
+    suffixed = f"{thumbnail_directory()}/some_uuid_abc1234.png"
+    mocker.patch.object(default_storage, "save", return_value=suffixed)
+    delete = mocker.patch.object(default_storage, "delete")
+
+    with pytest.raises(RuntimeError, match="another save holds that name"):
+        save_thumbnail("some_uuid", b"png")
+
+    assert delete.call_args_list == [
+        call(thumbnail_name("some_uuid")),
+        call(suffixed),
+    ]
+
+
+@pytest.mark.parametrize("dashboard_uuid", ["x/../../other/file", "x\\..\\other"])
+@pytest.mark.django_db
+def test_thumbnail_name_refuses_a_path_separator(mock_app_get_ps_db, dashboard_uuid):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+
+    with pytest.raises(ValueError, match="path separator"):
+        thumbnail_name(dashboard_uuid)
+
+
+@pytest.mark.django_db
+def test_thumbnail_helpers_cannot_reach_outside_the_thumbnail_directory(
+    mock_app_get_ps_db,
+):
+    """A uuid like "x/../../other/file" must not let a save, copy or delete reach it.
+
+    Only a storage save validates a name; delete, exists and open accept ".." so long
+    as the result stays inside the storage, which puts every other app's media in reach.
+    """
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    victim = "otherapp/app/logo.png"
+    default_storage.save(victim, ContentFile(b"theirs"))
+    traversal = "x/../../../otherapp/app/logo"
+
+    with pytest.raises(ValueError):
+        delete_thumbnail(traversal)
+    with pytest.raises(ValueError):
+        save_thumbnail(traversal, b"mine")
+    with pytest.raises(ValueError):
+        copy_thumbnail(traversal, "attacker_copy")
+
+    with default_storage.open(victim, "rb") as handle:
+        assert handle.read() == b"theirs"
+    assert not default_storage.exists(thumbnail_name("attacker_copy"))
+
+
+@pytest.mark.django_db
+def test_thumbnail_urls_answers_none_for_a_uuid_that_cannot_name_one(
+    mock_app_get_ps_db,
+):
+    """Such a uuid has no thumbnail, and it costs the others theirs neither."""
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     save_thumbnail("plain", b"png")
 
-    urls = thumbnail_urls(["team/alpha", "plain", "missing"])
+    urls = thumbnail_urls(["x/../../other/file", "plain", "missing"])
 
-    assert urls["team/alpha"] == default_storage.url(thumbnail_name("team/alpha"))
-    assert urls["plain"] == default_storage.url(thumbnail_name("plain"))
-    assert urls["missing"] is None
+    assert urls == {
+        "x/../../other/file": None,
+        "plain": default_storage.url(thumbnail_name("plain")),
+        "missing": None,
+    }
+    assert thumbnail_url("x/../../other/file") is None
+
+
+def test_canonical_dashboard_uuid():
+    value = "123E4567-E89B-12D3-A456-426614174000"
+
+    assert canonical_dashboard_uuid(value) == value.lower()
+    for bad in ["../../otherapp/x", "some_uuid", ""]:
+        with pytest.raises(ValueError):
+            canonical_dashboard_uuid(bad)
 
 
 @pytest.mark.django_db
@@ -1037,6 +1106,43 @@ def test_copy_named_dashboard(
     assert len(copied_dashboard.permissions) == 1
     assert copied_dashboard.permissions[0].permission == "admin"
     assert copied_dashboard.permissions[0].username == test_member_user.username
+
+
+@pytest.mark.django_db
+def test_copy_named_dashboard_refuses_a_private_dashboard_without_permission(
+    dashboard, db_session, mock_app_get_ps_db, admin_user
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+
+    with pytest.raises(Exception, match="does not have permission to copy"):
+        copy_named_dashboard(admin_user, dashboard.id, "the_copy", str(uuid4()))
+
+    assert db_session.query(Dashboard).filter(Dashboard.name == "the_copy").count() == 0
+
+
+@pytest.mark.django_db
+def test_copy_named_dashboard_allows_a_public_dashboard_without_permission(
+    public_dashboard, db_session, mock_app_get_ps_db, admin_user
+):
+    """Anyone can see a public dashboard, so anyone signed in can copy it."""
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+
+    new_dashboard_id, _ = copy_named_dashboard(
+        admin_user, public_dashboard.id, "the_copy", str(uuid4())
+    )
+
+    copied = (
+        db_session.query(Dashboard).filter(Dashboard.id == new_dashboard_id).first()
+    )
+    assert copied.owner == admin_user.username
+
+
+@pytest.mark.django_db
+def test_copy_named_dashboard_missing(mock_app_get_ps_db, admin_user):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+
+    with pytest.raises(Exception, match="A dashboard with the id 9999 does not exist."):
+        copy_named_dashboard(admin_user, 9999, "the_copy", str(uuid4()))
 
 
 @pytest.mark.django_db
