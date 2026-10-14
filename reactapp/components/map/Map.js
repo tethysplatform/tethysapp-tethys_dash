@@ -10,6 +10,7 @@ import moduleLoader, {
 // place before the layer effect below constructs a single source -- which
 // matters, because layers are constructed concurrently and a registration that
 // waited on anything async would race them.
+import useLinkedExtentPublisher from "components/map/useLinkedExtentPublisher";
 import { isNativelyResolvable } from "components/map/projectionCodes";
 import {
   attachGeoTIFFSourceErrorHandlers,
@@ -2158,6 +2159,11 @@ const MapComponent = ({
     visualizationRef.current?.render();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shouldLoad, viewGroupEnabled]);
+
+  // Linked extent groups: publish this map's on-screen footprint for a Linked
+  // Extents layer on another member to outline. Declared after the mount
+  // effect so the map exists when the hook's effects run.
+  useLinkedExtentPublisher({ visualizationRef, mapExtent, dataviewerViz });
 
   // R29. Publishing an extent re-runs an effect on every visualization on the
   // dashboard, so the same value is never published twice in a row -- a win
