@@ -7,6 +7,7 @@ import moduleLoader, {
 } from "components/map/ModuleLoader";
 import { isDecorationLayerConfig } from "components/map/decorationLayers";
 import useLinkedExtentPublisher from "components/map/useLinkedExtentPublisher";
+import useLinkedExtentOutlines from "components/map/useLinkedExtentOutlines";
 import AnnotationEditor from "components/map/AnnotationEditor";
 // Importing this registers the coordinate reference systems that layers name by
 // code. Module evaluation completes before any render, so registration is in
@@ -2187,6 +2188,8 @@ const MapComponent = ({
   // Extents layer on another member to outline. Declared after the mount
   // effect so the map exists when the hook's effects run.
   useLinkedExtentPublisher({ visualizationRef, mapExtent, dataviewerViz });
+  // And draw the other members' footprints on this map's Linked Extents layers.
+  useLinkedExtentOutlines({ visualizationRef, mapExtent });
 
   // R29. Publishing an extent re-runs an effect on every visualization on the
   // dashboard, so the same value is never published twice in a row -- a win

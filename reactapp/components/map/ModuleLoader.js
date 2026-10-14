@@ -1704,12 +1704,13 @@ const loadDecorationLayer = async (config, mapProjection, getMapProjection) => {
     mapProjection,
     getMapProjection,
   );
-  const { source, style } = buildDecorationContent(
+  const { source, style, properties } = buildDecorationContent(
     config,
     getMapProjection?.() ?? mapProjection,
   );
   layer.setSource(source);
   if (style) layer.setStyle(style);
+  layer.setProperties(properties);
   return layer;
 };
 

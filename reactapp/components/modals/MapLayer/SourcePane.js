@@ -9,6 +9,8 @@ import {
   RASTER_SOURCE_TYPES,
 } from "components/map/utilities";
 import { ANNOTATION_SOURCE_TYPE } from "components/map/annotations";
+import { LINKED_EXTENT_SOURCE_TYPE } from "components/map/linkedExtent";
+import { POPUP_TAB_ID } from "components/map/viewGroup";
 import InputTable from "components/inputs/InputTable";
 import DataRadioSelect from "components/inputs/DataRadioSelect";
 import NormalInput from "components/inputs/NormalInput";
@@ -20,7 +22,11 @@ import {
 import { findSelectOptionByValue } from "components/visualizations/utilities";
 import { getDynamicLayerSourceType } from "components/modals/MapLayer/runtimeLayerSource";
 import { VisualizationArguments } from "components/modals/DataViewer/VisualizationPane";
-import { AppContext, LayoutContext } from "components/contexts/Contexts";
+import {
+  AppContext,
+  LayoutContext,
+  TabContext,
+} from "components/contexts/Contexts";
 import { useMapContext } from "components/contexts/MapContext";
 import Button from "react-bootstrap/Button";
 import Alert from "react-bootstrap/Alert";
@@ -541,12 +547,15 @@ const SourcePane = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceProps.geojson]);
 
-  const potentialMapLayers = Object.keys(sourcePropertiesOptions).map(
-    (option) => ({
+  // A popup map never joins a linked extent group, so it is not offered a
+  // layer that only outlines group members.
+  const inPopupLayout = useContext(TabContext)?.activeTabId === POPUP_TAB_ID;
+  const potentialMapLayers = Object.keys(sourcePropertiesOptions)
+    .filter((type) => !(inPopupLayout && type === LINKED_EXTENT_SOURCE_TYPE))
+    .map((option) => ({
       value: option,
       label: option,
-    }),
-  );
+    }));
   potentialMapLayers.push(...dynamicMapLayers);
 
   // One entry per row, aligned with the arrays above. Rows with no discovery
@@ -863,6 +872,14 @@ const SourcePane = ({
                     <em>* indicates a required property</em>
                   </p>
                 </>
+              )}
+              {sourceType.value === LINKED_EXTENT_SOURCE_TYPE && (
+                <p>
+                  <em>
+                    A Linked Extents layer has no source to configure. Set its
+                    outline on the Outline tab.
+                  </em>
+                </p>
               )}
               {sourceType.value === ANNOTATION_SOURCE_TYPE && (
                 <p>

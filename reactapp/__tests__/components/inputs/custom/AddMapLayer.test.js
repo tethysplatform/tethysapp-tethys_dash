@@ -769,3 +769,37 @@ it("AddMapLayer reopens an Annotations layer with its annotations and saves them
   await waitFor(() => expect(onChange).toHaveBeenCalled());
   expect(onChange).toHaveBeenLastCalledWith([layer]);
 });
+
+it("AddMapLayer passes the map's extent setting to a Linked Extents layer's editor", async () => {
+  const layer = {
+    configuration: {
+      type: "VectorLayer",
+      props: { name: "Inset", source: { type: "Linked Extents", props: {} } },
+      linkedExtentStyle: { color: "#0000ff" },
+    },
+    tablePopupType: "none",
+  };
+  const onChange = jest.fn();
+
+  render(
+    createLoadedComponent({
+      children: (
+        <AddMapLayer
+          values={[layer]}
+          onChange={onChange}
+          setShowingSubModal={jest.fn()}
+          gridItemIndex={0}
+          mapExtent={{ extent: "1,2,3", linkedExtentGroup: "Basin" }}
+        />
+      ),
+    }),
+  );
+
+  fireEvent.click(await screen.findByTestId("editMapLayer"));
+  fireEvent.click(await screen.findByRole("tab", { name: "Outline" }));
+  expect(await screen.findByText("Basin")).toBeInTheDocument();
+
+  fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+  await waitFor(() => expect(onChange).toHaveBeenCalled());
+  expect(onChange).toHaveBeenLastCalledWith([layer]);
+});

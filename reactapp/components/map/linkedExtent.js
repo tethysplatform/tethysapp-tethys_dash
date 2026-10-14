@@ -12,6 +12,12 @@ import { transform } from "ol/proj.js";
 // Nothing here touches React or a live map.
 
 export const LINKED_EXTENT_SOURCE_TYPE = "Linked Extents";
+
+// Set on the OpenLayers layer a Linked Extents config builds. Its outlines are
+// drawn from the registry in the live view projection, so the vector sweep that
+// moves features on a view change must leave them alone -- the layer redraws
+// them itself, and a second transform would put them in the wrong place.
+export const LINKED_EXTENT_LAYER_KEY = "linkedExtentOutlines";
 const EXCHANGE_PROJECTION = "EPSG:4326";
 
 // Points added along each edge, corners excluded.

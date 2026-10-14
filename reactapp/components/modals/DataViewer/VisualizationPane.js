@@ -78,7 +78,16 @@ export const VisualizationArguments = ({
           type={vizArgType}
           value={value}
           onChange={handleInputChange(key)}
-          inputProps={{ gridItemIndex, setShowingSubModal, visualizationRef }}
+          inputProps={{
+            gridItemIndex,
+            setShowingSubModal,
+            visualizationRef,
+            // Only the layer list needs a sibling argument: a Linked Extents
+            // layer reads the map's group name off its extent setting.
+            ...(vizArgType === "custom-AddMapLayer" && {
+              mapExtent: vizInputsValues?.map_extent,
+            }),
+          }}
         />
       );
     },

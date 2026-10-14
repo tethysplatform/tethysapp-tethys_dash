@@ -141,6 +141,8 @@ const MapLayerTemplate = ({
       style: existingMapLayer.configuration.style,
       labels: existingMapLayer.configuration.labels ?? null,
       annotations: existingMapLayer.configuration.annotations ?? null,
+      linkedExtentStyle:
+        existingMapLayer.configuration.linkedExtentStyle ?? null,
       attributeProps: {
         variables: attributeVariables,
         omitted: omittedPopupAttributes,
@@ -205,6 +207,7 @@ export const AddMapLayer = ({
   setShowingSubModal,
   gridItemIndex,
   visualizationRef,
+  mapExtent,
 }) => {
   const [showMapLayerModal, setShowMapLayerModal] = useState(false);
   const [layerInfo, setLayerInfo] = useState({});
@@ -328,6 +331,7 @@ export const AddMapLayer = ({
           existingLayerOriginalName={existingLayerOriginalName}
           gridItemIndex={gridItemIndex}
           visualizationRef={visualizationRef}
+          mapExtent={mapExtent}
         />
       )}
     </>
@@ -367,4 +371,7 @@ AddMapLayer.propTypes = {
     PropTypes.func,
     PropTypes.shape({ current: PropTypes.any }),
   ]),
+  // The map's in-progress `map_extent` argument, passed through to the layer
+  // editor so a Linked Extents layer can say when its map is in no group.
+  mapExtent: PropTypes.any,
 };

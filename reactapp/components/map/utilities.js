@@ -16,6 +16,7 @@ import JSON5 from "json5";
 import { PMTiles } from "pmtiles";
 import { VectorTile } from "@mapbox/vector-tile";
 import Protobuf from "pbf";
+import { LINKED_EXTENT_LAYER_KEY } from "components/map/linkedExtent";
 
 // Source types whose features live in a client-side OL VectorSource (vs
 // server-rendered services queried remotely).
@@ -187,6 +188,12 @@ export const sourcePropertiesOptions = {
     },
   },
   GeoJSON: {
+    required: {},
+    optional: {},
+  },
+  // Outlines where the other maps in this map's linked extent group are
+  // looking. Nothing to configure on the Source tab.
+  "Linked Extents": {
     required: {},
     optional: {},
   },
@@ -446,6 +453,8 @@ export function reprojectVectorFeatures(map, from, to) {
     .getLayers()
     .getArray()
     .forEach((layer) => {
+      // Redrawn from the linked extent registry on the view change itself.
+      if (layer.get?.(LINKED_EXTENT_LAYER_KEY)) return;
       const source = layer.getSource?.();
       if (typeof source?.getFeatures !== "function") return;
       source.getFeatures().forEach((feature) => {

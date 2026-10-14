@@ -30,6 +30,8 @@ import {
   isDecorationSourceType,
 } from "components/map/decorationLayers";
 import { ANNOTATION_SOURCE_TYPE } from "components/map/annotations";
+import { LINKED_EXTENT_SOURCE_TYPE } from "components/map/linkedExtent";
+import LinkedExtentsPane from "components/modals/MapLayer/LinkedExtentsPane";
 import AnnotationsPane from "components/modals/MapLayer/AnnotationsPane";
 import { POPUP_TAB_ID } from "components/map/viewGroup";
 import {
@@ -249,6 +251,7 @@ const MapLayerModal = ({
   addMapLayer,
   layerInfo,
   visualizationRef,
+  mapExtent,
 }) => {
   const [tabKey, setTabKey] = useState("layer");
   const [errorMessage, setErrorMessage] = useState(null);
@@ -276,6 +279,10 @@ const MapLayerModal = ({
   const [annotations, setAnnotations] = useState(
     layerInfo.annotations ?? { defaults: {}, items: [] },
   );
+  // A Linked Extents layer's outline style, at `configuration.linkedExtentStyle`.
+  const [linkedExtentStyle, setLinkedExtentStyle] = useState(
+    layerInfo.linkedExtentStyle ?? {},
+  );
   const [selectedOption, setSelectedOption] = useState(null);
   // Hidden, not closed, while the author works on the preview map -- drawing a
   // static image's extent or editing annotations -- so its state survives.
@@ -285,6 +292,7 @@ const MapLayerModal = ({
   const styleContainerRef = useRef(null);
   const labelsContainerRef = useRef(null);
   const annotationsContainerRef = useRef(null);
+  const outlineContainerRef = useRef(null);
   const { csrf, mapLayerTemplates, dynamicMapLayers } = useContext(AppContext);
   const { uuid, editable: hostDashboardEditable } = useContext(LayoutContext);
   const { variableInputValues, variableInputDateFormats } = useContext(
@@ -305,6 +313,7 @@ const MapLayerModal = ({
   // the data-styling, legend and popup tabs have nothing to configure.
   const isDecoration = isDecorationSourceType(sourceProps?.type);
   const isAnnotations = sourceProps?.type === ANNOTATION_SOURCE_TYPE;
+  const isLinkedExtents = sourceProps?.type === LINKED_EXTENT_SOURCE_TYPE;
   const showLabelsTab =
     !isDecoration &&
     !inPopupLayout &&
@@ -465,6 +474,7 @@ const MapLayerModal = ({
           layerProps: validLayerProps,
           layerVisibility,
           annotations,
+          linkedExtentStyle,
         }),
       );
       handleModalClose();
@@ -902,6 +912,23 @@ const MapLayerModal = ({
                 </div>
               </Tab>
             )}
+            {isLinkedExtents && (
+              <Tab
+                eventKey="outline"
+                title="Outline"
+                aria-label="layer-outline-tab"
+                className="layer-outline-tab"
+              >
+                <div ref={outlineContainerRef}>
+                  <LinkedExtentsPane
+                    style={linkedExtentStyle}
+                    onChange={setLinkedExtentStyle}
+                    mapExtent={mapExtent}
+                    containerRef={outlineContainerRef}
+                  />
+                </div>
+              </Tab>
+            )}
             {!isDecoration && (
               <Tab
                 eventKey="style"
@@ -1084,6 +1111,11 @@ MapLayerModal.propTypes = {
     // Label configuration sits beside `style` on the layer's configuration, not
     // among its props. `minZoom` holds an authored zoom level; the map scope
     // converts it to a resolution at render time.
+    linkedExtentStyle: PropTypes.shape({
+      color: PropTypes.string,
+      width: PropTypes.number,
+      fillColor: PropTypes.string,
+    }),
     annotations: PropTypes.shape({
       defaults: PropTypes.object,
       items: PropTypes.array,
@@ -1116,6 +1148,9 @@ MapLayerModal.propTypes = {
   existingLayerOriginalName: PropTypes.shape({
     current: PropTypes.any,
   }),
+  // The map's in-progress `map_extent` value, for a Linked Extents layer's
+  // note when the map belongs to no linked extent group.
+  mapExtent: PropTypes.any,
   visualizationRef: PropTypes.oneOfType([
     PropTypes.func,
     PropTypes.shape({ current: PropTypes.any }),
