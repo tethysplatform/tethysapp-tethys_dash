@@ -21,8 +21,9 @@
 //   viewGroup             on a popup-nested map -- stripped
 //   isGroupInitialExtent  on a popup-nested map -- stripped
 //                         on a top-level map -- cleared when the group is claimed
+//   linkedExtentGroup     on a popup-nested map -- stripped
 //
-// The first four are decided from one grid item alone and applied by
+// All but the claimed-flag clear are decided from one grid item alone and applied by
 // `applyItemIdentityRules`; the last spans the whole import and the target
 // dashboard, so it is applied by `applyBatchIdentityRules` at the call sites,
 // once every item has been processed. The locators stay in the appliers because

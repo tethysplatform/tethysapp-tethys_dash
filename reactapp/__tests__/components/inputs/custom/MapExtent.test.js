@@ -759,3 +759,75 @@ test.each([[BBOX_TOKEN], [SPACED_TOKEN], ["-1,2,3"]])(
     });
   },
 );
+
+const setLinkedExtentGroup = (name) => {
+  const field = screen.getByLabelText("Linked Extent Group Input");
+  fireEvent.change(field, { target: { value: name } });
+  fireEvent.blur(field);
+  return field;
+};
+
+test("entering a linked extent group emits it, trimmed, beside the extent", () => {
+  const { onChange } = renderOpen();
+
+  setLinkedExtentGroup("  Basin  ");
+
+  expect(lastValue(onChange)).toStrictEqual({
+    extent: "10,20,4",
+    linkedExtentGroup: "Basin",
+  });
+  expect(screen.getByLabelText("Linked Extent Group Input").value).toBe(
+    "Basin",
+  );
+});
+
+test("the linked extent group and the view group are independent fields", () => {
+  const { onChange } = renderOpen();
+
+  setGroupName("Valley");
+  setLinkedExtentGroup("Basin");
+
+  expect(lastValue(onChange)).toStrictEqual({
+    extent: "10,20,4",
+    viewGroup: "Valley",
+    linkedExtentGroup: "Basin",
+  });
+
+  setLinkedExtentGroup("   ");
+  expect(lastValue(onChange)).toStrictEqual({
+    extent: "10,20,4",
+    viewGroup: "Valley",
+  });
+});
+
+test("a saved linked extent group loads into the field and survives other edits", () => {
+  const { onChange } = renderOpen({
+    values: { extent: "10,20,4", linkedExtentGroup: "Basin" },
+  });
+
+  expect(screen.getByLabelText("Linked Extent Group Input").value).toBe(
+    "Basin",
+  );
+  setGroupName("Valley");
+  expect(lastValue(onChange)).toStrictEqual({
+    extent: "10,20,4",
+    viewGroup: "Valley",
+    linkedExtentGroup: "Basin",
+  });
+});
+
+test("a value without a linked extent group never gains the key", () => {
+  const { onChange } = renderOpen();
+
+  setGroupName("Valley");
+
+  expect("linkedExtentGroup" in lastValue(onChange)).toBe(false);
+});
+
+test("the linked extent group field is hidden inside a popup layout", () => {
+  renderOpenInTab(POPUP_TAB_ID);
+
+  expect(
+    screen.queryByLabelText("Linked Extent Group Input"),
+  ).not.toBeInTheDocument();
+});

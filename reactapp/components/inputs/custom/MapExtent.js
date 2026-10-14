@@ -14,6 +14,7 @@ import { TabContext } from "components/contexts/Contexts";
 import {
   containsVariableToken,
   POPUP_TAB_ID,
+  readLinkedExtentGroup,
   readViewGroupSettings,
 } from "components/map/viewGroup";
 
@@ -111,6 +112,7 @@ const normalizeExtentValue = (value) => {
     variable: settings.variable,
     viewGroup: settings.viewGroup,
     isGroupInitialExtent: settings.isInitialExtent,
+    linkedExtentGroup: readLinkedExtentGroup(value),
   };
 };
 
@@ -144,6 +146,13 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
     Boolean(initialValue.viewGroup?.trim()) &&
       Boolean(initialValue.isGroupInitialExtent),
   );
+  // Same committed/draft split as the view group name.
+  const [linkedExtentGroup, setLinkedExtentGroup] = useState(
+    initialValue.linkedExtentGroup ?? "",
+  );
+  const [linkedExtentGroupDraft, setLinkedExtentGroupDraft] = useState(
+    initialValue.linkedExtentGroup ?? "",
+  );
 
   // Mirror every emitted field into a ref so effect closures and event
   // handlers always merge from the current widget state.
@@ -151,6 +160,7 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
   const extentVariableRef = useRef(extentVariable);
   const viewGroupRef = useRef(viewGroup);
   const isGroupInitialExtentRef = useRef(isGroupInitialExtent);
+  const linkedExtentGroupRef = useRef(linkedExtentGroup);
   useEffect(() => {
     customExtentRef.current = customExtent;
   }, [customExtent]);
@@ -163,6 +173,9 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
   useEffect(() => {
     isGroupInitialExtentRef.current = isGroupInitialExtent;
   }, [isGroupInitialExtent]);
+  useEffect(() => {
+    linkedExtentGroupRef.current = linkedExtentGroup;
+  }, [linkedExtentGroup]);
 
   const valueOptions = [
     { label: "Use the Previewed Map Extent", value: "mapExtent" },
@@ -177,6 +190,7 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
     const group = overrides.viewGroup ?? viewGroupRef.current;
     const isInitial =
       overrides.isGroupInitialExtent ?? isGroupInitialExtentRef.current;
+    const linkedGroup = linkedExtentGroupRef.current;
 
     // An extent that is empty or still templated resolves to nothing at load
     // time, so it can never be a group's opening view -- the flag is dropped
@@ -188,6 +202,7 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
       ...(variable && { variable }),
       ...(group && { viewGroup: group }),
       ...(group && isInitial && canSeed && { isGroupInitialExtent: true }),
+      ...(linkedGroup && { linkedExtentGroup: linkedGroup }),
     };
   };
 
@@ -316,6 +331,23 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
     emitValue();
   };
 
+  const commitLinkedExtentGroup = () => {
+    // Trimmed like a view group name; whitespace-only means no group.
+    const trimmed = linkedExtentGroupDraft.trim();
+    if (trimmed === linkedExtentGroup) {
+      if (trimmed !== linkedExtentGroupDraft) {
+        setLinkedExtentGroupDraft(trimmed);
+      }
+      return;
+    }
+
+    setLinkedExtentGroup(trimmed);
+    setLinkedExtentGroupDraft(trimmed);
+    linkedExtentGroupRef.current = trimmed;
+
+    emitValue();
+  };
+
   const handleGroupInitialExtentChange = (e) => {
     const checked = e.target.checked;
     setIsGroupInitialExtent(checked);
@@ -412,6 +444,22 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
               {initialExtentDisabledReason && (
                 <HelpText>{initialExtentDisabledReason}</HelpText>
               )}
+              <InlineFieldRow>
+                <label>
+                  <b>Linked Extent Group:</b>{" "}
+                  <input
+                    type="text"
+                    value={linkedExtentGroupDraft}
+                    onChange={(e) => setLinkedExtentGroupDraft(e.target.value)}
+                    onBlur={commitLinkedExtentGroup}
+                    aria-label="Linked Extent Group Input"
+                  />
+                </label>
+              </InlineFieldRow>
+              <HelpText>
+                Maps in a linked extent group keep their own views. Add a Linked
+                Extents layer to a map to outline where the others are looking.
+              </HelpText>
             </>
           )}
           <label>
