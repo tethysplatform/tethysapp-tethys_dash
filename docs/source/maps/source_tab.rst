@@ -141,6 +141,14 @@ The GeoJSON source is different from the other options. It provides a text area 
 
 ------------------------------------------------------------------------------------------------------------------------
 
++++++++++++++++++++++++++++
+Annotations, Linked Extents
++++++++++++++++++++++++++++
+
+These two layer types have no source to configure. An Annotations layer's lines, arrows and text are drawn on the map from its **Annotations** tab, and a Linked Extents layer's outlines come from the other maps in its linked extent group. See :ref:`annotations_tab`.
+
+------------------------------------------------------------------------------------------------------------------------
+
 +++++++++
 Shapefile
 +++++++++

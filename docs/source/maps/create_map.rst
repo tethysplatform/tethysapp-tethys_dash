@@ -50,6 +50,7 @@ Below the extent, two more settings link this map to others on the dashboard:
 
 - **View Group**: The name of the linked view group this map belongs to. Leave it blank for an independent map. See `Linked Map View Groups`_ below.
 - **Use as the view group's initial extent**: This map's extent becomes the view the whole group opens at. Available only once a view group name is entered, and only for an extent that is not built from a variable template — a templated extent has no value until the variable does, so it cannot supply an opening view.
+- **Linked Extent Group**: The name of the linked extent group this map belongs to. Members keep their own views; a Linked Extents layer on any member outlines where the others are looking. See `Linked Extent Groups`_ below.
 
 .. _view_groups:
 
@@ -68,6 +69,30 @@ Maps that share a **View Group** name pan and zoom together. Move one and every 
 **Plugin-supplied maps.** A map returned by a plugin can join a group by including ``viewGroup`` in its ``map_extent`` (see :ref:`visualizationplugins`), but it cannot supply the group's opening view: the plugin's extent does not exist until the plugin has run. The initial-extent flag is honored only on the built-in **Map** visualization and is set only from this editor.
 
 **Popup layouts.** Maps inside a map's popup layout never join a view group. The setting is hidden there, and any group membership on an imported or copied popup map is dropped.
+
+.. _linked_extent_groups:
+
+---------------------
+Linked Extent Groups
+---------------------
+
+Maps that share a **Linked Extent Group** name do not move together. Each keeps its own view and reports where it is looking, so a map with a :ref:`Linked Extents layer <linked_extents_layer>` can outline the others. That is how an inset is made: a small map showing the whole region, with a rectangle marking the area a larger, zoomed-in map is showing.
+
+**Making an inset.**
+
+1. Give the zoomed-in map and the zoomed-out map the same **Linked Extent Group** name, for example ``Basin``.
+2. Add a **Linked Extents** layer to the zoomed-out map.
+3. Save. As viewers pan and zoom the detail map, its outline moves on the inset.
+
+Every member of a group can carry a Linked Extents layer, and a group can have any number of members. An inset tracking three detail maps draws three outlines.
+
+**Names** are trimmed and matched exactly, as view group names are. A map can be in a view group and a linked extent group at once; members of both groups never outline each other, since they always share a view.
+
+**Hidden tabs.** Only maps on the tab being viewed are outlined. A map on another tab drops out of its group's outlines until its tab is shown again.
+
+**Plugin-supplied maps** join by including ``linkedExtentGroup`` in their ``map_extent``. **Popup layouts** never join, and a group name on an imported or copied popup map is dropped.
+
+**Limitations.** A map whose view crosses the antimeridian (180° longitude), or contains a pole, may draw a wrong outline or none at all.
 
 
 ----------------
