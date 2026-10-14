@@ -2,6 +2,7 @@ import {
   useCallback,
   useRef,
   useContext,
+  useEffect,
   memo,
   useMemo,
   useState,
@@ -24,7 +25,24 @@ const StaticGridLayout = WidthProvider(RGL);
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
 const colCount = 100;
-const defaultRowHeight = window.innerWidth / colCount;
+// Rows span the content area like columns span its width, so item height stays
+// a fraction of that area across screens. 100:56 is ~square on 16:9. Tunable.
+const rowCount = 56;
+
+// Content area height = viewport minus the fixed header and, when shown, the
+// tab bar. Matches DashboardItem's fill-viewport offset.
+function readCssPx(varName, fallback) {
+  const parsed = parseInt(
+    getComputedStyle(document.documentElement).getPropertyValue(varName),
+    10,
+  );
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+function contentAreaHeight(hasTabBar) {
+  const header = readCssPx("--ts-header-height", 56);
+  const tabBar = hasTabBar ? readCssPx("--ts-tab-bar-height", 44) : 0;
+  return Math.max(1, window.innerHeight - header - tabBar);
+}
 
 const responsiveBreakpoints = { lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 };
 const responsiveCols = { lg: 100, md: 100, sm: 12, xs: 4, xxs: 1 };
@@ -55,15 +73,32 @@ const DashboardLayout = ({
   tabId,
   gridItems,
   shouldLoad,
-  rowHeight = defaultRowHeight,
+  rowHeight: rowHeightProp,
   responsive = false,
   allowOverlap: allowOverlapProp,
 }) => {
   const { unrestrictedPlacement } = useContext(LayoutContext);
   const allowOverlap =
     allowOverlapProp !== undefined ? allowOverlapProp : unrestrictedPlacement;
-  const { updateTab } = useContext(TabContext);
+  const { updateTab, tabs } = useContext(TabContext);
   const { isEditing } = useContext(EditingContext);
+
+  // The main dashboard omits rowHeight and sizes rows to the content area;
+  // popup/editor surfaces pass an explicit rowHeight and opt out.
+  const sizeRowsToContentArea =
+    rowHeightProp === undefined && tabId !== "popup";
+  const hasTabBar = (tabs?.length ?? 0) > 1;
+  const [contentHeight, setContentHeight] = useState(() =>
+    sizeRowsToContentArea ? contentAreaHeight(hasTabBar) : 0,
+  );
+  useEffect(() => {
+    if (!sizeRowsToContentArea) return undefined;
+    const update = () => setContentHeight(contentAreaHeight(hasTabBar));
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, [sizeRowsToContentArea, hasTabBar]);
+  const rowHeight = rowHeightProp ?? contentHeight / rowCount;
   const { disabledEditingMovement } = useContext(
     DisabledEditingMovementContext,
   );
