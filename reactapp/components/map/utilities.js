@@ -17,6 +17,10 @@ import { PMTiles } from "pmtiles";
 import { VectorTile } from "@mapbox/vector-tile";
 import Protobuf from "pbf";
 import { LINKED_EXTENT_LAYER_KEY } from "components/map/linkedExtent";
+import {
+  ANNOTATION_SOURCE_TYPE,
+  LINKED_EXTENT_SOURCE_TYPE,
+} from "components/map/decorationTypes";
 
 // Source types whose features live in a client-side OL VectorSource (vs
 // server-rendered services queried remotely).
@@ -193,13 +197,13 @@ export const sourcePropertiesOptions = {
   },
   // Outlines where the other maps in this map's linked extent group are
   // looking. Nothing to configure on the Source tab.
-  "Linked Extents": {
+  [LINKED_EXTENT_SOURCE_TYPE]: {
     required: {},
     optional: {},
   },
   // Content is drawn on the map in the layer editor rather than read from a
   // source, so there is nothing to fill in on the Source tab.
-  Annotations: {
+  [ANNOTATION_SOURCE_TYPE]: {
     required: {},
     optional: {},
   },

@@ -6,7 +6,10 @@ import styled from "styled-components";
 import NormalInput from "components/inputs/NormalInput";
 import ColorPickerPopOver from "components/inputs/ColorPickerPopOver";
 import AnchorPicker, { ANCHOR_LABELS } from "components/inputs/AnchorPicker";
-import { coerceNumericField } from "components/modals/MapLayer/LabelsPane";
+import {
+  coerceNumericField,
+  colorValue,
+} from "components/modals/MapLayer/LabelsPane";
 import { LABEL_ANCHOR_OPTIONS } from "components/map/labelStyle";
 import {
   ARROWHEAD_OPTIONS,
@@ -104,8 +107,6 @@ const FIELD_LABELS = {
 
 const COLOR_FIELDS = ["lineColor", "textColor", "haloColor"];
 const NUMBER_FIELDS = ["lineWidth", "textSize"];
-
-const colorValue = (color) => color?.hex ?? color;
 
 /**
  * One style control. `onChange` receives the new value, or `undefined` for a

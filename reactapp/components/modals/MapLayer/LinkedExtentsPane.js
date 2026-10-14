@@ -5,7 +5,10 @@ import Form from "react-bootstrap/Form";
 import styled from "styled-components";
 import NormalInput from "components/inputs/NormalInput";
 import ColorPickerPopOver from "components/inputs/ColorPickerPopOver";
-import { coerceNumericField } from "components/modals/MapLayer/LabelsPane";
+import {
+  coerceNumericField,
+  colorValue,
+} from "components/modals/MapLayer/LabelsPane";
 import { resolveLinkedExtentStyle } from "components/map/decorationLayers";
 import { readLinkedExtentGroup } from "components/map/viewGroup";
 
@@ -32,8 +35,6 @@ const Help = styled.p`
   font-size: 0.875rem;
   margin: 0 0 0.75rem;
 `;
-
-const colorValue = (color) => color?.hex ?? color;
 
 /**
  * The Outline tab of a Linked Extents layer: the one style every outline it

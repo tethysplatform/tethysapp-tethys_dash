@@ -1098,10 +1098,16 @@ const MapComponent = ({
           // so a rebuild is cheap, and it applies every edit by construction
           // rather than through a repaint path that could miss one.
           if (isDecorationLayerConfig(currentLayer)) {
-            const unchanged = (layers ?? []).some((incoming) =>
-              valuesEqual(incoming, currentLayer),
+            // Matched by name first, so the deep comparison runs once and a
+            // differently named layer with the same config never counts.
+            const incoming = (layers ?? []).find(
+              (candidate) =>
+                candidate?.props?.name === currentLayer.props?.name,
             );
-            if (unchanged) {
+            if (
+              incoming &&
+              (incoming === currentLayer || valuesEqual(incoming, currentLayer))
+            ) {
               layersToKeep.push(currentLayer.props.name);
             }
             return;
@@ -2188,7 +2194,7 @@ const MapComponent = ({
   // Extents layer on another member to outline. Declared after the mount
   // effect so the map exists when the hook's effects run.
   useLinkedExtentPublisher({ visualizationRef, mapExtent, dataviewerViz });
-  // And draw the other members' footprints on this map's Linked Extents layers.
+  // Linked Extents layers are fed from the registry, never from their config.
   useLinkedExtentOutlines({ visualizationRef, mapExtent });
 
   // R29. Publishing an extent re-runs an effect on every visualization on the

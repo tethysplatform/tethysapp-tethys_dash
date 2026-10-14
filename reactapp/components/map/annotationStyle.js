@@ -59,23 +59,27 @@ function distinctNeighbor(coordinates, index, step) {
   return null;
 }
 
-const strokeCache = new Map();
-function lineStyle(color, width) {
+// Style caches live with one style function -- one layer build -- rather than
+// for the page: a layer is rebuilt on any change to its config, so its caches
+// go with it, and text typed one keystroke at a time never piles up.
+const createCaches = () => ({ stroke: new Map(), text: new Map() });
+
+function lineStyle(color, width, caches) {
   const key = `${color}|${width}`;
-  let style = strokeCache.get(key);
+  let style = caches.stroke.get(key);
   if (!style) {
     style = new Style({
       stroke: new Stroke({ color, width, lineCap: "round", lineJoin: "round" }),
     });
-    strokeCache.set(key, style);
+    caches.stroke.set(key, style);
   }
   return style;
 }
 
-function lineStyles(geometry, resolved) {
+function lineStyles(geometry, resolved, caches) {
   const coordinates = geometry.getCoordinates();
   if (!Array.isArray(coordinates) || coordinates.length < 2) return [];
-  const styles = [lineStyle(resolved.lineColor, resolved.lineWidth)];
+  const styles = [lineStyle(resolved.lineColor, resolved.lineWidth, caches)];
   const { arrowheads } = resolved;
   const last = coordinates.length - 1;
 
@@ -108,8 +112,7 @@ function lineStyles(geometry, resolved) {
   return styles;
 }
 
-const textCache = new Map();
-function textStyles(text, resolved) {
+function textStyles(text, resolved, caches) {
   const content = String(text ?? "");
   if (content.trim() === "") return [];
   const key = [
@@ -119,7 +122,7 @@ function textStyles(text, resolved) {
     resolved.haloColor,
     resolved.textAnchor,
   ].join("|");
-  let style = textCache.get(key);
+  let style = caches.text.get(key);
   if (!style) {
     const anchor = resolveAnchor(resolved.textAnchor, labelAnchorPadding);
     style = new Style({
@@ -140,7 +143,7 @@ function textStyles(text, resolved) {
         overflow: true,
       }),
     });
-    textCache.set(key, style);
+    caches.text.set(key, style);
   }
   return [style];
 }
@@ -150,7 +153,11 @@ function textStyles(text, resolved) {
  * a throw inside an OpenLayers style function takes down the whole layer, so a
  * malformed feature draws nothing instead.
  */
-export function annotationFeatureStyles(feature, defaults) {
+export function annotationFeatureStyles(
+  feature,
+  defaults,
+  caches = createCaches(),
+) {
   try {
     const geometry = feature?.getGeometry?.();
     if (!geometry) return [];
@@ -160,10 +167,10 @@ export function annotationFeatureStyles(feature, defaults) {
     );
     const kind = feature.get(ANNOTATION_KIND_KEY);
     if (kind === "text") {
-      return textStyles(feature.get(ANNOTATION_TEXT_KEY), resolved);
+      return textStyles(feature.get(ANNOTATION_TEXT_KEY), resolved, caches);
     }
     if (kind === "line") {
-      return lineStyles(geometry, resolved);
+      return lineStyles(geometry, resolved, caches);
     }
     return [];
   } catch {
@@ -173,5 +180,6 @@ export function annotationFeatureStyles(feature, defaults) {
 
 /** The style function for an Annotations layer with the given defaults. */
 export function createAnnotationStyleFunction(defaults) {
-  return (feature) => annotationFeatureStyles(feature, defaults);
+  const caches = createCaches();
+  return (feature) => annotationFeatureStyles(feature, defaults, caches);
 }

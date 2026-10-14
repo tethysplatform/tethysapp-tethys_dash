@@ -2,6 +2,7 @@ import VectorSource from "ol/source/Vector.js";
 import { Fill, Stroke, Style } from "ol/style.js";
 import {
   ANNOTATION_SOURCE_TYPE,
+  isNonEmptyString,
   itemsToFeatures,
   normalizeAnnotations,
 } from "components/map/annotations";
@@ -24,7 +25,7 @@ import {
 //
 // Nothing here touches React.
 
-export const DECORATION_SOURCE_TYPES = [
+const DECORATION_SOURCE_TYPES = [
   ANNOTATION_SOURCE_TYPE,
   LINKED_EXTENT_SOURCE_TYPE,
 ];
@@ -49,20 +50,17 @@ export const defaultLinkedExtentStyle = Object.freeze({
   fillColor: "rgba(0, 0, 0, 0)",
 });
 
-const nonEmptyString = (value) =>
-  typeof value === "string" && value.trim() !== "";
-
 /** The saved outline style with every key filled from the defaults. */
 export function resolveLinkedExtentStyle(style) {
   return {
-    color: nonEmptyString(style?.color)
+    color: isNonEmptyString(style?.color)
       ? style.color
       : defaultLinkedExtentStyle.color,
     width:
       typeof style?.width === "number" && style.width > 0
         ? style.width
         : defaultLinkedExtentStyle.width,
-    fillColor: nonEmptyString(style?.fillColor)
+    fillColor: isNonEmptyString(style?.fillColor)
       ? style.fillColor
       : defaultLinkedExtentStyle.fillColor,
   };

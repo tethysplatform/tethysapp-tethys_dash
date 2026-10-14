@@ -46,11 +46,13 @@ const LinkedExtentProvider = ({ children }) => {
     }
   }, []);
 
-  const notify = useCallback((name, entry) => {
+  // Listeners are told which member changed, so one whose drawing that member
+  // cannot affect -- its own map, a view-group peer -- can skip the work.
+  const notify = useCallback((name, entry, memberId) => {
     // Snapshot: a listener may unsubscribe itself while we iterate.
     Array.from(entry.listeners).forEach((listener) => {
       try {
-        listener();
+        listener({ memberId });
       } catch (error) {
         console.error(
           `Linked extent group "${name}": a listener failed`,
@@ -88,13 +90,13 @@ const LinkedExtentProvider = ({ children }) => {
           const next = ring ?? null;
           if (record.ring === next) return;
           record.ring = next;
-          notify(name, entry);
+          notify(name, entry, memberId);
         },
         unregister: () => {
           if (!isCurrent()) return;
           const hadRing = record.ring !== null;
           entry.members.delete(memberId);
-          if (hadRing) notify(name, entry);
+          if (hadRing) notify(name, entry, memberId);
           dropIfEmpty(name, entry);
         },
       };

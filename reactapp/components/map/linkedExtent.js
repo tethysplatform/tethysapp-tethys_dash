@@ -11,7 +11,7 @@ import { transform } from "ol/proj.js";
 //
 // Nothing here touches React or a live map.
 
-export const LINKED_EXTENT_SOURCE_TYPE = "Linked Extents";
+export { LINKED_EXTENT_SOURCE_TYPE } from "components/map/decorationTypes";
 
 // Set on the OpenLayers layer a Linked Extents config builds. Its outlines are
 // drawn from the registry in the live view projection, so the vector sweep that

@@ -51,6 +51,8 @@ test("a subscriber is told once per distinct publish", () => {
 
   handle.publish(RING_B);
   expect(listener).toHaveBeenCalledTimes(2);
+  // Told which member changed, so a map can skip changes that cannot affect it.
+  expect(listener).toHaveBeenLastCalledWith({ memberId: "detail" });
 });
 
 test("groups are isolated and names are normalized", () => {

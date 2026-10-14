@@ -25,7 +25,7 @@ import {
   newAnnotationItem,
   reprojectAnnotationFeatures,
 } from "components/map/annotations";
-import { annotationFeatureStyles } from "components/map/annotationStyle";
+import { createAnnotationStyleFunction } from "components/map/annotationStyle";
 
 // The on-map half of annotation editing. It mounts only while the DataViewer's
 // MapContext holds a session -- started from the layer editor's Annotations
@@ -190,11 +190,12 @@ const AnnotationEditor = ({ visualizationRef }) => {
       features: itemsToFeatures(session.items, code),
     });
     sourceRef.current = source;
+    const annotationStyle = createAnnotationStyleFunction(session.defaults);
     const layer = new VectorLayer({
       className: "ol-layer annotation-editor",
       source,
       style: (feature) => {
-        const styles = annotationFeatureStyles(feature, session.defaults);
+        const styles = annotationStyle(feature);
         return feature.get(ANNOTATION_ID_KEY) === selectedIdRef.current
           ? [...styles, handleStyle]
           : styles;

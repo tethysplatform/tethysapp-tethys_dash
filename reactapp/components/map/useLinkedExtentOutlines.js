@@ -50,8 +50,19 @@ export default function useLinkedExtentOutlines({
     const map = visualizationRef.current;
     if (!map) return undefined;
 
-    const populate = () => {
+    const outlineLayers = () =>
+      map
+        .getLayers()
+        .getArray()
+        .filter((layer) => layer.get(LINKED_EXTENT_LAYER_KEY));
+
+    const populate = (change) => {
       const state = stateRef.current;
+      // This map's own footprint is never drawn on it, so its own publishes
+      // change nothing here -- and a map without the layer draws nothing.
+      if (change?.memberId && change.memberId === state.gridItemUUID) return;
+      const layers = outlineLayers();
+      if (layers.length === 0) return;
       const projection = map.getView().getProjection().getCode();
       const outlines =
         state.groupName && registry
@@ -67,8 +78,7 @@ export default function useLinkedExtentOutlines({
         }))
         .filter((outline) => outline.ring);
 
-      map.getLayers().forEach((layer) => {
-        if (!layer.get(LINKED_EXTENT_LAYER_KEY)) return;
+      layers.forEach((layer) => {
         const source = layer.getSource();
         if (!source) return;
         source.clear(true);
@@ -87,7 +97,7 @@ export default function useLinkedExtentOutlines({
     const addKey = map.getLayers().on("add", (event) => {
       if (event.element?.get?.(LINKED_EXTENT_LAYER_KEY)) populate();
     });
-    const viewKey = map.on("change:view", populate);
+    const viewKey = map.on("change:view", () => populate());
     populate();
 
     return () => {

@@ -19,14 +19,14 @@ import {
 //
 // This module is React-free and map-free so its rules can be tested directly.
 
-export const ANNOTATION_SOURCE_TYPE = "Annotations";
-export const STORAGE_PROJECTION = "EPSG:4326";
+export { ANNOTATION_SOURCE_TYPE } from "components/map/decorationTypes";
+const STORAGE_PROJECTION = "EPSG:4326";
 
 // ~1 cm at the equator: enough to round-trip a drawn vertex, short enough that
 // a saved dashboard does not carry float noise from the projection math.
 const COORDINATE_DECIMALS = 7;
 
-export const ANNOTATION_KINDS = ["line", "text"];
+const ANNOTATION_KINDS = ["line", "text"];
 
 // A layer's default arrowheads describe its arrows, so "none" is not offered:
 // a plain line pins "none" on itself (see `newAnnotationItem`), which keeps a
@@ -44,7 +44,7 @@ export const defaultAnnotationStyle = Object.freeze({
   textAnchor: defaultLabelAnchor,
 });
 
-export const ANNOTATION_STYLE_KEYS = Object.keys(defaultAnnotationStyle);
+const ANNOTATION_STYLE_KEYS = Object.keys(defaultAnnotationStyle);
 
 // Feature properties the layer and the editor read back.
 export const ANNOTATION_ID_KEY = "annotationId";
@@ -54,7 +54,7 @@ export const ANNOTATION_STYLE_KEY = "annotationStyle";
 const SOURCE_COORDINATES_KEY = "annotationSourceCoordinates";
 const SOURCE_REVISION_KEY = "annotationSourceRevision";
 
-function isNonEmptyString(value) {
+export function isNonEmptyString(value) {
   return typeof value === "string" && value.trim() !== "";
 }
 

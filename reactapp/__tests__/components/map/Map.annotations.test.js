@@ -212,3 +212,16 @@ test("a stray style key cannot replace the annotation styling", async () => {
 
   expect(lineColorOf(layerNamed("Callouts"))).toBe("#000000");
 });
+
+test("renaming the layer rebuilds it rather than keeping the old one", async () => {
+  await mount([annotationsLayer()]);
+  const before = layerNamed("Callouts");
+  const renamed = annotationsLayer();
+  renamed.props.name = "Gauge Notes";
+
+  act(() => setLayers([renamed]));
+
+  await waitFor(() => expect(layerNamed("Gauge Notes")).toBeTruthy());
+  expect(layerNamed("Gauge Notes")).not.toBe(before);
+  expect(layerNamed("Callouts")).toBeUndefined();
+});
