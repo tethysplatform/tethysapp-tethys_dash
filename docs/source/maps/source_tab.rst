@@ -241,6 +241,8 @@ Static Image
 
 The Static Image source overlays a georeferenced image (PNG, GIF, JPG, etc.) on the map at a specific location defined by a bounding extent. This is useful for displaying weather radar imagery, historical maps, satellite captures, or any image that needs to be positioned at a specific geographic location.
 
+A Static Image layer shows only the **Layer** and **Source** tabs. An image has no features to style, label or open a popup on and no service legend, so those tabs are not offered, and saving the layer keeps only the layer and source settings.
+
 **Layer Properties:**
     - **url:** (required) URL of the image to display. Must be publicly accessible.
     - **projection:** (required) Projection of the image extent coordinates (e.g. ``EPSG:3857``, ``EPSG:4326``).

@@ -224,6 +224,8 @@ export function renameLayerInAttributeProps(attributeProps, oldName, newName) {
 // panning rather than redrawing every feature each frame. Only the plain
 // vector class has that alternative, so the upgrade applies there and leaves
 // every other layer type alone.
+const STATIC_IMAGE_SOURCE_TYPE = "Static Image";
+
 export const applyRenderAsImage = (type, props) =>
   props?.renderAsImage && type === "VectorLayer" ? "VectorImageLayer" : type;
 
@@ -315,6 +317,11 @@ const MapLayerModal = ({
   const isDecoration = isDecorationSourceType(sourceProps?.type);
   const isAnnotations = sourceProps?.type === ANNOTATION_SOURCE_TYPE;
   const isLinkedExtents = sourceProps?.type === LINKED_EXTENT_SOURCE_TYPE;
+  // A static image is a picture placed on the map: it has no features to
+  // style, label, query or open a popup on, and no service legend to read.
+  const isStaticImage = sourceProps?.type === STATIC_IMAGE_SOURCE_TYPE;
+  // The Style, Legend and popup tabs configure data; these layers have none.
+  const showDataTabs = !isDecoration && !isStaticImage;
   const showLabelsTab =
     !isDecoration &&
     !inPopupLayout &&
@@ -525,6 +532,19 @@ const MapLayerModal = ({
           },
         },
       };
+    }
+
+    // Only the Layer and Source tabs are offered for a static image, so only
+    // what they set is saved: a legend, style or popup kept from an older
+    // config could no longer be seen or removed. Nothing to query, either.
+    if (isStaticImage) {
+      if (layerVisibility === false) {
+        mapConfiguration.configuration.layerVisibility = false;
+      }
+      mapConfiguration.tablePopupType = "none";
+      addMapLayer(mapConfiguration);
+      handleModalClose();
+      return;
     }
 
     const minAttributeVariables = removeEmptyValues(
@@ -931,7 +951,7 @@ const MapLayerModal = ({
                 </div>
               </Tab>
             )}
-            {!isDecoration && (
+            {showDataTabs && (
               <Tab
                 eventKey="style"
                 title="Style"
@@ -970,7 +990,7 @@ const MapLayerModal = ({
                 </div>
               </Tab>
             )}
-            {!isDecoration && (
+            {showDataTabs && (
               <Tab
                 eventKey="legend"
                 title="Legend"
@@ -987,7 +1007,7 @@ const MapLayerModal = ({
                 </div>
               </Tab>
             )}
-            {!isDecoration && (
+            {showDataTabs && (
               <Tab
                 eventKey="attributes"
                 title="Attributes/Table Popup"
@@ -1004,7 +1024,7 @@ const MapLayerModal = ({
                 />
               </Tab>
             )}
-            {!isDecoration && (
+            {showDataTabs && (
               <Tab
                 eventKey="popup"
                 title="Custom Modal Popup"
