@@ -450,7 +450,14 @@ function DataViewerModal({
                       <SettingsPane
                         settings={settings}
                         setSettings={setSettings}
-                        vizType={vizType}
+                        // A Text item is edited, not previewed: the right side
+                        // shows the text editor, so no visualization ever
+                        // loads to set vizType. Name it from the selection.
+                        vizType={
+                          selectedVizTypeOption?.value === "Text"
+                            ? "text"
+                            : vizType
+                        }
                         visualizationRef={visualizationRef}
                         vizInputsValues={vizInputsValues}
                       />

@@ -286,7 +286,9 @@ function SettingsPane({
         initialCustomMessaging={settings.customMessaging}
         onChange={onCustomMessagingChange}
       />
-      {visualizationRef.current?.tagName ? (
+      {/* Text has no settings that wait on a loaded visualization, and its
+          preview is the editor -- which would leave the load warning up forever. */}
+      {vizType === "text" ? null : visualizationRef.current?.tagName ? (
         <>
           {visualizationRef.current.tagName.toLowerCase() === "img" &&
             visualizationRef.current.naturalWidth && (

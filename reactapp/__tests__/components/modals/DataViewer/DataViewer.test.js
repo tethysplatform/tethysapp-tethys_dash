@@ -321,6 +321,59 @@ test("Dashboard Viewer Modal Existing Text", async () => {
   expect(await screen.findByText("Some text")).toBeInTheDocument();
 });
 
+test("Dashboard Viewer Modal Text offers Hide Scrollbar and no load warning", async () => {
+  const gridItem = {
+    i: "2",
+    x: 0,
+    y: 0,
+    w: 20,
+    h: 20,
+    source: "Text",
+    args_string: JSON.stringify({ text: "Some text" }),
+    metadata_string: JSON.stringify({}),
+  };
+
+  render(
+    createLoadedComponent({
+      children: (
+        <GridItemContext.Provider
+          value={{
+            gridItemSource: gridItem.source,
+            gridItemI: gridItem.i,
+            gridItemMetadataString: gridItem.metadata_string,
+            gridItemArgsString: gridItem.args_string,
+            gridItemIndex: 0,
+          }}
+        >
+          <DataViewerModal
+            gridItemIndex={0}
+            source={gridItem.source}
+            argsString={gridItem.args_string}
+            metadataString={gridItem.metadata_string}
+            gridItemI={gridItem.i}
+            showModal={true}
+            handleModalClose={jest.fn()}
+            setGridItemMessage={jest.fn()}
+            setShowGridItemMessage={jest.fn()}
+          />
+        </GridItemContext.Provider>
+      ),
+      options: { initialDashboard: userDashboard },
+    }),
+  );
+
+  fireEvent.click(await screen.findByText("Settings"));
+
+  expect(
+    await screen.findByLabelText("Hide Scrollbar Input"),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByText(
+      "Visualization must be loaded to change additional settings.",
+    ),
+  ).not.toBeInTheDocument();
+});
+
 test("Dashboard Viewer Modal Variable Input", async () => {
   const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
   const gridItem = mockedDashboard.tabs[0].gridItems[0];
