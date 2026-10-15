@@ -335,14 +335,14 @@ test("Dashboard Layout resize and enforce aspect ratio", async () => {
         gridItems: [
           {
             args_string: "{}",
-            h: 24,
+            h: 22,
             i: "1",
             source: "",
             metadata_string: JSON.stringify({
               enforceAspectRatio: true,
               aspectRatio: 2,
             }),
-            w: 48,
+            w: 44,
             x: 0,
             y: 0,
           },
