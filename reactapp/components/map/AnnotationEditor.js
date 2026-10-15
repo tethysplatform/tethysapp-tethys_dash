@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import PropTypes from "prop-types";
+import Button from "react-bootstrap/Button";
 import styled from "styled-components";
 import { Map } from "ol";
 import Collection from "ol/Collection.js";
@@ -19,12 +20,14 @@ import { Circle, Fill, Stroke, Style } from "ol/style.js";
 import { unByKey } from "ol/Observable.js";
 import { useMapContext } from "components/contexts/MapContext";
 import {
+  ARROWHEAD_OPTIONS,
   ANNOTATION_ID_KEY,
   ANNOTATION_KIND_KEY,
   ANNOTATION_STYLE_KEY,
   ANNOTATION_TEXT_KEY,
   featuresToItems,
   itemsToFeatures,
+  annotationLabel,
   newAnnotationItem,
   reprojectAnnotationFeatures,
   resolveAnnotationStyle,
@@ -33,6 +36,10 @@ import { createAnnotationStyleFunction } from "components/map/annotationStyle";
 import TextRotateInteraction, {
   rotateHandleCoordinate,
 } from "components/map/textRotateInteraction";
+import AnnotationStyleControl, {
+  FIELDS_BY_KIND,
+  FIELD_LABELS,
+} from "components/inputs/AnnotationStyleControl";
 
 // The on-map half of annotation editing. It mounts only while the DataViewer's
 // MapContext holds a session -- started from the layer editor's Annotations
@@ -43,20 +50,85 @@ import TextRotateInteraction, {
 // never lists it. The real layer is hidden for the session so annotations do
 // not draw twice.
 
-const Wrapper = styled.div`
+// Covers the map without taking its pointer events, and stacks the toolbar
+// over the side panel -- so the panel always starts below the toolbar however
+// far it wraps, and scrolls in whatever height is left.
+const Layout = styled.div`
   position: absolute;
-  top: 1rem;
-  left: 50%;
-  transform: translateX(-50%);
+  inset: 0;
   z-index: 1000;
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-  max-width: calc(100% - 2rem);
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  pointer-events: none;
+  & > * {
+    pointer-events: auto;
+  }
+`;
+
+const Card = styled.div`
   background: rgba(255, 255, 255, 0.97);
-  padding: 0.5rem 0.75rem;
   border-radius: 6px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  max-width: 100%;
+`;
+
+const Wrapper = styled(Card)`
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.5rem 0.75rem;
+`;
+
+const Panel = styled(Card)`
+  align-self: flex-end;
+  width: 17rem;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.6rem 0.75rem;
+`;
+
+const PanelTitle = styled.h6`
+  font-weight: 600;
+  margin-bottom: 0.6rem;
+  overflow-wrap: anywhere;
+`;
+
+const PanelField = styled.div`
+  margin-bottom: 0.6rem;
+`;
+
+const PanelLabelRow = styled.div`
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.2rem;
+`;
+
+const PanelLabel = styled.span`
+  font-weight: 600;
+  font-size: 0.85rem;
+`;
+
+const ResetButton = styled(Button)`
+  font-size: 0.8rem;
+  padding: 0;
+`;
+
+const DefaultNote = styled.span`
+  color: #6c757d;
+  font-size: 0.8rem;
+`;
+
+const PanelText = styled.textarea`
+  width: 100%;
+  font-size: 0.9rem;
+  padding: 0.25rem;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
 `;
 
 const Row = styled.div`
@@ -120,7 +192,7 @@ export const TOOLS = [
 
 export const TOOL_INSTRUCTIONS = {
   select:
-    "Click an annotation to select it, then drag it to move it or drag a point to reshape it. Alt+click a point to remove it. Double-click text to edit it, or drag its round handle to rotate it (Shift snaps to 15°). Delete removes the selection.",
+    "Click an annotation to select it, then drag it to move it or drag a point to reshape it. Alt+click a point to remove it. Double-click text to edit it, or drag its round handle to rotate it (Shift snaps to 15°). The side panel changes the selection's text and style; Delete removes it.",
   line: "Click to add points. Double-click or press Enter to finish; Escape abandons the line.",
   arrow:
     "Click to add points; the arrowhead goes on the last one. Double-click or press Enter to finish; Escape abandons the arrow.",
@@ -217,6 +289,21 @@ const AnnotationEditor = ({ visualizationRef }) => {
     sourceRef.current
       ?.getFeatures()
       .find((f) => f.get(ANNOTATION_ID_KEY) === id);
+
+  // The side panel reads the selected feature itself, which OpenLayers owns:
+  // any change to it -- a drag, a rotation, a text edit -- re-renders it.
+  const [, setRevision] = useState(0);
+  const layoutRef = useRef(null);
+  // What the panel's text field held when it took focus, restored if it is
+  // left blank: emptying the field is not how text is deleted.
+  const panelTextOriginalRef = useRef("");
+  useEffect(() => {
+    const feature = findFeature(selectedId);
+    if (!feature) return undefined;
+    const key = feature.on("change", () => setRevision((r) => r + 1));
+    return () => unByKey(key);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId, session]);
 
   // --- The session: working layer, hidden real layer, view swaps ----------
   useEffect(() => {
@@ -552,47 +639,142 @@ const AnnotationEditor = ({ visualizationRef }) => {
     setAnnotationEditSession(null);
   };
 
+  // Write one style property onto a feature, or clear it back to the layer
+  // default; a feature left with no overrides carries none.
+  const setOverride = (feature, field, value) => {
+    const style = { ...(feature.get(ANNOTATION_STYLE_KEY) ?? {}) };
+    if (value === undefined) {
+      delete style[field];
+    } else {
+      style[field] = value;
+    }
+    feature.set(ANNOTATION_STYLE_KEY, Object.keys(style).length ? style : null);
+    feature.changed();
+  };
+
+  const setText = (feature, value) => {
+    feature.set(ANNOTATION_TEXT_KEY, value);
+    feature.changed();
+  };
+
+  const renderPanel = (feature) => {
+    const kind = feature.get(ANNOTATION_KIND_KEY);
+    const overrides = feature.get(ANNOTATION_STYLE_KEY) ?? {};
+    const resolved = resolveAnnotationStyle(session.defaults, overrides);
+    const items = sourceRef.current.getFeatures().map((f) => ({
+      id: f.get(ANNOTATION_ID_KEY),
+      kind: f.get(ANNOTATION_KIND_KEY),
+      text: f.get(ANNOTATION_TEXT_KEY),
+      style: f.get(ANNOTATION_STYLE_KEY),
+    }));
+    const item = items.find((candidate) => candidate.id === selectedId);
+    return (
+      <Panel role="region" aria-label="Selected annotation">
+        <PanelTitle>
+          {annotationLabel(item, items, session.defaults)}
+        </PanelTitle>
+        {kind === "text" && (
+          <PanelField>
+            <PanelLabelRow>
+              <PanelLabel>Text</PanelLabel>
+            </PanelLabelRow>
+            <PanelText
+              aria-label="Selected annotation text"
+              rows={2}
+              value={feature.get(ANNOTATION_TEXT_KEY)}
+              onFocus={() => {
+                panelTextOriginalRef.current = feature.get(ANNOTATION_TEXT_KEY);
+              }}
+              onChange={(event) => setText(feature, event.target.value)}
+              onBlur={() => {
+                if (String(feature.get(ANNOTATION_TEXT_KEY)).trim() === "") {
+                  setText(feature, panelTextOriginalRef.current);
+                }
+              }}
+            />
+          </PanelField>
+        )}
+        {FIELDS_BY_KIND[kind].map((field) => {
+          const label = FIELD_LABELS[field];
+          return (
+            <PanelField key={field}>
+              <PanelLabelRow>
+                <PanelLabel>{label}</PanelLabel>
+                {overrides[field] !== undefined ? (
+                  <ResetButton
+                    variant="link"
+                    aria-label={`Reset ${label}`}
+                    onClick={() => setOverride(feature, field, undefined)}
+                  >
+                    Reset to default
+                  </ResetButton>
+                ) : (
+                  <DefaultNote>Layer default</DefaultNote>
+                )}
+              </PanelLabelRow>
+              <AnnotationStyleControl
+                field={field}
+                value={resolved[field]}
+                storedValue={overrides[field]}
+                onChange={(value) => setOverride(feature, field, value)}
+                containerRef={layoutRef}
+                arrowheadOptions={ARROWHEAD_OPTIONS}
+                compactAnchor
+              />
+            </PanelField>
+          );
+        })}
+      </Panel>
+    );
+  };
+
   if (!session) return null;
+
+  const selectedFeature =
+    tool === "select" ? findFeature(selectedId) : undefined;
 
   return (
     <>
-      <Wrapper role="toolbar" aria-label="Annotation editor">
-        <Row>
-          <Title>
-            Editing annotations
-            {session.layerName ? `: ${session.layerName}` : ""}
-          </Title>
-          {TOOLS.map(({ id, label }) => (
-            <ToolButton
-              key={id}
+      <Layout ref={layoutRef}>
+        <Wrapper role="toolbar" aria-label="Annotation editor">
+          <Row>
+            <Title>
+              Editing annotations
+              {session.layerName ? `: ${session.layerName}` : ""}
+            </Title>
+            {TOOLS.map(({ id, label }) => (
+              <ToolButton
+                key={id}
+                type="button"
+                $active={tool === id}
+                aria-pressed={tool === id}
+                onClick={() => {
+                  closeTextEdit(true);
+                  setTool(id);
+                }}
+              >
+                {label}
+              </ToolButton>
+            ))}
+            <DeleteButton
               type="button"
-              $active={tool === id}
-              aria-pressed={tool === id}
-              onClick={() => {
-                closeTextEdit(true);
-                setTool(id);
-              }}
+              onClick={deleteSelected}
+              disabled={tool !== "select" || !selectedId}
+              aria-label="Delete selected annotation"
             >
-              {label}
+              Delete
+            </DeleteButton>
+            <DoneButton type="button" onClick={handleDone}>
+              Done
+            </DoneButton>
+            <ToolButton type="button" onClick={handleCancel}>
+              Cancel
             </ToolButton>
-          ))}
-          <DeleteButton
-            type="button"
-            onClick={deleteSelected}
-            disabled={tool !== "select" || !selectedId}
-            aria-label="Delete selected annotation"
-          >
-            Delete
-          </DeleteButton>
-          <DoneButton type="button" onClick={handleDone}>
-            Done
-          </DoneButton>
-          <ToolButton type="button" onClick={handleCancel}>
-            Cancel
-          </ToolButton>
-        </Row>
-        <Instructions role="status">{TOOL_INSTRUCTIONS[tool]}</Instructions>
-      </Wrapper>
+          </Row>
+          <Instructions role="status">{TOOL_INSTRUCTIONS[tool]}</Instructions>
+        </Wrapper>
+        {selectedFeature && renderPanel(selectedFeature)}
+      </Layout>
       {createPortal(
         textEdit ? (
           <TextBox

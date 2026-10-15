@@ -311,7 +311,6 @@ test("Done replaces the draft's items and re-shows the modal", async () => {
   await waitFor(() =>
     expect(modalDialog()).not.toHaveStyle({ visibility: "hidden" }),
   );
-  expect(screen.getByText("Text: 2026")).toBeInTheDocument();
   expect(mapContext.editedAnnotations).toBeNull();
   // Still a draft: nothing reached the dashboard until the layer is saved.
   expect(addMapLayer).not.toHaveBeenCalled();

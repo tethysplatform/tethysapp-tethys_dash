@@ -762,7 +762,13 @@ it("AddMapLayer reopens an Annotations layer with its annotations and saves them
   fireEvent.click(await screen.findByTestId("editMapLayer"));
   expect(await screen.findByRole("dialog")).toBeInTheDocument();
   fireEvent.click(screen.getByRole("tab", { name: "Annotations" }));
-  expect(await screen.findByText("Text: Gauge 1")).toBeInTheDocument();
+  expect(
+    await screen.findByRole("group", { name: "Line/Arrow Default Styles" }),
+  ).toBeInTheDocument();
+  // The items loaded too: the tab does not call the layer empty.
+  expect(
+    screen.queryByText(/This layer has no annotations yet/),
+  ).not.toBeInTheDocument();
 
   fireEvent.click(await screen.findByLabelText("Create Layer Button"));
 

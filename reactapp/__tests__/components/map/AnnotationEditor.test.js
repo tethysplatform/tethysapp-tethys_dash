@@ -1,6 +1,13 @@
 import { useEffect, useRef } from "react";
 import PropTypes from "prop-types";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { Map, MapBrowserEvent, View } from "ol";
 import VectorLayer from "ol/layer/Vector.js";
 import VectorSource from "ol/source/Vector.js";
@@ -979,5 +986,173 @@ describe("rotating text with its handle", () => {
     done();
 
     expect(context.editedAnnotations[0].style).toEqual({ textRotation: 45 });
+  });
+});
+
+describe("the selected annotation's side panel", () => {
+  const panel = () =>
+    screen.queryByRole("region", { name: "Selected annotation" });
+
+  it("shows only while something is selected in Select mode", () => {
+    mount(session({ items: [line, text] }));
+    expect(panel()).not.toBeInTheDocument();
+
+    selectFeature(featureById("a1"));
+    expect(panel()).toBeInTheDocument();
+    expect(within(panel()).getByText("Arrow 1")).toBeInTheDocument();
+
+    selectFeature(null);
+    expect(panel()).not.toBeInTheDocument();
+
+    selectFeature(featureById("a2"));
+    fireEvent.click(screen.getByRole("button", { name: "Arrow" }));
+    expect(panel()).not.toBeInTheDocument();
+  });
+
+  it("offers a line only its line properties, all following the default", () => {
+    mount(session({ defaults: { lineWidth: 3 }, items: [line] }));
+    selectFeature(featureById("a1"));
+
+    const width = within(panel()).getByLabelText("Line Width");
+    expect(width).toHaveValue("");
+    expect(width).toHaveAttribute("placeholder", "3");
+    expect(within(panel()).getAllByText("Layer default")).toHaveLength(3);
+    expect(
+      within(panel()).queryByLabelText("Text Size"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(panel()).queryByLabelText("Selected annotation text"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("an override redraws the working copy, is saved on Done, and reset removes it (AE1)", () => {
+    mount(session({ items: [line, text] }));
+    const feature = featureById("a1");
+    selectFeature(feature);
+
+    fireEvent.change(within(panel()).getByLabelText("Line Width"), {
+      target: { value: "6" },
+    });
+    expect(feature.get("annotationStyle")).toEqual({ lineWidth: 6 });
+    expect(within(panel()).getByLabelText("Line Width")).toHaveValue("6");
+
+    fireEvent.change(within(panel()).getByLabelText("Arrowheads"), {
+      target: { value: "none" },
+    });
+    // An arrow with no arrowheads is a line.
+    expect(within(panel()).getByText("Line 1")).toBeInTheDocument();
+
+    fireEvent.click(
+      within(panel()).getByRole("button", { name: "Reset Line Width" }),
+    );
+    expect(feature.get("annotationStyle")).toEqual({ arrowheads: "none" });
+    expect(within(panel()).getByLabelText("Line Width")).toHaveValue("");
+
+    done();
+    expect(context.editedAnnotations).toEqual([
+      { ...line, style: { arrowheads: "none" } },
+      text,
+    ]);
+  });
+
+  it("resetting the last override leaves the item with no style at all", () => {
+    mount(session({ items: [{ ...line, style: { lineWidth: 5 } }] }));
+    selectFeature(featureById("a1"));
+
+    fireEvent.click(
+      within(panel()).getByRole("button", { name: "Reset Line Width" }),
+    );
+    done();
+
+    expect(context.editedAnnotations).toEqual([line]);
+  });
+
+  it("edits text and its text properties, and the rotation follows a drag", () => {
+    mount(session({ defaults: { textRotation: 10 }, items: [text] }));
+    const feature = featureById("a2");
+    selectFeature(feature);
+
+    const field = within(panel()).getByLabelText("Selected annotation text");
+    expect(field).toHaveValue("Old");
+    fireEvent.change(field, { target: { value: "Gauge 7" } });
+    expect(within(panel()).getByText("Text: Gauge 7")).toBeInTheDocument();
+    expect(
+      within(panel()).queryByLabelText("Line Width"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.change(within(panel()).getByLabelText("Text Placement"), {
+      target: { value: "ne" },
+    });
+    expect(within(panel()).getByLabelText("Text Rotation")).toHaveAttribute(
+      "placeholder",
+      "10",
+    );
+
+    // A rotation made with the handle shows up in the panel.
+    act(() => {
+      feature.set("annotationStyle", {
+        ...feature.get("annotationStyle"),
+        textRotation: -30,
+      });
+      feature.changed();
+    });
+    expect(within(panel()).getByLabelText("Text Rotation")).toHaveValue("-30");
+
+    done();
+    expect(context.editedAnnotations).toEqual([
+      {
+        ...text,
+        text: "Gauge 7",
+        style: { textAnchor: "ne", textRotation: -30 },
+      },
+    ]);
+  });
+
+  it("text left blank in the panel goes back to what it was", () => {
+    mount(session({ items: [text] }));
+    selectFeature(featureById("a2"));
+
+    const field = within(panel()).getByLabelText("Selected annotation text");
+    fireEvent.focus(field);
+    fireEvent.change(field, { target: { value: "  " } });
+    fireEvent.blur(field);
+    expect(field).toHaveValue("Old");
+
+    fireEvent.focus(field);
+    fireEvent.change(field, { target: { value: "New" } });
+    fireEvent.blur(field);
+    expect(field).toHaveValue("New");
+  });
+
+  it("closes when its annotation is deleted", () => {
+    mount(session({ items: [line] }));
+    selectFeature(featureById("a1"));
+    expect(panel()).toBeInTheDocument();
+
+    fireEvent.click(deleteButton());
+
+    expect(panel()).not.toBeInTheDocument();
+    expect(workingFeatures()).toHaveLength(0);
+  });
+
+  it("picks a color override from the panel", async () => {
+    // The picker commits after a short debounce; no map frame may be drawn
+    // while waiting for it, since jsdom's canvas stub cannot draw one.
+    jest.spyOn(window, "requestAnimationFrame").mockImplementation(() => 0);
+    olMap.renderSync();
+    mount(session({ items: [text] }));
+    const feature = featureById("a2");
+    selectFeature(feature);
+
+    fireEvent.click(
+      within(panel()).getByLabelText("Text Outline Color color popover square"),
+    );
+    fireEvent.change(screen.getByRole("textbox", { name: "HEX" }), {
+      target: { value: "#00ffff" },
+    });
+
+    await waitFor(() =>
+      expect(feature.get("annotationStyle")).toEqual({ haloColor: "#00ffff" }),
+    );
   });
 });
