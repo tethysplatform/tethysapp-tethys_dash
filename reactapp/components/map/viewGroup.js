@@ -195,6 +195,33 @@ export function readViewGroupSettings(mapExtent) {
   return settings;
 }
 
+/**
+ * Read the linked-extent group name out of a stored `map_extent` value.
+ *
+ * A linked-extent group is a sibling of the view group: its members keep their
+ * own views and only publish where they are looking, for a Linked Extents
+ * layer on another member to outline. The name lives beside `viewGroup` in the
+ * same object shapes and follows the same normalization.
+ *
+ * Kept out of `readViewGroupSettings` so every reader of that settings object
+ * keeps its exact shape.
+ *
+ * @param {*} mapExtent the stored map extent value in any of its shapes
+ * @returns {string|null} the normalized group name, or null for "no group"
+ */
+export function readLinkedExtentGroup(mapExtent) {
+  if (!mapExtent || typeof mapExtent !== "object" || Array.isArray(mapExtent)) {
+    return null;
+  }
+  const nested = nestedExtentContainer(mapExtent);
+  return normalizeViewGroupName(
+    firstString(
+      mapExtent.linkedExtentGroup,
+      nested ? nested.linkedExtentGroup : null,
+    ),
+  );
+}
+
 // The synthetic tab the popup modal and the popup layout editor mount their
 // reused `DashboardLayout` under. Those subtrees see the dashboard's providers,
 // so view-group membership has to be declined explicitly (R27).
@@ -261,6 +288,35 @@ export function isViewGroupMember({
     activeTabId !== POPUP_TAB_ID &&
     gridItemUUID,
   );
+}
+
+/**
+ * Whether a map may join a linked-extent group. The exclusions are the view
+ * group's (R27): the DataViewer preview and popup maps never publish, nor does
+ * a map with no grid item UUID to key its footprint by.
+ *
+ * @param {object} params
+ * @param {string|null} params.groupName the resolved linked-extent group name
+ * @param {boolean} params.hasLinkedExtentContext whether a registry is above
+ * @param {boolean} params.dataviewerViz whether this is the DataViewer preview
+ * @param {*} params.activeTabId the id of the tab the map is mounted under
+ * @param {*} params.gridItemUUID the map's grid item UUID, if it has one
+ * @returns {boolean}
+ */
+export function isLinkedExtentMember({
+  groupName,
+  hasLinkedExtentContext,
+  dataviewerViz,
+  activeTabId,
+  gridItemUUID,
+}) {
+  return isViewGroupMember({
+    viewGroupName: groupName,
+    hasViewGroupContext: hasLinkedExtentContext,
+    dataviewerViz,
+    activeTabId,
+    gridItemUUID,
+  });
 }
 
 // Grid item `source` for the built-in Map visualization. A plugin-supplied map
@@ -415,8 +471,8 @@ export function clearGroupInitialExtent(mapExtent) {
 
 /**
  * Strip the whole view-group membership -- the group name and the
- * initial-extent flag -- out of a stored `map_extent` value, in whichever of
- * its historical shapes it arrived.
+ * initial-extent flag -- and the linked-extent group name out of a stored
+ * `map_extent` value, in whichever of its historical shapes it arrived.
  *
  * Used where a map can never join a group at all (R27: the popup subtrees), so
  * that a value written before that exclusion existed cannot linger in the
@@ -434,7 +490,7 @@ export function clearViewGroupSettings(mapExtent) {
   }
 
   const nested = nestedExtentContainer(mapExtent);
-  const groupKeys = ["viewGroup", "isGroupInitialExtent"];
+  const groupKeys = ["viewGroup", "isGroupInitialExtent", "linkedExtentGroup"];
   const outerHas = groupKeys.some((key) => key in mapExtent);
   const nestedHas = nested !== null && groupKeys.some((key) => key in nested);
   if (!outerHas && !nestedHas) return mapExtent;

@@ -16,6 +16,7 @@ import LegendRenderer, {
 } from "components/map/LegendRenderer";
 import { RxDragHandleHorizontal } from "react-icons/rx";
 import {
+  hasLegend,
   legendPropType,
   legendItemPropType,
   sourcePropType,
@@ -179,7 +180,7 @@ const LegendTemplate = ({
 
 const LegendPane = ({ legend, setLegend, containerRef, sourceProps }) => {
   const [legendMode, setLegendMode] = useState(
-    !legend ? "off" : legend === "default" ? "default" : "custom",
+    !hasLegend(legend) ? "off" : legend === "default" ? "default" : "custom",
   );
   const previousCustomLegendRef = useRef(
     legend && legend !== "default" ? legend : null,

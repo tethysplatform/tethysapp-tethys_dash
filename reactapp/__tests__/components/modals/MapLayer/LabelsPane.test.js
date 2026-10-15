@@ -75,7 +75,7 @@ test("typing a template, choosing an anchor and setting size emit the whole conf
     allowOverlap: false,
   });
 
-  fireEvent.click(screen.getByLabelText("Northeast Anchor"));
+  fireEvent.click(screen.getByLabelText("Top-Right Anchor"));
   expect(onChange).toHaveBeenLastCalledWith(
     expect.objectContaining({
       template: "${feature.station_id}",
@@ -98,7 +98,7 @@ test("typing a template, choosing an anchor and setting size emit the whole conf
   expect(screen.getByLabelText("Template")).toHaveValue(
     "${feature.station_id}",
   );
-  expect(screen.getByLabelText("Northeast Anchor")).toHaveAttribute(
+  expect(screen.getByLabelText("Top-Right Anchor")).toHaveAttribute(
     "aria-checked",
     "true",
   );
@@ -135,7 +135,7 @@ test("a stored configuration reopens showing its own values", () => {
   );
 
   expect(screen.getByLabelText("Template")).toHaveValue("${feature.name}");
-  expect(screen.getByLabelText("Southwest Anchor")).toHaveAttribute(
+  expect(screen.getByLabelText("Bottom-Left Anchor")).toHaveAttribute(
     "aria-checked",
     "true",
   );

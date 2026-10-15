@@ -129,9 +129,11 @@ const AttributesPane = ({
         return;
       }
 
-      // make sure a valid json is supplied if the source is GeoJSON
+      // make sure a valid json is supplied if the source is GeoJSON. A source
+      // switched to GeoJSON has no `geojson` until some is typed or uploaded.
       if (
         sourceProps.type === "GeoJSON" &&
+        typeof sourceProps.geojson === "string" &&
         sourceProps.geojson.trim().startsWith("{")
       ) {
         try {

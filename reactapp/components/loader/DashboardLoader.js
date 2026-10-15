@@ -21,6 +21,7 @@ import {
   AppContext,
 } from "components/contexts/Contexts";
 import ViewGroupProvider from "components/contexts/ViewGroupContext";
+import LinkedExtentProvider from "components/contexts/LinkedExtentContext";
 import { toNumberOrEmpty } from "components/visualizations/utilities";
 import Error from "components/error/Error";
 import errorImage from "assets/error404.png";
@@ -642,7 +643,9 @@ const DashboardLoader = ({
               <DataViewerModeContext.Provider
                 value={dataViewerModeContextValue}
               >
-                <ViewGroupProvider>{children}</ViewGroupProvider>
+                <ViewGroupProvider>
+                  <LinkedExtentProvider>{children}</LinkedExtentProvider>
+                </ViewGroupProvider>
               </DataViewerModeContext.Provider>
             </DisabledEditingMovementContext.Provider>
           </EditingContext.Provider>

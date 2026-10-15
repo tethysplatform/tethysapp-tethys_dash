@@ -24,6 +24,8 @@ const StaticGridLayout = WidthProvider(RGL);
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
 const colCount = 100;
+// Above the z-index:1 that items after a fill-viewport item carry.
+export const MENU_OPEN_Z_INDEX = 2;
 const defaultRowHeight = window.innerWidth / colCount;
 
 const responsiveBreakpoints = { lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 };
@@ -69,6 +71,8 @@ const DashboardLayout = ({
   );
 
   const [currentBreakpoint, setCurrentBreakpoint] = useState("lg");
+  // The item whose menu is open, lifted above the rest while it stays open.
+  const [menuOpenKey, setMenuOpenKey] = useState(null);
   const isWideBreakpoint =
     !responsive || currentBreakpoint === "lg" || currentBreakpoint === "md";
 
@@ -233,15 +237,22 @@ const DashboardLayout = ({
 
      The lift goes on the grid item itself rather than anything inside it, so
      that react-grid-layout's own resize handles - siblings of this component's
-     output within the item - are carried above the fill item as well. */
+     output within the item - are carried above the fill item as well.
+
+     An item whose menu is open is lifted one step further, above every other
+     tile, and drops back to its place when the menu closes. The menu itself is
+     rendered at the page root, so it shows either way; the lift brings forward
+     the tile the menu acts on. */
+  const itemStyle = (key, index) => {
+    if (key === menuOpenKey) return { zIndex: MENU_OPEN_Z_INDEX };
+    return firstFillIndex >= 0 && index > firstFillIndex
+      ? { zIndex: 1 }
+      : undefined;
+  };
   const children = parsedGridItems.map((item, index) => (
     <div
       key={item.uuid ?? item.i}
-      style={
-        firstFillIndex >= 0 && index > firstFillIndex
-          ? { zIndex: 1 }
-          : undefined
-      }
+      style={itemStyle(item.uuid ?? item.i, index)}
     >
       <GridItemContext.Provider
         value={{
@@ -253,6 +264,13 @@ const DashboardLayout = ({
           gridItemIndex: index,
           gridItemUUID: item.uuid,
           shouldLoad: shouldLoad,
+          // Called by the item's menu as it opens and closes.
+          setItemMenuOpen: (open) =>
+            setMenuOpenKey((current) => {
+              const key = item.uuid ?? item.i;
+              if (open) return key;
+              return current === key ? null : current;
+            }),
           // Fill-viewport only applies on the main dashboard surface, not when
           // this layout is reused inside the popup modal / popup editor.
           enableFillViewport: tabId !== "popup",

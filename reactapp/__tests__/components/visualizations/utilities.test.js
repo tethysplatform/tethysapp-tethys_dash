@@ -2004,6 +2004,68 @@ test("updateObjectWithVariableInputs still substitutes inside a label template",
   );
 });
 
+const annotationArgs = (text) => ({
+  baseMap: "https://example.com/basemap",
+  layers: [
+    {
+      configuration: {
+        type: "VectorLayer",
+        props: { name: "Callouts", source: { type: "Annotations", props: {} } },
+        annotations: {
+          defaults: {},
+          items: [{ id: "a1", kind: "text", coordinates: [0, 0], text }],
+        },
+      },
+    },
+  ],
+});
+
+test("checkForEmptyVariableInputs ignores an unset input referenced only in annotation text", () => {
+  const emptyVariableWarnings = checkForEmptyVariableInputs({
+    metadataString: JSON.stringify({}),
+    argsString: JSON.stringify(annotationArgs("Flow at ${Gauge}")),
+    variableInputValues: { Gauge: "" },
+  });
+
+  expect(emptyVariableWarnings).toStrictEqual(null);
+  expect(
+    findUnresolvedVariableInputTokens(annotationArgs("Flow at ${Gauge}")),
+  ).toEqual([]);
+});
+
+test("the annotations skip is scoped to a map layer's configuration", () => {
+  expect(
+    findUnresolvedVariableInputTokens({
+      chart: { annotations: [{ text: "${Gauge}" }] },
+    }),
+  ).toEqual(["Gauge"]);
+});
+
+test("updateObjectWithVariableInputs substitutes annotation text, blank when unset", () => {
+  const args = annotationArgs("Flow at ${Gauge}");
+  const textOf = (result) =>
+    result.layers[0].configuration.annotations.items[0].text;
+
+  expect(
+    textOf(
+      updateObjectWithVariableInputs({
+        args,
+        variableInputs: { Gauge: "Salem" },
+        variableInputDateFormats: {},
+      }),
+    ),
+  ).toBe("Flow at Salem");
+  expect(
+    textOf(
+      updateObjectWithVariableInputs({
+        args,
+        variableInputs: {},
+        variableInputDateFormats: {},
+      }),
+    ),
+  ).toBe("Flow at ");
+});
+
 test("getVisualization Custom Image with slider metadata returns imageSequence", async () => {
   const mockSetVizType = jest.fn();
   const mockSetVizData = jest.fn();

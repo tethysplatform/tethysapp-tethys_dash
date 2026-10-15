@@ -8,7 +8,11 @@ import Button from "react-bootstrap/Button";
 import { valuesEqual } from "components/modals/utilities";
 import { BsPencilSquare, BsTrash } from "react-icons/bs";
 import { RxDragHandleHorizontal } from "react-icons/rx";
-import { layerPropType, resolveTablePopupType } from "components/map/utilities";
+import {
+  hasLegend,
+  layerPropType,
+  resolveTablePopupType,
+} from "components/map/utilities";
 import { AppContext } from "components/contexts/Contexts";
 import { findSelectOptionByValue } from "components/visualizations/utilities";
 import { DEFAULT_DYNAMIC_LAYER_SOURCE } from "components/modals/MapLayer/runtimeLayerSource";
@@ -140,6 +144,9 @@ const MapLayerTemplate = ({
       legend: existingMapLayer.legend,
       style: existingMapLayer.configuration.style,
       labels: existingMapLayer.configuration.labels ?? null,
+      annotations: existingMapLayer.configuration.annotations ?? null,
+      linkedExtentStyle:
+        existingMapLayer.configuration.linkedExtentStyle ?? null,
       attributeProps: {
         variables: attributeVariables,
         omitted: omittedPopupAttributes,
@@ -171,7 +178,7 @@ const MapLayerTemplate = ({
         {value.configuration.props.name}
       </OverflowTD>
       <OverflowTD className="text-center">
-        {value.legend ? "On" : "Off"}
+        {hasLegend(value.legend) ? "On" : "Off"}
       </OverflowTD>
       <td>
         <SpacedDiv>
@@ -204,6 +211,7 @@ export const AddMapLayer = ({
   setShowingSubModal,
   gridItemIndex,
   visualizationRef,
+  mapExtent,
 }) => {
   const [showMapLayerModal, setShowMapLayerModal] = useState(false);
   const [layerInfo, setLayerInfo] = useState({});
@@ -327,6 +335,7 @@ export const AddMapLayer = ({
           existingLayerOriginalName={existingLayerOriginalName}
           gridItemIndex={gridItemIndex}
           visualizationRef={visualizationRef}
+          mapExtent={mapExtent}
         />
       )}
     </>
@@ -366,4 +375,7 @@ AddMapLayer.propTypes = {
     PropTypes.func,
     PropTypes.shape({ current: PropTypes.any }),
   ]),
+  // The map's in-progress `map_extent` argument, passed through to the layer
+  // editor so a Linked Extents layer can say when its map is in no group.
+  mapExtent: PropTypes.any,
 };

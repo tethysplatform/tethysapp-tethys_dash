@@ -5,6 +5,10 @@ import moduleLoader, {
   createJsonStyleFunction,
   LayerSourceError,
 } from "components/map/ModuleLoader";
+import { isDecorationLayerConfig } from "components/map/decorationLayers";
+import useLinkedExtentPublisher from "components/map/useLinkedExtentPublisher";
+import useLinkedExtentOutlines from "components/map/useLinkedExtentOutlines";
+import AnnotationEditor from "components/map/AnnotationEditor";
 // Importing this registers the coordinate reference systems that layers name by
 // code. Module evaluation completes before any render, so registration is in
 // place before the layer effect below constructs a single source -- which
@@ -235,6 +239,10 @@ function applyVectorStyleFunction(olLayer, style, labelConfig, map) {
 // `map` is the OL map the layer belongs to; the label's zoom floor is converted
 // through its view (see `labelConfigForMap`).
 async function applyLayerStyle(olLayer, layerConfig, map) {
+  // A decoration layer is styled by its loader from its own config; a stray
+  // `style` or `labels` key must not replace that with a data-styling rule.
+  if (isDecorationLayerConfig(layerConfig)) return;
+
   const style =
     layerConfig.type === "WebGLTile"
       ? rasterLayerStyle(layerConfig)
@@ -1080,6 +1088,29 @@ const MapComponent = ({
               });
               return;
             }
+          }
+
+          // Annotations and Linked Extents are kept while their whole config
+          // is unchanged, so an unrelated edit, a variable input change or a
+          // time-slider frame leaves them -- and a Linked Extents layer's live
+          // outlines -- untouched. Any change to the layer's own config
+          // rebuilds it: both build from config alone with no network read,
+          // so a rebuild is cheap, and it applies every edit by construction
+          // rather than through a repaint path that could miss one.
+          if (isDecorationLayerConfig(currentLayer)) {
+            // Matched by name first, so the deep comparison runs once and a
+            // differently named layer with the same config never counts.
+            const incoming = (layers ?? []).find(
+              (candidate) =>
+                candidate?.props?.name === currentLayer.props?.name,
+            );
+            if (
+              incoming &&
+              (incoming === currentLayer || valuesEqual(incoming, currentLayer))
+            ) {
+              layersToKeep.push(currentLayer.props.name);
+            }
+            return;
           }
 
           // A runtime layer that failed its identity match is rebuilt, never
@@ -2159,6 +2190,13 @@ const MapComponent = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shouldLoad, viewGroupEnabled]);
 
+  // Linked extent groups: publish this map's on-screen footprint for a Linked
+  // Extents layer on another member to outline. Declared after the mount
+  // effect so the map exists when the hook's effects run.
+  useLinkedExtentPublisher({ visualizationRef, mapExtent, dataviewerViz });
+  // Linked Extents layers are fed from the registry, never from their config.
+  useLinkedExtentOutlines({ visualizationRef, mapExtent });
+
   // R29. Publishing an extent re-runs an effect on every visualization on the
   // dashboard, so the same value is never published twice in a row -- a win
   // today for a `moveend` that lands back where it started, and the backstop
@@ -2273,7 +2311,9 @@ const MapComponent = ({
             Projection: {projection}
           </InfoDiv>
         )}
-        {mapDrawing && (
+        {/* The viewer drawing tool would claim clicks meant for an annotation
+            editing session, so it steps aside while one is open. */}
+        {mapDrawing && !mapContext?.annotationEditSession && (
           <DrawInteractions
             mapDrawing={mapDrawing}
             visualizationRef={visualizationRef}
@@ -2282,6 +2322,9 @@ const MapComponent = ({
         )}
         {mapContext?.extentDrawMode && (
           <ExtentInteraction visualizationRef={visualizationRef} />
+        )}
+        {mapContext?.annotationEditSession && (
+          <AnnotationEditor visualizationRef={visualizationRef} />
         )}
         {layerControl && (
           <LayersControl

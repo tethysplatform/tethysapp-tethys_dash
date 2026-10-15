@@ -1,8 +1,12 @@
 import PropTypes from "prop-types";
 import NormalInput from "components/inputs/NormalInput";
 import { layerPropertiesOptions } from "components/map/utilities";
+import {
+  DECORATION_HIDDEN_LAYER_PROPS,
+  isDecorationSourceType,
+} from "components/map/decorationLayers";
 import InputTable from "components/inputs/InputTable";
-import { useState, useEffect, memo } from "react";
+import { memo } from "react";
 import styled from "styled-components";
 import { spaceAndCapitalize } from "components/modals/utilities";
 import Toggle from "components/inputs/Toggle";
@@ -14,15 +18,25 @@ const PaddedDiv = styled.div`
   gap: 5rem;
 `;
 
-const LayerPane = ({ layerProps, setLayerProps }) => {
-  const [layerProperties, setLayerProperties] = useState(
-    filterLayerProps(layerProps),
+// The registry rows this source type can use. Rows, placeholders and types are
+// all built from this one list: `handlePropertyChange` indexes rows by position,
+// so the three arrays have to be filtered together.
+const layerPropertyKeys = (sourceType) =>
+  Object.keys(layerPropertiesOptions).filter(
+    (key) =>
+      !(
+        isDecorationSourceType(sourceType) &&
+        DECORATION_HIDDEN_LAYER_PROPS.includes(key)
+      ),
   );
 
-  useEffect(() => {
-    setLayerProperties(filterLayerProps(layerProps));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [layerProps]);
+const LayerPane = ({ layerProps, setLayerProps, sourceType }) => {
+  const propertyKeys = layerPropertyKeys(sourceType);
+  // Derived during render, not mirrored into state: the rows must always come
+  // from the same key list as the placeholders and types below. A copy synced
+  // by an effect lags one render behind a source-type change, and the table
+  // then reads a placeholder for a row that list no longer has.
+  const layerProperties = filterLayerProps(layerProps);
 
   function filterLayerProps(props) {
     return loadExistingArgs(
@@ -35,19 +49,17 @@ const LayerPane = ({ layerProps, setLayerProps }) => {
   }
 
   // setup placeholders for the input table
-  const propertyPlaceholders = Object.keys(layerPropertiesOptions).map(
-    (key) => ({
-      value: layerPropertiesOptions[key].placeholder,
-    }),
-  );
+  const propertyPlaceholders = propertyKeys.map((key) => ({
+    value: layerPropertiesOptions[key].placeholder,
+  }));
   // setup placeholders for the input table
-  const propertyTypes = Object.keys(layerPropertiesOptions).map(
+  const propertyTypes = propertyKeys.map(
     (key) => layerPropertiesOptions[key].type,
   );
 
   function loadExistingArgs(existingProps) {
     // create an array for the input table of the various properties
-    return Object.keys(layerPropertiesOptions).map((key) => ({
+    return propertyKeys.map((key) => ({
       rawProperty: key,
       property: spaceAndCapitalize(key),
       value: existingProps[key] ?? "",
@@ -120,6 +132,8 @@ LayerPane.propTypes = {
     layerVisibility: PropTypes.bool,
   }),
   setLayerProps: PropTypes.func,
+  // The layer's source type; decoration layers omit rows that cannot apply.
+  sourceType: PropTypes.string,
 };
 
 export default memo(LayerPane);

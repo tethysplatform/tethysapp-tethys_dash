@@ -109,6 +109,9 @@ export function coerceNumericField(raw) {
   return Number.isFinite(parsed) ? parsed : str;
 }
 
+/** A color picker hands back an object with `hex`, or a CSS string. */
+export const colorValue = (color) => color?.hex ?? color;
+
 /** The explanation for a setting, on hover, to the left of its label. */
 const InfoTip = ({ id, children }) => (
   <OverlayTrigger
@@ -148,12 +151,12 @@ const LabelsPane = ({ layerName, labelConfig, onChange, containerRef }) => {
   );
 
   const handleColorChange = useCallback(
-    (color) => emit("color", color?.hex ?? color),
+    (color) => emit("color", colorValue(color)),
     [emit],
   );
 
   const handleHaloColorChange = useCallback(
-    (color) => emit("haloColor", color?.hex ?? color),
+    (color) => emit("haloColor", colorValue(color)),
     [emit],
   );
 

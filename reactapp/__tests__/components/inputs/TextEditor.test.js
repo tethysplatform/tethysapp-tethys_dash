@@ -549,3 +549,55 @@ describe("TextEditor", () => {
     expect(onChangeMock.mock.calls[1][0]).toBe("<p>Hello world</p>");
   });
 });
+
+describe("TextEditor vertical alignment", () => {
+  it("offers no vertical buttons without a handler", () => {
+    render(<TextEditor textValue="<p>Hi</p>" onChange={jest.fn()} />);
+
+    expect(
+      screen.queryByLabelText("Align Middle Menu Button"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows Top as active by default and reports a choice", async () => {
+    const onVerticalAlignChange = jest.fn();
+    render(
+      <TextEditor
+        textValue="<p>Hi</p>"
+        onChange={jest.fn()}
+        onVerticalAlignChange={onVerticalAlignChange}
+      />,
+    );
+
+    expect(screen.getByLabelText("Align Top Menu Button")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await userEvent.click(screen.getByLabelText("Align Middle Menu Button"));
+    expect(onVerticalAlignChange).toHaveBeenCalledWith("middle");
+  });
+
+  it("marks the current alignment and previews it in the editing area", () => {
+    render(
+      <TextEditor
+        textValue="<p>Hi</p>"
+        onChange={jest.fn()}
+        verticalAlign="bottom"
+        onVerticalAlignChange={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByLabelText("Align Bottom Menu Button")).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByLabelText("Align Top Menu Button")).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    expect(
+      // eslint-disable-next-line testing-library/no-node-access
+      screen.getByTestId("tiptap-editor").closest(".text-editor"),
+    ).toHaveAttribute("data-vertical-align", "bottom");
+  });
+});

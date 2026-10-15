@@ -1,6 +1,7 @@
 import Form from "react-bootstrap/Form";
 import PropTypes from "prop-types";
 import styled from "styled-components";
+import InfoTip from "components/inputs/InfoTip";
 
 const FlexDiv = styled.div`
   display: flex;
@@ -17,6 +18,7 @@ const CheckboxInput = ({
   inputProps,
   divProps,
   hideLabel = false,
+  infoTip,
 }) => {
   const changeHandler = (e) => {
     onChange(e.target.checked);
@@ -24,6 +26,7 @@ const CheckboxInput = ({
 
   return (
     <FlexDiv {...divProps}>
+      {infoTip && <InfoTip label={label}>{infoTip}</InfoTip>}
       {/* `label` still names the control for assistive tech even when it is
           not drawn — for a caller that already renders its own label beside
           the checkbox and would otherwise show it twice. */}
@@ -52,6 +55,7 @@ CheckboxInput.propTypes = {
   inputProps: PropTypes.object, // additional props to pass to the input
   divProps: PropTypes.object, // additional props to pass to the parent div
   hideLabel: PropTypes.bool, // hide the visible label; the accessible name is unaffected
+  infoTip: PropTypes.node, // explanation shown from an info icon left of the label
 };
 
 export default CheckboxInput;

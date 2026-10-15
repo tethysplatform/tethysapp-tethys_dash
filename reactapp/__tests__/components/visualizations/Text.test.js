@@ -94,3 +94,61 @@ describe("Text", () => {
     expect(ref.current).not.toBeNull();
   });
 });
+
+// The CSS styled-components generated for an element's own classes.
+const rulesFor = (element) => {
+  // No Testing Library query reads injected stylesheets, and the project does
+  // not use jest-styled-components, so the rules are read off the style tags.
+  // eslint-disable-next-line testing-library/no-node-access
+  const css = Array.from(document.querySelectorAll("style"))
+    .map((style) => style.textContent)
+    .join("");
+  return Array.from(element.classList)
+    .flatMap(
+      (cls) => css.match(new RegExp(`\\.${cls}[^{]*\\{[^}]*\\}`, "g")) ?? [],
+    )
+    .join("");
+};
+
+describe("Text scrollbar", () => {
+  it("scrolls with a visible scrollbar by default", () => {
+    renderText({ textValue: "Hello" });
+
+    const rules = rulesFor(screen.getByTestId("text-visualization"));
+    expect(rules).toMatch(/overflow-y:\s*auto/);
+    expect(rules).not.toMatch(/scrollbar-width:\s*none/);
+  });
+
+  it("hides the scrollbar but keeps scrolling when asked", () => {
+    renderText({ textValue: "Hello", hideScrollbar: true });
+
+    const rules = rulesFor(screen.getByTestId("text-visualization"));
+    expect(rules).toMatch(/overflow-y:\s*auto/);
+    expect(rules).toMatch(/scrollbar-width:\s*none/);
+  });
+});
+
+describe("Text vertical alignment", () => {
+  it.each([
+    ["top", [], [/margin-top:\s*auto/, /margin-bottom:\s*auto/]],
+    ["middle", [/margin-top:\s*auto/, /margin-bottom:\s*auto/], []],
+    ["bottom", [/margin-top:\s*auto/], [/margin-bottom:\s*auto/]],
+  ])(
+    "places %s-aligned text with auto margins",
+    (verticalAlign, has, lacks) => {
+      renderText({ textValue: "Hello", verticalAlign });
+
+      const rules = rulesFor(screen.getByTestId("text-content"));
+      has.forEach((rule) => expect(rules).toMatch(rule));
+      lacks.forEach((rule) => expect(rules).not.toMatch(rule));
+    },
+  );
+
+  it("keeps the tile scrollable so tall centred text scrolls from its top", () => {
+    renderText({ textValue: "Hello", verticalAlign: "middle" });
+
+    const rules = rulesFor(screen.getByTestId("text-visualization"));
+    expect(rules).toMatch(/overflow-y:\s*auto/);
+    expect(rules).not.toMatch(/justify-content:\s*center/);
+  });
+});

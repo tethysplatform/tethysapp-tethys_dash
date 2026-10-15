@@ -31,7 +31,7 @@ Default Visualization Types
 
 - **Map**: Add a map with configurable basemaps, layers, extent, and drawing tools.
 - **Custom Image**: Display a publicly accessible image.
-- **Text**: Display formatted text.
+- **Text**: Display formatted text. Besides left, center and right alignment, the editor toolbar sets where the text sits vertically in its item: top (the default), middle or bottom. Text taller than its item still scrolls from its first line.
 - **Variable Input**: Create a variable for use in other visualizations. See :doc:`../variable_inputs` for details.
 - **Live Chat**: Display a chat box for users to communicate in real time. Websocket must be configured for this visualization to work. See :doc:`../installation` for details.
 
@@ -47,6 +47,7 @@ Settings Tab
 - **Show Attribution**: Display an attribution icon if available.
 - **Fill Viewport**: The item fills the screen below the navigation bar when the dashboard is viewed, on any screen size. See `Fill Viewport`_ below.
 - **Enforce Aspect Ratio**: For image visualizations only — keep the image's natural aspect ratio instead of stretching it to the item. Disabled while **Fill Viewport** is set.
+- **Hide Scrollbar**: For text visualizations only — draw no scrollbar on text that does not fit. The text still scrolls with the mouse wheel, touch, or keyboard.
 - **Custom Messaging**: Set custom error or empty-value messages.
 
 .. tip::

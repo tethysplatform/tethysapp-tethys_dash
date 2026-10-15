@@ -141,6 +141,14 @@ The GeoJSON source is different from the other options. It provides a text area 
 
 ------------------------------------------------------------------------------------------------------------------------
 
++++++++++++++++++++++++++++
+Annotations, Linked Extents
++++++++++++++++++++++++++++
+
+These two layer types have no source to configure. An Annotations layer's lines, arrows and text are drawn on the map from its **Annotations** tab, and a Linked Extents layer's outlines come from the other maps in its linked extent group. See :ref:`annotations_tab`.
+
+------------------------------------------------------------------------------------------------------------------------
+
 +++++++++
 Shapefile
 +++++++++
@@ -232,6 +240,8 @@ Static Image
 **Openlayers Class:** `ImageStatic <https://openlayers.org/en/latest/apidoc/module-ol_source_ImageStatic-ImageStatic.html>`_
 
 The Static Image source overlays a georeferenced image (PNG, GIF, JPG, etc.) on the map at a specific location defined by a bounding extent. This is useful for displaying weather radar imagery, historical maps, satellite captures, or any image that needs to be positioned at a specific geographic location.
+
+A Static Image layer shows only the **Layer** and **Source** tabs. An image has no features to style, label or open a popup on and no service legend, so those tabs are not offered, and saving the layer keeps only the layer and source settings.
 
 **Layer Properties:**
     - **url:** (required) URL of the image to display. Must be publicly accessible.
