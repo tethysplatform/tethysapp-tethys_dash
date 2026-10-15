@@ -24,6 +24,14 @@ from tethysapp.tethysdash.model import (
     get_visualization_user_permission,
     get_visualization_permissions,
     update_visualization_permissions,
+    save_thumbnail,
+    copy_thumbnail,
+    delete_thumbnail,
+    canonical_dashboard_uuid,
+    thumbnail_directory,
+    thumbnail_name,
+    thumbnail_url,
+    thumbnail_urls,
 )
 from unittest.mock import MagicMock, call
 import base64
@@ -33,6 +41,8 @@ from types import SimpleNamespace
 from sqlalchemy.exc import ProgrammingError
 from django.contrib.auth.models import AnonymousUser
 from django.test import override_settings
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
 from uuid import uuid4
 from datetime import datetime
 
@@ -356,8 +366,6 @@ def test_update_named_dashboard_grid_items(
     dashboard, db_session, mock_app_get_ps_db, mocker, tmp_path, test_owner_user
 ):
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
-    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
-    mock_get_app_media.return_value = MagicMock(path=tmp_path)
     new_dashboard_name = "new_name"
 
     grid_items1 = [
@@ -518,16 +526,11 @@ def test_update_named_dashboard_image(
     db_session, dashboard, mock_app_get_ps_db, mocker, tmp_path, test_owner_user
 ):
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
-    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
-    mock_get_app_media.return_value = MagicMock(path=tmp_path)
 
     existing_dashboard = parse_db_dashboard(
         db_session, [dashboard], test_owner_user, False
     )
-    assert (
-        existing_dashboard[0]["image"]
-        is None
-    )
+    assert existing_dashboard[0]["image"] is None
 
     example_image = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -552,17 +555,248 @@ def test_update_named_dashboard_image(
 
 
 @pytest.mark.django_db
+def test_update_named_dashboard_image_remote_storage(
+    db_session, dashboard, mock_app_get_ps_db, test_owner_user, tmp_path, settings
+):
+    """A thumbnail has to travel through the default storage, not MEDIA_ROOT.
+
+    When the default storage is remote, MEDIA_ROOT is no longer what MEDIA_URL serves.
+    Writing the file to the local path and then naming it with MEDIA_URL points the
+    browser at an object the storage never received, so the card breaks on every reload.
+    """
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+
+    remote = tmp_path / "remote"
+    remote.mkdir()
+    settings.STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+            "OPTIONS": {
+                "location": str(remote),
+                "base_url": "https://cdn.example.test/media/",
+            },
+        },
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"
+        },
+    }
+
+    example_image = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "files/thumbnail.png",
+    )
+    with open(example_image, "rb") as image_file:
+        base64_string = base64.b64encode(image_file.read()).decode("utf-8")
+    image = f"data:image/png;base64,{base64_string}"
+
+    name = thumbnail_name("some_user_dashboard_uuid")
+    updated_dashboard = update_named_dashboard(
+        test_owner_user, dashboard.id, {"image": image}
+    )
+
+    assert default_storage.exists(name), "thumbnail never reached the default storage"
+    assert updated_dashboard["image"] == default_storage.url(name)
+    assert updated_dashboard["image"] == (
+        "https://cdn.example.test/media/tethysdash/app/some_user_dashboard_uuid.png"
+    )
+
+
+@pytest.mark.django_db
+def test_save_thumbnail_replaces_rather_than_accumulates(mock_app_get_ps_db):
+    """Saving twice must leave one object, under the canonical name.
+
+    Storage backends suffix a name that is already taken, and every read rebuilds the canonical
+    name, so without the delete the first capture would be served forever while the later ones
+    piled up unreachable beside it.
+    """
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+
+    save_thumbnail("some_uuid", b"first")
+    save_thumbnail("some_uuid", b"second")
+
+    _, files = default_storage.listdir(thumbnail_directory())
+    assert files == ["some_uuid.png"]
+    with default_storage.open(thumbnail_name("some_uuid"), "rb") as handle:
+        assert handle.read() == b"second"
+
+
+@pytest.mark.django_db
+@override_settings(PREFIX_URL="test")
+def test_thumbnail_url_leaves_a_remote_url_unprefixed(
+    mock_app_get_ps_db, tmp_path, settings
+):
+    """PREFIX_URL belongs to URLs this portal serves, never to a backend's own absolute URL."""
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    remote = tmp_path / "remote"
+    remote.mkdir()
+    settings.STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+            "OPTIONS": {
+                "location": str(remote),
+                "base_url": "https://cdn.example.test/media/",
+            },
+        },
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"
+        },
+    }
+
+    save_thumbnail("some_uuid", b"png")
+
+    assert thumbnail_url("some_uuid") == (
+        "https://cdn.example.test/media/tethysdash/app/some_uuid.png"
+    )
+
+
+@pytest.mark.django_db
+def test_thumbnail_urls_degrades_when_the_storage_fails(mock_app_get_ps_db, mocker):
+    """A storage outage costs the page its pictures, not the page.
+
+    The landing page answers anonymous requests, so an unhandled backend error here would turn a
+    degraded card into a 500 for every visitor.
+    """
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    mocker.patch(
+        "django.core.files.storage.filesystem.FileSystemStorage.listdir",
+        side_effect=OSError("storage is unreachable"),
+    )
+
+    assert thumbnail_urls(["one", "two", "three"]) == {
+        "one": None,
+        "two": None,
+        "three": None,
+    }
+
+
+@pytest.mark.django_db
+def test_thumbnail_url_degrades_when_the_storage_fails(
+    mock_app_get_ps_db, mocker, capsys
+):
+    """A single dashboard's card loses its picture, not its page, on a storage error."""
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    mocker.patch(
+        "django.core.files.storage.filesystem.FileSystemStorage.exists",
+        side_effect=OSError("storage is unreachable"),
+    )
+
+    assert thumbnail_url("some_uuid") is None
+    assert (
+        "Could not resolve the thumbnail for some_uuid: storage is unreachable"
+        in capsys.readouterr().out
+    )
+
+
+@pytest.mark.django_db
+def test_thumbnail_urls_falls_back_when_the_backend_cannot_list(
+    mock_app_get_ps_db, mocker
+):
+    """A backend without listdir is asked about each dashboard instead."""
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    save_thumbnail("has_one", b"png")
+    mocker.patch(
+        "django.core.files.storage.filesystem.FileSystemStorage.listdir",
+        side_effect=NotImplementedError,
+    )
+
+    urls = thumbnail_urls(["has_one", "has_none", "also_none"])
+
+    assert urls["has_one"] == default_storage.url(thumbnail_name("has_one"))
+    assert urls["has_none"] is None
+    assert urls["also_none"] is None
+
+
+@pytest.mark.django_db
+def test_save_thumbnail_removes_a_suffixed_copy_and_raises(mock_app_get_ps_db, mocker):
+    """A save the backend files under another name must not leave that object behind.
+
+    Every read rebuilds the canonical name, so a suffixed object is never served. It is
+    removed and the caller told, rather than left as an orphan.
+    """
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    suffixed = f"{thumbnail_directory()}/some_uuid_abc1234.png"
+    mocker.patch.object(default_storage, "save", return_value=suffixed)
+    delete = mocker.patch.object(default_storage, "delete")
+
+    with pytest.raises(RuntimeError, match="another save holds that name"):
+        save_thumbnail("some_uuid", b"png")
+
+    assert delete.call_args_list == [
+        call(thumbnail_name("some_uuid")),
+        call(suffixed),
+    ]
+
+
+@pytest.mark.parametrize("dashboard_uuid", ["x/../../other/file", "x\\..\\other"])
+@pytest.mark.django_db
+def test_thumbnail_name_refuses_a_path_separator(mock_app_get_ps_db, dashboard_uuid):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+
+    with pytest.raises(ValueError, match="path separator"):
+        thumbnail_name(dashboard_uuid)
+
+
+@pytest.mark.django_db
+def test_thumbnail_helpers_cannot_reach_outside_the_thumbnail_directory(
+    mock_app_get_ps_db,
+):
+    """A uuid like "x/../../other/file" must not let a save, copy or delete reach it.
+
+    Only a storage save validates a name; delete, exists and open accept ".." so long
+    as the result stays inside the storage, which puts every other app's media in reach.
+    """
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    victim = "otherapp/app/logo.png"
+    default_storage.save(victim, ContentFile(b"theirs"))
+    traversal = "x/../../../otherapp/app/logo"
+
+    with pytest.raises(ValueError):
+        delete_thumbnail(traversal)
+    with pytest.raises(ValueError):
+        save_thumbnail(traversal, b"mine")
+    with pytest.raises(ValueError):
+        copy_thumbnail(traversal, "attacker_copy")
+
+    with default_storage.open(victim, "rb") as handle:
+        assert handle.read() == b"theirs"
+    assert not default_storage.exists(thumbnail_name("attacker_copy"))
+
+
+@pytest.mark.django_db
+def test_thumbnail_urls_answers_none_for_a_uuid_that_cannot_name_one(
+    mock_app_get_ps_db,
+):
+    """Such a uuid has no thumbnail, and it costs the others theirs neither."""
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    save_thumbnail("plain", b"png")
+
+    urls = thumbnail_urls(["x/../../other/file", "plain", "missing"])
+
+    assert urls == {
+        "x/../../other/file": None,
+        "plain": default_storage.url(thumbnail_name("plain")),
+        "missing": None,
+    }
+    assert thumbnail_url("x/../../other/file") is None
+
+
+def test_canonical_dashboard_uuid():
+    value = "123E4567-E89B-12D3-A456-426614174000"
+
+    assert canonical_dashboard_uuid(value) == value.lower()
+    for bad in ["../../otherapp/x", "some_uuid", ""]:
+        with pytest.raises(ValueError):
+            canonical_dashboard_uuid(bad)
+
+
+@pytest.mark.django_db
 def test_update_named_dashboard_live_chat(
     db_session,
     live_chat_dashboard,
     mock_app_get_ps_db,
-    mocker,
-    tmp_path,
     test_owner_user,
 ):
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
-    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
-    mock_get_app_media.return_value = MagicMock(path=tmp_path)
 
     tab_id = live_chat_dashboard.tabs[0].id
     grid_item_id = live_chat_dashboard.tabs[0].grid_items[0].id
@@ -638,8 +872,6 @@ def test_update_named_dashboard_no_edit_permissions(
     dashboard, mock_app_get_ps_db, mocker, tmp_path, test_member_user
 ):
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
-    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
-    mock_get_app_media.return_value = MagicMock(path=tmp_path)
     new_dashboard_name = "new_name"
 
     with pytest.raises(Exception) as excinfo:
@@ -662,8 +894,6 @@ def test_update_named_dashboard_no_admin_permissions_for_name(
     dashboard, mock_app_get_ps_db, mocker, tmp_path, test_admin_user
 ):
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
-    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
-    mock_get_app_media.return_value = MagicMock(path=tmp_path)
     new_dashboard_name = "new_name"
 
     with pytest.raises(Exception) as excinfo:
@@ -686,8 +916,6 @@ def test_update_named_dashboard_no_admin_permissions_for_public(
     dashboard, mock_app_get_ps_db, mocker, tmp_path, test_admin_user
 ):
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
-    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
-    mock_get_app_media.return_value = MagicMock(path=tmp_path)
 
     with pytest.raises(Exception) as excinfo:
         update_named_dashboard(
@@ -709,15 +937,11 @@ def test_get_dashboards_all(
     dashboard,
     public_dashboard,
     mock_app_get_ps_db,
-    mocker,
-    tmp_path,
     permission_group,
     test_owner_user,
     test_admin_user,
 ):
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
-    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
-    mock_get_app_media.return_value = MagicMock(path=tmp_path)
 
     all_dashboards = get_dashboards(test_owner_user)
     assert all_dashboards == [
@@ -760,15 +984,11 @@ def test_get_dashboards_all(
 def test_get_dashboards_specific_dashboard_view(
     dashboard,
     mock_app_get_ps_db,
-    mocker,
-    tmp_path,
     permission_group,
     test_owner_user,
     test_admin_user,
 ):
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
-    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
-    mock_get_app_media.return_value = MagicMock(path=tmp_path)
 
     retrieved_dashboard = get_dashboards(
         test_owner_user, dashboard_view=True, id=dashboard.id
@@ -798,15 +1018,11 @@ def test_get_dashboards_specific_dashboard_view(
 def test_get_dashboards_specific_landing_page_view(
     dashboard,
     mock_app_get_ps_db,
-    mocker,
-    tmp_path,
     permission_group,
     test_owner_user,
     test_admin_user,
 ):
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
-    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
-    mock_get_app_media.return_value = MagicMock(path=tmp_path)
 
     retrieved_dashboard = get_dashboards(test_owner_user, id=dashboard.id)
     assert retrieved_dashboard == {
@@ -833,14 +1049,10 @@ def test_copy_named_dashboard(
     dashboard,
     db_session,
     mock_app_get_ps_db,
-    mocker,
-    tmp_path,
     test_owner_user,
     test_member_user,
 ):
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
-    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
-    mock_get_app_media.return_value = MagicMock(path=tmp_path)
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     new_dashboard_name = "new_name"
     new_description = "some updated descripion"
@@ -888,7 +1100,7 @@ def test_copy_named_dashboard(
     assert copied_dashboard.description == new_description
     assert copied_dashboard.name == new_dashboard_name
     assert copied_dashboard.notes == dashboard.notes
-    assert copied_dashboard.public == dashboard.public
+    assert copied_dashboard.public is False
     assert copied_dashboard.owner == test_member_user.username
     assert copied_dashboard.unrestricted_placement == dashboard.unrestricted_placement
 
@@ -915,19 +1127,55 @@ def test_copy_named_dashboard(
 
 
 @pytest.mark.django_db
+def test_copy_named_dashboard_refuses_a_private_dashboard_without_permission(
+    dashboard, db_session, mock_app_get_ps_db, admin_user
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+
+    with pytest.raises(Exception, match="does not have permission to copy"):
+        copy_named_dashboard(admin_user, dashboard.id, "the_copy", str(uuid4()))
+
+    assert db_session.query(Dashboard).filter(Dashboard.name == "the_copy").count() == 0
+
+
+@pytest.mark.django_db
+def test_copy_named_dashboard_allows_a_public_dashboard_without_permission(
+    public_dashboard, db_session, mock_app_get_ps_db, admin_user
+):
+    """Anyone can see a public dashboard, so anyone signed in can copy it."""
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+
+    new_dashboard_id, _ = copy_named_dashboard(
+        admin_user, public_dashboard.id, "the_copy", str(uuid4())
+    )
+
+    copied = (
+        db_session.query(Dashboard).filter(Dashboard.id == new_dashboard_id).first()
+    )
+    assert copied.owner == admin_user.username
+    # The copy starts private: publishing it is the new owner's decision.
+    assert public_dashboard.public is True
+    assert copied.public is False
+
+
+@pytest.mark.django_db
+def test_copy_named_dashboard_missing(mock_app_get_ps_db, admin_user):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+
+    with pytest.raises(Exception, match="A dashboard with the id 9999 does not exist."):
+        copy_named_dashboard(admin_user, 9999, "the_copy", str(uuid4()))
+
+
+@pytest.mark.django_db
 def test_parse_db_dashboard_landing_page_view(
     dashboard,
     mock_app_get_ps_db,
-    mocker,
-    tmp_path,
     db_session,
     permission_group,
     test_owner_user,
     test_admin_user,
 ):
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
-    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
-    mock_get_app_media.return_value = MagicMock(path=tmp_path)
 
     existing_dashboard = parse_db_dashboard(
         db_session, [dashboard], test_owner_user, dashboard_view=False
@@ -956,17 +1204,14 @@ def test_parse_db_dashboard_landing_page_view(
 def test_parse_db_dashboard_landing_page_view_with_prefix(
     dashboard,
     mock_app_get_ps_db,
-    mocker,
-    tmp_path,
     db_session,
     permission_group,
     test_owner_user,
     test_admin_user,
 ):
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
-    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
-    mock_get_app_media.return_value = MagicMock(path=tmp_path)
-    mocker.patch("os.path.exists", return_value=True)
+    # A real object in the default storage, since that is what decides the URL now.
+    default_storage.save(thumbnail_name(dashboard.uuid), ContentFile(b"png"))
 
     existing_dashboard = parse_db_dashboard(
         db_session, [dashboard], test_owner_user, dashboard_view=False
@@ -994,16 +1239,12 @@ def test_parse_db_dashboard_landing_page_view_with_prefix(
 def test_parse_db_dashboard_dashboard_view(
     dashboard,
     mock_app_get_ps_db,
-    mocker,
-    tmp_path,
     db_session,
     permission_group,
     test_owner_user,
     test_admin_user,
 ):
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
-    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
-    mock_get_app_media.return_value = MagicMock(path=tmp_path)
 
     existing_dashboard = parse_db_dashboard(
         db_session, [dashboard], test_owner_user, dashboard_view=True
@@ -1034,8 +1275,6 @@ def test_clean_up_jsons(
     dashboard, mock_app_get_ps_db, mocker, tmp_path, test_owner_user
 ):
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
-    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
-    mock_get_app_media.return_value = MagicMock(path=tmp_path)
 
     workspace_path = tmp_path
     mock_get_app_workspace = mocker.patch(
@@ -1117,8 +1356,6 @@ def test_clean_up_jsons_no_existing_dashboard_folder(
     dashboard, mock_app_get_ps_db, mocker, tmp_path, test_owner_user
 ):
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
-    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
-    mock_get_app_media.return_value = MagicMock(path=tmp_path)
 
     workspace_path = tmp_path
     mock_get_app_workspace = mocker.patch(
@@ -2245,8 +2482,6 @@ def test_update_named_dashboard_auto_thumbnail(
 ):
     """The toggle behind "Update thumbnail on save"."""
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
-    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
-    mock_get_app_media.return_value = MagicMock(path=tmp_path)
     assert dashboard.auto_thumbnail is True
 
     update_named_dashboard(test_owner_user, dashboard.id, {"autoThumbnail": False})

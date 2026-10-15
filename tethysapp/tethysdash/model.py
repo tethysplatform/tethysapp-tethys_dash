@@ -20,7 +20,10 @@ import json
 import os
 from datetime import datetime, timezone
 from django.conf import settings
-from tethys_sdk.paths import get_app_media, get_app_workspace
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
+from tethys_sdk.paths import get_app_workspace
+from urllib.parse import urlsplit
 import base64
 from alembic import command, script, config
 from sqlalchemy.exc import ProgrammingError, OperationalError
@@ -31,9 +34,150 @@ from tethysapp.tethysdash.utilities import sanitize_html
 from django.contrib.auth import get_user_model
 import shutil
 import filecmp
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 Base = declarative_base()
+
+
+def thumbnail_directory():
+    """Return the default storage directory holding dashboard thumbnails."""
+    from tethysapp.tethysdash.app import App
+
+    return f"{App.package}/app"
+
+
+def canonical_dashboard_uuid(value):
+    """Return value as a canonical UUID string; raise ValueError if it is not a UUID.
+
+    A dashboard uuid becomes a storage name, so one taken from a request has to be a
+    UUID and nothing that could also be read as a path.
+    """
+    return str(UUID(str(value)))
+
+
+def _names_a_thumbnail(dashboard_uuid):
+    """Whether a uuid can name a thumbnail, which a path separator in it rules out."""
+    return not any(separator in str(dashboard_uuid) for separator in ("/", "\\"))
+
+
+def thumbnail_name(dashboard_uuid):
+    """Return the default storage name for a dashboard thumbnail.
+
+    The layout matches what get_app_media lays down under MEDIA_ROOT, so a portal on
+    local storage keeps the same files and the same URLs it had before. A uuid holding a
+    path separator is refused: "x/../../other/file" would otherwise name, and so let a
+    save, copy or delete reach, a file outside the thumbnail directory.
+    """
+    if not _names_a_thumbnail(dashboard_uuid):
+        raise ValueError(
+            f"dashboard uuid {dashboard_uuid!r} cannot name a thumbnail: it holds a "
+            "path separator"
+        )
+    return f"{thumbnail_directory()}/{dashboard_uuid}.png"
+
+
+def _prefixed(url):
+    """Apply PREFIX_URL to a storage URL that this portal serves itself.
+
+    Tethys mounts the whole urlconf under PREFIX_URL but does not put it in MEDIA_URL, so a
+    relative storage URL is missing it. An absolute URL from a remote backend is not ours to
+    rewrite.
+    """
+    prefix = settings.PREFIX_URL
+    if prefix is not None and prefix != "/" and not urlsplit(url).netloc:
+        return f"/{prefix.strip('/')}/{url.lstrip('/')}"
+    return url
+
+
+def save_thumbnail(dashboard_uuid, content):
+    """Write a thumbnail through the default storage, replacing any existing one.
+
+    Storage backends suffix a name that is already taken rather than overwriting it, so the
+    old object is deleted first; deleting a name that is absent is a no-op. If the backend
+    still hands back a different name then a concurrent save took the canonical one. That
+    object is unreachable, because every read rebuilds the canonical name, so it is removed
+    and the caller told, rather than left behind as an orphan the URL never points at.
+    """
+    name = thumbnail_name(dashboard_uuid)
+    default_storage.delete(name)
+    saved = default_storage.save(name, ContentFile(content))
+    if saved != name:
+        default_storage.delete(saved)
+        raise RuntimeError(
+            f"thumbnail for {dashboard_uuid} could not be stored as {name}: the storage "
+            f"returned {saved}, so another save holds that name"
+        )
+
+
+def thumbnail_url(dashboard_uuid):
+    """Return the URL of one dashboard's thumbnail, or None when it has none.
+
+    A storage failure yields None rather than propagating. A card without its picture beats
+    losing the page that holds it. A uuid that cannot name a thumbnail has none.
+    """
+    if not _names_a_thumbnail(dashboard_uuid):
+        return None
+    name = thumbnail_name(dashboard_uuid)
+    try:
+        if not default_storage.exists(name):
+            return None
+        return _prefixed(default_storage.url(name))
+    except Exception as error:
+        print(f"Could not resolve the thumbnail for {dashboard_uuid}: {error}")
+        return None
+
+
+def thumbnail_urls(dashboard_uuids):
+    """Map each uuid to its thumbnail URL, or None, for a whole page at once.
+
+    The landing page renders every dashboard a viewer can see, so asking the storage
+    about each one separately is a round trip per dashboard once the storage is remote.
+    One directory listing answers for all of them instead. The lone uuid of a single
+    dashboard view is asked about individually, where a listing would be the more
+    expensive of the two. A uuid that cannot name a thumbnail has none, and is never put
+    to the storage.
+    """
+    uuids = list(dashboard_uuids)
+    flat = [uuid for uuid in uuids if _names_a_thumbnail(uuid)]
+
+    if len(flat) <= 1:
+        return {uuid: thumbnail_url(uuid) for uuid in uuids}
+
+    suffix = ".png"
+    try:
+        _, files = default_storage.listdir(thumbnail_directory())
+        present = {name[: -len(suffix)] for name in files if name.endswith(suffix)}
+        resolved = {
+            uuid: (
+                _prefixed(default_storage.url(thumbnail_name(uuid)))
+                if uuid in present
+                else None
+            )
+            for uuid in flat
+        }
+    except FileNotFoundError:
+        resolved = {uuid: None for uuid in flat}
+    except NotImplementedError:
+        resolved = {uuid: thumbnail_url(uuid) for uuid in flat}
+    except Exception as error:
+        print(f"Could not list the dashboard thumbnails: {error}")
+        resolved = {uuid: None for uuid in flat}
+
+    return {uuid: resolved.get(uuid) for uuid in uuids}
+
+
+def copy_thumbnail(source_uuid, target_uuid):
+    """Copy one dashboard's thumbnail onto another, if the source has one."""
+    source = thumbnail_name(source_uuid)
+    if not default_storage.exists(source):
+        return
+    with default_storage.open(source, "rb") as handle:
+        save_thumbnail(target_uuid, handle.read())
+
+
+def delete_thumbnail(dashboard_uuid):
+    """Remove a dashboard's thumbnail. Deleting an absent name is a no-op."""
+    default_storage.delete(thumbnail_name(dashboard_uuid))
 
 
 class Dashboard(Base):
@@ -658,7 +802,9 @@ def copy_named_dashboard(user, id, new_name, dashboard_uuid):
     Create a copy of an existing dashboard.
 
     Duplicates a dashboard with all its grid items, creating a new dashboard
-    owned by the specified user. Only grants admin permission to the new owner.
+    owned by the specified user. Only grants admin permission to the new owner,
+    and the copy starts private whatever the original's setting: publishing it
+    is the new owner's decision.
 
     Args:
         user: User object who will own the copied dashboard
@@ -680,6 +826,17 @@ def copy_named_dashboard(user, id, new_name, dashboard_uuid):
 
     try:
         original_dashboard = session.query(Dashboard).filter(Dashboard.id == id).first()
+        if not original_dashboard:
+            raise Exception(f"A dashboard with the id {id} does not exist.")
+
+        # Copying hands over everything the dashboard holds, so it takes the same access
+        # as viewing it: a permission of any level, or a public dashboard.
+        user_permission = get_dashboard_user_permission(
+            session, original_dashboard, user
+        )
+        if not user_permission and not original_dashboard.public:
+            raise Exception("User does not have permission to copy the dashboard.")
+
         copied_dashboard_uuid = original_dashboard.uuid
 
         new_dashboard = Dashboard(
@@ -687,7 +844,7 @@ def copy_named_dashboard(user, id, new_name, dashboard_uuid):
             description=original_dashboard.description,
             name=new_name,
             notes=original_dashboard.notes,
-            public=original_dashboard.public,
+            public=False,
             owner=user.username,
             unrestricted_placement=original_dashboard.unrestricted_placement,
             auto_thumbnail=original_dashboard.auto_thumbnail,
@@ -985,12 +1142,7 @@ def update_named_dashboard(user, id, dashboard_updates):
         if "image" in dashboard_updates:
             # Extract the file format (e.g., 'data:image/png;base64,')
             imgstr = dashboard_updates["image"].split(";base64,")[1]
-            app_media = get_app_media(App)
-            file_path = os.path.join(app_media.path, f"{db_dashboard.uuid}.png")
-
-            # Decode and write the image file
-            with open(file_path, "wb") as file:
-                file.write(base64.b64decode(imgstr))
+            save_thumbnail(db_dashboard.uuid, base64.b64decode(imgstr))
 
         # Commit the session and close the connection
         session.commit()
@@ -1709,22 +1861,12 @@ def parse_db_dashboard(session, dashboards, user, dashboard_view):
         list: List of dashboard dictionaries containing metadata,
               permissions, and optionally grid items
     """
-    from tethysapp.tethysdash.app import App
-
     dashboard_list = []
-    MEDIA_URL = settings.MEDIA_URL
-    PREFIX_URL = settings.PREFIX_URL
-    if PREFIX_URL is not None and PREFIX_URL != "/":
-        MEDIA_URL = f"/{PREFIX_URL}/{MEDIA_URL.strip('/')}/"
+    # One listing for the whole page; a card with no thumbnail renders without one.
+    images = thumbnail_urls([dashboard.uuid for dashboard in dashboards])
 
     for dashboard in dashboards:
-        # None until a thumbnail exists; the card renders without one.
-        dashboard_image = None
-        app_media = get_app_media(App)
-        if os.path.exists(os.path.join(app_media.path, f"{dashboard.uuid}.png")):
-            dashboard_image = os.path.join(
-                MEDIA_URL, App.root_url, f"app/{dashboard.uuid}.png"
-            )
+        dashboard_image = images[dashboard.uuid]
         # Find the user's permission level for this dashboard
         user_permission = get_dashboard_user_permission(session, dashboard, user)
 

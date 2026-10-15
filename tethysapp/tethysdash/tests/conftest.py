@@ -138,6 +138,29 @@ def truncate_tables(db_session, db_url):
         db_session.commit()
 
 
+@pytest.fixture(autouse=True)
+def isolated_default_storage(tmp_path, settings):
+    """Give every test its own media directory.
+
+    Thumbnails are written through the default storage rather than a mocked path, so
+    without this one test's thumbnail is visible to every test that runs after it and
+    survives the run. STORAGES is the setting to assign because it rebinds default_storage
+    itself, so the isolation holds whatever backend is configured; overriding MEDIA_ROOT
+    would only redirect a FileSystemStorage.
+    """
+    media = tmp_path / "media"
+    media.mkdir(exist_ok=True)
+    settings.STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+            "OPTIONS": {"location": str(media), "base_url": "/media/"},
+        },
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"
+        },
+    }
+
+
 @pytest.fixture(scope="function")
 def mock_app_get_ps_db(session_maker, mocker):
     """Create a SQLAlchemy session for the primary database."""
@@ -147,6 +170,7 @@ def mock_app_get_ps_db(session_maker, mocker):
         mock_app.render.return_value = HttpResponse("Success")
         mock_app.get_persistent_store_database.return_value = session_maker
         mock_app.root_url = "tethysdash"
+        mock_app.package = "tethysdash"
         return mock_app
 
     return mock_app_factory
