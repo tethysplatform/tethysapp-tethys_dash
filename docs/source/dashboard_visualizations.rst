@@ -47,6 +47,7 @@ Settings Tab
 - **Show Attribution**: Display an attribution icon if available.
 - **Fill Viewport**: The item fills the screen below the navigation bar when the dashboard is viewed, on any screen size. See `Fill Viewport`_ below.
 - **Enforce Aspect Ratio**: For image visualizations only — keep the image's natural aspect ratio instead of stretching it to the item. Disabled while **Fill Viewport** is set.
+- **Hide Scrollbar**: For text visualizations only — draw no scrollbar on text that does not fit. The text still scrolls with the mouse wheel, touch, or keyboard.
 - **Custom Messaging**: Set custom error or empty-value messages.
 
 .. tip::

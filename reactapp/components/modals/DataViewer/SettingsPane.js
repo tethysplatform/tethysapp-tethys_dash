@@ -104,6 +104,7 @@ function SettingsPane({
   setSettings,
   visualizationRef,
   vizInputsValues,
+  vizType,
 }) {
   const settingsPaneRef = useRef(null);
 
@@ -181,6 +182,16 @@ function SettingsPane({
     });
   };
 
+  const onHideScrollbarChange = (checked) => {
+    setSettings((prev) => {
+      if (checked) {
+        return { ...prev, hideScrollbar: true };
+      }
+      const { hideScrollbar, ...rest } = prev;
+      return rest;
+    });
+  };
+
   const onEnforceAspectRatioChange = (checked) => {
     if (
       checked &&
@@ -252,6 +263,24 @@ function SettingsPane({
         Stacking follows item order — items placed in front of it stay visible;
         reorder from the item menu where available.
       </small>
+      {vizType === "text" && (
+        <>
+          <CheckboxInput
+            label="Hide Scrollbar"
+            type="checkbox"
+            value={!!settings.hideScrollbar}
+            onChange={onHideScrollbarChange}
+            divProps={{ style: { marginBottom: ".25rem" } }}
+          />
+          <small
+            className="no-caret"
+            style={{ display: "block", marginBottom: ".5rem", color: "#666" }}
+          >
+            Text that does not fit still scrolls with the mouse wheel or touch;
+            only the scrollbar is hidden.
+          </small>
+        </>
+      )}
       <CustomMessaging
         vizInputsValues={vizInputsValues}
         initialCustomMessaging={settings.customMessaging}

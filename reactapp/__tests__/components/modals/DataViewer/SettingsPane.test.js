@@ -16,6 +16,7 @@ const TestingComponent = ({
   visualizationRefElement,
   vizInputsValues = {},
   currentSettings = {},
+  vizType,
 }) => {
   const [settings, setSettings] = useState(currentSettings);
   const visualizationRef = useRef(visualizationRefElement);
@@ -28,6 +29,7 @@ const TestingComponent = ({
         viz={null}
         visualizationRef={visualizationRef}
         vizInputsValues={vizInputsValues}
+        vizType={vizType}
       />
       <p data-testid="settings">{JSON.stringify(settings)}</p>
     </>
@@ -834,4 +836,39 @@ TestingComponent.propTypes = {
   visualizationRefElement: PropTypes.object,
   currentSettings: PropTypes.object,
   vizInputsValues: PropTypes.arrayOf(PropTypes.object),
+  vizType: PropTypes.string,
 };
+
+test("Hide Scrollbar is offered for a Text visualization and toggles the setting", async () => {
+  render(
+    createLoadedComponent({
+      children: <TestingComponent vizType="text" />,
+      options: { inDataViewerMode: true },
+    }),
+  );
+
+  const checkbox = await screen.findByLabelText("Hide Scrollbar Input");
+  expect(checkbox.checked).toBe(false);
+
+  await userEvent.click(checkbox);
+  await expectSettings(JSON.stringify({ hideScrollbar: true }));
+
+  await userEvent.click(checkbox);
+  await expectSettings(JSON.stringify({}));
+});
+
+test("Hide Scrollbar is not offered for other visualizations", async () => {
+  render(
+    createLoadedComponent({
+      children: <TestingComponent vizType="plotly" />,
+      options: { inDataViewerMode: true },
+    }),
+  );
+
+  expect(
+    await screen.findByLabelText("Fill Viewport Input"),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByLabelText("Hide Scrollbar Input"),
+  ).not.toBeInTheDocument();
+});

@@ -94,3 +94,36 @@ describe("Text", () => {
     expect(ref.current).not.toBeNull();
   });
 });
+
+// The CSS styled-components generated for an element's own classes.
+const rulesFor = (element) => {
+  // No Testing Library query reads injected stylesheets, and the project does
+  // not use jest-styled-components, so the rules are read off the style tags.
+  // eslint-disable-next-line testing-library/no-node-access
+  const css = Array.from(document.querySelectorAll("style"))
+    .map((style) => style.textContent)
+    .join("");
+  return Array.from(element.classList)
+    .flatMap(
+      (cls) => css.match(new RegExp(`\\.${cls}[^{]*\\{[^}]*\\}`, "g")) ?? [],
+    )
+    .join("");
+};
+
+describe("Text scrollbar", () => {
+  it("scrolls with a visible scrollbar by default", () => {
+    renderText({ textValue: "Hello" });
+
+    const rules = rulesFor(screen.getByTestId("text-visualization"));
+    expect(rules).toMatch(/overflow-y:\s*auto/);
+    expect(rules).not.toMatch(/scrollbar-width:\s*none/);
+  });
+
+  it("hides the scrollbar but keeps scrolling when asked", () => {
+    renderText({ textValue: "Hello", hideScrollbar: true });
+
+    const rules = rulesFor(screen.getByTestId("text-visualization"));
+    expect(rules).toMatch(/overflow-y:\s*auto/);
+    expect(rules).toMatch(/scrollbar-width:\s*none/);
+  });
+});

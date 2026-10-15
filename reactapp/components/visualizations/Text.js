@@ -38,6 +38,15 @@ const StyledDiv = styled.div`
   height: 100%;
   overflow-y: auto;
   padding: 1rem;
+  /* Hidden, not disabled: the text still scrolls by wheel, touch and keyboard. */
+  ${(props) =>
+    props.$hideScrollbar &&
+    `
+      scrollbar-width: none;
+      &::-webkit-scrollbar {
+        display: none;
+      }
+    `}
 `;
 
 const PreWrapDiv = styled.div`
@@ -45,11 +54,15 @@ const PreWrapDiv = styled.div`
   word-break: break-word;
 `;
 
-const Text = ({ textValue, visualizationRef }) => {
+const Text = ({ textValue, visualizationRef, hideScrollbar = false }) => {
   const clean = DOMPurify.sanitize(textValue);
 
   return (
-    <StyledDiv ref={visualizationRef}>
+    <StyledDiv
+      ref={visualizationRef}
+      $hideScrollbar={hideScrollbar}
+      data-testid="text-visualization"
+    >
       <PreWrapDiv>{parse(clean, linkifyOptions)}</PreWrapDiv>
     </StyledDiv>
   );
@@ -57,6 +70,8 @@ const Text = ({ textValue, visualizationRef }) => {
 
 Text.propTypes = {
   textValue: PropTypes.string,
+  // Grid-item setting: keep scrolling but draw no scrollbar.
+  hideScrollbar: PropTypes.bool,
   visualizationRef: PropTypes.oneOfType([
     PropTypes.func,
     PropTypes.shape({ current: PropTypes.any }),
