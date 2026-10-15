@@ -872,3 +872,28 @@ test("Hide Scrollbar is not offered for other visualizations", async () => {
     screen.queryByLabelText("Hide Scrollbar Input"),
   ).not.toBeInTheDocument();
 });
+
+test("Setting descriptions sit in an info tooltip left of the label", async () => {
+  render(
+    createLoadedComponent({
+      children: <TestingComponent vizType="text" />,
+      options: { inDataViewerMode: true },
+    }),
+  );
+
+  const fillHelp = await screen.findByLabelText("Fill Viewport help");
+  // Not printed under the field any more.
+  expect(
+    screen.queryByText(/Fills the screen below the navigation/),
+  ).not.toBeInTheDocument();
+
+  await userEvent.hover(fillHelp);
+  expect(
+    await screen.findByText(/Fills the screen below the navigation/),
+  ).toBeInTheDocument();
+
+  await userEvent.hover(screen.getByLabelText("Hide Scrollbar help"));
+  expect(
+    await screen.findByText(/only the scrollbar is hidden/),
+  ).toBeInTheDocument();
+});

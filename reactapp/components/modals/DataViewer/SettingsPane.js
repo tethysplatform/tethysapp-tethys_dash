@@ -253,33 +253,18 @@ function SettingsPane({
         type="checkbox"
         value={!!settings.fillViewport}
         onChange={onFillViewportChange}
-        divProps={{ style: { marginBottom: ".25rem" } }}
+        divProps={{ style: { marginBottom: ".5rem" } }}
+        infoTip="Fills the screen below the navigation when viewed, on any screen size. Stacking follows item order — items placed in front of it stay visible; reorder from the item menu where available."
       />
-      <small
-        className="no-caret"
-        style={{ display: "block", marginBottom: ".5rem", color: "#666" }}
-      >
-        Fills the screen below the navigation when viewed, on any screen size.
-        Stacking follows item order — items placed in front of it stay visible;
-        reorder from the item menu where available.
-      </small>
       {vizType === "text" && (
-        <>
-          <CheckboxInput
-            label="Hide Scrollbar"
-            type="checkbox"
-            value={!!settings.hideScrollbar}
-            onChange={onHideScrollbarChange}
-            divProps={{ style: { marginBottom: ".25rem" } }}
-          />
-          <small
-            className="no-caret"
-            style={{ display: "block", marginBottom: ".5rem", color: "#666" }}
-          >
-            Text that does not fit still scrolls with the mouse wheel or touch;
-            only the scrollbar is hidden.
-          </small>
-        </>
+        <CheckboxInput
+          label="Hide Scrollbar"
+          type="checkbox"
+          value={!!settings.hideScrollbar}
+          onChange={onHideScrollbarChange}
+          divProps={{ style: { marginBottom: ".5rem" } }}
+          infoTip="Text that does not fit still scrolls with the mouse wheel or touch; only the scrollbar is hidden."
+        />
       )}
       <CustomMessaging
         vizInputsValues={vizInputsValues}
