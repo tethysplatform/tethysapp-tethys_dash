@@ -4,3 +4,16 @@
   min-height: 30vh;
   padding: 1rem;
 }
+
+/* Vertical alignment previews where the text will sit in its tile. */
+.text-editor[data-vertical-align="middle"] .tiptap,
+.text-editor[data-vertical-align="bottom"] .tiptap {
+  display: flex;
+  flex-direction: column;
+}
+.text-editor[data-vertical-align="middle"] .tiptap {
+  justify-content: center;
+}
+.text-editor[data-vertical-align="bottom"] .tiptap {
+  justify-content: flex-end;
+}

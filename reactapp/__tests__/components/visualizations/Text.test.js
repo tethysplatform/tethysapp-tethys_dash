@@ -127,3 +127,28 @@ describe("Text scrollbar", () => {
     expect(rules).toMatch(/scrollbar-width:\s*none/);
   });
 });
+
+describe("Text vertical alignment", () => {
+  it.each([
+    ["top", [], [/margin-top:\s*auto/, /margin-bottom:\s*auto/]],
+    ["middle", [/margin-top:\s*auto/, /margin-bottom:\s*auto/], []],
+    ["bottom", [/margin-top:\s*auto/], [/margin-bottom:\s*auto/]],
+  ])(
+    "places %s-aligned text with auto margins",
+    (verticalAlign, has, lacks) => {
+      renderText({ textValue: "Hello", verticalAlign });
+
+      const rules = rulesFor(screen.getByTestId("text-content"));
+      has.forEach((rule) => expect(rules).toMatch(rule));
+      lacks.forEach((rule) => expect(rules).not.toMatch(rule));
+    },
+  );
+
+  it("keeps the tile scrollable so tall centred text scrolls from its top", () => {
+    renderText({ textValue: "Hello", verticalAlign: "middle" });
+
+    const rules = rulesFor(screen.getByTestId("text-visualization"));
+    expect(rules).toMatch(/overflow-y:\s*auto/);
+    expect(rules).not.toMatch(/justify-content:\s*center/);
+  });
+});

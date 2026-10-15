@@ -173,6 +173,7 @@ export const Visualization = memo(
             textValue={vizData.text}
             visualizationRef={vizRef}
             hideScrollbar={!!vizMetadata.hideScrollbar}
+            verticalAlign={vizMetadata.verticalAlign}
           />
         );
       case "variableInput":

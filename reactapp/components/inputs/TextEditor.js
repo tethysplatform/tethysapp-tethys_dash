@@ -34,6 +34,9 @@ import {
   LuMinus,
   LuIndentIncrease,
   LuIndentDecrease,
+  LuAlignVerticalJustifyStart,
+  LuAlignVerticalJustifyCenter,
+  LuAlignVerticalJustifyEnd,
 } from "react-icons/lu";
 import ButtonGroup from "react-bootstrap/ButtonGroup";
 import Overlay from "react-bootstrap/Overlay";
@@ -230,7 +233,15 @@ const MenuButtonWithOverlay = ({ children, editor, type }) => {
   );
 };
 
-const MenuBar = ({ editor }) => {
+// Where the block of text sits in its tile. It positions the whole block, not
+// a paragraph, so it is a tile setting rather than part of the text's HTML.
+const VERTICAL_ALIGNMENTS = [
+  { value: "top", label: "Top", Icon: LuAlignVerticalJustifyStart },
+  { value: "middle", label: "Middle", Icon: LuAlignVerticalJustifyCenter },
+  { value: "bottom", label: "Bottom", Icon: LuAlignVerticalJustifyEnd },
+];
+
+const MenuBar = ({ editor, verticalAlign, onVerticalAlignChange }) => {
   const [selectedFont, setSelectedFont] = useState("Arial, sans-serif");
   const [selectedStyle, setSelectedStyle] = useState("Normal Text");
 
@@ -427,6 +438,18 @@ const MenuBar = ({ editor }) => {
         >
           <LuAlignRight />
         </MenuButton>
+        {onVerticalAlignChange &&
+          VERTICAL_ALIGNMENTS.map(({ value, label, Icon }) => (
+            <MenuButton
+              key={value}
+              onClick={() => onVerticalAlignChange(value)}
+              className={(verticalAlign ?? "top") === value ? "is-active" : ""}
+              aria-label={`Align ${label} Menu Button`}
+              aria-pressed={(verticalAlign ?? "top") === value}
+            >
+              <Icon />
+            </MenuButton>
+          ))}
         <MenuButton
           onClick={() => editor.chain().focus().toggleBulletList().run()}
           className={editor.isActive("bulletList") ? "is-active" : ""}
@@ -466,7 +489,12 @@ const MenuBar = ({ editor }) => {
   );
 };
 
-const TextEditor = ({ textValue, onChange }) => {
+const TextEditor = ({
+  textValue,
+  onChange,
+  verticalAlign,
+  onVerticalAlignChange,
+}) => {
   const extensions = [
     StarterKit.configure({
       bulletList: {
@@ -518,8 +546,12 @@ const TextEditor = ({ textValue, onChange }) => {
   }, [editor, textValue]);
 
   return (
-    <div>
-      <MenuBar editor={editor} />
+    <div className="text-editor" data-vertical-align={verticalAlign ?? "top"}>
+      <MenuBar
+        editor={editor}
+        verticalAlign={verticalAlign}
+        onVerticalAlignChange={onVerticalAlignChange}
+      />
       <EditorContent editor={editor} />
     </div>
   );
@@ -544,11 +576,17 @@ MenuButtonWithOverlay.propTypes = {
 
 MenuBar.propTypes = {
   editor: PropTypes.object,
+  verticalAlign: PropTypes.oneOf(["top", "middle", "bottom"]),
+  onVerticalAlignChange: PropTypes.func,
 };
 
 TextEditor.propTypes = {
   onChange: PropTypes.func,
   textValue: PropTypes.string,
+  // Where the text sits vertically in its tile; top when unset.
+  verticalAlign: PropTypes.oneOf(["top", "middle", "bottom"]),
+  // Offering it at all: an editor without this shows no vertical buttons.
+  onVerticalAlignChange: PropTypes.func,
 };
 
 export default TextEditor;

@@ -473,6 +473,17 @@ function DataViewerModal({
                       onChange={(htmlText) =>
                         setVizInputsValues({ text: htmlText })
                       }
+                      // A tile setting, saved with the others: top is the
+                      // default and is saved as no setting at all.
+                      verticalAlign={settings.verticalAlign}
+                      onVerticalAlignChange={(value) =>
+                        setSettings((prev) => {
+                          const { verticalAlign, ...rest } = prev;
+                          return value === "top"
+                            ? rest
+                            : { ...rest, verticalAlign: value };
+                        })
+                      }
                     />
                   </PaddedBottomDiv>
                 ) : (
