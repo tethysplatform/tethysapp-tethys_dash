@@ -22,6 +22,17 @@ proj4.defs(
   "EPSG:3031",
   "+proj=stere +lat_0=-90 +lat_ts=-71 +lon_0=0 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs",
 );
+// Geostationary views (GOES-East over lon -75, and one over lon 105): points
+// off the visible disk have no coordinates in either direction.
+const GEOSTATIONARY = "GEOS:-75";
+proj4.defs(
+  GEOSTATIONARY,
+  "+proj=geos +h=35785831 +lon_0=-75 +x_0=0 +y_0=0 +ellps=GRS80 +units=m +no_defs +sweep=x",
+);
+proj4.defs(
+  "GEOS:105",
+  "+proj=geos +h=35785831 +lon_0=105 +x_0=0 +y_0=0 +ellps=GRS80 +units=m +no_defs +sweep=x",
+);
 register(proj4);
 
 const eugene = transform([-123.09, 44.05], "EPSG:4326", "EPSG:3857");
@@ -211,5 +222,73 @@ describe("outlinesToDraw", () => {
         (f) => f.memberId,
       ),
     ).toEqual(["detail", "peer"]);
+  });
+});
+
+describe("edge cases", () => {
+  it("treats a missing rotation as unrotated", () => {
+    const { rotation: _rotation, ...unrotated } = view;
+    expect(viewCorners(unrotated)).toEqual(viewCorners(view));
+    expect(footprintKey(unrotated)).toBe(footprintKey(view));
+  });
+
+  it("publishes nothing when the view reaches past the Earth's disk", () => {
+    // A geostationary view zoomed out into space: its corners have no lon/lat.
+    expect(
+      viewFootprint({
+        center: [0, 0],
+        resolution: 100000,
+        rotation: 0,
+        size: [400, 400],
+        projection: GEOSTATIONARY,
+      }),
+    ).toBeNull();
+    // Zoomed in on the disk it publishes a ring as usual.
+    expect(
+      viewFootprint({
+        center: [0, 0],
+        resolution: 100,
+        rotation: 0,
+        size: [400, 400],
+        projection: GEOSTATIONARY,
+      }),
+    ).toHaveLength(4 * (EDGE_DENSITY + 1) + 1);
+  });
+
+  it("draws nothing for a ring on the far side of a subscriber's globe", () => {
+    // Eugene is on the hemisphere a geostationary view over lon 105 cannot see.
+    expect(footprintInProjection(viewFootprint(view), "GEOS:105")).toBeNull();
+    expect(
+      footprintInProjection(viewFootprint(view), GEOSTATIONARY),
+    ).not.toBeNull();
+  });
+
+  it("draws nothing for a subscriber in an unregistered projection", () => {
+    expect(
+      footprintInProjection(viewFootprint(view), "EPSG:999999"),
+    ).toBeNull();
+  });
+
+  it("keys a view with no center or size as having no footprint", () => {
+    expect(footprintKey({ ...view, center: null })).toBe("none");
+    expect(footprintKey({ ...view, size: undefined })).toBe("none");
+  });
+
+  it("tolerates missing footprints and self ids", () => {
+    expect(outlinesToDraw(undefined, { viewGroup: null })).toEqual([]);
+    const footprints = [
+      { memberId: "a", ring: [[0, 0]], viewGroup: null },
+      { memberId: "b", ring: [[0, 0]], viewGroup: null },
+    ];
+    expect(
+      outlinesToDraw(footprints, { viewGroup: null }).map((f) => f.memberId),
+    ).toEqual(["a", "b"]);
+    // Empty self ids are dropped rather than excluding id-less members.
+    expect(
+      outlinesToDraw([{ memberId: "", ring: [[0, 0]] }], {
+        selfIds: [""],
+        viewGroup: null,
+      }),
+    ).toHaveLength(1);
   });
 });

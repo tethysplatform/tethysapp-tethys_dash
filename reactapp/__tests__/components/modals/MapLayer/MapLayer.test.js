@@ -3908,6 +3908,11 @@ describe("getLayerType", () => {
     expect(getLayerType("ESRI Image and Map Service")).toBe("ImageLayer");
   });
 
+  test("decoration source types map to VectorLayer", () => {
+    expect(getLayerType("Annotations")).toBe("VectorLayer");
+    expect(getLayerType("Linked Extents")).toBe("VectorLayer");
+  });
+
   test("Unknown source types fall back to VectorLayer", () => {
     expect(getLayerType("GeoJSON")).toBe("VectorLayer");
     expect(getLayerType("KML")).toBe("VectorLayer");

@@ -1,3 +1,6 @@
+import Feature from "ol/Feature.js";
+import LineString from "ol/geom/LineString.js";
+import Point from "ol/geom/Point.js";
 import { get as getProjection } from "ol/proj.js";
 import { register } from "ol/proj/proj4.js";
 import proj4 from "proj4";
@@ -272,5 +275,154 @@ describe("itemsToFeatures / featuresToItems", () => {
     expect(feature.get("annotationKind")).toBe("text");
     expect(feature.get("annotationText")).toBe("Gauge 1");
     expect(feature.get("annotationStyle")).toEqual({ textSize: 18 });
+  });
+});
+
+describe("malformed-input fallbacks", () => {
+  it("ignores a non-object defaults value and keeps an object one", () => {
+    expect(normalizeAnnotations({ defaults: "red", items: [line] })).toEqual({
+      defaults: {},
+      items: [line],
+    });
+    const defaults = { lineColor: "red" };
+    expect(normalizeAnnotations({ defaults }).defaults).toBe(defaults);
+  });
+
+  it("starts ids at a1 with no item list and skips null or id-less items", () => {
+    expect(nextAnnotationId(undefined)).toBe("a1");
+    expect(nextAnnotationId([null, {}, { id: "a2" }])).toBe("a3");
+  });
+
+  it("never treats a text or missing item as an arrow", () => {
+    expect(isArrowItem(text, { arrowheads: "both" })).toBe(false);
+    expect(isArrowItem(null, { arrowheads: "both" })).toBe(false);
+  });
+
+  it("labels a text item with no text as empty", () => {
+    expect(annotationLabel({ id: "a9", kind: "text" }, [], {})).toBe(
+      "Text (empty)",
+    );
+  });
+
+  it("numbers an item found by id even when the list holds a copy", () => {
+    const items = [
+      null,
+      { id: "a1", kind: "line", coordinates: line.coordinates },
+      text,
+      { id: "a3", kind: "line", coordinates: line.coordinates },
+    ];
+    // A fresh object with the same id still stops the count at its slot.
+    expect(annotationLabel({ ...items[3] }, items, {})).toBe("Arrow 2");
+  });
+
+  it("gives an item with no list a zero position rather than throwing", () => {
+    expect(annotationLabel(line, undefined, {})).toBe("Arrow 0");
+    expect(
+      annotationLabel({ ...line, style: { arrowheads: "none" } }, null, {}),
+    ).toBe("Line 0");
+  });
+
+  it("returns an item with no style unchanged when resetting an override", () => {
+    expect(resetAnnotationOverride(text, "textColor")).toBe(text);
+    expect(resetAnnotationOverride(undefined, "textColor")).toBeUndefined();
+  });
+
+  it("returns no features for a missing item list", () => {
+    expect(itemsToFeatures(undefined, "EPSG:3857")).toEqual([]);
+  });
+
+  it("gives a text item with no text an empty text property", () => {
+    const [feature] = itemsToFeatures(
+      [{ id: "a1", kind: "text", coordinates: [-123, 44] }],
+      "EPSG:3857",
+    );
+    expect(feature.get("annotationText")).toBe("");
+    expect(feature.get("annotationStyle")).toBeNull();
+    expect(featuresToItems([feature], "EPSG:3857")).toEqual([
+      { id: "a1", kind: "text", coordinates: [-123, 44], text: "" },
+    ]);
+  });
+});
+
+describe("reprojectAnnotationFeatures edge cases", () => {
+  it("tolerates a missing list and skips features with no geometry", () => {
+    expect(() =>
+      reprojectAnnotationFeatures(undefined, "EPSG:3857", "EPSG:2269"),
+    ).not.toThrow();
+    const empty = new Feature();
+    reprojectAnnotationFeatures([empty], "EPSG:3857", "EPSG:2269");
+    expect(empty.getGeometry()).toBeUndefined();
+  });
+
+  it("keeps an edit made before the swap marked as edited", () => {
+    const features = itemsToFeatures([text], "EPSG:3857");
+    const point = features[0].getGeometry();
+    const [x, y] = point.getCoordinates();
+    point.setCoordinates([x + 1000, y]); // ~1 km east, in Web Mercator
+    reprojectAnnotationFeatures(features, "EPSG:3857", "EPSG:2269");
+    const [item] = featuresToItems(features, "EPSG:2269");
+    // Written from the moved geometry, not the stored coordinates.
+    expect(item.coordinates).not.toEqual(text.coordinates);
+    expect(item.coordinates[0]).toBeGreaterThan(text.coordinates[0]);
+    expect(item.coordinates[1]).toBeCloseTo(text.coordinates[1], 4);
+  });
+});
+
+describe("featuresToItems edge cases", () => {
+  it("returns no items for a missing feature list", () => {
+    expect(featuresToItems(undefined, "EPSG:3857")).toEqual([]);
+  });
+
+  it("skips features with no geometry or an unknown kind", () => {
+    const [kept] = itemsToFeatures([line], "EPSG:3857");
+    const noGeometry = new Feature();
+    noGeometry.set("annotationKind", "line");
+    noGeometry.set("annotationId", "x1");
+    const unknownKind = new Feature({ geometry: new Point([0, 0]) });
+    unknownKind.set("annotationKind", "circle");
+    unknownKind.set("annotationId", "x2");
+    expect(
+      featuresToItems([noGeometry, unknownKind, kept], "EPSG:3857"),
+    ).toEqual([line]);
+  });
+
+  it("writes a freshly drawn feature with no stored coordinates through the projection", () => {
+    const feature = new Feature({
+      geometry: new LineString([
+        [0, 0],
+        [1000, 0],
+      ]),
+    });
+    feature.set("annotationKind", "line");
+    feature.set("annotationId", "a5");
+    feature.set("annotationStyle", {});
+    const [item] = featuresToItems([feature], "EPSG:3857");
+    expect(item).toEqual({
+      id: "a5",
+      kind: "line",
+      coordinates: [
+        [0, 0],
+        [0.0089832, 0],
+      ],
+    });
+    // An empty override object is not written back.
+    expect(item).not.toHaveProperty("style");
+  });
+
+  it("writes a text feature with no text property as empty text", () => {
+    const feature = new Feature({ geometry: new Point([0, 0]) });
+    feature.set("annotationKind", "text");
+    feature.set("annotationId", "a7");
+    expect(featuresToItems([feature], "EPSG:3857")).toEqual([
+      { id: "a7", kind: "text", coordinates: [0, 0], text: "" },
+    ]);
+  });
+
+  it("drops a feature whose geometry reads back as non-finite", () => {
+    const feature = new Feature({ geometry: new Point([NaN, 0]) });
+    feature.set("annotationKind", "text");
+    feature.set("annotationId", "a1");
+    feature.set("annotationText", "Lost");
+    expect(featuresToItems([feature], "EPSG:3857")).toEqual([]);
   });
 });

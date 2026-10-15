@@ -11,13 +11,15 @@ import useLinkedExtentPublisher from "components/map/useLinkedExtentPublisher";
 
 let registry;
 let olMap;
+let memberRef;
 
 // Stands in for the map component: owns a real OpenLayers map and calls the
 // hook the way `components/map/Map.js` does.
 const Member = ({ mapExtent, dataviewerViz = false }) => {
   registry = useLinkedExtentContext();
-  const visualizationRef = useRef(null);
-  if (!visualizationRef.current) visualizationRef.current = olMap;
+  // Seeded once, so a test can clear it the way Map.js does on teardown.
+  const visualizationRef = useRef(olMap);
+  memberRef = visualizationRef;
   useLinkedExtentPublisher({ visualizationRef, mapExtent, dataviewerViz });
   return null;
 };
@@ -173,6 +175,62 @@ test.each([
   ["a map with no grid item uuid", { gridItemUUID: null }],
 ])("%s never joins", (_label, options) => {
   render(tree(options));
+  olMap.renderSync();
+
+  expect(registry.getFootprints("Basin")).toEqual([]);
+});
+
+test("a resize that keeps an area waits for the next frame to publish", () => {
+  render(tree());
+  olMap.renderSync();
+  const listener = jest.fn();
+  registry.subscribe("Basin", listener);
+  const before = ring();
+
+  // Only a shrink to nothing publishes from the size event; a map that still
+  // has an area publishes from the frame the resize renders.
+  olMap.setSize([800, 300]);
+  expect(listener).not.toHaveBeenCalled();
+  expect(ring()).toBe(before);
+
+  olMap.renderSync();
+  expect(listener).toHaveBeenCalledTimes(1);
+  expect(ring()[0][0]).toBeLessThan(before[0][0]);
+});
+
+test("a map already torn down publishes nothing when its tab is hidden", () => {
+  const { rerender } = render(tree());
+  olMap.renderSync();
+  const before = ring();
+
+  // Map.js clears its ref when it disposes of the OpenLayers map.
+  memberRef.current = null;
+  rerender(tree({ shouldLoad: false }));
+
+  expect(ring()).toBe(before);
+});
+
+test("a member already hidden does not republish its absence", () => {
+  const { rerender } = render(tree());
+  olMap.renderSync();
+  rerender(tree({ shouldLoad: false }));
+  expect(ring()).toBeNull();
+
+  const listener = jest.fn();
+  registry.subscribe("Basin", listener);
+  // Shrinking a hidden map changes nothing anyone can see.
+  olMap.setSize([0, 0]);
+
+  expect(listener).not.toHaveBeenCalled();
+  expect(ring()).toBeNull();
+});
+
+test("a map outside any tab or grid item never joins", () => {
+  render(
+    <LinkedExtentProvider>
+      <Member mapExtent={{ extent: "1,2,3", linkedExtentGroup: "Basin" }} />
+    </LinkedExtentProvider>,
+  );
   olMap.renderSync();
 
   expect(registry.getFootprints("Basin")).toEqual([]);

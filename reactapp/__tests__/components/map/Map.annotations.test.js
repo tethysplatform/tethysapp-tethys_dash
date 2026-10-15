@@ -225,3 +225,13 @@ test("renaming the layer rebuilds it rather than keeping the old one", async () 
   expect(layerNamed("Gauge Notes")).not.toBe(before);
   expect(layerNamed("Callouts")).toBeUndefined();
 });
+
+test("clearing the layer list removes the Annotations layer", async () => {
+  await mount([annotationsLayer()]);
+  expect(layerNamed("Callouts")).toBeTruthy();
+
+  // A map whose layers prop goes away has nothing to keep the layer for.
+  act(() => setLayers(undefined));
+
+  await waitFor(() => expect(layerNamed("Callouts")).toBeUndefined());
+});

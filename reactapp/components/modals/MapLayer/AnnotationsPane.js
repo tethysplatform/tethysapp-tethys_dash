@@ -45,7 +45,7 @@ const FieldLabel = styled(Form.Label)`
 
 const Control = styled.div`
   flex: 0 1 auto;
-  max-width: ${(props) => props.$width || "16rem"};
+  max-width: ${(props) => props.$width};
 `;
 
 const Help = styled.p`

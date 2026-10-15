@@ -75,7 +75,8 @@ const STYLE_VALIDATORS = {
 
 function validStyleValue(key, value, arrowheadOptions) {
   if (key === "arrowheads") return arrowheadOptions.includes(value);
-  return STYLE_VALIDATORS[key]?.(value) ?? false;
+  // Callers only pass ANNOTATION_STYLE_KEYS, each of which has a validator.
+  return STYLE_VALIDATORS[key](value);
 }
 
 /**

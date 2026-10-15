@@ -160,3 +160,86 @@ describe("robustness", () => {
     expect(arrowheads(fn(line))).toHaveLength(1);
   });
 });
+
+describe("degenerate lines", () => {
+  it("draws the stroke but no arrowhead when every vertex is identical", () => {
+    for (const ends of ["start", "end", "both"]) {
+      const styles = annotationFeatureStyles(
+        lineFeature([
+          [5, 5],
+          [5, 5],
+          [5, 5],
+        ]),
+        { arrowheads: ends },
+      );
+      expect(styles).toHaveLength(1);
+      expect(styles[0].getStroke()).toBeTruthy();
+      expect(arrowheads(styles)).toEqual([]);
+    }
+  });
+
+  it("orients the start arrowhead past a duplicated start vertex", () => {
+    const styles = annotationFeatureStyles(
+      lineFeature([
+        [0, 0],
+        [0, 0],
+        [10, 0],
+      ]),
+      { arrowheads: "start" },
+    );
+    const [head] = arrowheads(styles);
+    expect(head.getGeometry().getCoordinates()).toEqual([0, 0]);
+    expect(head.getImage().getRotation()).toBeCloseTo(-Math.PI / 2); // west
+  });
+});
+
+describe("style caches", () => {
+  it("reuses one stroke style for lines of the same color and width", () => {
+    const fn = createAnnotationStyleFunction({ arrowheads: "end" });
+    const coordinates = [
+      [0, 0],
+      [10, 0],
+    ];
+    const [first] = fn(lineFeature(coordinates));
+    const [second] = fn(lineFeature(coordinates, { arrowheads: "none" }));
+    expect(second).toBe(first);
+    const [wider] = fn(lineFeature(coordinates, { lineWidth: 8 }));
+    expect(wider).not.toBe(first);
+    expect(wider.getStroke().getWidth()).toBe(8);
+  });
+
+  it("reuses one text style for identical text and styling", () => {
+    const fn = createAnnotationStyleFunction({});
+    const [first] = fn(textFeature("Gauge 1"));
+    const [second] = fn(textFeature("Gauge 1"));
+    expect(second).toBe(first);
+    const [other] = fn(textFeature("Gauge 2"));
+    expect(other).not.toBe(first);
+    expect(other.getText().getText()).toBe("Gauge 2");
+  });
+
+  it("does not share caches between style functions", () => {
+    const a = createAnnotationStyleFunction({});
+    const b = createAnnotationStyleFunction({});
+    expect(a(textFeature("Hi"))[0]).not.toBe(b(textFeature("Hi"))[0]);
+  });
+});
+
+describe("more robustness", () => {
+  it("draws nothing for a text feature with no text", () => {
+    const feature = new Feature({ geometry: new Point([0, 0]) });
+    feature.set("annotationKind", "text");
+    expect(annotationFeatureStyles(feature, {})).toEqual([]);
+  });
+
+  it("returns no styles when reading the geometry throws", () => {
+    const feature = lineFeature([
+      [0, 0],
+      [10, 0],
+    ]);
+    feature.getGeometry().getCoordinates = () => {
+      throw new Error("corrupt geometry");
+    };
+    expect(annotationFeatureStyles(feature, { arrowheads: "end" })).toEqual([]);
+  });
+});

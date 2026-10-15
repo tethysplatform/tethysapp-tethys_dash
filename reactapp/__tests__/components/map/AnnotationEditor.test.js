@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import PropTypes from "prop-types";
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { Map, View } from "ol";
+import { Map, MapBrowserEvent, View } from "ol";
 import VectorLayer from "ol/layer/Vector.js";
 import VectorSource from "ol/source/Vector.js";
 import Draw from "ol/interaction/Draw.js";
@@ -47,9 +47,10 @@ let editorLayer;
 const realSetMap = VectorLayer.prototype.setMap;
 
 // Mirrors map/Map.js: the editor mounts only while a session is open.
-const Host = ({ session }) => {
+const Host = ({ session, mapRef }) => {
   context = useMapContext();
-  const ref = useRef(olMap);
+  const ownRef = useRef(olMap);
+  const ref = mapRef ?? ownRef;
   const started = useRef(false);
   useEffect(() => {
     if (!started.current && session) {
@@ -61,12 +62,12 @@ const Host = ({ session }) => {
     <AnnotationEditor visualizationRef={ref} />
   ) : null;
 };
-Host.propTypes = { session: PropTypes.object };
+Host.propTypes = { session: PropTypes.object, mapRef: PropTypes.object };
 
-const mount = (session) =>
+const mount = (session, mapRef) =>
   render(
     <MapContextProvider>
-      <Host session={session} />
+      <Host session={session} mapRef={mapRef} />
     </MapContextProvider>,
   );
 
@@ -298,9 +299,7 @@ test("clicking existing text in Text mode edits it, and Escape reverts", () => {
   mount(session({ items: [text] }));
   fireEvent.click(screen.getByRole("button", { name: "Text" }));
   const [existing] = workingFeatures();
-  jest
-    .spyOn(olMap, "forEachFeatureAtPixel")
-    .mockImplementation((pixel, callback) => callback(existing));
+  hitReturns(existing);
 
   singleClick([0, 0]);
   const box = screen.getByLabelText("Annotation text");
@@ -489,4 +488,402 @@ test("a drag that starts away from every annotation pans the map", () => {
     });
     expect(map.getView().getCenter()).not.toEqual(before);
   }
+});
+
+// Selects (or, with no feature, deselects) the way a click on the map would.
+const selectFeature = (feature) =>
+  act(() => {
+    const select = interaction(Select);
+    select.getFeatures().clear();
+    if (feature) select.getFeatures().push(feature);
+    select.dispatchEvent({
+      type: "select",
+      selected: feature ? [feature] : [],
+      deselected: [],
+    });
+  });
+
+const deleteButton = () =>
+  screen.getByRole("button", { name: "Delete selected annotation" });
+
+const featureById = (id) =>
+  workingFeatures().find((f) => f.get("annotationId") === id);
+
+// The handle style the working layer adds to the selected feature, if any.
+const handlesFor = (feature) => {
+  const styles = editorLayer.getStyleFunction()(feature, 1000);
+  return styles.filter((s) => s.getImage()?.getRadius?.() === 5);
+};
+
+// Map browser events need a frame state and a viewport size. Rendered before
+// the editor mounts: jsdom's canvas stub cannot draw the editor's layer.
+const prepareForPointerEvents = () => {
+  olMap.getViewport().getBoundingClientRect = () => ({
+    left: 0,
+    top: 0,
+    width: 400,
+    height: 300,
+  });
+  olMap.renderSync();
+};
+
+const dblClick = () => {
+  const event = new MapBrowserEvent("dblclick", olMap, {
+    type: "dblclick",
+    clientX: 200,
+    clientY: 150,
+    preventDefault: () => {},
+    target: olMap.getViewport(),
+  });
+  act(() => olMap.handleMapBrowserEvent(event));
+  return event;
+};
+
+// Stands in for a hit test (jsdom cannot render the layer to hit-test it),
+// checking on the way that only the working layer is ever queried.
+const hitReturns = (feature) =>
+  jest
+    .spyOn(olMap, "forEachFeatureAtPixel")
+    .mockImplementation((pixel, callback, options) => {
+      expect(options.layerFilter(editorLayer)).toBe(true);
+      expect(
+        options.layerFilter(new VectorLayer({ source: new VectorSource() })),
+      ).toBe(false);
+      return feature ? callback(feature) : undefined;
+    });
+
+test("renders nothing and installs nothing without a session", () => {
+  const before = olMap.getInteractions().getLength();
+  const { container } = render(
+    <MapContextProvider>
+      <AnnotationEditor visualizationRef={{ current: olMap }} />
+    </MapContextProvider>,
+  );
+
+  expect(container).toBeEmptyDOMElement();
+  expect(editorLayer).toBeNull();
+  expect(olMap.getOverlays().getLength()).toBe(0);
+  expect(olMap.getInteractions().getLength()).toBe(before);
+});
+
+test("without a map the toolbar is inert and Done hands the items back", () => {
+  const mapRef = { current: null };
+  mount(session({ items: [line] }), mapRef);
+
+  expect(screen.getByRole("toolbar")).toBeInTheDocument();
+  expect(editorLayer).toBeNull();
+  // Neither tool has an interaction to act on.
+  fireEvent.keyDown(document, { key: "Escape" });
+  fireEvent.click(screen.getByRole("button", { name: "Arrow" }));
+  fireEvent.keyDown(document, { key: "Enter" });
+  fireEvent.keyDown(document, { key: "Escape" });
+
+  // A map arriving later still has no working copy to draw into.
+  mapRef.current = olMap;
+  fireEvent.click(screen.getByRole("button", { name: "Line" }));
+  expect(interaction(Draw)).toBeUndefined();
+
+  done();
+  expect(context.editedAnnotations).toEqual([line]);
+  expect(context.annotationEditSession).toBeNull();
+});
+
+test("only the named, visible layer is hidden", () => {
+  const other = new VectorLayer({ source: new VectorSource() });
+  other.set("name", "Other");
+  const alreadyHidden = new VectorLayer({
+    source: new VectorSource(),
+    visible: false,
+  });
+  alreadyHidden.set("name", "Callouts");
+  olMap.addLayer(other);
+  olMap.addLayer(alreadyHidden);
+  mount(session({ items: [line] }));
+
+  expect(other.getVisible()).toBe(true);
+  expect(alreadyHidden.getVisible()).toBe(false);
+
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  // A layer the user had hidden is not re-shown when the session ends.
+  expect(alreadyHidden.getVisible()).toBe(false);
+  expect(other.getVisible()).toBe(true);
+});
+
+test("a layer not saved yet hides nothing and has no name in the title", () => {
+  const unnamed = new VectorLayer({ source: new VectorSource() });
+  olMap.addLayer(unnamed);
+  mount(session({ layerName: null, items: [line] }));
+
+  expect(unnamed.getVisible()).toBe(true);
+  expect(screen.getByText("Editing annotations")).toBeInTheDocument();
+});
+
+test("a view change in the same projection leaves the items where they are", () => {
+  mount(session({ items: [line] }));
+  const [feature] = workingFeatures();
+  const before = feature.getGeometry().getCoordinates();
+  const revision = feature.getGeometry().getRevision();
+
+  act(() => {
+    olMap.setView(new View({ center: [1000, 1000], resolution: 500 }));
+  });
+
+  expect(feature.getGeometry().getCoordinates()).toEqual(before);
+  expect(feature.getGeometry().getRevision()).toBe(revision);
+  done();
+  expect(context.editedAnnotations).toEqual([line]);
+});
+
+test("the selected line and the selected text show a handle on each point", () => {
+  mount(session({ items: [line, text] }));
+  const lineFeature = featureById("a1");
+  const textFeature = featureById("a2");
+  expect(handlesFor(lineFeature)).toHaveLength(0);
+
+  selectFeature(lineFeature);
+  const [lineHandles] = handlesFor(lineFeature);
+  expect(
+    lineHandles.getGeometryFunction()(lineFeature).getCoordinates(),
+  ).toEqual(lineFeature.getGeometry().getCoordinates());
+  expect(handlesFor(textFeature)).toHaveLength(0);
+
+  selectFeature(textFeature);
+  expect(handlesFor(lineFeature)).toHaveLength(0);
+  const [textHandles] = handlesFor(textFeature);
+  expect(
+    textHandles.getGeometryFunction()(textFeature).getCoordinates(),
+  ).toEqual([textFeature.getGeometry().getCoordinates()]);
+});
+
+test("clicking away from every annotation clears the selection", () => {
+  mount(session({ items: [line] }));
+  selectFeature(featureById("a1"));
+  expect(deleteButton()).toBeEnabled();
+
+  selectFeature(null);
+  expect(deleteButton()).toBeDisabled();
+  expect(handlesFor(featureById("a1"))).toHaveLength(0);
+});
+
+test("Escape in Select mode clears the selection without deleting", () => {
+  mount(session({ items: [line] }));
+  selectFeature(featureById("a1"));
+
+  fireEvent.keyDown(document, { key: "Escape" });
+
+  expect(deleteButton()).toBeDisabled();
+  expect(interaction(Select).getFeatures().getLength()).toBe(0);
+  // Delete now has nothing to act on.
+  fireEvent.keyDown(document, { key: "Delete" });
+  done();
+  expect(context.editedAnnotations).toEqual([line]);
+});
+
+test("Backspace deletes the selection, and the Delete button does too", () => {
+  mount(session({ items: [line, text] }));
+  selectFeature(featureById("a1"));
+  const backspace = fireEvent.keyDown(document, { key: "Backspace" });
+  // Handled: the browser does not also navigate back.
+  expect(backspace).toBe(false);
+  expect(featureById("a1")).toBeUndefined();
+
+  selectFeature(featureById("a2"));
+  fireEvent.click(deleteButton());
+  expect(workingFeatures()).toHaveLength(0);
+  expect(deleteButton()).toBeDisabled();
+});
+
+test("keys pressed while typing in an input are left alone", () => {
+  mount(session({ items: [line] }));
+  selectFeature(featureById("a1"));
+  const input = document.createElement("input");
+  document.body.appendChild(input);
+  input.focus();
+
+  fireEvent.keyDown(input, { key: "Backspace" });
+  fireEvent.keyDown(input, { key: "Escape" });
+
+  expect(featureById("a1")).toBeDefined();
+  expect(deleteButton()).toBeEnabled();
+  input.remove();
+});
+
+test("keys that mean nothing to the current tool do nothing", () => {
+  mount(session({ items: [line] }));
+  selectFeature(featureById("a1"));
+  fireEvent.keyDown(document, { key: "a" });
+  expect(deleteButton()).toBeEnabled();
+
+  fireEvent.click(screen.getByRole("button", { name: "Text" }));
+  fireEvent.keyDown(document, { key: "Delete" });
+  fireEvent.keyDown(document, { key: "Escape" });
+
+  fireEvent.click(screen.getByRole("button", { name: "Line" }));
+  act(() => {
+    interaction(Draw).appendCoordinates([
+      [0, 0],
+      [10000, 0],
+    ]);
+  });
+  fireEvent.keyDown(document, { key: "a" });
+  // Still drawing: the sketch was neither finished nor abandoned.
+  expect(workingFeatures()).toHaveLength(1);
+  fireEvent.keyDown(document, { key: "Enter" });
+  expect(workingFeatures()).toHaveLength(2);
+});
+
+test("Enter finishing a one-point line drops it once Draw has added it", async () => {
+  mount(session());
+  act(() => {
+    interaction(Draw).appendCoordinates([[0, 0]]);
+  });
+  fireEvent.keyDown(document, { key: "Enter" });
+  expect(workingFeatures()).toHaveLength(1);
+
+  await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+  expect(workingFeatures()).toHaveLength(0);
+});
+
+test("switching to a drawing tool or Text clears the selection", () => {
+  mount(session({ items: [line] }));
+  for (const tool of ["Line", "Text"]) {
+    fireEvent.click(screen.getByRole("button", { name: "Select" }));
+    selectFeature(featureById("a1"));
+    expect(handlesFor(featureById("a1"))).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole("button", { name: tool }));
+    expect(handlesFor(featureById("a1"))).toHaveLength(0);
+    fireEvent.click(screen.getByRole("button", { name: "Select" }));
+    expect(deleteButton()).toBeDisabled();
+    expect(interaction(Select).getFeatures().getLength()).toBe(0);
+  }
+});
+
+test("double-clicking text in Select mode edits it instead of zooming", () => {
+  prepareForPointerEvents();
+  mount(session({ items: [line, text] }));
+  hitReturns(featureById("a2"));
+
+  const event = dblClick();
+
+  expect(event.defaultPrevented).toBe(true);
+  expect(olMap.getView().getAnimating()).toBe(false);
+  const box = screen.getByLabelText("Annotation text");
+  expect(box).toHaveValue("Old");
+  fireEvent.change(box, { target: { value: "New" } });
+  fireEvent.keyDown(box, { key: "Enter" });
+  done();
+  expect(context.editedAnnotations[1]).toEqual({ ...text, text: "New" });
+});
+
+test("double-clicking a line or empty map in Select mode still zooms", () => {
+  prepareForPointerEvents();
+  mount(session({ items: [line, text] }));
+  const hit = hitReturns(featureById("a1"));
+
+  let event = dblClick();
+  expect(event.defaultPrevented).toBeFalsy();
+  expect(olMap.getView().getAnimating()).toBe(true);
+  expect(screen.queryByLabelText("Annotation text")).not.toBeInTheDocument();
+
+  act(() => olMap.getView().cancelAnimations());
+  hit.mockRestore();
+  hitReturns(null);
+  event = dblClick();
+  expect(event.defaultPrevented).toBeFalsy();
+  expect(olMap.getView().getAnimating()).toBe(true);
+  expect(screen.queryByLabelText("Annotation text")).not.toBeInTheDocument();
+});
+
+test("emptying selected text removes it and its selection", () => {
+  prepareForPointerEvents();
+  mount(session({ items: [line, text] }));
+  selectFeature(featureById("a2"));
+  hitReturns(featureById("a2"));
+  dblClick();
+
+  const box = screen.getByLabelText("Annotation text");
+  fireEvent.change(box, { target: { value: "  " } });
+  fireEvent.keyDown(box, { key: "Enter" });
+
+  expect(featureById("a2")).toBeUndefined();
+  expect(deleteButton()).toBeDisabled();
+  done();
+  expect(context.editedAnnotations).toEqual([line]);
+});
+
+test("a text box whose item was deleted closes without bringing it back", () => {
+  prepareForPointerEvents();
+  mount(session({ items: [line, text] }));
+  selectFeature(featureById("a2"));
+  hitReturns(featureById("a2"));
+  dblClick();
+
+  // fireEvent does not move focus, so the box is still open here.
+  fireEvent.click(deleteButton());
+  fireEvent.keyDown(screen.getByLabelText("Annotation text"), {
+    key: "Escape",
+  });
+
+  expect(screen.queryByLabelText("Annotation text")).not.toBeInTheDocument();
+  done();
+  expect(context.editedAnnotations).toEqual([line]);
+});
+
+test("switching tool while text is open commits it", () => {
+  mount(session());
+  fireEvent.click(screen.getByRole("button", { name: "Text" }));
+  singleClick([0, 0]);
+  fireEvent.change(screen.getByLabelText("Annotation text"), {
+    target: { value: "Kept" },
+  });
+
+  fireEvent.click(screen.getByRole("button", { name: "Select" }));
+
+  expect(screen.queryByLabelText("Annotation text")).not.toBeInTheDocument();
+  done();
+  expect(context.editedAnnotations.map((i) => i.text)).toEqual(["Kept"]);
+});
+
+test("a map click while text is open commits it rather than placing more", () => {
+  mount(session());
+  fireEvent.click(screen.getByRole("button", { name: "Text" }));
+  singleClick([0, 0]);
+  fireEvent.change(screen.getByLabelText("Annotation text"), {
+    target: { value: "First" },
+  });
+
+  // No blur first: the click is not the one that closed the box.
+  singleClick([9000, 9000]);
+
+  expect(screen.queryByLabelText("Annotation text")).not.toBeInTheDocument();
+  expect(workingFeatures()).toHaveLength(1);
+  done();
+  expect(context.editedAnnotations.map((i) => i.text)).toEqual(["First"]);
+});
+
+test("a replaced session keeps a selection it still holds", () => {
+  mount(session({ items: [line, text] }));
+  selectFeature(featureById("a1"));
+  const firstLayer = editorLayer;
+
+  act(() => context.setAnnotationEditSession(session({ items: [line, text] })));
+
+  expect(editorLayer).not.toBe(firstLayer);
+  const [restored] = interaction(Select).getFeatures().getArray();
+  expect(restored).toBe(featureById("a1"));
+  expect(deleteButton()).toBeEnabled();
+});
+
+test("Delete with a selection the session no longer holds removes nothing", () => {
+  mount(session({ items: [line, text] }));
+  selectFeature(featureById("a1"));
+
+  act(() => context.setAnnotationEditSession(session({ items: [text] })));
+  expect(interaction(Select).getFeatures().getLength()).toBe(0);
+  fireEvent.click(deleteButton());
+
+  expect(deleteButton()).toBeDisabled();
+  done();
+  expect(context.editedAnnotations).toEqual([text]);
 });

@@ -800,6 +800,49 @@ test("the linked extent group and the view group are independent fields", () => 
   });
 });
 
+test("re-blurring an unchanged linked extent group emits nothing and trims the draft", () => {
+  const { onChange } = renderOpen();
+
+  const field = setLinkedExtentGroup("Basin");
+  onChange.mockClear();
+
+  // Unchanged and already trimmed: no value goes out, the field is left as is.
+  fireEvent.blur(field);
+  expect(onChange).not.toHaveBeenCalled();
+  expect(field.value).toBe("Basin");
+
+  // The same name with whitespace around it is still the group in force, so
+  // nothing is emitted -- but the field is trimmed back to that name.
+  fireEvent.change(field, { target: { value: "  Basin  " } });
+  fireEvent.blur(field);
+  expect(onChange).not.toHaveBeenCalled();
+  expect(field.value).toBe("Basin");
+});
+
+test("a saved view group and its initial-extent flag load into the fields", () => {
+  const { onChange } = renderOpen({
+    values: {
+      extent: "10,20,4",
+      viewGroup: "Basin",
+      isGroupInitialExtent: true,
+    },
+  });
+
+  expect(screen.getByLabelText("View Group Input").value).toBe("Basin");
+  expect(
+    screen.getByLabelText("View Group Initial Extent Input"),
+  ).toBeChecked();
+
+  fireEvent.change(screen.getByLabelText("Custom Extent Input"), {
+    target: { value: "1,2,3" },
+  });
+  expect(lastValue(onChange)).toStrictEqual({
+    extent: "1,2,3",
+    viewGroup: "Basin",
+    isGroupInitialExtent: true,
+  });
+});
+
 test("a saved linked extent group loads into the field and survives other edits", () => {
   const { onChange } = renderOpen({
     values: { extent: "10,20,4", linkedExtentGroup: "Basin" },

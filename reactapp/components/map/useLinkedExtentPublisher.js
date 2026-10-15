@@ -101,6 +101,9 @@ export default function useLinkedExtentPublisher({
     return () => {
       map.un("postrender", onFrame);
       map.un("change:size", onSize);
+      // istanbul ignore else -- handleRef is only set by this effect's body,
+      // and React always runs a cleanup before the next run of its effect, so
+      // here it still holds this run's handle; the check guards future writers.
       if (handleRef.current === handle) handleRef.current = null;
       handle.unregister();
     };

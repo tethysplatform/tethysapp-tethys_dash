@@ -149,3 +149,29 @@ test("a menu outside any grid item still opens", async () => {
   );
   expect(await screen.findByText("Edit")).toBeInTheDocument();
 });
+
+test("a tile with no uuid is lifted by its layout key", async () => {
+  renderLayout([{ ...makeItem("1"), uuid: undefined }, makeItem("2")]);
+  await screen.findByTestId("tile-0");
+
+  await userEvent.click(toggleOf(0));
+  expect(wrapperOf(0).style.zIndex).toBe(String(MENU_OPEN_Z_INDEX));
+  expect(wrapperOf(1).style.zIndex).toBe("");
+
+  fireEvent.mouseDown(document.body);
+  await waitFor(() => expect(wrapperOf(0).style.zIndex).toBe(""));
+});
+
+test("opening a second menu moves the lift to it and the first close leaves it there", async () => {
+  renderLayout([makeItem("1"), makeItem("2")]);
+  await screen.findByTestId("tile-1");
+
+  await userEvent.click(toggleOf(0));
+  expect(wrapperOf(0).style.zIndex).toBe(String(MENU_OPEN_Z_INDEX));
+
+  await userEvent.click(toggleOf(1));
+  await waitFor(() =>
+    expect(wrapperOf(1).style.zIndex).toBe(String(MENU_OPEN_Z_INDEX)),
+  );
+  expect(wrapperOf(0).style.zIndex).toBe("");
+});

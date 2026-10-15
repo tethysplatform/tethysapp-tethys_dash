@@ -176,3 +176,80 @@ test("outside a provider the hook returns null", () => {
   render(<Capture />);
   expect(registry).toBeNull();
 });
+
+test("a blank name or a non-function listener subscribes to nothing", () => {
+  renderRegistry();
+  const listener = jest.fn();
+
+  const blank = registry.subscribe("   ", listener);
+  const notAFunction = registry.subscribe("Basin", "not a function");
+  registry.register("Basin", "detail").publish(RING_A);
+
+  // Nothing was subscribed, so the publish reached no one and calling either
+  // returned unsubscribe is a harmless no-op.
+  expect(listener).not.toHaveBeenCalled();
+  expect(() => {
+    blank();
+    notAFunction();
+  }).not.toThrow();
+});
+
+test("unsubscribing twice is harmless once the group is gone", () => {
+  renderRegistry();
+  const listener = jest.fn();
+  const unsubscribe = registry.subscribe("Basin", listener);
+
+  // The only listener and no members: the group is dropped.
+  unsubscribe();
+  // A second call finds no group and returns without recreating one.
+  expect(() => unsubscribe()).not.toThrow();
+  expect(registry.getFootprints("Basin")).toEqual([]);
+
+  // A later subscriber of the same name starts a fresh group and is told.
+  const other = jest.fn();
+  registry.subscribe("Basin", other);
+  registry.register("Basin", "detail").publish(RING_A);
+  expect(other).toHaveBeenCalledTimes(1);
+  expect(listener).not.toHaveBeenCalled();
+});
+
+test("unregistering a member with nothing on screen tells no one", () => {
+  renderRegistry();
+  const listener = jest.fn();
+  registry.subscribe("Basin", listener);
+  const handle = registry.register("Basin", "detail");
+
+  // No ring was ever published, so there is no outline to take down.
+  handle.unregister();
+
+  expect(listener).not.toHaveBeenCalled();
+  expect(registry.getFootprints("Basin")).toEqual([]);
+});
+
+test("a handle used after its group was dropped does nothing", () => {
+  renderRegistry();
+  const handle = registry.register("Basin", "detail");
+  handle.unregister();
+
+  // The group is gone; a later subscriber starts a new one.
+  const listener = jest.fn();
+  registry.subscribe("Basin", listener);
+  handle.unregister();
+  handle.publish(RING_B);
+
+  expect(listener).not.toHaveBeenCalled();
+  expect(registry.getFootprints("Basin")).toEqual([]);
+});
+
+test("the handle for a blank group is a harmless no-op", () => {
+  renderRegistry();
+  const listener = jest.fn();
+  registry.subscribe("Basin", listener);
+
+  const handle = registry.register("", "detail");
+  handle.publish(RING_A);
+  handle.unregister();
+
+  expect(listener).not.toHaveBeenCalled();
+  expect(registry.getFootprints("Basin")).toEqual([]);
+});

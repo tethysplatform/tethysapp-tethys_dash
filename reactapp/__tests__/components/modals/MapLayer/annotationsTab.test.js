@@ -246,6 +246,44 @@ test("Edit on map starts a session with the draft and hides the modal", async ()
   );
 });
 
+test("a layer not saved yet starts a session with no saved layer to hide", async () => {
+  mountInDataViewer({
+    layerInfo: { sourceProps: { type: "Annotations", props: {} } },
+  });
+
+  editOnMap();
+
+  expect(mapContext.annotationEditSession).toEqual({
+    layerName: null,
+    defaults: {},
+    items: [],
+  });
+  await waitFor(() =>
+    expect(modalDialog()).toHaveStyle({ visibility: "hidden" }),
+  );
+});
+
+test("a session fills in whichever half a partial config leaves out", () => {
+  mountInDataViewer({ layerInfo: annotationsLayerInfo({ items: [line] }) });
+  editOnMap();
+  expect(mapContext.annotationEditSession).toEqual({
+    layerName: "Callouts",
+    defaults: {},
+    items: [line],
+  });
+
+  cleanup();
+  mountInDataViewer({
+    layerInfo: annotationsLayerInfo({ defaults: { lineWidth: 5 } }),
+  });
+  editOnMap();
+  expect(mapContext.annotationEditSession).toEqual({
+    layerName: "Callouts",
+    defaults: { lineWidth: 5 },
+    items: [],
+  });
+});
+
 test("Escape while editing on the map does not close the hidden modal", async () => {
   const { handleModalClose } = mountInDataViewer({
     layerInfo: annotationsLayerInfo({ defaults: {}, items: [line] }),

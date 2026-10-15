@@ -282,10 +282,15 @@ const AnnotationEditor = ({ visualizationRef }) => {
   const openTextEdit = useCallback((feature, isNew) => {
     const geometry = feature.getGeometry();
     overlayRef.current?.setPosition(geometry.getCoordinates());
+    const text =
+      feature.get(ANNOTATION_TEXT_KEY) ??
+      // istanbul ignore next -- every text feature carries a string:
+      // itemsToFeatures and the Text tool both set one.
+      "";
     setTextEdit({
       id: feature.get(ANNOTATION_ID_KEY),
-      value: feature.get(ANNOTATION_TEXT_KEY) ?? "",
-      original: feature.get(ANNOTATION_TEXT_KEY) ?? "",
+      value: text,
+      original: text,
       isNew,
     });
   }, []);
@@ -386,9 +391,8 @@ const AnnotationEditor = ({ visualizationRef }) => {
         // A single click then Enter leaves a one-point "line": drop it once
         // the Draw interaction has added it to the source.
         if (feature.getGeometry().getCoordinates().length < 2) {
-          setTimeout(() => {
-            if (source.hasFeature(feature)) source.removeFeature(feature);
-          }, 0);
+          // removeFeature does nothing for a feature that is not there.
+          setTimeout(() => source.removeFeature(feature), 0);
         }
       });
       cleanups.push(() => {
@@ -475,10 +479,12 @@ const AnnotationEditor = ({ visualizationRef }) => {
   const handleDone = () => {
     drawRef.current?.finishDrawing();
     closeTextEdit(true);
-    const items = featuresToItems(
-      sourceRef.current?.getFeatures() ?? [],
-      projectionRef.current,
-    );
+    // With no working copy (the map was not there when the session opened)
+    // nothing was edited: hand the items back as they came, not as an empty
+    // list that would wipe the layer's annotations.
+    const items = sourceRef.current
+      ? featuresToItems(sourceRef.current.getFeatures(), projectionRef.current)
+      : session.items;
     setEditedAnnotations(items);
     setAnnotationEditSession(null);
   };

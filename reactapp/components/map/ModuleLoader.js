@@ -1709,7 +1709,7 @@ const loadDecorationLayer = async (config, mapProjection, getMapProjection) => {
     getMapProjection?.() ?? mapProjection,
   );
   layer.setSource(source);
-  if (style) layer.setStyle(style);
+  layer.setStyle(style);
   layer.setProperties(properties);
   return layer;
 };

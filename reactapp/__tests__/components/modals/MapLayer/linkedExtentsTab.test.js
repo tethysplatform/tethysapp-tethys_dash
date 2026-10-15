@@ -161,3 +161,57 @@ test("Linked Extents is not offered inside a popup layout", async () => {
   expect(options).toContain("Annotations");
   expect(options).not.toContain("Linked Extents");
 });
+
+describe("the Outline tab's color controls", () => {
+  // react-color-palette measures its saturation area; jsdom has no observer.
+  let realResizeObserver;
+  beforeAll(() => {
+    realResizeObserver = global.ResizeObserver;
+    global.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+  });
+  afterAll(() => {
+    if (realResizeObserver) global.ResizeObserver = realResizeObserver;
+    else delete global.ResizeObserver;
+  });
+
+  // The picker debounces its change, so a color is only picked once its
+  // swatch shows it -- saving before then would save the old value.
+  const pickColor = async (label, hex) => {
+    const swatch = await screen.findByLabelText(
+      `${label} color popover square`,
+    );
+    fireEvent.click(swatch);
+    fireEvent.change(await screen.findByRole("textbox", { name: "HEX" }), {
+      target: { value: hex },
+    });
+    await waitFor(() => expect(swatch).toHaveStyle({ background: hex }));
+    // Close the popover so the next picker's HEX field is the only one.
+    fireEvent.click(swatch);
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("textbox", { name: "HEX" }),
+      ).not.toBeInTheDocument(),
+    );
+  };
+
+  test("picked outline and fill colors are saved with the layer", async () => {
+    const addMapLayer = mountModal({
+      layerInfo: linkedLayerInfo({ width: 2 }),
+    });
+    fireEvent.click(screen.getByRole("tab", { name: "Outline" }));
+
+    await pickColor("Outline Color", "#2aff00");
+    await pickColor("Fill Color", "#00ffff");
+
+    const saved = await savedConfig(addMapLayer);
+    expect(saved.configuration.linkedExtentStyle).toEqual({
+      width: 2,
+      color: "#2aff00",
+      fillColor: "#00ffff",
+    });
+  });
+});

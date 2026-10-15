@@ -1,6 +1,12 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import PropTypes from "prop-types";
-import { render, screen, fireEvent, within } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import AnnotationsPane from "components/modals/MapLayer/AnnotationsPane";
 
 const arrow = {
@@ -25,13 +31,17 @@ const text = { id: "a3", kind: "text", coordinates: [0, 0], text: "Gauge 1" };
 let latest;
 const Harness = ({ initial, onEditOnMap }) => {
   const [annotations, setAnnotations] = useState(initial);
+  const containerRef = useRef(null);
   latest = annotations;
   return (
-    <AnnotationsPane
-      annotations={annotations}
-      onChange={setAnnotations}
-      onEditOnMap={onEditOnMap}
-    />
+    <div ref={containerRef}>
+      <AnnotationsPane
+        annotations={annotations}
+        onChange={setAnnotations}
+        onEditOnMap={onEditOnMap}
+        containerRef={containerRef}
+      />
+    </div>
   );
 };
 Harness.propTypes = {
@@ -181,4 +191,150 @@ test("Edit on map calls back, and is disabled without a handler", () => {
   expect(
     screen.getByRole("button", { name: "Edit annotations on map" }),
   ).toBeDisabled();
+});
+
+test("editing one item leaves the others as they were", () => {
+  mount({ defaults: {}, items: [arrow, text] });
+  expand("Text: Gauge 1");
+
+  fireEvent.change(screen.getByLabelText("Text: Gauge 1 Text"), {
+    target: { value: "Gauge 2" },
+  });
+
+  expect(latest.items[0]).toBe(arrow);
+  expect(latest.items[1]).toEqual({ ...text, text: "Gauge 2" });
+});
+
+test("a text item with no text yet edits from a blank field", () => {
+  const blank = { id: "a4", kind: "text", coordinates: [0, 0] };
+  mount({ defaults: {}, items: [blank] });
+  expand("Text (empty)");
+
+  const field = screen.getByLabelText("Text (empty) Text");
+  expect(field).toHaveValue("");
+  fireEvent.change(field, { target: { value: "Dam" } });
+
+  expect(latest.items[0]).toEqual({ ...blank, text: "Dam" });
+  expect(screen.getByText("Text: Dam")).toBeInTheDocument();
+});
+
+test("items written without ids still list and take overrides", () => {
+  const { id: _a1, ...first } = arrow;
+  const { id: _a3, ...label } = text;
+  mount({ defaults: {}, items: [first, label] });
+
+  expect(screen.getByText("Arrow 1")).toBeInTheDocument();
+  expect(screen.getByText("Text: Gauge 1")).toBeInTheDocument();
+
+  expand("Arrow 1");
+  fireEvent.change(screen.getByLabelText("Arrow 1 Line Width"), {
+    target: { value: "3" },
+  });
+
+  expect(latest.items).toEqual([{ ...first, style: { lineWidth: 3 } }, label]);
+  expect(latest.items[0]).not.toHaveProperty("id");
+});
+
+test("a text item's placement is a compact select that stores an override", () => {
+  mount({ defaults: { textAnchor: "s" }, items: [text] });
+  expand("Text: Gauge 1");
+
+  const select = screen.getByLabelText("Text: Gauge 1 Text Placement");
+  expect(select).toHaveValue("s");
+  expect(
+    within(select)
+      .getAllByRole("option")
+      .map((o) => o.textContent),
+  ).toEqual([
+    "Center",
+    "North",
+    "Northeast",
+    "East",
+    "Southeast",
+    "South",
+    "Southwest",
+    "West",
+    "Northwest",
+  ]);
+
+  fireEvent.change(select, { target: { value: "ne" } });
+
+  expect(latest.items[0].style).toEqual({ textAnchor: "ne" });
+  expect(latest.defaults).toEqual({ textAnchor: "s" });
+  expect(
+    screen.getByRole("button", { name: "Reset Text: Gauge 1 Text Placement" }),
+  ).toBeInTheDocument();
+});
+
+test("the default text placement is picked on the anchor grid", () => {
+  mount({ defaults: {}, items: [] });
+
+  const grid = screen.getByRole("radiogroup", {
+    name: "Default Text Placement",
+  });
+  fireEvent.click(
+    within(grid).getByRole("radio", { name: "Northeast Anchor" }),
+  );
+
+  expect(latest.defaults).toEqual({ textAnchor: "ne" });
+  expect(
+    within(
+      screen.getByRole("radiogroup", { name: "Default Text Placement" }),
+    ).getByRole("radio", { name: "Northeast Anchor" }),
+  ).toHaveAttribute("aria-checked", "true");
+});
+
+describe("the color controls", () => {
+  // react-color-palette measures its saturation area; jsdom has no observer.
+  let realResizeObserver;
+  beforeAll(() => {
+    realResizeObserver = global.ResizeObserver;
+    global.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+  });
+  afterAll(() => {
+    if (realResizeObserver) global.ResizeObserver = realResizeObserver;
+    else delete global.ResizeObserver;
+  });
+
+  const pickColor = (label, hex) => {
+    fireEvent.click(screen.getByLabelText(`${label} color popover square`));
+    fireEvent.change(screen.getByRole("textbox", { name: "HEX" }), {
+      target: { value: hex },
+    });
+  };
+
+  test("picking a default color stores it as a hex string", async () => {
+    mount({ defaults: { lineWidth: 3 }, items: [arrow] });
+
+    pickColor("Default Line Color", "#2aff00");
+
+    await waitFor(() =>
+      expect(latest.defaults).toEqual({ lineWidth: 3, lineColor: "#2aff00" }),
+    );
+    // A default is not an override: the item still carries no style.
+    expect(latest.items[0]).toBe(arrow);
+  });
+
+  test("picking an item color stores an override that reset removes", async () => {
+    mount({ defaults: {}, items: [text] });
+    expand("Text: Gauge 1");
+
+    pickColor("Text: Gauge 1 Text Outline Color", "#00ffff");
+
+    await waitFor(() =>
+      expect(latest.items[0].style).toEqual({ haloColor: "#00ffff" }),
+    );
+    expect(latest.defaults).toEqual({});
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Reset Text: Gauge 1 Text Outline Color",
+      }),
+    );
+    expect(latest.items[0]).toEqual(text);
+  });
 });
