@@ -111,7 +111,7 @@ it("AddMapLayer update existing", async () => {
           },
           zIndex: 1,
         },
-        style: "geojson.json",
+        // An image service has no Style tab, so no style is saved for it.
         type: "ImageLayer",
       },
       legend: {

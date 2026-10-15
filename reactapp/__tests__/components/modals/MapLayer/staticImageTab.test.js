@@ -116,7 +116,7 @@ test("a Static Image layer saved while hidden stays hidden", async () => {
   expect(saved.configuration.props).not.toHaveProperty("layerVisibility");
 });
 
-test("other image layers keep their data tabs", async () => {
+test("other image layers keep their data tabs, all but Style", async () => {
   mountModal({
     sourceProps: {
       type: "ESRI Image and Map Service",
@@ -126,7 +126,8 @@ test("other image layers keep their data tabs", async () => {
   });
 
   expect(await screen.findByRole("dialog")).toBeInTheDocument();
-  for (const tab of ["Style", "Legend", "Attributes/Table Popup"]) {
+  for (const tab of ["Legend", "Attributes/Table Popup"]) {
     expect(screen.getByRole("tab", { name: tab })).toBeInTheDocument();
   }
+  expect(screen.queryByRole("tab", { name: "Style" })).not.toBeInTheDocument();
 });

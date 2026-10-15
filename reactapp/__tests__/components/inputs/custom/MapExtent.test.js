@@ -1,5 +1,6 @@
 import { createRef } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MapExtent } from "components/inputs/custom/MapExtent";
 import createLoadedComponent from "__tests__/utilities/customRender";
 import MapContextProvider from "components/contexts/MapContext";
@@ -585,13 +586,20 @@ test("the group name field emits on blur, not on each keystroke", () => {
   });
 });
 
-test("the initial-extent checkbox is disabled while the group name is empty", () => {
+test("the initial-extent checkbox is disabled while the group name is empty", async () => {
   renderOpen();
 
   const checkbox = screen.getByLabelText("View Group Initial Extent Input");
   expect(checkbox).toBeDisabled();
+  // The reason is in the info tip beside the checkbox, not printed under it.
   expect(
-    screen.getByText(/Set a view group name to use this map's extent/i),
+    screen.queryByText(/Set a view group name to use this map's extent/i),
+  ).not.toBeInTheDocument();
+  await userEvent.hover(
+    screen.getByLabelText("View Group Initial Extent help"),
+  );
+  expect(
+    await screen.findByText(/Set a view group name to use this map's extent/i),
   ).toBeInTheDocument();
 
   setGroupName("Basin");
@@ -601,7 +609,7 @@ test("the initial-extent checkbox is disabled while the group name is empty", ()
   ).not.toBeDisabled();
 });
 
-test("the initial-extent checkbox is disabled while the extent is templated", () => {
+test("the initial-extent checkbox is disabled while the extent is templated", async () => {
   renderOpen();
 
   setGroupName("Basin");
@@ -617,9 +625,39 @@ test("the initial-extent checkbox is disabled while the extent is templated", ()
   expect(
     screen.getByLabelText("View Group Initial Extent Input"),
   ).toBeDisabled();
+  await userEvent.hover(
+    screen.getByLabelText("View Group Initial Extent help"),
+  );
   expect(
-    screen.getByText(/cannot supply the group's initial extent/i),
+    await screen.findByText(/cannot supply the group's initial extent/i),
   ).toBeInTheDocument();
+});
+
+test("an enabled initial-extent checkbox explains itself without a reason", async () => {
+  renderOpen();
+  setGroupName("Basin");
+
+  await userEvent.hover(
+    screen.getByLabelText("View Group Initial Extent help"),
+  );
+  const tip = await screen.findByRole("tooltip");
+  expect(tip).toHaveTextContent(
+    "Every map in the view group opens at this map's extent.",
+  );
+  expect(tip).not.toHaveTextContent(/Set a view group name/);
+});
+
+test("the linked extent group's explanation is in an info tip left of its label", async () => {
+  renderOpen();
+
+  const help = screen.getByLabelText("Linked Extent Group help");
+  const label = screen.getByText("Linked Extent Group:");
+  // DOCUMENT_POSITION_FOLLOWING: the label comes after the icon.
+  expect(help.compareDocumentPosition(label) & 4).toBeTruthy();
+  expect(screen.queryByText(/keep their own views/)).not.toBeInTheDocument();
+
+  await userEvent.hover(help);
+  expect(await screen.findByText(/keep their own views/)).toBeInTheDocument();
 });
 
 test("clearing the group name clears the initial-extent flag", () => {

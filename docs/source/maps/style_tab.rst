@@ -6,7 +6,7 @@ Style Tab
 
 
 
-The style tab lets you apply custom styles to map layers. Custom styling is available for GeoJSON, ESRI Feature Service, PMTiles Vector, and Shapefile layers. Two types of styling are supported:
+The style tab lets you apply custom styles to map layers. Vector styling is available for GeoJSON, ESRI Feature Service, PMTiles Vector, Shapefile, GeoPackage and GeoParquet layers, and for Custom Layers that return GeoJSON; GeoTIFF, Zarr and GeoTIFF Custom Layers are colored with a ramp or a class table instead (see below). Other layers — ESRI Image and Map Service, WMS, KML, Image Tile, Vector Tile, PMTiles Raster and Static Image — draw the styling they were published with, so their layer editor has no Style tab, and a style left from an earlier source type is not saved. Two types of vector styling are supported:
 
 **MapLibre Styling**: Follows the `MapLibre Style Spec <https://maplibre.org/maplibre-style-spec/>`_ and uses the `ol-mapbox-style applyStyle <https://openlayers.org/ol-mapbox-style/functions/applyStyle.html>`_ function. Refer to these resources to ensure your layers render correctly.
 

@@ -28,13 +28,13 @@ To make several sets that viewers can show and hide separately, such as one for 
 - **Line** and **Arrow** — click to add points, then double-click or press Enter to finish. Escape abandons the line being drawn. An arrow's head goes on its last point.
 - **Text** — click the map to place text, or click existing text to edit it. Enter saves, Shift+Enter starts a new line, and Escape reverts.
 
-Dragging anywhere that is not an annotation pans the map in every tool, and the mouse wheel zooms. Click **Done** to keep your changes, or **Cancel** to discard them. Done returns you to the layer editor; nothing is saved to the dashboard until you save the layer and then the visualization.
+Dragging anywhere that is not an annotation pans the map in every tool, and the mouse wheel zooms. Click **Save** to keep your changes, or **Cancel** to discard them. Either returns you to the layer editor; nothing is saved to the dashboard until you save the layer and then the visualization.
 
 Annotations can only be edited this way, from the layer editor while the dashboard is being edited. Clicking an annotation on the dashboard itself does nothing.
 
 **Default styles and overrides.** The Annotations tab sets the styles every annotation in the layer starts from, in two collapsible sections. **Line/Arrow Default Styles** holds the line color and width and the arrowheads; **Text Default Styles** holds the text color, size, outline color, placement and rotation. Rotation is in degrees clockwise, may be zero or negative, and stays relative to the map.
 
-One annotation can override any of those properties for itself. Select it on the map with **Edit on map**, and the side panel lists the properties that apply to it, plus its text for a text annotation. An overridden property shows **Reset to default**; every other property shows **Layer default** and keeps following the default when it changes. A text field left blank in the panel returns to its previous text: delete the annotation to remove it. Overrides, like everything else edited on the map, are kept by **Done** and discarded by **Cancel**.
+One annotation can override any of those properties for itself. Select it on the map with **Edit on map**, and the side panel lists the properties that apply to it, plus its text for a text annotation. An overridden property shows **Reset to default**; every other property shows **Layer default** and keeps following the default when it changes. A text field left blank in the panel returns to its previous text: delete the annotation to remove it. Overrides, like everything else edited on the map, are kept by **Save** and discarded by **Cancel**.
 
 Arrowheads belong to arrows: a plain line never draws them, whatever the default says. Setting an arrow's own arrowheads to **None** turns it into a line.
 

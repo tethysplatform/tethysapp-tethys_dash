@@ -94,8 +94,8 @@ const interaction = (Type) =>
 
 const workingFeatures = () => editorLayer.getSource().getFeatures();
 
-const done = () =>
-  fireEvent.click(screen.getByRole("button", { name: "Done" }));
+const save = () =>
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
 beforeEach(() => {
   target = document.createElement("div");
@@ -174,7 +174,7 @@ test("the Arrow tool draws a line that follows the layer's arrowheads", () => {
     ]);
     draw.finishDrawing();
   });
-  done();
+  save();
 
   const [item] = context.editedAnnotations;
   expect(item).toMatchObject({ id: "a1", kind: "line" });
@@ -195,7 +195,7 @@ test("the Line tool pins its line to no arrowheads", () => {
     ]);
     draw.finishDrawing();
   });
-  done();
+  save();
 
   expect(context.editedAnnotations[0].style).toEqual({ arrowheads: "none" });
 });
@@ -211,12 +211,12 @@ test("Escape abandons only the line being drawn", () => {
     ]);
   });
   fireEvent.keyDown(document, { key: "Escape" });
-  done();
+  save();
 
   expect(context.editedAnnotations).toEqual([line]);
 });
 
-test("Done finishes a line in progress that has two points", () => {
+test("Save finishes a line in progress that has two points", () => {
   mount(session());
 
   act(() => {
@@ -226,7 +226,7 @@ test("Done finishes a line in progress that has two points", () => {
       [10000, 0],
     ]);
   });
-  done();
+  save();
 
   expect(context.editedAnnotations).toHaveLength(1);
 });
@@ -237,7 +237,7 @@ test("a one-point line is dropped", () => {
   act(() => {
     interaction(Draw).appendCoordinates([[0, 0]]);
   });
-  done();
+  save();
 
   expect(context.editedAnnotations).toEqual([]);
 });
@@ -270,7 +270,7 @@ test("the Text tool places text where clicked and Enter commits it", () => {
   fireEvent.change(box, { target: { value: "Gauge 1" } });
   fireEvent.keyDown(box, { key: "Enter" });
   expect(screen.queryByLabelText("Annotation text")).not.toBeInTheDocument();
-  done();
+  save();
 
   const [item] = context.editedAnnotations;
   expect(item).toMatchObject({ kind: "text", text: "Gauge 1" });
@@ -298,7 +298,7 @@ test("committing empty text removes the new item", () => {
   fireEvent.keyDown(screen.getByLabelText("Annotation text"), {
     key: "Enter",
   });
-  done();
+  save();
 
   expect(context.editedAnnotations).toEqual([]);
 });
@@ -314,7 +314,7 @@ test("clicking existing text in Text mode edits it, and Escape reverts", () => {
   expect(box).toHaveValue("Old");
   fireEvent.change(box, { target: { value: "New" } });
   fireEvent.keyDown(box, { key: "Escape" });
-  done();
+  save();
 
   // No second item, and the text is back to what it was.
   expect(context.editedAnnotations).toEqual([text]);
@@ -329,7 +329,7 @@ test("a click that closes the text box does not start another one", () => {
   fireEvent.change(box, { target: { value: "One" } });
   fireEvent.blur(box);
   singleClick([9000, 9000]);
-  done();
+  save();
 
   expect(context.editedAnnotations.map((i) => i.text)).toEqual(["One"]);
 });
@@ -347,7 +347,7 @@ test("Delete removes the selected annotation", () => {
     screen.getByRole("button", { name: "Delete selected annotation" }),
   ).toBeEnabled();
   fireEvent.keyDown(document, { key: "Delete" });
-  done();
+  save();
 
   expect(context.editedAnnotations).toEqual([text]);
 });
@@ -376,7 +376,7 @@ test("item order survives a session, past the spatial index's bulk-load size", (
     const [x, y] = first.getGeometry().getCoordinates();
     first.getGeometry().setCoordinates([x + 50000, y]);
   });
-  done();
+  save();
 
   expect(context.editedAnnotations.map((i) => i.id)).toEqual(
     items.map((i) => i.id),
@@ -404,7 +404,7 @@ test("the saved layer stays hidden when the layer control re-shows it", () => {
 test("untouched items are handed back exactly as stored", () => {
   const stored = { ...line, style: { lineColor: "#ff0000" } };
   mount(session({ items: [stored, text] }));
-  done();
+  save();
 
   expect(context.editedAnnotations).toEqual([stored, text]);
 });
@@ -432,7 +432,7 @@ test("a view replacement keeps the session and the items over the same ground", 
     ]);
     draw.finishDrawing();
   });
-  done();
+  save();
 
   const [kept, drawn] = context.editedAnnotations;
   expect(kept).toEqual(line);
@@ -574,7 +574,7 @@ test("renders nothing and installs nothing without a session", () => {
   expect(olMap.getInteractions().getLength()).toBe(before);
 });
 
-test("without a map the toolbar is inert and Done hands the items back", () => {
+test("without a map the toolbar is inert and Save hands the items back", () => {
   const mapRef = { current: null };
   mount(session({ items: [line] }), mapRef);
 
@@ -591,7 +591,7 @@ test("without a map the toolbar is inert and Done hands the items back", () => {
   fireEvent.click(screen.getByRole("button", { name: "Line" }));
   expect(interaction(Draw)).toBeUndefined();
 
-  done();
+  save();
   expect(context.editedAnnotations).toEqual([line]);
   expect(context.annotationEditSession).toBeNull();
 });
@@ -638,7 +638,7 @@ test("a view change in the same projection leaves the items where they are", () 
 
   expect(feature.getGeometry().getCoordinates()).toEqual(before);
   expect(feature.getGeometry().getRevision()).toBe(revision);
-  done();
+  save();
   expect(context.editedAnnotations).toEqual([line]);
 });
 
@@ -683,7 +683,7 @@ test("Escape in Select mode clears the selection without deleting", () => {
   expect(interaction(Select).getFeatures().getLength()).toBe(0);
   // Delete now has nothing to act on.
   fireEvent.keyDown(document, { key: "Delete" });
-  done();
+  save();
   expect(context.editedAnnotations).toEqual([line]);
 });
 
@@ -780,7 +780,7 @@ test("double-clicking text in Select mode edits it instead of zooming", () => {
   expect(box).toHaveValue("Old");
   fireEvent.change(box, { target: { value: "New" } });
   fireEvent.keyDown(box, { key: "Enter" });
-  done();
+  save();
   expect(context.editedAnnotations[1]).toEqual({ ...text, text: "New" });
 });
 
@@ -816,7 +816,7 @@ test("emptying selected text removes it and its selection", () => {
 
   expect(featureById("a2")).toBeUndefined();
   expect(deleteButton()).toBeDisabled();
-  done();
+  save();
   expect(context.editedAnnotations).toEqual([line]);
 });
 
@@ -834,7 +834,7 @@ test("a text box whose item was deleted closes without bringing it back", () => 
   });
 
   expect(screen.queryByLabelText("Annotation text")).not.toBeInTheDocument();
-  done();
+  save();
   expect(context.editedAnnotations).toEqual([line]);
 });
 
@@ -849,7 +849,7 @@ test("switching tool while text is open commits it", () => {
   fireEvent.click(screen.getByRole("button", { name: "Select" }));
 
   expect(screen.queryByLabelText("Annotation text")).not.toBeInTheDocument();
-  done();
+  save();
   expect(context.editedAnnotations.map((i) => i.text)).toEqual(["Kept"]);
 });
 
@@ -866,7 +866,7 @@ test("a map click while text is open commits it rather than placing more", () =>
 
   expect(screen.queryByLabelText("Annotation text")).not.toBeInTheDocument();
   expect(workingFeatures()).toHaveLength(1);
-  done();
+  save();
   expect(context.editedAnnotations.map((i) => i.text)).toEqual(["First"]);
 });
 
@@ -892,7 +892,7 @@ test("Delete with a selection the session no longer holds removes nothing", () =
   fireEvent.click(deleteButton());
 
   expect(deleteButton()).toBeDisabled();
-  done();
+  save();
   expect(context.editedAnnotations).toEqual([text]);
 });
 
@@ -953,7 +953,7 @@ describe("rotating text with its handle", () => {
       olMap.handleMapBrowserEvent(pointerAt("pointerdrag", east));
       olMap.handleMapBrowserEvent(pointerAt("pointerup", east));
     });
-    done();
+    save();
 
     const [item] = context.editedAnnotations;
     expect(item.style).toEqual({ textRotation: 90 });
@@ -983,7 +983,7 @@ describe("rotating text with its handle", () => {
       );
       olMap.handleMapBrowserEvent(pointerAt("pointerup", fifty));
     });
-    done();
+    save();
 
     expect(context.editedAnnotations[0].style).toEqual({ textRotation: 45 });
   });
@@ -1025,7 +1025,7 @@ describe("the selected annotation's side panel", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("an override redraws the working copy, is saved on Done, and reset removes it (AE1)", () => {
+  it("an override redraws the working copy, is kept by Save, and reset removes it (AE1)", () => {
     mount(session({ items: [line, text] }));
     const feature = featureById("a1");
     selectFeature(feature);
@@ -1048,7 +1048,7 @@ describe("the selected annotation's side panel", () => {
     expect(feature.get("annotationStyle")).toEqual({ arrowheads: "none" });
     expect(within(panel()).getByLabelText("Line Width")).toHaveValue("");
 
-    done();
+    save();
     expect(context.editedAnnotations).toEqual([
       { ...line, style: { arrowheads: "none" } },
       text,
@@ -1062,7 +1062,7 @@ describe("the selected annotation's side panel", () => {
     fireEvent.click(
       within(panel()).getByRole("button", { name: "Reset Line Width" }),
     );
-    done();
+    save();
 
     expect(context.editedAnnotations).toEqual([line]);
   });
@@ -1098,7 +1098,7 @@ describe("the selected annotation's side panel", () => {
     });
     expect(within(panel()).getByLabelText("Text Rotation")).toHaveValue("-30");
 
-    done();
+    save();
     expect(context.editedAnnotations).toEqual([
       {
         ...text,

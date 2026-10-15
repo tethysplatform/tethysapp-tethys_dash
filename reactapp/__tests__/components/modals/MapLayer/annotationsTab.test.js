@@ -297,7 +297,7 @@ test("Escape while editing on the map does not close the hidden modal", async ()
   expect(handleModalClose).not.toHaveBeenCalled();
 });
 
-test("Done replaces the draft's items and re-shows the modal", async () => {
+test("Save replaces the draft's items and re-shows the modal", async () => {
   const { addMapLayer } = mountInDataViewer({
     layerInfo: annotationsLayerInfo({ defaults: {}, items: [line] }),
   });

@@ -14,6 +14,7 @@ import SourcePane from "components/modals/MapLayer/SourcePane";
 import LegendPane from "components/modals/MapLayer/LegendPane";
 import AttributesPane from "components/modals/MapLayer/AttributesPane";
 import StylePane, {
+  supportsStyling,
   supportsVectorStyling,
 } from "components/modals/MapLayer/StylePane";
 import LabelsPane from "components/modals/MapLayer/LabelsPane";
@@ -322,6 +323,10 @@ const MapLayerModal = ({
   const isStaticImage = sourceProps?.type === STATIC_IMAGE_SOURCE_TYPE;
   // The Style, Legend and popup tabs configure data; these layers have none.
   const showDataTabs = !isDecoration && !isStaticImage;
+  // Image services, tiles and KML draw the styling they were published with,
+  // so for them the Style tab would only say it has nothing to offer.
+  const showStyleTab =
+    showDataTabs && supportsStyling(sourceProps, dynamicMapLayers);
   const showLabelsTab =
     !isDecoration &&
     !inPopupLayout &&
@@ -654,7 +659,9 @@ const MapLayerModal = ({
       if (Object.keys(rasterStyleToSave).length > 0) {
         mapConfiguration.configuration.style = rasterStyleToSave;
       }
-    } else if (style && style !== "{}") {
+    } else if (showStyleTab && style && style !== "{}") {
+      // Only a source with a Style tab saves a style: one left over from an
+      // earlier source type could no longer be seen or removed.
       const apiResponse = await saveLayerJSON({
         stringJSON: style,
         csrf,
@@ -951,7 +958,7 @@ const MapLayerModal = ({
                 </div>
               </Tab>
             )}
-            {showDataTabs && (
+            {showStyleTab && (
               <Tab
                 eventKey="style"
                 title="Style"

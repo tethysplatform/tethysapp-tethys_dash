@@ -52,7 +52,7 @@ Leaving the template empty draws no labels at all.
 Placement
 +++++++++
 
-Placement is chosen from a grid of nine positions — the eight compass directions plus center — and applies to every feature on the layer. The label offsets itself from the feature's symbol so it does not cover it, and the offset grows with the symbol, so a layer whose point sizes vary by attribute keeps its labels clear.
+Placement is chosen from a grid of nine positions — Top-Left, Top, Top-Right, Left, Center, Right, Bottom-Left, Bottom and Bottom-Right — and applies to every feature on the layer. The label offsets itself from the feature's symbol so it does not cover it, and the offset grows with the symbol, so a layer whose point sizes vary by attribute keeps its labels clear.
 
 .. Screenshot slot: the 3x3 placement grid in the editor. Add
    docs/images/label_placement.png, then replace this comment with:
@@ -61,7 +61,7 @@ Placement is chosen from a grid of nine positions — the eight compass directio
 
 Placement behaves differently by geometry, and the layer decides this for you rather than asking:
 
-* **Points** sit at the chosen compass position.
+* **Points** sit at the chosen position.
 * **Polygons** place their label inside the shape, at a point guaranteed to fall within it even when the outline is concave.
 * **Lines** follow the line itself, so a river name bends along the river. Only the vertical half of the placement applies: the top row draws the name above the line, the bottom row below it, and the middle row along the line itself the way a street map labels a road. Above and below clear the line by its own width, so a thicker line pushes its name further away. Left and right have no meaning once the text is following a curve.
 

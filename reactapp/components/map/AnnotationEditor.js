@@ -157,7 +157,7 @@ const ToolButton = styled.button`
   }
 `;
 
-const DoneButton = styled(ToolButton)`
+const SaveButton = styled(ToolButton)`
   background: #28a745;
   border-color: #28a745;
   color: #fff;
@@ -313,7 +313,7 @@ const AnnotationEditor = ({ visualizationRef }) => {
     const code = map.getView().getProjection().getCode();
     projectionRef.current = code;
     // Collection-backed: a spatially indexed source returns features in index
-    // order, and Done would hand the items back reordered.
+    // order, and Save would hand the items back reordered.
     const source = new VectorSource({
       features: new Collection(itemsToFeatures(session.items, code)),
     });
@@ -621,8 +621,8 @@ const AnnotationEditor = ({ visualizationRef }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
-  // --- Done and Cancel ---------------------------------------------------
-  const handleDone = () => {
+  // --- Save and Cancel ---------------------------------------------------
+  const handleSave = () => {
     drawRef.current?.finishDrawing();
     closeTextEdit(true);
     // With no working copy (the map was not there when the session opened)
@@ -764,9 +764,9 @@ const AnnotationEditor = ({ visualizationRef }) => {
             >
               Delete
             </DeleteButton>
-            <DoneButton type="button" onClick={handleDone}>
-              Done
-            </DoneButton>
+            <SaveButton type="button" onClick={handleSave}>
+              Save
+            </SaveButton>
             <ToolButton type="button" onClick={handleCancel}>
               Cancel
             </ToolButton>

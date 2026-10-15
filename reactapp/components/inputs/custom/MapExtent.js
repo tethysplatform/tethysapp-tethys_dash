@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useContext } from "react";
 import DataRadioSelect from "components/inputs/DataRadioSelect";
+import InfoTip from "components/inputs/InfoTip";
 import PropTypes from "prop-types";
 import styled from "styled-components";
 import { useMapContext } from "components/contexts/MapContext";
@@ -46,6 +47,9 @@ const InputRow = styled.div`
 `;
 
 const InlineFieldRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
   margin-bottom: 1rem;
   padding-right: 1rem;
 `;
@@ -61,17 +65,6 @@ const CheckboxLabel = styled.label`
   align-items: center;
   font-weight: bold;
   opacity: ${({ $disabled }) => ($disabled ? 0.6 : 1)};
-`;
-
-const HelpText = styled.div`
-  margin-left: 1.5rem;
-  margin-top: -0.75rem;
-  margin-bottom: 1rem;
-  padding-right: 1rem;
-  font-size: 0.8rem;
-  font-weight: normal;
-  font-style: italic;
-  color: #666;
 `;
 
 const CollapsibleHeader = styled.div`
@@ -430,6 +423,11 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
                 </label>
               </InlineFieldRow>
               <InputRow>
+                <InfoTip label="View Group Initial Extent">
+                  Every map in the view group opens at this map&apos;s extent.
+                  {initialExtentDisabledReason &&
+                    ` ${initialExtentDisabledReason}`}
+                </InfoTip>
                 <CheckboxLabel $disabled={Boolean(initialExtentDisabledReason)}>
                   <input
                     type="checkbox"
@@ -441,10 +439,12 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
                   Use as the view group&apos;s initial extent
                 </CheckboxLabel>
               </InputRow>
-              {initialExtentDisabledReason && (
-                <HelpText>{initialExtentDisabledReason}</HelpText>
-              )}
               <InlineFieldRow>
+                <InfoTip label="Linked Extent Group">
+                  Maps in a linked extent group keep their own views. Add a
+                  Linked Extents layer to a map to outline where the others are
+                  looking.
+                </InfoTip>
                 <label>
                   <b>Linked Extent Group:</b>{" "}
                   <input
@@ -456,10 +456,6 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
                   />
                 </label>
               </InlineFieldRow>
-              <HelpText>
-                Maps in a linked extent group keep their own views. Add a Linked
-                Extents layer to a map to outline where the others are looking.
-              </HelpText>
             </>
           )}
           <label>

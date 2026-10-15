@@ -18,17 +18,18 @@ export const ANCHOR_GRID = [
 ];
 
 // Spelled-out names: the accessible name is API here (the suite reads controls
-// by label), and "nw" is not something a screen reader can pronounce.
+// by label), and "nw" is not something a screen reader can pronounce. Each is
+// named for the side of the point the text sits on.
 export const ANCHOR_LABELS = {
-  nw: "Northwest",
-  n: "North",
-  ne: "Northeast",
-  w: "West",
+  nw: "Top-Left",
+  n: "Top",
+  ne: "Top-Right",
+  w: "Left",
   center: "Center",
-  e: "East",
-  sw: "Southwest",
-  s: "South",
-  se: "Southeast",
+  e: "Right",
+  sw: "Bottom-Left",
+  s: "Bottom",
+  se: "Bottom-Right",
 };
 
 /**

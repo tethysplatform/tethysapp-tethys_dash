@@ -127,14 +127,14 @@ test("the default text placement is picked on the anchor grid", () => {
     name: "Default Text Placement",
   });
   fireEvent.click(
-    within(grid).getByRole("radio", { name: "Northeast Anchor" }),
+    within(grid).getByRole("radio", { name: "Top-Right Anchor" }),
   );
 
   expect(latest.defaults).toEqual({ textAnchor: "ne" });
   expect(
     within(
       screen.getByRole("radiogroup", { name: "Default Text Placement" }),
-    ).getByRole("radio", { name: "Northeast Anchor" }),
+    ).getByRole("radio", { name: "Top-Right Anchor" }),
   ).toHaveAttribute("aria-checked", "true");
 });
 
