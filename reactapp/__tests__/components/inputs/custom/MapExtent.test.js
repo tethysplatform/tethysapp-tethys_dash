@@ -633,18 +633,29 @@ test("the initial-extent checkbox is disabled while the extent is templated", as
   ).toBeInTheDocument();
 });
 
-test("an enabled initial-extent checkbox explains itself without a reason", async () => {
+test("an enabled initial-extent checkbox has no info tip", () => {
   renderOpen();
   setGroupName("Basin");
 
-  await userEvent.hover(
-    screen.getByLabelText("View Group Initial Extent help"),
-  );
-  const tip = await screen.findByRole("tooltip");
-  expect(tip).toHaveTextContent(
-    "Every map in the view group opens at this map's extent.",
-  );
-  expect(tip).not.toHaveTextContent(/Set a view group name/);
+  expect(
+    screen.queryByLabelText("View Group Initial Extent help"),
+  ).not.toBeInTheDocument();
+});
+
+test("the view group's explanation is in an info tip left of its label", async () => {
+  renderOpen();
+
+  const help = screen.getByLabelText("View Group help");
+  const label = screen.getByText("View Group:");
+  // DOCUMENT_POSITION_FOLLOWING: the label comes after the icon.
+  expect(help.compareDocumentPosition(label) & 4).toBeTruthy();
+
+  await userEvent.hover(help);
+  expect(
+    await screen.findByText(
+      "Every map in the view group opens at this map's extent.",
+    ),
+  ).toBeInTheDocument();
 });
 
 test("the linked extent group's explanation is in an info tip left of its label", async () => {

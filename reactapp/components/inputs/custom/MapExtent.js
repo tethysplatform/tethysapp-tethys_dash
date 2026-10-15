@@ -411,6 +411,9 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
           {!inPopupLayout && (
             <>
               <InlineFieldRow>
+                <InfoTip label="View Group">
+                  Every map in the view group opens at this map&apos;s extent.
+                </InfoTip>
                 <label>
                   <b>View Group:</b>{" "}
                   <input
@@ -423,11 +426,11 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
                 </label>
               </InlineFieldRow>
               <InputRow>
-                <InfoTip label="View Group Initial Extent">
-                  Every map in the view group opens at this map&apos;s extent.
-                  {initialExtentDisabledReason &&
-                    ` ${initialExtentDisabledReason}`}
-                </InfoTip>
+                {initialExtentDisabledReason && (
+                  <InfoTip label="View Group Initial Extent">
+                    {initialExtentDisabledReason}
+                  </InfoTip>
+                )}
                 <CheckboxLabel $disabled={Boolean(initialExtentDisabledReason)}>
                   <input
                     type="checkbox"
