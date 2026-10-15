@@ -90,9 +90,9 @@ const ClassTable = styled.table`
   }
 `;
 
-// Absent from this list, the Style tab renders a dead-end "not available for
-// this source type" panel instead of the rule editor -- so styling a shapefile
-// layer would be impossible regardless of what field discovery returned.
+// Absent from this list (and not a raster), a source has no Style tab at all
+// -- so styling a shapefile layer would be impossible regardless of what field
+// discovery returned.
 //
 // Exported because it is the app's definition of "a vector layer an author can
 // style per feature". The Labels tab gates on exactly the same set, and a second
@@ -128,6 +128,29 @@ export function supportsVectorStyling(sourceProps, dynamicMapLayers) {
   return dynamicSource !== null && dynamicSource !== "GeoTIFF";
 }
 
+/**
+ * Whether a source is a raster the Style tab colors with a ramp or a class
+ * table: a GeoTIFF or Zarr, or a dynamic plugin layer that drives a GeoTIFF.
+ */
+export function isRasterStyleSource(sourceProps, dynamicMapLayers) {
+  return (
+    sourceProps?.type === "GeoTIFF" ||
+    sourceProps?.type === "Zarr" ||
+    getDynamicLayerSourceType(dynamicMapLayers, sourceProps) === "GeoTIFF"
+  );
+}
+
+/**
+ * Whether the Style tab has anything to edit for a source. Image services,
+ * tiles and KML draw the styling they were published with.
+ */
+export function supportsStyling(sourceProps, dynamicMapLayers) {
+  return (
+    supportsVectorStyling(sourceProps, dynamicMapLayers) ||
+    isRasterStyleSource(sourceProps, dynamicMapLayers)
+  );
+}
+
 const StylePane = ({
   style,
   setStyle,
@@ -150,10 +173,7 @@ const StylePane = ({
   // whether it is a raster comes from what the plugin declares it drives.
   const isRuntimeGeoTIFF =
     getDynamicLayerSourceType(dynamicMapLayers, sourceProps) === "GeoTIFF";
-  const isRaster =
-    sourceProps.type === "GeoTIFF" ||
-    sourceProps.type === "Zarr" ||
-    isRuntimeGeoTIFF;
+  const isRaster = isRasterStyleSource(sourceProps, dynamicMapLayers);
 
   useEffect(() => {
     // A shapefile's fields come from the shared, author-triggered discovery

@@ -507,6 +507,63 @@ test("Map click — table popup type 'none' skips a layer when no modal is confi
   ).toBe("OnLayer");
 });
 
+test("Map click never queries an Annotations or Linked Extents layer", async () => {
+  // Keyed on the source type: neither layer carries a tablePopupType, which
+  // would otherwise default it into click queries.
+  mockedQueryLayerFeatures.mockResolvedValue([]);
+  jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+
+  const decoration = (name, sourceType) => ({
+    configuration: {
+      type: "VectorLayer",
+      props: { name, source: { type: sourceType, props: {} } },
+      annotations: { defaults: {}, items: [] },
+    },
+  });
+  const layers = [
+    decoration("Callouts", "Annotations"),
+    decoration("Inset", "Linked Extents"),
+    {
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "OnLayer",
+          source: {
+            type: "ESRI Image and Map Service",
+            props: { url: "some_url" },
+          },
+        },
+      },
+    },
+  ];
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent
+          onMapClick={jest.fn()}
+          clickCoordinates={[10, 20]}
+          mapProps={{
+            mapConfig: {},
+            viewConfig: {},
+            layers,
+            baseMap: null,
+            layerControl: false,
+          }}
+        />
+      </MapContextProvider>
+    ),
+  });
+  render(LoadedComponent);
+
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  await waitFor(() => {
+    expect(mockedQueryLayerFeatures.mock.calls.length).toBe(1);
+  });
+  expect(
+    mockedQueryLayerFeatures.mock.calls[0][0].configuration.props.name,
+  ).toBe("OnLayer");
+});
+
 test("Map click — modal-only layer with tablePopupType 'none' IS queried and modal opens", async () => {
   // Regression for the bug fix: a layer with the table popup turned off but a
   // modal popup configured must still be queried on click so the modal can

@@ -38,25 +38,60 @@ const StyledDiv = styled.div`
   height: 100%;
   overflow-y: auto;
   padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  /* Hidden, not disabled: the text still scrolls by wheel, touch and keyboard. */
+  ${(props) =>
+    props.$hideScrollbar &&
+    `
+      scrollbar-width: none;
+      &::-webkit-scrollbar {
+        display: none;
+      }
+    `}
 `;
+
+// Auto margins rather than justify-content: centred or bottom-aligned text
+// that outgrows its tile still scrolls from its first line, where
+// justify-content would push the top of it out of reach.
+const VERTICAL_MARGINS = {
+  middle: "margin-top: auto; margin-bottom: auto;",
+  bottom: "margin-top: auto;",
+};
 
 const PreWrapDiv = styled.div`
   white-space: pre-wrap;
   word-break: break-word;
+  ${(props) => VERTICAL_MARGINS[props.$verticalAlign] ?? ""}
 `;
 
-const Text = ({ textValue, visualizationRef }) => {
+const Text = ({
+  textValue,
+  visualizationRef,
+  hideScrollbar = false,
+  verticalAlign = "top",
+}) => {
   const clean = DOMPurify.sanitize(textValue);
 
   return (
-    <StyledDiv ref={visualizationRef}>
-      <PreWrapDiv>{parse(clean, linkifyOptions)}</PreWrapDiv>
+    <StyledDiv
+      ref={visualizationRef}
+      $hideScrollbar={hideScrollbar}
+      data-testid="text-visualization"
+    >
+      <PreWrapDiv $verticalAlign={verticalAlign} data-testid="text-content">
+        {parse(clean, linkifyOptions)}
+      </PreWrapDiv>
     </StyledDiv>
   );
 };
 
 Text.propTypes = {
   textValue: PropTypes.string,
+  // Grid-item setting: keep scrolling but draw no scrollbar.
+  hideScrollbar: PropTypes.bool,
+  // Grid-item setting: where the text sits in its tile.
+  verticalAlign: PropTypes.oneOf(["top", "middle", "bottom"]),
   visualizationRef: PropTypes.oneOfType([
     PropTypes.func,
     PropTypes.shape({ current: PropTypes.any }),

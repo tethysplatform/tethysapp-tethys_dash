@@ -1,5 +1,6 @@
 import { createRef } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MapExtent } from "components/inputs/custom/MapExtent";
 import createLoadedComponent from "__tests__/utilities/customRender";
 import MapContextProvider from "components/contexts/MapContext";
@@ -585,13 +586,20 @@ test("the group name field emits on blur, not on each keystroke", () => {
   });
 });
 
-test("the initial-extent checkbox is disabled while the group name is empty", () => {
+test("the initial-extent checkbox is disabled while the group name is empty", async () => {
   renderOpen();
 
   const checkbox = screen.getByLabelText("View Group Initial Extent Input");
   expect(checkbox).toBeDisabled();
+  // The reason is in the info tip beside the checkbox, not printed under it.
   expect(
-    screen.getByText(/Set a view group name to use this map's extent/i),
+    screen.queryByText(/Set a view group name to use this map's extent/i),
+  ).not.toBeInTheDocument();
+  await userEvent.hover(
+    screen.getByLabelText("View Group Initial Extent help"),
+  );
+  expect(
+    await screen.findByText(/Set a view group name to use this map's extent/i),
   ).toBeInTheDocument();
 
   setGroupName("Basin");
@@ -601,7 +609,7 @@ test("the initial-extent checkbox is disabled while the group name is empty", ()
   ).not.toBeDisabled();
 });
 
-test("the initial-extent checkbox is disabled while the extent is templated", () => {
+test("the initial-extent checkbox is disabled while the extent is templated", async () => {
   renderOpen();
 
   setGroupName("Basin");
@@ -617,9 +625,50 @@ test("the initial-extent checkbox is disabled while the extent is templated", ()
   expect(
     screen.getByLabelText("View Group Initial Extent Input"),
   ).toBeDisabled();
+  await userEvent.hover(
+    screen.getByLabelText("View Group Initial Extent help"),
+  );
   expect(
-    screen.getByText(/cannot supply the group's initial extent/i),
+    await screen.findByText(/cannot supply the group's initial extent/i),
   ).toBeInTheDocument();
+});
+
+test("an enabled initial-extent checkbox has no info tip", () => {
+  renderOpen();
+  setGroupName("Basin");
+
+  expect(
+    screen.queryByLabelText("View Group Initial Extent help"),
+  ).not.toBeInTheDocument();
+});
+
+test("the view group's explanation is in an info tip left of its label", async () => {
+  renderOpen();
+
+  const help = screen.getByLabelText("View Group help");
+  const label = screen.getByText("View Group:");
+  // DOCUMENT_POSITION_FOLLOWING: the label comes after the icon.
+  expect(help.compareDocumentPosition(label) & 4).toBeTruthy();
+
+  await userEvent.hover(help);
+  expect(
+    await screen.findByText(
+      "Every map in the view group opens at this map's extent.",
+    ),
+  ).toBeInTheDocument();
+});
+
+test("the linked extent group's explanation is in an info tip left of its label", async () => {
+  renderOpen();
+
+  const help = screen.getByLabelText("Linked Extent Group help");
+  const label = screen.getByText("Linked Extent Group:");
+  // DOCUMENT_POSITION_FOLLOWING: the label comes after the icon.
+  expect(help.compareDocumentPosition(label) & 4).toBeTruthy();
+  expect(screen.queryByText(/keep their own views/)).not.toBeInTheDocument();
+
+  await userEvent.hover(help);
+  expect(await screen.findByText(/keep their own views/)).toBeInTheDocument();
 });
 
 test("clearing the group name clears the initial-extent flag", () => {
@@ -759,3 +808,118 @@ test.each([[BBOX_TOKEN], [SPACED_TOKEN], ["-1,2,3"]])(
     });
   },
 );
+
+const setLinkedExtentGroup = (name) => {
+  const field = screen.getByLabelText("Linked Extent Group Input");
+  fireEvent.change(field, { target: { value: name } });
+  fireEvent.blur(field);
+  return field;
+};
+
+test("entering a linked extent group emits it, trimmed, beside the extent", () => {
+  const { onChange } = renderOpen();
+
+  setLinkedExtentGroup("  Basin  ");
+
+  expect(lastValue(onChange)).toStrictEqual({
+    extent: "10,20,4",
+    linkedExtentGroup: "Basin",
+  });
+  expect(screen.getByLabelText("Linked Extent Group Input").value).toBe(
+    "Basin",
+  );
+});
+
+test("the linked extent group and the view group are independent fields", () => {
+  const { onChange } = renderOpen();
+
+  setGroupName("Valley");
+  setLinkedExtentGroup("Basin");
+
+  expect(lastValue(onChange)).toStrictEqual({
+    extent: "10,20,4",
+    viewGroup: "Valley",
+    linkedExtentGroup: "Basin",
+  });
+
+  setLinkedExtentGroup("   ");
+  expect(lastValue(onChange)).toStrictEqual({
+    extent: "10,20,4",
+    viewGroup: "Valley",
+  });
+});
+
+test("re-blurring an unchanged linked extent group emits nothing and trims the draft", () => {
+  const { onChange } = renderOpen();
+
+  const field = setLinkedExtentGroup("Basin");
+  onChange.mockClear();
+
+  // Unchanged and already trimmed: no value goes out, the field is left as is.
+  fireEvent.blur(field);
+  expect(onChange).not.toHaveBeenCalled();
+  expect(field.value).toBe("Basin");
+
+  // The same name with whitespace around it is still the group in force, so
+  // nothing is emitted -- but the field is trimmed back to that name.
+  fireEvent.change(field, { target: { value: "  Basin  " } });
+  fireEvent.blur(field);
+  expect(onChange).not.toHaveBeenCalled();
+  expect(field.value).toBe("Basin");
+});
+
+test("a saved view group and its initial-extent flag load into the fields", () => {
+  const { onChange } = renderOpen({
+    values: {
+      extent: "10,20,4",
+      viewGroup: "Basin",
+      isGroupInitialExtent: true,
+    },
+  });
+
+  expect(screen.getByLabelText("View Group Input").value).toBe("Basin");
+  expect(
+    screen.getByLabelText("View Group Initial Extent Input"),
+  ).toBeChecked();
+
+  fireEvent.change(screen.getByLabelText("Custom Extent Input"), {
+    target: { value: "1,2,3" },
+  });
+  expect(lastValue(onChange)).toStrictEqual({
+    extent: "1,2,3",
+    viewGroup: "Basin",
+    isGroupInitialExtent: true,
+  });
+});
+
+test("a saved linked extent group loads into the field and survives other edits", () => {
+  const { onChange } = renderOpen({
+    values: { extent: "10,20,4", linkedExtentGroup: "Basin" },
+  });
+
+  expect(screen.getByLabelText("Linked Extent Group Input").value).toBe(
+    "Basin",
+  );
+  setGroupName("Valley");
+  expect(lastValue(onChange)).toStrictEqual({
+    extent: "10,20,4",
+    viewGroup: "Valley",
+    linkedExtentGroup: "Basin",
+  });
+});
+
+test("a value without a linked extent group never gains the key", () => {
+  const { onChange } = renderOpen();
+
+  setGroupName("Valley");
+
+  expect("linkedExtentGroup" in lastValue(onChange)).toBe(false);
+});
+
+test("the linked extent group field is hidden inside a popup layout", () => {
+  renderOpenInTab(POPUP_TAB_ID);
+
+  expect(
+    screen.queryByLabelText("Linked Extent Group Input"),
+  ).not.toBeInTheDocument();
+});

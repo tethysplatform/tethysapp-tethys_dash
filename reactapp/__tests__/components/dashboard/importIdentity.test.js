@@ -233,6 +233,33 @@ describe("applyItemIdentityRules -- popup subtrees", () => {
     expect("isGroupInitialExtent" in mapExtent).toBe(false);
   });
 
+  it("strips the linked extent group from a popup-nested map", () => {
+    const gridItem = mapGridItem({
+      layers: [
+        popupLayer([
+          nested("nested-uuid", {
+            map_extent: { extent: "1,2,3", linkedExtentGroup: "Basin" },
+          }),
+        ]),
+      ],
+    });
+
+    const result = applyItemIdentityRules(gridItem);
+    const nestedItem = argsOf(result).layers[0].popupConfig.gridItems[0];
+
+    expect(JSON.parse(nestedItem.args_string).map_extent).toEqual({
+      extent: "1,2,3",
+    });
+  });
+
+  it("keeps a top-level map's linked extent group untouched", () => {
+    const gridItem = mapGridItem({
+      map_extent: { extent: "1,2,3", linkedExtentGroup: "Basin" },
+    });
+
+    expect(applyItemIdentityRules(gridItem)).toBe(gridItem);
+  });
+
   it("returns a table-mode popupConfig with no gridItems key untouched", () => {
     const gridItem = mapGridItem({
       layers: [

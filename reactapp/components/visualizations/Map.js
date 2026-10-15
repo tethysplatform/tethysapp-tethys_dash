@@ -8,6 +8,7 @@ import {
   useMemo,
 } from "react";
 import { createRoot } from "react-dom/client";
+import { isDecorationLayerEntry } from "components/map/decorationLayers";
 import MapComponent from "components/map/Map";
 import {
   queryLayerFeatures,
@@ -20,6 +21,7 @@ import {
   configurationPropType,
   mapDrawingPropType,
   loadLayerJSONs,
+  hasLegend,
   resolveTablePopupType,
   formatAttributeValue,
   orderAttributeNames,
@@ -404,6 +406,7 @@ const MapVisualization = ({
   const { gridItemUUID } = useContext(GridItemContext) ?? {};
   const mapContextValue = useMapContext();
   const extentDrawMode = mapContextValue?.extentDrawMode ?? null;
+  const annotationEditSession = mapContextValue?.annotationEditSession ?? null;
 
   const safeActiveFeatureIndex =
     popupContent && popupContent.length > 0
@@ -414,11 +417,13 @@ const MapVisualization = ({
   // The modal is a view of the selected feature, not a separate list: it opens
   // only while that feature's layer configures one, so stepping onto a
   // table-only feature closes it and stepping back reopens it. Click-only, and
-  // suppressed while an extent is being drawn or after the user dismissed it.
+  // suppressed while an extent or annotations are being drawn, or after the
+  // user dismissed it.
   const showModal =
     popupSource === "click" &&
     !modalDismissed &&
     !extentDrawMode &&
+    !annotationEditSession &&
     hasModalPopup(activeFeature);
   const activeModalFeature = showModal ? activeFeature : null;
 
@@ -933,7 +938,7 @@ const MapVisualization = ({
         );
 
         for (const layer of layers) {
-          if (layer.legend) {
+          if (hasLegend(layer.legend)) {
             if (
               layer.legend === "default" &&
               isRuntimeRasterConfig(layer.configuration)
@@ -1204,6 +1209,9 @@ const MapVisualization = ({
     // Hover-triggered table layers are queried only by onMapHover, and a
     // table-popup-type of "none" with no modal turns the layer off entirely.
     const queryableLayers = layers.filter((item) => {
+      // Keyed on the source type rather than the popup settings, so a
+      // decoration saved without `tablePopupType` cannot default into queries.
+      if (isDecorationLayerEntry(item)) return false;
       const tablePopupType = resolveTablePopupType(item);
       const modalEnabled = item.popupConfig?.mode === "modal";
       if (!modalEnabled && tablePopupType !== "click") return false;
@@ -1407,6 +1415,7 @@ const MapVisualization = ({
     // Hover only handles layers whose table popup type is "hover", regardless
     // of whether their modal is configured. Modal popups never open on hover.
     const hoverLayers = layers.filter((item) => {
+      if (isDecorationLayerEntry(item)) return false;
       if (resolveTablePopupType(item) !== "hover") return false;
       const name = item.configuration?.props?.name;
       if (!name || !olLayerVisibility.has(name)) return true;

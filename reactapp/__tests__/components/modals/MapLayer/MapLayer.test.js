@@ -247,7 +247,8 @@ test("MapLayerModal layer template full map layer", async () => {
           },
         },
         layerVisibility: false,
-        style: "12345.json",
+        // An image service has no Style tab, so the template's style is not
+        // saved.
       },
       attributeAliases: {
         NWC: {
@@ -457,7 +458,8 @@ test("MapLayerModal new ImageArcGISRest layer", async () => {
   expect(screen.getByText("Add Map Layer")).toBeInTheDocument();
   expect(screen.getByText("Layer")).toBeInTheDocument();
   expect(screen.getByText("Source")).toBeInTheDocument();
-  expect(screen.getByText("Style")).toBeInTheDocument();
+  // No Style tab until a source type that can be styled is chosen.
+  expect(screen.queryByText("Style")).not.toBeInTheDocument();
   expect(screen.getByText("Legend")).toBeInTheDocument();
   expect(screen.getByText("Attributes/Table Popup")).toBeInTheDocument();
 
@@ -513,7 +515,8 @@ test("MapLayerModal new ImageWMS layer", async () => {
   expect(screen.getByText("Add Map Layer")).toBeInTheDocument();
   expect(screen.getByText("Layer")).toBeInTheDocument();
   expect(screen.getByText("Source")).toBeInTheDocument();
-  expect(screen.getByText("Style")).toBeInTheDocument();
+  // No Style tab until a source type that can be styled is chosen.
+  expect(screen.queryByText("Style")).not.toBeInTheDocument();
   expect(screen.getByText("Legend")).toBeInTheDocument();
   expect(screen.getByText("Attributes/Table Popup")).toBeInTheDocument();
 
@@ -582,7 +585,8 @@ test("MapLayerModal new GeoJSON layer", async () => {
   expect(screen.getByText("Add Map Layer")).toBeInTheDocument();
   expect(screen.getByText("Layer")).toBeInTheDocument();
   expect(screen.getByText("Source")).toBeInTheDocument();
-  expect(screen.getByText("Style")).toBeInTheDocument();
+  // No Style tab until a source type that can be styled is chosen.
+  expect(screen.queryByText("Style")).not.toBeInTheDocument();
   expect(screen.getByText("Legend")).toBeInTheDocument();
   expect(screen.getByText("Attributes/Table Popup")).toBeInTheDocument();
 
@@ -664,7 +668,8 @@ test("MapLayerModal new ImageTile layer", async () => {
   expect(screen.getByText("Add Map Layer")).toBeInTheDocument();
   expect(screen.getByText("Layer")).toBeInTheDocument();
   expect(screen.getByText("Source")).toBeInTheDocument();
-  expect(screen.getByText("Style")).toBeInTheDocument();
+  // No Style tab until a source type that can be styled is chosen.
+  expect(screen.queryByText("Style")).not.toBeInTheDocument();
   expect(screen.getByText("Legend")).toBeInTheDocument();
   expect(screen.getByText("Attributes/Table Popup")).toBeInTheDocument();
 
@@ -722,7 +727,8 @@ test("MapLayerModal new VectorTile layer", async () => {
   expect(screen.getByText("Add Map Layer")).toBeInTheDocument();
   expect(screen.getByText("Layer")).toBeInTheDocument();
   expect(screen.getByText("Source")).toBeInTheDocument();
-  expect(screen.getByText("Style")).toBeInTheDocument();
+  // No Style tab until a source type that can be styled is chosen.
+  expect(screen.queryByText("Style")).not.toBeInTheDocument();
   expect(screen.getByText("Legend")).toBeInTheDocument();
   expect(screen.getByText("Attributes/Table Popup")).toBeInTheDocument();
 
@@ -778,7 +784,8 @@ test("MapLayerModal new PMTiles Vector layer", async () => {
   expect(screen.getByText("Add Map Layer")).toBeInTheDocument();
   expect(screen.getByText("Layer")).toBeInTheDocument();
   expect(screen.getByText("Source")).toBeInTheDocument();
-  expect(screen.getByText("Style")).toBeInTheDocument();
+  // No Style tab until a source type that can be styled is chosen.
+  expect(screen.queryByText("Style")).not.toBeInTheDocument();
   expect(screen.getByText("Legend")).toBeInTheDocument();
   expect(screen.getByText("Attributes/Table Popup")).toBeInTheDocument();
 
@@ -834,7 +841,8 @@ test("MapLayerModal new PMTiles Raster layer", async () => {
   expect(screen.getByText("Add Map Layer")).toBeInTheDocument();
   expect(screen.getByText("Layer")).toBeInTheDocument();
   expect(screen.getByText("Source")).toBeInTheDocument();
-  expect(screen.getByText("Style")).toBeInTheDocument();
+  // No Style tab until a source type that can be styled is chosen.
+  expect(screen.queryByText("Style")).not.toBeInTheDocument();
   expect(screen.getByText("Legend")).toBeInTheDocument();
   expect(screen.getByText("Attributes/Table Popup")).toBeInTheDocument();
 
@@ -1107,6 +1115,31 @@ test("MapLayerModal legend", async () => {
       title: "Some Title",
     },
   });
+});
+
+test("MapLayerModal saves no legend for No Legend's empty object", async () => {
+  const addMapLayer = jest.fn();
+  render(
+    <TestingComponent
+      showModal={true}
+      handleModalClose={jest.fn()}
+      addMapLayer={addMapLayer}
+      layerInfo={{
+        // What the Legend tab's "No Legend" stores.
+        legend: {},
+        sourceProps: {
+          props: { url: "Some Url" },
+          type: "ESRI Image and Map Service",
+        },
+        layerProps: { name: "New Layer Name" },
+      }}
+    />,
+  );
+
+  fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+
+  await waitFor(() => expect(addMapLayer).toHaveBeenCalled());
+  expect(addMapLayer.mock.calls[0][0]).not.toHaveProperty("legend");
 });
 
 test("MapLayerModal string legend", async () => {
@@ -1467,7 +1500,8 @@ test("MapLayerModal update ImageArcGISRest layer", async () => {
   expect(screen.getByText("Add Map Layer")).toBeInTheDocument();
   expect(screen.getByText("Layer")).toBeInTheDocument();
   expect(screen.getByText("Source")).toBeInTheDocument();
-  expect(screen.getByText("Style")).toBeInTheDocument();
+  // An image service draws the styling it was published with.
+  expect(screen.queryByText("Style")).not.toBeInTheDocument();
   expect(screen.getByText("Legend")).toBeInTheDocument();
   expect(screen.getByText("Attributes/Table Popup")).toBeInTheDocument();
 
@@ -3881,6 +3915,11 @@ describe("getLayerType", () => {
     expect(getLayerType("WMS")).toBe("ImageLayer");
     expect(getLayerType("Static Image")).toBe("ImageLayer");
     expect(getLayerType("ESRI Image and Map Service")).toBe("ImageLayer");
+  });
+
+  test("decoration source types map to VectorLayer", () => {
+    expect(getLayerType("Annotations")).toBe("VectorLayer");
+    expect(getLayerType("Linked Extents")).toBe("VectorLayer");
   });
 
   test("Unknown source types fall back to VectorLayer", () => {

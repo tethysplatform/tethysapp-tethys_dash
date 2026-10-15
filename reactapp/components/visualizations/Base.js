@@ -168,7 +168,14 @@ export const Visualization = memo(
           />
         );
       case "text":
-        return <Text textValue={vizData.text} />;
+        return (
+          <Text
+            textValue={vizData.text}
+            visualizationRef={vizRef}
+            hideScrollbar={!!vizMetadata.hideScrollbar}
+            verticalAlign={vizMetadata.verticalAlign}
+          />
+        );
       case "variableInput":
         return (
           <VariableInput

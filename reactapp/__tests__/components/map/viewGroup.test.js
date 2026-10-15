@@ -17,6 +17,8 @@ import {
   viewsAreEqual,
   stripLabelsInPopup,
   POPUP_TAB_ID,
+  isLinkedExtentMember,
+  readLinkedExtentGroup,
 } from "components/map/viewGroup";
 
 describe("normalizeViewGroupName", () => {
@@ -498,6 +500,76 @@ describe("clearViewGroupSettings", () => {
         },
       }),
     ).toEqual({ extent: { extent: "1,2,3" } });
+  });
+
+  it("strips the linked extent group name in both shapes", () => {
+    expect(
+      clearViewGroupSettings({ extent: "1,2,3", linkedExtentGroup: "Basin" }),
+    ).toEqual({ extent: "1,2,3" });
+    expect(
+      clearViewGroupSettings({
+        extent: { extent: "1,2,3", linkedExtentGroup: "Basin" },
+      }),
+    ).toEqual({ extent: { extent: "1,2,3" } });
+  });
+});
+
+describe("readLinkedExtentGroup", () => {
+  it("reads and normalizes the name from every object shape", () => {
+    expect(
+      readLinkedExtentGroup({ extent: "1,2,3", linkedExtentGroup: "  Basin " }),
+    ).toBe("Basin");
+    expect(
+      readLinkedExtentGroup({
+        extent: { extent: "1,2,3", linkedExtentGroup: "Basin" },
+      }),
+    ).toBe("Basin");
+    // Case-sensitive, like view groups.
+    expect(readLinkedExtentGroup({ linkedExtentGroup: "basin" })).toBe("basin");
+  });
+
+  it("treats a missing, blank or non-object value as no group", () => {
+    expect(readLinkedExtentGroup("1,2,3")).toBeNull();
+    expect(readLinkedExtentGroup(null)).toBeNull();
+    expect(readLinkedExtentGroup({ extent: "1,2,3" })).toBeNull();
+    expect(readLinkedExtentGroup({ linkedExtentGroup: "   " })).toBeNull();
+    expect(readLinkedExtentGroup({ linkedExtentGroup: 7 })).toBeNull();
+  });
+
+  it("is independent of the view group name", () => {
+    const value = { extent: "1,2,3", viewGroup: "Valley" };
+    expect(readLinkedExtentGroup(value)).toBeNull();
+    expect(readViewGroupSettings(value).viewGroup).toBe("Valley");
+  });
+});
+
+describe("isLinkedExtentMember", () => {
+  const member = {
+    groupName: "Basin",
+    hasLinkedExtentContext: true,
+    dataviewerViz: false,
+    activeTabId: 1,
+    gridItemUUID: "uuid-1",
+  };
+
+  it("admits a keyed dashboard map with a group name", () => {
+    expect(isLinkedExtentMember(member)).toBe(true);
+  });
+
+  it("excludes the DataViewer preview, popup maps and unkeyed maps", () => {
+    expect(isLinkedExtentMember({ ...member, dataviewerViz: true })).toBe(
+      false,
+    );
+    expect(isLinkedExtentMember({ ...member, activeTabId: POPUP_TAB_ID })).toBe(
+      false,
+    );
+    expect(isLinkedExtentMember({ ...member, gridItemUUID: undefined })).toBe(
+      false,
+    );
+    expect(isLinkedExtentMember({ ...member, groupName: null })).toBe(false);
+    expect(
+      isLinkedExtentMember({ ...member, hasLinkedExtentContext: false }),
+    ).toBe(false);
   });
 });
 describe("the legacy doubly nested shape on a member losing its flag", () => {

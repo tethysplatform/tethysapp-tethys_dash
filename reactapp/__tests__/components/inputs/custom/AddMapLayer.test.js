@@ -111,7 +111,7 @@ it("AddMapLayer update existing", async () => {
           },
           zIndex: 1,
         },
-        style: "geojson.json",
+        // An image service has no Style tab, so no style is saved for it.
         type: "ImageLayer",
       },
       legend: {
@@ -722,4 +722,112 @@ describe("rehydratePluginSourceProps", () => {
       dynamic_map_layer_source: "GeoJSON",
     });
   });
+});
+
+it("AddMapLayer reopens an Annotations layer with its annotations and saves them back", async () => {
+  const annotations = {
+    defaults: { lineColor: "#ff0000" },
+    items: [
+      {
+        id: "a1",
+        kind: "text",
+        coordinates: [-123.05, 44.0],
+        text: "Gauge 1",
+      },
+    ],
+  };
+  const layer = {
+    configuration: {
+      type: "VectorLayer",
+      props: { name: "Callouts", source: { type: "Annotations", props: {} } },
+      annotations,
+    },
+    tablePopupType: "none",
+  };
+  const onChange = jest.fn();
+
+  render(
+    createLoadedComponent({
+      children: (
+        <AddMapLayer
+          values={[layer]}
+          onChange={onChange}
+          setShowingSubModal={jest.fn()}
+          gridItemIndex={0}
+        />
+      ),
+    }),
+  );
+
+  fireEvent.click(await screen.findByTestId("editMapLayer"));
+  expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("tab", { name: "Annotations" }));
+  expect(
+    await screen.findByRole("group", { name: "Line/Arrow Default Styles" }),
+  ).toBeInTheDocument();
+  // The items loaded too: the tab does not call the layer empty.
+  expect(
+    screen.queryByText(/This layer has no annotations yet/),
+  ).not.toBeInTheDocument();
+
+  fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+
+  await waitFor(() => expect(onChange).toHaveBeenCalled());
+  expect(onChange).toHaveBeenLastCalledWith([layer]);
+});
+
+it("AddMapLayer passes the map's extent setting to a Linked Extents layer's editor", async () => {
+  const layer = {
+    configuration: {
+      type: "VectorLayer",
+      props: { name: "Inset", source: { type: "Linked Extents", props: {} } },
+      linkedExtentStyle: { color: "#0000ff" },
+    },
+    tablePopupType: "none",
+  };
+  const onChange = jest.fn();
+
+  render(
+    createLoadedComponent({
+      children: (
+        <AddMapLayer
+          values={[layer]}
+          onChange={onChange}
+          setShowingSubModal={jest.fn()}
+          gridItemIndex={0}
+          mapExtent={{ extent: "1,2,3", linkedExtentGroup: "Basin" }}
+        />
+      ),
+    }),
+  );
+
+  fireEvent.click(await screen.findByTestId("editMapLayer"));
+  fireEvent.click(await screen.findByRole("tab", { name: "Outline" }));
+  expect(await screen.findByText("Basin")).toBeInTheDocument();
+
+  fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+  await waitFor(() => expect(onChange).toHaveBeenCalled());
+  expect(onChange).toHaveBeenLastCalledWith([layer]);
+});
+
+it("AddMapLayer shows a legend turned off with No Legend as Off", async () => {
+  const layer = JSON.parse(JSON.stringify(layerConfigImageArcGISRest));
+  // What the Legend tab's "No Legend" stores.
+  layer.legend = {};
+
+  render(
+    createLoadedComponent({
+      children: (
+        <AddMapLayer
+          values={[layer]}
+          onChange={jest.fn()}
+          setShowingSubModal={jest.fn()}
+          gridItemIndex={0}
+        />
+      ),
+    }),
+  );
+
+  expect(await screen.findByText("Off")).toBeInTheDocument();
+  expect(screen.queryByText("On")).not.toBeInTheDocument();
 });

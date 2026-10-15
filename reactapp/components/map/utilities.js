@@ -16,6 +16,12 @@ import JSON5 from "json5";
 import { PMTiles } from "pmtiles";
 import { VectorTile } from "@mapbox/vector-tile";
 import Protobuf from "pbf";
+import { LINKED_EXTENT_LAYER_KEY } from "components/map/linkedExtent";
+import {
+  ANNOTATION_SOURCE_TYPE,
+  DECORATION_LAYER_KEY,
+  LINKED_EXTENT_SOURCE_TYPE,
+} from "components/map/decorationTypes";
 
 // Source types whose features live in a client-side OL VectorSource (vs
 // server-rendered services queried remotely).
@@ -187,6 +193,18 @@ export const sourcePropertiesOptions = {
     },
   },
   GeoJSON: {
+    required: {},
+    optional: {},
+  },
+  // Outlines where the other maps in this map's linked extent group are
+  // looking. Nothing to configure on the Source tab.
+  [LINKED_EXTENT_SOURCE_TYPE]: {
+    required: {},
+    optional: {},
+  },
+  // Content is drawn on the map in the layer editor rather than read from a
+  // source, so there is nothing to fill in on the Source tab.
+  [ANNOTATION_SOURCE_TYPE]: {
     required: {},
     optional: {},
   },
@@ -440,6 +458,8 @@ export function reprojectVectorFeatures(map, from, to) {
     .getLayers()
     .getArray()
     .forEach((layer) => {
+      // Redrawn from the linked extent registry on the view change itself.
+      if (layer.get?.(LINKED_EXTENT_LAYER_KEY)) return;
       const source = layer.getSource?.();
       if (typeof source?.getFeatures !== "function") return;
       source.getFeatures().forEach((feature) => {
@@ -998,18 +1018,23 @@ function getGeoTIFFPixelValues(map, pixel, LayerName, layerInfo, coordinate) {
 
 function getVectorTileLayerFeatures(map, pixel) {
   const features = [];
-  map.forEachFeatureAtPixel(pixel, function (feature, layer) {
-    if (!feature) return;
-    let featureLayerName = feature.get("layer");
-    features.push({
-      layerName: featureLayerName,
-      attributes: feature.getProperties(),
-      geometry: {
-        type: toGeometry(feature).getType(),
-        coordinates: toGeometry(feature).getCoordinates(),
-      },
-    });
-  });
+  map.forEachFeatureAtPixel(
+    pixel,
+    function (feature) {
+      if (!feature) return;
+      let featureLayerName = feature.get("layer");
+      features.push({
+        layerName: featureLayerName,
+        attributes: feature.getProperties(),
+        geometry: {
+          type: toGeometry(feature).getType(),
+          coordinates: toGeometry(feature).getCoordinates(),
+        },
+      });
+    },
+    // Annotations and Linked Extents outlines are author-placed, not data.
+    { layerFilter: (layer) => !layer.get?.(DECORATION_LAYER_KEY) },
+  );
   return features;
 }
 
@@ -1937,6 +1962,17 @@ export const attributePropsPropType = PropTypes.shape({
 //   tablePopupType present  → use it directly
 //   queryable === false     → "none" (legacy "Allow Layer Query" off)
 //   otherwise               → "click" (default)
+/**
+ * Whether a layer has a legend. The Legend tab's "No Legend" stores an empty
+ * object, and an empty object is truthy -- so a bare truthiness check reports
+ * a layer whose legend was turned off as having one. Only that case changes:
+ * every other value reads as it always has.
+ */
+export function hasLegend(legend) {
+  if (!legend) return false;
+  return !(typeof legend === "object" && Object.keys(legend).length === 0);
+}
+
 export function resolveTablePopupType(obj) {
   if (obj?.tablePopupType) return obj.tablePopupType;
   if (obj?.queryable === false) return "none";

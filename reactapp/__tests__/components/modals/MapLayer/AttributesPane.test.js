@@ -647,6 +647,23 @@ test("AttributesPane bad GeoJSON", async () => {
   ).toBeInTheDocument();
 });
 
+test("AttributesPane GeoJSON source with no GeoJSON entered yet", async () => {
+  // What a source switched to GeoJSON looks like before any is typed or
+  // uploaded: no `geojson` key at all.
+  mockedGetLayerAttributes.mockResolvedValue({});
+
+  render(
+    <TestingComponent
+      sourceProps={{ type: "GeoJSON", props: {} }}
+      layerProps={{ name: "new-geojson" }}
+      tabKey={"attributes"}
+    />,
+  );
+
+  await waitFor(() => expect(mockedGetLayerAttributes).toHaveBeenCalled());
+  expect(screen.queryByText(/Invalid json/i)).not.toBeInTheDocument();
+});
+
 test("AttributesPane table popup type — radio writes tablePopupType and strips legacy queryable", async () => {
   mockedGetLayerAttributes.mockResolvedValue({
     states: [

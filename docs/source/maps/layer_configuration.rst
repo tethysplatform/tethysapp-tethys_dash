@@ -21,6 +21,7 @@ Layer configuration is organized into several tabs for easier navigation and set
    source_tab
    style_tab
    labels_tab
+   annotations_tab
    legend_tab
    attributes_and_popups_tab
    popup_modal

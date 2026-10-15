@@ -10,6 +10,7 @@ import {
   hasModalPopup,
   transformCoordinates,
   queryLayerFeatures,
+  hasLegend,
   getLayerAttributes,
   loadLayerJSONs,
   loadGeoJSON,
@@ -1900,6 +1901,7 @@ test("queryLayerFeatures PMTiles Vector", async () => {
   expect(mockMap.forEachFeatureAtPixel).toHaveBeenCalledWith(
     pixel,
     expect.any(Function),
+    { layerFilter: expect.any(Function) },
   );
   expect(features).toStrictEqual([
     {
@@ -1917,6 +1919,25 @@ test("queryLayerFeatures PMTiles Vector", async () => {
       },
     },
   ]);
+});
+
+test("queryLayerFeatures PMTiles Vector leaves decoration layers out", async () => {
+  let layerFilter;
+  const mockMap = {
+    getView: jest.fn(() => ({ getZoom: jest.fn(() => 10) })),
+    forEachFeatureAtPixel: jest.fn((pixelArg, callback, options) => {
+      layerFilter = options.layerFilter;
+    }),
+  };
+
+  await queryLayerFeatures(layerConfigPMTilesVector, mockMap, [0, 0], [1, 1]);
+
+  const decoration = new VectorLayer({ source: new VectorSource() });
+  decoration.set("decorationLayer", true);
+  expect(layerFilter(decoration)).toBe(false);
+  expect(layerFilter(new VectorLayer({ source: new VectorSource() }))).toBe(
+    true,
+  );
 });
 
 test("queryLayerFeatures PMTiles Vector Layer Name Mismatch", async () => {
@@ -1947,6 +1968,7 @@ test("queryLayerFeatures PMTiles Vector Layer Name Mismatch", async () => {
   expect(mockMap.forEachFeatureAtPixel).toHaveBeenCalledWith(
     pixel,
     expect.any(Function),
+    { layerFilter: expect.any(Function) },
   );
   expect(features).toStrictEqual([]);
 });
@@ -1978,6 +2000,7 @@ test("queryLayerFeatures PMTiles Vector No Features Found", async () => {
   expect(mockMap.forEachFeatureAtPixel).toHaveBeenCalledWith(
     pixel,
     expect.any(Function),
+    { layerFilter: expect.any(Function) },
   );
   expect(features).toStrictEqual([]);
 });
@@ -5540,5 +5563,20 @@ describe("collectLayerAttributeMaps", () => {
       omitted: {},
       order: {},
     });
+  });
+});
+
+describe("hasLegend", () => {
+  it("is false for no legend and for the empty object 'No Legend' stores", () => {
+    expect(hasLegend(undefined)).toBe(false);
+    expect(hasLegend(null)).toBe(false);
+    expect(hasLegend({})).toBe(false);
+    expect(hasLegend("")).toBe(false);
+  });
+
+  it("is true for the default legend, a custom one, and any other value", () => {
+    expect(hasLegend("default")).toBe(true);
+    expect(hasLegend({ title: "Gauges", items: [] })).toBe(true);
+    expect(hasLegend("bad")).toBe(true);
   });
 });
