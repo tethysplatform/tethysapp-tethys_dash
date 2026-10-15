@@ -121,6 +121,7 @@ function textStyles(text, resolved, caches) {
     resolved.textSize,
     resolved.haloColor,
     resolved.textAnchor,
+    resolved.textRotation,
   ].join("|");
   let style = caches.text.get(key);
   if (!style) {
@@ -138,6 +139,8 @@ function textStyles(text, resolved, caches) {
         textBaseline: anchor.textBaseline,
         offsetX: anchor.offsetX,
         offsetY: anchor.offsetY,
+        rotation: (resolved.textRotation * Math.PI) / 180,
+        rotateWithView: true,
         // An annotation is placed on purpose; never hide it for running off
         // the edge of its point, and never declutter it.
         overflow: true,

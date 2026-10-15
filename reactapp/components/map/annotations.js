@@ -42,6 +42,9 @@ export const defaultAnnotationStyle = Object.freeze({
   textSize: defaultLabelSize,
   haloColor: defaultLabelHaloColor,
   textAnchor: defaultLabelAnchor,
+  // Degrees clockwise. Relative to the map, so a rotated callout stays lined
+  // up with what it points at.
+  textRotation: 0,
 });
 
 const ANNOTATION_STYLE_KEYS = Object.keys(defaultAnnotationStyle);
@@ -58,6 +61,10 @@ export function isNonEmptyString(value) {
   return typeof value === "string" && value.trim() !== "";
 }
 
+function isFiniteNumber(value) {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
 function isPositiveNumber(value) {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
@@ -71,7 +78,14 @@ const STYLE_VALIDATORS = {
   textSize: isPositiveNumber,
   haloColor: isNonEmptyString,
   textAnchor: (value) => LABEL_ANCHOR_OPTIONS.includes(value),
+  // Any angle, zero and negative included: 0 is the unrotated default.
+  textRotation: isFiniteNumber,
 };
+
+/** An angle in degrees as the equivalent whole angle in [0, 360). */
+export function normalizeRotation(degrees) {
+  return ((Math.round(degrees) % 360) + 360) % 360;
+}
 
 function validStyleValue(key, value, arrowheadOptions) {
   if (key === "arrowheads") return arrowheadOptions.includes(value);

@@ -243,3 +243,29 @@ describe("more robustness", () => {
     expect(annotationFeatureStyles(feature, { arrowheads: "end" })).toEqual([]);
   });
 });
+
+describe("text rotation", () => {
+  it("rotates text clockwise by its angle, relative to the map", () => {
+    const feature = new Feature({ geometry: new Point([0, 0]) });
+    feature.set("annotationKind", "text");
+    feature.set("annotationText", "Gauge");
+    feature.set("annotationStyle", { textRotation: 90 });
+
+    const [style] = annotationFeatureStyles(feature, {});
+    expect(style.getText().getRotation()).toBeCloseTo(Math.PI / 2);
+    expect(style.getText().getRotateWithView()).toBe(true);
+  });
+
+  it("does not reuse a cached style across angles", () => {
+    const fn = createAnnotationStyleFunction({});
+    const at = (angle) => {
+      const feature = new Feature({ geometry: new Point([0, 0]) });
+      feature.set("annotationKind", "text");
+      feature.set("annotationText", "Gauge");
+      feature.set("annotationStyle", { textRotation: angle });
+      return fn(feature)[0];
+    };
+    expect(at(0)).not.toBe(at(45));
+    expect(at(45)).toBe(at(45));
+  });
+});

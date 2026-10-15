@@ -92,7 +92,7 @@ export const ARROWHEAD_LABELS = {
 // only offered for these, so a line never shows a text-size control.
 const FIELDS_BY_KIND = {
   line: ["lineColor", "lineWidth", "arrowheads"],
-  text: ["textColor", "textSize", "haloColor", "textAnchor"],
+  text: ["textColor", "textSize", "haloColor", "textAnchor", "textRotation"],
 };
 
 const FIELD_LABELS = {
@@ -103,10 +103,17 @@ const FIELD_LABELS = {
   textSize: "Text Size",
   haloColor: "Text Outline Color",
   textAnchor: "Text Placement",
+  textRotation: "Text Rotation",
 };
 
 const COLOR_FIELDS = ["lineColor", "textColor", "haloColor"];
-const NUMBER_FIELDS = ["lineWidth", "textSize"];
+// Arrow-key bounds for each number field. A size has to be positive; a
+// rotation is any angle either way round.
+const NUMBER_FIELD_LIMITS = {
+  lineWidth: { min: 1 },
+  textSize: { min: 1 },
+  textRotation: { min: -360, max: 360 },
+};
 
 /**
  * One style control. `onChange` receives the new value, or `undefined` for a
@@ -134,7 +141,7 @@ const StyleControl = ({
       />
     );
   }
-  if (NUMBER_FIELDS.includes(field)) {
+  if (field in NUMBER_FIELD_LIMITS) {
     return (
       // Bound to what is stored, not to the resolved value: clearing the field
       // to type a new number must leave it empty, not snap back to the value
@@ -143,7 +150,8 @@ const StyleControl = ({
         value={storedValue ?? ""}
         placeholder={String(value)}
         type="number"
-        min={1}
+        min={NUMBER_FIELD_LIMITS[field].min}
+        max={NUMBER_FIELD_LIMITS[field].max}
         onChange={(e) => {
           const next = coerceNumericField(e.target.value);
           onChange(next === "" ? undefined : next);

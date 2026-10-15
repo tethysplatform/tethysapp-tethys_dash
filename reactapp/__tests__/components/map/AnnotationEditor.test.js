@@ -12,6 +12,7 @@ import MapContextProvider, {
   useMapContext,
 } from "components/contexts/MapContext";
 import AnnotationEditor from "components/map/AnnotationEditor";
+import { rotateHandleCoordinate } from "components/map/textRotateInteraction";
 
 // ol/Map observes its target's size; jsdom has no ResizeObserver.
 beforeAll(() => {
@@ -886,4 +887,97 @@ test("Delete with a selection the session no longer holds removes nothing", () =
   expect(deleteButton()).toBeDisabled();
   done();
   expect(context.editedAnnotations).toEqual([text]);
+});
+
+describe("rotating text with its handle", () => {
+  // A pointer event at a map coordinate, the way OpenLayers would deliver it.
+  const pointerAt = (type, coordinate, { shiftKey = false } = {}) => {
+    const pixel = olMap.getPixelFromCoordinate(coordinate);
+    const originalEvent = {
+      type,
+      pointerId: 1,
+      isPrimary: true,
+      button: 0,
+      shiftKey,
+      clientX: pixel[0],
+      clientY: pixel[1],
+      preventDefault: () => {},
+      target: olMap.getViewport(),
+    };
+    return {
+      type,
+      map: olMap,
+      pixel,
+      coordinate,
+      dragging: type === "pointerdrag",
+      originalEvent,
+      activePointers: type === "pointerup" ? [] : [originalEvent],
+    };
+  };
+
+  it("draws a rotate handle on selected text only", () => {
+    mount(session({ items: [line, text] }));
+    const rotateHandles = (feature) =>
+      editorLayer
+        .getStyleFunction()(feature, 1000)
+        .filter((s) => s.getImage()?.getRadius?.() === 6);
+
+    selectFeature(featureById("a2"));
+    expect(rotateHandles(featureById("a2"))).toHaveLength(1);
+
+    selectFeature(featureById("a1"));
+    expect(rotateHandles(featureById("a1"))).toHaveLength(0);
+    expect(rotateHandles(featureById("a2"))).toHaveLength(0);
+  });
+
+  it("drags the handle to rotate the text, saved as its override", () => {
+    prepareForPointerEvents();
+    mount(session({ items: [text] }));
+    const feature = featureById("a2");
+    selectFeature(feature);
+
+    const point = feature.getGeometry().getCoordinates();
+    const resolution = olMap.getView().getResolution();
+    const handle = rotateHandleCoordinate(point, 0, resolution);
+    const east = [point[0] + 40 * resolution, point[1]];
+
+    act(() => {
+      olMap.handleMapBrowserEvent(pointerAt("pointerdown", handle));
+      olMap.handleMapBrowserEvent(pointerAt("pointerdrag", east));
+      olMap.handleMapBrowserEvent(pointerAt("pointerup", east));
+    });
+    done();
+
+    const [item] = context.editedAnnotations;
+    expect(item.style).toEqual({ textRotation: 90 });
+    // Rotated, not moved: the stored point is untouched.
+    expect(item.coordinates).toEqual(text.coordinates);
+  });
+
+  it("snaps to 15 degrees while Shift is held", () => {
+    prepareForPointerEvents();
+    mount(session({ items: [text] }));
+    const feature = featureById("a2");
+    selectFeature(feature);
+
+    const point = feature.getGeometry().getCoordinates();
+    const resolution = olMap.getView().getResolution();
+    const handle = rotateHandleCoordinate(point, 0, resolution);
+    const radians = (50 * Math.PI) / 180;
+    const fifty = [
+      point[0] + 40 * resolution * Math.sin(radians),
+      point[1] + 40 * resolution * Math.cos(radians),
+    ];
+
+    act(() => {
+      olMap.handleMapBrowserEvent(pointerAt("pointerdown", handle));
+      olMap.handleMapBrowserEvent(
+        pointerAt("pointerdrag", fifty, { shiftKey: true }),
+      );
+      olMap.handleMapBrowserEvent(pointerAt("pointerup", fifty));
+    });
+    done();
+
+    expect(context.editedAnnotations[0].style).toEqual({ textRotation: 45 });
+  });
 });

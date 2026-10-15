@@ -18,6 +18,7 @@ import {
   resetAnnotationOverride,
   resolveAnnotationDefaults,
   resolveAnnotationStyle,
+  normalizeRotation,
 } from "components/map/annotations";
 
 // A real, non-3857 projected CRS: Oregon North state plane (ft).
@@ -424,5 +425,35 @@ describe("featuresToItems edge cases", () => {
     feature.set("annotationId", "a1");
     feature.set("annotationText", "Lost");
     expect(featuresToItems([feature], "EPSG:3857")).toEqual([]);
+  });
+});
+
+describe("text rotation", () => {
+  it("defaults to unrotated", () => {
+    expect(resolveAnnotationDefaults({}).textRotation).toBe(0);
+  });
+
+  it("accepts zero and negative angles, and rejects non-numbers", () => {
+    expect(
+      resolveAnnotationStyle({ textRotation: 30 }, { textRotation: 0 })
+        .textRotation,
+    ).toBe(0);
+    expect(resolveAnnotationStyle({}, { textRotation: -45 }).textRotation).toBe(
+      -45,
+    );
+    expect(
+      resolveAnnotationStyle({ textRotation: 30 }, { textRotation: "90" })
+        .textRotation,
+    ).toBe(30);
+    expect(resolveAnnotationDefaults({ textRotation: NaN }).textRotation).toBe(
+      0,
+    );
+  });
+
+  it("normalizes an angle to a whole number of degrees in [0, 360)", () => {
+    expect(normalizeRotation(-45)).toBe(315);
+    expect(normalizeRotation(370)).toBe(10);
+    expect(normalizeRotation(359.6)).toBe(0);
+    expect(normalizeRotation(0)).toBe(0);
   });
 });

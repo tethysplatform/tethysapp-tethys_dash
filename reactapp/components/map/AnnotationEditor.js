@@ -13,6 +13,8 @@ import Select from "ol/interaction/Select.js";
 import Translate from "ol/interaction/Translate.js";
 import DoubleClickZoom from "ol/interaction/DoubleClickZoom.js";
 import MultiPoint from "ol/geom/MultiPoint.js";
+import LineString from "ol/geom/LineString.js";
+import Point from "ol/geom/Point.js";
 import { Circle, Fill, Stroke, Style } from "ol/style.js";
 import { unByKey } from "ol/Observable.js";
 import { useMapContext } from "components/contexts/MapContext";
@@ -25,8 +27,12 @@ import {
   itemsToFeatures,
   newAnnotationItem,
   reprojectAnnotationFeatures,
+  resolveAnnotationStyle,
 } from "components/map/annotations";
 import { createAnnotationStyleFunction } from "components/map/annotationStyle";
+import TextRotateInteraction, {
+  rotateHandleCoordinate,
+} from "components/map/textRotateInteraction";
 
 // The on-map half of annotation editing. It mounts only while the DataViewer's
 // MapContext holds a session -- started from the layer editor's Annotations
@@ -114,7 +120,7 @@ export const TOOLS = [
 
 export const TOOL_INSTRUCTIONS = {
   select:
-    "Click an annotation to select it, then drag it to move it or drag a point to reshape it. Alt+click a point to remove it. Double-click text to edit it. Delete removes the selection.",
+    "Click an annotation to select it, then drag it to move it or drag a point to reshape it. Alt+click a point to remove it. Double-click text to edit it, or drag its round handle to rotate it (Shift snaps to 15°). Delete removes the selection.",
   line: "Click to add points. Double-click or press Enter to finish; Escape abandons the line.",
   arrow:
     "Click to add points; the arrowhead goes on the last one. Double-click or press Enter to finish; Escape abandons the arrow.",
@@ -140,6 +146,27 @@ const handleStyle = new Style({
     return new MultiPoint(coordinates);
   },
 });
+
+// The rotate handle of selected text, and a thin line back to the text so it
+// reads as attached. Built per frame: its position depends on the resolution.
+const rotateHandleStyles = (feature, rotation, resolution) => {
+  const point = feature.getGeometry().getCoordinates();
+  const handle = rotateHandleCoordinate(point, rotation, resolution);
+  return [
+    new Style({
+      geometry: new LineString([point, handle]),
+      stroke: new Stroke({ color: "#1f6feb", width: 1 }),
+    }),
+    new Style({
+      geometry: new Point(handle),
+      image: new Circle({
+        radius: 6,
+        fill: new Fill({ color: "#1f6feb" }),
+        stroke: new Stroke({ color: "#ffffff", width: 2 }),
+      }),
+    }),
+  ];
+};
 
 const isTyping = () => {
   const active = document.activeElement;
@@ -181,6 +208,11 @@ const AnnotationEditor = ({ visualizationRef }) => {
   textEditRef.current = textEdit;
   selectedIdRef.current = selectedId;
 
+  // The rotation a text feature draws with: its override, else the default.
+  const rotationOf = (feature) =>
+    resolveAnnotationStyle(session?.defaults, feature.get(ANNOTATION_STYLE_KEY))
+      .textRotation;
+
   const findFeature = (id) =>
     sourceRef.current
       ?.getFeatures()
@@ -203,11 +235,19 @@ const AnnotationEditor = ({ visualizationRef }) => {
     const layer = new VectorLayer({
       className: "ol-layer annotation-editor",
       source,
-      style: (feature) => {
+      style: (feature, resolution) => {
         const styles = annotationStyle(feature);
-        return feature.get(ANNOTATION_ID_KEY) === selectedIdRef.current
-          ? [...styles, handleStyle]
-          : styles;
+        if (feature.get(ANNOTATION_ID_KEY) !== selectedIdRef.current) {
+          return styles;
+        }
+        if (feature.get(ANNOTATION_KIND_KEY) === "text") {
+          return [
+            ...styles,
+            handleStyle,
+            ...rotateHandleStyles(feature, rotationOf(feature), resolution),
+          ];
+        }
+        return [...styles, handleStyle];
       },
       updateWhileAnimating: true,
       updateWhileInteracting: true,
@@ -344,6 +384,25 @@ const AnnotationEditor = ({ visualizationRef }) => {
       // pointerdown first, so a drag near a point reshapes rather than moves.
       add(new Translate({ features: select.getFeatures(), hitTolerance: 6 }));
       add(new Modify({ features: select.getFeatures() }));
+      // Added last, so a grab on the handle rotates rather than moves.
+      add(
+        new TextRotateInteraction({
+          getSelectedText: () => {
+            const feature = findFeature(selectedIdRef.current);
+            return feature?.get(ANNOTATION_KIND_KEY) === "text"
+              ? feature
+              : null;
+          },
+          getRotation: rotationOf,
+          onRotate: (feature, degrees) => {
+            feature.set(ANNOTATION_STYLE_KEY, {
+              ...(feature.get(ANNOTATION_STYLE_KEY) ?? {}),
+              textRotation: degrees,
+            });
+            feature.changed();
+          },
+        }),
+      );
 
       const dblKey = map.on("dblclick", (event) => {
         const feature = map.forEachFeatureAtPixel(event.pixel, (f) => f, {

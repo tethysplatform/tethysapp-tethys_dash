@@ -338,3 +338,34 @@ describe("the color controls", () => {
     expect(latest.items[0]).toEqual(text);
   });
 });
+
+test("text rotation takes zero and negative angles, per item and as the default", () => {
+  mount({ defaults: {}, items: [text] });
+
+  fireEvent.change(screen.getByLabelText("Default Text Rotation"), {
+    target: { value: "30" },
+  });
+  expect(latest.defaults).toEqual({ textRotation: 30 });
+
+  expand("Text: Gauge 1");
+  const itemRotation = screen.getByLabelText("Text: Gauge 1 Text Rotation");
+  expect(itemRotation).toHaveAttribute("placeholder", "30");
+
+  fireEvent.change(itemRotation, { target: { value: "-45" } });
+  expect(latest.items[0].style).toEqual({ textRotation: -45 });
+
+  // Zero is a real angle, not "unset".
+  fireEvent.change(screen.getByLabelText("Text: Gauge 1 Text Rotation"), {
+    target: { value: "0" },
+  });
+  expect(latest.items[0].style).toEqual({ textRotation: 0 });
+});
+
+test("lines are not offered a text rotation", () => {
+  mount({ defaults: {}, items: [arrow] });
+  expand("Arrow 1");
+
+  expect(
+    screen.queryByLabelText("Arrow 1 Text Rotation"),
+  ).not.toBeInTheDocument();
+});

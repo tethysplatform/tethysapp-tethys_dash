@@ -24,7 +24,7 @@ To make several sets that viewers can show and hide separately, such as one for 
 
 **Drawing.** Choose **Annotations** as the layer's source type, open the **Annotations** tab, and click **Edit on map**. The editor steps aside to show only the map, with a toolbar over it; the visualization settings and its Save and Close buttons come back when you finish:
 
-- **Select** — click an annotation to select it. Drag it to move it, or drag one of its points to reshape it. Alt+click a point to remove it, and double-click text to edit it. **Delete** (or the Delete key) removes the selection.
+- **Select** — click an annotation to select it. Drag it to move it, or drag one of its points to reshape it. Alt+click a point to remove it, and double-click text to edit it. Selected text shows a round handle; drag it around the text to rotate it, holding Shift to snap to 15° steps. **Delete** (or the Delete key) removes the selection.
 - **Line** and **Arrow** — click to add points, then double-click or press Enter to finish. Escape abandons the line being drawn. An arrow's head goes on its last point.
 - **Text** — click the map to place text, or click existing text to edit it. Enter saves, Shift+Enter starts a new line, and Escape reverts.
 
@@ -32,7 +32,7 @@ Dragging anywhere that is not an annotation pans the map in every tool, and the 
 
 Annotations can only be edited this way, from the layer editor while the dashboard is being edited. Clicking an annotation on the dashboard itself does nothing.
 
-**Default style and overrides.** The **Default style** section sets the line color and width, arrowheads, and text color, size, outline color and placement for every annotation in the layer. Each annotation in the **In this layer** list can override any of those properties for itself: click **Edit** on its row. An overridden property shows **Reset to default**; every other property keeps following the default when it changes. Text items can also have their text edited in the list.
+**Default style and overrides.** The **Default style** section sets the line color and width, arrowheads, and text color, size, outline color, placement and rotation for every annotation in the layer. Rotation is in degrees clockwise, may be zero or negative, and stays relative to the map. Each annotation in the **In this layer** list can override any of those properties for itself: click **Edit** on its row. An overridden property shows **Reset to default**; every other property keeps following the default when it changes. Text items can also have their text edited in the list.
 
 Arrowheads belong to arrows: a plain line never draws them, whatever the default says. Setting an arrow's own arrowheads to **None** turns it into a line.
 
