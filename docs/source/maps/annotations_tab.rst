@@ -22,7 +22,7 @@ An Annotations layer is a set of lines, arrows and text pinned to places on the 
 
 To make several sets that viewers can show and hide separately, such as one for gauge callouts and one for basin notes, add one Annotations layer per set.
 
-**Drawing.** Choose **Annotations** as the layer's source type, open the **Annotations** tab, and click **Edit on map**. The layer editor steps aside and a toolbar appears over the map preview:
+**Drawing.** Choose **Annotations** as the layer's source type, open the **Annotations** tab, and click **Edit on map**. The editor steps aside to show only the map, with a toolbar over it; the visualization settings and its Save and Close buttons come back when you finish:
 
 - **Select** — click an annotation to select it. Drag it to move it, or drag one of its points to reshape it. Alt+click a point to remove it, and double-click text to edit it. **Delete** (or the Delete key) removes the selection.
 - **Line** and **Arrow** — click to add points, then double-click or press Enter to finish. Escape abandons the line being drawn. An arrow's head goes on its last point.

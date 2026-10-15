@@ -20,7 +20,9 @@ import Tab from "react-bootstrap/Tab";
 import Tabs from "react-bootstrap/Tabs";
 import TextEditor from "components/inputs/TextEditor";
 import { Visualization } from "components/visualizations/Base";
-import MapContextProvider from "components/contexts/MapContext";
+import MapContextProvider, {
+  useMapContext,
+} from "components/contexts/MapContext";
 import {
   findVisualizationBySource,
   updateObjectWithVariableInputs,
@@ -59,6 +61,9 @@ const StyledRow = styled(Row)`
 
 const StyledCol = styled(Col)`
   border-right: black solid 1px;
+  /* Hidden, not unmounted, while the author works on the map: the layer
+     editor whose session this is lives in this column and keeps its draft. */
+  ${(props) => props.$hidden && "display: none !important;"}
 `;
 
 const StyledVizCol = styled(Col)`
@@ -150,12 +155,19 @@ export function updateVariableInputs(
   return updatedGridItems;
 }
 
-function DataViewerModal({
+export function DataViewerContent({
   showModal,
   handleModalClose,
   setGridItemMessage,
   setShowGridItemMessage,
 }) {
+  const mapContext = useMapContext();
+  // A static image's extent or a layer's annotations being edited on the
+  // preview map. Only the map and its own Done/Cancel stay on screen, so the
+  // author is never offered the visualization's inputs or Save mid-edit.
+  const editingOnMap = Boolean(
+    mapContext?.extentDrawMode || mapContext?.annotationEditSession,
+  );
   const {
     gridItemSource,
     gridItemArgsString,
@@ -386,124 +398,133 @@ function DataViewerModal({
   }
 
   return (
-    <MapContextProvider>
-      <Modal
-        show={showModal}
-        onHide={activeAppTour ? closeAndSetAppTour : handleModalClose}
-        className="dataviewer"
-        dialogClassName="semiWideModalDialog"
-        style={showingSubModal && { zIndex: 1050 }}
-        aria-label={"DataViewer Modal"}
-      >
-        <Modal.Header closeButton>
-          <Modal.Title className="no-caret">Edit Visualization</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          <StyledContainer>
-            <StyledRow>
-              <StyledCol
-                className={
-                  "justify-content-center h-100 col-4 dataviewer-inputs"
-                }
-              >
-                <StyledTabContainer>
-                  <Tabs
-                    activeKey={tabKey}
-                    onSelect={(k) => setTabKey(k)}
-                    id="visualization-tabs"
-                    className="mb-3"
+    <Modal
+      show={showModal}
+      onHide={activeAppTour ? closeAndSetAppTour : handleModalClose}
+      keyboard={!editingOnMap}
+      className="dataviewer"
+      dialogClassName="semiWideModalDialog"
+      style={showingSubModal && { zIndex: 1050 }}
+      aria-label={"DataViewer Modal"}
+    >
+      <Modal.Header closeButton={!editingOnMap}>
+        <Modal.Title className="no-caret">
+          {editingOnMap
+            ? "Editing on the map — finish with Done or Cancel"
+            : "Edit Visualization"}
+        </Modal.Title>
+      </Modal.Header>
+      <Modal.Body>
+        <StyledContainer>
+          <StyledRow>
+            <StyledCol
+              className={"justify-content-center h-100 col-4 dataviewer-inputs"}
+              $hidden={editingOnMap}
+              data-testid="dataviewer-inputs"
+            >
+              <StyledTabContainer>
+                <Tabs
+                  activeKey={tabKey}
+                  onSelect={(k) => setTabKey(k)}
+                  id="visualization-tabs"
+                  className="mb-3"
+                >
+                  <Tab
+                    eventKey="visualization"
+                    title="Visualization"
+                    aria-label="visualizationTab"
+                    className="visualizationTab"
                   >
-                    <Tab
-                      eventKey="visualization"
-                      title="Visualization"
-                      aria-label="visualizationTab"
-                      className="visualizationTab"
-                    >
-                      <VisualizationPane
-                        gridItemIndex={gridItemIndex}
-                        setGridItemMessage={setGridItemMessage}
-                        selectedVizTypeOption={selectedVizTypeOption}
-                        setSelectVizTypeOption={setSelectVizTypeOption}
-                        vizArguments={vizArguments}
-                        setVizArguments={setVizArguments}
-                        vizType={vizType}
-                        setVizType={setVizType}
-                        setVizData={setVizData}
-                        setVizMetadata={setVizMetadata}
-                        vizInputsValues={vizInputsValues}
-                        setVizInputsValues={setVizInputsValues}
-                        variableInputValue={variableInputValue}
-                        setVariableInputValue={setVariableInputValue}
-                        settings={settings}
-                        setSettings={setSettings}
-                        visualizationRef={visualizationRef}
-                        setShowingSubModal={setShowingSubModal}
-                        requestId={requestId.current}
-                      />
-                    </Tab>
-                    <Tab
-                      eventKey="settings"
-                      title="Settings"
-                      aria-label="settingsTab"
-                      className="settingsTab"
-                    >
-                      <SettingsPane
-                        settings={settings}
-                        setSettings={setSettings}
-                        // A Text item is edited, not previewed: the right side
-                        // shows the text editor, so no visualization ever
-                        // loads to set vizType. Name it from the selection.
-                        vizType={
-                          selectedVizTypeOption?.value === "Text"
-                            ? "text"
-                            : vizType
-                        }
-                        visualizationRef={visualizationRef}
-                        vizInputsValues={vizInputsValues}
-                      />
-                    </Tab>
-                  </Tabs>
-                </StyledTabContainer>
-              </StyledCol>
-              <StyledVizCol className={"justify-content-center h-100 col-8"}>
-                {selectedVizTypeOption?.value === "Text" ? (
-                  <PaddedBottomDiv>
-                    <TextEditor
-                      textValue={vizInputsValues.text}
-                      onChange={(htmlText) =>
-                        setVizInputsValues({ text: htmlText })
-                      }
-                      // A tile setting, saved with the others: top is the
-                      // default and is saved as no setting at all.
-                      verticalAlign={settings.verticalAlign}
-                      onVerticalAlignChange={(value) =>
-                        setSettings((prev) => {
-                          const { verticalAlign, ...rest } = prev;
-                          return value === "top"
-                            ? rest
-                            : { ...rest, verticalAlign: value };
-                        })
-                      }
+                    <VisualizationPane
+                      gridItemIndex={gridItemIndex}
+                      setGridItemMessage={setGridItemMessage}
+                      selectedVizTypeOption={selectedVizTypeOption}
+                      setSelectVizTypeOption={setSelectVizTypeOption}
+                      vizArguments={vizArguments}
+                      setVizArguments={setVizArguments}
+                      vizType={vizType}
+                      setVizType={setVizType}
+                      setVizData={setVizData}
+                      setVizMetadata={setVizMetadata}
+                      vizInputsValues={vizInputsValues}
+                      setVizInputsValues={setVizInputsValues}
+                      variableInputValue={variableInputValue}
+                      setVariableInputValue={setVariableInputValue}
+                      settings={settings}
+                      setSettings={setSettings}
+                      visualizationRef={visualizationRef}
+                      setShowingSubModal={setShowingSubModal}
+                      requestId={requestId.current}
                     />
-                  </PaddedBottomDiv>
-                ) : (
-                  <Visualization
-                    vizRef={visualizationRef}
-                    vizType={vizType}
-                    vizData={vizData}
-                    dataviewerViz={true}
-                    vizMetadata={updateObjectWithVariableInputs({
-                      args: settings,
-                      variableInputs: variableInputValues,
-                      variableInputDateFormats,
-                    })}
-                    progressMessage={getMessageForRequest(requestId.current)}
+                  </Tab>
+                  <Tab
+                    eventKey="settings"
+                    title="Settings"
+                    aria-label="settingsTab"
+                    className="settingsTab"
+                  >
+                    <SettingsPane
+                      settings={settings}
+                      setSettings={setSettings}
+                      // A Text item is edited, not previewed: the right side
+                      // shows the text editor, so no visualization ever
+                      // loads to set vizType. Name it from the selection.
+                      vizType={
+                        selectedVizTypeOption?.value === "Text"
+                          ? "text"
+                          : vizType
+                      }
+                      visualizationRef={visualizationRef}
+                      vizInputsValues={vizInputsValues}
+                    />
+                  </Tab>
+                </Tabs>
+              </StyledTabContainer>
+            </StyledCol>
+            <StyledVizCol
+              className={`justify-content-center h-100 ${
+                editingOnMap ? "col-12" : "col-8"
+              }`}
+            >
+              {selectedVizTypeOption?.value === "Text" ? (
+                <PaddedBottomDiv>
+                  <TextEditor
+                    textValue={vizInputsValues.text}
+                    onChange={(htmlText) =>
+                      setVizInputsValues({ text: htmlText })
+                    }
+                    // A tile setting, saved with the others: top is the
+                    // default and is saved as no setting at all.
+                    verticalAlign={settings.verticalAlign}
+                    onVerticalAlignChange={(value) =>
+                      setSettings((prev) => {
+                        const { verticalAlign, ...rest } = prev;
+                        return value === "top"
+                          ? rest
+                          : { ...rest, verticalAlign: value };
+                      })
+                    }
                   />
-                )}
-              </StyledVizCol>
-            </StyledRow>
-          </StyledContainer>
-        </Modal.Body>
+                </PaddedBottomDiv>
+              ) : (
+                <Visualization
+                  vizRef={visualizationRef}
+                  vizType={vizType}
+                  vizData={vizData}
+                  dataviewerViz={true}
+                  vizMetadata={updateObjectWithVariableInputs({
+                    args: settings,
+                    variableInputs: variableInputValues,
+                    variableInputDateFormats,
+                  })}
+                  progressMessage={getMessageForRequest(requestId.current)}
+                />
+              )}
+            </StyledVizCol>
+          </StyledRow>
+        </StyledContainer>
+      </Modal.Body>
+      {!editingOnMap && (
         <Modal.Footer>
           <CustomAlert
             alertType={"warning"}
@@ -528,7 +549,17 @@ function DataViewerModal({
             Save
           </Button>
         </Modal.Footer>
-      </Modal>
+      )}
+    </Modal>
+  );
+}
+
+// The map-edit context wraps the whole modal, so the modal itself can tell
+// when its preview map is being edited.
+function DataViewerModal(props) {
+  return (
+    <MapContextProvider>
+      <DataViewerContent {...props} />
     </MapContextProvider>
   );
 }
@@ -539,5 +570,7 @@ DataViewerModal.propTypes = {
   showModal: PropTypes.bool,
   handleModalClose: PropTypes.func,
 };
+
+DataViewerContent.propTypes = DataViewerModal.propTypes;
 
 export default DataViewerModal;
