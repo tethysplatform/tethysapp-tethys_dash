@@ -1962,6 +1962,17 @@ export const attributePropsPropType = PropTypes.shape({
 //   tablePopupType present  → use it directly
 //   queryable === false     → "none" (legacy "Allow Layer Query" off)
 //   otherwise               → "click" (default)
+/**
+ * Whether a layer has a legend. The Legend tab's "No Legend" stores an empty
+ * object, and an empty object is truthy -- so a bare truthiness check reports
+ * a layer whose legend was turned off as having one. Only that case changes:
+ * every other value reads as it always has.
+ */
+export function hasLegend(legend) {
+  if (!legend) return false;
+  return !(typeof legend === "object" && Object.keys(legend).length === 0);
+}
+
 export function resolveTablePopupType(obj) {
   if (obj?.tablePopupType) return obj.tablePopupType;
   if (obj?.queryable === false) return "none";

@@ -8,7 +8,11 @@ import Button from "react-bootstrap/Button";
 import { valuesEqual } from "components/modals/utilities";
 import { BsPencilSquare, BsTrash } from "react-icons/bs";
 import { RxDragHandleHorizontal } from "react-icons/rx";
-import { layerPropType, resolveTablePopupType } from "components/map/utilities";
+import {
+  hasLegend,
+  layerPropType,
+  resolveTablePopupType,
+} from "components/map/utilities";
 import { AppContext } from "components/contexts/Contexts";
 import { findSelectOptionByValue } from "components/visualizations/utilities";
 import { DEFAULT_DYNAMIC_LAYER_SOURCE } from "components/modals/MapLayer/runtimeLayerSource";
@@ -174,7 +178,7 @@ const MapLayerTemplate = ({
         {value.configuration.props.name}
       </OverflowTD>
       <OverflowTD className="text-center">
-        {value.legend ? "On" : "Off"}
+        {hasLegend(value.legend) ? "On" : "Off"}
       </OverflowTD>
       <td>
         <SpacedDiv>

@@ -10,6 +10,7 @@ import {
   hasModalPopup,
   transformCoordinates,
   queryLayerFeatures,
+  hasLegend,
   getLayerAttributes,
   loadLayerJSONs,
   loadGeoJSON,
@@ -5562,5 +5563,20 @@ describe("collectLayerAttributeMaps", () => {
       omitted: {},
       order: {},
     });
+  });
+});
+
+describe("hasLegend", () => {
+  it("is false for no legend and for the empty object 'No Legend' stores", () => {
+    expect(hasLegend(undefined)).toBe(false);
+    expect(hasLegend(null)).toBe(false);
+    expect(hasLegend({})).toBe(false);
+    expect(hasLegend("")).toBe(false);
+  });
+
+  it("is true for the default legend, a custom one, and any other value", () => {
+    expect(hasLegend("default")).toBe(true);
+    expect(hasLegend({ title: "Gauges", items: [] })).toBe(true);
+    expect(hasLegend("bad")).toBe(true);
   });
 });

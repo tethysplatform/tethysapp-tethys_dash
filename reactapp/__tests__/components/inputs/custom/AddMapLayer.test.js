@@ -803,3 +803,25 @@ it("AddMapLayer passes the map's extent setting to a Linked Extents layer's edit
   await waitFor(() => expect(onChange).toHaveBeenCalled());
   expect(onChange).toHaveBeenLastCalledWith([layer]);
 });
+
+it("AddMapLayer shows a legend turned off with No Legend as Off", async () => {
+  const layer = JSON.parse(JSON.stringify(layerConfigImageArcGISRest));
+  // What the Legend tab's "No Legend" stores.
+  layer.legend = {};
+
+  render(
+    createLoadedComponent({
+      children: (
+        <AddMapLayer
+          values={[layer]}
+          onChange={jest.fn()}
+          setShowingSubModal={jest.fn()}
+          gridItemIndex={0}
+        />
+      ),
+    }),
+  );
+
+  expect(await screen.findByText("Off")).toBeInTheDocument();
+  expect(screen.queryByText("On")).not.toBeInTheDocument();
+});

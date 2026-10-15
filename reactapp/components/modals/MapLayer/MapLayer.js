@@ -42,6 +42,7 @@ import {
   attributePropsPropType,
   saveLayerJSON,
   resolveTablePopupType,
+  hasLegend,
 } from "components/map/utilities";
 import {
   isClassStyleMode,
@@ -564,7 +565,8 @@ const MapLayerModal = ({
       mapConfiguration.tablePopupType = resolvedTablePopupType;
     }
 
-    if (legend) {
+    // "No Legend" is an empty object; save nothing rather than an empty legend.
+    if (hasLegend(legend)) {
       if (typeof legend === "object" && Object.keys(legend).length > 0) {
         if (legend.title === "") {
           setErrorMessage(

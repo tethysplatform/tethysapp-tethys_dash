@@ -1109,6 +1109,31 @@ test("MapLayerModal legend", async () => {
   });
 });
 
+test("MapLayerModal saves no legend for No Legend's empty object", async () => {
+  const addMapLayer = jest.fn();
+  render(
+    <TestingComponent
+      showModal={true}
+      handleModalClose={jest.fn()}
+      addMapLayer={addMapLayer}
+      layerInfo={{
+        // What the Legend tab's "No Legend" stores.
+        legend: {},
+        sourceProps: {
+          props: { url: "Some Url" },
+          type: "ESRI Image and Map Service",
+        },
+        layerProps: { name: "New Layer Name" },
+      }}
+    />,
+  );
+
+  fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+
+  await waitFor(() => expect(addMapLayer).toHaveBeenCalled());
+  expect(addMapLayer.mock.calls[0][0]).not.toHaveProperty("legend");
+});
+
 test("MapLayerModal string legend", async () => {
   const handleModalClose = jest.fn();
   const addMapLayer = jest.fn();

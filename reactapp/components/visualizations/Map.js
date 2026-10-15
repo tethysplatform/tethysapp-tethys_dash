@@ -21,6 +21,7 @@ import {
   configurationPropType,
   mapDrawingPropType,
   loadLayerJSONs,
+  hasLegend,
   resolveTablePopupType,
   formatAttributeValue,
   orderAttributeNames,
@@ -937,7 +938,7 @@ const MapVisualization = ({
         );
 
         for (const layer of layers) {
-          if (layer.legend) {
+          if (hasLegend(layer.legend)) {
             if (
               layer.legend === "default" &&
               isRuntimeRasterConfig(layer.configuration)
