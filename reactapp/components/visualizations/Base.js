@@ -145,6 +145,7 @@ export const Visualization = memo(
             alt={vizData.alt}
             imageError={vizData.imageError}
             visualizationRef={vizRef}
+            keepAspectRatio={!!vizMetadata.enforceAspectRatio}
           />
         );
       case "imageSequence":

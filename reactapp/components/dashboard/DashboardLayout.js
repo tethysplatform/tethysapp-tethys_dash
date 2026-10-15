@@ -88,7 +88,7 @@ const DashboardLayout = ({
   // popup/editor surfaces pass an explicit rowHeight and opt out.
   const sizeRowsToContentArea =
     rowHeightProp === undefined && tabId !== "popup";
-  const hasTabBar = (tabs?.length ?? 0) > 1;
+  const hasTabBar = tabs.length > 1;
   const [contentHeight, setContentHeight] = useState(() =>
     sizeRowsToContentArea ? contentAreaHeight(hasTabBar) : 0,
   );
@@ -213,8 +213,10 @@ const DashboardLayout = ({
     updateTab(tabId, { gridItems: updatedGridItems });
   }
 
+  const currentCols = responsive ? responsiveCols[currentBreakpoint] : colCount;
+
   const handleResize = useCallback(
-    (l, oldLayoutItem, layoutItem, placeholder) => {
+    (l, oldLayoutItem, layoutItem, placeholder, e, node) => {
       const result = gridItemsUpdated.current.find((obj) => {
         return (obj.uuid ?? obj.i) === layoutItem.i;
       });
@@ -223,19 +225,29 @@ const DashboardLayout = ({
       if (enforceAspectRatio) {
         const aspectRatio = metadata.aspectRatio;
         if (aspectRatio) {
+          // aspectRatio is in pixels, but w and h are in grid units, and a
+          // column is no longer as wide as a row is tall. Convert the ratio to
+          // grid units, treating cells as square when the grid can't be measured.
+          const gridWidth = node?.closest?.(".react-grid-layout")?.clientWidth;
+          const colWidth = gridWidth ? gridWidth / currentCols : 0;
+          const gridRatio =
+            colWidth > 0 && rowHeight > 0
+              ? (aspectRatio * rowHeight) / colWidth
+              : aspectRatio;
           const heightDiff = layoutItem.h - oldLayoutItem.h;
           const widthDiff = layoutItem.w - oldLayoutItem.w;
+          // Rounded because grid items are saved as whole grid units.
           if (Math.abs(heightDiff) < Math.abs(widthDiff)) {
-            layoutItem.h = layoutItem.w / aspectRatio;
-            placeholder.h = layoutItem.w / aspectRatio;
+            layoutItem.h = Math.max(1, Math.round(layoutItem.w / gridRatio));
+            placeholder.h = layoutItem.h;
           } else {
-            layoutItem.w = layoutItem.h * aspectRatio;
-            placeholder.w = layoutItem.h * aspectRatio;
+            layoutItem.w = Math.max(1, Math.round(layoutItem.h * gridRatio));
+            placeholder.w = layoutItem.w;
           }
         }
       }
     },
-    [],
+    [currentCols, rowHeight],
   );
 
   const sharedGridProps = {

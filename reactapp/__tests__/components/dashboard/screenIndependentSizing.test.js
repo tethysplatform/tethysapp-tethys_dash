@@ -104,3 +104,92 @@ test("grid rowHeight is unchanged when only the width changes", async () => {
   expect(rowHeightNarrow).toBeGreaterThan(0);
   expect(rowHeightWide).toBeCloseTo(rowHeightNarrow);
 });
+
+// Enforced aspect ratios are in pixels, but columns and rows are no longer the
+// same size, so the resize handler must convert the ratio into grid units.
+test("enforced aspect ratio holds in pixels when cells are not square", async () => {
+  const gridItems = [
+    {
+      ...userDashboard.tabs[0].gridItems[0],
+      metadata_string: JSON.stringify({
+        enforceAspectRatio: true,
+        aspectRatio: 2,
+      }),
+    },
+  ];
+  render(
+    createLoadedComponent({
+      children: (
+        <LayoutAlertContextProvider>
+          <DashboardLayout
+            tabId={userDashboard.tabs[0].id}
+            gridItems={gridItems}
+          />
+        </LayoutAlertContextProvider>
+      ),
+      options: { initialDashboard: userDashboard, inEditing: true },
+    }),
+  );
+  expect(await screen.findByText("Rendered Item")).toBeInTheDocument();
+  await setViewport(1920, 1000);
+
+  const gridWidth = 1920;
+  const colWidth = gridWidth / 100;
+  const { rowHeight, onResize } = staticGridProps;
+  expect(rowHeight).not.toBeCloseTo(colWidth);
+  const node = { closest: () => ({ clientWidth: gridWidth }) };
+  const i = gridItems[0].uuid ?? gridItems[0].i;
+
+  // Width-led drag: height follows.
+  const widthLed = { i, w: 40, h: 20 };
+  const widthPlaceholder = { ...widthLed };
+  onResize([], { i, w: 30, h: 20 }, widthLed, widthPlaceholder, null, node);
+  expect(widthLed.h).toBe(Math.round((40 * colWidth) / 2 / rowHeight));
+  expect(widthPlaceholder.h).toBe(widthLed.h);
+  expect((widthLed.w * colWidth) / (widthLed.h * rowHeight)).toBeCloseTo(2, 0);
+
+  // Height-led drag: width follows.
+  const heightLed = { i, w: 30, h: 30 };
+  const heightPlaceholder = { ...heightLed };
+  onResize([], { i, w: 30, h: 20 }, heightLed, heightPlaceholder, null, node);
+  expect(heightLed.w).toBe(Math.round((30 * rowHeight * 2) / colWidth));
+  expect(heightPlaceholder.w).toBe(heightLed.w);
+  expect((heightLed.w * colWidth) / (heightLed.h * rowHeight)).toBeCloseTo(
+    2,
+    0,
+  );
+});
+
+// The header and tab bar heights come from their CSS variables when the page
+// defines them, and the tab bar only counts when there is more than one tab.
+test("grid rowHeight subtracts the header and tab bar heights from CSS", async () => {
+  const root = document.documentElement;
+  root.style.setProperty("--ts-header-height", "100px");
+  root.style.setProperty("--ts-tab-bar-height", "50px");
+  try {
+    const twoTabDashboard = {
+      ...userDashboard,
+      tabs: [userDashboard.tabs[0], { id: 2, name: "Tab 2", gridItems: [] }],
+    };
+    render(
+      createLoadedComponent({
+        children: (
+          <LayoutAlertContextProvider>
+            <DashboardLayout
+              tabId={twoTabDashboard.tabs[0].id}
+              gridItems={twoTabDashboard.tabs[0].gridItems}
+            />
+          </LayoutAlertContextProvider>
+        ),
+        options: { initialDashboard: twoTabDashboard, inEditing: true },
+      }),
+    );
+    expect(await screen.findByText("Rendered Item")).toBeInTheDocument();
+
+    await setViewport(1600, 1000);
+    expect(staticGridProps.rowHeight).toBeCloseTo((1000 - 100 - 50) / 56);
+  } finally {
+    root.style.removeProperty("--ts-header-height");
+    root.style.removeProperty("--ts-tab-bar-height");
+  }
+});

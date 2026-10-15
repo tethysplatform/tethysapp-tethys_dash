@@ -50,3 +50,13 @@ it("Doesn't render an image if the source is invalid", () => {
 
   expect(screen.getByText("Failed to get image.")).toBeInTheDocument();
 });
+
+it("Fits the image inside the tile only when its aspect ratio is locked", () => {
+  const { rerender } = render(
+    <Image source="https://example.com/a.png" alt="Locked" keepAspectRatio />,
+  );
+  expect(screen.getByAltText("Locked")).toHaveStyle("object-fit: contain");
+
+  rerender(<Image source="https://example.com/a.png" alt="Locked" />);
+  expect(screen.getByAltText("Locked")).not.toHaveStyle("object-fit: contain");
+});
