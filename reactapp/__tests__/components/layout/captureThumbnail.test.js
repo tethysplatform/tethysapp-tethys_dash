@@ -69,6 +69,18 @@ describe("captureThumbnail", () => {
     );
   });
 
+  it("crops one screen at the density a very tall tab was captured at", async () => {
+    captureDashboardCanvas.mockResolvedValue({
+      canvas: { width: 600, height: 16000 },
+      problems: [],
+      dpr: 0.5,
+    });
+
+    await captureThumbnail(DASHBOARD);
+
+    expect(drawImage.mock.calls[0][4]).toBe(Math.round(744 * 0.5));
+  });
+
   it("keeps everything when the grid is shorter than a screen", async () => {
     captureDashboardCanvas.mockResolvedValue({
       canvas: { width: 1200, height: 300 },

@@ -33,6 +33,29 @@ export const CAPTURING_CLASS = "td-capturing";
 const MAX_CANVAS_SIDE = 16384;
 const MAX_CANVAS_AREA = 16777216;
 
+/* A fetch or a capture that never settles would hold the one-capture lock, and
+   every later export and thumbnail would be refused until the page reloads. The
+   proxy gives up on its own upstream after 10 s. */
+export const IMAGE_FETCH_TIMEOUT = 20000;
+export const RENDER_TIMEOUT = 60000;
+
+export class CaptureTimeoutError extends Error {
+  constructor() {
+    super("The capture took too long.");
+    this.name = "CaptureTimeoutError";
+  }
+}
+
+function withTimeout(promise, ms) {
+  let timer;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new CaptureTimeoutError()), ms);
+    }),
+  ]).finally(() => clearTimeout(timer));
+}
+
 export const CAPTURE_MODE = {
   // The full grid, including tiles scrolled out of view.
   whole: "whole",
@@ -137,8 +160,13 @@ export function createCaptureSession() {
    it, throttled the caller, or answered with something that is not an image. */
 async function fetchThroughProxy(source, dashboardUuid) {
   const proxied = proxiedImageUrl(source, dashboardUuid);
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), IMAGE_FETCH_TIMEOUT);
   try {
-    const response = await fetch(proxied, { credentials: "include" });
+    const response = await fetch(proxied, {
+      credentials: "include",
+      signal: abort.signal,
+    });
     const contentType = response.headers.get("Content-Type") || "";
     if (!response.ok || !contentType.startsWith("image/")) {
       console.warn(
@@ -150,6 +178,8 @@ async function fetchThroughProxy(source, dashboardUuid) {
   } catch (error) {
     console.warn(`Capture: could not fetch ${proxied}:`, error);
     return null;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -185,6 +215,8 @@ export async function inlineCrossOriginImages(root, dashboardUuid, session) {
       const original = image.getAttribute("src");
       image.setAttribute("src", dataUrl);
       session.record(() => {
+        // React may have pointed the image somewhere new mid-capture; that wins.
+        if (image.getAttribute("src") !== dataUrl) return;
         if (original === null) image.removeAttribute("src");
         else image.setAttribute("src", original);
       });
@@ -296,18 +328,24 @@ export async function captureDashboardCanvas({
     grid.classList.add(CAPTURING_CLASS);
     session.record(() => grid.classList.remove(CAPTURING_CLASS));
 
-    const result = await snapdom(grid, {
-      ...(clip ? { clip } : {}),
+    const canvas = await withTimeout(
+      snapdom(grid, {
+        ...(clip ? { clip } : {}),
+        dpr: density.dpr,
+        exclude: CAPTURE_EXCLUDED_SELECTORS,
+        excludeMode: "remove",
+        backgroundColor: "#ffffff",
+        embedFonts: false,
+        // Safe to read back: everything in it came from snapdom's own inlined SVG.
+      }).then((result) => result.toCanvas()),
+      RENDER_TIMEOUT,
+    );
+    return {
+      canvas,
+      problems,
       dpr: density.dpr,
-      exclude: CAPTURE_EXCLUDED_SELECTORS,
-      excludeMode: "remove",
-      backgroundColor: "#ffffff",
-      embedFonts: false,
-    });
-
-    // Safe to read back: everything in it came from snapdom's own inlined SVG.
-    const canvas = await result.toCanvas();
-    return { canvas, problems, downscaled: density.reduced };
+      downscaled: density.reduced,
+    };
   } finally {
     session.teardown();
     captureInProgress = false;

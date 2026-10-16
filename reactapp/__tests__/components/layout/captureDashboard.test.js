@@ -5,6 +5,9 @@ import {
   captureDashboardCanvas,
   CaptureBusyError,
   CAPTURE_PROBLEM,
+  CaptureTimeoutError,
+  IMAGE_FETCH_TIMEOUT,
+  RENDER_TIMEOUT,
   CAPTURING_CLASS,
   clampDensity,
   exportFilename,
@@ -254,6 +257,24 @@ describe("captureDashboardCanvas", () => {
     await expect(captureDashboardCanvas()).resolves.toBeDefined();
   });
 
+  it("gives up on a capture that never finishes and frees the lock", async () => {
+    jest.useFakeTimers();
+    try {
+      addGrid();
+      snapdom.mockReturnValue(new Promise(() => {}));
+
+      const pending = captureDashboardCanvas();
+      for (let i = 0; i < 10; i += 1) await Promise.resolve();
+      jest.advanceTimersByTime(RENDER_TIMEOUT);
+
+      await expect(pending).rejects.toBeInstanceOf(CaptureTimeoutError);
+    } finally {
+      jest.useRealTimers();
+    }
+    snapdomReturns();
+    await expect(captureDashboardCanvas()).resolves.toBeDefined();
+  });
+
   it("reports each map with a layer that could not be included", async () => {
     const { tile } = addGrid({ label: "Rain Map" });
     const mapElement = document.createElement("div");
@@ -296,7 +317,7 @@ describe("cross-origin images", () => {
       `/apps/tethysdash/images/proxy/?url=${encodeURIComponent(
         "https://elsewhere.test/logo.png",
       )}&dashboard=${DASHBOARD}`,
-      { credentials: "include" },
+      expect.objectContaining({ credentials: "include" }),
     );
     expect(srcDuringCapture).toMatch(/^data:/);
     expect(image.getAttribute("src")).toBe("https://elsewhere.test/logo.png");
@@ -363,6 +384,48 @@ describe("cross-origin images", () => {
     await captureDashboardCanvas();
 
     expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it("keeps a src React changed while the capture ran", async () => {
+    const { tile } = addGrid();
+    const image = addImage(tile, "https://elsewhere.test/a.png");
+    global.fetch = jest.fn().mockResolvedValue(imageResponse());
+    snapdom.mockImplementation(async () => {
+      image.setAttribute("src", "https://elsewhere.test/b.png");
+      return { toCanvas: async () => capturedCanvas() };
+    });
+
+    await captureDashboardCanvas();
+
+    expect(image.getAttribute("src")).toBe("https://elsewhere.test/b.png");
+  });
+
+  it("gives up on an image fetch that never answers", async () => {
+    jest.useFakeTimers();
+    try {
+      const { tile } = addGrid({ label: "Logo" });
+      addImage(tile, "https://elsewhere.test/slow.png");
+      global.fetch = jest.fn(
+        (url, { signal }) =>
+          new Promise((resolve, reject) =>
+            signal.addEventListener("abort", () =>
+              reject(new DOMException("aborted", "AbortError")),
+            ),
+          ),
+      );
+
+      const pending = captureDashboardCanvas();
+      for (let i = 0; i < 10; i += 1) await Promise.resolve();
+      jest.advanceTimersByTime(IMAGE_FETCH_TIMEOUT);
+
+      await expect(pending).resolves.toEqual(
+        expect.objectContaining({
+          problems: [{ tile: "Logo", kind: CAPTURE_PROBLEM.image }],
+        }),
+      );
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it("fetches a repeated image once", async () => {

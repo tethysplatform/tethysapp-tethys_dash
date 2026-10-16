@@ -1,5 +1,8 @@
 import { Map as OlMap, View } from "ol";
-import moduleLoader, { withProxiedImages } from "components/map/ModuleLoader";
+import moduleLoader, {
+  isProxiableImageLayer,
+  withProxiedImages,
+} from "components/map/ModuleLoader";
 
 /* Dashboard maps, keyed by their map element, so a capture can find the
    OpenLayers map behind each map it is about to serialize. A WeakMap rather
@@ -180,9 +183,7 @@ export async function captureLockedMapLayers(root, session, proxiedUrl) {
           tainted.map(async (canvas) => {
             const layer = layersByCanvas.get(canvas);
             const config = layer && getLayerConfig(layer);
-            const proxiable =
-              config && withProxiedImages(config, proxiedUrl) !== config;
-            if (!proxiable) {
+            if (!isProxiableImageLayer(config)) {
               incomplete.add(element);
               return;
             }

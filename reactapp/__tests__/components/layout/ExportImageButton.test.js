@@ -11,6 +11,7 @@ import {
   captureDashboard,
   CaptureBusyError,
   CAPTURE_PROBLEM,
+  CaptureTimeoutError,
   NothingToCaptureError,
 } from "components/layout/captureDashboard";
 
@@ -167,6 +168,10 @@ describe("ExportImageButton", () => {
       "Another image is still being created. Try again in a moment.",
     ],
     [new NothingToCaptureError(), "There is nothing on this tab to export."],
+    [
+      new CaptureTimeoutError(),
+      "Creating the image took too long. Try again, or export the visible area.",
+    ],
   ])("reports a capture that fails: %s", async (error, message) => {
     jest.spyOn(console, "error").mockImplementation(() => {});
     captureDashboard.mockRejectedValue(error);
@@ -192,6 +197,25 @@ describe("ExportImageButton", () => {
         "The image could not be copied to the clipboard. Try downloading it instead.",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("frees the menu when the browser throws building the clipboard item", async () => {
+    jest.spyOn(console, "error").mockImplementation(() => {});
+    window.ClipboardItem = jest.fn(() => {
+      throw new TypeError("Promise values are not supported");
+    });
+    renderButton();
+
+    await choose("Copy whole tab");
+
+    expect(
+      await screen.findByText(
+        "The image could not be copied to the clipboard. Try downloading it instead.",
+      ),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByLabelText("exportImageButton")).toBeEnabled(),
+    );
   });
 
   it("starts one export at a time and shows it is working", async () => {

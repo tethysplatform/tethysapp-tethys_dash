@@ -1090,8 +1090,17 @@ def _is_blocked_address(address_string):
     except ValueError:
         return True
 
+    # An IPv4 address written as IPv6 is judged as the IPv4 address it is.
+    if getattr(address, "ipv4_mapped", None):
+        address = address.ipv4_mapped
+
+    # Anything not routable on the public internet is refused, which also covers
+    # ranges none of the named checks below do - shared address space
+    # (100.64.0.0/10), where Alibaba Cloud serves instance metadata at
+    # 100.100.100.200, among them.
     return (
-        address.is_private
+        not address.is_global
+        or address.is_private
         or address.is_loopback
         or address.is_link_local
         or address.is_reserved
@@ -1142,13 +1151,19 @@ def _connected_peer_is_blocked(response):
 def _image_proxy_client_address(request):
     """The address an anonymous proxy caller is throttled under.
 
-    X-Real-IP, which the Tethys nginx template sets to the connecting address and
-    a client cannot override. X-Forwarded-For is never used: that template appends
-    the real address to whatever the client sent, so its first entry is the
-    client's to choose, and rotating it would slip past the throttle. Without a
-    fronting proxy setting X-Real-IP, REMOTE_ADDR is used.
+    The last X-Forwarded-For entry: the Tethys nginx and Apache templates both
+    append the address that actually connected to them, after whatever the client
+    sent. Every other source can be chosen by the client - the earlier entries,
+    X-Real-IP where Apache never sets it, and REMOTE_ADDR itself, which Daphne's
+    --proxy-headers fills from the first entry. Behind more than one proxy the
+    last entry is the nearer proxy, so callers share a bucket - stricter, never
+    looser. Without the header, REMOTE_ADDR is used; a server reached directly with
+    no proxy in front could be handed a forged header, which is why production
+    portals sit behind one.
     """
-    return request.META.get("HTTP_X_REAL_IP") or request.META.get("REMOTE_ADDR", "")
+    forwarded = request.META.get("HTTP_X_FORWARDED_FOR", "")
+    hops = [hop.strip() for hop in forwarded.split(",") if hop.strip()]
+    return hops[-1] if hops else request.META.get("REMOTE_ADDR", "")
 
 
 @controller(url="tethysdash/images/proxy", login_required=False)
@@ -1171,7 +1186,7 @@ def image_proxy(request):
     The residual is a throttled public image relay, accepted on the grounds that it
     cannot reach anything internal (the SSRF checks below), serves images only,
     caps their size, and rate-limits callers who are not logged in. The throttle
-    is keyed on X-Real-IP, so it relies on the fronting proxy setting that header.
+    is keyed on the address the fronting proxy appends to X-Forwarded-For.
 
     Args:
         request: Django HTTP request object with query parameters:

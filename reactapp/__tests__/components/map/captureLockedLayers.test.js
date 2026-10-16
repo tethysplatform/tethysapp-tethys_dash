@@ -12,10 +12,11 @@ jest.mock("components/map/ModuleLoader", () => ({
   __esModule: true,
   default: jest.fn(),
   // Proxiable exactly when the layer has a WMS source, as the real one decides.
-  withProxiedImages: (config, proxiedUrl) =>
-    config?.props?.source?.type === "WMS"
-      ? { ...config, proxied: proxiedUrl("https://maps.test/wms") }
-      : config,
+  isProxiableImageLayer: (config) => config?.props?.source?.type === "WMS",
+  withProxiedImages: (config, proxiedUrl) => ({
+    ...config,
+    proxied: proxiedUrl("https://maps.test/wms"),
+  }),
 }));
 jest.mock("services/utilities", () => ({
   getTethysAppRoot: () => "/apps/tethysdash/",

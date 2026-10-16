@@ -3,6 +3,7 @@ import moduleLoader, {
   loadESRIJSON,
   withAntimeridianFix,
   withProxiedImages,
+  isProxiableImageLayer,
   withIsolatedCanvas,
   withAutoCrossOrigin,
   applyAutoRamp,
@@ -4381,6 +4382,12 @@ describe("withProxiedImages", () => {
 
     expect(proxied.props.source.props.params).not.toBe(params);
     expect(proxied.props.source.props.params).toEqual(params);
+  });
+
+  it("names the layers it can proxy", () => {
+    expect(isProxiableImageLayer(imageLayer("WMS", {}))).toBe(true);
+    expect(isProxiableImageLayer(imageLayer("Image Tile", {}))).toBe(false);
+    expect(isProxiableImageLayer(undefined)).toBe(false);
   });
 
   it("leaves a layer with no image source alone", () => {

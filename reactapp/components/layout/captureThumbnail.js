@@ -10,13 +10,14 @@ const THUMBNAIL_WIDTH = 640;
 /* The top of the tab as a visitor first sees it: one screen's height of the
    grid, taken from a capture of the whole grid so it never depends on where the
    author happened to be scrolled. */
-function cropAndScale(captured) {
+function cropAndScale(captured, dpr) {
   const screenHeight = (window.innerHeight || 0) - getHeaderHeight();
-  // The capture is taken at density 1, so canvas pixels are CSS pixels. At least
-  // one row survives, and a window that reports no height keeps everything.
+  // Canvas pixels are CSS pixels times the density, which a very tall tab pushes
+  // below 1. At least one row survives, and a window that reports no height
+  // keeps everything.
   const cropHeight =
     screenHeight > 0
-      ? Math.max(1, Math.min(captured.height, Math.round(screenHeight)))
+      ? Math.max(1, Math.min(captured.height, Math.round(screenHeight * dpr)))
       : captured.height;
 
   const width = THUMBNAIL_WIDTH;
@@ -53,13 +54,13 @@ function cropAndScale(captured) {
  */
 export default async function captureThumbnail(dashboardUuid) {
   try {
-    const { canvas } = await captureDashboardCanvas({
+    const { canvas, dpr = 1 } = await captureDashboardCanvas({
       mode: CAPTURE_MODE.whole,
       dpr: 1,
       dashboardUuid,
     });
     if (!canvas || canvas.width <= 0 || canvas.height <= 0) return null;
-    return cropAndScale(canvas);
+    return cropAndScale(canvas, dpr);
   } catch (error) {
     if (isExpectedCaptureFailure(error)) return null;
     console.error("Dashboard thumbnail capture failed:", error);

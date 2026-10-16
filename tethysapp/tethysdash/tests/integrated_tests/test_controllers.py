@@ -19,6 +19,7 @@ from tethysapp.tethysdash.controllers import (
     _is_blocked_image_host,
     _connected_peer_is_blocked,
     _is_blocked_address,
+    _rate_limit_retry_after,
 )
 import requests
 import socket
@@ -2848,7 +2849,9 @@ def test_image_proxy_throttles_anonymous_callers(
     _permit_any_image_host(mocker)
     mocker.patch("tethysapp.tethysdash.controllers.IMAGE_PROXY_ANONYMOUS_LIMIT", 2)
     params = {"url": "https://example.com/logo.png", "dashboard": "any"}
-    headers = {"HTTP_X_REAL_IP": "203.0.113.7"}
+    # As the Tethys nginx and Apache templates send it: the proxy appends the
+    # address that connected.
+    headers = {"HTTP_X_FORWARDED_FOR": "203.0.113.7"}
 
     for _ in range(2):
         assert (
@@ -2862,7 +2865,7 @@ def test_image_proxy_throttles_anonymous_callers(
 
     # Another address has its own window.
     other = client.get(
-        reverse("tethysdash:image_proxy"), params, HTTP_X_REAL_IP="203.0.113.8"
+        reverse("tethysdash:image_proxy"), params, HTTP_X_FORWARDED_FOR="203.0.113.8"
     )
     assert other.status_code == 200
 
@@ -2875,10 +2878,11 @@ def test_image_proxy_throttles_anonymous_callers(
 
 
 @pytest.mark.django_db
-def test_image_proxy_throttle_ignores_a_spoofed_forwarded_for(
+def test_image_proxy_throttle_ignores_addresses_the_client_chooses(
     client, mock_app, proxy_view_allowed, clear_cache, mocker
 ):
-    """X-Forwarded-For's first entry is the client's to choose; rotating it must
+    """Everything before the proxy's own entry is the client's to choose, and so is
+    X-Real-IP where the fronting proxy does not overwrite it. Rotating them must
     not reset the count."""
     mock_app("tethysapp.tethysdash.controllers.App")
     _permit_any_image_host(mocker)
@@ -2888,18 +2892,31 @@ def test_image_proxy_throttle_ignores_a_spoofed_forwarded_for(
     first = client.get(
         reverse("tethysdash:image_proxy"),
         params,
-        HTTP_X_REAL_IP="203.0.113.7",
-        HTTP_X_FORWARDED_FOR="198.51.100.1",
+        HTTP_X_REAL_IP="198.51.100.1",
+        HTTP_X_FORWARDED_FOR="198.51.100.1, 203.0.113.7",
     )
     second = client.get(
         reverse("tethysdash:image_proxy"),
         params,
-        HTTP_X_REAL_IP="203.0.113.7",
-        HTTP_X_FORWARDED_FOR="198.51.100.2",
+        HTTP_X_REAL_IP="198.51.100.2",
+        HTTP_X_FORWARDED_FOR="198.51.100.2,203.0.113.7",
     )
 
     assert first.status_code == 200
     assert second.status_code == 429
+
+
+@pytest.mark.django_db
+def test_image_proxy_throttles_by_remote_addr_without_a_proxy(
+    client, mock_app, proxy_view_allowed, clear_cache, mocker
+):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    _permit_any_image_host(mocker)
+    mocker.patch("tethysapp.tethysdash.controllers.IMAGE_PROXY_ANONYMOUS_LIMIT", 1)
+    params = {"url": "https://example.com/logo.png", "dashboard": "any"}
+
+    assert client.get(reverse("tethysdash:image_proxy"), params).status_code == 200
+    assert client.get(reverse("tethysdash:image_proxy"), params).status_code == 429
 
 
 @pytest.mark.django_db
@@ -3058,7 +3075,17 @@ def test_is_blocked_image_host_allows_a_public_address(mocker):
 
 @pytest.mark.parametrize(
     "address",
-    ["127.0.0.1", "10.0.0.5", "192.168.1.10", "169.254.169.254", "0.0.0.0"],
+    [
+        "127.0.0.1",
+        "10.0.0.5",
+        "192.168.1.10",
+        "169.254.169.254",
+        "0.0.0.0",
+        # Shared address space: Alibaba Cloud's instance metadata.
+        "100.100.100.200",
+        # A private address written as IPv6.
+        "::ffff:10.0.0.1",
+    ],
 )
 def test_is_blocked_image_host_blocks_internal_addresses(mocker, address):
     mocker.patch(
@@ -3267,3 +3294,37 @@ def test_image_proxy_reports_an_upstream_error_status(
         reverse("tethysdash:image_proxy"), {"url": "https://example.com/missing.png"}
     )
     assert response.status_code == 502
+
+
+def test_rate_limit_counts_up_to_the_limit_then_reports_the_wait(mocker):
+    cache = mocker.patch("tethysapp.tethysdash.controllers.cache")
+    cache.get.side_effect = [0, 1, 2]
+    cache.ttl.return_value = 7
+
+    assert _rate_limit_retry_after("k", limit=2, window=10) is None
+    cache.set.assert_called_once_with("k", 1, timeout=10)
+    assert _rate_limit_retry_after("k", limit=2, window=10) is None
+    cache.incr.assert_called_once_with("k")
+    assert _rate_limit_retry_after("k", limit=2, window=10) == 7
+
+
+@pytest.mark.parametrize("ttl", [None, Exception("no ttl on this backend")])
+def test_rate_limit_falls_back_to_the_window_without_a_ttl(mocker, ttl):
+    cache = mocker.patch("tethysapp.tethysdash.controllers.cache")
+    cache.get.return_value = 5
+    if isinstance(ttl, Exception):
+        cache.ttl.side_effect = ttl
+    else:
+        cache.ttl.return_value = ttl
+
+    assert _rate_limit_retry_after("k", limit=5, window=10) == 10
+
+
+def test_rate_limit_restarts_a_window_that_expired_mid_count(mocker):
+    """The key can expire between the read and the increment."""
+    cache = mocker.patch("tethysapp.tethysdash.controllers.cache")
+    cache.get.return_value = 1
+    cache.incr.side_effect = ValueError("Key 'k' not found")
+
+    assert _rate_limit_retry_after("k", limit=5, window=10) is None
+    cache.set.assert_called_once_with("k", 1, timeout=10)

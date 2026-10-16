@@ -15,6 +15,7 @@ import {
   CaptureBusyError,
   CAPTURE_MODE,
   CAPTURE_PROBLEM,
+  CaptureTimeoutError,
   exportFilename,
   isExpectedCaptureFailure,
   NothingToCaptureError,
@@ -48,6 +49,9 @@ function captureFailureMessage(error) {
   }
   if (error instanceof NothingToCaptureError) {
     return "There is nothing on this tab to export.";
+  }
+  if (error instanceof CaptureTimeoutError) {
+    return "Creating the image took too long. Try again, or export the visible area.";
   }
   return "The image could not be created.";
 }
@@ -108,13 +112,19 @@ const ExportImageButton = ({ disabled = false }) => {
       /* Written now, inside the click, with the image still to come: the
          browser grants clipboard access to the user's gesture, and the capture
          can outlast it. Safari accepts only this form. */
-      delivered = navigator.clipboard
-        .write([
-          new window.ClipboardItem({
-            "image/png": capture.then(({ blob }) => blob),
-          }),
-        ])
-        .then(() => capture);
+      try {
+        delivered = navigator.clipboard
+          .write([
+            new window.ClipboardItem({
+              "image/png": capture.then(({ blob }) => blob),
+            }),
+          ])
+          .then(() => capture);
+      } catch (error) {
+        // A browser that cannot take an image still to come throws here rather
+        // than rejecting; routed into the same handling so the menu frees up.
+        delivered = Promise.reject(error);
+      }
     } else {
       delivered = capture.then((result) => {
         downloadBlob(result.blob, exportFilename(name));

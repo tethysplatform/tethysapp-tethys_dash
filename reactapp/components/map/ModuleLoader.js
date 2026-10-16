@@ -178,9 +178,14 @@ export async function withAutoCrossOrigin(type, props) {
  * would have installed is applied here first, then the proxy. Returns the config
  * unchanged for any other layer.
  */
+/** Whether a layer's image can be re-fetched through the proxy (see below). */
+export function isProxiableImageLayer(config) {
+  return CORS_PROBED_SOURCE_TYPES.has(config?.props?.source?.type);
+}
+
 export function withProxiedImages(config, proxiedUrl) {
-  const source = config?.props?.source;
-  if (!source || !CORS_PROBED_SOURCE_TYPES.has(source.type)) return config;
+  if (!isProxiableImageLayer(config)) return config;
+  const source = config.props.source;
 
   const isArcGIS = source.type === "ESRI Image and Map Service";
   const sourceProps = { ...source.props };
