@@ -17,6 +17,7 @@ from tethysapp.tethysdash.model import (
     clean_up_jsons,
     init_primary_db,
     get_dashboard_user_permission,
+    can_view_dashboard,
     update_dashboard_permissions,
     update_permission_groups,
     get_user_permission_groups,
@@ -2491,3 +2492,79 @@ def test_update_named_dashboard_auto_thumbnail(
     update_named_dashboard(test_owner_user, dashboard.id, {"autoThumbnail": True})
     db_session.refresh(dashboard)
     assert dashboard.auto_thumbnail is True
+
+
+def _give_real_uuid(db_session, dashboard):
+    """The shared private dashboard fixture's uuid is not a UUID; viewing needs one."""
+    dashboard.uuid = str(uuid4())
+    db_session.commit()
+    return dashboard.uuid
+
+
+@pytest.mark.django_db
+def test_can_view_dashboard_allows_anyone_on_a_public_dashboard(
+    public_dashboard, mock_app_get_ps_db
+):
+    from django.contrib.auth.models import AnonymousUser
+
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+
+    assert can_view_dashboard(AnonymousUser(), public_dashboard.uuid) is True
+    # Accepted in any form UUID() takes, as a request may send it.
+    assert can_view_dashboard(AnonymousUser(), public_dashboard.uuid.upper()) is True
+
+
+@pytest.mark.django_db
+def test_can_view_dashboard_on_a_private_dashboard(
+    dashboard,
+    db_session,
+    mock_app_get_ps_db,
+    test_owner_user,
+    test_member_user,
+    admin_user,
+):
+    from django.contrib.auth.models import AnonymousUser
+
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    dashboard_uuid = _give_real_uuid(db_session, dashboard)
+
+    # A direct permission, and one held through a permission group.
+    assert can_view_dashboard(test_owner_user, dashboard_uuid) is True
+    assert can_view_dashboard(test_member_user, dashboard_uuid) is True
+    # Logged in but holding no permission.
+    assert can_view_dashboard(admin_user, dashboard_uuid) is False
+    assert can_view_dashboard(AnonymousUser(), dashboard_uuid) is False
+
+
+@pytest.mark.django_db
+def test_can_view_dashboard_ignores_an_empty_username_permission_for_anonymous(
+    dashboard, db_session, mock_app_get_ps_db
+):
+    """An anonymous user's username is "", which must not match a stored "" row."""
+    from django.contrib.auth.models import AnonymousUser
+
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    dashboard_uuid = _give_real_uuid(db_session, dashboard)
+    db_session.add(
+        DashboardPermission(dashboard_id=dashboard.id, username="", permission="viewer")
+    )
+    db_session.commit()
+
+    assert can_view_dashboard(AnonymousUser(), dashboard_uuid) is False
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("dashboard_uuid", ["", "not-a-uuid", None, "../x"])
+def test_can_view_dashboard_refuses_a_malformed_uuid(
+    dashboard_uuid, mock_app_get_ps_db, test_owner_user
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    assert can_view_dashboard(test_owner_user, dashboard_uuid) is False
+
+
+@pytest.mark.django_db
+def test_can_view_dashboard_refuses_an_unknown_dashboard(
+    mock_app_get_ps_db, test_owner_user
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    assert can_view_dashboard(test_owner_user, str(uuid4())) is False

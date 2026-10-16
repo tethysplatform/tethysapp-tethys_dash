@@ -33,6 +33,7 @@ from tethysapp.tethysdash.model import (
     copy_thumbnail,
     delete_thumbnail,
     canonical_dashboard_uuid,
+    can_view_dashboard,
 )
 from django.core.cache import cache
 from tethysapp.tethysdash.visualizations import (
@@ -50,14 +51,19 @@ from better_profanity import profanity
 # Load the default wordlist
 profanity.load_censor_words()
 
-# Bounds for the thumbnail image proxy. The timeout keeps a slow host from
-# tying up a worker; the size cap keeps a large image from being read into
-# memory, and comfortably exceeds anything worth showing in a 640px thumbnail.
+# Bounds for the image proxy behind dashboard captures. The timeout keeps a slow
+# host from tying up a worker; the size cap keeps a large image from being read
+# into memory, and comfortably exceeds a full-window map image.
 IMAGE_PROXY_TIMEOUT = 10
 IMAGE_PROXY_MAX_BYTES = 10 * 1024 * 1024
 # Redirects are common for image CDNs, but each hop is re-checked, so the chain
 # is kept short rather than unbounded.
 IMAGE_PROXY_MAX_REDIRECTS = 3
+# Requests a caller who is not logged in may make per window. One export costs a
+# request per cross-origin image plus one per map layer that has to be re-fetched,
+# so this leaves room for several exports a minute and little else.
+IMAGE_PROXY_ANONYMOUS_LIMIT = 120
+IMAGE_PROXY_ANONYMOUS_WINDOW = 60
 
 
 def _get_error_message(e, fallback):
@@ -1120,30 +1126,89 @@ def _connected_peer_is_blocked(response):
     return _is_blocked_address(peer)
 
 
-@controller(url="tethysdash/images/proxy", login_required=True)
+def _image_proxy_client_address(request):
+    """The address an anonymous proxy caller is throttled under.
+
+    X-Real-IP, which the Tethys nginx template sets to the connecting address and
+    a client cannot override. X-Forwarded-For is never used: that template appends
+    the real address to whatever the client sent, so its first entry is the
+    client's to choose, and rotating it would slip past the throttle. Without a
+    fronting proxy setting X-Real-IP, REMOTE_ADDR is used.
+    """
+    return request.META.get("HTTP_X_REAL_IP") or request.META.get("REMOTE_ADDR", "")
+
+
+def _image_proxy_retry_after(request):
+    """Count an anonymous proxy request; return seconds to wait when over the limit.
+
+    Returns None while the caller is under the limit. Best-effort in the same way as
+    the live-chat limit: the cache read and write are not atomic, and a per-process
+    cache counts per worker.
+    """
+    key = f"image_proxy_rate_{_image_proxy_client_address(request)}"
+    count = cache.get(key, 0)
+    if count >= IMAGE_PROXY_ANONYMOUS_LIMIT:
+        try:
+            # Not every cache backend can report a key's remaining lifetime.
+            retry_after = cache.ttl(key)
+        except Exception:
+            retry_after = None
+        return retry_after or IMAGE_PROXY_ANONYMOUS_WINDOW
+
+    if count == 0:
+        cache.set(key, 1, timeout=IMAGE_PROXY_ANONYMOUS_WINDOW)
+    else:
+        try:
+            cache.incr(key)
+        except ValueError:
+            # The window expired between the read and the increment.
+            cache.set(key, 1, timeout=IMAGE_PROXY_ANONYMOUS_WINDOW)
+    return None
+
+
+@controller(url="tethysdash/images/proxy", login_required=False)
 def image_proxy(request):
     """
     Fetch a cross-origin image and return it from this origin.
 
-    Exists for dashboard thumbnails. Capturing one serialises the page, which
-    means re-fetching every <img> from JavaScript, and that re-fetch is subject
-    to CORS - so an image whose host sends no Access-Control-Allow-Origin comes
-    out blank in the thumbnail even though it displays fine in the dashboard.
-    Nothing in the browser can work around that. Fetching server-side can,
-    because server-to-server requests are not subject to CORS.
+    Exists for dashboard captures - the thumbnail and the PNG export. Capturing
+    serialises the page, which means re-fetching every <img> from JavaScript, and
+    that re-fetch is subject to CORS - so an image whose host sends no
+    Access-Control-Allow-Origin comes out blank in the capture even though it
+    displays fine in the dashboard. Nothing in the browser can work around that.
+    Fetching server-side can, because server-to-server requests are not subject
+    to CORS.
 
-    Only the capture path uses this (see components/layout/captureThumbnail),
-    and a capture only runs when a dashboard is saved, which already requires an
-    authenticated editor - hence login_required.
+    Anyone who can view a dashboard can export it, including a visitor to a public
+    dashboard who is not logged in, so the gate is viewing rights on the dashboard
+    the request names rather than a login. That does not tie the URL to that
+    dashboard: anyone naming a public dashboard can fetch any image through this.
+    The residual is a throttled public image relay, accepted on the grounds that it
+    cannot reach anything internal (the SSRF checks below), serves images only,
+    caps their size, and rate-limits callers who are not logged in. The throttle
+    is keyed on X-Real-IP, so it relies on the fronting proxy setting that header.
 
     Args:
         request: Django HTTP request object with query parameters:
             - url: The absolute http(s) image URL to fetch
+            - dashboard: The uuid of the dashboard being captured
 
     Returns:
         HttpResponse: The image bytes with their upstream content type, or a
             plain-text error with an appropriate status code.
     """
+    if not request.user.is_authenticated:
+        retry_after = _image_proxy_retry_after(request)
+        if retry_after is not None:
+            throttled = HttpResponse("Too many image requests", status=429)
+            throttled["Retry-After"] = str(int(retry_after))
+            return throttled
+
+    # One answer for a missing, malformed, unknown or private dashboard, so the
+    # proxy cannot be used to learn which dashboards exist.
+    if not can_view_dashboard(request.user, request.GET.get("dashboard", "")):
+        return HttpResponse("Not permitted", status=403)
+
     url = request.GET.get("url", "")
     response = None
 

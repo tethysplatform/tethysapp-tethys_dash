@@ -1199,6 +1199,48 @@ def get_dashboard_user_permission(session, dashboard, user):
         return None
 
 
+def can_view_dashboard(user, dashboard_uuid):
+    """
+    Whether a user may view the dashboard with the given uuid.
+
+    Viewing takes what copying takes: a permission of any level, or a public
+    dashboard. A request that is not logged in is matched against public dashboards
+    only. Its username is "", which would otherwise collide with any permission row
+    stored under an empty username.
+
+    Args:
+        user: User object, authenticated or anonymous
+        dashboard_uuid: The dashboard's uuid, in any form UUID() accepts
+
+    Returns:
+        bool: True when the dashboard exists and the user may view it. A malformed
+            uuid or an unknown dashboard is False, never an error.
+    """
+    try:
+        dashboard_uuid = canonical_dashboard_uuid(dashboard_uuid)
+    except (ValueError, TypeError, AttributeError):
+        return False
+
+    from tethysapp.tethysdash.app import App
+
+    Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
+    session = Session()
+
+    try:
+        dashboard = (
+            session.query(Dashboard).filter(Dashboard.uuid == dashboard_uuid).first()
+        )
+        if not dashboard:
+            return False
+        if dashboard.public:
+            return True
+        if not getattr(user, "is_authenticated", False):
+            return False
+        return get_dashboard_user_permission(session, dashboard, user) is not None
+    finally:
+        session.close()
+
+
 def get_visualization_user_permission(session, visualization, user):
     """
     Check if a user has permission to use a specific visualization.
