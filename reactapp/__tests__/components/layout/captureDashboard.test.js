@@ -8,7 +8,6 @@ import {
   CAPTURING_CLASS,
   clampDensity,
   exportFilename,
-  isCaptureInProgress,
   NothingToCaptureError,
 } from "components/layout/captureDashboard";
 
@@ -228,7 +227,9 @@ describe("captureDashboardCanvas", () => {
 
     expect(grid.classList.contains(CAPTURING_CLASS)).toBe(false);
     expect(image.getAttribute("src")).toBe("https://elsewhere.test/logo.png");
-    expect(isCaptureInProgress()).toBe(false);
+    // The lock is free again.
+    snapdomReturns();
+    await expect(captureDashboardCanvas()).resolves.toBeDefined();
   });
 
   it("runs one capture at a time", async () => {
@@ -364,6 +365,24 @@ describe("cross-origin images", () => {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
+  it("fetches a repeated image once", async () => {
+    const { tile } = addGrid();
+    const first = addImage(tile, "https://elsewhere.test/logo.png");
+    const second = addImage(tile, "https://elsewhere.test/logo.png");
+    global.fetch = jest.fn().mockResolvedValue(imageResponse());
+    let sources;
+    snapdom.mockImplementation(async () => {
+      sources = [first.getAttribute("src"), second.getAttribute("src")];
+      return { toCanvas: async () => capturedCanvas() };
+    });
+
+    await captureDashboardCanvas();
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(sources[0]).toMatch(/^data:/);
+    expect(sources[1]).toBe(sources[0]);
+  });
+
   it("removes the attribute again for an image that never had one", async () => {
     const { tile } = addGrid();
     const image = document.createElement("img");
@@ -402,17 +421,20 @@ describe("captureDashboard", () => {
     expect(result.downscaled).toBe(false);
   });
 
-  it("retries once at a lower density when the browser cannot encode the canvas", async () => {
-    addGrid();
-    snapdom
-      .mockResolvedValueOnce({
-        toCanvas: async () => capturedCanvas({ blob: false }),
-      })
-      .mockResolvedValueOnce({ toCanvas: async () => capturedCanvas() });
+  it("halves the capture it already has when the browser cannot encode it", async () => {
+    const { tile } = addGrid();
+    addImage(tile, "https://elsewhere.test/logo.png");
+    global.fetch = jest.fn().mockResolvedValue(imageResponse());
+    snapdomReturns(capturedCanvas({ blob: false }));
+    jest
+      .spyOn(HTMLCanvasElement.prototype, "toBlob")
+      .mockImplementation((done) => done(new Blob(["png"])));
 
     const result = await captureDashboard();
 
-    expect(snapdom.mock.calls[1][1].dpr).toBe(1);
+    // Not captured again: no second snapdom pass, no second proxy fetch.
+    expect(snapdom).toHaveBeenCalledTimes(1);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
     expect(result.blob).toBeInstanceOf(Blob);
     expect(result.downscaled).toBe(true);
   });
@@ -420,6 +442,9 @@ describe("captureDashboard", () => {
   it("fails when the canvas cannot be encoded at all", async () => {
     addGrid();
     snapdomReturns(capturedCanvas({ blob: false }));
+    jest
+      .spyOn(HTMLCanvasElement.prototype, "toBlob")
+      .mockImplementation((done) => done(null));
 
     await expect(captureDashboard()).rejects.toThrow(
       "The browser could not encode the image.",

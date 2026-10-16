@@ -1,8 +1,8 @@
 import {
   captureDashboardCanvas,
-  CaptureBusyError,
+  CAPTURE_MODE,
   getHeaderHeight,
-  NothingToCaptureError,
+  isExpectedCaptureFailure,
 } from "components/layout/captureDashboard";
 
 const THUMBNAIL_WIDTH = 640;
@@ -54,19 +54,14 @@ function cropAndScale(captured) {
 export default async function captureThumbnail(dashboardUuid) {
   try {
     const { canvas } = await captureDashboardCanvas({
-      mode: "whole",
+      mode: CAPTURE_MODE.whole,
       dpr: 1,
       dashboardUuid,
     });
     if (!canvas || canvas.width <= 0 || canvas.height <= 0) return null;
     return cropAndScale(canvas);
   } catch (error) {
-    if (
-      error instanceof NothingToCaptureError ||
-      error instanceof CaptureBusyError
-    ) {
-      return null;
-    }
+    if (isExpectedCaptureFailure(error)) return null;
     console.error("Dashboard thumbnail capture failed:", error);
     return null;
   }

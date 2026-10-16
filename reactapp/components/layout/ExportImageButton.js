@@ -4,6 +4,7 @@ import Dropdown from "react-bootstrap/Dropdown";
 import Spinner from "react-bootstrap/Spinner";
 import { BsCamera } from "react-icons/bs";
 import { LayoutContext } from "components/contexts/Contexts";
+import { downloadBlob } from "components/visualizations/utilities";
 import {
   useLayoutErrorAlertContext,
   useLayoutSuccessAlertContext,
@@ -12,8 +13,10 @@ import {
 import {
   captureDashboard,
   CaptureBusyError,
+  CAPTURE_MODE,
   CAPTURE_PROBLEM,
   exportFilename,
+  isExpectedCaptureFailure,
   NothingToCaptureError,
 } from "components/layout/captureDashboard";
 
@@ -25,17 +28,6 @@ export function canCopyImages() {
     typeof navigator.clipboard?.write === "function" &&
     window.isSecureContext !== false
   );
-}
-
-function downloadBlob(blob, filename) {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
 }
 
 const PROBLEM_TEXT = {
@@ -135,10 +127,7 @@ const ExportImageButton = ({ disabled = false }) => {
       .catch(async (error) => {
         const { error: captureError } = await captureOutcome;
         if (captureError) {
-          if (
-            !(captureError instanceof CaptureBusyError) &&
-            !(captureError instanceof NothingToCaptureError)
-          ) {
+          if (!isExpectedCaptureFailure(captureError)) {
             console.error("Dashboard image export failed:", captureError);
           }
           showError(captureFailureMessage(captureError));
@@ -177,19 +166,27 @@ const ExportImageButton = ({ disabled = false }) => {
         )}
       </Dropdown.Toggle>
       <Dropdown.Menu align="end">
-        <Dropdown.Item onClick={() => exportImage("whole", "download")}>
+        <Dropdown.Item
+          onClick={() => exportImage(CAPTURE_MODE.whole, "download")}
+        >
           Download whole tab
         </Dropdown.Item>
-        <Dropdown.Item onClick={() => exportImage("visible", "download")}>
+        <Dropdown.Item
+          onClick={() => exportImage(CAPTURE_MODE.visible, "download")}
+        >
           Download visible area
         </Dropdown.Item>
         {copyAvailable && (
           <>
             <Dropdown.Divider />
-            <Dropdown.Item onClick={() => exportImage("whole", "copy")}>
+            <Dropdown.Item
+              onClick={() => exportImage(CAPTURE_MODE.whole, "copy")}
+            >
               Copy whole tab
             </Dropdown.Item>
-            <Dropdown.Item onClick={() => exportImage("visible", "copy")}>
+            <Dropdown.Item
+              onClick={() => exportImage(CAPTURE_MODE.visible, "copy")}
+            >
               Copy visible area
             </Dropdown.Item>
           </>

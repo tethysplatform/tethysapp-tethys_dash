@@ -51,7 +51,8 @@ function layerCanvas(layer) {
 /**
  * Render one layer, alone, in an offscreen map that matches the live one, with
  * its image request routed through the proxy. Resolves to the layer's canvas, or
- * rejects on a load error or timeout. dispose() is always called by the caller.
+ * rejects on a load error or timeout. Its cleanup goes onto disposers, which the
+ * caller runs however this ends.
  */
 async function renderThroughProxy(liveMap, layerConfig, proxiedUrl, disposers) {
   const size = liveMap.getSize();
@@ -84,12 +85,15 @@ async function renderThroughProxy(liveMap, layerConfig, proxiedUrl, disposers) {
       rotation: liveView.getRotation(),
     }),
   });
+  let layer = null;
   disposers.push(() => {
+    layer?.dispose?.();
     offscreen.setTarget(undefined);
+    offscreen.dispose?.();
     container.remove();
   });
 
-  const layer = await moduleLoader(
+  layer = await moduleLoader(
     withProxiedImages(layerConfig, proxiedUrl),
     projection,
     () => projection,

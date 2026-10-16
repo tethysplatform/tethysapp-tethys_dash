@@ -33,6 +33,13 @@ export const CAPTURING_CLASS = "td-capturing";
 const MAX_CANVAS_SIDE = 16384;
 const MAX_CANVAS_AREA = 16777216;
 
+export const CAPTURE_MODE = {
+  // The full grid, including tiles scrolled out of view.
+  whole: "whole",
+  // Only the part of the grid on screen.
+  visible: "visible",
+};
+
 export const CAPTURE_PROBLEM = {
   image: "image",
   mapLayer: "mapLayer",
@@ -52,11 +59,14 @@ export class NothingToCaptureError extends Error {
   }
 }
 
-let captureInProgress = false;
-
-export function isCaptureInProgress() {
-  return captureInProgress;
+/** Failures that are a state of the page rather than a fault worth logging. */
+export function isExpectedCaptureFailure(error) {
+  return (
+    error instanceof CaptureBusyError || error instanceof NothingToCaptureError
+  );
 }
+
+let captureInProgress = false;
 
 export function proxiedImageUrl(url, dashboardUuid) {
   return (
@@ -123,57 +133,64 @@ export function createCaptureSession() {
   };
 }
 
+/* One image through the proxy, as a data URL, or null when the proxy refused
+   it, throttled the caller, or answered with something that is not an image. */
+async function fetchThroughProxy(source, dashboardUuid) {
+  const proxied = proxiedImageUrl(source, dashboardUuid);
+  try {
+    const response = await fetch(proxied, { credentials: "include" });
+    const contentType = response.headers.get("Content-Type") || "";
+    if (!response.ok || !contentType.startsWith("image/")) {
+      console.warn(
+        `Capture: proxy returned ${response.status} ${contentType} for ${source}`,
+      );
+      return null;
+    }
+    return await blobToDataUrl(await response.blob());
+  } catch (error) {
+    console.warn(`Capture: could not fetch ${proxied}:`, error);
+    return null;
+  }
+}
+
 /**
  * Swap each rendered cross-origin <img> under root for an inline copy fetched
- * through the proxy. An image the proxy refuses is left as it is and reported.
+ * through the proxy, once per distinct URL. An image the proxy refuses is left
+ * as it is. Returns the problems.
  */
-export async function inlineCrossOriginImages(
-  root,
-  dashboardUuid,
-  session,
-  problems,
-) {
+export async function inlineCrossOriginImages(root, dashboardUuid, session) {
   const images = Array.from(root.querySelectorAll("img")).filter(
     (image) =>
       isCrossOrigin(image.currentSrc || image.src) && isRendered(image),
   );
 
+  // A repeated logo costs one request against the caller's budget, not one each.
+  const fetches = new Map();
+  const problems = [];
   await Promise.all(
     images.map(async (image) => {
       const source = image.currentSrc || image.src;
-      const proxied = proxiedImageUrl(source, dashboardUuid);
-      try {
-        const response = await fetch(proxied, { credentials: "include" });
-        const contentType = response.headers.get("Content-Type") || "";
-
-        // Refused, throttled, or not an image at all.
-        if (!response.ok || !contentType.startsWith("image/")) {
-          console.warn(
-            `Capture: proxy returned ${response.status} ${contentType} for ${source}`,
-          );
-          problems.push({
-            tile: tileLabelOf(image),
-            kind: CAPTURE_PROBLEM.image,
-          });
-          return;
-        }
-
-        const dataUrl = await blobToDataUrl(await response.blob());
-        const original = image.getAttribute("src");
-        image.setAttribute("src", dataUrl);
-        session.record(() => {
-          if (original === null) image.removeAttribute("src");
-          else image.setAttribute("src", original);
-        });
-      } catch (error) {
-        console.warn(`Capture: could not fetch ${proxied}:`, error);
+      if (!fetches.has(source)) {
+        fetches.set(source, fetchThroughProxy(source, dashboardUuid));
+      }
+      const dataUrl = await fetches.get(source);
+      if (!dataUrl) {
         problems.push({
           tile: tileLabelOf(image),
           kind: CAPTURE_PROBLEM.image,
         });
+        return;
       }
+
+      const original = image.getAttribute("src");
+      image.setAttribute("src", dataUrl);
+      session.record(() => {
+        if (original === null) image.removeAttribute("src");
+        else image.setAttribute("src", original);
+      });
     }),
   );
+  return problems;
 }
 
 export function getHeaderHeight() {
@@ -236,7 +253,7 @@ function visibleClip(grid) {
  * there is no laid-out grid with tiles in it.
  */
 export async function captureDashboardCanvas({
-  mode = "whole",
+  mode = CAPTURE_MODE.whole,
   dpr = 2,
   dashboardUuid,
 } = {}) {
@@ -249,27 +266,32 @@ export async function captureDashboardCanvas({
 
   captureInProgress = true;
   const session = createCaptureSession();
-  const problems = [];
 
   try {
     const clipToScreen =
-      mode === "visible" || !!grid.querySelector('[data-fill-viewport="true"]');
+      mode === CAPTURE_MODE.visible ||
+      !!grid.querySelector('[data-fill-viewport="true"]');
     const clip = clipToScreen ? visibleClip(grid) : null;
     if (clipToScreen && !clip) throw new NothingToCaptureError();
 
     const size = clip ?? grid.getBoundingClientRect();
     const density = clampDensity(size.width, size.height, dpr);
 
-    const incompleteMaps = await captureLockedMapLayers(grid, session, (url) =>
-      proxiedImageUrl(url, dashboardUuid),
-    );
-    incompleteMaps.forEach((element) =>
-      problems.push({
+    // Independent: map layer canvases and <img> elements. A layer's stand-in is
+    // a data URL, so the image pass never picks it up.
+    const [incompleteMaps, imageProblems] = await Promise.all([
+      captureLockedMapLayers(grid, session, (url) =>
+        proxiedImageUrl(url, dashboardUuid),
+      ),
+      inlineCrossOriginImages(grid, dashboardUuid, session),
+    ]);
+    const problems = [
+      ...incompleteMaps.map((element) => ({
         tile: tileLabelOf(element),
         kind: CAPTURE_PROBLEM.mapLayer,
-      }),
-    );
-    await inlineCrossOriginImages(grid, dashboardUuid, session, problems);
+      })),
+      ...imageProblems,
+    ];
 
     grid.classList.add(CAPTURING_CLASS);
     session.record(() => grid.classList.remove(CAPTURING_CLASS));
@@ -302,25 +324,35 @@ function canvasToBlob(canvas) {
   });
 }
 
+function halved(canvas) {
+  const smaller = document.createElement("canvas");
+  smaller.width = Math.max(1, Math.round(canvas.width / 2));
+  smaller.height = Math.max(1, Math.round(canvas.height / 2));
+  smaller
+    .getContext("2d")
+    .drawImage(canvas, 0, 0, smaller.width, smaller.height);
+  return smaller;
+}
+
 /**
  * Capture the active tab as a PNG blob for export. A canvas the browser could
- * not encode is retried once at half the density.
+ * not encode is halved and tried once more - from the capture already taken, so
+ * the proxied fetches are not spent twice.
  */
-export async function captureDashboard({ mode = "whole", dashboardUuid } = {}) {
-  let capture = await captureDashboardCanvas({ mode, dpr: 2, dashboardUuid });
+export async function captureDashboard({
+  mode = CAPTURE_MODE.whole,
+  dashboardUuid,
+} = {}) {
+  const capture = await captureDashboardCanvas({ mode, dashboardUuid });
+  let downscaled = capture.downscaled;
   let blob = await canvasToBlob(capture.canvas);
   if (!blob) {
-    capture = await captureDashboardCanvas({ mode, dpr: 1, dashboardUuid });
-    capture.downscaled = true;
-    blob = await canvasToBlob(capture.canvas);
+    downscaled = true;
+    blob = await canvasToBlob(halved(capture.canvas));
   }
   if (!blob) throw new Error("The browser could not encode the image.");
 
-  return {
-    blob,
-    problems: dedupeProblems(capture.problems),
-    downscaled: capture.downscaled,
-  };
+  return { blob, problems: dedupeProblems(capture.problems), downscaled };
 }
 
 function dedupeProblems(problems) {

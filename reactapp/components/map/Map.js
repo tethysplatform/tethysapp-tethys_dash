@@ -796,9 +796,9 @@ const MapComponent = ({
   };
 
   useEffect(() => {
+    let unregisterCaptureMap = () => {};
     // Set up an initial map and set it to state/
     // istanbul ignore next
-    let unregisterCaptureMap = () => {};
     if (mapDivRef.current) {
       const initialMap = new Map({
         target: mapDivRef.current,

@@ -830,11 +830,8 @@ def copy_named_dashboard(user, id, new_name, dashboard_uuid):
             raise Exception(f"A dashboard with the id {id} does not exist.")
 
         # Copying hands over everything the dashboard holds, so it takes the same access
-        # as viewing it: a permission of any level, or a public dashboard.
-        user_permission = get_dashboard_user_permission(
-            session, original_dashboard, user
-        )
-        if not user_permission and not original_dashboard.public:
+        # as viewing it.
+        if not _user_may_view(session, original_dashboard, user):
             raise Exception("User does not have permission to copy the dashboard.")
 
         copied_dashboard_uuid = original_dashboard.uuid
@@ -1199,14 +1196,25 @@ def get_dashboard_user_permission(session, dashboard, user):
         return None
 
 
+def _user_may_view(session, dashboard, user):
+    """A permission of any level, or a public dashboard.
+
+    A request that is not logged in is matched against public dashboards only. Its
+    username is "", which would otherwise collide with any permission row stored
+    under an empty username.
+    """
+    if dashboard.public:
+        return True
+    if not getattr(user, "is_authenticated", False):
+        return False
+    return get_dashboard_user_permission(session, dashboard, user) is not None
+
+
 def can_view_dashboard(user, dashboard_uuid):
     """
     Whether a user may view the dashboard with the given uuid.
 
-    Viewing takes what copying takes: a permission of any level, or a public
-    dashboard. A request that is not logged in is matched against public dashboards
-    only. Its username is "", which would otherwise collide with any permission row
-    stored under an empty username.
+    Viewing takes what copying takes (see _user_may_view).
 
     Args:
         user: User object, authenticated or anonymous
@@ -1230,13 +1238,7 @@ def can_view_dashboard(user, dashboard_uuid):
         dashboard = (
             session.query(Dashboard).filter(Dashboard.uuid == dashboard_uuid).first()
         )
-        if not dashboard:
-            return False
-        if dashboard.public:
-            return True
-        if not getattr(user, "is_authenticated", False):
-            return False
-        return get_dashboard_user_permission(session, dashboard, user) is not None
+        return bool(dashboard) and _user_may_view(session, dashboard, user)
     finally:
         session.close()
 

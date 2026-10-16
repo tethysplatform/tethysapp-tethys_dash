@@ -3,6 +3,8 @@
 // the user can actually see are included (legend-hidden traces are skipped),
 // matching the "download the data visible to the user" intent.
 
+import { downloadBlob } from "components/visualizations/utilities";
+
 const Plotly = require("plotly.js-strict-dist-min");
 
 const csvEscape = (v) => {
@@ -156,15 +158,10 @@ export const downloadCsvFromGraphDiv = (gd) => {
     String(rawTitle)
       .replace(/[^\w.-]+/g, "_")
       .replace(/^_+|_+$/g, "") || "plot_data";
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = `${filename}.csv`;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
+  downloadBlob(
+    new Blob([csv], { type: "text/csv;charset=utf-8;" }),
+    `${filename}.csv`,
+  );
 };
 
 export const csvDownloadButton = {

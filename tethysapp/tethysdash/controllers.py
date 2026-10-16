@@ -66,6 +66,32 @@ IMAGE_PROXY_ANONYMOUS_LIMIT = 120
 IMAGE_PROXY_ANONYMOUS_WINDOW = 60
 
 
+def _rate_limit_retry_after(key, limit, window):
+    """Count one request against key; return seconds to wait when over the limit.
+
+    Returns None while under the limit. Best-effort: the cache read and write are
+    not atomic, and a per-process cache counts per worker.
+    """
+    count = cache.get(key, 0)
+    if count >= limit:
+        try:
+            # Not every cache backend can report a key's remaining lifetime.
+            retry_after = cache.ttl(key)
+        except Exception:
+            retry_after = None
+        return retry_after or window
+
+    if count == 0:
+        cache.set(key, 1, timeout=window)
+    else:
+        try:
+            cache.incr(key)
+        except ValueError:
+            # The window expired between the read and the increment.
+            cache.set(key, 1, timeout=window)
+    return None
+
+
 def _get_error_message(e, fallback):
     """Return the first arg of an exception, or ``fallback`` if unavailable.
 
@@ -402,18 +428,10 @@ class VisualizationConsumer(AsyncWebsocketConsumer):
         censored_message = profanity.censor(message)
         timestamp = datetime.utcnow()
 
-        rate_key = f"chat_rate_{request_id}_{session_id}"
-        count = cache.get(rate_key, 0)
-        if count >= 5:
-            # Try to get the remaining time until the rate limit resets
-            retry_after = 10  # Default fallback
-            try:
-                # Django cache backends may support .ttl(), but not all do
-                retry_after = cache.ttl(rate_key)
-                if retry_after is None:
-                    retry_after = 10
-            except Exception:
-                retry_after = 10
+        retry_after = _rate_limit_retry_after(
+            f"chat_rate_{request_id}_{session_id}", limit=5, window=10
+        )
+        if retry_after is not None:
             await self.send(
                 json.dumps(
                     {
@@ -424,11 +442,6 @@ class VisualizationConsumer(AsyncWebsocketConsumer):
                 )
             )
             return
-
-        if count == 0:
-            cache.set(rate_key, 1, timeout=10)  # 10 seconds window
-        else:
-            cache.incr(rate_key)
 
         try:
             # Broadcast the message (include messageId)
@@ -1138,34 +1151,6 @@ def _image_proxy_client_address(request):
     return request.META.get("HTTP_X_REAL_IP") or request.META.get("REMOTE_ADDR", "")
 
 
-def _image_proxy_retry_after(request):
-    """Count an anonymous proxy request; return seconds to wait when over the limit.
-
-    Returns None while the caller is under the limit. Best-effort in the same way as
-    the live-chat limit: the cache read and write are not atomic, and a per-process
-    cache counts per worker.
-    """
-    key = f"image_proxy_rate_{_image_proxy_client_address(request)}"
-    count = cache.get(key, 0)
-    if count >= IMAGE_PROXY_ANONYMOUS_LIMIT:
-        try:
-            # Not every cache backend can report a key's remaining lifetime.
-            retry_after = cache.ttl(key)
-        except Exception:
-            retry_after = None
-        return retry_after or IMAGE_PROXY_ANONYMOUS_WINDOW
-
-    if count == 0:
-        cache.set(key, 1, timeout=IMAGE_PROXY_ANONYMOUS_WINDOW)
-    else:
-        try:
-            cache.incr(key)
-        except ValueError:
-            # The window expired between the read and the increment.
-            cache.set(key, 1, timeout=IMAGE_PROXY_ANONYMOUS_WINDOW)
-    return None
-
-
 @controller(url="tethysdash/images/proxy", login_required=False)
 def image_proxy(request):
     """
@@ -1198,7 +1183,11 @@ def image_proxy(request):
             plain-text error with an appropriate status code.
     """
     if not request.user.is_authenticated:
-        retry_after = _image_proxy_retry_after(request)
+        retry_after = _rate_limit_retry_after(
+            f"image_proxy_rate_{_image_proxy_client_address(request)}",
+            limit=IMAGE_PROXY_ANONYMOUS_LIMIT,
+            window=IMAGE_PROXY_ANONYMOUS_WINDOW,
+        )
         if retry_after is not None:
             throttled = HttpResponse("Too many image requests", status=429)
             throttled["Retry-After"] = str(int(retry_after))
