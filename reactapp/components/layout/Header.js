@@ -28,6 +28,7 @@ import {
 import { discoverGroupSeeds } from "components/map/viewGroup";
 import { getTethysPortalBase } from "services/utilities";
 import captureThumbnail from "components/layout/captureThumbnail";
+import ExportImageButton from "components/layout/ExportImageButton";
 
 import {
   BsX,
@@ -647,6 +648,7 @@ export const DashboardHeader = () => {
                 <BsFillPersonFill size="1.5rem" />
               </TooltipButton>
             )}
+            <ExportImageButton disabled={isSaving} />
             <TooltipButton
               onClick={showNav}
               tooltipPlacement="bottom"

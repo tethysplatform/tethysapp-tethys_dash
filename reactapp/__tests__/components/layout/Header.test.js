@@ -542,6 +542,8 @@ test("DashboardHeader, user and editable", async () => {
     screen.queryByLabelText("dashboardLoginButton"),
   ).not.toBeInTheDocument();
   expect(screen.getByLabelText("dashboardSettingButton")).toBeInTheDocument();
+  // Anyone who can view a dashboard can export it.
+  expect(screen.getByLabelText("exportImageButton")).toBeInTheDocument();
 });
 
 test("DashboardHeader, user and not editable", async () => {
@@ -569,6 +571,8 @@ test("DashboardHeader, user and not editable", async () => {
     screen.queryByLabelText("dashboardLoginButton"),
   ).not.toBeInTheDocument();
   expect(screen.getByLabelText("dashboardSettingButton")).toBeInTheDocument();
+  // Anyone who can view a dashboard can export it.
+  expect(screen.getByLabelText("exportImageButton")).toBeInTheDocument();
 });
 
 test("DashboardHeader, no user", async () => {
@@ -598,6 +602,7 @@ test("DashboardHeader, no user", async () => {
   expect(screen.queryByLabelText("editButton")).not.toBeInTheDocument();
   expect(screen.queryByLabelText("appInfoButton")).not.toBeInTheDocument();
   expect(screen.getByLabelText("dashboardLoginButton")).toBeInTheDocument();
+  expect(screen.getByLabelText("exportImageButton")).toBeInTheDocument();
   expect(screen.getByLabelText("dashboardSettingButton")).toBeInTheDocument();
 });
 
@@ -2288,6 +2293,25 @@ describe.each([
       expect(captureThumbnail).toHaveBeenCalledTimes(expectedCalls);
     });
   });
+});
+
+test("DashboardHeader offers image export to an editor in view and edit mode", async () => {
+  render(
+    createLoadedComponent({
+      children: (
+        <MemoryRouter initialEntries={["/dashboard/user/editable"]}>
+          <LayoutAlertContextProvider>
+            <DashboardHeader />
+          </LayoutAlertContextProvider>
+        </MemoryRouter>
+      ),
+      options: { initialDashboard: userDashboard },
+    }),
+  );
+
+  expect(await screen.findByLabelText("exportImageButton")).toBeEnabled();
+  await userEvent.click(await screen.findByLabelText("editButton"));
+  expect(await screen.findByLabelText("exportImageButton")).toBeEnabled();
 });
 
 describe("DashboardHeader thumbnail capture outcomes", () => {
