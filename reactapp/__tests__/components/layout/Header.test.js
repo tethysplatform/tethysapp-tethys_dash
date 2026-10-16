@@ -2332,7 +2332,10 @@ describe("DashboardHeader thumbnail capture outcomes", () => {
   it("saves the image when a capture produced one", async () => {
     captureThumbnail.mockResolvedValueOnce("data:image/png;base64,AAA");
     await renderSaved();
-    await waitFor(() => expect(captureThumbnail).toHaveBeenCalled());
+    // Named so the capture's image proxy can check viewing rights.
+    await waitFor(() =>
+      expect(captureThumbnail).toHaveBeenCalledWith(userDashboard.uuid),
+    );
   });
 
   it("reports a failed capture rather than letting it escape the save", async () => {

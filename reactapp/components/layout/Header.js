@@ -286,6 +286,7 @@ export const DashboardHeader = () => {
   const { user } = useContext(AppContext);
   const {
     name,
+    uuid,
     editable,
     saveLayoutContext,
     unrestrictedPlacement,
@@ -336,7 +337,7 @@ export const DashboardHeader = () => {
     thumbnailInFlight.current = true;
     (async () => {
       try {
-        const image = await captureThumbnail();
+        const image = await captureThumbnail(uuid);
         if (image) await saveLayoutContext({ image });
       } catch (error) {
         console.error("Dashboard thumbnail update failed:", error);
@@ -345,7 +346,7 @@ export const DashboardHeader = () => {
         setThumbnailPending(false);
       }
     })();
-  }, [thumbnailPending, isEditing, saveLayoutContext, autoThumbnail]);
+  }, [thumbnailPending, isEditing, saveLayoutContext, autoThumbnail, uuid]);
 
   // Only show AppInfoModal on startup after public user modal check is complete and modal is dismissed
   useEffect(() => {

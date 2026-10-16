@@ -40,6 +40,7 @@ import { loadLayerJSONs, saveLayerJSON } from "components/map/utilities";
 import { rasterStyleSettings } from "components/map/geoTIFFStyle";
 import { valuesEqual } from "components/modals/utilities";
 import { v4 as uuidv4 } from "uuid";
+import { CAPTURING_CLASS } from "components/layout/captureDashboard";
 
 const StyledContainer = styled(Container)`
   position: relative;
@@ -73,6 +74,15 @@ const StyledDiv = styled.div`
         ? "0 4px 8px rgba(0, 0, 0, 0.1)"
         : "none"};
   position: relative;
+  /* An image export taken in edit mode shows the dashboard as viewers see it:
+     the editing border, fill and shadow drop away, while styling the author
+     set on the item stays. */
+  .${CAPTURING_CLASS} & {
+    ${(props) => !props.$borderProps && "border: none;"}
+    ${(props) =>
+      !props.$backgroundColorProps && "background-color: transparent;"}
+    ${(props) => !props.$boxShadowProps && "box-shadow: none;"}
+  }
   /* Fill-viewport override: escape the react-grid-layout-positioned parent via
      position:fixed so the item spans the content area below the fixed header
      (and tab bar when shown), independent of screen size. No explicit z-index:
@@ -648,6 +658,8 @@ const DashboardItem = () => {
         $fillOffset={fillOffset}
         aria-label="gridItemDiv"
         className="no-caret"
+        data-tile-label={gridItemSource}
+        data-fill-viewport={fillViewportActive ? "true" : undefined}
       >
         {isEditing && fillViewportRequested && (
           <FillViewportBadge aria-label="fill-viewport-indicator">
@@ -691,7 +703,7 @@ const DashboardItem = () => {
           />
         )}
         {isEditing && (
-          <StyledButtonDiv>
+          <StyledButtonDiv className="dashboard-item-menu">
             <DashboardItemDropdown
               gridItemIndex={gridItemIndex}
               deleteGridItem={deleteGridItem}
