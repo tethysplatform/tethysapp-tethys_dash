@@ -87,12 +87,12 @@ Granting access to a group gives all its members the specified level of access. 
 Dashboard Thumbnails
 --------------------
 
-A dashboard's thumbnail is captured automatically each time the dashboard is saved: the visible tab is photographed as it appears on screen, so the card on the landing page reflects the dashboard's current contents. The capture is sent after the save has completed and never blocks or fails it — if the image cannot be produced, the previous thumbnail is kept.
+A dashboard's thumbnail is captured automatically each time the dashboard is saved: the top of the active tab is photographed as it appears on screen, so the card on the landing page reflects the dashboard's current contents. It uses the same capture as :ref:`dashboard_export`. The capture is sent after the save has completed and never blocks or fails it — if the image cannot be produced, the previous thumbnail is kept.
 
 Use **Update Thumbnail** in the card's context menu to replace the captured image with one of your own.
 
 .. note::
-   Map layers appear in the thumbnail only when the tile or image server allows cross-origin reads. TethysDash detects this per host automatically. If a layer still comes out blank, enable the layer's **crossOrigin** source property (see :ref:`source_tab`) — but only if that server sends ``Access-Control-Allow-Origin``, because requesting it elsewhere stops the layer loading at all.
+   ArcGIS image, WMS and static image map layers from a server that does not allow cross-origin reads are fetched through TethysDash for the thumbnail. Any other layer appears only when its tile or image server allows cross-origin reads. TethysDash detects this per host automatically. If such a layer still comes out blank, enable the layer's **crossOrigin** source property (see :ref:`source_tab`) — but only if that server sends ``Access-Control-Allow-Origin``, because requesting it elsewhere stops the layer loading at all.
 
 
 Importing Dashboards
