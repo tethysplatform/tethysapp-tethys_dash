@@ -9,6 +9,7 @@ import { isDecorationLayerConfig } from "components/map/decorationLayers";
 import useLinkedExtentPublisher from "components/map/useLinkedExtentPublisher";
 import useLinkedExtentOutlines from "components/map/useLinkedExtentOutlines";
 import AnnotationEditor from "components/map/AnnotationEditor";
+import { registerCaptureMap } from "components/map/captureLockedLayers";
 // Importing this registers the coordinate reference systems that layers name by
 // code. Module evaluation completes before any render, so registration is in
 // place before the layer effect below constructs a single source -- which
@@ -797,6 +798,7 @@ const MapComponent = ({
   useEffect(() => {
     // Set up an initial map and set it to state/
     // istanbul ignore next
+    let unregisterCaptureMap = () => {};
     if (mapDivRef.current) {
       const initialMap = new Map({
         target: mapDivRef.current,
@@ -807,6 +809,17 @@ const MapComponent = ({
       });
 
       visualizationRef.current = initialMap;
+
+      // So a dashboard capture can re-fetch a layer it cannot read, from the
+      // config the layer was built from.
+      unregisterCaptureMap = registerCaptureMap(
+        mapDivRef.current,
+        initialMap,
+        (layer) =>
+          currentLayers.current.find(
+            (config) => config?.props?.name === layer.get("name"),
+          ),
+      );
 
       if (setMapReady) {
         // istanbul ignore next
@@ -826,6 +839,7 @@ const MapComponent = ({
     }
 
     return () => {
+      unregisterCaptureMap();
       if (settleTimerRef.current) {
         clearTimeout(settleTimerRef.current);
         settleTimerRef.current = null;

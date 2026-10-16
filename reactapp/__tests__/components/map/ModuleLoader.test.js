@@ -2,6 +2,7 @@ import { IMAGE_BORDER_KEY } from "components/map/imageBorder";
 import moduleLoader, {
   loadESRIJSON,
   withAntimeridianFix,
+  withProxiedImages,
   withIsolatedCanvas,
   withAutoCrossOrigin,
   applyAutoRamp,
@@ -4314,5 +4315,80 @@ describe("VectorImageLayer", () => {
     const config = JSON.parse(JSON.stringify(layerConfigGeoJSON.configuration));
     config.type = "VectorImageLayer";
     await expect(moduleLoader(config)).resolves.toBeDefined();
+  });
+});
+
+describe("withProxiedImages", () => {
+  const proxiedUrl = (url) => `/proxy/?url=${encodeURIComponent(url)}`;
+  const imageLayer = (sourceType, sourceProps) => ({
+    type: "ImageLayer",
+    props: {
+      name: "Layer",
+      source: { type: sourceType, props: sourceProps },
+    },
+  });
+  const load = (config, src) => {
+    const element = { src: null };
+    config.props.source.props.imageLoadFunction(
+      { getImage: () => element },
+      src,
+    );
+    return element.src;
+  };
+
+  it.each(["WMS", "Static Image"])(
+    "routes a %s image request through the proxy",
+    (sourceType) => {
+      const config = imageLayer(sourceType, { url: "https://maps.test/wms" });
+      const proxied = withProxiedImages(config, proxiedUrl);
+
+      expect(proxied).not.toBe(config);
+      expect(load(proxied, "https://maps.test/wms?LAYERS=a")).toBe(
+        proxiedUrl("https://maps.test/wms?LAYERS=a"),
+      );
+      // The live config is left as it was.
+      expect(config.props.source.props.imageLoadFunction).toBeUndefined();
+    },
+  );
+
+  it("keeps the antimeridian rewrite for an ArcGIS image, before the proxy", () => {
+    const config = imageLayer("ESRI Image and Map Service", {
+      url: "https://example.com/MapServer",
+      params: { TIME: "2026-01-01" },
+    });
+    const src =
+      "https://example.com/MapServer/export?" +
+      "BBOX=-26121778,5687665,-25841122,5804555" +
+      "&BBOXSR=3857&IMAGESR=3857&f=image";
+
+    const requested = load(withProxiedImages(config, proxiedUrl), src);
+
+    const inner = new URL(requested, "http://localhost").searchParams.get(
+      "url",
+    );
+    expect(inner).not.toBe(src);
+    expect(inner).toContain("MapServer/export");
+  });
+
+  it("copies params so the loader's TIME conversion cannot reach the live config", () => {
+    const params = { TIME: "2026-01-01" };
+    const config = imageLayer("ESRI Image and Map Service", {
+      url: "https://example.com/MapServer",
+      params,
+    });
+
+    const proxied = withProxiedImages(config, proxiedUrl);
+
+    expect(proxied.props.source.props.params).not.toBe(params);
+    expect(proxied.props.source.props.params).toEqual(params);
+  });
+
+  it("leaves a layer with no image source alone", () => {
+    const tile = imageLayer("Image Tile", { url: "https://tiles.test/{z}" });
+    const vector = { type: "VectorLayer", props: { name: "V" } };
+
+    expect(withProxiedImages(tile, proxiedUrl)).toBe(tile);
+    expect(withProxiedImages(vector, proxiedUrl)).toBe(vector);
+    expect(withProxiedImages(undefined, proxiedUrl)).toBeUndefined();
   });
 });
