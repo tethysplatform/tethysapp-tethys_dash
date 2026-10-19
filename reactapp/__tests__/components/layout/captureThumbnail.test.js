@@ -49,6 +49,8 @@ describe("captureThumbnail", () => {
       mode: "whole",
       dpr: 1,
       dashboardUuid: DASHBOARD,
+      // A popup open at save time is not part of the dashboard.
+      includePopup: false,
     });
   });
 

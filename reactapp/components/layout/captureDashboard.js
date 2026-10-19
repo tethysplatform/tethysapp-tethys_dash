@@ -28,6 +28,15 @@ export const CAPTURE_EXCLUDED_SELECTORS = [
 // editing border and fill (see DashboardItem).
 export const CAPTURING_CLASS = "td-capturing";
 
+/* A map's popup modal. It is portaled to the page root, outside the grid, so
+   an export captures it on its own and draws it onto the dashboard image where
+   it sits on screen. It is only in the page while it is open. */
+export const POPUP_SELECTOR = '[data-testid="popup-modal"]';
+const POPUP_EXCLUDED_SELECTORS = [
+  ...CAPTURE_EXCLUDED_SELECTORS,
+  '[data-testid="popup-modal-close"]',
+];
+
 /* Browsers cap a canvas by side and by area, and fail by handing back nothing
    rather than throwing. Safari's area limit is the tightest. */
 const MAX_CANVAS_SIDE = 16384;
@@ -66,6 +75,7 @@ export const CAPTURE_MODE = {
 export const CAPTURE_PROBLEM = {
   image: "image",
   mapLayer: "mapLayer",
+  popup: "popup",
 };
 
 export class CaptureBusyError extends Error {
@@ -119,7 +129,7 @@ export function blobToDataUrl(blob) {
 export function tileLabelOf(element) {
   return (
     element?.closest?.("[data-tile-label]")?.getAttribute("data-tile-label") ||
-    "A tile"
+    (element?.closest?.(POPUP_SELECTOR) ? "Map popup" : "A tile")
   );
 }
 
@@ -236,6 +246,8 @@ export function getHeaderHeight() {
 export function getActiveGrid() {
   const grids = document.querySelectorAll(".react-grid-layout");
   for (const grid of grids) {
+    // A popup lays out its own items in a grid of its own.
+    if (grid.closest(POPUP_SELECTOR)) continue;
     const rect = grid.getBoundingClientRect();
     if (rect.width > 0 && rect.height > 0) return grid;
   }
@@ -275,12 +287,80 @@ function visibleClip(grid) {
   };
 }
 
+function openPopup() {
+  const popup = document.querySelector(POPUP_SELECTOR);
+  if (!popup) return null;
+  const rect = popup.getBoundingClientRect();
+  return rect.width > 0 && rect.height > 0 ? popup : null;
+}
+
+/* Make everything under root readable for the capture: map layers the browser
+   will not let it read, and cross-origin images. Independent, so run together;
+   a layer's stand-in is a data URL, so the image pass never picks it up. */
+async function prepareForCapture(root, dashboardUuid, session) {
+  const [incompleteMaps, imageProblems] = await Promise.all([
+    captureLockedMapLayers(root, session, (url) =>
+      proxiedImageUrl(url, dashboardUuid),
+    ),
+    inlineCrossOriginImages(root, dashboardUuid, session),
+  ]);
+  return [
+    ...incompleteMaps.map((element) => ({
+      tile: tileLabelOf(element),
+      kind: CAPTURE_PROBLEM.mapLayer,
+    })),
+    ...imageProblems,
+  ];
+}
+
+function markCapturing(element, session) {
+  element.classList.add(CAPTURING_CLASS);
+  session.record(() => element.classList.remove(CAPTURING_CLASS));
+}
+
+function rasterize(element, options) {
+  return withTimeout(
+    snapdom(element, {
+      excludeMode: "remove",
+      embedFonts: false,
+      ...options,
+      // Safe to read back: everything in it came from snapdom's own inlined SVG.
+    }).then((result) => result.toCanvas()),
+    RENDER_TIMEOUT,
+  );
+}
+
+/* Draw the open popup onto the dashboard capture where it sits on screen.
+   origin is where the capture's top-left corner is in the viewport, and scale
+   converts CSS pixels to the capture's pixels. Whatever falls outside the
+   capture is clipped by the canvas. */
+async function drawPopupOnto(canvas, popup, origin, scale, dpr) {
+  const rect = popup.getBoundingClientRect();
+  // No background: the popup paints its own, and its rounded corners show the
+  // dashboard behind them.
+  const popupCanvas = await rasterize(popup, {
+    dpr,
+    exclude: POPUP_EXCLUDED_SELECTORS,
+  });
+  canvas
+    .getContext("2d")
+    .drawImage(
+      popupCanvas,
+      (rect.left - origin.left) * scale,
+      (rect.top - origin.top) * scale,
+      rect.width * scale,
+      rect.height * scale,
+    );
+}
+
 /**
  * Capture the active tab's grid to a canvas.
  *
  * mode "whole" captures the full grid, including tiles scrolled out of view;
- * "visible" captures only the part on screen. Returns the canvas, the problems
- * found along the way and whether the density had to be reduced. Throws
+ * "visible" captures only the part on screen. An open map popup is drawn on top
+ * where it sits on screen, unless includePopup is false. Returns the canvas,
+ * the problems found along the way and whether the density had to be reduced.
+ * Throws
  * CaptureBusyError while another capture runs, and NothingToCaptureError when
  * there is no laid-out grid with tiles in it.
  */
@@ -288,6 +368,7 @@ export async function captureDashboardCanvas({
   mode = CAPTURE_MODE.whole,
   dpr = 2,
   dashboardUuid,
+  includePopup = true,
 } = {}) {
   if (captureInProgress) throw new CaptureBusyError();
 
@@ -306,40 +387,49 @@ export async function captureDashboardCanvas({
     const clip = clipToScreen ? visibleClip(grid) : null;
     if (clipToScreen && !clip) throw new NothingToCaptureError();
 
-    const size = clip ?? grid.getBoundingClientRect();
+    const gridRect = grid.getBoundingClientRect();
+    const size = clip ?? gridRect;
     const density = clampDensity(size.width, size.height, dpr);
+    const popup = includePopup ? openPopup() : null;
 
-    // Independent: map layer canvases and <img> elements. A layer's stand-in is
-    // a data URL, so the image pass never picks it up.
-    const [incompleteMaps, imageProblems] = await Promise.all([
-      captureLockedMapLayers(grid, session, (url) =>
-        proxiedImageUrl(url, dashboardUuid),
-      ),
-      inlineCrossOriginImages(grid, dashboardUuid, session),
-    ]);
-    const problems = [
-      ...incompleteMaps.map((element) => ({
-        tile: tileLabelOf(element),
-        kind: CAPTURE_PROBLEM.mapLayer,
-      })),
-      ...imageProblems,
-    ];
+    const problems = (
+      await Promise.all([
+        prepareForCapture(grid, dashboardUuid, session),
+        popup ? prepareForCapture(popup, dashboardUuid, session) : [],
+      ])
+    ).flat();
 
-    grid.classList.add(CAPTURING_CLASS);
-    session.record(() => grid.classList.remove(CAPTURING_CLASS));
+    markCapturing(grid, session);
+    if (popup) markCapturing(popup, session);
 
-    const canvas = await withTimeout(
-      snapdom(grid, {
-        ...(clip ? { clip } : {}),
-        dpr: density.dpr,
-        exclude: CAPTURE_EXCLUDED_SELECTORS,
-        excludeMode: "remove",
-        backgroundColor: "#ffffff",
-        embedFonts: false,
-        // Safe to read back: everything in it came from snapdom's own inlined SVG.
-      }).then((result) => result.toCanvas()),
-      RENDER_TIMEOUT,
-    );
+    const canvas = await rasterize(grid, {
+      ...(clip ? { clip } : {}),
+      dpr: density.dpr,
+      exclude: CAPTURE_EXCLUDED_SELECTORS,
+      backgroundColor: "#ffffff",
+    });
+
+    if (popup) {
+      // The capture's top-left corner in the viewport: the clip's corner, or the
+      // grid's - which, scrolled, can be above the window.
+      const origin = clip
+        ? { left: clip.x - window.scrollX, top: clip.y - window.scrollY }
+        : { left: gridRect.left, top: gridRect.top };
+      try {
+        await drawPopupOnto(
+          canvas,
+          popup,
+          origin,
+          canvas.width / size.width,
+          density.dpr,
+        );
+      } catch (error) {
+        // The dashboard image is still worth having without the popup.
+        console.warn("Capture: could not draw the map popup:", error);
+        problems.push({ tile: "Map popup", kind: CAPTURE_PROBLEM.popup });
+      }
+    }
+
     return {
       canvas,
       problems,

@@ -20,6 +20,8 @@ The export captures the dashboard exactly as it is when you click. Maps keep the
 
 Interactive controls are left out of the image: dashboard item menus and borders shown while editing, map buttons and pop-ups, and the Plotly toolbar. Legends stay in. The image is rendered at twice screen density so it stays sharp in slides. A very tall tab is scaled down if it would exceed the browser's image size limit, and the export says so.
 
+An open map popup is included in both modes, drawn where it sits on screen. With **Download whole tab**, it is placed against the part of the tab currently in view. Close the popup first to leave it out.
+
 When an item on the tab is set to fill the viewport, **Download whole tab** captures the same area as **Download visible area**, since the tab is then the size of the screen.
 
 Images and maps from other servers

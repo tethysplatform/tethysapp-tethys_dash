@@ -34,6 +34,7 @@ export function canCopyImages() {
 const PROBLEM_TEXT = {
   [CAPTURE_PROBLEM.image]: "an image",
   [CAPTURE_PROBLEM.mapLayer]: "a map layer",
+  [CAPTURE_PROBLEM.popup]: "could not be drawn",
 };
 
 /** "Rain Map (a map layer), Logo (an image)" */

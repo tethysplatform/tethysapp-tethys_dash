@@ -58,6 +58,8 @@ export default async function captureThumbnail(dashboardUuid) {
       mode: CAPTURE_MODE.whole,
       dpr: 1,
       dashboardUuid,
+      // A popup open at save time is passing state, not the dashboard.
+      includePopup: false,
     });
     if (!canvas || canvas.width <= 0 || canvas.height <= 0) return null;
     return cropAndScale(canvas, dpr);

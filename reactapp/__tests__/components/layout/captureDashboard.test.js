@@ -37,9 +37,12 @@ function rect({ top = 0, left = 0, width, height }) {
 }
 
 function capturedCanvas({ width = 2400, height = 1800, blob = true } = {}) {
+  const context = { drawImage: jest.fn() };
   return {
     width,
     height,
+    context,
+    getContext: () => context,
     toBlob: jest.fn((done) =>
       done(blob ? new Blob(["png"], { type: "image/png" }) : null),
     ),
@@ -295,6 +298,180 @@ describe("captureDashboardCanvas", () => {
         "https://maps.test/wms?a=1",
       )}&dashboard=${DASHBOARD}`,
     );
+  });
+});
+
+/* A map popup as PopupModal renders it: portaled to the page root, with an
+   optional grid of its own inside. */
+function addPopup({ left = 100, top = 200, width = 400, height = 300 } = {}) {
+  const popup = document.createElement("div");
+  popup.setAttribute("data-testid", "popup-modal");
+  jest
+    .spyOn(popup, "getBoundingClientRect")
+    .mockReturnValue(rect({ top, left, width, height }));
+  const close = document.createElement("button");
+  close.setAttribute("data-testid", "popup-modal-close");
+  popup.appendChild(close);
+  document.body.appendChild(popup);
+  return popup;
+}
+
+describe("map popup", () => {
+  const popupSnapdom = () => {
+    const gridCanvas = capturedCanvas();
+    const popupCanvas = { width: 800, height: 600 };
+    snapdom
+      .mockResolvedValueOnce({ toCanvas: async () => gridCanvas })
+      .mockResolvedValueOnce({ toCanvas: async () => popupCanvas });
+    return { gridCanvas, popupCanvas };
+  };
+
+  it("draws an open popup onto a whole-tab capture where it sits on screen", async () => {
+    addGrid({ top: 56, width: 1200, height: 900 });
+    const popup = addPopup({ left: 100, top: 200, width: 400, height: 300 });
+    const { gridCanvas, popupCanvas } = popupSnapdom();
+
+    await captureDashboardCanvas({ mode: "whole" });
+
+    // Captured on its own at the same density, without its close button and
+    // without a background, so its rounded corners show the dashboard.
+    expect(snapdom.mock.calls[1][0]).toBe(popup);
+    expect(snapdom.mock.calls[1][1]).toEqual(
+      expect.objectContaining({
+        dpr: 2,
+        exclude: expect.arrayContaining(['[data-testid="popup-modal-close"]']),
+      }),
+    );
+    expect(snapdom.mock.calls[1][1]).not.toHaveProperty("backgroundColor");
+    // 2400px of capture over a 1200px grid: two capture pixels per CSS pixel,
+    // measured from the grid's corner at (0, 56).
+    expect(gridCanvas.context.drawImage).toHaveBeenCalledWith(
+      popupCanvas,
+      100 * 2,
+      (200 - 56) * 2,
+      400 * 2,
+      300 * 2,
+    );
+  });
+
+  it("places the popup against the part of a scrolled tab in view", async () => {
+    addGrid({ top: -444, width: 1200, height: 3000 });
+    window.scrollY = 500;
+    addPopup({ left: 100, top: 200 });
+    const { gridCanvas, popupCanvas } = popupSnapdom();
+
+    await captureDashboardCanvas({ mode: "whole" });
+
+    // The grid starts 444px above the window, so the popup is 644px down it.
+    expect(gridCanvas.context.drawImage).toHaveBeenCalledWith(
+      popupCanvas,
+      200,
+      (200 + 444) * 2,
+      800,
+      600,
+    );
+  });
+
+  it("draws the popup into a visible-area capture relative to the clip", async () => {
+    addGrid({ top: -300, width: 1200, height: 3000 });
+    window.scrollY = 356;
+    addPopup({ left: 100, top: 200 });
+    const { gridCanvas, popupCanvas } = popupSnapdom();
+
+    await captureDashboardCanvas({ mode: "visible" });
+
+    // The clip starts at the header's bottom edge, 56px down the window.
+    expect(gridCanvas.context.drawImage).toHaveBeenCalledWith(
+      popupCanvas,
+      200,
+      (200 - 56) * 2,
+      800,
+      600,
+    );
+  });
+
+  it("captures the dashboard grid, not the grid inside the popup", async () => {
+    const popup = addPopup();
+    const inner = document.createElement("div");
+    inner.className = "react-grid-layout";
+    jest
+      .spyOn(inner, "getBoundingClientRect")
+      .mockReturnValue(rect({ width: 400, height: 300 }));
+    popup.appendChild(inner);
+    document.body.prepend(popup);
+    const { grid } = addGrid();
+    popupSnapdom();
+
+    await captureDashboardCanvas();
+
+    expect(snapdom.mock.calls[0][0]).toBe(grid);
+  });
+
+  it("leaves the popup out when asked to", async () => {
+    addGrid();
+    addPopup();
+
+    await captureDashboardCanvas({ includePopup: false });
+
+    expect(snapdom).toHaveBeenCalledTimes(1);
+  });
+
+  it("fetches the popup's cross-origin images through the proxy and names it in problems", async () => {
+    addGrid();
+    const popup = addPopup();
+    const image = addImage(popup, "https://elsewhere.test/inside.png");
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 403,
+      headers: { get: () => "text/plain" },
+    });
+    popupSnapdom();
+
+    const { problems } = await captureDashboardCanvas({
+      dashboardUuid: DASHBOARD,
+    });
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(image.getAttribute("src")).toBe("https://elsewhere.test/inside.png");
+    expect(problems).toEqual([
+      { tile: "Map popup", kind: CAPTURE_PROBLEM.image },
+    ]);
+    // The popup's maps get the locked-layer pass too.
+    expect(captureLockedMapLayers).toHaveBeenCalledWith(
+      popup,
+      expect.anything(),
+      expect.any(Function),
+    );
+  });
+
+  it("keeps the dashboard image when the popup cannot be drawn", async () => {
+    addGrid();
+    addPopup();
+    snapdom
+      .mockResolvedValueOnce({ toCanvas: async () => capturedCanvas() })
+      .mockRejectedValueOnce(new Error("popup exploded"));
+
+    const { canvas, problems } = await captureDashboardCanvas();
+
+    expect(canvas.width).toBe(2400);
+    expect(problems).toEqual([
+      { tile: "Map popup", kind: CAPTURE_PROBLEM.popup },
+    ]);
+  });
+
+  it("marks the popup as capturing only while the capture runs", async () => {
+    addGrid();
+    const popup = addPopup();
+    let classDuringCapture;
+    snapdom.mockImplementation(async () => {
+      classDuringCapture = popup.classList.contains(CAPTURING_CLASS);
+      return { toCanvas: async () => capturedCanvas() };
+    });
+
+    await captureDashboardCanvas();
+
+    expect(classDuringCapture).toBe(true);
+    expect(popup.classList.contains(CAPTURING_CLASS)).toBe(false);
   });
 });
 
