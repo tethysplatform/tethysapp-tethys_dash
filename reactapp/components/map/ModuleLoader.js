@@ -167,6 +167,11 @@ export async function withAutoCrossOrigin(type, props) {
     : props;
 }
 
+/** Whether a layer's image can be re-fetched through the proxy (see below). */
+export function isProxiableImageLayer(config) {
+  return CORS_PROBED_SOURCE_TYPES.has(config?.props?.source?.type);
+}
+
 /**
  * A copy of an image layer's config whose image request goes through the image
  * proxy, for a dashboard capture that cannot read the layer as drawn.
@@ -178,11 +183,6 @@ export async function withAutoCrossOrigin(type, props) {
  * would have installed is applied here first, then the proxy. Returns the config
  * unchanged for any other layer.
  */
-/** Whether a layer's image can be re-fetched through the proxy (see below). */
-export function isProxiableImageLayer(config) {
-  return CORS_PROBED_SOURCE_TYPES.has(config?.props?.source?.type);
-}
-
 export function withProxiedImages(config, proxiedUrl) {
   if (!isProxiableImageLayer(config)) return config;
   const source = config.props.source;

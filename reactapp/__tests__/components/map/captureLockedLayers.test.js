@@ -175,6 +175,28 @@ describe("captureLockedMapLayers", () => {
     expect(viewport.querySelector("img")).toBeNull();
   });
 
+  it("gives up on a layer whose source never finishes building", async () => {
+    jest.useFakeTimers();
+    moduleLoader.mockReturnValue(new Promise(() => {}));
+    const live = taintedCanvas();
+    const { grid, element, viewport } = addMap([
+      { canvas: live, config: wmsConfig },
+    ]);
+
+    const pending = captureLockedMapLayers(
+      grid,
+      createCaptureSession(),
+      proxiedUrl,
+    );
+    for (let i = 0; i < 10; i += 1) await Promise.resolve();
+    jest.advanceTimersByTime(LOCKED_LAYER_RENDER_TIMEOUT);
+
+    await expect(pending).resolves.toEqual([element]);
+    expect(viewport.contains(live)).toBe(true);
+    // The offscreen map it started is still taken down.
+    expect(offscreen.setTarget).toHaveBeenCalledWith(undefined);
+  });
+
   it("reports a locked canvas with no image source behind it", async () => {
     // A vector layer drawing a cross-origin point icon.
     const { grid, element } = addMap([
@@ -189,6 +211,23 @@ describe("captureLockedMapLayers", () => {
 
     expect(incomplete).toEqual([element]);
     expect(moduleLoader).not.toHaveBeenCalled();
+  });
+
+  it("neither re-fetches nor reports a map the caller leaves out", async () => {
+    const { grid, element } = addMap([
+      { canvas: taintedCanvas(), config: vectorConfig },
+    ]);
+    const include = jest.fn(() => false);
+
+    const incomplete = await captureLockedMapLayers(
+      grid,
+      createCaptureSession(),
+      proxiedUrl,
+      include,
+    );
+
+    expect(include.mock.calls[0][0]).toBe(element);
+    expect(incomplete).toEqual([]);
   });
 
   it("reports the map and leaves the live canvas when the proxied image fails", async () => {

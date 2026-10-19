@@ -51,11 +51,24 @@ function layerCanvas(layer) {
   return layer.getRenderer?.()?.context?.canvas ?? null;
 }
 
+/* Rejects when promise has not settled within ms, so one stuck step - building
+   the layer's source, or a render that never completes - is reported as that
+   layer rather than holding the capture, and its lock, indefinitely. */
+function withTimeout(promise, ms) {
+  let timer;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error("Timed out")), ms);
+    }),
+  ]).finally(() => clearTimeout(timer));
+}
+
 /**
  * Render one layer, alone, in an offscreen map that matches the live one, with
  * its image request routed through the proxy. Resolves to the layer's canvas, or
- * rejects on a load error or timeout. Its cleanup goes onto disposers, which the
- * caller runs however this ends.
+ * rejects on a load error. Its cleanup goes onto disposers, which the caller runs
+ * however this ends; the caller bounds the whole of it in time.
  */
 async function renderThroughProxy(liveMap, layerConfig, proxiedUrl, disposers) {
   const size = liveMap.getSize();
@@ -106,16 +119,11 @@ async function renderThroughProxy(liveMap, layerConfig, proxiedUrl, disposers) {
   offscreen.addLayer(layer);
 
   await new Promise((resolve, reject) => {
-    const timer = setTimeout(
-      () => reject(new Error("Timed out")),
-      LOCKED_LAYER_RENDER_TIMEOUT,
-    );
     let failed = false;
     layer.getSource?.()?.on?.("imageloaderror", () => {
       failed = true;
     });
     offscreen.once("rendercomplete", () => {
-      clearTimeout(timer);
       if (failed) reject(new Error("The image could not be loaded"));
       else resolve();
     });
@@ -154,12 +162,20 @@ async function swapIn(liveCanvas, renderedCanvas, session) {
  *
  * Returns the map elements with a layer that could not be included: one that
  * failed to re-render, or a tainted canvas with no image source behind it (a
- * vector layer with a cross-origin point icon).
+ * vector layer with a cross-origin point icon). A map include(element) turns
+ * down is neither re-fetched nor reported.
  */
-export async function captureLockedMapLayers(root, session, proxiedUrl) {
+export async function captureLockedMapLayers(
+  root,
+  session,
+  proxiedUrl,
+  include = () => true,
+) {
   const incomplete = new Set();
   // By label rather than class: a plugin's mapConfig may replace the class.
-  const elements = Array.from(root.querySelectorAll('[aria-label="Map Div"]'));
+  const elements = Array.from(
+    root.querySelectorAll('[aria-label="Map Div"]'),
+  ).filter(include);
   const disposers = [];
 
   try {
@@ -188,11 +204,9 @@ export async function captureLockedMapLayers(root, session, proxiedUrl) {
               return;
             }
             try {
-              const rendered = await renderThroughProxy(
-                map,
-                config,
-                proxiedUrl,
-                disposers,
+              const rendered = await withTimeout(
+                renderThroughProxy(map, config, proxiedUrl, disposers),
+                LOCKED_LAYER_RENDER_TIMEOUT,
               );
               await swapIn(canvas, rendered, session);
             } catch (error) {

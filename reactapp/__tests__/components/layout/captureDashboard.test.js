@@ -480,23 +480,106 @@ describe("map popup", () => {
       popup,
       expect.anything(),
       expect.any(Function),
+      undefined,
     );
   });
 
   it("keeps the dashboard image when the popup cannot be drawn", async () => {
     addGrid();
     addPopup();
+    const gridCanvas = capturedCanvas();
     snapdom
-      .mockResolvedValueOnce({ toCanvas: async () => capturedCanvas() })
+      .mockResolvedValueOnce({ toCanvas: async () => gridCanvas })
       .mockRejectedValueOnce(new Error("popup exploded"));
 
     const { canvas, problems } = await captureDashboardCanvas();
 
-    expect(canvas.width).toBe(2400);
+    expect(canvas).toBe(gridCanvas);
     expect(problems).toEqual([
       { tile: "Map popup", kind: CAPTURE_PROBLEM.popup },
     ]);
   });
+
+  it("draws every open popup, in page order, and reports only the one that fails", async () => {
+    addGrid({ top: 56 });
+    const first = addPopup({ left: 100, top: 200 });
+    addPopup({ left: 300, top: 100 });
+    const third = addPopup({ left: 600, top: 400 });
+    const gridCanvas = capturedCanvas();
+    const firstCanvas = { width: 800, height: 600 };
+    const thirdCanvas = { width: 800, height: 600 };
+    snapdom
+      .mockResolvedValueOnce({ toCanvas: async () => gridCanvas })
+      .mockResolvedValueOnce({ toCanvas: async () => firstCanvas })
+      .mockRejectedValueOnce(new Error("second exploded"))
+      .mockResolvedValueOnce({ toCanvas: async () => thirdCanvas });
+    const composite = { drawImage: jest.fn() };
+    jest
+      .spyOn(HTMLCanvasElement.prototype, "getContext")
+      .mockReturnValue(composite);
+
+    const { problems } = await captureDashboardCanvas();
+
+    expect(snapdom.mock.calls[1][0]).toBe(first);
+    expect(snapdom.mock.calls[3][0]).toBe(third);
+    expect(composite.drawImage.mock.calls).toEqual([
+      [gridCanvas, 0, 0],
+      [firstCanvas, 200, (200 - 56) * 2, 800, 600],
+      [thirdCanvas, 1200, (400 - 56) * 2, 800, 600],
+    ]);
+    expect(problems).toEqual([
+      { tile: "Map popup", kind: CAPTURE_PROBLEM.popup },
+    ]);
+  });
+
+  it("leaves out a popup closed while the capture ran", async () => {
+    addGrid();
+    const popup = addPopup();
+    const gridCanvas = capturedCanvas();
+    snapdom.mockImplementationOnce(async () => {
+      popup.remove();
+      return { toCanvas: async () => gridCanvas };
+    });
+
+    const { canvas, problems } = await captureDashboardCanvas();
+
+    expect(snapdom).toHaveBeenCalledTimes(1);
+    expect(canvas).toBe(gridCanvas);
+    expect(problems).toEqual([]);
+  });
+
+  it.each(["whole", "visible"])(
+    "places the popup as the page stood at the click, in %s mode, when it scrolls during the capture",
+    async (mode) => {
+      const { grid } = addGrid({ top: -444, width: 1200, height: 3000 });
+      window.scrollY = 500;
+      addPopup({ left: 100, top: 200 });
+      const { popupCanvas, composite } = popupSnapdom();
+      // The page scrolls 300px further once the capture is under way; the
+      // popup is fixed to the window and stays put.
+      captureLockedMapLayers.mockImplementation(async () => {
+        window.scrollY = 800;
+        grid.getBoundingClientRect.mockReturnValue(
+          rect({ top: -744, width: 1200, height: 3000 }),
+        );
+        return [];
+      });
+
+      await captureDashboardCanvas({ mode });
+
+      // Whole: 644px down the grid, as at the click. Visible: 144px down the
+      // clip, which starts below the header.
+      const top = mode === "whole" ? 200 + 444 : 200 - 56;
+      expect(composite.drawImage).toHaveBeenNthCalledWith(
+        2,
+        popupCanvas,
+        200,
+        top * 2,
+        800,
+        600,
+      );
+    },
+  );
 
   it("pins each table to its on-screen width only while the capture runs", async () => {
     const { tile } = addGrid();
@@ -612,6 +695,59 @@ describe("cross-origin images", () => {
       expect(problems).toEqual([{ tile: "Logo", kind: CAPTURE_PROBLEM.image }]);
     },
   );
+
+  it("fetches and checks maps only for what is on screen in visible mode", async () => {
+    const { tile } = addGrid({ top: -300, height: 3000 });
+    window.scrollY = 356;
+    const onScreen = addImage(tile, "https://elsewhere.test/on.png");
+    onScreen.getBoundingClientRect.mockReturnValue(
+      rect({ top: 300, width: 100, height: 100 }),
+    );
+    // Wholly under the header, and wholly below the window.
+    const underHeader = addImage(tile, "https://elsewhere.test/under.png");
+    underHeader.getBoundingClientRect.mockReturnValue(
+      rect({ top: -50, width: 100, height: 100 }),
+    );
+    const below = addImage(tile, "https://elsewhere.test/below.png");
+    below.getBoundingClientRect.mockReturnValue(
+      rect({ top: 1500, width: 100, height: 100 }),
+    );
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 403,
+      headers: { get: () => "text/plain" },
+    });
+
+    const { problems } = await captureDashboardCanvas({ mode: "visible" });
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(global.fetch.mock.calls[0][0]).toContain(
+      encodeURIComponent("https://elsewhere.test/on.png"),
+    );
+    expect(problems).toEqual([{ tile: "Image", kind: CAPTURE_PROBLEM.image }]);
+
+    // The map pass gets the same test of what is on screen.
+    const include = captureLockedMapLayers.mock.calls[0][3];
+    expect(include(onScreen)).toBe(true);
+    expect(include(below)).toBe(false);
+  });
+
+  it("prepares the whole grid in whole mode", async () => {
+    const { tile } = addGrid({ top: -300, height: 3000 });
+    window.scrollY = 356;
+    addImage(
+      tile,
+      "https://elsewhere.test/below.png",
+    ).getBoundingClientRect.mockReturnValue(
+      rect({ top: 1500, width: 100, height: 100 }),
+    );
+    global.fetch = jest.fn().mockResolvedValue(imageResponse());
+
+    await captureDashboardCanvas({ mode: "whole" });
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(captureLockedMapLayers.mock.calls[0][3]).toBeUndefined();
+  });
 
   it("reports an image whose fetch throws", async () => {
     const { tile } = addGrid({ label: "Logo" });

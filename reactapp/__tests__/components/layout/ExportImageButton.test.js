@@ -285,8 +285,9 @@ describe("describeProblems", () => {
     expect(
       describeProblems([
         { tile: "A", kind: CAPTURE_PROBLEM.image },
+        { tile: "Map popup", kind: CAPTURE_PROBLEM.popup },
         { tile: "B", kind: "other" },
       ]),
-    ).toBe("A (an image), B (other)");
+    ).toBe("A (an image), Map popup (could not be drawn), B (other)");
   });
 });
