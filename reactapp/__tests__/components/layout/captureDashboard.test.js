@@ -10,6 +10,7 @@ import {
   RENDER_TIMEOUT,
   CAPTURING_CLASS,
   clampDensity,
+  createCaptureSession,
   exportFilename,
   NothingToCaptureError,
 } from "components/layout/captureDashboard";
@@ -766,6 +767,23 @@ describe("captureDashboard", () => {
     expect(result.downscaled).toBe(true);
   });
 
+  it("halves the capture when encoding throws rather than returning nothing", async () => {
+    addGrid();
+    const canvas = capturedCanvas();
+    canvas.toBlob = () => {
+      throw new DOMException("too large", "SecurityError");
+    };
+    snapdomReturns(canvas);
+    jest
+      .spyOn(HTMLCanvasElement.prototype, "toBlob")
+      .mockImplementation((done) => done(new Blob(["png"])));
+
+    const result = await captureDashboard();
+
+    expect(result.blob).toBeInstanceOf(Blob);
+    expect(result.downscaled).toBe(true);
+  });
+
   it("fails when the canvas cannot be encoded at all", async () => {
     addGrid();
     snapdomReturns(capturedCanvas({ blob: false }));
@@ -775,6 +793,110 @@ describe("captureDashboard", () => {
 
     await expect(captureDashboard()).rejects.toThrow(
       "The browser could not encode the image.",
+    );
+  });
+});
+
+describe("edges of the page", () => {
+  it("skips a grid that has no size for the next one", async () => {
+    const hidden = document.createElement("div");
+    hidden.className = "react-grid-layout";
+    jest
+      .spyOn(hidden, "getBoundingClientRect")
+      .mockReturnValue(rect({ width: 0, height: 0 }));
+    document.body.appendChild(hidden);
+    const { grid } = addGrid();
+
+    await captureDashboardCanvas();
+
+    expect(snapdom.mock.calls[0][0]).toBe(grid);
+  });
+
+  it("measures from the top of the window when no header height is declared", async () => {
+    document.documentElement.style.removeProperty("--ts-header-height");
+    addGrid({ top: 0, height: 600 });
+
+    await captureDashboardCanvas({ mode: "visible" });
+
+    expect(snapdom.mock.calls[0][1].clip).toEqual(
+      expect.objectContaining({ y: 0, height: 600 }),
+    );
+  });
+
+  it("ignores a popup that has no size", async () => {
+    addGrid();
+    addPopup({ width: 0, height: 0 });
+
+    await captureDashboardCanvas();
+
+    expect(snapdom).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves a table with no size unpinned", async () => {
+    const { tile } = addGrid();
+    const table = document.createElement("table");
+    tile.appendChild(table);
+    let during;
+    snapdom.mockImplementation(async () => {
+      during = table.style.width;
+      return { toCanvas: async () => capturedCanvas() };
+    });
+
+    await captureDashboardCanvas();
+
+    expect(during).toBe("");
+  });
+
+  it("labels a problem outside any tile or popup generically", async () => {
+    const { grid } = addGrid();
+    const loose = document.createElement("div");
+    grid.appendChild(loose);
+    captureLockedMapLayers.mockResolvedValue([loose]);
+
+    const { problems } = await captureDashboardCanvas();
+
+    expect(problems).toEqual([
+      { tile: "A tile", kind: CAPTURE_PROBLEM.mapLayer },
+    ]);
+  });
+
+  it("reports an image whose fetched bytes cannot be read", async () => {
+    const { tile } = addGrid({ label: "Logo" });
+    const image = addImage(tile, "https://elsewhere.test/logo.png");
+    global.fetch = jest.fn().mockResolvedValue(imageResponse());
+    const RealFileReader = global.FileReader;
+    global.FileReader = class {
+      readAsDataURL() {
+        this.onerror(new Error("unreadable"));
+      }
+    };
+    try {
+      const { problems } = await captureDashboardCanvas();
+      expect(problems).toEqual([{ tile: "Logo", kind: CAPTURE_PROBLEM.image }]);
+      expect(image.getAttribute("src")).toBe("https://elsewhere.test/logo.png");
+    } finally {
+      global.FileReader = RealFileReader;
+    }
+  });
+});
+
+describe("createCaptureSession", () => {
+  it("undoes in reverse and carries on past an undo that throws", () => {
+    const order = [];
+    const session = createCaptureSession();
+    session.record(() => order.push("first"));
+    session.record(() => {
+      throw new Error("could not undo");
+    });
+    session.record(() => order.push("last"));
+
+    session.teardown();
+    session.teardown();
+
+    expect(order).toEqual(["last", "first"]);
+    expect(console.warn).toHaveBeenCalledWith(
+      "Capture: could not undo a change:",
+      expect.any(Error),
     );
   });
 });

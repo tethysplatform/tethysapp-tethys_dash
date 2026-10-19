@@ -161,6 +161,11 @@ export function isEditableTarget(el) {
   return false;
 }
 
+export function getInitialViewportHeight() {
+  if (typeof window === "undefined") return 0;
+  return window.innerHeight;
+}
+
 export function getInitialIsSmallViewport() {
   if (typeof window === "undefined") return false;
   return window.innerWidth < SMALL_VIEWPORT_BREAKPOINT;
@@ -190,8 +195,8 @@ function PopupModal({
   const [isSmallViewport, setIsSmallViewport] = useState(
     getInitialIsSmallViewport,
   );
-  const [viewportHeight, setViewportHeight] = useState(() =>
-    typeof window === "undefined" ? 0 : window.innerHeight,
+  const [viewportHeight, setViewportHeight] = useState(
+    getInitialViewportHeight,
   );
 
   // Track viewport size for R9 fallback.

@@ -608,6 +608,7 @@ const MapComponent = ({
     });
   };
   const mapDivRef = useRef();
+  const unregisterCaptureMapRef = useRef(null);
   const onMapClickCurrent = useRef();
   const onMapHoverCurrent = useRef();
   const onMapMoveEndCurrent = useRef();
@@ -796,7 +797,6 @@ const MapComponent = ({
   };
 
   useEffect(() => {
-    let unregisterCaptureMap = () => {};
     // Set up an initial map and set it to state/
     // istanbul ignore next
     if (mapDivRef.current) {
@@ -812,7 +812,7 @@ const MapComponent = ({
 
       // So a dashboard capture can re-fetch a layer it cannot read, from the
       // config the layer was built from.
-      unregisterCaptureMap = registerCaptureMap(
+      unregisterCaptureMapRef.current = registerCaptureMap(
         mapDivRef.current,
         initialMap,
         (layer) =>
@@ -839,7 +839,6 @@ const MapComponent = ({
     }
 
     return () => {
-      unregisterCaptureMap();
       if (settleTimerRef.current) {
         clearTimeout(settleTimerRef.current);
         settleTimerRef.current = null;
@@ -847,6 +846,9 @@ const MapComponent = ({
       pendingMoveEndRef.current = null;
       // istanbul ignore next
       if (visualizationRef.current) {
+        // Registered only alongside the map, so released with it.
+        unregisterCaptureMapRef.current?.();
+        unregisterCaptureMapRef.current = null;
         if (activeFadeRef.current) activeFadeRef.current();
         visualizationRef.current
           .getLayers()

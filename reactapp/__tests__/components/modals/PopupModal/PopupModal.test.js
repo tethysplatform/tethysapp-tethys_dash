@@ -5,6 +5,7 @@ import PopupModal, {
   computePositionStyle,
   isEditableTarget,
   getInitialIsSmallViewport,
+  getInitialViewportHeight,
   readHeaderHeight,
   trackSmallViewport,
 } from "components/modals/PopupModal/PopupModal";
@@ -615,6 +616,27 @@ describe("PopupModal — branch coverage for guards", () => {
       global.window = savedWindow;
     }
     expect(result).toBe(false);
+  });
+
+  // The position's SSR guards, reached the same way: with window deleted, both
+  // helpers fall back to zero instead of throwing.
+  it("getInitialViewportHeight and readHeaderHeight are zero when window is not defined", () => {
+    const savedWindow = global.window;
+    delete global.window;
+    let height;
+    let header;
+    try {
+      height = getInitialViewportHeight();
+      header = readHeaderHeight();
+    } finally {
+      global.window = savedWindow;
+    }
+    expect(height).toBe(0);
+    expect(header).toBe(0);
+  });
+
+  it("getInitialViewportHeight reads the window's height", () => {
+    expect(getInitialViewportHeight()).toBe(window.innerHeight);
   });
 
   // Line 161: useEffect's typeof window === "undefined" SSR guard.

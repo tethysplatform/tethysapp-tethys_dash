@@ -50,7 +50,7 @@ function webglCanvas() {
 
 /* A grid holding one registered map whose viewport holds the given canvases,
    each belonging to a layer whose config is given alongside it. */
-function addMap(layers, { register = true } = {}) {
+function addMap(layers, { register = true, size = [400, 300] } = {}) {
   const grid = document.createElement("div");
   const element = document.createElement("div");
   element.setAttribute("aria-label", "Map Div");
@@ -59,18 +59,18 @@ function addMap(layers, { register = true } = {}) {
   grid.appendChild(element);
   document.body.appendChild(grid);
 
-  const olLayers = layers.map(({ canvas, config }, index) => {
+  const olLayers = layers.map(({ canvas, config, visible = true }, index) => {
     viewport.appendChild(canvas);
     return {
       config,
       getRenderer: () => ({ context: { canvas } }),
-      getVisible: () => true,
+      getVisible: () => visible,
       get: () => config?.props?.name ?? `layer-${index}`,
     };
   });
 
   const map = {
-    getSize: () => [400, 300],
+    getSize: () => size,
     getView: () => ({
       getProjection: () => ({ getCode: () => "EPSG:3857" }),
       getCenter: () => [0, 0],
@@ -83,7 +83,7 @@ function addMap(layers, { register = true } = {}) {
   if (register) {
     registerCaptureMap(element, map, (layer) => layer.config);
   }
-  return { grid, element, viewport };
+  return { grid, element, viewport, map };
 }
 
 const wmsConfig = {
@@ -231,6 +231,61 @@ describe("captureLockedMapLayers", () => {
     await expect(pending).resolves.toEqual([element]);
   });
 
+  it("treats a canvas that cannot give a 2D context as readable", async () => {
+    const canvas = readableCanvas();
+    canvas.getContext = () => {
+      throw new Error("context lost");
+    };
+    const { grid } = addMap([{ canvas, config: wmsConfig }]);
+
+    await expect(
+      captureLockedMapLayers(grid, createCaptureSession(), proxiedUrl),
+    ).resolves.toEqual([]);
+    expect(moduleLoader).not.toHaveBeenCalled();
+  });
+
+  it("reports a locked layer on a map that has no size yet", async () => {
+    const { grid, element } = addMap(
+      [{ canvas: taintedCanvas(), config: wmsConfig }],
+      { size: [0, 0] },
+    );
+
+    const incomplete = await captureLockedMapLayers(
+      grid,
+      createCaptureSession(),
+      proxiedUrl,
+    );
+
+    expect(incomplete).toEqual([element]);
+    expect(moduleLoader).not.toHaveBeenCalled();
+  });
+
+  it("builds the copy in the live map's projection, however late it is read", async () => {
+    const { grid } = addMap([{ canvas: taintedCanvas(), config: wmsConfig }]);
+
+    await captureLockedMapLayers(grid, createCaptureSession(), proxiedUrl);
+
+    const getMapProjection = moduleLoader.mock.calls[0][2];
+    expect(getMapProjection()).toBe("EPSG:3857");
+  });
+
+  it("reports a layer whose re-render is not readable either", async () => {
+    renderedCanvas = taintedCanvas();
+    const live = taintedCanvas();
+    const { grid, element, viewport } = addMap([
+      { canvas: live, config: wmsConfig },
+    ]);
+
+    const incomplete = await captureLockedMapLayers(
+      grid,
+      createCaptureSession(),
+      proxiedUrl,
+    );
+
+    expect(incomplete).toEqual([element]);
+    expect(viewport.contains(live)).toBe(true);
+  });
+
   it("skips a map element nothing registered", async () => {
     const { grid } = addMap([{ canvas: taintedCanvas(), config: wmsConfig }], {
       register: false,
@@ -254,8 +309,55 @@ describe("captureLockedMapLayers", () => {
 
     expect(map.getLayers).not.toHaveBeenCalled();
     // A missing element registers nothing and unregisters harmlessly.
-    expect(registerCaptureMap(null, map, () => null)).toEqual(
-      expect.any(Function),
+    const noop = registerCaptureMap(null, map, () => null);
+    expect(noop).toEqual(expect.any(Function));
+    expect(noop()).toBeUndefined();
+  });
+
+  it("leaves a newer map's registration alone when an older one unregisters", async () => {
+    const live = taintedCanvas();
+    const { grid, element } = addMap([{ canvas: live, config: wmsConfig }], {
+      register: false,
+    });
+    const stale = { getLayers: jest.fn() };
+    const unregisterStale = registerCaptureMap(element, stale, () => null);
+    // The element is reused by a newer map before the old one cleans up.
+    const current = addMap([{ canvas: taintedCanvas(), config: wmsConfig }]);
+    registerCaptureMap(element, current.map, (layer) => layer.config);
+
+    unregisterStale();
+    await captureLockedMapLayers(grid, createCaptureSession(), proxiedUrl);
+
+    expect(stale.getLayers).not.toHaveBeenCalled();
+    expect(moduleLoader).toHaveBeenCalled();
+  });
+
+  it("does not probe a canvas with no size, a layer with no canvas, or a hidden layer", async () => {
+    const empty = taintedCanvas();
+    empty.width = 0;
+    const hidden = taintedCanvas();
+    const { grid, map } = addMap([
+      { canvas: empty, config: wmsConfig },
+      { canvas: hidden, config: wmsConfig, visible: false },
+    ]);
+    map
+      .getLayers()
+      .getArray()
+      .push({
+        getRenderer: () => ({}),
+        getVisible: () => true,
+        get: () => "no canvas",
+      });
+
+    const incomplete = await captureLockedMapLayers(
+      grid,
+      createCaptureSession(),
+      proxiedUrl,
     );
+
+    // The hidden layer's canvas still reads as tainted, but with no visible
+    // layer behind it there is nothing to re-fetch - it is reported.
+    expect(incomplete).toHaveLength(1);
+    expect(moduleLoader).not.toHaveBeenCalled();
   });
 });

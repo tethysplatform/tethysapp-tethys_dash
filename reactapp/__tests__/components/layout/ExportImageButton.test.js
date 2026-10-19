@@ -1,4 +1,10 @@
-import { render, screen, waitFor, act } from "@testing-library/react";
+import {
+  render,
+  screen,
+  waitFor,
+  act,
+  fireEvent,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import ExportImageButton, {
   canCopyImages,
@@ -237,6 +243,24 @@ describe("ExportImageButton", () => {
     await waitFor(() =>
       expect(screen.getByLabelText("exportImageButton")).toBeEnabled(),
     );
+  });
+
+  it("ignores a second choice that lands before the first one disables the menu", async () => {
+    let finish;
+    captureDashboard.mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    renderButton();
+    await userEvent.click(screen.getByLabelText("exportImageButton"));
+    const item = await screen.findByText("Download whole tab");
+
+    fireEvent.click(item);
+    fireEvent.click(item);
+
+    expect(captureDashboard).toHaveBeenCalledTimes(1);
+    await act(async () => finish(clean));
   });
 
   it("can be disabled by its header", () => {
