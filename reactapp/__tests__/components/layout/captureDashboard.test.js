@@ -146,11 +146,17 @@ describe("captureDashboardCanvas", () => {
         exclude: expect.arrayContaining([
           ".dashboard-item-menu",
           ".modebar-container",
-          ".ol-overlay-container",
+          ".ol-popup-closer",
+          ".map-query-spinner",
+          ".linked-cursor-marker",
         ]),
       }),
     );
     expect(snapdom.mock.calls[0][1]).not.toHaveProperty("clip");
+    // A clicked feature's attribute table is content, kept while it is open.
+    expect(snapdom.mock.calls[0][1].exclude).not.toContain(
+      ".ol-overlay-container",
+    );
     expect(canvas.width).toBe(2400);
     expect(problems).toEqual([]);
     expect(downscaled).toBe(false);
@@ -191,6 +197,24 @@ describe("captureDashboardCanvas", () => {
     expect(snapdom.mock.calls[0][1].clip).toEqual(
       expect.objectContaining({ y: 56, height: 800 - 56 }),
     );
+  });
+
+  it("covers a fill-viewport tile that reaches past a shorter grid", async () => {
+    // The grid's own box ends at 600px; the fixed fill tile spans the content
+    // area to the bottom of the window.
+    const { tile } = addGrid({ fill: true, top: 56, height: 544 });
+    jest
+      .spyOn(tile, "getBoundingClientRect")
+      .mockReturnValue(rect({ top: 56, width: 1200, height: 744 }));
+
+    await captureDashboardCanvas({ mode: "visible" });
+
+    expect(snapdom.mock.calls[0][1].clip).toEqual({
+      x: 0,
+      y: 56,
+      width: 1200,
+      height: 744,
+    });
   });
 
   it("refuses visible mode when none of the grid is on screen", async () => {
@@ -317,22 +341,33 @@ function addPopup({ left = 100, top = 200, width = 400, height = 300 } = {}) {
 }
 
 describe("map popup", () => {
+  /* The popup is drawn onto a new canvas holding a copy of the grid's - never
+     onto snapdom's, whose context keeps snapdom's own density scale. */
   const popupSnapdom = () => {
     const gridCanvas = capturedCanvas();
     const popupCanvas = { width: 800, height: 600 };
     snapdom
       .mockResolvedValueOnce({ toCanvas: async () => gridCanvas })
       .mockResolvedValueOnce({ toCanvas: async () => popupCanvas });
-    return { gridCanvas, popupCanvas };
+    const composite = { drawImage: jest.fn() };
+    jest
+      .spyOn(HTMLCanvasElement.prototype, "getContext")
+      .mockReturnValue(composite);
+    return { gridCanvas, popupCanvas, composite };
   };
 
   it("draws an open popup onto a whole-tab capture where it sits on screen", async () => {
     addGrid({ top: 56, width: 1200, height: 900 });
     const popup = addPopup({ left: 100, top: 200, width: 400, height: 300 });
-    const { gridCanvas, popupCanvas } = popupSnapdom();
+    const { gridCanvas, popupCanvas, composite } = popupSnapdom();
 
-    await captureDashboardCanvas({ mode: "whole" });
+    const { canvas } = await captureDashboardCanvas({ mode: "whole" });
 
+    // A new canvas the grid's size, holding the grid's capture first.
+    expect(canvas).not.toBe(gridCanvas);
+    expect([canvas.width, canvas.height]).toEqual([2400, 1800]);
+    expect(composite.drawImage).toHaveBeenNthCalledWith(1, gridCanvas, 0, 0);
+    expect(gridCanvas.context.drawImage).not.toHaveBeenCalled();
     // Captured on its own at the same density, without its close button and
     // without a background, so its rounded corners show the dashboard.
     expect(snapdom.mock.calls[1][0]).toBe(popup);
@@ -345,7 +380,8 @@ describe("map popup", () => {
     expect(snapdom.mock.calls[1][1]).not.toHaveProperty("backgroundColor");
     // 2400px of capture over a 1200px grid: two capture pixels per CSS pixel,
     // measured from the grid's corner at (0, 56).
-    expect(gridCanvas.context.drawImage).toHaveBeenCalledWith(
+    expect(composite.drawImage).toHaveBeenNthCalledWith(
+      2,
       popupCanvas,
       100 * 2,
       (200 - 56) * 2,
@@ -358,12 +394,13 @@ describe("map popup", () => {
     addGrid({ top: -444, width: 1200, height: 3000 });
     window.scrollY = 500;
     addPopup({ left: 100, top: 200 });
-    const { gridCanvas, popupCanvas } = popupSnapdom();
+    const { popupCanvas, composite } = popupSnapdom();
 
     await captureDashboardCanvas({ mode: "whole" });
 
     // The grid starts 444px above the window, so the popup is 644px down it.
-    expect(gridCanvas.context.drawImage).toHaveBeenCalledWith(
+    expect(composite.drawImage).toHaveBeenNthCalledWith(
+      2,
       popupCanvas,
       200,
       (200 + 444) * 2,
@@ -376,12 +413,13 @@ describe("map popup", () => {
     addGrid({ top: -300, width: 1200, height: 3000 });
     window.scrollY = 356;
     addPopup({ left: 100, top: 200 });
-    const { gridCanvas, popupCanvas } = popupSnapdom();
+    const { popupCanvas, composite } = popupSnapdom();
 
     await captureDashboardCanvas({ mode: "visible" });
 
     // The clip starts at the header's bottom edge, 56px down the window.
-    expect(gridCanvas.context.drawImage).toHaveBeenCalledWith(
+    expect(composite.drawImage).toHaveBeenNthCalledWith(
+      2,
       popupCanvas,
       200,
       (200 - 56) * 2,
@@ -457,6 +495,55 @@ describe("map popup", () => {
     expect(problems).toEqual([
       { tile: "Map popup", kind: CAPTURE_PROBLEM.popup },
     ]);
+  });
+
+  it("pins each table to its on-screen width only while the capture runs", async () => {
+    const { tile } = addGrid();
+    const table = document.createElement("table");
+    table.style.width = "100%";
+    jest
+      .spyOn(table, "getBoundingClientRect")
+      .mockReturnValue(rect({ width: 320, height: 200 }));
+    tile.appendChild(table);
+    const popup = addPopup();
+    const popupTable = document.createElement("table");
+    jest
+      .spyOn(popupTable, "getBoundingClientRect")
+      .mockReturnValue(rect({ width: 280, height: 100 }));
+    popup.appendChild(popupTable);
+    let during;
+    snapdom.mockImplementation(async () => {
+      during ??= [
+        table.style.width,
+        table.style.maxWidth,
+        popupTable.style.width,
+      ];
+      return { toCanvas: async () => capturedCanvas() };
+    });
+
+    await captureDashboardCanvas();
+
+    expect(during).toEqual(["320px", "320px", "280px"]);
+    expect(table.style.width).toBe("100%");
+    expect(table.style.maxWidth).toBe("");
+    expect(popupTable.style.width).toBe("");
+  });
+
+  it("hides scrollbars in captured content only while the capture runs", async () => {
+    addGrid();
+    let styleDuring;
+    snapdom.mockImplementation(async () => {
+      styleDuring = document.querySelector(
+        "style[data-capture-style]",
+      )?.textContent;
+      return { toCanvas: async () => capturedCanvas() };
+    });
+
+    await captureDashboardCanvas();
+
+    expect(styleDuring).toContain("scrollbar-width: none");
+    expect(styleDuring).toContain(`.${CAPTURING_CLASS}`);
+    expect(document.querySelector("style[data-capture-style]")).toBeNull();
   });
 
   it("marks the popup as capturing only while the capture runs", async () => {

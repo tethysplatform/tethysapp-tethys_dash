@@ -15,13 +15,18 @@ export const CAPTURE_EXCLUDED_SELECTORS = [
   ".modebar-container",
   '[data-testid="subplot-toggle-control"]',
   // On-map controls. The legend itself stays; its show button and the layer
-  // switcher do not. Overlays are the feature popup, the query spinner and the
-  // linked cursor - all transient.
+  // switcher do not. A clicked feature's attribute table stays, without its
+  // close button - like the popup modal, it is shown only while open. The query
+  // spinner and a linked map's cursor marker are transient and do not.
   '[aria-label="Show Legend Control"]',
+  // The collapsed legend's box, which would otherwise stay as an empty square.
+  '.legend-control:has([aria-label="Show Legend Control"])',
   '[aria-label="Show Layers Control"]',
   '[aria-label="Layers Control"]',
   '[aria-label="Map Alerts"]',
-  ".ol-overlay-container",
+  ".ol-popup-closer",
+  ".map-query-spinner",
+  ".linked-cursor-marker",
 ];
 
 // Set on the grid for the length of a capture, so tile styling can drop the
@@ -270,14 +275,24 @@ export function clampDensity(width, height, requested) {
 }
 
 /* The part of the grid on screen below the fixed header, in the page
-   coordinates snapdom's clip takes. A fill-viewport item is position:fixed at
-   that area, so whole-tab mode captures it the same way. */
+   coordinates snapdom's clip takes. An active fill-viewport item is
+   position:fixed over the whole content area, reaching past the grid's own box
+   when the grid is shorter than the screen, so the area it covers counts too -
+   and whole-tab mode captures it the same way. */
 function visibleClip(grid) {
-  const rect = grid.getBoundingClientRect();
-  const top = Math.max(rect.top, getHeaderHeight());
-  const bottom = Math.min(rect.bottom, window.innerHeight);
-  const left = Math.max(rect.left, 0);
-  const right = Math.min(rect.right, window.innerWidth);
+  const rects = [grid.getBoundingClientRect()];
+  const fill = grid.querySelector('[data-fill-viewport="true"]');
+  if (fill) rects.push(fill.getBoundingClientRect());
+  const top = Math.max(Math.min(...rects.map((r) => r.top)), getHeaderHeight());
+  const bottom = Math.min(
+    Math.max(...rects.map((r) => r.bottom)),
+    window.innerHeight,
+  );
+  const left = Math.max(Math.min(...rects.map((r) => r.left)), 0);
+  const right = Math.min(
+    Math.max(...rects.map((r) => r.right)),
+    window.innerWidth,
+  );
   if (bottom <= top || right <= left) return null;
   return {
     x: left + window.scrollX,
@@ -318,6 +333,40 @@ function markCapturing(element, session) {
   session.record(() => element.classList.remove(CAPTURING_CLASS));
 }
 
+/* Scrollbars in a slide image are noise, and snapdom's copy can overflow its
+   box by a pixel where the page does not, growing scrollbars the page never
+   showed. Hidden in everything being captured. */
+const CAPTURE_STYLE = `.${CAPTURING_CLASS}, .${CAPTURING_CLASS} * { scrollbar-width: none !important; }`;
+
+function addCaptureStyle(session) {
+  const style = document.createElement("style");
+  style.setAttribute("data-capture-style", "");
+  style.textContent = CAPTURE_STYLE;
+  document.head.appendChild(style);
+  session.record(() => style.remove());
+}
+
+/* snapdom leaves table cells at their natural width, so a fixed-layout table
+   sized by its container - a map's attribute popup - grows to fit its longest
+   value and overflows the box it fits on screen. Each table is pinned to its
+   on-screen width for the length of the capture. */
+function pinTableWidths(root, session) {
+  for (const table of root.querySelectorAll("table")) {
+    const { width } = table.getBoundingClientRect();
+    if (!(width > 0)) continue;
+    const original = {
+      width: table.style.width,
+      maxWidth: table.style.maxWidth,
+    };
+    table.style.width = `${width}px`;
+    table.style.maxWidth = `${width}px`;
+    session.record(() => {
+      table.style.width = original.width;
+      table.style.maxWidth = original.maxWidth;
+    });
+  }
+}
+
 function rasterize(element, options) {
   return withTimeout(
     snapdom(element, {
@@ -330,11 +379,15 @@ function rasterize(element, options) {
   );
 }
 
-/* Draw the open popup onto the dashboard capture where it sits on screen.
-   origin is where the capture's top-left corner is in the viewport, and scale
-   converts CSS pixels to the capture's pixels. Whatever falls outside the
-   capture is clipped by the canvas. */
-async function drawPopupOnto(canvas, popup, origin, scale, dpr) {
+/* The dashboard capture with the open popup drawn over it where it sits on
+   screen, as a new canvas. origin is where the capture's top-left corner is in
+   the viewport, and scale converts CSS pixels to the capture's pixels. Whatever
+   falls outside the capture is clipped by the canvas.
+
+   A new canvas rather than drawing onto snapdom's: snapdom leaves its own
+   density scale on that canvas's context, so a draw in capture pixels lands at
+   twice the offset - off the canvas, silently. */
+async function withPopupDrawn(canvas, popup, origin, scale, dpr) {
   const rect = popup.getBoundingClientRect();
   // No background: the popup paints its own, and its rounded corners show the
   // dashboard behind them.
@@ -342,15 +395,19 @@ async function drawPopupOnto(canvas, popup, origin, scale, dpr) {
     dpr,
     exclude: POPUP_EXCLUDED_SELECTORS,
   });
-  canvas
-    .getContext("2d")
-    .drawImage(
-      popupCanvas,
-      (rect.left - origin.left) * scale,
-      (rect.top - origin.top) * scale,
-      rect.width * scale,
-      rect.height * scale,
-    );
+  const composite = document.createElement("canvas");
+  composite.width = canvas.width;
+  composite.height = canvas.height;
+  const context = composite.getContext("2d");
+  context.drawImage(canvas, 0, 0);
+  context.drawImage(
+    popupCanvas,
+    (rect.left - origin.left) * scale,
+    (rect.top - origin.top) * scale,
+    rect.width * scale,
+    rect.height * scale,
+  );
+  return composite;
 }
 
 /**
@@ -399,10 +456,13 @@ export async function captureDashboardCanvas({
       ])
     ).flat();
 
-    markCapturing(grid, session);
-    if (popup) markCapturing(popup, session);
+    addCaptureStyle(session);
+    for (const root of popup ? [grid, popup] : [grid]) {
+      markCapturing(root, session);
+      pinTableWidths(root, session);
+    }
 
-    const canvas = await rasterize(grid, {
+    let canvas = await rasterize(grid, {
       ...(clip ? { clip } : {}),
       dpr: density.dpr,
       exclude: CAPTURE_EXCLUDED_SELECTORS,
@@ -416,7 +476,7 @@ export async function captureDashboardCanvas({
         ? { left: clip.x - window.scrollX, top: clip.y - window.scrollY }
         : { left: gridRect.left, top: gridRect.top };
       try {
-        await drawPopupOnto(
+        canvas = await withPopupDrawn(
           canvas,
           popup,
           origin,
