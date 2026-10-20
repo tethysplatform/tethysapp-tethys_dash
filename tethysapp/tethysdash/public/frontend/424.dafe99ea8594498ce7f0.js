@@ -1,0 +1,1 @@
+"use strict";(globalThis.webpackChunktethysdash_frontend=globalThis.webpackChunktethysdash_frontend||[]).push([[424],{50424(e,s,t){t.d(s,{default:()=>d});var a=t(3075),n=t(42132);class d extends n.A{decodeBlock(e){return(0,a.UD)(new Uint8Array(e)).buffer}}}}]);
