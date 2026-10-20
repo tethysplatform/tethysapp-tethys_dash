@@ -31,6 +31,6 @@ Images and maps from other servers
 
 Images and map layers from other servers are fetched through TethysDash so they can be included, even when that server does not allow other sites to read its content. This covers ArcGIS image, WMS and static image map layers.
 
-If something that displays on screen still cannot be included, the export completes and a message names the dashboard item it affects, for example ``Map (a map layer)``. Common causes are a server that refused the request, an image too large to fetch, or a map point symbol loaded from another server. Visitors who are not signed in are limited in how many images they can fetch per minute, so several exports in quick succession may also leave content out; wait a minute and export again.
+If something that displays on screen still cannot be included, the export completes and a message names the dashboard item it affects, for example ``Map (a map layer)``. Common causes are a server that refused the request, an image too large to fetch, or a map point symbol loaded from another server. The number of images anyone can fetch per minute is limited, and the limit is lower for visitors who are not signed in. Several exports in quick succession may therefore leave content out; wait a minute and export again.
 
 See also :ref:`landing_page` for the dashboard thumbnails shown on the landing page, which are captured the same way.

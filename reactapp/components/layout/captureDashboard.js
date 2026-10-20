@@ -104,7 +104,8 @@ export function isExpectedCaptureFailure(error) {
   );
 }
 
-let captureInProgress = false;
+// The capture running now, if any.
+let activeCapture = null;
 
 export function proxiedImageUrl(url, dashboardUuid) {
   return (
@@ -243,6 +244,17 @@ export async function inlineCrossOriginImages(
         if (original === null) image.removeAttribute("src");
         else image.setAttribute("src", original);
       });
+      // A responsive image shows its srcset candidate - or a <picture>
+      // source's - over src, so those step aside until the capture ends.
+      const sources = image.parentElement?.matches("picture")
+        ? image.parentElement.querySelectorAll("source[srcset]")
+        : [];
+      for (const element of [image, ...sources]) {
+        const srcset = element.getAttribute("srcset");
+        if (srcset === null) continue;
+        element.removeAttribute("srcset");
+        session.record(() => element.setAttribute("srcset", srcset));
+      }
     }),
   );
   return problems;
@@ -462,23 +474,44 @@ async function withPopupsDrawn(canvas, popups, origin, scale, dpr, problems) {
  * includePopup is false. Returns the canvas,
  * the problems found along the way and whether the density had to be reduced.
  * Throws
- * CaptureBusyError while another capture runs, and NothingToCaptureError when
- * there is no laid-out grid with tiles in it.
+ * CaptureBusyError while another capture runs - unless waitForTurn, which waits
+ * for it instead - and NothingToCaptureError when there is no laid-out grid
+ * with tiles in it.
  */
 export async function captureDashboardCanvas({
+  waitForTurn = false,
+  ...options
+} = {}) {
+  // Waiting suits a caller nobody is watching, like the thumbnail after a save;
+  // the export button refuses instead, since its user can see why.
+  while (waitForTurn && activeCapture) {
+    await activeCapture.catch(() => {});
+  }
+  if (activeCapture) throw new CaptureBusyError();
+
+  const capture = runCapture(options);
+  activeCapture = capture;
+  try {
+    return await capture;
+  } finally {
+    // istanbul ignore else -- a waiter resumes a tick after this does, so this
+    // is still the active capture; the check keeps a change in that order from
+    // freeing a lock the next capture holds.
+    if (activeCapture === capture) activeCapture = null;
+  }
+}
+
+async function runCapture({
   mode = CAPTURE_MODE.whole,
   dpr = 2,
   dashboardUuid,
   includePopup = true,
-} = {}) {
-  if (captureInProgress) throw new CaptureBusyError();
-
+}) {
   const grid = getActiveGrid();
   if (!grid || !grid.querySelector("[data-tile-label]")) {
     throw new NothingToCaptureError();
   }
 
-  captureInProgress = true;
   const session = createCaptureSession();
 
   try {
@@ -545,7 +578,6 @@ export async function captureDashboardCanvas({
     };
   } finally {
     session.teardown();
-    captureInProgress = false;
   }
 }
 

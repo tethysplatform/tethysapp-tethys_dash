@@ -285,6 +285,62 @@ describe("captureDashboardCanvas", () => {
     await expect(captureDashboardCanvas()).resolves.toBeDefined();
   });
 
+  it("lets a caller wait its turn instead, then hands the lock on cleanly", async () => {
+    addGrid();
+    let finish;
+    snapdom.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = () => resolve({ toCanvas: async () => capturedCanvas() });
+        }),
+    );
+    let finishWaiter;
+    snapdom.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishWaiter = () =>
+            resolve({ toCanvas: async () => capturedCanvas() });
+        }),
+    );
+
+    const first = captureDashboardCanvas();
+    const waiter = captureDashboardCanvas({ waitForTurn: true });
+    while (!finish) await Promise.resolve();
+    expect(snapdom).toHaveBeenCalledTimes(1);
+
+    finish();
+    await first;
+    while (!finishWaiter) await Promise.resolve();
+    // The waiter now holds the lock: the first capture's ending did not free it.
+    await expect(captureDashboardCanvas()).rejects.toBeInstanceOf(
+      CaptureBusyError,
+    );
+
+    finishWaiter();
+    await expect(waiter).resolves.toBeDefined();
+    snapdomReturns();
+    await expect(captureDashboardCanvas()).resolves.toBeDefined();
+  });
+
+  it("waits out a capture that fails, too", async () => {
+    addGrid();
+    let fail;
+    snapdom.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          fail = () => reject(new Error("snapdom exploded"));
+        }),
+    );
+
+    const first = captureDashboardCanvas();
+    const waiter = captureDashboardCanvas({ waitForTurn: true });
+    while (!fail) await Promise.resolve();
+    fail();
+
+    await expect(first).rejects.toThrow("snapdom exploded");
+    await expect(waiter).resolves.toBeDefined();
+  });
+
   it("gives up on a capture that never finishes and frees the lock", async () => {
     jest.useFakeTimers();
     try {
@@ -827,6 +883,33 @@ describe("cross-origin images", () => {
     } finally {
       jest.useRealTimers();
     }
+  });
+
+  it("sets a responsive image's srcset, and its picture's, aside while the capture runs", async () => {
+    const { tile } = addGrid();
+    const picture = document.createElement("picture");
+    const source = document.createElement("source");
+    source.setAttribute("srcset", "https://elsewhere.test/wide.webp 2x");
+    picture.appendChild(source);
+    tile.appendChild(picture);
+    const image = addImage(picture, "https://elsewhere.test/small.png");
+    image.setAttribute("srcset", "https://elsewhere.test/large.png 2x");
+    global.fetch = jest.fn().mockResolvedValue(imageResponse());
+    let during;
+    snapdom.mockImplementation(async () => {
+      during = [image.getAttribute("srcset"), source.getAttribute("srcset")];
+      return { toCanvas: async () => capturedCanvas() };
+    });
+
+    await captureDashboardCanvas();
+
+    expect(during).toEqual([null, null]);
+    expect(image.getAttribute("srcset")).toBe(
+      "https://elsewhere.test/large.png 2x",
+    );
+    expect(source.getAttribute("srcset")).toBe(
+      "https://elsewhere.test/wide.webp 2x",
+    );
   });
 
   it("fetches a repeated image once", async () => {

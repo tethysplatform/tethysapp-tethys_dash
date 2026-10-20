@@ -48,14 +48,15 @@ function cropAndScale(captured, dpr) {
 }
 
 /**
- * Capture the active tab for the landing-page card. Returns a PNG data URL, or
- * null when there is nothing to capture, an export is running, or the capture
- * fails - a thumbnail must never cost the save that asked for it.
+ * Capture the active tab for the landing-page card, after any export already
+ * running. Returns a PNG data URL, or null when there is nothing to capture or
+ * the capture fails - a thumbnail must never cost the save that asked for it.
  */
 export default async function captureThumbnail(dashboardUuid) {
   try {
     const { canvas, dpr = 1 } = await captureDashboardCanvas({
       mode: CAPTURE_MODE.whole,
+      waitForTurn: true,
       dpr: 1,
       dashboardUuid,
       // A popup open at save time is passing state, not the dashboard.

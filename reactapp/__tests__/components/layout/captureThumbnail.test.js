@@ -1,7 +1,6 @@
 import captureThumbnail from "components/layout/captureThumbnail";
 import {
   captureDashboardCanvas,
-  CaptureBusyError,
   NothingToCaptureError,
 } from "components/layout/captureDashboard";
 
@@ -47,6 +46,8 @@ describe("captureThumbnail", () => {
     );
     expect(captureDashboardCanvas).toHaveBeenCalledWith({
       mode: "whole",
+      // After an export already running, rather than skipped.
+      waitForTurn: true,
       dpr: 1,
       dashboardUuid: DASHBOARD,
       // A popup open at save time is not part of the dashboard.
@@ -110,11 +111,8 @@ describe("captureThumbnail", () => {
     await expect(captureThumbnail(DASHBOARD)).resolves.toBeNull();
   });
 
-  it.each([
-    ["nothing to capture", new NothingToCaptureError()],
-    ["an export is running", new CaptureBusyError()],
-  ])("quietly returns nothing when %s", async (_, error) => {
-    captureDashboardCanvas.mockRejectedValue(error);
+  it("quietly returns nothing when there is nothing to capture", async () => {
+    captureDashboardCanvas.mockRejectedValue(new NothingToCaptureError());
 
     await expect(captureThumbnail(DASHBOARD)).resolves.toBeNull();
     expect(console.error).not.toHaveBeenCalled();
