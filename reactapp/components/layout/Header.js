@@ -28,6 +28,7 @@ import {
 import { discoverGroupSeeds } from "components/map/viewGroup";
 import { getTethysPortalBase } from "services/utilities";
 import captureThumbnail from "components/layout/captureThumbnail";
+import ExportImageButton from "components/layout/ExportImageButton";
 
 import {
   BsX,
@@ -286,6 +287,7 @@ export const DashboardHeader = () => {
   const { user } = useContext(AppContext);
   const {
     name,
+    uuid,
     editable,
     saveLayoutContext,
     unrestrictedPlacement,
@@ -336,7 +338,7 @@ export const DashboardHeader = () => {
     thumbnailInFlight.current = true;
     (async () => {
       try {
-        const image = await captureThumbnail();
+        const image = await captureThumbnail(uuid);
         if (image) await saveLayoutContext({ image });
       } catch (error) {
         console.error("Dashboard thumbnail update failed:", error);
@@ -345,7 +347,7 @@ export const DashboardHeader = () => {
         setThumbnailPending(false);
       }
     })();
-  }, [thumbnailPending, isEditing, saveLayoutContext, autoThumbnail]);
+  }, [thumbnailPending, isEditing, saveLayoutContext, autoThumbnail, uuid]);
 
   // Only show AppInfoModal on startup after public user modal check is complete and modal is dismissed
   useEffect(() => {
@@ -646,6 +648,7 @@ export const DashboardHeader = () => {
                 <BsFillPersonFill size="1.5rem" />
               </TooltipButton>
             )}
+            <ExportImageButton disabled={isSaving} />
             <TooltipButton
               onClick={showNav}
               tooltipPlacement="bottom"

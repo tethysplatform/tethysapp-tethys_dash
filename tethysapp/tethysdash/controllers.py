@@ -1,8 +1,10 @@
 from django.http import JsonResponse, HttpResponse
 import ipaddress
 import json
+import math
 import os
 import socket
+import time
 import nh3
 import requests
 from rest_framework.decorators import api_view
@@ -33,6 +35,7 @@ from tethysapp.tethysdash.model import (
     copy_thumbnail,
     delete_thumbnail,
     canonical_dashboard_uuid,
+    can_view_dashboard,
 )
 from django.core.cache import cache
 from tethysapp.tethysdash.visualizations import (
@@ -50,14 +53,50 @@ from better_profanity import profanity
 # Load the default wordlist
 profanity.load_censor_words()
 
-# Bounds for the thumbnail image proxy. The timeout keeps a slow host from
-# tying up a worker; the size cap keeps a large image from being read into
-# memory, and comfortably exceeds anything worth showing in a 640px thumbnail.
+# Bounds for the image proxy behind dashboard captures. The timeout keeps a slow
+# host from tying up a worker; the size cap keeps a large image from being read
+# into memory, and comfortably exceeds a full-window map image.
 IMAGE_PROXY_TIMEOUT = 10
 IMAGE_PROXY_MAX_BYTES = 10 * 1024 * 1024
 # Redirects are common for image CDNs, but each hop is re-checked, so the chain
 # is kept short rather than unbounded.
 IMAGE_PROXY_MAX_REDIRECTS = 3
+# Requests a caller who is not logged in may make per window. One export costs a
+# request per cross-origin image plus one per map layer that has to be re-fetched,
+# so this leaves room for several exports a minute and little else.
+IMAGE_PROXY_ANONYMOUS_LIMIT = 120
+# A logged-in caller is accountable, so gets more room - but not unlimited, since
+# any account can otherwise relay images without bound.
+IMAGE_PROXY_AUTHENTICATED_LIMIT = 600
+IMAGE_PROXY_WINDOW = 60
+
+
+def _rate_limit_retry_after(key, limit, window):
+    """Count one request against key; return seconds to wait when over the limit.
+
+    Returns None while under the limit. Windows are fixed, aligned to the clock,
+    and named in the cache key, so a window ends on time whatever the cache does
+    to a key's lifetime - the file and database caches restart it on every
+    increment. Best-effort: the cache read and write are not atomic, and a
+    per-process cache counts per worker.
+    """
+    now = time.time()
+    window_index = int(now // window)
+    window_key = f"{key}:{window_index}"
+
+    count = cache.get(window_key, 0)
+    if count >= limit:
+        return max(1, math.ceil((window_index + 1) * window - now))
+
+    if count == 0:
+        cache.set(window_key, 1, timeout=window)
+    else:
+        try:
+            cache.incr(window_key)
+        except ValueError:
+            # Evicted between the read and the increment.
+            cache.set(window_key, 1, timeout=window)
+    return None
 
 
 def _get_error_message(e, fallback):
@@ -396,18 +435,10 @@ class VisualizationConsumer(AsyncWebsocketConsumer):
         censored_message = profanity.censor(message)
         timestamp = datetime.utcnow()
 
-        rate_key = f"chat_rate_{request_id}_{session_id}"
-        count = cache.get(rate_key, 0)
-        if count >= 5:
-            # Try to get the remaining time until the rate limit resets
-            retry_after = 10  # Default fallback
-            try:
-                # Django cache backends may support .ttl(), but not all do
-                retry_after = cache.ttl(rate_key)
-                if retry_after is None:
-                    retry_after = 10
-            except Exception:
-                retry_after = 10
+        retry_after = _rate_limit_retry_after(
+            f"chat_rate_{request_id}_{session_id}", limit=5, window=10
+        )
+        if retry_after is not None:
             await self.send(
                 json.dumps(
                     {
@@ -418,11 +449,6 @@ class VisualizationConsumer(AsyncWebsocketConsumer):
                 )
             )
             return
-
-        if count == 0:
-            cache.set(rate_key, 1, timeout=10)  # 10 seconds window
-        else:
-            cache.incr(rate_key)
 
         try:
             # Broadcast the message (include messageId)
@@ -1058,6 +1084,9 @@ def download_json(request, app_workspace):
         return JsonResponse({"success": False, "message": message})
 
 
+NAT64_WELL_KNOWN_PREFIX = ipaddress.ip_network("64:ff9b::/96")
+
+
 def _is_blocked_address(address_string):
     """True for an address this server must never be aimed at.
 
@@ -1071,8 +1100,23 @@ def _is_blocked_address(address_string):
     except ValueError:
         return True
 
+    # An IPv4 address written as IPv6 is judged as the IPv4 address it is - and
+    # so is one behind the well-known NAT64 prefix, which a NAT64 gateway on the
+    # server's network translates straight to that IPv4 address. (The other
+    # IPv4-carrying ranges - 6to4, Teredo, the local-use NAT64 prefix - are not
+    # global, so the check below already refuses them.)
+    if getattr(address, "ipv4_mapped", None):
+        address = address.ipv4_mapped
+    elif address in NAT64_WELL_KNOWN_PREFIX:
+        address = ipaddress.IPv4Address(int(address) & 0xFFFFFFFF)
+
+    # Anything not routable on the public internet is refused, which also covers
+    # ranges none of the named checks below do - shared address space
+    # (100.64.0.0/10), where Alibaba Cloud serves instance metadata at
+    # 100.100.100.200, among them.
     return (
-        address.is_private
+        not address.is_global
+        or address.is_private
         or address.is_loopback
         or address.is_link_local
         or address.is_reserved
@@ -1120,30 +1164,99 @@ def _connected_peer_is_blocked(response):
     return _is_blocked_address(peer)
 
 
-@controller(url="tethysdash/images/proxy", login_required=True)
+def _image_proxy_client_address(request):
+    """The address an anonymous proxy caller is throttled under.
+
+    The last X-Forwarded-For entry: the Tethys nginx and Apache templates both
+    append the address that actually connected to them, after whatever the client
+    sent. Every other source can be chosen by the client - the earlier entries,
+    X-Real-IP where Apache never sets it, and REMOTE_ADDR itself, which Daphne's
+    --proxy-headers fills from the first entry. Behind more than one proxy the
+    last entry is the nearer proxy, so callers share a bucket - stricter, never
+    looser. Without the header, REMOTE_ADDR is used; a server reached directly with
+    no proxy in front could be handed a forged header, which is why production
+    portals sit behind one.
+    """
+    forwarded = request.META.get("HTTP_X_FORWARDED_FOR", "")
+    hops = [hop.strip() for hop in forwarded.split(",") if hop.strip()]
+    address = hops[-1] if hops else request.META.get("REMOTE_ADDR", "")
+
+    # One home or server is handed a whole /64 of IPv6 addresses, so per address
+    # it could rotate past the throttle; it is counted per /64 instead.
+    try:
+        parsed = ipaddress.ip_address(address)
+    except ValueError:
+        return address
+    if parsed.version == 4:
+        return str(parsed)
+    if parsed.ipv4_mapped:
+        return str(parsed.ipv4_mapped)
+    return str(ipaddress.ip_network(f"{parsed}/64", strict=False))
+
+
+def _redacted_url(url):
+    """A URL without its query string or credentials, safe to log.
+
+    Image URLs carry access tokens in their query strings (ArcGIS, signed CDN
+    links), and this proxy will fetch them for anyone viewing a public dashboard.
+    """
+    parsed = urlparse(url)
+    host = parsed.hostname or ""
+    if parsed.port:
+        host = f"{host}:{parsed.port}"
+    return f"{parsed.scheme}://{host}{parsed.path}"
+
+
+@controller(url="tethysdash/images/proxy", login_required=False)
 def image_proxy(request):
     """
     Fetch a cross-origin image and return it from this origin.
 
-    Exists for dashboard thumbnails. Capturing one serialises the page, which
-    means re-fetching every <img> from JavaScript, and that re-fetch is subject
-    to CORS - so an image whose host sends no Access-Control-Allow-Origin comes
-    out blank in the thumbnail even though it displays fine in the dashboard.
-    Nothing in the browser can work around that. Fetching server-side can,
-    because server-to-server requests are not subject to CORS.
+    Exists for dashboard captures - the thumbnail and the PNG export. Capturing
+    serialises the page, which means re-fetching every <img> from JavaScript, and
+    that re-fetch is subject to CORS - so an image whose host sends no
+    Access-Control-Allow-Origin comes out blank in the capture even though it
+    displays fine in the dashboard. Nothing in the browser can work around that.
+    Fetching server-side can, because server-to-server requests are not subject
+    to CORS.
 
-    Only the capture path uses this (see components/layout/captureThumbnail),
-    and a capture only runs when a dashboard is saved, which already requires an
-    authenticated editor - hence login_required.
+    Anyone who can view a dashboard can export it, including a visitor to a public
+    dashboard who is not logged in, so the gate is viewing rights on the dashboard
+    the request names rather than a login. That does not tie the URL to that
+    dashboard: anyone naming a public dashboard can fetch any image through this.
+    The residual is a throttled public image relay, accepted on the grounds that it
+    cannot reach anything internal (the SSRF checks below), serves images only,
+    caps their size, and rate-limits every caller: a logged-in one per account,
+    anyone else per the address the fronting proxy appends to X-Forwarded-For.
 
     Args:
         request: Django HTTP request object with query parameters:
             - url: The absolute http(s) image URL to fetch
+            - dashboard: The uuid of the dashboard being captured
 
     Returns:
         HttpResponse: The image bytes with their upstream content type, or a
             plain-text error with an appropriate status code.
     """
+    if request.user.is_authenticated:
+        rate_key = f"image_proxy_rate_user_{request.user.pk}"
+        limit = IMAGE_PROXY_AUTHENTICATED_LIMIT
+    else:
+        rate_key = f"image_proxy_rate_{_image_proxy_client_address(request)}"
+        limit = IMAGE_PROXY_ANONYMOUS_LIMIT
+    retry_after = _rate_limit_retry_after(
+        rate_key, limit=limit, window=IMAGE_PROXY_WINDOW
+    )
+    if retry_after is not None:
+        throttled = HttpResponse("Too many image requests", status=429)
+        throttled["Retry-After"] = str(retry_after)
+        return throttled
+
+    # One answer for a missing, malformed, unknown or private dashboard, so the
+    # proxy cannot be used to learn which dashboards exist.
+    if not can_view_dashboard(request.user, request.GET.get("dashboard", "")):
+        return HttpResponse("Not permitted", status=403)
+
     url = request.GET.get("url", "")
     response = None
 
@@ -1163,7 +1276,11 @@ def image_proxy(request):
                 allow_redirects=False,
             )
         except requests.RequestException as e:
-            print(f"Image proxy failed to fetch {url}: {e}")
+            # The exception's own text repeats the URL, query string and all.
+            print(
+                f"Image proxy failed to fetch {_redacted_url(url)}: "
+                f"{type(e).__name__}"
+            )
             return HttpResponse("Could not fetch the image", status=502)
 
         if not response.is_redirect:
@@ -1186,8 +1303,11 @@ def image_proxy(request):
 
     try:
         response.raise_for_status()
-    except requests.RequestException as e:
-        print(f"Image proxy failed to fetch {url}: {e}")
+    except requests.RequestException:
+        print(
+            f"Image proxy failed to fetch {_redacted_url(url)}: "
+            f"HTTP {response.status_code}"
+        )
         response.close()
         return HttpResponse("Could not fetch the image", status=502)
 

@@ -4,8 +4,13 @@ import ReactDOM from "react-dom";
 import styled from "styled-components";
 import { FaTimes } from "react-icons/fa";
 
-const POPUP_Z_INDEX = 1055;
+// Under the fixed header (1030), so the header and the menus it opens - the
+// image export among them - stay usable while a popup is open. Above
+// everything inside the dashboard, whose map controls sit at 1000.
+const POPUP_Z_INDEX = 1025;
 const SMALL_VIEWPORT_BREAKPOINT = 768;
+// Inset of the small-viewport fallback from the content area's edges (1rem).
+const SMALL_VIEWPORT_INSET_PX = 16;
 
 const DEFAULT_POSITION = {
   leftPct: 20,
@@ -98,10 +103,30 @@ const ModalBody = styled.div`
   padding: 0.75rem;
 `;
 
-function computePositionStyle({ position, isSmallViewport }) {
+export function readHeaderHeight() {
+  if (typeof window === "undefined") return 0;
+  const parsed = parseFloat(
+    getComputedStyle(document.documentElement).getPropertyValue(
+      "--ts-header-height",
+    ),
+  );
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+/* The vertical percentages measure the content area below the fixed header,
+   not the whole window, so a popup never covers the header - and the image
+   export button in it. Horizontal ones still measure the window's width, which
+   the header does not take from. Pixels rather than calc(), so the position
+   reads back from the inline style in tests as it does in the browser. */
+export function computePositionStyle({
+  position,
+  isSmallViewport,
+  viewportHeight,
+  headerHeight = 0,
+}) {
   if (isSmallViewport) {
     return {
-      top: "1rem",
+      top: `${headerHeight + SMALL_VIEWPORT_INSET_PX}px`,
       left: "1rem",
       right: "1rem",
       bottom: "1rem",
@@ -114,12 +139,13 @@ function computePositionStyle({ position, isSmallViewport }) {
   const topPct = position?.topPct ?? DEFAULT_POSITION.topPct;
   const widthPct = position?.widthPct ?? DEFAULT_POSITION.widthPct;
   const heightPct = position?.heightPct ?? DEFAULT_POSITION.heightPct;
+  const contentHeight = Math.max(0, viewportHeight - headerHeight);
 
   return {
     left: `${leftPct}vw`,
-    top: `${topPct}vh`,
+    top: `${Math.round(headerHeight + (contentHeight * topPct) / 100)}px`,
     width: `${widthPct}vw`,
-    height: `${heightPct}vh`,
+    height: `${Math.round((contentHeight * heightPct) / 100)}px`,
   };
 }
 
@@ -133,6 +159,11 @@ export function isEditableTarget(el) {
     return true;
   }
   return false;
+}
+
+export function getInitialViewportHeight() {
+  if (typeof window === "undefined") return 0;
+  return window.innerHeight;
 }
 
 export function getInitialIsSmallViewport() {
@@ -164,9 +195,20 @@ function PopupModal({
   const [isSmallViewport, setIsSmallViewport] = useState(
     getInitialIsSmallViewport,
   );
+  const [viewportHeight, setViewportHeight] = useState(
+    getInitialViewportHeight,
+  );
 
   // Track viewport size for R9 fallback.
   useEffect(() => trackSmallViewport(setIsSmallViewport), []);
+
+  // The vertical position is in pixels of the content area, so it follows the
+  // window's height.
+  useEffect(() => {
+    const handleResize = () => setViewportHeight(window.innerHeight);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   useEffect(() => {
     if (show) {
@@ -196,6 +238,8 @@ function PopupModal({
   const positionStyle = computePositionStyle({
     position,
     isSmallViewport,
+    viewportHeight,
+    headerHeight: readHeaderHeight(),
   });
 
   const containerStyle = {

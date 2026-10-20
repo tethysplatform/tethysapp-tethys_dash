@@ -179,6 +179,13 @@ test("Dashboard Item editing, no custom borders/css", async () => {
   expect(
     screen.getByLabelText("dashboard-item-dropdown-toggle"),
   ).toBeInTheDocument();
+  // The class an export leaves the edit menu out by.
+  expect(
+    screen
+      .getByLabelText("dashboard-item-dropdown-toggle")
+      // eslint-disable-next-line testing-library/no-node-access
+      .closest(".dashboard-item-menu"),
+  ).not.toBeNull();
 });
 
 test("Dashboard Item editing, custom borders/css", async () => {
@@ -1701,6 +1708,9 @@ test("Dashboard Item fill viewport fills the content area in view mode", async (
   expect(
     screen.queryByLabelText("fill-viewport-indicator"),
   ).not.toBeInTheDocument();
+  // An export reads both to name the tile and to cover the area it fills.
+  expect(dashboardGridItem).toHaveAttribute("data-tile-label", gridItem.source);
+  expect(dashboardGridItem).toHaveAttribute("data-fill-viewport", "true");
 });
 
 test("Dashboard Item fill viewport does not force a z-index (stacks by grid order)", async () => {
@@ -1835,6 +1845,7 @@ test("Dashboard Item fill viewport suppressed when not enabled (popup reuse)", a
   expect(
     window.getComputedStyle(dashboardGridItem).getPropertyValue("position"),
   ).not.toBe("fixed");
+  expect(dashboardGridItem).not.toHaveAttribute("data-fill-viewport");
 });
 
 test("Dashboard Item only the first fill item fills the viewport", async () => {

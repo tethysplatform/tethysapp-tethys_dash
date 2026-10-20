@@ -1061,9 +1061,8 @@ export function findSelectOptionByValue(
   return null; // Return null if no match is found
 }
 
-export function downloadJSONFile(data, filename) {
-  const jsonString = JSON.stringify(data, null, 2);
-  const blob = new Blob([jsonString], { type: "application/json" });
+/** Save a blob as a file the browser downloads. */
+export function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
 
   const a = document.createElement("a");
@@ -1074,4 +1073,9 @@ export function downloadJSONFile(data, filename) {
   document.body.removeChild(a);
 
   URL.revokeObjectURL(url);
+}
+
+export function downloadJSONFile(data, filename) {
+  const jsonString = JSON.stringify(data, null, 2);
+  downloadBlob(new Blob([jsonString], { type: "application/json" }), filename);
 }

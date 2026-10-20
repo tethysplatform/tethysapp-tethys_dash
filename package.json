@@ -39,7 +39,7 @@
     "@tiptap/pm": "^2.12.0",
     "@tiptap/react": "^2.12.0",
     "@tiptap/starter-kit": "^2.12.0",
-    "@zumer/snapdom": "^2.24.1",
+    "@zumer/snapdom": "3.3.6",
     "axios": "^0.27.2",
     "bootstrap": "^5.1.3",
     "css-loader": "^6.5.1",
@@ -209,7 +209,7 @@
       "^(?!.*\\.(js|jsx|mjs|cjs|ts|tsx|css|json)$)": "<rootDir>/reactapp/__tests__/transforms/fileTransform.js"
     },
     "transformIgnorePatterns": [
-      "[/\\\\]node_modules[/\\\\](?!(swiper|ol|ol-mapbox-style|plotly.js|react-plotly.js|color-(space|parse|rgba|name)|rbush|quickselect|quick-lru|pbf|earcut|react-color-palette|uuid)[/\\\\]).+\\.(js|jsx|mjs|cjs|ts|tsx)$",
+      "[/\\\\]node_modules[/\\\\](?!(swiper|ol|ol-mapbox-style|plotly.js|react-plotly.js|color-(space|parse|rgba|name)|rbush|quickselect|quick-lru|pbf|earcut|react-color-palette|uuid|@zumer[/\\\\]snapdom)[/\\\\]).+\\.(js|jsx|mjs|cjs|ts|tsx)$",
       "^.+\\.module\\.(css|sass|scss)$"
     ],
     "moduleFileExtensions": [

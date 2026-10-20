@@ -29,7 +29,7 @@ The position, size, title, and layout controls appear below the checkbox. Unchec
 Default Position
 ================
 
-The modal opens at a fixed position and size set by the dashboard editor. Position and size are expressed in viewport percentages so the same configuration works across different display sizes.
+The modal opens at a fixed position and size set by the dashboard editor. Position and size are expressed in percentages so the same configuration works across different display sizes. The vertical values measure the area below the app header, so the modal never covers the header.
 
 The tab provides two ways to set the position and size:
 
@@ -37,14 +37,14 @@ The tab provides two ways to set the position and size:
     - **Numeric fields:**
 
         - **Left (%):** distance from the left edge of the viewport.
-        - **Top (%):** distance from the top edge of the viewport.
+        - **Top (%):** distance from the bottom of the app header, as a percentage of the area below it.
         - **Width (%):** width of the modal as a percentage of the viewport width.
-        - **Height (%):** height of the modal as a percentage of the viewport height.
+        - **Height (%):** height of the modal as a percentage of the area below the app header.
 
 For example, ``left=20, top=20, width=60, height=60`` opens a centered modal that covers 60% of the screen in both directions.
 
 .. note::
-    On small viewports (below 768px wide), the modal ignores these values and opens near-fullscreen with insets so the contents remain readable on phones and small tablets.
+    On small viewports (below 768px wide), the modal ignores these values and opens near-fullscreen below the app header, with insets so the contents remain readable on phones and small tablets.
 
 
 Title Template

@@ -580,6 +580,8 @@ const MapVisualization = ({
   const spinnerOverlayRef = useRef(null);
   // Create a spinner element for the overlay
   const spinnerElement = document.createElement("div");
+  // Named so a dashboard image export can leave it out.
+  spinnerElement.className = "map-query-spinner";
   spinnerElement.style.display = "flex";
   spinnerElement.style.justifyContent = "center";
   spinnerElement.style.alignItems = "center";

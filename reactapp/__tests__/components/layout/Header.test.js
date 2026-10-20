@@ -542,6 +542,8 @@ test("DashboardHeader, user and editable", async () => {
     screen.queryByLabelText("dashboardLoginButton"),
   ).not.toBeInTheDocument();
   expect(screen.getByLabelText("dashboardSettingButton")).toBeInTheDocument();
+  // Anyone who can view a dashboard can export it.
+  expect(screen.getByLabelText("exportImageButton")).toBeInTheDocument();
 });
 
 test("DashboardHeader, user and not editable", async () => {
@@ -569,6 +571,8 @@ test("DashboardHeader, user and not editable", async () => {
     screen.queryByLabelText("dashboardLoginButton"),
   ).not.toBeInTheDocument();
   expect(screen.getByLabelText("dashboardSettingButton")).toBeInTheDocument();
+  // Anyone who can view a dashboard can export it.
+  expect(screen.getByLabelText("exportImageButton")).toBeInTheDocument();
 });
 
 test("DashboardHeader, no user", async () => {
@@ -598,6 +602,7 @@ test("DashboardHeader, no user", async () => {
   expect(screen.queryByLabelText("editButton")).not.toBeInTheDocument();
   expect(screen.queryByLabelText("appInfoButton")).not.toBeInTheDocument();
   expect(screen.getByLabelText("dashboardLoginButton")).toBeInTheDocument();
+  expect(screen.getByLabelText("exportImageButton")).toBeInTheDocument();
   expect(screen.getByLabelText("dashboardSettingButton")).toBeInTheDocument();
 });
 
@@ -2290,6 +2295,25 @@ describe.each([
   });
 });
 
+test("DashboardHeader offers image export to an editor in view and edit mode", async () => {
+  render(
+    createLoadedComponent({
+      children: (
+        <MemoryRouter initialEntries={["/dashboard/user/editable"]}>
+          <LayoutAlertContextProvider>
+            <DashboardHeader />
+          </LayoutAlertContextProvider>
+        </MemoryRouter>
+      ),
+      options: { initialDashboard: userDashboard },
+    }),
+  );
+
+  expect(await screen.findByLabelText("exportImageButton")).toBeEnabled();
+  await userEvent.click(await screen.findByLabelText("editButton"));
+  expect(await screen.findByLabelText("exportImageButton")).toBeEnabled();
+});
+
 describe("DashboardHeader thumbnail capture outcomes", () => {
   const renderSaved = async () => {
     const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
@@ -2332,7 +2356,10 @@ describe("DashboardHeader thumbnail capture outcomes", () => {
   it("saves the image when a capture produced one", async () => {
     captureThumbnail.mockResolvedValueOnce("data:image/png;base64,AAA");
     await renderSaved();
-    await waitFor(() => expect(captureThumbnail).toHaveBeenCalled());
+    // Named so the capture's image proxy can check viewing rights.
+    await waitFor(() =>
+      expect(captureThumbnail).toHaveBeenCalledWith(userDashboard.uuid),
+    );
   });
 
   it("reports a failed capture rather than letting it escape the save", async () => {

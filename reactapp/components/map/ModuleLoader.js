@@ -167,6 +167,41 @@ export async function withAutoCrossOrigin(type, props) {
     : props;
 }
 
+/** Whether a layer's image can be re-fetched through the proxy (see below). */
+export function isProxiableImageLayer(config) {
+  return CORS_PROBED_SOURCE_TYPES.has(config?.props?.source?.type);
+}
+
+/**
+ * A copy of an image layer's config whose image request goes through the image
+ * proxy, for a dashboard capture that cannot read the layer as drawn.
+ *
+ * Only the CORS-probed image sources can need this - a server that does not
+ * allow cross-origin reads is exactly what leaves their canvas unreadable - and
+ * each makes one request per render. The load function is replaced rather than
+ * wrapped, so for an ArcGIS image the antimeridian rewrite withAntimeridianFix
+ * would have installed is applied here first, then the proxy. Returns the config
+ * unchanged for any other layer.
+ */
+export function withProxiedImages(config, proxiedUrl) {
+  if (!isProxiableImageLayer(config)) return config;
+  const source = config.props.source;
+
+  const isArcGIS = source.type === "ESRI Image and Map Service";
+  const sourceProps = { ...source.props };
+  // Copied so the loader's in-place TIME conversion leaves the live config alone.
+  if (sourceProps.params) sourceProps.params = { ...sourceProps.params };
+  sourceProps.imageLoadFunction = (image, src) => {
+    const url = isArcGIS ? rewriteArcGISExportUrlForAntimeridian(src) : src;
+    image.getImage().src = proxiedUrl(url);
+  };
+
+  return {
+    ...config,
+    props: { ...config.props, source: { ...source, props: sourceProps } },
+  };
+}
+
 async function prepareProps(type, props) {
   return withLabelRenderBuffer(
     type,

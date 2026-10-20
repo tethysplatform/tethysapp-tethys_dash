@@ -9,6 +9,7 @@ import { isDecorationLayerConfig } from "components/map/decorationLayers";
 import useLinkedExtentPublisher from "components/map/useLinkedExtentPublisher";
 import useLinkedExtentOutlines from "components/map/useLinkedExtentOutlines";
 import AnnotationEditor from "components/map/AnnotationEditor";
+import { registerCaptureMap } from "components/map/captureLockedLayers";
 // Importing this registers the coordinate reference systems that layers name by
 // code. Module evaluation completes before any render, so registration is in
 // place before the layer effect below constructs a single source -- which
@@ -607,6 +608,7 @@ const MapComponent = ({
     });
   };
   const mapDivRef = useRef();
+  const unregisterCaptureMapRef = useRef(null);
   const onMapClickCurrent = useRef();
   const onMapHoverCurrent = useRef();
   const onMapMoveEndCurrent = useRef();
@@ -808,6 +810,17 @@ const MapComponent = ({
 
       visualizationRef.current = initialMap;
 
+      // So a dashboard capture can re-fetch a layer it cannot read, from the
+      // config the layer was built from.
+      unregisterCaptureMapRef.current = registerCaptureMap(
+        mapDivRef.current,
+        initialMap,
+        (layer) =>
+          currentLayers.current.find(
+            (config) => config?.props?.name === layer.get("name"),
+          ),
+      );
+
       if (setMapReady) {
         // istanbul ignore next
         initialMap.once("rendercomplete", () => {
@@ -833,6 +846,9 @@ const MapComponent = ({
       pendingMoveEndRef.current = null;
       // istanbul ignore next
       if (visualizationRef.current) {
+        // Registered only alongside the map, so released with it.
+        unregisterCaptureMapRef.current?.();
+        unregisterCaptureMapRef.current = null;
         if (activeFadeRef.current) activeFadeRef.current();
         visualizationRef.current
           .getLayers()

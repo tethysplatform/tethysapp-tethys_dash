@@ -19,6 +19,9 @@ from tethysapp.tethysdash.controllers import (
     _is_blocked_image_host,
     _connected_peer_is_blocked,
     _is_blocked_address,
+    _rate_limit_retry_after,
+    _image_proxy_client_address,
+    _redacted_url,
 )
 import requests
 import socket
@@ -2260,10 +2263,10 @@ async def test_visualization_consumer_receive_rate_limit_error(
 
     application.send = fake_send
 
-    # Patch only cache.get and cache.ttl
     mock_cache = mocker.patch("tethysapp.tethysdash.controllers.cache")
-    mock_cache.get.return_value = 5  # Simulate count > 0 and < 5
-    mock_cache.ttl.return_value = 7  # Simulate ttl returning 7
+    mock_cache.get.return_value = 5  # At the limit
+    # 3 s into a 10 s window.
+    mocker.patch("tethysapp.tethysdash.controllers.time.time", return_value=1003.0)
 
     await application.receive(
         text_data=json.dumps(
@@ -2280,106 +2283,6 @@ async def test_visualization_consumer_receive_rate_limit_error(
     expected = json.dumps(
         {
             "error": "Rate limit exceeded. Please wait 7 seconds before sending more messages.",  # noqa: E501
-            "requestId": grid_item_uuid,
-            "messageId": "1",
-        }
-    )
-    assert sent[0] == expected
-
-    new_message = (
-        db_session.query(Message).filter(Message.request_id == grid_item_uuid).first()
-    )
-    assert new_message is None
-
-
-@pytest.mark.django_db
-@pytest.mark.asyncio
-async def test_visualization_consumer_receive_rate_limit_ttl_None(
-    mock_app_get_ps_db, mocker, live_chat_dashboard, db_session
-):
-    """Test that receive sends rate limit error when rate limit is exceeded."""
-    mock_app_get_ps_db("tethysapp.tethysdash.controllers.App")
-    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
-    grid_item_uuid = live_chat_dashboard.tabs[0].grid_items[0].uuid
-
-    application = VisualizationConsumer()
-    sent = []
-
-    async def fake_send(message):
-        sent.append(message)
-
-    application.send = fake_send
-
-    # Patch only cache.get and cache.ttl
-    mock_cache = mocker.patch("tethysapp.tethysdash.controllers.cache")
-    mock_cache.get.return_value = 5  # Simulate count > 0 and < 5
-    mock_cache.ttl.return_value = None  # Simulate ttl returning None
-
-    await application.receive(
-        text_data=json.dumps(
-            {
-                "requestId": grid_item_uuid,
-                "message": "test",
-                "sessionId": "abc",
-                "messageId": "1",
-                "sender": "user1",
-            }
-        )
-    )
-
-    expected = json.dumps(
-        {
-            "error": "Rate limit exceeded. Please wait 10 seconds before sending more messages.",  # noqa: E501
-            "requestId": grid_item_uuid,
-            "messageId": "1",
-        }
-    )
-    assert sent[0] == expected
-
-    new_message = (
-        db_session.query(Message).filter(Message.request_id == grid_item_uuid).first()
-    )
-    assert new_message is None
-
-
-@pytest.mark.django_db
-@pytest.mark.asyncio
-async def test_visualization_consumer_receive_rate_limit_ttl_exception(
-    mock_app_get_ps_db, mocker, live_chat_dashboard, db_session
-):
-    """Test that receive sends rate limit error when rate limit is exceeded."""
-    mock_app_get_ps_db("tethysapp.tethysdash.controllers.App")
-    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
-    grid_item_uuid = live_chat_dashboard.tabs[0].grid_items[0].uuid
-
-    application = VisualizationConsumer()
-    sent = []
-
-    async def fake_send(message):
-        sent.append(message)
-
-    application.send = fake_send
-
-    # Patch only cache.get and cache.ttl
-    mock_cache = mocker.patch("tethysapp.tethysdash.controllers.cache")
-    mock_cache.get.return_value = 5  # Simulate count > 0 and < 5
-    mock_cache.ttl.side_effect = Exception("TTL error")
-
-    await application.receive(
-        text_data=json.dumps(
-            {
-                "requestId": grid_item_uuid,
-                "message": "test",
-                "sessionId": "abc",
-                "messageId": "1",
-                "sender": "user1",
-            }
-        )
-    )
-
-    expected = json.dumps(
-        {
-            "error": "Rate limit exceeded. Please wait 10 seconds before sending more messages.",  # noqa: E501
             "requestId": grid_item_uuid,
             "messageId": "1",
         }
@@ -2677,7 +2580,9 @@ def test_get_main_bundle_path_returns_hashed_from_manifest():
 
 
 @pytest.mark.django_db
-def test_image_proxy_returns_the_image(client, admin_user, mock_app, mocker):
+def test_image_proxy_returns_the_image(
+    proxy_view_allowed, client, admin_user, mock_app, mocker
+):
     mock_app("tethysapp.tethysdash.controllers.App")
     mocker.patch(
         "tethysapp.tethysdash.controllers._is_blocked_image_host", return_value=False
@@ -2714,14 +2619,267 @@ def test_image_proxy_returns_the_image(client, admin_user, mock_app, mocker):
     assert not response.has_header("Access-Control-Allow-Origin")
 
 
-@pytest.mark.django_db
-def test_image_proxy_requires_login(client, mock_app):
-    """Unauthenticated access would make this an open server-side fetcher."""
-    mock_app("tethysapp.tethysdash.controllers.App")
-    response = client.get(
-        reverse("tethysdash:image_proxy"), {"url": "https://example.com/logo.png"}
+@pytest.fixture
+def proxy_view_allowed(mocker):
+    """The caller may view the dashboard the proxy request names."""
+    return mocker.patch(
+        "tethysapp.tethysdash.controllers.can_view_dashboard", return_value=True
     )
-    assert response.status_code in (302, 401, 403)
+
+
+@pytest.fixture
+def clear_cache():
+    from django.core.cache import cache
+
+    cache.clear()
+    yield cache
+    cache.clear()
+
+
+def _permit_any_image_host(mocker):
+    mocker.patch(
+        "tethysapp.tethysdash.controllers._is_blocked_image_host", return_value=False
+    )
+    mocker.patch(
+        "tethysapp.tethysdash.controllers._connected_peer_is_blocked",
+        return_value=False,
+    )
+    mock_get = mocker.patch("tethysapp.tethysdash.controllers.requests.get")
+    upstream = mock_get.return_value
+    upstream.raise_for_status.return_value = None
+    upstream.is_redirect = False
+    upstream.headers = {"Content-Type": "image/png"}
+    upstream.raw.read.return_value = b"\x89PNG-bytes"
+    return mock_get
+
+
+@pytest.mark.django_db
+def test_image_proxy_serves_an_anonymous_viewer_of_a_public_dashboard(
+    client, mock_app, mock_app_get_ps_db, public_dashboard, clear_cache, mocker
+):
+    """Anyone who can view a dashboard can export it, logged in or not."""
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    _permit_any_image_host(mocker)
+
+    response = client.get(
+        reverse("tethysdash:image_proxy"),
+        {"url": "https://example.com/logo.png", "dashboard": public_dashboard.uuid},
+    )
+
+    assert response.status_code == 200
+    assert response.content == b"\x89PNG-bytes"
+
+
+@pytest.mark.django_db
+def test_image_proxy_checks_the_named_dashboard(
+    client, admin_user, mock_app, clear_cache, mocker
+):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    _permit_any_image_host(mocker)
+    can_view = mocker.patch(
+        "tethysapp.tethysdash.controllers.can_view_dashboard", return_value=True
+    )
+    client.force_login(admin_user)
+
+    dashboard_uuid = str(uuid.uuid4())
+    response = client.get(
+        reverse("tethysdash:image_proxy"),
+        {"url": "https://example.com/logo.png", "dashboard": dashboard_uuid},
+    )
+
+    assert response.status_code == 200
+    viewer, named = can_view.call_args.args
+    assert viewer.username == admin_user.username
+    assert named == dashboard_uuid
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "params",
+    [
+        {},
+        {"dashboard": ""},
+        {"dashboard": "not-a-uuid"},
+        {"dashboard": "00000000-0000-0000-0000-000000000000"},
+    ],
+)
+def test_image_proxy_refuses_a_dashboard_the_caller_cannot_view(
+    client, mock_app, mock_app_get_ps_db, clear_cache, mocker, params
+):
+    """Missing, malformed, unknown and private all get the same answer, so the
+    proxy cannot be used to learn which dashboards exist."""
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    mock_get = _permit_any_image_host(mocker)
+
+    response = client.get(
+        reverse("tethysdash:image_proxy"),
+        {"url": "https://example.com/logo.png", **params},
+    )
+
+    assert response.status_code == 403
+    assert response.content == b"Not permitted"
+    mock_get.assert_not_called()
+
+
+@pytest.mark.django_db
+def test_image_proxy_refuses_an_anonymous_caller_on_a_private_dashboard(
+    client, mock_app, mock_app_get_ps_db, dashboard, db_session, clear_cache, mocker
+):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    mock_get = _permit_any_image_host(mocker)
+    dashboard.uuid = str(uuid.uuid4())
+    db_session.commit()
+
+    response = client.get(
+        reverse("tethysdash:image_proxy"),
+        {"url": "https://example.com/logo.png", "dashboard": dashboard.uuid},
+    )
+
+    assert response.status_code == 403
+    assert response.content == b"Not permitted"
+    mock_get.assert_not_called()
+
+
+@pytest.mark.django_db
+def test_image_proxy_throttles_anonymous_callers(
+    client, mock_app, proxy_view_allowed, clear_cache, mocker
+):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    _permit_any_image_host(mocker)
+    mocker.patch("tethysapp.tethysdash.controllers.IMAGE_PROXY_ANONYMOUS_LIMIT", 2)
+    params = {"url": "https://example.com/logo.png", "dashboard": "any"}
+    # As the Tethys nginx and Apache templates send it: the proxy appends the
+    # address that connected.
+    headers = {"HTTP_X_FORWARDED_FOR": "203.0.113.7"}
+
+    for _ in range(2):
+        assert (
+            client.get(reverse("tethysdash:image_proxy"), params, **headers).status_code
+            == 200
+        )
+    throttled = client.get(reverse("tethysdash:image_proxy"), params, **headers)
+
+    assert throttled.status_code == 429
+    assert int(throttled["Retry-After"]) > 0
+
+    # Another address has its own window.
+    other = client.get(
+        reverse("tethysdash:image_proxy"), params, HTTP_X_FORWARDED_FOR="203.0.113.8"
+    )
+    assert other.status_code == 200
+
+    # A new window serves the caller again.
+    clear_cache.clear()
+    assert (
+        client.get(reverse("tethysdash:image_proxy"), params, **headers).status_code
+        == 200
+    )
+
+
+@pytest.mark.django_db
+def test_image_proxy_throttle_ignores_addresses_the_client_chooses(
+    client, mock_app, proxy_view_allowed, clear_cache, mocker
+):
+    """Everything before the proxy's own entry is the client's to choose, and so is
+    X-Real-IP where the fronting proxy does not overwrite it. Rotating them must
+    not reset the count."""
+    mock_app("tethysapp.tethysdash.controllers.App")
+    _permit_any_image_host(mocker)
+    mocker.patch("tethysapp.tethysdash.controllers.IMAGE_PROXY_ANONYMOUS_LIMIT", 1)
+    params = {"url": "https://example.com/logo.png", "dashboard": "any"}
+
+    first = client.get(
+        reverse("tethysdash:image_proxy"),
+        params,
+        HTTP_X_REAL_IP="198.51.100.1",
+        HTTP_X_FORWARDED_FOR="198.51.100.1, 203.0.113.7",
+    )
+    second = client.get(
+        reverse("tethysdash:image_proxy"),
+        params,
+        HTTP_X_REAL_IP="198.51.100.2",
+        HTTP_X_FORWARDED_FOR="198.51.100.2,203.0.113.7",
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 429
+
+
+@pytest.mark.django_db
+def test_image_proxy_throttles_by_remote_addr_without_a_proxy(
+    client, mock_app, proxy_view_allowed, clear_cache, mocker
+):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    _permit_any_image_host(mocker)
+    mocker.patch("tethysapp.tethysdash.controllers.IMAGE_PROXY_ANONYMOUS_LIMIT", 1)
+    params = {"url": "https://example.com/logo.png", "dashboard": "any"}
+
+    assert client.get(reverse("tethysdash:image_proxy"), params).status_code == 200
+    assert client.get(reverse("tethysdash:image_proxy"), params).status_code == 429
+
+
+@pytest.mark.django_db
+def test_image_proxy_throttles_logged_in_callers_per_account_with_more_room(
+    client, admin_user, mock_app, proxy_view_allowed, clear_cache, mocker
+):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    _permit_any_image_host(mocker)
+    mocker.patch("tethysapp.tethysdash.controllers.IMAGE_PROXY_ANONYMOUS_LIMIT", 1)
+    mocker.patch("tethysapp.tethysdash.controllers.IMAGE_PROXY_AUTHENTICATED_LIMIT", 2)
+    client.force_login(admin_user)
+    params = {"url": "https://example.com/logo.png", "dashboard": "any"}
+    # The account is counted, not the address: changing it does not help.
+    addresses = ["203.0.113.7", "203.0.113.8", "203.0.113.9"]
+
+    statuses = [
+        client.get(
+            reverse("tethysdash:image_proxy"), params, HTTP_X_FORWARDED_FOR=address
+        ).status_code
+        for address in addresses
+    ]
+
+    assert statuses == [200, 200, 429]
+
+
+@pytest.mark.django_db
+def test_image_proxy_throttles_ipv6_callers_per_64(
+    client, mock_app, proxy_view_allowed, clear_cache, mocker
+):
+    """One home or server holds a whole /64; rotating within it must not reset
+    the count, while a neighbouring /64 is someone else."""
+    mock_app("tethysapp.tethysdash.controllers.App")
+    _permit_any_image_host(mocker)
+    mocker.patch("tethysapp.tethysdash.controllers.IMAGE_PROXY_ANONYMOUS_LIMIT", 1)
+    params = {"url": "https://example.com/logo.png", "dashboard": "any"}
+
+    def get(address):
+        return client.get(
+            reverse("tethysdash:image_proxy"), params, HTTP_X_FORWARDED_FOR=address
+        ).status_code
+
+    assert get("2001:db8:1:1::1") == 200
+    assert get("2001:db8:1:1:ffff::2") == 429
+    assert get("2001:db8:1:2::1") == 200
+
+
+@pytest.mark.django_db
+def test_image_proxy_blocks_internal_hosts_for_anonymous_callers(
+    client, mock_app, proxy_view_allowed, clear_cache, mocker
+):
+    """Opening the proxy to viewers leaves the SSRF guard in front of them."""
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mock_get = mocker.patch("tethysapp.tethysdash.controllers.requests.get")
+
+    response = client.get(
+        reverse("tethysdash:image_proxy"),
+        {"url": "http://169.254.169.254/latest/meta-data/", "dashboard": "any"},
+    )
+
+    assert response.status_code == 403
+    mock_get.assert_not_called()
 
 
 @pytest.mark.django_db
@@ -2734,7 +2892,9 @@ def test_image_proxy_requires_login(client, mock_app):
         "",
     ],
 )
-def test_image_proxy_rejects_non_http_urls(client, admin_user, mock_app, url):
+def test_image_proxy_rejects_non_http_urls(
+    proxy_view_allowed, client, admin_user, mock_app, url
+):
     mock_app("tethysapp.tethysdash.controllers.App")
     client.force_login(admin_user)
     response = client.get(reverse("tethysdash:image_proxy"), {"url": url})
@@ -2742,7 +2902,9 @@ def test_image_proxy_rejects_non_http_urls(client, admin_user, mock_app, url):
 
 
 @pytest.mark.django_db
-def test_image_proxy_blocks_internal_hosts(client, admin_user, mock_app, mocker):
+def test_image_proxy_blocks_internal_hosts(
+    proxy_view_allowed, client, admin_user, mock_app, mocker
+):
     """Without this the endpoint is a server-side request forgery primitive."""
     mock_app("tethysapp.tethysdash.controllers.App")
     mock_get = mocker.patch("tethysapp.tethysdash.controllers.requests.get")
@@ -2759,7 +2921,9 @@ def test_image_proxy_blocks_internal_hosts(client, admin_user, mock_app, mocker)
 
 
 @pytest.mark.django_db
-def test_image_proxy_reports_an_unreachable_host(client, admin_user, mock_app, mocker):
+def test_image_proxy_reports_an_unreachable_host(
+    proxy_view_allowed, client, admin_user, mock_app, mocker
+):
     mock_app("tethysapp.tethysdash.controllers.App")
     mocker.patch(
         "tethysapp.tethysdash.controllers._is_blocked_image_host", return_value=False
@@ -2781,7 +2945,9 @@ def test_image_proxy_reports_an_unreachable_host(client, admin_user, mock_app, m
 
 
 @pytest.mark.django_db
-def test_image_proxy_refuses_a_non_image(client, admin_user, mock_app, mocker):
+def test_image_proxy_refuses_a_non_image(
+    proxy_view_allowed, client, admin_user, mock_app, mocker
+):
     """An error page answering 200 must not be passed off as an image."""
     mock_app("tethysapp.tethysdash.controllers.App")
     mocker.patch(
@@ -2804,7 +2970,9 @@ def test_image_proxy_refuses_a_non_image(client, admin_user, mock_app, mocker):
 
 
 @pytest.mark.django_db
-def test_image_proxy_rejects_an_oversized_image(client, admin_user, mock_app, mocker):
+def test_image_proxy_rejects_an_oversized_image(
+    proxy_view_allowed, client, admin_user, mock_app, mocker
+):
     """Size is capped by reading, not by trusting Content-Length."""
     mock_app("tethysapp.tethysdash.controllers.App")
     mocker.patch(
@@ -2839,7 +3007,17 @@ def test_is_blocked_image_host_allows_a_public_address(mocker):
 
 @pytest.mark.parametrize(
     "address",
-    ["127.0.0.1", "10.0.0.5", "192.168.1.10", "169.254.169.254", "0.0.0.0"],
+    [
+        "127.0.0.1",
+        "10.0.0.5",
+        "192.168.1.10",
+        "169.254.169.254",
+        "0.0.0.0",
+        # Shared address space: Alibaba Cloud's instance metadata.
+        "100.100.100.200",
+        # A private address written as IPv6.
+        "::ffff:10.0.0.1",
+    ],
 )
 def test_is_blocked_image_host_blocks_internal_addresses(mocker, address):
     mocker.patch(
@@ -2868,7 +3046,7 @@ def _redirect_to(location):
 
 @pytest.mark.django_db
 def test_image_proxy_rechecks_the_host_on_every_redirect(
-    client, admin_user, mock_app, mocker
+    proxy_view_allowed, client, admin_user, mock_app, mocker
 ):
     """A permitted public URL must not be able to bounce us onto an internal one.
 
@@ -2901,7 +3079,7 @@ def test_image_proxy_rechecks_the_host_on_every_redirect(
 
 @pytest.mark.django_db
 def test_image_proxy_follows_a_redirect_to_a_permitted_host(
-    client, admin_user, mock_app, mocker
+    proxy_view_allowed, client, admin_user, mock_app, mocker
 ):
     """Image CDNs redirect routinely, so permitted hops must still be followed."""
     mock_app("tethysapp.tethysdash.controllers.App")
@@ -2930,7 +3108,9 @@ def test_image_proxy_follows_a_redirect_to_a_permitted_host(
 
 
 @pytest.mark.django_db
-def test_image_proxy_gives_up_on_a_redirect_loop(client, admin_user, mock_app, mocker):
+def test_image_proxy_gives_up_on_a_redirect_loop(
+    proxy_view_allowed, client, admin_user, mock_app, mocker
+):
     mock_app("tethysapp.tethysdash.controllers.App")
     mocker.patch(
         "tethysapp.tethysdash.controllers._is_blocked_image_host", return_value=False
@@ -2949,7 +3129,7 @@ def test_image_proxy_gives_up_on_a_redirect_loop(client, admin_user, mock_app, m
 
 @pytest.mark.django_db
 def test_image_proxy_blocks_a_peer_that_resolved_somewhere_else(
-    client, admin_user, mock_app, mocker
+    proxy_view_allowed, client, admin_user, mock_app, mocker
 ):
     """Guards against DNS rebinding: the socket, not a second lookup, decides.
 
@@ -3005,7 +3185,7 @@ def test_is_blocked_address_rejects_something_that_is_not_an_address():
 
 @pytest.mark.django_db
 def test_image_proxy_handles_a_redirect_with_no_location(
-    client, admin_user, mock_app, mocker
+    proxy_view_allowed, client, admin_user, mock_app, mocker
 ):
     mock_app("tethysapp.tethysdash.controllers.App")
     mocker.patch(
@@ -3025,7 +3205,7 @@ def test_image_proxy_handles_a_redirect_with_no_location(
 
 @pytest.mark.django_db
 def test_image_proxy_reports_an_upstream_error_status(
-    client, admin_user, mock_app, mocker
+    proxy_view_allowed, client, admin_user, mock_app, mocker
 ):
     """A 404 from the far end is an upstream failure, not a broken thumbnail."""
     mock_app("tethysapp.tethysdash.controllers.App")
@@ -3046,3 +3226,135 @@ def test_image_proxy_reports_an_upstream_error_status(
         reverse("tethysdash:image_proxy"), {"url": "https://example.com/missing.png"}
     )
     assert response.status_code == 502
+
+
+def test_rate_limit_counts_up_to_the_limit_then_reports_the_wait(mocker):
+    cache = mocker.patch("tethysapp.tethysdash.controllers.cache")
+    cache.get.side_effect = [0, 1, 2]
+    # 2.5 s into the window that started at 1000 s.
+    mocker.patch("tethysapp.tethysdash.controllers.time.time", return_value=1002.5)
+
+    assert _rate_limit_retry_after("k", limit=2, window=10) is None
+    cache.set.assert_called_once_with("k:100", 1, timeout=10)
+    assert _rate_limit_retry_after("k", limit=2, window=10) is None
+    cache.incr.assert_called_once_with("k:100")
+    # Rounded up, so a caller who waits that long is served.
+    assert _rate_limit_retry_after("k", limit=2, window=10) == 8
+
+
+def test_rate_limit_ends_a_window_on_time_whatever_the_cache_does(mocker):
+    """The file and database caches restart a key's lifetime on every increment,
+    so a window measured by the key's lifetime would never end under steady
+    traffic. The next window is a different key."""
+    cache = mocker.patch("tethysapp.tethysdash.controllers.cache")
+    clock = mocker.patch("tethysapp.tethysdash.controllers.time.time")
+
+    clock.return_value = 1009.9
+    cache.get.return_value = 5
+    assert _rate_limit_retry_after("k", limit=5, window=10) == 1
+
+    clock.return_value = 1010.0
+    cache.get.side_effect = lambda key, default: 5 if key == "k:100" else default
+    assert _rate_limit_retry_after("k", limit=5, window=10) is None
+    cache.set.assert_called_once_with("k:101", 1, timeout=10)
+
+
+def test_rate_limit_restarts_a_window_evicted_mid_count(mocker):
+    """The key can be evicted between the read and the increment."""
+    cache = mocker.patch("tethysapp.tethysdash.controllers.cache")
+    cache.get.return_value = 1
+    cache.incr.side_effect = ValueError("Key 'k' not found")
+    mocker.patch("tethysapp.tethysdash.controllers.time.time", return_value=1000.0)
+
+    assert _rate_limit_retry_after("k", limit=5, window=10) is None
+    cache.set.assert_called_once_with("k:100", 1, timeout=10)
+
+
+@pytest.mark.parametrize(
+    "address, blocked",
+    [
+        # NAT64 well-known prefix carrying 10.0.0.1, 169.254.169.254, 127.0.0.1.
+        ("64:ff9b::a00:1", True),
+        ("64:ff9b::a9fe:a9fe", True),
+        ("64:ff9b::7f00:1", True),
+        # ...and carrying a public address, 93.184.216.34.
+        ("64:ff9b::5db8:d822", False),
+        # 6to4 and Teredo, refused as not global.
+        ("2002:a00:1::", True),
+        ("2001:0:4136:e378:8000:63bf:3fff:fdd2", True),
+    ],
+)
+def test_is_blocked_address_judges_ipv4_carried_in_ipv6(address, blocked):
+    assert _is_blocked_address(address) is blocked
+
+
+@pytest.mark.django_db
+def test_image_proxy_logs_failures_without_the_query_string(
+    proxy_view_allowed, client, admin_user, mock_app, mocker, capsys
+):
+    """Image URLs carry access tokens; the log line must not."""
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mocker.patch(
+        "tethysapp.tethysdash.controllers._is_blocked_image_host", return_value=False
+    )
+    mocker.patch(
+        "tethysapp.tethysdash.controllers._connected_peer_is_blocked",
+        return_value=False,
+    )
+    url = "https://user:pw@maps.example.com:8443/arcgis/export?token=SECRET"
+    client.force_login(admin_user)
+
+    upstream = MagicMock()
+    upstream.is_redirect = False
+    upstream.status_code = 401
+    upstream.raise_for_status.side_effect = requests.exceptions.HTTPError(
+        f"401 Client Error for url: {url}"
+    )
+    mocker.patch("tethysapp.tethysdash.controllers.requests.get", return_value=upstream)
+    client.get(reverse("tethysdash:image_proxy"), {"url": url})
+
+    mocker.patch(
+        "tethysapp.tethysdash.controllers.requests.get",
+        side_effect=requests.exceptions.ConnectionError(f"Max retries: {url}"),
+    )
+    client.get(reverse("tethysdash:image_proxy"), {"url": url})
+
+    logged = capsys.readouterr().out
+    assert "SECRET" not in logged and "pw" not in logged
+    assert (
+        "Image proxy failed to fetch https://maps.example.com:8443/arcgis/export: "
+        "HTTP 401"
+    ) in logged
+    assert (
+        "Image proxy failed to fetch https://maps.example.com:8443/arcgis/export: "
+        "ConnectionError"
+    ) in logged
+
+
+@pytest.mark.parametrize(
+    "forwarded, remote, expected",
+    [
+        ("198.51.100.1, 203.0.113.7", "", "203.0.113.7"),
+        ("", "203.0.113.7", "203.0.113.7"),
+        ("2001:db8:1:1::abcd", "", "2001:db8:1:1::/64"),
+        # An IPv4 address written as IPv6 is counted as that IPv4 address.
+        ("::ffff:203.0.113.7", "", "203.0.113.7"),
+        # Not an address at all: counted as given, never an error.
+        ("unknown", "", "unknown"),
+    ],
+)
+def test_image_proxy_client_address(forwarded, remote, expected):
+    request = MagicMock()
+    request.META = {"HTTP_X_FORWARDED_FOR": forwarded, "REMOTE_ADDR": remote}
+    assert _image_proxy_client_address(request) == expected
+
+
+@pytest.mark.parametrize(
+    "url, expected",
+    [
+        ("https://a.example.com/x.png?token=s", "https://a.example.com/x.png"),
+        ("http://u:p@a.example.com:81/x#frag", "http://a.example.com:81/x"),
+    ],
+)
+def test_redacted_url(url, expected):
+    assert _redacted_url(url) == expected

@@ -2,12 +2,35 @@ import React, { useRef, useState } from "react";
 import { act, render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import PopupModal, {
+  computePositionStyle,
   isEditableTarget,
   getInitialIsSmallViewport,
+  getInitialViewportHeight,
+  readHeaderHeight,
   trackSmallViewport,
 } from "components/modals/PopupModal/PopupModal";
 
 const ORIGINAL_INNER_WIDTH = window.innerWidth;
+const ORIGINAL_INNER_HEIGHT = window.innerHeight;
+
+// A 56px header over a 1000px window leaves a 944px content area, which the
+// vertical percentages measure.
+const HEADER = 56;
+const CONTENT = 1000 - HEADER;
+const topFor = (pct) => `${Math.round(HEADER + (CONTENT * pct) / 100)}px`;
+const heightFor = (pct) => `${Math.round((CONTENT * pct) / 100)}px`;
+
+beforeEach(() => {
+  document.documentElement.style.setProperty(
+    "--ts-header-height",
+    `${HEADER}px`,
+  );
+  Object.defineProperty(window, "innerHeight", {
+    configurable: true,
+    writable: true,
+    value: 1000,
+  });
+});
 
 const CENTERED = { leftPct: 20, topPct: 20, widthPct: 60, heightPct: 60 };
 
@@ -17,6 +40,12 @@ afterEach(() => {
     writable: true,
     value: ORIGINAL_INNER_WIDTH,
   });
+  Object.defineProperty(window, "innerHeight", {
+    configurable: true,
+    writable: true,
+    value: ORIGINAL_INNER_HEIGHT,
+  });
+  document.documentElement.style.removeProperty("--ts-header-height");
 });
 
 function setViewportWidth(width) {
@@ -29,7 +58,7 @@ function setViewportWidth(width) {
 }
 
 describe("PopupModal — render", () => {
-  it("renders the dialog when show=true with viewport-percent position", () => {
+  it("renders the dialog positioned within the content area below the header", () => {
     render(
       <PopupModal
         show={true}
@@ -49,10 +78,12 @@ describe("PopupModal — render", () => {
 
     // Position + size come through inline styles so jsdom can read them.
     expect(dialog).toHaveStyle("left: 20vw");
-    expect(dialog).toHaveStyle("top: 25vh");
+    expect(dialog).toHaveStyle(`top: ${topFor(25)}`);
     expect(dialog).toHaveStyle("width: 60vw");
-    expect(dialog).toHaveStyle("height: 50vh");
+    expect(dialog).toHaveStyle(`height: ${heightFor(50)}`);
     expect(dialog).toHaveStyle("position: fixed");
+    // Under the fixed header's layer, so its menus open over the popup.
+    expect(dialog).toHaveStyle("z-index: 1025");
   });
 
   it("renders nothing when show=false", () => {
@@ -92,19 +123,20 @@ describe("PopupModal — render", () => {
   it.each([
     [
       { leftPct: 0, topPct: 0, widthPct: 30, heightPct: 30 },
-      { left: "0vw", top: "0vh" },
+      // A popup at the very top starts below the header, not under it.
+      { left: "0vw", top: `${HEADER}px` },
     ],
     [
       { leftPct: 70, topPct: 0, widthPct: 30, heightPct: 30 },
-      { left: "70vw", top: "0vh" },
+      { left: "70vw", top: `${HEADER}px` },
     ],
     [
       { leftPct: 0, topPct: 70, widthPct: 30, heightPct: 30 },
-      { left: "0vw", top: "70vh" },
+      { left: "0vw", top: topFor(70) },
     ],
     [
       { leftPct: 70, topPct: 70, widthPct: 30, heightPct: 30 },
-      { left: "70vw", top: "70vh" },
+      { left: "70vw", top: topFor(70) },
     ],
   ])(
     "positions correctly for free-position config %#",
@@ -123,9 +155,73 @@ describe("PopupModal — render", () => {
         expect(dialog).toHaveStyle(`${prop}: ${value}`);
       });
       expect(dialog).toHaveStyle(`width: ${position.widthPct}vw`);
-      expect(dialog).toHaveStyle(`height: ${position.heightPct}vh`);
+      expect(dialog).toHaveStyle(`height: ${heightFor(position.heightPct)}`);
     },
   );
+
+  it("follows the window's height when it resizes", () => {
+    render(
+      <PopupModal
+        show={true}
+        onClose={() => {}}
+        position={CENTERED}
+        title={<span id="t">t</span>}
+        ariaLabelledBy="t"
+      />,
+    );
+
+    window.innerHeight = 556;
+    fireEvent(window, new Event("resize"));
+
+    // 500px of content below the 56px header.
+    expect(screen.getByRole("dialog")).toHaveStyle("top: 156px");
+    expect(screen.getByRole("dialog")).toHaveStyle("height: 300px");
+  });
+});
+
+describe("computePositionStyle", () => {
+  it("measures vertical percentages from the content area below the header", () => {
+    expect(
+      computePositionStyle({
+        position: { leftPct: 10, topPct: 50, widthPct: 40, heightPct: 50 },
+        isSmallViewport: false,
+        viewportHeight: 856,
+        headerHeight: 56,
+      }),
+    ).toEqual({ left: "10vw", top: "456px", width: "40vw", height: "400px" });
+  });
+
+  it("uses the defaults and treats a missing header as none", () => {
+    expect(
+      computePositionStyle({
+        position: undefined,
+        isSmallViewport: false,
+        viewportHeight: 1000,
+      }),
+    ).toEqual({ left: "20vw", top: "200px", width: "60vw", height: "600px" });
+  });
+
+  it("never sizes a popup negatively in a window shorter than the header", () => {
+    expect(
+      computePositionStyle({
+        position: CENTERED,
+        isSmallViewport: false,
+        viewportHeight: 40,
+        headerHeight: 56,
+      }),
+    ).toEqual(expect.objectContaining({ top: "56px", height: "0px" }));
+  });
+});
+
+describe("readHeaderHeight", () => {
+  it("reads the header height the layout declares", () => {
+    expect(readHeaderHeight()).toBe(HEADER);
+  });
+
+  it("is zero when none is declared", () => {
+    document.documentElement.style.removeProperty("--ts-header-height");
+    expect(readHeaderHeight()).toBe(0);
+  });
 });
 
 describe("PopupModal — Esc to close", () => {
@@ -249,8 +345,9 @@ describe("PopupModal — small-viewport fallback (R9)", () => {
     );
 
     const dialog = screen.getByRole("dialog");
-    // Near-fullscreen — uses inset rather than viewport-percent sizing.
-    expect(dialog).toHaveStyle("top: 1rem");
+    // Near-fullscreen — uses inset rather than viewport-percent sizing, and
+    // starts 1rem below the header.
+    expect(dialog).toHaveStyle(`top: ${HEADER + 16}px`);
     expect(dialog).toHaveStyle("left: 1rem");
     expect(dialog).toHaveStyle("right: 1rem");
     expect(dialog).toHaveStyle("bottom: 1rem");
@@ -279,7 +376,7 @@ describe("PopupModal — small-viewport fallback (R9)", () => {
 
     dialog = screen.getByRole("dialog");
     expect(dialog).toHaveStyle("width: auto");
-    expect(dialog).toHaveStyle("top: 1rem");
+    expect(dialog).toHaveStyle(`top: ${HEADER + 16}px`);
   });
 });
 
@@ -519,6 +616,27 @@ describe("PopupModal — branch coverage for guards", () => {
       global.window = savedWindow;
     }
     expect(result).toBe(false);
+  });
+
+  // The position's SSR guards, reached the same way: with window deleted, both
+  // helpers fall back to zero instead of throwing.
+  it("getInitialViewportHeight and readHeaderHeight are zero when window is not defined", () => {
+    const savedWindow = global.window;
+    delete global.window;
+    let height;
+    let header;
+    try {
+      height = getInitialViewportHeight();
+      header = readHeaderHeight();
+    } finally {
+      global.window = savedWindow;
+    }
+    expect(height).toBe(0);
+    expect(header).toBe(0);
+  });
+
+  it("getInitialViewportHeight reads the window's height", () => {
+    expect(getInitialViewportHeight()).toBe(window.innerHeight);
   });
 
   // Line 161: useEffect's typeof window === "undefined" SSR guard.

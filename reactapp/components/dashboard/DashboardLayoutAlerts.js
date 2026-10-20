@@ -25,7 +25,9 @@ const StyledAbsDiv = styled.div`
      of which are out of the flow or in a sibling subtree — is stated explicitly
      instead of depending on where this element lands in the flow. */
   position: fixed;
-  z-index: 1000;
+  /* Above an open map popup (1025), so an export's warning is never hidden
+     behind the popup it was taken with; below the fixed header (1030). */
+  z-index: 1028;
   top: ${(props) => props.$topOffset};
   right: 1rem;
   /* A quarter of the viewport, fixed: a long message grows taller, never wider. */

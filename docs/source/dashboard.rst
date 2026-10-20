@@ -17,3 +17,4 @@ Dashboards are made up of configurable and movable visualizations called dashboa
    dashboard_editing
    dashboard_visualizations
    dashboard_settings
+   dashboard_export
