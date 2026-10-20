@@ -1,0 +1,1 @@
+(globalThis.webpackChunktethysdash_frontend=globalThis.webpackChunktethysdash_frontend||[]).push([[283],{28625(){},56504(){},6580(){}}]);
