@@ -411,6 +411,11 @@ function rasterize(element, options) {
     snapdom(element, {
       excludeMode: "remove",
       embedFonts: false,
+      // snapdom reuses an earlier capture it judges unchanged. Every export is
+      // a single deliberate capture, and the page edits made just before it -
+      // swapped image sources, pinned tables, the injected style - are not all
+      // ones it can observe, so each capture starts fresh.
+      invalidate: true,
       ...options,
       // Safe to read back: everything in it came from snapdom's own inlined SVG.
     }).then((result) => result.toCanvas()),
