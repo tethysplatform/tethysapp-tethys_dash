@@ -1,9 +1,10 @@
 import PropTypes from "prop-types";
-import { useContext, useRef, useState } from "react";
+import { Fragment, useContext, useRef, useState } from "react";
 import Dropdown from "react-bootstrap/Dropdown";
 import Spinner from "react-bootstrap/Spinner";
 import { BsCamera } from "react-icons/bs";
-import { LayoutContext } from "components/contexts/Contexts";
+import styled from "styled-components";
+import { LayoutContext, TabContext } from "components/contexts/Contexts";
 import { downloadBlob } from "components/visualizations/utilities";
 import {
   useLayoutErrorAlertContext,
@@ -49,16 +50,38 @@ function captureFailureMessage(error) {
     return "Another image is still being created. Try again in a moment.";
   }
   if (error instanceof NothingToCaptureError) {
-    return "There is nothing on this tab to export.";
+    return "There is nothing here to save as an image.";
   }
   if (error instanceof CaptureTimeoutError) {
-    return "Creating the image took too long. Try again, or export the visible area.";
+    return "Creating the image took too long. Try again, or save just what's on screen.";
   }
   return "The image could not be created.";
 }
 
+/* A long tab name would stretch the menu across the header; the full label
+   stays in the item's tooltip. */
+const MenuItem = styled(Dropdown.Item)`
+  max-width: 20rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
+/** What "the whole thing" is to the viewer: with a single tab the tab bar is
+ *  hidden, so it is the dashboard; with several, the one they are on. */
+export function wholeCaptureLabel(tabs, activeTab) {
+  return tabs?.length > 1 && activeTab?.name
+    ? `Entire \u201c${activeTab.name}\u201d tab`
+    : "Entire dashboard";
+}
+
+const VISIBLE_CAPTURE_LABEL = "Just what's on screen";
+
+const lowerFirst = (text) => text.charAt(0).toLowerCase() + text.slice(1);
+
 const ExportImageButton = ({ disabled = false }) => {
   const { uuid, name } = useContext(LayoutContext);
+  const { tabs, getActiveTab } = useContext(TabContext);
+  const wholeLabel = wholeCaptureLabel(tabs, getActiveTab());
   const { setSuccessMessage, setShowSuccessMessage } =
     useLayoutSuccessAlertContext();
   const { setErrorMessage, setShowErrorMessage } = useLayoutErrorAlertContext();
@@ -162,7 +185,7 @@ const ExportImageButton = ({ disabled = false }) => {
         size="sm"
         className="me-2 exportImageButton"
         aria-label="exportImageButton"
-        title="Export Image"
+        title="Save as image"
         disabled={disabled || capturing}
       >
         {capturing ? (
@@ -177,31 +200,32 @@ const ExportImageButton = ({ disabled = false }) => {
         )}
       </Dropdown.Toggle>
       <Dropdown.Menu align="end">
-        <Dropdown.Item
-          onClick={() => exportImage(CAPTURE_MODE.whole, "download")}
-        >
-          Download whole tab
-        </Dropdown.Item>
-        <Dropdown.Item
-          onClick={() => exportImage(CAPTURE_MODE.visible, "download")}
-        >
-          Download visible area
-        </Dropdown.Item>
-        {copyAvailable && (
-          <>
-            <Dropdown.Divider />
-            <Dropdown.Item
-              onClick={() => exportImage(CAPTURE_MODE.whole, "copy")}
+        {/* The same two choices sit under each heading, so each item carries
+            its full action as its accessible name. */}
+        {[
+          ["download", "Download image", "Download"],
+          ...(copyAvailable
+            ? [["copy", "Copy image to clipboard", "Copy"]]
+            : []),
+        ].map(([output, heading, verb], index) => (
+          <Fragment key={output}>
+            {index > 0 && <Dropdown.Divider />}
+            <Dropdown.Header>{heading}</Dropdown.Header>
+            <MenuItem
+              aria-label={`${verb} ${lowerFirst(wholeLabel)}`}
+              title={wholeLabel}
+              onClick={() => exportImage(CAPTURE_MODE.whole, output)}
             >
-              Copy whole tab
-            </Dropdown.Item>
-            <Dropdown.Item
-              onClick={() => exportImage(CAPTURE_MODE.visible, "copy")}
+              {wholeLabel}
+            </MenuItem>
+            <MenuItem
+              aria-label={`${verb} ${lowerFirst(VISIBLE_CAPTURE_LABEL)}`}
+              onClick={() => exportImage(CAPTURE_MODE.visible, output)}
             >
-              Copy visible area
-            </Dropdown.Item>
-          </>
-        )}
+              {VISIBLE_CAPTURE_LABEL}
+            </MenuItem>
+          </Fragment>
+        ))}
       </Dropdown.Menu>
     </Dropdown>
   );

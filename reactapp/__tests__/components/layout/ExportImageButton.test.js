@@ -9,8 +9,9 @@ import userEvent from "@testing-library/user-event";
 import ExportImageButton, {
   canCopyImages,
   describeProblems,
+  wholeCaptureLabel,
 } from "components/layout/ExportImageButton";
-import { LayoutContext } from "components/contexts/Contexts";
+import { LayoutContext, TabContext } from "components/contexts/Contexts";
 import LayoutAlertContextProvider from "components/contexts/LayoutAlertContext";
 import DashboardLayoutAlerts from "components/dashboard/DashboardLayoutAlerts";
 import {
@@ -36,20 +37,27 @@ const DASHBOARD = {
 const BLOB = new Blob(["png"], { type: "image/png" });
 const clean = { blob: BLOB, problems: [], downscaled: false };
 
-function renderButton(props = {}) {
+const ONE_TAB = [{ id: 1, name: "Main" }];
+
+function renderButton(props = {}, tabs = ONE_TAB) {
+  const tabContext = { tabs, getActiveTab: () => tabs[tabs.length - 1] };
   return render(
     <LayoutContext.Provider value={DASHBOARD}>
-      <LayoutAlertContextProvider>
-        <ExportImageButton {...props} />
-        <DashboardLayoutAlerts />
-      </LayoutAlertContextProvider>
+      <TabContext.Provider value={tabContext}>
+        <LayoutAlertContextProvider>
+          <ExportImageButton {...props} />
+          <DashboardLayoutAlerts />
+        </LayoutAlertContextProvider>
+      </TabContext.Provider>
     </LayoutContext.Provider>,
   );
 }
 
+/* Items are found by their accessible names: the same two choices sit under
+   both the Download and the Copy heading. */
 async function choose(item) {
   await userEvent.click(screen.getByLabelText("exportImageButton"));
-  await userEvent.click(await screen.findByText(item));
+  await userEvent.click(await screen.findByLabelText(item));
 }
 
 let clipboardWrite;
@@ -85,7 +93,7 @@ describe("ExportImageButton", () => {
   it("downloads the whole tab, named after the dashboard and the time", async () => {
     renderButton();
 
-    await choose("Download whole tab");
+    await choose("Download entire dashboard");
 
     await waitFor(() => expect(clickedLinks).toHaveLength(1));
     expect(captureDashboard).toHaveBeenCalledWith({
@@ -105,7 +113,7 @@ describe("ExportImageButton", () => {
   it("downloads the visible area", async () => {
     renderButton();
 
-    await choose("Download visible area");
+    await choose("Download just what's on screen");
 
     await waitFor(() => expect(clickedLinks).toHaveLength(1));
     expect(captureDashboard).toHaveBeenCalledWith({
@@ -123,7 +131,7 @@ describe("ExportImageButton", () => {
     );
     renderButton();
 
-    await choose("Copy visible area");
+    await choose("Copy just what's on screen");
 
     // The write has to start while the user's click still grants access.
     expect(clipboardWrite).toHaveBeenCalledTimes(1);
@@ -143,8 +151,15 @@ describe("ExportImageButton", () => {
 
     await userEvent.click(screen.getByLabelText("exportImageButton"));
 
-    expect(await screen.findByText("Download whole tab")).toBeInTheDocument();
-    expect(screen.queryByText("Copy whole tab")).not.toBeInTheDocument();
+    expect(
+      await screen.findByLabelText("Download entire dashboard"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Copy image to clipboard"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Copy entire dashboard"),
+    ).not.toBeInTheDocument();
   });
 
   it("names what could not be included", async () => {
@@ -158,7 +173,7 @@ describe("ExportImageButton", () => {
     });
     renderButton();
 
-    await choose("Download whole tab");
+    await choose("Download entire dashboard");
 
     expect(
       await screen.findByText(
@@ -173,17 +188,17 @@ describe("ExportImageButton", () => {
       new CaptureBusyError(),
       "Another image is still being created. Try again in a moment.",
     ],
-    [new NothingToCaptureError(), "There is nothing on this tab to export."],
+    [new NothingToCaptureError(), "There is nothing here to save as an image."],
     [
       new CaptureTimeoutError(),
-      "Creating the image took too long. Try again, or export the visible area.",
+      "Creating the image took too long. Try again, or save just what's on screen.",
     ],
   ])("reports a capture that fails: %s", async (error, message) => {
     jest.spyOn(console, "error").mockImplementation(() => {});
     captureDashboard.mockRejectedValue(error);
     renderButton();
 
-    await choose("Download whole tab");
+    await choose("Download entire dashboard");
 
     expect(await screen.findByText(message)).toBeInTheDocument();
     expect(clickedLinks).toHaveLength(0);
@@ -196,7 +211,7 @@ describe("ExportImageButton", () => {
     );
     renderButton();
 
-    await choose("Copy whole tab");
+    await choose("Copy entire dashboard");
 
     expect(
       await screen.findByText(
@@ -212,7 +227,7 @@ describe("ExportImageButton", () => {
     });
     renderButton();
 
-    await choose("Copy whole tab");
+    await choose("Copy entire dashboard");
 
     expect(
       await screen.findByText(
@@ -233,7 +248,7 @@ describe("ExportImageButton", () => {
     );
     renderButton();
 
-    await choose("Download whole tab");
+    await choose("Download entire dashboard");
 
     expect(screen.getByLabelText("exportImageButton")).toBeDisabled();
     expect(screen.getByLabelText("Creating image")).toBeInTheDocument();
@@ -254,13 +269,47 @@ describe("ExportImageButton", () => {
     );
     renderButton();
     await userEvent.click(screen.getByLabelText("exportImageButton"));
-    const item = await screen.findByText("Download whole tab");
+    const item = await screen.findByLabelText("Download entire dashboard");
 
     fireEvent.click(item);
     fireEvent.click(item);
 
     expect(captureDashboard).toHaveBeenCalledTimes(1);
     await act(async () => finish(clean));
+  });
+
+  it("groups the choices under Download and Copy, in plain words", async () => {
+    renderButton();
+    await userEvent.click(screen.getByLabelText("exportImageButton"));
+
+    expect(await screen.findByText("Download image")).toBeInTheDocument();
+    expect(screen.getByText("Copy image to clipboard")).toBeInTheDocument();
+    expect(screen.getAllByText("Entire dashboard")).toHaveLength(2);
+    expect(screen.getAllByText("Just what's on screen")).toHaveLength(2);
+    expect(screen.getByLabelText("exportImageButton")).toHaveAttribute(
+      "title",
+      "Save as image",
+    );
+  });
+
+  it("names the tab the viewer is on when the dashboard has several", async () => {
+    renderButton({}, [
+      { id: 1, name: "Willamette Basin" },
+      { id: 2, name: "Weather Outlook" },
+    ]);
+
+    await choose("Download entire \u201cWeather Outlook\u201d tab");
+
+    expect(captureDashboard).toHaveBeenCalledWith(
+      expect.objectContaining({ mode: "whole" }),
+    );
+    // The full name stays in the tooltip when a long one is cut short.
+    await userEvent.click(screen.getByLabelText("exportImageButton"));
+    expect(
+      await screen.findByLabelText(
+        "Copy entire \u201cWeather Outlook\u201d tab",
+      ),
+    ).toHaveAttribute("title", "Entire \u201cWeather Outlook\u201d tab");
   });
 
   it("can be disabled by its header", () => {
@@ -289,5 +338,18 @@ describe("describeProblems", () => {
         { tile: "B", kind: "other" },
       ]),
     ).toBe("A (an image), Map popup (could not be drawn), B (other)");
+  });
+});
+
+describe("wholeCaptureLabel", () => {
+  it("calls a single-tab dashboard the dashboard, since its tab bar is hidden", () => {
+    expect(wholeCaptureLabel([{ id: 1, name: "Main" }], { name: "Main" })).toBe(
+      "Entire dashboard",
+    );
+  });
+
+  it("falls back to the dashboard without tabs or a named active tab", () => {
+    expect(wholeCaptureLabel(undefined, undefined)).toBe("Entire dashboard");
+    expect(wholeCaptureLabel([{}, {}], { name: "" })).toBe("Entire dashboard");
   });
 });
