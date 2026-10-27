@@ -1168,6 +1168,26 @@ def update_named_dashboard(user, id, dashboard_updates):
     return parsed_dashboard
 
 
+def stored_identity(user):
+    """
+    The username a user's permission rows are stored under, or None for no identity.
+
+    A request that is not logged in has the username "", which is also what a row
+    written for one holds, so it must never reach a username comparison. Nor may None:
+    a NULL username marks a group grant, so comparing against it matches every group.
+    Callers return before building any query when this is None.
+
+    A blank username is stripped only to recognize it as blank; a real one is returned
+    as stored, so padding never matches a row written without it.
+    """
+    if not getattr(user, "is_authenticated", False):
+        return None
+    username = getattr(user, "username", None)
+    if not username or not username.strip():
+        return None
+    return username
+
+
 def get_dashboard_user_permission(session, dashboard, user):
     """
     Get the highest permission level a user has for a dashboard.
@@ -1183,12 +1203,15 @@ def get_dashboard_user_permission(session, dashboard, user):
     Returns:
         str or None: Highest permission level found or None if no permission exists
     """
+    username = stored_identity(user)
+    if username is None:
+        return None
 
     # Get all group ids the user belongs to
     user_groups = (
         session.query(PermissionGroup.id)
         .join(PermissionGroupUser, PermissionGroup.id == PermissionGroupUser.group_id)
-        .filter(PermissionGroupUser.username == user.username)
+        .filter(PermissionGroupUser.username == username)
         .all()
     )
     user_group_ids = [g[0] for g in user_groups]
@@ -1196,7 +1219,7 @@ def get_dashboard_user_permission(session, dashboard, user):
     # Collect all permissions for user and their groups
     perms = []
     for p in dashboard.permissions:
-        if p.username == user.username:
+        if p.username == username:
             perms.append(p.permission)
         elif p.group_id and p.group_id in user_group_ids:
             perms.append(p.permission)
@@ -1274,6 +1297,9 @@ def get_visualization_user_permission(session, visualization, user):
     Returns:
         bool: True if user has permission, False otherwise
     """
+    username = stored_identity(user)
+    if username is None:
+        return False
 
     permission = False
 
@@ -1281,7 +1307,7 @@ def get_visualization_user_permission(session, visualization, user):
     user_groups = (
         session.query(PermissionGroup.id)
         .join(PermissionGroupUser, PermissionGroup.id == PermissionGroupUser.group_id)
-        .filter(PermissionGroupUser.username == user.username)
+        .filter(PermissionGroupUser.username == username)
         .all()
     )
     user_group_ids = [g[0] for g in user_groups]
@@ -1294,7 +1320,7 @@ def get_visualization_user_permission(session, visualization, user):
 
     # Collect all permissions for user and their groups
     for p in visualization_permissions:
-        if p.username == user.username:
+        if p.username == username:
             permission = True
         elif p.group_id and p.group_id in user_group_ids:
             permission = True
@@ -1625,6 +1651,10 @@ def get_user_permission_groups(user):
                   }
               ]
     """
+    username = stored_identity(user)
+    if username is None:
+        return []
+
     from tethysapp.tethysdash.app import App
 
     Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
@@ -1636,7 +1666,7 @@ def get_user_permission_groups(user):
             .join(
                 PermissionGroupUser, PermissionGroup.id == PermissionGroupUser.group_id
             )
-            .filter(PermissionGroupUser.username == user.username)
+            .filter(PermissionGroupUser.username == username)
             .all()
         )
         result = []
@@ -1889,8 +1919,14 @@ def parse_group_permissions(user, group):
         {"username": member.username, "permission": member.permission}
         for member in group.members
     ]
+    username = stored_identity(user)
     user_permission = next(
-        (m["permission"] for m in members if m["username"] == user.username), None
+        (
+            m["permission"]
+            for m in members
+            if username is not None and m["username"] == username
+        ),
+        None,
     )
 
     return {
@@ -2013,13 +2049,21 @@ def get_dashboards(user, dashboard_view=False, id=None):
             dashboard = session.query(Dashboard).filter(Dashboard.id == id).first()
             return parse_db_dashboard(session, [dashboard], user, dashboard_view)[0]
 
+        username = stored_identity(user)
+        if username is None:
+            # With no identity there is no grant to match, only public dashboards.
+            public_dashboards = (
+                session.query(Dashboard).filter(Dashboard.public == True)  # noqa: E712
+            ).all()
+            return parse_db_dashboard(session, public_dashboards, user, dashboard_view)
+
         # Get all group ids the user belongs to
         user_groups = (
             session.query(PermissionGroup.id)
             .join(
                 PermissionGroupUser, PermissionGroup.id == PermissionGroupUser.group_id
             )
-            .filter(PermissionGroupUser.username == user.username)
+            .filter(PermissionGroupUser.username == username)
             .all()
         )
         user_group_ids = [g[0] for g in user_groups]
@@ -2029,7 +2073,7 @@ def get_dashboards(user, dashboard_view=False, id=None):
             session.query(Dashboard)
             .join(DashboardPermission)
             .filter(
-                (DashboardPermission.username == user.username)
+                (DashboardPermission.username == username)
                 | (DashboardPermission.group_id.in_(user_group_ids))
             )
         ).all()
@@ -2039,9 +2083,7 @@ def get_dashboards(user, dashboard_view=False, id=None):
             session.query(Dashboard)
             .filter(Dashboard.public == True)  # noqa: E712
             .filter(
-                ~Dashboard.permissions.any(
-                    DashboardPermission.username == user.username
-                )
+                ~Dashboard.permissions.any(DashboardPermission.username == username)
             )
             .filter(
                 ~Dashboard.permissions.any(
@@ -2067,6 +2109,10 @@ def clean_up_jsons(user):
     Args:
         user: User object to clean up files for
     """
+    username = stored_identity(user)
+    if username is None:
+        # A user with no identity can edit nothing, so has nothing to sweep.
+        return
 
     print("Checking to see if there are any unused json files to remove")
     from tethysapp.tethysdash.app import App
@@ -2079,7 +2125,7 @@ def clean_up_jsons(user):
             session.query(Dashboard)
             .join(DashboardPermission)
             .filter(
-                (DashboardPermission.username == user.username)
+                (DashboardPermission.username == username)
                 & (
                     DashboardPermission.permission.in_(
                         [
@@ -2097,7 +2143,7 @@ def clean_up_jsons(user):
             .join(
                 PermissionGroupUser, PermissionGroup.id == PermissionGroupUser.group_id
             )
-            .filter(PermissionGroupUser.username == user.username)
+            .filter(PermissionGroupUser.username == username)
             .all()
         )
         user_group_ids = [g[0] for g in user_groups]
