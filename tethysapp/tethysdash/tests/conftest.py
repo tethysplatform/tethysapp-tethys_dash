@@ -259,7 +259,7 @@ def dashboard_data(test_owner_user):
     return {
         "name": "test_dashboard",
         "description": "test_dashboard",
-        "uuid": "some_user_dashboard_uuid",
+        "uuid": "5d1a2f3e-8b4c-4d6e-9f70-1a2b3c4d5e6f",
         "notes": "some notes",
         "owner": test_owner_user.username,
         "public": False,

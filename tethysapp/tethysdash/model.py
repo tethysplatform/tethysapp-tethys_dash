@@ -31,10 +31,15 @@ from sqlalchemy import CheckConstraint
 from pathlib import Path
 import subprocess
 from tethysapp.tethysdash.utilities import sanitize_html
+from tethysapp.tethysdash.exceptions import UnsafePath
+from tethysapp.tethysdash.paths import (
+    canonical_dashboard_uuid,
+    resolve_dashboard_folder,
+)
 from django.contrib.auth import get_user_model
 import shutil
 import filecmp
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 Base = declarative_base()
 
@@ -44,15 +49,6 @@ def thumbnail_directory():
     from tethysapp.tethysdash.app import App
 
     return f"{App.package}/app"
-
-
-def canonical_dashboard_uuid(value):
-    """Return value as a canonical UUID string; raise ValueError if it is not a UUID.
-
-    A dashboard uuid becomes a storage name, so one taken from a request has to be a
-    UUID and nothing that could also be read as a path.
-    """
-    return str(UUID(str(value)))
 
 
 def _names_a_thumbnail(dashboard_uuid):
@@ -175,6 +171,26 @@ def copy_thumbnail(source_uuid, target_uuid):
         save_thumbnail(target_uuid, handle.read())
 
 
+def copy_dashboard_files(source_uuid, target_uuid):
+    """Copy one dashboard's layer files into another's folder, if it has any.
+
+    Grid items name their GeoJSON and style files without a folder, and each dashboard
+    reads them from its own, so a copy without the files fails every file-backed layer.
+    Only regular files are copied; symlinks are not followed.
+    """
+    from tethysapp.tethysdash.app import App
+
+    workspace_path = get_app_workspace(App).path
+    source = resolve_dashboard_folder(workspace_path, source_uuid)
+    if not source.is_dir():
+        return
+    target = resolve_dashboard_folder(workspace_path, target_uuid)
+    target.mkdir(exist_ok=True)
+    for entry in os.scandir(source):
+        if entry.is_file(follow_symlinks=False):
+            shutil.copy2(entry.path, target / entry.name)
+
+
 def delete_thumbnail(dashboard_uuid):
     """Remove a dashboard's thumbnail. Deleting an absent name is a no-op."""
     default_storage.delete(thumbnail_name(dashboard_uuid))
@@ -206,7 +222,7 @@ class Dashboard(Base):
 
     # Columns
     id = Column(Integer, primary_key=True)
-    uuid = Column(String, nullable=False)
+    uuid = Column(String, nullable=False, unique=True)
     description = Column(String)
     name = Column(String, nullable=False)
     notes = Column(String)
@@ -2107,8 +2123,15 @@ def clean_up_jsons(user):
         app_workspace = get_app_workspace(App)
         for dashboard in all_dashboards:
             dashboard_uuid = dashboard.uuid
-            dashboard_folder = os.path.join(app_workspace.path, dashboard_uuid)
-            if not os.path.exists(dashboard_folder):
+            try:
+                dashboard_folder = resolve_dashboard_folder(
+                    app_workspace.path, dashboard_uuid
+                )
+            except UnsafePath:
+                # Only a canonical dashboard uuid names a folder.
+                print(f"Skipping cleanup of non-canonical uuid {dashboard_uuid}")
+                continue
+            if not dashboard_folder.exists():
                 continue
             # Collect all in-use jsons for this dashboard
             in_use_jsons = []
@@ -2139,8 +2162,12 @@ def clean_up_jsons(user):
             existing_files = os.listdir(dashboard_folder)
             unused_files = [f for f in existing_files if f not in in_use_jsons]
             for unused_file in unused_files:
+                unused_path = os.path.join(dashboard_folder, unused_file)
+                if not os.path.isfile(unused_path):
+                    # Uploads only write files here; leave anything else alone.
+                    continue
                 print(f"Removing the {unused_file} file from {dashboard_folder}")
-                os.remove(os.path.join(dashboard_folder, unused_file))
+                os.remove(unused_path)
     finally:
         session.close()
 
@@ -2296,7 +2323,13 @@ def cleanup_old_jsons():
             # For each dashboard, if this file is in its in-use set, copy it there
             for dashboard_uuid, inuse_set in dashboard_inuse_files.items():
                 if dashboard_file_name in inuse_set:
-                    dashboard_folder = os.path.join(app_workspace.path, dashboard_uuid)
+                    try:
+                        dashboard_folder = resolve_dashboard_folder(
+                            app_workspace.path, dashboard_uuid
+                        )
+                    except UnsafePath:
+                        # Same rule as clean_up_jsons.
+                        continue
                     if not os.path.exists(dashboard_folder):
                         os.makedirs(dashboard_folder, exist_ok=True)
                     dest_path = os.path.join(dashboard_folder, dashboard_file_name)
