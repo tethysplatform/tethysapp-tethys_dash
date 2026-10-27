@@ -25,7 +25,7 @@ from tethysapp.tethysdash.model import (
     stored_identity,
     can_view_dashboard,
     can_edit_dashboard,
-    _user_may_view,
+    user_may_view,
     update_dashboard_permissions,
     update_permission_groups,
     get_user_permission_groups,
@@ -1097,6 +1097,37 @@ def test_update_and_delete_refuse_an_unviewable_dashboard_like_a_missing_one(
 
 
 @pytest.mark.django_db
+def test_update_and_delete_keep_the_level_message_for_a_public_dashboard(
+    public_dashboard, mock_app_get_ps_db, admin_user
+):
+    """Anyone can see a public dashboard, so a refusal there names the level."""
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+
+    assert _not_found_message(
+        lambda: update_named_dashboard(admin_user, public_dashboard.id, {"notes": "x"})
+    ) == ("User does not have admin or editor permissions to update the dashboard.")
+    assert _not_found_message(
+        lambda: delete_named_dashboard(admin_user, public_dashboard.id)
+    ) == ("User does not have admin permission to delete the dashboard.")
+
+
+@pytest.mark.django_db
+def test_a_not_found_refusal_is_logged(
+    dashboard, mock_app_get_ps_db, admin_user, capsys
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+
+    _not_found_message(lambda: get_dashboards(admin_user, id=dashboard.id))
+    _not_found_message(lambda: get_dashboards(AnonymousUser(), id=dashboard.id))
+
+    logged = capsys.readouterr().out
+    assert (
+        f"Refused to get dashboard {dashboard.id} for {admin_user.username}" in logged
+    )
+    assert f"Refused to get dashboard {dashboard.id} for a signed-out user" in logged
+
+
+@pytest.mark.django_db
 def test_listing_and_view_check_admit_the_same_dashboards(
     dashboard,
     public_dashboard,
@@ -1107,7 +1138,7 @@ def test_listing_and_view_check_admit_the_same_dashboards(
     test_admin_user,
     test_member_user,
 ):
-    """The listing is a query and _user_may_view a per-dashboard check; they agree."""
+    """The listing is a query and user_may_view a per-dashboard check; they agree."""
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     for public in [False, True]:
         blank_owned = Dashboard(
@@ -1133,7 +1164,7 @@ def test_listing_and_view_check_admit_the_same_dashboards(
     for user in principals:
         listed = {d["uuid"] for d in get_dashboards(user)}
         viewable = {
-            d.uuid for d in every_dashboard if _user_may_view(db_session, d, user)
+            d.uuid for d in every_dashboard if user_may_view(db_session, d, user)
         }
         assert listed == viewable, user
 

@@ -3,7 +3,7 @@ from tethysapp.tethysdash.model import (
     get_visualization_user_permission,
     GridItem,
     Message,
-    _user_may_view,
+    user_may_view,
 )
 from tethysapp.tethysdash.exceptions import VisualizationError
 from tethysapp.tethysdash.plugin_helpers import (
@@ -215,7 +215,7 @@ def get_visualization(viz_source, viz_args, user, viz_request_id, mode="scaffold
             if grid_item is None:
                 # A widget not saved yet, which can have no history.
                 return viz_source, {"chatHistory": []}
-            if not _user_may_view(session, grid_item.dashboard, user):
+            if not user_may_view(session, grid_item.dashboard, user):
                 # Answered like a new widget, so a refusal reveals nothing.
                 print(f"Refused the chat history of grid item {viz_request_id}")
                 return viz_source, {"chatHistory": []}

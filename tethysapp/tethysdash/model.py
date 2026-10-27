@@ -853,7 +853,7 @@ def copy_named_dashboard(user, id, new_name, dashboard_uuid):
         original_dashboard = session.query(Dashboard).filter(Dashboard.id == id).first()
         # Copying hands over everything the dashboard holds, so it takes the same access
         # as viewing it.
-        if not original_dashboard or not _user_may_view(
+        if not original_dashboard or not user_may_view(
             session, original_dashboard, user
         ):
             raise _dashboard_not_found("copy", id, user)
@@ -957,7 +957,7 @@ def delete_named_dashboard(user, id):
 
     try:
         db_dashboard = session.query(Dashboard).filter(Dashboard.id == id).first()
-        if not db_dashboard or not _user_may_view(session, db_dashboard, user):
+        if not db_dashboard or not user_may_view(session, db_dashboard, user):
             raise _dashboard_not_found("delete", id, user)
 
         user_permission = get_dashboard_user_permission(session, db_dashboard, user)
@@ -1007,7 +1007,7 @@ def update_named_dashboard(user, id, dashboard_updates):
 
     try:
         db_dashboard = session.query(Dashboard).filter(Dashboard.id == id).first()
-        if not db_dashboard or not _user_may_view(session, db_dashboard, user):
+        if not db_dashboard or not user_may_view(session, db_dashboard, user):
             raise _dashboard_not_found("update", id, user)
         user_permission = get_dashboard_user_permission(session, db_dashboard, user)
 
@@ -1241,7 +1241,7 @@ def get_dashboard_user_permission(session, dashboard, user):
         return None
 
 
-def _user_may_view(session, dashboard, user):
+def user_may_view(session, dashboard, user):
     """A permission of any level, or a public dashboard.
 
     A request that is not logged in is matched against public dashboards only. Its
@@ -1294,7 +1294,7 @@ def can_view_dashboard(user, dashboard_uuid):
     """
     Whether a user may view the dashboard with the given uuid.
 
-    Viewing takes what copying takes (see _user_may_view).
+    Viewing takes what copying takes (see user_may_view).
 
     Args:
         user: User object, authenticated or anonymous
@@ -1306,7 +1306,7 @@ def can_view_dashboard(user, dashboard_uuid):
     """
     return _check_dashboard_by_uuid(
         dashboard_uuid,
-        lambda session, dashboard: _user_may_view(session, dashboard, user),
+        lambda session, dashboard: user_may_view(session, dashboard, user),
     )
 
 
@@ -2098,7 +2098,7 @@ def get_dashboards(user, dashboard_view=False, id=None):
     try:
         if id:
             dashboard = session.query(Dashboard).filter(Dashboard.id == id).first()
-            if not dashboard or not _user_may_view(session, dashboard, user):
+            if not dashboard or not user_may_view(session, dashboard, user):
                 raise _dashboard_not_found("get", id, user)
             return parse_db_dashboard(session, [dashboard], user, dashboard_view)[0]
 

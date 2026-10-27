@@ -1433,8 +1433,11 @@ def test_upload_json_failed_unknown_exception(
 
 
 @pytest.mark.django_db
-def test_download_json(client, admin_user, mock_app, mocker, tmp_path, dashboard_data):
-    mock_app("tethysapp.tethysdash.app.App")
+def test_download_json(
+    client, test_member_user, mock_app_get_ps_db, mocker, tmp_path, dashboard
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    dashboard_data = {"uuid": dashboard.uuid}
     mock_get_app_workspace = mocker.patch("tethys_apps.base.paths.get_app_workspace")
     workspace_path = tmp_path
     mock_get_app_workspace.return_value = MagicMock(path=workspace_path)
@@ -1454,7 +1457,7 @@ def test_download_json(client, admin_user, mock_app, mocker, tmp_path, dashboard
     )
 
     url = reverse("tethysdash:download_json")
-    client.force_login(admin_user)
+    client.force_login(test_member_user)
 
     response = client.get(url, itemData)
 
@@ -1471,9 +1474,10 @@ def test_download_json(client, admin_user, mock_app, mocker, tmp_path, dashboard
 
 @pytest.mark.django_db
 def test_download_json_failed(
-    client, admin_user, mock_app, mocker, tmp_path, dashboard_data
+    client, test_member_user, mock_app_get_ps_db, mocker, tmp_path, dashboard
 ):
-    mock_app("tethysapp.tethysdash.app.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    dashboard_data = {"uuid": dashboard.uuid}
     mock_get_app_workspace = mocker.patch("tethys_apps.base.paths.get_app_workspace")
     workspace_path = tmp_path
     mock_get_app_workspace.return_value = MagicMock(path=workspace_path)
@@ -1493,7 +1497,7 @@ def test_download_json_failed(
     )
 
     url = reverse("tethysdash:download_json")
-    client.force_login(admin_user)
+    client.force_login(test_member_user)
     mockJsonLoad = mocker.patch("json.load")
     mockJsonLoad.side_effect = [Exception("failed to load json")]
 
@@ -1507,9 +1511,10 @@ def test_download_json_failed(
 
 @pytest.mark.django_db
 def test_download_json_failed_unknown_exception(
-    client, admin_user, mock_app, mocker, tmp_path, dashboard_data
+    client, test_member_user, mock_app_get_ps_db, mocker, tmp_path, dashboard
 ):
-    mock_app("tethysapp.tethysdash.app.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    dashboard_data = {"uuid": dashboard.uuid}
     mock_get_app_workspace = mocker.patch("tethys_apps.base.paths.get_app_workspace")
     workspace_path = tmp_path
     mock_get_app_workspace.return_value = MagicMock(path=workspace_path)
@@ -1529,7 +1534,7 @@ def test_download_json_failed_unknown_exception(
     )
 
     url = reverse("tethysdash:download_json")
-    client.force_login(admin_user)
+    client.force_login(test_member_user)
     mockJsonLoad = mocker.patch("json.load")
     mockJsonLoad.side_effect = [Exception()]
 
@@ -1594,12 +1599,16 @@ def test_download_json_takes_view_permission(
     test_member_user,
     mocker,
     tmp_path,
+    capsys,
 ):
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     _layer_file_workspace(mocker, tmp_path, dashboard.uuid)
     refused = {"success": False, "message": INVALID_FILE_PATH}
 
     assert _download(client, dashboard.uuid) == refused  # signed out
+    assert f"Refused a json download from dashboard {dashboard.uuid}" in (
+        capsys.readouterr().out
+    )
     client.force_login(admin_user)  # signed in, holding no permission
     assert _download(client, dashboard.uuid) == refused
     assert _download(client, str(uuid.uuid4())) == refused  # no such dashboard
@@ -1618,6 +1627,7 @@ def test_upload_json_takes_editor_permission(
     test_owner_user,
     mocker,
     tmp_path,
+    capsys,
 ):
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     workspace = _layer_file_workspace(mocker, tmp_path, dashboard.uuid)
@@ -1628,6 +1638,10 @@ def test_upload_json_takes_editor_permission(
         client.force_login(user)
         assert _upload(client, dashboard.uuid) == refused
         assert not new_file.exists()
+        assert (
+            f"Refused a json upload to dashboard {dashboard.uuid} for {user.username}"
+            in capsys.readouterr().out
+        )
 
     unknown_uuid = str(uuid.uuid4())
     assert _upload(client, unknown_uuid) == refused
@@ -4480,3 +4494,50 @@ def test_a_signed_out_visitor_can_open_a_public_dashboard_end_to_end(
     ).json()
     assert widget["success"] is True
     assert [m["message"] for m in widget["data"]["chatHistory"]] == ["hello"]
+
+
+@pytest.mark.django_db
+def test_an_import_saves_its_tabs_into_the_dashboard_it_created(
+    client, mock_app_get_ps_db, db_session, test_admin_user
+):
+    """The sequence dashboard import uses: create empty, then save tabs into it."""
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    client.force_login(test_admin_user)
+    created = client.generic(
+        "POST", reverse("tethysdash:add_dashboard"), json.dumps({"name": "imported"})
+    ).json()["new_dashboard"]
+    item = {
+        "i": "1",
+        "x": 0,
+        "y": 0,
+        "w": 10,
+        "h": 10,
+        "source": "Text",
+        "args_string": json.dumps({"text": "hi"}),
+        "metadata_string": json.dumps({}),
+    }
+
+    saved = client.generic(
+        "POST",
+        reverse("tethysdash:update_dashboard"),
+        json.dumps(
+            {
+                "id": created["id"],
+                "tabs": [
+                    {"name": "First", "gridItems": [{**item, "uuid": "item-1"}]},
+                    {"name": "Second", "gridItems": [{**item, "uuid": "item-2"}]},
+                ],
+            }
+        ),
+    ).json()
+
+    assert saved["success"] is True
+    tabs = saved["updated_dashboard"]["tabs"]
+    assert [tab["name"] for tab in tabs] == ["First", "Second"]
+    assert [[i["uuid"] for i in tab["gridItems"]] for tab in tabs] == [
+        ["item-1"],
+        ["item-2"],
+    ]
+    # The tab and placeholder item the dashboard was created with are gone.
+    stored = db_session.query(GridItem).filter_by(dashboard_id=created["id"]).all()
+    assert sorted(i.uuid for i in stored) == ["item-1", "item-2"]

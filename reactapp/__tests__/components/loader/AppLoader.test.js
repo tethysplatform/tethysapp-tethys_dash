@@ -658,6 +658,26 @@ describe("importDashboard", () => {
     expect(tabs.flatMap((tab) => tab.gridItems)).toHaveLength(1);
   });
 
+  test("carries the file's metadata to the create", async () => {
+    await runImport({
+      name: "Imported",
+      description: "described",
+      notes: "noted",
+      public: true,
+      unrestrictedPlacement: false,
+      uuid: "uuid-from-the-file",
+      gridItems: [mapItem()],
+    });
+
+    expect(addDashboard.mock.calls[0][0]).toStrictEqual({
+      name: "Imported",
+      description: "described",
+      notes: "noted",
+      public: true,
+      unrestrictedPlacement: false,
+    });
+  });
+
   test("keeps an exported public dashboard private", async () => {
     await runImport({ name: "Imported", publicDashboard: true });
 
@@ -702,11 +722,10 @@ describe("importDashboard", () => {
     expect(names).toEqual(listedNames);
   });
 
-  test("a thrown error removes the new dashboard, even if that fails too", async () => {
+  test("a thrown error removes the new dashboard", async () => {
     updateDashboard.mockRejectedValue(new Error("network down"));
-    deleteDashboard.mockRejectedValue(new Error("still down"));
 
-    const { result } = await runImport({
+    const { result, names } = await runImport({
       name: "Imported",
       gridItems: [mapItem()],
     });
@@ -716,7 +735,34 @@ describe("importDashboard", () => {
       message: "Import failed: network down",
     });
     expect(deleteDashboard).toHaveBeenCalledWith({ id: 77 }, csrf);
+    expect(names).toEqual(listedNames);
   });
+
+  test.each([
+    ["is refused", () => deleteDashboard.mockResolvedValue({ success: false })],
+    ["throws", () => deleteDashboard.mockRejectedValue(new Error("down"))],
+  ])(
+    "a removal that %s leaves the dashboard listed and says so",
+    async (_, failRemoval) => {
+      updateDashboard.mockResolvedValue({
+        success: false,
+        message: "save failed",
+      });
+      failRemoval();
+
+      const { result, names } = await runImport({
+        name: "Imported",
+        gridItems: [mapItem()],
+      });
+
+      expect(result).toEqual({
+        success: false,
+        message:
+          'save failed The partly imported dashboard "Imported" could not be removed; delete it from your dashboard list.',
+      });
+      expect(names).toEqual([...listedNames, "Imported"]);
+    },
+  );
 
   test("a create failure uploads nothing and removes nothing", async () => {
     addDashboard.mockResolvedValue({ success: false, message: "add failed" });

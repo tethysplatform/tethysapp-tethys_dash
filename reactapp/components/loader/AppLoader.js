@@ -372,17 +372,29 @@ function Loader({ children }) {
       // import leaves nothing behind. Best effort: the import's own error is
       // the one worth reporting.
       const abandon = async (response) => {
-        if (newDashboard) {
-          try {
-            await appAPI.deleteDashboard(
-              { id: newDashboard.id },
-              appContext.csrf,
-            );
-          } catch {
-            // Left for the user to delete; it is in their dashboard list.
-          }
+        if (!newDashboard) {
+          return response;
         }
-        return response;
+        let removed = false;
+        try {
+          const deleteResponse = await appAPI.deleteDashboard(
+            { id: newDashboard.id },
+            appContext.csrf,
+          );
+          removed = Boolean(deleteResponse?.success);
+        } catch {
+          // Reported below, with the import's own error.
+        }
+        if (removed) {
+          return response;
+        }
+        // Shown rather than hidden until a reload, so the user can delete it.
+        const leftover = newDashboard;
+        setAvailableDashboards((dashboards) => [...dashboards, leftover]);
+        return {
+          ...response,
+          message: `${response.message} The partly imported dashboard "${leftover.name}" could not be removed; delete it from your dashboard list.`,
+        };
       };
 
       try {

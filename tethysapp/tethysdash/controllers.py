@@ -705,6 +705,10 @@ def add_dashboard(request):
               defaulting to True. Existing dashboards keep whatever they were
               created with; this only sets the starting point for new ones.
             - gridItems: Optional list of grid items
+            - tabs: Optional list of tabs, each with a name and gridItems; when
+              given, gridItems is ignored
+            A uuid in the body is ignored: the server mints one and returns it as
+            new_dashboard.uuid, which layer files are then uploaded under.
 
     Returns:
         JsonResponse: Dictionary containing:
@@ -1035,6 +1039,9 @@ def upload_json(request, app_workspace):
         request: Django HTTP request object with JSON body containing:
             - data: String containing JSON data to upload
             - filename: String filename for the JSON file
+            - dashboard_uuid: uuid of an existing dashboard the caller holds
+              editor or admin permission on; any refusal answers
+              "Invalid file path."
         app_workspace: Tethys app workspace directory for storing files
 
     Returns:
@@ -1094,8 +1101,11 @@ def download_json(request, app_workspace):
     Downloads and sanitizes JSON data from the application workspace.
 
     Args:
-        request: Django HTTP request object with query parameter:
+        request: Django HTTP request object with query parameters:
             - filename: String name of the JSON file to download
+            - dashboard_uuid: uuid of a dashboard the caller may view (public
+              dashboards included, signed out); any refusal answers
+              "Invalid file path."
         app_workspace: Tethys app workspace directory containing files
 
     Returns:
