@@ -5,7 +5,6 @@ import math
 import os
 import socket
 import time
-import nh3
 import requests
 from rest_framework.decorators import api_view
 import uuid
@@ -32,6 +31,7 @@ from tethysapp.tethysdash.model import (
     update_visualization_permissions as update_viz_perms,
     check_for_liveChat,
     Message,
+    copy_dashboard_files,
     copy_thumbnail,
     delete_thumbnail,
     canonical_dashboard_uuid,
@@ -43,7 +43,11 @@ from tethysapp.tethysdash.visualizations import (
     get_visualization,
     get_restricted_visualizations,
 )
-from tethysapp.tethysdash.exceptions import VisualizationError
+from tethysapp.tethysdash.auth import require_login
+from tethysapp.tethysdash.exceptions import INVALID_FILE_PATH, VisualizationError
+from tethysapp.tethysdash.paths import resolve_dashboard_file
+from tethysapp.tethysdash.utilities import sanitize_json_values
+from sqlalchemy.exc import SQLAlchemyError
 from tethysapp.tethysdash.plugin_helpers import send_websocket_message
 from channels.generic.websocket import AsyncWebsocketConsumer
 from tethys_sdk.routing import consumer
@@ -100,19 +104,24 @@ def _rate_limit_retry_after(key, limit, window):
 
 
 def _get_error_message(e, fallback):
-    """Return the first arg of an exception, or ``fallback`` if unavailable.
+    """Return the first arg of an exception, or ``fallback`` if unsuitable.
 
     Args:
         e (Exception): The caught exception.
-        fallback (str): Message to use when the exception carries no args.
+        fallback (str): Message to use when the exception carries no string first
+            arg, or is a database error.
 
     Returns:
         str: Human-readable error message suitable for an API response.
     """
+    if isinstance(e, SQLAlchemyError):
+        # The driver's text names constraints and echoes the SQL and its parameters.
+        return fallback
     try:
-        return e.args[0]
+        message = e.args[0]
     except Exception:
         return fallback
+    return message if isinstance(message, str) else fallback
 
 
 _FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "public", "frontend")
@@ -557,6 +566,7 @@ class VisualizationConsumer(AsyncWebsocketConsumer):
 
 @api_view(["GET"])
 @controller(url="tethysdash/visualizations/permissions/list", login_required=True)
+@require_login
 def visualization_permissions(request):
     """
     API controller for retrieving visualization permissions.
@@ -602,6 +612,7 @@ def visualization_permissions(request):
 
 
 @controller(url="tethysdash/visualizations/permissions/update", login_required=True)
+@require_login
 def update_visualization_permissions(request):
     """
     API controller for updating visualization permissions.
@@ -675,6 +686,7 @@ def get_dashboard(request):
 
 @api_view(["POST"])
 @controller(url="tethysdash/dashboards/add", login_required=True)
+@require_login
 def add_dashboard(request):
     """
     API controller for creating a new dashboard.
@@ -748,6 +760,7 @@ def add_dashboard(request):
 
 @api_view(["POST"])
 @controller(url="tethysdash/dashboards/copy", login_required=True)
+@require_login
 def copy_dashboard(request):
     """
     API controller for copying an existing dashboard.
@@ -779,12 +792,18 @@ def copy_dashboard(request):
             user, dashboard_id, new_name, dashboard_uuid
         )
 
-        # The copy is committed by now, so a thumbnail the storage fails to copy must
-        # not report it as failed; a retry would only make a second copy.
+        # The copy is committed by now, so a thumbnail or layer files the storage fails
+        # to copy must not report it as failed; a retry would only make a second copy.
         try:
             copy_thumbnail(copied_dashboard_uuid, dashboard_uuid)
         except Exception as error:
             print(f"Could not copy the thumbnail of dashboard {dashboard_id}: {error}")
+        try:
+            copy_dashboard_files(copied_dashboard_uuid, dashboard_uuid)
+        except Exception as error:
+            print(
+                f"Could not copy the layer files of dashboard {dashboard_id}: {error}"
+            )
         new_dashboard = get_dashboards(user, id=new_dashboard_id)
         print(f"Successfully copied dashboard {dashboard_id}")
 
@@ -800,6 +819,7 @@ def copy_dashboard(request):
 
 @api_view(["POST"])
 @controller(url="tethysdash/dashboards/delete", login_required=True)
+@require_login
 def delete_dashboard(request):
     """
     API controller for deleting a dashboard.
@@ -845,6 +865,7 @@ def delete_dashboard(request):
 
 @api_view(["POST"])
 @controller(url="tethysdash/dashboards/update", login_required=True)
+@require_login
 def update_dashboard(request):
     """
     API controller for updating an existing dashboard.
@@ -894,6 +915,7 @@ def update_dashboard(request):
 
 @api_view(["POST"])
 @controller(url="tethysdash/permission_groups/update", login_required=True)
+@require_login
 def update_permission_group(request):
     """
     API controller for updating or creating permission groups.
@@ -956,6 +978,7 @@ def update_permission_group(request):
 
 @api_view(["POST"])
 @controller(url="tethysdash/permission_groups/delete", login_required=True)
+@require_login
 def delete_permission_group(request):
     """
     API controller for deleting a permission group.
@@ -998,6 +1021,7 @@ def delete_permission_group(request):
 
 @api_view(["POST"])
 @controller(url="tethysdash/json/upload", login_required=True, app_workspace=True)
+@require_login
 def upload_json(request, app_workspace):
     """
     API controller for uploading JSON data files.
@@ -1020,23 +1044,32 @@ def upload_json(request, app_workspace):
 
     json_data = json.loads(request.body)
 
-    data = json_data["data"]
-    filename = json_data["filename"]
-    dashboard_uuid = json_data["dashboard_uuid"]
-    clean_data = nh3.clean(data)
-    print(f"Uploading {filename}")
-
     try:
-        dashboard_folder = os.path.join(app_workspace.path, dashboard_uuid)
-        if not os.path.exists(dashboard_folder):
-            os.mkdir(dashboard_folder)
+        data = json_data["data"]
+        filename = json_data["filename"]
+        dashboard_uuid = json_data["dashboard_uuid"]
+        print(f"Uploading {filename}")
 
-        dashboard_file = os.path.join(dashboard_folder, filename)
+        try:
+            parsed = json.loads(data)
+        except (TypeError, ValueError):
+            # Fail here, where the cause can be named, rather than at download
+            # time where every failure reports the same refusal.
+            raise Exception("The uploaded content is not valid JSON.")
+        clean_data = json.dumps(sanitize_json_values(parsed))
+
+        dashboard_folder, dashboard_file = resolve_dashboard_file(
+            app_workspace.path, dashboard_uuid, filename
+        )
+        dashboard_folder.mkdir(exist_ok=True)
+
         with open(dashboard_file, "w") as outfile:
             outfile.write(clean_data)
 
         return JsonResponse({"success": True, "filename": filename})
 
+    except KeyError:
+        return JsonResponse({"success": False, "message": INVALID_FILE_PATH})
     except Exception as e:
         message = _get_error_message(
             e, "Failed to upload the json. Check server for logs."
@@ -1063,25 +1096,22 @@ def download_json(request, app_workspace):
             - data: JSON data if successful
             - message: Error message if unsuccessful
     """
-    filename = request.GET["filename"]
-    dashboard_uuid = request.GET["dashboard_uuid"]
-    dashboard_folder = os.path.join(app_workspace.path, dashboard_uuid)
-    print(f"Getting data from {filename}")
-
     try:
-        dashboard_file = os.path.join(dashboard_folder, filename)
-        # Writing to sample.json
+        filename = request.GET["filename"]
+        dashboard_uuid = request.GET["dashboard_uuid"]
+        print(f"Getting data from {filename}")
+
+        _, dashboard_file = resolve_dashboard_file(
+            app_workspace.path, dashboard_uuid, filename
+        )
         with open(dashboard_file, "r") as file:
-            data = json.load(file)
-            data = json.loads(nh3.clean(json.dumps(data)))
+            data = sanitize_json_values(json.load(file))
 
         return JsonResponse({"success": True, "data": data})
     except Exception as e:
+        # Every failure gives the same answer, whatever its cause.
         print(e)
-        message = _get_error_message(
-            e, "Failed to download the json. Check server for logs."
-        )
-        return JsonResponse({"success": False, "message": message})
+        return JsonResponse({"success": False, "message": INVALID_FILE_PATH})
 
 
 NAT64_WELL_KNOWN_PREFIX = ipaddress.ip_network("64:ff9b::/96")

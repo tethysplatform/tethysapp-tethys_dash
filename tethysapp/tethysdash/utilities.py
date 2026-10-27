@@ -2,6 +2,7 @@ import bleach
 from bleach.css_sanitizer import CSSSanitizer
 import cssutils
 from bs4 import BeautifulSoup
+import nh3
 import re
 
 # Silence cssutils logs
@@ -83,3 +84,21 @@ def sanitize_html(dirty_html):
         strip=True,
         css_sanitizer=css_sanitizer,
     )
+
+
+def sanitize_json_values(value):
+    """Return parsed JSON with every string key and value passed through nh3.
+
+    Each string is its own HTML fragment, so it is cleaned on its own. Cleaning the
+    serialized text instead lets nh3 rewrite markup across a string's quotes -- a
+    link's href="..." comes back with bare double quotes, which no longer parses.
+    """
+    if isinstance(value, str):
+        return nh3.clean(value)
+    if isinstance(value, list):
+        return [sanitize_json_values(item) for item in value]
+    if isinstance(value, dict):
+        return {
+            nh3.clean(key): sanitize_json_values(item) for key, item in value.items()
+        }
+    return value
