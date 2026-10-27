@@ -28,7 +28,16 @@ Layer Controls
 -------------------
 
 
-Determines whether a layer control panel is shown, allowing users to toggle layer visibility.
+Determines whether a layer control panel is shown. Each layer in the panel has a checkbox to toggle its visibility and a magnifier button to zoom to it.
+
+**Zoom to layer.** Clicking a layer's magnifier fits the map to that layer's extent, with a small margin on every side. It works whether or not the layer is currently visible. A map in a view group moves the rest of its group with it, as any pan or zoom would.
+
+- **Vector layers** (GeoJSON, KML, Shapefile, annotations) zoom to the features loaded so far. A layer with no features, or one still loading, does not move the map.
+- **Raster layers** (GeoTIFF, Zarr, static image) zoom to the extent of the file or image.
+- **Tile layers**, including the basemap, zoom to their full tile coverage, which for a basemap is the whole world.
+- **ESRI Image and Map Service** and **WMS** layers cannot be zoomed to, and their button is disabled: the server draws them one view at a time, so the map never learns where their data is.
+
+A layer that is a single point, or very small, is zoomed to no closer than zoom level 16, the deepest the gray Canvas basemaps have tiles for.
 
 -----------------
 Layers
