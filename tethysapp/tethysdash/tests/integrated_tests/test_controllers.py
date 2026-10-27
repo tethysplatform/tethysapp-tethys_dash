@@ -8,8 +8,11 @@ from django.urls import reverse
 from tethysapp.tethysdash.model import (
     Dashboard,
     DashboardPermission,
+    GridItem,
     Message,
     PermissionGroup,
+    PermissionGroupUser,
+    VisualizationPermission,
 )
 from unittest.mock import MagicMock, mock_open, patch
 import os
@@ -2213,7 +2216,10 @@ def _dashboard_state(db_session):
     return (
         db_session.query(Dashboard).count(),
         db_session.query(DashboardPermission).count(),
+        db_session.query(GridItem).count(),
         db_session.query(PermissionGroup).count(),
+        db_session.query(PermissionGroupUser).count(),
+        db_session.query(VisualizationPermission).count(),
     )
 
 
@@ -4417,3 +4423,60 @@ def test_image_proxy_client_address(forwarded, remote, expected):
 )
 def test_redacted_url(url, expected):
     assert _redacted_url(url) == expected
+
+
+@pytest.mark.django_db
+def test_a_signed_out_visitor_can_open_a_public_dashboard_end_to_end(
+    client,
+    mock_app,
+    mock_app_get_ps_db,
+    live_chat_dashboard,
+    dashboard,
+    db_session,
+    mocker,
+    tmp_path,
+):
+    """List, open, read a layer file, and load a widget's data, all signed out."""
+    mock_app("tethysapp.tethysdash.controllers.App").get_custom_setting.return_value = (
+        ""
+    )
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    mocker.patch(
+        "tethysapp.tethysdash.model.get_app_workspace",
+        return_value=MagicMock(path=tmp_path),
+    )
+    live_chat_dashboard.public = True
+    grid_item_uuid = live_chat_dashboard.tabs[0].grid_items[0].uuid
+    db_session.add(
+        Message(
+            timestamp=datetime.utcnow(),
+            request_id=grid_item_uuid,
+            session_id="session",
+            message_id="message",
+            sender="someone",
+            message="hello",
+        )
+    )
+    db_session.commit()
+    _layer_file_workspace(mocker, tmp_path, live_chat_dashboard.uuid)
+
+    listed = client.get(reverse("tethysdash:dashboards")).json()["dashboards"]
+    assert [d["uuid"] for d in listed] == [live_chat_dashboard.uuid]  # not private
+
+    opened = client.get(
+        reverse("tethysdash:get_dashboard"), {"id": live_chat_dashboard.id}
+    ).json()
+    assert opened["success"] is True
+    assert opened["dashboard"]["tabs"][0]["gridItems"][0]["uuid"] == grid_item_uuid
+
+    assert _download(client, live_chat_dashboard.uuid) == {
+        "success": True,
+        "data": {"layer": 1},
+    }
+
+    widget = client.get(
+        reverse("tethysdash:visualization"),
+        {"source": "Live Chat", "args": "{}", "requestId": grid_item_uuid},
+    ).json()
+    assert widget["success"] is True
+    assert [m["message"] for m in widget["data"]["chatHistory"]] == ["hello"]
