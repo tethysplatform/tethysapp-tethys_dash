@@ -15,6 +15,8 @@ from tethysapp.tethysdash.model import (
     Message,
     parse_db_dashboard,
     clean_up_jsons,
+    cleanup_old_jsons,
+    copy_dashboard_files,
     init_primary_db,
     get_dashboard_user_permission,
     can_view_dashboard,
@@ -551,7 +553,7 @@ def test_update_named_dashboard_image(
 
     assert (
         updated_dashboard["image"]
-        == "/media/tethysdash/app/some_user_dashboard_uuid.png"
+        == "/media/tethysdash/app/5d1a2f3e-8b4c-4d6e-9f70-1a2b3c4d5e6f.png"
     )
 
 
@@ -590,7 +592,7 @@ def test_update_named_dashboard_image_remote_storage(
         base64_string = base64.b64encode(image_file.read()).decode("utf-8")
     image = f"data:image/png;base64,{base64_string}"
 
-    name = thumbnail_name("some_user_dashboard_uuid")
+    name = thumbnail_name("5d1a2f3e-8b4c-4d6e-9f70-1a2b3c4d5e6f")
     updated_dashboard = update_named_dashboard(
         test_owner_user, dashboard.id, {"image": image}
     )
@@ -598,7 +600,7 @@ def test_update_named_dashboard_image_remote_storage(
     assert default_storage.exists(name), "thumbnail never reached the default storage"
     assert updated_dashboard["image"] == default_storage.url(name)
     assert updated_dashboard["image"] == (
-        "https://cdn.example.test/media/tethysdash/app/some_user_dashboard_uuid.png"
+        "https://cdn.example.test/media/tethysdash/app/5d1a2f3e-8b4c-4d6e-9f70-1a2b3c4d5e6f.png"
     )
 
 
@@ -1001,7 +1003,7 @@ def test_get_dashboards_specific_dashboard_view(
         "notes": dashboard.notes,
         "tabs": [],
         "image": None,
-        "uuid": "some_user_dashboard_uuid",
+        "uuid": "5d1a2f3e-8b4c-4d6e-9f70-1a2b3c4d5e6f",
         "unrestrictedPlacement": False,
         "autoThumbnail": True,
         "owner": test_owner_user.username,
@@ -1031,7 +1033,7 @@ def test_get_dashboards_specific_landing_page_view(
         "name": dashboard.name,
         "description": dashboard.description,
         "image": None,
-        "uuid": "some_user_dashboard_uuid",
+        "uuid": "5d1a2f3e-8b4c-4d6e-9f70-1a2b3c4d5e6f",
         "unrestrictedPlacement": False,
         "autoThumbnail": True,
         "owner": test_owner_user.username,
@@ -1092,7 +1094,7 @@ def test_copy_named_dashboard(
         test_member_user, dashboard.id, new_dashboard_name, "123456789"
     )
 
-    assert copied_dashboard_uuid == "some_user_dashboard_uuid"
+    assert copied_dashboard_uuid == "5d1a2f3e-8b4c-4d6e-9f70-1a2b3c4d5e6f"
     copied_dashboard = (
         db_session.query(Dashboard).filter(Dashboard.id == new_dashboard_id).first()
     )
@@ -1222,7 +1224,7 @@ def test_parse_db_dashboard_landing_page_view_with_prefix(
         "uuid": dashboard.uuid,
         "name": dashboard.name,
         "description": dashboard.description,
-        "image": "/test/media/tethysdash/app/some_user_dashboard_uuid.png",
+        "image": "/test/media/tethysdash/app/5d1a2f3e-8b4c-4d6e-9f70-1a2b3c4d5e6f.png",
         "unrestrictedPlacement": False,
         "autoThumbnail": True,
         "owner": test_owner_user.username,
@@ -1404,6 +1406,133 @@ def test_clean_up_jsons_no_existing_dashboard_folder(
     mock_remove = mocker.patch("os.remove")
     clean_up_jsons(test_owner_user)
     mock_remove.assert_not_called()
+
+
+@pytest.mark.django_db
+def test_clean_up_jsons_skips_a_dashboard_whose_uuid_escapes_the_workspace(
+    dashboard, db_session, mock_app_get_ps_db, mocker, tmp_path, test_owner_user
+):
+    """A stored uuid that is not canonical is skipped, so the sweep never lists or
+    removes a folder outside the workspace."""
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+
+    workspace_path = tmp_path / "workspace"
+    workspace_path.mkdir()
+    mock_get_app_workspace = mocker.patch(
+        "tethysapp.tethysdash.model.get_app_workspace"
+    )
+    mock_get_app_workspace.return_value = MagicMock(path=workspace_path)
+
+    outside_dir = tmp_path / "outside"
+    outside_dir.mkdir()
+    kept_file = outside_dir / "keep.json"
+    kept_file.write_text("keep")
+
+    db_dashboard = db_session.query(Dashboard).filter_by(id=dashboard.id).first()
+    db_dashboard.uuid = "../outside"
+    db_session.commit()
+
+    clean_up_jsons(test_owner_user)
+
+    assert kept_file.exists()
+    assert kept_file.read_text() == "keep"
+
+
+@pytest.mark.django_db
+def test_clean_up_jsons_leaves_a_directory_and_still_sweeps_files(
+    dashboard, mock_app_get_ps_db, mocker, tmp_path, test_owner_user
+):
+    """The sweep removes only files; anything else in the folder is left alone."""
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    mock_get_app_workspace = mocker.patch(
+        "tethysapp.tethysdash.model.get_app_workspace"
+    )
+    mock_get_app_workspace.return_value = MagicMock(path=tmp_path)
+
+    dashboard_folder = tmp_path / dashboard.uuid
+    (dashboard_folder / "subfolder").mkdir(parents=True)
+    unused_file = dashboard_folder / "unused.json"
+    unused_file.touch()
+
+    clean_up_jsons(test_owner_user)
+
+    assert (dashboard_folder / "subfolder").is_dir()
+    assert not unused_file.exists()
+
+
+def test_cleanup_old_jsons_skips_a_dashboard_whose_uuid_escapes_the_workspace(
+    mock_app_get_ps_db, mocker, tmp_path
+):
+    """The startup migration copies into a dashboard's folder only when its uuid
+    is canonical."""
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    workspace_path = tmp_path / "workspace"
+    create_dummy_json_files(str(workspace_path / "json"), ["c.json"])
+    mock_get_app_workspace = mocker.patch(
+        "tethysapp.tethysdash.model.get_app_workspace"
+    )
+    mock_get_app_workspace.return_value = MagicMock(path=workspace_path)
+
+    escaping = MockDashboard(
+        id=1,
+        grid_items=[
+            MockGridItem(
+                id=1,
+                source="Map",
+                args_string=json.dumps(
+                    {
+                        "layers": [
+                            {
+                                "configuration": {
+                                    "props": {"source": {"geojson": "c.json"}}
+                                }
+                            }
+                        ]
+                    }
+                ),
+            )
+        ],
+    )
+    escaping.uuid = "../outside"
+    mocker.patch("sqlalchemy.orm.Session.query").return_value.all.return_value = [
+        escaping
+    ]
+
+    cleanup_old_jsons()
+
+    assert not (tmp_path / "outside").exists()
+
+
+def test_copy_dashboard_files_copies_files_but_not_symlinks(mocker, tmp_path):
+    """Regular files are copied; symlinks are not followed."""
+    workspace_path = tmp_path / "workspace"
+    source_uuid, target_uuid = str(uuid4()), str(uuid4())
+    source = workspace_path / source_uuid
+    source.mkdir(parents=True)
+    (source / "layer.json").write_text("{}")
+    (tmp_path / "outside.json").write_text('{"outside": true}')
+    (source / "link.json").symlink_to(tmp_path / "outside.json")
+    mocker.patch("tethysapp.tethysdash.model.get_app_workspace").return_value = (
+        MagicMock(path=workspace_path)
+    )
+
+    copy_dashboard_files(source_uuid, target_uuid)
+
+    assert sorted(p.name for p in (workspace_path / target_uuid).iterdir()) == [
+        "layer.json"
+    ]
+
+
+def test_copy_dashboard_files_without_a_source_folder_creates_nothing(mocker, tmp_path):
+    workspace_path = tmp_path / "workspace"
+    workspace_path.mkdir()
+    mocker.patch("tethysapp.tethysdash.model.get_app_workspace").return_value = (
+        MagicMock(path=workspace_path)
+    )
+
+    copy_dashboard_files(str(uuid4()), str(uuid4()))
+
+    assert not any(workspace_path.iterdir())
 
 
 @pytest.mark.django_db

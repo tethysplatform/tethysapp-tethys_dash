@@ -44,6 +44,8 @@ TethysDash is a Django + React hybrid. The React SPA is compiled into `tethysapp
 - **`model.py`** — SQLAlchemy ORM models: `Dashboard`, `GridItem`, `DashboardPermission`, `VisualizationPermission`, `PermissionGroup`, `PermissionGroupUser`, `Message`
 - **`visualizations.py`** — Intake plugin registry; discovers plugins via `intake.source.registry`
 - **`plugin_helpers.py`** — `TethysDashPlugin` base class (extends `intake.source.base.DataSource`); WebSocket messaging helpers
+- **`paths.py`** — `canonical_dashboard_uuid` and the containment rules for filesystem paths built from caller-supplied dashboard identifiers. A dashboard's workspace folder is named by its canonical uuid and nothing else, since the workspace is shared with plugins. Used by `controllers.py` and both cleanup sweeps in `model.py`
+- **`auth.py`** — `require_login`, the app's own login gate for every `login_required=True` controller
 - **`alembic/`** — Database migrations
 
 **Database sessions pattern:**
@@ -149,5 +151,6 @@ A **dynamic `map_layer` plugin** (`dynamic_map_layer = True`) declares the layer
 - **HTML sanitization**: Use `nh3` (backend) for any user-supplied HTML. Never use `bleach` for new code.
 - **Frontend state**: React Context API throughout — no Redux. Add new state to the appropriate existing context before creating a new one.
 - **Backend endpoints**: Use Tethys `@controller` decorator; CSRF tokens required on all POST requests.
+- **Login-required endpoints**: Tethys does not enforce `@controller(login_required=True)` when the portal runs with `ENABLE_OPEN_PORTAL`, and `@api_view` above `@controller` is not in the request path. Put `@require_login` (`auth.py`) directly beneath `@controller` on every such endpoint; a test fails if one is missing.
 - **Variable inputs**: Dashboard filters are passed through `VariableInputsContext`; visualization args support `{variable_name}` substitution syntax.
 - **Date args**: `TethysDashPlugin` automatically formats date arguments into datetimes before setting them as class properties. **Exception — preset sentinels**: a `date` arg may instead arrive as the literal string `"latest"` when the user selects the "Latest" preset. The sentinel is passed through to `run()` unparsed (the auto-format is skipped); the plugin must detect it (e.g. `if self.DATETIME == "latest":`) and resolve it by discovering the newest available resource. The sentinel set lives in `DATE_PRESET_SENTINELS` (`plugin_helpers.py`) and must stay in sync with `DATE_PRESETS` in `reactapp/components/inputs/dateUtils.js`. There is intentionally no `"current"` sentinel — use `now` date-math for the present time.
