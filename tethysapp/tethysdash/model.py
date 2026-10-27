@@ -31,7 +31,7 @@ from sqlalchemy import CheckConstraint
 from pathlib import Path
 import subprocess
 from tethysapp.tethysdash.utilities import sanitize_html
-from tethysapp.tethysdash.exceptions import UnsafePath
+from tethysapp.tethysdash.exceptions import DASHBOARD_NOT_FOUND, UnsafePath
 from tethysapp.tethysdash.paths import (
     canonical_dashboard_uuid,
     resolve_dashboard_folder,
@@ -842,13 +842,12 @@ def copy_named_dashboard(user, id, new_name, dashboard_uuid):
 
     try:
         original_dashboard = session.query(Dashboard).filter(Dashboard.id == id).first()
-        if not original_dashboard:
-            raise Exception(f"A dashboard with the id {id} does not exist.")
-
         # Copying hands over everything the dashboard holds, so it takes the same access
         # as viewing it.
-        if not _user_may_view(session, original_dashboard, user):
-            raise Exception("User does not have permission to copy the dashboard.")
+        if not original_dashboard or not _user_may_view(
+            session, original_dashboard, user
+        ):
+            raise _dashboard_not_found("copy", id, user)
 
         copied_dashboard_uuid = original_dashboard.uuid
 
@@ -949,8 +948,8 @@ def delete_named_dashboard(user, id):
 
     try:
         db_dashboard = session.query(Dashboard).filter(Dashboard.id == id).first()
-        if not db_dashboard:
-            raise Exception(f"A dashboard with the id {id} does not exist.")
+        if not db_dashboard or not _user_may_view(session, db_dashboard, user):
+            raise _dashboard_not_found("delete", id, user)
 
         user_permission = get_dashboard_user_permission(session, db_dashboard, user)
 
@@ -999,10 +998,8 @@ def update_named_dashboard(user, id, dashboard_updates):
 
     try:
         db_dashboard = session.query(Dashboard).filter(Dashboard.id == id).first()
-        if not db_dashboard:
-            raise Exception(
-                f"A dashboard with the id {id} does not exist for this user"  # noqa: E501
-            )
+        if not db_dashboard or not _user_may_view(session, db_dashboard, user):
+            raise _dashboard_not_found("update", id, user)
         user_permission = get_dashboard_user_permission(session, db_dashboard, user)
 
         # Check if user has editor or admin permission
@@ -1247,6 +1244,17 @@ def _user_may_view(session, dashboard, user):
     if not getattr(user, "is_authenticated", False):
         return False
     return get_dashboard_user_permission(session, dashboard, user) is not None
+
+
+def _dashboard_not_found(action, id, user):
+    """The exception for a dashboard that is missing or that the user may not view.
+
+    Both are answered with DASHBOARD_NOT_FOUND. The refusal is logged here because the
+    response alone reads like any other not-found.
+    """
+    who = stored_identity(user) or "a signed-out user"
+    print(f"Refused to {action} dashboard {id} for {who}: missing or not viewable")
+    return Exception(DASHBOARD_NOT_FOUND)
 
 
 def can_view_dashboard(user, dashboard_uuid):
@@ -2047,6 +2055,8 @@ def get_dashboards(user, dashboard_view=False, id=None):
     try:
         if id:
             dashboard = session.query(Dashboard).filter(Dashboard.id == id).first()
+            if not dashboard or not _user_may_view(session, dashboard, user):
+                raise _dashboard_not_found("get", id, user)
             return parse_db_dashboard(session, [dashboard], user, dashboard_view)[0]
 
         username = stored_identity(user)

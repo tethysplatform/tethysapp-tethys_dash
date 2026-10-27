@@ -20,7 +20,7 @@ from django.conf import settings
 from django.test import override_settings
 from datetime import datetime, timedelta
 import types
-from tethysapp.tethysdash.exceptions import VisualizationError
+from tethysapp.tethysdash.exceptions import DASHBOARD_NOT_FOUND, VisualizationError
 import uuid
 from tethysapp.tethysdash.controllers import (
     VisualizationConsumer,
@@ -506,6 +506,38 @@ def test_get_dashboard(
         },
         "success": True,
     }
+
+
+@pytest.mark.django_db
+def test_get_dashboard_answers_a_private_dashboard_like_a_missing_one(
+    client, admin_user, mock_app_get_ps_db, dashboard
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    url = reverse("tethysdash:get_dashboard")
+
+    signed_out = [client.get(url, {"id": i}).json() for i in [dashboard.id, 999999]]
+    client.force_login(admin_user)
+    no_permission = [client.get(url, {"id": i}).json() for i in [dashboard.id, 999999]]
+
+    expected = {"success": False, "message": DASHBOARD_NOT_FOUND}
+    assert signed_out == no_permission == [expected, expected]
+
+
+@pytest.mark.django_db
+def test_update_and_delete_answer_an_unviewable_dashboard_like_a_missing_one(
+    client, admin_user, mock_app_get_ps_db, dashboard, db_session
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    client.force_login(admin_user)
+    responses = [
+        client.generic("POST", reverse(f"tethysdash:{name}"), json.dumps(body)).json()
+        for name in ["update_dashboard", "delete_dashboard"]
+        for body in [{"id": dashboard.id, "notes": "x"}, {"id": 999999, "notes": "x"}]
+    ]
+
+    expected = {"success": False, "message": DASHBOARD_NOT_FOUND}
+    assert responses == [expected] * 4
+    assert db_session.query(Dashboard).filter(Dashboard.id == dashboard.id).count() == 1
 
 
 @pytest.mark.django_db
@@ -1190,10 +1222,7 @@ def test_copy_dashboard_refused_without_permission(
         "POST", url, json.dumps({"id": dashboard.id, "newName": "the_copy"})
     )
 
-    assert response.json() == {
-        "success": False,
-        "message": "User does not have permission to copy the dashboard.",
-    }
+    assert response.json() == {"success": False, "message": DASHBOARD_NOT_FOUND}
     assert db_session.query(Dashboard).filter(Dashboard.name == "the_copy").count() == 0
 
 
