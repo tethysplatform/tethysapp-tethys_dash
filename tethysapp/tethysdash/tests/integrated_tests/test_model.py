@@ -19,10 +19,12 @@ from tethysapp.tethysdash.model import (
     clean_up_jsons,
     cleanup_old_jsons,
     copy_dashboard_files,
+    delete_dashboard_files,
     init_primary_db,
     get_dashboard_user_permission,
     stored_identity,
     can_view_dashboard,
+    can_edit_dashboard,
     _user_may_view,
     update_dashboard_permissions,
     update_permission_groups,
@@ -1722,6 +1724,42 @@ def test_copy_dashboard_files_without_a_source_folder_creates_nothing(mocker, tm
     copy_dashboard_files(str(uuid4()), str(uuid4()))
 
     assert not any(workspace_path.iterdir())
+
+
+def test_delete_dashboard_files_removes_the_folder(mocker, tmp_path):
+    dashboard_uuid = str(uuid4())
+    folder = tmp_path / dashboard_uuid
+    folder.mkdir()
+    (folder / "layer.json").write_text("{}")
+    mocker.patch("tethysapp.tethysdash.model.get_app_workspace").return_value = (
+        MagicMock(path=tmp_path)
+    )
+
+    delete_dashboard_files(dashboard_uuid)
+
+    assert not folder.exists()
+    # A dashboard with no files has nothing to remove.
+    delete_dashboard_files(str(uuid4()))
+
+
+@pytest.mark.django_db
+def test_can_edit_dashboard(
+    dashboard,
+    mock_app_get_ps_db,
+    test_owner_user,
+    test_admin_user,
+    test_member_user,
+    admin_user,
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+
+    assert can_edit_dashboard(test_owner_user, dashboard.uuid) is True  # admin
+    assert can_edit_dashboard(test_admin_user, dashboard.uuid) is True  # editor
+    assert can_edit_dashboard(test_member_user, dashboard.uuid) is False  # viewer
+    assert can_edit_dashboard(admin_user, dashboard.uuid) is False  # no permission
+    assert can_edit_dashboard(AnonymousUser(), dashboard.uuid) is False
+    assert can_edit_dashboard(test_owner_user, str(uuid4())) is False
+    assert can_edit_dashboard(test_owner_user, "not-a-uuid") is False
 
 
 @pytest.mark.django_db

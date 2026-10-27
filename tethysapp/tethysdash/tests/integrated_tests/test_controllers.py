@@ -20,7 +20,11 @@ from django.conf import settings
 from django.test import override_settings
 from datetime import datetime, timedelta
 import types
-from tethysapp.tethysdash.exceptions import DASHBOARD_NOT_FOUND, VisualizationError
+from tethysapp.tethysdash.exceptions import (
+    DASHBOARD_NOT_FOUND,
+    INVALID_FILE_PATH,
+    VisualizationError,
+)
 import uuid
 from tethysapp.tethysdash.controllers import (
     VisualizationConsumer,
@@ -643,28 +647,6 @@ def test_add_dashboard(
 
 
 @pytest.mark.django_db
-def test_add_dashboard_rejects_a_uuid_that_is_not_one(
-    client, db_session, mock_app_get_ps_db, test_admin_user
-):
-    """A dashboard uuid becomes a storage name, so a path in its place is refused."""
-    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
-    itemData = {"name": "traversal", "uuid": "../../otherapp/app/logo"}
-
-    url = reverse("tethysdash:add_dashboard")
-    client.force_login(test_admin_user)
-
-    response = client.generic("POST", url, json.dumps(itemData))
-
-    assert response.json() == {
-        "success": False,
-        "message": "The dashboard uuid must be a UUID.",
-    }
-    assert (
-        db_session.query(Dashboard).filter(Dashboard.name == "traversal").count() == 0
-    )
-
-
-@pytest.mark.django_db
 def test_add_dashboard_failed(client, admin_user, mock_app, mocker, tmp_path):
     mock_app("tethysapp.tethysdash.controllers.App")
     mock_get_app_media = mocker.patch("tethys_apps.base.paths.get_app_media")
@@ -838,6 +820,50 @@ def test_delete_dashboard_succeeds_when_the_thumbnail_delete_fails(
     client.force_login(test_owner_user)
 
     response = client.generic("POST", url, json.dumps({"id": dashboard.id}))
+
+    assert response.json() == {"success": True}
+    assert (
+        db_session.query(Dashboard).filter(Dashboard.id == dashboard.id).first() is None
+    )
+
+
+@pytest.mark.django_db
+def test_delete_dashboard_removes_its_layer_files(
+    client, test_owner_user, mock_app_get_ps_db, dashboard, mocker, tmp_path
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    mocker.patch(
+        "tethysapp.tethysdash.model.get_app_workspace",
+        return_value=MagicMock(path=tmp_path),
+    )
+    folder = tmp_path / dashboard.uuid
+    folder.mkdir()
+    (folder / "layer.json").write_text("{}")
+
+    client.force_login(test_owner_user)
+    response = client.generic(
+        "POST", reverse("tethysdash:delete_dashboard"), json.dumps({"id": dashboard.id})
+    )
+
+    assert response.json() == {"success": True}
+    assert not folder.exists()
+
+
+@pytest.mark.django_db
+def test_delete_dashboard_succeeds_when_the_layer_file_delete_fails(
+    client, test_owner_user, db_session, mock_app_get_ps_db, dashboard, mocker
+):
+    """The dashboard is already gone, so a file error must not fail the delete."""
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    mocker.patch(
+        "tethysapp.tethysdash.controllers.delete_dashboard_files",
+        side_effect=OSError("workspace is unreachable"),
+    )
+
+    client.force_login(test_owner_user)
+    response = client.generic(
+        "POST", reverse("tethysdash:delete_dashboard"), json.dumps({"id": dashboard.id})
+    )
 
     assert response.json() == {"success": True}
     assert (
@@ -1316,8 +1342,11 @@ def test_copy_dashboard_failed_unknown_exception(
 
 
 @pytest.mark.django_db
-def test_upload_json(client, admin_user, mock_app, mocker, tmp_path, dashboard_data):
-    mock_app("tethysapp.tethysdash.app.App")
+def test_upload_json(
+    client, test_owner_user, mock_app_get_ps_db, mocker, tmp_path, dashboard
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    dashboard_data = {"uuid": dashboard.uuid}
     mock_get_app_workspace = mocker.patch("tethys_apps.base.paths.get_app_workspace")
     workspace_path = tmp_path
     mock_get_app_workspace.return_value = MagicMock(path=workspace_path)
@@ -1329,7 +1358,7 @@ def test_upload_json(client, admin_user, mock_app, mocker, tmp_path, dashboard_d
     }
 
     url = reverse("tethysdash:upload_json")
-    client.force_login(admin_user)
+    client.force_login(test_owner_user)
 
     response = client.generic("POST", url, json.dumps(itemData))
 
@@ -1343,9 +1372,10 @@ def test_upload_json(client, admin_user, mock_app, mocker, tmp_path, dashboard_d
 
 @pytest.mark.django_db
 def test_upload_json_failed(
-    client, admin_user, mock_app, mocker, tmp_path, dashboard_data
+    client, test_owner_user, mock_app_get_ps_db, mocker, tmp_path, dashboard
 ):
-    mock_app("tethysapp.tethysdash.app.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    dashboard_data = {"uuid": dashboard.uuid}
     mock_get_app_workspace = mocker.patch("tethys_apps.base.paths.get_app_workspace")
     workspace_path = tmp_path
     mock_get_app_workspace.return_value = MagicMock(path=workspace_path)
@@ -1359,7 +1389,7 @@ def test_upload_json_failed(
     }
 
     url = reverse("tethysdash:upload_json")
-    client.force_login(admin_user)
+    client.force_login(test_owner_user)
 
     response = client.generic("POST", url, json.dumps(itemData))
 
@@ -1370,9 +1400,10 @@ def test_upload_json_failed(
 
 @pytest.mark.django_db
 def test_upload_json_failed_unknown_exception(
-    client, admin_user, mock_app, mocker, tmp_path, dashboard_data
+    client, test_owner_user, mock_app_get_ps_db, mocker, tmp_path, dashboard
 ):
-    mock_app("tethysapp.tethysdash.app.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    dashboard_data = {"uuid": dashboard.uuid}
     mock_get_app_workspace = mocker.patch("tethys_apps.base.paths.get_app_workspace")
     workspace_path = tmp_path
     mock_get_app_workspace.return_value = MagicMock(path=workspace_path)
@@ -1386,7 +1417,7 @@ def test_upload_json_failed_unknown_exception(
     }
 
     url = reverse("tethysdash:upload_json")
-    client.force_login(admin_user)
+    client.force_login(test_owner_user)
 
     response = client.generic("POST", url, json.dumps(itemData))
 
@@ -1507,16 +1538,123 @@ def test_download_json_failed_unknown_exception(
     assert response.json()["message"] == "Invalid file path."
 
 
+def _layer_file_workspace(mocker, tmp_path, dashboard_uuid):
+    """A workspace holding one layer file for the dashboard; returns the workspace."""
+    mocker.patch("tethys_apps.base.paths.get_app_workspace").return_value = MagicMock(
+        path=tmp_path
+    )
+    (tmp_path / dashboard_uuid).mkdir()
+    (tmp_path / dashboard_uuid / "layer.json").write_text('{"layer": 1}')
+    return tmp_path
+
+
+def _download(client, dashboard_uuid):
+    return client.get(
+        reverse("tethysdash:download_json"),
+        {"filename": "layer.json", "dashboard_uuid": dashboard_uuid},
+    ).json()
+
+
+def _upload(client, dashboard_uuid):
+    return client.generic(
+        "POST",
+        reverse("tethysdash:upload_json"),
+        json.dumps(
+            {
+                "data": json.dumps({"layer": 2}),
+                "filename": "new.json",
+                "dashboard_uuid": dashboard_uuid,
+            }
+        ),
+    ).json()
+
+
+@pytest.mark.django_db
+def test_download_json_serves_a_public_dashboard_when_signed_out(
+    client, mock_app_get_ps_db, public_dashboard, mocker, tmp_path
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    _layer_file_workspace(mocker, tmp_path, public_dashboard.uuid)
+
+    assert _download(client, public_dashboard.uuid) == {
+        "success": True,
+        "data": {"layer": 1},
+    }
+
+
+@pytest.mark.django_db
+def test_download_json_takes_view_permission(
+    client,
+    mock_app_get_ps_db,
+    dashboard,
+    admin_user,
+    test_member_user,
+    mocker,
+    tmp_path,
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    _layer_file_workspace(mocker, tmp_path, dashboard.uuid)
+    refused = {"success": False, "message": INVALID_FILE_PATH}
+
+    assert _download(client, dashboard.uuid) == refused  # signed out
+    client.force_login(admin_user)  # signed in, holding no permission
+    assert _download(client, dashboard.uuid) == refused
+    assert _download(client, str(uuid.uuid4())) == refused  # no such dashboard
+    client.force_login(test_member_user)  # a viewer, through a group
+    assert _download(client, dashboard.uuid)["success"] is True
+
+
+@pytest.mark.django_db
+def test_upload_json_takes_editor_permission(
+    client,
+    mock_app_get_ps_db,
+    dashboard,
+    admin_user,
+    test_member_user,
+    test_admin_user,
+    test_owner_user,
+    mocker,
+    tmp_path,
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    workspace = _layer_file_workspace(mocker, tmp_path, dashboard.uuid)
+    new_file = workspace / dashboard.uuid / "new.json"
+    refused = {"success": False, "message": INVALID_FILE_PATH}
+
+    for user in [admin_user, test_member_user]:  # no permission, viewer
+        client.force_login(user)
+        assert _upload(client, dashboard.uuid) == refused
+        assert not new_file.exists()
+
+    unknown_uuid = str(uuid.uuid4())
+    assert _upload(client, unknown_uuid) == refused
+    assert not (workspace / unknown_uuid).exists()
+
+    for user in [test_admin_user, test_owner_user]:  # editor, admin
+        client.force_login(user)
+        assert _upload(client, dashboard.uuid)["success"] is True
+        assert json.loads(new_file.read_text()) == {"layer": 2}
+        new_file.unlink()
+
+
 def _json_workspace(mocker, tmp_path):
     """Point the json endpoints at a throwaway workspace and return its path.
 
     The workspace is a subdirectory of tmp_path so that escape targets can live
-    outside it while staying inside this test's own directory.
+    outside it while staying inside this test's own directory. Permission is
+    granted, so the tests using this exercise the path rules alone; permission has
+    tests of its own.
     """
     workspace_path = tmp_path / "workspace"
     workspace_path.mkdir()
     mock_get_app_workspace = mocker.patch("tethys_apps.base.paths.get_app_workspace")
     mock_get_app_workspace.return_value = MagicMock(path=workspace_path)
+    mocker.patch(
+        "tethysapp.tethysdash.controllers.can_view_dashboard", return_value=True
+    )
+    mocker.patch(
+        "tethysapp.tethysdash.controllers.can_edit_dashboard", return_value=True
+    )
     return workspace_path
 
 
@@ -1942,40 +2080,15 @@ def test_upload_json_rejects_traversal_in_dashboard_uuid(
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("bad_uuid", ["../outside", "..", "a/b", "not-a-uuid"])
-def test_add_dashboard_rejects_a_uuid_that_is_not_a_uuid(
-    client, mock_app, db_session, test_admin_user, mock_app_get_ps_db, bad_uuid
+@pytest.mark.parametrize(
+    "supplied_uuid",
+    ["7f3d9c12-4b6e-4a91-8c2d-1e5f7a9b3c4d", "../outside", "a/b", "not-a-uuid"],
+)
+def test_add_dashboard_mints_its_own_uuid(
+    client, db_session, test_admin_user, mock_app_get_ps_db, supplied_uuid
 ):
-    """A dashboard uuid names a folder in the workspace, so anything but a UUID
-    is refused."""
-    mock_app("tethysapp.tethysdash.app.App")
+    """A uuid sent with the request is ignored; the server always picks one."""
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
-
-    client.force_login(test_admin_user)
-    response = client.generic(
-        "POST",
-        reverse("tethysdash:add_dashboard"),
-        json.dumps({"name": "traversal", "uuid": bad_uuid, "gridItems": []}),
-    )
-
-    assert response.json()["success"] is False
-    assert response.json()["message"] == "The dashboard uuid must be a UUID."
-    assert (
-        db_session.query(Dashboard).filter(Dashboard.name == "traversal").first()
-        is None
-    )
-
-
-@pytest.mark.django_db
-def test_add_dashboard_accepts_and_stores_a_caller_supplied_uuid(
-    client, mock_app, db_session, test_admin_user, mock_app_get_ps_db
-):
-    """The import flow mints its own uuid, uploads that dashboard's files under
-    it, and only then creates the dashboard -- so rejecting a well-formed
-    caller-supplied uuid would orphan those files and break import."""
-    mock_app("tethysapp.tethysdash.app.App")
-    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
-    supplied_uuid = "7f3d9c12-4b6e-4a91-8c2d-1e5f7a9b3c4d"
 
     client.force_login(test_admin_user)
     response = client.generic(
@@ -1985,20 +2098,55 @@ def test_add_dashboard_accepts_and_stores_a_caller_supplied_uuid(
     )
 
     assert response.json()["success"] is True
-    stored = db_session.query(Dashboard).filter(Dashboard.name == "imported").first()
-    assert stored is not None
-    assert stored.uuid == supplied_uuid
+    stored = db_session.query(Dashboard).filter(Dashboard.name == "imported").one()
+    assert stored.uuid != supplied_uuid
+    assert stored.uuid == str(uuid.UUID(stored.uuid))
+    assert response.json()["new_dashboard"]["uuid"] == stored.uuid
+
+
+@pytest.mark.django_db
+def test_add_dashboard_cannot_claim_files_a_deleted_dashboard_left_behind(
+    client, db_session, test_admin_user, mock_app, mock_app_get_ps_db, mocker, tmp_path
+):
+    mock_app("tethysapp.tethysdash.controllers.App").get_custom_setting.return_value = (
+        ""
+    )
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    mocker.patch(
+        "tethysapp.tethysdash.model.get_app_workspace",
+        return_value=MagicMock(path=tmp_path),
+    )
+    leftover_uuid = str(uuid.uuid4())
+    leftover_file = tmp_path / leftover_uuid / "layer.json"
+    leftover_file.parent.mkdir()
+    leftover_file.write_text("{}")
+
+    client.force_login(test_admin_user)
+    added = client.generic(
+        "POST",
+        reverse("tethysdash:add_dashboard"),
+        json.dumps({"name": "claim", "uuid": leftover_uuid}),
+    ).json()["new_dashboard"]
+    client.get(reverse("tethysdash:dashboards"))
+    client.generic(
+        "POST", reverse("tethysdash:delete_dashboard"), json.dumps({"id": added["id"]})
+    )
+
+    assert added["uuid"] != leftover_uuid
+    assert leftover_file.exists()
 
 
 @pytest.mark.django_db
 def test_add_dashboard_duplicate_uuid_reports_a_fixed_message(
-    client, mock_app, db_session, test_admin_user, mock_app_get_ps_db
+    client, mocker, db_session, test_admin_user, mock_app_get_ps_db
 ):
     """Database errors are reported with a fixed message, not the driver's text."""
-    mock_app("tethysapp.tethysdash.app.App")
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
-    supplied_uuid = "7f3d9c12-4b6e-4a91-8c2d-1e5f7a9b3c4d"
-    body = json.dumps({"name": "imported", "uuid": supplied_uuid, "gridItems": []})
+    minted_uuid = "7f3d9c12-4b6e-4a91-8c2d-1e5f7a9b3c4d"
+    mocker.patch("tethysapp.tethysdash.controllers.uuid").uuid4.return_value = (
+        minted_uuid
+    )
+    body = json.dumps({"name": "imported", "gridItems": []})
 
     client.force_login(test_admin_user)
     first = client.generic("POST", reverse("tethysdash:add_dashboard"), body)
@@ -2011,7 +2159,7 @@ def test_add_dashboard_duplicate_uuid_reports_a_fixed_message(
         "Check server for logs.",
     }
     assert (
-        db_session.query(Dashboard).filter(Dashboard.uuid == supplied_uuid).count() == 1
+        db_session.query(Dashboard).filter(Dashboard.uuid == minted_uuid).count() == 1
     )
 
 

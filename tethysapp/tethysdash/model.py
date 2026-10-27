@@ -191,6 +191,15 @@ def copy_dashboard_files(source_uuid, target_uuid):
             shutil.copy2(entry.path, target / entry.name)
 
 
+def delete_dashboard_files(dashboard_uuid):
+    """Remove a dashboard's layer-file folder, if it has one."""
+    from tethysapp.tethysdash.app import App
+
+    folder = resolve_dashboard_folder(get_app_workspace(App).path, dashboard_uuid)
+    if folder.is_dir():
+        shutil.rmtree(folder)
+
+
 def delete_thumbnail(dashboard_uuid):
     """Remove a dashboard's thumbnail. Deleting an absent name is a no-op."""
     default_storage.delete(thumbnail_name(dashboard_uuid))
@@ -1257,19 +1266,10 @@ def _dashboard_not_found(action, id, user):
     return Exception(DASHBOARD_NOT_FOUND)
 
 
-def can_view_dashboard(user, dashboard_uuid):
-    """
-    Whether a user may view the dashboard with the given uuid.
+def _check_dashboard_by_uuid(dashboard_uuid, check):
+    """Look up a dashboard by uuid and apply ``check(session, dashboard)`` to it.
 
-    Viewing takes what copying takes (see _user_may_view).
-
-    Args:
-        user: User object, authenticated or anonymous
-        dashboard_uuid: The dashboard's uuid, in any form UUID() accepts
-
-    Returns:
-        bool: True when the dashboard exists and the user may view it. A malformed
-            uuid or an unknown dashboard is False, never an error.
+    A malformed uuid or an unknown dashboard is False, never an error.
     """
     try:
         dashboard_uuid = canonical_dashboard_uuid(dashboard_uuid)
@@ -1285,9 +1285,52 @@ def can_view_dashboard(user, dashboard_uuid):
         dashboard = (
             session.query(Dashboard).filter(Dashboard.uuid == dashboard_uuid).first()
         )
-        return bool(dashboard) and _user_may_view(session, dashboard, user)
+        return bool(dashboard) and check(session, dashboard)
     finally:
         session.close()
+
+
+def can_view_dashboard(user, dashboard_uuid):
+    """
+    Whether a user may view the dashboard with the given uuid.
+
+    Viewing takes what copying takes (see _user_may_view).
+
+    Args:
+        user: User object, authenticated or anonymous
+        dashboard_uuid: The dashboard's uuid, in any form UUID() accepts
+
+    Returns:
+        bool: True when the dashboard exists and the user may view it. A malformed
+            uuid or an unknown dashboard is False, never an error.
+    """
+    return _check_dashboard_by_uuid(
+        dashboard_uuid,
+        lambda session, dashboard: _user_may_view(session, dashboard, user),
+    )
+
+
+def can_edit_dashboard(user, dashboard_uuid):
+    """
+    Whether a user may change the content of the dashboard with the given uuid.
+
+    Takes editor or admin, the level update_named_dashboard requires for content.
+
+    Args:
+        user: User object, authenticated or anonymous
+        dashboard_uuid: The dashboard's uuid, in any form UUID() accepts
+
+    Returns:
+        bool: True when the dashboard exists and the user may edit it. A malformed
+            uuid or an unknown dashboard is False, never an error.
+    """
+    return _check_dashboard_by_uuid(
+        dashboard_uuid,
+        lambda session, dashboard: get_dashboard_user_permission(
+            session, dashboard, user
+        )
+        in ("editor", "admin"),
+    )
 
 
 def get_visualization_user_permission(session, visualization, user):
