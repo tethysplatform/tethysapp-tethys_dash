@@ -2,8 +2,10 @@ from tethysapp.tethysdash.visualizations import (
     get_available_visualizations,
     get_visualization,
 )
-from tethysapp.tethysdash.model import Message
+from tethysapp.tethysdash.model import DashboardPermission, Message
 from datetime import datetime
+from uuid import uuid4
+from django.contrib.auth.models import AnonymousUser
 import pytest
 from tethysapp.tethysdash.exceptions import VisualizationError
 from tethysapp.tethysdash.tests.fixtures.echo_runtime_plugin import (
@@ -210,6 +212,60 @@ def test_get_visualization_live_chat(
             }
         ]
     }
+
+
+def _chat_message(db_session, grid_item_uuid):
+    db_session.add(
+        Message(
+            timestamp=datetime.utcnow(),
+            request_id=grid_item_uuid,
+            session_id="some_session_id",
+            message_id="some_message_id",
+            sender="user",
+            message="Hello",
+        )
+    )
+    db_session.commit()
+
+
+def _history(user, grid_item_uuid):
+    return get_visualization("Live Chat", {}, user, grid_item_uuid)[1]["chatHistory"]
+
+
+@pytest.mark.django_db
+def test_get_visualization_live_chat_takes_view_permission(
+    db_session,
+    live_chat_dashboard,
+    mock_app_get_ps_db,
+    test_owner_user,
+    test_member_user,
+    admin_user,
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    grid_item_uuid = live_chat_dashboard.tabs[0].grid_items[0].uuid
+    _chat_message(db_session, grid_item_uuid)
+
+    # Signed out, and signed in holding no permission: answered like a new widget.
+    assert _history(AnonymousUser(), grid_item_uuid) == []
+    assert _history(admin_user, grid_item_uuid) == []
+    assert _history(test_owner_user, str(uuid4())) == []
+    assert [m["message"] for m in _history(test_owner_user, grid_item_uuid)] == [
+        "Hello"
+    ]
+
+    # A viewer, and anyone once the dashboard is public.
+    db_session.add(
+        DashboardPermission(
+            dashboard_id=live_chat_dashboard.id,
+            username=test_member_user.username,
+            permission="viewer",
+        )
+    )
+    db_session.commit()
+    assert len(_history(test_member_user, grid_item_uuid)) == 1
+    live_chat_dashboard.public = True
+    db_session.commit()
+    assert len(_history(AnonymousUser(), grid_item_uuid)) == 1
 
 
 def test_get_visualization_without_request_id_kwarg(
