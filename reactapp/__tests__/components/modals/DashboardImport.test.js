@@ -130,11 +130,17 @@ test("DashboardImportModal Landing Page with bad griditems", async () => {
     description: "this is a new description",
     gridItems: [{}],
   };
-  const mockImportDashboard = jest.fn();
-  mockImportDashboard.mockResolvedValue({
-    success: true,
-    new_dashboard: importedDashboard,
-  });
+  // The import creates the dashboard first, then saves its items to it.
+  const created = { id: 41, uuid: "minted-uuid", name: "Test" };
+  jest
+    .spyOn(appAPI, "addDashboard")
+    .mockResolvedValue({ success: true, new_dashboard: created });
+  const mockUpdateDashboard = jest
+    .spyOn(appAPI, "updateDashboard")
+    .mockResolvedValue({ success: true, updated_dashboard: created });
+  const mockDeleteDashboard = jest
+    .spyOn(appAPI, "deleteDashboard")
+    .mockResolvedValue({ success: true });
   const mockSetSuccessMessage = jest.fn();
   const mockSetShowSuccessMessage = jest.fn();
 
@@ -170,6 +176,12 @@ test("DashboardImportModal Landing Page with bad griditems", async () => {
       "Grid Items must include i, x, y, w, h, source, args_string, metadata_string keys",
     ),
   ).toBeInTheDocument();
+  // The dashboard created for the import is taken back down.
+  expect(mockDeleteDashboard).toHaveBeenCalledWith(
+    { id: 41 },
+    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
+  );
+  expect(mockUpdateDashboard).not.toHaveBeenCalled();
 });
 
 test("DashboardImportModal Landing Page with griditems", async () => {
@@ -195,12 +207,17 @@ test("DashboardImportModal Landing Page with griditems", async () => {
       },
     ],
   };
-  const mockAddDashboard = jest.fn();
-  jest.spyOn(appAPI, "addDashboard").mockImplementation(mockAddDashboard);
-  mockAddDashboard.mockResolvedValue({
-    success: true,
-    new_dashboard: importedDashboard,
-  });
+  // The import creates the dashboard first, then saves its items to it.
+  const created = { id: 41, uuid: "minted-uuid", name: "Test" };
+  const mockAddDashboard = jest
+    .spyOn(appAPI, "addDashboard")
+    .mockResolvedValue({ success: true, new_dashboard: created });
+  const mockUpdateDashboard = jest
+    .spyOn(appAPI, "updateDashboard")
+    .mockResolvedValue({ success: true, updated_dashboard: created });
+  const mockDeleteDashboard = jest
+    .spyOn(appAPI, "deleteDashboard")
+    .mockResolvedValue({ success: true });
   const mockSetSuccessMessage = jest.fn();
   const mockSetShowSuccessMessage = jest.fn();
 
@@ -232,29 +249,38 @@ test("DashboardImportModal Landing Page with griditems", async () => {
   await userEvent.click(importButton);
 
   expect(mockAddDashboard).toHaveBeenCalledWith(
+    { name: "Test", description: "this is a new description" },
+    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
+  );
+  expect(mockUpdateDashboard).toHaveBeenCalledWith(
     {
-      description: "this is a new description",
-      gridItems: [
+      id: 41,
+      tabs: [
         {
-          args_string: JSON.stringify(
-            importedDashboard.gridItems[0].args_string,
-          ),
-          h: 20,
-          i: "1",
-          metadata_string: JSON.stringify(
-            importedDashboard.gridItems[0].metadata_string,
-          ),
-          source: "Variable Input",
-          w: 20,
-          x: 0,
-          y: 0,
+          name: "Main",
+          gridItems: [
+            {
+              args_string: JSON.stringify(
+                importedDashboard.gridItems[0].args_string,
+              ),
+              h: 20,
+              i: "1",
+              metadata_string: JSON.stringify(
+                importedDashboard.gridItems[0].metadata_string,
+              ),
+              source: "Variable Input",
+              uuid: 12345678,
+              w: 20,
+              x: 0,
+              y: 0,
+            },
+          ],
         },
       ],
-      name: "Test",
-      uuid: 12345678,
     },
     "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
   );
+  expect(mockDeleteDashboard).not.toHaveBeenCalled();
 });
 
 test("DashboardImportModal Landing Page with bad tabs", async () => {
@@ -269,11 +295,17 @@ test("DashboardImportModal Landing Page with bad tabs", async () => {
       },
     ],
   };
-  const mockImportDashboard = jest.fn();
-  mockImportDashboard.mockResolvedValue({
-    success: true,
-    new_dashboard: importedDashboard,
-  });
+  // The import creates the dashboard first, then saves its items to it.
+  const created = { id: 41, uuid: "minted-uuid", name: "Test" };
+  jest
+    .spyOn(appAPI, "addDashboard")
+    .mockResolvedValue({ success: true, new_dashboard: created });
+  const mockUpdateDashboard = jest
+    .spyOn(appAPI, "updateDashboard")
+    .mockResolvedValue({ success: true, updated_dashboard: created });
+  const mockDeleteDashboard = jest
+    .spyOn(appAPI, "deleteDashboard")
+    .mockResolvedValue({ success: true });
   const mockSetSuccessMessage = jest.fn();
   const mockSetShowSuccessMessage = jest.fn();
 
@@ -309,6 +341,12 @@ test("DashboardImportModal Landing Page with bad tabs", async () => {
       "Grid Items must include i, x, y, w, h, source, args_string, metadata_string keys",
     ),
   ).toBeInTheDocument();
+  // The dashboard created for the import is taken back down.
+  expect(mockDeleteDashboard).toHaveBeenCalledWith(
+    { id: 41 },
+    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
+  );
+  expect(mockUpdateDashboard).not.toHaveBeenCalled();
 });
 
 test("DashboardImportModal Landing Page with tabs", async () => {
@@ -340,12 +378,17 @@ test("DashboardImportModal Landing Page with tabs", async () => {
       },
     ],
   };
-  const mockAddDashboard = jest.fn();
-  jest.spyOn(appAPI, "addDashboard").mockImplementation(mockAddDashboard);
-  mockAddDashboard.mockResolvedValue({
-    success: true,
-    new_dashboard: importedDashboard,
-  });
+  // The import creates the dashboard first, then saves its items to it.
+  const created = { id: 41, uuid: "minted-uuid", name: "Test" };
+  const mockAddDashboard = jest
+    .spyOn(appAPI, "addDashboard")
+    .mockResolvedValue({ success: true, new_dashboard: created });
+  const mockUpdateDashboard = jest
+    .spyOn(appAPI, "updateDashboard")
+    .mockResolvedValue({ success: true, updated_dashboard: created });
+  const mockDeleteDashboard = jest
+    .spyOn(appAPI, "deleteDashboard")
+    .mockResolvedValue({ success: true });
   const mockSetSuccessMessage = jest.fn();
   const mockSetShowSuccessMessage = jest.fn();
 
@@ -377,12 +420,16 @@ test("DashboardImportModal Landing Page with tabs", async () => {
   await userEvent.click(importButton);
 
   expect(mockAddDashboard).toHaveBeenCalledWith(
+    { name: "Test", description: "this is a new description" },
+    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
+  );
+  // The tab's exported id is dropped: the save would match it against the new
+  // dashboard's own tabs.
+  expect(mockUpdateDashboard).toHaveBeenCalledWith(
     {
-      description: "this is a new description",
-
+      id: 41,
       tabs: [
         {
-          id: "1",
           name: "Tab 1",
           gridItems: [
             {
@@ -395,6 +442,7 @@ test("DashboardImportModal Landing Page with tabs", async () => {
                 importedDashboard.tabs[0].gridItems[0].metadata_string,
               ),
               source: "Variable Input",
+              uuid: 12345678,
               w: 20,
               x: 0,
               y: 0,
@@ -402,11 +450,10 @@ test("DashboardImportModal Landing Page with tabs", async () => {
           ],
         },
       ],
-      uuid: 12345678,
-      name: "Test",
     },
     "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
   );
+  expect(mockDeleteDashboard).not.toHaveBeenCalled();
 });
 
 test("DashboardImportModal Landing Page Error", async () => {
@@ -2150,7 +2197,10 @@ test("whole-dashboard import falls back when the thrown value carries no message
   jest
     .spyOn(dashboardUtils, "handleGridItemImport")
     .mockRejectedValue("not an Error");
-  jest.spyOn(appAPI, "addDashboard").mockImplementation(jest.fn());
+  jest
+    .spyOn(appAPI, "addDashboard")
+    .mockResolvedValue({ success: true, new_dashboard: { id: 41, uuid: "u" } });
+  jest.spyOn(appAPI, "deleteDashboard").mockResolvedValue({ success: true });
 
   renderDashboardModal({});
   await importFiles(
@@ -2188,8 +2238,12 @@ test("whole-dashboard import reports a thrown failure rather than rejecting", as
   jest
     .spyOn(dashboardUtils, "handleGridItemImport")
     .mockRejectedValue(new Error("upload exploded"));
-  const mockAddDashboard = jest.fn();
-  jest.spyOn(appAPI, "addDashboard").mockImplementation(mockAddDashboard);
+  jest
+    .spyOn(appAPI, "addDashboard")
+    .mockResolvedValue({ success: true, new_dashboard: { id: 41, uuid: "u" } });
+  const mockDeleteDashboard = jest
+    .spyOn(appAPI, "deleteDashboard")
+    .mockResolvedValue({ success: true });
 
   renderDashboardModal({});
   await importFiles(
@@ -2219,7 +2273,8 @@ test("whole-dashboard import reports a thrown failure rather than rejecting", as
   expect(
     await screen.findByText(/Import failed: upload exploded/),
   ).toBeInTheDocument();
-  expect(mockAddDashboard).not.toHaveBeenCalled();
+  // The dashboard created for the import is taken back down.
+  expect(mockDeleteDashboard.mock.calls[0][0]).toEqual({ id: 41 });
 });
 
 test("DashboardImportModal surfaces a thrown import failure instead of stalling", async () => {
@@ -2286,12 +2341,12 @@ test("DashboardImportModal whole dashboard import enforces one flag and keeps ta
   jest
     .spyOn(dashboardUtils, "handleGridItemImport")
     .mockImplementation(realHandleGridItemImport);
-  const mockAddDashboard = jest.fn();
-  jest.spyOn(appAPI, "addDashboard").mockImplementation(mockAddDashboard);
-  mockAddDashboard.mockResolvedValue({
-    success: true,
-    new_dashboard: importedDashboard,
-  });
+  jest
+    .spyOn(appAPI, "addDashboard")
+    .mockResolvedValue({ success: true, new_dashboard: { id: 41, uuid: "u" } });
+  const mockUpdateDashboard = jest
+    .spyOn(appAPI, "updateDashboard")
+    .mockResolvedValue({ success: true, updated_dashboard: { id: 41 } });
 
   renderDashboardModal({});
   await importFiles(
@@ -2299,10 +2354,12 @@ test("DashboardImportModal whole dashboard import enforces one flag and keeps ta
     "Import Dashboard",
   );
 
-  const [payload] = mockAddDashboard.mock.calls[0];
-  // Flattened loose-items-then-tabs and re-split by the lengths each tab
-  // arrived with, so nothing crosses a tab boundary.
-  expect(payload.gridItems.map((item) => item.source)).toEqual(["LooseSource"]);
+  await waitFor(() => expect(mockUpdateDashboard).toHaveBeenCalled());
+  const [payload] = mockUpdateDashboard.mock.calls[0];
+  // Re-split by the lengths each tab arrived with, so nothing crosses a tab
+  // boundary. A file with tabs saves only their items, so the loose one is not
+  // sent.
+  expect(payload).not.toHaveProperty("gridItems");
   expect(payload.tabs).toHaveLength(2);
   expect(payload.tabs[0].name).toBe("Tab 1");
   expect(payload.tabs[0].gridItems).toHaveLength(1);
