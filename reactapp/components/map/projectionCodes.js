@@ -13,12 +13,8 @@
  *
  * Asked by code rather than by registry lookup, because once a definition is
  * registered the two are indistinguishable through the registry -- which is the
- * whole point of the question. Used to keep the raster auto-fit from adopting a
- * newly-registered projection as the map's *view* projection: adoption calls
- * setView and publishes the adopted code into the map-extent variable other
- * visualizations read, so widening it is a separate change with its own
- * verification. Registered projections still serve as data projections, so a
- * raster in one renders by reprojection instead.
+ * whole point of the question. Used to tell whether a layer's authored
+ * projection needs the projection registry loaded before the layer is built.
  *
  * @param {string} code Projection code.
  * @returns {boolean}

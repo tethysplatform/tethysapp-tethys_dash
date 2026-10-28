@@ -388,8 +388,8 @@ export async function loadZarr(config, mapProjection) {
       resolutions: [resolution],
     }),
   });
-  // Map.js auto-fits raster layers by calling getView() on the source; expose a
-  // compatible shim so the map fits to the slice extent and adopts the store CRS.
+  // Zoom to layer reads a raster's extent and CRS from getView() on its source,
+  // as a GeoTIFF reports them; expose a compatible shim for the slice.
   source.getView = async () => ({
     projection,
     extent,
@@ -2053,11 +2053,8 @@ const getModuleImporter = (type) => {
  * is not called at all until the layer is actually mounted and rendering.
  *
  * `getMapProjection`, when supplied, is read at the moment features are inserted
- * rather than when the load began. A shapefile is the slowest-loading vector
- * source in the app, so it is the one most exposed to a sibling raster's auto-fit
- * changing the view mid-load -- and features parsed into a projection the map has
- * already left are drawn thousands of kilometres off screen while still reporting
- * the right feature count.
+ * rather than when the load began, so the features are parsed into whatever
+ * projection the view holds once a long load finishes.
  *
  * The single `shapefileController` set on the source is the whole channel between
  * this module and the map: abort, status, error and reset. Hanging those on the

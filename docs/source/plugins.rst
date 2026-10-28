@@ -1483,12 +1483,9 @@ still re-draws, so a style change on its own takes effect.
 
 **Projection**
 
-A dynamic GeoTIFF **never sets the map's projection**, even when it is the
-only raster on the map. A static GeoTIFF can become the map's projection
-owner, but a dynamic one has no file until its first fetch, and each fetch may
-name a file in a different CRS. Owning the view would replace it, and refetch
-the basemap, on every fetch. The raster is instead reprojected into the map's
-view like any raster that does not own it.
+A dynamic GeoTIFF **never sets the map's projection**, and neither does any
+other raster. The map stays in Web Mercator at the extent its author saved,
+and each fetch's file is reprojected into it, whatever CRS that file is in.
 
 .. warning::
     **Do not build the URL from unvalidated viewer input.** The URL that
