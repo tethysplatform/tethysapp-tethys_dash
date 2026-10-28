@@ -3,8 +3,6 @@ import { render, screen, waitFor, act } from "@testing-library/react";
 import createLoadedComponent from "__tests__/utilities/customRender";
 import PropTypes from "prop-types";
 import { Map } from "ol";
-import GeoTIFF from "ol/source/GeoTIFF.js";
-import { get as getProjection } from "ol/proj";
 import MapVisualization from "components/visualizations/Map";
 import MapContextProvider from "components/contexts/MapContext";
 import { loadLayerJSONs } from "components/map/utilities";
@@ -148,54 +146,25 @@ const rasterLayer = (name) => ({
   },
 });
 
-test("the basemap waits when a raster is going to decide the view projection", async () => {
-  // The early publish puts the basemap on the map in a pass that holds no
-  // rasters, so nothing there knows a projection is about to be adopted. The
-  // basemap was added straight away and then had every tile discarded when the
-  // adoption replaced the view. Held back, it goes out in the same pass as the
-  // raster and is fetched once.
-  //
-  // This is the check that was missing: the gate that holds it only works if
-  // the basemap and the raster reach the map together, and the early publish
-  // guaranteed they never did.
+test("the basemap goes out early beside a raster too", async () => {
+  // A raster no longer decides the view projection, so nothing replaces the
+  // view under the basemap's tiles and there is no reason to hold it back
+  // until the raster is ready.
   const gate = deferred();
   loadLayerJSONs.mockImplementation(() => gate.promise);
-  // jsdom cannot read the raster's header, so its view would never settle and
-  // the basemap would only ever come out through the ten-second backstop. Give
-  // it a view so the owner releases the basemap the way it does in a browser.
-  jest.spyOn(GeoTIFF.prototype, "getView").mockResolvedValue({
-    projection: getProjection("EPSG:3857"),
-    extent: [-1e6, -1e6, 1e6, 1e6],
-    center: [0, 0],
-    zoom: 2,
-  });
 
   await mount([rasterLayer("Flood Probability")]);
 
-  await waitFor(() => expect(loadLayerJSONs).toHaveBeenCalledTimes(1));
-
-  // Asserted over a window, not at an instant. The early publish reaches
-  // addLayer a few ticks after the state write, so a bare not.toContain here
-  // passes whether or not the basemap was held -- which is how the first
-  // version of this test passed against the unfixed code.
-  await expect(
-    waitFor(
-      () =>
-        expect(addedLayerNames(addLayerSpy)).toContain("World Light Gray Base"),
-      { timeout: 1500 },
-    ),
-  ).rejects.toThrow();
+  await waitFor(() =>
+    expect(addedLayerNames(addLayerSpy)).toContain("World Light Gray Base"),
+  );
+  expect(addedLayerNames(addLayerSpy)).not.toContain("Flood Probability");
 
   await gate.release();
 
-  // Released by the owner settling its view, well inside the backstop. Waiting
-  // out the backstop instead would mean the release path is broken.
-  await waitFor(
-    () =>
-      expect(addedLayerNames(addLayerSpy)).toContain("World Light Gray Base"),
-    { timeout: 3000 },
+  await waitFor(() =>
+    expect(addedLayerNames(addLayerSpy)).toContain("Flood Probability"),
   );
-  expect(addedLayerNames(addLayerSpy)).toContain("Flood Probability");
 });
 
 test("layers are prepared in parallel, not one after another", async () => {

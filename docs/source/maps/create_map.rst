@@ -28,7 +28,16 @@ Layer Controls
 -------------------
 
 
-Determines whether a layer control panel is shown, allowing users to toggle layer visibility.
+Determines whether a layer control panel is shown. Each layer in the panel has a checkbox to toggle its visibility and a magnifier button to zoom to it.
+
+**Zoom to layer.** Clicking a layer's magnifier fits the map to that layer's extent, with a small margin on every side. It works whether or not the layer is currently visible. A map in a view group moves the rest of its group with it, as any pan or zoom would.
+
+- **Vector layers** (GeoJSON, KML, Shapefile, annotations) zoom to their features. A layer that has not been shown yet may take a moment to load before the map moves. An **ESRI Feature Service** zooms to the part of the service in the current view. A layer with no features does not move the map.
+- **Raster layers** (GeoTIFF, Zarr, static image) zoom to the extent of the file or image. A raster whose file failed to open has its button disabled.
+- **Tile layers**, including the basemap, zoom to their full tile coverage, which for a basemap is the whole world.
+- **ESRI Image and Map Service** and **WMS** layers cannot be zoomed to, so their button is disabled.
+
+A layer that is a single point, or very small, is zoomed to no closer than zoom level 16.
 
 -----------------
 Layers
@@ -45,6 +54,8 @@ Map Extent
 
 
 Choose either **"Use the Previewed Map Extent"** (the map zooms to the current view) or **"Use a Custom Extent"** (enter minimum and maximum latitude/longitude values and optionally an extent variable name).
+
+The map always opens at this extent. To go to a particular layer, use its magnifier in the layer control (see `Layer Controls`_).
 
 Below the extent, two more settings link this map to others on the dashboard:
 
@@ -63,8 +74,6 @@ Maps that share a **View Group** name pan and zoom together. Move one and every 
 **Joining a group.** Type the same name into **View Group** on each map that should be linked. Names are trimmed of surrounding spaces and matched exactly, including case — ``Basin`` and ``basin`` are two different groups. An empty name means the map is not in a group.
 
 **The opening view.** By default a group opens wherever its first member happens to start. To control it, tick **Use as the view group's initial extent** on one member; that map's extent then becomes the view every member opens at. At most one map per group can carry the flag — saving a map with it set clears it from any other member of the same group, so the last one saved is the one that wins.
-
-**Projections.** A group is pinned to the projection of its first member. A map in a different projection cannot be synced with it — its coordinates mean something else — so it stays independent and shows a warning naming both projections rather than jumping somewhere the user did not ask for.
 
 **Plugin-supplied maps.** A map returned by a plugin can join a group by including ``viewGroup`` in its ``map_extent`` (see :ref:`visualizationplugins`), but it cannot supply the group's opening view: the plugin's extent does not exist until the plugin has run. The initial-extent flag is honored only on the built-in **Map** visualization and is set only from this editor.
 
@@ -123,7 +132,6 @@ Maps report what they are doing in a stack of messages in the corner of the map 
 
 - **Loading** (informational): Names every layer currently loading, e.g. ``Loading Flowlines, Depth Grid…``. A plugin layer that reports progress with ``self.send_update(...)`` shows its percentage alongside its name. The message clears itself when the layers settle.
 - **Failure** (red): Names each layer that failed and why — an unreachable host, an unreadable coordinate system, a file over the size limit, a plugin that is not installed. Dismiss it to get it out of the way; it returns if a later load fails differently. The same message is repeated inside the layer control next to the layer it belongs to.
-- **View group projection mismatch** (amber): Shown when this map's projection differs from the one its view group is pinned to, naming both. See `Linked Map View Groups`_.
 
 The layer control lists each layer's failure message beside its visibility checkbox. Loading is reported only by the map's alert stack, since the layer control is collapsed by default.
 

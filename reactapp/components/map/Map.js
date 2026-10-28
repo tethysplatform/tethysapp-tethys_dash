@@ -36,7 +36,6 @@ import {
   configurationPropType,
   mapDrawingPropType,
   isVectorLayerType,
-  reprojectVectorFeatures,
   updateOlLayerProps,
   wrapMercatorX,
 } from "components/map/utilities";
@@ -46,7 +45,6 @@ import { applyStyle } from "ol-mapbox-style";
 import PropTypes from "prop-types";
 import { useMapContext } from "components/contexts/MapContext";
 import { fromExtent } from "ol/geom/Polygon";
-import { transform, transformExtent } from "ol/proj";
 import { unByKey } from "ol/Observable";
 import {
   GridItemContext,
@@ -162,12 +160,9 @@ function isBlankZoom(value) {
  * resolution and two fields in one object graph must not read as one unit and
  * mean another.
  *
- * The conversion cannot be done once and kept: this app adopts a raster's
- * projection at runtime (see `map.setView` in the layer sync below), and a
- * resolution derived under one projection names a different zoom under another
- * -- while the style is applied once and the view may change many times after
- * it. So the value is read through a getter, which re-derives it from whatever
- * view the map holds at the moment the style function runs.
+ * The value is read through a getter, which re-derives it from whatever view
+ * the map holds at the moment the style function runs: the style is applied
+ * once, and the map's view may be replaced many times after it.
  */
 export function labelConfigForMap(labelConfig, map) {
   if (!labelConfig) return labelConfig;
@@ -553,11 +548,9 @@ const viewStatesIdentical = (a, b) =>
   a.center[0] === b.center[0] &&
   a.center[1] === b.center[1];
 
-// Backstop for the basemap gate: how long the basemap will wait on a raster
-// that never finishes deciding the view projection. The gate is normally
-// released by that raster's own construct, so this only covers a read that
-// never settles at all.
-const BASEMAP_ADOPTION_WAIT_MS = 10000;
+// The map's view is always Web Mercator. A layer in any other CRS is
+// reprojected into it, and a saved extent is stored in it.
+const VIEW_PROJECTION = "EPSG:3857";
 
 const MapComponent = ({
   mapConfig,
@@ -615,7 +608,6 @@ const MapComponent = ({
   const onMapMoveEndPrimed = useRef(false);
   const [zoom, setZoom] = useState(4.5);
   const [lonLat, setLonLat] = useState([-10686671.12, 4721671.57]);
-  const [projection, setProjection] = useState("EPSG:3857");
   const mapContext = useMapContext();
   const setMapReady = mapContext?.setMapReady;
   const mapReady = mapContext?.mapReady;
@@ -646,8 +638,8 @@ const MapComponent = ({
   // postrender handler and the apply callback, both of which outlive a render.
   const activeViewGroupRef = useRef(null);
   // The `View` object seen on the previous frame. A different one means the
-  // view was replaced -- the extent effect or a raster auto-fit -- which is
-  // never a user action (R20).
+  // view was replaced -- by the extent effect -- which is never a user action
+  // (R20).
   const lastViewObjectRef = useRef(null);
   // What this member's view last settled at, as read back from the view
   // itself. Publishes are the difference against this (R21, R22).
@@ -668,17 +660,6 @@ const MapComponent = ({
   const viewGroupHandlerRef = useRef(null);
   const viewGroupApplyRef = useRef(null);
   const previousShouldLoadRef = useRef(shouldLoad);
-  const [viewGroupMismatch, setViewGroupMismatch] = useState(null);
-  // Same contract as the layer-failure alert: closing the notice hides only
-  // this exact mismatch, and a different group or projection brings it back.
-  const [dismissedViewGroupMismatchKey, setDismissedViewGroupMismatchKey] =
-    useState(null);
-  const viewGroupMismatchKey = viewGroupMismatch
-    ? `${viewGroupMismatch.groupName}|${viewGroupMismatch.mapCode}|${viewGroupMismatch.groupCode}`
-    : null;
-  const showViewGroupMismatch =
-    !!viewGroupMismatch &&
-    viewGroupMismatchKey !== dismissedViewGroupMismatchKey;
 
   // --- Coalesced `moveend` side effects (U4: R24, R29) --------------------
   // Unsettled motion is in flight on this member's own view. Held in a ref
@@ -791,7 +772,7 @@ const MapComponent = ({
   const customMapConfig = { ...defaultMapConfig, ...mapConfig };
 
   const defaultViewConfig = {
-    projection,
+    projection: VIEW_PROJECTION,
     zoom,
     center: lonLat,
   };
@@ -884,38 +865,21 @@ const MapComponent = ({
     }
     lastAppliedExtentRef.current = extent;
 
-    const mapViewConfig = new View({ projection });
-    setProjection(mapViewConfig.getProjection().getCode());
-
-    // A saved extent is always stored in EPSG:3857, whatever projection the
-    // view ends up in -- the string carries no code of its own, and until the
-    // view could open in a raster's projection there was nothing to
-    // distinguish. Converting here is what lets it. Both conversions below are
-    // the identity while the view is 3857, which is every dashboard saved so
-    // far. MapExtent.js converts the other way when capturing one.
-    const viewCode = mapViewConfig.getProjection().getCode();
+    // A saved extent is stored in the view's own projection, EPSG:3857.
+    const mapViewConfig = new View({ projection: VIEW_PROJECTION });
     const parts = extent.split(",").map((p) => parseFloat(p.trim()));
     if (parts.length === 3) {
       const [lon, lat, zoomLevel] = parts;
-      const stored = [wrapMercatorX(lon), lat];
-      const [centerX, centerY] =
-        viewCode === "EPSG:3857"
-          ? stored
-          : transform(stored, "EPSG:3857", viewCode);
-      setLonLat([centerX, centerY]);
+      const center = [wrapMercatorX(lon), lat];
+      setLonLat(center);
       setZoom(zoomLevel);
       mapViewConfig.setZoom(zoomLevel);
-      mapViewConfig.setCenter([centerX, centerY]);
+      mapViewConfig.setCenter(center);
     } else {
       const storedExtent = extent.split(",").map(Number);
-      mapViewConfig.fit(
-        viewCode === "EPSG:3857"
-          ? storedExtent
-          : transformExtent(storedExtent, "EPSG:3857", viewCode),
-        {
-          size: visualizationRef.current.getSize(),
-        },
-      );
+      mapViewConfig.fit(storedExtent, {
+        size: visualizationRef.current.getSize(),
+      });
       setZoom(mapViewConfig.getZoom().toFixed(2));
       setLonLat(mapViewConfig.getCenter());
     }
@@ -948,24 +912,7 @@ const MapComponent = ({
       });
     }
 
-    // Move already-mounted vector features with the view, exactly as the raster
-    // auto-fit path does. Features are parsed into the view projection when they
-    // are added, so replacing the view leaves them holding the outgoing
-    // projection's numbers -- drawn far off screen while still reporting the
-    // right feature count. This path replaces the view too, and until now had no
-    // sweep: a raster auto-fit adopts a projection without updating the state
-    // this view is rebuilt from, so a later extent change reverts the projection
-    // underneath the features.
-    const outgoingCode = visualizationRef.current
-      .getView()
-      .getProjection()
-      .getCode();
     visualizationRef.current.setView(mapViewConfig);
-    reprojectVectorFeatures(
-      visualizationRef.current,
-      outgoingCode,
-      mapViewConfig.getProjection().getCode(),
-    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapExtent]);
 
@@ -1237,55 +1184,12 @@ const MapComponent = ({
       // The trigger is deliberately broad. A source that reads its own CRS out
       // of its data -- a GeoTIFF or Zarr from the file, a shapefile from its
       // .prj -- carries no code in its config to check, so the type is enough
-      // to require it. The view projection is never a table code (it starts at
-      // EPSG:3857 and the auto-fit only adopts natively-resolvable codes), so
+      // to require it. The view projection is never a table code -- it is
+      // EPSG:3857, and a raster in any other CRS is reprojected into it -- so
       // there is nothing to register before this point.
       if (customLayers.some(needsProjectionRegistry)) {
         await import("components/map/projections");
       }
-
-      // Which raster, if any, gets to set the view projection. Resolved from
-      // the author's array before anything is built, so it is the same answer
-      // for every layer in this run no matter what order they finish in.
-      //
-      // Never a raster a plugin drives. It has no file until its first fetch,
-      // and each fetch may name one in another CRS, so owning the view would
-      // replace it -- and refetch the basemap -- on every fetch. It is
-      // reprojected into the view like any raster that does not own it.
-      const viewProjectionOwner = customLayers.find(
-        (candidate) =>
-          candidate?.type === "WebGLTile" &&
-          (candidate.props?.source?.type === "GeoTIFF" ||
-            candidate.props?.source?.type === "Zarr") &&
-          !candidate.props?.pluginSource,
-      );
-
-      // The basemap waits for whichever raster owns the view projection.
-      //
-      // Adopting a projection replaces the view, and that discards every tile
-      // the basemap has already fetched. Measured on a four-raster dashboard:
-      // 55 tiles painted, thrown away thirteen seconds later when the first
-      // header resolved, then 77 refetched -- a white map in between. Adding
-      // the basemap once that has settled fetches them once.
-      //
-      // Released from the owner's own construct below, whether it adopts,
-      // declines to, or fails outright. The timer is only a backstop for a
-      // read that never settles at all; a late basemap is the worst case, and
-      // it is what happens today anyway.
-      let releaseBaseMap;
-      // Only when the owner is actually being constructed. A preserved raster
-      // never re-runs its adoption, so a gate waiting on it would hold the
-      // basemap until the backstop fired -- which is what changing the base
-      // map on a raster dashboard would have cost.
-      const ownerWillConstruct =
-        viewProjectionOwner &&
-        !layersToKeep.includes(viewProjectionOwner.props?.name);
-      const baseMapGate = ownerWillConstruct
-        ? new Promise((resolve) => {
-            releaseBaseMap = resolve;
-            setTimeout(resolve, BASEMAP_ADOPTION_WAIT_MS);
-          })
-        : null;
 
       let failedLayers = [];
       // What to say about the ones that know why they failed. A source that
@@ -1336,11 +1240,10 @@ const MapComponent = ({
             const newLayer = await moduleLoader(
               isRuntimeRaster ? withoutSource(layerConfig) : layerConfig,
               map.getView().getProjection().getCode(),
-              // Read again when features are actually inserted. A source with a
-              // long async load -- a shapefile -- can finish after a sibling
-              // raster's auto-fit has already changed the view, and features
-              // parsed into the outgoing projection are drawn far off screen
-              // while still reporting the right count.
+              // Read again when features are actually inserted, so a source with
+              // a long async load -- a shapefile -- parses into whatever
+              // projection the view has by then rather than the one it started
+              // under.
               () => map.getView().getProjection().getCode(),
             );
             newLayer.set("name", name);
@@ -1415,26 +1318,6 @@ const MapComponent = ({
               abortShapefileLoad(newLayer, CANCEL_REASON.SUPERSEDED);
               return;
             }
-            if (layerConfig.isBaseMap && baseMapGate) {
-              await baseMapGate;
-              // Awaiting reopens the supersede window the identical check
-              // above closed, and this wait is long -- it spans the owner's
-              // whole header read, thirteen seconds on the dashboard this was
-              // built for. A variable input or layer edit inside that window
-              // supersedes the run, and a superseded run must not add its
-              // layer: it is in no newer run's removal snapshot, so nothing
-              // would ever collect it.
-              //
-              // istanbul ignore next -- reachable in the app but not
-              // schedulable from the suite: driving it needs a supersede
-              // landing inside the await, and the gate resolves from the
-              // owner's own construct, which the test cannot hold open at a
-              // chosen instant.
-              if (myToken !== layerSyncToken.current) {
-                abortShapefileLoad(newLayer, CANCEL_REASON.SUPERSEDED);
-                return;
-              }
-            }
             stampAppliedStyle(newLayer, layerConfig);
             map.addLayer(newLayer);
             watchShapefileLoad(newLayer, name, setLayerStatus);
@@ -1452,149 +1335,6 @@ const MapComponent = ({
                 name,
                 setErrorMessage,
               );
-
-              // One raster owns the view projection. Every GeoTIFF and Zarr
-              // layer used to assert its own CRS on the map's single view, so a
-              // dashboard mixing projections had them fighting -- each adoption
-              // undoing the last, and each `setView` re-rendering every layer
-              // and refetching the basemap. It only looked stable while they
-              // all landed in the same frame.
-              //
-              // The others still render: OpenLayers reprojects a DataTile
-              // source whose projection differs from the view's, so not owning
-              // the view costs a reprojection, not a layer.
-              //
-              // The owner is the first such layer in the author's own array,
-              // not the first to finish loading, so which projection the map
-              // settles in does not depend on which file the network served
-              // first -- and reordering the layers is how an author changes it.
-              if (layerConfig === viewProjectionOwner) {
-                try {
-                  const viewOptions = await geoTIFFSource.getView();
-                  const mapSize = map.getSize();
-                  const prevView = map.getView();
-                  const prevProjection = prevView.getProjection();
-                  const newProjection = viewOptions.projection;
-                  const tifExtent = viewOptions.extent;
-
-                  const haveMapSize =
-                    Array.isArray(mapSize) &&
-                    mapSize.length === 2 &&
-                    mapSize[0] > 0 &&
-                    mapSize[1] > 0;
-
-                  // Helper: extents [minX, minY, maxX, maxY] overlap?
-                  const intersects = (a, b) =>
-                    !(a[2] < b[0] || a[0] > b[2] || a[3] < b[1] || a[1] > b[3]);
-
-                  const newView = new View({
-                    projection: newProjection,
-                    center: viewOptions.center ?? [0, 0],
-                    zoom: viewOptions.zoom ?? 0,
-                  });
-
-                  let targetExtent = null;
-                  // Whether the view, as it stands, is already looking at this
-                  // raster. The fit below uses it to decide whether to keep the
-                  // current extent; the adoption guard further down uses it to
-                  // decide whether there is anything to adopt at all.
-                  let viewOverlapsRaster = false;
-                  if (haveMapSize) {
-                    const prevExtent = prevView.calculateExtent(mapSize);
-                    const sourceValid = prevProjection.getExtent?.();
-                    const clampedPrev =
-                      Array.isArray(sourceValid) && sourceValid.length === 4
-                        ? [
-                            Math.max(prevExtent[0], sourceValid[0]),
-                            Math.max(prevExtent[1], sourceValid[1]),
-                            Math.min(prevExtent[2], sourceValid[2]),
-                            Math.min(prevExtent[3], sourceValid[3]),
-                          ]
-                        : prevExtent;
-
-                    if (
-                      clampedPrev.every(Number.isFinite) &&
-                      clampedPrev[0] < clampedPrev[2] &&
-                      clampedPrev[1] < clampedPrev[3]
-                    ) {
-                      const transformed = transformExtent(
-                        clampedPrev,
-                        prevProjection,
-                        newProjection,
-                      );
-                      if (transformed.every(Number.isFinite)) {
-                        viewOverlapsRaster =
-                          Array.isArray(tifExtent) &&
-                          tifExtent.length === 4 &&
-                          intersects(transformed, tifExtent);
-                        targetExtent = viewOverlapsRaster
-                          ? transformed
-                          : Array.isArray(tifExtent) &&
-                              tifExtent.every(Number.isFinite)
-                            ? tifExtent
-                            : transformed;
-                      }
-                    }
-                  }
-
-                  if (
-                    !targetExtent &&
-                    Array.isArray(tifExtent) &&
-                    tifExtent.length === 4 &&
-                    tifExtent.every(Number.isFinite)
-                  ) {
-                    targetExtent = tifExtent;
-                  }
-
-                  // Features already on the map were parsed into the outgoing
-                  // projection, so adopting the raster's leaves them holding the
-                  // wrong numbers -- a UTM raster over Guatemala left Web
-                  // Mercator coordinates being read as UTM metres, stranding the
-                  // dynamic layers off screen while still reporting the right
-                  // feature count. Move them with the view.
-                  const previousCode = prevProjection.getCode();
-                  const adoptedCode = newView.getProjection().getCode();
-
-                  // Every raster runs this block as it mounts, so a dashboard
-                  // built on several rasters in one projection ran it several
-                  // times -- and when the view is already in that projection and
-                  // already looking at the raster, the work above rebuilds the
-                  // view that is already on screen. `setView` is not free: it
-                  // replaces the view outright, so every layer re-renders and the
-                  // basemap refetches its tiles. Five rasters each arriving on
-                  // their own schedule made that visible as five jumps.
-                  const alreadyAdopted =
-                    previousCode === adoptedCode && viewOverlapsRaster;
-
-                  // Adopt the raster's projection as the view projection only when
-                  // OpenLayers resolves it on its own. Registering a definition
-                  // makes a previously-unresolvable raster render, but it must not
-                  // also start changing the view: setView publishes the adopted
-                  // code into the map-extent variable other visualizations consume,
-                  // and saved center/zoom values would be reinterpreted in the new
-                  // projection's units. Widening this is its own change, verified
-                  // against live dashboards. Such a raster still renders here --
-                  // by reprojection rather than natively.
-                  if (alreadyAdopted) {
-                    // The view already shows this raster in its own projection.
-                  } else if (!isNativelyResolvable(adoptedCode)) {
-                    console.warn(
-                      `Not adopting "${adoptedCode}" as the view projection for layer "${name}": it resolves from a registered definition rather than natively. The layer renders by reprojection.`,
-                    );
-                  } else {
-                    if (targetExtent && haveMapSize) {
-                      newView.fit(targetExtent, { size: mapSize });
-                    }
-                    map.setView(newView);
-                    reprojectVectorFeatures(map, previousCode, adoptedCode);
-                  }
-                } catch (err) {
-                  console.warn(
-                    `GeoTIFF auto-fit failed for layer "${name}":`,
-                    err,
-                  );
-                }
-              }
             }
 
             // A runtime raster's style is compiled per fetch, for the file
@@ -1627,12 +1367,6 @@ const MapComponent = ({
             failedLayers.push(name);
             if (err instanceof LayerSourceError) {
               failureDetails.push(`Layer "${name}": ${err.message}`);
-            }
-          } finally {
-            // Whatever became of the owner -- adopted, declined, threw -- the
-            // basemap stops waiting on it.
-            if (layerConfig === viewProjectionOwner) {
-              releaseBaseMap?.();
             }
           }
         }),
@@ -1864,23 +1598,6 @@ const MapComponent = ({
     return true;
   };
 
-  // Report this member's live projection code and read back the group's pin.
-  // Always read from `map.getView().getProjection()`, never from the
-  // `projection` state: a raster auto-fit adopts the raster's projection
-  // without ever updating that state.
-  const reportViewGroupProjection = (code) => {
-    const groupName = activeViewGroupRef.current;
-    // istanbul ignore if -- unreachable: both callers run only for a
-    // registered member, and `activeViewGroupRef` is set before the
-    // registration and cleared only after it is torn down.
-    if (!groupName || !viewGroupContext) return null;
-    return viewGroupContext.reportMemberProjection(
-      groupName,
-      gridItemUUID,
-      code,
-    );
-  };
-
   // Resolve the group's discovered seed into a concrete view state for this
   // map, and consume it. The seed is stored in view coordinates of the group's
   // (single, R6) projection, exactly as the extent effect reads them, so no
@@ -1894,10 +1611,9 @@ const MapComponent = ({
 
     if (seed.type === "center") {
       viewGroupSeedPendingRef.current = false;
-      const code = view.getProjection().getCode();
       const [x, y] = seed.center;
       return {
-        center: [code === "EPSG:3857" ? wrapMercatorX(x) : x, y],
+        center: [wrapMercatorX(x), y],
         resolution: view.getResolutionForZoom(seed.zoom),
         rotation: 0,
       };
@@ -1945,11 +1661,6 @@ const MapComponent = ({
     // commit that disposes its map, so no peer can publish in between.
     if (!map || !nextView) return;
     const view = map.getView();
-    const code = view.getProjection().getCode();
-    const groupProjection = reportViewGroupProjection(code);
-    // R6: out of the group entirely while the projections differ. The notice
-    // is raised by the postrender handler, which runs on every frame.
-    if (groupProjection && groupProjection !== code) return;
     // ANIMATING as well as INTERACTING: double-click zoom, keyboard
     // zoom and the Zoom control all run through `view.animate()`, which holds
     // neither the INTERACTING hint nor the pointer. Applying over one of them
@@ -2000,32 +1711,10 @@ const MapComponent = ({
     // which no peer can drive, and for which OpenLayers' own hints already
     // coalesce every path -- keeps its per-frame cost at exactly zero (R2).
     if (mapExtent?.variable || onMapMoveEnd) trackViewMotion(view, current);
-    const code = view.getProjection().getCode();
-    const groupProjection = reportViewGroupProjection(code);
 
-    if (groupProjection && groupProjection !== code) {
-      // R6. The baseline is still tracked while out of sync, so a member whose
-      // projection later matches again rejoins where it stands rather than
-      // publishing the whole divergence as if the viewer had made it.
-      lastViewObjectRef.current = view;
-      viewGroupBaselineRef.current = current;
-      viewGroupReadbackRef.current = false;
-      viewGroupDeclinedRef.current = false;
-      setViewGroupMismatch((previous) =>
-        previous &&
-        previous.mapCode === code &&
-        previous.groupCode === groupProjection &&
-        previous.groupName === groupName
-          ? previous
-          : { groupName, mapCode: code, groupCode: groupProjection },
-      );
-      return;
-    }
-    setViewGroupMismatch((previous) => (previous ? null : previous));
-
-    // R20. A replaced `View` is never a user action -- the extent effect and
-    // the raster auto-fit both build a new one -- so this member re-adopts the
-    // group's view rather than publishing whatever the replacement landed on.
+    // R20. A replaced `View` is never a user action -- the extent effect
+    // builds a new one -- so this member re-adopts the group's view rather
+    // than publishing whatever the replacement landed on.
     if (lastViewObjectRef.current !== view) {
       lastViewObjectRef.current = view;
       const interacting = view.getInteracting() || view.getAnimating();
@@ -2083,8 +1772,8 @@ const MapComponent = ({
     }
 
     // Cannot fire today: every branch above that returns leaves a baseline
-    // behind -- the projection-mismatch branch records one, the view-replaced
-    // branch records one on its non-adopt path and arms a read-back on its
+    // behind -- the view-replaced branch records one on its non-adopt path
+    // and arms a read-back on its
     // adopt path, and the read-back branch records one -- so control only
     // reaches here with a baseline already in hand. Kept as a guard so a new
     // early return above cannot silently publish a member's opening view.
@@ -2100,10 +1789,9 @@ const MapComponent = ({
       ...current,
       // R26: a source panned past the antimeridian would otherwise teleport
       // every follower a world away.
-      center:
-        code === "EPSG:3857" && Array.isArray(current.center)
-          ? [wrapMercatorX(current.center[0]), current.center[1]]
-          : current.center,
+      center: Array.isArray(current.center)
+        ? [wrapMercatorX(current.center[0]), current.center[1]]
+        : current.center,
     });
   };
   viewGroupHandlerRef.current = handleViewGroupPostrender;
@@ -2111,7 +1799,6 @@ const MapComponent = ({
   useEffect(() => {
     if (!viewGroupEnabled) {
       activeViewGroupRef.current = null;
-      setViewGroupMismatch(null);
       return;
     }
 
@@ -2121,19 +1808,6 @@ const MapComponent = ({
       gridItemUUID,
       { applyView: (nextView) => viewGroupApplyRef.current?.(nextView) },
     );
-    // The group pins its projection from the first member to register, so the
-    // pin is reported on joining rather than waiting for a frame.
-    const map = visualizationRef.current;
-    // istanbul ignore else -- the mount effect above creates the map and is
-    // declared first, so it has always run by the time this one does. Kept so
-    // a future reordering cannot dereference a map that is not there yet.
-    if (map) {
-      viewGroupContext.reportMemberProjection(
-        viewGroupName,
-        gridItemUUID,
-        map.getView().getProjection().getCode(),
-      );
-    }
     // A fresh membership has no history: the next frame re-adopts the group's
     // view rather than reading this map's own opening view as a move.
     lastViewObjectRef.current = null;
@@ -2145,7 +1819,7 @@ const MapComponent = ({
     // joining a group after mount -- the group name being set on a live map,
     // or its extent changing to carry one -- would sit un-synced until some
     // unrelated event redrew it. Same as the re-adopt path below.
-    map?.render();
+    visualizationRef.current?.render();
 
     return () => {
       activeViewGroupRef.current = null;
@@ -2267,10 +1941,7 @@ const MapComponent = ({
            and this must not be something a map config can drop. */
         style={{ ...customMapConfig.style, isolation: "isolate" }}
       >
-        {(errorMessage ||
-          showLayerFailure ||
-          showLayerLoading ||
-          showViewGroupMismatch) && (
+        {(errorMessage || showLayerFailure || showLayerLoading) && (
           <AlertAnchor mapDivRef={mapDivRef}>
             <AlertStack role="group" aria-label="Map Alerts">
               {errorMessage && (
@@ -2299,22 +1970,6 @@ const MapComponent = ({
                   {layerLoadingMessage}
                 </StyledAlert>
               )}
-              {showViewGroupMismatch && (
-                <StyledAlert
-                  variant="warning"
-                  role="status"
-                  aria-live="polite"
-                  aria-label="View Group Projection Mismatch"
-                  dismissible={true}
-                  onClose={() =>
-                    setDismissedViewGroupMismatchKey(viewGroupMismatchKey)
-                  }
-                >
-                  {`This map is not synced with the "${viewGroupMismatch.groupName}" ` +
-                    `view group: it is in ${viewGroupMismatch.mapCode} and the ` +
-                    `group is in ${viewGroupMismatch.groupCode}.`}
-                </StyledAlert>
-              )}
             </AlertStack>
           </AlertAnchor>
         )}
@@ -2324,7 +1979,7 @@ const MapComponent = ({
             <br></br>
             Lon: {lonLat[0].toFixed(2)}, Lat: {lonLat[1].toFixed(2)}
             <br></br>
-            Projection: {projection}
+            Projection: {VIEW_PROJECTION}
           </InfoDiv>
         )}
         {/* The viewer drawing tool would claim clicks meant for an annotation

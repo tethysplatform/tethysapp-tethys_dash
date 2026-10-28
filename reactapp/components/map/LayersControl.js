@@ -1,10 +1,16 @@
 import { useEffect, useState } from "react";
 import PropTypes from "prop-types";
 import styled from "styled-components";
-import { FaLayerGroup, FaTimes, FaExclamationTriangle } from "react-icons/fa";
+import {
+  FaLayerGroup,
+  FaTimes,
+  FaExclamationTriangle,
+  FaSearchPlus,
+} from "react-icons/fa";
 import FloatingMapControl, {
   MapSizedControlContainer,
 } from "components/map/FloatingMapControl";
+import { canZoomToLayer, zoomToLayer } from "components/map/layerExtent";
 
 // See LegendControl: the positioning lives on the anchor, the control itself is
 // portalled out of the map tile's stacking context.
@@ -50,6 +56,26 @@ const ControlButton = styled.button`
   border: none;
   cursor: pointer;
   font-size: 18px;
+`;
+
+const ZoomButton = styled.button`
+  background: none;
+  border: none;
+  padding: 0 2px;
+  margin-left: 8px;
+  cursor: pointer;
+  color: #555;
+  font-size: 13px;
+  line-height: 1;
+
+  &:hover:not(:disabled) {
+    color: #000;
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.35;
+  }
 `;
 
 const CloseButton = styled.button`
@@ -166,18 +192,40 @@ const LayersControl = ({
                       marginBottom: "5px",
                     }}
                   >
-                    <label style={{ display: "flex", alignItems: "center" }}>
-                      <input
-                        type="checkbox"
-                        checked={layerVisibility[layerName]}
-                        onChange={(e) =>
-                          updateVisibility(layer, layerName, e.target.checked)
+                    <div style={{ display: "flex", alignItems: "center" }}>
+                      <label
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          flex: 1,
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={layerVisibility[layerName]}
+                          onChange={(e) =>
+                            updateVisibility(layer, layerName, e.target.checked)
+                          }
+                          style={{ marginRight: "8px" }}
+                          aria-label={layerName + " Set Visible"}
+                        />
+                        <span>{layerName}</span>
+                      </label>
+                      {/* Disabled, not hidden, for a layer that cannot say
+                          where it is (a server-rendered WMS or ArcGIS image),
+                          so every row keeps the same shape. */}
+                      <ZoomButton
+                        type="button"
+                        aria-label={layerName + " Zoom to Layer"}
+                        title="Zoom to layer"
+                        disabled={!canZoomToLayer(layer)}
+                        onClick={() =>
+                          zoomToLayer(visualizationRef.current, layer)
                         }
-                        style={{ marginRight: "8px" }}
-                        aria-label={layerName + " Set Visible"}
-                      />
-                      <span>{layerName}</span>
-                    </label>
+                      >
+                        <FaSearchPlus aria-hidden="true" />
+                      </ZoomButton>
+                    </div>
                     {/* Message only. The map's banner reports which layers
                         have failed and why; this repeats it against the layer
                         it belongs to, and there is no longer any action to

@@ -284,212 +284,6 @@ describe("ViewGroupProvider fan-out", () => {
   });
 });
 
-describe("ViewGroupProvider projection pin", () => {
-  // Stands in for a map whose view projection changes under it: a raster
-  // auto-fit adopts the raster's projection long after the map joined.
-  const ProjectionProbe = ({ groupName, memberId, code, applyView }) => {
-    const { registerMember, reportMemberProjection, publishView } =
-      useViewGroupContext();
-    const [pin, setPin] = useState("unreported");
-
-    const handlersRef = useRef({ applyView });
-    handlersRef.current = { applyView };
-
-    useEffect(
-      () =>
-        registerMember(groupName, memberId, {
-          applyView: (...args) => handlersRef.current.applyView?.(...args),
-        }),
-      [registerMember, groupName, memberId],
-    );
-
-    return (
-      <div>
-        <p data-testid={`pin-${memberId}`}>{String(pin)}</p>
-        <button
-          type="button"
-          data-testid={`report-${memberId}`}
-          onClick={() =>
-            setPin(reportMemberProjection(groupName, memberId, code))
-          }
-        >
-          report
-        </button>
-        <button
-          type="button"
-          data-testid={`publish-${memberId}`}
-          onClick={() => publishView(groupName, memberId, VIEW_A)}
-        >
-          publish
-        </button>
-      </div>
-    );
-  };
-  ProjectionProbe.propTypes = {
-    groupName: PropTypes.string,
-    memberId: PropTypes.string.isRequired,
-    code: PropTypes.string,
-    applyView: PropTypes.func,
-  };
-
-  const report = (memberId) => {
-    fireEvent.click(screen.getByTestId(`report-${memberId}`));
-    return screen.getByTestId(`pin-${memberId}`).textContent;
-  };
-
-  it("re-pins once no member still reports the pinned projection", () => {
-    const applyA = jest.fn();
-    const Harness = ({ codeA, codeB }) => (
-      <ViewGroupProvider>
-        <ProjectionProbe
-          groupName="Basin"
-          memberId="a"
-          code={codeA}
-          applyView={applyA}
-        />
-        <ProjectionProbe groupName="Basin" memberId="b" code={codeB} />
-      </ViewGroupProvider>
-    );
-    Harness.propTypes = {
-      codeA: PropTypes.string,
-      codeB: PropTypes.string,
-    };
-
-    const { rerender } = render(
-      <Harness codeA="EPSG:3857" codeB="EPSG:3857" />,
-    );
-
-    // The first member to report pins the group.
-    expect(report("a")).toBe("EPSG:3857");
-    expect(report("b")).toBe("EPSG:3857");
-
-    // Both members then auto-fit to a UTM raster, one frame apart.
-    rerender(<Harness codeA="EPSG:32615" codeB="EPSG:32615" />);
-
-    // While B still holds the pinned code, A is genuinely out of sync (R6).
-    expect(report("a")).toBe("EPSG:3857");
-
-    // Once nobody holds it, the pin is not allowed to outlive them: the group
-    // re-pins on what its members actually are, rather than stranding every
-    // one of them against a code that no longer exists on the dashboard.
-    expect(report("b")).toBe("EPSG:32615");
-    expect(report("a")).toBe("EPSG:32615");
-
-    // Both read their own code back, so both are in the group again.
-    fireEvent.click(screen.getByTestId("publish-b"));
-    expect(applyA).toHaveBeenCalledWith(VIEW_A, {
-      groupName: "Basin",
-      sourceId: "b",
-    });
-  });
-
-  it("keeps the pin while any member still reports it", () => {
-    const Harness = ({ codeA }) => (
-      <ViewGroupProvider>
-        <ProjectionProbe groupName="Basin" memberId="a" code={codeA} />
-        <ProjectionProbe groupName="Basin" memberId="b" code="EPSG:3857" />
-      </ViewGroupProvider>
-    );
-    Harness.propTypes = { codeA: PropTypes.string };
-
-    const { rerender } = render(<Harness codeA="EPSG:3857" />);
-    expect(report("a")).toBe("EPSG:3857");
-    expect(report("b")).toBe("EPSG:3857");
-
-    rerender(<Harness codeA="EPSG:4326" />);
-    expect(report("a")).toBe("EPSG:3857");
-    expect(report("b")).toBe("EPSG:3857");
-  });
-
-  // Reports on behalf of an id that never joined the group.
-  const GhostReporter = ({ groupName, memberId, code }) => {
-    const { reportMemberProjection } = useViewGroupContext();
-    const [pin, setPin] = useState("unreported");
-    return (
-      <div>
-        <p data-testid={`pin-${memberId}`}>{String(pin)}</p>
-        <button
-          type="button"
-          data-testid={`report-${memberId}`}
-          onClick={() =>
-            setPin(reportMemberProjection(groupName, memberId, code))
-          }
-        >
-          report
-        </button>
-      </div>
-    );
-  };
-  GhostReporter.propTypes = {
-    groupName: PropTypes.string,
-    memberId: PropTypes.string.isRequired,
-    code: PropTypes.string,
-  };
-
-  it("reads the pin back for an id that never joined without recording it", () => {
-    render(
-      <ViewGroupProvider>
-        <ProjectionProbe groupName="Basin" memberId="a" code="EPSG:3857" />
-        <GhostReporter groupName="Basin" memberId="ghost" code="EPSG:32615" />
-      </ViewGroupProvider>,
-    );
-
-    expect(report("a")).toBe("EPSG:3857");
-
-    // A report from an unregistered id reads the group's pin but leaves no
-    // projection behind, so it cannot re-pin the group or unseat the member
-    // that did join.
-    expect(report("ghost")).toBe("EPSG:3857");
-    expect(report("a")).toBe("EPSG:3857");
-  });
-
-  it("releases the pin when the member holding it reports no projection", () => {
-    const Harness = ({ codeA }) => (
-      <ViewGroupProvider>
-        <ProjectionProbe groupName="Basin" memberId="a" code={codeA} />
-        <ProjectionProbe groupName="Basin" memberId="b" code="EPSG:4326" />
-      </ViewGroupProvider>
-    );
-    Harness.propTypes = { codeA: PropTypes.string };
-
-    const { rerender } = render(<Harness codeA="EPSG:3857" />);
-    expect(report("a")).toBe("EPSG:3857");
-    // B is genuinely out of sync while A holds the pin (R6).
-    expect(report("b")).toBe("EPSG:3857");
-
-    // A's map loses its view projection entirely and reports none.
-    rerender(<Harness codeA={undefined} />);
-    expect(report("a")).toBe("null");
-
-    // The pin went with it, so B is no longer stranded against a code nobody
-    // on the dashboard holds.
-    expect(report("b")).toBe("EPSG:4326");
-  });
-
-  it("drops the pin when its member leaves and nobody else reports one", () => {
-    const Harness = ({ showA }) => (
-      <ViewGroupProvider>
-        {showA ? (
-          <ProjectionProbe groupName="Basin" memberId="a" code="EPSG:3857" />
-        ) : null}
-        <ProjectionProbe groupName="Basin" memberId="b" code="EPSG:32615" />
-      </ViewGroupProvider>
-    );
-    Harness.propTypes = { showA: PropTypes.bool };
-
-    const { rerender } = render(<Harness showA />);
-
-    // A pins the group; B has reported nothing at all yet.
-    expect(report("a")).toBe("EPSG:3857");
-
-    rerender(<Harness showA={false} />);
-
-    // The pin leaves with the member that set it rather than outliving it, so
-    // the projection B actually holds is accepted.
-    expect(report("b")).toBe("EPSG:32615");
-  });
-});
-
 describe("ViewGroupProvider group identity", () => {
   it("resolves trimmed names to one group and differing case to another", () => {
     const trimmed = jest.fn();
@@ -559,13 +353,8 @@ describe("ViewGroupProvider group identity", () => {
   // Calls the registry straight through for the guards that have no member to
   // observe, and prints whatever came back.
   const GuardProbe = ({ groupName }) => {
-    const {
-      publishView,
-      publishCursor,
-      reportMemberProjection,
-      seedGroupView,
-      getGroupView,
-    } = useViewGroupContext();
+    const { publishView, publishCursor, seedGroupView, getGroupView } =
+      useViewGroupContext();
     const [result, setResult] = useState("uncalled");
     const record = (value) => setResult(JSON.stringify(value ?? null));
     return (
@@ -584,15 +373,6 @@ describe("ViewGroupProvider group identity", () => {
           onClick={() => record(publishCursor(groupName, "ghost", [1, 2]))}
         >
           publish cursor
-        </button>
-        <button
-          type="button"
-          data-testid="guard-report"
-          onClick={() =>
-            record(reportMemberProjection(groupName, "ghost", "EPSG:3857"))
-          }
-        >
-          report
         </button>
         <button
           type="button"
@@ -631,7 +411,6 @@ describe("ViewGroupProvider group identity", () => {
     );
 
     fireEvent.click(screen.getByTestId("guard-publish-cursor"));
-    fireEvent.click(screen.getByTestId("guard-report"));
     expect(guardResult()).toBe("null");
     fireEvent.click(screen.getByTestId("guard-seed"));
     expect(guardResult()).toBe("null");
@@ -661,7 +440,6 @@ describe("ViewGroupProvider group identity", () => {
 
     fireEvent.click(screen.getByTestId("guard-publish-view"));
     fireEvent.click(screen.getByTestId("guard-publish-cursor"));
-    fireEvent.click(screen.getByTestId("guard-report"));
     expect(guardResult()).toBe("null");
 
     // Publishing into a group nobody is in neither reaches another group nor

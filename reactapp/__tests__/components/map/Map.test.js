@@ -28,8 +28,6 @@ import * as olMapboxStyle from "ol-mapbox-style";
 import WebGLTileLayer from "ol/layer/WebGLTile";
 import GeoTIFFSource from "ol/source/GeoTIFF.js";
 import OLMap from "ol/Map.js";
-import * as olProj from "ol/proj";
-import { get as olGetProj } from "ol/proj";
 
 global.ResizeObserver = require("resize-observer-polyfill"); // Mock GeoTIFF source so auto-fit tests don't trigger real network fetches.
 
@@ -378,97 +376,6 @@ test("Custom map extent wraps an out-of-range lon for EPSG:3857 projections", as
       }),
     ),
   );
-});
-
-test("Custom map extent converts a stored 3857 centre into the view projection", async () => {
-  // A saved extent is stored in EPSG:3857 whatever the view is in, so a view
-  // that opened in a raster's projection has to convert it rather than read
-  // the numbers as its own units. `projection` state initialises to 3857, so
-  // the only way to reach the conversion is to spy on the View's
-  // getProjection during the mapExtent effect.
-  const mockProj = olGetProj("EPSG:4326");
-  const getProjectionSpy = jest
-    .spyOn(View.prototype, "getProjection")
-    .mockReturnValue(mockProj);
-
-  // Barbados, the case this exists for: stored Mercator metres, read into a
-  // 4326 view.
-  const inputLon = -6627472.68;
-  const lat = 1481447.68;
-  const zoom = 4;
-
-  render(
-    <VariableInputsContext.Provider
-      value={{ setVariableInputValues: jest.fn() }}
-    >
-      <MapContextProvider>
-        <TestingComponent
-          mapProps={{
-            mapConfig: { style: { width: "50%" } },
-            mapExtent: { extent: `${inputLon}, ${lat}, ${zoom}` },
-          }}
-        />
-      </MapContextProvider>
-    </VariableInputsContext.Provider>,
-  );
-
-  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
-
-  // `view` is filled by an effect that runs after `mapReady` flips, so the
-  // "Map Ready" marker can be on screen a render before the view JSON is.
-  // Every sibling assertion in this file waits; this one parses instead of
-  // matching a fixed string, which is how it ended up reading the empty
-  // initial state under full-suite load.
-  await waitFor(() =>
-    expect(screen.getByTestId("map-view")).toHaveTextContent(/"zoom"/),
-  );
-  const parsed = JSON.parse(screen.getByTestId("map-view").textContent);
-  // Converted into the view's degrees rather than read as degrees.
-  expect(parsed.center[0]).toBeCloseTo(-59.5356, 3);
-  expect(parsed.center[1]).toBeCloseTo(13.19, 3);
-
-  getProjectionSpy.mockRestore();
-});
-
-test("Custom bounding box extent converts from stored 3857 into the view projection", async () => {
-  // The four-part form of a saved extent is a bbox, stored in Mercator like
-  // the three-part form, so a view in a raster's projection transforms it as
-  // an extent rather than fitting Mercator metres as degrees.
-  const mockProj = olGetProj("EPSG:4326");
-  const getProjectionSpy = jest
-    .spyOn(View.prototype, "getProjection")
-    .mockReturnValue(mockProj);
-  const fitSpy = jest.spyOn(View.prototype, "fit");
-
-  render(
-    <VariableInputsContext.Provider
-      value={{ setVariableInputValues: jest.fn() }}
-    >
-      <MapContextProvider>
-        <TestingComponent
-          mapProps={{
-            mapConfig: { style: { width: "50%" } },
-            mapExtent: {
-              extent: "-6700000,1400000,-6500000,1550000",
-            },
-          }}
-        />
-      </MapContextProvider>
-    </VariableInputsContext.Provider>,
-  );
-
-  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
-  await waitFor(() => expect(fitSpy).toHaveBeenCalled());
-
-  const fitted = fitSpy.mock.calls[fitSpy.mock.calls.length - 1][0];
-  // Degrees around Barbados, not the stored metres.
-  expect(fitted[0]).toBeCloseTo(-60.185, 2);
-  expect(fitted[2]).toBeCloseTo(-58.388, 2);
-  expect(Math.abs(fitted[1])).toBeLessThan(90);
-  expect(Math.abs(fitted[3])).toBeLessThan(90);
-
-  fitSpy.mockRestore();
-  getProjectionSpy.mockRestore();
 });
 
 test("Custom bounding old map extent string", async () => {
@@ -1797,205 +1704,6 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
     });
   });
 
-  test("auto-fit does not adopt a registered-but-not-native projection as the view projection", async () => {
-    // EPSG:5041 resolves because the projection table registers it, which is
-    // what makes such a raster render at all. It must not also become the view
-    // projection: adoption calls setView and publishes the adopted code into the
-    // map-extent variable other visualizations read. Widening that is a separate
-    // change, so the view has to stay put while the layer still renders.
-    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
-    GeoTIFFSource.viewOptions = {
-      projection: "EPSG:5041",
-      extent: [-1405881, -1405881, 5405881, 5405881],
-      center: [2000000, 2000000],
-      zoom: 2,
-    };
-
-    let capturedRef;
-    const RefCapture = ({ mapProps }) => {
-      const ref = useRef();
-      capturedRef = ref;
-      return (
-        <div>
-          <MapComponent visualizationRef={ref} {...mapProps} />
-          <p>{useMapContext()?.mapReady ? "Map Ready" : "Map Not Ready"}</p>
-        </div>
-      );
-    };
-    RefCapture.propTypes = { mapProps: PropTypes.object };
-
-    const layers = [
-      {
-        type: "WebGLTile",
-        props: {
-          source: {
-            type: "GeoTIFF",
-            props: { url: "https://example.com/polar.tif" },
-          },
-          name: "Polar GeoTIFF Layer",
-          zIndex: 0,
-        },
-      },
-    ];
-
-    try {
-      render(
-        <VariableInputsContext.Provider
-          value={{ setVariableInputValues: jest.fn() }}
-        >
-          <MapContextProvider>
-            <RefCapture mapProps={{ layers }} />
-          </MapContextProvider>
-        </VariableInputsContext.Provider>,
-      );
-
-      expect(await screen.findByText("Map Ready")).toBeInTheDocument();
-      await waitFor(() => {
-        expect(GeoTIFFSource.getViewSpy).toHaveBeenCalled();
-      });
-
-      // The layer is still added -- rendering by reprojection is the point.
-      await waitFor(() => {
-        const names = capturedRef.current
-          .getLayers()
-          .getArray()
-          .map((l) => l.get("name"));
-        expect(names).toContain("Polar GeoTIFF Layer");
-      });
-
-      // ...but the view did not move off the default.
-      expect(capturedRef.current.getView().getProjection().getCode()).toBe(
-        "EPSG:3857",
-      );
-      await waitFor(() => {
-        expect(warn).toHaveBeenCalledWith(
-          expect.stringContaining('Not adopting "EPSG:5041"'),
-        );
-      });
-    } finally {
-      GeoTIFFSource.viewOptions = null;
-      warn.mockRestore();
-    }
-  });
-
-  test("GeoTIFF layer triggers auto-fit: map view's projection switches to the TIF's", async () => {
-    // The auto-fit's contract is: when a GeoTIFF layer is added, the map's
-    // view projection switches to the TIF's so tiles can render. The mock
-    // returns EPSG:4326 — different from the default EPSG:3857 — so we can
-    // observe the projection change directly. Asserting on the resulting
-    // view (rather than spying on setView) avoids fragile prototype-spy
-    // wiring and tests the actual behavior.
-    let capturedRef;
-    const RefCapture = ({ mapProps }) => {
-      const ref = useRef();
-      capturedRef = ref;
-      return (
-        <div>
-          <MapComponent visualizationRef={ref} {...mapProps} />
-          <p>{useMapContext()?.mapReady ? "Map Ready" : "Map Not Ready"}</p>
-        </div>
-      );
-    };
-    RefCapture.propTypes = {
-      mapProps: PropTypes.object,
-    };
-
-    const layers = [
-      {
-        type: "WebGLTile",
-        props: {
-          source: {
-            type: "GeoTIFF",
-            props: {
-              url: "https://example.com/test.tif",
-            },
-          },
-          name: "Auto-fit GeoTIFF Layer",
-          zIndex: 0,
-        },
-      },
-      // A vector layer alongside it: its features are parsed into the map's
-      // projection when added, so the auto-fit has to move them with the view
-      // or they are left holding the outgoing projection's numbers.
-      {
-        type: "VectorLayer",
-        props: {
-          name: "Vector Alongside",
-          zIndex: 1,
-          source: {
-            type: "GeoJSON",
-            props: {},
-            geojson: {
-              type: "FeatureCollection",
-              crs: { type: "name", properties: { name: "EPSG:4326" } },
-              features: [
-                {
-                  type: "Feature",
-                  properties: {},
-                  geometry: { type: "Point", coordinates: [-90.54, 14.48] },
-                },
-              ],
-            },
-          },
-        },
-      },
-    ];
-
-    render(
-      <VariableInputsContext.Provider
-        value={{ setVariableInputValues: jest.fn() }}
-      >
-        <MapContextProvider>
-          <RefCapture mapProps={{ layers }} />
-        </MapContextProvider>
-      </VariableInputsContext.Provider>,
-    );
-
-    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
-
-    // The mock GeoTIFF's getView() must have been called.
-    await waitFor(() => {
-      expect(GeoTIFFSource.getViewSpy).toHaveBeenCalled();
-    });
-
-    // The map's view projection must have switched from default EPSG:3857
-    // to the TIF's EPSG:4326. This proves auto-fit ran end-to-end.
-    await waitFor(() => {
-      const projCode = capturedRef.current
-        ?.getView()
-        ?.getProjection()
-        ?.getCode();
-      expect(projCode).toBe("EPSG:4326");
-    });
-
-    // And the vector features moved with it. Parsed into EPSG:3857 when the
-    // layer was added, they would otherwise still hold metres (~-1e7) while the
-    // view now reads degrees -- far off screen, which is what stranded the
-    // dynamic layers on a dashboard whose rasters are UTM.
-    const findVector = () =>
-      capturedRef.current
-        .getLayers()
-        .getArray()
-        .find((l) => l.get("name") === "Vector Alongside");
-    await waitFor(() => {
-      expect(findVector()).toBeDefined();
-    });
-    await waitFor(() => {
-      const [x] = findVector()
-        .getSource()
-        .getFeatures()[0]
-        .getGeometry()
-        .getCoordinates();
-      expect(Math.abs(x - -90.54)).toBeLessThan(0.01);
-    });
-    const [, y] = findVector()
-      .getSource()
-      .getFeatures()[0]
-      .getGeometry()
-      .getCoordinates();
-    expect(Math.abs(y - 14.48)).toBeLessThan(0.01);
-  });
-
   test("WebGLTile layer without a style does not apply a ramp expression or call applyStyle", async () => {
     const applyStyleSpy = jest.spyOn(olMapboxStyle, "applyStyle");
     const setStyleSpy = jest.spyOn(WebGLTileLayer.prototype, "setStyle");
@@ -2579,127 +2287,18 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
     expect(warnSpy).toHaveBeenCalledTimes(1);
   });
 
-  test("Auto-fit with valid map size fits new view to transformed previous extent (overlap branch)", async () => {
-    // The default View (EPSG:3857, center near continental US) projected to
-    // EPSG:4326 lands inside the mock TIF's extent [-180,-90,180,90], so the
-    // overlap branch wins and targetExtent === transformed.
-    jest.spyOn(Map.prototype, "getSize").mockReturnValue([256, 256]);
-    // With a real size, OL's renderSync invokes the WebGL renderer, which
-    // has no GL context in jsdom. Stub it — the auto-fit code doesn't
-    // depend on actual rendering happening.
-    jest.spyOn(Map.prototype, "renderSync").mockImplementation(() => {});
-    const fitSpy = jest.spyOn(View.prototype, "fit");
-    const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
-
-    const layers = [
-      {
-        type: "WebGLTile",
-        props: {
-          source: {
-            type: "GeoTIFF",
-            props: { url: "https://example.com/test.tif" },
-          },
-          name: "Auto-fit Sized",
-          zIndex: 0,
-        },
-      },
-    ];
-
-    render(
-      <VariableInputsContext.Provider
-        value={{ setVariableInputValues: jest.fn() }}
-      >
-        <MapContextProvider>
-          <TestingComponent mapProps={{ layers }} />
-        </MapContextProvider>
-      </VariableInputsContext.Provider>,
-    );
-
-    await waitFor(() => {
-      expect(addLayerSpy.mock.calls.length).toBe(1);
-    });
-    await waitFor(() => {
-      expect(fitSpy).toHaveBeenCalled();
-    });
-
-    // Last fit call is the auto-fit one (no mapExtent prop set, so no other
-    // fit path can fire). Assert it received a finite 4-elem extent and the
-    // mocked map size.
-    const [extent, options] = fitSpy.mock.calls[fitSpy.mock.calls.length - 1];
-    expect(Array.isArray(extent)).toBe(true);
-    expect(extent).toHaveLength(4);
-    expect(extent.every(Number.isFinite)).toBe(true);
-    // Overlap branch: transformed extent is in EPSG:4326 lon/lat (the new
-    // view's projection), so values are well inside [-180, 180] x [-90, 90]
-    // — distinguishing this from the no-haveMapSize path where fit isn't
-    // called at all, AND from the fallback branch where extent equals the
-    // mock's full TIF extent [-180,-90,180,90].
-    expect(extent[0]).toBeGreaterThan(-180);
-    expect(extent[2]).toBeLessThan(180);
-    expect(extent[0]).not.toBe(-180);
-    expect(extent[2]).not.toBe(180);
-    expect(options).toEqual({ size: [256, 256] });
-  });
-
-  test("a second raster in the projection already adopted leaves the view alone", async () => {
-    // This is the jitter. Every raster runs the auto-fit as it mounts, so a
-    // dashboard built on several rasters in one projection ran it once per
-    // raster -- and `setView` replaces the view outright, so each call made
-    // every layer re-render and the basemap refetch its tiles. Once the layers
-    // stopped arriving in a single burst, that showed up as the map jumping
-    // once per raster.
+  test("no raster moves the view, whatever its projection or extent", async () => {
+    // The map keeps its own Web Mercator view at the extent the author saved.
+    // Rasters in another CRS are reprojected into it, and one somewhere else
+    // entirely does not drag the view to it -- zoom to layer is how a user
+    // goes there.
     jest.spyOn(Map.prototype, "getSize").mockReturnValue([256, 256]);
     jest.spyOn(Map.prototype, "renderSync").mockImplementation(() => {});
     const setViewSpy = jest.spyOn(Map.prototype, "setView");
     const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
 
-    // Both rasters report EPSG:4326 over the whole world, so the first adopts
-    // it and the second finds the view already in it and already overlapping.
-    const raster = (name) => ({
-      type: "WebGLTile",
-      props: {
-        source: {
-          type: "GeoTIFF",
-          props: { url: `https://example.com/${name}.tif` },
-        },
-        name,
-        zIndex: 0,
-      },
-    });
-
-    render(
-      <VariableInputsContext.Provider
-        value={{ setVariableInputValues: jest.fn() }}
-      >
-        <MapContextProvider>
-          <TestingComponent
-            mapProps={{ layers: [raster("first"), raster("second")] }}
-          />
-        </MapContextProvider>
-      </VariableInputsContext.Provider>,
-    );
-
-    await waitFor(() => expect(addLayerSpy.mock.calls.length).toBe(2));
-    await waitFor(() => expect(setViewSpy).toHaveBeenCalled());
-
-    // Both rasters are on the map, and the view moved exactly once.
-    expect(setViewSpy).toHaveBeenCalledTimes(1);
-  });
-
-  test("a non-owning raster never moves the view, wherever it is", async () => {
-    // Five rasters in two projections each asserting their own CRS on one view
-    // is not resolvable by "skip if already adopted" -- each adoption undoes
-    // the last. One raster owns the view; the rest render by reprojection,
-    // which OpenLayers does for a DataTile source whose projection differs
-    // from the view's.
-    jest.spyOn(Map.prototype, "getSize").mockReturnValue([256, 256]);
-    jest.spyOn(Map.prototype, "renderSync").mockImplementation(() => {});
-    const setViewSpy = jest.spyOn(Map.prototype, "setView");
-    const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
-
-    // The owner covers the world in EPSG:4326; the second sits in the Pacific
-    // in a different projection, so under the old policy it would have both
-    // re-fitted and re-projected the view.
+    // One covers the world in EPSG:4326, the other sits in the Pacific in a
+    // UTM zone; neither overlaps the saved view over the United States.
     jest
       .spyOn(GeoTIFFSource.prototype, "getView")
       .mockImplementation(function () {
@@ -2755,6 +2354,7 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
                 raster("World", "world", 0),
                 raster("Pacific", "pacific", 1),
               ],
+              mapExtent: { extent: "-10964969.84,4793547.46,4" },
             }}
           />
         </MapContextProvider>
@@ -2762,216 +2362,17 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
     );
 
     await waitFor(() => expect(addLayerSpy.mock.calls.length).toBe(2));
-    await waitFor(() => expect(setViewSpy).toHaveBeenCalled());
+    // Let anything the rasters' headers could set off run first.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
 
-    // Both layers render; the view moved once, into the owner's projection.
+    // The only view is the one the saved extent built.
     expect(setViewSpy).toHaveBeenCalledTimes(1);
-    expect(capturedRef.current.getView().getProjection().getCode()).toBe(
-      "EPSG:4326",
-    );
-  });
-
-  test("rebuilding the owning raster does not move the view again", async () => {
-    // The owner is the only layer that reaches the adoption at all now, so this
-    // is the remaining path to it a second time: the owner itself is torn down
-    // and rebuilt (a variable-input URL change, an opacity edit) after it has
-    // already adopted. The view is already in its projection and already shows
-    // it, so there is nothing to adopt and `setView` would only re-render every
-    // layer and refetch the basemap.
-    jest.spyOn(Map.prototype, "getSize").mockReturnValue([256, 256]);
-    jest.spyOn(Map.prototype, "renderSync").mockImplementation(() => {});
-    // The animation-frame render would reach the WebGL renderer, which has no
-    // GL context in jsdom.
-    jest.spyOn(Map.prototype, "renderFrame_").mockImplementation(() => {});
-    const setViewSpy = jest.spyOn(Map.prototype, "setView");
-    const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
-
-    const owner = (opacity) => [
-      {
-        type: "WebGLTile",
-        props: {
-          source: {
-            type: "GeoTIFF",
-            props: { url: "https://example.com/owner.tif" },
-          },
-          name: "Owner",
-          opacity,
-          zIndex: 0,
-        },
-      },
-    ];
-
-    let setLayers;
-    const Restyleable = () => {
-      const ref = useRef();
-      const [layers, setLayersState] = useState(owner(1));
-      setLayers = setLayersState;
-      return (
-        <div>
-          <MapComponent visualizationRef={ref} layers={layers} />
-          <p>{useMapContext()?.mapReady ? "Map Ready" : "Map Not Ready"}</p>
-        </div>
-      );
-    };
-
-    render(
-      <VariableInputsContext.Provider
-        value={{ setVariableInputValues: jest.fn() }}
-      >
-        <MapContextProvider>
-          <Restyleable />
-        </MapContextProvider>
-      </VariableInputsContext.Provider>,
-    );
-
-    await waitFor(() => expect(addLayerSpy.mock.calls.length).toBe(1));
-    await waitFor(() => expect(setViewSpy).toHaveBeenCalledTimes(1));
-
-    // An opacity edit fails the props comparison, so the layer is rebuilt.
-    await act(async () => setLayers(owner(0.5)));
-    await waitFor(() => expect(addLayerSpy.mock.calls.length).toBe(2));
-
-    expect(setViewSpy).toHaveBeenCalledTimes(1);
-  });
-
-  test("the first raster in the array owns the view even when it lands last", async () => {
-    // The owner is chosen from the author's array rather than from whichever
-    // file the network served first, so the projection the map settles in is
-    // the same on a fast connection and a slow one.
-    // Deliberately unsized: the ownership decision does not depend on the map
-    // having a size, and with one the delay below lets a real animation frame
-    // reach the WebGL renderer, which has no GL context in jsdom.
-    const setViewSpy = jest.spyOn(Map.prototype, "setView");
-    const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
-
-    jest
-      .spyOn(GeoTIFFSource.prototype, "getView")
-      .mockImplementation(function () {
-        const url = this.options?.sources?.[0]?.url ?? "";
-        if (url.includes("slow")) {
-          // The owner, and the last to answer.
-          return new Promise((resolve) =>
-            setTimeout(
-              () =>
-                resolve({
-                  projection: "EPSG:4326",
-                  extent: [-180, -90, 180, 90],
-                  center: [0, 0],
-                  zoom: 2,
-                }),
-              120,
-            ),
-          );
-        }
-        return Promise.resolve({
-          projection: "EPSG:32615",
-          extent: [170, -10, 175, -5],
-          center: [172.5, -7.5],
-          zoom: 8,
-        });
-      });
-
-    const raster = (name, file, zIndex) => ({
-      type: "WebGLTile",
-      props: {
-        source: {
-          type: "GeoTIFF",
-          props: { url: `https://example.com/${file}.tif` },
-        },
-        name,
-        zIndex,
-      },
-    });
-
-    let capturedRef;
-    const RefCapture = ({ mapProps }) => {
-      const ref = useRef();
-      capturedRef = ref;
-      return (
-        <div>
-          <MapComponent visualizationRef={ref} {...mapProps} />
-          <p>{useMapContext()?.mapReady ? "Map Ready" : "Map Not Ready"}</p>
-        </div>
-      );
-    };
-    RefCapture.propTypes = { mapProps: PropTypes.object };
-
-    render(
-      <VariableInputsContext.Provider
-        value={{ setVariableInputValues: jest.fn() }}
-      >
-        <MapContextProvider>
-          <RefCapture
-            mapProps={{
-              layers: [
-                raster("Slow owner", "slow", 0),
-                raster("Quick", "quick", 1),
-              ],
-            }}
-          />
-        </MapContextProvider>
-      </VariableInputsContext.Provider>,
-    );
-
-    await waitFor(() => expect(addLayerSpy.mock.calls.length).toBe(2));
-    await waitFor(() =>
-      expect(capturedRef.current.getView().getProjection().getCode()).toBe(
-        "EPSG:4326",
-      ),
-    );
-    // The quick one answered first and still did not touch the view.
-    expect(setViewSpy).toHaveBeenCalledTimes(1);
-  });
-
-  test("Auto-fit falls back to TIF extent when previous view does not overlap", async () => {
-    // Override getView to return a tiny TIF extent in the Pacific. The
-    // default view (continental US) does not overlap, so intersects() is
-    // false and targetExtent falls through to the TIF's own extent.
-    const tinyTifExtent = [170, -10, 175, -5];
-    jest.spyOn(GeoTIFFSource.prototype, "getView").mockResolvedValue({
-      projection: "EPSG:4326",
-      extent: tinyTifExtent,
-      center: [172.5, -7.5],
-      zoom: 8,
-    });
-    jest.spyOn(Map.prototype, "getSize").mockReturnValue([256, 256]);
-    jest.spyOn(Map.prototype, "renderSync").mockImplementation(() => {});
-    const fitSpy = jest.spyOn(View.prototype, "fit");
-    const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
-
-    const layers = [
-      {
-        type: "WebGLTile",
-        props: {
-          source: {
-            type: "GeoTIFF",
-            props: { url: "https://example.com/test.tif" },
-          },
-          name: "Pacific GeoTIFF",
-          zIndex: 0,
-        },
-      },
-    ];
-
-    render(
-      <VariableInputsContext.Provider
-        value={{ setVariableInputValues: jest.fn() }}
-      >
-        <MapContextProvider>
-          <TestingComponent mapProps={{ layers }} />
-        </MapContextProvider>
-      </VariableInputsContext.Provider>,
-    );
-
-    await waitFor(() => {
-      expect(addLayerSpy.mock.calls.length).toBe(1);
-    });
-    await waitFor(() => {
-      expect(fitSpy).toHaveBeenCalled();
-    });
-
-    const [extent] = fitSpy.mock.calls[fitSpy.mock.calls.length - 1];
-    expect(extent).toEqual(tinyTifExtent);
+    const view = capturedRef.current.getView();
+    expect(view.getProjection().getCode()).toBe("EPSG:3857");
+    expect(view.getCenter()).toEqual([-10964969.84, 4793547.46]);
+    expect(view.getZoom()).toBe(4);
   });
 
   test("GeoTIFF 'error' event with only top-level message uses fetch path; warn logs evt itself", async () => {
@@ -3080,172 +2481,6 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
     );
   });
 
-  test("Auto-fit defaults center=[0,0] and zoom=0 when getView omits them, falls back to transformed when tifExtent missing", async () => {
-    // Single test that hits three branches: viewOptions.center default,
-    // viewOptions.zoom default, and the `: transformed` fallback inside
-    // the overlap ternary (because tifExtent is undefined → overlaps=false
-    // → tifExtent invalid → fall to transformed).
-    jest.spyOn(GeoTIFFSource.prototype, "getView").mockResolvedValue({
-      projection: "EPSG:4326",
-      // No center, no zoom, no extent — exercises all three defaults.
-    });
-    jest.spyOn(Map.prototype, "getSize").mockReturnValue([256, 256]);
-    jest.spyOn(Map.prototype, "renderSync").mockImplementation(() => {});
-    const fitSpy = jest.spyOn(View.prototype, "fit");
-    const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
-
-    const layers = [
-      {
-        type: "WebGLTile",
-        props: {
-          source: {
-            type: "GeoTIFF",
-            props: { url: "https://example.com/test.tif" },
-          },
-          name: "Bare-projection GeoTIFF",
-          zIndex: 0,
-        },
-      },
-    ];
-
-    render(
-      <VariableInputsContext.Provider
-        value={{ setVariableInputValues: jest.fn() }}
-      >
-        <MapContextProvider>
-          <TestingComponent mapProps={{ layers }} />
-        </MapContextProvider>
-      </VariableInputsContext.Provider>,
-    );
-
-    await waitFor(() => {
-      expect(addLayerSpy.mock.calls.length).toBe(1);
-    });
-    await waitFor(() => {
-      expect(fitSpy).toHaveBeenCalled();
-    });
-
-    // The fit extent is the transformed prev extent, not [-180,-90,180,90]
-    // (the mock TIF's full extent is missing in this test).
-    const [extent] = fitSpy.mock.calls[fitSpy.mock.calls.length - 1];
-    expect(extent.every(Number.isFinite)).toBe(true);
-    expect(extent).not.toEqual([-180, -90, 180, 90]);
-  });
-
-  test("Auto-fit takes the unclamped-prev branch when the source projection's getExtent returns a non-array", async () => {
-    // Render without layers first so the initial Map and View are
-    // constructed normally. Only after mount do we make EPSG:3857's
-    // getExtent return a non-array — that way the auto-fit's
-    // `prevProjection.getExtent?.()` yields a non-array sourceValid and
-    // takes the `: prevExtent` branch of the clampedPrev ternary, while
-    // OL's own internal usage at mount stays untouched.
-    jest.spyOn(Map.prototype, "getSize").mockReturnValue([256, 256]);
-    jest.spyOn(Map.prototype, "renderSync").mockImplementation(() => {});
-    // The async renderFrame_ would normally fire after addLayer and try
-    // to use WebGL (no GL context in jsdom). Stub it too.
-    jest.spyOn(Map.prototype, "renderFrame_").mockImplementation(() => {});
-    const fitSpy = jest.spyOn(View.prototype, "fit");
-    const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
-
-    const layer = {
-      type: "WebGLTile",
-      props: {
-        source: {
-          type: "GeoTIFF",
-          props: { url: "https://example.com/test.tif" },
-        },
-        name: "Non-array-getExtent GeoTIFF",
-        zIndex: 0,
-      },
-    };
-
-    const { rerender } = render(
-      <VariableInputsContext.Provider
-        value={{ setVariableInputValues: jest.fn() }}
-      >
-        <MapContextProvider>
-          <TestingComponent mapProps={{}} />
-        </MapContextProvider>
-      </VariableInputsContext.Provider>,
-    );
-
-    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
-
-    // Now break getExtent and add the GeoTIFF layer. The spy stays a
-    // function (so any further OL internals that grab it don't throw on
-    // typeof checks); it simply returns a non-array.
-    const proj = olProj.get("EPSG:3857");
-    jest.spyOn(proj, "getExtent").mockReturnValue(undefined);
-
-    rerender(
-      <VariableInputsContext.Provider
-        value={{ setVariableInputValues: jest.fn() }}
-      >
-        <MapContextProvider>
-          <TestingComponent mapProps={{ layers: [layer] }} />
-        </MapContextProvider>
-      </VariableInputsContext.Provider>,
-    );
-
-    await waitFor(() => {
-      expect(addLayerSpy).toHaveBeenCalled();
-    });
-    await waitFor(() => {
-      expect(fitSpy).toHaveBeenCalled();
-    });
-  });
-
-  test("Auto-fit handles non-finite transformExtent result (skips inner block, falls back to TIF extent)", async () => {
-    // Force transformExtent to return non-finite values so
-    // `transformed.every(Number.isFinite)` is false, exercising that
-    // guard's else branch. Auto-fit then falls through to the second
-    // `if (!targetExtent && Array.isArray(tifExtent) && ...)` block and
-    // uses the mock's full extent.
-    jest
-      .spyOn(olProj, "transformExtent")
-      .mockReturnValueOnce([NaN, NaN, NaN, NaN]);
-    jest.spyOn(Map.prototype, "getSize").mockReturnValue([256, 256]);
-    jest.spyOn(Map.prototype, "renderSync").mockImplementation(() => {});
-    const fitSpy = jest.spyOn(View.prototype, "fit");
-    const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
-
-    const layers = [
-      {
-        type: "WebGLTile",
-        props: {
-          source: {
-            type: "GeoTIFF",
-            props: { url: "https://example.com/test.tif" },
-          },
-          name: "NaN-Transform GeoTIFF",
-          zIndex: 0,
-        },
-      },
-    ];
-
-    render(
-      <VariableInputsContext.Provider
-        value={{ setVariableInputValues: jest.fn() }}
-      >
-        <MapContextProvider>
-          <TestingComponent mapProps={{ layers }} />
-        </MapContextProvider>
-      </VariableInputsContext.Provider>,
-    );
-
-    await waitFor(() => {
-      expect(addLayerSpy.mock.calls.length).toBe(1);
-    });
-    await waitFor(() => {
-      expect(fitSpy).toHaveBeenCalled();
-    });
-
-    // Fell through to the TIF's full extent.
-    expect(fitSpy.mock.calls[fitSpy.mock.calls.length - 1][0]).toEqual([
-      -180, -90, 180, 90,
-    ]);
-  });
-
   test("dataviewerViz: InfoDiv is rendered and pointermove updates the displayed coordinates", async () => {
     // Two coverage targets: the JSX `<InfoDiv>` branch (only evaluated
     // when dataviewerViz is truthy) and the pointermove callback that
@@ -3352,101 +2587,6 @@ describe("WebGLTile ramp-style render path (Unit 7)", () => {
     expect(
       screen.queryByTestId("floating-map-control"),
     ).not.toBeInTheDocument();
-  });
-
-  test("Auto-fit skips inner extent block when clampedPrev is non-finite", async () => {
-    // Force prevView.calculateExtent to return non-finite values so
-    // `clampedPrev.every(Number.isFinite)` is false and the if condition
-    // at the top of the haveMapSize block goes false. targetExtent stays
-    // null inside the inner block, then the fallback `if (!targetExtent
-    // && Array.isArray(tifExtent) ...)` uses the mock TIF's extent.
-    jest
-      .spyOn(View.prototype, "calculateExtent")
-      .mockReturnValue([NaN, NaN, NaN, NaN]);
-    jest.spyOn(Map.prototype, "getSize").mockReturnValue([256, 256]);
-    jest.spyOn(Map.prototype, "renderSync").mockImplementation(() => {});
-    jest.spyOn(Map.prototype, "renderFrame_").mockImplementation(() => {});
-    const fitSpy = jest.spyOn(View.prototype, "fit");
-    const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
-
-    const layers = [
-      {
-        type: "WebGLTile",
-        props: {
-          source: {
-            type: "GeoTIFF",
-            props: { url: "https://example.com/test.tif" },
-          },
-          name: "Non-finite Prev GeoTIFF",
-          zIndex: 0,
-        },
-      },
-    ];
-
-    render(
-      <VariableInputsContext.Provider
-        value={{ setVariableInputValues: jest.fn() }}
-      >
-        <MapContextProvider>
-          <TestingComponent mapProps={{ layers }} />
-        </MapContextProvider>
-      </VariableInputsContext.Provider>,
-    );
-
-    await waitFor(() => {
-      expect(addLayerSpy.mock.calls.length).toBe(1);
-    });
-    await waitFor(() => {
-      expect(fitSpy).toHaveBeenCalled();
-    });
-
-    // Inner block was skipped (transformed never computed); fallback
-    // to TIF's full extent kicked in.
-    expect(fitSpy.mock.calls[fitSpy.mock.calls.length - 1][0]).toEqual([
-      -180, -90, 180, 90,
-    ]);
-  });
-
-  test("Auto-fit catch logs warning when getView rejects", async () => {
-    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
-    jest
-      .spyOn(GeoTIFFSource.prototype, "getView")
-      .mockRejectedValue(new Error("kaboom"));
-    const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
-
-    const layers = [
-      {
-        type: "WebGLTile",
-        props: {
-          source: {
-            type: "GeoTIFF",
-            props: { url: "https://example.com/test.tif" },
-          },
-          name: "Bomber",
-          zIndex: 0,
-        },
-      },
-    ];
-
-    render(
-      <VariableInputsContext.Provider
-        value={{ setVariableInputValues: jest.fn() }}
-      >
-        <MapContextProvider>
-          <TestingComponent mapProps={{ layers }} />
-        </MapContextProvider>
-      </VariableInputsContext.Provider>,
-    );
-
-    await waitFor(() => {
-      expect(addLayerSpy.mock.calls.length).toBe(1);
-    });
-    await waitFor(() => {
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('GeoTIFF auto-fit failed for layer "Bomber"'),
-        expect.any(Error),
-      );
-    });
   });
 });
 
@@ -3812,124 +2952,6 @@ describe("onMapMoveEnd registration and mount-time prime", () => {
     // The first run that actually carries layers primes exactly once.
     rerenderLayers([layerConfigGeoJSON.configuration]);
     await waitFor(() => expect(onMapMoveEnd).toHaveBeenCalledTimes(1));
-  });
-});
-
-test("a map-extent view replacement moves vector features with the view", async () => {
-  // The reprojection sweep had one call site, on the raster auto-fit path. This
-  // path replaces the view too: the auto-fit adopts a projection without
-  // updating the state this view is rebuilt from, so a later extent change
-  // reverts the projection underneath features that were already moved once --
-  // leaving them holding the outgoing projection's numbers, drawn far off screen
-  // while still reporting the right feature count.
-  let capturedRef;
-  const RefCapture = ({ mapProps }) => {
-    const ref = useRef();
-    capturedRef = ref;
-    return (
-      <div>
-        <MapComponent visualizationRef={ref} {...mapProps} />
-        <p>{useMapContext()?.mapReady ? "Map Ready" : "Map Not Ready"}</p>
-      </div>
-    );
-  };
-  RefCapture.propTypes = { mapProps: PropTypes.object };
-
-  const layers = [
-    {
-      type: "WebGLTile",
-      props: {
-        source: {
-          type: "GeoTIFF",
-          props: { url: "https://example.com/t.tif" },
-        },
-        name: "Auto-fit Raster",
-        zIndex: 0,
-      },
-    },
-    {
-      type: "VectorLayer",
-      props: {
-        name: "Vector Alongside",
-        zIndex: 1,
-        source: {
-          type: "GeoJSON",
-          props: {},
-          geojson: {
-            type: "FeatureCollection",
-            crs: { type: "name", properties: { name: "EPSG:4326" } },
-            features: [
-              {
-                type: "Feature",
-                properties: {},
-                geometry: { type: "Point", coordinates: [-90.54, 14.48] },
-              },
-            ],
-          },
-        },
-      },
-    },
-  ];
-
-  const { rerender } = render(
-    <VariableInputsContext.Provider
-      value={{ setVariableInputValues: jest.fn() }}
-    >
-      <MapContextProvider>
-        <RefCapture mapProps={{ layers }} />
-      </MapContextProvider>
-    </VariableInputsContext.Provider>,
-  );
-
-  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
-
-  const findVector = () =>
-    capturedRef.current
-      ?.getLayers()
-      .getArray()
-      .find((l) => l.get("name") === "Vector Alongside");
-
-  // The auto-fit adopts the raster's EPSG:4326, so the features now hold degrees.
-  await waitFor(() => {
-    expect(capturedRef.current.getView().getProjection().getCode()).toBe(
-      "EPSG:4326",
-    );
-  });
-  await waitFor(() => {
-    const [x] = findVector()
-      .getSource()
-      .getFeatures()[0]
-      .getGeometry()
-      .getCoordinates();
-    expect(Math.abs(x - -90.54)).toBeLessThan(0.01);
-  });
-
-  // Now an extent change rebuilds the view from component state, which the
-  // auto-fit never updated -- so the view goes back to Web Mercator.
-  rerender(
-    <VariableInputsContext.Provider
-      value={{ setVariableInputValues: jest.fn() }}
-    >
-      <MapContextProvider>
-        <RefCapture mapProps={{ layers, mapExtent: "-90.54,14.48,5" }} />
-      </MapContextProvider>
-    </VariableInputsContext.Provider>,
-  );
-
-  await waitFor(() => {
-    expect(capturedRef.current.getView().getProjection().getCode()).toBe(
-      "EPSG:3857",
-    );
-  });
-
-  // The features must have come with it: metres now, not the degrees they held.
-  await waitFor(() => {
-    const [x] = findVector()
-      .getSource()
-      .getFeatures()[0]
-      .getGeometry()
-      .getCoordinates();
-    expect(Math.abs(x)).toBeGreaterThan(1e6);
   });
 });
 
@@ -4331,67 +3353,6 @@ describe("linked map view groups", () => {
     expect(stateOf(maps.a).resolution).toBe(groupState.resolution);
     // The replacement published nothing, so the other member never moved.
     expect(stateOf(maps.b)).toEqual(groupState);
-  });
-
-  test("covers AE7: a projection-changing raster resolving on one member does not move the other", async () => {
-    const { maps } = await renderDashboard([
-      grouped("a", "Basin"),
-      grouped("b", "Basin"),
-    ]);
-
-    await act(async () => {
-      viewOf(maps.b).setCenter([4000, 5000]);
-      viewOf(maps.b).setZoom(9);
-    });
-    await frame(maps.b);
-    const groupState = stateOf(maps.b);
-
-    await act(async () => {
-      maps.a.current.setView(
-        new View({ projection: "EPSG:4326", center: [-90.5, 14.4], zoom: 6 }),
-      );
-    });
-    await frame(maps.a);
-
-    // The mismatched member neither applies the group's Web Mercator view nor
-    // publishes its own degrees into it.
-    expect(stateOf(maps.a).center).toEqual([-90.5, 14.4]);
-    expect(stateOf(maps.b)).toEqual(groupState);
-  });
-
-  test("a member reporting a different projection neither syncs nor publishes, and shows the mismatch notice", async () => {
-    const { maps } = await renderDashboard([
-      grouped("a", "Basin"),
-      grouped("b", "Basin"),
-    ]);
-
-    await act(async () => {
-      maps.b.current.setView(
-        new View({ projection: "EPSG:4326", center: [10, 20], zoom: 4 }),
-      );
-    });
-    await frame(maps.b);
-
-    expect(
-      await screen.findByLabelText("View Group Projection Mismatch"),
-    ).toHaveTextContent(
-      'This map is not synced with the "Basin" view group: it is in EPSG:4326 and the group is in EPSG:3857.',
-    );
-
-    // Does not apply.
-    await act(async () => {
-      viewOf(maps.a).setCenter([70000, 80000]);
-    });
-    await frame(maps.a);
-    expect(stateOf(maps.b).center).toEqual([10, 20]);
-
-    // Does not publish.
-    const beforeA = stateOf(maps.a);
-    await act(async () => {
-      viewOf(maps.b).setCenter([-30, -40]);
-    });
-    await frame(maps.b);
-    expect(stateOf(maps.a)).toEqual(beforeA);
   });
 
   test("an interacting member ignores an applied view and adopts once the interaction ends", async () => {
@@ -5079,89 +4040,6 @@ describe("linked map view groups", () => {
     expect(stateOf(maps.b).resolution).toBe(resolutionB);
   });
 
-  test("the mismatch notice can be closed, and returns when the mismatch changes", async () => {
-    const { maps } = await renderDashboard([
-      grouped("a", "Basin"),
-      grouped("b", "Basin"),
-    ]);
-
-    await act(async () => {
-      maps.b.current.setView(
-        new View({ projection: "EPSG:4326", center: [10, 20], zoom: 4 }),
-      );
-    });
-    await frame(maps.b);
-    const notice = await screen.findByLabelText(
-      "View Group Projection Mismatch",
-    );
-
-    fireEvent.click(within(notice).getByRole("button", { name: /close/i }));
-    await waitFor(() =>
-      expect(
-        screen.queryByLabelText("View Group Projection Mismatch"),
-      ).not.toBeInTheDocument(),
-    );
-
-    // The same mismatch, re-reported on the next frame, stays closed.
-    await act(async () => {
-      viewOf(maps.b).setCenter([11, 21]);
-    });
-    await frame(maps.b);
-    expect(
-      screen.queryByLabelText("View Group Projection Mismatch"),
-    ).not.toBeInTheDocument();
-
-    // A different projection is a different mismatch, so the notice is back.
-    await act(async () => {
-      maps.b.current.setView(
-        new View({ projection: "EPSG:32612", center: [500000, 4000000] }),
-      );
-    });
-    await frame(maps.b);
-    expect(
-      await screen.findByLabelText("View Group Projection Mismatch"),
-    ).toHaveTextContent("EPSG:32612");
-  });
-
-  test("a member that comes back into the group's projection drops the mismatch notice and syncs again", async () => {
-    const { maps } = await renderDashboard([
-      grouped("a", "Basin"),
-      grouped("b", "Basin"),
-    ]);
-
-    await act(async () => {
-      maps.b.current.setView(
-        new View({ projection: "EPSG:4326", center: [10, 20], zoom: 4 }),
-      );
-    });
-    await frame(maps.b);
-    expect(
-      await screen.findByLabelText("View Group Projection Mismatch"),
-    ).toBeInTheDocument();
-
-    // A second raster, this one in the group's own projection, puts the member
-    // back in step -- which has to take the notice down as well as let the
-    // group's view through again.
-    await act(async () => {
-      maps.b.current.setView(
-        new View({ projection: "EPSG:3857", center: [10, 20], zoom: 4 }),
-      );
-    });
-    await frame(maps.b);
-
-    await waitFor(() =>
-      expect(
-        screen.queryByLabelText("View Group Projection Mismatch"),
-      ).not.toBeInTheDocument(),
-    );
-
-    await act(async () => {
-      viewOf(maps.a).setCenter([88000, 99000]);
-    });
-    await frame(maps.a);
-    expect(stateOf(maps.b).center).toEqual([88000, 99000]);
-  });
-
   test("a view replaced mid-gesture is left where the viewer put it until the gesture ends", async () => {
     const { maps } = await renderDashboard([
       grouped("a", "Basin"),
@@ -5269,48 +4147,6 @@ describe("linked map view groups", () => {
     await frame(maps.a);
 
     expect(stateOf(maps.a).center).toEqual([1000000, 500000]);
-  });
-
-  test("a group in a non-Mercator projection opens its members at the seed's own coordinates", async () => {
-    // The map starts in "Basin" and is later moved into "Delta", whose opening
-    // view comes from a flagged member on a tab that never mounts.
-    const tabs = [
-      tabOf(1, mapGridItem("a", "Basin", "0,0,5")),
-      tabOf(
-        2,
-        mapGridItem("seed", "Delta", "-120.5,38.2,6", { flagged: true }),
-      ),
-    ];
-    const maps = {};
-    const { rerender } = render(
-      <Dashboard members={[grouped("a", "Basin")]} maps={maps} tabs={tabs} />,
-    );
-    await settle();
-    await frame(maps.a);
-
-    // A raster in geographic coordinates auto-fits the map, which replaces the
-    // view with one whose units are degrees. The member is the only one in
-    // "Basin", so the group re-pins to it rather than reading as a mismatch.
-    await act(async () => {
-      maps.a.current.setView(
-        new View({ projection: "EPSG:4326", center: [-100, 30], zoom: 4 }),
-      );
-    });
-    await frame(maps.a);
-
-    // Joining a group re-arms the seed, and this member now resolves it in
-    // degrees: the antimeridian wrap is Web Mercator's and must not be applied
-    // to coordinates that are not in it.
-    rerender(
-      <Dashboard members={[grouped("a", "Delta")]} maps={maps} tabs={tabs} />,
-    );
-    await settle();
-    await frame(maps.a);
-
-    expect(stateOf(maps.a).center).toEqual([-120.5, 38.2]);
-    expect(stateOf(maps.a).resolution).toBe(
-      new View({ projection: "EPSG:4326" }).getResolutionForZoom(6),
-    );
   });
 
   // --- Coalesced follower side effects (U4) -------------------------------
@@ -5841,10 +4677,9 @@ describe("linked map view groups", () => {
   });
 });
 
-describe("the basemap waits for the raster that owns the view projection", () => {
+describe("the basemap", () => {
   const baseMapConfig = () => ({
     type: "WebGLTile",
-    isBaseMap: true,
     props: {
       name: "World Imagery",
       source: {
@@ -5865,64 +4700,13 @@ describe("the basemap waits for the raster that owns the view projection", () =>
   const addedNames = (spy) =>
     spy.mock.calls.map((call) => call[0]?.get?.("name")).filter(Boolean);
 
-  it("adds it after the raster, so its tiles are fetched once", async () => {
-    // Adopting a projection replaces the view and discards every tile the
-    // basemap already fetched. Adding it after the raster has settled is what
-    // makes that a single fetch instead of a discard and a refetch.
-    const addSpy = jest.spyOn(OLMap.prototype, "addLayer");
-
-    render(
-      <VariableInputsContext.Provider
-        value={{ setVariableInputValues: jest.fn() }}
-      >
-        <MapContextProvider>
-          <TestingComponent
-            mapProps={{ layers: [baseMapConfig(), geoTIFFConfig()] }}
-          />
-        </MapContextProvider>
-      </VariableInputsContext.Provider>,
-    );
-
-    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
-    await waitFor(() =>
-      expect(addedNames(addSpy)).toEqual(
-        expect.arrayContaining(["World Imagery"]),
-      ),
-    );
-
-    const order = addedNames(addSpy);
-    expect(order.indexOf("Flood Probability")).toBeGreaterThanOrEqual(0);
-    expect(order.indexOf("World Imagery")).toBeGreaterThan(
-      order.indexOf("Flood Probability"),
-    );
-    addSpy.mockRestore();
-  });
-
-  it("adds it without waiting when no raster owns the projection", async () => {
-    // Nothing can replace the view, so there is nothing to wait for.
-    const addSpy = jest.spyOn(OLMap.prototype, "addLayer");
-
-    render(
-      <VariableInputsContext.Provider
-        value={{ setVariableInputValues: jest.fn() }}
-      >
-        <MapContextProvider>
-          <TestingComponent mapProps={{ layers: [baseMapConfig()] }} />
-        </MapContextProvider>
-      </VariableInputsContext.Provider>,
-    );
-
-    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
-    await waitFor(() => expect(addedNames(addSpy)).toContain("World Imagery"));
-    addSpy.mockRestore();
-  });
-
-  it("adds it even when the raster fails outright", async () => {
-    // The gate is released from the owner's own construct, whatever became of
-    // it. A raster that cannot be read must cost its own layer, not the basemap.
+  it("is added without waiting on a raster's header", async () => {
+    // A raster does not decide the view projection, so there is nothing for
+    // the basemap to wait for -- not even a file that never opens, whose
+    // header OpenLayers never reports.
     const getViewSpy = jest
       .spyOn(GeoTIFFSource.prototype, "getView")
-      .mockRejectedValue(new Error("header unreadable"));
+      .mockReturnValue(new Promise(() => {}));
     const addSpy = jest.spyOn(OLMap.prototype, "addLayer");
 
     render(
@@ -5940,6 +4724,24 @@ describe("the basemap waits for the raster that owns the view projection", () =>
     expect(await screen.findByText("Map Ready")).toBeInTheDocument();
     await waitFor(() => expect(addedNames(addSpy)).toContain("World Imagery"));
     getViewSpy.mockRestore();
+    addSpy.mockRestore();
+  });
+
+  it("is added on a map with no raster", async () => {
+    const addSpy = jest.spyOn(OLMap.prototype, "addLayer");
+
+    render(
+      <VariableInputsContext.Provider
+        value={{ setVariableInputValues: jest.fn() }}
+      >
+        <MapContextProvider>
+          <TestingComponent mapProps={{ layers: [baseMapConfig()] }} />
+        </MapContextProvider>
+      </VariableInputsContext.Provider>,
+    );
+
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+    await waitFor(() => expect(addedNames(addSpy)).toContain("World Imagery"));
     addSpy.mockRestore();
   });
 });
@@ -5979,7 +4781,6 @@ describe("runtime GeoTIFF layers", () => {
 
   const baseMapConfig = (name) => ({
     type: "WebGLTile",
-    isBaseMap: true,
     props: {
       name,
       source: {
@@ -6061,13 +4862,6 @@ describe("runtime GeoTIFF layers", () => {
     expect(capturedRef.current.getView().getProjection().getCode()).toBe(
       "EPSG:3857",
     );
-  });
-
-  it("leaves the view to the first static raster after it", async () => {
-    render(tree([runtimeRasterConfig(), staticRasterConfig()]));
-    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
-    await waitFor(() => expect(GeoTIFFSource.getViewSpy).toHaveBeenCalled());
-    expect(GeoTIFFSource.getViewSpy).toHaveBeenCalledTimes(1);
   });
 
   it("keeps the layer and its repointed source across an opacity change", async () => {

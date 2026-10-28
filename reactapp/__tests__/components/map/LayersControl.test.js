@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import LayersControl from "components/map/LayersControl";
 import { WebsocketContext } from "components/contexts/WebSocketContext";
 import { makeMapDiv } from "__tests__/utilities/mapDiv";
@@ -224,6 +224,62 @@ test("LayersControl renders static (non-runtime) layers without progress or erro
   expect(await screen.findByText("Static Layer")).toBeInTheDocument();
   expect(screen.queryByRole("status")).not.toBeInTheDocument();
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
+
+describe("LayersControl zoom to layer", () => {
+  test("fits the map's view to the layer's extent", async () => {
+    const fit = jest.fn();
+    const olLayer = {
+      get: (key) => (key === "name" ? "Wells" : undefined),
+      getVisible: () => true,
+      setVisible: jest.fn(),
+      getSource: () => ({
+        getFeatures: () => [],
+        getExtent: () => [0, 0, 100, 100],
+      }),
+    };
+    // One view object: zoomToLayer refuses to fit if the map's view was
+    // replaced while the extent was being read.
+    const view = {
+      fit,
+      getProjection: () => ({ getCode: () => "EPSG:3857" }),
+      getMaxZoom: () => 28,
+      calculateExtent: () => [0, 0, 400, 300],
+      getResolution: () => 1,
+    };
+    const visualizationRef = {
+      current: {
+        getLayers: () => ({ getArray: () => [olLayer] }),
+        getView: () => view,
+        getSize: () => [400, 300],
+      },
+    };
+    render(<LayersControl visualizationRef={visualizationRef} updater />);
+    fireEvent.click(await screen.findByLabelText("Show Layers Control"));
+
+    const button = await screen.findByLabelText("Wells Zoom to Layer");
+    expect(button).toBeEnabled();
+    fireEvent.click(button);
+    await waitFor(() =>
+      expect(fit).toHaveBeenCalledWith(
+        [0, 0, 100, 100],
+        expect.objectContaining({ size: [400, 300] }),
+      ),
+    );
+  });
+
+  test("is disabled for a layer that cannot report its extent", async () => {
+    // e.g. an image WMS layer, drawn one viewport at a time by its server.
+    mountLayersControl({
+      olLayer: {
+        get: (key) => (key === "name" ? "WMS" : undefined),
+        getVisible: () => true,
+        setVisible: jest.fn(),
+        getSource: () => ({}),
+      },
+    });
+    expect(await screen.findByLabelText("WMS Zoom to Layer")).toBeDisabled();
+  });
 });
 
 describe("LayersControl height cap", () => {

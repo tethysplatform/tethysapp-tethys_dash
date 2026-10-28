@@ -63,9 +63,7 @@ function whenLayerAppears(state, map, layerId, onAppear) {
  * it, so a layer Map.js rebuilds behind the fetcher's back can be repainted.
  */
 function swapVectorPayload(state, map, olLayer, featureCollection) {
-  // Read the projection at the swap rather than when the fetch resolved: a
-  // GeoTIFF auto-fit can change the view in between, and parsing into a
-  // projection the map has already left strands the features off screen.
+  // Parsed into the view's own projection, read off the map at the swap.
   const projection = map.getView().getProjection().getCode();
   swapVectorLayerFeatures(olLayer, featureCollection, projection);
   state.lastPaint = { kind: "vector", payload: featureCollection, olLayer };

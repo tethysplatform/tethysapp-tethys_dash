@@ -13,7 +13,7 @@ import {
 } from "@testing-library/react";
 import createLoadedComponent from "__tests__/utilities/customRender";
 import PropTypes from "prop-types";
-import { Map, View } from "ol";
+import { Map } from "ol";
 import {
   AppContext,
   DataViewerModeContext,
@@ -1145,62 +1145,6 @@ describe("linked cursor", () => {
     expect(
       survivor.current.getOverlayById(LINKED_CURSOR_OVERLAY_ID).getPosition(),
     ).toBe(undefined);
-  });
-
-  test("a member whose projection differs from the group's pin receives no marker", async () => {
-    const { maps } = await renderCursorDashboard([
-      { uuid: "a" },
-      { uuid: "b" },
-      { uuid: "c" },
-    ]);
-
-    await act(async () => {
-      maps.b.current.setView(
-        new View({ projection: "EPSG:4326", center: [10, 20], zoom: 4 }),
-      );
-    });
-
-    await movePointer(maps.a, [1000, 2000]);
-
-    // `c` proves the publish actually landed, so `b`'s empty marker is the
-    // projection guard rather than a frame that never flushed.
-    await waitFor(() =>
-      expect(cursorMarker(maps.c).getPosition()).toEqual([1000, 2000]),
-    );
-    expect(cursorMarker(maps.b).getPosition()).toBeUndefined();
-  });
-
-  test("a member whose projection differs from the group's pin publishes no coordinate", async () => {
-    const { maps } = await renderCursorDashboard([
-      { uuid: "a" },
-      { uuid: "b" },
-      { uuid: "c" },
-    ]);
-
-    // `a` marks its peers while it is still in step. That is what makes the
-    // silence afterwards a retraction rather than a map that never published.
-    await movePointer(maps.a, [1000, 2000]);
-    await waitFor(() =>
-      expect(cursorMarker(maps.b).getPosition()).toEqual([1000, 2000]),
-    );
-    expect(cursorMarker(maps.c).getPosition()).toEqual([1000, 2000]);
-
-    // `b` and `c` keep the group pinned to the map projection, so `a` is now
-    // the odd one out.
-    await act(async () => {
-      maps.a.current.setView(
-        new View({ projection: "EPSG:4326", center: [10, 20], zoom: 4 }),
-      );
-    });
-
-    // Its coordinates are lon/lat now. Publishing them would draw a mark
-    // somewhere the pointer never was, so the move takes `a`'s mark down
-    // instead -- the receive-side guard is a separate gate and cannot do this.
-    await movePointer(maps.a, [11, 21]);
-    await letAFramePass();
-
-    expect(cursorMarker(maps.b).getPosition()).toBeUndefined();
-    expect(cursorMarker(maps.c).getPosition()).toBeUndefined();
   });
 
   test("several pointermoves inside one frame produce a single position update", async () => {

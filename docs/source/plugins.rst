@@ -890,7 +890,7 @@ configurations for configs and layers.
         - **attributeVariables** (Optional): an object that maps a layers name (key) with the layers field and desired variable inputs to update the field value. See maps :ref:`attributes_and_popups_tab` for more information.
         - **legend** (required): an object that contains a title key and items key. The items key value is an array of object with label and color keys for the legend.
         - **style** (required): See maps :ref:`legend_tab` for more information.
-    - **layerControl** (optional): A boolean indicating if a layer control should be available.
+    - **layerControl** (optional): A boolean indicating if a layer control should be available. The control toggles each layer's visibility and zooms the map to a layer.
     - **map_extent** (optional): The extent the map opens at, and the linked view group it belongs to. Either a bare extent string (``"minX, minY, maxX, maxY"`` or ``"lon, lat, zoom"``), or an object: ::
 
         {"extent": "-130, 20, -60, 55", "viewGroup": "Basins"}
@@ -1480,15 +1480,6 @@ Variable-input re-fetches, debouncing, cancellation of superseded requests,
 the refresh-rate tick, and the per-layer loading indicator all behave as they
 do for a GeoJSON plugin. A fetch that returns the same URL as the current one
 still re-draws, so a style change on its own takes effect.
-
-**Projection**
-
-A dynamic GeoTIFF **never sets the map's projection**, even when it is the
-only raster on the map. A static GeoTIFF can become the map's projection
-owner, but a dynamic one has no file until its first fetch, and each fetch may
-name a file in a different CRS. Owning the view would replace it, and refetch
-the basemap, on every fetch. The raster is instead reprojected into the map's
-view like any raster that does not own it.
 
 .. warning::
     **Do not build the URL from unvalidated viewer input.** The URL that

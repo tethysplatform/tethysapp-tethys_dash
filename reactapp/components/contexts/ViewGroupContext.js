@@ -17,10 +17,6 @@ const createGroupEntry = () => ({
   // The group's current shared view, `{center, resolution, rotation}` or null
   // until a member first publishes (R9).
   view: null,
-  // The projection code the group is pinned to, or null while unpinned. The
-  // first member to report one pins it; a member whose live code differs
-  // neither applies nor publishes (R6).
-  projection: null,
   // The extent a flagged member supplies for the group's opening view, as
   // discovered from the dashboard's stored grid items rather than from a
   // member. Null when no member of the group carries the flag, or when the
@@ -122,8 +118,6 @@ const ViewGroupProvider = ({ children }) => {
           typeof handlers.applyCursor === "function"
             ? handlers.applyCursor
             : null,
-        // The member's own live projection code, once it reports one.
-        projection: null,
         // Handler keys this member has already been logged as failing, so a
         // consistently throwing member is reported once rather than on every
         // frame. Per record, so a re-registration reports afresh.
@@ -146,19 +140,9 @@ const ViewGroupProvider = ({ children }) => {
           // and a group that has none loses its entry entirely.
           if (current.pendingSeed) {
             current.view = null;
-            current.projection = null;
             return;
           }
           groupsRef.current.delete(name);
-          return;
-        }
-        if (record.projection && current.projection === record.projection) {
-          // The member that pinned the projection is leaving, so the pin is
-          // re-evaluated from whoever is left rather than outliving them.
-          const remaining = Array.from(current.members.values()).find(
-            (member) => member.projection,
-          );
-          current.projection = remaining ? remaining.projection : null;
         }
       };
     },
@@ -216,46 +200,6 @@ const ViewGroupProvider = ({ children }) => {
     },
     [fanOut],
   );
-
-  /**
-   * Report a member's live projection code and read back the group's pinned
-   * one.
-   *
-   * The group pins its projection from the first member to report one, and a
-   * member whose live code differs from the pin neither applies nor publishes
-   * (R6). Members re-report every frame rather than only at registration,
-   * because a raster auto-fit changes a map's view projection long after it
-   * joined.
-   *
-   * @param {string} groupName
-   * @param {string} memberId
-   * @param {string|null} code the member's live projection code
-   * @returns {string|null} the group's pinned projection code
-   */
-  const reportMemberProjection = useCallback((groupName, memberId, code) => {
-    const name = normalizeViewGroupName(groupName);
-    if (!name) return null;
-    const entry = groupsRef.current.get(name);
-    if (!entry) return null;
-    const member = entry.members.get(memberId);
-    if (member) member.projection = code ?? null;
-    // The pin is taken from the first member to report one, which is the
-    // pre-raster projection. A group whose members have all since auto-fit to
-    // a raster in another projection would stay pinned to a code none of them
-    // holds any more, stranding every one of them as a permanent mismatch. So
-    // a pin no registered member still reports is dropped before a new one is
-    // taken, and the group re-pins on whoever is actually there.
-    if (
-      entry.projection &&
-      !Array.from(entry.members.values()).some(
-        (registered) => registered.projection === entry.projection,
-      )
-    ) {
-      entry.projection = null;
-    }
-    if (!entry.projection && code) entry.projection = code;
-    return entry.projection;
-  }, []);
 
   /**
    * Read a group's current shared view.
@@ -325,7 +269,6 @@ const ViewGroupProvider = ({ children }) => {
       getGroupView,
       getGroupSeed,
       seedGroupView,
-      reportMemberProjection,
     }),
     [
       registerMember,
@@ -334,7 +277,6 @@ const ViewGroupProvider = ({ children }) => {
       getGroupView,
       getGroupSeed,
       seedGroupView,
-      reportMemberProjection,
     ],
   );
 

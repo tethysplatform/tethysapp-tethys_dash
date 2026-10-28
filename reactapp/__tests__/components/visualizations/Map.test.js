@@ -2028,11 +2028,9 @@ describe("MapVisualization — branch/statement coverage gaps", () => {
   });
 });
 
-describe("the basemap's early publish beside a runtime GeoTIFF", () => {
-  // The basemap is held back from the early publish only when a raster will
-  // own the view projection. A raster a plugin drives never does, so it must
-  // not hold the basemap: with a layer's preparation stalled, the basemap is
-  // on the map regardless.
+describe("the basemap's early publish beside a raster", () => {
+  // No raster decides the view projection, so none holds the basemap back:
+  // with a layer's preparation stalled, the basemap is on the map regardless.
   const baseMap =
     "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer";
 
@@ -2101,7 +2099,7 @@ describe("the basemap's early publish beside a runtime GeoTIFF", () => {
     });
   });
 
-  it("still holds it back for a static raster", async () => {
+  it("publishes it early beside a static raster too", async () => {
     const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
     renderWith([
       rasterLayer({
@@ -2109,12 +2107,9 @@ describe("the basemap's early publish beside a runtime GeoTIFF", () => {
       }),
     ]);
 
-    expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
-    // Give the early publish every chance to have happened.
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 50));
+    await waitFor(() => {
+      expect(addedSources(addLayerSpy)).toContain(baseMapUrl);
     });
-    expect(addedSources(addLayerSpy)).not.toContain(baseMapUrl);
   });
 });
 

@@ -823,32 +823,7 @@ const MapVisualization = ({
         if (baseMap && !baseMapLayer) {
           console.error(`${baseMap} is not a valid basemap`);
         }
-        // Publishing the basemap on its own puts it on the map in a
-        // reconciliation pass that holds no rasters, so nothing there knows a
-        // projection is about to be adopted and the basemap is added
-        // immediately -- only to have its tiles discarded when the adoption
-        // replaces the view. Measured on a four-raster dashboard: 55 tiles
-        // painted, dropped thirteen seconds later, then 77 refetched.
-        //
-        // When a raster is going to decide the view, the basemap goes out with
-        // the full publish below instead, in the same pass as that raster, so
-        // Map.js can hold it until the projection has settled. Dashboards with
-        // no such raster keep the early publish, which is what stops them
-        // showing a white map while their layers prepare.
-        // Not guarded: the line above already parsed `layers`, so reaching
-        // here with nothing is not a state this block survives.
-        // A raster a plugin drives never owns the view (see Map.js), so it
-        // does not hold the basemap back either.
-        const rasterWillOwnTheView = layers.some((layer) => {
-          const configuration = layer?.configuration;
-          return (
-            configuration?.type === "WebGLTile" &&
-            (configuration.props?.source?.type === "GeoTIFF" ||
-              configuration.props?.source?.type === "Zarr") &&
-            !configuration.props?.pluginSource
-          );
-        });
-        if (baseMapLayer && !rasterWillOwnTheView) {
+        if (baseMapLayer) {
           baseMapLayer.props.zIndex = 0;
           // Swap only the base map entry; everything else that was already
           // published stays.
@@ -1516,27 +1491,6 @@ const MapVisualization = ({
 
   // --- Linked cursor: publish, receive, clear -----------------------------
 
-  // Report this map's live projection into the group and read back the pin.
-  // R6: a member out of step with the pin neither marks nor is marked -- its
-  // coordinates are numbers in a different space, and drawing them as if they
-  // were the group's would put the mark somewhere the pointer never was.
-  const cursorProjectionMatches = () => {
-    const map = visualizationRef?.current;
-    const groupName = activeCursorGroupRef.current;
-    // istanbul ignore if -- unreachable: both callers run only for a
-    // registered member of a group, and the registration is torn down in the
-    // same synchronous commit that disposes the map. Kept so a peer's
-    // coordinate arriving on a torn-down map draws nothing.
-    if (!map || !groupName || !viewGroupContext) return false;
-    const code = map.getView().getProjection().getCode();
-    const pinned = viewGroupContext.reportMemberProjection(
-      groupName,
-      cursorMemberId,
-      code,
-    );
-    return !pinned || pinned === code;
-  };
-
   const publishCursorCoordinate = (coordinate) => {
     const groupName = activeCursorGroupRef.current;
     // istanbul ignore if -- unreachable: every path that clears the group name
@@ -1595,10 +1549,6 @@ const MapVisualization = ({
       clearPeerCursors();
       return;
     }
-    if (!cursorProjectionMatches()) {
-      clearPeerCursors();
-      return;
-    }
     queueCursorPublish(evt.coordinate);
   };
   cursorMoveRef.current = handleLinkedCursorMove;
@@ -1614,7 +1564,7 @@ const MapVisualization = ({
 
   // Receive a peer's cursor. A null coordinate is the group's "gone" signal.
   const applyPeerCursor = (coordinate) => {
-    if (!Array.isArray(coordinate) || !cursorProjectionMatches()) {
+    if (!Array.isArray(coordinate)) {
       hideCursorMarker();
       return;
     }

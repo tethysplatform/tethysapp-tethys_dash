@@ -501,8 +501,7 @@ When adding a layer, dynamic plugins are listed under the **Custom Layers** grou
     - A GeoTIFF layer is repointed in place at the file each fetch names. The new file is opened first, and the layer switches only once it is ready. Until the first fetch succeeds, the layer draws nothing.
     - Re-fetches on variable-input change are debounced and the older in-flight request is cancelled when a new one starts.
     - While a layer is loading, the map names it in its loading alert, with the percentage from ``self.send_update(...)`` when the plugin reports one. See :ref:`create_map`.
-    - A layer that fails (an unreachable host, a plugin that is not installed on the server) is named in the map's failure alert and beside its entry in the layer control. The rest of the map still renders. A GeoTIFF layer whose fetch fails keeps drawing the previous file.
-    - A GeoTIFF Custom Layer never sets the map's projection. It is reprojected into the map's view, even when it is the only raster on the map.
+    - A layer that fails (an unreachable host, a plugin that is not installed on the server) is named in the map's failure alert and beside its entry in the layer control. The rest of the map still renders. A GeoTIFF layer whose fetch fails draws nothing until a later fetch succeeds, rather than keeping a file the layer no longer names.
 
 **GeoTIFF styling: Follow plugin styling**
     A GeoTIFF plugin may return a color ramp with each file. The **Follow plugin styling** switch at the top of the layer's Style tab decides whether that ramp is used:

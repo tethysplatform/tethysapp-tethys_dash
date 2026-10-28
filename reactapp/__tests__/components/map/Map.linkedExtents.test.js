@@ -1,7 +1,6 @@
 import { useRef, useState } from "react";
 import PropTypes from "prop-types";
 import { act, render, screen, waitFor } from "@testing-library/react";
-import { View } from "ol";
 import { transform } from "ol/proj.js";
 import MapComponent from "components/map/Map";
 import MapContextProvider, {
@@ -17,7 +16,6 @@ import {
 } from "components/contexts/Contexts";
 import { viewFootprint } from "components/map/linkedExtent";
 import { POPUP_TAB_ID } from "components/map/viewGroup";
-import { reprojectVectorFeatures } from "components/map/utilities";
 
 global.ResizeObserver = require("resize-observer-polyfill");
 
@@ -222,26 +220,4 @@ test("a style edit rebuilds the layer, filled with outlines from the start", asy
   const stroke = insetLayer().getStyle().getStroke();
   expect(stroke.getColor()).toBe("#0000ff");
   expect(stroke.getWidth()).toBe(4);
-});
-
-test("a view projection swap redraws outlines in the new projection, once", async () => {
-  await mount();
-  act(() =>
-    registry.register("Basin", "detail").publish(footprintAt(-123, 44)),
-  );
-
-  act(() => {
-    // What a raster auto-fit does: replace the view, then sweep features.
-    mapRef.current.setView(
-      new View({ projection: "EPSG:4326", center: [-123, 44], zoom: 6 }),
-    );
-    reprojectVectorFeatures(mapRef.current, "EPSG:3857", "EPSG:4326");
-  });
-
-  const [minX, minY] = outlines()[0].getGeometry().getExtent();
-  // Degrees now, near the detail map -- not metres, and not transformed twice.
-  expect(minX).toBeGreaterThan(-124);
-  expect(minX).toBeLessThan(-122);
-  expect(minY).toBeGreaterThan(43);
-  expect(minY).toBeLessThan(45);
 });
