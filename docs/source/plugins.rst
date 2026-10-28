@@ -1481,12 +1481,6 @@ the refresh-rate tick, and the per-layer loading indicator all behave as they
 do for a GeoJSON plugin. A fetch that returns the same URL as the current one
 still re-draws, so a style change on its own takes effect.
 
-**Projection**
-
-A dynamic GeoTIFF **never sets the map's projection**, and neither does any
-other raster. The map stays in Web Mercator at the extent its author saved,
-and each fetch's file is reprojected into it, whatever CRS that file is in.
-
 .. warning::
     **Do not build the URL from unvalidated viewer input.** The URL that
     ``fetch_source()`` returns is fetched by the viewer's browser. Plugin args

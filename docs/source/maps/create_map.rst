@@ -32,12 +32,12 @@ Determines whether a layer control panel is shown. Each layer in the panel has a
 
 **Zoom to layer.** Clicking a layer's magnifier fits the map to that layer's extent, with a small margin on every side. It works whether or not the layer is currently visible. A map in a view group moves the rest of its group with it, as any pan or zoom would.
 
-- **Vector layers** (GeoJSON, KML, Shapefile, annotations) zoom to their features. A layer that fetches its features from a URL loads them only when it is first drawn, so one that is hidden or outside its zoom range loads them when its magnifier is clicked, and the map moves once they arrive. An **ESRI Feature Service** loads only the part of the service in the current view, so it zooms to what has arrived for that view. A layer with no features does not move the map.
-- **Raster layers** (GeoTIFF, Zarr, static image) zoom to the extent of the file or image, whatever its coordinate system. A raster whose file failed to open has its button disabled.
+- **Vector layers** (GeoJSON, KML, Shapefile, annotations) zoom to their features. A layer that has not been shown yet may take a moment to load before the map moves. An **ESRI Feature Service** zooms to the part of the service in the current view. A layer with no features does not move the map.
+- **Raster layers** (GeoTIFF, Zarr, static image) zoom to the extent of the file or image. A raster whose file failed to open has its button disabled.
 - **Tile layers**, including the basemap, zoom to their full tile coverage, which for a basemap is the whole world.
-- **ESRI Image and Map Service** and **WMS** layers cannot be zoomed to, and their button is disabled: the server draws them one view at a time, so the map never learns where their data is.
+- **ESRI Image and Map Service** and **WMS** layers cannot be zoomed to, so their button is disabled.
 
-A layer that is a single point, or very small, is zoomed to no closer than zoom level 16, the deepest the gray Canvas basemaps have tiles for.
+A layer that is a single point, or very small, is zoomed to no closer than zoom level 16.
 
 -----------------
 Layers
@@ -55,7 +55,7 @@ Map Extent
 
 Choose either **"Use the Previewed Map Extent"** (the map zooms to the current view) or **"Use a Custom Extent"** (enter minimum and maximum latitude/longitude values and optionally an extent variable name).
 
-The map always opens at this extent, in Web Mercator. Its layers never move it: a raster in another coordinate system is reprojected onto the map rather than switching the map to that system, and a layer outside the extent stays where it is. To go to a layer, use its magnifier in the layer control (see `Layer Controls`_).
+The map always opens at this extent. To go to a particular layer, use its magnifier in the layer control (see `Layer Controls`_).
 
 Below the extent, two more settings link this map to others on the dashboard:
 
