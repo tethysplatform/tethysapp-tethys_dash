@@ -1,5 +1,10 @@
 import intake
-from tethysapp.tethysdash.model import get_visualization_user_permission, Message
+from tethysapp.tethysdash.model import (
+    get_visualization_user_permission,
+    GridItem,
+    Message,
+    user_may_view,
+)
 from tethysapp.tethysdash.exceptions import VisualizationError
 from tethysapp.tethysdash.plugin_helpers import (
     get_plugin_prop,
@@ -204,6 +209,16 @@ def get_visualization(viz_source, viz_args, user, viz_request_id, mode="scaffold
         Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
         session = Session()
         try:
+            grid_item = (
+                session.query(GridItem).filter(GridItem.uuid == viz_request_id).first()
+            )
+            if grid_item is None:
+                # A widget not saved yet, which can have no history.
+                return viz_source, {"chatHistory": []}
+            if not user_may_view(session, grid_item.dashboard, user):
+                # Answered like a new widget, so a refusal reveals nothing.
+                print(f"Refused the chat history of grid item {viz_request_id}")
+                return viz_source, {"chatHistory": []}
             messages = (
                 session.query(Message)
                 .filter_by(request_id=viz_request_id)

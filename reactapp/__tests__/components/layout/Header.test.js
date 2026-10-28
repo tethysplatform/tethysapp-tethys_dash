@@ -221,8 +221,13 @@ test("LandingPageHeader, import dashboard with grid_items", async () => {
   await waitFor(() => expect(importButton).not.toBeDisabled());
   await userEvent.click(importButton);
 
+  // The dashboard is created from the file's metadata alone; its uuid is the
+  // server's to mint.
   expect(mockAddDashboard).toHaveBeenCalledWith(
-    importedDashboard,
+    {
+      name: importedDashboard.name,
+      description: importedDashboard.description,
+    },
     "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
   );
 });
@@ -282,8 +287,13 @@ test("LandingPageHeader, import dashboard with tabs", async () => {
   await waitFor(() => expect(importButton).not.toBeDisabled());
   await userEvent.click(importButton);
 
+  // The dashboard is created from the file's metadata alone; its uuid is the
+  // server's to mint.
   expect(mockAddDashboard).toHaveBeenCalledWith(
-    importedDashboard,
+    {
+      name: importedDashboard.name,
+      description: importedDashboard.description,
+    },
     "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
   );
 });

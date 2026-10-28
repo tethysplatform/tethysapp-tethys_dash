@@ -12,14 +12,20 @@ from tethysapp.tethysdash.model import (
     DashboardPermission,
     VisualizationPermission,
     PermissionGroup,
+    PermissionGroupUser,
     Message,
     parse_db_dashboard,
+    parse_group_permissions,
     clean_up_jsons,
     cleanup_old_jsons,
     copy_dashboard_files,
+    delete_dashboard_files,
     init_primary_db,
     get_dashboard_user_permission,
+    stored_identity,
     can_view_dashboard,
+    can_edit_dashboard,
+    user_may_view,
     update_dashboard_permissions,
     update_permission_groups,
     get_user_permission_groups,
@@ -43,6 +49,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from sqlalchemy.exc import ProgrammingError
 from django.contrib.auth.models import AnonymousUser
+from tethysapp.tethysdash.exceptions import DASHBOARD_NOT_FOUND
 from django.test import override_settings
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
@@ -334,9 +341,7 @@ def test_delete_named_dashboard_id_doesnt_exist(
 
     with pytest.raises(Exception) as excinfo:
         delete_named_dashboard("admin", 1000000000000000000)
-    assert "A dashboard with the id 1000000000000000000 does not exist." in str(
-        excinfo.value
-    )
+    assert str(excinfo.value) == DASHBOARD_NOT_FOUND
 
     db_dashboard = (
         db_session.query(Dashboard).filter(Dashboard.uuid == dashboard.uuid).all()
@@ -864,10 +869,7 @@ def test_update_named_dashboard_not_exist(mock_app_get_ps_db):
             1234,
             {"notes": updated_notes, "accessGroups": updated_access_groups},
         )
-    assert (
-        "A dashboard with the id 1234 does not exist for this user"  # noqa: E501
-        in str(excinfo.value)
-    )
+    assert str(excinfo.value) == DASHBOARD_NOT_FOUND
 
 
 @pytest.mark.django_db
@@ -981,6 +983,190 @@ def test_get_dashboards_all(
             "owner": public_dashboard.owner,
         },
     ]
+
+
+@pytest.mark.django_db
+def test_get_dashboards_lists_only_public_dashboards_when_signed_out(
+    dashboard, public_dashboard, db_session, mock_app_get_ps_db
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    # Rows stored under an empty username, on a private dashboard and a public one.
+    db_session.add(
+        DashboardPermission(dashboard_id=dashboard.id, username="", permission="admin")
+    )
+    db_session.add(
+        DashboardPermission(
+            dashboard_id=public_dashboard.id, username="", permission="admin"
+        )
+    )
+    db_session.commit()
+
+    listed = get_dashboards(AnonymousUser())
+
+    assert [d["uuid"] for d in listed] == [public_dashboard.uuid]
+    assert listed[0]["userPermission"] is None
+
+
+@pytest.mark.django_db
+def test_get_dashboards_listing_for_a_blank_username_is_public_only(
+    dashboard, public_dashboard, db_session, mock_app_get_ps_db
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    db_session.add(
+        DashboardPermission(dashboard_id=dashboard.id, username="", permission="admin")
+    )
+    db_session.commit()
+    blank = SimpleNamespace(is_authenticated=True, username="")
+
+    assert [d["uuid"] for d in get_dashboards(blank)] == [public_dashboard.uuid]
+
+
+def _not_found_message(call):
+    with pytest.raises(Exception) as excinfo:
+        call()
+    return str(excinfo.value)
+
+
+@pytest.mark.django_db
+def test_get_dashboards_by_id_refuses_a_private_dashboard_like_a_missing_one(
+    dashboard, db_session, mock_app_get_ps_db, admin_user
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    db_session.add(
+        DashboardPermission(dashboard_id=dashboard.id, username="", permission="admin")
+    )
+    db_session.commit()
+
+    for user in [AnonymousUser(), admin_user]:
+        assert (
+            _not_found_message(lambda u=user: get_dashboards(u, id=dashboard.id))
+            == _not_found_message(lambda u=user: get_dashboards(u, id=999999))
+            == DASHBOARD_NOT_FOUND
+        )
+
+
+@pytest.mark.django_db
+def test_get_dashboards_by_id_serves_a_public_dashboard_when_signed_out(
+    public_dashboard, mock_app_get_ps_db
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+
+    retrieved = get_dashboards(
+        AnonymousUser(), id=public_dashboard.id, dashboard_view=True
+    )
+
+    assert retrieved["uuid"] == public_dashboard.uuid
+    assert retrieved["userPermission"] is None
+
+
+@pytest.mark.django_db
+def test_get_dashboards_by_id_serves_a_viewer(
+    dashboard, mock_app_get_ps_db, test_member_user
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+
+    retrieved = get_dashboards(test_member_user, id=dashboard.id)
+
+    assert retrieved["uuid"] == dashboard.uuid
+    assert retrieved["userPermission"] == "viewer"
+
+
+@pytest.mark.django_db
+def test_update_and_delete_refuse_an_unviewable_dashboard_like_a_missing_one(
+    dashboard, db_session, mock_app_get_ps_db, admin_user
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+
+    for user in [AnonymousUser(), admin_user]:
+        assert (
+            _not_found_message(
+                lambda u=user: update_named_dashboard(u, dashboard.id, {"notes": "x"})
+            )
+            == _not_found_message(
+                lambda u=user: update_named_dashboard(u, 999999, {"notes": "x"})
+            )
+            == _not_found_message(
+                lambda u=user: delete_named_dashboard(u, dashboard.id)
+            )
+            == _not_found_message(lambda u=user: delete_named_dashboard(u, 999999))
+            == DASHBOARD_NOT_FOUND
+        )
+
+    db_session.expire_all()
+    assert db_session.get(Dashboard, dashboard.id).notes == "some notes"
+
+
+@pytest.mark.django_db
+def test_update_and_delete_keep_the_level_message_for_a_public_dashboard(
+    public_dashboard, mock_app_get_ps_db, admin_user
+):
+    """Anyone can see a public dashboard, so a refusal there names the level."""
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+
+    assert _not_found_message(
+        lambda: update_named_dashboard(admin_user, public_dashboard.id, {"notes": "x"})
+    ) == ("User does not have admin or editor permissions to update the dashboard.")
+    assert _not_found_message(
+        lambda: delete_named_dashboard(admin_user, public_dashboard.id)
+    ) == ("User does not have admin permission to delete the dashboard.")
+
+
+@pytest.mark.django_db
+def test_a_not_found_refusal_is_logged(
+    dashboard, mock_app_get_ps_db, admin_user, capsys
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+
+    _not_found_message(lambda: get_dashboards(admin_user, id=dashboard.id))
+    _not_found_message(lambda: get_dashboards(AnonymousUser(), id=dashboard.id))
+
+    logged = capsys.readouterr().out
+    assert (
+        f"Refused to get dashboard {dashboard.id} for {admin_user.username}" in logged
+    )
+    assert f"Refused to get dashboard {dashboard.id} for a signed-out user" in logged
+
+
+@pytest.mark.django_db
+def test_listing_and_view_check_admit_the_same_dashboards(
+    dashboard,
+    public_dashboard,
+    db_session,
+    mock_app_get_ps_db,
+    admin_user,
+    test_owner_user,
+    test_admin_user,
+    test_member_user,
+):
+    """The listing is a query and user_may_view a per-dashboard check; they agree."""
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    for public in [False, True]:
+        blank_owned = Dashboard(
+            uuid=str(uuid4()), name=f"blank {public}", owner="", public=public
+        )
+        db_session.add(blank_owned)
+        db_session.flush()
+        db_session.add(
+            DashboardPermission(
+                dashboard_id=blank_owned.id, username="", permission="admin"
+            )
+        )
+    db_session.commit()
+    every_dashboard = db_session.query(Dashboard).all()
+    principals = [
+        AnonymousUser(),
+        admin_user,  # signed in, holding no permission
+        test_owner_user,  # direct admin
+        test_admin_user,  # direct editor
+        test_member_user,  # viewer through a group
+    ]
+
+    for user in principals:
+        listed = {d["uuid"] for d in get_dashboards(user)}
+        viewable = {
+            d.uuid for d in every_dashboard if user_may_view(db_session, d, user)
+        }
+        assert listed == viewable, user
 
 
 @pytest.mark.django_db
@@ -1135,8 +1321,13 @@ def test_copy_named_dashboard_refuses_a_private_dashboard_without_permission(
 ):
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
 
-    with pytest.raises(Exception, match="does not have permission to copy"):
+    with pytest.raises(Exception) as refused:
         copy_named_dashboard(admin_user, dashboard.id, "the_copy", str(uuid4()))
+
+    with pytest.raises(Exception) as missing:
+        copy_named_dashboard(admin_user, 999999, "the_copy", str(uuid4()))
+
+    assert str(refused.value) == str(missing.value) == DASHBOARD_NOT_FOUND
 
     assert db_session.query(Dashboard).filter(Dashboard.name == "the_copy").count() == 0
 
@@ -1165,7 +1356,7 @@ def test_copy_named_dashboard_allows_a_public_dashboard_without_permission(
 def test_copy_named_dashboard_missing(mock_app_get_ps_db, admin_user):
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
 
-    with pytest.raises(Exception, match="A dashboard with the id 9999 does not exist."):
+    with pytest.raises(Exception, match=DASHBOARD_NOT_FOUND):
         copy_named_dashboard(admin_user, 9999, "the_copy", str(uuid4()))
 
 
@@ -1355,6 +1546,37 @@ def test_clean_up_jsons(
 
 
 @pytest.mark.django_db
+def test_clean_up_jsons_sweeps_nothing_when_signed_out(
+    dashboard, db_session, mock_app_get_ps_db, mocker, tmp_path, permission_group_table
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    mocker.patch(
+        "tethysapp.tethysdash.model.get_app_workspace",
+        return_value=MagicMock(path=tmp_path),
+    )
+    db_session.add(
+        DashboardPermission(dashboard_id=dashboard.id, username="", permission="editor")
+    )
+    # A group grant's username is NULL, which a None identity would match.
+    db_session.add(
+        DashboardPermission(
+            dashboard_id=dashboard.id,
+            group_id=permission_group_table.id,
+            permission="editor",
+        )
+    )
+    db_session.commit()
+    dashboard_folder = tmp_path / dashboard.uuid
+    dashboard_folder.mkdir()
+    unreferenced = dashboard_folder / "unreferenced.json"
+    unreferenced.touch()
+
+    clean_up_jsons(AnonymousUser())
+
+    assert unreferenced.exists()
+
+
+@pytest.mark.django_db
 def test_clean_up_jsons_no_existing_dashboard_folder(
     dashboard, mock_app_get_ps_db, mocker, tmp_path, test_owner_user
 ):
@@ -1535,6 +1757,42 @@ def test_copy_dashboard_files_without_a_source_folder_creates_nothing(mocker, tm
     assert not any(workspace_path.iterdir())
 
 
+def test_delete_dashboard_files_removes_the_folder(mocker, tmp_path):
+    dashboard_uuid = str(uuid4())
+    folder = tmp_path / dashboard_uuid
+    folder.mkdir()
+    (folder / "layer.json").write_text("{}")
+    mocker.patch("tethysapp.tethysdash.model.get_app_workspace").return_value = (
+        MagicMock(path=tmp_path)
+    )
+
+    delete_dashboard_files(dashboard_uuid)
+
+    assert not folder.exists()
+    # A dashboard with no files has nothing to remove.
+    delete_dashboard_files(str(uuid4()))
+
+
+@pytest.mark.django_db
+def test_can_edit_dashboard(
+    dashboard,
+    mock_app_get_ps_db,
+    test_owner_user,
+    test_admin_user,
+    test_member_user,
+    admin_user,
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+
+    assert can_edit_dashboard(test_owner_user, dashboard.uuid) is True  # admin
+    assert can_edit_dashboard(test_admin_user, dashboard.uuid) is True  # editor
+    assert can_edit_dashboard(test_member_user, dashboard.uuid) is False  # viewer
+    assert can_edit_dashboard(admin_user, dashboard.uuid) is False  # no permission
+    assert can_edit_dashboard(AnonymousUser(), dashboard.uuid) is False
+    assert can_edit_dashboard(test_owner_user, str(uuid4())) is False
+    assert can_edit_dashboard(test_owner_user, "not-a-uuid") is False
+
+
 @pytest.mark.django_db
 def test_init_primary_db_with_current_revision(mock_app_get_ps_db, mocker, tmp_path):
     mock_app_get_ps_db("tethysapp.tethysdash.app.App")
@@ -1645,6 +1903,24 @@ def test_init_primary_db_raises_unexpected_error(mocker, mock_alembic):
     mock_alembic.stamp.assert_not_called()
 
 
+@pytest.mark.parametrize(
+    "user, identity",
+    [
+        (AnonymousUser(), None),
+        (SimpleNamespace(is_authenticated=False, username="owner_user"), None),
+        (SimpleNamespace(is_authenticated=True, username=""), None),
+        (SimpleNamespace(is_authenticated=True, username="  "), None),
+        (
+            SimpleNamespace(is_authenticated=True, username=" owner_user "),
+            " owner_user ",
+        ),
+        (SimpleNamespace(is_authenticated=True, username="owner_user"), "owner_user"),
+    ],
+)
+def test_stored_identity(user, identity):
+    assert stored_identity(user) == identity
+
+
 def test_get_dashboard_user_permission(
     dashboard, db_session, test_owner_user, test_member_user, test_admin_user
 ):
@@ -1667,6 +1943,63 @@ def test_get_dashboard_user_permission(
         db_session, dashboard, AnonymousUser()
     )
     assert user_permission is None
+
+
+def test_get_dashboard_user_permission_ignores_empty_username_rows_when_signed_out(
+    dashboard, db_session, permission_group_table
+):
+    db_session.add(
+        DashboardPermission(dashboard_id=dashboard.id, username="", permission="admin")
+    )
+    # The dashboard's group grant (username NULL) is one an empty-username member
+    # would otherwise inherit.
+    db_session.add(
+        PermissionGroupUser(
+            username="", group_id=permission_group_table.id, permission="admin"
+        )
+    )
+    db_session.commit()
+
+    assert get_dashboard_user_permission(db_session, dashboard, AnonymousUser()) is None
+
+
+def test_get_dashboard_user_permission_ignores_a_blank_username(
+    dashboard, db_session, test_owner_user
+):
+    db_session.add(
+        DashboardPermission(
+            dashboard_id=dashboard.id, username="   ", permission="admin"
+        )
+    )
+    db_session.commit()
+    blank = SimpleNamespace(is_authenticated=True, username="   ")
+    padded = SimpleNamespace(
+        is_authenticated=True, username=f" {test_owner_user.username} "
+    )
+
+    assert get_dashboard_user_permission(db_session, dashboard, blank) is None
+    # Compared verbatim: padding is not trimmed to match the owner's row.
+    assert get_dashboard_user_permission(db_session, dashboard, padded) is None
+
+
+def test_get_dashboard_user_permission_takes_the_highest_grant(
+    dashboard, db_session, permission_group_table, test_member_user
+):
+    # test_member_user is a viewer through the dashboard's group; a direct admin
+    # grant beside it wins.
+    db_session.add(
+        DashboardPermission(
+            dashboard_id=dashboard.id,
+            username=test_member_user.username,
+            permission="admin",
+        )
+    )
+    db_session.commit()
+
+    assert (
+        get_dashboard_user_permission(db_session, dashboard, test_member_user)
+        == "admin"
+    )
 
 
 def test_update_dashboard_permissions(
@@ -1916,6 +2249,33 @@ def test_get_user_permission_groups(
     )
 
     assert len(permission_groups) == 0
+
+
+@pytest.mark.django_db
+def test_get_user_permission_groups_is_empty_when_signed_out(
+    mock_app_get_ps_db, db_session, permission_group_table
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
+    db_session.add(
+        PermissionGroupUser(
+            username="", group_id=permission_group_table.id, permission="admin"
+        )
+    )
+    db_session.commit()
+
+    assert get_user_permission_groups(AnonymousUser()) == []
+
+
+def test_parse_group_permissions_reports_no_permission_when_signed_out():
+    group = SimpleNamespace(
+        id=1,
+        name="group",
+        description="",
+        owner="",
+        members=[SimpleNamespace(username="", permission="admin")],
+    )
+
+    assert parse_group_permissions(AnonymousUser(), group)["user_permission"] is None
 
 
 @pytest.mark.django_db
@@ -2254,6 +2614,24 @@ def test_get_visualization_user_permission(
         db_session, mock_plugin.name, admin_user
     )
     assert user_permission is False
+
+
+@pytest.mark.django_db
+def test_get_visualization_user_permission_ignores_empty_username_rows_when_signed_out(
+    mock_plugin, db_session, visualization_permission, permission_group_table
+):
+    db_session.add(VisualizationPermission(visualization=mock_plugin.name, username=""))
+    db_session.add(
+        PermissionGroupUser(
+            username="", group_id=permission_group_table.id, permission="member"
+        )
+    )
+    db_session.commit()
+
+    assert (
+        get_visualization_user_permission(db_session, mock_plugin.name, AnonymousUser())
+        is False
+    )
 
 
 @pytest.mark.django_db

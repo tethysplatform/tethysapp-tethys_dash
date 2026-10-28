@@ -31,7 +31,7 @@ from sqlalchemy import CheckConstraint
 from pathlib import Path
 import subprocess
 from tethysapp.tethysdash.utilities import sanitize_html
-from tethysapp.tethysdash.exceptions import UnsafePath
+from tethysapp.tethysdash.exceptions import DASHBOARD_NOT_FOUND, UnsafePath
 from tethysapp.tethysdash.paths import (
     canonical_dashboard_uuid,
     resolve_dashboard_folder,
@@ -189,6 +189,15 @@ def copy_dashboard_files(source_uuid, target_uuid):
     for entry in os.scandir(source):
         if entry.is_file(follow_symlinks=False):
             shutil.copy2(entry.path, target / entry.name)
+
+
+def delete_dashboard_files(dashboard_uuid):
+    """Remove a dashboard's layer-file folder, if it has one."""
+    from tethysapp.tethysdash.app import App
+
+    folder = resolve_dashboard_folder(get_app_workspace(App).path, dashboard_uuid)
+    if folder.is_dir():
+        shutil.rmtree(folder)
 
 
 def delete_thumbnail(dashboard_uuid):
@@ -842,13 +851,12 @@ def copy_named_dashboard(user, id, new_name, dashboard_uuid):
 
     try:
         original_dashboard = session.query(Dashboard).filter(Dashboard.id == id).first()
-        if not original_dashboard:
-            raise Exception(f"A dashboard with the id {id} does not exist.")
-
         # Copying hands over everything the dashboard holds, so it takes the same access
         # as viewing it.
-        if not _user_may_view(session, original_dashboard, user):
-            raise Exception("User does not have permission to copy the dashboard.")
+        if not original_dashboard or not user_may_view(
+            session, original_dashboard, user
+        ):
+            raise _dashboard_not_found("copy", id, user)
 
         copied_dashboard_uuid = original_dashboard.uuid
 
@@ -949,8 +957,8 @@ def delete_named_dashboard(user, id):
 
     try:
         db_dashboard = session.query(Dashboard).filter(Dashboard.id == id).first()
-        if not db_dashboard:
-            raise Exception(f"A dashboard with the id {id} does not exist.")
+        if not db_dashboard or not user_may_view(session, db_dashboard, user):
+            raise _dashboard_not_found("delete", id, user)
 
         user_permission = get_dashboard_user_permission(session, db_dashboard, user)
 
@@ -999,10 +1007,8 @@ def update_named_dashboard(user, id, dashboard_updates):
 
     try:
         db_dashboard = session.query(Dashboard).filter(Dashboard.id == id).first()
-        if not db_dashboard:
-            raise Exception(
-                f"A dashboard with the id {id} does not exist for this user"  # noqa: E501
-            )
+        if not db_dashboard or not user_may_view(session, db_dashboard, user):
+            raise _dashboard_not_found("update", id, user)
         user_permission = get_dashboard_user_permission(session, db_dashboard, user)
 
         # Check if user has editor or admin permission
@@ -1168,6 +1174,26 @@ def update_named_dashboard(user, id, dashboard_updates):
     return parsed_dashboard
 
 
+def stored_identity(user):
+    """
+    The username a user's permission rows are stored under, or None for no identity.
+
+    A request that is not logged in has the username "", which is also what a row
+    written for one holds, so it must never reach a username comparison. Nor may None:
+    a NULL username marks a group grant, so comparing against it matches every group.
+    Callers return before building any query when this is None.
+
+    A blank username is stripped only to recognize it as blank; a real one is returned
+    as stored, so padding never matches a row written without it.
+    """
+    if not getattr(user, "is_authenticated", False):
+        return None
+    username = getattr(user, "username", None)
+    if not username or not username.strip():
+        return None
+    return username
+
+
 def get_dashboard_user_permission(session, dashboard, user):
     """
     Get the highest permission level a user has for a dashboard.
@@ -1183,12 +1209,15 @@ def get_dashboard_user_permission(session, dashboard, user):
     Returns:
         str or None: Highest permission level found or None if no permission exists
     """
+    username = stored_identity(user)
+    if username is None:
+        return None
 
     # Get all group ids the user belongs to
     user_groups = (
         session.query(PermissionGroup.id)
         .join(PermissionGroupUser, PermissionGroup.id == PermissionGroupUser.group_id)
-        .filter(PermissionGroupUser.username == user.username)
+        .filter(PermissionGroupUser.username == username)
         .all()
     )
     user_group_ids = [g[0] for g in user_groups]
@@ -1196,7 +1225,7 @@ def get_dashboard_user_permission(session, dashboard, user):
     # Collect all permissions for user and their groups
     perms = []
     for p in dashboard.permissions:
-        if p.username == user.username:
+        if p.username == username:
             perms.append(p.permission)
         elif p.group_id and p.group_id in user_group_ids:
             perms.append(p.permission)
@@ -1212,7 +1241,7 @@ def get_dashboard_user_permission(session, dashboard, user):
         return None
 
 
-def _user_may_view(session, dashboard, user):
+def user_may_view(session, dashboard, user):
     """A permission of any level, or a public dashboard.
 
     A request that is not logged in is matched against public dashboards only. Its
@@ -1226,19 +1255,21 @@ def _user_may_view(session, dashboard, user):
     return get_dashboard_user_permission(session, dashboard, user) is not None
 
 
-def can_view_dashboard(user, dashboard_uuid):
+def _dashboard_not_found(action, id, user):
+    """The exception for a dashboard that is missing or that the user may not view.
+
+    Both are answered with DASHBOARD_NOT_FOUND. The refusal is logged here because the
+    response alone reads like any other not-found.
     """
-    Whether a user may view the dashboard with the given uuid.
+    who = stored_identity(user) or "a signed-out user"
+    print(f"Refused to {action} dashboard {id} for {who}: missing or not viewable")
+    return Exception(DASHBOARD_NOT_FOUND)
 
-    Viewing takes what copying takes (see _user_may_view).
 
-    Args:
-        user: User object, authenticated or anonymous
-        dashboard_uuid: The dashboard's uuid, in any form UUID() accepts
+def _check_dashboard_by_uuid(dashboard_uuid, check):
+    """Look up a dashboard by uuid and apply ``check(session, dashboard)`` to it.
 
-    Returns:
-        bool: True when the dashboard exists and the user may view it. A malformed
-            uuid or an unknown dashboard is False, never an error.
+    A malformed uuid or an unknown dashboard is False, never an error.
     """
     try:
         dashboard_uuid = canonical_dashboard_uuid(dashboard_uuid)
@@ -1254,9 +1285,52 @@ def can_view_dashboard(user, dashboard_uuid):
         dashboard = (
             session.query(Dashboard).filter(Dashboard.uuid == dashboard_uuid).first()
         )
-        return bool(dashboard) and _user_may_view(session, dashboard, user)
+        return bool(dashboard) and check(session, dashboard)
     finally:
         session.close()
+
+
+def can_view_dashboard(user, dashboard_uuid):
+    """
+    Whether a user may view the dashboard with the given uuid.
+
+    Viewing takes what copying takes (see user_may_view).
+
+    Args:
+        user: User object, authenticated or anonymous
+        dashboard_uuid: The dashboard's uuid, in any form UUID() accepts
+
+    Returns:
+        bool: True when the dashboard exists and the user may view it. A malformed
+            uuid or an unknown dashboard is False, never an error.
+    """
+    return _check_dashboard_by_uuid(
+        dashboard_uuid,
+        lambda session, dashboard: user_may_view(session, dashboard, user),
+    )
+
+
+def can_edit_dashboard(user, dashboard_uuid):
+    """
+    Whether a user may change the content of the dashboard with the given uuid.
+
+    Takes editor or admin, the level update_named_dashboard requires for content.
+
+    Args:
+        user: User object, authenticated or anonymous
+        dashboard_uuid: The dashboard's uuid, in any form UUID() accepts
+
+    Returns:
+        bool: True when the dashboard exists and the user may edit it. A malformed
+            uuid or an unknown dashboard is False, never an error.
+    """
+    return _check_dashboard_by_uuid(
+        dashboard_uuid,
+        lambda session, dashboard: get_dashboard_user_permission(
+            session, dashboard, user
+        )
+        in ("editor", "admin"),
+    )
 
 
 def get_visualization_user_permission(session, visualization, user):
@@ -1274,6 +1348,9 @@ def get_visualization_user_permission(session, visualization, user):
     Returns:
         bool: True if user has permission, False otherwise
     """
+    username = stored_identity(user)
+    if username is None:
+        return False
 
     permission = False
 
@@ -1281,7 +1358,7 @@ def get_visualization_user_permission(session, visualization, user):
     user_groups = (
         session.query(PermissionGroup.id)
         .join(PermissionGroupUser, PermissionGroup.id == PermissionGroupUser.group_id)
-        .filter(PermissionGroupUser.username == user.username)
+        .filter(PermissionGroupUser.username == username)
         .all()
     )
     user_group_ids = [g[0] for g in user_groups]
@@ -1294,7 +1371,7 @@ def get_visualization_user_permission(session, visualization, user):
 
     # Collect all permissions for user and their groups
     for p in visualization_permissions:
-        if p.username == user.username:
+        if p.username == username:
             permission = True
         elif p.group_id and p.group_id in user_group_ids:
             permission = True
@@ -1625,6 +1702,10 @@ def get_user_permission_groups(user):
                   }
               ]
     """
+    username = stored_identity(user)
+    if username is None:
+        return []
+
     from tethysapp.tethysdash.app import App
 
     Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
@@ -1636,7 +1717,7 @@ def get_user_permission_groups(user):
             .join(
                 PermissionGroupUser, PermissionGroup.id == PermissionGroupUser.group_id
             )
-            .filter(PermissionGroupUser.username == user.username)
+            .filter(PermissionGroupUser.username == username)
             .all()
         )
         result = []
@@ -1889,8 +1970,14 @@ def parse_group_permissions(user, group):
         {"username": member.username, "permission": member.permission}
         for member in group.members
     ]
+    username = stored_identity(user)
     user_permission = next(
-        (m["permission"] for m in members if m["username"] == user.username), None
+        (
+            m["permission"]
+            for m in members
+            if username is not None and m["username"] == username
+        ),
+        None,
     )
 
     return {
@@ -2011,7 +2098,17 @@ def get_dashboards(user, dashboard_view=False, id=None):
     try:
         if id:
             dashboard = session.query(Dashboard).filter(Dashboard.id == id).first()
+            if not dashboard or not user_may_view(session, dashboard, user):
+                raise _dashboard_not_found("get", id, user)
             return parse_db_dashboard(session, [dashboard], user, dashboard_view)[0]
+
+        username = stored_identity(user)
+        if username is None:
+            # With no identity there is no grant to match, only public dashboards.
+            public_dashboards = (
+                session.query(Dashboard).filter(Dashboard.public == True)  # noqa: E712
+            ).all()
+            return parse_db_dashboard(session, public_dashboards, user, dashboard_view)
 
         # Get all group ids the user belongs to
         user_groups = (
@@ -2019,7 +2116,7 @@ def get_dashboards(user, dashboard_view=False, id=None):
             .join(
                 PermissionGroupUser, PermissionGroup.id == PermissionGroupUser.group_id
             )
-            .filter(PermissionGroupUser.username == user.username)
+            .filter(PermissionGroupUser.username == username)
             .all()
         )
         user_group_ids = [g[0] for g in user_groups]
@@ -2029,7 +2126,7 @@ def get_dashboards(user, dashboard_view=False, id=None):
             session.query(Dashboard)
             .join(DashboardPermission)
             .filter(
-                (DashboardPermission.username == user.username)
+                (DashboardPermission.username == username)
                 | (DashboardPermission.group_id.in_(user_group_ids))
             )
         ).all()
@@ -2039,9 +2136,7 @@ def get_dashboards(user, dashboard_view=False, id=None):
             session.query(Dashboard)
             .filter(Dashboard.public == True)  # noqa: E712
             .filter(
-                ~Dashboard.permissions.any(
-                    DashboardPermission.username == user.username
-                )
+                ~Dashboard.permissions.any(DashboardPermission.username == username)
             )
             .filter(
                 ~Dashboard.permissions.any(
@@ -2067,6 +2162,10 @@ def clean_up_jsons(user):
     Args:
         user: User object to clean up files for
     """
+    username = stored_identity(user)
+    if username is None:
+        # A user with no identity can edit nothing, so has nothing to sweep.
+        return
 
     print("Checking to see if there are any unused json files to remove")
     from tethysapp.tethysdash.app import App
@@ -2079,7 +2178,7 @@ def clean_up_jsons(user):
             session.query(Dashboard)
             .join(DashboardPermission)
             .filter(
-                (DashboardPermission.username == user.username)
+                (DashboardPermission.username == username)
                 & (
                     DashboardPermission.permission.in_(
                         [
@@ -2097,7 +2196,7 @@ def clean_up_jsons(user):
             .join(
                 PermissionGroupUser, PermissionGroup.id == PermissionGroupUser.group_id
             )
-            .filter(PermissionGroupUser.username == user.username)
+            .filter(PermissionGroupUser.username == username)
             .all()
         )
         user_group_ids = [g[0] for g in user_groups]

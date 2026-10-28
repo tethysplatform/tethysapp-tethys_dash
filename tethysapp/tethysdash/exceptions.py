@@ -10,6 +10,10 @@ class VisualizationError(Exception):
 # the caller learns nothing about what is or is not there.
 INVALID_FILE_PATH = "Invalid file path."
 
+# The one answer for a dashboard that does not exist or that the caller may not view,
+# so a refusal does not confirm that the ID exists.
+DASHBOARD_NOT_FOUND = "Dashboard not found."
+
 
 class UnsafePath(Exception):
     """
