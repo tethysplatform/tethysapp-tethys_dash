@@ -367,6 +367,40 @@ function Loader({ children }) {
 
   const importDashboard = useCallback(
     async (dashboardContext) => {
+      let newDashboard = null;
+      // A failure after the dashboard exists takes it back down, so a failed
+      // import leaves nothing behind. Best effort: the import's own error is
+      // the one worth reporting.
+      const abandon = async (response) => {
+        if (!newDashboard) {
+          return response;
+        }
+        let removed = false;
+        try {
+          const deleteResponse = await appAPI.deleteDashboard(
+            { id: newDashboard.id },
+            appContext.csrf,
+          );
+          removed = Boolean(deleteResponse?.success);
+        } catch {
+          // Reported below, with the import's own error.
+        }
+        if (removed) {
+          return response;
+        }
+        // Shown rather than hidden until a reload, so the user can delete it.
+        const leftover = newDashboard;
+        setAvailableDashboards((dashboards) => [...dashboards, leftover]);
+        // A reason such as "Import failed: Network Error" ends without a period.
+        const reason = /[.!?]$/.test(response.message)
+          ? response.message
+          : `${response.message}.`;
+        return {
+          ...response,
+          message: `${reason} The dashboard "${leftover.name}" was still created, but it may be missing some or all of its contents, and it could not be removed automatically. Delete it from your dashboard list, then import the file again.`,
+        };
+      };
+
       try {
         if (!("name" in dashboardContext)) {
           return { success: false, message: "Dashboards must include a name" };
@@ -374,7 +408,25 @@ function Loader({ children }) {
         // Its caller awaits this from a click handler with no catch of its own,
         // so anything thrown below would surface as an unhandled rejection --
         // no error shown, no success, the modal left open.
-        dashboardContext.uuid = uuidv4();
+
+        // The dashboard is created first and empty: the server stores a layer
+        // file only for a dashboard the caller can edit, under the uuid it
+        // mints. `public` is passed on only as a literal `public` key, as
+        // before; an export carries `publicDashboard`, so imports stay private.
+        const addResponse = await appAPI.addDashboard(
+          {
+            name: dashboardContext.name,
+            description: dashboardContext.description,
+            notes: dashboardContext.notes,
+            public: dashboardContext.public,
+            unrestrictedPlacement: dashboardContext.unrestrictedPlacement,
+          },
+          appContext.csrf,
+        );
+        if (!addResponse.success) {
+          return addResponse;
+        }
+        newDashboard = addResponse.new_dashboard;
 
         const importedLooseItems = [];
         if (
@@ -386,12 +438,12 @@ function Loader({ children }) {
               await handleGridItemImport(
                 gridItem,
                 appContext.csrf,
-                dashboardContext.uuid,
+                newDashboard.uuid,
               );
             if (success) {
               importedLooseItems.push(importedGridItem);
             } else {
-              return { success, message };
+              return await abandon({ success, message });
             }
           }
         }
@@ -405,12 +457,12 @@ function Loader({ children }) {
                 await handleGridItemImport(
                   gridItem,
                   appContext.csrf,
-                  dashboardContext.uuid,
+                  newDashboard.uuid,
                 );
               if (success) {
                 updatedGridItems.push(importedGridItem);
               } else {
-                return { success, message };
+                return await abandon({ success, message });
               }
             }
             importedTabs.push({ ...tab, gridItems: updatedGridItems });
@@ -418,56 +470,77 @@ function Loader({ children }) {
         }
 
         // R8: one view group may have only one member flagged as its initial
-        // extent, and the batch that has to agree on that spans the loose items
-        // AND every tab -- a flagged map on tab two must be able to see a flagged
-        // sibling on tab one. So it cannot be a per-loop helper. The two loops
-        // above collect their results instead of assigning them, the whole import
-        // is flattened in one fixed order -- loose items first, then tabs in
-        // order -- transformed once, and re-split by the lengths each tab arrived
-        // with. The re-split is safe precisely because the transform preserves
-        // length and order; nothing here may reorder or drop an item.
+        // extent, and the batch that has to agree on that spans every tab -- a
+        // flagged map on tab two must be able to see a flagged sibling on tab
+        // one. So it cannot be a per-loop helper. The loops above collect their
+        // results instead of assigning them, the whole import is flattened in
+        // one fixed order, transformed once, and re-split by the lengths each
+        // tab arrived with. The re-split is safe precisely because the
+        // transform preserves length and order; nothing here may reorder or
+        // drop an item.
         //
         // The target state is empty: this path always creates a new dashboard, so
         // there is no existing member for an imported flag to collide with.
         //
-        // Only the items the server will actually keep take part. `add_new_dashboard`
-        // persists the tab grid items when the payload has tabs and the loose ones
-        // only when it does not, so a file carrying both would otherwise let a
-        // flagged loose map claim a group and clear the flag off the tab map --
-        // and then be discarded, leaving the group with no opening view at all.
+        // A file carrying tabs keeps only their items, as creating it with them
+        // did, so a flagged loose map cannot claim a group, clear the flag off a
+        // tab map, and then be discarded.
         const hasTabs = importedTabs.length > 0;
         const batchInput = hasTabs
           ? importedTabs.flatMap((tab) => tab.gridItems)
           : importedLooseItems;
         const normalizedGridItems = applyBatchIdentityRules(batchInput, []);
 
-        if (importedLooseItems.length > 0) {
-          dashboardContext.gridItems = hasTabs
-            ? importedLooseItems
-            : normalizedGridItems;
-        }
-        if (hasTabs) {
-          let itemIndex = 0;
-          dashboardContext.tabs = importedTabs.map((tab) => {
-            const gridItems = normalizedGridItems.slice(
-              itemIndex,
-              itemIndex + tab.gridItems.length,
-            );
-            itemIndex += tab.gridItems.length;
-            return { ...tab, gridItems };
-          });
+        if (batchInput.length === 0 && !hasTabs) {
+          // Nothing to add: the new dashboard keeps the tab it was created with.
+          setAvailableDashboards((dashboards) => [...dashboards, newDashboard]);
+          return addResponse;
         }
 
-        const apiResponse = await addDashboard(dashboardContext);
-        return apiResponse;
+        let itemIndex = 0;
+        const tabs = (hasTabs ? importedTabs : [{ name: "Main" }]).map(
+          (tab, tabIndex) => {
+            const count = hasTabs ? tab.gridItems.length : batchInput.length;
+            const gridItems = normalizedGridItems.slice(
+              itemIndex,
+              itemIndex + count,
+            );
+            itemIndex += count;
+            // The save path matches ids against the dashboard's own tabs and
+            // items and takes each new item's uuid as given, where creating
+            // ignored ids and minted uuids. So the ids an export carries are
+            // dropped, every item gets a fresh uuid, and a tab without a name
+            // gets the one creating would have given it.
+            const { id, ...tabProperties } = tab;
+            return {
+              ...tabProperties,
+              name: "name" in tab ? tab.name : `Tab ${tabIndex + 1}`,
+              gridItems: gridItems.map(({ id, ...gridItem }) => ({
+                ...gridItem,
+                uuid: uuidv4(),
+              })),
+            };
+          },
+        );
+
+        const updateResponse = await appAPI.updateDashboard(
+          { id: newDashboard.id, tabs },
+          appContext.csrf,
+        );
+        if (!updateResponse.success) {
+          return await abandon(updateResponse);
+        }
+
+        setAvailableDashboards((dashboards) => [...dashboards, newDashboard]);
+        return { success: true, new_dashboard: newDashboard };
       } catch (error) {
-        return {
+        return await abandon({
           success: false,
           message: `Import failed: ${error?.message ?? "unexpected error"}`,
-        };
+        });
       }
     },
-    [appContext, addDashboard],
+    [appContext],
   );
 
   const exportDashboard = useCallback(

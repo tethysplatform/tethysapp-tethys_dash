@@ -1,6 +1,9 @@
+import PropTypes from "prop-types";
 import Loader from "components/loader/AppLoader";
-import { screen, render } from "@testing-library/react";
-import { useContext } from "react";
+import { screen, render, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { useContext, useState } from "react";
+import appAPI from "services/api/app";
 import {
   AppContext,
   AvailableDashboardsContext,
@@ -501,4 +504,296 @@ test("AppLoader carries each dynamic map layer plugin's source type, defaulting 
       ],
     },
   ]);
+});
+
+// importDashboard creates the dashboard first, uploads its layer files under the
+// uuid the server minted, then saves its tabs; a failure after the create takes
+// the new dashboard back down.
+describe("importDashboard", () => {
+  const csrf =
+    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy";
+  const created = { id: 77, uuid: "minted-uuid", name: "Imported" };
+
+  // A map whose layer style is inline, so importing it uploads one file.
+  const mapItem = (extra = {}) => ({
+    i: "1",
+    x: 0,
+    y: 0,
+    w: 10,
+    h: 10,
+    source: "Map",
+    args_string: {
+      layers: [
+        {
+          configuration: {
+            type: "VectorLayer",
+            props: {
+              name: "layer",
+              source: { type: "GeoJSON", geojson: "existing.json" },
+            },
+            style: { "fill-color": "red" },
+          },
+        },
+      ],
+    },
+    metadata_string: {},
+    ...extra,
+  });
+
+  const ImportingComponent = ({ file }) => {
+    const { availableDashboards, importDashboard } = useContext(
+      AvailableDashboardsContext,
+    );
+    const [result, setResult] = useState(null);
+    return (
+      <>
+        <button
+          onClick={async () =>
+            setResult(await importDashboard(JSON.parse(JSON.stringify(file))))
+          }
+        >
+          import
+        </button>
+        <p data-testid="importResult">{JSON.stringify(result)}</p>
+        <p data-testid="dashboardNames">
+          {JSON.stringify(availableDashboards.map((d) => d.name))}
+        </p>
+      </>
+    );
+  };
+
+  ImportingComponent.propTypes = { file: PropTypes.object.isRequired };
+
+  let addDashboard, uploadJSON, updateDashboard, deleteDashboard;
+  beforeEach(() => {
+    addDashboard = jest
+      .spyOn(appAPI, "addDashboard")
+      .mockResolvedValue({ success: true, new_dashboard: created });
+    uploadJSON = jest
+      .spyOn(appAPI, "uploadJSON")
+      .mockResolvedValue({ success: true, filename: "12345678.json" });
+    updateDashboard = jest
+      .spyOn(appAPI, "updateDashboard")
+      .mockResolvedValue({ success: true, updated_dashboard: created });
+    deleteDashboard = jest
+      .spyOn(appAPI, "deleteDashboard")
+      .mockResolvedValue({ success: true });
+  });
+  afterEach(() => jest.restoreAllMocks());
+
+  const runImport = async (file) => {
+    render(
+      <ModalPriorityProvider>
+        <Loader>
+          <ImportingComponent file={file} />
+        </Loader>
+      </ModalPriorityProvider>,
+    );
+    await userEvent.click(await screen.findByText("import"));
+    await waitFor(() =>
+      expect(screen.getByTestId("importResult").textContent).not.toBe("null"),
+    );
+    return {
+      result: JSON.parse(screen.getByTestId("importResult").textContent),
+      names: JSON.parse(screen.getByTestId("dashboardNames").textContent),
+    };
+  };
+
+  const listedNames = mockedDashboards.dashboards.map((d) => d.name);
+
+  test("creates the dashboard, uploads under its uuid, then saves the items", async () => {
+    const { result, names } = await runImport({
+      name: "Imported",
+      description: "described",
+      uuid: "uuid-from-the-file",
+      gridItems: [mapItem({ id: 5, uuid: "exported-uuid" })],
+    });
+
+    // Metadata only: no uuid, no grid items, no tabs.
+    expect(addDashboard).toHaveBeenCalledWith(
+      { name: "Imported", description: "described" },
+      csrf,
+    );
+    expect(addDashboard.mock.calls[0][0]).not.toHaveProperty("uuid");
+    expect(uploadJSON).toHaveBeenCalledTimes(1);
+    expect(uploadJSON.mock.calls[0][0].dashboard_uuid).toBe("minted-uuid");
+    expect(addDashboard.mock.invocationCallOrder[0]).toBeLessThan(
+      uploadJSON.mock.invocationCallOrder[0],
+    );
+
+    const { id, tabs } = updateDashboard.mock.calls[0][0];
+    expect(id).toBe(77);
+    expect(tabs).toHaveLength(1);
+    expect(tabs[0].name).toBe("Main");
+    expect(tabs[0].gridItems).toHaveLength(1);
+    expect(tabs[0].gridItems[0]).not.toHaveProperty("id");
+    expect(tabs[0].gridItems[0].uuid).toBe("12345678");
+    expect(
+      JSON.parse(tabs[0].gridItems[0].args_string).layers[0].configuration
+        .style,
+    ).toBe("12345678.json");
+
+    expect(deleteDashboard).not.toHaveBeenCalled();
+    expect(result).toEqual({ success: true, new_dashboard: created });
+    expect(names).toEqual([...listedNames, "Imported"]);
+  });
+
+  test("sends every tab without its id and names an unnamed one", async () => {
+    await runImport({
+      name: "Imported",
+      gridItems: [mapItem()],
+      tabs: [
+        { id: 3, name: "First", gridItems: [mapItem({ id: 9 })] },
+        { id: 4, gridItems: [] },
+      ],
+    });
+
+    const { tabs } = updateDashboard.mock.calls[0][0];
+    expect(tabs.map((tab) => tab.name)).toEqual(["First", "Tab 2"]);
+    tabs.forEach((tab) => expect(tab).not.toHaveProperty("id"));
+    expect(tabs[0].gridItems).toHaveLength(1);
+    expect(tabs[0].gridItems[0]).not.toHaveProperty("id");
+    expect(tabs[1].gridItems).toEqual([]);
+    // A file with tabs saves only their items; its loose item is not saved.
+    expect(tabs.flatMap((tab) => tab.gridItems)).toHaveLength(1);
+  });
+
+  test("carries the file's metadata to the create", async () => {
+    await runImport({
+      name: "Imported",
+      description: "described",
+      notes: "noted",
+      public: true,
+      unrestrictedPlacement: false,
+      uuid: "uuid-from-the-file",
+      gridItems: [mapItem()],
+    });
+
+    expect(addDashboard.mock.calls[0][0]).toStrictEqual({
+      name: "Imported",
+      description: "described",
+      notes: "noted",
+      public: true,
+      unrestrictedPlacement: false,
+    });
+  });
+
+  test("keeps an exported public dashboard private", async () => {
+    await runImport({ name: "Imported", publicDashboard: true });
+
+    expect(addDashboard.mock.calls[0][0].public).toBeUndefined();
+  });
+
+  test("an empty file creates the dashboard and saves nothing more", async () => {
+    const { result, names } = await runImport({ name: "Imported" });
+
+    expect(updateDashboard).not.toHaveBeenCalled();
+    expect(result.success).toBe(true);
+    expect(names).toEqual([...listedNames, "Imported"]);
+  });
+
+  test("an upload failure removes the new dashboard", async () => {
+    uploadJSON.mockResolvedValue({ success: false, message: "upload failed" });
+
+    const { result, names } = await runImport({
+      name: "Imported",
+      gridItems: [mapItem()],
+    });
+
+    expect(result).toEqual({ success: false, message: "upload failed" });
+    expect(deleteDashboard).toHaveBeenCalledWith({ id: 77 }, csrf);
+    expect(updateDashboard).not.toHaveBeenCalled();
+    expect(names).toEqual(listedNames);
+  });
+
+  test("a save failure removes the new dashboard", async () => {
+    updateDashboard.mockResolvedValue({
+      success: false,
+      message: "save failed",
+    });
+
+    const { result, names } = await runImport({
+      name: "Imported",
+      gridItems: [mapItem()],
+    });
+
+    expect(result).toEqual({ success: false, message: "save failed" });
+    expect(deleteDashboard).toHaveBeenCalledWith({ id: 77 }, csrf);
+    expect(names).toEqual(listedNames);
+  });
+
+  test("a thrown error removes the new dashboard", async () => {
+    updateDashboard.mockRejectedValue(new Error("network down"));
+
+    const { result, names } = await runImport({
+      name: "Imported",
+      gridItems: [mapItem()],
+    });
+
+    expect(result).toEqual({
+      success: false,
+      message: "Import failed: network down",
+    });
+    expect(deleteDashboard).toHaveBeenCalledWith({ id: 77 }, csrf);
+    expect(names).toEqual(listedNames);
+  });
+
+  test.each([
+    [
+      "is refused",
+      "save failed",
+      "save failed.",
+      () => deleteDashboard.mockResolvedValue({ success: false }),
+    ],
+    [
+      "throws",
+      "Save failed.",
+      "Save failed.",
+      () => deleteDashboard.mockRejectedValue(new Error("down")),
+    ],
+  ])(
+    "a removal that %s leaves the dashboard listed and says it may be incomplete",
+    async (_, saveMessage, reason, failRemoval) => {
+      updateDashboard.mockResolvedValue({
+        success: false,
+        message: saveMessage,
+      });
+      failRemoval();
+
+      const { result, names } = await runImport({
+        name: "Imported",
+        gridItems: [mapItem()],
+      });
+
+      expect(result).toEqual({
+        success: false,
+        message: `${reason} The dashboard "Imported" was still created, but it may be missing some or all of its contents, and it could not be removed automatically. Delete it from your dashboard list, then import the file again.`,
+      });
+      expect(names).toEqual([...listedNames, "Imported"]);
+    },
+  );
+
+  test("a create failure uploads nothing and removes nothing", async () => {
+    addDashboard.mockResolvedValue({ success: false, message: "add failed" });
+
+    const { result, names } = await runImport({
+      name: "Imported",
+      gridItems: [mapItem()],
+    });
+
+    expect(result).toEqual({ success: false, message: "add failed" });
+    expect(uploadJSON).not.toHaveBeenCalled();
+    expect(deleteDashboard).not.toHaveBeenCalled();
+    expect(names).toEqual(listedNames);
+  });
+
+  test("a file without a name creates nothing", async () => {
+    const { result } = await runImport({ gridItems: [mapItem()] });
+
+    expect(result).toEqual({
+      success: false,
+      message: "Dashboards must include a name",
+    });
+    expect(addDashboard).not.toHaveBeenCalled();
+  });
 });

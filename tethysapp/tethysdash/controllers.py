@@ -33,8 +33,9 @@ from tethysapp.tethysdash.model import (
     Message,
     copy_dashboard_files,
     copy_thumbnail,
+    delete_dashboard_files,
     delete_thumbnail,
-    canonical_dashboard_uuid,
+    can_edit_dashboard,
     can_view_dashboard,
 )
 from django.core.cache import cache
@@ -704,6 +705,10 @@ def add_dashboard(request):
               defaulting to True. Existing dashboards keep whatever they were
               created with; this only sets the starting point for new ones.
             - gridItems: Optional list of grid items
+            - tabs: Optional list of tabs, each with a name and gridItems; when
+              given, gridItems is ignored
+            A uuid in the body is ignored: the server mints one and returns it as
+            new_dashboard.uuid, which layer files are then uploaded under.
 
     Returns:
         JsonResponse: Dictionary containing:
@@ -721,14 +726,9 @@ def add_dashboard(request):
     tabs = dashboard_metadata.get("tabs", [])
     grid_items = dashboard_metadata.get("gridItems", [])
     owner = request.user
-    try:
-        dashboard_uuid = canonical_dashboard_uuid(
-            dashboard_metadata.get("uuid") or str(uuid.uuid4())
-        )
-    except ValueError:
-        return JsonResponse(
-            {"success": False, "message": "The dashboard uuid must be a UUID."}
-        )
+    # Always minted here: a uuid the caller chose could name the folder of files a
+    # deleted dashboard left behind, and creating the dashboard would hand them over.
+    dashboard_uuid = str(uuid.uuid4())
     print(f"Creating a dashboard named {name}")
 
     try:
@@ -824,7 +824,7 @@ def delete_dashboard(request):
     """
     API controller for deleting a dashboard.
 
-    Deletes the specified dashboard and its associated image file.
+    Deletes the specified dashboard, its thumbnail and its layer files.
     Requires user to be logged in.
 
     Args:
@@ -852,6 +852,12 @@ def delete_dashboard(request):
         except Exception as error:
             print(
                 f"Could not delete the thumbnail of dashboard {dashboard_id}: {error}"
+            )
+        try:
+            delete_dashboard_files(dashboard_uuid)
+        except Exception as error:
+            print(
+                f"Could not delete the layer files of dashboard {dashboard_id}: {error}"
             )
 
         return JsonResponse({"success": True})
@@ -1033,6 +1039,9 @@ def upload_json(request, app_workspace):
         request: Django HTTP request object with JSON body containing:
             - data: String containing JSON data to upload
             - filename: String filename for the JSON file
+            - dashboard_uuid: uuid of an existing dashboard the caller holds
+              editor or admin permission on; any refusal answers
+              "Invalid file path."
         app_workspace: Tethys app workspace directory for storing files
 
     Returns:
@@ -1048,6 +1057,12 @@ def upload_json(request, app_workspace):
         data = json_data["data"]
         filename = json_data["filename"]
         dashboard_uuid = json_data["dashboard_uuid"]
+        if not can_edit_dashboard(request.user, dashboard_uuid):
+            print(
+                f"Refused a json upload to dashboard {dashboard_uuid} "
+                f"for {request.user.username}"
+            )
+            return JsonResponse({"success": False, "message": INVALID_FILE_PATH})
         print(f"Uploading {filename}")
 
         try:
@@ -1086,8 +1101,11 @@ def download_json(request, app_workspace):
     Downloads and sanitizes JSON data from the application workspace.
 
     Args:
-        request: Django HTTP request object with query parameter:
+        request: Django HTTP request object with query parameters:
             - filename: String name of the JSON file to download
+            - dashboard_uuid: uuid of a dashboard the caller may view (public
+              dashboards included, signed out); any refusal answers
+              "Invalid file path."
         app_workspace: Tethys app workspace directory containing files
 
     Returns:
@@ -1099,6 +1117,9 @@ def download_json(request, app_workspace):
     try:
         filename = request.GET["filename"]
         dashboard_uuid = request.GET["dashboard_uuid"]
+        if not can_view_dashboard(request.user, dashboard_uuid):
+            print(f"Refused a json download from dashboard {dashboard_uuid}")
+            return JsonResponse({"success": False, "message": INVALID_FILE_PATH})
         print(f"Getting data from {filename}")
 
         _, dashboard_file = resolve_dashboard_file(
