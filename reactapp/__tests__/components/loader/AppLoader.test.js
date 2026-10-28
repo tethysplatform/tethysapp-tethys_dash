@@ -739,14 +739,24 @@ describe("importDashboard", () => {
   });
 
   test.each([
-    ["is refused", () => deleteDashboard.mockResolvedValue({ success: false })],
-    ["throws", () => deleteDashboard.mockRejectedValue(new Error("down"))],
+    [
+      "is refused",
+      "save failed",
+      "save failed.",
+      () => deleteDashboard.mockResolvedValue({ success: false }),
+    ],
+    [
+      "throws",
+      "Save failed.",
+      "Save failed.",
+      () => deleteDashboard.mockRejectedValue(new Error("down")),
+    ],
   ])(
-    "a removal that %s leaves the dashboard listed and says so",
-    async (_, failRemoval) => {
+    "a removal that %s leaves the dashboard listed and says it may be incomplete",
+    async (_, saveMessage, reason, failRemoval) => {
       updateDashboard.mockResolvedValue({
         success: false,
-        message: "save failed",
+        message: saveMessage,
       });
       failRemoval();
 
@@ -757,8 +767,7 @@ describe("importDashboard", () => {
 
       expect(result).toEqual({
         success: false,
-        message:
-          'save failed The partly imported dashboard "Imported" could not be removed; delete it from your dashboard list.',
+        message: `${reason} The dashboard "Imported" was still created, but it may be missing some or all of its contents, and it could not be removed automatically. Delete it from your dashboard list, then import the file again.`,
       });
       expect(names).toEqual([...listedNames, "Imported"]);
     },

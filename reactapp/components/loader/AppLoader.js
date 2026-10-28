@@ -391,9 +391,13 @@ function Loader({ children }) {
         // Shown rather than hidden until a reload, so the user can delete it.
         const leftover = newDashboard;
         setAvailableDashboards((dashboards) => [...dashboards, leftover]);
+        // A reason such as "Import failed: Network Error" ends without a period.
+        const reason = /[.!?]$/.test(response.message)
+          ? response.message
+          : `${response.message}.`;
         return {
           ...response,
-          message: `${response.message} The partly imported dashboard "${leftover.name}" could not be removed; delete it from your dashboard list.`,
+          message: `${reason} The dashboard "${leftover.name}" was still created, but it may be missing some or all of its contents, and it could not be removed automatically. Delete it from your dashboard list, then import the file again.`,
         };
       };
 
