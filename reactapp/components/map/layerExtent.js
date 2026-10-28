@@ -1,3 +1,4 @@
+import { unByKey } from "ol/Observable";
 import { createEmpty, extend, getIntersection, isEmpty } from "ol/extent";
 import { get as getProjection, transformExtent } from "ol/proj";
 
@@ -24,6 +25,10 @@ const reportsView = (source) =>
   typeof source.determineTransformMatrix === "function" ||
   Object.prototype.hasOwnProperty.call(source, "getView");
 
+// A GeoTIFF that cannot open its file says so only through its state: it never
+// rejects its view promise, so awaiting that on a failed file hangs too.
+const failedToOpen = (source) => source.getState?.() === "error";
+
 /**
  * Whether a layer has any way of reporting where it is. Checked synchronously
  * so the panel can disable the button rather than offer one that does nothing:
@@ -40,7 +45,7 @@ export function canZoomToLayer(layer) {
   }
   if (layer.getExtent?.()) return true;
   const source = layer.getSource?.();
-  if (!source) return false;
+  if (!source || failedToOpen(source)) return false;
   return (
     reportsView(source) ||
     typeof source.getImageExtent === "function" ||
@@ -49,39 +54,59 @@ export function canZoomToLayer(layer) {
   );
 }
 
-// An extent in the source's projection, moved into the view's. A source
-// spanning the poles (a global EPSG:4326 raster) transforms to Infinity in
-// Web Mercator, so the extent is first cut to the part the view projection
-// can express.
+// An extent in the source's projection, moved into the view's and cut to the
+// part the view projection can express -- a global EPSG:4326 raster reaches
+// far past Web Mercator's poles. The cut is made in view coordinates, where
+// that valid area is defined. Carried the other way, into a projected source
+// CRS such as UTM or Albers, Web Mercator's world is four corners on the
+// antimeridian, which land on a sliver no real raster overlaps.
 function toViewProjection(extent, sourceProjection, viewProjection) {
   if (!extent || isEmpty(extent)) return null;
   const from = sourceProjection ? getProjection(sourceProjection) : null;
   let result = extent;
   if (from && from.getCode() !== viewProjection.getCode()) {
+    // Points along each edge as well as the corners: a projected CRS's
+    // straight edge is a curve in another, and can bow past its corners.
+    result = transformExtent(extent, from, viewProjection, 8);
     const viewValid = viewProjection.getExtent?.();
-    let clipped = extent;
-    if (viewValid) {
-      const validInSource = transformExtent(viewValid, viewProjection, from);
-      if (validInSource.every(Number.isFinite)) {
-        clipped = getIntersection(extent, validInSource);
-      }
-    }
-    if (isEmpty(clipped)) return null;
-    result = transformExtent(clipped, from, viewProjection);
+    if (viewValid) result = getIntersection(result, viewValid);
   }
   return result.every(Number.isFinite) && !isEmpty(result) ? result : null;
 }
 
+// A vector source that fetches its own features -- a GeoJSON or KML URL, a
+// Shapefile, an ESRI Feature Service -- does so only when its layer is drawn,
+// and a layer that is hidden or outside its zoom range never is. Ask it for
+// what drawing it in the current view would load, which is nothing for one
+// that already holds that or was given its features outright, and wait for
+// the load to end. A tiled ESRI service loads the view a tile at a time, so
+// it is fitted to the first tile that arrives.
+async function loadAsIfDrawn(source, frame, projection) {
+  source.loadFeatures?.(frame.extent, frame.resolution, projection);
+  // OpenLayers keeps `loading` only for a loader that reports back when it
+  // finishes; any other cannot be waited on.
+  if (!source.loading) return;
+  await new Promise((resolve) => {
+    const keys = source.once(["featuresloadend", "featuresloaderror"], () => {
+      unByKey(keys);
+      resolve();
+    });
+  });
+}
+
 /**
  * Where a layer is, as an extent in the map's view projection, or null when
- * the layer cannot say -- a vector layer still loading or holding no features,
- * a raster whose file failed to open, or a server-rendered image layer.
+ * the layer cannot say -- a vector layer holding no features, a raster whose
+ * file failed to open, or a server-rendered image layer.
  *
  * Async because a GeoTIFF reads its georeferencing from the file's header, and
  * only reports it once that has arrived (Zarr sources expose the same
- * `getView()` shim).
+ * `getView()` shim), and because a vector layer that has never been drawn may
+ * first have to load its features. `frame` is the view's current
+ * `{extent, resolution}`, which that load is for; without it, a vector layer
+ * reports only what it already holds.
  */
-export async function getLayerExtent(layer, viewProjection) {
+export async function getLayerExtent(layer, viewProjection, frame) {
   if (!layer) return null;
 
   if (isGroup(layer)) {
@@ -89,7 +114,7 @@ export async function getLayerExtent(layer, viewProjection) {
       layer
         .getLayers()
         .getArray()
-        .map((child) => getLayerExtent(child, viewProjection)),
+        .map((child) => getLayerExtent(child, viewProjection, frame)),
     );
     const union = extents
       .filter(Boolean)
@@ -103,7 +128,7 @@ export async function getLayerExtent(layer, viewProjection) {
   if (layerExtent) return toViewProjection(layerExtent, null, viewProjection);
 
   const source = layer.getSource?.();
-  if (!source) return null;
+  if (!source || failedToOpen(source)) return null;
 
   if (reportsView(source)) {
     try {
@@ -122,9 +147,9 @@ export async function getLayerExtent(layer, viewProjection) {
     );
   }
 
-  // Vector features are parsed into the view projection as they load, and
-  // reprojected with it when a raster adopts a new one.
+  // Vector features are parsed into the view projection as they load.
   if (typeof source.getFeatures === "function") {
+    if (frame) await loadAsIfDrawn(source, frame, viewProjection);
     return toViewProjection(source.getExtent(), null, viewProjection);
   }
 
@@ -147,18 +172,20 @@ export async function getLayerExtent(layer, viewProjection) {
 export async function zoomToLayer(map, layer, retried = false) {
   const view = map?.getView?.();
   if (!view) return false;
+  const size = map.getSize?.();
+  if (!size || !(size[0] > 0) || !(size[1] > 0)) return false;
 
-  const extent = await getLayerExtent(layer, view.getProjection());
+  const extent = await getLayerExtent(layer, view.getProjection(), {
+    extent: view.calculateExtent(size),
+    resolution: view.getResolution(),
+  });
   if (!extent) return false;
-  // A raster adopting its projection replaces the view outright, and can do
-  // so while a GeoTIFF header is still arriving above; that extent is in the
-  // old view's coordinates, so read it again against the new one.
+  // A new saved extent replaces the view outright, and can do so while a
+  // GeoTIFF header is still arriving above; the extent was read against the
+  // old view, so read it again against the new one.
   if (map.getView() !== view) {
     return retried ? false : zoomToLayer(map, layer, true);
   }
-
-  const size = map.getSize?.();
-  if (!size || !(size[0] > 0) || !(size[1] > 0)) return false;
 
   // The padding is per side, so on a map narrower than twice of it the fit
   // would have nothing left to fit into.

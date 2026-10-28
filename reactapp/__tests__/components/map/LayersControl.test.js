@@ -244,6 +244,8 @@ describe("LayersControl zoom to layer", () => {
       fit,
       getProjection: () => ({ getCode: () => "EPSG:3857" }),
       getMaxZoom: () => 28,
+      calculateExtent: () => [0, 0, 400, 300],
+      getResolution: () => 1,
     };
     const visualizationRef = {
       current: {

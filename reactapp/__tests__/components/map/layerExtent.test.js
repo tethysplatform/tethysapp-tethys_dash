@@ -8,17 +8,23 @@ import VectorSource from "ol/source/Vector";
 import ImageStatic from "ol/source/ImageStatic";
 import ImageWMS from "ol/source/ImageWMS";
 import ImageArcGISRest from "ol/source/ImageArcGISRest";
+import GeoTIFFSource from "ol/source/GeoTIFF";
 import XYZ from "ol/source/XYZ";
 import View from "ol/View";
-import { get as getProjection, transformExtent } from "ol/proj";
+import { containsCoordinate, getWidth } from "ol/extent";
+import { fromLonLat, get as getProjection, transformExtent } from "ol/proj";
 import {
   canZoomToLayer,
   getLayerExtent,
   zoomToLayer,
   ZOOM_TO_LAYER_MAX_ZOOM,
 } from "components/map/layerExtent";
+import { ensureProjection } from "components/map/projections";
 
 const mercator = getProjection("EPSG:3857");
+
+// The current view a lazily loading vector source is asked to load for.
+const frame = { extent: mercator.getExtent(), resolution: 1000 };
 
 const vectorLayer = (coords) =>
   new VectorLayer({
@@ -27,11 +33,37 @@ const vectorLayer = (coords) =>
     }),
   });
 
-// A layer whose source reports its georeferencing as a GeoTIFF does.
+// A source that fetches its own features, as a GeoJSON URL or a Shapefile
+// does: it loads only when asked, and reports back when it is done.
+const lazySource = (coords, { fail = false } = {}) =>
+  new VectorSource({
+    loader(extent, resolution, projection, success, failure) {
+      Promise.resolve().then(() => {
+        if (fail) return failure();
+        const features = coords.map((c) => new Feature(new Point(c)));
+        this.addFeatures(features);
+        success(features);
+      });
+    },
+  });
+
+// A layer whose source reports its georeferencing the way the Zarr loader's
+// does, with a getView() of its own.
 const rasterLayer = (getView) => ({
   getExtent: () => undefined,
   getSource: () => ({ getView }),
 });
+
+// A layer over a real GeoTIFF source, built without its constructor, which
+// would fetch the file. Its getView() is inherited, as a real one's is, so
+// only the GeoTIFF's own methods identify it.
+const geotiffLayer = ({ state, view }) => {
+  const proto = Object.create(GeoTIFFSource.prototype);
+  proto.getState = () => state;
+  proto.getView = () => view;
+  const source = Object.create(proto);
+  return { getExtent: () => undefined, getSource: () => source };
+};
 
 const expectExtentClose = (actual, expected) => {
   expect(actual).toHaveLength(4);
@@ -48,7 +80,29 @@ describe("getLayerExtent", () => {
   });
 
   test("a vector layer with no features has no extent", async () => {
-    expect(await getLayerExtent(vectorLayer([]), mercator)).toBeNull();
+    expect(await getLayerExtent(vectorLayer([]), mercator, frame)).toBeNull();
+  });
+
+  test("a vector layer that has never been drawn loads its features first", async () => {
+    // Hidden, so OpenLayers has never asked its source to load.
+    const layer = new VectorLayer({
+      source: lazySource([
+        [30, 40],
+        [60, 80],
+      ]),
+      visible: false,
+    });
+    expect(await getLayerExtent(layer, mercator, frame)).toEqual([
+      30, 40, 60, 80,
+    ]);
+  });
+
+  test("a vector layer whose features failed to load has no extent", async () => {
+    const layer = new VectorLayer({
+      source: lazySource([[30, 40]], { fail: true }),
+      visible: false,
+    });
+    expect(await getLayerExtent(layer, mercator, frame)).toBeNull();
   });
 
   test("an authored layer extent wins over the source", async () => {
@@ -78,8 +132,57 @@ describe("getLayerExtent", () => {
     expectExtentClose(extent, mercator.getExtent());
   });
 
-  test("a raster whose file failed to open has no extent", async () => {
-    const layer = rasterLayer(() => Promise.reject(new Error("404")));
+  test.each([
+    // Los Angeles and Denver, a box around each.
+    [
+      "UTM zone 11N",
+      "EPSG:32611",
+      [370000, 3740000, 400000, 3780000],
+      [-118.25, 34.05],
+    ],
+    [
+      "Conus Albers",
+      "EPSG:5070",
+      [-800000, 1800000, -700000, 1900000],
+      [-104.99, 39.74],
+    ],
+  ])(
+    "a raster in %s lands where it is on a Web Mercator map",
+    async (_, code, extent, lonLat) => {
+      ensureProjection(code);
+      const layer = rasterLayer(async () => ({ extent, projection: code }));
+      const result = await getLayerExtent(layer, mercator);
+      expect(containsCoordinate(result, fromLonLat(lonLat))).toBe(true);
+      expect(getWidth(result)).toBeLessThan(500000);
+    },
+  );
+
+  test("a raster whose view cannot be built has no extent", async () => {
+    // OpenLayers rejects the view of a GeoTIFF whose files disagree on their
+    // grid.
+    const layer = rasterLayer(() => Promise.reject(new Error("mismatch")));
+    expect(await getLayerExtent(layer, mercator)).toBeNull();
+  });
+
+  test("a GeoTIFF reports the extent from its file's header", async () => {
+    const layer = geotiffLayer({
+      state: "ready",
+      view: Promise.resolve({
+        extent: [-10, -5, 10, 5],
+        projection: getProjection("EPSG:4326"),
+      }),
+    });
+    expect(canZoomToLayer(layer)).toBe(true);
+    expectExtentClose(
+      await getLayerExtent(layer, mercator),
+      transformExtent([-10, -5, 10, 5], "EPSG:4326", "EPSG:3857"),
+    );
+  });
+
+  test("a GeoTIFF whose file failed to open has no extent, rather than waiting forever", async () => {
+    // OpenLayers moves the source to "error" and never settles its view.
+    const layer = geotiffLayer({ state: "error", view: new Promise(() => {}) });
+    expect(canZoomToLayer(layer)).toBe(false);
     expect(await getLayerExtent(layer, mercator)).toBeNull();
   });
 
@@ -137,6 +240,16 @@ describe("canZoomToLayer", () => {
   test("offers vector, raster and static image layers", () => {
     expect(canZoomToLayer(vectorLayer([]))).toBe(true);
     expect(canZoomToLayer(rasterLayer(jest.fn()))).toBe(true);
+    expect(
+      canZoomToLayer(
+        new ImageLayer({
+          source: new ImageStatic({
+            url: "https://example.com/a.png",
+            imageExtent: [1, 2, 3, 4],
+          }),
+        }),
+      ),
+    ).toBe(true);
   });
 
   test("declines layers with no way to report an extent", () => {
@@ -180,8 +293,47 @@ describe("zoomToLayer", () => {
     );
   });
 
+  test("loads a hidden layer's features, then fits to them", async () => {
+    const view = new View({
+      projection: "EPSG:3857",
+      center: [0, 0],
+      zoom: 2,
+    });
+    const fit = jest.spyOn(view, "fit");
+    const layer = new VectorLayer({
+      source: lazySource([
+        [1000, 2000],
+        [3000, 4000],
+      ]),
+      visible: false,
+    });
+    expect(await zoomToLayer(makeMap(view), layer)).toBe(true);
+    expect(fit).toHaveBeenCalledWith(
+      [1000, 2000, 3000, 4000],
+      expect.anything(),
+    );
+  });
+
+  test("narrows the margin on a map too small for it", async () => {
+    const view = new View({
+      projection: "EPSG:3857",
+      center: [0, 0],
+      zoom: 2,
+    });
+    const fit = jest.spyOn(view, "fit");
+    await zoomToLayer(makeMap(view, [60, 200]), vectorLayer([[5, 5]]));
+    expect(fit).toHaveBeenCalledWith(
+      [5, 5, 5, 5],
+      expect.objectContaining({ padding: [15, 15, 15, 15] }),
+    );
+  });
+
   test("does nothing when the layer has no extent", async () => {
-    const view = new View({ projection: "EPSG:3857" });
+    const view = new View({
+      projection: "EPSG:3857",
+      center: [0, 0],
+      zoom: 2,
+    });
     const fit = jest.spyOn(view, "fit");
     expect(await zoomToLayer(makeMap(view), vectorLayer([]))).toBe(false);
     expect(fit).not.toHaveBeenCalled();
@@ -197,10 +349,18 @@ describe("zoomToLayer", () => {
   });
 
   test("re-reads the extent when the view is replaced mid-read", async () => {
-    // A raster adopting its projection calls setView while another raster's
-    // header is still arriving; that extent is in the old view's coordinates.
-    const oldView = new View({ projection: "EPSG:3857" });
-    const newView = new View({ projection: "EPSG:4326" });
+    // A new saved extent calls setView while a raster's header is still
+    // arriving; that extent was read against the old view.
+    const oldView = new View({
+      projection: "EPSG:3857",
+      center: [0, 0],
+      zoom: 2,
+    });
+    const newView = new View({
+      projection: "EPSG:4326",
+      center: [0, 0],
+      zoom: 2,
+    });
     const map = { getView: jest.fn(), getSize: () => [400, 300] };
     map.getView
       .mockReturnValueOnce(oldView) // read before the header arrives
