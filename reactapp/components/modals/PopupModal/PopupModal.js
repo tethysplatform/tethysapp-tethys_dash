@@ -210,15 +210,22 @@ function PopupModal({
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  // Focus goes back to the trigger only when the modal actually closes, not
+  // when it mounts already closed. Every map on a dashboard mounts one, and
+  // each handing focus to its map scrolled the page down to the last of them.
+  const wasShownRef = useRef(false);
+
   useEffect(() => {
     if (show) {
+      wasShownRef.current = true;
       // Defer focus so the portal node is mounted in the DOM.
       const node = containerRef.current;
       if (node) {
         node.focus();
       }
-    } else if (triggerRef && triggerRef.current) {
-      triggerRef.current.focus();
+    } else if (wasShownRef.current) {
+      wasShownRef.current = false;
+      triggerRef?.current?.focus();
     }
   }, [show, triggerRef]);
 

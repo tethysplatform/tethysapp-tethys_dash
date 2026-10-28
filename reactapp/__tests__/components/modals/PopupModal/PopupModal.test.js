@@ -444,6 +444,34 @@ describe("PopupModal — focus management (R28)", () => {
     expect(screen.getByTestId("trigger")).toHaveFocus();
   });
 
+  it("leaves focus alone when it mounts closed", () => {
+    // Every map mounts one closed. Handing focus to the trigger then made the
+    // browser scroll each map into view, leaving the page at the last one.
+    function Harness() {
+      const triggerRef = useRef(null);
+      return (
+        <>
+          <button type="button" ref={triggerRef} data-testid="trigger">
+            trigger
+          </button>
+          <PopupModal
+            show={false}
+            onClose={() => {}}
+            position={CENTERED}
+            title={<span id="t">t</span>}
+            ariaLabelledBy="t"
+            triggerRef={triggerRef}
+          />
+        </>
+      );
+    }
+
+    render(<Harness />);
+
+    expect(screen.getByTestId("trigger")).not.toHaveFocus();
+    expect(document.body).toHaveFocus();
+  });
+
   it("does not error if triggerRef is null/undefined when closing", () => {
     function Harness() {
       const [show, setShow] = useState(true);
