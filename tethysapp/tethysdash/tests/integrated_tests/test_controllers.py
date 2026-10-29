@@ -1186,11 +1186,16 @@ def test_copy_dashboard_with_thumbnail(
     assert response.status_code == 200
     assert response.json()["success"]
     new_dashboard = response.json()["new_dashboard"]
+    image_path, image_version = new_dashboard["image"].split("?v=")
+    assert image_path == (
+        "/media/tethysdash/app/123e4567-e89b-12d3-a456-426614174001.png"
+    )
+    assert image_version.isdigit()
     expected_result = {
         "description": dashboard.description,
         "id": new_dashboard["id"],
         "name": "some_new_dashboard_name",
-        "image": "/media/tethysdash/app/123e4567-e89b-12d3-a456-426614174001.png",
+        "image": new_dashboard["image"],
         "uuid": "123e4567-e89b-12d3-a456-426614174001",
         "unrestrictedPlacement": dashboard.unrestricted_placement,
         "autoThumbnail": True,

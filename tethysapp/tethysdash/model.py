@@ -85,6 +85,19 @@ def _prefixed(url):
     return url
 
 
+def _versioned(url, saved_at):
+    """Key a thumbnail URL to the dashboard's last save.
+
+    Every save rewrites the thumbnail under the same name, so without this the browser
+    keeps showing the image it already has for that URL. A URL that already carries a
+    query string is left as it is: that is a signed URL, which the backend mints afresh
+    on every read, and its signature covers every parameter, so adding one voids it.
+    """
+    if url is None or saved_at is None or urlsplit(url).query:
+        return url
+    return f"{url}?v={int(saved_at.timestamp() * 1000)}"
+
+
 def save_thumbnail(dashboard_uuid, content):
     """Write a thumbnail through the default storage, replacing any existing one.
 
@@ -240,7 +253,7 @@ class Dashboard(Base):
     # Cleared when a thumbnail is uploaded by hand, so a save cannot overwrite it.
     auto_thumbnail = Column(Boolean, nullable=False, default=True)
     public = Column(Boolean, nullable=False, default=False)
-    last_updated = Column(DateTime, default=datetime.now(timezone.utc))
+    last_updated = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Relationships
     permissions = relationship(
@@ -2013,7 +2026,7 @@ def parse_db_dashboard(session, dashboards, user, dashboard_view):
     images = thumbnail_urls([dashboard.uuid for dashboard in dashboards])
 
     for dashboard in dashboards:
-        dashboard_image = images[dashboard.uuid]
+        dashboard_image = _versioned(images[dashboard.uuid], dashboard.last_updated)
         # Find the user's permission level for this dashboard
         user_permission = get_dashboard_user_permission(session, dashboard, user)
 
