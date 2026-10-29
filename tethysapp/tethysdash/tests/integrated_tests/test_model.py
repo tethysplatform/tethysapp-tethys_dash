@@ -669,12 +669,27 @@ def test_versioned_keys_a_thumbnail_url_to_the_save_time():
     version = int(saved_at.timestamp() * 1000)
 
     assert _versioned("/media/a.png", saved_at) == f"/media/a.png?v={version}"
-    # A signed URL already carries a query string.
-    assert _versioned("https://cdn.test/a.png?sig=x", saved_at) == (
-        f"https://cdn.test/a.png?sig=x&v={version}"
-    )
+    # A signed URL is new on every read already, and a parameter added to it voids the
+    # signature.
+    signed = "https://cdn.test/a.png?sig=x"
+    assert _versioned(signed, saved_at) == signed
     assert _versioned(None, saved_at) is None
     assert _versioned("/media/a.png", None) == "/media/a.png"
+
+
+@pytest.mark.django_db
+def test_dashboard_last_updated_defaults_to_the_insert_time(db_session):
+    """A new row is stamped when it is inserted, not when the model was imported.
+
+    The stamp versions the dashboard's thumbnail URL, and a default evaluated once would
+    give every dashboard a worker creates that worker's start time.
+    """
+    before = datetime.now(timezone.utc)
+    dashboard = Dashboard(name="new", uuid=str(uuid4()), owner="someone")
+    db_session.add(dashboard)
+    db_session.flush()
+
+    assert before <= dashboard.last_updated <= datetime.now(timezone.utc)
 
 
 @pytest.mark.django_db
