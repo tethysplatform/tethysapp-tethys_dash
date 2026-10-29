@@ -41,6 +41,7 @@ from tethysapp.tethysdash.model import (
     thumbnail_name,
     thumbnail_url,
     thumbnail_urls,
+    _versioned,
 )
 from unittest.mock import MagicMock, call
 import base64
@@ -54,7 +55,7 @@ from django.test import override_settings
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 from uuid import uuid4
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 @pytest.fixture
@@ -556,10 +557,15 @@ def test_update_named_dashboard_image(
         },
     )
 
-    assert (
-        updated_dashboard["image"]
-        == "/media/tethysdash/app/5d1a2f3e-8b4c-4d6e-9f70-1a2b3c4d5e6f.png"
+    path, version = updated_dashboard["image"].split("?v=")
+    assert path == "/media/tethysdash/app/5d1a2f3e-8b4c-4d6e-9f70-1a2b3c4d5e6f.png"
+    assert version.isdigit()
+
+    # A later thumbnail must get a new URL, or the browser keeps the old image.
+    resaved_dashboard = update_named_dashboard(
+        test_owner_user, dashboard.id, {"image": image}
     )
+    assert resaved_dashboard["image"] != updated_dashboard["image"]
 
 
 @pytest.mark.django_db
@@ -603,8 +609,9 @@ def test_update_named_dashboard_image_remote_storage(
     )
 
     assert default_storage.exists(name), "thumbnail never reached the default storage"
-    assert updated_dashboard["image"] == default_storage.url(name)
-    assert updated_dashboard["image"] == (
+    image_url = updated_dashboard["image"].split("?v=")[0]
+    assert image_url == default_storage.url(name)
+    assert image_url == (
         "https://cdn.example.test/media/tethysdash/app/5d1a2f3e-8b4c-4d6e-9f70-1a2b3c4d5e6f.png"
     )
 
@@ -655,6 +662,19 @@ def test_thumbnail_url_leaves_a_remote_url_unprefixed(
     assert thumbnail_url("some_uuid") == (
         "https://cdn.example.test/media/tethysdash/app/some_uuid.png"
     )
+
+
+def test_versioned_keys_a_thumbnail_url_to_the_save_time():
+    saved_at = datetime(2026, 10, 28, 22, 27, tzinfo=timezone.utc)
+    version = int(saved_at.timestamp() * 1000)
+
+    assert _versioned("/media/a.png", saved_at) == f"/media/a.png?v={version}"
+    # A signed URL already carries a query string.
+    assert _versioned("https://cdn.test/a.png?sig=x", saved_at) == (
+        f"https://cdn.test/a.png?sig=x&v={version}"
+    )
+    assert _versioned(None, saved_at) is None
+    assert _versioned("/media/a.png", None) == "/media/a.png"
 
 
 @pytest.mark.django_db
@@ -1415,7 +1435,8 @@ def test_parse_db_dashboard_landing_page_view_with_prefix(
         "uuid": dashboard.uuid,
         "name": dashboard.name,
         "description": dashboard.description,
-        "image": "/test/media/tethysdash/app/5d1a2f3e-8b4c-4d6e-9f70-1a2b3c4d5e6f.png",
+        "image": "/test/media/tethysdash/app/5d1a2f3e-8b4c-4d6e-9f70-1a2b3c4d5e6f.png"
+        f"?v={int(dashboard.last_updated.timestamp() * 1000)}",
         "unrestrictedPlacement": False,
         "autoThumbnail": True,
         "owner": test_owner_user.username,

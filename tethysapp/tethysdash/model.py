@@ -85,6 +85,18 @@ def _prefixed(url):
     return url
 
 
+def _versioned(url, saved_at):
+    """Key a thumbnail URL to the dashboard's last save.
+
+    Every save rewrites the thumbnail under the same name, so without this the browser
+    keeps showing the image it already has for that URL.
+    """
+    if url is None or saved_at is None:
+        return url
+    separator = "&" if urlsplit(url).query else "?"
+    return f"{url}{separator}v={int(saved_at.timestamp() * 1000)}"
+
+
 def save_thumbnail(dashboard_uuid, content):
     """Write a thumbnail through the default storage, replacing any existing one.
 
@@ -2013,7 +2025,7 @@ def parse_db_dashboard(session, dashboards, user, dashboard_view):
     images = thumbnail_urls([dashboard.uuid for dashboard in dashboards])
 
     for dashboard in dashboards:
-        dashboard_image = images[dashboard.uuid]
+        dashboard_image = _versioned(images[dashboard.uuid], dashboard.last_updated)
         # Find the user's permission level for this dashboard
         user_permission = get_dashboard_user_permission(session, dashboard, user)
 
