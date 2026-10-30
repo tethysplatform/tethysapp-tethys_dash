@@ -787,6 +787,23 @@ describe("importDashboard", () => {
     expect(names).toEqual(listedNames);
   });
 
+  test("a create that throws reports the error and removes nothing", async () => {
+    addDashboard.mockRejectedValue(new Error("network down"));
+
+    const { result, names } = await runImport({
+      name: "Imported",
+      gridItems: [mapItem()],
+    });
+
+    expect(result).toEqual({
+      success: false,
+      message: "Import failed: network down",
+    });
+    expect(uploadJSON).not.toHaveBeenCalled();
+    expect(deleteDashboard).not.toHaveBeenCalled();
+    expect(names).toEqual(listedNames);
+  });
+
   test("a file without a name creates nothing", async () => {
     const { result } = await runImport({ gridItems: [mapItem()] });
 

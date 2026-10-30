@@ -11,6 +11,7 @@ import ImageArcGISRest from "ol/source/ImageArcGISRest";
 import GeoTIFFSource from "ol/source/GeoTIFF";
 import XYZ from "ol/source/XYZ";
 import View from "ol/View";
+import Projection from "ol/proj/Projection";
 import { containsCoordinate, getWidth } from "ol/extent";
 import { fromLonLat, get as getProjection, transformExtent } from "ol/proj";
 import {
@@ -71,6 +72,10 @@ const expectExtentClose = (actual, expected) => {
 };
 
 describe("getLayerExtent", () => {
+  test("no layer has no extent", async () => {
+    expect(await getLayerExtent(undefined, mercator)).toBeNull();
+  });
+
   test("a vector layer reports its features' extent", async () => {
     const layer = vectorLayer([
       [0, 0],
@@ -224,6 +229,42 @@ describe("getLayerExtent", () => {
     expect(await getLayerExtent(layer, mercator)).toBeNull();
   });
 
+  test("a raster wholly beyond Web Mercator's poles has no extent", async () => {
+    const layer = rasterLayer(async () => ({
+      extent: [-10, 86, 10, 89],
+      projection: "EPSG:4326",
+    }));
+    expect(await getLayerExtent(layer, mercator)).toBeNull();
+  });
+
+  test("a view projection with no valid area of its own leaves the extent unclipped", async () => {
+    // Web Mercator's code and transforms, but none of its bounds: past 85°
+    // north stays where the transform puts it.
+    const unbounded = new Projection({ code: "EPSG:3857", units: "m" });
+    const layer = rasterLayer(async () => ({
+      extent: [-10, 80, 10, 89],
+      projection: "EPSG:4326",
+    }));
+    const extent = await getLayerExtent(layer, unbounded);
+    expectExtentClose(
+      extent,
+      transformExtent([-10, 80, 10, 89], "EPSG:4326", "EPSG:3857", 8),
+    );
+    expect(extent[3]).toBeGreaterThan(mercator.getExtent()[3]);
+  });
+
+  test("a layer group whose members report nothing has no extent", async () => {
+    const group = new LayerGroup({
+      layers: [
+        vectorLayer([]),
+        new ImageLayer({
+          source: new ImageWMS({ url: "https://example.com/wms", params: {} }),
+        }),
+      ],
+    });
+    expect(await getLayerExtent(group, mercator)).toBeNull();
+  });
+
   test("a layer group reports the union of its members", async () => {
     const group = new LayerGroup({
       layers: [
@@ -250,6 +291,29 @@ describe("canZoomToLayer", () => {
         }),
       ),
     ).toBe(true);
+  });
+
+  test("offers a layer with an extent of its own, whatever its source", () => {
+    const layer = new ImageLayer({
+      extent: [0, 0, 10, 10],
+      source: new ImageWMS({ url: "https://example.com/wms", params: {} }),
+    });
+    expect(canZoomToLayer(layer)).toBe(true);
+  });
+
+  test("offers a layer group when any of its members can be zoomed to", () => {
+    const wmsLayer = () =>
+      new ImageLayer({
+        source: new ImageWMS({ url: "https://example.com/wms", params: {} }),
+      });
+    expect(
+      canZoomToLayer(
+        new LayerGroup({ layers: [wmsLayer(), vectorLayer([[0, 0]])] }),
+      ),
+    ).toBe(true);
+    expect(
+      canZoomToLayer(new LayerGroup({ layers: [wmsLayer(), wmsLayer()] })),
+    ).toBe(false);
   });
 
   test("declines layers with no way to report an extent", () => {
@@ -339,6 +403,12 @@ describe("zoomToLayer", () => {
     expect(fit).not.toHaveBeenCalled();
   });
 
+  test("does nothing without a map or a view", async () => {
+    const layer = vectorLayer([[1, 1]]);
+    expect(await zoomToLayer(undefined, layer)).toBe(false);
+    expect(await zoomToLayer({ getView: () => undefined }, layer)).toBe(false);
+  });
+
   test("does nothing before the map is sized", async () => {
     const view = new View({ projection: "EPSG:3857" });
     const fit = jest.spyOn(view, "fit");
@@ -346,6 +416,25 @@ describe("zoomToLayer", () => {
       await zoomToLayer(makeMap(view, [0, 0]), vectorLayer([[1, 1]])),
     ).toBe(false);
     expect(fit).not.toHaveBeenCalled();
+  });
+
+  test("gives up when the view is replaced again during the re-read", async () => {
+    // Every read finds a newer view, so no extent is ever read against the
+    // view it would be fitted to.
+    const fit = jest.spyOn(View.prototype, "fit");
+    const map = {
+      getView: () =>
+        new View({ projection: "EPSG:3857", center: [0, 0], zoom: 2 }),
+      getSize: () => [400, 300],
+    };
+    const layer = rasterLayer(async () => ({
+      extent: [-10, -5, 10, 5],
+      projection: "EPSG:4326",
+    }));
+
+    expect(await zoomToLayer(map, layer)).toBe(false);
+    expect(fit).not.toHaveBeenCalled();
+    fit.mockRestore();
   });
 
   test("re-reads the extent when the view is replaced mid-read", async () => {
