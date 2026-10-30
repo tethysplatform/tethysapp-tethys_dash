@@ -625,10 +625,33 @@ const Slider = ({
     setVariableInputSliderMeta,
   ]);
 
-  // Track index/indices
-  const [currentIdx, setCurrentIdx] = useState(() =>
-    getInitialIndices(values, initialValue, initialRange, rangeMode, dataType),
-  );
+  // Track index/indices. A slider keeping its variable's value starts at that
+  // value's step -- each end's, on a range slider -- when it falls on one. A
+  // value between steps is shown as it is (rawValue, below), over the step
+  // the slider would otherwise start at.
+  const [currentIdx, setCurrentIdx] = useState(() => {
+    const held = keepValue ? variableInputValues?.[variable_name] : undefined;
+    if (hasValue(held)) {
+      const parts = rangeMode ? String(held).split(",") : [String(held)];
+      const indices = parts.map((part) =>
+        values.findIndex((v) =>
+          isArrayType
+            ? v === part
+            : valuesEqual(part, formatValue(v, outputFormat, isDateType)),
+        ),
+      );
+      if (indices.length === (rangeMode ? 2 : 1) && !indices.includes(-1)) {
+        return rangeMode ? indices : indices[0];
+      }
+    }
+    return getInitialIndices(
+      values,
+      initialValue,
+      initialRange,
+      rangeMode,
+      dataType,
+    );
+  });
 
   // The selection at an index, as the slider publishes it, and as a key: its
   // steps before formatting, with the format. The slider publishes only when
@@ -669,12 +692,15 @@ const Slider = ({
   const effectiveDebounce = playing ? 0 : debounceDelay;
   const debouncedCurrentIdx = useDebounce(currentIdx, effectiveDebounce);
   const intervalRef = useRef(null);
+  // The settings the slider last started from. Seeded with the steps it
+  // mounts with, so mounting does not reset it over a value it keeps.
   const prev = useRef({
     rangeMode,
     initialRange,
     initialValue,
     min,
     max,
+    valuesLength: values.length,
   });
 
   useEffect(() => {

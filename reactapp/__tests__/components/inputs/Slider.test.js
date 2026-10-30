@@ -2997,6 +2997,17 @@ describe("Array mode", () => {
     });
   });
 
+  it("starts at a kept value among its values, publishing nothing", async () => {
+    const { handleChange } = renderArraySlider(
+      { keepValue: true },
+      { variableInputValues: { array_slider: "https://example.com/img3.png" } },
+    );
+    await advanceTimers(50);
+
+    expect(screen.getByLabelText("Display Value")).toHaveTextContent("3 / 3");
+    expect(handleChange).not.toHaveBeenCalled();
+  });
+
   it("emits raw value at current index without formatting", async () => {
     const values = ["valueA", "valueB", "valueC"];
     const { handleChange } = renderArraySlider({ values });
@@ -3860,6 +3871,48 @@ describe("Slider starting step and a kept value", () => {
       expect(onChange).toHaveBeenCalledTimes(1);
     },
   );
+
+  it("starts at a kept value that falls on a step, and steps on from it", async () => {
+    // What moving the slider itself leaves behind.
+    const onChange = jest.fn();
+    renderSlider(
+      { initialValue: "2026-06-01T00:00:00", onChange, keepValue: true },
+      { Date: "06/05/2026 00:00" },
+    );
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+    expect(screen.getByLabelText("Display Value")).toHaveTextContent(
+      "06/05/2026 00:00",
+    );
+    expect(onChange).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "next step" }));
+    await waitFor(() =>
+      expect(onChange).toHaveBeenCalledWith("06/06/2026 00:00"),
+    );
+  });
+
+  it("starts a range slider at the range it keeps", async () => {
+    const onChange = jest.fn();
+    renderSlider(
+      {
+        rangeMode: true,
+        initialRange: ["2026-06-01T00:00:00", "2026-06-10T00:00:00"],
+        onChange,
+        keepValue: true,
+      },
+      { Date: "06/03/2026 00:00,06/07/2026 00:00" },
+    );
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+
+    expect(screen.getByLabelText("Display Value")).toHaveTextContent(
+      "06/03/2026 00:00 - 06/07/2026 00:00",
+    );
+    expect(onChange).not.toHaveBeenCalled();
+  });
 
   it("keeps the value its variable holds, publishing only once it is moved", async () => {
     // Between two steps, as a dragged plot line leaves it.

@@ -78,28 +78,35 @@ const VariableInput = ({
   } = useContext(VariableInputsContext);
   const { gridItemUUID, gridItemSource } = useContext(GridItemContext) ?? {};
 
+  // A plugin-sourced variable input, whose values only it can publish. The
+  // built-in "Variable Input" is seeded from its args by DashboardLoader.
+  const isPluginVariableInput =
+    gridItemSource !== undefined && gridItemSource !== "Variable Input";
+
   // Decided once, as the input mounts: whether its variable already holds a
   // value someone changed it to -- in a popup that has since been reopened,
   // or moved on to another of its features -- which the input then takes up
   // rather than resetting. That is a value of the kind the input publishes
-  // (a date range publishes its start and end together, every other input a
-  // single value) and not the one the input is saved with, which it would
-  // publish anyway. In the data viewer the input shows what it is saved with.
+  // (a date range publishes its start and end together as a plain object,
+  // every other input a single value, a picked date among them) and not the
+  // one the input is saved with, which it would publish anyway. In the data
+  // viewer the input shows what it is saved with. A plugin's input never
+  // keeps one: it mounts again on every refetch with the value the plugin
+  // just worked out, which a different held value does not override.
   const [keepsCurrentValue] = useState(() => {
-    if (inDataViewerMode) return false;
+    if (inDataViewerMode || isPluginVariableInput) return false;
     const current = variableInputValues?.[variable_name];
     if (!hasVariableInputValue(current)) return false;
-    const publishesPair = variable_options_source === "date-range";
-    if ((typeof current === "object") !== publishesPair) return false;
+    const isPair =
+      typeof current === "object" &&
+      !(current instanceof Date) &&
+      !Array.isArray(current);
+    if (isPair !== (variable_options_source === "date-range")) return false;
     return !valuesEqual(
       current,
       normalizeVariableInputValue({ variable_options_source, initial_value }),
     );
   });
-  // A plugin-sourced variable input, whose values only it can publish. The
-  // built-in "Variable Input" is seeded from its args by DashboardLoader.
-  const isPluginVariableInput =
-    gridItemSource !== undefined && gridItemSource !== "Variable Input";
 
   // Initialize updatedMetadata when metadata or variableInputValues change
   useEffect(() => {

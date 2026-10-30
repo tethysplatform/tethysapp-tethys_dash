@@ -1880,17 +1880,29 @@ describe("A value changed before the input mounts again", () => {
   // another of its features.
   const args = JSON.parse(mockedTextVariable.args_string);
   // eslint-disable-next-line react/prop-types -- a test stand-in.
-  const Remountable = ({ initialValue }) => {
+  const Remountable = ({ initialValue, source, metadata, gridItemSource }) => {
     const [mount, setMount] = useState(0);
+    const input = (
+      <VariableInput
+        key={mount}
+        variable_name={args.variable_name}
+        initial_value={initialValue}
+        variable_options_source={source}
+        metadata={metadata}
+        onChange={() => {}}
+      />
+    );
     return (
       <>
-        <VariableInput
-          key={mount}
-          variable_name={args.variable_name}
-          initial_value={initialValue}
-          variable_options_source={args.variable_options_source}
-          onChange={() => {}}
-        />
+        {gridItemSource ? (
+          <GridItemContext.Provider
+            value={{ gridItemSource, gridItemUUID: "plugin-uuid" }}
+          >
+            {input}
+          </GridItemContext.Provider>
+        ) : (
+          input
+        )}
         <button onClick={() => setMount((m) => m + 1)}>remount</button>
         <InputVariablePComponent />
       </>
@@ -1914,16 +1926,29 @@ describe("A value changed before the input mounts again", () => {
       </button>
     );
   };
-  const tree = ({ initialValue = args.initial_value, inDataViewerMode }) => {
+  const tree = ({
+    initialValue = args.initial_value,
+    source = args.variable_options_source,
+    metadata,
+    gridItemSource,
+    inDataViewerMode,
+  }) => {
     const dashboard = JSON.parse(JSON.stringify(userDashboard));
     dashboard.tabs[0].gridItems = [mockedTextVariable];
     return createLoadedComponent({
       children: (
         <>
-          <Remountable initialValue={initialValue} />
+          <Remountable
+            initialValue={initialValue}
+            source={source}
+            metadata={metadata}
+            gridItemSource={gridItemSource}
+          />
           <SetElsewhere label="set elsewhere" value="set elsewhere" />
           {/* What a date range sharing the name publishes under it. */}
           <SetElsewhere label="set a pair" value={{ Start: "a", End: "b" }} />
+          {/* What a date picked from the calendar publishes: a Date. */}
+          <SetElsewhere label="set a date" value={new Date(2026, 0, 20)} />
         </>
       ),
       options: { dashboards: { dashboards: [dashboard] }, inDataViewerMode },
@@ -2055,6 +2080,39 @@ describe("A value changed before the input mounts again", () => {
     await waitFor(() =>
       expect(screen.getAllByRole("textbox")[0]).toHaveValue("now-7D"),
     );
+  });
+
+  it("keeps a date picked from the calendar", async () => {
+    const user = userEvent.setup();
+    render(
+      tree({
+        initialValue: "01/15/2026",
+        source: "date",
+        metadata: { format: "MM/dd/yyyy" },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "set a date" }));
+
+    await user.click(screen.getByRole("button", { name: "remount" }));
+
+    await waitFor(() =>
+      expect(published()).toBe(new Date(2026, 0, 20).toISOString()),
+    );
+  });
+
+  it("publishes the value a plugin's input worked out, whatever its variable holds", async () => {
+    // A plugin's input mounts again on every refetch, with a value it has
+    // just worked out from its own args; the variable's older value is not a
+    // change anyone made.
+    const user = userEvent.setup();
+    render(tree({ initialValue: "east-station", gridItemSource: "picker" }));
+    await user.click(
+      await screen.findByRole("button", { name: "set elsewhere" }),
+    );
+
+    await user.click(screen.getByRole("button", { name: "remount" }));
+
+    await waitFor(() => expect(published()).toBe("east-station"));
   });
 
   it("does not take up a value of another kind", async () => {

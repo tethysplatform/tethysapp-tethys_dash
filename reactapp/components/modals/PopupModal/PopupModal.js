@@ -341,6 +341,10 @@ function PopupModal({
       bottom: window.innerHeight,
     };
     const { clientX, clientY } = event;
+    // A drag still live -- a second finger, or a release the window never
+    // saw -- is ended first, so the selection style saved here is the page's
+    // own and not that drag's "none".
+    endDragRef.current?.();
     const userSelect = document.body.style.userSelect;
     document.body.style.userSelect = "none";
 
@@ -368,7 +372,6 @@ function PopupModal({
       document.body.style.userSelect = userSelect;
       endDragRef.current = null;
     };
-    endDragRef.current?.();
     endDragRef.current = endDrag;
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", endDrag);

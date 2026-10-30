@@ -918,6 +918,56 @@ describe("PopupModal — dragging", () => {
     expect(dialog.style.top).toBe(topFor(20));
   });
 
+  it("stops following the pointer and restores text selection once released", () => {
+    const { dialog } = renderAt();
+    const edge = screen.getByTestId("popup-modal-resize-e");
+    fireEvent.pointerDown(edge, { clientX: 800, clientY: 500, button: 0 });
+    expect(document.body.style.userSelect).toBe("none");
+    fireEvent.pointerMove(window, { clientX: 900, clientY: 500 });
+    fireEvent.pointerUp(window, { clientX: 900, clientY: 500 });
+
+    expect(document.body.style.userSelect).toBe("");
+    fireEvent.pointerMove(window, { clientX: 950, clientY: 500 });
+    expect(dialog.style.width).toBe("70vw");
+  });
+
+  it("ends a drag the browser cancels", () => {
+    const { dialog } = renderAt();
+    const edge = screen.getByTestId("popup-modal-resize-e");
+    fireEvent.pointerDown(edge, { clientX: 800, clientY: 500, button: 0 });
+    fireEvent.pointerCancel(window);
+
+    expect(document.body.style.userSelect).toBe("");
+    fireEvent.pointerMove(window, { clientX: 900, clientY: 500 });
+    expect(dialog.style.width).toBe("60vw");
+  });
+
+  it("restores the page's own text selection after an overlapping drag", () => {
+    // A second press while a drag is live, as a second finger makes.
+    renderAt();
+    const edge = screen.getByTestId("popup-modal-resize-e");
+    fireEvent.pointerDown(edge, { clientX: 800, clientY: 500, button: 0 });
+    fireEvent.pointerDown(edge, { clientX: 800, clientY: 500, button: 0 });
+    fireEvent.pointerUp(window, { clientX: 800, clientY: 500 });
+
+    expect(document.body.style.userSelect).toBe("");
+  });
+
+  it("ends a drag when the popup goes away mid-drag", () => {
+    const { unmount } = renderAt();
+    fireEvent.pointerDown(screen.getByTestId("popup-modal-resize-e"), {
+      clientX: 800,
+      clientY: 500,
+      button: 0,
+    });
+    unmount();
+
+    expect(document.body.style.userSelect).toBe("");
+    expect(() =>
+      fireEvent.pointerMove(window, { clientX: 900, clientY: 500 }),
+    ).not.toThrow();
+  });
+
   it("does not resize on a press of another button", () => {
     const { dialog } = renderAt();
     const edge = screen.getByTestId("popup-modal-resize-e");
