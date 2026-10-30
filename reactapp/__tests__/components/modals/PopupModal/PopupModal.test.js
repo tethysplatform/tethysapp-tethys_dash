@@ -2,6 +2,10 @@ import React, { useRef, useState } from "react";
 import { act, render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import PopupModal, {
+  MIN_POPUP_HEIGHT_PX,
+  MIN_POPUP_WIDTH_PX,
+  draggedRect,
+  rectToPosition,
   computePositionStyle,
   isEditableTarget,
   getInitialIsSmallViewport,
@@ -778,5 +782,159 @@ describe("PopupModal — header layout", () => {
     expect(titleSlot).toHaveStyle("white-space: nowrap");
     expect(titleSlot).toHaveStyle("overflow: hidden");
     expect(titleSlot).toHaveStyle("text-overflow: ellipsis");
+  });
+});
+
+describe("draggedRect", () => {
+  // The window below a 56px header, 1000px square.
+  const area = { left: 0, top: 56, right: 1000, bottom: 1000 };
+  const start = { left: 200, top: 300, right: 800, bottom: 700 };
+
+  it.each([
+    ["e", 50, 0, { ...start, right: 850 }],
+    ["w", -50, 0, { ...start, left: 150 }],
+    ["n", 0, -50, { ...start, top: 250 }],
+    ["s", 0, 50, { ...start, bottom: 750 }],
+    ["se", 50, 50, { ...start, right: 850, bottom: 750 }],
+    ["nw", -50, -50, { ...start, left: 150, top: 250 }],
+  ])("drags the %s edge by (%p, %p)", (edge, dx, dy, expected) => {
+    expect(draggedRect(start, edge, dx, dy, area)).toEqual(expected);
+  });
+
+  it("moves the whole popup, keeping its size", () => {
+    expect(draggedRect(start, "move", 30, -40, area)).toEqual({
+      left: 230,
+      top: 260,
+      right: 830,
+      bottom: 660,
+    });
+  });
+
+  it("keeps a moved popup inside the window and below the header", () => {
+    expect(draggedRect(start, "move", 900, -900, area)).toEqual({
+      left: 400,
+      top: 56,
+      right: 1000,
+      bottom: 456,
+    });
+  });
+
+  it("stops an edge at the window and the header", () => {
+    expect(draggedRect(start, "nw", -900, -900, area)).toEqual({
+      ...start,
+      left: 0,
+      top: 56,
+    });
+  });
+
+  it("never shrinks the popup past its minimum size", () => {
+    expect(draggedRect(start, "se", -900, -900, area)).toEqual({
+      ...start,
+      right: start.left + MIN_POPUP_WIDTH_PX,
+      bottom: start.top + MIN_POPUP_HEIGHT_PX,
+    });
+  });
+});
+
+describe("rectToPosition", () => {
+  it("gives percentages of the window's width and of the area below the header", () => {
+    expect(
+      rectToPosition(
+        { left: 100, top: 56 + 236, right: 600, bottom: 56 + 708 },
+        { viewportWidth: 1000, viewportHeight: 1000, headerHeight: 56 },
+      ),
+    ).toEqual({ leftPct: 10, widthPct: 50, topPct: 25, heightPct: 50 });
+  });
+});
+
+describe("PopupModal — dragging", () => {
+  beforeAll(() => {
+    // jsdom has no PointerEvent; a MouseEvent carries what a drag reads.
+    if (!window.PointerEvent) window.PointerEvent = class extends MouseEvent {};
+  });
+
+  // The CENTERED popup in a 1000px square window: 20vw..80vw wide, and its
+  // top and height as computePositionStyle places them.
+  const renderAt = (position = CENTERED) => {
+    setViewportWidth(1000);
+    const utils = render(
+      <PopupModal show onClose={() => {}} position={position}>
+        <p>body</p>
+      </PopupModal>,
+    );
+    const dialog = screen.getByRole("dialog");
+    dialog.getBoundingClientRect = () => ({
+      left: parseFloat(dialog.style.left) * 10,
+      top: parseFloat(dialog.style.top),
+      right:
+        (parseFloat(dialog.style.left) + parseFloat(dialog.style.width)) * 10,
+      bottom: parseFloat(dialog.style.top) + parseFloat(dialog.style.height),
+    });
+    return { ...utils, dialog };
+  };
+  const drag = (target, [x, y], [toX, toY]) => {
+    fireEvent.pointerDown(target, { clientX: x, clientY: y, button: 0 });
+    fireEvent.pointerMove(window, { clientX: toX, clientY: toY });
+    fireEvent.pointerUp(window, { clientX: toX, clientY: toY });
+  };
+
+  it("resizes from an edge, and keeps that size for every later popup", () => {
+    const { dialog, rerender } = renderAt();
+    drag(screen.getByTestId("popup-modal-resize-e"), [800, 500], [900, 500]);
+    expect(dialog.style.left).toBe("20vw");
+    expect(dialog.style.width).toBe("70vw");
+
+    // Closed, then reopened for another layer with its own configured size.
+    const other = { leftPct: 50, topPct: 0, widthPct: 50, heightPct: 100 };
+    rerender(<PopupModal show={false} onClose={() => {}} position={other} />);
+    rerender(<PopupModal show onClose={() => {}} position={other} />);
+    expect(screen.getByRole("dialog").style.width).toBe("70vw");
+  });
+
+  it("moves when its header is dragged", () => {
+    const { dialog } = renderAt();
+    const top = parseFloat(dialog.style.top);
+    drag(
+      screen.getByTestId("popup-modal-header"),
+      [500, top + 10],
+      [550, top + 40],
+    );
+
+    expect(dialog.style.left).toBe("25vw");
+    expect(dialog.style.width).toBe("60vw");
+    expect(dialog.style.top).toBe(`${top + 30}px`);
+  });
+
+  it("does not move when a button in the header is pressed", () => {
+    const { dialog } = renderAt();
+    const top = parseFloat(dialog.style.top);
+    drag(
+      screen.getByLabelText("Close popup"),
+      [790, top + 10],
+      [600, top + 200],
+    );
+
+    expect(dialog.style.left).toBe("20vw");
+    expect(dialog.style.top).toBe(topFor(20));
+  });
+
+  it("does not resize on a press of another button", () => {
+    const { dialog } = renderAt();
+    const edge = screen.getByTestId("popup-modal-resize-e");
+    fireEvent.pointerDown(edge, { clientX: 800, clientY: 500, button: 2 });
+    fireEvent.pointerMove(window, { clientX: 900, clientY: 500 });
+    fireEvent.pointerUp(window, { clientX: 900, clientY: 500 });
+
+    expect(dialog.style.width).toBe("60vw");
+  });
+
+  it("offers nothing to drag on a small screen", () => {
+    setViewportWidth(500);
+    render(
+      <PopupModal show onClose={() => {}} position={CENTERED}>
+        <p>body</p>
+      </PopupModal>,
+    );
+    expect(screen.queryByTestId("popup-modal-resize-e")).toBeNull();
   });
 });
