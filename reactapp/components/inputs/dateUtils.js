@@ -31,7 +31,7 @@ export function toLocalISO(d) {
     ":" +
     pad(d.getSeconds()) +
     (d.getTimezoneOffset() > 0 ? "-" : "+") +
-    pad(Math.abs(d.getTimezoneOffset() / 60)) +
+    pad(Math.floor(Math.abs(d.getTimezoneOffset()) / 60)) +
     ":" +
     pad(Math.abs(d.getTimezoneOffset() % 60))
   );

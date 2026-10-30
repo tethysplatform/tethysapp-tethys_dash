@@ -1245,7 +1245,8 @@ it("Base - update date variable input", async () => {
         metadataString: '{"refreshRate":0}',
         sourceType: "plotly",
         variableInputValues: {
-          "Test Variable": expectedVariableDateString,
+          // Stored as typed; the plugin still gets the date it names.
+          "Test Variable": "now-1D",
         },
         vizLoadingIcon: undefined,
       }),
@@ -1296,7 +1297,8 @@ it("Base - update date variable input", async () => {
         metadataString: '{"refreshRate":0}',
         sourceType: "plotly",
         variableInputValues: {
-          "Test Variable": expectedVariableDateString,
+          // Stored as typed; the plugin still gets the date it names.
+          "Test Variable": "now-2D",
         },
         vizLoadingIcon: undefined,
       }),
@@ -1520,7 +1522,8 @@ it("Base - initial relative date variable input", async () => {
         metadataString: '{"refreshRate":0}',
         sourceType: "plotly",
         variableInputValues: {
-          "Test Variable": expectedVariableDateString,
+          // Stored as typed; the plugin still gets the date it names.
+          "Test Variable": "now-1D",
         },
         vizLoadingIcon: undefined,
       }),
@@ -1715,6 +1718,71 @@ it("ImageSequence fast-path updates activeUrl without calling getVisualization",
   await waitFor(() => {
     expect(spyGetVisualization).toHaveBeenCalled();
   });
+
+  spyGetVisualization.mockRestore();
+});
+
+it("a fetch that resolves late does not undo metadata from a newer variable value", async () => {
+  // The metadata references a variable the args do not, as a plot's
+  // vertical line references a slider its plugin never sees: a change to it
+  // updates the metadata without fetching again.
+  let resolveFetch;
+  const spyGetVisualization = jest
+    .spyOn(utilities, "getVisualization")
+    .mockImplementation(
+      ({ setVizType, setVizData }) =>
+        new Promise((resolve) => {
+          setVizType("loader");
+          resolveFetch = () => {
+            setVizType("text");
+            setVizData({ text: "station A" });
+            resolve();
+          };
+        }),
+    );
+
+  const argsString = JSON.stringify({ station: "A" });
+  // eslint-disable-next-line no-template-curly-in-string
+  const metadataString = JSON.stringify({ verticalAlign: "${Align}" });
+  const baseContexts = (variableInputValues) => (
+    <AppContext.Provider value={{ visualizations: [] }}>
+      <EditingContext.Provider value={{ isEditing: false }}>
+        <WebsocketContext.Provider value={{ getMessageForRequest: () => null }}>
+          <VariableInputsContext.Provider
+            value={{
+              variableInputValues,
+              variableInputDateFormats: {},
+              variableInputSliderMeta: {},
+            }}
+          >
+            <GridItemContext.Provider
+              value={{
+                gridItemSource: "text_plugin",
+                gridItemArgsString: argsString,
+                gridItemMetadataString: metadataString,
+                gridItemUUID: "late-fetch-uuid",
+                shouldLoad: true,
+              }}
+            >
+              <BaseVisualization />
+            </GridItemContext.Provider>
+          </VariableInputsContext.Provider>
+        </WebsocketContext.Provider>
+      </EditingContext.Provider>
+    </AppContext.Provider>
+  );
+
+  const { rerender } = render(baseContexts({ Align: "middle" }));
+  await waitFor(() => expect(spyGetVisualization).toHaveBeenCalledTimes(1));
+
+  // The variable moves on while the first fetch is still out.
+  rerender(baseContexts({ Align: "bottom" }));
+  await act(async () => resolveFetch());
+
+  const text = await screen.findByTestId("text-content");
+  expect(text).toHaveStyle("margin-top: auto");
+  expect(text).not.toHaveStyle("margin-bottom: auto");
+  expect(spyGetVisualization).toHaveBeenCalledTimes(1);
 
   spyGetVisualization.mockRestore();
 });

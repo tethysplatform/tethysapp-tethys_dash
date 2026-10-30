@@ -229,6 +229,16 @@ describe("parseDate", () => {
 });
 
 describe("toLocalISO function", () => {
+  it.each([
+    [-330, "+05:30"], // India
+    [210, "-03:30"], // Newfoundland
+    [-345, "+05:45"], // Nepal
+  ])("writes a fractional-hour offset of %p as %s", (offset, suffix) => {
+    const date = new Date("2025-01-15T12:00:00");
+    date.getTimezoneOffset = jest.fn().mockReturnValue(offset);
+    expect(toLocalISO(date)).toBe(`2025-01-15T12:00:00${suffix}`);
+  });
+
   it("should format date with correct timezone offset signs - covers line 174", () => {
     // Test the specific logic on line 174: (d.getTimezoneOffset() > 0 ? "-" : "+")
 

@@ -418,30 +418,64 @@ const useDebounce = (value, delay) => {
   return debouncedValue;
 };
 
-const getInitialIndices = (values, initialValue, initialRange, rangeMode) => {
+const hasValue = (v) => v !== undefined && v !== null && v !== "";
+
+/**
+ * The index of the step nearest `target`: by time on a date slider, by value
+ * on a number slider. So a target before the first step starts the slider at
+ * its first, one after the last at its last, and one between two steps at the
+ * closer. An array slider's steps have no order; only an exact match counts.
+ * With no readable target, the first step.
+ */
+export const nearestStepIndex = (values, target, dataType) => {
+  if (dataType === "Array") {
+    const idx = values.findIndex((v) => v === target);
+    return idx !== -1 ? idx : 0;
+  }
+  const position =
+    dataType === "Date"
+      ? (v) => parseDateMath({ value: v })?.getTime() ?? NaN
+      : (v) => (hasValue(v) ? Number(v) : NaN);
+  const targetPosition = position(target);
+  if (Number.isNaN(targetPosition)) return 0;
+  let nearest = 0;
+  let nearestDistance = Infinity;
+  values.forEach((v, i) => {
+    const distance = Math.abs(position(v) - targetPosition);
+    if (distance < nearestDistance) {
+      nearest = i;
+      nearestDistance = distance;
+    }
+  });
+  return nearest;
+};
+
+export const getInitialIndices = (
+  values,
+  initialValue,
+  initialRange,
+  rangeMode,
+  dataType,
+) => {
   if (rangeMode) {
     if (Array.isArray(initialRange) && initialRange.length === 2) {
       return [
-        Math.max(
-          0,
-          values.findIndex((v) => v === initialRange[0]),
-        ),
-        Math.max(
-          0,
-          values.findIndex((v) => v === initialRange[1]),
-        ),
+        nearestStepIndex(values, initialRange[0], dataType),
+        nearestStepIndex(values, initialRange[1], dataType),
       ];
     } else {
       return [0, values.length - 1];
     }
   } else {
-    const idx = values.findIndex((v) => v === initialValue);
-    return idx !== -1 ? idx : 0;
+    return nearestStepIndex(values, initialValue, dataType);
   }
 };
 
 const Slider = ({
   variable_name,
+  // The variable already holds a value someone changed it to, which the
+  // slider shows rather than publishing its own starting step over it.
+  keepValue = false,
   label,
   step,
   min,
@@ -593,8 +627,31 @@ const Slider = ({
 
   // Track index/indices
   const [currentIdx, setCurrentIdx] = useState(() =>
-    getInitialIndices(values, initialValue, initialRange, rangeMode),
+    getInitialIndices(values, initialValue, initialRange, rangeMode, dataType),
   );
+
+  // The selection at an index, as the slider publishes it, and as a key: its
+  // steps before formatting, with the format. The slider publishes only when
+  // that key changes, so steps rebuilt with the same content -- or a mount
+  // where it keeps its variable's value -- publish nothing.
+  const stepsAt = (idx) =>
+    rangeMode ? (Array.isArray(idx) ? idx : [0, values.length - 1]) : [idx];
+  const outputAt = (idx) =>
+    isArrayType
+      ? values[idx]
+      : stepsAt(idx)
+          .map((i) => formatValue(values[i], outputFormat, isDateType))
+          .join(",");
+  const selectionKeyAt = (idx) =>
+    JSON.stringify({
+      steps: stepsAt(idx).map((i) => values[i]),
+      rangeMode,
+      outputFormat,
+    });
+  const lastPublishedRef = useRef(undefined);
+  if (lastPublishedRef.current === undefined) {
+    lastPublishedRef.current = keepValue ? selectionKeyAt(currentIdx) : null;
+  }
 
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(
@@ -695,7 +752,13 @@ const Slider = ({
         prev.current.valuesLength !== values.length;
       if (shouldUpdate) {
         setCurrentIdx(
-          getInitialIndices(values, initialValue, initialRange, rangeMode),
+          getInitialIndices(
+            values,
+            initialValue,
+            initialRange,
+            rangeMode,
+            dataType,
+          ),
         );
         prev.current = {
           rangeMode,
@@ -707,30 +770,29 @@ const Slider = ({
         };
       }
     }
-  }, [isArrayType, rangeMode, initialRange, initialValue, min, max, values]);
+  }, [
+    isArrayType,
+    rangeMode,
+    initialRange,
+    initialValue,
+    min,
+    max,
+    values,
+    dataType,
+  ]);
 
   useEffect(() => {
-    if (isArrayType) {
-      // Array mode: emit raw value without formatting
-      if (values.length > 0 && debouncedCurrentIdx < values.length) {
-        onChange(values[debouncedCurrentIdx]);
-      }
-    } else if (rangeMode) {
-      const arr = Array.isArray(debouncedCurrentIdx)
-        ? debouncedCurrentIdx
-        : [0, values.length - 1];
-      const formatted = arr
-        .map((i) => formatValue(values[i], outputFormat, isDateType))
-        .join(",");
-      onChange(formatted);
-    } else {
-      const formatted = formatValue(
-        values[debouncedCurrentIdx],
-        outputFormat,
-        isDateType,
-      );
-      onChange(formatted);
+    // Array mode publishes its raw value, once it has any.
+    if (
+      isArrayType &&
+      !(values.length > 0 && debouncedCurrentIdx < values.length)
+    ) {
+      return;
     }
+    const key = selectionKeyAt(debouncedCurrentIdx);
+    if (key === lastPublishedRef.current) return;
+    lastPublishedRef.current = key;
+    onChange(outputAt(debouncedCurrentIdx));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     debouncedCurrentIdx,
@@ -1139,6 +1201,7 @@ const Slider = ({
 
 Slider.propTypes = {
   variable_name: PropTypes.string.isRequired,
+  keepValue: PropTypes.bool,
   label: PropTypes.string,
   step: PropTypes.number,
   min: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
