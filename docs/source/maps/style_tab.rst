@@ -628,24 +628,15 @@ would otherwise fill the bottom of the ramp.
     lacks them, the layer still renders and clicking still reports values, but no colorbar
     legend is produced — enter a range manually in that case.
 
-Custom GeoTIFF layers: Follow plugin styling
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Custom GeoTIFF layers
+~~~~~~~~~~~~~~~~~~~~~
 
 A GeoTIFF Custom Layer (see :ref:`source_tab`) gets its file from a plugin on each fetch,
-and the plugin may send a color ramp with it. A **Follow plugin styling** switch above the
-Color Ramp section decides which ramp is drawn:
+but never its styling: it is always drawn with the settings on this tab. These settings
+start as the plugin's suggested styling, a ramp or a class table, loaded when you pick
+the plugin. After that they are yours to change, and a fetch never overwrites them.
+**Fetch defaults** on the Source tab reloads the plugin's suggestion.
 
-- **On** (the default): each fetch's ramp replaces the settings on this tab as a whole. The
-  settings here are the fallback for a fetch that returns no styling. They start as the
-  plugin's own defaults.
-- **Off**: your style is *pinned*. The layer always draws with the settings on this tab, and
-  the plugin's ramp is ignored.
-
-Editing any setting in the section (the ramp, Ramp Min / Max, Reverse, the class table, or
-Mask Below) turns the switch off, so the edit is not overwritten by the next fetch. Turn it
-back on to follow the plugin again; your settings are kept as the fallback. **Fetch defaults**
-on the Source tab reloads the plugin's defaults and turns the switch back on.
-
-Pinning the *style* is separate from pinning the *range* in the table above. In either switch
-state, an empty Ramp Min or Ramp Max is fitted to each file the plugin returns, and a filled
-one is used as entered.
+An empty Ramp Min or Ramp Max is fitted to each file the plugin returns, and a filled one
+is used as entered, as in the table above. **Mask Below** for a Custom Layer is on the
+Source tab, and the plugin may also send one with each file.

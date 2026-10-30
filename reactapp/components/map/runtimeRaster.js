@@ -15,8 +15,8 @@ import { resolveRamp } from "components/map/colorRamps";
 // A GeoTIFF layer whose file is chosen by a dynamic map layer plugin.
 //
 // The saved layer is a WebGLTile with a GeoTIFF source that has no URL: each
-// plugin fetch returns a *source description* naming the file, and optionally
-// how to color it, and the layer is repointed at it in place. Everything here is
+// plugin fetch returns a *source description* naming the file, and the layer is
+// repointed at it in place, keeping its saved style. Everything here is
 // independent of React and of the fetcher, so the fetcher decides when to call
 // it and this module decides only what the result is.
 //
@@ -254,9 +254,9 @@ export function resolveEffectiveRasterConfig(savedConfig, description) {
   if (typeof projection === "string" && projection.trim() !== "") {
     source.props.projection = projection;
   }
-  // A source property, so it arrives with the props and is applied whether or
-  // not the author pinned the style: the mask describes which values the file
-  // publishes as real data, not how they are coloured. An omitted one leaves
+  // A source property, so it arrives with the props rather than with a style:
+  // the mask describes which values the file publishes as real data, not how
+  // they are coloured. An omitted one leaves
   // the author's setting standing; an explicit empty clears it.
   const { mask_below: maskBelow } = description.props;
   if (maskBelow !== undefined) {

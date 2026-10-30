@@ -104,7 +104,8 @@ class TethysDashPlugin(base.DataSource):
       GeoJSON FeatureCollection.
     - ``"GeoTIFF"``: override :py:meth:`fetch_source` to return a source
       description (build it with :py:func:`geotiff_source`), which repoints the
-      layer at a new GeoTIFF URL and optionally restyles it.
+      layer at a new GeoTIFF URL. It never restyles the layer: the style is
+      the one saved on it, offered once by :py:meth:`run`.
     """
 
     container = "python"
@@ -338,18 +339,22 @@ class TethysDashPlugin(base.DataSource):
         Override this method when ``dynamic_map_layer = True`` and
         ``dynamic_map_layer_source = "GeoTIFF"``. It is invoked at map-render
         time, like :py:meth:`fetch_features`, and returns a source description
-        that repoints the layer at a new file and optionally restyles it. Build
-        the return with :py:func:`geotiff_source`; see
+        that repoints the layer at a new file. It carries no styling: the
+        layer's style is the one saved on it, which :py:meth:`run` offers
+        through :py:meth:`LayerConfigurationBuilder.set_raster_ramp` or
+        :py:meth:`LayerConfigurationBuilder.set_raster_classes`. Build the
+        return with :py:func:`geotiff_source`; see
         :py:func:`validate_layer_source_description` for the shape contract.
 
         Plugin arguments that were passed from the frontend are available as
         class attributes after initialization, just as for :py:meth:`run`.
 
         Returns:
-            dict: ``{"type": "GeoTIFF", "props": {"url": ..., "projection"?},
-                "style"?: {...}}``. The URL must be ``http(s)`` or a path on
-                this server (starting with a single ``/``), and the file must
-                be served with CORS and HTTP range requests.
+            dict: ``{"type": "GeoTIFF", "props": {"url": ..., "projection"?,
+                "mask_below"?}}``. A ``style`` key is rejected. The URL must be
+                ``http(s)`` or a path on this server (starting with a single
+                ``/``), and the file must be served with CORS and HTTP range
+                requests.
         """
         raise NotImplementedError(
             "Dynamic GeoTIFF map layer plugins must implement the fetch_source() "
@@ -822,8 +827,9 @@ class LayerConfigurationBuilder:
           FeatureCollection that is swapped into the VectorLayer.
         - ``"GeoTIFF"`` builders: ``fetch_source()`` returns a source
           description that repoints the WebGLTile layer at a new file. The
-          scaffold carries no URL; set its fallback styling with
-          :py:meth:`set_raster_ramp`.
+          scaffold carries no URL; set its styling with
+          :py:meth:`set_raster_ramp` or :py:meth:`set_raster_classes`, since
+          a fetch never restyles the layer.
 
         The scaffold produced by :py:meth:`build` is preserved as the
         save-time snapshot. This method raises unless the builder was
