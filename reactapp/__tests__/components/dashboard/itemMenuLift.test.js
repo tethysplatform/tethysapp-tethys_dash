@@ -6,6 +6,7 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import Modal from "react-bootstrap/Modal";
 import DashboardLayout, {
   MENU_OPEN_Z_INDEX,
 } from "components/dashboard/DashboardLayout";
@@ -58,15 +59,15 @@ const makeItem = (i, metadata = {}) => ({
   metadata_string: JSON.stringify(metadata),
 });
 
-const renderLayout = (items) => {
+const renderLayout = (items, wrap = (layout) => layout) => {
   const dashboard = JSON.parse(JSON.stringify(userDashboard));
   dashboard.tabs[0].gridItems = items;
   return render(
     createLoadedComponent({
-      children: (
+      children: wrap(
         <LayoutAlertContextProvider>
           <DashboardLayout tabId={userDashboard.tabs[0].id} gridItems={items} />
-        </LayoutAlertContextProvider>
+        </LayoutAlertContextProvider>,
       ),
       options: { initialDashboard: dashboard, inEditing: true },
     }),
@@ -121,6 +122,26 @@ test("the menu renders at the page root, outside its tile", async () => {
   expect(screen.getByTestId("tile-0")).not.toContainElement(edit);
   // eslint-disable-next-line testing-library/no-node-access
   expect(edit.closest(".dropdown-menu").parentElement).toBe(document.body);
+});
+
+test("inside a modal, the menu renders in that modal, outside its tile", async () => {
+  // As in the popup layout editor: a menu at the page root would sit under
+  // the modal and never be seen.
+  renderLayout([makeItem("1")], (layout) => (
+    <Modal show onHide={() => {}}>
+      <Modal.Body>{layout}</Modal.Body>
+    </Modal>
+  ));
+  await screen.findByTestId("tile-0");
+
+  await userEvent.click(toggleOf(0));
+  const edit = await screen.findByText("Edit");
+
+  expect(screen.getByTestId("tile-0")).not.toContainElement(edit);
+  // eslint-disable-next-line testing-library/no-node-access
+  expect(edit.closest(".dropdown-menu").parentElement).toBe(
+    screen.getByRole("dialog"),
+  );
 });
 
 test("a menu outside any grid item still opens", async () => {
