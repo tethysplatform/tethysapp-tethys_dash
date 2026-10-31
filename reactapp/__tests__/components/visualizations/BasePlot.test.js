@@ -1,11 +1,8 @@
-import { render } from "@testing-library/react";
+import { act, render } from "@testing-library/react";
 import { createRef } from "react";
 import BasePlot, {
   createVerticalLine,
-  formatToDate,
   snapDate,
-  normalizedToDate,
-  paperToAxisNormalized,
   handleEventData,
 } from "components/visualizations/BasePlot";
 import {
@@ -85,180 +82,332 @@ describe("BasePlot", () => {
     expect(plotDiv).toBeInTheDocument();
   });
 
-  it("resolves a substituted verticalLine value using the source variable's date format", () => {
-    // Regression: when the verticalLine value is bound to a variable input
-    // whose value is in a custom date format (e.g., a slider's
-    // outputFormat "MM/dd/yyyy'T'HH:mm"), createVerticalLine's internal
-    // parseDateMath cannot parse it without a format hint and the shape
-    // falls back to xPaper=0.5 (middle of the plot). BasePlot must pre-
-    // resolve the value to a Date using variableInputDateFormats[<var>]
-    // before handing it to createVerticalLine.
-    //
-    // We capture the shape added to the plot's layout to assert that x0
-    // is computed from the date range (not the 0.5 fallback).
-    const xrange = ["2026-06-01T00:00:00.000Z", "2026-06-10T00:00:00.000Z"];
-    let capturedShapes = null;
-    const fakePlot = {
-      el: {
-        layout: {
-          xaxis: { range: xrange, domain: [0, 1] },
-          shapes: [],
-        },
+  // A plot whose line is tied to the variable "Date", in a slider's
+  // outputFormat. The ref is never mounted unless a test gives one: the
+  // line must not wait for the plot element.
+  const plotWithLine = ({
+    value,
+    data = [
+      {
+        x: ["2026-06-01T00:00:00", "2026-06-10T00:00:00"],
+        y: [3, 4],
+        type: "scatter",
       },
-    };
+    ],
+    layout = { title: "Test" },
+    line = {},
+    visualizationRef = createRef(),
+    setVariableInputValues = jest.fn(),
+    rawValue = "${Date}", // eslint-disable-line no-template-curly-in-string
+    metadata = { plotlyVerticalLine: { mode: "on", value, ...line } },
+  }) => (
+    <VariableInputsContext.Provider
+      value={{
+        variableInputDateFormats: { Date: "MM/dd/yyyy'T'HH:mm" },
+        variableInputValues: { Date: value },
+        setVariableInputValues,
+      }}
+    >
+      <GridItemContext.Provider
+        value={{
+          gridItemArgsString: "{}",
+          gridItemMetadataString: JSON.stringify({
+            plotlyVerticalLine: { mode: "on", value: rawValue },
+          }),
+        }}
+      >
+        <DataViewerModeContext.Provider value={{ mode: "default" }}>
+          <BasePlot
+            data={data}
+            layout={layout}
+            config={{ responsive: true }}
+            visualizationRef={visualizationRef}
+            metadata={metadata}
+          />
+        </DataViewerModeContext.Provider>
+      </GridItemContext.Provider>
+    </VariableInputsContext.Provider>
+  );
+
+  const verticalLinesIn = (layout) =>
+    (layout.shapes || []).filter(
+      (s) => s.meta?.createdBy === "addVerticalLine",
+    );
+
+  it("draws a line tied to a variable at its value, read with the variable's format", () => {
+    // The substituted value is in the slider's outputFormat, not ISO, and
+    // can only be read with the format registered for the source variable.
+    const pluginShape = { type: "rect", x0: 0, x1: 1, y0: 0, y1: 1 };
+    render(
+      plotWithLine({
+        value: "06/05/2026T12:00",
+        layout: { title: "Test", shapes: [pluginShape] },
+      }),
+    );
+
+    const { layout } = global.__plotProps;
+    expect(layout.shapes[0]).toBe(pluginShape);
+    const [line] = verticalLinesIn(layout);
+    expect(line).toMatchObject({ xref: "x", yref: "paper", y0: 0, y1: 1 });
+    expect(line.x0).toBe("2026-06-05 12:00:00");
+    expect(line.x1).toBe(line.x0);
+  });
+
+  const pinned = ["2026-05-01T00:00:00", "2026-07-01T00:00:00"];
+  it.each([
+    ["inside the data on an autoranged axis", "06/05/2026T12:00", {}, true],
+    ["outside the data on an autoranged axis", "06/15/2026T12:00", {}, false],
+    [
+      "outside the data on a pinned axis",
+      "06/15/2026T12:00",
+      { xaxis: { range: pinned } },
+      true,
+    ],
+    [
+      "outside the data on an axis matched to a pinned one",
+      "06/15/2026T12:00",
+      { xaxis: { matches: "x2" }, xaxis2: { range: pinned } },
+      true,
+    ],
+    [
+      "outside the data on an axis told to autorange over its range",
+      "06/15/2026T12:00",
+      { xaxis: { range: pinned, autorange: true } },
+      false,
+    ],
+  ])("draws a line %s: visible %p", (_case, value, axes, visible) => {
+    // Hidden, Plotly leaves the line out of the autorange, which it would
+    // otherwise stretch to reach the line.
+    render(plotWithLine({ value, layout: { title: "Test", ...axes } }));
+
+    const [line] = verticalLinesIn(global.__plotProps.layout);
+    expect(line.visible !== false).toBe(visible);
+  });
+
+  it.each([["06/01/2026T00:30"], ["06/09/2026T23:30"]])(
+    "reads the data's dates as wall-clock time, as Plotly does: %s",
+    (value) => {
+      // Plotly discards these offsets and draws the data from June 1 00:00 to
+      // June 10 00:00 wall-clock, so a line just inside either end is inside.
+      // Honored, the offsets would pull both ends inside both lines.
+      const data = [
+        {
+          x: ["2026-06-01T00:00:00-12:00", "2026-06-10T00:00:00+14:00"],
+          y: [3, 4],
+        },
+      ];
+      render(plotWithLine({ value, data }));
+
+      const [line] = verticalLinesIn(global.__plotProps.layout);
+      expect(line.visible).not.toBe(false);
+    },
+  );
+
+  it("measures only the data on the line's own x axis", () => {
+    // A side-by-side subplot on its own x axis spans the whole year.
+    const data = [
+      {
+        x: ["2026-06-01T00:00:00", "2026-06-10T00:00:00"],
+        y: [3, 4],
+      },
+      {
+        x: ["2026-01-01T00:00:00", "2026-12-31T00:00:00"],
+        y: [3, 4],
+        xaxis: "x3",
+      },
+    ];
+    render(
+      plotWithLine({
+        value: "06/15/2026T12:00",
+        data,
+        layout: { title: "Test", xaxis3: {} },
+      }),
+    );
+
+    const [line] = verticalLinesIn(global.__plotProps.layout);
+    expect(line.visible).toBe(false);
+  });
+
+  it.each([
+    [
+      "values that do not only increase",
+      "06/09/2026T12:00",
+      [
+        {
+          x: [
+            "2026-06-05T00:00:00",
+            "2026-06-01T00:00:00",
+            "2026-06-10T00:00:00",
+            "2026-06-03T00:00:00",
+          ],
+          y: [1, 2, 3, 4],
+        },
+      ],
+      {},
+      true,
+    ],
+    [
+      "milliseconds on a date axis",
+      "06/15/2026T12:00",
+      [{ x: [Date.UTC(2026, 5, 1), Date.UTC(2026, 5, 10)], y: [1, 2] }],
+      { xaxis: { type: "date" } },
+      false,
+    ],
+    [
+      "visible traces only",
+      "06/15/2026T12:00",
+      [
+        { x: ["2026-06-01T00:00:00", "2026-06-10T00:00:00"], y: [1, 2] },
+        {
+          x: ["2026-01-01T00:00:00", "2026-12-31T00:00:00"],
+          y: [1, 2],
+          visible: "legendonly",
+        },
+      ],
+      {},
+      false,
+    ],
+  ])(
+    "measures the data on the line's axis from %s",
+    (_case, value, data, axes, visible) => {
+      // Each figure's data spans June 1-10.
+      render(plotWithLine({ value, data, layout: { title: "Test", ...axes } }));
+
+      const [line] = verticalLinesIn(global.__plotProps.layout);
+      expect(line.visible !== false).toBe(visible);
+    },
+  );
+
+  it("draws the line on a figure with no data to measure", () => {
+    render(plotWithLine({ value: "06/05/2026T12:00", data: null }));
+
+    const [line] = verticalLinesIn(global.__plotProps.layout);
+    expect(line.x0).toBe("2026-06-05 12:00:00");
+    expect(line.visible).not.toBe(false);
+  });
+
+  it("reads the value of a variable with no date format as it comes", () => {
+    render(
+      plotWithLine({
+        value: "2026-06-05T12:00:00",
+        rawValue: "${Day}", // eslint-disable-line no-template-curly-in-string
+      }),
+    );
+
+    const [line] = verticalLinesIn(global.__plotProps.layout);
+    expect(line.x0).toBe("2026-06-05 12:00:00");
+  });
+
+  it("draws no line when its value cannot be read as a date", () => {
+    render(plotWithLine({ value: "not a date" }));
+
+    expect(verticalLinesIn(global.__plotProps.layout)).toEqual([]);
+  });
+
+  it("re-reads a relative value such as now when a new figure arrives", () => {
+    jest.useFakeTimers({ now: new Date(2026, 5, 5, 12, 0) });
+    try {
+      // One metadata object across renders, as Base.js hands over when a
+      // refresh changes nothing in it.
+      const props = {
+        value: "now",
+        rawValue: "now",
+        metadata: { plotlyVerticalLine: { mode: "on", value: "now" } },
+      };
+      const { rerender } = render(plotWithLine(props));
+      expect(verticalLinesIn(global.__plotProps.layout)[0].x0).toMatch(
+        "2026-06-05 12:00:00",
+      );
+
+      // An auto-refresh: same metadata, new figure, an hour later.
+      jest.setSystemTime(new Date(2026, 5, 5, 13, 0));
+      rerender(plotWithLine({ ...props, layout: { title: "Refreshed" } }));
+      expect(verticalLinesIn(global.__plotProps.layout)[0].x0).toMatch(
+        "2026-06-05 13:00:00",
+      );
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("snaps a drag, publishes it, and ignores Plotly's echo of the snap", () => {
+    // Stands in for the Plotly graph div, which holds the very layout object
+    // it was given, so a drag shows up as a change to that object.
+    const plotElement = {};
     const visualizationRef = {};
     Object.defineProperty(visualizationRef, "current", {
-      get: () => fakePlot,
+      get: () => ({ el: plotElement }),
       set: () => {},
       configurable: true,
     });
+    const setVariableInputValues = jest.fn();
+    render(
+      plotWithLine({
+        value: "06/05/2026T12:00",
+        // No step saved: the editor shows "minute", so the drag snaps to it.
+        line: { editable: true },
+        visualizationRef,
+        setVariableInputValues,
+      }),
+    );
+    plotElement.layout = global.__plotProps.layout;
+    const [line] = verticalLinesIn(plotElement.layout);
+    const moveLineTo = (x) => {
+      line.x0 = x;
+      line.x1 = x;
+      act(() =>
+        global.__plotProps.onRelayout({ "shapes[0].x0": x, "shapes[0].x1": x }),
+      );
+    };
 
-    // Spy on Array.prototype.push for currentShapes — but cleaner is to
-    // intercept via plotElement.layout.shapes mutation. Instead, just
-    // re-render and read fakePlot.el.layout.shapes after the effect.
+    moveLineTo("2026-06-05 14:20:31.2");
+    expect(global.mockRelayout).toHaveBeenCalledTimes(1);
+    const snapped = global.mockRelayout.mock.calls[0][1]["shapes[0].x0"];
+    expect(snapped).toBe("2026-06-05 14:21:00");
+    expect(setVariableInputValues.mock.calls[0][0]({})).toEqual({
+      Date: "06/05/2026T14:21",
+    });
+
+    // Plotly applies the snap and reports it back.
+    moveLineTo(snapped);
+    expect(global.mockRelayout).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["draggable", { editable: true }, true],
+    ["fixed", {}, undefined],
+  ])("drags shapes directly only when the line is %s", (_case, line, on) => {
+    render(plotWithLine({ value: "06/05/2026T12:00", line }));
+
+    expect(global.__plotProps.config.edits?.shapePosition).toBe(on);
+    // The CSV button is still added alongside.
+    expect(global.__plotProps.config.modeBarButtonsToAdd).toHaveLength(1);
+  });
+
+  it("draws no line when the metadata has none", () => {
     render(
       <VariableInputsContext.Provider
-        value={{
-          variableInputDateFormats: { Date: "MM/dd/yyyy'T'HH:mm" },
-          variableInputValues: { Date: "06/05/2026T12:00" },
-        }}
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
       >
-        <GridItemContext.Provider
-          value={{
-            gridItemArgsString: "{}",
-            gridItemMetadataString: JSON.stringify({
-              plotlyVerticalLine: {
-                mode: "on",
-                // eslint-disable-next-line no-template-curly-in-string
-                value: "${Date}",
-              },
-            }),
-          }}
-        >
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <DataViewerModeContext.Provider value={{ mode: "default" }}>
             <BasePlot
               data={[{ x: [1, 2], y: [3, 4], type: "scatter" }]}
-              layout={{ title: "Test" }}
+              layout={{ title: "Test Plot" }}
               config={{ responsive: true }}
-              visualizationRef={visualizationRef}
-              metadata={{
-                plotlyVerticalLine: {
-                  mode: "on",
-                  // The "substituted" value — in the slider's outputFormat,
-                  // NOT ISO. Without the source-variable format lookup,
-                  // parseDateMath would fail and x0 would be 0.5.
-                  value: "06/05/2026T12:00",
-                },
-              }}
+              visualizationRef={createRef()}
+              metadata={{}}
             />
           </DataViewerModeContext.Provider>
         </GridItemContext.Provider>
       </VariableInputsContext.Provider>,
     );
 
-    // After the layout effect runs, plotLayout.shapes should include a
-    // vertical line shape positioned by date (not at 0.5).
-    capturedShapes = fakePlot.el.layout.shapes;
-    // The effect pushes a new shape to a copy of layout.shapes and stores
-    // it via setPlotLayout, not back to fakePlot.el.layout. Read the
-    // computed x0 by re-running createVerticalLine with the parsed Date
-    // and the same range — this is what BasePlot's effect computes.
-    // Use an absolute UTC instant OFF the range midpoint so x0 is the same in
-    // every timezone. Jun 5 12:00 lands exactly at 0.5 in the Jun 1-10 UTC
-    // range, which collides with the fallback sentinel under UTC (e.g. CI);
-    // Jun 3 12:00 UTC is ~0.28 in any timezone.
-    const parsedDate = new Date(Date.UTC(2026, 5, 3, 12, 0)); // Jun 3, 2026 12:00 UTC
-    const directShape = createVerticalLine({
-      xValue: parsedDate,
-      plotElement: fakePlot.el,
-      returnOutOfRange: true,
-    });
-    // The expected x0 is somewhere between 0 and 1 (Jun 3 is between Jun 1
-    // and Jun 10), strictly NOT the 0.5 fallback.
-    expect(directShape.x0).toBeGreaterThan(0);
-    expect(directShape.x0).toBeLessThan(1);
-    expect(directShape.x0).not.toBe(0.5);
-    // The "broken" path — string in slider format with no format hint —
-    // produces the 0.5 fallback. This is what BasePlot avoids.
-    const fallbackShape = createVerticalLine({
-      xValue: "06/05/2026T12:00",
-      plotElement: fakePlot.el,
-      returnOutOfRange: true,
-    });
-    expect(fallbackShape.x0).toBe(0.5);
-    // Reference capturedShapes so eslint doesn't complain about unused.
-    expect(capturedShapes).toEqual([]);
-  });
-
-  it("does not infinite-rerender when metadata.plotlyVerticalLine is absent", () => {
-    // Stub visualizationRef so the layout-syncing effect runs setPlotLayout
-    // instead of early-returning. If `plotlyVerticalLine` defaults to a fresh
-    // `{}` on each render, this would loop and React would throw
-    // "Maximum update depth exceeded".
-    const fakePlot = { el: { layout: { shapes: [] } } };
-    const visualizationRef = {};
-    Object.defineProperty(visualizationRef, "current", {
-      get: () => fakePlot,
-      set: () => {},
-      configurable: true,
-    });
-
-    expect(() =>
-      render(
-        <VariableInputsContext.Provider
-          value={{ variableInputDateFormats: {}, variableInputValues: {} }}
-        >
-          <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
-            <DataViewerModeContext.Provider value={{ mode: "default" }}>
-              <BasePlot
-                data={[{ x: [1, 2], y: [3, 4], type: "scatter" }]}
-                layout={{ title: "Test Plot" }}
-                config={{ responsive: true }}
-                visualizationRef={visualizationRef}
-                metadata={{}}
-              />
-            </DataViewerModeContext.Provider>
-          </GridItemContext.Provider>
-        </VariableInputsContext.Provider>,
-      ),
-    ).not.toThrow();
+    expect(verticalLinesIn(global.__plotProps.layout)).toEqual([]);
   });
 });
 
 describe("BasePlot utility functions", () => {
-  describe("paperToAxisNormalized", () => {
-    it("converts paper-normalized x to axis-relative x using domain", () => {
-      expect(paperToAxisNormalized(0.5, [0, 1])).toBeCloseTo(0.5);
-      expect(paperToAxisNormalized(0, [0, 1])).toBeCloseTo(0);
-      expect(paperToAxisNormalized(1, [0, 1])).toBeCloseTo(1);
-      expect(paperToAxisNormalized(-0.2, [0, 1])).toBeCloseTo(0);
-      expect(paperToAxisNormalized(1.2, [0, 1])).toBeCloseTo(1);
-      expect(paperToAxisNormalized(0.5, [0.2, 0.8])).toBeCloseTo(
-        (0.5 - 0.2) / (0.8 - 0.2),
-      );
-      expect(paperToAxisNormalized(0.5, [0.5, 0.5])).toBe(0.5);
-      expect(paperToAxisNormalized(0.5, null)).toBe(0.5);
-    });
-  });
-
-  describe("normalizedToDate", () => {
-    it("converts normalized value to date using x2range", () => {
-      const start = "2020-01-01T00:00:00.000Z";
-      const end = "2020-01-02T00:00:00.000Z";
-      const x2range = [start, end];
-      const date = normalizedToDate(0, x2range);
-      expect(date).toEqual(new Date(start));
-      const date1 = normalizedToDate(1, x2range);
-      expect(date1).toEqual(new Date(end));
-      const dateMid = normalizedToDate(0.5, x2range);
-      expect(dateMid.getTime()).toBeCloseTo(
-        (new Date(start).getTime() + new Date(end).getTime()) / 2,
-      );
-      expect(normalizedToDate(0.5, null)).toBe(0.5);
-      expect(normalizedToDate(0.5, ["bad", "bad"])).toBe(0.5);
-    });
-  });
-
   describe("snapDate", () => {
     it("snaps date to nearest minute", () => {
       const d = new Date("2020-01-01T00:01:29.000");
@@ -364,702 +513,239 @@ describe("BasePlot utility functions", () => {
       expect(snapDate("not-a-date", "minute")).toBe("not-a-date");
     });
   });
-
-  describe("formatToDate", () => {
-    it("formats normalized value to snapped date", () => {
-      const x2range = ["2020-01-01T00:00:00.000Z", "2020-01-02T00:00:00.000Z"];
-      let expected = formatToDate(0, x2range, "minute");
-      expect(new Date(expected)).toStrictEqual(
-        new Date("2020-01-01T00:00:00.000Z"),
-      );
-      expected = formatToDate(1, x2range, "minute");
-      expect(new Date(expected)).toStrictEqual(
-        new Date("2020-01-02T00:00:00.000Z"),
-      );
-      const mid = formatToDate(0.5, x2range, "hour");
-      expect(new Date(mid)).toStrictEqual(new Date("2020-01-01T12:00:00.000Z"));
-    });
-
-    it("clamps value to 0-1", () => {
-      const x2range = ["2020-01-01T00:00:00.000Z", "2020-01-02T00:00:00.000Z"];
-
-      let expected = formatToDate(-0.5, x2range, "minute");
-      expect(new Date(expected)).toStrictEqual(
-        new Date("2020-01-01T00:00:00.000Z"),
-      );
-      expected = formatToDate(1.5, x2range, "minute");
-      expect(new Date(expected)).toStrictEqual(
-        new Date("2020-01-02T00:00:00.000Z"),
-      );
-    });
-  });
 });
 
 describe("BasePlot vertical line", () => {
-  it("creates a vertical line shape with correct metadata", () => {
+  it("anchors the line to the x axis at the value's wall-clock time", () => {
     const shape = createVerticalLine({
-      xValue: "2022-01-01",
-      plotElement: {
-        layout: {
-          xaxis: {
-            range: ["2022-01-01T00:00:00.000Z", "2022-01-02T00:00:00.000Z"],
-            domain: [0, 1],
-          },
-        },
-      },
-      options: {
-        id: "vline1",
-        variable: "var1",
-      },
+      xValue: "2022-01-01T12:00:00",
+      options: { id: "vline1", variable: "var1" },
     });
-    expect(shape.type).toBe("line");
-    expect(shape.meta.id).toBe("vline1");
-    expect(shape.meta.variable).toBe("var1");
-    expect(shape.x0).toBe(0);
-    expect(shape.x1).toBe(0);
-    expect(shape.line.color).toBe("red");
+    expect(shape).toMatchObject({
+      type: "line",
+      xref: "x",
+      yref: "paper",
+      y0: 0,
+      y1: 1,
+      editable: false,
+      layer: "below",
+      line: { color: "red", width: 2, dash: "solid" },
+      meta: { id: "vline1", variable: "var1", createdBy: "addVerticalLine" },
+    });
+    expect(shape.x0).toBe("2022-01-01 12:00:00");
+    expect(shape.x1).toBe(shape.x0);
   });
 
-  it("creates a vertical line, axis match is nonexistent", () => {
+  it("accepts a Date", () => {
     const shape = createVerticalLine({
-      xValue: "2022-01-01",
-      plotElement: {
-        layout: {
-          xaxis: {
-            range: ["2022-01-01T00:00:00.000Z", "2022-01-02T00:00:00.000Z"],
-            domain: [0, 1],
-            matches: "x3",
-          },
-        },
-      },
-      options: {
-        id: "vline1",
-        variable: "var1",
-      },
+      xValue: new Date(2022, 0, 1, 6, 30),
     });
-    expect(shape.type).toBe("line");
-    expect(shape.meta.id).toBe("vline1");
-    expect(shape.meta.variable).toBe("var1");
-    expect(shape.x0).toBe(0);
-    expect(shape.x1).toBe(0);
-    expect(shape.line.color).toBe("red");
+    expect(shape.x0).toBe("2022-01-01 06:30:00");
   });
 
-  it("creates a vertical line, axis bad match format", () => {
+  it("applies a custom color, width, dash, and editable", () => {
     const shape = createVerticalLine({
-      xValue: "2022-01-01",
-      plotElement: {
-        layout: {
-          xaxis: {
-            range: ["2022-01-01T00:00:00.000Z", "2022-01-02T00:00:00.000Z"],
-            domain: [0, 1],
-            matches: "some axis 3",
-          },
-        },
-      },
-      options: {
-        id: "vline1",
-        variable: "var1",
-      },
+      xValue: "2022-01-01T12:00:00",
+      options: { color: "blue", width: 5, dash: "dot", editable: true },
     });
-    expect(shape.type).toBe("line");
-    expect(shape.meta.id).toBe("vline1");
-    expect(shape.meta.variable).toBe("var1");
-    expect(shape.x0).toBe(0);
-    expect(shape.x1).toBe(0);
-    expect(shape.line.color).toBe("red");
+    expect(shape.line).toEqual({ color: "blue", width: 5, dash: "dot" });
+    expect(shape.editable).toBe(true);
   });
 
-  it("creates a vertical line shape with correct metadata, shared axis", () => {
-    const shape = createVerticalLine({
-      xValue: "2022-01-01",
-      plotElement: {
-        layout: {
-          xaxis: {
-            matches: "x2",
-          },
-          xaxis2: {
-            range: ["2022-01-01T00:00:00.000Z", "2022-01-02T00:00:00.000Z"],
-            domain: [0, 1],
-          },
-        },
-      },
-      options: {
-        id: "vline1",
-        variable: "var1",
-      },
-    });
-    expect(shape.type).toBe("line");
-    expect(shape.meta.id).toBe("vline1");
-    expect(shape.meta.variable).toBe("var1");
-    expect(shape.x0).toBe(0);
-    expect(shape.x1).toBe(0);
-    expect(shape.line.color).toBe("red");
+  it("gives Plotly its time with no offset, even in a half-hour time zone", () => {
+    // Plotly's shape editor cannot read an offset back, and "+5.5:30" was
+    // once all a half-hour zone got.
+    jest.spyOn(Date.prototype, "getTimezoneOffset").mockReturnValue(-330);
+    const shape = createVerticalLine({ xValue: "2022-01-01T12:00:00" });
+    expect(shape.x0).toBe("2022-01-01 12:00:00");
   });
 
-  it("creates a vertical line with custom color, width, dash", () => {
-    const shape = createVerticalLine({
-      xValue: "2022-01-01T12:00:00.000Z",
-      plotElement: {
-        layout: {
-          xaxis: {
-            range: ["2022-01-01T00:00:00.000Z", "2022-01-02T00:00:00.000Z"],
-            domain: [0, 1],
-          },
-        },
-      },
-      options: {
-        color: "blue",
-        width: 5,
-        dash: "dot",
-      },
-    });
-    expect(shape.line.color).toBe("blue");
-    expect(shape.line.width).toBe(5);
-    expect(shape.line.dash).toBe("dot");
-    expect(shape.x0).toBe(0.5);
-    expect(shape.x1).toBe(0.5);
-  });
-
-  it("handles xValue as number", () => {
-    const shape = createVerticalLine({
-      xValue: 123,
-      plotElement: {
-        layout: {
-          xaxis: {
-            range: ["2022-01-01T00:00:00.000Z", "2022-01-02T00:00:00.000Z"],
-            domain: [0, 1],
-          },
-        },
-      },
-    });
-    expect(shape.x0).toBe(123);
-    expect(shape.x1).toBe(123);
-  });
-
-  it("handles bad range in plot", () => {
-    const shape = createVerticalLine({
-      xValue: 123,
-      plotElement: {
-        layout: {
-          xaxis: {},
-        },
-      },
-    });
-    expect(shape.x0).toBe(0.5);
-    expect(shape.x1).toBe(0.5);
-  });
-
-  it("handles xValue as invalid date and return 0.5", () => {
-    const shape = createVerticalLine({
-      xValue: "invalid-date-string",
-      plotElement: {
-        layout: {
-          xaxis: {
-            range: ["2022-01-01T00:00:00.000Z", "2022-01-02T00:00:00.000Z"],
-            domain: [0, 1],
-          },
-        },
-      },
-    });
-    expect(shape.x0).toBe(0.5);
-    expect(shape.x1).toBe(0.5);
-  });
-
-  it("handles out of range values, max", () => {
-    const shape = createVerticalLine({
-      xValue: "2022-01-03T00:00:00.000",
-      plotElement: {
-        layout: {
-          xaxis: {
-            range: ["2022-01-01T00:00:00.000", "2022-01-02T00:00:00.000"],
-            domain: [0, 1],
-          },
-        },
-      },
-      options: {
-        id: "vline1",
-        variable: "var1",
-      },
-    });
-    expect(shape.type).toBe("line");
-    expect(shape.meta.id).toBe("vline1");
-    expect(shape.meta.variable).toBe("var1");
-    expect(shape.x0).toBe(1);
-    expect(shape.x1).toBe(1);
-    expect(shape.line.color).toBe("red");
-  });
-
-  it("handles out of range values, min", () => {
-    const shape = createVerticalLine({
-      xValue: "2021-12-31T00:00:00.000",
-      plotElement: {
-        layout: {
-          xaxis: {
-            range: ["2022-01-01T00:00:00.000", "2022-01-02T00:00:00.000"],
-            domain: [0, 1],
-          },
-        },
-      },
-      options: {
-        id: "vline1",
-        variable: "var1",
-      },
-    });
-    expect(shape.type).toBe("line");
-    expect(shape.meta.id).toBe("vline1");
-    expect(shape.meta.variable).toBe("var1");
-    expect(shape.x0).toBe(0);
-    expect(shape.x1).toBe(0);
-    expect(shape.line.color).toBe("red");
-  });
-
-  it("handles out of range values, returnOutOfRange is true", () => {
-    const shape = createVerticalLine({
-      xValue: "2022-01-03T00:00:00.000",
-      plotElement: {
-        layout: {
-          xaxis: {
-            range: ["2022-01-01T00:00:00.000", "2022-01-02T00:00:00.000"],
-            domain: [0, 1],
-          },
-        },
-      },
-      options: {
-        id: "vline1",
-        variable: "var1",
-      },
-      returnOutOfRange: true,
-    });
-    expect(shape.type).toBe("line");
-    expect(shape.meta.id).toBe("vline1");
-    expect(shape.meta.variable).toBe("var1");
-    expect(shape.x0).toBe(2);
-    expect(shape.x1).toBe(2);
-    expect(shape.line.color).toBe("red");
-  });
+  it.each([["invalid-date-string"], [null], [123]])(
+    "returns no line for a value that is not a date: %p",
+    (xValue) => {
+      expect(createVerticalLine({ xValue })).toBeNull();
+    },
+  );
 });
 
-describe("BasePlot handleEventData line shift", () => {
-  it("no custom vertical line present", () => {
-    const mockSetVariableInputValues = jest.fn();
-    handleEventData({
-      eventData: {
-        "shapes[0].x0": 0.49816614420062694,
-        "shapes[0].x1": 0.49816614420062694,
-        "shapes[0].y0": 0,
-        "shapes[0].y1": 1,
-      },
-      verticalLineEditable: true,
-      plotElement: {
-        layout: {
-          shapes: [{ meta: { createdBy: "plotly" } }],
-          xaxis: {
-            range: ["2020-01-01T00:00:00.000", "2020-01-01T01:00:00.000"],
-            domain: [0, 1],
-          },
-        },
-      },
-      originalVerticalLine: undefined,
-      verticalLineStep: "minute",
-      inDataViewerMode: false,
-      gridItemMetadataString: "{}",
-      variableInputDateFormats: {},
-      setVariableInputValues: mockSetVariableInputValues,
-    });
-    expect(mockSetVariableInputValues).not.toHaveBeenCalled();
-    expect(global.mockRelayout).not.toHaveBeenCalled();
+describe("BasePlot handleEventData", () => {
+  // The vertical line sits after one of the plugin's shapes. Dragged
+  // positions are given the way Plotly reports them on a date axis, e.g.
+  // "2020-01-01 00:15:29.5", with no zone.
+  const plotWithLine = (line) => ({
+    layout: {
+      shapes: [
+        { meta: { createdBy: "plotly" } },
+        { y0: 0, y1: 1, ...line, meta: { createdBy: "addVerticalLine" } },
+      ],
+    },
   });
-
-  it("no vertical line updates", () => {
-    const mockSetVariableInputValues = jest.fn();
+  // A drag of the line to where plotElement now has it, unless the test
+  // gives other event data.
+  const drag = (plotElement, overrides = {}) =>
     handleEventData({
       eventData: {
-        "shapes[1].x0": 0.49816614420062694,
-        "shapes[1].x1": 0.49816614420062694,
-        "shapes[1].y0": 0,
-        "shapes[1].y1": 1,
+        "shapes[1].x0": plotElement.layout.shapes[1]?.x0,
+        "shapes[1].x1": plotElement.layout.shapes[1]?.x1,
       },
-      verticalLineEditable: true,
-      plotElement: {
-        layout: {
-          shapes: [
-            { meta: { createdBy: "addVerticalLine" } },
-            { meta: { createdBy: "plotly" } },
-          ],
-          xaxis: {
-            range: ["2020-01-01T00:00:00.000", "2020-01-01T01:00:00.000"],
-            domain: [0, 1],
-          },
-        },
-      },
-      originalVerticalLine: undefined,
-      verticalLineStep: "minute",
-      inDataViewerMode: false,
-      gridItemMetadataString: "{}",
-      variableInputDateFormats: {},
-      setVariableInputValues: mockSetVariableInputValues,
-    });
-    expect(mockSetVariableInputValues).not.toHaveBeenCalled();
-    expect(global.mockRelayout).not.toHaveBeenCalled();
-  });
-
-  it("vertical line updates - line shifted", () => {
-    const mockSetVariableInputValues = jest.fn();
-    const plotElement = {
-      layout: {
-        shapes: [
-          {
-            x0: 0.256,
-            x1: 0.256,
-            y0: 0.25,
-            y1: 0.75,
-            meta: { createdBy: "addVerticalLine" },
-          },
-          { meta: { createdBy: "plotly" } },
-        ],
-        xaxis: { matches: "x2" },
-        xaxis2: {
-          range: ["2020-01-01T00:00:00.000", "2020-01-01T01:00:00.000"],
-          domain: [0, 1],
-        },
-      },
-    };
-
-    handleEventData({
-      eventData: {
-        "shapes[0].x0": 0.256,
-        "shapes[0].x1": 0.256,
-        "shapes[0].y0": 0.25,
-        "shapes[0].y1": 0.75,
-      },
-      verticalLineEditable: true,
-      plotElement: plotElement,
-      originalVerticalLine: {},
-      verticalLineStep: "minute",
-      inDataViewerMode: false,
-      gridItemMetadataString: JSON.stringify({
-        plotlyVerticalLine: { value: "2022-01-01T00:00:00.000" },
-      }),
-      variableInputDateFormats: {},
-      setVariableInputValues: mockSetVariableInputValues,
-    });
-    expect(mockSetVariableInputValues).not.toHaveBeenCalled();
-    expect(global.mockRelayout).toHaveBeenCalled();
-    // snaps to the minute and therefore updates to 0.25, and y0/y1 are updated to 0 and 1 respectively since the line was shifted, not resized
-    expect(global.mockRelayout).toHaveBeenCalledWith(plotElement, {
-      "shapes[0].x0": 0.25,
-      "shapes[0].x1": 0.25,
-      "shapes[0].y0": 0,
-      "shapes[0].y1": 1,
-    });
-  });
-
-  it("vertical line updates - bottom shifted", () => {
-    const mockSetVariableInputValues = jest.fn();
-    const plotElement = {
-      layout: {
-        shapes: [
-          {
-            x0: 0.25,
-            x1: 0.5,
-            y0: 0,
-            y1: 1,
-            meta: { createdBy: "addVerticalLine" },
-          },
-          { meta: { createdBy: "plotly" } },
-        ],
-        xaxis: {
-          range: ["2020-01-01T00:00:00.000", "2020-01-01T01:00:00.000"],
-          domain: [0, 1],
-        },
-      },
-    };
-
-    handleEventData({
-      eventData: {
-        "shapes[0].x0": 0.25,
-        "shapes[0].x1": 0.5,
-        "shapes[0].y0": 0,
-        "shapes[0].y1": 1,
-      },
-      verticalLineEditable: true,
-      plotElement: plotElement,
-      originalVerticalLine: {
-        x: 0.5,
-        date: "2020-01-01T00:30:00.000",
-      },
-      verticalLineStep: "minute",
-      inDataViewerMode: false,
-      gridItemMetadataString: JSON.stringify({
-        plotlyVerticalLine: { value: "2022-01-01T00:00:00.000Z" },
-      }),
-      variableInputDateFormats: {},
-      setVariableInputValues: mockSetVariableInputValues,
-    });
-    expect(mockSetVariableInputValues).not.toHaveBeenCalled();
-    expect(global.mockRelayout).toHaveBeenCalled();
-    expect(global.mockRelayout).toHaveBeenCalledWith(plotElement, {
-      "shapes[0].x0": 0.25,
-      "shapes[0].x1": 0.25,
-    });
-  });
-
-  it("vertical line updates - top shifted", () => {
-    const mockSetVariableInputValues = jest.fn();
-    const plotElement = {
-      layout: {
-        shapes: [
-          {
-            x0: 0.5,
-            x1: 0.25,
-            y0: 0,
-            y1: 1,
-            meta: { createdBy: "addVerticalLine" },
-          },
-          { meta: { createdBy: "plotly" } },
-        ],
-        xaxis: {
-          range: ["2020-01-01T00:00:00.000", "2020-01-01T01:00:00.000"],
-          domain: [0, 1],
-        },
-      },
-    };
-
-    handleEventData({
-      eventData: {
-        "shapes[0].x0": 0.5,
-        "shapes[0].x1": 0.25,
-        "shapes[0].y0": 0,
-        "shapes[0].y1": 1,
-      },
-      verticalLineEditable: true,
-      plotElement: plotElement,
-      originalVerticalLine: {
-        x: 0.5,
-        date: "2020-01-01T00:30:00.000",
-      },
-      verticalLineStep: "minute",
-      inDataViewerMode: false,
-      gridItemMetadataString: JSON.stringify({
-        plotlyVerticalLine: { value: "2022-01-01T00:00:00.000Z" },
-      }),
-      variableInputDateFormats: {},
-      setVariableInputValues: mockSetVariableInputValues,
-    });
-    expect(mockSetVariableInputValues).not.toHaveBeenCalled();
-    expect(global.mockRelayout).toHaveBeenCalled();
-    expect(global.mockRelayout).toHaveBeenCalledWith(plotElement, {
-      "shapes[0].x0": 0.25,
-      "shapes[0].x1": 0.25,
-    });
-  });
-
-  it("vertical line updates with variable", () => {
-    const mockSetVariableInputValues = jest.fn();
-    const plotElement = {
-      layout: {
-        shapes: [
-          {
-            x0: 0.49816614420062694,
-            x1: 0.49816614420062694,
-            y0: 0.25,
-            y1: 0.75,
-            meta: { createdBy: "addVerticalLine" },
-          },
-          { meta: { createdBy: "plotly" } },
-        ],
-        xaxis: {
-          range: ["2020-01-01T00:00:00.000", "2020-01-01T01:00:00.000"],
-          domain: [0, 1],
-        },
-      },
-    };
-
-    handleEventData({
-      eventData: {
-        "shapes[0].x0": 0.49816614420062694,
-        "shapes[0].x1": 0.49816614420062694,
-        "shapes[0].y0": 0.25,
-        "shapes[0].y1": 0.75,
-      },
-      verticalLineEditable: true,
-      plotElement: plotElement,
-      originalVerticalLine: {},
-      verticalLineStep: "minute",
-      inDataViewerMode: false,
-      gridItemMetadataString: JSON.stringify({
-        // eslint-disable-next-line
-        plotlyVerticalLine: { value: "${Test Var}" },
-      }),
-      variableInputDateFormats: { "Test Var": "MM/dd/yyyy" },
-      setVariableInputValues: mockSetVariableInputValues,
-    });
-    const updateFn = mockSetVariableInputValues.mock.calls[0][0];
-
-    // Call the updater with a fake previous state
-    const result = updateFn({ foo: "bar" });
-
-    // Assert the result
-    expect(result).toEqual({
-      "Test Var": "01/01/2020",
-      foo: "bar",
-    });
-
-    expect(global.mockRelayout).not.toHaveBeenCalled();
-  });
-
-  it("vertical line updates with variable in dataviewer mode", () => {
-    const mockSetVariableInputValues = jest.fn();
-    const plotElement = {
-      layout: {
-        shapes: [
-          {
-            x0: 0.49816614420062694,
-            x1: 0.49816614420062694,
-            y0: 0.25,
-            y1: 0.75,
-            meta: { createdBy: "addVerticalLine" },
-          },
-          { meta: { createdBy: "plotly" } },
-        ],
-        xaxis: {
-          range: ["2020-01-01T00:00:00.000", "2020-01-01T01:00:00.000"],
-          domain: [0, 1],
-        },
-      },
-    };
-
-    handleEventData({
-      eventData: {
-        "shapes[0].x0": 0.49816614420062694,
-        "shapes[0].x1": 0.49816614420062694,
-        "shapes[0].y0": 0.25,
-        "shapes[0].y1": 0.75,
-      },
-      verticalLineEditable: true,
-      plotElement: plotElement,
-      originalVerticalLine: {},
+      plotElement,
+      lastLineX: "2020-01-01T00:30:00",
       verticalLineStep: "minute",
       inDataViewerMode: true,
-      gridItemMetadataString: JSON.stringify({
-        // eslint-disable-next-line
-        plotlyVerticalLine: { value: "${Test Var}" },
-      }),
-      variableInputDateFormats: { "Test Var": "MM/dd/yyyy" },
-      setVariableInputValues: mockSetVariableInputValues,
+      lineVariable: null,
+      setVariableInputValues: jest.fn(),
+      ...overrides,
     });
+  const atMinute = (hhmm) => `2020-01-01 ${hhmm}:00`;
 
-    expect(mockSetVariableInputValues).not.toHaveBeenCalled();
-    expect(global.mockRelayout).toHaveBeenCalled();
-    expect(global.mockRelayout).toHaveBeenCalledWith(plotElement, {
-      "shapes[0].x0": 0.5,
-      "shapes[0].x1": 0.5,
-      "shapes[0].y0": 0,
-      "shapes[0].y1": 1,
-    });
+  it("ignores a plot without a vertical line", () => {
+    const plotElement = { layout: { shapes: [{ meta: {} }] } };
+    expect(
+      drag(plotElement, { eventData: { "shapes[0].x0": "2020-01-01" } }),
+    ).toBeNull();
+    expect(global.mockRelayout).not.toHaveBeenCalled();
   });
-});
 
-describe("BasePlot handleEventData range update", () => {
-  it("range updates - line in range", () => {
-    const mockSetVariableInputValues = jest.fn();
-    const plotElement = {
-      layout: {
-        shapes: [
-          {
-            x0: 0.5,
-            x1: 0.5,
-            y0: 0.25,
-            y1: 0.75,
-            meta: { createdBy: "addVerticalLine" },
-          },
-          { meta: { createdBy: "plotly" } },
-        ],
-        xaxis: {
-          matches: "x2",
-        },
-        xaxis2: {
-          range: ["2020-01-01T00:00:00.000", "2020-01-01T01:00:00.000"],
-          domain: [0, 1],
-        },
-      },
-    };
+  it("ignores an event with no plot to read", () => {
+    expect(
+      drag({ layout: { shapes: [] } }, { plotElement: undefined }),
+    ).toBeNull();
+    expect(global.mockRelayout).not.toHaveBeenCalled();
+  });
 
-    handleEventData({
-      eventData: {
-        "xaxis.range[0]": "2020-01-01T00:00:00.000",
-        "xaxis.range[1]": "2020-01-01T01:00:00.000",
-      },
-      verticalLineEditable: true,
-      plotElement: plotElement,
-      originalVerticalLine: { date: "2020-01-01T00:15:00.000" },
-      verticalLineStep: "minute",
-      inDataViewerMode: false,
-      gridItemMetadataString: JSON.stringify({
-        plotlyVerticalLine: { value: "2022-01-01T00:00:00.000" },
-      }),
-      variableInputDateFormats: {},
-      setVariableInputValues: mockSetVariableInputValues,
+  it("leaves the line alone on a zoom or pan", () => {
+    const plotElement = plotWithLine({
+      x0: "2020-01-01T00:30:00",
+      x1: "2020-01-01T00:30:00",
     });
+    const result = drag(plotElement, {
+      eventData: {
+        "xaxis.range[0]": "2020-01-01 00:40:00",
+        "xaxis.range[1]": "2020-01-01 00:50:00",
+      },
+    });
+    expect(result).toBeNull();
+    expect(global.mockRelayout).not.toHaveBeenCalled();
+  });
 
-    expect(mockSetVariableInputValues).not.toHaveBeenCalled();
-    expect(global.mockRelayout).toHaveBeenCalled();
-    // snaps to the minute and therefore updates to 0.25, and y0/y1 are updated to 0 and 1 respectively since the line was shifted, not resized
+  it("snaps a dragged line to the step and back to the full plot height", () => {
+    const plotElement = plotWithLine({
+      x0: "2020-01-01 00:15:29.5",
+      x1: "2020-01-01 00:15:29.5",
+      y0: 0.25,
+      y1: 0.75,
+    });
+    const result = drag(plotElement);
+
+    expect(result).toEqual(atMinute("00:15"));
     expect(global.mockRelayout).toHaveBeenCalledWith(plotElement, {
-      "shapes[0].visible": true,
-      "shapes[0].x0": 0.25,
-      "shapes[0].x1": 0.25,
+      "shapes[1].x0": result,
+      "shapes[1].x1": result,
+      "shapes[1].y0": 0,
+      "shapes[1].y1": 1,
     });
   });
 
-  it("range updates - line out of range", () => {
-    const mockSetVariableInputValues = jest.fn();
-    const plotElement = {
-      layout: {
-        shapes: [
-          {
-            x0: 0.5,
-            x1: 0.5,
-            y0: 0.25,
-            y1: 0.75,
-            meta: { createdBy: "addVerticalLine" },
-          },
-          { meta: { createdBy: "plotly" } },
-        ],
-        xaxis: {
-          matches: "x2",
-        },
-        xaxis2: {
-          range: ["2020-01-01T00:00:00.000", "2020-01-01T00:10:00.000"],
-          domain: [0, 1],
-        },
-      },
-    };
+  it.each([
+    ["x1", { x0: "2020-01-01 00:30:00", x1: "2020-01-01 00:10:10" }],
+    ["x0", { x0: "2020-01-01 00:10:10", x1: "2020-01-01 00:30:00" }],
+  ])("follows the end that was dragged: %s", (_end, ends) => {
+    const plotElement = plotWithLine(ends);
+    const result = drag(plotElement);
 
-    handleEventData({
-      eventData: {
-        "xaxis.range[0]": "2020-01-01T00:00:00.000",
-        "xaxis.range[1]": "2020-01-01T00:10:00.000",
-      },
-      verticalLineEditable: true,
-      plotElement: plotElement,
-      originalVerticalLine: { date: "2020-01-01T00:15:00.000" },
-      verticalLineStep: "minute",
-      inDataViewerMode: false,
-      gridItemMetadataString: JSON.stringify({
-        plotlyVerticalLine: { value: "2022-01-01T00:00:00.000" },
-      }),
-      variableInputDateFormats: {},
-      setVariableInputValues: mockSetVariableInputValues,
-    });
-
-    expect(mockSetVariableInputValues).not.toHaveBeenCalled();
-    expect(global.mockRelayout).toHaveBeenCalled();
-    // snaps to the minute and therefore updates to 0.25, and y0/y1 are updated to 0 and 1 respectively since the line was shifted, not resized
+    expect(result).toEqual(atMinute("00:10"));
     expect(global.mockRelayout).toHaveBeenCalledWith(plotElement, {
-      "shapes[0].visible": false,
+      "shapes[1].x0": result,
+      "shapes[1].x1": result,
     });
+  });
+
+  it("ignores the echo of its own snap", () => {
+    const snapped = "2020-01-01 00:15:00";
+    const plotElement = plotWithLine({ x0: snapped, x1: snapped });
+
+    expect(drag(plotElement, { lastLineX: snapped })).toBeNull();
+    expect(global.mockRelayout).not.toHaveBeenCalled();
+  });
+
+  it("reads a position in the form Plotly's shape editor writes", () => {
+    const plotElement = plotWithLine({
+      x0: "2020-01-01_00:15:29.5",
+      x1: "2020-01-01_00:15:29.5",
+    });
+
+    expect(drag(plotElement)).toEqual(atMinute("00:15"));
+  });
+
+  it("takes a drag that lands exactly on a new step", () => {
+    const plotElement = plotWithLine({
+      x0: "2020-01-01 00:15:00",
+      x1: "2020-01-01 00:15:00",
+    });
+
+    expect(drag(plotElement)).toEqual(atMinute("00:15"));
+    expect(global.mockRelayout).toHaveBeenCalled();
+  });
+
+  it("leaves a position that is not a date alone", () => {
+    const plotElement = plotWithLine({ x0: 0.25, x1: 0.25 });
+
+    expect(drag(plotElement)).toBeNull();
+    expect(global.mockRelayout).not.toHaveBeenCalled();
+  });
+
+  it("publishes the snapped time to the variable the line is tied to", () => {
+    const setVariableInputValues = jest.fn();
+    const plotElement = plotWithLine({
+      x0: "2020-01-01 00:15:10",
+      x1: "2020-01-01 00:15:10",
+    });
+    drag(plotElement, {
+      inDataViewerMode: false,
+      lineVariable: { name: "Test Var", dateFormat: "MM/dd/yyyy HH:mm" },
+      setVariableInputValues,
+    });
+
+    const updater = setVariableInputValues.mock.calls[0][0];
+    expect(updater({ foo: "bar" })).toEqual({
+      foo: "bar",
+      "Test Var": "01/01/2020 00:15",
+    });
+    // Moved at once, rather than waiting on the variable to come back round.
+    expect(global.mockRelayout).toHaveBeenCalled();
+  });
+
+  it("publishes the snapped time as it is to a variable with no date format", () => {
+    const setVariableInputValues = jest.fn();
+    const plotElement = plotWithLine({
+      x0: "2020-01-01 00:15:10",
+      x1: "2020-01-01 00:15:10",
+    });
+    drag(plotElement, {
+      inDataViewerMode: false,
+      lineVariable: { name: "Test Var", dateFormat: null },
+      setVariableInputValues,
+    });
+
+    expect(setVariableInputValues.mock.calls[0][0]({})).toEqual({
+      "Test Var": "2020-01-01 00:15:00",
+    });
+  });
+
+  it("only moves the line in the data viewer", () => {
+    const setVariableInputValues = jest.fn();
+    const plotElement = plotWithLine({
+      x0: "2020-01-01 00:15:10",
+      x1: "2020-01-01 00:15:10",
+    });
+    drag(plotElement, {
+      inDataViewerMode: true,
+      lineVariable: { name: "Test Var", dateFormat: "MM/dd/yyyy HH:mm" },
+      setVariableInputValues,
+    });
+
+    expect(setVariableInputValues).not.toHaveBeenCalled();
+    expect(global.mockRelayout).toHaveBeenCalled();
   });
 });
 

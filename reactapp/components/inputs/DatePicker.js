@@ -1,16 +1,14 @@
 import { format } from "date-fns";
-import { useRef, memo, useState, useEffect, useContext } from "react";
+import { useRef, memo, useState, useEffect } from "react";
 import PropTypes from "prop-types";
 import ReactDatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { FaRegCalendarAlt } from "react-icons/fa";
 import "components/inputs/DatePicker.css";
-import { DataViewerModeContext } from "components/contexts/Contexts";
 import styled from "styled-components";
 import {
   dateHourFormat,
   dateOnlyFormat,
-  parseDateMath,
   checkForVariable,
   isRelativeInput,
   isPreset,
@@ -47,8 +45,6 @@ const DatePicker = ({
   dateFormat = dateHourFormat,
   showTimeInput = true,
 }) => {
-  const { inDataViewerMode } = useContext(DataViewerModeContext);
-
   // Track raw input value separately
   const datePickerRef = useRef(null);
   const [rawInputValue, setRawInputValue] = useState(
@@ -91,14 +87,12 @@ const DatePicker = ({
 
   const onRawChange = (val) => {
     setRawInputValue(val);
-    // Only call onChange if valid absolute or relative time
+    // Only call onChange if valid absolute or relative time. A relative time
+    // goes out as typed, not as the time it names now: like one saved with
+    // the dashboard, it is read again at each fetch, and shows as typed
+    // wherever the value is shown again, such as a popup reopened.
     if (isRelativeInput(val)) {
-      const parsedDate = parseDateMath({ value: val });
-      if (inDataViewerMode) {
-        onChange(val);
-      } else {
-        onChange(parsedDate);
-      }
+      onChange(val);
       return;
     }
 

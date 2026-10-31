@@ -2,7 +2,13 @@ import styled from "styled-components";
 import PropTypes from "prop-types";
 import Dropdown from "react-bootstrap/Dropdown";
 import { BsThreeDotsVertical, BsFillCaretRightFill } from "react-icons/bs";
-import { useContext, useState, useRef, useEffect } from "react";
+import {
+  useContext,
+  useState,
+  useRef,
+  useEffect,
+  useLayoutEffect,
+} from "react";
 import { createPortal } from "react-dom";
 import {
   GridItemContext,
@@ -62,6 +68,15 @@ const DashboardItemDropdown = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
+  // The menu is rendered at the page root, or in the modal the tile sits in
+  // (the popup layout editor): a menu at the page root would sit under the
+  // modal and never be seen.
+  const toggleRef = useRef(null);
+  const [menuContainer, setMenuContainer] = useState(null);
+  useLayoutEffect(() => {
+    setMenuContainer(toggleRef.current?.closest(".modal") ?? document.body);
+  }, []);
+
   const submenuRef = useRef(null);
   const [submenuPosition, setSubmenuPosition] = useState("right");
   const [submenuVisible, setSubmenuVisible] = useState(false);
@@ -97,6 +112,7 @@ const DashboardItemDropdown = ({
   return (
     <Dropdown autoClose={!activeAppTour} onToggle={onToggle}>
       <StyledDropdownToggle
+        ref={toggleRef}
         id="dropdown-basic"
         className="dashboard-item-dropdown-toggle"
         aria-label="dashboard-item-dropdown-toggle"
@@ -104,95 +120,96 @@ const DashboardItemDropdown = ({
         <BsThreeDotsVertical />
       </StyledDropdownToggle>
 
-      {createPortal(
-        <Dropdown.Menu
-          align="end"
-          show={showMenu}
-          rootCloseEvent={"mousedown"}
-          // Positioned against the viewport: the menu lives at the page root,
-          // so it must not depend on any tile's offset parent.
-          popperConfig={{ strategy: "fixed" }}
-        >
-          <Dropdown.Item
-            onClick={editGridItem}
-            className="dashboard-item-dropdown-edit-visualization"
+      {menuContainer &&
+        createPortal(
+          <Dropdown.Menu
+            align="end"
+            show={showMenu}
+            rootCloseEvent={"mousedown"}
+            // Positioned against the viewport: the menu lives at the page root,
+            // so it must not depend on any tile's offset parent.
+            popperConfig={{ strategy: "fixed" }}
           >
-            Edit
-          </Dropdown.Item>
-          <Dropdown.Item
-            onClick={copyGridItem}
-            className="dashboard-item-dropdown-create-copy"
-          >
-            Copy
-          </Dropdown.Item>
-          {unrestrictedPlacement && (
-            <SubmenuWrapper>
-              <Dropdown.Item
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-                className="card-share-option"
-                onMouseEnter={onSubMenuMouseEnter}
-                onMouseLeave={onSubMenuMouseLeave}
-              >
-                Order <BsFillCaretRightFill style={{ marginLeft: "auto" }} />
-              </Dropdown.Item>
-              <Submenu
-                className="submenu"
-                aria-label="Context Menu Submenu"
-                $position={submenuPosition}
-                $isVisible={submenuVisible}
-                ref={submenuRef}
-                onMouseEnter={onSubMenuMouseEnter}
-                onMouseLeave={onSubMenuMouseLeave}
-              >
+            <Dropdown.Item
+              onClick={editGridItem}
+              className="dashboard-item-dropdown-edit-visualization"
+            >
+              Edit
+            </Dropdown.Item>
+            <Dropdown.Item
+              onClick={copyGridItem}
+              className="dashboard-item-dropdown-create-copy"
+            >
+              Copy
+            </Dropdown.Item>
+            {unrestrictedPlacement && (
+              <SubmenuWrapper>
                 <Dropdown.Item
-                  onClick={bringGridItemtoFront}
-                  disabled={gridItemIndex === gridItems.length - 1}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                  className="card-share-option"
+                  onMouseEnter={onSubMenuMouseEnter}
+                  onMouseLeave={onSubMenuMouseLeave}
                 >
-                  Bring to Front
+                  Order <BsFillCaretRightFill style={{ marginLeft: "auto" }} />
                 </Dropdown.Item>
-                <Dropdown.Item
-                  onClick={bringGridItemForward}
-                  disabled={gridItemIndex === gridItems.length - 1}
+                <Submenu
+                  className="submenu"
+                  aria-label="Context Menu Submenu"
+                  $position={submenuPosition}
+                  $isVisible={submenuVisible}
+                  ref={submenuRef}
+                  onMouseEnter={onSubMenuMouseEnter}
+                  onMouseLeave={onSubMenuMouseLeave}
                 >
-                  Bring Forward
-                </Dropdown.Item>
-                <Dropdown.Item
-                  onClick={sendGridItembackward}
-                  disabled={gridItemIndex === 0}
-                >
-                  Send Backward
-                </Dropdown.Item>
-                <Dropdown.Item
-                  onClick={sendGridItemtoBack}
-                  disabled={gridItemIndex === 0}
-                >
-                  Send to Back
-                </Dropdown.Item>
-              </Submenu>
-            </SubmenuWrapper>
-          )}
-          <Dropdown.Item
-            onClick={exportGridItem}
-            className="dashboard-item-dropdown-export"
-          >
-            Export
-          </Dropdown.Item>
-          <Dropdown.Item
-            onClick={deleteGridItem}
-            className="dashboard-item-dropdown-delete"
-          >
-            Delete
-          </Dropdown.Item>
-        </Dropdown.Menu>,
-        // Rendered at the page root, not inside the tile: a menu inside the tile
-        // shares its stacking order and is hidden behind any tile painted over
-        // it, and clipped by the tab area's overflow.
-        document.body,
-      )}
+                  <Dropdown.Item
+                    onClick={bringGridItemtoFront}
+                    disabled={gridItemIndex === gridItems.length - 1}
+                  >
+                    Bring to Front
+                  </Dropdown.Item>
+                  <Dropdown.Item
+                    onClick={bringGridItemForward}
+                    disabled={gridItemIndex === gridItems.length - 1}
+                  >
+                    Bring Forward
+                  </Dropdown.Item>
+                  <Dropdown.Item
+                    onClick={sendGridItembackward}
+                    disabled={gridItemIndex === 0}
+                  >
+                    Send Backward
+                  </Dropdown.Item>
+                  <Dropdown.Item
+                    onClick={sendGridItemtoBack}
+                    disabled={gridItemIndex === 0}
+                  >
+                    Send to Back
+                  </Dropdown.Item>
+                </Submenu>
+              </SubmenuWrapper>
+            )}
+            <Dropdown.Item
+              onClick={exportGridItem}
+              className="dashboard-item-dropdown-export"
+            >
+              Export
+            </Dropdown.Item>
+            <Dropdown.Item
+              onClick={deleteGridItem}
+              className="dashboard-item-dropdown-delete"
+            >
+              Delete
+            </Dropdown.Item>
+          </Dropdown.Menu>,
+          // Rendered outside the tile: a menu inside the tile shares its
+          // stacking order and is hidden behind any tile painted over it, and
+          // clipped by the tab area's overflow.
+          menuContainer,
+        )}
     </Dropdown>
   );
 };

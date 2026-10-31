@@ -1,6 +1,6 @@
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { act } from "react";
+import { act, useContext, useState } from "react";
 import VariableInput from "components/visualizations/VariableInput";
 import {
   mockedCheckboxVariable,
@@ -38,7 +38,6 @@ const advanceTimers = async (ms) => {
 };
 
 it("Creates a Date Input for a Variable Input", async () => {
-  const frozenNow = new Date("2026-03-30T19:23:57.966Z");
   const dashboard = JSON.parse(JSON.stringify(userDashboard));
   dashboard.tabs[0].gridItems = [mockedDateVariable];
   const handleChange = jest.fn();
@@ -89,14 +88,9 @@ it("Creates a Date Input for a Variable Input", async () => {
   expectedDateTime.setHours(0, 0, 0, 0);
   expect(handleChange).toHaveBeenLastCalledWith(expectedDateTime);
 
-  jest.useFakeTimers();
-  try {
-    jest.setSystemTime(frozenNow);
-    fireEvent.change(input, { target: { value: "now" } });
-  } finally {
-    jest.useRealTimers();
-  }
-  expect(handleChange).toHaveBeenLastCalledWith(frozenNow);
+  // A relative date goes out as typed, to be read again at each fetch.
+  fireEvent.change(input, { target: { value: "now" } });
+  expect(handleChange).toHaveBeenLastCalledWith("now");
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
     JSON.stringify({ "Test Variable": "" }),
   );
@@ -106,12 +100,11 @@ it("Creates a Date Input for a Variable Input", async () => {
   await userEvent.click(refreshButton);
 
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-    JSON.stringify({ "Test Variable": frozenNow }),
+    JSON.stringify({ "Test Variable": "now" }),
   );
 });
 
 it("Creates a Date Range Input for a Variable Input", async () => {
-  const frozenNow = new Date("2026-03-30T19:23:57.966Z");
   const dashboard = JSON.parse(JSON.stringify(userDashboard));
   dashboard.tabs[0].gridItems = [mockedDateRangeVariable];
   const handleChange = jest.fn();
@@ -153,11 +146,8 @@ it("Creates a Date Range Input for a Variable Input", async () => {
     }),
   );
 
-  jest.useFakeTimers();
-  jest.setSystemTime(frozenNow);
+  // A relative date goes out as typed, to be read again at each fetch.
   fireEvent.change(inputs[0], { target: { value: "now" } });
-  const today = new Date();
-  jest.useRealTimers();
 
   const refreshButton = screen.getByLabelText("Refresh variable input");
   expect(refreshButton).toBeInTheDocument();
@@ -166,10 +156,10 @@ it("Creates a Date Range Input for a Variable Input", async () => {
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
     JSON.stringify({
       "Test Variable": {
-        "Start Date": today,
+        "Start Date": "now",
         "End Date": "01/16/2026T00:00",
       },
-      "Start Date": today,
+      "Start Date": "now",
       "End Date": "01/16/2026T00:00",
     }),
   );
@@ -200,10 +190,10 @@ it("Creates a Date Range Input for a Variable Input", async () => {
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
     JSON.stringify({
       "Test Variable": {
-        "Start Date": today,
+        "Start Date": "now",
         "End Date": "01/16/2026T00:00",
       },
-      "Start Date": today,
+      "Start Date": "now",
       "End Date": "01/16/2026T00:00",
     }),
   );
@@ -1883,4 +1873,256 @@ it("Handles null variable_options_source gracefully", async () => {
 
   expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   expect(screen.getByLabelText("Refresh variable input")).toBeInTheDocument();
+});
+
+describe("A value changed before the input mounts again", () => {
+  // As a popup's inputs mount again when it is reopened, or moved on to
+  // another of its features.
+  const args = JSON.parse(mockedTextVariable.args_string);
+  // eslint-disable-next-line react/prop-types -- a test stand-in.
+  const Remountable = ({ initialValue, source, metadata, gridItemSource }) => {
+    const [mount, setMount] = useState(0);
+    const input = (
+      <VariableInput
+        key={mount}
+        variable_name={args.variable_name}
+        initial_value={initialValue}
+        variable_options_source={source}
+        metadata={metadata}
+        onChange={() => {}}
+      />
+    );
+    return (
+      <>
+        {gridItemSource ? (
+          <GridItemContext.Provider
+            value={{ gridItemSource, gridItemUUID: "plugin-uuid" }}
+          >
+            {input}
+          </GridItemContext.Provider>
+        ) : (
+          input
+        )}
+        <button onClick={() => setMount((m) => m + 1)}>remount</button>
+        <InputVariablePComponent />
+      </>
+    );
+  };
+  // Changes the variable from outside the input, as another input or a
+  // dragged plot line does.
+  // eslint-disable-next-line react/prop-types -- a test stand-in.
+  const SetElsewhere = ({ label, value }) => {
+    const { setVariableInputValues } = useContext(VariableInputsContext);
+    return (
+      <button
+        onClick={() =>
+          setVariableInputValues((prev) => ({
+            ...prev,
+            [args.variable_name]: value,
+          }))
+        }
+      >
+        {label}
+      </button>
+    );
+  };
+  const tree = ({
+    initialValue = args.initial_value,
+    source = args.variable_options_source,
+    metadata,
+    gridItemSource,
+    inDataViewerMode,
+  }) => {
+    const dashboard = JSON.parse(JSON.stringify(userDashboard));
+    dashboard.tabs[0].gridItems = [mockedTextVariable];
+    return createLoadedComponent({
+      children: (
+        <>
+          <Remountable
+            initialValue={initialValue}
+            source={source}
+            metadata={metadata}
+            gridItemSource={gridItemSource}
+          />
+          <SetElsewhere label="set elsewhere" value="set elsewhere" />
+          {/* What a date range sharing the name publishes under it. */}
+          <SetElsewhere label="set a pair" value={{ Start: "a", End: "b" }} />
+          {/* What a date picked from the calendar publishes: a Date. */}
+          <SetElsewhere label="set a date" value={new Date(2026, 0, 20)} />
+        </>
+      ),
+      options: { dashboards: { dashboards: [dashboard] }, inDataViewerMode },
+    });
+  };
+  const published = () =>
+    JSON.parse(screen.getByTestId("input-variables").textContent)[
+      args.variable_name
+    ];
+
+  it("keeps the value it was changed to", async () => {
+    const user = userEvent.setup();
+    render(tree({ initialValue: "saved" }));
+    const box = await screen.findByRole("textbox");
+    await user.clear(box);
+    await user.type(box, "changed");
+    await user.click(
+      screen.getByRole("button", { name: "Refresh variable input" }),
+    );
+    expect(published()).toBe("changed");
+
+    await user.click(screen.getByRole("button", { name: "remount" }));
+
+    expect(await screen.findByRole("textbox")).toHaveValue("changed");
+    expect(published()).toBe("changed");
+  });
+
+  it("publishes its saved value again once that is edited", async () => {
+    // Even after mounting where its variable held a changed value.
+    const user = userEvent.setup();
+    const { rerender } = render(tree({}));
+    await user.click(
+      await screen.findByRole("button", { name: "set elsewhere" }),
+    );
+    await user.click(screen.getByRole("button", { name: "remount" }));
+    expect(published()).toBe("set elsewhere");
+
+    rerender(tree({ initialValue: "edited" }));
+
+    await waitFor(() => expect(published()).toBe("edited"));
+  });
+
+  it("still reports a slider's starting step in the data viewer", async () => {
+    // The data viewer's preview learns the step it saves from onChange, so a
+    // slider there starts from its own settings whatever the variable holds.
+    const user = userEvent.setup();
+    const slider = JSON.parse(mockedSliderVariable.args_string);
+    const onChange = jest.fn();
+    const RemountableSlider = () => {
+      const [mount, setMount] = useState(0);
+      return (
+        <>
+          <GridItemContext.Provider
+            value={{ gridItemArgsString: mockedSliderVariable.args_string }}
+          >
+            <VariableInput
+              key={mount}
+              variable_name={slider.variable_name}
+              initial_value={slider.initial_value}
+              variable_options_source={slider.variable_options_source}
+              metadata={slider["variable_options_source.metadata"]}
+              onChange={onChange}
+            />
+          </GridItemContext.Provider>
+          <button onClick={() => setMount((m) => m + 1)}>remount</button>
+        </>
+      );
+    };
+    const dashboard = JSON.parse(JSON.stringify(userDashboard));
+    dashboard.tabs[0].gridItems = [mockedSliderVariable];
+    render(
+      createLoadedComponent({
+        children: (
+          <>
+            <RemountableSlider />
+            <SetElsewhere label="set elsewhere" value="73" />
+          </>
+        ),
+        options: {
+          dashboards: { dashboards: [dashboard] },
+          inDataViewerMode: true,
+        },
+      }),
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "set elsewhere" }),
+    );
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith("50"));
+    onChange.mockClear();
+
+    await user.click(screen.getByRole("button", { name: "remount" }));
+
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith("50"));
+  });
+
+  it("keeps a relative date it was changed to as typed", async () => {
+    const user = userEvent.setup();
+    const range = JSON.parse(mockedDateRangeVariable.args_string);
+    const RemountableRange = () => {
+      const [mount, setMount] = useState(0);
+      return (
+        <>
+          <VariableInput
+            key={mount}
+            variable_name={range.variable_name}
+            initial_value={range.initial_value}
+            variable_options_source={range.variable_options_source}
+            metadata={range["variable_options_source.metadata"]}
+            onChange={() => {}}
+          />
+          <button onClick={() => setMount((m) => m + 1)}>remount</button>
+        </>
+      );
+    };
+    const dashboard = JSON.parse(JSON.stringify(userDashboard));
+    dashboard.tabs[0].gridItems = [mockedDateRangeVariable];
+    render(
+      createLoadedComponent({
+        children: <RemountableRange />,
+        options: { dashboards: { dashboards: [dashboard] } },
+      }),
+    );
+    const [start] = await screen.findAllByRole("textbox");
+    fireEvent.change(start, { target: { value: "now-7D" } });
+    await user.click(screen.getByLabelText("Refresh variable input"));
+
+    await user.click(screen.getByRole("button", { name: "remount" }));
+
+    await waitFor(() =>
+      expect(screen.getAllByRole("textbox")[0]).toHaveValue("now-7D"),
+    );
+  });
+
+  it("keeps a date picked from the calendar", async () => {
+    const user = userEvent.setup();
+    render(
+      tree({
+        initialValue: "01/15/2026",
+        source: "date",
+        metadata: { format: "MM/dd/yyyy" },
+      }),
+    );
+    await user.click(await screen.findByRole("button", { name: "set a date" }));
+
+    await user.click(screen.getByRole("button", { name: "remount" }));
+
+    await waitFor(() =>
+      expect(published()).toBe(new Date(2026, 0, 20).toISOString()),
+    );
+  });
+
+  it("publishes the value a plugin's input worked out, whatever its variable holds", async () => {
+    // A plugin's input mounts again on every refetch, with a value it has
+    // just worked out from its own args; the variable's older value is not a
+    // change anyone made.
+    const user = userEvent.setup();
+    render(tree({ initialValue: "east-station", gridItemSource: "picker" }));
+    await user.click(
+      await screen.findByRole("button", { name: "set elsewhere" }),
+    );
+
+    await user.click(screen.getByRole("button", { name: "remount" }));
+
+    await waitFor(() => expect(published()).toBe("east-station"));
+  });
+
+  it("does not take up a value of another kind", async () => {
+    const user = userEvent.setup();
+    render(tree({ initialValue: "saved" }));
+    await user.click(await screen.findByRole("button", { name: "set a pair" }));
+
+    await user.click(screen.getByRole("button", { name: "remount" }));
+
+    await waitFor(() => expect(published()).toBe("saved"));
+    expect(screen.getByRole("textbox")).toHaveValue("saved");
+  });
 });

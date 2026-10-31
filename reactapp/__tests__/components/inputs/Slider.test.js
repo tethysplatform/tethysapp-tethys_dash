@@ -11,6 +11,8 @@ import { spyElementPrototypes } from "rc-util/lib/test/domHook";
 import Slider, {
   calculateSliderValues,
   alignDateToStep,
+  getInitialIndices,
+  nearestStepIndex,
 } from "components/inputs/Slider";
 import { format, addDays, addHours } from "date-fns";
 import {
@@ -2995,6 +2997,17 @@ describe("Array mode", () => {
     });
   });
 
+  it("starts at a kept value among its values, publishing nothing", async () => {
+    const { handleChange } = renderArraySlider(
+      { keepValue: true },
+      { variableInputValues: { array_slider: "https://example.com/img3.png" } },
+    );
+    await advanceTimers(50);
+
+    expect(screen.getByLabelText("Display Value")).toHaveTextContent("3 / 3");
+    expect(handleChange).not.toHaveBeenCalled();
+  });
+
   it("emits raw value at current index without formatting", async () => {
     const values = ["valueA", "valueB", "valueC"];
     const { handleChange } = renderArraySlider({ values });
@@ -3741,5 +3754,185 @@ describe("calculateSliderValues with alignSteps", () => {
       "2025-01-02T00:00:00",
       "2025-01-02T06:00:00",
     ]);
+  });
+});
+
+describe("nearestStepIndex", () => {
+  it.each([
+    ["before the first step", -3, 0],
+    ["after the last step", 12, 2],
+    ["between two steps", 6, 1],
+    ["on a step", 10, 2],
+    ["given as a numeric string", "7.6", 2],
+    ["missing", undefined, 0],
+  ])("on a number slider, a target %s", (_case, target, expected) => {
+    expect(nearestStepIndex([0, 5, 10], target, "Number")).toBe(expected);
+  });
+
+  const days = [
+    "2026-06-01T00:00:00",
+    "2026-06-02T00:00:00",
+    "2026-06-03T00:00:00",
+  ];
+  it.each([
+    ["before the first step", "2026-05-01T00:00:00", 0],
+    ["after the last step", "2026-07-01T00:00:00", 2],
+    ["nearer the later of two steps", "2026-06-01T13:00:00", 1],
+    ["nearer the earlier of two steps", "2026-06-02T11:00:00", 1],
+    ["unreadable", "not a date", 0],
+  ])("on a date slider, a target %s", (_case, target, expected) => {
+    expect(nearestStepIndex(days, target, "Date")).toBe(expected);
+  });
+
+  it("reads a relative step by the time it names", () => {
+    const steps = ["now-2D", "now-1D", "now"];
+    const target = new Date(Date.now() - 1.2 * 24 * 60 * 60 * 1000);
+    expect(nearestStepIndex(steps, target, "Date")).toBe(1);
+  });
+
+  it("counts only an exact match on an array slider", () => {
+    expect(nearestStepIndex(["a", "b"], "b", "Array")).toBe(1);
+    expect(nearestStepIndex(["a", "b"], "c", "Array")).toBe(0);
+  });
+
+  it("places both ends of a range slider", () => {
+    expect(
+      getInitialIndices(
+        days,
+        undefined,
+        ["2026-05-01T00:00:00", "2026-07-01T00:00:00"],
+        true,
+        "Date",
+      ),
+    ).toEqual([0, 2]);
+  });
+});
+
+describe("Slider starting step and a kept value", () => {
+  beforeAll(() => {
+    spyElementPrototypes(HTMLElement, {
+      getBoundingClientRect: () => ({
+        top: 0,
+        bottom: 100,
+        left: 0,
+        right: 100,
+        width: 100,
+        height: 100,
+      }),
+    });
+  });
+
+  // A daily date slider over June 1-10, 2026.
+  const renderSlider = (props, variableInputValues = {}) =>
+    render(
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues }}
+      >
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            variable_name="Date"
+            label="Date"
+            step={1}
+            dateTimeDelta="Days"
+            min="2026-06-01T00:00:00"
+            max="2026-06-10T00:00:00"
+            outputFormat="MM/dd/yyyy HH:mm"
+            dataType="Date"
+            debounceDelay={0}
+            {...props}
+          />
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+
+  it.each([
+    [
+      "before its minimum, at the minimum",
+      "2026-05-01T00:00:00",
+      "06/01/2026 00:00",
+    ],
+    [
+      "after its maximum, at the maximum",
+      "2026-07-01T00:00:00",
+      "06/10/2026 00:00",
+    ],
+    [
+      "between two steps, at the nearer",
+      "2026-06-04T20:00:00",
+      "06/05/2026 00:00",
+    ],
+  ])(
+    "starts a slider whose initial value is %s",
+    async (_case, initialValue, published) => {
+      const onChange = jest.fn();
+      renderSlider({ initialValue, onChange });
+
+      await waitFor(() => expect(onChange).toHaveBeenCalledWith(published));
+      expect(onChange).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("starts at a kept value that falls on a step, and steps on from it", async () => {
+    // What moving the slider itself leaves behind.
+    const onChange = jest.fn();
+    renderSlider(
+      { initialValue: "2026-06-01T00:00:00", onChange, keepValue: true },
+      { Date: "06/05/2026 00:00" },
+    );
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+    expect(screen.getByLabelText("Display Value")).toHaveTextContent(
+      "06/05/2026 00:00",
+    );
+    expect(onChange).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "next step" }));
+    await waitFor(() =>
+      expect(onChange).toHaveBeenCalledWith("06/06/2026 00:00"),
+    );
+  });
+
+  it("starts a range slider at the range it keeps", async () => {
+    const onChange = jest.fn();
+    renderSlider(
+      {
+        rangeMode: true,
+        initialRange: ["2026-06-01T00:00:00", "2026-06-10T00:00:00"],
+        onChange,
+        keepValue: true,
+      },
+      { Date: "06/03/2026 00:00,06/07/2026 00:00" },
+    );
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+
+    expect(screen.getByLabelText("Display Value")).toHaveTextContent(
+      "06/03/2026 00:00 - 06/07/2026 00:00",
+    );
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("keeps the value its variable holds, publishing only once it is moved", async () => {
+    // Between two steps, as a dragged plot line leaves it.
+    const onChange = jest.fn();
+    renderSlider(
+      { initialValue: "2026-06-01T00:00:00", onChange, keepValue: true },
+      { Date: "06/05/2026 06:13" },
+    );
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Display Value")).toHaveTextContent(
+      "06/05/2026 06:13",
+    );
+
+    // Stepping on goes from the time it shows.
+    fireEvent.click(screen.getByRole("button", { name: "next step" }));
+    await waitFor(() =>
+      expect(onChange).toHaveBeenCalledWith("06/06/2026 00:00"),
+    );
   });
 });

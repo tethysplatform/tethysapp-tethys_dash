@@ -391,6 +391,25 @@ test("DatePicker relative date in dataviewer mode", async () => {
   }
 });
 
+test("DatePicker publishes a typed relative date as typed on a dashboard", async () => {
+  // Not the time it names when typed: kept as typed, it is read again at each
+  // fetch, as a relative date saved with the dashboard is, and shows as typed
+  // wherever the value is shown again.
+  const mockOnChange = jest.fn();
+
+  render(
+    <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
+      <DatePicker label="Test DatePicker" value="" onChange={mockOnChange} />
+    </DataViewerModeContext.Provider>,
+  );
+
+  fireEvent.change(await screen.findByRole("textbox"), {
+    target: { value: "now-7D" },
+  });
+
+  expect(mockOnChange).toHaveBeenLastCalledWith("now-7D");
+});
+
 test("DatePicker keeps a sentinel value across a parent re-render", async () => {
   const mockOnChange = jest.fn();
 

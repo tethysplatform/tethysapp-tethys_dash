@@ -21,7 +21,7 @@ import {
   GridItemContext,
   DataViewerModeContext,
 } from "components/contexts/Contexts";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import {
   derivePanes,
   applySubplotToggle,
@@ -61,28 +61,69 @@ const ScrollBox = styled.div`
   overflow-x: ${({ $scrollsX }) => ($scrollsX ? "auto" : "hidden")};
 `;
 
-// Convert paper-normalized x to axis-relative x using domain
-export const paperToAxisNormalized = (xPaper, domain) => {
-  if (!Array.isArray(domain) || domain.length !== 2) return xPaper;
-  const [d0, d1] = domain;
-  if (d1 === d0) return xPaper;
-  // Clamp to domain
-  let x = (xPaper - d0) / (d1 - d0);
-  if (x < 0) x = 0;
-  if (x > 1) x = 1;
-  return x;
+// Plotly reports a position on a date axis as a string with no zone, such as
+// "2026-06-12 16:11:23.4567" -- or "2026-06-12_16:11:23.4567" from a drag,
+// its shape editor swapping the space for "_" -- and draws it as wall-clock
+// time. parseISO reads it the same way, as local time.
+const plotlyDateToMs = (value) =>
+  parseISO(String(value).replace("_", " ")).getTime();
+
+// A date in Plotly's own form, wall-clock time with no zone. The line has to
+// be given its time this way: Plotly draws a date string with an offset, but
+// its shape editor cannot read one back, and a drag then loses the line.
+const toPlotlyDate = (date) => format(date, "yyyy-MM-dd HH:mm:ss");
+
+// A date's position on Plotly's own scale, where a date string is its
+// wall-clock time with any offset discarded, read as if UTC, and a bare
+// number is milliseconds. NaN for anything that is not a date. Trace data
+// arrives as JSON, so a date is never a Date object here.
+const wallClockMs = (value) => {
+  if (typeof value === "number") return value;
+  const d = parseISO(
+    String(value).replace(/(:\d\d(?:\.\d+)?)(?:Z|[+-]\d\d(?::?\d\d)?)$/i, "$1"),
+  );
+  return Date.UTC(
+    d.getFullYear(),
+    d.getMonth(),
+    d.getDate(),
+    d.getHours(),
+    d.getMinutes(),
+    d.getSeconds(),
+    d.getMilliseconds(),
+  );
 };
 
-// Convert normalized (0-1) x to date using x axis range
-export const normalizedToDate = (xNorm, xrange) => {
-  if (!Array.isArray(xrange) || xrange.length !== 2) return xNorm;
-  const [start, end] = xrange;
-  const startDate = new Date(start);
-  const endDate = new Date(end);
-  if (isNaN(startDate) || isNaN(endDate)) return xNorm;
-  const ms =
-    startDate.getTime() + (endDate.getTime() - startDate.getTime()) * xNorm;
-  return new Date(ms);
+// The [min, max] of the data on the line's x axis, "x" and any axis sharing
+// its range through `matches`, on wallClockMs's scale -- or null when Plotly
+// does not autorange that axis, or there is no data to measure.
+const autorangedLineAxisExtent = (data, layout) => {
+  const matched = layout.xaxis?.matches;
+  const axis = (matched && layout[`xaxis${matched.slice(1)}`]) || layout.xaxis;
+  // Plotly autoranges an axis unless it is given a range and not also told
+  // to autorange.
+  const autoranged =
+    axis?.autorange === undefined
+      ? !Array.isArray(axis?.range)
+      : axis.autorange !== false;
+  if (!autoranged) return null;
+
+  const group = new Set(matched ? ["x", matched] : ["x"]);
+  for (const [key, other] of Object.entries(layout)) {
+    const id = key.match(/^xaxis(\d*)$/);
+    if (id && group.has(other?.matches)) group.add(`x${id[1]}`);
+  }
+  let min = Infinity;
+  let max = -Infinity;
+  for (const trace of data) {
+    if (trace.visible === false || trace.visible === "legendonly") continue;
+    if (!group.has(trace.xaxis || "x") || !Array.isArray(trace.x)) continue;
+    for (const x of trace.x) {
+      const ms = wallClockMs(x);
+      if (ms < min) min = ms;
+      if (ms > max) max = ms;
+    }
+  }
+  return min <= max ? [min, max] : null;
 };
 
 // Helper to snap a date to the nearest step
@@ -156,39 +197,18 @@ export const snapDate = (date, step) => {
   return convertDatesToLocalISO(snappedDate);
 };
 
-export const formatToDate = (value, xrange, verticalLineStep) => {
-  if (value < 0) value = 0;
-  if (value > 1) value = 1;
-  const normalizedDate = normalizedToDate(value, xrange);
-  if (value === 0 || value === 1) {
-    value = convertDatesToLocalISO(normalizedDate);
-  } else {
-    value = snapDate(normalizedDate, verticalLineStep);
-  }
-
-  return value;
-};
-
-const getMainAxisRangeDomain = (plotElement) => {
-  let xaxis = plotElement.layout.xaxis;
-  if (xaxis.matches) {
-    // If we're in a subplot, find the correct xaxis
-    const match = xaxis.matches.match(/x(\d*)/);
-    const axisNum = match && match[1] ? match[1] : "";
-    xaxis = plotElement.layout[`xaxis${axisNum}`] || xaxis;
-  }
-  const xrange = xaxis?.range;
-  const xdomain = xaxis?.domain || [0, 1];
-
-  return { xrange, xdomain };
-};
-
-export const createVerticalLine = ({
-  xValue,
-  plotElement,
-  returnOutOfRange = false,
-  options = {},
-}) => {
+// The line is anchored to the x axis's data rather than the paper, so Plotly
+// places it and keeps it there through zooms and pans. On an axis with a set
+// range, such as one the plugin pinned or the user zoomed, a line outside the
+// range is clipped; on an autoranged axis it would count toward the
+// autorange like a trace does and stretch the axis, so BasePlot hides it
+// while it is outside the data. Its time goes in as local wall-clock time
+// with no zone (see toPlotlyDate), which is how Plotly draws every date on
+// the axis, the plugin's range included: it discards any offset it is given.
+// The line is for date axes; on any other axis Plotly cannot place it.
+// Returns null when the value cannot be read as a date: no line is better
+// than one drawn somewhere arbitrary.
+export const createVerticalLine = ({ xValue, options = {} }) => {
   const {
     color = "red",
     width = 2,
@@ -198,51 +218,16 @@ export const createVerticalLine = ({
     editable = false,
   } = options;
 
-  let xPaper;
+  const date = parseDateMath({ value: xValue });
+  if (!(date instanceof Date) || isNaN(date)) return null;
+  const x = toPlotlyDate(date);
 
-  const { xrange, xdomain } = getMainAxisRangeDomain(plotElement);
-
-  if (
-    Array.isArray(xrange) &&
-    Array.isArray(xdomain) &&
-    xrange.length === 2 &&
-    xdomain.length === 2
-  ) {
-    let dateObj = parseDateMath({ value: xValue });
-    if (dateObj instanceof Date && !isNaN(dateObj)) {
-      // Convert date to ms between range
-      const start = new Date(xrange[0]).getTime();
-      const end = new Date(xrange[1]).getTime();
-      const val = dateObj.getTime();
-      // Normalize to 0-1 in axis space
-      let xNorm = (val - start) / (end - start);
-
-      if (!returnOutOfRange) {
-        if (xNorm < 0) xNorm = 0;
-        if (xNorm > 1) xNorm = 1;
-      }
-
-      // Convert to paper value using domain
-      xPaper = xdomain[0] + (xdomain[1] - xdomain[0]) * xNorm;
-    } else if (typeof xValue === "number") {
-      // If already a normalized value, map to paper
-      xPaper = xdomain[0] + (xdomain[1] - xdomain[0]) * xValue;
-    } else {
-      // fallback: use 0.5 (center)
-      xPaper = 0.5;
-    }
-  } else {
-    // fallback: use 0.5 (center)
-    xPaper = 0.5;
-  }
-
-  const newShape = {
+  return {
     editable: editable,
-    visible: xPaper < 0 || xPaper > 1 ? false : true, // Hide if out of range
     type: "line",
-    x0: xPaper,
-    x1: xPaper,
-    xref: "paper",
+    x0: x,
+    x1: x,
+    xref: "x",
     y0: 0,
     y1: 1,
     yref: "paper",
@@ -250,127 +235,70 @@ export const createVerticalLine = ({
     layer: "below",
     meta: { id, variable, createdBy: "addVerticalLine" }, // Mark as created by this function
   };
-
-  return newShape;
 };
 
+// Snaps a dragged vertical line to the nearest step, back to the full plot
+// height, and publishes its new time to the variable it is tied to. Zooms and
+// pans need nothing: the line is anchored to the data. `lastLineX` is where
+// the line was last placed, which tells which end of it was dragged.
+// `lineVariable` is the variable the line is tied to, `{name, dateFormat}`,
+// or null. Returns where the line was snapped to, or null when nothing was
+// dragged.
 export const handleEventData = ({
   eventData,
   plotElement,
-  originalVerticalLine,
+  lastLineX,
   verticalLineStep,
   inDataViewerMode,
-  gridItemMetadataString,
-  variableInputDateFormats,
+  lineVariable,
   setVariableInputValues,
 }) => {
-  const verticalLineIdx = plotElement.layout?.shapes?.findIndex(
+  const shapes = plotElement?.layout?.shapes ?? [];
+  const lineIdx = shapes.findIndex(
     (s) => s.meta?.createdBy === "addVerticalLine",
   );
-
-  if (verticalLineIdx === -1) return; // No vertical line to
-
-  const { xrange, xdomain } = getMainAxisRangeDomain(plotElement);
-
-  const varticalLineUpdates = Object.entries(eventData).filter(
-    ([key, value]) =>
-      (key === `shapes[${verticalLineIdx}].x0` ||
-        key === `shapes[${verticalLineIdx}].x1`) &&
-      typeof value === "number" &&
-      originalVerticalLine &&
-      value !== originalVerticalLine.x,
-  );
-
-  // If the vertical line was updated, we need to snap it to the nearest step and update the layout
-  if (varticalLineUpdates.length > 0) {
-    const verticalLineShape = plotElement.layout?.shapes?.find(
-      (s) => s.meta?.createdBy === "addVerticalLine",
-    );
-
-    let x0Paper = verticalLineShape.x0;
-    let x1Paper = verticalLineShape.x1;
-
-    // Convert paper value to axis-normalized (0-1)
-    let x0Norm = paperToAxisNormalized(x0Paper, xdomain);
-    let x1Norm = paperToAxisNormalized(x1Paper, xdomain);
-
-    let xValue = x0Paper;
-    let xDate = x0Norm;
-
-    // Compute the difference between new and original for both x0 and x1
-    const diff0 = Math.abs(originalVerticalLine.x - x0Paper);
-    const diff1 = Math.abs(originalVerticalLine.x - x1Paper);
-
-    if (diff1 > diff0) {
-      xValue = x1Paper;
-      xDate = x1Norm;
-    }
-
-    // snap paper coordintate to date
-    xDate = formatToDate(xDate, xrange, verticalLineStep);
-    // convert snapped date back to paper coordinate for display
-    xValue = createVerticalLine({ xValue: xDate, plotElement }).x0;
-
-    // Always update the shape in paper coordinates
-    const updates = {};
-    updates[`shapes[${verticalLineIdx}].x0`] = xValue;
-    updates[`shapes[${verticalLineIdx}].x1`] = xValue;
-
-    if (verticalLineShape.y0 !== 0)
-      updates[`shapes[${verticalLineIdx}].y0`] = 0;
-    if (verticalLineShape.y1 !== 1)
-      updates[`shapes[${verticalLineIdx}].y1`] = 1;
-
-    // Update the ref to the new values (paper coordinates)
-    originalVerticalLine.x = xValue;
-    originalVerticalLine.date = xDate;
-
-    if (!inDataViewerMode) {
-      const rawVerticalLineValue = JSON.parse(gridItemMetadataString)
-        .plotlyVerticalLine.value;
-      const rawVerticalLineVar = checkForVariable(rawVerticalLineValue);
-
-      if (rawVerticalLineVar) {
-        const dateFormat = variableInputDateFormats[rawVerticalLineVar];
-        setVariableInputValues((prev) => ({
-          ...prev,
-          [rawVerticalLineVar]: format(new Date(xDate), dateFormat),
-        }));
-        return; // Skip relayout since variable update will trigger it
-      }
-    }
-
-    Plotly.relayout(plotElement, updates);
-    return;
+  if (lineIdx === -1) return null;
+  const key = (prop) => `shapes[${lineIdx}].${prop}`;
+  if (!["x0", "x1", "y0", "y1"].some((prop) => key(prop) in eventData)) {
+    return null;
   }
 
-  // if the range was updated by zooming/panning, we may need to adjust the vertical line to stay in the correct place
-  const rangeUpdates = Object.keys(eventData).filter((key) =>
-    key.includes(".range"),
+  const line = shapes[lineIdx];
+  const last = plotlyDateToMs(lastLineX);
+  const x0 = plotlyDateToMs(line.x0);
+  const x1 = plotlyDateToMs(line.x1);
+  // Dragging the line moves both ends; dragging an end moves only that one.
+  const moved = Math.abs(x1 - last) > Math.abs(x0 - last) ? x1 : x0;
+  if (Number.isNaN(moved)) return null; // not on a date axis
+  const snapped = toPlotlyDate(
+    parseISO(snapDate(new Date(moved), verticalLineStep)),
   );
+  const snappedMs = plotlyDateToMs(snapped);
 
-  if (rangeUpdates.length > 0) {
-    let xValue = createVerticalLine({
-      xValue: originalVerticalLine.date,
-      plotElement,
-      returnOutOfRange: true,
-    }).x0;
-
-    // Always update the shape in paper coordinates
-    const updates = {};
-    if (xValue < 0 || xValue > 1) {
-      updates[`shapes[${verticalLineIdx}].visible`] = false;
-    } else {
-      updates[`shapes[${verticalLineIdx}].visible`] = true;
-      updates[`shapes[${verticalLineIdx}].x0`] = xValue;
-      updates[`shapes[${verticalLineIdx}].x1`] = xValue;
-
-      originalVerticalLine.x = xValue;
-    }
-
-    Plotly.relayout(plotElement, updates);
-    return;
+  // Still where it was last placed: the echo of an earlier snap.
+  if (
+    snappedMs === last &&
+    x0 === last &&
+    x1 === last &&
+    line.y0 === 0 &&
+    line.y1 === 1
+  ) {
+    return null;
   }
+
+  const updates = { [key("x0")]: snapped, [key("x1")]: snapped };
+  if (line.y0 !== 0) updates[key("y0")] = 0;
+  if (line.y1 !== 1) updates[key("y1")] = 1;
+  Plotly.relayout(plotElement, updates);
+
+  if (!inDataViewerMode && lineVariable) {
+    const { name, dateFormat } = lineVariable;
+    setVariableInputValues((prev) => ({
+      ...prev,
+      [name]: dateFormat ? format(parseISO(snapped), dateFormat) : snapped,
+    }));
+  }
+  return snapped;
 };
 
 const BasePlot = ({
@@ -391,7 +319,9 @@ const BasePlot = ({
   const { inDataViewerMode } = useContext(DataViewerModeContext);
   const plotlyVerticalLine = metadata.plotlyVerticalLine || EMPTY_VERTICAL_LINE;
   const {
-    step: verticalLineStep,
+    // The line editor shows "minute" until another step is picked, and
+    // saves nothing for it until then.
+    step: verticalLineStep = "minute",
     mode: verticalLineMode,
     value: verticalLineValue,
   } = plotlyVerticalLine;
@@ -461,20 +391,92 @@ const BasePlot = ({
     [data, layout, subplotToggleEnabled, visiblePaneIds, panes, reflowOverride],
   );
 
-  // Vertical-line shapes are computed in the el-gated effect below. Subplot
-  // toggle geometry does NOT depend on the plot element, so it is applied here
-  // via the memo and therefore survives resize/re-render: the effect re-runs
-  // off `toggledLayout`, which already encodes the active toggles.
-  const [verticalLineShapes, setVerticalLineShapes] = useState(null);
+  // The variable the line is tied to, named in the raw (unsubstituted)
+  // metadata, with the date format its values arrive in, e.g. a slider's
+  // outputFormat such as "MM/dd/yyyy'T'HH:mm".
+  const lineVariable = useMemo(() => {
+    let name = null;
+    try {
+      name = checkForVariable(
+        JSON.parse(gridItemMetadataString)?.plotlyVerticalLine?.value,
+      );
+    } catch {
+      // Malformed metadata string: the line is tied to no variable.
+    }
+    return name
+      ? { name, dateFormat: variableInputDateFormats?.[name] ?? null }
+      : null;
+  }, [gridItemMetadataString, variableInputDateFormats]);
+
+  // Measured once per figure, not on every move of the line.
+  const lineAxisExtent = useMemo(
+    () =>
+      verticalLineMode === "on"
+        ? autorangedLineAxisExtent(plotData, toggledLayout)
+        : null,
+    [verticalLineMode, plotData, toggledLayout],
+  );
+
+  const verticalLineShape = useMemo(
+    () => {
+      if (verticalLineMode !== "on" || !verticalLineValue) return null;
+      const shape = createVerticalLine({
+        // Read with the variable's format, without which parseDateMath
+        // cannot read it.
+        xValue: parseDateMath({
+          value: verticalLineValue,
+          dateFormat: lineVariable?.dateFormat,
+        }),
+        options: plotlyVerticalLine,
+      });
+      // On an autoranged axis, a line outside the data would stretch the
+      // axis to reach it. Plotly leaves a hidden one out of the autorange.
+      if (shape && lineAxisExtent) {
+        const x = wallClockMs(shape.x0);
+        if (x < lineAxisExtent[0] || x > lineAxisExtent[1]) {
+          shape.visible = false;
+        }
+      }
+      return shape;
+    },
+    // toggledLayout is not read, but a new figure must re-read a relative
+    // value such as "now", which nothing else here changes for.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      verticalLineMode,
+      verticalLineValue,
+      plotlyVerticalLine,
+      lineVariable,
+      lineAxisExtent,
+      toggledLayout,
+    ],
+  );
+
+  // Where the line was last placed, which tells handleEventData which end of
+  // it a drag moved. Read when the line is computed, before Plotly can move it.
+  const lastLineXRef = useRef(null);
+  useEffect(() => {
+    lastLineXRef.current = verticalLineShape?.x0 ?? null;
+  }, [verticalLineShape]);
+
+  // Added on top of the toggle-aware shapes, so subplot show/hide visibility
+  // is preserved; any prior vertical line is stripped to prevent duplicates.
   const plotLayout = useMemo(() => {
     const merged = { ...toggledLayout, width: plotWidth, height: plotHeight };
-    if (verticalLineShapes !== null) merged.shapes = verticalLineShapes;
+    if (verticalLineShape) {
+      merged.shapes = [
+        ...(toggledLayout.shapes || []).filter(
+          (s) => s.meta?.createdBy !== "addVerticalLine",
+        ),
+        verticalLineShape,
+      ];
+    }
     return merged;
-  }, [toggledLayout, plotWidth, plotHeight, verticalLineShapes]);
+  }, [toggledLayout, plotWidth, plotHeight, verticalLineShape]);
 
   // Merge the always-on "Download data as CSV" modebar button into the plugin's
   // config (plugins may send no config at all, e.g. geoglows plots).
-  const plotConfig = useMemo(() => {
+  const configWithCsv = useMemo(() => {
     const base = config || {};
     // A full-toolbar override (modeBarButtons) makes plotly IGNORE
     // modeBarButtonsToAdd (e.g. cnrfc_hefs curates its toolbar this way), so
@@ -506,8 +508,24 @@ const BasePlot = ({
     return { ...base, modeBarButtonsToAdd: [...existing, csvDownloadButton] };
   }, [config]);
 
-  // Ref to track the original vertical line shape
-  const verticalLineOriginalRef = useRef(null);
+  // Plotly's newer shape editor -- click a shape to activate it, then drag --
+  // cannot move a shape placed on a date axis: in 2.35 it reads the line's
+  // position back as NaN and loses it. A draggable line uses the older
+  // editor instead, which drags shapes directly. That editor applies to every
+  // shape in the figure, so while the line is draggable the plugin's own
+  // shapes are too; nothing a drag does to them is kept.
+  const lineDraggable =
+    verticalLineMode === "on" && plotlyVerticalLine.editable === true;
+  const plotConfig = useMemo(
+    () =>
+      lineDraggable
+        ? {
+            ...configWithCsv,
+            edits: { ...configWithCsv.edits, shapePosition: true },
+          }
+        : configWithCsv,
+    [configWithCsv, lineDraggable],
+  );
 
   const handleSubplotToggle = useCallback(
     (paneId, checked) => {
@@ -530,94 +548,27 @@ const BasePlot = ({
     [panes, toggleablePanes],
   );
 
-  // istanbul ignore next - functons tested separately, this is just cleanup
-  useEffect(() => {
-    const plotElement = visualizationRef?.current?.el;
-    if (!plotElement) return;
-
-    if (!plotElement.layout) return;
-
-    // Seed from the toggle-aware shapes (so subplot show/hide visibility is
-    // preserved) and strip any prior vertical line to prevent duplicates.
-    // `.filter` returns a fresh array, so the subsequent push never mutates
-    // `toggledLayout`.
-    let currentShapes = (toggledLayout.shapes || []).filter(
-      (s) => s.meta?.createdBy !== "addVerticalLine",
-    );
-
-    if (verticalLineMode === "on" && verticalLineValue) {
-      // The substituted `verticalLineValue` arrives in its source
-      // variable's date format (e.g., a slider's outputFormat such as
-      // "MM/dd/yyyy'T'HH:mm"). `createVerticalLine`'s internal
-      // `parseDateMath` is called without a format hint and so cannot
-      // parse non-ISO strings — without this pre-resolution the value
-      // fails to parse, `xPaper` falls back to 0.5, and the line
-      // snaps to the middle of the plot every time the variable
-      // changes (e.g., on every slider move). Look up the source
-      // variable's registered format and pre-parse here so
-      // createVerticalLine receives a Date that its top-of-function
-      // short-circuit accepts unchanged.
-      let xValueResolved = verticalLineValue;
-      try {
-        const rawValue = JSON.parse(gridItemMetadataString)?.plotlyVerticalLine
-          ?.value;
-        const sourceVar = checkForVariable(rawValue);
-        const dateFormat = sourceVar
-          ? variableInputDateFormats?.[sourceVar]
-          : null;
-        if (dateFormat) {
-          const parsed = parseDateMath({
-            value: verticalLineValue,
-            dateFormat,
-          });
-          if (parsed instanceof Date && !isNaN(parsed)) {
-            xValueResolved = parsed;
-          }
-        }
-      } catch {
-        // Malformed metadata string — fall back to the raw value and let
-        // createVerticalLine's existing fallback handle it.
-      }
-      const verticalLineShape = createVerticalLine({
-        xValue: xValueResolved,
-        plotElement,
-        options: plotlyVerticalLine,
-        returnOutOfRange: true,
-      });
-      currentShapes.push(verticalLineShape);
-      verticalLineOriginalRef.current = {
-        x: verticalLineShape.x0,
-        date: verticalLineValue,
-      };
-    }
-
-    setVerticalLineShapes(currentShapes);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    width,
-    height,
-    toggledLayout,
-    plotlyVerticalLine,
-    gridItemMetadataString,
-    variableInputDateFormats,
-  ]);
-
-  // istanbul ignore next - functons tested separately, this is just cleanup
+  // istanbul ignore next - handleEventData is tested separately
   const handleRelayout = useCallback(
     (eventData) => {
-      handleEventData({
+      const snapped = handleEventData({
         eventData,
         plotElement: visualizationRef?.current?.el,
-        originalVerticalLine: verticalLineOriginalRef.current,
+        lastLineX: lastLineXRef.current,
         verticalLineStep,
         inDataViewerMode,
-        gridItemMetadataString,
-        variableInputDateFormats,
+        lineVariable,
         setVariableInputValues,
       });
+      if (snapped) lastLineXRef.current = snapped;
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [visualizationRef, verticalLineStep],
+    [
+      visualizationRef,
+      verticalLineStep,
+      inDataViewerMode,
+      lineVariable,
+      setVariableInputValues,
+    ],
   );
 
   return (

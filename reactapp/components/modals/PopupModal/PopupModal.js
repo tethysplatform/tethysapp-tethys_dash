@@ -22,6 +22,71 @@ const DEFAULT_POSITION = {
 // Minimum hit target per WCAG 2.5.5.
 const MIN_TOUCH_TARGET_PX = 44;
 
+// The smallest a popup can be dragged to, so it never collapses past use.
+export const MIN_POPUP_WIDTH_PX = 320;
+export const MIN_POPUP_HEIGHT_PX = 200;
+
+// The edges and corners a popup is resized from, by compass point.
+const RESIZE_EDGES = ["n", "s", "e", "w", "ne", "nw", "se", "sw"];
+const RESIZE_CURSORS = {
+  n: "ns-resize",
+  s: "ns-resize",
+  e: "ew-resize",
+  w: "ew-resize",
+  ne: "nesw-resize",
+  sw: "nesw-resize",
+  nw: "nwse-resize",
+  se: "nwse-resize",
+};
+const EDGE_PX = 6;
+const CORNER_PX = 14;
+
+const clamp = (value, low, high) => Math.min(Math.max(value, low), high);
+
+/* The popup's rect after a drag of (dx, dy) from `start`: the whole popup
+   for "move", one edge or corner ("n", "se", ...) otherwise. Rects are
+   {left, top, right, bottom} in pixels. The popup stays inside `area` - the
+   window below the header - and no smaller than the minimum size. */
+export function draggedRect(start, edge, dx, dy, area) {
+  if (edge === "move") {
+    const width = start.right - start.left;
+    const height = start.bottom - start.top;
+    const left = clamp(start.left + dx, area.left, area.right - width);
+    const top = clamp(start.top + dy, area.top, area.bottom - height);
+    return { left, top, right: left + width, bottom: top + height };
+  }
+  let { left, top, right, bottom } = start;
+  if (edge.includes("w")) {
+    left = clamp(start.left + dx, area.left, right - MIN_POPUP_WIDTH_PX);
+  }
+  if (edge.includes("e")) {
+    right = clamp(start.right + dx, left + MIN_POPUP_WIDTH_PX, area.right);
+  }
+  if (edge.includes("n")) {
+    top = clamp(start.top + dy, area.top, bottom - MIN_POPUP_HEIGHT_PX);
+  }
+  if (edge.includes("s")) {
+    bottom = clamp(start.bottom + dy, top + MIN_POPUP_HEIGHT_PX, area.bottom);
+  }
+  return { left, top, right, bottom };
+}
+
+/* A rect as a popup position: percentages of the window's width and of the
+   content area below the header, the form computePositionStyle reads, so a
+   dragged popup still scales with the window as a configured one does. */
+export function rectToPosition(
+  rect,
+  { viewportWidth, viewportHeight, headerHeight },
+) {
+  const contentHeight = Math.max(1, viewportHeight - headerHeight);
+  return {
+    leftPct: (rect.left / viewportWidth) * 100,
+    widthPct: ((rect.right - rect.left) / viewportWidth) * 100,
+    topPct: ((rect.top - headerHeight) / contentHeight) * 100,
+    heightPct: ((rect.bottom - rect.top) / contentHeight) * 100,
+  };
+}
+
 const ModalContainer = styled.div`
   position: fixed;
   display: flex;
@@ -87,6 +152,52 @@ const CloseButton = styled.button`
     outline-offset: 2px;
   }
 `;
+
+// The thin strip along an edge, or the square at a corner, that a resize
+// starts from. Inside the popup, whose overflow would clip anything outside.
+function handleStyle(edge) {
+  const style = {
+    position: "absolute",
+    zIndex: 2,
+    cursor: RESIZE_CURSORS[edge],
+    touchAction: "none",
+  };
+  const vertical = edge.includes("n")
+    ? "top"
+    : edge.includes("s")
+      ? "bottom"
+      : null;
+  const horizontal = edge.includes("w")
+    ? "left"
+    : edge.includes("e")
+      ? "right"
+      : null;
+  if (vertical && horizontal) {
+    return {
+      ...style,
+      [vertical]: 0,
+      [horizontal]: 0,
+      width: CORNER_PX,
+      height: CORNER_PX,
+    };
+  }
+  if (vertical) {
+    return {
+      ...style,
+      [vertical]: 0,
+      left: CORNER_PX,
+      right: CORNER_PX,
+      height: EDGE_PX,
+    };
+  }
+  return {
+    ...style,
+    [horizontal]: 0,
+    top: CORNER_PX,
+    bottom: CORNER_PX,
+    width: EDGE_PX,
+  };
+}
 
 const ModalBody = styled.div`
   flex: 1 1 auto;
@@ -198,6 +309,74 @@ function PopupModal({
   const [viewportHeight, setViewportHeight] = useState(
     getInitialViewportHeight,
   );
+  // Where the popup was dragged to, moved or resized, as a position. It
+  // stands in for every popup this map shows from then on -- other features,
+  // other layers, a popup closed and reopened -- until the page reloads; it
+  // is never saved into the dashboard.
+  const [draggedPosition, setDraggedPosition] = useState(null);
+  const endDragRef = useRef(null);
+  useEffect(() => () => endDragRef.current?.(), []);
+
+  const startDrag = useCallback((edge, event) => {
+    if (event.button !== 0) return;
+    // The header's own controls -- the carousel, the close button -- are
+    // pressed, not dragged.
+    if (
+      edge === "move" &&
+      event.target.closest?.(
+        "button, a, input, select, textarea, [role=button]",
+      )
+    ) {
+      return;
+    }
+    event.preventDefault();
+    const { left, top, right, bottom } =
+      containerRef.current.getBoundingClientRect();
+    const start = { left, top, right, bottom };
+    const headerHeight = readHeaderHeight();
+    const area = {
+      left: 0,
+      top: headerHeight,
+      right: window.innerWidth,
+      bottom: window.innerHeight,
+    };
+    const { clientX, clientY } = event;
+    // A drag still live -- a second finger, or a release the window never
+    // saw -- is ended first, so the selection style saved here is the page's
+    // own and not that drag's "none".
+    endDragRef.current?.();
+    const userSelect = document.body.style.userSelect;
+    document.body.style.userSelect = "none";
+
+    // On the window, so a plot under the pointer cannot take the drag.
+    const onMove = (moveEvent) => {
+      const rect = draggedRect(
+        start,
+        edge,
+        moveEvent.clientX - clientX,
+        moveEvent.clientY - clientY,
+        area,
+      );
+      setDraggedPosition(
+        rectToPosition(rect, {
+          viewportWidth: window.innerWidth,
+          viewportHeight: window.innerHeight,
+          headerHeight,
+        }),
+      );
+    };
+    const endDrag = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", endDrag);
+      window.removeEventListener("pointercancel", endDrag);
+      document.body.style.userSelect = userSelect;
+      endDragRef.current = null;
+    };
+    endDragRef.current = endDrag;
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", endDrag);
+    window.addEventListener("pointercancel", endDrag);
+  }, []);
 
   // Track viewport size for R9 fallback.
   useEffect(() => trackSmallViewport(setIsSmallViewport), []);
@@ -243,7 +422,7 @@ function PopupModal({
   if (!show) return null;
 
   const positionStyle = computePositionStyle({
-    position,
+    position: draggedPosition ?? position,
     isSmallViewport,
     viewportHeight,
     headerHeight: readHeaderHeight(),
@@ -271,7 +450,26 @@ function PopupModal({
       style={containerStyle}
       data-testid="popup-modal"
     >
-      <ModalHeader data-testid="popup-modal-header">
+      {/* A small screen's popup fills it, with nothing to drag. */}
+      {!isSmallViewport &&
+        RESIZE_EDGES.map((edge) => (
+          <div
+            key={edge}
+            aria-hidden="true"
+            data-testid={`popup-modal-resize-${edge}`}
+            style={handleStyle(edge)}
+            onPointerDown={(event) => startDrag(edge, event)}
+          />
+        ))}
+      <ModalHeader
+        data-testid="popup-modal-header"
+        style={
+          isSmallViewport ? undefined : { cursor: "move", touchAction: "none" }
+        }
+        onPointerDown={
+          isSmallViewport ? undefined : (event) => startDrag("move", event)
+        }
+      >
         <LeadingSlot data-testid="popup-modal-header-leading">
           {leadingControls}
         </LeadingSlot>

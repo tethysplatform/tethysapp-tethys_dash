@@ -411,6 +411,21 @@ const BaseVisualization = () => {
     });
     const customMessaging = gridMetadata.customMessaging;
 
+    // Applied before the fetch below, never after it: this metadata was
+    // substituted with the variable values of this call, and a variable the
+    // args don't reference (a plot's vertical line tied to a slider) can
+    // change while the fetch is out. That change applies its own metadata
+    // without fetching, which a late write from here would then undo.
+    if (
+      !valuesEqual(
+        gridItemMetadataWithVariableInputs.current,
+        updatedGridItemMetadata,
+      )
+    ) {
+      gridItemMetadataWithVariableInputs.current = updatedGridItemMetadata;
+      setVizMetadata(updatedGridItemMetadata);
+    }
+
     // Only allow the empty args load to run once per source unless refresh is true
     const isEmptyArgs = gridItemSource && Object.keys(args).length === 0;
     const alreadyLoadedEmptyArgs =
@@ -497,16 +512,6 @@ const BaseVisualization = () => {
         variableInputSliderMeta,
         refresh,
       });
-    }
-
-    if (
-      !valuesEqual(
-        gridItemMetadataWithVariableInputs.current,
-        updatedGridItemMetadata,
-      )
-    ) {
-      gridItemMetadataWithVariableInputs.current = updatedGridItemMetadata;
-      setVizMetadata(updatedGridItemMetadata);
     }
   }
 

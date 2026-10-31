@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useState, useContext, memo } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useContext,
+  memo,
+} from "react";
 import PropTypes from "prop-types";
 import styled from "styled-components";
 import DataInput from "components/inputs/DataInput";
@@ -70,10 +77,36 @@ const VariableInput = ({
     registerPluginVariableInput,
   } = useContext(VariableInputsContext);
   const { gridItemUUID, gridItemSource } = useContext(GridItemContext) ?? {};
+
   // A plugin-sourced variable input, whose values only it can publish. The
   // built-in "Variable Input" is seeded from its args by DashboardLoader.
   const isPluginVariableInput =
     gridItemSource !== undefined && gridItemSource !== "Variable Input";
+
+  // Decided once, as the input mounts: whether its variable already holds a
+  // value someone changed it to -- in a popup that has since been reopened,
+  // or moved on to another of its features -- which the input then takes up
+  // rather than resetting. That is a value of the kind the input publishes
+  // (a date range publishes its start and end together as a plain object,
+  // every other input a single value, a picked date among them) and not the
+  // one the input is saved with, which it would publish anyway. In the data
+  // viewer the input shows what it is saved with. A plugin's input never
+  // keeps one: it mounts again on every refetch with the value the plugin
+  // just worked out, which a different held value does not override.
+  const [keepsCurrentValue] = useState(() => {
+    if (inDataViewerMode || isPluginVariableInput) return false;
+    const current = variableInputValues?.[variable_name];
+    if (!hasVariableInputValue(current)) return false;
+    const isPair =
+      typeof current === "object" &&
+      !(current instanceof Date) &&
+      !Array.isArray(current);
+    if (isPair !== (variable_options_source === "date-range")) return false;
+    return !valuesEqual(
+      current,
+      normalizeVariableInputValue({ variable_options_source, initial_value }),
+    );
+  });
 
   // Initialize updatedMetadata when metadata or variableInputValues change
   useEffect(() => {
@@ -145,10 +178,18 @@ const VariableInput = ({
     ],
   );
 
+  // Whether this run of the effect below is its first, the mount; later runs
+  // follow a change to the input's own settings, which always republish.
+  const mountedRef = useRef(false);
+
   useEffect(() => {
     setLabel(variable_name);
+    const keepCurrent = keepsCurrentValue && !mountedRef.current;
+    mountedRef.current = true;
     if (variable_options_source) {
-      let initialVariableValue = initial_value;
+      let initialVariableValue = keepCurrent
+        ? variableInputValues[variable_name]
+        : initial_value;
       let variableValue = initialVariableValue;
 
       // Sets the type to the variable_options_source if not a dropdown
@@ -181,8 +222,9 @@ const VariableInput = ({
       // publishes false. Shared with DashboardLoader's preload so a preloaded
       // plugin value matches what this component publishes on mount.
       if (
-        variable_options_source === "number" ||
-        (variable_options_source === "checkbox" && initial_value === null)
+        !keepCurrent &&
+        (variable_options_source === "number" ||
+          (variable_options_source === "checkbox" && initial_value === null))
       ) {
         initialVariableValue = normalizeVariableInputValue({
           variable_options_source,
@@ -192,7 +234,7 @@ const VariableInput = ({
       }
       setValue(initialVariableValue);
 
-      if (!inDataViewerMode) {
+      if (!inDataViewerMode && !keepCurrent) {
         updateVariableInputs(variableValue);
       }
     }
@@ -302,6 +344,7 @@ const VariableInput = ({
       <StyledDiv>
         <Slider
           variable_name={variable_name}
+          keepValue={keepsCurrentValue}
           label={show_label ? label : ""}
           step={updatedMetadata.step}
           min={updatedMetadata.min}
