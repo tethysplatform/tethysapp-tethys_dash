@@ -1082,15 +1082,30 @@ const MapComponent = ({
           // A raster also has to match on its style. Its ramp settings are its
           // saved style, not its props, and a kept layer is never restyled --
           // so a style edit alone would otherwise change nothing on the map.
+          //
+          // A config handed back as the very object a layer on the map was
+          // built from is kept whatever its type, vector layers included:
+          // nothing about it can have changed. Only a base map swap does that
+          // -- an edit, a variable input change and a refresh all arrive as
+          // newly prepared objects -- so vector layers survive a base map
+          // change without refetching their features, while every other
+          // change still rebuilds them. A layer that failed to build is not
+          // on the map, and is tried again rather than kept.
+          const isUnchanged =
+            (layers ?? []).includes(currentLayer) &&
+            currentMapLayers.some(
+              (olLayer) => olLayer.get("name") === currentLayer.props?.name,
+            );
           const shouldKeep =
-            (layers ?? []).some(
-              (incoming) =>
-                valuesEqual(incoming?.props, currentLayer.props) &&
-                (currentLayer.type !== "WebGLTile" ||
-                  valuesEqual(incoming.style, currentLayer.style)),
-            ) &&
-            !isVectorLayerType(currentLayer.type) &&
-            !isRuntime;
+            !isRuntime &&
+            (isUnchanged ||
+              ((layers ?? []).some(
+                (incoming) =>
+                  valuesEqual(incoming?.props, currentLayer.props) &&
+                  (currentLayer.type !== "WebGLTile" ||
+                    valuesEqual(incoming.style, currentLayer.style)),
+              ) &&
+                !isVectorLayerType(currentLayer.type)));
           if (shouldKeep) {
             layersToKeep.push(currentLayer.props.name);
           }

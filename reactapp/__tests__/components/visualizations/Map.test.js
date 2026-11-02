@@ -1448,6 +1448,229 @@ test("changing the base map leaves runtime layers on the map", async () => {
   expect(mockGetVisualizationFeatures).toHaveBeenCalledTimes(1);
 });
 
+// A GeoJSON layer as it is saved: its data and its style are workspace files.
+const savedGeoJSONLayers = (style = "some_style_file.json") => [
+  {
+    configuration: {
+      type: "VectorLayer",
+      props: {
+        name: "GeoJSON Layer",
+        source: { type: "GeoJSON", props: {}, geojson: "some_file.json" },
+      },
+      style,
+    },
+  },
+];
+
+const stubLayerFiles = () =>
+  jest
+    .spyOn(appAPI, "downloadJSON")
+    .mockImplementation(async ({ filename }) => ({
+      success: true,
+      data: JSON.parse(
+        JSON.stringify(
+          filename === "some_file.json" ? exampleGeoJSON : exampleStyle,
+        ),
+      ),
+    }));
+
+const layerNames = (spy) =>
+  spy.mock.calls.map(([layer]) => layer?.get?.("name"));
+
+// Stands in for Base.js, which parses a map's saved args into new layer objects
+// every time it hands the map new data -- a base map change and a refresh
+// included. One array passed through every render would hide whether the map
+// prepares again the layers it already has.
+const SavedArgsMap = ({ savedLayers, editedLayers }) => {
+  const [mapData, setMapData] = useState({
+    baseMap: BASE_MAP_A,
+    refreshCount: 0,
+    saved: savedLayers,
+    layers: JSON.parse(JSON.stringify(savedLayers)),
+  });
+  const update = (change) =>
+    setMapData((previous) => {
+      const next = { ...previous, ...change(previous) };
+      return { ...next, layers: JSON.parse(JSON.stringify(next.saved)) };
+    });
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => update(() => ({ baseMap: BASE_MAP_B }))}
+      >
+        switch basemap
+      </button>
+      <button type="button" onClick={() => update(() => ({ baseMap: null }))}>
+        remove basemap
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          update((previous) => ({ refreshCount: previous.refreshCount + 1 }))
+        }
+      >
+        refresh
+      </button>
+      <button
+        type="button"
+        onClick={() => update(() => ({ saved: editedLayers }))}
+      >
+        edit layer
+      </button>
+      <TestingComponent
+        mapProps={{
+          mapConfig: {},
+          viewConfig: {},
+          layers: mapData.layers,
+          baseMap: mapData.baseMap,
+          layerControl: false,
+          refreshCount: mapData.refreshCount,
+        }}
+      />
+    </>
+  );
+};
+
+SavedArgsMap.propTypes = {
+  savedLayers: PropTypes.array.isRequired,
+  editedLayers: PropTypes.array,
+};
+
+const renderSavedArgsMap = async (props) => {
+  render(
+    createLoadedComponent({
+      children: (
+        <MapContextProvider>
+          <SavedArgsMap {...props} />
+        </MapContextProvider>
+      ),
+    }),
+  );
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+};
+
+test("changing the base map keeps vector layers without downloading their files again", async () => {
+  const downloadJSON = stubLayerFiles();
+  mockedApplyStyle.mockResolvedValue(true);
+  const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+  const removeLayerSpy = jest.spyOn(Map.prototype, "removeLayer");
+
+  await renderSavedArgsMap({ savedLayers: savedGeoJSONLayers() });
+  await waitFor(() => {
+    expect(layerNames(addLayerSpy)).toContain("GeoJSON Layer");
+  });
+  expect(downloadJSON).toHaveBeenCalledTimes(2);
+
+  addLayerSpy.mockClear();
+  removeLayerSpy.mockClear();
+  fireEvent.click(screen.getByText("switch basemap"));
+
+  await waitFor(() => {
+    expect(layerNames(removeLayerSpy)).toContain("World Light Gray Base");
+  });
+  expect(layerNames(addLayerSpy)).toContain("World Topo Map");
+  expect(layerNames(addLayerSpy)).not.toContain("GeoJSON Layer");
+  expect(layerNames(removeLayerSpy)).not.toContain("GeoJSON Layer");
+  expect(downloadJSON).toHaveBeenCalledTimes(2);
+});
+
+test("removing the base map keeps the other layers", async () => {
+  const downloadJSON = stubLayerFiles();
+  mockedApplyStyle.mockResolvedValue(true);
+  const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+  const removeLayerSpy = jest.spyOn(Map.prototype, "removeLayer");
+
+  await renderSavedArgsMap({ savedLayers: savedGeoJSONLayers() });
+  await waitFor(() => {
+    expect(layerNames(addLayerSpy)).toContain("GeoJSON Layer");
+  });
+
+  removeLayerSpy.mockClear();
+  fireEvent.click(screen.getByText("remove basemap"));
+
+  await waitFor(() => {
+    expect(layerNames(removeLayerSpy)).toContain("World Light Gray Base");
+  });
+  expect(layerNames(removeLayerSpy)).not.toContain("GeoJSON Layer");
+  expect(downloadJSON).toHaveBeenCalledTimes(2);
+});
+
+test("a refresh downloads the layer files again and rebuilds vector layers", async () => {
+  const downloadJSON = stubLayerFiles();
+  mockedApplyStyle.mockResolvedValue(true);
+  const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+  const removeLayerSpy = jest.spyOn(Map.prototype, "removeLayer");
+
+  await renderSavedArgsMap({ savedLayers: savedGeoJSONLayers() });
+  await waitFor(() => {
+    expect(layerNames(addLayerSpy)).toContain("GeoJSON Layer");
+  });
+
+  addLayerSpy.mockClear();
+  removeLayerSpy.mockClear();
+  fireEvent.click(screen.getByText("refresh"));
+
+  await waitFor(() => {
+    expect(layerNames(removeLayerSpy)).toContain("GeoJSON Layer");
+  });
+  expect(layerNames(addLayerSpy)).toContain("GeoJSON Layer");
+  expect(downloadJSON).toHaveBeenCalledTimes(4);
+  // The base map has nothing to fetch again, and stays.
+  expect(layerNames(removeLayerSpy)).not.toContain("World Light Gray Base");
+});
+
+test("a layer edit after a base map change still rebuilds the layer", async () => {
+  const downloadJSON = stubLayerFiles();
+  mockedApplyStyle.mockResolvedValue(true);
+  const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+  const removeLayerSpy = jest.spyOn(Map.prototype, "removeLayer");
+
+  await renderSavedArgsMap({
+    savedLayers: savedGeoJSONLayers(),
+    editedLayers: savedGeoJSONLayers("other_style_file.json"),
+  });
+  await waitFor(() => {
+    expect(layerNames(addLayerSpy)).toContain("GeoJSON Layer");
+  });
+  fireEvent.click(screen.getByText("switch basemap"));
+  await waitFor(() => {
+    expect(layerNames(removeLayerSpy)).toContain("World Light Gray Base");
+  });
+
+  addLayerSpy.mockClear();
+  removeLayerSpy.mockClear();
+  fireEvent.click(screen.getByText("edit layer"));
+
+  await waitFor(() => {
+    expect(layerNames(removeLayerSpy)).toContain("GeoJSON Layer");
+  });
+  expect(layerNames(addLayerSpy)).toContain("GeoJSON Layer");
+  expect(downloadJSON).toHaveBeenCalledWith(
+    expect.objectContaining({ filename: "other_style_file.json" }),
+  );
+  expect(layerNames(removeLayerSpy)).not.toContain("World Topo Map");
+});
+
+test("a layer that failed to load still says so after a base map change", async () => {
+  jest.spyOn(appAPI, "downloadJSON").mockResolvedValue({ success: false });
+  const removeLayerSpy = jest.spyOn(Map.prototype, "removeLayer");
+  const failure = 'Failed to load the "GeoJSON Layer" layer(s)';
+
+  await renderSavedArgsMap({ savedLayers: savedGeoJSONLayers(null) });
+  expect(await screen.findByText(failure)).toBeInTheDocument();
+
+  fireEvent.click(screen.getByText("switch basemap"));
+  await waitFor(() => {
+    expect(layerNames(removeLayerSpy)).toContain("World Light Gray Base");
+  });
+
+  // Not on the map, so it is built again -- and fails again -- rather than
+  // kept as if it were drawn, which would clear the message with nothing on
+  // screen to show for the layer.
+  expect(await screen.findByText(failure)).toBeInTheDocument();
+});
+
 test("Map runtime layer swap dismisses popup and clears highlight after click", async () => {
   jest.spyOn(appAPI, "getVisualizationFeatures").mockResolvedValue({
     success: true,
