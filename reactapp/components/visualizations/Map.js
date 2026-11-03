@@ -370,6 +370,12 @@ const MapVisualization = ({
   const highlightLayer = useRef();
   const currentLayers = useRef([]);
   const currentBaseMap = useRef();
+  const currentRefreshCount = useRef(refreshCount);
+  // Whether the configs on the map are the ones the latest layer pass
+  // prepared: false from the moment a pass starts until it publishes them, and
+  // false again if an older pass publishes after it.
+  const layerPass = useRef(0);
+  const layersPublished = useRef(false);
   const mapAttributeVariablesRef = useRef({});
   const mapOmittedPopupAttributesRef = useRef({});
   const mapAttributeAliasesRef = useRef({});
@@ -804,46 +810,48 @@ const MapVisualization = ({
 
   useEffect(() => {
     const updateLayers = async () => {
-      if (
-        (layers && !valuesEqual(layers, currentLayers.current)) ||
-        !valuesEqual(baseMap, currentBaseMap.current)
-      ) {
+      const layersChanged =
+        layers && !valuesEqual(layers, currentLayers.current);
+      const baseMapChanged = !valuesEqual(baseMap, currentBaseMap.current);
+      // A refresh prepares every layer again from its saved config: saved
+      // style and GeoJSON files are downloaded again, and the map rebuilds the
+      // vector layers, so one drawn from a URL or a feature service fetches its
+      // features again. Plugin layers refetch on their own, in the fetcher.
+      const refreshed = refreshCount !== currentRefreshCount.current;
+      if (layersChanged || baseMapChanged || refreshed) {
         const previousBaseMap = currentBaseMap.current;
         currentBaseMap.current = baseMap;
+        currentRefreshCount.current = refreshCount;
         currentLayers.current = JSON.parse(JSON.stringify(layers));
         const newMapLegend = [];
 
-        // The basemap depends on nothing asynchronous, so it goes to the map
-        // before the layers are prepared rather than after. Preparing a layer
-        // costs a style fetch from the backend and, for a raster, a header read
-        // plus a possible sidecar read -- and until now none of it was published
-        // until all of it had finished, so a dashboard with a couple of layers
-        // showed an empty white map for as long as that took.
         const baseMapLayer = baseMap ? getBaseMapLayer(baseMap) : null;
         if (baseMap && !baseMapLayer) {
           console.error(`${baseMap} is not a valid basemap`);
         }
         if (baseMapLayer) {
           baseMapLayer.props.zIndex = 0;
-          // Swap only the base map entry; everything else that was already
-          // published stays.
-          //
-          // Publishing the base map alone used to hand the map a layer list
-          // with no runtime layers in it. The reconciliation found no id to
-          // preserve and tore every runtime layer off, and because that run is
-          // superseded by the full publish below, it never records what it
-          // rendered -- so the winning run compares against the pre-change list,
-          // identity-matches the layer it believes is still mounted, and skips
-          // constructing it. The layer ends up removed with nothing rebuilt,
-          // which is why changing the base map made plugin layers disappear.
-          //
-          // Keeping the already-prepared entries means the reconciliation
-          // matches them by identity and leaves their OpenLayers layers, and
-          // their features, untouched. Their zIndex values were assigned on the
-          // publish that placed them and still order them behind index 0.
-          const previousBaseMapName = previousBaseMap
-            ? getBaseMapLayer(previousBaseMap)?.props?.name
-            : null;
+        }
+        // Swap only the base map entry; everything else that was already
+        // published stays.
+        //
+        // Publishing the base map alone used to hand the map a layer list
+        // with no runtime layers in it. The reconciliation found no id to
+        // preserve and tore every runtime layer off, and because that run is
+        // superseded by the full publish below, it never records what it
+        // rendered -- so the winning run compares against the pre-change list,
+        // identity-matches the layer it believes is still mounted, and skips
+        // constructing it. The layer ends up removed with nothing rebuilt,
+        // which is why changing the base map made plugin layers disappear.
+        //
+        // Keeping the already-prepared entries means the reconciliation
+        // matches them by identity and leaves their OpenLayers layers, and
+        // their features, untouched. Their zIndex values were assigned on the
+        // publish that placed them and still order them behind index 0.
+        const previousBaseMapName = previousBaseMap
+          ? getBaseMapLayer(previousBaseMap)?.props?.name
+          : null;
+        const swapBaseMap = () =>
           setMapLayers((previous) => {
             const published = previous ?? [];
             const kept = previousBaseMapName
@@ -851,8 +859,36 @@ const MapVisualization = ({
                   (config) => config?.props?.name !== previousBaseMapName,
                 )
               : published;
-            return [baseMapLayer, ...kept];
+            return baseMapLayer ? [baseMapLayer, ...kept] : kept;
           });
+
+        // Only the base map changed, so the swap is all there is to do. The
+        // layers on the map were prepared from this same saved config, and
+        // preparing them again downloaded the same style and GeoJSON files and
+        // handed the map new config objects -- which it reads as new layers,
+        // rebuilding every vector layer and refetching its features. The swap
+        // gives it back the very objects it built them from, which is how it
+        // knows to leave them alone.
+        //
+        // Not while a pass is still preparing: its publish lands after this
+        // swap, carrying the base map it started with, so the new base map
+        // goes through a full pass of its own instead.
+        if (!layersChanged && !refreshed && layersPublished.current) {
+          swapBaseMap();
+          return;
+        }
+        layerPass.current += 1;
+        const pass = layerPass.current;
+        layersPublished.current = false;
+
+        // The basemap depends on nothing asynchronous, so it goes to the map
+        // before the layers are prepared rather than after. Preparing a layer
+        // costs a style fetch from the backend and, for a raster, a header read
+        // plus a possible sidecar read -- and until now none of it was published
+        // until all of it had finished, so a dashboard with a couple of layers
+        // showed an empty white map for as long as that took.
+        if (baseMapLayer) {
+          swapBaseMap();
         }
 
         // Prepared in parallel. These are independent per layer -- each awaits
@@ -897,6 +933,7 @@ const MapVisualization = ({
           layer.props.zIndex = index;
         });
         setMapLayers(newMapLayers);
+        layersPublished.current = pass === layerPass.current;
 
         // Nothing waits on this. A ramp-styled raster's range comes from its
         // header, and the colorbar cannot be labelled until that is read -- but
@@ -1043,7 +1080,7 @@ const MapVisualization = ({
 
     updateLayers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [layers, baseMap]);
+  }, [layers, baseMap, refreshCount]);
 
   // The legend the map shows: the one built from the saved configs, with each
   // runtime raster's slot filled from the ramp its last successful fetch drew.

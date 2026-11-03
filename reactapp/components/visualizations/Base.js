@@ -364,6 +364,13 @@ const BaseVisualization = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [variableInputValues, shouldLoad]);
 
+  // The refresh interval outlives the render that set it up, so it calls
+  // through this ref. Calling the function directly would refresh with the
+  // variable input values from that render rather than the current ones.
+  const setVariableDependentVisualizationsRef = useRef();
+  setVariableDependentVisualizationsRef.current =
+    setVariableDependentVisualizations;
+
   useEffect(() => {
     const gridMetadata = JSON.parse(gridItemMetadataString);
     const refreshRate = gridMetadata.refreshRate;
@@ -376,7 +383,7 @@ const BaseVisualization = () => {
         () => {
           if (!isEditing) {
             setRefreshCount((prev) => prev + 1);
-            setVariableDependentVisualizations({ refresh: true });
+            setVariableDependentVisualizationsRef.current({ refresh: true });
           }
         },
         parseInt(refreshRate) * 1000 * 60,

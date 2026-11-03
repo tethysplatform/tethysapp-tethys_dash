@@ -1787,6 +1787,65 @@ it("a fetch that resolves late does not undo metadata from a newer variable valu
   spyGetVisualization.mockRestore();
 });
 
+it("a refresh uses the current variable input values, not the ones it started with", async () => {
+  jest.useFakeTimers();
+  const spyGetVisualization = jest
+    .spyOn(utilities, "getVisualization")
+    .mockImplementation(async ({ setVizType, setVizData }) => {
+      setVizType("text");
+      setVizData({ text: "station" });
+    });
+
+  // eslint-disable-next-line no-template-curly-in-string
+  const argsString = JSON.stringify({ station: "${Station}" });
+  const baseContexts = (variableInputValues) => (
+    <AppContext.Provider value={{ visualizations: [] }}>
+      <EditingContext.Provider value={{ isEditing: false }}>
+        <WebsocketContext.Provider value={{ getMessageForRequest: () => null }}>
+          <VariableInputsContext.Provider
+            value={{
+              variableInputValues,
+              variableInputDateFormats: {},
+              variableInputSliderMeta: {},
+            }}
+          >
+            <GridItemContext.Provider
+              value={{
+                gridItemSource: "text_plugin",
+                gridItemArgsString: argsString,
+                gridItemMetadataString: JSON.stringify({ refreshRate: 1 }),
+                gridItemUUID: "refresh-uuid",
+                shouldLoad: true,
+              }}
+            >
+              <BaseVisualization />
+            </GridItemContext.Provider>
+          </VariableInputsContext.Provider>
+        </WebsocketContext.Provider>
+      </EditingContext.Provider>
+    </AppContext.Provider>
+  );
+  const lastStation = () =>
+    spyGetVisualization.mock.calls.at(-1)[0].itemData.args.station;
+
+  const { rerender } = render(baseContexts({ Station: "A" }));
+  await waitFor(() => expect(spyGetVisualization).toHaveBeenCalledTimes(1));
+  expect(lastStation()).toBe("A");
+
+  rerender(baseContexts({ Station: "B" }));
+  await waitFor(() => expect(spyGetVisualization).toHaveBeenCalledTimes(2));
+  expect(lastStation()).toBe("B");
+
+  await act(async () => {
+    jest.advanceTimersByTime(60000);
+  });
+  await waitFor(() => expect(spyGetVisualization).toHaveBeenCalledTimes(3));
+  expect(lastStation()).toBe("B");
+
+  spyGetVisualization.mockRestore();
+  jest.useRealTimers();
+});
+
 it("renders ImageCollection", () => {
   const urls = [
     "https://example.com/img1.gif",

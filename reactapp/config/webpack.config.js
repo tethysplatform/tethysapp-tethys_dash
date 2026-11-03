@@ -123,6 +123,9 @@ module.exports = (env, argv) => {
     optimization: {
       minimize: true,
     },
+    watchOptions: {
+      ignored: /node_modules\/(?!my-local-lib)/,
+    },
     devServer: {
       proxy: [
         {
