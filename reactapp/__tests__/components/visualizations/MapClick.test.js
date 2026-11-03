@@ -21,6 +21,7 @@ import { Map } from "ol";
 import ImageArcGISRest from "ol/source/ImageArcGISRest.js";
 import VariableInput from "components/visualizations/VariableInput";
 import { Vector as VectorSource } from "ol/source.js";
+import { Circle as CircleGeometry } from "ol/geom";
 import Overlay from "ol/Overlay";
 import { Swiper } from "swiper";
 import {
@@ -4026,4 +4027,88 @@ test("Map click writes the bound field's value when two fields share an alias", 
       JSON.stringify({ "Test Variable": "second" }),
     );
   });
+});
+
+// --- Click tolerance rings -------------------------------------------------
+
+const toleranceLayer = (name, props) => ({
+  configuration: {
+    type: "ImageLayer",
+    props: {
+      name,
+      source: {
+        type: "ESRI Image and Map Service",
+        props: { url: `${name}_url` },
+      },
+      ...props,
+    },
+  },
+});
+
+// The marker layer the click added, and the map it was added to.
+const clickedMarker = (addLayerSpy) => {
+  const index = addLayerSpy.mock.calls.findIndex(
+    ([layer]) => layer.get("name") === "Marker",
+  );
+  return {
+    marker: addLayerSpy.mock.calls[index][0],
+    map: addLayerSpy.mock.instances[index],
+  };
+};
+
+const ringsOf = (marker) =>
+  marker
+    .getSource()
+    .getFeatures()
+    .filter((feature) => feature.getGeometry() instanceof CircleGeometry);
+
+test("Map click outlines the click tolerance of each layer that shows it, sized on the ground", async () => {
+  mockedQueryLayerFeatures.mockResolvedValue([]);
+  jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+  const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+
+  renderSyncMap([
+    toleranceLayer("Shown", { clickTolerance: 20, showClickTolerance: true }),
+    // No clickTolerance: the identify default of 10.
+    toleranceLayer("Default", { showClickTolerance: true }),
+    toleranceLayer("Not Shown", { clickTolerance: 30 }),
+  ]);
+
+  // The click has finished once its empty result is shown.
+  expect(await screen.findByText("No Attributes Found")).toBeInTheDocument();
+  expect(mockedQueryLayerFeatures).toHaveBeenCalledTimes(3);
+  const { marker, map } = clickedMarker(addLayerSpy);
+  const resolution = map.getView().getResolution();
+  const rings = ringsOf(marker);
+
+  // Both around the click, in map units at the click's resolution.
+  expect(rings.map((ring) => ring.getGeometry().getCenter())).toStrictEqual([
+    [10, 20],
+    [10, 20],
+  ]);
+  expect(rings.map((ring) => ring.getGeometry().getRadius())).toStrictEqual([
+    20 * resolution,
+    10 * resolution,
+  ]);
+});
+
+test("Map click draws no tolerance ring when a layer zooms in instead of querying", async () => {
+  mockedQueryLayerFeatures.mockResolvedValue("zoomed");
+  jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+  const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+
+  // The map opens at zoom 4.5, below Deep's minZoomQuery.
+  renderSyncMap([
+    toleranceLayer("Shown", { clickTolerance: 20, showClickTolerance: true }),
+    toleranceLayer("Deep", { minZoomQuery: 30 }),
+  ]);
+
+  await waitFor(() =>
+    expect(mockedQueryLayerFeatures).toHaveBeenCalledTimes(2),
+  );
+  const { marker } = clickedMarker(addLayerSpy);
+
+  expect(ringsOf(marker)).toStrictEqual([]);
+  // The pin is still drawn.
+  expect(marker.getSource().getFeatures()).toHaveLength(1);
 });

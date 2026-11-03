@@ -2,6 +2,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import LayersControl from "components/map/LayersControl";
 import { WebsocketContext } from "components/contexts/WebSocketContext";
 import { makeMapDiv } from "__tests__/utilities/mapDiv";
+import { createSnapLayer } from "components/map/snapping";
 
 test("LayersControl update layers", async () => {
   let visualizationRef;
@@ -74,6 +75,26 @@ test("LayersControl update layers", async () => {
   );
   fireEvent.click(closeLayersButton);
   expect(screen.queryByText("Layer 1")).not.toBeInTheDocument();
+});
+
+test("LayersControl leaves the snap preview out of the list", async () => {
+  const roadsProps = { name: "Roads" };
+  const roads = {
+    get: (key) => roadsProps[key],
+    getVisible: () => true,
+    setVisible: jest.fn(),
+  };
+  const visualizationRef = {
+    current: {
+      getLayers: () => ({ getArray: () => [roads, createSnapLayer()] }),
+    },
+  };
+  render(<LayersControl updater={false} visualizationRef={visualizationRef} />);
+  fireEvent.click(await screen.findByLabelText("Show Layers Control"));
+
+  expect(await screen.findByText("Roads")).toBeInTheDocument();
+  expect(screen.queryByText("Snap Preview")).not.toBeInTheDocument();
+  expect(screen.queryByText("Layer 2")).not.toBeInTheDocument();
 });
 
 // --- Runtime dynamic_map_layer progress + error indicators ------------------
