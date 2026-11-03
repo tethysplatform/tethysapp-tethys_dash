@@ -1,6 +1,13 @@
+import logging
+import sys
+import threading
+import time
+
 from tethys_sdk.base import TethysAppBase
 from tethys_sdk.app_settings import PersistentStoreDatabaseSetting, CustomSetting
 from tethys_sdk.permissions import Permission
+
+logger = logging.getLogger(__name__)
 
 
 class App(TethysAppBase):
@@ -77,3 +84,34 @@ class App(TethysAppBase):
         )
 
         return custom_settings
+
+
+def _warm_visualization_plugins_in_background():
+    """Import visualization plugins at startup, off the request path, so the
+    first dashboard load does not wait on plugin imports. Best effort."""
+    # Background work is wasted (and noisy) during tests, so skip it there.
+    if "pytest" in sys.modules:
+        return
+
+    def _run():
+        from django.apps import apps as django_apps
+
+        # Plugins may import app modules, so wait until the app registry is
+        # populated before importing them.
+        for _ in range(600):
+            if django_apps.ready:
+                break
+            time.sleep(0.05)
+        try:
+            from tethysapp.tethysdash.visualizations import warm_visualization_cache
+
+            warm_visualization_cache()
+        except Exception:
+            logger.warning("Visualization plugin warm-up thread failed", exc_info=True)
+
+    threading.Thread(
+        target=_run, name="tethysdash-plugin-warmup", daemon=True
+    ).start()
+
+
+_warm_visualization_plugins_in_background()

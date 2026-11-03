@@ -1,6 +1,9 @@
+import threading
+
 from tethysapp.tethysdash.visualizations import (
     get_available_visualizations,
     get_visualization,
+    warm_visualization_cache,
 )
 from tethysapp.tethysdash.model import DashboardPermission, Message
 from datetime import datetime
@@ -657,3 +660,33 @@ def test_get_visualization_scaffold_mode_geotiff_runtime(echo_runtime_raster_int
     assert props["pluginSource"]["source"] == "echo_runtime_raster"
     assert data["configuration"]["style"] == {"rampName": "viridis"}
     assert "rampName" not in props["source"]
+
+
+def test_warm_visualization_cache_touches_each_and_skips_failures(mocker):
+    """Warm-up imports every registered source; a failing one is logged and skipped."""
+
+    class Good:
+        label = "Good"
+
+    class MockIntake:
+        source = type("Source", (), {"registry": ["good", "bad"]})
+        open_good = Good
+        # No open_bad: getattr(intake, "open_bad") raises -> logged and skipped.
+
+    mocker.patch("tethysapp.tethysdash.visualizations.intake", new=MockIntake())
+    log_spy = mocker.patch("tethysapp.tethysdash.visualizations.logger")
+
+    warmed = warm_visualization_cache()
+
+    assert warmed == 1
+    log_spy.warning.assert_called_once()
+    assert "bad" in str(log_spy.warning.call_args)
+
+
+def test_startup_warmup_is_skipped_under_pytest():
+    """The startup warm-up spawns no thread in the test process (guarded)."""
+    from tethysapp.tethysdash.app import _warm_visualization_plugins_in_background
+
+    _warm_visualization_plugins_in_background()
+
+    assert not any(t.name == "tethysdash-plugin-warmup" for t in threading.enumerate())
