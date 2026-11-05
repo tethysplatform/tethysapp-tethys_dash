@@ -2,55 +2,58 @@ import { render, screen, act } from "@testing-library/react";
 import LoadingAnimation from "components/loader/LoadingAnimation";
 
 describe("LoadingAnimation", () => {
+  let infoSpy;
   beforeEach(() => {
     jest.useFakeTimers();
+    infoSpy = jest.spyOn(console, "info").mockImplementation(() => {});
   });
 
   afterEach(() => {
     jest.runOnlyPendingTimers();
     jest.useRealTimers();
+    infoSpy.mockRestore();
   });
 
-  it("does not render immediately if delay is set", () => {
+  it("does not render the spinner immediately if delay is set", () => {
     render(<LoadingAnimation delay={1000} text="Please wait..." />);
-    expect(screen.queryByText("Please wait...")).toBeNull();
+    // eslint-disable-next-line testing-library/no-node-access
+    expect(document.querySelector(".inner-spin")).toBeNull();
   });
 
-  it("renders after the delay with default text", () => {
+  it("renders the spinner (but no visible text) after the delay", () => {
     render(<LoadingAnimation delay={500} />);
-    expect(screen.queryByText("Loading...")).toBeNull();
+    // eslint-disable-next-line testing-library/no-node-access
+    expect(document.querySelector(".inner-spin")).toBeNull();
     act(() => {
       jest.advanceTimersByTime(500);
     });
-    expect(screen.getByText("Loading...")).toBeInTheDocument();
+    // eslint-disable-next-line testing-library/no-node-access
+    expect(document.querySelector(".inner-spin")).toBeInTheDocument();
+    expect(screen.queryByText("Loading...")).toBeNull();
   });
 
-  it("renders after the delay with custom text", () => {
+  it("logs the loading text to the console instead of showing it", () => {
     render(<LoadingAnimation delay={200} text="Custom Loading" />);
     act(() => {
       jest.advanceTimersByTime(200);
     });
-    expect(screen.getByText("Custom Loading")).toBeInTheDocument();
+    expect(screen.queryByText("Custom Loading")).toBeNull();
+    expect(infoSpy).toHaveBeenCalledWith("[loading]", "Custom Loading");
   });
 
-  it("renders all animation elements after delay", () => {
+  it("renders the animation elements but no loading-text element", () => {
     render(<LoadingAnimation delay={0} />);
     act(() => {
       jest.advanceTimersByTime(0);
     });
-    expect(screen.getByText("Loading...")).toBeInTheDocument();
-    // Check for key animation
     // eslint-disable-next-line testing-library/no-node-access
     expect(document.querySelector(".center")).toBeInTheDocument();
-
     // eslint-disable-next-line testing-library/no-node-access
     expect(document.querySelector(".inner-spin")).toBeInTheDocument();
-
     // eslint-disable-next-line testing-library/no-node-access
     expect(document.querySelector(".outer-spin")).toBeInTheDocument();
-
     // eslint-disable-next-line testing-library/no-node-access
-    expect(document.querySelector(".loading-text")).toBeInTheDocument();
+    expect(document.querySelector(".loading-text")).toBeNull();
   });
 
   it("does not throw if delay is undefined", () => {
@@ -62,7 +65,7 @@ describe("LoadingAnimation", () => {
     }).not.toThrow();
   });
 
-  it("announces its text and detail as a status", () => {
+  it("logs its text and detail to the console (not shown to users)", () => {
     render(
       <LoadingAnimation
         text="Loading Dashboard..."
@@ -72,8 +75,12 @@ describe("LoadingAnimation", () => {
     act(() => {
       jest.runAllTimers();
     });
-    const status = screen.getByRole("status");
-    expect(status).toHaveTextContent("Loading Dashboard...");
-    expect(status).toHaveTextContent("Loading variable inputs… (1 of 2)");
+    expect(screen.getByTestId("loading-animation")).toBeInTheDocument();
+    expect(screen.queryByText("Loading Dashboard...")).toBeNull();
+    expect(screen.queryByText(/Loading variable inputs/)).toBeNull();
+    expect(infoSpy).toHaveBeenCalledWith(
+      "[loading]",
+      "Loading Dashboard... — Loading variable inputs… (1 of 2)",
+    );
   });
 });

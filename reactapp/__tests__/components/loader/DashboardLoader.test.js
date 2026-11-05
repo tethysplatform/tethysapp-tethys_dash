@@ -106,7 +106,7 @@ test("DashboardLoader", async () => {
     </AvailableDashboardsContext.Provider>,
   );
 
-  expect(await screen.findByText("Loading Dashboard...")).toBeInTheDocument();
+  expect(await screen.findByTestId("loading-animation")).toBeInTheDocument();
   expect(await screen.findByText("Hello World!")).toBeInTheDocument();
 });
 
@@ -449,7 +449,7 @@ test("DashboardLoader 500 error", async () => {
     </AvailableDashboardsContext.Provider>,
   );
 
-  expect(await screen.findByText("Loading Dashboard...")).toBeInTheDocument();
+  expect(await screen.findByTestId("loading-animation")).toBeInTheDocument();
   expect(
     await screen.findByText(
       "The dashboard failed to load. Please try again or contact admins.",
@@ -481,7 +481,7 @@ test("DashboardLoader API error", async () => {
     </AvailableDashboardsContext.Provider>,
   );
 
-  expect(await screen.findByText("Loading Dashboard...")).toBeInTheDocument();
+  expect(await screen.findByTestId("loading-animation")).toBeInTheDocument();
   expect(
     await screen.findByText(
       "The dashboard failed to load. Please try again or contact admins.",
@@ -1575,7 +1575,10 @@ describe("DashboardLoader plugin variable input preload", () => {
       </AppContext.Provider>,
     );
 
+  let infoSpy;
   beforeEach(() => {
+    // Loading status text is logged, not rendered; capture it for assertions.
+    infoSpy = jest.spyOn(console, "info").mockImplementation(() => {});
     jest
       .spyOn(appAPI, "getDashboard")
       .mockResolvedValue({ success: true, dashboard: preloadDashboard });
@@ -1598,9 +1601,12 @@ describe("DashboardLoader plugin variable input preload", () => {
     renderPreloadingDashboard();
 
     const status = await screen.findByRole("status");
-    expect(status).toHaveTextContent("Loading Dashboard...");
+    expect(status).toBeInTheDocument();
     await waitFor(() =>
-      expect(status).toHaveTextContent("Loading variable inputs… (0 of 1)"),
+      expect(infoSpy).toHaveBeenCalledWith(
+        "[loading]",
+        "Loading Dashboard... — Loading variable inputs… (0 of 1)",
+      ),
     );
     expect(screen.queryByTestId("input-variables")).not.toBeInTheDocument();
     expect(spy).toHaveBeenCalledWith({
@@ -1655,8 +1661,9 @@ describe("DashboardLoader plugin variable input preload", () => {
       await Promise.resolve();
       jest.advanceTimersByTime(0);
     });
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "Loading variable inputs… (0 of 1)",
+    expect(infoSpy).toHaveBeenCalledWith(
+      "[loading]",
+      "Loading Dashboard... — Loading variable inputs… (0 of 1)",
     );
     await act(async () => {
       jest.advanceTimersByTime(VARIABLE_INPUT_PRELOAD_BUDGET_MS - 1);
@@ -1711,9 +1718,7 @@ describe("DashboardLoader plugin variable input preload", () => {
     const getData = jest.spyOn(appAPI, "getVisualizationData");
 
     const { unmount } = renderPreloadingDashboard();
-    expect(await screen.findByRole("status")).toHaveTextContent(
-      "Loading Dashboard...",
-    );
+    expect(await screen.findByRole("status")).toBeInTheDocument();
     unmount();
 
     await act(async () => {
@@ -1736,8 +1741,9 @@ describe("DashboardLoader plugin variable input preload", () => {
 
     const { unmount } = renderPreloadingDashboard();
     await waitFor(() =>
-      expect(screen.getByRole("status")).toHaveTextContent(
-        "Loading variable inputs",
+      expect(infoSpy).toHaveBeenCalledWith(
+        "[loading]",
+        expect.stringContaining("Loading variable inputs"),
       ),
     );
     unmount();
