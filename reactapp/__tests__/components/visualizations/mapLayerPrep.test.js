@@ -258,9 +258,8 @@ test("a fast layer mounts while a slow sibling is still loading", async () => {
     expect(addedLayerNames(addLayerSpy)).toContain("Fast layer"),
   );
   expect(addedLayerNames(addLayerSpy)).not.toContain("Slow raster");
-  expect(await screen.findByRole("status")).toHaveTextContent(
-    "Loading Slow raster",
-  );
+  // Banner lists all loading layers; assert the slow one is among them.
+  expect(await screen.findByRole("status")).toHaveTextContent("Slow raster");
 
   await gate.release();
   await waitFor(() =>
