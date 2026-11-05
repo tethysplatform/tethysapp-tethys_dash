@@ -13,10 +13,19 @@ const LoadingAnimation = ({ delay, text = "Loading...", detail }) => {
     }, delay);
   }, [delay]);
 
+  // The status text is logged for developers, not shown to ordinary users.
+  useEffect(() => {
+    const parts = [text, detail].filter(Boolean);
+    if (parts.length) {
+      // eslint-disable-next-line no-console
+      console.info("[loading]", parts.join(" — "));
+    }
+  }, [text, detail]);
+
   return (
     <>
       {show && (
-        <div>
+        <div data-testid="loading-animation" role="status" aria-label="Loading">
           <div className="center"></div>
           <div className="inner-spin">
             <div className="inner-arc inner-arc_start-a"></div>
@@ -34,12 +43,6 @@ const LoadingAnimation = ({ delay, text = "Loading...", detail }) => {
             <div className="outer-arc outer-arc_end-b"></div>
             <div className="outer-moon-a"></div>
             <div className="outer-moon-b"></div>
-          </div>
-          {/* A live region, so a screen reader hears the text and any detail
-              (e.g. a progress count) change while the page waits. */}
-          <div className="loading-text" role="status" aria-live="polite">
-            {text}
-            {detail && <div className="loading-detail">{detail}</div>}
           </div>
         </div>
       )}
