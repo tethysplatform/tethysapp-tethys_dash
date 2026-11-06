@@ -2123,6 +2123,9 @@ describe("A value changed before the input mounts again", () => {
     await user.click(screen.getByRole("button", { name: "remount" }));
 
     await waitFor(() => expect(published()).toBe("saved"));
-    expect(screen.getByRole("textbox")).toHaveValue("saved");
+    // Textbox can trail the published value by a render; let it settle.
+    await waitFor(() =>
+      expect(screen.getByRole("textbox")).toHaveValue("saved"),
+    );
   });
 });
