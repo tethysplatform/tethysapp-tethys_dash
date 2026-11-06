@@ -4,7 +4,13 @@ import { transform } from "ol/proj";
 import Feature from "ol/Feature";
 import VectorLayer from "ol/layer/Vector";
 import VectorSource from "ol/source/Vector";
-import { LineString, MultiPolygon, Polygon, Point } from "ol/geom";
+import {
+  Circle as CircleGeometry,
+  LineString,
+  MultiPolygon,
+  Polygon,
+  Point,
+} from "ol/geom";
 import { createEmpty, extend, getCenter } from "ol/extent";
 import { Stroke, Style, Circle } from "ol/style";
 import Icon from "ol/style/Icon";
@@ -416,6 +422,11 @@ export const layerPropertiesOptions = {
     placeholder:
       "Pixel tolerance for ESRI Image and Map Service identify (click) requests (default 10) and for GeoJSON / ESRI Feature Service / Shapefile feature queries (default 0). Also sets the snap radius when Snap To Features is on (default 15).",
   },
+  showClickTolerance: {
+    type: "checkbox",
+    placeholder:
+      "Outline the area each click searched on this layer with a dashed circle around the clicked point, sized by Click Tolerance. Nothing is drawn for a tolerance of 0, or for layer types Click Tolerance does not apply to.",
+  },
   snapToFeatures: {
     type: "checkbox",
     placeholder:
@@ -567,7 +578,9 @@ export function updateOlLayerProps(olLayer, newProps) {
   }
 }
 
-export function createMarkerLayer(coordinate) {
+// `extraFeatures` share the pin's layer, and so its lifetime: the click
+// tolerance rings (createClickToleranceFeatures).
+export function createMarkerLayer(coordinate, extraFeatures = []) {
   const markPath = `
       M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9
       c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z
@@ -590,14 +603,46 @@ export function createMarkerLayer(coordinate) {
       }),
     }),
   );
+  // Above the data layers, which are stamped zIndex 0..N by position, so a
+  // filled polygon cannot cover the pin or its tolerance rings; below the
+  // selection highlight (100) and the snap preview (101).
   const markerLayer = new VectorLayer({
     source: new VectorSource({
-      features: [marker],
+      features: [marker, ...extraFeatures],
     }),
     name: "Marker",
+    zIndex: 99,
   });
 
   return markerLayer;
+}
+
+// A white casing under a dashed blue line, like the marker's outlined pin, so
+// the ring reads over light and dark basemaps alike. Outline only, leaving
+// what the click found untinted inside it. The negative zIndex draws it
+// beneath the pin it shares a layer with.
+const clickToleranceStyle = [
+  new Style({ stroke: new Stroke({ color: "white", width: 4 }), zIndex: -1 }),
+  new Style({
+    stroke: new Stroke({ color: "#007bff", width: 2, lineDash: [6, 4] }),
+    zIndex: -1,
+  }),
+];
+
+// Rings marking how far a click searched, one per distinct pixel radius. Each
+// is sized on the ground at the click's resolution, so after a zoom it still
+// covers the area that click searched. A radius of 0 searched a single pixel
+// and draws nothing.
+export function createClickToleranceFeatures(coordinate, radii, resolution) {
+  return [...new Set(radii)]
+    .filter((radius) => radius > 0)
+    .map((radius) => {
+      const ring = new Feature({
+        geometry: new CircleGeometry(coordinate, radius * resolution),
+      });
+      ring.setStyle(clickToleranceStyle);
+      return ring;
+    });
 }
 
 export function createHighlightLayer() {
@@ -847,6 +892,34 @@ export function transformCoordinates(coords, sourceProj, destProj) {
   }
 }
 
+// Pixel radius a click query on this layer searches within. 0 for the source
+// types that query a single pixel, which is also a client vector layer's
+// default (an exact hit). That default is restated as the `hitTolerance` in
+// getGeoJSONLayerFeatures rather than read from here: its GeometryCollection
+// threshold needs to see an unset tolerance as unset, not as 0.
+//
+// `snapPx` is a snap radius the click already searched the layer within and
+// found nothing in. It stands in for the tolerance on the types a tolerance
+// applies to, and it is never the smaller of the two: a snap radius is the
+// same clickTolerance, defaulting to 15.
+export function clickQueryTolerance(layerInfo, snapPx) {
+  const tolerance =
+    snapPx ??
+    coerceOptionalNumber(layerInfo.configuration.props.clickTolerance);
+  const sourceType = layerInfo.configuration.props.source?.type;
+  if (sourceType === "ESRI Image and Map Service") return tolerance ?? 10;
+  if (CLIENT_VECTOR_SOURCE_TYPES.includes(sourceType)) return tolerance ?? 0;
+  return 0;
+}
+
+// Whether a click on this layer zooms the map in to its minZoomQuery instead
+// of querying it.
+export function zoomsInsteadOfQuerying(layerInfo, map) {
+  return (
+    layerInfo.configuration?.props?.minZoomQuery >= map.getView().getZoom()
+  );
+}
+
 export async function queryLayerFeatures(layerInfo, map, coordinate, pixel) {
   // setup constants
   let features;
@@ -855,8 +928,7 @@ export async function queryLayerFeatures(layerInfo, map, coordinate, pixel) {
   const sourceType = layerInfo.configuration.props.source.type;
   const LayerName = layerInfo.configuration.props.name;
 
-  const mapZoom = map.getView().getZoom();
-  if (layerInfo.configuration.props.minZoomQuery >= mapZoom) {
+  if (zoomsInsteadOfQuerying(layerInfo, map)) {
     map.getView().setCenter(coordinate);
     map
       .getView()
@@ -870,7 +942,7 @@ export async function queryLayerFeatures(layerInfo, map, coordinate, pixel) {
         sourceParams,
         map,
         coordinate,
-        layerInfo.configuration.props.clickTolerance ?? 10,
+        clickQueryTolerance(layerInfo),
       );
     } else if (sourceType === "WMS") {
       features = await getImageWMSLayerFeatures(
@@ -891,7 +963,7 @@ export async function queryLayerFeatures(layerInfo, map, coordinate, pixel) {
         clickTolerance,
       );
     } else if (sourceType === "PMTiles Vector") {
-      features = getVectorTileLayerFeatures(map, pixel);
+      features = getVectorTileLayerFeatures(map, pixel, LayerName);
     } else if (sourceType === "KML") {
       features = getKMLLayerFeatures(map, pixel, coordinate, LayerName);
     } else if (RASTER_SOURCE_TYPES.includes(sourceType)) {
@@ -981,7 +1053,7 @@ function getGeoTIFFPixelValues(map, pixel, LayerName, layerInfo, coordinate) {
   ];
 }
 
-function getVectorTileLayerFeatures(map, pixel) {
+function getVectorTileLayerFeatures(map, pixel, LayerName) {
   const features = [];
   map.forEachFeatureAtPixel(
     pixel,
@@ -997,8 +1069,14 @@ function getVectorTileLayerFeatures(map, pixel) {
         },
       });
     },
-    // Annotations and Linked Extents outlines are author-placed, not data.
-    { layerFilter: (layer) => !layer.get?.(DECORATION_LAYER_KEY) },
+    // Only this layer's tiles. The click marker, its tolerance rings and the
+    // highlight are plain Features, which toGeometry throws on; Annotations
+    // and Linked Extents outlines are author-placed, not data, and are ruled
+    // out by their tag since layer names are not kept unique.
+    {
+      layerFilter: (layer) =>
+        layer.get?.("name") === LayerName && !layer.get?.(DECORATION_LAYER_KEY),
+    },
   );
   return features;
 }
@@ -1008,7 +1086,7 @@ async function getESRILayerFeatures(
   sourceParams,
   map,
   coordinate,
-  // The caller (queryLayerFeatures) owns the default via `clickTolerance ?? 10`.
+  // The caller (queryLayerFeatures) owns the default via clickQueryTolerance.
   tolerance,
 ) {
   // setup fetch request with params
@@ -2019,6 +2097,7 @@ export const configurationPropType = PropTypes.shape({
     pluginSource: pluginSourcePropType,
     // Optional; per-layer feature-query tuning (see layerPropertiesOptions).
     clickTolerance: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    showClickTolerance: PropTypes.bool,
     snapToFeatures: PropTypes.bool,
     snapSublayer: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
   }),

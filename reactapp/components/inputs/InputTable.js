@@ -338,7 +338,16 @@ const InputTable = ({
                       types?.[rowIndex] === "checkbox"
                     ) {
                       return (
-                        <CenteredTD key={fieldIndex}>
+                        <CenteredTD
+                          key={fieldIndex}
+                          // On the cell rather than the box, which is a small
+                          // target for a hover.
+                          title={
+                            show_placeholder_on_hover
+                              ? inputPlaceholders?.[rowIndex]?.[field]
+                              : undefined
+                          }
+                        >
                           <input
                             type="checkbox"
                             checked={row[field]}
@@ -375,9 +384,9 @@ const InputTable = ({
                               inputPlaceholders[rowIndex][field]
                             }
                             title={
-                              show_placeholder_on_hover &&
-                              inputPlaceholders &&
-                              inputPlaceholders[rowIndex][field]
+                              show_placeholder_on_hover
+                                ? inputPlaceholders?.[rowIndex]?.[field]
+                                : undefined
                             }
                           />
                         </td>

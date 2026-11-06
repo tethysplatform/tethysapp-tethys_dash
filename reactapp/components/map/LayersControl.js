@@ -11,6 +11,7 @@ import FloatingMapControl, {
   MapSizedControlContainer,
 } from "components/map/FloatingMapControl";
 import { canZoomToLayer, zoomToLayer } from "components/map/layerExtent";
+import { SNAP_PREVIEW_LAYER_NAME } from "components/map/snapping";
 
 // See LegendControl: the positioning lives on the anchor, the control itself is
 // portalled out of the map tile's stacking context.
@@ -102,8 +103,13 @@ const LayersControl = ({
 
   useEffect(() => {
     if (visualizationRef.current) {
-      // Get layers from the map and set them in local state
-      const mapLayers = visualizationRef.current.getLayers().getArray();
+      // Get layers from the map and set them in local state. The snap preview
+      // only draws while the cursor is over a feature, so there is nothing for
+      // its checkbox to show or hide.
+      const mapLayers = visualizationRef.current
+        .getLayers()
+        .getArray()
+        .filter((layer) => layer.get("name") !== SNAP_PREVIEW_LAYER_NAME);
       setLayers(mapLayers);
 
       // Update state tracking the checkbox
