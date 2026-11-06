@@ -1,6 +1,6 @@
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { act, useContext, useState } from "react";
+import { act, Profiler, useContext, useState } from "react";
 import VariableInput from "components/visualizations/VariableInput";
 import {
   mockedCheckboxVariable,
@@ -2116,16 +2116,32 @@ describe("A value changed before the input mounts again", () => {
   });
 
   it("does not take up a value of another kind", async () => {
+    // Every render the input commits, not only the one it settles on: the pair
+    // can reach the textbox for a single render and be gone by the next.
+    const shown = [];
     const user = userEvent.setup();
-    render(tree({ initialValue: "saved" }));
+    render(
+      <Profiler
+        id="remount"
+        onRender={() => {
+          const box = screen.queryByRole("textbox");
+          if (box) shown.push({ box, value: box.value });
+        }}
+      >
+        {tree({ initialValue: "saved" })}
+      </Profiler>,
+    );
     await user.click(await screen.findByRole("button", { name: "set a pair" }));
 
     await user.click(screen.getByRole("button", { name: "remount" }));
 
     await waitFor(() => expect(published()).toBe("saved"));
-    // Textbox can trail the published value by a render; let it settle.
-    await waitFor(() =>
-      expect(screen.getByRole("textbox")).toHaveValue("saved"),
-    );
+    // Only the textbox the remounted input renders; the one before it is not
+    // under test.
+    const box = screen.getByRole("textbox");
+    expect(
+      shown.filter((shot) => shot.box === box).map(({ value }) => value),
+    ).not.toContain("[object Object]");
+    expect(box).toHaveValue("saved");
   });
 });
