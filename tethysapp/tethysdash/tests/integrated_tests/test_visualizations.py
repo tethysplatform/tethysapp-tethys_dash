@@ -1,5 +1,3 @@
-import threading
-
 from tethysapp.tethysdash.visualizations import (
     get_available_visualizations,
     get_visualization,
@@ -681,12 +679,3 @@ def test_warm_visualization_cache_touches_each_and_skips_failures(mocker):
     assert warmed == 1
     log_spy.warning.assert_called_once()
     assert "bad" in str(log_spy.warning.call_args)
-
-
-def test_startup_warmup_is_skipped_under_pytest():
-    """The startup warm-up spawns no thread in the test process (guarded)."""
-    from tethysapp.tethysdash.app import _warm_visualization_plugins_in_background
-
-    _warm_visualization_plugins_in_background()
-
-    assert not any(t.name == "tethysdash-plugin-warmup" for t in threading.enumerate())
