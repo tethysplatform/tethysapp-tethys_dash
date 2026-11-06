@@ -22,6 +22,7 @@ import {
   VariableInputsContext,
 } from "components/contexts/Contexts";
 import LineString from "ol/geom/LineString.js";
+import CircleGeometry from "ol/geom/Circle.js";
 import Feature from "ol/Feature.js";
 import Overlay from "ol/Overlay";
 import MapContextProvider, {
@@ -227,6 +228,131 @@ describe("snap pipeline integration", () => {
     expect(await screen.findByText("Rivers")).toBeInTheDocument();
     expect(await screen.findByText("Test River")).toBeInTheDocument();
     expect(await screen.findByText("other value")).toBeInTheDocument();
+  });
+
+  // With no clickTolerance an unsnapped identify would search 10px, so the
+  // default case also shows the ring follows the snap, not the identify.
+  test.each([
+    [undefined, 15],
+    ["20", 20],
+  ])(
+    "a snapped click with clickTolerance %p outlines its %p px snap radius around the true click",
+    async (clickTolerance, snapRadius) => {
+      mockedFetchLayerVectorFeatures.mockResolvedValue([
+        makeRiver("Test River", [
+          [0, 20],
+          [30, 20],
+        ]),
+      ]);
+      jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+      const layer = riversLayer();
+      layer.configuration.props.showClickTolerance = true;
+      if (clickTolerance !== undefined) {
+        layer.configuration.props.clickTolerance = clickTolerance;
+      }
+      const mapRef = await mountSnapMap([layer]);
+
+      await dispatch(mapRef, {
+        type: "singleclick",
+        coordinate: [12, 24],
+        pixel: [12, 24],
+      });
+      // The click has finished once the snapped river's popup is up.
+      expect(await screen.findByText("Test River")).toBeInTheDocument();
+
+      const rings = findOlLayer(mapRef, "Marker")
+        .getSource()
+        .getFeatures()
+        .filter((feature) => feature.getGeometry() instanceof CircleGeometry);
+      expect(rings).toHaveLength(1);
+      expect(rings[0].getGeometry().getCenter()).toStrictEqual([12, 24]);
+      expect(rings[0].getGeometry().getRadius()).toBe(
+        snapRadius * mapRef.current.getView().getResolution(),
+      );
+    },
+  );
+
+  const ringRadii = (mapRef) =>
+    findOlLayer(mapRef, "Marker")
+      .getSource()
+      .getFeatures()
+      .filter((feature) => feature.getGeometry() instanceof CircleGeometry)
+      .map((ring) => ring.getGeometry().getRadius());
+
+  test("a click that snaps nowhere outlines the snap radius it searched, not the identify's", async () => {
+    mockedFetchLayerVectorFeatures.mockResolvedValue([
+      makeRiver("Far River", [
+        [0, 1000],
+        [30, 1000],
+      ]),
+    ]);
+    mockedQueryLayerFeatures.mockResolvedValue([
+      {
+        attributes: { field1: "identified value" },
+        geometry: { paths: [[[0, 0]]] },
+        layerName: "Rivers Sub",
+      },
+    ]);
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+    const layer = riversLayer();
+    layer.configuration.props.showClickTolerance = true;
+    const mapRef = await mountSnapMap([layer]);
+
+    await dispatch(mapRef, {
+      type: "singleclick",
+      coordinate: [12, 24],
+      pixel: [12, 24],
+    });
+    // Nothing snapped, so the layer fell through to /identify.
+    expect(await screen.findByText("identified value")).toBeInTheDocument();
+
+    // 15, the default snap radius, rather than the identify's default 10.
+    expect(ringRadii(mapRef)).toStrictEqual([
+      15 * mapRef.current.getView().getResolution(),
+    ]);
+  });
+
+  test("a snap layer that loses the snap to another keeps its identify's radius", async () => {
+    mockedFetchLayerVectorFeatures.mockImplementation(async (layer) =>
+      layer.configuration.props.name === "Rivers"
+        ? [
+            makeRiver("Test River", [
+              [0, 20],
+              [30, 20],
+            ]),
+          ]
+        : [
+            makeRiver("Distant River", [
+              [0, 30],
+              [30, 30],
+            ]),
+          ],
+    );
+    mockedQueryLayerFeatures.mockResolvedValue([]);
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+    const rivers = riversLayer();
+    rivers.configuration.props.showClickTolerance = true;
+    const distant = riversLayer();
+    distant.configuration.props.name = "Distant Rivers";
+    distant.configuration.props.source.props.url = "distant_url";
+    distant.configuration.props.showClickTolerance = true;
+    const mapRef = await mountSnapMap([rivers, distant], {
+      expectedFetches: 2,
+    });
+
+    // 4 px from Test River and 6 px from Distant River: both are within the
+    // 15 px snap radius, and the nearer one wins.
+    await dispatch(mapRef, {
+      type: "singleclick",
+      coordinate: [12, 24],
+      pixel: [12, 24],
+    });
+    expect(await screen.findByText("Test River")).toBeInTheDocument();
+
+    // Distant Rivers was identified like any unsnapped layer, at the default
+    // 10, so its ring says what that query searched.
+    const resolution = mapRef.current.getView().getResolution();
+    expect(ringRadii(mapRef)).toStrictEqual([15 * resolution, 10 * resolution]);
   });
 
   test("a snapped river keeps slot 1 even when a gauge point is nearer the click", async () => {

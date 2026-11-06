@@ -566,6 +566,7 @@ describe("findBestSnap", () => {
     expect(best).not.toBeNull();
     expect(best.layerName).toBe("A");
     expect(best.pixelDistance).toBeCloseTo(4);
+    expect(best.snapPx).toBe(15);
   });
 
   test("compares distances regardless of cache order", () => {
@@ -582,7 +583,8 @@ describe("findBestSnap", () => {
   test("a cache entry's own snapPx overrides the shared radius", () => {
     // Entry radius wider than the call's default: 20px away still snaps.
     const wide = { ...makeCache("A", 0), snapPx: 30 };
-    expect(findBestSnap([wide], [20, 50], identityMap, 15)).not.toBeNull();
+    // The result reports the radius the snap was taken within.
+    expect(findBestSnap([wide], [20, 50], identityMap, 15).snapPx).toBe(30);
 
     // Entry radius tighter than the call's default: 10px away does not.
     const tight = { ...makeCache("A", 0), snapPx: 5 };

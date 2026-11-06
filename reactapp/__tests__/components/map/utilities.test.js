@@ -2,6 +2,8 @@ import {
   sourcePropertiesOptions,
   readFeatureCollection,
   createMarkerLayer,
+  createClickToleranceFeatures,
+  clickQueryTolerance,
   createHighlightLayer,
   addHighlightFeatures,
   getGeometryAnchor,
@@ -41,7 +43,13 @@ import {
   RANK_KIND,
 } from "components/map/ranking";
 import VectorSource from "ol/source/Vector.js";
-import { LineString, Point, MultiPolygon, Polygon } from "ol/geom";
+import {
+  Circle as CircleGeometry,
+  LineString,
+  Point,
+  MultiPolygon,
+  Polygon,
+} from "ol/geom";
 import VectorLayer from "ol/layer/Vector.js";
 import {
   layerConfigGeoJSON,
@@ -203,6 +211,86 @@ test("createMarkerLayer", async () => {
 
   expect(markerLayerFeature.getGeometry() instanceof Point).toBe(true);
 });
+
+test("createMarkerLayer draws just below the highlight, above the data layers", () => {
+  // Data layers are stamped zIndex 0..N from their position in the map, so
+  // without its own zIndex a filled polygon would cover the tolerance rings.
+  expect(createMarkerLayer([0, 0]).getZIndex()).toBe(
+    createHighlightLayer().getZIndex() - 1,
+  );
+});
+
+test("createClickToleranceFeatures sizes each ring on the ground at the click's resolution", () => {
+  const rings = createClickToleranceFeatures([100, 200], [10, 25], 2);
+
+  expect(rings).toHaveLength(2);
+  rings.forEach((ring) => {
+    expect(ring.getGeometry() instanceof CircleGeometry).toBe(true);
+    expect(ring.getGeometry().getCenter()).toStrictEqual([100, 200]);
+  });
+  // Pixel radius x map units per pixel.
+  expect(rings.map((ring) => ring.getGeometry().getRadius())).toStrictEqual([
+    20, 50,
+  ]);
+});
+
+test("createClickToleranceFeatures draws one ring per distinct radius and none for 0", () => {
+  const rings = createClickToleranceFeatures([0, 0], [10, 0, 10, 15], 1);
+
+  expect(rings.map((ring) => ring.getGeometry().getRadius())).toStrictEqual([
+    10, 15,
+  ]);
+  expect(createClickToleranceFeatures([0, 0], [0], 1)).toStrictEqual([]);
+  expect(createClickToleranceFeatures([0, 0], [], 1)).toStrictEqual([]);
+});
+
+const toleranceLayer = (sourceType, clickTolerance) => ({
+  configuration: {
+    props: { name: "Layer", clickTolerance, source: { type: sourceType } },
+  },
+});
+
+test.each([
+  ["ESRI Image and Map Service", undefined, 10],
+  ["ESRI Image and Map Service", "25", 25],
+  ["ESRI Image and Map Service", 0, 0],
+  // Used to reach /identify as-is; an unusable value now gets the default.
+  ["ESRI Image and Map Service", "", 10],
+  ["ESRI Image and Map Service", "abc", 10],
+  ["GeoJSON", undefined, 0],
+  ["GeoJSON", 15, 15],
+  ["ESRI Feature Service", "8", 8],
+  ["Shapefile", 12, 12],
+  ["GeoPackage", undefined, 0],
+  ["GeoParquet", "6", 6],
+  ["WMS", 20, 0],
+  ["KML", 20, 0],
+  ["PMTiles Vector", 20, 0],
+  ["GeoTIFF", 20, 0],
+])(
+  "clickQueryTolerance for a %s layer with clickTolerance %p is %p",
+  (sourceType, clickTolerance, expected) => {
+    expect(
+      clickQueryTolerance(toleranceLayer(sourceType, clickTolerance)),
+    ).toBe(expected);
+  },
+);
+
+// A snap radius the click already searched replaces the query's default, but
+// only on the types a tolerance applies to.
+test.each([
+  ["ESRI Image and Map Service", 15, 15],
+  ["GeoJSON", 15, 15],
+  ["Shapefile", 0, 0],
+  ["WMS", 15, 0],
+])(
+  "clickQueryTolerance for a %s layer that searched a %p px snap radius is %p",
+  (sourceType, snapPx, expected) => {
+    expect(
+      clickQueryTolerance(toleranceLayer(sourceType, undefined), snapPx),
+    ).toBe(expected);
+  },
+);
 
 test("createHighlightLayer MultiLineString", async () => {
   const geometries = {
@@ -1919,7 +2007,7 @@ test("queryLayerFeatures PMTiles Vector", async () => {
   ]);
 });
 
-test("queryLayerFeatures PMTiles Vector leaves decoration layers out", async () => {
+test("queryLayerFeatures PMTiles Vector hit-tests only its own layer", async () => {
   let layerFilter;
   const mockMap = {
     getView: jest.fn(() => ({ getZoom: jest.fn(() => 10) })),
@@ -1930,12 +2018,20 @@ test("queryLayerFeatures PMTiles Vector leaves decoration layers out", async () 
 
   await queryLayerFeatures(layerConfigPMTilesVector, mockMap, [0, 0], [1, 1]);
 
-  const decoration = new VectorLayer({ source: new VectorSource() });
+  const named = (name) => new VectorLayer({ source: new VectorSource(), name });
+  expect(layerFilter(named("PMTiles Vector Layer"))).toBe(true);
+  expect(layerFilter(named("Another Layer"))).toBe(false);
+  // The click marker holds plain Features (the pin and any tolerance rings),
+  // which toGeometry would throw on.
+  expect(
+    layerFilter(
+      createMarkerLayer([0, 0], createClickToleranceFeatures([0, 0], [10], 1)),
+    ),
+  ).toBe(false);
+  // Names are not kept unique, so a decoration is ruled out by its tag.
+  const decoration = named("PMTiles Vector Layer");
   decoration.set("decorationLayer", true);
   expect(layerFilter(decoration)).toBe(false);
-  expect(layerFilter(new VectorLayer({ source: new VectorSource() }))).toBe(
-    true,
-  );
 });
 
 test("queryLayerFeatures PMTiles Vector Layer Name Mismatch", async () => {

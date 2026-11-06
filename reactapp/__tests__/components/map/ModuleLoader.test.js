@@ -790,6 +790,51 @@ describe("loadESRIJSON", () => {
     );
     expect(generatedUrl).toContain("outFields=*");
   });
+
+  // A MapServer layer's /query response, as the ArcGIS sample server sends
+  // it: the id field is named only by its type in `fields`.
+  const cityQueryResponse = (extra = {}) => ({
+    displayFieldName: "areaname",
+    geometryType: "esriGeometryPoint",
+    spatialReference: { wkid: 102100 },
+    fields: [
+      { name: "objectid", type: "esriFieldTypeOID" },
+      { name: "areaname", type: "esriFieldTypeString" },
+    ],
+    features: [
+      {
+        attributes: { objectid: 3237, areaname: "Cottonwood West" },
+        geometry: { x: -12455000, y: 4970000 },
+      },
+    ],
+    ...extra,
+  });
+
+  // What a tile-strategy reload does: the same response read into the source
+  // again.
+  const loadTwice = (response) => {
+    const source = loadESRIJSON({ props: { url: "u", layer: 0 } });
+    for (let i = 0; i < 2; i++) {
+      source.addFeatures(source.getFormat().readFeatures(response));
+    }
+    return source.getFeatures();
+  };
+
+  it("loadESRIJSON keeps one copy of a re-fetched feature when the response omits objectIdFieldName", () => {
+    const features = loadTwice(cityQueryResponse());
+
+    expect(features).toHaveLength(1);
+    expect(features[0].getId()).toBe(3237);
+  });
+
+  it("loadESRIJSON prefers the response's own objectIdFieldName", () => {
+    const response = cityQueryResponse({ objectIdFieldName: "areaname" });
+
+    const features = loadTwice(response);
+
+    expect(features).toHaveLength(1);
+    expect(features[0].getId()).toBe("Cottonwood West");
+  });
 });
 
 describe("withAntimeridianFix", () => {
