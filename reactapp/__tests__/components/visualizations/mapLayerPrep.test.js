@@ -225,8 +225,13 @@ test("a layer still being constructed is reported as loading", async () => {
   await waitFor(() =>
     expect(addedLayerNames(addLayerSpy)).toContain("World Light Gray Base"),
   );
-  const alert = await screen.findByRole("status");
-  expect(alert).toHaveTextContent("Loading Slow source");
+  // The basemap can still be listed for a moment after it is added; the banner
+  // settles on the one layer still being built.
+  await waitFor(() =>
+    expect(screen.getByRole("status")).toHaveTextContent(
+      /^Loading Slow source…$/,
+    ),
+  );
 
   await gate.release();
 
@@ -258,8 +263,13 @@ test("a fast layer mounts while a slow sibling is still loading", async () => {
     expect(addedLayerNames(addLayerSpy)).toContain("Fast layer"),
   );
   expect(addedLayerNames(addLayerSpy)).not.toContain("Slow raster");
-  // Banner lists all loading layers; assert the slow one is among them.
-  expect(await screen.findByRole("status")).toHaveTextContent("Slow raster");
+  // The basemap and the fast layer can still be listed for a moment after they
+  // are added; the banner settles on the slow one alone.
+  await waitFor(() =>
+    expect(screen.getByRole("status")).toHaveTextContent(
+      /^Loading Slow raster…$/,
+    ),
+  );
 
   await gate.release();
   await waitFor(() =>
@@ -447,8 +457,12 @@ describe("an outstanding plugin fetch is reported in the banner", () => {
     await waitFor(() =>
       expect(addedLayerNames(addLayerSpy)).toContain("World Light Gray Base"),
     );
-    // Construction is still outstanding for the nameless layer at this point.
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    // Construction is still outstanding for the nameless layer at this point,
+    // so a banner that closes was never naming it. The basemap can still be
+    // listed for a moment after it is added.
+    await waitFor(() =>
+      expect(screen.queryByRole("status")).not.toBeInTheDocument(),
+    );
 
     await constructGate.release();
     await fetchGate.release();
