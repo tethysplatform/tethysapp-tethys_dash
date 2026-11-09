@@ -241,7 +241,17 @@ const VariableInput = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [variable_name, initial_value, variable_options_source]);
 
+  // Whether the effect below has run before. On the mount it is the effect
+  // above that sets the starting value, while the context still holds what it
+  // held before that value was published: syncing that in as well would show
+  // it for a render, a date range's pair reading "[object Object]" in a text
+  // input. An input without a source has its value set only here.
+  const syncedRef = useRef(false);
+
   useEffect(() => {
+    const isMount = !syncedRef.current;
+    syncedRef.current = true;
+    if (isMount && variable_options_source) return;
     let newValue = variableInputValues[variable_name];
     if (Array.isArray(type) && type.length > 0) {
       newValue = findSelectOptionByValue(type, newValue);

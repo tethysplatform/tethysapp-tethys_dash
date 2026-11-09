@@ -39,6 +39,7 @@ const DECORATION_SOURCE_TYPES = [
 export const DECORATION_HIDDEN_LAYER_PROPS = [
   "minZoomQuery",
   "clickTolerance",
+  "showClickTolerance",
   "snapToFeatures",
   "snapSublayer",
   "renderAsImage",

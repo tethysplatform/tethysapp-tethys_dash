@@ -18,6 +18,9 @@ import {
   isTableEligible,
   hasModalPopup,
   createMarkerLayer,
+  createClickToleranceFeatures,
+  clickQueryTolerance,
+  zoomsInsteadOfQuerying,
   configurationPropType,
   mapDrawingPropType,
   loadLayerJSONs,
@@ -1262,7 +1265,40 @@ const MapVisualization = ({
       spinnerOverlayRef.current.setPosition(coordinate);
     }
 
-    const newMarkerLayer = createMarkerLayer(coordinate);
+    // Outline each requesting layer's click tolerance around the true click
+    // every layer is queried at. A layer selected from a snap shows the radius
+    // it snapped within (its siblings are gathered from a wider one), and so
+    // does a snap layer when the click snapped nowhere, since nothing lay
+    // within that radius on it. A layer that lost the snap to another keeps
+    // the tolerance its own query found its results within. None when a layer
+    // zooms in to its minZoomQuery instead: that click shows no results, and a
+    // ring sized for this resolution would balloon with the zoom.
+    const zoomsInstead = queryableLayers.some(
+      (layer) =>
+        !shouldSnapSelect(layer, clickSnap) &&
+        zoomsInsteadOfQuerying(layer, map),
+    );
+    const toleranceRadii = zoomsInstead
+      ? []
+      : queryableLayers
+          .filter((layer) => layer.configuration?.props?.showClickTolerance)
+          .map((layer) => {
+            if (shouldSnapSelect(layer, clickSnap)) return clickSnap.snapPx;
+            const missedSnap = clickSnap
+              ? undefined
+              : snapCaches.find(
+                  (cache) => cache.layerName === layer.configuration.props.name,
+                );
+            return clickQueryTolerance(layer, missedSnap?.snapPx);
+          });
+    const newMarkerLayer = createMarkerLayer(
+      coordinate,
+      createClickToleranceFeatures(
+        evt.coordinate,
+        toleranceRadii,
+        map.getView().getResolution(),
+      ),
+    );
     if (markerLayer.current) {
       map.removeLayer(markerLayer.current);
     }

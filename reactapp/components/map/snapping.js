@@ -195,18 +195,15 @@ export function findSnapFeature(vectorSource, coordinate, map, snapPx = 15) {
 // feature. `caches` is an array of { layerName, source, snapPx? } — an entry's
 // own snapPx (derived from the layer's clickTolerance, so one setting governs
 // hit-testing AND snap reach) overrides the shared default. Returns
-// { layerName, feature, coordinate, pixelDistance } or null when nothing snaps.
+// { layerName, feature, coordinate, pixelDistance, snapPx } or null when
+// nothing snaps, `snapPx` being the radius the winning snap was taken within.
 export function findBestSnap(caches, coordinate, map, snapPx = 15) {
   let best = null;
   for (const cache of caches ?? []) {
-    const hit = findSnapFeature(
-      cache?.source,
-      coordinate,
-      map,
-      cache?.snapPx ?? snapPx,
-    );
+    const cacheSnapPx = cache?.snapPx ?? snapPx;
+    const hit = findSnapFeature(cache?.source, coordinate, map, cacheSnapPx);
     if (hit && (!best || hit.pixelDistance < best.pixelDistance)) {
-      best = { ...hit, layerName: cache.layerName };
+      best = { ...hit, layerName: cache.layerName, snapPx: cacheSnapPx };
     }
   }
   return best;
