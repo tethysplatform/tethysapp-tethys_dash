@@ -741,6 +741,10 @@ test("keys that mean nothing to the current tool do nothing", () => {
 });
 
 test("Enter finishing a one-point line drops it once Draw has added it", async () => {
+  // The test waits for the editor's deferred removal, and no map frame may run
+  // meanwhile: jsdom's canvas stub cannot draw Draw's sketch.
+  jest.spyOn(window, "requestAnimationFrame").mockImplementation(() => 0);
+  olMap.renderSync();
   mount(session());
   act(() => {
     interaction(Draw).appendCoordinates([[0, 0]]);
