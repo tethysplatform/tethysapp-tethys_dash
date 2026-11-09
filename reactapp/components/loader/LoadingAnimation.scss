@@ -12,20 +12,6 @@ html {
     --outer-moon-orbit: 148px;
 }
 
-.loading-text {
-    position: absolute;
-    top: 70%;
-    left: 0;
-    width: 100%;
-    text-align: center;
-    font-size: 40pt;
-    color: var(--bs-primary);
-}
-
-.loading-detail {
-    font-size: 16pt;
-}
-
 .center {
     position: absolute;
     width: var(--center-dia);

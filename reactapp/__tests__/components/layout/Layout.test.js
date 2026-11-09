@@ -43,7 +43,7 @@ test("Layout loading", async () => {
     </MemoryRouter>,
   );
 
-  expect(await screen.findByText("Loading TethysDash...")).toBeInTheDocument();
+  expect(await screen.findByTestId("loading-animation")).toBeInTheDocument();
   releaseAppLoad();
   expect(await screen.findByText("Page Not Found")).toBeInTheDocument();
 });
@@ -74,7 +74,7 @@ test("Layout loading valid dashboard", async () => {
     </MemoryRouter>,
   );
 
-  expect(await screen.findByText("Loading TethysDash...")).toBeInTheDocument();
+  expect(await screen.findByTestId("loading-animation")).toBeInTheDocument();
   releaseAppLoad();
   expect(await screen.findByText("A Dashboard Loaded")).toBeInTheDocument();
 });
@@ -91,7 +91,7 @@ test("Layout loading invalid dashboard", async () => {
     </MemoryRouter>,
   );
 
-  expect(await screen.findByText("Loading TethysDash...")).toBeInTheDocument();
+  expect(await screen.findByTestId("loading-animation")).toBeInTheDocument();
   releaseAppLoad();
   expect(await screen.findByText("Page Not Found")).toBeInTheDocument();
 });
