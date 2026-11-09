@@ -2217,9 +2217,27 @@ const loadGeoJSON = async (config, mapProjection) => {
   });
 };
 
+// EsriJSON takes feature ids from a query's `objectIdFieldName`, which a
+// MapServer layer and older ArcGIS servers leave out, naming the id field only
+// by its esriFieldTypeOID type in `fields`. Without ids the source cannot tell
+// a re-fetched feature from a new one, and every zoom-out that re-requests an
+// area adds another copy of each feature in it.
+class EsriJSONWithIds extends EsriJSON {
+  readFeaturesFromObject(object, options) {
+    const oidField = object?.objectIdFieldName
+      ? undefined
+      : object?.fields?.find((field) => field.type === "esriFieldTypeOID")
+          ?.name;
+    return super.readFeaturesFromObject(
+      oidField ? { ...object, objectIdFieldName: oidField } : object,
+      options,
+    );
+  }
+}
+
 export const loadESRIJSON = (config) => {
   const vectorSource = new VectorSource({
-    format: new EsriJSON(),
+    format: new EsriJSONWithIds(),
     url: function (extent, resolution, projection) {
       // ArcGIS Server only wants the numeric portion of the projection ID.
       const srid = projection

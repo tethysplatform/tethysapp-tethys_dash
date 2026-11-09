@@ -228,6 +228,47 @@ it("InputTable Placeholders", async () => {
   expect(field2Input.placeholder).toBe("");
 });
 
+it("InputTable shows a checkbox row's placeholder on hover over its cell", async () => {
+  const values = [
+    { property: "Snap", value: false },
+    { property: "Name", value: "" },
+  ];
+  const placeholders = [
+    { value: "a checkbox description" },
+    { value: "a text description" },
+  ];
+  const renderTable = (showOnHover) =>
+    render(
+      <InputTable
+        label="Test Table"
+        onChange={jest.fn()}
+        values={values}
+        placeholders={placeholders}
+        types={["checkbox", "text"]}
+        // As LayerPane renders it: a row's type applies to every field in the
+        // row, so only a disabled property column stays text.
+        disabledFields={["property"]}
+        show_placeholder_on_hover={showOnHover}
+      />,
+    );
+
+  const { unmount } = renderTable(true);
+  // The whole cell carries it, the checkbox inside.
+  const checkboxCell = screen.getByTitle("a checkbox description");
+  expect(
+    within(checkboxCell).getByLabelText("value Input 0"),
+  ).toBeInTheDocument();
+  expect(screen.getByLabelText("value Input 1")).toHaveAttribute(
+    "title",
+    "a text description",
+  );
+  unmount();
+
+  renderTable(false);
+  expect(screen.getByLabelText("value Input 0")).toBeInTheDocument();
+  expect(screen.queryByTitle("a checkbox description")).not.toBeInTheDocument();
+});
+
 describe("InputTable select rows", () => {
   const renderTable = ({
     values,

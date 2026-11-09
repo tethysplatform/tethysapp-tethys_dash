@@ -12,6 +12,35 @@ from tethysapp.tethysdash.plugin_helpers import (
 )
 from tethysapp.tethysdash.layer_sources import validate_layer_source_description
 import inspect
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+def warm_visualization_cache():
+    """Import every registered visualization plugin, off the request path.
+
+    Discovery reads each plugin's class attributes to build the visualization
+    picker, and reading them imports the plugin module (and the heavy packages
+    it pulls in). The first ``get_available_visualizations`` call per process
+    therefore pays that import cost. Calling this at startup moves it off the
+    user's first request. Best effort and idempotent: a plugin that fails to
+    import is logged and skipped, and imports are cached after the first call.
+
+    Returns:
+        int: Number of plugins successfully warmed.
+    """
+    warmed = 0
+    for source in intake.source.registry:
+        try:
+            get_plugin_prop(getattr(intake, f"open_{source}"), "label")
+            warmed += 1
+        except Exception:
+            logger.warning(
+                "Visualization plugin warm-up failed for '%s'", source, exc_info=True
+            )
+    logger.debug("Warmed %d visualization plugins", warmed)
+    return warmed
 
 
 def build_plugin_metadata(plugin, source):
