@@ -22,10 +22,13 @@ const LoadingAnimation = ({ delay, text = "Loading...", detail }) => {
     }
   }, [text, detail]);
 
+  // The status region is mounted before the spinner shows, so a screen reader
+  // announces the hidden "Loading..." when it arrives. Only that generic text
+  // is announced, never the `text`/`detail` progress.
   return (
-    <>
+    <div data-testid="loading-animation" role="status">
       {show && (
-        <div data-testid="loading-animation" role="status" aria-label="Loading">
+        <>
           <div className="center"></div>
           <div className="inner-spin">
             <div className="inner-arc inner-arc_start-a"></div>
@@ -44,9 +47,10 @@ const LoadingAnimation = ({ delay, text = "Loading...", detail }) => {
             <div className="outer-moon-a"></div>
             <div className="outer-moon-b"></div>
           </div>
-        </div>
+          <span className="visually-hidden">Loading...</span>
+        </>
       )}
-    </>
+    </div>
   );
 };
 

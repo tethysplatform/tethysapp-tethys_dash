@@ -29,7 +29,25 @@ describe("LoadingAnimation", () => {
     });
     // eslint-disable-next-line testing-library/no-node-access
     expect(document.querySelector(".inner-spin")).toBeInTheDocument();
-    expect(screen.queryByText("Loading...")).toBeNull();
+    expect(screen.getByText("Loading...")).toHaveClass("visually-hidden");
+  });
+
+  it("tells screen readers only that something is loading", () => {
+    render(
+      <LoadingAnimation
+        delay={500}
+        text="Loading Dashboard..."
+        detail="Loading variable inputs… (1 of 2)"
+      />,
+    );
+    // The region exists before the spinner, so the text arriving in it is a
+    // change a screen reader announces.
+    const status = screen.getByRole("status");
+    expect(status).toBeEmptyDOMElement();
+    act(() => {
+      jest.advanceTimersByTime(500);
+    });
+    expect(status).toHaveTextContent(/^Loading\.\.\.$/);
   });
 
   it("logs the loading text to the console instead of showing it", () => {
