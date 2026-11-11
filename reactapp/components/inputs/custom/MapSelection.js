@@ -9,9 +9,13 @@ import {
   resolveMapSelection,
 } from "components/map/mapSelection";
 
+// The table cannot get narrower than its longest words, which on a small
+// screen is wider than the editor column; it then scrolls inside the section
+// rather than spilling past its border.
 const Container = styled.div`
   margin-left: 1.5rem;
   padding: 0.5rem 0;
+  overflow-x: auto;
 `;
 
 // A button rather than MapDrawing's clickable div, so the section can be
