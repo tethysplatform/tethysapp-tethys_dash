@@ -7,7 +7,7 @@ import {
   renderSyncMap,
   syncLayer,
 } from "__tests__/utilities/mapVisualizationHarness";
-import { useContext, useEffect } from "react";
+import { useContext, useEffect, useState } from "react";
 import PropTypes from "prop-types";
 import {
   act,
@@ -545,6 +545,26 @@ describe("hiding the hover tooltip", () => {
     expect(tooltipPosition(mapRef)).toBeUndefined();
   });
 
+  test("pressing on the map before the cursor rests cancels the query, so a click shows no tooltip first", async () => {
+    // OpenLayers holds `singleclick` back to rule out a double-click, longer
+    // than the debounce, so the press is what has to cancel the query.
+    twoFeatures();
+    const mapRef = await mountHoverMap([hoverLayer()]);
+    // jsdom has no PointerEvent, and OpenLayers' own press handler on the
+    // viewport makes one; a MouseEvent carries what it reads.
+    window.PointerEvent = class extends MouseEvent {};
+    try {
+      await hover(mapRef, [10, 20]);
+      fireEvent.pointerDown(mapRef.current.getViewport(), { button: 0 });
+      await outlastDebounce();
+    } finally {
+      delete window.PointerEvent;
+    }
+
+    expect(mockedQueryLayerFeatures).not.toHaveBeenCalled();
+    expect(tooltipPosition(mapRef)).toBeUndefined();
+  });
+
   test("a click hides it", async () => {
     const mapRef = await mountWithTooltip();
 
@@ -765,6 +785,61 @@ describe("hover and variable inputs", () => {
 
     expect(mockedQueryLayerFeatures).toHaveBeenCalledTimes(2);
     expect(seen).toHaveLength(objectsSeen);
+  });
+
+  test("writes through the newest variable inputs setter, not the one from when the layers last changed", async () => {
+    // Inside a popup layout the setter is remade whenever the scoped values
+    // change, while the hover handler is bound only when the layers change.
+    answerAt({
+      "10,20": { Gauges: [feature("Gauges", { id: "X1" }, 10, 20)] },
+    });
+    const firstSetter = jest.fn();
+    const newerSetter = jest.fn();
+    const ChangingSetter = ({ children }) => {
+      const outer = useContext(VariableInputsContext);
+      const [setter, setSetter] = useState(() => firstSetter);
+      return (
+        <VariableInputsContext.Provider
+          value={{ ...outer, setVariableInputValues: setter }}
+        >
+          <button type="button" onClick={() => setSetter(() => newerSetter)}>
+            new setter
+          </button>
+          {children}
+        </VariableInputsContext.Provider>
+      );
+    };
+    ChangingSetter.propTypes = { children: PropTypes.node };
+    const mapRef = { current: null };
+    render(
+      createLoadedComponent({
+        children: (
+          <MapContextProvider>
+            <ChangingSetter>
+              <HoverHarness
+                layers={[
+                  hoverLayer("Gauges", {
+                    attributeVariables: { Gauges: { id: "Test Variable" } },
+                  }),
+                ]}
+                mapRef={mapRef}
+              />
+            </ChangingSetter>
+          </MapContextProvider>
+        ),
+      }),
+    );
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+    // The layers are the same array across this re-render, so the handler is
+    // not bound again.
+    fireEvent.click(screen.getByText("new setter"));
+
+    await hover(mapRef, [10, 20]);
+
+    await waitFor(() => expect(newerSetter).toHaveBeenCalledTimes(1));
+    expect(firstSetter).not.toHaveBeenCalled();
+    const [updater] = newerSetter.mock.calls[0];
+    expect(updater({})).toEqual({ "Test Variable": "X1" });
   });
 
   test("a hover-only layer with no hover fields still writes its variable inputs, and shows no tooltip", async () => {

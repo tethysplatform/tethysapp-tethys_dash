@@ -166,7 +166,7 @@ const AttributesPane = ({
   layerProps,
   tabKey,
   shapefileDiscovery,
-  answeredClicksAtOpen,
+  openedPopupType,
 }) => {
   const [warningMessage, setWarningMessage] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
@@ -304,30 +304,34 @@ const AttributesPane = ({
       discovered,
     );
 
-    if (Object.keys(layerAttributes).length === 0) {
-      setWarningMessage("No field attributes were found.");
-    }
-
     setAttributes(layerAttributes);
     return layerAttributes;
   }
 
   // Which events a discovered table's columns turn on. Each is on while at
-  // least one of its boxes is checked, with one exception for click: a layer
-  // that answered clicks only to update its variable inputs hides every field
-  // from its table, so it stays on while it links variables and no hover box
-  // is checked. Only a layer that answered clicks when the editor opened it
-  // qualifies, so re-saving a None layer that links variables leaves it off.
+  // least one of its boxes is checked, with one exception: a layer that
+  // answers an event only to update its variable inputs hides every field
+  // from it, so that event stays on while the layer links variables and the
+  // other event has no box checked. Only the event the layer answered when the
+  // editor opened it qualifies -- click for a click or both layer, hover for a
+  // hover-only one, the only kind whose hover updates variables -- so the two
+  // never both apply, and re-saving a None layer that links variables leaves
+  // it off.
   function deriveEvents(layerData) {
     const rows = Object.values(layerData).flat();
+    const clickChecked = rows.some((row) => row.click);
     const hoverChecked = rows.some((row) => row.hover);
     const linksVariables =
       Object.keys(extractVariableInputs(layerData)).length > 0;
     return {
-      hoverOn: hoverChecked,
       clickOn:
-        rows.some((row) => row.click) ||
-        (!hoverChecked && linksVariables && Boolean(answeredClicksAtOpen)),
+        clickChecked ||
+        (!hoverChecked &&
+          linksVariables &&
+          isClickEnabled({ tablePopupType: openedPopupType })),
+      hoverOn:
+        hoverChecked ||
+        (!clickChecked && linksVariables && openedPopupType === "hover"),
     };
   }
 
@@ -359,27 +363,34 @@ const AttributesPane = ({
   }
 
   function applyLayerAttributes(queriedLayerAttributes) {
-    let layerAttributes = {};
-    const discovered = Boolean(queriedLayerAttributes);
+    // remove any layers where no attributes were found, and show the rest in
+    // the author's saved order, anything the order does not list going last
+    let layerAttributes = Object.fromEntries(
+      Object.entries(queriedLayerAttributes ?? {})
+        .filter(([_, value]) => !(Array.isArray(value) && value.length === 0))
+        .map(([layerName, rows]) => [
+          layerName,
+          applySavedOrder(layerName, rows),
+        ]),
+    );
+    // A query that found no fields is read like one that failed. A discovered
+    // table with no rows has no boxes to check, and its boxes are all that
+    // turn its events on, so the author could not turn click or hover on or
+    // off. The hand-entered table's toggles can.
+    const discovered = Object.keys(layerAttributes).length > 0;
 
-    // if attributes were returned from the query, use them and move on
     if (discovered) {
       setCustomAttributes(true);
 
-      // remove an layers where no attributes were found, and show the rest in
-      // the author's saved order, anything the order does not list going last
-      layerAttributes = Object.fromEntries(
-        Object.entries(queriedLayerAttributes)
-          .filter(([_, value]) => !(Array.isArray(value) && value.length === 0))
-          .map(([layerName, rows]) => [
-            layerName,
-            applySavedOrder(layerName, rows),
-          ]),
-      );
-
-      // if the query failed, allow the user to create their own fields for configuration
+      // if the query found no fields or failed, allow the user to create their
+      // own fields for configuration
     } else {
       setCustomAttributes(false);
+      if (queriedLayerAttributes) {
+        setWarningMessage(
+          "No field attributes were found. Please provide the desired fields manually below.",
+        );
+      }
 
       // lowercase layerParams to make sure a key isnt missed from capitalization
       const validSourceProps = removeEmptyValues(sourceProps.props);
@@ -916,11 +927,11 @@ AttributesPane.propTypes = {
     name: PropTypes.string,
   }), // configuration and properties for openlayers layer
   tabKey: PropTypes.string.isRequired, // react state that tracks what tab is shown
-  // Whether the layer answered clicks when the editor opened it. Captured by
-  // the modal rather than here, since this pane remounts -- and would capture
-  // props already edited -- when the source moves to a type without an
-  // Attributes tab and back.
-  answeredClicksAtOpen: PropTypes.bool,
+  // The popup type the layer had when the editor opened it, as
+  // resolveTablePopupType reads it. Captured by the modal rather than here,
+  // since this pane remounts -- and would capture props already edited -- when
+  // the source moves to a type without an Attributes tab and back.
+  openedPopupType: PropTypes.string,
 };
 
 export default memo(AttributesPane);

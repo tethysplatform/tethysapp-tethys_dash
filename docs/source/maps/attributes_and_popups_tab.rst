@@ -27,7 +27,7 @@ The table has a **Show on Click** column and a **Show on Hover** column. Check a
     - The field order and the aliases apply to both the click table and the hover tooltip.
 
 .. note::
-    A layer that links a field to a variable input keeps answering clicks even with every field unchecked, as long as no field is checked for hover. The click updates the variable inputs, and no table opens. This is useful for a layer that only drives a chart.
+    A layer that links a field to a variable input keeps answering clicks even with every field unchecked, as long as no field is checked for hover. The click updates the variable inputs, and no table opens. This is useful for a layer that only drives a chart. In the same way, a layer that showed fields only on hover keeps updating its variable inputs on hover with every field unchecked, and shows no tooltip.
 
 .. note::
     Hover asks the layer what is under the cursor only once the cursor settles, so a remote ESRI or WMS layer receives one request per pause rather than several per second. A layer set to zoom in when clicked beyond a zoom level (**minZoomQuery**) shows no tooltip until the map is zoomed in that far.
@@ -36,7 +36,7 @@ The table has a **Show on Click** column and a **Show on Hover** column. Check a
 Layers whose fields cannot be listed
 ------------------------------------
 
-Some layers, such as GeoTIFF rasters and WMS or ESRI image services, only report their fields when they are queried, so the table cannot list them in advance. These layers get **Click** and **Hover** switches above a table where fields are entered by hand.
+Some layers, such as GeoTIFF rasters and WMS or ESRI image services, only report their fields when they are queried, so the table cannot list them in advance. These layers, and any layer whose fields could not be found, get **Click** and **Hover** switches above a table where fields are entered by hand.
 
     - **Click** starts on and **Hover** starts off.
     - An event that is switched on shows every field the layer returns, except rows you add and uncheck for that event.

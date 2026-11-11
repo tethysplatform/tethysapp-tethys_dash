@@ -43,7 +43,6 @@ import {
   attributePropsPropType,
   saveLayerJSON,
   resolveTablePopupType,
-  isClickEnabled,
   isHoverEnabled,
   hasLegend,
 } from "components/map/utilities";
@@ -273,15 +272,15 @@ const MapLayerModal = ({
   const [attributeProps, setAttributeProps] = useState(
     layerInfo.attributeProps ?? {},
   );
-  // Whether the layer answered clicks when the editor opened it, which keeps a
-  // click layer that hides every field only to update its variable inputs
-  // answering clicks (see AttributesPane). Read here rather than in the pane:
-  // the Attributes pane remounts when the source moves to a type without that
-  // tab and back, and would read props already edited by then. A template or
-  // plugin scaffold replaces the layer's popup settings wholesale, so loading
-  // one counts as opening the layer it describes.
-  const [answeredClicksAtOpen, setAnsweredClicksAtOpen] = useState(() =>
-    isClickEnabled(layerInfo.attributeProps ?? {}),
+  // The popup type the layer had when the editor opened it, which keeps a
+  // layer that hides every field only to update its variable inputs answering
+  // the event that drives them (see AttributesPane). Read here rather than in
+  // the pane: the Attributes pane remounts when the source moves to a type
+  // without that tab and back, and would read props already edited by then. A
+  // template or plugin scaffold replaces the layer's popup settings wholesale,
+  // so loading one counts as opening the layer it describes.
+  const [openedPopupType, setOpenedPopupType] = useState(() =>
+    resolveTablePopupType(layerInfo.attributeProps ?? {}),
   );
   const [style, setStyle] = useState(layerInfo.style);
   // A raster's style is its ramp settings rather than a style JSON, so it is
@@ -766,7 +765,7 @@ const MapLayerModal = ({
     setLabels(apiResponse.data.configuration.labels ?? null);
 
     const effectiveName = layerProps?.name || updatedLayerProps.name;
-    setAnsweredClicksAtOpen(isClickEnabled(apiResponse.data));
+    setOpenedPopupType(layerTablePopupType);
     setAttributeProps(
       normalizeAttributePropsForLayer(
         {
@@ -774,6 +773,11 @@ const MapLayerModal = ({
           omitted: omittedPopupAttributes,
           aliases: attributeAliases,
           order: attributeOrder,
+          // Left undefined when the template has none, as AddMapLayer leaves
+          // a saved layer's: an empty map would read as a hover list that
+          // shows nothing, where a missing one falls back to the click list.
+          hover: apiResponse.data.hoverPopupAttributes,
+          omittedHover: apiResponse.data.omittedHoverAttributes,
           tablePopupType: layerTablePopupType,
         },
         effectiveName,
@@ -839,7 +843,7 @@ const MapLayerModal = ({
         // one, and the Attributes table is not re-read here, so it keeps
         // showing the author's order. Resetting it would save a different
         // order from the one on screen.
-        setAnsweredClicksAtOpen(isClickEnabled(scaffold));
+        setOpenedPopupType(scaffoldTablePopupType);
         setAttributeProps((previous) =>
           normalizeAttributePropsForLayer(
             {
@@ -847,6 +851,9 @@ const MapLayerModal = ({
               omitted: omittedPopupAttributes,
               aliases: attributeAliases,
               order: scaffold.attributeOrder ?? previous?.order ?? {},
+              // Undefined when absent, for the same reason as a template's.
+              hover: scaffold.hoverPopupAttributes,
+              omittedHover: scaffold.omittedHoverAttributes,
               tablePopupType: scaffoldTablePopupType,
             },
             effectiveName,
@@ -1064,7 +1071,7 @@ const MapLayerModal = ({
                   layerProps={layerProps}
                   tabKey={tabKey}
                   shapefileDiscovery={shapefileDiscovery}
-                  answeredClicksAtOpen={answeredClicksAtOpen}
+                  openedPopupType={openedPopupType}
                 />
               </Tab>
             )}

@@ -2918,6 +2918,75 @@ describe("MapLayerModal plugin layer", () => {
     });
   });
 
+  test("fetchPluginDefaults loads the scaffold's hover list", async () => {
+    const addMapLayer = jest.fn();
+    server.use(
+      rest.get(
+        "http://api.test/apps/tethysdash/visualizations/get/",
+        (req, res, ctx) =>
+          res(
+            ctx.status(200),
+            ctx.json({
+              success: true,
+              data: {
+                configuration: { props: { name: "Some Plugin Layer" } },
+                tablePopupType: "hover",
+                hoverPopupAttributes: { test: ["name"] },
+              },
+            }),
+            ctx.set("Content-Type", "application/json"),
+          ),
+      ),
+    );
+
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={jest.fn()}
+        addMapLayer={addMapLayer}
+        layerInfo={{
+          layerProps: { name: "Some Plugin Layer" },
+          sourceProps: {
+            type: "Stream Gauges (Dynamic)",
+            source: "custom_layer_test",
+            args: {},
+            props: {},
+          },
+        }}
+        dynamicMapLayers={[
+          {
+            label: "Dynamic Map Layers",
+            options: [
+              {
+                source: "custom_layer_test",
+                value: "Stream Gauges (Dynamic)",
+                label: "Stream Gauges (Dynamic)",
+                args: {},
+                type: "map_layer",
+                dynamic_map_layer: true,
+              },
+            ],
+          },
+        ]}
+      />,
+    );
+
+    fireEvent.click(await screen.findByLabelText("Fetch plugin defaults"));
+    expect(await screen.findByText(/Fetching/)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText(/Fetching/)).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(await screen.findByLabelText("Create Layer Button"));
+    await waitFor(() => expect(addMapLayer).toHaveBeenCalledTimes(1));
+    const saved = addMapLayer.mock.calls[0][0];
+    expect(saved.tablePopupType).toBe("hover");
+    expect(saved.hoverPopupAttributes).toEqual({
+      "Some Plugin Layer": ["name"],
+    });
+    expect(saved).not.toHaveProperty("omittedHoverAttributes");
+  });
+
   test("fetchPluginDefaults sets configuration without data returned", async () => {
     const handleModalClose = jest.fn();
     const addMapLayer = jest.fn();
@@ -3737,6 +3806,45 @@ describe("MapLayerModal Show on Click and Show on Hover", () => {
   const checkedStates = (label) =>
     screen.getAllByLabelText(label).map((checkbox) => checkbox.checked);
 
+  // Loads into a new layer a template of the Gauges layer, carrying the given
+  // popup settings.
+  const loadTemplate = async (popupSettings) => {
+    server.use(
+      rest.get(
+        "http://api.test/apps/tethysdash/visualizations/get/",
+        (req, res, ctx) =>
+          res(
+            ctx.status(200),
+            ctx.json({
+              success: true,
+              data: {
+                configuration: {
+                  type: "ImageLayer",
+                  props: {
+                    name: "Gauges",
+                    source: {
+                      type: "ESRI Image and Map Service",
+                      props: { url: "Some Url" },
+                    },
+                  },
+                },
+                ...popupSettings,
+              },
+            }),
+            ctx.set("Content-Type", "application/json"),
+          ),
+      ),
+    );
+    mockedGetLayerAttributes.mockResolvedValue(gaugeFields);
+    const addMapLayer = mountModal({});
+    selectEvent.openMenu(screen.getByLabelText("Layer Templates Input"));
+    fireEvent.click(await screen.findByText("Map Layer Template Example"));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Name Input").value).toBe("Gauges"),
+    );
+    return addMapLayer;
+  };
+
   test("a new discovered layer saves what it saved before hover", async () => {
     const addMapLayer = await openDiscovered(undefined);
 
@@ -3795,43 +3903,79 @@ describe("MapLayerModal Show on Click and Show on Hover", () => {
     expect(saved).not.toHaveProperty("omittedPopupAttributes");
   });
 
+  test("a hover layer that links variables stays hover after its variable link is edited", async () => {
+    // Covers R27, and that the modal hands the pane how the layer opened. The
+    // layer hides every field from its tooltip only to drive its variables.
+    const addMapLayer = await openDiscovered({
+      tablePopupType: "hover",
+      omitted: { Gauges: ["id", "flow"] },
+      variables: { Gauges: { id: "Gauge" } },
+    });
+
+    expect(checkedStates("Show on Hover row")).toEqual([false, false]);
+    fireEvent.change(screen.getAllByLabelText("variable row")[0], {
+      target: { value: "Other Gauge" },
+    });
+
+    const saved = await save(addMapLayer);
+    expect(saved.tablePopupType).toBe("hover");
+    expect(saved.hoverPopupAttributes).toEqual({ Gauges: [] });
+    expect(saved.attributeVariables).toEqual({
+      Gauges: { id: "Other Gauge" },
+    });
+    expect(saved).not.toHaveProperty("omittedPopupAttributes");
+  });
+
+  test.each([
+    ["shown fields", "hoverPopupAttributes", { Gauges: ["flow"] }],
+    ["hidden fields", "omittedHoverAttributes", { Gauges: ["id"] }],
+  ])(
+    "a template's list of hover %s is loaded with it",
+    async (_, key, list) => {
+      const addMapLayer = await loadTemplate({
+        tablePopupType: "both",
+        [key]: list,
+      });
+
+      const saved = await save(addMapLayer);
+      expect(saved.tablePopupType).toBe("both");
+      expect(saved[key]).toEqual(list);
+    },
+  );
+
+  test("a template without hover lists saves none", async () => {
+    const addMapLayer = await loadTemplate({ tablePopupType: "both" });
+
+    const saved = await save(addMapLayer);
+    expect(saved.tablePopupType).toBe("both");
+    expect(saved).not.toHaveProperty("hoverPopupAttributes");
+    expect(saved).not.toHaveProperty("omittedHoverAttributes");
+  });
+
+  test("a template without hover lists hovers on the fields its click table shows", async () => {
+    // As a layer saved before hover had its own list does. An empty hover
+    // list loaded in its place would read as one that shows nothing.
+    const addMapLayer = await loadTemplate({
+      tablePopupType: "hover",
+      omittedPopupAttributes: { Gauges: ["id"] },
+    });
+
+    fireEvent.click(await screen.findByText("Attributes/Table Popup"));
+    await screen.findByLabelText("Move id down");
+    expect(checkedStates("Show on Hover row")).toEqual([false, true]);
+
+    const saved = await save(addMapLayer);
+    expect(saved.tablePopupType).toBe("hover");
+    expect(saved.hoverPopupAttributes).toEqual({ Gauges: ["flow"] });
+  });
+
   test("a template's None layer that links variables stays None in a new layer", async () => {
     // A new layer answers clicks, but loading a template replaces its popup
     // settings, so the template's type is the one the layer opened with.
-    server.use(
-      rest.get(
-        "http://api.test/apps/tethysdash/visualizations/get/",
-        (req, res, ctx) =>
-          res(
-            ctx.status(200),
-            ctx.json({
-              success: true,
-              data: {
-                configuration: {
-                  type: "ImageLayer",
-                  props: {
-                    name: "Gauges",
-                    source: {
-                      type: "ESRI Image and Map Service",
-                      props: { url: "Some Url" },
-                    },
-                  },
-                },
-                tablePopupType: "none",
-                attributeVariables: { Gauges: { id: "Gauge" } },
-              },
-            }),
-            ctx.set("Content-Type", "application/json"),
-          ),
-      ),
-    );
-    mockedGetLayerAttributes.mockResolvedValue(gaugeFields);
-    const addMapLayer = mountModal({});
-    selectEvent.openMenu(screen.getByLabelText("Layer Templates Input"));
-    fireEvent.click(await screen.findByText("Map Layer Template Example"));
-    await waitFor(() =>
-      expect(screen.getByLabelText("Name Input").value).toBe("Gauges"),
-    );
+    const addMapLayer = await loadTemplate({
+      tablePopupType: "none",
+      attributeVariables: { Gauges: { id: "Gauge" } },
+    });
 
     fireEvent.click(await screen.findByText("Attributes/Table Popup"));
     await screen.findByLabelText("Move id down");

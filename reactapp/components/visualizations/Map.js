@@ -422,6 +422,14 @@ const MapVisualization = ({
     variableInputDateFormats,
     setVariableInputValues,
   } = useContext(VariableInputsContext);
+  // The setter as of this render, for the hover handler: MapComponent binds
+  // that only when the layers change, so the setter it closed over can be
+  // renders old. At the dashboard root it never changes, but inside a popup
+  // layout FeatureScopedVariableInputs makes a new one whenever its values
+  // change, and an old one diffs a write against the values it closed over --
+  // skipping one that matches them though the current value differs.
+  const setVariableInputValuesRef = useRef(setVariableInputValues);
+  setVariableInputValuesRef.current = setVariableInputValues;
   const { inDataViewerMode } = useContext(DataViewerModeContext);
   const { uuid } = useContext(LayoutContext);
   const { sessionNonce } = useContext(AppContext);
@@ -1307,8 +1315,10 @@ const MapVisualization = ({
       if (Object.keys(updatedVariableInputs).length > 0) {
         // Hover re-queries on every pause, often over the feature it already
         // wrote; handing back the same object then lets React skip a
-        // re-render of everything that reads the variable inputs.
-        setVariableInputValues((previousVariableInputValues) =>
+        // re-render of everything that reads the variable inputs. The setter
+        // is read through its ref, as hover calls this from a handler bound
+        // renders ago.
+        setVariableInputValuesRef.current((previousVariableInputValues) =>
           Object.entries(updatedVariableInputs).every(([name, value]) =>
             Object.is(previousVariableInputValues[name], value),
           )
@@ -1752,7 +1762,11 @@ const MapVisualization = ({
 
   // A pointer leaving the map takes the tooltip down -- including onto the
   // popup layout, which is portaled outside the map -- and so does a pan or
-  // zoom, which moves the feature out from under it.
+  // zoom, which moves the feature out from under it. So does a press: OL
+  // raises `singleclick` only after waiting out a possible double-click, and
+  // the hover debounce, which started at the last move, runs out first -- so
+  // a click made just after moving onto a feature would otherwise flash its
+  // tooltip before the click table opened.
   useEffect(() => {
     // Captured rather than read in the cleanup: MapComponent owns the OL map
     // and nulls `visualizationRef` out from under this effect on unmount.
@@ -1761,14 +1775,16 @@ const MapVisualization = ({
     // has always run by the time this one does.
     if (!map) return;
     // OpenLayers raises no map-level pointer-leave, so the viewport carries
-    // it.
+    // it, and the press beside it.
     const viewport = map.getViewport();
     map.on("movestart", cancelHover);
     viewport.addEventListener("pointerleave", cancelHover);
+    viewport.addEventListener("pointerdown", cancelHover);
 
     return () => {
       map.un("movestart", cancelHover);
       viewport.removeEventListener("pointerleave", cancelHover);
+      viewport.removeEventListener("pointerdown", cancelHover);
       cancelHover();
     };
   }, [visualizationRef, cancelHover]);

@@ -7,7 +7,10 @@ import {
   act,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { getLayerAttributes, isClickEnabled } from "components/map/utilities";
+import {
+  getLayerAttributes,
+  resolveTablePopupType,
+} from "components/map/utilities";
 import AttributesPane from "components/modals/MapLayer/AttributesPane";
 import PropTypes from "prop-types";
 import { AppContext } from "components/contexts/Contexts";
@@ -32,8 +35,8 @@ const TestingComponent = ({
     initialAttributeProps ?? {},
   );
   // What the modal captures when it opens a layer.
-  const [answeredClicksAtOpen] = useState(() =>
-    isClickEnabled(initialAttributeProps ?? {}),
+  const [openedPopupType] = useState(() =>
+    resolveTablePopupType(initialAttributeProps ?? {}),
   );
 
   return (
@@ -45,7 +48,7 @@ const TestingComponent = ({
         layerProps={layerProps}
         tabKey={tabKey}
         shapefileDiscovery={shapefileDiscovery}
-        answeredClicksAtOpen={answeredClicksAtOpen}
+        openedPopupType={openedPopupType}
       />
       <p data-testid="attributeVariables">
         {JSON.stringify(attributeProps.variables)}
@@ -94,11 +97,15 @@ test("AttributesPane successful query no attributes", async () => {
   const spinner = screen.getByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
 
-  // Headers
+  // A query that found nothing leaves the fields to be entered by hand, as
+  // one that failed does.
   expect(
-    await screen.findByText("No field attributes were found."),
+    await screen.findByText(
+      "No field attributes were found. Please provide the desired fields manually below.",
+    ),
   ).toBeInTheDocument();
-  expect(screen.queryAllByRole("table").length).toBe(0);
+  expect(screen.getByText("states")).toBeInTheDocument();
+  expect(await screen.findByLabelText("name Input 0")).toHaveValue("");
 });
 
 test("AttributesPane successful query no initial variables or popups", async () => {
@@ -846,6 +853,33 @@ describe("AttributesPane Show on Click and Show on Hover columns", () => {
     });
   });
 
+  test("a hover layer that links variables stays hover with every box unchecked", async () => {
+    // A hover-only layer that hides every field only to drive its variables
+    // (R27). It was saved before hover had its own list, so every field it
+    // hides is in the click list.
+    renderDiscovered({
+      tablePopupType: "hover",
+      omitted: { states: ["the_geom", "STATE_NAME"] },
+      variables: { states: { the_geom: "Some Variable" } },
+    });
+
+    expect(await screen.findByText("states")).toBeInTheDocument();
+    expect(checkedStates("Show on Click row")).toEqual([false, false]);
+    expect(checkedStates("Show on Hover row")).toEqual([false, false]);
+    fireEvent.change(screen.getAllByLabelText("variable row")[0], {
+      target: { value: "Other Variable" },
+    });
+
+    expect(shownProp("tablePopupType")).toBe("hover");
+    expect(shownProp("hover")).toEqual({ states: [] });
+    expect(shownProp("omittedPopupAttributes")).toEqual({});
+
+    // A checked click box takes over the variables, so hover is off then.
+    fireEvent.click(screen.getAllByLabelText("Show on Click row")[0]);
+    expect(shownProp("tablePopupType")).toBeUndefined();
+    expect(shownProp("hover")).toBeUndefined();
+  });
+
   test("a hover layer saved before hover had its own list keeps its hover fields", async () => {
     // Its hover fields are the click list's complement. Rewriting the click
     // list on the first read must not lose them, nor must the re-read that
@@ -866,6 +900,24 @@ describe("AttributesPane Show on Click and Show on Hover columns", () => {
     expect(checkedStates("Show on Click row")).toEqual([false, false]);
     expect(checkedStates("Show on Hover row")).toEqual([false, true]);
     expect(shownProp("hover")).toEqual({ states: ["STATE_NAME"] });
+  });
+
+  test("a discovery that finds no fields leaves the toggles to set the events", async () => {
+    renderDiscovered(undefined, { states: [] });
+
+    expect(
+      await screen.findByText(
+        "No field attributes were found. Please provide the desired fields manually below.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Click Input")).toBeChecked();
+    expect(screen.getByLabelText("Hover Input")).not.toBeChecked();
+    expect(await screen.findByLabelText("name Input 0")).toHaveValue("");
+
+    fireEvent.click(screen.getByLabelText("Hover Input"));
+    expect(shownProp("tablePopupType")).toBe("both");
+    expect(shownProp("omittedHover")).toEqual({ states: [] });
+    expect(shownProp("hover")).toBeUndefined();
   });
 
   test("each select-all changes only its own column and sublayer", async () => {
@@ -952,10 +1004,11 @@ describe("AttributesPane hand-entered fields", () => {
     expect(await screen.findByText("first")).toBeInTheDocument();
     expect(screen.getByLabelText("Click Input")).toBeChecked();
     expect(screen.getByLabelText("Hover Input")).not.toBeChecked();
-    // The hover column waits, disabled, for its toggle.
-    screen
-      .getAllByRole("checkbox", { name: /^hover Input \d+$/ })
-      .forEach((checkbox) => expect(checkbox).toBeDisabled());
+    // The hover column waits, disabled, for its toggle. The table fills its
+    // rows a render after its label shows, so they are waited for.
+    (
+      await screen.findAllByRole("checkbox", { name: /^hover Input \d+$/ })
+    ).forEach((checkbox) => expect(checkbox).toBeDisabled());
     screen
       .getAllByRole("checkbox", { name: /^click Input \d+$/ })
       .forEach((checkbox) => expect(checkbox).toBeEnabled());
