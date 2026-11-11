@@ -7,7 +7,7 @@ import {
   renderSyncMap,
   syncLayer,
 } from "__tests__/utilities/mapVisualizationHarness";
-import { useContext } from "react";
+import { useContext, useEffect } from "react";
 import PropTypes from "prop-types";
 import {
   act,
@@ -718,6 +718,53 @@ describe("hover and variable inputs", () => {
         JSON.stringify({ "Test Variable": "hover value" }),
       ),
     );
+  });
+
+  test("hovering the same feature again hands consumers no new variable inputs object", async () => {
+    // Hover re-queries on every pause, so resting on one feature repeats the
+    // same write; consumers of the variable inputs should not re-render for it.
+    answerAt({
+      "10,20": { Gauges: [feature("Gauges", { id: "X1" }, 10, 20)] },
+    });
+    const seen = [];
+    const VariableInputsProbe = () => {
+      const { variableInputValues } = useContext(VariableInputsContext);
+      useEffect(() => {
+        seen.push(variableInputValues);
+      }, [variableInputValues]);
+      return null;
+    };
+    const mapRef = { current: null };
+    render(
+      createLoadedComponent({
+        children: (
+          <MapContextProvider>
+            <HoverHarness
+              layers={[
+                hoverLayer("Gauges", {
+                  attributeVariables: { Gauges: { id: "Test Variable" } },
+                }),
+              ]}
+              mapRef={mapRef}
+            />
+            <VariableInputsProbe />
+          </MapContextProvider>
+        ),
+      }),
+    );
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+    await hover(mapRef, [10, 20]);
+    await waitFor(() =>
+      expect(seen[seen.length - 1]).toEqual({ "Test Variable": "X1" }),
+    );
+    const objectsSeen = seen.length;
+
+    await hover(mapRef, [10, 20]);
+    await outlastDebounce();
+
+    expect(mockedQueryLayerFeatures).toHaveBeenCalledTimes(2);
+    expect(seen).toHaveLength(objectsSeen);
   });
 
   test("a hover-only layer with no hover fields still writes its variable inputs, and shows no tooltip", async () => {

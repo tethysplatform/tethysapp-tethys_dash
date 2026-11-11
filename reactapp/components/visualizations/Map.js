@@ -36,6 +36,7 @@ import {
   resolveTablePopupType,
   isClickEnabled,
   isHoverEnabled,
+  isFieldMap,
   hoverAttributeRows,
   buildAttributeRows,
   collectLayerAttributeMaps,
@@ -1304,10 +1305,16 @@ const MapVisualization = ({
         updatedVariableInputs[variableInputName] = isAbsent ? "" : featureValue;
       }
       if (Object.keys(updatedVariableInputs).length > 0) {
-        setVariableInputValues((previousVariableInputValues) => ({
-          ...previousVariableInputValues,
-          ...updatedVariableInputs,
-        }));
+        // Hover re-queries on every pause, often over the feature it already
+        // wrote; handing back the same object then lets React skip a
+        // re-render of everything that reads the variable inputs.
+        setVariableInputValues((previousVariableInputValues) =>
+          Object.entries(updatedVariableInputs).every(([name, value]) =>
+            Object.is(previousVariableInputValues[name], value),
+          )
+            ? previousVariableInputValues
+            : { ...previousVariableInputValues, ...updatedVariableInputs },
+        );
       }
     }
   };
@@ -1594,11 +1601,7 @@ const MapVisualization = ({
     const layer = feature.__wrapperLayer;
     if (resolveTablePopupType(layer) !== "hover") return false;
     const links = layer?.attributeVariables?.[feature.layerName];
-    return (
-      Boolean(links) &&
-      typeof links === "object" &&
-      Object.keys(links).length > 0
-    );
+    return isFieldMap(links) && Object.keys(links).length > 0;
   };
 
   // Renders the rows and places the tooltip beside the cursor, opening away

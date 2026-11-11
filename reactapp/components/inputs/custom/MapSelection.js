@@ -4,6 +4,7 @@ import styled from "styled-components";
 import Table from "react-bootstrap/Table";
 import {
   MAP_SELECTION_KEYS,
+  MAP_SELECTION_LABELS,
   mapSelectionPropType,
   resolveMapSelection,
 } from "components/map/utilities";
@@ -43,12 +44,6 @@ const SelectionTable = styled(Table)`
   width: auto;
   margin-bottom: 0;
 `;
-
-// The names the user docs use for the two marks a click draws.
-const ROW_LABELS = {
-  clickedLocation: "Clicked location",
-  selectedFeature: "Selected feature",
-};
 
 // The saved value holds only what differs from the defaults (on the map, not
 // in the legend), so a map left at the defaults saves `{}`, the same as a map
@@ -105,7 +100,7 @@ export const MapSelection = ({ onChange, values }) => {
             </thead>
             <tbody>
               {MAP_SELECTION_KEYS.map((key) => {
-                const label = ROW_LABELS[key];
+                const label = MAP_SELECTION_LABELS[key];
                 const { map, legend } = setting[key];
                 const hintId = `${idPrefix}-${key}-legend-hint`;
                 return (

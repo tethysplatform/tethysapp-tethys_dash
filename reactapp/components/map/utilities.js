@@ -636,7 +636,7 @@ export function createMarkerLayer(
 const clickToleranceStyle = [
   new Style({ stroke: new Stroke({ color: "white", width: 4 }), zIndex: -1 }),
   new Style({
-    stroke: new Stroke({ color: "#007bff", width: 2, lineDash: [6, 4] }),
+    stroke: new Stroke({ color: MARKER_PIN_COLOR, width: 2, lineDash: [6, 4] }),
     zIndex: -1,
   }),
 ];
@@ -682,6 +682,13 @@ export function createHighlightLayer() {
 // editor and the legend list them.
 export const MAP_SELECTION_KEYS = ["clickedLocation", "selectedFeature"];
 
+// What the editor rows and the legend entries call each mark; the user docs use
+// the same names.
+export const MAP_SELECTION_LABELS = {
+  clickedLocation: "Clicked location",
+  selectedFeature: "Selected feature",
+};
+
 /**
  * Resolve a map's saved `mapSelection` arg to a full setting for each mark:
  * `{ clickedLocation: { map, legend }, selectedFeature: { map, legend } }`.
@@ -709,16 +716,20 @@ export function resolveMapSelection(value) {
 // the same as a layer with one symbol.
 const MAP_SELECTION_LEGEND_ENTRIES = {
   clickedLocation: {
-    title: "Clicked location",
+    title: MAP_SELECTION_LABELS.clickedLocation,
     items: [
-      { label: "Clicked location", symbol: "pin", color: MARKER_PIN_COLOR },
+      {
+        label: MAP_SELECTION_LABELS.clickedLocation,
+        symbol: "pin",
+        color: MARKER_PIN_COLOR,
+      },
     ],
   },
   selectedFeature: {
-    title: "Selected feature",
+    title: MAP_SELECTION_LABELS.selectedFeature,
     items: [
       {
-        label: "Selected feature",
+        label: MAP_SELECTION_LABELS.selectedFeature,
         symbol: "circle",
         color: "transparent",
         stroke: HIGHLIGHT_STROKE_COLOR,
@@ -2113,7 +2124,7 @@ export function isHoverEnabled(obj) {
   return type === "hover" || type === "both";
 }
 
-const isFieldMap = (value) =>
+export const isFieldMap = (value) =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
 /**
