@@ -5,15 +5,17 @@ import HoverTooltip, {
 } from "components/map/HoverTooltip";
 import { hoverAttributeRows } from "components/map/popupAttributes";
 
-// Each row's label and value cell text, in order.
+// Each field row's label and value cell text, in order. The header row has
+// column headers rather than cells, so it is left out.
 const renderedRows = () =>
   within(screen.getByRole("tooltip"))
     .getAllByRole("row")
     .map((row) =>
       within(row)
-        .getAllByRole("cell")
+        .queryAllByRole("cell")
         .map((cell) => cell.textContent),
-    );
+    )
+    .filter((cells) => cells.length > 0);
 
 describe("HoverTooltip", () => {
   it("is a tooltip", () => {
@@ -69,12 +71,39 @@ describe("HoverTooltip", () => {
     ]);
   });
 
-  it("has no title, pager or close button", () => {
-    render(<HoverTooltip rows={[{ key: "a", label: "a", value: 1 }]} />);
+  it("names the layer above Field and Value headers, like the click table", () => {
+    render(
+      <HoverTooltip
+        layerName="Gauges"
+        rows={[{ key: "a", label: "a", value: 1 }]}
+      />,
+    );
+    const tooltip = screen.getByRole("tooltip");
+    expect(within(tooltip).getByText("Gauges")).toBeInTheDocument();
+    expect(
+      within(tooltip)
+        .getAllByRole("columnheader")
+        .map((header) => header.textContent),
+    ).toEqual(["Field", "Value"]);
+    expect(renderedRows()).toEqual([["a", "1"]]);
+  });
+
+  it("has no pager or close button", () => {
+    render(
+      <HoverTooltip
+        layerName="Gauges"
+        rows={[{ key: "a", label: "a", value: 1 }]}
+      />,
+    );
     const tooltip = screen.getByRole("tooltip");
     expect(within(tooltip).queryByRole("button")).not.toBeInTheDocument();
     expect(within(tooltip).queryByRole("heading")).not.toBeInTheDocument();
-    expect(within(tooltip).queryAllByRole("row")).toHaveLength(1);
+  });
+
+  it("leaves the layer line out when it has no layer name", () => {
+    render(<HoverTooltip rows={[{ key: "a", label: "a", value: 1 }]} />);
+    // The table's headers come first: nothing names a layer above them.
+    expect(screen.getByRole("tooltip")).toHaveTextContent(/^FieldValue/);
   });
 });
 

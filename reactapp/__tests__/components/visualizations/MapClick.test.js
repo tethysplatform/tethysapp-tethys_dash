@@ -4446,16 +4446,16 @@ describe("Map popup follows the saved attribute order", () => {
     renderMap([layer({ tablePopupType: "hover" })], {
       onMapPointerMove: true,
     });
-    // The hover tooltip, which has no header row. Like the table's overlay it
-    // is not laid out in jsdom, so it and its rows count as hidden.
+    // The hover tooltip. Like the table's overlay it is not laid out in jsdom,
+    // so it and its rows count as hidden. Its header row has column headers
+    // rather than cells, so only the field rows are read.
     const tooltip = await screen.findByRole("tooltip", { hidden: true });
     await within(tooltip).findByText("Creek");
     const labels = within(tooltip)
       .getAllByRole("row", { hidden: true })
-      .map(
-        (row) =>
-          within(row).getAllByRole("cell", { hidden: true })[0].textContent,
-      );
+      .map((row) => within(row).queryAllByRole("cell", { hidden: true }))
+      .filter((cells) => cells.length > 0)
+      .map((cells) => cells[0].textContent);
     expect(labels).toEqual(["NAME", "STATUS", "GAUGE_ID"]);
   });
 });

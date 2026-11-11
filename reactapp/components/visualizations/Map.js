@@ -1622,14 +1622,14 @@ const MapVisualization = ({
   // from the nearer edges of the map. The rows are committed before the
   // overlay moves, so a tooltip never shows the previous feature's rows at
   // the new position for a frame.
-  const showHoverTooltip = (map, rows, coordinate, pixel) => {
+  const showHoverTooltip = (map, feature, rows, coordinate, pixel) => {
     const overlay = hoverTooltipOverlayRef.current;
     const root = hoverTooltipRootRef.current;
     // istanbul ignore if -- both are created on mount, before any handler is
     // bound.
     if (!overlay || !root) return;
     flushSync(() => {
-      root.render(<HoverTooltip rows={rows} />);
+      root.render(<HoverTooltip layerName={feature.layerName} rows={rows} />);
     });
     const { positioning, offset } = hoverTooltipPlacement(
       pixel ?? map.getPixelFromCoordinate(coordinate),
@@ -1725,7 +1725,7 @@ const MapVisualization = ({
     for (const feature of ranked) {
       const rows = hoverAttributeRows(feature);
       if (rows.length > 0) {
-        showHoverTooltip(map, rows, coordinate, pixel);
+        showHoverTooltip(map, feature, rows, coordinate, pixel);
         return;
       }
     }

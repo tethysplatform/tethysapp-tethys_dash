@@ -191,13 +191,15 @@ const tooltipRows = (mapRef) => {
     "tooltip",
     { hidden: true },
   );
+  // The header row has column headers rather than cells, so it is left out.
   return within(tooltip)
     .getAllByRole("row", { hidden: true })
     .map((row) =>
       within(row)
-        .getAllByRole("cell", { hidden: true })
+        .queryAllByRole("cell", { hidden: true })
         .map((cell) => cell.textContent),
-    );
+    )
+    .filter((cells) => cells.length > 0);
 };
 
 // The tooltip comes up at `coordinate` showing `rows`. Its rows are committed
@@ -392,7 +394,7 @@ describe("the hover tooltip", () => {
     expect(tableOverlay(mapRef).getPosition()).toBeUndefined();
   });
 
-  test("shows the nearest feature that has a hover field, with no pager, close button or title", async () => {
+  test("shows the nearest feature that has a hover field, under its layer's name, with no pager or close button", async () => {
     answerAt({
       "10,20": {
         // The nearest of all, but it has no field checked for hover.
@@ -420,7 +422,8 @@ describe("the hover tooltip", () => {
       tooltip.queryByRole("button", { hidden: true }),
     ).not.toBeInTheDocument();
     expect(tooltip.queryByLabelText("Next Swiper")).not.toBeInTheDocument();
-    expect(tooltip.queryByText("Rivers")).not.toBeInTheDocument();
+    expect(tooltip.getByText("Rivers")).toBeInTheDocument();
+    expect(tooltip.queryByText("Gauges")).not.toBeInTheDocument();
   });
 
   test("hovering a layer with both popups while the click table is open leaves the table's rows and labels alone", async () => {

@@ -33,18 +33,36 @@ const WrappingTD = styled.td`
   vertical-align: top;
 `;
 
+const LayerName = styled.p`
+  font-size: small;
+  margin-bottom: 0.25rem;
+`;
+
 /**
- * The hover tooltip: the hovered feature's fields as label and value rows,
- * styled like the click table's. It describes one feature and is gone as soon
- * as the cursor moves, so it has no title, pager or close button.
+ * The hover tooltip: the hovered feature's layer and its fields, laid out like
+ * the click table -- the layer's name above a Field / Value table. It
+ * describes one feature and is gone as soon as the cursor moves, so it has no
+ * pager or close button.
  *
  * @param {object} props
+ * @param {string} [props.layerName] The hovered feature's layer.
  * @param {{key: string, label: string, value: *}[]} props.rows The feature's
  *   hover rows, from `hoverAttributeRows`.
  */
-const HoverTooltip = ({ rows }) => (
+const HoverTooltip = ({ layerName, rows }) => (
   <TooltipBox role="tooltip">
+    {layerName && (
+      <LayerName>
+        <b>{layerName}</b>:
+      </LayerName>
+    )}
     <TooltipTable striped bordered size="sm">
+      <thead>
+        <tr>
+          <th className="text-center">Field</th>
+          <th className="text-center">Value</th>
+        </tr>
+      </thead>
       <tbody>
         {rows.map(({ key, label, value }) => (
           <tr key={key}>
@@ -85,6 +103,7 @@ export function hoverTooltipPlacement(pixel, size) {
 }
 
 HoverTooltip.propTypes = {
+  layerName: PropTypes.string,
   rows: PropTypes.arrayOf(
     PropTypes.shape({
       key: PropTypes.string,
