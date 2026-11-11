@@ -97,17 +97,26 @@ export const MapSelection = ({ onChange, values }) => {
       {isOpen && (
         <Container>
           <SelectionTable size="sm" borderless>
+            {/* One "Show" heading over short column names rather than
+                repeating it in each; every checkbox still carries the full
+                phrase ("Clicked location Show on map") as its name. */}
             <thead>
               <tr>
                 <td />
+                <th scope="colgroup" colSpan={3} className="text-center">
+                  Show
+                </th>
+              </tr>
+              <tr>
+                <td />
                 <th scope="col" className="text-center">
-                  Show on map
+                  Map
                 </th>
                 <th scope="col" className="text-center">
-                  Show in legend
+                  Legend
                 </th>
                 <th scope="col" className="text-center">
-                  Show in layer control
+                  Layer control
                 </th>
               </tr>
             </thead>

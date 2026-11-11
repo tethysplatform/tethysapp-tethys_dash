@@ -127,11 +127,11 @@ Clicking a feature drops a pin where the map was clicked and outlines the select
 - **Clicked location**: the pin at the click point.
 - **Selected feature**: the outline around the selected feature.
 
-Each row has three checkboxes:
+Each row has three checkboxes, under a **Show** heading:
 
-- **Show on map**: draw it on the map. Both are on by default. Turning one off changes nothing else a click does: the attribute table, the popup layout and the variable inputs still update.
-- **Show in legend**: list it in the map's legend as "Clicked location" or "Selected feature", with its symbol. The entry is always listed, even before anything has been clicked. Available only while **Show on map** is on.
-- **Show in layer control**: list it in the map's layer control, under the same name, so viewers can hide and show it there. It appears there once something has been clicked. On by default; available only while **Show on map** is on.
+- **Map**: draw it on the map. Both are on by default. Turning one off changes nothing else a click does: the attribute table, the popup layout and the variable inputs still update.
+- **Legend**: list it in the map's legend as "Clicked location" or "Selected feature", with its symbol. The entry is always listed, even before anything has been clicked. Available only while **Map** is checked.
+- **Layer control**: list it in the map's layer control, under the same name, so viewers can hide and show it there. It appears there once something has been clicked. On by default; available only while **Map** is checked.
 
 A layer's click tolerance ring still draws when the pin is hidden. Hovering never draws the pin or the outline. Changes take effect from the next click.
 
