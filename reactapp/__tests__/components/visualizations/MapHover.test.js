@@ -298,6 +298,9 @@ describe("the hover tooltip", () => {
         popupConfig: layoutConfig(),
       }),
     ]);
+    // The layer pass lands after "Map Ready" and sweeps every layer that is
+    // not a saved one, so a click before it would lose its pin and outline.
+    await waitFor(() => expect(layerNamed(mapRef, "Stations")).toBeDefined());
     await click(mapRef, [10, 20]);
     await waitFor(() =>
       expect(screen.getByTestId("popup-modal-header-title")).toHaveTextContent(

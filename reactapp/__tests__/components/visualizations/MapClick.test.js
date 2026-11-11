@@ -4670,6 +4670,16 @@ const mountSelectionMap = async (
     }),
   );
   expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  // The map is ready before its layers are: the layer pass that adds them runs
+  // after, and it sweeps away every layer that is not one of them -- the pin
+  // and the outline included. Clicking only once that pass has landed keeps a
+  // slow run from losing the marks a click draws.
+  for (const layer of layers) {
+    const name = layer.configuration?.props?.name;
+    if (name) {
+      await waitFor(() => expect(mapLayerNamed(mapRef, name)).toBeDefined());
+    }
+  }
   return mapRef;
 };
 
