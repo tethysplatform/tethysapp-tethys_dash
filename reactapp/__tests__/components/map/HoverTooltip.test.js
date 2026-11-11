@@ -3,7 +3,7 @@ import HoverTooltip, {
   HOVER_TOOLTIP_OFFSET,
   hoverTooltipPlacement,
 } from "components/map/HoverTooltip";
-import { hoverAttributeRows } from "components/map/utilities";
+import { hoverAttributeRows } from "components/map/popupAttributes";
 
 // Each row's label and value cell text, in order.
 const renderedRows = () =>

@@ -8,11 +8,13 @@ import {
   sourcePropertiesOptions,
   attributePropsPropType,
   sourcePropType,
+} from "components/map/utilities";
+import {
   orderAttributeNames,
   isClickEnabled,
   isHoverEnabled,
   hoverFieldFilter,
-} from "components/map/utilities";
+} from "components/map/popupAttributes";
 import CheckboxInput from "components/inputs/CheckboxInput";
 import Spinner from "react-bootstrap/Spinner";
 import Button from "react-bootstrap/Button";

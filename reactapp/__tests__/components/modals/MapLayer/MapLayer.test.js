@@ -28,13 +28,13 @@ import MapContextProvider, {
   useMapContext,
 } from "components/contexts/MapContext";
 import appAPI from "services/api/app";
+import { getLayerAttributes } from "components/map/utilities";
 import {
   buildAttributeRows,
-  getLayerAttributes,
   hoverAttributeRows,
   isClickEnabled,
   isHoverEnabled,
-} from "components/map/utilities";
+} from "components/map/popupAttributes";
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
 import { fullMapLayer } from "__tests__/utilities/constants";

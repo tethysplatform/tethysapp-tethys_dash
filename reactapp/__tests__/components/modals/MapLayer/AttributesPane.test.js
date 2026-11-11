@@ -7,10 +7,8 @@ import {
   act,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import {
-  getLayerAttributes,
-  resolveTablePopupType,
-} from "components/map/utilities";
+import { getLayerAttributes } from "components/map/utilities";
+import { resolveTablePopupType } from "components/map/popupAttributes";
 import AttributesPane from "components/modals/MapLayer/AttributesPane";
 import PropTypes from "prop-types";
 import { AppContext } from "components/contexts/Contexts";

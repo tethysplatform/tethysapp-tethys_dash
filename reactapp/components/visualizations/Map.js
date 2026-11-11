@@ -20,29 +20,33 @@ import {
   createHighlightLayer,
   addHighlightFeatures,
   getGeometryAnchor,
-  isTableEligible,
-  hasModalPopup,
   createMarkerLayer,
   createClickToleranceFeatures,
   clickQueryTolerance,
   zoomsInsteadOfQuerying,
   configurationPropType,
   mapDrawingPropType,
-  mapSelectionPropType,
-  resolveMapSelection,
-  mapSelectionLegendEntries,
   loadLayerJSONs,
   hasLegend,
+  collectLayerAttributeMaps,
+  attributeOrderPropType,
+  CLIENT_VECTOR_SOURCE_TYPES,
+} from "components/map/utilities";
+import {
+  isTableEligible,
+  hasModalPopup,
   resolveTablePopupType,
   isClickEnabled,
   isHoverEnabled,
   isFieldMap,
   hoverAttributeRows,
   buildAttributeRows,
-  collectLayerAttributeMaps,
-  attributeOrderPropType,
-  CLIENT_VECTOR_SOURCE_TYPES,
-} from "components/map/utilities";
+} from "components/map/popupAttributes";
+import {
+  mapSelectionPropType,
+  resolveMapSelection,
+  mapSelectionLegendEntries,
+} from "components/map/mapSelection";
 import { rankQueriedFeatures } from "components/map/ranking";
 import { defaultStroke } from "components/inputs/RuleEditor";
 import {

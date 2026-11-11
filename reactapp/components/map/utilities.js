@@ -27,6 +27,10 @@ import {
   DECORATION_LAYER_KEY,
   LINKED_EXTENT_SOURCE_TYPE,
 } from "components/map/decorationTypes";
+import {
+  HIGHLIGHT_STROKE_COLOR,
+  MARKER_PIN_COLOR,
+} from "components/map/mapSelection";
 
 // Source types whose features live in a client-side OL VectorSource (vs
 // server-rendered services queried remotely).
@@ -578,12 +582,6 @@ export function updateOlLayerProps(olLayer, newProps) {
   }
 }
 
-// The clicked-location pin's fill and the selected-feature outline's stroke.
-// Shared with the Map Selection legend entries, so a legend swatch always
-// matches what a click draws.
-const MARKER_PIN_COLOR = "#007bff";
-const HIGHLIGHT_STROKE_COLOR = "#00008b";
-
 // `extraFeatures` share the pin's layer, and so its lifetime: the click
 // tolerance rings (createClickToleranceFeatures). With `pin: false` (the Map
 // Selection setting hides the clicked location) the layer carries only those,
@@ -676,75 +674,6 @@ export function createHighlightLayer() {
   });
 
   return highlightLayer;
-}
-
-// The two things a click marks on the map, in the order the Map Selection
-// editor and the legend list them.
-export const MAP_SELECTION_KEYS = ["clickedLocation", "selectedFeature"];
-
-// What the editor rows and the legend entries call each mark; the user docs use
-// the same names.
-export const MAP_SELECTION_LABELS = {
-  clickedLocation: "Clicked location",
-  selectedFeature: "Selected feature",
-};
-
-/**
- * Resolve a map's saved `mapSelection` arg to a full setting for each mark:
- * `{ clickedLocation: { map, legend }, selectedFeature: { map, legend } }`.
- *
- * The saved value holds only what differs from the defaults, which are what a
- * click drew before the setting existed -- on the map, not in the legend -- so
- * a map saved without it, or with `{}`, behaves exactly as it always has. A
- * legend entry for a mark the map does not draw would describe nothing, so
- * `legend` is off whenever `map` is. Anything malformed is ignored in favor of
- * the default rather than trusted, since the value is hand-editable JSON.
- */
-export function resolveMapSelection(value) {
-  const saved = value && typeof value === "object" ? value : {};
-  return Object.fromEntries(
-    MAP_SELECTION_KEYS.map((key) => {
-      const entry =
-        saved[key] && typeof saved[key] === "object" ? saved[key] : {};
-      const map = typeof entry.map === "boolean" ? entry.map : true;
-      return [key, { map, legend: map && entry.legend === true }];
-    }),
-  );
-}
-
-// Single-item entries, which the legend draws as the symbol beside the title,
-// the same as a layer with one symbol.
-const MAP_SELECTION_LEGEND_ENTRIES = {
-  clickedLocation: {
-    title: MAP_SELECTION_LABELS.clickedLocation,
-    items: [
-      {
-        label: MAP_SELECTION_LABELS.clickedLocation,
-        symbol: "pin",
-        color: MARKER_PIN_COLOR,
-      },
-    ],
-  },
-  selectedFeature: {
-    title: MAP_SELECTION_LABELS.selectedFeature,
-    items: [
-      {
-        label: MAP_SELECTION_LABELS.selectedFeature,
-        symbol: "circle",
-        color: "transparent",
-        stroke: HIGHLIGHT_STROKE_COLOR,
-      },
-    ],
-  },
-};
-
-// The legend entries a resolved Map Selection setting asks for. They describe
-// what a click would draw, so they are listed whether or not anything has been
-// clicked yet.
-export function mapSelectionLegendEntries(resolved) {
-  return MAP_SELECTION_KEYS.filter((key) => resolved?.[key]?.legend).map(
-    (key) => MAP_SELECTION_LEGEND_ENTRIES[key],
-  );
 }
 
 /**
@@ -2016,34 +1945,6 @@ export const hoverPopupAttributesPropType = PropTypes.objectOf(
   PropTypes.arrayOf(PropTypes.string),
 );
 
-/**
- * Applies an author's saved field order to a list of field names.
- *
- * The order is a list rather than the key order of an object because
- * JSON.parse moves integer-like keys ("2020") to the front of every object,
- * so an author's position for a year or ID column would not survive a reload.
- *
- * @param {string[]} names Field names in their natural order (as discovered,
- *   or as the source returned them).
- * @param {string[]} [savedOrder] The author's order. May list fields that are
- *   absent from `names`, and may omit fields that are present.
- * @returns {string[]} The saved names that are present, in saved order,
- *   followed by the remaining names in their natural order, each once.
- */
-export function orderAttributeNames(names, savedOrder) {
-  const present = new Set(names);
-  const ordered = new Set();
-  // A hand-edited or imported config may carry anything here; ignore what is
-  // not a list rather than fail the popup render.
-  for (const name of Array.isArray(savedOrder) ? savedOrder : []) {
-    if (present.has(name)) ordered.add(name);
-  }
-  for (const name of names) {
-    ordered.add(name);
-  }
-  return Array.from(ordered);
-}
-
 const LAYER_ATTRIBUTE_MAP_KEYS = {
   aliases: "attributeAliases",
   variables: "attributeVariables",
@@ -2086,15 +1987,6 @@ export const attributePropsPropType = PropTypes.shape({
   queryable: PropTypes.bool,
 });
 
-// Resolves the per-layer table popup trigger from either the new
-// `tablePopupType` field or the legacy `queryable` boolean. Accepts any object
-// with these keys at the top level — works for attributeProps (used in the
-// MapLayer modal) and for hoisted layer config (used in Map.js filters).
-//   tablePopupType present  → use it directly ("none", "click", "hover" or
-//                             "both"); ask isClickEnabled / isHoverEnabled
-//                             rather than comparing the value
-//   queryable === false     → "none" (legacy "Allow Layer Query" off)
-//   otherwise               → "click" (default)
 /**
  * Whether a layer has a legend. The Legend tab's "No Legend" stores an empty
  * object, and an empty object is truthy -- so a bare truthiness check reports
@@ -2104,103 +1996,6 @@ export const attributePropsPropType = PropTypes.shape({
 export function hasLegend(legend) {
   if (!legend) return false;
   return !(typeof legend === "object" && Object.keys(legend).length === 0);
-}
-
-export function resolveTablePopupType(obj) {
-  if (obj?.tablePopupType) return obj.tablePopupType;
-  if (obj?.queryable === false) return "none";
-  return "click";
-}
-
-/** Does this layer open the attribute table on click? */
-export function isClickEnabled(obj) {
-  const type = resolveTablePopupType(obj);
-  return type === "click" || type === "both";
-}
-
-/** Does this layer show the hover tooltip? */
-export function isHoverEnabled(obj) {
-  const type = resolveTablePopupType(obj);
-  return type === "hover" || type === "both";
-}
-
-export const isFieldMap = (value) =>
-  Boolean(value) && typeof value === "object" && !Array.isArray(value);
-
-/**
- * Which of a sublayer's fields the hover tooltip shows, as a test on the field
- * name.
- *
- * Hover keeps its own list beside the click table's, in one of two shapes:
- * `hoverPopupAttributes` names the only fields to show (a layer whose fields
- * the editor could list), and `omittedHoverAttributes` names the fields to hide
- * (a layer whose fields come back only from a query, so they cannot be listed
- * up front). A layer with neither was saved before hover had a list of its own,
- * when the one hover table hid the click table's omitted fields, so those are
- * what it hides. The editor writes the hover key whenever hover is on, so which
- * key is present is what decides.
- *
- * @param {object} layer The saved layer config.
- * @param {string} sublayerName The queried feature's sublayer.
- * @returns {(field: string) => boolean}
- */
-export function hoverFieldFilter(layer, sublayerName) {
-  // A hand-edited config may carry anything here: a list that is not an array
-  // is read as empty rather than failing the tooltip.
-  const listFor = (map) =>
-    Array.isArray(map[sublayerName]) ? map[sublayerName] : [];
-  if (isFieldMap(layer?.hoverPopupAttributes)) {
-    const shown = listFor(layer.hoverPopupAttributes);
-    return (field) => shown.includes(field);
-  }
-  const omittedMap = isFieldMap(layer?.omittedHoverAttributes)
-    ? layer.omittedHoverAttributes
-    : layer?.omittedPopupAttributes;
-  const omitted = isFieldMap(omittedMap) ? listFor(omittedMap) : [];
-  return (field) => !omitted.includes(field);
-}
-
-/**
- * A feature's attributes as display rows: the fields `isVisible` keeps, in
- * the author's order, each labelled by its alias.
- *
- * Rows are a list rather than an object keyed by display name: an object
- * would move integer-like names ("2020") back to the front, and two fields
- * sharing an alias would collapse into one row.
- *
- * @param {object} attributes The feature's attributes.
- * @param {object} options
- * @param {(field: string) => boolean} options.isVisible
- * @param {object} [options.aliases] Field name to alias, for this sublayer.
- * @param {string[]} [options.order] The author's order, for this sublayer.
- * @returns {{key: string, label: string, value: *}[]}
- */
-export function buildAttributeRows(
-  attributes,
-  { isVisible, aliases = {}, order },
-) {
-  const safeAttributes = attributes ?? {};
-  const visibleFields = Object.keys(safeAttributes).filter(isVisible);
-  return orderAttributeNames(visibleFields, order).map((key) => ({
-    key,
-    label: aliases[key] || key,
-    value: safeAttributes[key],
-  }));
-}
-
-/**
- * The hover tooltip's rows for a queried feature, read from the feature's own
- * layer (`__wrapperLayer`) rather than from maps merged across layers, so
- * hovering one layer never borrows another's settings.
- */
-export function hoverAttributeRows(feature) {
-  const layer = feature?.__wrapperLayer;
-  const sublayerName = feature?.layerName;
-  return buildAttributeRows(feature?.attributes, {
-    isVisible: hoverFieldFilter(layer, sublayerName),
-    aliases: layer?.attributeAliases?.[sublayerName] ?? {},
-    order: layer?.attributeOrder?.[sublayerName],
-  });
 }
 
 /**
@@ -2232,23 +2027,6 @@ export function formatAttributeValue(value) {
     }
   }
   return value;
-}
-
-// The two questions asked of every feature a click turns up. A feature can
-// answer yes to both (the common case), or to exactly one -- a layer with
-// `tablePopupType: "none"` or `"hover"` plus a modal is reachable only through
-// the modal, and a layer with no popupConfig only through the table. The
-// wrapper layer is tagged onto each feature at query time (see the queryCalls
-// loop in Map.js's onMapClick).
-
-/** Does this feature belong in the click-driven table popup? */
-export function isTableEligible(feature) {
-  return isClickEnabled(feature?.__wrapperLayer);
-}
-
-/** Does this feature's layer have a custom modal popup configured? */
-export function hasModalPopup(feature) {
-  return feature?.__wrapperLayer?.popupConfig?.mode === "modal";
 }
 
 export const sourcePropType = PropTypes.shape({
@@ -2336,15 +2114,4 @@ export const layerInfoPropType = PropTypes.shape({
 export const mapDrawingPropType = PropTypes.shape({
   options: PropTypes.arrayOf(PropTypes.string),
   limit: PropTypes.number,
-});
-
-// Only what differs from the defaults is saved; see resolveMapSelection.
-const mapSelectionEntryPropType = PropTypes.shape({
-  map: PropTypes.bool,
-  legend: PropTypes.bool,
-});
-
-export const mapSelectionPropType = PropTypes.shape({
-  clickedLocation: mapSelectionEntryPropType,
-  selectedFeature: mapSelectionEntryPropType,
 });

@@ -8,11 +8,8 @@ import Button from "react-bootstrap/Button";
 import { valuesEqual } from "components/modals/utilities";
 import { BsPencilSquare, BsTrash } from "react-icons/bs";
 import { RxDragHandleHorizontal } from "react-icons/rx";
-import {
-  hasLegend,
-  layerPropType,
-  resolveTablePopupType,
-} from "components/map/utilities";
+import { hasLegend, layerPropType } from "components/map/utilities";
+import { resolveTablePopupType } from "components/map/popupAttributes";
 import { AppContext } from "components/contexts/Contexts";
 import { findSelectOptionByValue } from "components/visualizations/utilities";
 import { DEFAULT_DYNAMIC_LAYER_SOURCE } from "components/modals/MapLayer/runtimeLayerSource";

@@ -42,10 +42,12 @@ import {
   sourcePropType,
   attributePropsPropType,
   saveLayerJSON,
-  resolveTablePopupType,
-  isHoverEnabled,
   hasLegend,
 } from "components/map/utilities";
+import {
+  resolveTablePopupType,
+  isHoverEnabled,
+} from "components/map/popupAttributes";
 import {
   isClassStyleMode,
   isRampBoundSet,

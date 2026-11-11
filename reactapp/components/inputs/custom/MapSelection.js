@@ -7,7 +7,7 @@ import {
   MAP_SELECTION_LABELS,
   mapSelectionPropType,
   resolveMapSelection,
-} from "components/map/utilities";
+} from "components/map/mapSelection";
 
 const Container = styled.div`
   margin-left: 1.5rem;
