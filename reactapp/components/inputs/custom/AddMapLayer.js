@@ -153,6 +153,12 @@ const MapLayerTemplate = ({
         aliases: attributeAliases,
         order: attributeOrder,
         tablePopupType: layerTablePopupType,
+        // Left undefined when the layer has none, not defaulted to {} like the
+        // maps above: which hover key is present is what decides how hover
+        // reads its fields, and an empty allow-list would turn a hover layer
+        // saved before hover had its own list into one that shows nothing.
+        hover: existingMapLayer.hoverPopupAttributes,
+        omittedHover: existingMapLayer.omittedHoverAttributes,
       },
       popupConfig: existingMapLayer.popupConfig ?? null,
     };

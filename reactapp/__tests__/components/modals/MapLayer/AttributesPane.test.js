@@ -7,7 +7,7 @@ import {
   act,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { getLayerAttributes } from "components/map/utilities";
+import { getLayerAttributes, isClickEnabled } from "components/map/utilities";
 import AttributesPane from "components/modals/MapLayer/AttributesPane";
 import PropTypes from "prop-types";
 import { AppContext } from "components/contexts/Contexts";
@@ -31,6 +31,10 @@ const TestingComponent = ({
   const [attributeProps, setAttributeProps] = useState(
     initialAttributeProps ?? {},
   );
+  // What the modal captures when it opens a layer.
+  const [answeredClicksAtOpen] = useState(() =>
+    isClickEnabled(initialAttributeProps ?? {}),
+  );
 
   return (
     <AppContext.Provider value={{ dynamicMapLayers: [] }}>
@@ -41,6 +45,7 @@ const TestingComponent = ({
         layerProps={layerProps}
         tabKey={tabKey}
         shapefileDiscovery={shapefileDiscovery}
+        answeredClicksAtOpen={answeredClicksAtOpen}
       />
       <p data-testid="attributeVariables">
         {JSON.stringify(attributeProps.variables)}
@@ -56,6 +61,10 @@ const TestingComponent = ({
       </p>
       <p data-testid="queryable">{JSON.stringify(attributeProps.queryable)}</p>
       <p data-testid="attributeOrder">{JSON.stringify(attributeProps.order)}</p>
+      <p data-testid="hover">{JSON.stringify(attributeProps.hover)}</p>
+      <p data-testid="omittedHover">
+        {JSON.stringify(attributeProps.omittedHover)}
+      </p>
     </AppContext.Provider>
   );
 };
@@ -123,7 +132,8 @@ test("AttributesPane successful query no initial variables or popups", async () 
   expect(await screen.findByText("states")).toBeInTheDocument();
   expect(screen.getByText("Name")).toBeInTheDocument();
   expect(screen.getByText("Alias")).toBeInTheDocument();
-  expect(screen.getByText("Show in popup")).toBeInTheDocument();
+  expect(screen.getByText("Show on Click")).toBeInTheDocument();
+  expect(screen.getByText("Show on Hover")).toBeInTheDocument();
   expect(screen.getByText("Variable Input Name")).toBeInTheDocument();
 
   // Body
@@ -140,14 +150,23 @@ test("AttributesPane successful query no initial variables or popups", async () 
   expect(variableTextboxes[0].value).toBe("");
   expect(variableTextboxes[1].value).toBe("");
 
-  const popupCheckboxes = screen.getAllByLabelText("Show in popup row");
-  expect(popupCheckboxes.length).toBe(2); // includes header and 2 rows
-  const headerCheckbox = screen.getByLabelText("Show in popup header");
-  expect(headerCheckbox).toBeInTheDocument();
+  // A new layer starts with every field shown on click and none on hover.
+  const clickCheckboxes = screen.getAllByLabelText("Show on Click row");
+  expect(clickCheckboxes.length).toBe(2);
+  expect(screen.getByLabelText("Show on Click header").checked).toBe(true);
+  expect(clickCheckboxes[0].checked).toBe(true);
+  expect(clickCheckboxes[1].checked).toBe(true);
 
-  expect(headerCheckbox.checked).toBe(true);
-  expect(popupCheckboxes[0].checked).toBe(true);
-  expect(popupCheckboxes[1].checked).toBe(true);
+  const hoverCheckboxes = screen.getAllByLabelText("Show on Hover row");
+  expect(hoverCheckboxes.length).toBe(2);
+  expect(screen.getByLabelText("Show on Hover header").checked).toBe(false);
+  expect(hoverCheckboxes[0].checked).toBe(false);
+  expect(hoverCheckboxes[1].checked).toBe(false);
+
+  // The Table Popup Type control is gone; the columns decide.
+  expect(screen.queryByText("Table Popup Type")).not.toBeInTheDocument();
+  expect(screen.getByTestId("tablePopupType")).toBeEmptyDOMElement();
+  expect(screen.getByTestId("hover")).toBeEmptyDOMElement();
 });
 
 test("AttributesPane successful query with initial variables or popups", async () => {
@@ -182,8 +201,6 @@ test("AttributesPane successful query with initial variables or popups", async (
     />,
   );
 
-  expect(screen.getByLabelText("Click").checked).toBe(true); // default Table Popup Type radio is "Click"
-
   const spinner = screen.getByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
 
@@ -191,7 +208,7 @@ test("AttributesPane successful query with initial variables or popups", async (
   expect(await screen.findByText("states")).toBeInTheDocument();
   expect(screen.getByText("Name")).toBeInTheDocument();
   expect(screen.getByText("Alias")).toBeInTheDocument();
-  expect(screen.getByText("Show in popup")).toBeInTheDocument();
+  expect(screen.getByText("Show on Click")).toBeInTheDocument();
   expect(screen.getByText("Variable Input Name")).toBeInTheDocument();
 
   // Body
@@ -210,14 +227,14 @@ test("AttributesPane successful query with initial variables or popups", async (
   expect(variableTextboxes[0].value).toBe("some variable");
   expect(variableTextboxes[1].value).toBe("");
 
-  const popupCheckboxes = screen.getAllByLabelText("Show in popup row");
-  expect(popupCheckboxes.length).toBe(2); // includes header and 2 rows
-  const headerCheckbox = screen.getByLabelText("Show in popup header");
+  const clickCheckboxes = screen.getAllByLabelText("Show on Click row");
+  expect(clickCheckboxes.length).toBe(2);
+  const headerCheckbox = screen.getByLabelText("Show on Click header");
   expect(headerCheckbox).toBeInTheDocument();
 
   expect(headerCheckbox.checked).toBe(true);
-  expect(popupCheckboxes[0].checked).toBe(false);
-  expect(popupCheckboxes[1].checked).toBe(true);
+  expect(clickCheckboxes[0].checked).toBe(false);
+  expect(clickCheckboxes[1].checked).toBe(true);
 });
 
 test("AttributesPane unsuccessful query no initial variables or popups", async () => {
@@ -250,15 +267,20 @@ test("AttributesPane unsuccessful query no initial variables or popups", async (
     ),
   ).toBeInTheDocument();
 
-  expect(screen.getByLabelText("Click").checked).toBe(true); // default Table Popup Type radio is "Click"
+  // A new layer's toggles start with click on and hover off.
+  expect(screen.getByLabelText("Click Input").checked).toBe(true);
+  expect(screen.getByLabelText("Hover Input").checked).toBe(false);
 
   // Headers
   expect(await screen.findByText("states")).toBeInTheDocument();
   expect(await screen.findByText("Name")).toBeInTheDocument();
-  expect(screen.getByText("Show in popup")).toBeInTheDocument();
+  expect(screen.getByText("Show on Click")).toBeInTheDocument();
+  expect(screen.getByText("Show on Hover")).toBeInTheDocument();
   expect(screen.getByText("Variable Input Name")).toBeInTheDocument();
 
-  let popCheckboxes = screen.getAllByRole("checkbox", { name: /popup/i });
+  let popCheckboxes = screen.getAllByRole("checkbox", {
+    name: /^click Input \d+$/,
+  });
   expect(popCheckboxes.length).toBe(1); // includes 1 row
   expect(screen.getAllByRole("textbox").length).toBe(3); // name, alias and variable input
 
@@ -293,7 +315,9 @@ test("AttributesPane unsuccessful query no initial variables or popups", async (
   variableTextbox.focus();
   // adds a new row
   await userEvent.tab();
-  popCheckboxes = screen.getAllByRole("checkbox", { name: /popup/i });
+  popCheckboxes = screen.getAllByRole("checkbox", {
+    name: /^click Input \d+$/,
+  });
   expect(popCheckboxes.length).toBe(2);
   expect(screen.getAllByRole("textbox").length).toBe(6);
   expect(screen.getAllByRole("textbox")[3]).toHaveFocus();
@@ -367,12 +391,14 @@ test("AttributesPane unsuccessful query with initial variables, fields, and popu
   // Headers
   expect(await screen.findByText("esri")).toBeInTheDocument();
   expect(await screen.findByText("Name")).toBeInTheDocument();
-  expect(screen.getByText("Show in popup")).toBeInTheDocument();
+  expect(screen.getByText("Show on Click")).toBeInTheDocument();
   expect(screen.getByText("Variable Input Name")).toBeInTheDocument();
 
-  expect(screen.getByLabelText("Click").checked).toBe(true); // default Table Popup Type radio is "Click"
+  expect(screen.getByLabelText("Click Input").checked).toBe(true);
 
-  const popCheckboxes = screen.getAllByRole("checkbox", { name: /popup/i });
+  const popCheckboxes = screen.getAllByRole("checkbox", {
+    name: /^click Input \d+$/,
+  });
   expect(popCheckboxes.length).toBe(2); // includes 2 row
   expect(screen.getAllByRole("textbox").length).toBe(6); // name, alias and variable input
 
@@ -420,9 +446,11 @@ test("AttributesPane popups header and body change", async () => {
     "",
   );
 
-  // header popup controls all popups. unchecking means that all fields are omitted
+  // The header controls every row of its column. With every box unchecked
+  // and no variables linked, nothing answers a click: the layer saves as
+  // None, and its click list has nothing to say.
   expect(await screen.findByText("states")).toBeInTheDocument();
-  const headerCheckbox = screen.getByLabelText("Show in popup header");
+  const headerCheckbox = screen.getByLabelText("Show on Click header");
   await waitFor(() => {
     expect(headerCheckbox.checked).toBe(true);
   });
@@ -431,11 +459,14 @@ test("AttributesPane popups header and body change", async () => {
     expect(headerCheckbox.checked).toBe(false);
   });
   expect(screen.getByTestId("omittedPopupAttributes")).toHaveTextContent(
-    JSON.stringify({ states: ["the_geom", "STATE_NAME"] }),
+    JSON.stringify({}),
+  );
+  expect(screen.getByTestId("tablePopupType")).toHaveTextContent(
+    JSON.stringify("none"),
   );
 
   // turn field popup back on. header should come back as well
-  const popupCheckboxes = screen.getAllByLabelText("Show in popup row");
+  const popupCheckboxes = screen.getAllByLabelText("Show on Click row");
   const theGeomCheckbox = popupCheckboxes[0];
   fireEvent.click(theGeomCheckbox);
   await waitFor(() => {
@@ -444,6 +475,7 @@ test("AttributesPane popups header and body change", async () => {
   expect(screen.getByTestId("omittedPopupAttributes")).toHaveTextContent(
     JSON.stringify({ states: ["STATE_NAME"] }),
   );
+  expect(screen.getByTestId("tablePopupType")).toBeEmptyDOMElement();
 
   // turn field popup back off. header should also turn off
   fireEvent.click(theGeomCheckbox);
@@ -451,7 +483,10 @@ test("AttributesPane popups header and body change", async () => {
     expect(headerCheckbox.checked).toBe(false);
   });
   expect(screen.getByTestId("omittedPopupAttributes")).toHaveTextContent(
-    JSON.stringify({ states: ["the_geom", "STATE_NAME"] }),
+    JSON.stringify({}),
+  );
+  expect(screen.getByTestId("tablePopupType")).toHaveTextContent(
+    JSON.stringify("none"),
   );
 });
 
@@ -489,14 +524,12 @@ test("AttributesPane popups initial values", async () => {
     JSON.stringify({ states: ["the_geom", "STATE_NAME"] }),
   );
 
-  expect(screen.getByLabelText("Click").checked).toBe(true); // default Table Popup Type radio is "Click"
-
   // since all field popups are off, so should the header checkbox
   expect(await screen.findByText("states")).toBeInTheDocument();
-  const popupCheckboxes = screen.getAllByLabelText("Show in popup row");
+  const popupCheckboxes = screen.getAllByLabelText("Show on Click row");
   popupCheckboxes.forEach((checkbox) => expect(checkbox.checked).toBe(false));
 
-  const headerCheckbox = screen.getByLabelText("Show in popup header");
+  const headerCheckbox = screen.getByLabelText("Show on Click header");
   fireEvent.click(headerCheckbox);
   await waitFor(() => {
     expect(headerCheckbox.checked).toBe(true);
@@ -664,127 +697,353 @@ test("AttributesPane GeoJSON source with no GeoJSON entered yet", async () => {
   expect(screen.queryByText(/Invalid json/i)).not.toBeInTheDocument();
 });
 
-test("AttributesPane table popup type — radio writes tablePopupType and strips legacy queryable", async () => {
-  mockedGetLayerAttributes.mockResolvedValue({
-    states: [
-      { name: "the_geom", alias: "the_geom" },
-      { name: "STATE_NAME", alias: "STATE_NAME" },
-    ],
-  });
+// The props the pane has written, as the testing component shows them.
+const shownProp = (testId) => {
+  const text = screen.getByTestId(testId).textContent;
+  return text === "" ? undefined : JSON.parse(text);
+};
 
-  const sourceProps = {
+const checkedStates = (label) =>
+  screen.getAllByLabelText(label).map((checkbox) => checkbox.checked);
+
+describe("AttributesPane Show on Click and Show on Hover columns", () => {
+  const statesWms = {
     type: "WMS",
     props: {
       url: "http://localhost:8081/geoserver/wms",
-      params: {
-        LAYERS: "topp:states",
-      },
+      params: { LAYERS: "topp:states" },
     },
   };
-  // Start with a legacy attributeProps shape that carries queryable: false.
-  // The component should resolve that to the "None" radio via the shim.
-  render(
-    <TestingComponent
-      sourceProps={sourceProps}
-      layerProps={{
-        name: "esri",
-      }}
-      tabKey={"attributes"}
-      initialAttributeProps={{
-        variables: { states: { the_geom: "some variable" } },
-        omitted: { states: ["the_geom"] },
-        queryable: false,
-      }}
-    />,
-  );
 
-  const noneRadio = screen.getByLabelText("None");
-  const clickRadio = screen.getByLabelText("Click");
-  const hoverRadio = screen.getByLabelText("Hover");
+  const renderDiscovered = (initialAttributeProps, fields) => {
+    mockedGetLayerAttributes.mockResolvedValue(
+      fields ?? {
+        states: [
+          { name: "the_geom", alias: "the_geom" },
+          { name: "STATE_NAME", alias: "STATE_NAME" },
+        ],
+      },
+    );
+    return render(
+      <TestingComponent
+        sourceProps={statesWms}
+        layerProps={{ name: "esri" }}
+        tabKey="attributes"
+        initialAttributeProps={initialAttributeProps}
+      />,
+    );
+  };
 
-  // Legacy queryable: false → None selected by the shim.
-  expect(noneRadio.checked).toBe(true);
-  expect(clickRadio.checked).toBe(false);
-  expect(hoverRadio.checked).toBe(false);
+  test("a legacy queryable: false layer opens with both columns empty and stays None", async () => {
+    renderDiscovered({
+      variables: { states: { the_geom: "some variable" } },
+      omitted: { states: ["the_geom"] },
+      queryable: false,
+    });
 
-  // Switching to Hover writes tablePopupType and drops legacy queryable.
-  fireEvent.click(hoverRadio);
-  expect(hoverRadio.checked).toBe(true);
-  expect(screen.getByTestId("tablePopupType")).toHaveTextContent(
-    JSON.stringify("hover"),
-  );
-  expect(screen.getByTestId("queryable")).toBeEmptyDOMElement();
+    expect(await screen.findByText("states")).toBeInTheDocument();
+    expect(checkedStates("Show on Click row")).toEqual([false, false]);
+    expect(checkedStates("Show on Hover row")).toEqual([false, false]);
+    // The legacy flag becomes the type it meant, and a click list that no
+    // event reads is dropped.
+    await waitFor(() => expect(shownProp("tablePopupType")).toBe("none"));
+    expect(shownProp("queryable")).toBeUndefined();
+    expect(shownProp("omittedPopupAttributes")).toEqual({});
+  });
 
-  // Switching to Click (the default) clears the field entirely.
-  fireEvent.click(clickRadio);
-  expect(clickRadio.checked).toBe(true);
-  expect(screen.getByTestId("tablePopupType")).toBeEmptyDOMElement();
-  expect(screen.getByTestId("queryable")).toBeEmptyDOMElement();
+  test("a legacy queryable: true layer opens as click", async () => {
+    renderDiscovered({ queryable: true });
 
-  // Switching back to None writes "none" and still does not write queryable.
-  fireEvent.click(noneRadio);
-  expect(noneRadio.checked).toBe(true);
-  expect(screen.getByTestId("tablePopupType")).toHaveTextContent(
-    JSON.stringify("none"),
-  );
-  expect(screen.getByTestId("queryable")).toBeEmptyDOMElement();
+    expect(await screen.findByText("states")).toBeInTheDocument();
+    expect(checkedStates("Show on Click row")).toEqual([true, true]);
+    expect(checkedStates("Show on Hover row")).toEqual([false, false]);
+  });
+
+  test("tablePopupType wins over legacy queryable", async () => {
+    renderDiscovered({ tablePopupType: "hover", queryable: false });
+
+    expect(await screen.findByText("states")).toBeInTheDocument();
+    expect(checkedStates("Show on Click row")).toEqual([false, false]);
+    expect(checkedStates("Show on Hover row")).toEqual([true, true]);
+  });
+
+  test("checking one hover box saves both, with every sublayer listed", async () => {
+    renderDiscovered(undefined, {
+      first: [
+        { name: "a", alias: "a" },
+        { name: "b", alias: "b" },
+      ],
+      second: [{ name: "x", alias: "x" }],
+    });
+
+    expect(await screen.findByText("first")).toBeInTheDocument();
+    fireEvent.click(screen.getAllByLabelText("Show on Hover row")[0]);
+
+    expect(shownProp("tablePopupType")).toBe("both");
+    expect(shownProp("hover")).toEqual({ first: ["a"], second: [] });
+    expect(shownProp("omittedPopupAttributes")).toEqual({});
+  });
+
+  test("each column turns its event on while any of its boxes is checked", async () => {
+    renderDiscovered();
+
+    expect(await screen.findByText("states")).toBeInTheDocument();
+    fireEvent.click(screen.getAllByLabelText("Show on Hover row")[1]);
+    expect(shownProp("tablePopupType")).toBe("both");
+
+    // Every click box unchecked with a hover box still checked: hover only,
+    // and no click list, since nothing reads one.
+    fireEvent.click(screen.getByLabelText("Show on Click header"));
+    expect(shownProp("tablePopupType")).toBe("hover");
+    expect(shownProp("omittedPopupAttributes")).toEqual({});
+    expect(shownProp("hover")).toEqual({ states: ["STATE_NAME"] });
+
+    // Every box unchecked, no variables linked: neither event.
+    fireEvent.click(screen.getAllByLabelText("Show on Hover row")[1]);
+    expect(shownProp("tablePopupType")).toBe("none");
+    expect(shownProp("hover")).toBeUndefined();
+    expect(shownProp("omittedPopupAttributes")).toEqual({});
+  });
+
+  test("a click layer that links variables stays click with every box unchecked", async () => {
+    // Covers R28: the layer hides every field only to drive its variables.
+    renderDiscovered({ variables: { states: { the_geom: "Some Variable" } } });
+
+    expect(await screen.findByText("states")).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Show on Click header"));
+
+    expect(checkedStates("Show on Click row")).toEqual([false, false]);
+    expect(shownProp("tablePopupType")).toBeUndefined();
+    expect(shownProp("omittedPopupAttributes")).toEqual({
+      states: ["the_geom", "STATE_NAME"],
+    });
+
+    // A checked hover box takes over the variables, so click is off then.
+    fireEvent.click(screen.getAllByLabelText("Show on Hover row")[0]);
+    expect(shownProp("tablePopupType")).toBe("hover");
+  });
+
+  test("a None layer that links variables stays None until a click box is checked", async () => {
+    renderDiscovered({
+      variables: { states: { the_geom: "Some Variable" } },
+      tablePopupType: "none",
+    });
+
+    expect(await screen.findByText("states")).toBeInTheDocument();
+    expect(checkedStates("Show on Click row")).toEqual([false, false]);
+    // Editing its variable link does not turn click on: the layer did not
+    // answer clicks when it was opened.
+    fireEvent.change(screen.getAllByLabelText("variable row")[0], {
+      target: { value: "Other Variable" },
+    });
+    expect(shownProp("tablePopupType")).toBe("none");
+    expect(shownProp("omittedPopupAttributes")).toEqual({});
+
+    fireEvent.click(screen.getAllByLabelText("Show on Click row")[1]);
+    expect(shownProp("tablePopupType")).toBeUndefined();
+    expect(shownProp("omittedPopupAttributes")).toEqual({
+      states: ["the_geom"],
+    });
+  });
+
+  test("a hover layer saved before hover had its own list keeps its hover fields", async () => {
+    // Its hover fields are the click list's complement. Rewriting the click
+    // list on the first read must not lose them, nor must the re-read that
+    // the rewrite sets off.
+    renderDiscovered({
+      tablePopupType: "hover",
+      omitted: { states: ["the_geom"] },
+    });
+
+    expect(await screen.findByText("states")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(shownProp("hover")).toEqual({ states: ["STATE_NAME"] }),
+    );
+    expect(shownProp("tablePopupType")).toBe("hover");
+    expect(shownProp("omittedPopupAttributes")).toEqual({});
+    // Let the re-read run, then look at the rows it seeded.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+    expect(checkedStates("Show on Click row")).toEqual([false, false]);
+    expect(checkedStates("Show on Hover row")).toEqual([false, true]);
+    expect(shownProp("hover")).toEqual({ states: ["STATE_NAME"] });
+  });
+
+  test("each select-all changes only its own column and sublayer", async () => {
+    renderDiscovered(undefined, {
+      first: [
+        { name: "a", alias: "a" },
+        { name: "b", alias: "b" },
+      ],
+      second: [
+        { name: "x", alias: "x" },
+        { name: "y", alias: "y" },
+      ],
+    });
+
+    expect(await screen.findByText("first")).toBeInTheDocument();
+    fireEvent.click(screen.getAllByLabelText("Show on Hover header")[1]);
+    expect(checkedStates("Show on Hover row")).toEqual([
+      false,
+      false,
+      true,
+      true,
+    ]);
+    expect(checkedStates("Show on Click row")).toEqual([
+      true,
+      true,
+      true,
+      true,
+    ]);
+
+    fireEvent.click(screen.getAllByLabelText("Show on Click header")[0]);
+    expect(checkedStates("Show on Click row")).toEqual([
+      false,
+      false,
+      true,
+      true,
+    ]);
+    expect(checkedStates("Show on Hover row")).toEqual([
+      false,
+      false,
+      true,
+      true,
+    ]);
+    expect(
+      screen
+        .getAllByLabelText("Show on Hover header")
+        .map((box) => box.checked),
+    ).toEqual([false, true]);
+
+    expect(shownProp("tablePopupType")).toBe("both");
+    expect(shownProp("hover")).toEqual({ first: [], second: ["x", "y"] });
+    expect(shownProp("omittedPopupAttributes")).toEqual({ first: ["a", "b"] });
+  });
 });
 
-test("AttributesPane table popup type — defaults to Click when neither field is set", async () => {
-  mockedGetLayerAttributes.mockResolvedValue({});
-  render(
-    <TestingComponent
-      sourceProps={{
-        type: "WMS",
-        props: { url: "http://localhost:8081/geoserver/wms", params: {} },
-      }}
-      layerProps={{ name: "esri" }}
-      tabKey={"attributes"}
-    />,
-  );
+describe("AttributesPane hand-entered fields", () => {
+  const esriSource = {
+    type: "ESRI Image and Map Service",
+    props: {
+      url: "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer",
+    },
+  };
 
-  expect(screen.getByLabelText("Click").checked).toBe(true);
-  expect(screen.getByLabelText("None").checked).toBe(false);
-  expect(screen.getByLabelText("Hover").checked).toBe(false);
-  // No legacy field is written when the user lands on the default.
-  expect(screen.getByTestId("tablePopupType")).toBeEmptyDOMElement();
-  expect(screen.getByTestId("queryable")).toBeEmptyDOMElement();
-});
+  const renderHandEntered = (initialAttributeProps, sourceProps) => {
+    mockedGetLayerAttributes.mockRejectedValue({ message: "Unreachable" });
+    return render(
+      <TestingComponent
+        sourceProps={sourceProps ?? esriSource}
+        layerProps={{ name: "esri" }}
+        tabKey="attributes"
+        initialAttributeProps={initialAttributeProps}
+      />,
+    );
+  };
 
-test("AttributesPane table popup type — legacy queryable: true resolves to Click", async () => {
-  mockedGetLayerAttributes.mockResolvedValue({});
-  render(
-    <TestingComponent
-      sourceProps={{
-        type: "WMS",
-        props: { url: "http://localhost:8081/geoserver/wms", params: {} },
-      }}
-      layerProps={{ name: "esri" }}
-      tabKey={"attributes"}
-      initialAttributeProps={{ queryable: true }}
-    />,
-  );
+  test("turning hover on with no rows saves both, with every sublayer listed empty", async () => {
+    renderHandEntered(undefined, {
+      type: "WMS",
+      props: {
+        url: "http://localhost:8081/geoserver/wms",
+        params: { LAYERS: "topp:first,topp:second" },
+      },
+    });
 
-  expect(screen.getByLabelText("Click").checked).toBe(true);
-});
+    expect(await screen.findByText("first")).toBeInTheDocument();
+    expect(screen.getByLabelText("Click Input")).toBeChecked();
+    expect(screen.getByLabelText("Hover Input")).not.toBeChecked();
+    // The hover column waits, disabled, for its toggle.
+    screen
+      .getAllByRole("checkbox", { name: /^hover Input \d+$/ })
+      .forEach((checkbox) => expect(checkbox).toBeDisabled());
+    screen
+      .getAllByRole("checkbox", { name: /^click Input \d+$/ })
+      .forEach((checkbox) => expect(checkbox).toBeEnabled());
 
-test("AttributesPane table popup type — new tablePopupType field wins over legacy queryable", async () => {
-  mockedGetLayerAttributes.mockResolvedValue({});
-  render(
-    <TestingComponent
-      sourceProps={{
-        type: "WMS",
-        props: { url: "http://localhost:8081/geoserver/wms", params: {} },
-      }}
-      layerProps={{ name: "esri" }}
-      tabKey={"attributes"}
-      initialAttributeProps={{ tablePopupType: "hover", queryable: false }}
-    />,
-  );
+    fireEvent.click(screen.getByLabelText("Hover Input"));
 
-  // tablePopupType takes precedence — the legacy queryable: false is ignored.
-  expect(screen.getByLabelText("Hover").checked).toBe(true);
-  expect(screen.getByLabelText("None").checked).toBe(false);
+    expect(shownProp("tablePopupType")).toBe("both");
+    expect(shownProp("omittedHover")).toEqual({ first: [], second: [] });
+    expect(shownProp("hover")).toBeUndefined();
+    screen
+      .getAllByRole("checkbox", { name: /^hover Input \d+$/ })
+      .forEach((checkbox) => expect(checkbox).toBeEnabled());
+  });
+
+  test("a row unchecked only for hover is left out of hover only", async () => {
+    renderHandEntered({
+      order: { esri: ["a", "b"] },
+      tablePopupType: "both",
+      omittedHover: { esri: [] },
+    });
+
+    fireEvent.click(await screen.findByLabelText("hover Input 1"));
+
+    expect(shownProp("omittedHover")).toEqual({ esri: ["b"] });
+    expect(shownProp("omittedPopupAttributes")).toEqual({});
+    expect(shownProp("tablePopupType")).toBe("both");
+  });
+
+  test("a new row starts checked for both events", async () => {
+    renderHandEntered({ order: { esri: ["a"] } });
+
+    await screen.findByLabelText("name Input 0");
+    screen.getByLabelText("variableInput Input 0").focus();
+    await userEvent.tab();
+
+    expect(screen.getByLabelText("click Input 1")).toBeChecked();
+    expect(screen.getByLabelText("hover Input 1")).toBeChecked();
+  });
+
+  test("a toggle that is off disables its column and keeps its values", async () => {
+    renderHandEntered({
+      order: { esri: ["a", "b"] },
+      omitted: { esri: ["a"] },
+      omittedHover: { esri: ["b"] },
+      tablePopupType: "both",
+    });
+
+    const hoverBoxes = () =>
+      screen.getAllByRole("checkbox", { name: /^hover Input \d+$/ });
+    const clickBoxes = () =>
+      screen.getAllByRole("checkbox", { name: /^click Input \d+$/ });
+
+    await screen.findByLabelText("name Input 1");
+    expect(hoverBoxes().map((box) => box.checked)).toEqual([true, false]);
+
+    fireEvent.click(screen.getByLabelText("Hover Input"));
+    hoverBoxes().forEach((box) => expect(box).toBeDisabled());
+    expect(hoverBoxes().map((box) => box.checked)).toEqual([true, false]);
+    expect(shownProp("omittedHover")).toBeUndefined();
+    expect(shownProp("tablePopupType")).toBeUndefined();
+
+    fireEvent.click(screen.getByLabelText("Hover Input"));
+    hoverBoxes().forEach((box) => expect(box).toBeEnabled());
+    expect(hoverBoxes().map((box) => box.checked)).toEqual([true, false]);
+    expect(shownProp("omittedHover")).toEqual({ esri: ["b"] });
+    expect(shownProp("tablePopupType")).toBe("both");
+
+    // Click's list is kept while its toggle is off.
+    fireEvent.click(screen.getByLabelText("Click Input"));
+    clickBoxes().forEach((box) => expect(box).toBeDisabled());
+    expect(clickBoxes().map((box) => box.checked)).toEqual([false, true]);
+    expect(shownProp("omittedPopupAttributes")).toEqual({ esri: ["a"] });
+    expect(shownProp("tablePopupType")).toBe("hover");
+  });
+
+  test.each([
+    ["an allow-list", { hover: { esri: ["shown"] } }, "shown"],
+    ["a deny-list", { omittedHover: { esri: ["hidden"] } }, "hidden"],
+  ])("rebuilds a row saved only in hover's %s", async (_, hoverList, name) => {
+    renderHandEntered({
+      order: { esri: ["a"] },
+      tablePopupType: "both",
+      ...hoverList,
+    });
+
+    expect(await screen.findByLabelText("name Input 0")).toHaveValue("a");
+    expect(screen.getByLabelText("name Input 1")).toHaveValue(name);
+  });
 });
 
 test("URL-based GeoJSON skips auto-extract on tab switch and exposes the 'Load attributes from URL' button", async () => {
@@ -1006,7 +1265,7 @@ describe("AttributesPane row order", () => {
       "Some Variable",
     );
     // a hidden row moves and stays hidden
-    expect(screen.getAllByLabelText("Show in popup row")[1].checked).toBe(
+    expect(screen.getAllByLabelText("Show on Click row")[1].checked).toBe(
       false,
     );
     expect(

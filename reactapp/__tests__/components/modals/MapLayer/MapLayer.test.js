@@ -28,7 +28,13 @@ import MapContextProvider, {
   useMapContext,
 } from "components/contexts/MapContext";
 import appAPI from "services/api/app";
-import { getLayerAttributes } from "components/map/utilities";
+import {
+  buildAttributeRows,
+  getLayerAttributes,
+  hoverAttributeRows,
+  isClickEnabled,
+  isHoverEnabled,
+} from "components/map/utilities";
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
 import { fullMapLayer } from "__tests__/utilities/constants";
@@ -987,7 +993,7 @@ test("MapLayerModal attribute variables and omitted popups", async () => {
   const variableInput =
     within(attributesTabContent).getAllByLabelText("variable row")[0];
   fireEvent.change(variableInput, { target: { value: "Some Variable" } });
-  const popupCheckboxes = screen.getAllByLabelText("Show in popup row");
+  const popupCheckboxes = screen.getAllByLabelText("Show on Click row");
   fireEvent.click(popupCheckboxes[0]);
 
   const createLayerButton = await screen.findByLabelText("Create Layer Button");
@@ -3683,7 +3689,263 @@ describe("rekeyAttributeMapToLayer", () => {
   });
 });
 
+describe("MapLayerModal Show on Click and Show on Hover", () => {
+  const gaugeFields = {
+    Gauges: [
+      { name: "id", alias: "id" },
+      { name: "flow", alias: "flow" },
+    ],
+  };
+
+  const esriLayerInfo = (attributeProps) => ({
+    layerProps: { name: "Gauges" },
+    sourceProps: {
+      type: "ESRI Image and Map Service",
+      props: { url: "Some Url" },
+    },
+    attributeProps,
+  });
+
+  const mountModal = (layerInfo) => {
+    const addMapLayer = jest.fn();
+    render(
+      <TestingComponent
+        showModal={true}
+        handleModalClose={jest.fn()}
+        addMapLayer={addMapLayer}
+        layerInfo={layerInfo}
+      />,
+    );
+    return addMapLayer;
+  };
+
+  // Opens the layer on its Attributes tab, its discovered rows on screen.
+  const openDiscovered = async (attributeProps) => {
+    mockedGetLayerAttributes.mockResolvedValue(gaugeFields);
+    const addMapLayer = mountModal(esriLayerInfo(attributeProps));
+    fireEvent.click(await screen.findByText("Attributes/Table Popup"));
+    await screen.findByLabelText("Move id down");
+    return addMapLayer;
+  };
+
+  const save = async (addMapLayer) => {
+    fireEvent.click(screen.getByLabelText("Create Layer Button"));
+    await waitFor(() => expect(addMapLayer).toHaveBeenCalledTimes(1));
+    return addMapLayer.mock.calls[0][0];
+  };
+
+  const checkedStates = (label) =>
+    screen.getAllByLabelText(label).map((checkbox) => checkbox.checked);
+
+  test("a new discovered layer saves what it saved before hover", async () => {
+    const addMapLayer = await openDiscovered(undefined);
+
+    expect(checkedStates("Show on Click row")).toEqual([true, true]);
+    expect(checkedStates("Show on Hover row")).toEqual([false, false]);
+
+    const saved = await save(addMapLayer);
+    expect(saved).not.toHaveProperty("tablePopupType");
+    expect(saved).not.toHaveProperty("hoverPopupAttributes");
+    expect(saved).not.toHaveProperty("omittedHoverAttributes");
+    expect(saved).not.toHaveProperty("omittedPopupAttributes");
+  });
+
+  test("a hover field and a moved row save as both, with one order for both events", async () => {
+    const addMapLayer = await openDiscovered(undefined);
+
+    fireEvent.click(screen.getAllByLabelText("Show on Hover row")[1]);
+    fireEvent.click(screen.getByLabelText("Move flow up"));
+
+    const saved = await save(addMapLayer);
+    expect(saved.tablePopupType).toBe("both");
+    expect(saved.hoverPopupAttributes).toEqual({ Gauges: ["flow"] });
+    expect(saved.attributeOrder).toEqual({ Gauges: ["flow", "id"] });
+    expect(saved).not.toHaveProperty("omittedPopupAttributes");
+    expect(saved).not.toHaveProperty("omittedHoverAttributes");
+  });
+
+  test("a click layer that links variables stays click with every field unchecked", async () => {
+    // Covers R28, and that the modal hands the pane how the layer opened.
+    const addMapLayer = await openDiscovered({
+      variables: { Gauges: { id: "Gauge" } },
+    });
+
+    fireEvent.click(screen.getByLabelText("Show on Click header"));
+
+    const saved = await save(addMapLayer);
+    expect(saved).not.toHaveProperty("tablePopupType");
+    expect(saved.omittedPopupAttributes).toEqual({ Gauges: ["id", "flow"] });
+    expect(saved.attributeVariables).toEqual({ Gauges: { id: "Gauge" } });
+  });
+
+  test("a None layer that links variables is saved as None", async () => {
+    const addMapLayer = await openDiscovered({
+      variables: { Gauges: { id: "Gauge" } },
+      tablePopupType: "none",
+    });
+
+    // A change to its variable link settles the type again, and still finds
+    // nothing that turns click on.
+    fireEvent.change(screen.getAllByLabelText("variable row")[0], {
+      target: { value: "Other Gauge" },
+    });
+
+    const saved = await save(addMapLayer);
+    expect(saved.tablePopupType).toBe("none");
+    expect(saved).not.toHaveProperty("omittedPopupAttributes");
+  });
+
+  test("a template's None layer that links variables stays None in a new layer", async () => {
+    // A new layer answers clicks, but loading a template replaces its popup
+    // settings, so the template's type is the one the layer opened with.
+    server.use(
+      rest.get(
+        "http://api.test/apps/tethysdash/visualizations/get/",
+        (req, res, ctx) =>
+          res(
+            ctx.status(200),
+            ctx.json({
+              success: true,
+              data: {
+                configuration: {
+                  type: "ImageLayer",
+                  props: {
+                    name: "Gauges",
+                    source: {
+                      type: "ESRI Image and Map Service",
+                      props: { url: "Some Url" },
+                    },
+                  },
+                },
+                tablePopupType: "none",
+                attributeVariables: { Gauges: { id: "Gauge" } },
+              },
+            }),
+            ctx.set("Content-Type", "application/json"),
+          ),
+      ),
+    );
+    mockedGetLayerAttributes.mockResolvedValue(gaugeFields);
+    const addMapLayer = mountModal({});
+    selectEvent.openMenu(screen.getByLabelText("Layer Templates Input"));
+    fireEvent.click(await screen.findByText("Map Layer Template Example"));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Name Input").value).toBe("Gauges"),
+    );
+
+    fireEvent.click(await screen.findByText("Attributes/Table Popup"));
+    await screen.findByLabelText("Move id down");
+    fireEvent.change(screen.getAllByLabelText("variable row")[0], {
+      target: { value: "Other Gauge" },
+    });
+
+    const saved = await save(addMapLayer);
+    expect(saved.tablePopupType).toBe("none");
+    expect(saved.attributeVariables).toEqual({
+      Gauges: { id: "Other Gauge" },
+    });
+  });
+
+  test("a hover layer saved before hover had its own list saves it unchanged", async () => {
+    const addMapLayer = await openDiscovered({
+      tablePopupType: "hover",
+      omitted: { Gauges: ["id"] },
+    });
+
+    expect(checkedStates("Show on Click row")).toEqual([false, false]);
+    expect(checkedStates("Show on Hover row")).toEqual([false, true]);
+
+    const saved = await save(addMapLayer);
+    expect(saved.tablePopupType).toBe("hover");
+    expect(saved.hoverPopupAttributes).toEqual({ Gauges: ["flow"] });
+    expect(saved).not.toHaveProperty("omittedPopupAttributes");
+  });
+
+  test("a GeoTIFF layer with hover turned on shows every returned value on hover and on click", async () => {
+    // Covers AE6.
+    mockedGetLayerAttributes.mockRejectedValue(
+      new Error("GeoTIFF is not currently configured to be queried"),
+    );
+    const addMapLayer = mountModal({
+      layerProps: { name: "Depth" },
+      sourceProps: { type: "GeoTIFF", props: { url: "x.tif" } },
+    });
+    fireEvent.click(await screen.findByText("Attributes/Table Popup"));
+    expect(await screen.findByLabelText("Click Input")).toBeChecked();
+    expect(screen.getByLabelText("Hover Input")).not.toBeChecked();
+
+    fireEvent.click(screen.getByLabelText("Hover Input"));
+    const saved = await save(addMapLayer);
+    expect(saved.tablePopupType).toBe("both");
+    expect(saved.omittedHoverAttributes).toEqual({ Depth: [] });
+
+    // What a pixel query on the saved layer turns up.
+    const feature = {
+      __wrapperLayer: saved,
+      layerName: "Depth",
+      attributes: { band_1: 3.2, band_2: 7 },
+    };
+    expect(isHoverEnabled(saved)).toBe(true);
+    expect(hoverAttributeRows(feature).map(({ key }) => key)).toEqual([
+      "band_1",
+      "band_2",
+    ]);
+    const clickOmitted = saved.omittedPopupAttributes?.Depth ?? [];
+    expect(isClickEnabled(saved)).toBe(true);
+    expect(
+      buildAttributeRows(feature.attributes, {
+        isVisible: (field) => !clickOmitted.includes(field),
+      }).map(({ key }) => key),
+    ).toEqual(["band_1", "band_2"]);
+  });
+
+  test("a static image saves no hover list", async () => {
+    const addMapLayer = mountModal({
+      layerProps: { name: "Picture" },
+      sourceProps: {
+        type: "Static Image",
+        props: {
+          url: "https://example.com/image.png",
+          projection: "EPSG:4326",
+          imageExtent: "10, 20, 30, 40",
+        },
+      },
+      attributeProps: {
+        tablePopupType: "both",
+        hover: { Picture: ["a"] },
+        omittedHover: { Picture: [] },
+      },
+    });
+
+    await screen.findByLabelText("Create Layer Button");
+    const saved = await save(addMapLayer);
+    expect(saved.tablePopupType).toBe("none");
+    expect(saved).not.toHaveProperty("hoverPopupAttributes");
+    expect(saved).not.toHaveProperty("omittedHoverAttributes");
+  });
+});
+
 describe("renameLayerInAttributeProps", () => {
+  test("renames the layer key in both hover lists", () => {
+    const renamedProps = renameLayerInAttributeProps(
+      {
+        hover: { "Old Layer Name": ["flow_cfs"], other: [] },
+        omittedHover: { "Old Layer Name": ["_internal_id"] },
+        tablePopupType: "both",
+      },
+      "Old Layer Name",
+      "New Layer Name",
+    );
+    expect(renamedProps.hover).toEqual({
+      "New Layer Name": ["flow_cfs"],
+      other: [],
+    });
+    expect(renamedProps.omittedHover).toEqual({
+      "New Layer Name": ["_internal_id"],
+    });
+    expect(renamedProps.tablePopupType).toBe("both");
+  });
+
   test("renames layer key in attributeProps", () => {
     const attributeProps = {
       variables: {
@@ -3817,6 +4079,25 @@ describe("renameLayerInAttributeProps", () => {
 });
 
 describe("normalizeAttributePropsForLayer", () => {
+  test("re-keys a single-sublayer hover list, and leaves a missing one missing", () => {
+    expect(
+      normalizeAttributePropsForLayer(
+        { hover: { "Layer Name": [] }, tablePopupType: "both" },
+        "New Layer Name",
+      ),
+    ).toEqual({ hover: { "New Layer Name": [] }, tablePopupType: "both" });
+    expect(
+      normalizeAttributePropsForLayer(
+        { omittedHover: { "Layer Name": ["_internal_id"] } },
+        "New Layer Name",
+      ).omittedHover,
+    ).toEqual({ "New Layer Name": ["_internal_id"] });
+    // An absent list must stay absent: an empty one would read as present.
+    expect(
+      normalizeAttributePropsForLayer({}, "New Layer Name").hover,
+    ).toBeUndefined();
+  });
+
   test("returns normalized attributeProps for a given layer", () => {
     const attributeProps = {
       variables: {

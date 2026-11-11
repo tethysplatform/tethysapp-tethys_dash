@@ -8,10 +8,12 @@ import {
   sourcePropertiesOptions,
   attributePropsPropType,
   sourcePropType,
-  resolveTablePopupType,
   orderAttributeNames,
+  isClickEnabled,
+  isHoverEnabled,
+  hoverFieldFilter,
 } from "components/map/utilities";
-import DataRadioSelect from "components/inputs/DataRadioSelect";
+import CheckboxInput from "components/inputs/CheckboxInput";
 import Spinner from "react-bootstrap/Spinner";
 import Button from "react-bootstrap/Button";
 import {
@@ -52,12 +54,6 @@ const CenteredTD = styled.td`
   vertical-align: middle;
 `;
 
-const TABLE_POPUP_TYPE_OPTIONS = [
-  { value: "none", label: "None" },
-  { value: "click", label: "Click" },
-  { value: "hover", label: "Hover" },
-];
-
 const UrlLoadBar = styled.div`
   display: flex;
   align-items: center;
@@ -65,10 +61,103 @@ const UrlLoadBar = styled.div`
   margin-bottom: 0.75rem;
 `;
 
-const UrlLoadHint = styled.span`
+const Hint = styled.span`
   font-size: 0.85rem;
   color: #6c757d;
 `;
+
+const EventToggles = styled.div`
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.5rem;
+  margin-bottom: 0.75rem;
+`;
+
+// The row fields that decide which events a discovered table turns on. An
+// alias or a move changes neither.
+const EVENT_FIELDS = ["click", "hover", "variableInput"];
+
+// The popup type a pair of on/off events saves as.
+function popupTypeFor(clickOn, hoverOn) {
+  if (clickOn && hoverOn) return "both";
+  if (clickOn) return "click";
+  return hoverOn ? "hover" : "none";
+}
+
+// Each sublayer's named rows that pass `keep`, as field names. A sublayer with
+// none is left out unless `everySublayer` is set, which hover's lists need:
+// whether their key is present at all is what tells the runtime which kind of
+// list it is reading (see hoverFieldFilter), so an empty one still counts.
+function extractFieldNames(layerData, keep, everySublayer = false) {
+  const result = {};
+  Object.entries(layerData).forEach(([layerName, rows]) => {
+    const names = rows
+      .filter(keep)
+      .map(({ name }) => name)
+      .filter(Boolean);
+    if (everySublayer || names.length > 0) {
+      result[layerName] = names;
+    }
+  });
+  return result;
+}
+
+/**
+ * The attribute props with the popup fields the rows describe: the click
+ * table's omitted fields, hover's list and the popup type. They are written
+ * together, so the props never hold a click list that has moved on while
+ * hover still falls back to the old one.
+ *
+ * @param {object} previous The attribute props to update.
+ * @param {object} layerData The rows, by sublayer.
+ * @param {boolean} discovered Whether the rows are the layer's discovered
+ *   fields rather than hand-entered ones.
+ * @param {{clickOn: boolean, hoverOn: boolean}} [events] Which events are on.
+ *   Left out, the popup type the props already have stands.
+ * @returns {object}
+ */
+function withPopupFields(previous, layerData, discovered, events) {
+  const clickOn = events ? events.clickOn : isClickEnabled(previous);
+  const hoverOn = events ? events.hoverOn : isHoverEnabled(previous);
+  // Legacy `queryable` and the previous type and hover lists are dropped, so
+  // nothing stale is left behind.
+  const {
+    queryable: _legacyQueryable,
+    tablePopupType: _previousTablePopupType,
+    hover: _previousHover,
+    omittedHover: _previousOmittedHover,
+    ...rest
+  } = previous;
+  const next = {
+    ...rest,
+    // A discovered table with click off has every click box unchecked, and
+    // listing every field as omitted would say nothing the type does not. A
+    // hand-entered click column keeps its values while its toggle is off.
+    omitted:
+      discovered && !clickOn
+        ? {}
+        : extractFieldNames(layerData, (row) => !row.click),
+  };
+  if (hoverOn) {
+    // Discovered fields are all on screen, so hover names the ones it shows
+    // and a field the source adds later stays off the tooltip. Hand-entered
+    // rows are only the fields the author typed in, so hover hides the ones
+    // unchecked and shows everything else the layer returns.
+    if (discovered) {
+      next.hover = extractFieldNames(layerData, (row) => row.hover, true);
+    } else {
+      next.omittedHover = extractFieldNames(
+        layerData,
+        (row) => !row.hover,
+        true,
+      );
+    }
+  }
+  const tablePopupType = popupTypeFor(clickOn, hoverOn);
+  // "click" is the default, and is left unwritten as it always has been.
+  return tablePopupType === "click" ? next : { ...next, tablePopupType };
+}
 
 const AttributesPane = ({
   attributeProps,
@@ -77,6 +166,7 @@ const AttributesPane = ({
   layerProps,
   tabKey,
   shapefileDiscovery,
+  answeredClicksAtOpen,
 }) => {
   const [warningMessage, setWarningMessage] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
@@ -84,12 +174,10 @@ const AttributesPane = ({
   const previousSourceProps = useRef({});
   const previousAttributeProps = useRef({});
   const [customAttributes, setCustomAttributes] = useState(null);
-  const [layerPopupSwitch, setLayerPopupSwitch] = useState({});
   const [focusRequestFor, requestFocus] = useRowMoveFocus();
-  const [tablePopupType, setTablePopupType] = useState(
-    resolveTablePopupType(attributeProps),
-  );
   const { dynamicMapLayers } = useContext(AppContext);
+  const clickOn = isClickEnabled(attributeProps);
+  const hoverOn = isHoverEnabled(attributeProps);
 
   const isUrlGeoJSON =
     sourceProps?.type === "GeoJSON" &&
@@ -202,34 +290,45 @@ const AttributesPane = ({
       previousAttributeProps.current = JSON.parse(
         JSON.stringify(attributeProps),
       );
-      parseAttributes(attributes);
+      parseAttributes(attributes, customAttributes === true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attributeProps]);
 
-  function parseAttributes(layerAttributes) {
-    // add a popup and variableInput field, using preexisting values if possible
-    layerAttributes = appendExistingVariablesAliasesAndPopups(layerAttributes);
+  // Seed each row's settings from the attribute props, set the rows, and
+  // return them.
+  function parseAttributes(layerAttributes, discovered) {
+    // add the click, hover and variableInput fields, using preexisting values if possible
+    layerAttributes = appendExistingVariablesAliasesAndPopups(
+      layerAttributes,
+      discovered,
+    );
 
-    // check to see what the header popup switch should be. If all field popups are false, then the header switch should be false
-    let popupSwitchValues;
-    if (Object.keys(layerAttributes).length > 0) {
-      popupSwitchValues = Object.fromEntries(
-        Object.entries(layerAttributes).map(([key, value]) => [
-          key,
-          !value.every((item) => item.popup === false), // false if all popups are false, true otherwise
-        ]),
-      );
-    } else {
+    if (Object.keys(layerAttributes).length === 0) {
       setWarningMessage("No field attributes were found.");
-      layerAttributes = {};
-      popupSwitchValues = {};
     }
 
-    // set states and refs after processing all done
     setAttributes(layerAttributes);
-    setLayerPopupSwitch(popupSwitchValues);
-    setTablePopupType(resolveTablePopupType(attributeProps));
+    return layerAttributes;
+  }
+
+  // Which events a discovered table's columns turn on. Each is on while at
+  // least one of its boxes is checked, with one exception for click: a layer
+  // that answered clicks only to update its variable inputs hides every field
+  // from its table, so it stays on while it links variables and no hover box
+  // is checked. Only a layer that answered clicks when the editor opened it
+  // qualifies, so re-saving a None layer that links variables leaves it off.
+  function deriveEvents(layerData) {
+    const rows = Object.values(layerData).flat();
+    const hoverChecked = rows.some((row) => row.hover);
+    const linksVariables =
+      Object.keys(extractVariableInputs(layerData)).length > 0;
+    return {
+      hoverOn: hoverChecked,
+      clickOn:
+        rows.some((row) => row.click) ||
+        (!hoverChecked && linksVariables && Boolean(answeredClicksAtOpen)),
+    };
   }
 
   async function queryLayerAttributes() {
@@ -261,9 +360,10 @@ const AttributesPane = ({
 
   function applyLayerAttributes(queriedLayerAttributes) {
     let layerAttributes = {};
+    const discovered = Boolean(queriedLayerAttributes);
 
     // if attributes were returned from the query, use them and move on
-    if (queriedLayerAttributes) {
+    if (discovered) {
       setCustomAttributes(true);
 
       // remove an layers where no attributes were found, and show the rest in
@@ -314,6 +414,11 @@ const AttributesPane = ({
         const existingOmittedPopupAttributesFields =
           attributeProps?.omitted?.[layerName] || [];
         const existingAttributeOrder = attributeProps?.order?.[layerName] || [];
+        // Hover's lists can name a field no other list does, and its row has
+        // to come back for the author to see that setting.
+        const existingHoverFields = attributeProps?.hover?.[layerName] || [];
+        const existingOmittedHoverFields =
+          attributeProps?.omittedHover?.[layerName] || [];
 
         // get a unique array of attributes already configured for either popups or attributes,
         // led by the saved order so the rows come back the way the author left them
@@ -323,6 +428,8 @@ const AttributesPane = ({
             ...existingLayerattributeVariableFields,
             ...existingOmittedPopupAttributesFields,
             ...existingLayerAttributeAliases,
+            ...existingHoverFields,
+            ...existingOmittedHoverFields,
           ]),
         ];
 
@@ -344,17 +451,19 @@ const AttributesPane = ({
       }
     }
 
-    parseAttributes(layerAttributes);
+    layerAttributes = parseAttributes(layerAttributes, discovered);
 
     previousAttributeProps.current = JSON.parse(JSON.stringify(attributeProps));
+    // The popup type is left as it was saved: only the author's own changes
+    // settle it again. The click and hover lists are still rewritten from the
+    // rows, which turns a hover layer saved before hover had its own list into
+    // one with that list -- in this same update, since its hover fields were
+    // read from the click list this replaces.
     setAttributeProps((previousAttributeProps) => ({
-      ...previousAttributeProps,
-      ...{
-        variables: extractVariableInputs(layerAttributes),
-        omitted: extractFalsePopups(layerAttributes),
-        aliases: extractAliases(layerAttributes),
-        order: extractOrder(layerAttributes),
-      },
+      ...withPopupFields(previousAttributeProps, layerAttributes, discovered),
+      variables: extractVariableInputs(layerAttributes),
+      aliases: extractAliases(layerAttributes),
+      order: extractOrder(layerAttributes),
     }));
   }
 
@@ -378,14 +487,25 @@ const AttributesPane = ({
     applyLayerAttributes(queriedLayerAttributes);
   }
 
-  function appendExistingVariablesAliasesAndPopups(layerAttributes) {
+  function appendExistingVariablesAliasesAndPopups(
+    layerAttributes,
+    discovered,
+  ) {
     const newObj = {};
+    // hoverFieldFilter reads a saved layer, so the lists are handed to it
+    // under the keys a saved layer carries them in.
+    const savedHoverLists = {
+      hoverPopupAttributes: attributeProps?.hover,
+      omittedHoverAttributes: attributeProps?.omittedHover,
+      omittedPopupAttributes: attributeProps?.omitted,
+    };
 
     // loop through layers
     for (const layerName in layerAttributes) {
       newObj[layerName] = [];
+      const showsOnHover = hoverFieldFilter(savedHoverLists, layerName);
 
-      // loop through layer attributes and append a popup and variableInput field, using existing configuration if possible
+      // loop through layer attributes and append the click, hover and variableInput fields, using existing configuration if possible
       for (const layerAttribute of layerAttributes[layerName]) {
         const name = layerAttribute.name;
 
@@ -395,11 +515,25 @@ const AttributesPane = ({
           attributeProps.aliases[layerName][name];
         layerAttribute["alias"] = existingAlias ?? layerAttribute.alias ?? "";
 
-        // check to see if the attribute is already being omitted in the popup
-        const existingPopup =
-          !attributeProps?.omitted?.[layerName] ||
-          !attributeProps.omitted[layerName].includes(name);
-        layerAttribute["popup"] = existingPopup;
+        const omittedFromClick = Boolean(
+          attributeProps?.omitted?.[layerName]?.includes(name),
+        );
+        if (discovered) {
+          // Each column shows what its event shows, so an event that is off
+          // has nothing checked.
+          layerAttribute["click"] = clickOn && !omittedFromClick;
+          layerAttribute["hover"] = hoverOn && showsOnHover(name);
+        } else {
+          // A hand-entered column keeps its values while its toggle is off,
+          // so turning it back on restores them. The click list is kept
+          // whatever the toggle says; the hover list is dropped while hover
+          // is off, so the rows hold those values until it comes back, and a
+          // row that has never had one starts checked like any new row.
+          layerAttribute["click"] = !omittedFromClick;
+          layerAttribute["hover"] = hoverOn
+            ? showsOnHover(name)
+            : (layerAttribute.hover ?? true);
+        }
 
         // check to see if the attribute is already configured for a variable
         const existingvariableInput =
@@ -469,25 +603,6 @@ const AttributesPane = ({
     return result;
   }
 
-  function extractFalsePopups(layerData) {
-    const result = {};
-
-    Object.keys(layerData).forEach((LayerName) => {
-      const falsePopupNames = layerData[LayerName].filter(
-        ({ popup }) => popup === false,
-      ) // Get items where popup is false
-        .map(({ name }) => name) // Extract name values
-        .filter(Boolean); // Remove falsy values
-
-      // only add to result if there are actually any false popups
-      if (falsePopupNames.length > 0) {
-        result[LayerName] = falsePopupNames;
-      }
-    });
-
-    return result;
-  }
-
   function updateAttributes({
     index,
     layerName,
@@ -504,30 +619,26 @@ const AttributesPane = ({
     }
     setAttributes(updatedAttributes);
 
+    // A discovered table's columns are what turn each event on, so a change to
+    // one of them or to a variable link settles the popup type again. A
+    // hand-entered table's type comes from its toggles.
+    const discovered = customAttributes === true;
+    const events =
+      discovered && EVENT_FIELDS.includes(field)
+        ? deriveEvents(updatedAttributes)
+        : undefined;
+
     setAttributeProps((previousAttributeProps) => ({
-      ...previousAttributeProps,
-      ...{
-        variables: extractVariableInputs(updatedAttributes),
-        omitted: extractFalsePopups(updatedAttributes),
-        aliases: extractAliases(updatedAttributes),
-        order: extractOrder(updatedAttributes),
-      },
+      ...withPopupFields(
+        previousAttributeProps,
+        updatedAttributes,
+        discovered,
+        events,
+      ),
+      variables: extractVariableInputs(updatedAttributes),
+      aliases: extractAliases(updatedAttributes),
+      order: extractOrder(updatedAttributes),
     }));
-
-    // if a popup is being altered, check to see if the header checkbox needs to be updated
-    if (field === "popup") {
-      // make a deep copy of the layerPopupSwitch to actually cause a rerender on state change
-      const updatedLayerPopupSwitch = JSON.parse(
-        JSON.stringify(layerPopupSwitch),
-      );
-
-      // if any field popup is true, then the header checkbox is true
-      updatedLayerPopupSwitch[layerName] = updatedAttributes[layerName].some(
-        ({ popup }) => popup,
-      );
-
-      setLayerPopupSwitch(updatedLayerPopupSwitch);
-    }
   }
 
   function handleMoveRow(layerName, rowIndex, delta) {
@@ -538,57 +649,68 @@ const AttributesPane = ({
     });
   }
 
-  function handleLayerPopup(layerName, checkedValue) {
-    // update the header checkbox
-    const updatedLayerPopupSwitch = JSON.parse(
-      JSON.stringify(layerPopupSwitch),
-    );
-    updatedLayerPopupSwitch[layerName] = checkedValue;
-    setLayerPopupSwitch(updatedLayerPopupSwitch);
-
-    // update the attributes layername and make all ppup values be the same as the header checkbox
-    const updatedAttributes = {
-      ...attributes,
-      [layerName]: attributes[layerName].map((layerAttributes) => ({
-        ...layerAttributes,
-        popup: checkedValue,
+  // A column header's select-all: sets one column of one sublayer's rows.
+  function handleSelectAll(layerName, field, checked) {
+    updateAttributes({
+      layerName,
+      field,
+      fullChange: attributes[layerName].map((row) => ({
+        ...row,
+        [field]: checked,
       })),
-    };
-
-    setAttributeProps((previousAttributeProps) => ({
-      ...previousAttributeProps,
-      ...{
-        omitted: extractFalsePopups(updatedAttributes),
-      },
-    }));
-    setAttributes(updatedAttributes);
-  }
-
-  function updateTablePopupType(value) {
-    setTablePopupType(value);
-
-    setAttributeProps((previousAttributeProps) => {
-      // Drop both legacy `queryable` and any prior tablePopupType so we never
-      // leave stale fields behind. Then store the new value only when it
-      // differs from the "click" default.
-      const {
-        queryable: _legacyQueryable,
-        tablePopupType: _prevTablePopupType,
-        ...rest
-      } = previousAttributeProps;
-
-      return value === "click" ? rest : { ...rest, tablePopupType: value };
     });
   }
 
+  // A column header's select-all reads as checked while any row is.
+  const anyChecked = (layerName, field) =>
+    attributes[layerName].some((row) => row[field]);
+
+  // A hand-entered table's Click and Hover toggles. The rows keep their values
+  // whichever way a toggle is set.
+  function handleEventToggle(event, on) {
+    setAttributeProps((previousAttributeProps) =>
+      withPopupFields(previousAttributeProps, attributes, false, {
+        clickOn:
+          event === "click" ? on : isClickEnabled(previousAttributeProps),
+        hoverOn:
+          event === "hover" ? on : isHoverEnabled(previousAttributeProps),
+      }),
+    );
+  }
+
+  const renderSelectAllHeader = (layerName, field, label) => (
+    <>
+      {label}
+      <br />
+      <input
+        type="checkbox"
+        checked={anyChecked(layerName, field)}
+        onChange={(e) => handleSelectAll(layerName, field, e.target.checked)}
+        aria-label={`${label} header`}
+      />
+    </>
+  );
+
+  const renderRowCheckbox = (layerName, index, field, label) => (
+    <CenteredTD>
+      <input
+        type="checkbox"
+        checked={attributes[layerName][index][field]}
+        aria-label={`${label} row`}
+        onChange={(e) => {
+          updateAttributes({
+            index,
+            layerName,
+            field,
+            fieldChange: e.target.checked,
+          });
+        }}
+      />
+    </CenteredTD>
+  );
+
   return (
     <>
-      <DataRadioSelect
-        label="Table Popup Type"
-        selectedRadio={tablePopupType}
-        radioOptions={TABLE_POPUP_TYPE_OPTIONS}
-        onChange={updateTablePopupType}
-      />
       {errorMessage ? (
         <Alert key="danger" variant="danger" dismissible>
           {errorMessage}
@@ -618,23 +740,25 @@ const AttributesPane = ({
                       <th className="text-center" style={{ width: "10%" }}>
                         Order
                       </th>
-                      <th className="text-center" style={{ width: "22%" }}>
+                      <th className="text-center" style={{ width: "20%" }}>
                         Name
                       </th>
-                      <th className="text-center" style={{ width: "22%" }}>
+                      <th className="text-center" style={{ width: "20%" }}>
                         Alias
                       </th>
-                      <th className="text-center" style={{ width: "20%" }}>
-                        Show in popup
-                        <br />
-                        <input
-                          type="checkbox"
-                          checked={layerPopupSwitch[layerName]}
-                          onChange={(e) =>
-                            handleLayerPopup(layerName, e.target.checked)
-                          }
-                          aria-label="Show in popup header"
-                        />
+                      <th className="text-center" style={{ width: "12%" }}>
+                        {renderSelectAllHeader(
+                          layerName,
+                          "click",
+                          "Show on Click",
+                        )}
+                      </th>
+                      <th className="text-center" style={{ width: "12%" }}>
+                        {renderSelectAllHeader(
+                          layerName,
+                          "hover",
+                          "Show on Hover",
+                        )}
                       </th>
                       <th className="text-center">Variable Input Name</th>
                     </tr>
@@ -668,21 +792,18 @@ const AttributesPane = ({
                             }}
                           />
                         </td>
-                        <CenteredTD>
-                          <input
-                            type="checkbox"
-                            checked={attributes[layerName][index]["popup"]}
-                            aria-label="Show in popup row"
-                            onChange={(e) => {
-                              updateAttributes({
-                                index,
-                                layerName,
-                                field: "popup",
-                                fieldChange: e.target.checked,
-                              });
-                            }}
-                          />
-                        </CenteredTD>
+                        {renderRowCheckbox(
+                          layerName,
+                          index,
+                          "click",
+                          "Show on Click",
+                        )}
+                        {renderRowCheckbox(
+                          layerName,
+                          index,
+                          "hover",
+                          "Show on Hover",
+                        )}
                         <td>
                           <StyledInput
                             value={
@@ -717,11 +838,32 @@ const AttributesPane = ({
                   >
                     Load attributes from URL
                   </Button>
-                  <UrlLoadHint>
+                  <Hint>
                     Large remote GeoJSON files may take a while to load.
-                  </UrlLoadHint>
+                  </Hint>
                 </UrlLoadBar>
               )}
+              {/* These rows are only the fields the author typed in, not every
+                  field the layer has, so a checked box cannot be what turns an
+                  event on. A toggle does instead. */}
+              <EventToggles>
+                <CheckboxInput
+                  label="Click"
+                  type="switch"
+                  value={clickOn}
+                  onChange={(on) => handleEventToggle("click", on)}
+                />
+                <CheckboxInput
+                  label="Hover"
+                  type="switch"
+                  value={hoverOn}
+                  onChange={(on) => handleEventToggle("hover", on)}
+                />
+                <Hint>
+                  Each event that is on shows every field the layer returns,
+                  except the rows unchecked for it.
+                </Hint>
+              </EventToggles>
               {Object.keys(attributes).map((layerName, index) => (
                 <InputTable
                   key={index}
@@ -741,8 +883,13 @@ const AttributesPane = ({
                   headers={[
                     "Name",
                     "Alias",
-                    "Show in popup",
+                    "Show on Click",
+                    "Show on Hover",
                     "Variable Input Name",
+                  ]}
+                  inactiveFields={[
+                    ...(clickOn ? [] : ["click"]),
+                    ...(hoverOn ? [] : ["hover"]),
                   ]}
                 />
               ))}
@@ -769,6 +916,11 @@ AttributesPane.propTypes = {
     name: PropTypes.string,
   }), // configuration and properties for openlayers layer
   tabKey: PropTypes.string.isRequired, // react state that tracks what tab is shown
+  // Whether the layer answered clicks when the editor opened it. Captured by
+  // the modal rather than here, since this pane remounts -- and would capture
+  // props already edited -- when the source moves to a type without an
+  // Attributes tab and back.
+  answeredClicksAtOpen: PropTypes.bool,
 };
 
 export default memo(AttributesPane);
