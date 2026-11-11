@@ -5,11 +5,11 @@ Custom Modal Popup Tab
 ----------------------
 
 
-The Custom Modal Popup tab is a separate tab in the map layer configuration modal. It is **independent** of the default :ref:`attributes_and_popups_tab` table popup — enabling one does not force the other on or off. When a user clicks a feature, what appears depends on the layer's :ref:`attributes_and_popups_tab` Table Popup Type setting:
+The Custom Modal Popup tab is a separate tab in the map layer configuration modal. It is **independent** of the default :ref:`attributes_and_popups_tab` table popup — enabling one does not force the other on or off. When a user clicks a feature, what appears depends on the layer's :ref:`attributes_and_popups_tab` settings:
 
-    - **Table Popup Type = Click** + modal enabled → **both** the default attribute table popup (anchored at the click point) and the custom modal open together.
-    - **Table Popup Type = None** + modal enabled → only the custom modal opens. The table overlay stays suppressed. Useful when the modal is the entire intended drill-down and the attribute table would be redundant.
-    - **Table Popup Type = Hover** + modal enabled → the table popup follows the cursor (opens on hover, closes on empty); the modal opens on click.
+    - **Fields shown on click** + modal enabled → **both** the default attribute table popup (anchored at the feature) and the custom modal open together.
+    - **No fields shown on click** + modal enabled → only the custom modal opens. Useful when the modal is the entire intended drill-down and the attribute table would be redundant.
+    - **Fields shown on hover** + modal enabled → the hover tooltip follows the cursor, and the modal opens on click.
 
 The custom popup modal is a configurable mini-dashboard of visualizations driven by the clicked feature's attributes (charts, text, images, cards, tables, etc.). Use this tab when a single click on the map should surface a richer drill-down view than a list of fields can provide (for example: a time-series chart for a station, a photo for a site, or a multi-stat summary card for an administrative region).
 
@@ -23,7 +23,7 @@ Enabling the custom popup modal
 The position, size, title, and layout controls appear below the checkbox. Unchecking the box hides those controls but does not delete the configuration — you can flip the checkbox off and back on without losing the layout you authored.
 
 .. note::
-    The custom modal is click-driven only. Hover never opens it — even on a layer whose :ref:`attributes_and_popups_tab` Table Popup Type is set to **Hover**. (The hover trigger is intentionally limited to the small overlay table popup; full-modal hover would be too aggressive a UX.)
+    The custom modal is click-driven only. Hover never opens it, even on a layer that shows fields on hover; hover only shows the small tooltip.
 
 
 Default Position
@@ -107,11 +107,13 @@ When a user clicks a feature on a layer that has the custom popup modal enabled:
     - The custom modal opens at the editor's configured position and size.
     - The modal header displays the interpolated title and a close button (**×**).
     - The visualizations inside the modal load with ``feature.*`` resolved to the clicked feature's attributes.
-    - The default attribute table popup also appears anchored to the click point **iff** the layer's Table Popup Type is **Click**. With Table Popup Type set to **None** or **Hover**, the table overlay does not open on the click (the click only opens the modal). See :ref:`attributes_and_popups_tab` for the full matrix.
+    - The default attribute table popup also appears, anchored to the feature, when the layer shows fields on click. When it shows none on click, the click only opens the modal. See :ref:`attributes_and_popups_tab`.
 
 The underlying map remains pannable, zoomable, and clickable while the modal is open. Clicking a different feature replaces the active feature in the existing modal — a second modal is not stacked. Clicking on empty space on the map does not close or change the modal.
 
 The modal can be closed with the **×** button in its header or by pressing **Esc**. Clicking outside the modal does not close it.
+
+The modal and the attribute table close independently. Closing the attribute table leaves the modal open on its feature, and closing the modal leaves the table open. Once both are closed, clicking a feature opens them again.
 
 
 Multi-feature carousel
@@ -129,6 +131,6 @@ Switching the active feature clears the previous feature's ``feature.*`` values,
 No visualizations configured
 ============================
 
-If **Enable Custom Popup Modal** is checked but no visualizations have been added to the popup layout, the modal still opens on click and displays the message *"No visualizations have been configured for this popup."* The default attribute table popup behaves according to its Table Popup Type setting (Click/Hover/None) — independently of the modal.
+If **Enable Custom Popup Modal** is checked but no visualizations have been added to the popup layout, the modal still opens on click and displays the message *"No visualizations have been configured for this popup."* The default attribute table popup and the hover tooltip behave according to the layer's :ref:`attributes_and_popups_tab` settings, independently of the modal.
 
 To stop the empty modal from appearing, either add at least one visualization to the popup layout, or uncheck **Enable Custom Popup Modal**.

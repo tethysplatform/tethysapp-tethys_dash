@@ -1009,9 +1009,11 @@ from the plugin
         - **layerVisibility** (optional): A boolean indicating the default visibility of the layer. 
         - **style** (required): An object that contains the metadata for styling. See maps :ref:`style_tab` for more information.
     - **attributeVariables** (optional): An object that maps a layers name (key) with a nested object for the layers field and desired variable input. See maps :ref:`attributes_and_popups_tab` for more information.
-    - **omittedPopupAttributes** (optional): An object that maps a layers name (key) with an array of fields to omit in the popup. See maps :ref:`attributes_and_popups_tab` for more information.
+    - **omittedPopupAttributes** (optional): An object that maps a layers name (key) with an array of fields to omit from the click table. See maps :ref:`attributes_and_popups_tab` for more information.
+    - **hoverPopupAttributes** (optional): An object that maps a layers name (key) with an array of the only fields the hover tooltip shows. List every layer name, with an empty array for one that shows nothing on hover.
+    - **omittedHoverAttributes** (optional): An object that maps a layers name (key) with an array of fields the hover tooltip leaves out; every other field it returns is shown. Use it for a layer whose fields are not known in advance, such as a raster or image service. List every layer name, with an empty array to show every field. When neither hover key is present, the tooltip leaves out the fields in ``omittedPopupAttributes``.
     - **attributeAliases** (optional): An object that maps a layers name (key) with a nested object for the layers field and desired aliases. See maps :ref:`attributes_and_popups_tab` for more information.
-    - **tablePopupType** (optional): One of ``"none"``, ``"click"``, or ``"hover"``. Governs whether and how the default attribute table popup opens for this layer. Defaults to ``"click"`` if omitted. ``"none"`` suppresses only the table overlay popup — if a Custom Modal Popup is configured on the layer, it is still queried on click. See maps :ref:`attributes_and_popups_tab` for the full matrix.
+    - **tablePopupType** (optional): One of ``"none"``, ``"click"``, ``"hover"``, or ``"both"``. ``"click"`` opens the attribute table on click, ``"hover"`` shows the hover tooltip, and ``"both"`` does both. Defaults to ``"click"`` if omitted. ``"none"`` turns off the table and the tooltip — if a Custom Modal Popup is configured on the layer, it is still queried on click. See maps :ref:`attributes_and_popups_tab` for more information.
     - **queryable** (optional, legacy): A boolean. Kept for backward compatibility with dashboards saved before ``tablePopupType`` existed. Reads as ``"none"`` when ``false`` and ``"click"`` otherwise. New plugins should prefer ``tablePopupType``.
     - **legend** (optional): See maps :ref:`legend_tab` for more information.
 
@@ -1040,7 +1042,7 @@ from the plugin
     - ``set_source_properties(**kwargs)`` — Set properties on the layer's data source (e.g., ``url``, ``params``, ``attributions``). Required and optional properties vary by source type; call ``get_available_source_properties()`` to inspect them.
     - ``set_layer_visibility(bool)`` — Set the default visibility of the layer.
     - ``set_opacity(float)`` — Set layer opacity between 0.0 and 1.0.
-    - ``set_queryable(bool)`` — *(legacy)* Maps ``False`` to ``tablePopupType: "none"`` and ``True`` to the default (``"click"``). Kept for backward compatibility; new plugins should write ``tablePopupType`` directly into the config (see the bullet above) when they need ``"hover"`` or want to make the field explicit.
+    - ``set_queryable(bool)`` — *(legacy)* Maps ``False`` to ``tablePopupType: "none"`` and ``True`` to the default (``"click"``). Kept for backward compatibility; new plugins should write ``tablePopupType`` directly into the config (see the bullet above) when they need ``"hover"`` or ``"both"``, or want to make the field explicit.
     - ``set_min_zoom(int)`` / ``set_max_zoom(int)`` — Set zoom visibility bounds.
     - ``set_min_resolution(int)`` / ``set_max_resolution(int)`` — Set resolution visibility bounds.
     - ``set_min_zoom_query(int)`` — Minimum zoom level required to query the layer.

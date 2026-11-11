@@ -115,6 +115,25 @@ Map drawing lets you add features directly to the map:
 - **Allowed Types**: Select which shapes can be drawn: **Point**, **LineString**, **Polygon**, **Rectangle**.
 - **Variable Name**: Save drawings under a variable name for use in other visualizations.
 
+.. _map_selection:
+
+----------------
+Map Selection
+----------------
+
+
+Clicking a feature drops a pin where the map was clicked and outlines the selected feature. The **Map Selection** section controls both for the whole map:
+
+- **Clicked location**: the pin at the click point.
+- **Selected feature**: the outline around the selected feature.
+
+Each row has two checkboxes:
+
+- **Show on map**: draw it on the map. Both are on by default. Turning one off changes nothing else a click does: the attribute table, the popup layout and the variable inputs still update.
+- **Show in legend**: list it in the map's legend as "Clicked location" or "Selected feature", with its symbol. The entry is always listed, even before anything has been clicked. Available only while **Show on map** is on.
+
+A layer's click tolerance ring still draws when the pin is hidden. Hovering never draws the pin or the outline. Changes take effect from the next click.
+
 
 
 
