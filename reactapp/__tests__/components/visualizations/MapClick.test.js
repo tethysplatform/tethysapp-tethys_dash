@@ -2,13 +2,15 @@
 // modal, and attribute variables written from a clicked feature.
 import {
   mockedQueryLayerFeatures,
+  mockedSwapVectorLayerFeatures,
   TestingComponent,
   ExtentDrawModeSetter,
   renderSyncMap,
   spyOnSlideTo,
   syncLayer,
 } from "__tests__/utilities/mapVisualizationHarness";
-import { useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
+import PropTypes from "prop-types";
 import {
   render,
   screen,
@@ -16,7 +18,11 @@ import {
   fireEvent,
   within,
 } from "@testing-library/react";
-import createLoadedComponent from "__tests__/utilities/customRender";
+import createLoadedComponent, {
+  InputVariablePComponent,
+} from "__tests__/utilities/customRender";
+import { VariableInputsContext } from "components/contexts/Contexts";
+import appAPI from "services/api/app";
 import { Map } from "ol";
 import ImageArcGISRest from "ol/source/ImageArcGISRest.js";
 import VariableInput from "components/visualizations/VariableInput";
@@ -25,6 +31,7 @@ import { Circle as CircleGeometry } from "ol/geom";
 import Overlay from "ol/Overlay";
 import { Swiper } from "swiper";
 import {
+  dynamicMapLayer,
   mockedTextVariable,
   mockedDropdownVariable,
   mockedDropdownVisualization,
@@ -1084,6 +1091,459 @@ test("Closing the modal keeps it closed while navigating, until the next click",
     expect(popSetPosition).toHaveBeenLastCalledWith([50, 60]);
   });
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+});
+
+// --- Closing the table and the layout independently ------------------------
+//
+// The map's first click fires on its own once the map is ready, as
+// TestingComponent's does; later ones are fired by the test, at the same point,
+// so a test can click a station, close a popup and click the same station
+// again. The map is handed back through `mapRef` so the table overlay's own
+// position can be read rather than inferred from the last setPosition call.
+const RepeatClickHarness = ({ layers, mapRef }) => {
+  const { mapReady } = useMapContext();
+  const { setVariableInputValues } = useContext(VariableInputsContext);
+  const click = () =>
+    mapRef.current?.dispatchEvent({
+      type: "singleclick",
+      coordinate: [10, 20],
+    });
+
+  useEffect(() => {
+    if (mapReady) click();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapReady]);
+
+  return (
+    <div>
+      <MapVisualization
+        visualizationRef={mapRef}
+        mapConfig={{}}
+        layers={layers}
+        baseMap={null}
+        layerControl={false}
+      />
+      <p>{mapReady ? "Map Ready" : "Map Not Ready"}</p>
+      <InputVariablePComponent />
+      <button type="button" onClick={click}>
+        click again
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          setVariableInputValues((previous) => ({
+            ...previous,
+            "Test Variable": "set by the user",
+          }))
+        }
+      >
+        set variable
+      </button>
+    </div>
+  );
+};
+
+RepeatClickHarness.propTypes = {
+  layers: PropTypes.array,
+  mapRef: PropTypes.shape({ current: PropTypes.any }),
+};
+
+describe("closing the table and the layout independently", () => {
+  let mapRef;
+
+  const renderStationMap = (layers) => {
+    mapRef = { current: null };
+    render(
+      createLoadedComponent({
+        children: (
+          <MapContextProvider>
+            <RepeatClickHarness layers={layers} mapRef={mapRef} />
+          </MapContextProvider>
+        ),
+      }),
+    );
+  };
+
+  // A layer with a table and a layout whose title names the feature, so a test
+  // can tell which feature the layout is on.
+  const stationLayer = () => {
+    const layer = syncLayer();
+    // eslint-disable-next-line no-template-curly-in-string
+    layer.popupConfig.titleTemplate = "${feature.station_id}";
+    return layer;
+  };
+
+  const tableOnlyLayer = () => {
+    const layer = syncLayer("TableOnly");
+    delete layer.popupConfig;
+    return layer;
+  };
+
+  const station = (id, x, y, layerName = "Both") => ({
+    attributes: { station_id: id },
+    geometry: { x, y },
+    layerName,
+  });
+
+  // The table overlay, found by the closer it renders. `undefined` is how
+  // OpenLayers hides an overlay, so its position is whether the table shows.
+  const tablePosition = () =>
+    mapRef.current
+      .getOverlays()
+      .getArray()
+      .find((overlay) =>
+        overlay.getElement()?.contains(screen.getByLabelText("Popup Closer")),
+      )
+      .getPosition();
+
+  const layoutTitle = () => screen.getByTestId("popup-modal-header-title");
+
+  const layoutPagination = () =>
+    screen.getByTestId("popup-modal-carousel-pagination");
+
+  // What the pin and the outline are drawn at, read off their layers.
+  const selectionDrawn = () => {
+    const layerNamed = (name) =>
+      mapRef.current
+        .getLayers()
+        .getArray()
+        .find((layer) => layer.get("name") === name);
+    const coordinatesOf = (layer) =>
+      layer
+        .getSource()
+        .getFeatures()
+        .map((feature) => feature.getGeometry().getCoordinates());
+    return {
+      pin: coordinatesOf(layerNamed("Marker")),
+      outline: coordinatesOf(layerNamed("Highlighted Layer")),
+    };
+  };
+
+  const closeTable = () =>
+    fireEvent.click(screen.getByLabelText("Popup Closer"));
+
+  const closeLayout = async () => {
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getByLabelText("Close popup"),
+    );
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+  };
+
+  // Fires another click at the same point and waits for its queries to go out.
+  const clickAgain = async () => {
+    const queried = mockedQueryLayerFeatures.mock.calls.length;
+    fireEvent.click(screen.getByText("click again"));
+    await waitFor(() => {
+      expect(mockedQueryLayerFeatures.mock.calls.length).toBeGreaterThan(
+        queried,
+      );
+    });
+  };
+
+  // The table open at (x, y) with the station's row in it. The table renders
+  // in a React root of its own, which commits after the map's, so its content
+  // is waited for separately from its position.
+  const expectTableOpenOn = async (id, x, y) => {
+    await waitFor(() => expect(tablePosition()).toEqual([x, y]));
+    await waitFor(() => {
+      expect(
+        within(screen.getByLabelText("Map Popup Content")).getAllByText(id),
+      ).not.toHaveLength(0);
+    });
+  };
+
+  // Both popups open on the station at (x, y).
+  const expectBothOpenOn = async (id, x, y) => {
+    await waitFor(() => expect(layoutTitle()).toHaveTextContent(id));
+    await expectTableOpenOn(id, x, y);
+  };
+
+  // A click that finds a station with a table and a layout, and a feature
+  // farther off whose layer has a table only.
+  const mockStationAndTableOnly = () =>
+    mockedQueryLayerFeatures.mockImplementation(async (layer) =>
+      layer.configuration.props.name === "TableOnly"
+        ? [station("TTT", 90, 90, "TableOnly")]
+        : [station("AAA", 10, 10)],
+    );
+
+  beforeEach(() => {
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+  });
+
+  test("clicking the same station after closing the layout opens the layout again", async () => {
+    // Characterization of the reported bug: after a close, clicking the same
+    // station opened the table but not the layout. It does not reproduce here.
+    mockedQueryLayerFeatures.mockResolvedValue([station("AAA", 10, 10)]);
+
+    renderStationMap([stationLayer()]);
+    await expectBothOpenOn("AAA", 10, 10);
+
+    await closeLayout();
+    expect(tablePosition()).toEqual([10, 10]);
+
+    await clickAgain();
+    await expectBothOpenOn("AAA", 10, 10);
+  });
+
+  test("clicking the same station after closing the table opens both popups", async () => {
+    mockedQueryLayerFeatures.mockResolvedValue([station("AAA", 10, 10)]);
+
+    renderStationMap([stationLayer()]);
+    await expectBothOpenOn("AAA", 10, 10);
+
+    closeTable();
+    await waitFor(() => expect(tablePosition()).toBeUndefined());
+    expect(layoutTitle()).toHaveTextContent("AAA");
+
+    await clickAgain();
+    await expectBothOpenOn("AAA", 10, 10);
+  });
+
+  test("closing the table leaves the layout, the pin and the outline on the station", async () => {
+    mockedQueryLayerFeatures.mockResolvedValue([station("AAA", 10, 10)]);
+
+    renderStationMap([stationLayer()]);
+    await expectBothOpenOn("AAA", 10, 10);
+
+    closeTable();
+    await waitFor(() => expect(tablePosition()).toBeUndefined());
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(layoutTitle()).toHaveTextContent("AAA");
+    expect(selectionDrawn()).toEqual({ pin: [[10, 20]], outline: [[10, 10]] });
+  });
+
+  test("Covers AE2. Paging the table moves the layout, which stays there once the table is closed", async () => {
+    mockedQueryLayerFeatures.mockResolvedValue([
+      station("AAA", 10, 10),
+      station("BBB", 50, 60),
+      station("CCC", 90, 90),
+    ]);
+
+    renderStationMap([stationLayer()]);
+    await expectBothOpenOn("AAA", 10, 10);
+
+    fireEvent.click(screen.getByLabelText("Next Swiper"));
+    await expectBothOpenOn("BBB", 50, 60);
+    expect(layoutPagination()).toHaveTextContent("2 / 3");
+
+    closeTable();
+    await waitFor(() => expect(tablePosition()).toBeUndefined());
+    expect(layoutTitle()).toHaveTextContent("BBB");
+    expect(layoutPagination()).toHaveTextContent("2 / 3");
+    expect(selectionDrawn().outline).toEqual([[50, 60]]);
+
+    // A new click opens both popups for whatever it selects.
+    mockedQueryLayerFeatures.mockResolvedValue([
+      station("DDD", 30, 40),
+      station("EEE", 70, 80),
+    ]);
+    await clickAgain();
+    await expectBothOpenOn("DDD", 30, 40);
+    expect(layoutPagination()).toHaveTextContent("1 / 2");
+  });
+
+  test("closing the layout and then the table clears the selection, leaving the pin and outline", async () => {
+    mockedQueryLayerFeatures.mockResolvedValue([station("AAA", 10, 10)]);
+
+    renderStationMap([stationLayer()]);
+    await expectBothOpenOn("AAA", 10, 10);
+
+    await closeLayout();
+    expect(tablePosition()).toEqual([10, 10]);
+
+    closeTable();
+    // The table renders its empty state once the list is gone.
+    expect(await screen.findByText("No Attributes Found")).toBeInTheDocument();
+    expect(tablePosition()).toBeUndefined();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(selectionDrawn()).toEqual({ pin: [[10, 20]], outline: [[10, 10]] });
+  });
+
+  test("closing the table and then the layout clears the selection, leaving the pin and outline", async () => {
+    mockedQueryLayerFeatures.mockResolvedValue([station("AAA", 10, 10)]);
+
+    renderStationMap([stationLayer()]);
+    await expectBothOpenOn("AAA", 10, 10);
+
+    closeTable();
+    await waitFor(() => expect(tablePosition()).toBeUndefined());
+    expect(screen.queryByText("No Attributes Found")).not.toBeInTheDocument();
+
+    await closeLayout();
+    expect(await screen.findByText("No Attributes Found")).toBeInTheDocument();
+    expect(tablePosition()).toBeUndefined();
+    expect(selectionDrawn()).toEqual({ pin: [[10, 20]], outline: [[10, 10]] });
+  });
+
+  test("paging the layout onto a table-only feature reopens the table there, and paging back reopens the layout", async () => {
+    mockStationAndTableOnly();
+
+    renderStationMap([stationLayer(), tableOnlyLayer()]);
+    await expectBothOpenOn("AAA", 10, 10);
+
+    closeTable();
+    await waitFor(() => expect(tablePosition()).toBeUndefined());
+
+    // The layout has nothing to show for the table-only feature and closes, so
+    // the table comes back to keep the selection on screen.
+    fireEvent.click(screen.getByTestId("popup-modal-carousel-next"));
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+    await expectTableOpenOn("TTT", 90, 90);
+    expect(selectionDrawn().outline).toEqual([[90, 90]]);
+
+    // Both popups follow the table back onto the station.
+    fireEvent.click(screen.getByLabelText("Previous Swiper"));
+    await expectBothOpenOn("AAA", 10, 10);
+  });
+
+  test("paging the layout onto another layout feature leaves the table closed", async () => {
+    mockedQueryLayerFeatures.mockResolvedValue([
+      station("AAA", 10, 10),
+      station("BBB", 50, 60),
+    ]);
+
+    renderStationMap([stationLayer()]);
+    await expectBothOpenOn("AAA", 10, 10);
+
+    closeTable();
+    await waitFor(() => expect(tablePosition()).toBeUndefined());
+
+    fireEvent.click(screen.getByTestId("popup-modal-carousel-next"));
+    await waitFor(() => expect(layoutTitle()).toHaveTextContent("BBB"));
+    expect(selectionDrawn().outline).toEqual([[50, 60]]);
+    expect(tablePosition()).toBeUndefined();
+  });
+
+  test("closing the table on a table-only selection clears it", async () => {
+    mockedQueryLayerFeatures.mockResolvedValue([
+      station("TTT", 90, 90, "TableOnly"),
+    ]);
+
+    renderStationMap([tableOnlyLayer()]);
+    await expectTableOpenOn("TTT", 90, 90);
+
+    closeTable();
+    expect(await screen.findByText("No Attributes Found")).toBeInTheDocument();
+    expect(tablePosition()).toBeUndefined();
+  });
+
+  test("closing the table after paging it off the layout's feature clears the selection", async () => {
+    // The close button is bound when the list arrives, while the layout was
+    // still showing. Read stale, it would record a dismissal instead, and the
+    // table-only feature would then reopen the table it had just closed.
+    mockStationAndTableOnly();
+
+    renderStationMap([stationLayer(), tableOnlyLayer()]);
+    await expectBothOpenOn("AAA", 10, 10);
+
+    fireEvent.click(screen.getByLabelText("Next Swiper"));
+    await expectTableOpenOn("TTT", 90, 90);
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    closeTable();
+    expect(await screen.findByText("No Attributes Found")).toBeInTheDocument();
+    expect(tablePosition()).toBeUndefined();
+  });
+
+  test("closing the table does not write the linked variable inputs again", async () => {
+    // The table's close only hides the overlay. The selection has not changed,
+    // so a value set since the click must survive it.
+    mockedQueryLayerFeatures.mockResolvedValue([station("AAA", 10, 10)]);
+    const layer = stationLayer();
+    layer.attributeVariables = { Both: { station_id: "Test Variable" } };
+
+    renderStationMap([layer]);
+    await expectBothOpenOn("AAA", 10, 10);
+    await waitFor(() => {
+      expect(screen.getByTestId("input-variables")).toHaveTextContent(
+        JSON.stringify({ "Test Variable": "AAA" }),
+      );
+    });
+
+    fireEvent.click(screen.getByText("set variable"));
+    await waitFor(() => {
+      expect(screen.getByTestId("input-variables")).toHaveTextContent(
+        JSON.stringify({ "Test Variable": "set by the user" }),
+      );
+    });
+
+    closeTable();
+    await waitFor(() => expect(tablePosition()).toBeUndefined());
+    expect(layoutTitle()).toHaveTextContent("AAA");
+    expect(screen.getByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({ "Test Variable": "set by the user" }),
+    );
+  });
+
+  test("closing the empty table hides it, and the next click shows its results", async () => {
+    mockedQueryLayerFeatures.mockResolvedValue([]);
+
+    renderStationMap([stationLayer()]);
+    expect(await screen.findByText("No Attributes Found")).toBeInTheDocument();
+    await waitFor(() => expect(tablePosition()).toEqual([10, 20]));
+
+    closeTable();
+    await waitFor(() => expect(tablePosition()).toBeUndefined());
+
+    mockedQueryLayerFeatures.mockResolvedValue([station("AAA", 10, 10)]);
+    await clickAgain();
+    await expectBothOpenOn("AAA", 10, 10);
+    expect(screen.queryByText("No Attributes Found")).not.toBeInTheDocument();
+  });
+
+  test("a dynamic layer's data swap closes a layout whose table was closed, and the next click opens both", async () => {
+    const getVisualizationFeatures = jest
+      .spyOn(appAPI, "getVisualizationFeatures")
+      .mockResolvedValue({
+        success: true,
+        viz_type: "features",
+        data: {
+          type: "FeatureCollection",
+          features: [],
+          crs: { type: "name", properties: { name: "EPSG:4326" } },
+        },
+      });
+    const dynamicLayer = JSON.parse(JSON.stringify(dynamicMapLayer));
+    // Bound to the variable the harness sets, so setting it refetches.
+    dynamicLayer.configuration.props.pluginSource.args = {
+      // eslint-disable-next-line no-template-curly-in-string
+      gauge: "${Test Variable}",
+    };
+    mockedQueryLayerFeatures.mockImplementation(async (layer) =>
+      layer.configuration.props.name === "Both" ? [station("AAA", 10, 10)] : [],
+    );
+
+    renderStationMap([stationLayer(), dynamicLayer]);
+    // The first fetch swaps the layer's data in on load, which may land after
+    // the first click and clear it. Wait for it, then click.
+    await waitFor(() =>
+      expect(mockedSwapVectorLayerFeatures).toHaveBeenCalled(),
+    );
+    await clickAgain();
+    await expectBothOpenOn("AAA", 10, 10);
+
+    closeTable();
+    await waitFor(() => expect(tablePosition()).toBeUndefined());
+
+    fireEvent.click(screen.getByText("set variable"));
+    await waitFor(() =>
+      expect(getVisualizationFeatures).toHaveBeenCalledTimes(2),
+    );
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+    expect(await screen.findByText("No Attributes Found")).toBeInTheDocument();
+
+    await clickAgain();
+    await expectBothOpenOn("AAA", 10, 10);
+  });
 });
 
 test("Map click — modal-only layer feature without geometry does not call addHighlightFeatures", async () => {

@@ -358,6 +358,11 @@ const MapVisualization = ({
   // modal's open state is derived from the active feature, so without this a
   // dismissal would be undone by the very next carousel step.
   const [modalDismissed, setModalDismissed] = useState(false);
+  // The table's counterpart, set when the user closes the table while the
+  // modal is showing and cleared by the next map click. The list is the
+  // modal's too, so closing the table records a dismissal instead of clearing
+  // it, and the modal stays on its feature.
+  const [tableDismissed, setTableDismissed] = useState(false);
   const [activeFeatureIndex, setActiveFeatureIndex] = useState(0);
   const markerLayer = useRef();
   const highlightLayer = useRef();
@@ -391,6 +396,13 @@ const MapVisualization = ({
   // effect only re-runs on `popupContent`. It reads the list back through this
   // ref so a later change can't leave it acting on a stale one.
   const popupContentRef = useRef(null);
+  // Whether the modal is showing and whether the table was closed, read back by
+  // the table's close button and `closeModal`. The button is captured by the
+  // same render effect as `onSwipe`, and `closeModal` is created once. Paging
+  // and closing the modal re-run neither, so values read directly would be the
+  // ones from when the list arrived.
+  const showModalRef = useRef(false);
+  const tableDismissedRef = useRef(false);
   // Coordinate of the gesture that opened the current popup; the fallback
   // anchor for a feature that carries no usable geometry.
   const popupAnchorRef = useRef(undefined);
@@ -426,12 +438,22 @@ const MapVisualization = ({
     hasModalPopup(activeFeature);
   const activeModalFeature = showModal ? activeFeature : null;
 
+  useEffect(() => {
+    showModalRef.current = showModal;
+    tableDismissedRef.current = tableDismissed;
+  }, [showModal, tableDismissed]);
+
   const closeModal = useCallback(() => {
     // The modal's open state is derived from the active feature, so closing it
     // is recorded as a dismissal rather than by clearing a list. It stays shut
     // for the rest of this gesture -- including across carousel steps -- and
-    // the next map click clears the flag. The table popup is left alone.
+    // the next map click clears the flag. An open table is left alone; with
+    // the table already closed nothing shows the selection any more, so it is
+    // cleared, as the table's own close button does.
     setModalDismissed(true);
+    if (tableDismissedRef.current) {
+      setPopupContent(null);
+    }
     const container = mapContainerRef.current;
     if (container && typeof container.focus === "function") {
       container.focus();
@@ -444,6 +466,10 @@ const MapVisualization = ({
       popupOverlayRef.current.setPosition(undefined);
     }
     setPopupContent(null);
+    // Nothing is showing once the list is gone, so neither dismissal still
+    // applies; the next click opens both popups as usual.
+    setModalDismissed(false);
+    setTableDismissed(false);
     if (highlightLayer.current?.getSource) {
       highlightLayer.current.getSource().clear();
     }
@@ -669,7 +695,14 @@ const MapVisualization = ({
             onClick={(e) => {
               e.preventDefault();
               popupOverlayRef.current.setPosition(undefined);
-              setPopupContent(null);
+              // While the modal is showing, closing the table only hides it:
+              // clearing the list would close the modal with it. The modal
+              // keeps its feature until it is closed or the next click.
+              if (showModalRef.current) {
+                setTableDismissed(true);
+              } else {
+                setPopupContent(null);
+              }
             }}
           >
             <FaTimes />
@@ -733,14 +766,11 @@ const MapVisualization = ({
     popupContentRef.current = popupContent;
   }, [popupContent]);
 
-  // Everything that follows the selected feature, in one place: the highlight,
-  // the table popup's slide, and the overlay's position. With one list for
-  // both popups these can no longer disagree about which feature is selected.
-  //
-  // The overlay is anchored to the active feature's geometry rather than to
-  // the click point, and hides entirely when that feature isn't table-eligible
-  // (a modal-only layer) -- otherwise it would sit there showing a different
-  // feature than the modal.
+  // What follows the selected feature itself: the highlight and the variable
+  // inputs. With one list for both popups these can no longer disagree about
+  // which feature is selected. The table overlay follows it in the next effect,
+  // kept separate so that closing the table -- which only hides the overlay --
+  // does not write the variable inputs again over anything changed since.
   useEffect(() => {
     if (!activeFeature) return;
 
@@ -757,6 +787,16 @@ const MapVisualization = ({
     // keep working. The hover query is debounced to ~1 update per cursor
     // pause, so downstream re-fetches stay bounded.
     updateVariableInputsForFeature(activeFeature);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeFeature, popupSource]);
+
+  // The table popup's slide and the overlay's position. The overlay is
+  // anchored to the active feature's geometry rather than to the click point,
+  // and hides entirely when that feature isn't table-eligible (a modal-only
+  // layer) -- otherwise it would sit there showing a different feature than
+  // the modal -- or while the user has the table closed.
+  useEffect(() => {
+    if (!activeFeature) return;
 
     // Overlay positioning is click-only. A hover popup is placed at the cursor
     // by the hover handler and must stay there -- and its features come from
@@ -764,13 +804,25 @@ const MapVisualization = ({
     // would reject outright.
     if (popupSource !== "click") return;
 
+    const tableCanShow =
+      isTableEligible(activeFeature) &&
+      hasVisiblePopupAttributes(activeFeature);
+
+    if (tableDismissed) {
+      // Paging the modal onto a feature that has no modal closes it, as
+      // always. If the table can show that feature, reopen the table so the
+      // selection stays on screen rather than leaving neither popup open.
+      if (tableCanShow && !hasModalPopup(activeFeature)) {
+        setTableDismissed(false);
+      }
+      popupOverlayRef.current?.setPosition(undefined);
+      return;
+    }
+
     // Hide the overlay rather than anchor it when the table has nothing to
     // show for this feature: either its layer isn't click-driven for the table
     // (a modal-only layer), or every one of its attributes is omitted.
-    if (
-      !isTableEligible(activeFeature) ||
-      !hasVisiblePopupAttributes(activeFeature)
-    ) {
+    if (!tableCanShow) {
       popupOverlayRef.current?.setPosition(undefined);
       return;
     }
@@ -799,7 +851,7 @@ const MapVisualization = ({
       popupOverlayRef.current?.setPosition(anchor);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeFeature, safeActiveFeatureIndex, popupSource]);
+  }, [activeFeature, safeActiveFeatureIndex, popupSource, tableDismissed]);
 
   useEffect(() => {
     const updateLayers = async () => {
@@ -1102,7 +1154,7 @@ const MapVisualization = ({
   }, [mapLegend, rasterLegendByLayerId]);
 
   // Swiping the table popup just moves the shared index; the active-feature
-  // effect does the rest (highlight, anchor, variable inputs, and opening or
+  // effects do the rest (highlight, anchor, variable inputs, and opening or
   // closing the modal). One list means the Swiper's index IS the shared index,
   // so there is no mapping to do.
   const onSwipe = (swiper) => {
@@ -1434,9 +1486,10 @@ const MapVisualization = ({
     popupAnchorRef.current = coordinate;
     setPopupContent(newPopupContent);
     setPopupSource("click");
-    // A fresh click is a fresh gesture, so an earlier dismissal no longer
-    // applies -- the modal may open again for whatever this click selects.
+    // A fresh click is a fresh gesture, so an earlier dismissal of either popup
+    // no longer applies -- both may open again for whatever this click selects.
     setModalDismissed(false);
+    setTableDismissed(false);
     popupOverlayRef.current?.setPosition(popupCoordinate);
   };
 
