@@ -17,10 +17,15 @@ describe("MapSelection Component", () => {
     openSection();
     expect(header).toHaveAttribute("aria-expanded", "true");
 
-    // One "Show" heading over short column names.
     expect(
-      screen.getAllByRole("columnheader").map((header) => header.textContent),
-    ).toEqual(["Show", "Map", "Legend", "Layer control"]);
+      screen.getByRole("columnheader", { name: "Show on map" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("columnheader", { name: "Show in legend" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("columnheader", { name: "Show in layer control" }),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("rowheader", { name: "Clicked location" }),
     ).toBeInTheDocument();
