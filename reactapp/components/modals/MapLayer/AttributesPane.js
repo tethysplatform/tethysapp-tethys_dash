@@ -16,6 +16,7 @@ import {
   hoverFieldFilter,
 } from "components/map/popupAttributes";
 import CheckboxInput from "components/inputs/CheckboxInput";
+import InfoTip from "components/inputs/InfoTip";
 import Spinner from "react-bootstrap/Spinner";
 import Button from "react-bootstrap/Button";
 import {
@@ -176,6 +177,7 @@ const AttributesPane = ({
   const previousSourceProps = useRef({});
   const previousAttributeProps = useRef({});
   const [customAttributes, setCustomAttributes] = useState(null);
+  const [loadingFromUrl, setLoadingFromUrl] = useState(false);
   const [focusRequestFor, requestFocus] = useRowMoveFocus();
   const { dynamicMapLayers } = useContext(AppContext);
   const clickOn = isClickEnabled(attributeProps);
@@ -464,7 +466,13 @@ const AttributesPane = ({
       }
     }
 
-    layerAttributes = parseAttributes(layerAttributes, discovered);
+    showRows(layerAttributes, discovered);
+  }
+
+  // Seed the rows' settings, show them, and write the attribute props they
+  // describe.
+  function showRows(rows, discovered) {
+    const layerAttributes = parseAttributes(rows, discovered);
 
     previousAttributeProps.current = JSON.parse(JSON.stringify(attributeProps));
     // The popup type is left as it was saved: only the author's own changes
@@ -493,11 +501,39 @@ const AttributesPane = ({
     return [...rows].sort((a, b) => rank.get(a.name) - rank.get(b.name));
   }
 
+  // Loading a URL's GeoJSON fills in the hand-entered table rather than
+  // replacing it: the fields the file has that the table does not list yet are
+  // added as rows, and the table, its toggles and every row the author already
+  // set up stay as they were. The table stays on screen while the file loads.
   async function handleLoadAttributesFromUrl() {
     setWarningMessage(null);
-    setCustomAttributes(null);
+    setLoadingFromUrl(true);
     const queriedLayerAttributes = await queryLayerAttributes();
-    applyLayerAttributes(queriedLayerAttributes);
+    setLoadingFromUrl(false);
+    // A failed query has already said why.
+    if (!queriedLayerAttributes) return;
+
+    // A copy, since seeding the rows writes to them.
+    const rows = JSON.parse(JSON.stringify(attributes));
+    let found = false;
+    for (const [layerName, fields] of Object.entries(queriedLayerAttributes)) {
+      if (!Array.isArray(fields) || fields.length === 0) continue;
+      found = true;
+      // The blank row a new table starts with is a placeholder, not a field.
+      const listed = (rows[layerName] ?? []).filter(({ name }) => name);
+      const listedNames = new Set(listed.map(({ name }) => name));
+      const added = fields
+        .filter(({ name }) => name && !listedNames.has(name))
+        .map(({ name, alias }) => ({ name, alias }));
+      rows[layerName] = [...listed, ...added];
+    }
+    if (!found) {
+      setWarningMessage(
+        "No field attributes were found. Please provide the desired fields manually below.",
+      );
+      return;
+    }
+    showRows(rows, false);
   }
 
   function appendExistingVariablesAliasesAndPopups(
@@ -847,9 +883,12 @@ const AttributesPane = ({
                     variant="outline-primary"
                     size="sm"
                     onClick={handleLoadAttributesFromUrl}
+                    disabled={loadingFromUrl}
                     aria-label="Load attributes from URL"
                   >
-                    Load attributes from URL
+                    {loadingFromUrl
+                      ? "Loading attributes..."
+                      : "Load attributes from URL"}
                   </Button>
                   <Hint>
                     Large remote GeoJSON files may take a while to load.
@@ -872,10 +911,10 @@ const AttributesPane = ({
                   value={hoverOn}
                   onChange={(on) => handleEventToggle("hover", on)}
                 />
-                <Hint>
+                <InfoTip label="Click and Hover">
                   Each event that is on shows every field the layer returns,
                   except the rows unchecked for it.
-                </Hint>
+                </InfoTip>
               </EventToggles>
               {Object.keys(attributes).map((layerName, index) => (
                 <InputTable

@@ -8,7 +8,7 @@ Attributes/Table Popup Tab
 The Attributes/Table Popup tab configures what a layer shows when one of its features is clicked or hovered:
 
     - **Click** opens an attribute table at the feature. When a click lands on several features, the table pages between them.
-    - **Hover** shows a small tooltip beside the cursor with the fields of the feature under it. The tooltip has no title, paging or close button. It appears once the cursor rests on a feature for about a quarter of a second and disappears as soon as the cursor moves.
+    - **Hover** shows a small tooltip beside the cursor with the fields of the feature under it, laid out like the attribute table: the layer's name above a Field and Value table. It has no paging or close button. It appears once the cursor rests on a feature for about a quarter of a second and disappears as soon as the cursor moves.
 
 A layer can use either, both, or neither. A separate Custom Modal Popup can be configured on its own tab; it always opens on click. See :ref:`popup_modal`.
 
@@ -41,6 +41,7 @@ Some layers, such as GeoTIFF rasters and WMS or ESRI image services, only report
     - **Click** starts on and **Hover** starts off.
     - An event that is switched on shows every field the layer returns, except rows you add and uncheck for that event.
     - While a switch is off, its column is greyed out and keeps its checks, so switching it back on restores them.
+    - For a GeoJSON file loaded from a URL, **Load attributes from URL** reads the file and adds its fields to the table as rows. Rows and settings already in the table are kept.
 
 
 Configuring attribute fields

@@ -1124,49 +1124,135 @@ test("URL-based GeoJSON skips auto-extract on tab switch and exposes the 'Load a
   expect(mockedGetLayerAttributes).not.toHaveBeenCalled();
 });
 
-test("'Load attributes from URL' button triggers a query and renders the extracted attributes", async () => {
-  // Covers handleLoadAttributesFromUrl (lines 321-324). After clicking the
-  // button, queryLayerAttributes must run with the configured sourceProps
-  // and the result is fed through applyLayerAttributes — switching the
-  // pane out of the manual-entry InputTable into the extracted-attributes
-  // FixedTable.
-  mockedGetLayerAttributes.mockResolvedValue({
-    "remote-geojson": [
-      { name: "field_a", alias: "Field A" },
-      { name: "field_b", alias: "Field B" },
-    ],
-  });
-
+describe("loading attributes from a GeoJSON URL", () => {
   const sourceProps = {
     type: "GeoJSON",
     props: {},
     geojson: "https://example.com/big.geojson",
   };
 
-  render(
-    <TestingComponent
-      sourceProps={sourceProps}
-      layerProps={{ name: "remote-geojson" }}
-      tabKey="attributes"
-    />,
-  );
+  const renderRemote = (initialAttributeProps) =>
+    render(
+      <TestingComponent
+        sourceProps={sourceProps}
+        layerProps={{ name: "remote-geojson" }}
+        tabKey="attributes"
+        initialAttributeProps={initialAttributeProps}
+      />,
+    );
 
-  const loadButton = await screen.findByLabelText("Load attributes from URL");
-  await userEvent.click(loadButton);
+  const rowNames = () =>
+    screen.getAllByLabelText(/^name Input \d+$/).map((input) => input.value);
 
-  // queryLayerAttributes ran exactly once for the configured sourceProps
-  // and layer name.
-  await waitFor(() => {
-    expect(mockedGetLayerAttributes).toHaveBeenCalledWith({
-      isDynamicMapLayer: null,
-      layerName: "remote-geojson",
-      sourceProps,
+  test("fills the hand-entered table in, keeping its layout", async () => {
+    mockedGetLayerAttributes.mockResolvedValue({
+      "remote-geojson": [
+        { name: "field_a", alias: "Field A" },
+        { name: "field_b", alias: "Field B" },
+      ],
     });
+    renderRemote();
+    expect(await screen.findByLabelText("name Input 0")).toHaveValue("");
+
+    await userEvent.click(screen.getByLabelText("Load attributes from URL"));
+
+    await waitFor(() => {
+      expect(mockedGetLayerAttributes).toHaveBeenCalledWith({
+        isDynamicMapLayer: null,
+        layerName: "remote-geojson",
+        sourceProps,
+      });
+    });
+    // The fields arrive as rows of the same table: the blank starter row is
+    // replaced, and the load button, the toggles and the editable cells stay.
+    await waitFor(() => expect(rowNames()).toEqual(["field_a", "field_b"]));
+    expect(screen.getByLabelText("alias Input 0")).toHaveValue("Field A");
+    expect(screen.getByLabelText("Load attributes from URL")).toBeEnabled();
+    expect(screen.getByLabelText("Click Input")).toBeChecked();
+    expect(screen.getByLabelText("Hover Input")).not.toBeChecked();
+    expect(screen.getByLabelText("click Input 1")).toBeChecked();
+    expect(
+      screen.queryByLabelText("Move field_a down"),
+    ).not.toBeInTheDocument();
   });
 
-  // Extracted attribute names appear in the rendered FixedTable.
-  expect(await screen.findByText("field_a")).toBeInTheDocument();
-  expect(await screen.findByText("field_b")).toBeInTheDocument();
+  test("keeps the rows and settings already entered, and adds only new fields", async () => {
+    mockedGetLayerAttributes.mockResolvedValue({
+      "remote-geojson": [
+        { name: "field_a", alias: "field_a" },
+        { name: "field_b", alias: "field_b" },
+      ],
+    });
+    renderRemote({
+      aliases: { "remote-geojson": { field_a: "Station" } },
+      omitted: { "remote-geojson": ["field_a"] },
+      order: { "remote-geojson": ["typed_in", "field_a"] },
+    });
+    await waitFor(() => expect(rowNames()).toEqual(["typed_in", "field_a"]));
+
+    await userEvent.click(screen.getByLabelText("Load attributes from URL"));
+
+    await waitFor(() =>
+      expect(rowNames()).toEqual(["typed_in", "field_a", "field_b"]),
+    );
+    expect(screen.getByLabelText("alias Input 1")).toHaveValue("Station");
+    expect(screen.getByLabelText("click Input 1")).not.toBeChecked();
+    expect(screen.getByLabelText("click Input 2")).toBeChecked();
+    expect(screen.getByTestId("omittedPopupAttributes")).toHaveTextContent(
+      JSON.stringify({ "remote-geojson": ["field_a"] }),
+    );
+  });
+
+  test("keeps the table on screen while the file loads", async () => {
+    let finish;
+    mockedGetLayerAttributes.mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+    renderRemote();
+    await screen.findByLabelText("name Input 0");
+
+    await userEvent.click(screen.getByLabelText("Load attributes from URL"));
+
+    expect(screen.getByLabelText("Load attributes from URL")).toBeDisabled();
+    expect(screen.getByText("Loading attributes...")).toBeInTheDocument();
+    expect(screen.getByLabelText("name Input 0")).toBeInTheDocument();
+    expect(screen.queryByTestId("Loading...")).not.toBeInTheDocument();
+
+    await act(async () => {
+      finish({ "remote-geojson": [{ name: "field_a", alias: "field_a" }] });
+    });
+    await waitFor(() => expect(rowNames()).toEqual(["field_a"]));
+    expect(screen.getByLabelText("Load attributes from URL")).toBeEnabled();
+  });
+
+  test("a file with no fields, or a failed load, leaves the table as it was", async () => {
+    mockedGetLayerAttributes.mockResolvedValueOnce({ "remote-geojson": [] });
+    renderRemote({ order: { "remote-geojson": ["typed_in"] } });
+    await waitFor(() => expect(rowNames()).toEqual(["typed_in"]));
+
+    await userEvent.click(screen.getByLabelText("Load attributes from URL"));
+    expect(
+      await screen.findByText(/No field attributes were found/),
+    ).toBeInTheDocument();
+    expect(rowNames()).toEqual(["typed_in"]);
+
+    mockedGetLayerAttributes.mockRejectedValueOnce(new Error("fetch failed"));
+    await userEvent.click(screen.getByLabelText("Load attributes from URL"));
+    expect(await screen.findByText("fetch failed")).toBeInTheDocument();
+    expect(rowNames()).toEqual(["typed_in"]);
+    expect(screen.getByLabelText("Click Input")).toBeInTheDocument();
+  });
+
+  test("explains the toggles in an info tip rather than a line of text", async () => {
+    renderRemote();
+    await screen.findByLabelText("Click Input");
+    expect(screen.getByLabelText("Click and Hover help")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Each event that is on shows every field/),
+    ).not.toBeInTheDocument();
+  });
 });
 
 TestingComponent.propTypes = {
