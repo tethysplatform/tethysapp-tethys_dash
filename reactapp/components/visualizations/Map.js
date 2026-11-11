@@ -27,7 +27,7 @@ import {
   hasLegend,
   resolveTablePopupType,
   formatAttributeValue,
-  orderAttributeNames,
+  buildAttributeRows,
   collectLayerAttributeMaps,
   attributeOrderPropType,
   CLIENT_VECTOR_SOURCE_TYPES,
@@ -207,23 +207,13 @@ export const Popup = ({
   aliases,
   order = {},
 }) => {
-  // Rows are built as a list rather than an object keyed by display name: an
-  // object would move integer-like names ("2020") back to the front, and two
-  // fields sharing an alias would collapse into one row.
   const filteredLayerAttributes = layerAttributes.map((feature) => {
     const omittedFields = omittedPopupAttributes[feature.layerName] || [];
-    const aliasMap = aliases[feature.layerName] || {};
-    const visibleFields = Object.keys(feature.attributes).filter(
-      (key) => !omittedFields.includes(key),
-    );
-    const rows = orderAttributeNames(
-      visibleFields,
-      order[feature.layerName],
-    ).map((key) => ({
-      key,
-      label: aliasMap[key] || key,
-      value: feature.attributes[key],
-    }));
+    const rows = buildAttributeRows(feature.attributes, {
+      isVisible: (key) => !omittedFields.includes(key),
+      aliases: aliases[feature.layerName] || {},
+      order: order[feature.layerName],
+    });
     return { ...feature, rows };
   });
 

@@ -35,6 +35,11 @@ import {
   RASTER_SOURCE_TYPES,
   orderAttributeNames,
   collectLayerAttributeMaps,
+  isClickEnabled,
+  isHoverEnabled,
+  hoverFieldFilter,
+  buildAttributeRows,
+  hoverAttributeRows,
 } from "components/map/utilities";
 import {
   classifyGeometryForRanking,
@@ -533,6 +538,10 @@ describe("isTableEligible / hasModalPopup", () => {
 
   test("queryable: false is treated as table popup 'none'", () => {
     expect(isTableEligible(feature({ queryable: false }))).toBe(false);
+  });
+
+  test("tablePopupType 'both' shows the click table", () => {
+    expect(isTableEligible(feature({ tablePopupType: "both" }))).toBe(true);
   });
 
   test("an untagged feature is table-eligible and has no modal", () => {
@@ -5558,6 +5567,160 @@ describe("collectLayerAttributeMaps", () => {
       omitted: {},
       order: {},
     });
+  });
+});
+
+describe("isClickEnabled / isHoverEnabled", () => {
+  test.each([
+    ["no popup settings", {}, true, false],
+    ["click", { tablePopupType: "click" }, true, false],
+    ["hover", { tablePopupType: "hover" }, false, true],
+    ["both", { tablePopupType: "both" }, true, true],
+    ["none", { tablePopupType: "none" }, false, false],
+    ["legacy queryable: false", { queryable: false }, false, false],
+    ["legacy queryable: true", { queryable: true }, true, false],
+  ])("%s", (_label, layer, click, hover) => {
+    expect(isClickEnabled(layer)).toBe(click);
+    expect(isHoverEnabled(layer)).toBe(hover);
+  });
+
+  test("a missing layer reads as the click default", () => {
+    expect(isClickEnabled(undefined)).toBe(true);
+    expect(isHoverEnabled(undefined)).toBe(false);
+  });
+});
+
+describe("hoverFieldFilter", () => {
+  const fields = ["id", "name", "elevation"];
+  const shown = (layer, sublayer = "stations") =>
+    fields.filter(hoverFieldFilter(layer, sublayer));
+
+  test("an allow-list shows only the fields it names", () => {
+    const layer = {
+      tablePopupType: "both",
+      hoverPopupAttributes: { stations: ["name", "id"] },
+      omittedPopupAttributes: { stations: ["name"] },
+    };
+    expect(shown(layer)).toEqual(["id", "name"]);
+  });
+
+  test("an allow-list that does not mention the sublayer shows nothing", () => {
+    const layer = { hoverPopupAttributes: { other: ["id"] } };
+    expect(shown(layer)).toEqual([]);
+  });
+
+  test("a deny-list hides only the fields it names", () => {
+    const layer = {
+      omittedHoverAttributes: { stations: ["elevation"] },
+      omittedPopupAttributes: { stations: ["id", "name"] },
+    };
+    expect(shown(layer)).toEqual(["id", "name"]);
+  });
+
+  test("a deny-list with an empty list shows every field", () => {
+    // What the editor saves for a layer whose fields it could not list, with
+    // hover on and nothing unchecked: the key is there, so the click table's
+    // omitted fields are not borrowed.
+    const layer = {
+      omittedHoverAttributes: { stations: [] },
+      omittedPopupAttributes: { stations: ["id"] },
+    };
+    expect(shown(layer)).toEqual(fields);
+  });
+
+  test("a hover layer saved before hover had its own list hides the click table's omitted fields", () => {
+    const layer = {
+      tablePopupType: "hover",
+      omittedPopupAttributes: { stations: ["elevation"] },
+    };
+    expect(shown(layer)).toEqual(["id", "name"]);
+  });
+
+  test("'both' with no hover key falls back the same way", () => {
+    const layer = {
+      tablePopupType: "both",
+      omittedPopupAttributes: { stations: ["id"] },
+    };
+    expect(shown(layer)).toEqual(["name", "elevation"]);
+  });
+
+  test("the allow-list wins when both hover keys are present", () => {
+    const layer = {
+      hoverPopupAttributes: { stations: ["id"] },
+      omittedHoverAttributes: { stations: ["id"] },
+    };
+    expect(shown(layer)).toEqual(["id"]);
+  });
+
+  test("a list that is not an array is read as empty instead of throwing", () => {
+    expect(shown({ hoverPopupAttributes: { stations: "id" } })).toEqual([]);
+    expect(shown({ omittedHoverAttributes: { stations: 42 } })).toEqual(fields);
+    expect(shown({ omittedHoverAttributes: "bad" })).toEqual(fields);
+    expect(shown(undefined)).toEqual(fields);
+  });
+});
+
+describe("buildAttributeRows", () => {
+  test("keeps visible fields in the author's order, labelled by alias", () => {
+    const rows = buildAttributeRows(
+      { id: 1, name: "A", elevation: 10 },
+      {
+        isVisible: (key) => key !== "elevation",
+        aliases: { name: "Station" },
+        order: ["name"],
+      },
+    );
+    expect(rows).toEqual([
+      { key: "name", label: "Station", value: "A" },
+      { key: "id", label: "id", value: 1 },
+    ]);
+  });
+
+  test("keeps an integer-like name where the order puts it, and both fields sharing an alias", () => {
+    const rows = buildAttributeRows(
+      { site: "X", 2020: 5, other: 6 },
+      {
+        isVisible: () => true,
+        aliases: { 2020: "Value", other: "Value" },
+        order: ["site", "2020"],
+      },
+    );
+    expect(rows.map(({ key, label }) => [key, label])).toEqual([
+      ["site", "site"],
+      ["2020", "Value"],
+      ["other", "Value"],
+    ]);
+  });
+
+  test("returns no rows for a feature without attributes", () => {
+    expect(buildAttributeRows(undefined, { isVisible: () => true })).toEqual(
+      [],
+    );
+  });
+});
+
+describe("hoverAttributeRows", () => {
+  test("reads the filter, aliases and order from the feature's own layer", () => {
+    const feature = {
+      layerName: "stations",
+      attributes: { id: "BBY", name: "Bodega Bay", elevation: 15 },
+      __wrapperLayer: {
+        tablePopupType: "both",
+        hoverPopupAttributes: { stations: ["id", "name"] },
+        attributeAliases: { stations: { id: "CW3E ID" } },
+        attributeOrder: { stations: ["name", "id"] },
+      },
+    };
+    expect(hoverAttributeRows(feature)).toEqual([
+      { key: "name", label: "name", value: "Bodega Bay" },
+      { key: "id", label: "CW3E ID", value: "BBY" },
+    ]);
+  });
+
+  test("an untagged feature shows every attribute", () => {
+    expect(hoverAttributeRows({ attributes: { a: 1 } })).toEqual([
+      { key: "a", label: "a", value: 1 },
+    ]);
   });
 });
 
