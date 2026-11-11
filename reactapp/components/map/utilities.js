@@ -1972,9 +1972,9 @@ const LAYER_ATTRIBUTE_MAP_KEYS = {
 
 /**
  * Merges each layer's attribute maps into one map per kind, keyed by sublayer
- * name, for the popup and the variable-input write-back to look up by the
- * clicked feature's layer. Click and hover both build these from their own
- * layer sets, so they share this rather than each keeping a copy.
+ * name, for the click table and the variable-input write-back to look up by
+ * the clicked feature's layer. Hover keeps no merged set: it reads each
+ * feature's own layer (see `hoverAttributeRows`).
  *
  * @param {object[]} layers Saved layer configs.
  * @returns {{aliases: object, variables: object, omitted: object, order: object}}

@@ -150,6 +150,7 @@ describe("captureDashboardCanvas", () => {
           ".ol-popup-closer",
           ".map-query-spinner",
           ".linked-cursor-marker",
+          ".map-hover-tooltip",
         ]),
       }),
     );

@@ -40,7 +40,10 @@ import {
 import MapContextProvider, {
   useMapContext,
 } from "components/contexts/MapContext";
-import MapVisualization, { Popup } from "components/visualizations/Map";
+import MapVisualization, {
+  HOVER_TOOLTIP_OVERLAY_ID,
+  Popup,
+} from "components/visualizations/Map";
 import { clearClientSourceCaches } from "components/map/ModuleLoader";
 
 // The GeoParquet/Zarr read caches are module-scoped and live for the page's
@@ -1553,9 +1556,9 @@ test("Map click — modal-only layer feature without geometry does not call addH
   // crash the effect — it should bail before calling addHighlightFeatures.
   //
   // The effect still runs through its earlier guards (modalOpen is true,
-  // highlightLayer.current is set by the click handler, hoverActiveRef is
-  // false because click resets it, modalFeatures has the missing-geometry
-  // feature), so reaching the no-geometry guard is what's being exercised.
+  // highlightLayer.current is set by the click handler, modalFeatures has the
+  // missing-geometry feature), so reaching the no-geometry guard is what's
+  // being exercised.
   mockedQueryLayerFeatures.mockResolvedValue([
     {
       attributes: { reach_id: "ABC" },
@@ -1704,9 +1707,10 @@ test("Map click — modal-only layer highlights the clicked feature's GeoJSON ge
   expect(vectorAddFeaturesSpy).toHaveBeenCalled();
 });
 
-test("Map click — hover-table layer is excluded from the click handler", async () => {
+test("Map click — a hover-only layer is excluded from the click handler, a layer with both popups is not", async () => {
   // tablePopupType: "hover" without modal must not be queried on click; only
-  // the hover handler should fire for that layer.
+  // the hover handler should fire for that layer. "both" shows the click table
+  // as well as the tooltip, so a click queries it.
   mockedQueryLayerFeatures.mockResolvedValue([
     {
       attributes: { field1: "value" },
@@ -1742,6 +1746,19 @@ test("Map click — hover-table layer is excluded from the click handler", async
         },
       },
     },
+    {
+      tablePopupType: "both",
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "BothLayer",
+          source: {
+            type: "ESRI Image and Map Service",
+            props: { url: "both_url" },
+          },
+        },
+      },
+    },
   ];
   const clickCoordinates = [10, 20];
   const LoadedComponent = createLoadedComponent({
@@ -1766,26 +1783,22 @@ test("Map click — hover-table layer is excluded from the click handler", async
   expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
   expect(await screen.findByText("Map Ready")).toBeInTheDocument();
 
-  // Click handler queries only ClickLayer. (The pointermove dispatch in the
-  // TestingComponent only fires when onMapPointerMove is passed, so the hover
-  // handler does not run here — this is purely a click-filter test.)
+  // Click handler queries ClickLayer and BothLayer. (The pointermove dispatch
+  // in the TestingComponent only fires when onMapPointerMove is passed, so the
+  // hover handler does not run here — this is purely a click-filter test.)
   await waitFor(() => {
-    expect(mockedQueryLayerFeatures.mock.calls.length).toBeGreaterThanOrEqual(
-      1,
-    );
+    expect(mockedQueryLayerFeatures).toHaveBeenCalledTimes(2);
   });
   const queriedNames = mockedQueryLayerFeatures.mock.calls.map(
     ([layer]) => layer.configuration.props.name,
   );
-  expect(queriedNames).toContain("ClickLayer");
-  expect(queriedNames).not.toContain("HoverLayer");
+  expect(queriedNames).toEqual(["ClickLayer", "BothLayer"]);
 });
 
 test("Map click — hover-only map: click is a no-op (no query, no empty popup)", async () => {
-  // Regression: when the map has only hover-tagged layers, clicking
-  // anywhere previously overwrote the hover popup with an empty
-  // "No Attributes Found" overlay. The click handler now bails before
-  // any side effects when nothing is click-eligible.
+  // When the map has only hover-tagged layers there is nothing to click, so
+  // the click handler bails before any side effects -- in particular it must
+  // not put up an empty "No Attributes Found" table.
   jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
   const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
 
@@ -1839,12 +1852,10 @@ test("Map click — hover-only map: click is a no-op (no query, no empty popup)"
   expect(positionCalls).not.toContainEqual(clickCoordinates);
 });
 
-test("Map click — mixed config: click on hover feature preserves the hover popup", async () => {
-  // Regression: when both click and hover layers exist, clicking on a
-  // location where ONLY the hover layer has a feature must not replace
-  // the hover popup with "No Attributes Found". The click handler queries
-  // the click-eligible layer, finds nothing, and now bails via the
-  // hoverActiveRef guard instead of overwriting popup state.
+test("Map click — mixed config: a click takes the hover tooltip down and answers for the click layers", async () => {
+  // Hover and click no longer share a popup. A click where only the hover
+  // layer has a feature hides the tooltip, and the click table shows what the
+  // click layers found there: nothing.
   mockedQueryLayerFeatures.mockImplementation(async (layer) => {
     if (layer.configuration.props.name === "HoverLayer") {
       return [
@@ -1859,7 +1870,6 @@ test("Map click — mixed config: click on hover feature preserves the hover pop
     return [];
   });
   jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
-  const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
 
   const layers = [
     {
@@ -1889,18 +1899,18 @@ test("Map click — mixed config: click on hover feature preserves the hover pop
     },
   ];
   const sharedCoordinates = [10, 20];
+  const mapRef = { current: null };
 
   // The default TestingComponent fires singleclick before pointermove,
-  // which is the wrong order for this test (we need hover popup OPEN
-  // first, then dispatch the click). Use a manual harness with two
-  // buttons so the test body controls the dispatch order.
+  // which is the wrong order for this test (we need the tooltip up first,
+  // then dispatch the click). Use a manual harness with two buttons so the
+  // test body controls the dispatch order.
   const HoverThenClickHarness = () => {
-    const visualizationRef = useRef();
     const { mapReady } = useMapContext();
     return (
       <div>
         <MapVisualization
-          visualizationRef={visualizationRef}
+          visualizationRef={mapRef}
           mapConfig={{}}
           viewConfig={{}}
           layers={layers}
@@ -1911,7 +1921,7 @@ test("Map click — mixed config: click on hover feature preserves the hover pop
         <button
           type="button"
           onClick={() =>
-            visualizationRef.current?.dispatchEvent({
+            mapRef.current?.dispatchEvent({
               type: "pointermove",
               coordinate: sharedCoordinates,
             })
@@ -1922,7 +1932,7 @@ test("Map click — mixed config: click on hover feature preserves the hover pop
         <button
           type="button"
           onClick={() =>
-            visualizationRef.current?.dispatchEvent({
+            mapRef.current?.dispatchEvent({
               type: "singleclick",
               coordinate: sharedCoordinates,
             })
@@ -1945,33 +1955,47 @@ test("Map click — mixed config: click on hover feature preserves the hover pop
 
   expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
   expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  const tooltipOverlay = () =>
+    mapRef.current.getOverlayById(HOVER_TOOLTIP_OVERLAY_ID);
+  // The table overlay, found by the closer it renders.
+  const tableOverlay = () =>
+    mapRef.current
+      .getOverlays()
+      .getArray()
+      .find((overlay) =>
+        overlay.getElement()?.contains(screen.getByLabelText("Popup Closer")),
+      );
 
-  // Step 1: fire hover. After the 250ms debounce, the hover popup opens
-  // at sharedCoordinates and the overlay is positioned there.
+  // Step 1: hover. After the 250ms debounce the tooltip shows the hover
+  // layer's feature at the cursor; the table stays shut.
   fireEvent.click(screen.getByText("fire-hover"));
   await waitFor(() => {
-    expect(popSetPosition).toHaveBeenCalledWith(sharedCoordinates);
+    expect(tooltipOverlay().getPosition()).toEqual(sharedCoordinates);
   });
+  expect(
+    await screen.findByRole("tooltip", { hidden: true }),
+  ).toHaveTextContent("hover-value");
+  expect(tableOverlay().getPosition()).toBeUndefined();
   const queriedAfterHover = mockedQueryLayerFeatures.mock.calls.length;
 
-  // Step 2: fire click at the same coordinate. The click handler will
-  // query ClickLayer (which returns []), find no features, see that a
-  // hover popup is open, and bail without modifying popup state.
+  // Step 2: click at the same coordinate. The tooltip comes down at once,
+  // and the click layer's empty result opens the empty table at the click.
   fireEvent.click(screen.getByText("fire-click"));
-  // Give the async click handler time to complete its query work.
+  expect(tooltipOverlay().getPosition()).toBeUndefined();
   await waitFor(() => {
     expect(mockedQueryLayerFeatures.mock.calls.length).toBeGreaterThan(
       queriedAfterHover,
     );
   });
-
-  // The overlay was NOT repositioned to undefined (which would hide it)
-  // and was NOT given a fresh setPosition with the click coordinate to
-  // anchor an empty popup. The last setPosition call should still be the
-  // hover anchor — sharedCoordinates — leaving the hover popup visible.
   await waitFor(() => {
-    expect(popSetPosition).toHaveBeenLastCalledWith(sharedCoordinates);
+    expect(tableOverlay().getPosition()).toEqual(sharedCoordinates);
   });
+  expect(
+    within(screen.getByLabelText("Map Popup Content")).getByText(
+      "No Attributes Found",
+    ),
+  ).toBeInTheDocument();
+  expect(tooltipOverlay().getPosition()).toBeUndefined();
 });
 
 test("Map click skips layers the user has hidden via the layer control", async () => {
@@ -4421,7 +4445,17 @@ describe("Map popup follows the saved attribute order", () => {
     renderMap([layer({ tablePopupType: "hover" })], {
       onMapPointerMove: true,
     });
-    expect(await popupRowLabels()).toEqual(["NAME", "STATUS", "GAUGE_ID"]);
+    // The hover tooltip, which has no header row. Like the table's overlay it
+    // is not laid out in jsdom, so it and its rows count as hidden.
+    const tooltip = await screen.findByRole("tooltip", { hidden: true });
+    await within(tooltip).findByText("Creek");
+    const labels = within(tooltip)
+      .getAllByRole("row", { hidden: true })
+      .map(
+        (row) =>
+          within(row).getAllByRole("cell", { hidden: true })[0].textContent,
+      );
+    expect(labels).toEqual(["NAME", "STATUS", "GAUGE_ID"]);
   });
 });
 
