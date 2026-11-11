@@ -6,8 +6,8 @@ import { createHighlightLayer } from "components/map/utilities";
 
 describe("resolveMapSelection", () => {
   const DEFAULTS = {
-    clickedLocation: { map: true, legend: false },
-    selectedFeature: { map: true, legend: false },
+    clickedLocation: { map: true, legend: false, layerControl: true },
+    selectedFeature: { map: true, legend: false, layerControl: true },
   };
 
   test.each([
@@ -25,17 +25,28 @@ describe("resolveMapSelection", () => {
         selectedFeature: { legend: true },
       }),
     ).toStrictEqual({
-      clickedLocation: { map: false, legend: false },
-      selectedFeature: { map: true, legend: true },
+      clickedLocation: { map: false, legend: false, layerControl: false },
+      selectedFeature: { map: true, legend: true, layerControl: true },
     });
   });
 
-  test("a legend entry is forced off while its mark is hidden from the map", () => {
+  test("a mark can be left out of the layer control", () => {
     expect(
-      resolveMapSelection({ selectedFeature: { map: false, legend: true } }),
+      resolveMapSelection({ clickedLocation: { layerControl: false } }),
     ).toStrictEqual({
       ...DEFAULTS,
-      selectedFeature: { map: false, legend: false },
+      clickedLocation: { map: true, legend: false, layerControl: false },
+    });
+  });
+
+  test("the legend entry and the layer-control row are forced off while the mark is hidden from the map", () => {
+    expect(
+      resolveMapSelection({
+        selectedFeature: { map: false, legend: true, layerControl: true },
+      }),
+    ).toStrictEqual({
+      ...DEFAULTS,
+      selectedFeature: { map: false, legend: false, layerControl: false },
     });
   });
 
@@ -47,8 +58,8 @@ describe("resolveMapSelection", () => {
     [
       "non-boolean fields",
       {
-        clickedLocation: { map: "false", legend: "true" },
-        selectedFeature: { map: 0, legend: 1 },
+        clickedLocation: { map: "false", legend: "true", layerControl: "no" },
+        selectedFeature: { map: 0, legend: 1, layerControl: 0 },
       },
     ],
   ])("ignores %s in favor of the defaults", (_, value) => {

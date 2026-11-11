@@ -19,14 +19,16 @@ export const MAP_SELECTION_LABELS = {
 
 /**
  * Resolve a map's saved `mapSelection` arg to a full setting for each mark:
- * `{ clickedLocation: { map, legend }, selectedFeature: { map, legend } }`.
+ * `{ clickedLocation: { map, legend, layerControl }, selectedFeature: {...} }`.
  *
  * The saved value holds only what differs from the defaults, which are what a
- * click drew before the setting existed -- on the map, not in the legend -- so
- * a map saved without it, or with `{}`, behaves exactly as it always has. A
- * legend entry for a mark the map does not draw would describe nothing, so
- * `legend` is off whenever `map` is. Anything malformed is ignored in favor of
- * the default rather than trusted, since the value is hand-editable JSON.
+ * click drew before the setting existed -- on the map, not in the legend,
+ * listed in the layer control -- so a map saved without it, or with `{}`,
+ * behaves exactly as it always has. A legend entry or a layer-control row for
+ * a mark the map does not draw would describe nothing, so `legend` and
+ * `layerControl` are off whenever `map` is. Anything malformed is ignored in
+ * favor of the default rather than trusted, since the value is hand-editable
+ * JSON.
  */
 export function resolveMapSelection(value) {
   const saved = value && typeof value === "object" ? value : {};
@@ -35,7 +37,14 @@ export function resolveMapSelection(value) {
       const entry =
         saved[key] && typeof saved[key] === "object" ? saved[key] : {};
       const map = typeof entry.map === "boolean" ? entry.map : true;
-      return [key, { map, legend: map && entry.legend === true }];
+      return [
+        key,
+        {
+          map,
+          legend: map && entry.legend === true,
+          layerControl: map && entry.layerControl !== false,
+        },
+      ];
     }),
   );
 }
@@ -79,6 +88,7 @@ export function mapSelectionLegendEntries(resolved) {
 const mapSelectionEntryPropType = PropTypes.shape({
   map: PropTypes.bool,
   legend: PropTypes.bool,
+  layerControl: PropTypes.bool,
 });
 
 export const mapSelectionPropType = PropTypes.shape({

@@ -1,5 +1,7 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import LayersControl from "components/map/LayersControl";
+import LayersControl, {
+  SHOW_IN_LAYER_CONTROL,
+} from "components/map/LayersControl";
 import { WebsocketContext } from "components/contexts/WebSocketContext";
 import { makeMapDiv } from "__tests__/utilities/mapDiv";
 import { createSnapLayer } from "components/map/snapping";
@@ -95,6 +97,40 @@ test("LayersControl leaves the snap preview out of the list", async () => {
   expect(await screen.findByText("Roads")).toBeInTheDocument();
   expect(screen.queryByText("Snap Preview")).not.toBeInTheDocument();
   expect(screen.queryByText("Layer 2")).not.toBeInTheDocument();
+});
+
+test("LayersControl shows a layer's title, and leaves out a layer that asks to be", async () => {
+  const layer = (props) => ({
+    get: (key) => props[key],
+    getVisible: () => true,
+    setVisible: jest.fn(),
+  });
+  const visualizationRef = {
+    current: {
+      getLayers: () => ({
+        getArray: () => [
+          layer({ name: "Roads" }),
+          layer({ name: "Marker", title: "Clicked location" }),
+          layer({
+            name: "Highlighted Layer",
+            title: "Selected feature",
+            [SHOW_IN_LAYER_CONTROL]: false,
+          }),
+        ],
+      }),
+    },
+  };
+  render(<LayersControl updater={false} visualizationRef={visualizationRef} />);
+  fireEvent.click(await screen.findByLabelText("Show Layers Control"));
+
+  expect(await screen.findByText("Roads")).toBeInTheDocument();
+  expect(screen.getByText("Clicked location")).toBeInTheDocument();
+  expect(
+    screen.getByLabelText("Clicked location Set Visible"),
+  ).toBeInTheDocument();
+  expect(screen.queryByText("Marker")).not.toBeInTheDocument();
+  expect(screen.queryByText("Selected feature")).not.toBeInTheDocument();
+  expect(screen.queryByText("Highlighted Layer")).not.toBeInTheDocument();
 });
 
 // --- Runtime dynamic_map_layer progress + error indicators ------------------

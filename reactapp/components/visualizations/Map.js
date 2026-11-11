@@ -81,6 +81,7 @@ import {
   TabContext,
 } from "components/contexts/Contexts";
 import { useMapContext } from "components/contexts/MapContext";
+import { SHOW_IN_LAYER_CONTROL } from "components/map/LayersControl";
 import { useViewGroupContext } from "components/contexts/ViewGroupContext";
 import {
   isViewGroupMember,
@@ -1463,6 +1464,12 @@ const MapVisualization = ({
       highlightLayer.current = createHighlightLayer();
       map.addLayer(highlightLayer.current);
     }
+    // Whether the layer control lists each mark is set on every click, like
+    // the rest of the setting, so a change applies from the next one.
+    highlightLayer.current?.set(
+      SHOW_IN_LAYER_CONTROL,
+      selectedFeature.layerControl,
+    );
     // With the pin hidden the marker layer carries only the tolerance rings,
     // which still show how far the click searched; with no rings either there
     // is nothing to draw, so no layer is added.
@@ -1470,6 +1477,10 @@ const MapVisualization = ({
       markerLayer.current = createMarkerLayer(coordinate, toleranceRings, {
         pin: clickedLocation.map,
       });
+      markerLayer.current.set(
+        SHOW_IN_LAYER_CONTROL,
+        clickedLocation.layerControl,
+      );
       map.addLayer(markerLayer.current);
     }
 

@@ -46,15 +46,19 @@ const SelectionTable = styled(Table)`
 `;
 
 // The saved value holds only what differs from the defaults (on the map, not
-// in the legend), so a map left at the defaults saves `{}`, the same as a map
-// saved before the setting existed.
+// in the legend, listed in the layer control), so a map left at the defaults
+// saves `{}`, the same as a map saved before the setting existed. A mark the
+// map does not draw saves only that.
 const toSavedValue = (setting) =>
   Object.fromEntries(
     MAP_SELECTION_KEYS.flatMap((key) => {
-      const entry = {
-        ...(setting[key].map ? {} : { map: false }),
-        ...(setting[key].legend ? { legend: true } : {}),
-      };
+      const { map, legend, layerControl } = setting[key];
+      const entry = map
+        ? {
+            ...(legend ? { legend: true } : {}),
+            ...(layerControl ? {} : { layerControl: false }),
+          }
+        : { map: false };
       return Object.keys(entry).length > 0 ? [[key, entry]] : [];
     }),
   );
@@ -66,8 +70,14 @@ export const MapSelection = ({ onChange, values }) => {
 
   const handleToggle = (key, field, checked) => {
     const entry = { ...setting[key], [field]: checked };
-    // A legend entry would describe a mark the map no longer draws.
-    if (field === "map" && !checked) entry.legend = false;
+    // Turning a mark off or back on resets what depends on it to the
+    // defaults: a legend entry or a layer-control row would describe a mark
+    // the map no longer draws, and a mark that comes back is listed in the
+    // layer control as it would be on a new map.
+    if (field === "map") {
+      entry.legend = false;
+      entry.layerControl = checked;
+    }
     const next = { ...setting, [key]: entry };
     setSetting(next);
     onChange(toSavedValue(next));
@@ -96,13 +106,16 @@ export const MapSelection = ({ onChange, values }) => {
                 <th scope="col" className="text-center">
                   Show in legend
                 </th>
+                <th scope="col" className="text-center">
+                  Show in layer control
+                </th>
               </tr>
             </thead>
             <tbody>
               {MAP_SELECTION_KEYS.map((key) => {
                 const label = MAP_SELECTION_LABELS[key];
-                const { map, legend } = setting[key];
-                const hintId = `${idPrefix}-${key}-legend-hint`;
+                const { map, legend, layerControl } = setting[key];
+                const hintId = `${idPrefix}-${key}-needs-map-hint`;
                 return (
                   <tr key={key}>
                     <th scope="row">{label}</th>
@@ -133,6 +146,19 @@ export const MapSelection = ({ onChange, values }) => {
                           Turn on Show on map first
                         </span>
                       )}
+                    </td>
+                    <td className="text-center">
+                      <input
+                        type="checkbox"
+                        aria-label={`${label} Show in layer control`}
+                        aria-describedby={map ? undefined : hintId}
+                        title={map ? undefined : "Turn on Show on map first"}
+                        checked={layerControl}
+                        disabled={!map}
+                        onChange={(e) =>
+                          handleToggle(key, "layerControl", e.target.checked)
+                        }
+                      />
                     </td>
                   </tr>
                 );

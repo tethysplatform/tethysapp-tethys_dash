@@ -24,6 +24,9 @@ describe("MapSelection Component", () => {
       screen.getByRole("columnheader", { name: "Show in legend" }),
     ).toBeInTheDocument();
     expect(
+      screen.getByRole("columnheader", { name: "Show in layer control" }),
+    ).toBeInTheDocument();
+    expect(
       screen.getByRole("rowheader", { name: "Clicked location" }),
     ).toBeInTheDocument();
     expect(
@@ -34,6 +37,8 @@ describe("MapSelection Component", () => {
       expect(checkbox(row, "Show on map")).toBeChecked();
       expect(checkbox(row, "Show in legend")).not.toBeChecked();
       expect(checkbox(row, "Show in legend")).toBeEnabled();
+      expect(checkbox(row, "Show in layer control")).toBeChecked();
+      expect(checkbox(row, "Show in layer control")).toBeEnabled();
     }
   });
 
@@ -86,6 +91,53 @@ describe("MapSelection Component", () => {
     fireEvent.click(checkbox("Clicked location", "Show on map"));
     expect(legendBox).toBeEnabled();
     expect(legendBox).not.toBeChecked();
+  });
+
+  test("unchecking the pin's layer-control box saves only that change", () => {
+    const handleChange = jest.fn();
+    render(<MapSelection onChange={handleChange} values={{}} />);
+    openSection();
+
+    fireEvent.click(checkbox("Clicked location", "Show in layer control"));
+
+    expect(handleChange).toHaveBeenLastCalledWith({
+      clickedLocation: { layerControl: false },
+    });
+    expect(
+      checkbox("Clicked location", "Show in layer control"),
+    ).not.toBeChecked();
+    expect(checkbox("Selected feature", "Show in layer control")).toBeChecked();
+  });
+
+  test("turning a row off the map clears and disables its layer-control box, and turning it back on lists it again", () => {
+    const handleChange = jest.fn();
+    render(
+      <MapSelection
+        onChange={handleChange}
+        values={{ selectedFeature: { layerControl: false } }}
+      />,
+    );
+    openSection();
+    const layerControlBox = checkbox(
+      "Selected feature",
+      "Show in layer control",
+    );
+    expect(layerControlBox).not.toBeChecked();
+
+    fireEvent.click(checkbox("Selected feature", "Show on map"));
+    expect(handleChange).toHaveBeenLastCalledWith({
+      selectedFeature: { map: false },
+    });
+    expect(layerControlBox).toBeDisabled();
+    expect(layerControlBox).not.toBeChecked();
+    expect(layerControlBox).toHaveAccessibleDescription(
+      "Turn on Show on map first",
+    );
+
+    fireEvent.click(checkbox("Selected feature", "Show on map"));
+    expect(layerControlBox).toBeEnabled();
+    expect(layerControlBox).toBeChecked();
+    expect(handleChange).toHaveBeenLastCalledWith({});
   });
 
   test("returning to the defaults saves an empty object", () => {

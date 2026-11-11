@@ -29,6 +29,7 @@ import {
 } from "components/map/decorationTypes";
 import {
   HIGHLIGHT_STROKE_COLOR,
+  MAP_SELECTION_LABELS,
   MARKER_PIN_COLOR,
 } from "components/map/mapSelection";
 
@@ -621,6 +622,8 @@ export function createMarkerLayer(
       features: pin ? [marker, ...extraFeatures] : extraFeatures,
     }),
     name: "Marker",
+    // What the layer control calls it; the name stays as the map's own key.
+    title: MAP_SELECTION_LABELS.clickedLocation,
     zIndex: 99,
   });
 
@@ -671,6 +674,7 @@ export function createHighlightLayer() {
     }),
     zIndex: 100,
     name: "Highlighted Layer",
+    title: MAP_SELECTION_LABELS.selectedFeature,
   });
 
   return highlightLayer;

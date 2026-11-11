@@ -45,6 +45,7 @@ import MapVisualization, {
   HOVER_TOOLTIP_OVERLAY_ID,
   Popup,
 } from "components/visualizations/Map";
+import { SHOW_IN_LAYER_CONTROL } from "components/map/LayersControl";
 import { clearClientSourceCaches } from "components/map/ModuleLoader";
 
 // The GeoParquet/Zarr read caches are module-scoped and live for the page's
@@ -4854,9 +4855,39 @@ describe("Map Selection", () => {
     expect(geometriesOf(mapLayerNamed(mapRef, "Marker"))[0]).toBeInstanceOf(
       Point,
     );
+    // Both are listed in the layer control, under the names the legend uses.
+    for (const [name, title] of [
+      ["Marker", "Clicked location"],
+      ["Highlighted Layer", "Selected feature"],
+    ]) {
+      expect(mapLayerNamed(mapRef, name).get(SHOW_IN_LAYER_CONTROL)).toBe(true);
+      expect(mapLayerNamed(mapRef, name).get("title")).toBe(title);
+    }
     // The layer has no legend, so nothing gives the map a legend control.
     expect(
       screen.queryByLabelText("Show Legend Control"),
     ).not.toBeInTheDocument();
+  });
+
+  test("marks left out of the layer control are drawn but flagged to stay out of it", async () => {
+    const mapRef = await mountSelectionMap([selectionLayer()], {
+      clickedLocation: { layerControl: false },
+      selectedFeature: { layerControl: false },
+    });
+
+    await clickAndSettle(mapRef, 1);
+
+    await waitFor(() =>
+      expect(
+        geometriesOf(mapLayerNamed(mapRef, "Highlighted Layer")),
+      ).toHaveLength(1),
+    );
+    expect(geometriesOf(mapLayerNamed(mapRef, "Marker"))).toHaveLength(1);
+    expect(mapLayerNamed(mapRef, "Marker").get(SHOW_IN_LAYER_CONTROL)).toBe(
+      false,
+    );
+    expect(
+      mapLayerNamed(mapRef, "Highlighted Layer").get(SHOW_IN_LAYER_CONTROL),
+    ).toBe(false);
   });
 });
