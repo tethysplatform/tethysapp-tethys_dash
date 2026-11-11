@@ -8,6 +8,7 @@ const EXPECTED_EXPORTS = [
   "AddMapLayer",
   "MapExtent",
   "MapDrawing",
+  "MapSelection",
   "SliderMetadata",
   "CSVUploaderMetadata",
   "DateRangeMetadata",

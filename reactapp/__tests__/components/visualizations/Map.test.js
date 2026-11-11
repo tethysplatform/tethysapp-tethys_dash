@@ -2369,7 +2369,7 @@ describe("the legend of a runtime GeoTIFF", () => {
     legend: "default",
   };
 
-  const LayerSwitcher = ({ initialLayers, nextLayers }) => {
+  const LayerSwitcher = ({ initialLayers, nextLayers, mapSelection }) => {
     const [layers, setLayers] = useState(initialLayers);
     return (
       <>
@@ -2383,6 +2383,7 @@ describe("the legend of a runtime GeoTIFF", () => {
             layers,
             baseMap: null,
             layerControl: false,
+            mapSelection,
           }}
         />
       </>
@@ -2391,9 +2392,10 @@ describe("the legend of a runtime GeoTIFF", () => {
   LayerSwitcher.propTypes = {
     initialLayers: PropTypes.array,
     nextLayers: PropTypes.array,
+    mapSelection: PropTypes.object,
   };
 
-  const renderLayers = (initialLayers, nextLayers = []) =>
+  const renderLayers = (initialLayers, nextLayers = [], mapSelection) =>
     render(
       createLoadedComponent({
         children: (
@@ -2401,6 +2403,7 @@ describe("the legend of a runtime GeoTIFF", () => {
             <LayerSwitcher
               initialLayers={initialLayers}
               nextLayers={nextLayers}
+              mapSelection={mapSelection}
             />
           </MapContextProvider>
         ),
@@ -2636,5 +2639,111 @@ describe("the legend of a runtime GeoTIFF", () => {
     expect(
       screen.getByLabelText("Color ramp from 0 to 100"),
     ).toBeInTheDocument();
+  });
+
+  it("lists the Map Selection entries after the layers, runtime slot filled in place", async () => {
+    renderLayers([runtimeRaster(), staticRaster], [], {
+      clickedLocation: { legend: true },
+      selectedFeature: { legend: true },
+    });
+    publish({
+      "runtime-1": {
+        rampName: "magma",
+        rampReverse: false,
+        rampMin: 3,
+        rampMax: 9,
+      },
+    });
+    fireEvent.click(await screen.findByLabelText("Show Legend Control"));
+    await screen.findByLabelText("Color ramp from 3 to 9");
+    await screen.findByLabelText("Color ramp from 0 to 100");
+
+    const runtimeTitle = screen.getByText("Forecast Depth");
+    const staticTitle = screen.getByText("Static Depth");
+    const pinTitle = screen.getByText("Clicked location");
+    const outlineTitle = screen.getByText("Selected feature");
+    expect(precedes(runtimeTitle, staticTitle)).toBe(true);
+    expect(precedes(staticTitle, pinTitle)).toBe(true);
+    expect(precedes(pinTitle, outlineTitle)).toBe(true);
+  });
+});
+
+describe("the Map Selection legend entries", () => {
+  const renderSelectionMap = (layers, mapSelection) =>
+    render(
+      createLoadedComponent({
+        children: (
+          <MapContextProvider>
+            <TestingComponent
+              mapProps={{
+                mapConfig: {},
+                viewConfig: {},
+                layers,
+                baseMap: null,
+                layerControl: false,
+                mapSelection,
+              }}
+            />
+          </MapContextProvider>
+        ),
+      }),
+    );
+
+  const legendlessLayer = {
+    configuration: {
+      type: "ImageLayer",
+      props: {
+        name: "NWC",
+        source: {
+          type: "ESRI Image and Map Service",
+          props: { url: "some_url" },
+        },
+      },
+    },
+  };
+
+  it("shows the legend control on a map whose layers have no legend", async () => {
+    renderSelectionMap([legendlessLayer], {
+      clickedLocation: { legend: true },
+    });
+
+    fireEvent.click(await screen.findByLabelText("Show Legend Control"));
+
+    expect(await screen.findByText("Clicked location")).toBeInTheDocument();
+    // The pin symbol in the marker's blue, not the fallback circle.
+    expect(screen.getByLabelText("#007bff-pin")).toBeInTheDocument();
+    expect(screen.queryByText("Selected feature")).not.toBeInTheDocument();
+  });
+
+  it("draws the selected feature as an outlined circle", async () => {
+    renderSelectionMap([], { selectedFeature: { legend: true } });
+
+    fireEvent.click(await screen.findByLabelText("Show Legend Control"));
+
+    expect(await screen.findByText("Selected feature")).toBeInTheDocument();
+    // jsdom's style object has no SVG stroke, so read the attribute.
+    expect(
+      screen.getByLabelText("transparent-circle").getAttribute("style"),
+    ).toContain("stroke: #00008b");
+  });
+
+  it("adds nothing for a map saved without the setting", async () => {
+    renderSelectionMap([legendlessLayer], undefined);
+
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Show Legend Control"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("adds nothing for a mark hidden from the map, whatever its legend box says", async () => {
+    renderSelectionMap([legendlessLayer], {
+      clickedLocation: { map: false, legend: true },
+    });
+
+    expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Show Legend Control"),
+    ).not.toBeInTheDocument();
   });
 });

@@ -324,6 +324,7 @@ export async function getVisualization({
       map_extent: itemData.args.map_extent,
       mapConfig: itemData.args.mapConfig,
       mapDrawing: itemData.args.mapDrawing,
+      mapSelection: itemData.args.mapSelection,
     });
 
     return;

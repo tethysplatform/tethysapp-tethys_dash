@@ -578,16 +578,28 @@ export function updateOlLayerProps(olLayer, newProps) {
   }
 }
 
+// The clicked-location pin's fill and the selected-feature outline's stroke.
+// Shared with the Map Selection legend entries, so a legend swatch always
+// matches what a click draws.
+const MARKER_PIN_COLOR = "#007bff";
+const HIGHLIGHT_STROKE_COLOR = "#00008b";
+
 // `extraFeatures` share the pin's layer, and so its lifetime: the click
-// tolerance rings (createClickToleranceFeatures).
-export function createMarkerLayer(coordinate, extraFeatures = []) {
+// tolerance rings (createClickToleranceFeatures). With `pin: false` (the Map
+// Selection setting hides the clicked location) the layer carries only those,
+// so a ring still marks how far the click searched.
+export function createMarkerLayer(
+  coordinate,
+  extraFeatures = [],
+  { pin = true } = {},
+) {
   const markPath = `
       M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9
       c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z
     `;
   const svgIcon = `
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="40" height="40">
-        <path d="${markPath}" fill="#007bff" stroke="white" stroke-width="1"/>
+        <path d="${markPath}" fill="${MARKER_PIN_COLOR}" stroke="white" stroke-width="1"/>
       </svg>
     `;
   const svgURI = "data:image/svg+xml;base64," + btoa(svgIcon);
@@ -608,7 +620,7 @@ export function createMarkerLayer(coordinate, extraFeatures = []) {
   // selection highlight (100) and the snap preview (101).
   const markerLayer = new VectorLayer({
     source: new VectorSource({
-      features: [marker, ...extraFeatures],
+      features: pin ? [marker, ...extraFeatures] : extraFeatures,
     }),
     name: "Marker",
     zIndex: 99,
@@ -647,7 +659,7 @@ export function createClickToleranceFeatures(coordinate, radii, resolution) {
 
 export function createHighlightLayer() {
   const stroke = new Stroke({
-    color: "#00008b",
+    color: HIGHLIGHT_STROKE_COLOR,
     width: 3,
   });
   const highlightLayer = new VectorLayer({
@@ -664,6 +676,64 @@ export function createHighlightLayer() {
   });
 
   return highlightLayer;
+}
+
+// The two things a click marks on the map, in the order the Map Selection
+// editor and the legend list them.
+export const MAP_SELECTION_KEYS = ["clickedLocation", "selectedFeature"];
+
+/**
+ * Resolve a map's saved `mapSelection` arg to a full setting for each mark:
+ * `{ clickedLocation: { map, legend }, selectedFeature: { map, legend } }`.
+ *
+ * The saved value holds only what differs from the defaults, which are what a
+ * click drew before the setting existed -- on the map, not in the legend -- so
+ * a map saved without it, or with `{}`, behaves exactly as it always has. A
+ * legend entry for a mark the map does not draw would describe nothing, so
+ * `legend` is off whenever `map` is. Anything malformed is ignored in favor of
+ * the default rather than trusted, since the value is hand-editable JSON.
+ */
+export function resolveMapSelection(value) {
+  const saved = value && typeof value === "object" ? value : {};
+  return Object.fromEntries(
+    MAP_SELECTION_KEYS.map((key) => {
+      const entry =
+        saved[key] && typeof saved[key] === "object" ? saved[key] : {};
+      const map = typeof entry.map === "boolean" ? entry.map : true;
+      return [key, { map, legend: map && entry.legend === true }];
+    }),
+  );
+}
+
+// Single-item entries, which the legend draws as the symbol beside the title,
+// the same as a layer with one symbol.
+const MAP_SELECTION_LEGEND_ENTRIES = {
+  clickedLocation: {
+    title: "Clicked location",
+    items: [
+      { label: "Clicked location", symbol: "pin", color: MARKER_PIN_COLOR },
+    ],
+  },
+  selectedFeature: {
+    title: "Selected feature",
+    items: [
+      {
+        label: "Selected feature",
+        symbol: "circle",
+        color: "transparent",
+        stroke: HIGHLIGHT_STROKE_COLOR,
+      },
+    ],
+  },
+};
+
+// The legend entries a resolved Map Selection setting asks for. They describe
+// what a click would draw, so they are listed whether or not anything has been
+// clicked yet.
+export function mapSelectionLegendEntries(resolved) {
+  return MAP_SELECTION_KEYS.filter((key) => resolved?.[key]?.legend).map(
+    (key) => MAP_SELECTION_LEGEND_ENTRIES[key],
+  );
 }
 
 /**
@@ -2255,4 +2325,15 @@ export const layerInfoPropType = PropTypes.shape({
 export const mapDrawingPropType = PropTypes.shape({
   options: PropTypes.arrayOf(PropTypes.string),
   limit: PropTypes.number,
+});
+
+// Only what differs from the defaults is saved; see resolveMapSelection.
+const mapSelectionEntryPropType = PropTypes.shape({
+  map: PropTypes.bool,
+  legend: PropTypes.bool,
+});
+
+export const mapSelectionPropType = PropTypes.shape({
+  clickedLocation: mapSelectionEntryPropType,
+  selectedFeature: mapSelectionEntryPropType,
 });

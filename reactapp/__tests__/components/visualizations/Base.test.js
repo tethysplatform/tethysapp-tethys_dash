@@ -361,6 +361,40 @@ it("Creates an Base Item with a Map", async () => {
   ).toBeInTheDocument();
 });
 
+it("Passes a Map's saved Map Selection setting through to the map", async () => {
+  jest.spyOn(Map.prototype, "renderSync").mockImplementation(() => {});
+  const argsString = JSON.stringify({
+    ...JSON.parse(mockedMapBase.args_string),
+    mapSelection: { selectedFeature: { legend: true } },
+  });
+
+  render(
+    createLoadedComponent({
+      children: (
+        <div>
+          <GridItemContext.Provider
+            value={{
+              gridItemSource: mockedMapBase.source,
+              gridItemArgsString: argsString,
+              gridItemMetadataString: mockedMapBase.metadata_string,
+              gridItemUUID: "12345678",
+              shouldLoad: true,
+            }}
+          >
+            <BaseVisualization />
+          </GridItemContext.Provider>
+        </div>
+      ),
+    }),
+  );
+
+  fireEvent.click(await screen.findByLabelText("Show Legend Control"));
+  // The layer's own entry, then the setting's.
+  expect(await screen.findByText("Some Title")).toBeInTheDocument();
+  expect(await screen.findByText("Selected feature")).toBeInTheDocument();
+  expect(screen.queryByText("Clicked location")).not.toBeInTheDocument();
+});
+
 it("Creates an Base Item with a Live Chat", async () => {
   const date = Date.now();
   server.use(

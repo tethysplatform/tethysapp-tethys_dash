@@ -11,7 +11,7 @@ export function getInitialInputValue(value) {
     inputValue = true;
   } else if (value === "multiinput" || value === "custom-AddMapLayer") {
     inputValue = [];
-  } else if (value === "custom-MapDrawing") {
+  } else if (value === "custom-MapDrawing" || value === "custom-MapSelection") {
     inputValue = {};
   } else {
     inputValue = null;

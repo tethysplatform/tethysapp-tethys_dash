@@ -12,6 +12,7 @@ import {
 import { useContext, useEffect, useRef, useState } from "react";
 import PropTypes from "prop-types";
 import {
+  act,
   render,
   screen,
   waitFor,
@@ -27,7 +28,7 @@ import { Map } from "ol";
 import ImageArcGISRest from "ol/source/ImageArcGISRest.js";
 import VariableInput from "components/visualizations/VariableInput";
 import { Vector as VectorSource } from "ol/source.js";
-import { Circle as CircleGeometry } from "ol/geom";
+import { Circle as CircleGeometry, Point } from "ol/geom";
 import Overlay from "ol/Overlay";
 import { Swiper } from "swiper";
 import {
@@ -4605,4 +4606,247 @@ test("Map click draws no tolerance ring when a layer zooms in instead of queryin
   expect(ringsOf(marker)).toStrictEqual([]);
   // The pin is still drawn.
   expect(marker.getSource().getFeatures()).toHaveLength(1);
+});
+
+// --- Map Selection ---------------------------------------------------------
+//
+// The test fires each click itself, on the map handed back through `mapRef`,
+// so it can look at the map before any click and between two of them. The
+// "Change Selection" button swaps in a new setting while the layers stay the
+// same array: MapComponent binds the click handler only when the layers
+// change, so this is the edit a stale handler would miss.
+
+const SelectionHarness = ({
+  layers,
+  mapRef,
+  initialSelection,
+  nextSelection,
+}) => {
+  const { mapReady } = useMapContext();
+  const [mapSelection, setMapSelection] = useState(initialSelection);
+  return (
+    <div>
+      <MapVisualization
+        visualizationRef={mapRef}
+        mapConfig={{}}
+        layers={layers}
+        baseMap={null}
+        layerControl={false}
+        mapSelection={mapSelection}
+      />
+      <p>{mapReady ? "Map Ready" : "Map Not Ready"}</p>
+      <button type="button" onClick={() => setMapSelection(nextSelection)}>
+        Change Selection
+      </button>
+    </div>
+  );
+};
+
+SelectionHarness.propTypes = {
+  layers: PropTypes.array,
+  mapRef: PropTypes.shape({ current: PropTypes.any }),
+  initialSelection: PropTypes.object,
+  nextSelection: PropTypes.object,
+};
+
+const mountSelectionMap = async (
+  layers,
+  initialSelection,
+  nextSelection = {},
+) => {
+  const mapRef = { current: null };
+  render(
+    createLoadedComponent({
+      children: (
+        <MapContextProvider>
+          <SelectionHarness
+            layers={layers}
+            mapRef={mapRef}
+            initialSelection={initialSelection}
+            nextSelection={nextSelection}
+          />
+        </MapContextProvider>
+      ),
+    }),
+  );
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  return mapRef;
+};
+
+const selectionLayer = (props = {}) => ({
+  configuration: {
+    type: "ImageLayer",
+    props: {
+      name: "Sites",
+      source: {
+        type: "ESRI Image and Map Service",
+        props: { url: "sites_url" },
+      },
+      ...props,
+    },
+  },
+});
+
+const site = {
+  attributes: { station_name: "Station 7" },
+  geometry: { x: 0, y: 0 },
+  layerName: "Sites",
+};
+
+// Clicks, then waits for the click to finish: its query has gone out and the
+// table shows what it found. The marker and highlight layers are settled by
+// then, since a click swaps them before it queries.
+const clickAndSettle = async (mapRef, queryCount) => {
+  await act(async () => {
+    mapRef.current.dispatchEvent({ type: "singleclick", coordinate: [10, 20] });
+  });
+  await waitFor(() =>
+    expect(mockedQueryLayerFeatures).toHaveBeenCalledTimes(queryCount),
+  );
+  expect(await screen.findByText("Station 7")).toBeInTheDocument();
+};
+
+const mapLayerNamed = (mapRef, name) =>
+  mapRef.current
+    .getLayers()
+    .getArray()
+    .find((layer) => layer.get("name") === name);
+
+const geometriesOf = (layer) =>
+  layer
+    .getSource()
+    .getFeatures()
+    .map((feature) => feature.getGeometry());
+
+describe("Map Selection", () => {
+  beforeEach(() => {
+    mockedQueryLayerFeatures.mockResolvedValue([site]);
+    jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+  });
+
+  test("a hidden pin leaves the tolerance ring, and the outline is drawn and listed", async () => {
+    // Covers AE3.
+    const mapRef = await mountSelectionMap(
+      [selectionLayer({ showClickTolerance: true })],
+      { clickedLocation: { map: false }, selectedFeature: { legend: true } },
+    );
+
+    // Before any click, the legend already lists the outline (and only it).
+    fireEvent.click(await screen.findByLabelText("Show Legend Control"));
+    expect(await screen.findByText("Selected feature")).toBeInTheDocument();
+    expect(screen.queryByText("Clicked location")).not.toBeInTheDocument();
+    expect(mapLayerNamed(mapRef, "Marker")).toBeUndefined();
+
+    await clickAndSettle(mapRef, 1);
+
+    await waitFor(() =>
+      expect(
+        geometriesOf(mapLayerNamed(mapRef, "Highlighted Layer")),
+      ).toHaveLength(1),
+    );
+    const markerGeometries = geometriesOf(mapLayerNamed(mapRef, "Marker"));
+    expect(markerGeometries).toHaveLength(1);
+    expect(markerGeometries[0]).toBeInstanceOf(CircleGeometry);
+    expect(markerGeometries.some((geometry) => geometry instanceof Point)).toBe(
+      false,
+    );
+  });
+
+  test("a hidden pin with no tolerance ring adds no marker layer", async () => {
+    const mapRef = await mountSelectionMap([selectionLayer()], {
+      clickedLocation: { map: false },
+    });
+
+    await clickAndSettle(mapRef, 1);
+
+    await waitFor(() =>
+      expect(
+        geometriesOf(mapLayerNamed(mapRef, "Highlighted Layer")),
+      ).toHaveLength(1),
+    );
+    expect(mapLayerNamed(mapRef, "Marker")).toBeUndefined();
+  });
+
+  test("a hidden outline creates no highlight layer, and the pin still draws", async () => {
+    const mapRef = await mountSelectionMap([selectionLayer()], {
+      selectedFeature: { map: false },
+    });
+
+    await clickAndSettle(mapRef, 1);
+
+    const markerGeometries = geometriesOf(mapLayerNamed(mapRef, "Marker"));
+    expect(markerGeometries).toHaveLength(1);
+    expect(markerGeometries[0]).toBeInstanceOf(Point);
+    expect(mapLayerNamed(mapRef, "Highlighted Layer")).toBeUndefined();
+  });
+
+  test("hiding the outline after a click takes the old outline down on the next click", async () => {
+    const mapRef = await mountSelectionMap(
+      [selectionLayer()],
+      {},
+      {
+        selectedFeature: { map: false },
+      },
+    );
+
+    await clickAndSettle(mapRef, 1);
+    await waitFor(() =>
+      expect(
+        geometriesOf(mapLayerNamed(mapRef, "Highlighted Layer")),
+      ).toHaveLength(1),
+    );
+
+    // Only the setting changes; the layers are the same array.
+    fireEvent.click(screen.getByText("Change Selection"));
+    // Nothing is retroactive: the outline stays until the next click.
+    expect(mapLayerNamed(mapRef, "Highlighted Layer")).toBeDefined();
+
+    await clickAndSettle(mapRef, 2);
+
+    expect(mapLayerNamed(mapRef, "Highlighted Layer")).toBeUndefined();
+    expect(geometriesOf(mapLayerNamed(mapRef, "Marker"))[0]).toBeInstanceOf(
+      Point,
+    );
+  });
+
+  test("hiding the pin after a click applies from the next click", async () => {
+    const mapRef = await mountSelectionMap(
+      [selectionLayer()],
+      {},
+      {
+        clickedLocation: { map: false },
+      },
+    );
+
+    await clickAndSettle(mapRef, 1);
+    expect(geometriesOf(mapLayerNamed(mapRef, "Marker"))[0]).toBeInstanceOf(
+      Point,
+    );
+
+    fireEvent.click(screen.getByText("Change Selection"));
+    expect(mapLayerNamed(mapRef, "Marker")).toBeDefined();
+
+    await clickAndSettle(mapRef, 2);
+
+    expect(mapLayerNamed(mapRef, "Marker")).toBeUndefined();
+  });
+
+  test("a map saved without the setting draws the pin and outline as before and lists neither", async () => {
+    const mapRef = await mountSelectionMap([selectionLayer()], undefined);
+
+    await clickAndSettle(mapRef, 1);
+
+    await waitFor(() =>
+      expect(
+        geometriesOf(mapLayerNamed(mapRef, "Highlighted Layer")),
+      ).toHaveLength(1),
+    );
+    expect(geometriesOf(mapLayerNamed(mapRef, "Marker"))[0]).toBeInstanceOf(
+      Point,
+    );
+    // The layer has no legend, so nothing gives the map a legend control.
+    expect(
+      screen.queryByLabelText("Show Legend Control"),
+    ).not.toBeInTheDocument();
+  });
 });

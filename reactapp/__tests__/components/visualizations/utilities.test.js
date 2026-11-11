@@ -734,6 +734,7 @@ describe("getVisualization source=Map (popupConfig restoration, lines 126-130)",
           map_extent: [0, 0, 1, 1],
           mapConfig: {},
           mapDrawing: null,
+          mapSelection: null,
         },
       },
       argsString: JSON.stringify({
@@ -764,6 +765,7 @@ describe("getVisualization source=Map (popupConfig restoration, lines 126-130)",
           map_extent: null,
           mapConfig: null,
           mapDrawing: null,
+          mapSelection: null,
         },
       },
       // argsString has a layer but no popupConfig on it
@@ -791,6 +793,7 @@ describe("getVisualization source=Map (popupConfig restoration, lines 126-130)",
           map_extent: null,
           mapConfig: null,
           mapDrawing: null,
+          mapSelection: null,
         },
       },
       argsString: JSON.stringify({}), // no "layers" key at all
@@ -799,6 +802,41 @@ describe("getVisualization source=Map (popupConfig restoration, lines 126-130)",
     const { layers } = mockSetVizData.mock.calls[0][0];
     // layer returned as-is because there was no raw entry to restore from
     expect(layers[0]).toEqual(layer);
+  });
+
+  test("carries the map-level args the Map visualization reads", async () => {
+    const mockSetVizData = jest.fn();
+    const mapDrawing = { options: ["Point"], limit: 1 };
+    const mapSelection = {
+      clickedLocation: { map: false },
+      selectedFeature: { legend: true },
+    };
+    await baseCall({
+      setVizData: mockSetVizData,
+      itemData: {
+        source: "Map",
+        args: {
+          layers: [],
+          baseMap: "base",
+          layerControl: true,
+          map_extent: { extent: "0,0,1" },
+          mapConfig: {},
+          mapDrawing,
+          mapSelection,
+        },
+      },
+      argsString: JSON.stringify({ layers: [] }),
+    });
+
+    expect(mockSetVizData.mock.calls[0][0]).toStrictEqual({
+      baseMap: "base",
+      layers: [],
+      layerControl: true,
+      map_extent: { extent: "0,0,1" },
+      mapConfig: {},
+      mapDrawing,
+      mapSelection,
+    });
   });
 
   test("produces empty layers when itemData.args.layers is undefined (line 128 ?? branch)", async () => {
@@ -814,6 +852,7 @@ describe("getVisualization source=Map (popupConfig restoration, lines 126-130)",
           map_extent: null,
           mapConfig: {},
           mapDrawing: null,
+          mapSelection: null,
         },
       },
       argsString: JSON.stringify({

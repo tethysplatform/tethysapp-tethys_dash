@@ -198,6 +198,7 @@ export const Visualization = memo(
             mapExtent={vizData.map_extent}
             mapConfig={vizData.mapConfig}
             mapDrawing={vizData.mapDrawing}
+            mapSelection={vizData.mapSelection}
             dataviewerViz={dataviewerViz}
             refreshCount={refreshCount}
           />

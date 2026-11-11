@@ -40,6 +40,8 @@ import {
   hoverFieldFilter,
   buildAttributeRows,
   hoverAttributeRows,
+  resolveMapSelection,
+  mapSelectionLegendEntries,
 } from "components/map/utilities";
 import {
   classifyGeometryForRanking,
@@ -225,6 +227,29 @@ test("createMarkerLayer draws just below the highlight, above the data layers", 
   );
 });
 
+test("createMarkerLayer without the pin carries only the extra features", () => {
+  const rings = createClickToleranceFeatures([0, 0], [10], 1);
+  const markerLayer = createMarkerLayer([0, 0], rings, { pin: false });
+
+  expect(markerLayer.get("name")).toBe("Marker");
+  expect(markerLayer.getSource().getFeatures()).toStrictEqual(rings);
+  expect(
+    markerLayer
+      .getSource()
+      .getFeatures()
+      .some((feature) => feature.getGeometry() instanceof Point),
+  ).toBe(false);
+});
+
+test("createMarkerLayer keeps the pin beside the extra features by default", () => {
+  const rings = createClickToleranceFeatures([0, 0], [10], 1);
+  const features = createMarkerLayer([0, 0], rings).getSource().getFeatures();
+
+  expect(features).toHaveLength(2);
+  expect(features[0].getGeometry() instanceof Point).toBe(true);
+  expect(features[1]).toBe(rings[0]);
+});
+
 test("createClickToleranceFeatures sizes each ring on the ground at the click's resolution", () => {
   const rings = createClickToleranceFeatures([100, 200], [10, 25], 2);
 
@@ -247,6 +272,105 @@ test("createClickToleranceFeatures draws one ring per distinct radius and none f
   ]);
   expect(createClickToleranceFeatures([0, 0], [0], 1)).toStrictEqual([]);
   expect(createClickToleranceFeatures([0, 0], [], 1)).toStrictEqual([]);
+});
+
+describe("resolveMapSelection", () => {
+  const DEFAULTS = {
+    clickedLocation: { map: true, legend: false },
+    selectedFeature: { map: true, legend: false },
+  };
+
+  test.each([
+    ["undefined", undefined],
+    ["null", null],
+    ["an empty object", {}],
+  ])("%s resolves to today's behavior", (_, value) => {
+    expect(resolveMapSelection(value)).toStrictEqual(DEFAULTS);
+  });
+
+  test("a partial value overrides only what it names", () => {
+    expect(
+      resolveMapSelection({
+        clickedLocation: { map: false },
+        selectedFeature: { legend: true },
+      }),
+    ).toStrictEqual({
+      clickedLocation: { map: false, legend: false },
+      selectedFeature: { map: true, legend: true },
+    });
+  });
+
+  test("a legend entry is forced off while its mark is hidden from the map", () => {
+    expect(
+      resolveMapSelection({ selectedFeature: { map: false, legend: true } }),
+    ).toStrictEqual({
+      ...DEFAULTS,
+      selectedFeature: { map: false, legend: false },
+    });
+  });
+
+  test.each([
+    ["a string", "hide"],
+    ["a number", 1],
+    ["an array", [{ map: false }]],
+    ["a non-object entry", { clickedLocation: false, selectedFeature: "x" }],
+    [
+      "non-boolean fields",
+      {
+        clickedLocation: { map: "false", legend: "true" },
+        selectedFeature: { map: 0, legend: 1 },
+      },
+    ],
+  ])("ignores %s in favor of the defaults", (_, value) => {
+    expect(resolveMapSelection(value)).toStrictEqual(DEFAULTS);
+  });
+});
+
+describe("mapSelectionLegendEntries", () => {
+  test("lists nothing at the defaults", () => {
+    expect(mapSelectionLegendEntries(resolveMapSelection({}))).toStrictEqual(
+      [],
+    );
+  });
+
+  test("lists the clicked location before the selected feature, each as a single-item entry in the drawn colors", () => {
+    const entries = mapSelectionLegendEntries(
+      resolveMapSelection({
+        selectedFeature: { legend: true },
+        clickedLocation: { legend: true },
+      }),
+    );
+
+    expect(entries).toStrictEqual([
+      {
+        title: "Clicked location",
+        items: [{ label: "Clicked location", symbol: "pin", color: "#007bff" }],
+      },
+      {
+        title: "Selected feature",
+        items: [
+          {
+            label: "Selected feature",
+            symbol: "circle",
+            color: "transparent",
+            stroke: "#00008b",
+          },
+        ],
+      },
+    ]);
+    // The same colors the click draws with.
+    expect(createHighlightLayer().getStyle().getStroke().getColor()).toBe(
+      entries[1].items[0].stroke,
+    );
+  });
+
+  test("lists only the rows whose legend box is on", () => {
+    expect(
+      mapSelectionLegendEntries(
+        resolveMapSelection({ selectedFeature: { legend: true } }),
+      ).map((entry) => entry.title),
+    ).toStrictEqual(["Selected feature"]);
+  });
 });
 
 const toleranceLayer = (sourceType, clickTolerance) => ({

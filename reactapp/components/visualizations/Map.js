@@ -28,6 +28,9 @@ import {
   zoomsInsteadOfQuerying,
   configurationPropType,
   mapDrawingPropType,
+  mapSelectionPropType,
+  resolveMapSelection,
+  mapSelectionLegendEntries,
   loadLayerJSONs,
   hasLegend,
   resolveTablePopupType,
@@ -327,6 +330,7 @@ const MapVisualization = ({
   mapConfig,
   mapExtent,
   mapDrawing,
+  mapSelection,
   layers,
   visualizationRef,
   baseMap,
@@ -355,6 +359,17 @@ const MapVisualization = ({
   const [activeFeatureIndex, setActiveFeatureIndex] = useState(0);
   const markerLayer = useRef();
   const highlightLayer = useRef();
+  // Whether a click draws the pin and the outline, and whether the legend
+  // lists them. onMapClick reads the setting through the ref: MapComponent
+  // binds the click handler only when the layers change, so an edit that
+  // changes only this setting would otherwise leave the bound handler reading
+  // the value from before it.
+  const resolvedMapSelection = useMemo(
+    () => resolveMapSelection(mapSelection),
+    [mapSelection],
+  );
+  const mapSelectionRef = useRef(resolvedMapSelection);
+  mapSelectionRef.current = resolvedMapSelection;
   const currentLayers = useRef([]);
   const currentBaseMap = useRef();
   const currentRefreshCount = useRef(refreshCount);
@@ -1173,13 +1188,14 @@ const MapVisualization = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layers, baseMap, refreshCount]);
 
-  // The legend the map shows: the one built from the saved configs, with each
-  // runtime raster's slot filled from the ramp its last successful fetch drew.
+  // The layers' part of the legend the map shows: the one built from the saved
+  // configs, with each runtime raster's slot filled from the ramp its last
+  // successful fetch drew.
   // A slot with no fetch yet (or a fetch that drew no colorbar) is dropped, so
   // the raster shows nothing rather than its saved scaffold ramp, which may not
   // be what is on screen. Only "default" legends hold a slot; an author's own
   // legend went through untouched above.
-  const displayedMapLegend = useMemo(() => {
+  const layersLegend = useMemo(() => {
     if (!mapLegend?.some((entry) => entry?.[RUNTIME_RASTER_LEGEND_SLOT])) {
       return mapLegend;
     }
@@ -1198,6 +1214,15 @@ const MapVisualization = ({
       return colorbar ? [colorbar] : [];
     });
   }, [mapLegend, rasterLegendByLayerId]);
+
+  // Then the Map Selection entries the author asked for, after every layer's.
+  // They describe what a click draws, so they are listed before anything has
+  // been clicked, and on a map whose layers have no legend at all.
+  const displayedMapLegend = useMemo(() => {
+    const selectionEntries = mapSelectionLegendEntries(resolvedMapSelection);
+    if (selectionEntries.length === 0) return layersLegend;
+    return [...(layersLegend ?? []), ...selectionEntries];
+  }, [layersLegend, resolvedMapSelection]);
 
   // Swiping the table popup just moves the shared index; the active-feature
   // effects do the rest (highlight, anchor, variable inputs, and opening or
@@ -1390,25 +1415,42 @@ const MapVisualization = ({
                 );
             return clickQueryTolerance(layer, missedSnap?.snapPx);
           });
-    const newMarkerLayer = createMarkerLayer(
-      coordinate,
-      createClickToleranceFeatures(
-        evt.coordinate,
-        toleranceRadii,
-        map.getView().getResolution(),
-      ),
+    const toleranceRings = createClickToleranceFeatures(
+      evt.coordinate,
+      toleranceRadii,
+      map.getView().getResolution(),
     );
+    // The Map Selection setting as it is now, not as it was when MapComponent
+    // bound this handler (see mapSelectionRef). A change applies from the next
+    // click; what an earlier click drew stays until then.
+    const { clickedLocation, selectedFeature } = mapSelectionRef.current;
     if (markerLayer.current) {
       map.removeLayer(markerLayer.current);
+      markerLayer.current = null;
     }
-    if (highlightLayer.current) {
+    if (!selectedFeature.map) {
+      // A hidden outline is never created. One left from a click made before
+      // it was hidden comes down now: the active-feature effect outlines each
+      // new selection in whatever highlight layer exists.
+      if (highlightLayer.current) {
+        map.removeLayer(highlightLayer.current);
+        highlightLayer.current = null;
+      }
+    } else if (highlightLayer.current) {
       highlightLayer.current.getSource().clear();
     } else {
       highlightLayer.current = createHighlightLayer();
       map.addLayer(highlightLayer.current);
     }
-    markerLayer.current = newMarkerLayer;
-    map.addLayer(newMarkerLayer);
+    // With the pin hidden the marker layer carries only the tolerance rings,
+    // which still show how far the click searched; with no rings either there
+    // is nothing to draw, so no layer is added.
+    if (clickedLocation.map || toleranceRings.length > 0) {
+      markerLayer.current = createMarkerLayer(coordinate, toleranceRings, {
+        pin: clickedLocation.map,
+      });
+      map.addLayer(markerLayer.current);
+    }
 
     // merge every queryable layer's attribute maps into one per kind, keyed by
     // layer name, for the popup and the variable write-back to read
@@ -2002,6 +2044,9 @@ MapVisualization.propTypes = {
   layerControl: PropTypes.bool, // deterimines if a layer control menu should be present
   dataviewerViz: PropTypes.bool, // determines if the map is in the dataviewer so that it doesnt affect the main map
   mapDrawing: mapDrawingPropType, // contains draw interaction metadata like options and limits
+  // Whether a click's pin and outline are drawn and listed in the legend; only
+  // what differs from the defaults is saved (see resolveMapSelection).
+  mapSelection: mapSelectionPropType,
   refreshCount: PropTypes.number,
 };
 
