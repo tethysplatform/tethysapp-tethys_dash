@@ -9,9 +9,13 @@ import {
   resolveMapSelection,
 } from "components/map/mapSelection";
 
+// The table cannot get narrower than its longest words, which on a small
+// screen is wider than the editor column; it then scrolls inside the section
+// rather than spilling past its border.
 const Container = styled.div`
   margin-left: 1.5rem;
   padding: 0.5rem 0;
+  overflow-x: auto;
 `;
 
 // A button rather than MapDrawing's clickable div, so the section can be
@@ -97,26 +101,17 @@ export const MapSelection = ({ onChange, values }) => {
       {isOpen && (
         <Container>
           <SelectionTable size="sm" borderless>
-            {/* One "Show" heading over short column names rather than
-                repeating it in each; every checkbox still carries the full
-                phrase ("Clicked location Show on map") as its name. */}
             <thead>
               <tr>
                 <td />
-                <th scope="colgroup" colSpan={3} className="text-center">
-                  Show
-                </th>
-              </tr>
-              <tr>
-                <td />
                 <th scope="col" className="text-center">
-                  Map
+                  Show on map
                 </th>
                 <th scope="col" className="text-center">
-                  Legend
+                  Show in legend
                 </th>
                 <th scope="col" className="text-center">
-                  Layer control
+                  Show in layer control
                 </th>
               </tr>
             </thead>

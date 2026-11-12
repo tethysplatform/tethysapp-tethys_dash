@@ -47,10 +47,24 @@ const InputRow = styled.div`
 
 const InlineFieldRow = styled.div`
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.4rem;
   margin-bottom: 1rem;
   padding-right: 1rem;
+
+  /* The label may shrink below its input's default width, so the row fits a
+     narrow editor column instead of running past the section's border. */
+  & > label {
+    min-width: 0;
+  }
+`;
+
+// A text input that fits whatever width it is given: the browser's default
+// width alone is wider than the editor column on a small screen.
+const FittingInput = styled.input`
+  max-width: 100%;
+  box-sizing: border-box;
 `;
 
 const InputLabel = styled.label`
@@ -84,10 +98,13 @@ const ArrowIcon = styled.span`
   user-select: none;
 `;
 
+// Anything that still cannot fit a narrow column scrolls inside the section
+// rather than spilling past its border.
 const CollapsibleContent = styled.div`
   padding-left: 0.5rem;
   margin-bottom: 1rem;
   margin-left: 1.5rem;
+  overflow-x: auto;
 `;
 
 // The saved value tolerates every historical shape: a bare extent string, an
@@ -408,7 +425,7 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
                 </InfoTip>
                 <label>
                   <b>View Group:</b>{" "}
-                  <input
+                  <FittingInput
                     type="text"
                     value={viewGroupDraft}
                     onChange={(e) => setViewGroupDraft(e.target.value)}
@@ -442,7 +459,7 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
                 </InfoTip>
                 <label>
                   <b>Linked Extent Group:</b>{" "}
-                  <input
+                  <FittingInput
                     type="text"
                     value={linkedExtentGroupDraft}
                     onChange={(e) => setLinkedExtentGroupDraft(e.target.value)}
@@ -455,7 +472,7 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
           )}
           <label>
             <b>Extent Variable Name:</b>{" "}
-            <input
+            <FittingInput
               type="text"
               value={extentVariable}
               onChange={handleVariableChange}
